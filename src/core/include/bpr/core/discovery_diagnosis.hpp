@@ -42,6 +42,34 @@ namespace bpr::core {
 		cancelled,
 	};
 
+	/// [[BPR-1770]]. Why a bounded discovery answer is partial. Multiple
+	/// independent bounds are reported explicitly instead of losing one.
+	enum class discovery_completeness_reason : std::uint8_t {
+		none,
+		complete,
+		search_incomplete,
+		search_limit,
+		candidate_limit,
+		roster_limit,
+		summary_limit,
+		multiple_limits,
+	};
+
+	/// Counts apply to a search answer. Reuse is this refresh's complete
+	/// retained rows; direct/rejected count newly validated candidates only.
+	/// Recovery counts rosters needing continuation or REST limit recovery.
+	struct discovery_work
+	{
+		std::uint32_t                 SearchCandidates                         = 0U;
+		std::uint32_t                 RetainedReuse                            = 0U;
+		std::uint32_t                 DirectMatches                            = 0U;
+		std::uint32_t                 Rejected                                 = 0U;
+		std::uint32_t                 RosterRecoveries                         = 0U;
+		discovery_completeness_reason Completeness                             = discovery_completeness_reason::none;
+		auto                          operator<=>(const discovery_work&) const = default;
+	};
+	[[nodiscard]] auto name(discovery_completeness_reason aReason) noexcept -> std::string_view;
+
 	/// \brief [[BPR-1680]]. One Home discovery diagnostic line: enums,
 	/// ordinals and counts only.
 	///
@@ -96,6 +124,8 @@ namespace bpr::core {
 		std::uint32_t              Timeouts               = 0U;
 		std::uint32_t              BackoffSeconds         = 0U;
 
+		discovery_work Work;
+
 		auto operator<=>(const discovery_diagnosis&) const = default;
 	};
 
@@ -114,7 +144,8 @@ namespace bpr::core {
 	/// `discovery=SCOPE refresh=N read=N reason=REASON state=STATE
 	/// repositories=N pull_requests=N reads=N failed=N requests=N wait_ms=N
 	/// run_ms=N credential_ms=N wire_ms=N decision_ms=N http_403=N http_429=N
-	/// http_5xx=N timeouts=N backoff_s=N`. Empty when the line is not valid.
+	/// http_5xx=N timeouts=N backoff_s=N candidates=N reused=N direct=N
+	/// rejected=N roster_recoveries=N completeness=REASON`. Empty when the line is not valid.
 	[[nodiscard]] auto describe(const discovery_diagnosis& aDiagnosis) -> std::string;
 
 	/// \brief Reads exactly what `describe` writes; anything else is none.

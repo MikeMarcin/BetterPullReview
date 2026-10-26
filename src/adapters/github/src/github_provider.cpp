@@ -64,7 +64,6 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::get_merge_base;
 			case read_operation::get_merge_assessment:
 			case read_operation::resolve_body_images:
-			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
 			case read_operation::get_branch_protection:
 				return application::diagnostic_paged_operation::none;
@@ -72,6 +71,8 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::search_pull_requests;
 			case read_operation::list_requested_reviewers:
 				return application::diagnostic_paged_operation::list_requested_reviewers;
+			case read_operation::list_review_requests:        return application::diagnostic_paged_operation::list_review_requests;
+			case read_operation::list_home_review_membership: return application::diagnostic_paged_operation::list_home_review_membership;
 			case read_operation::list_home_pull_requests:
 				return application::diagnostic_paged_operation::list_home_pull_requests;
 			case read_operation::get_team_membership:
@@ -3043,11 +3044,13 @@ namespace bpr::adapters::github::detail {
 				const auto started    = std::chrono::steady_clock::now();
 				auto       counted    = std::optional<counting_wire_transport>{ };
 				auto       credential = std::uint32_t{ 0U };
+				auto       work       = core::discovery_work{ };
 				const auto cost       = [&] {
 					auto result = application::personal_discovery_cost{
 						.WaitMilliseconds       = milliseconds_between(submitted, started),
 						.RunMilliseconds        = milliseconds_between(started, std::chrono::steady_clock::now()),
 						.CredentialMilliseconds = credential,
+						.Work                   = work,
 					};
 					if (counted) {
 						counted->add_to(result);
@@ -3088,7 +3091,7 @@ namespace bpr::adapters::github::detail {
 					}();
 					auto result = job->Stop.stop_requested()
 						? github_personal_discovery_read_result{ std::unexpected{ github_paged_read_failure{ github_paged_read_cancelled{ } } } }
-						: perform_personal_discovery_read(*counted, *profile, aRequest, job->Stop.get_token(), { }, batched);
+						: perform_personal_discovery_read(*counted, *profile, aRequest, job->Stop.get_token(), { }, batched, &work);
 					if (result && result->BatchUnsupported) {
 						std::scoped_lock lock{ state->Mutex };
 						state->HomeBatchUnsupported.insert(profileId);

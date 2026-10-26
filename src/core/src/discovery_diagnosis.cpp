@@ -11,6 +11,7 @@ namespace bpr::core {
 	namespace {
 		constexpr std::array<std::string_view, 2> scope_names{ "refresh", "read" };
 		constexpr std::array<std::string_view, 4> reason_names{ "none", "retained", "authored", "requested" };
+		constexpr std::array<std::string_view, 8> completeness_names{ "none", "complete", "search_incomplete", "search_limit", "candidate_limit", "roster_limit", "summary_limit", "multiple_limits" };
 		constexpr std::array<std::string_view, 6> state_names{ "none", "current", "partial", "stale", "stopped", "cancelled" };
 
 		template <typename TEnum, std::size_t N>
@@ -104,9 +105,14 @@ namespace bpr::core {
 		return named(state_names, aState);
 	}
 
+	auto name(const discovery_completeness_reason aReason) noexcept -> std::string_view
+	{
+		return named(completeness_names, aReason);
+	}
+
 	auto valid(const discovery_diagnosis& aDiagnosis) noexcept -> bool
 	{
-		if (name(aDiagnosis.Scope).empty() || name(aDiagnosis.Reason).empty() || name(aDiagnosis.State).empty() || aDiagnosis.Refresh == 0U
+		if (name(aDiagnosis.Work.Completeness).empty() || name(aDiagnosis.Scope).empty() || name(aDiagnosis.Reason).empty() || name(aDiagnosis.State).empty() || aDiagnosis.Refresh == 0U
 			|| aDiagnosis.Failed > aDiagnosis.Reads) {
 			return false;
 		}
@@ -136,6 +142,13 @@ namespace bpr::core {
 			text += '=';
 			text += std::to_string(*field);
 		}
+		text += " candidates=" + std::to_string(aDiagnosis.Work.SearchCandidates);
+		text += " reused=" + std::to_string(aDiagnosis.Work.RetainedReuse);
+		text += " direct=" + std::to_string(aDiagnosis.Work.DirectMatches);
+		text += " rejected=" + std::to_string(aDiagnosis.Work.Rejected);
+		text += " roster_recoveries=" + std::to_string(aDiagnosis.Work.RosterRecoveries);
+		text += " completeness=";
+		text += name(aDiagnosis.Work.Completeness);
 		return text;
 	}
 
@@ -162,6 +175,22 @@ namespace bpr::core {
 			}
 			*fields[index].second = *value;
 		}
+		// Both historical forms end before these appended fields.
+		if (!aText.empty()) {
+			for (const auto& [key, field] : std::array<std::pair<std::string_view, std::uint32_t*>, 5>{ { { "candidates", &result.Work.SearchCandidates }, { "reused", &result.Work.RetainedReuse }, { "direct", &result.Work.DirectMatches }, { "rejected", &result.Work.Rejected }, { "roster_recoveries", &result.Work.RosterRecoveries } } }) {
+				const auto value = number(aText, key);
+				if (!value) {
+					return std::nullopt;
+				}
+				*field = *value;
+			}
+			const auto completeness = enumerated<discovery_completeness_reason>(aText, "completeness", completeness_names);
+			if (!completeness) {
+				return std::nullopt;
+			}
+			result.Work.Completeness = *completeness;
+		}
+
 		if (!aText.empty() || !valid(result)) {
 			return std::nullopt;
 		}

@@ -276,6 +276,7 @@ namespace bpr::application {
 				.Throttled              = CycleCost.Throttled,
 				.ServerErrors           = CycleCost.ServerErrors,
 				.Timeouts               = CycleCost.Timeouts,
+				.Work                   = CycleCost.Work,
 			};
 		}
 
@@ -307,6 +308,7 @@ namespace bpr::application {
 			diagnosis.Throttled              = cost.Throttled;
 			diagnosis.ServerErrors           = cost.ServerErrors;
 			diagnosis.Timeouts               = cost.Timeouts;
+			diagnosis.Work                   = cost.Work;
 			Statistics.Requests += cost.Requests;
 			const auto* const error = std::get_if<personal_discovery_error>(&aCompletion);
 			if (current(aJob)) {
@@ -319,6 +321,20 @@ namespace bpr::application {
 				add(CycleCost.Throttled, cost.Throttled);
 				add(CycleCost.ServerErrors, cost.ServerErrors);
 				add(CycleCost.Timeouts, cost.Timeouts);
+				add(CycleCost.Work.SearchCandidates, cost.Work.SearchCandidates);
+				add(CycleCost.Work.RetainedReuse, cost.Work.RetainedReuse);
+				add(CycleCost.Work.DirectMatches, cost.Work.DirectMatches);
+				add(CycleCost.Work.Rejected, cost.Work.Rejected);
+				add(CycleCost.Work.RosterRecoveries, cost.Work.RosterRecoveries);
+				using reason = core::discovery_completeness_reason;
+				if (cost.Work.Completeness != reason::none) {
+					if (CycleCost.Work.Completeness == reason::none || CycleCost.Work.Completeness == reason::complete) {
+						CycleCost.Work.Completeness = cost.Work.Completeness;
+					} else if (cost.Work.Completeness != reason::complete && CycleCost.Work.Completeness != cost.Work.Completeness) {
+						CycleCost.Work.Completeness = reason::multiple_limits;
+					}
+				}
+
 				add(CycleDecision, aDecisionMilliseconds);
 				CycleFailedReads += error != nullptr ? 1U : 0U;
 			}

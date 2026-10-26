@@ -42,8 +42,7 @@ namespace bpr::core {
 	auto discovery_search_query(const discovery_search_reason aReason, const std::string_view aLogin, const std::span<const repository_locator> aRepositories) -> std::string
 	{
 		auto query = std::string{ "is:pr is:open " };
-		query += aReason == discovery_search_reason::authored ? "author:" : "review-requested:";
-		query += aLogin;
+		query += aReason == discovery_search_reason::authored ? "author:" + std::string{ aLogin } : "user-review-requested:@me";
 		for (const auto& repository : aRepositories) {
 			query += " repo:";
 			query += repository.Owner;

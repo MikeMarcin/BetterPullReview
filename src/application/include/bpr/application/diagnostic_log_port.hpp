@@ -65,6 +65,8 @@ namespace bpr::application {
 		get_merge_base,
 		list_requested_reviewers,
 		list_home_pull_requests,
+		list_home_review_membership,
+		list_review_requests,
 	};
 	enum class diagnostic_outcome : std::uint8_t { started,
 												   succeeded,

@@ -165,19 +165,21 @@ namespace bpr::adapters::github::detail {
 
 		/// \brief [[BPR-0988]]. Exactly one personal qualifier and one login.
 		///
-		/// \details `author:` and `review-requested:` are the qualifiers the
-		/// GitHub.com and GHES 3.18 search contracts both document. The login
-		/// is the viewer's as the server reported it: letters, digits, hyphen
+		/// \details GitHub.com and GHES 3.18 document the direct-user
+		/// `user-review-requested:@me` qualifier. Authored search names the
+		/// viewer's login as the server reported it: letters, digits, hyphen
 		/// and underscore, bounded, and never a leading hyphen, so it cannot
 		/// become another qualifier, an operator or a second term.
 		[[nodiscard]] auto safe_personal_search_terms(
 			const std::string_view aTerms) noexcept -> bool
 		{
+			if (aTerms == "user-review-requested:@me") {
+				return true;
+			}
 			auto login = aTerms;
 			if (login.starts_with("author:")) {
 				login.remove_prefix(std::string_view{ "author:" }.size());
-			} else if (login.starts_with("review-requested:")) {
-				login.remove_prefix(std::string_view{ "review-requested:" }.size());
+
 			} else {
 				return false;
 			}
@@ -489,6 +491,34 @@ namespace bpr::adapters::github::detail {
 			return std::move(*bytes);
 		}
 
+		[[nodiscard]] auto home_review_membership_body(const semantic_read_request& aRequest) -> std::expected<std::string, contract_failure>
+		{
+			auto query = std::string{ "query ListHomeReviewMembership($owner:String!,$name:String!)" };
+			// The cursor is a validated bounded token, encoded as a JSON string
+			// literal inside the GraphQL document, never interpolated as syntax.
+			auto cursor = std::string{ };
+			if (!aRequest.ReviewCursor.empty()) {
+				const auto encoded = glz::write<read_request_json_options{ }>(aRequest.ReviewCursor);
+				if (!encoded) {
+					return failure(contract_failure_code::unexpected_body);
+				}
+				cursor = ",after:" + *encoded;
+			}
+			query += "{repository(owner:$owner,name:$name){id nameWithOwner";
+			for (std::size_t index = 0; index < aRequest.PullRequestNumbers.size(); ++index) {
+				query += " p" + std::to_string(index) + ":pullRequest(number:" + std::to_string(aRequest.PullRequestNumbers[index])
+					+ "){id number state headRefOid baseRefOid baseRefName reviewRequests(first:100" + cursor
+					+ "){totalCount nodes{id requestedReviewer{__typename ... on User{id login} ... on Team{id}}} pageInfo{hasNextPage endCursor}}}";
+			}
+			query += "}}";
+			auto document = home_query_json{ .Query = query, .Variables = { .Name = aRequest.Repository, .Owner = aRequest.Owner } };
+			auto bytes    = glz::write<read_request_json_options{ }>(document);
+			if (!bytes) {
+				return failure(contract_failure_code::unexpected_body);
+			}
+			return std::move(*bytes);
+		}
+
 		/// [[BPR-1680]]. The pull requests one Home query reads: 1 to the core's
 		/// batch bound, ascending, each a valid number.
 		[[nodiscard]] auto valid_home_numbers(const std::vector<std::uint32_t>& aNumbers) noexcept -> bool
@@ -713,6 +743,7 @@ namespace bpr::adapters::github::detail {
 			// correlation; the query names only the team and the login.
 			case read_operation::get_team_membership:
 			// [[BPR-1680]]. Its pull requests are `PullRequestNumbers`.
+			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
@@ -757,6 +788,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_home_pull_requests:
 			case read_operation::list_reactions:
 				return 1U;
+			case read_operation::list_home_review_membership:
 			case read_operation::list_review_requests:
 			case read_operation::list_branch_rules:
 				return 10U;
@@ -1859,6 +1891,7 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1589]]. Read and bound by its own production reader.
 			case read_operation::get_team_membership:
 			// [[BPR-1680]]. Read and bound by its own production reader.
+			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
 				return false;
 			case read_operation::get_viewer_identity:
@@ -1933,15 +1966,16 @@ namespace bpr::adapters::github::detail {
 			return "SearchPersonalPullRequests";
 		case read_operation::list_requested_reviewers:
 			return "ListRequestedReviewers";
-		case read_operation::list_review_requests:    return "ListReviewRequests";
-		case read_operation::get_merge_assessment:    return "GetMergeAssessment";
-		case read_operation::list_branch_rules:       return "ListBranchRules";
-		case read_operation::get_branch_protection:   return "GetBranchProtection";
-		case read_operation::get_merge_base:          return "GetMergeBase";
-		case read_operation::get_team_membership:     return "GetTeamMembership";
-		case read_operation::list_home_pull_requests: return "ListHomePullRequests";
-		case read_operation::resolve_body_images:     return "ResolveBodyImages";
-		case read_operation::list_reactions:          return "ListReactions";
+		case read_operation::list_review_requests:        return "ListReviewRequests";
+		case read_operation::get_merge_assessment:        return "GetMergeAssessment";
+		case read_operation::list_branch_rules:           return "ListBranchRules";
+		case read_operation::get_branch_protection:       return "GetBranchProtection";
+		case read_operation::get_merge_base:              return "GetMergeBase";
+		case read_operation::get_team_membership:         return "GetTeamMembership";
+		case read_operation::list_home_review_membership: return "ListHomeReviewMembership";
+		case read_operation::list_home_pull_requests:     return "ListHomePullRequests";
+		case read_operation::resolve_body_images:         return "ResolveBodyImages";
+		case read_operation::list_reactions:              return "ListReactions";
 		}
 		return { };
 	}
@@ -2051,11 +2085,12 @@ namespace bpr::adapters::github::detail {
 		if ((branch && (aRequest.BranchRef.empty() || aRequest.BranchRef.size() > 256U || std::ranges::any_of(aRequest.BranchRef, [](unsigned char aByte) { return aByte < 0x21U || aByte == 0x7fU; }))) || (!branch && !aRequest.BranchRef.empty())) {
 			return failure(contract_failure_code::invalid_repository);
 		}
-		if ((aRequest.Operation != read_operation::list_review_requests && !aRequest.ReviewCursor.empty()) || (aRequest.Operation == read_operation::list_review_requests && ((aRequest.Page == 1U) != aRequest.ReviewCursor.empty() || (!aRequest.ReviewCursor.empty() && !bounded_graphql_token(aRequest.ReviewCursor, 1024U)))) || (aRequest.Operation != read_operation::list_review_threads && aRequest.GraphqlPage)) {
+		if ((aRequest.Operation != read_operation::list_review_requests && aRequest.Operation != read_operation::list_home_review_membership && !aRequest.ReviewCursor.empty()) || ((aRequest.Operation == read_operation::list_review_requests || aRequest.Operation == read_operation::list_home_review_membership) && ((aRequest.Page == 1U) != aRequest.ReviewCursor.empty() || (!aRequest.ReviewCursor.empty() && !bounded_graphql_token(aRequest.ReviewCursor, 1024U)))) || (aRequest.Operation != read_operation::list_review_threads && aRequest.GraphqlPage)) {
 			return failure(contract_failure_code::unexpected_body);
 		}
-		const auto home = aRequest.Operation == read_operation::list_home_pull_requests;
-		if ((home && !valid_home_numbers(aRequest.PullRequestNumbers)) || (!home && !aRequest.PullRequestNumbers.empty())) {
+		const auto membership = aRequest.Operation == read_operation::list_home_review_membership;
+		const auto home       = aRequest.Operation == read_operation::list_home_pull_requests || membership;
+		if ((home && (!valid_home_numbers(aRequest.PullRequestNumbers) || (membership && aRequest.Page > 1U && aRequest.PullRequestNumbers.size() != 1U))) || (!home && !aRequest.PullRequestNumbers.empty())) {
 			return failure(contract_failure_code::invalid_pull_request_number);
 		}
 		const auto images    = aRequest.Operation == read_operation::resolve_body_images;
@@ -2153,8 +2188,9 @@ namespace bpr::adapters::github::detail {
 			result.Body = std::move(*body);
 			break;
 		}
-		case read_operation::list_home_pull_requests: {
-			auto body = home_pull_requests_body(aRequest);
+		case read_operation::list_home_review_membership:
+		case read_operation::list_home_pull_requests:     {
+			auto body = aRequest.Operation == read_operation::list_home_review_membership ? home_review_membership_body(aRequest) : home_pull_requests_body(aRequest);
 			if (!body) {
 				return std::unexpected{ body.error() };
 			}
@@ -2287,10 +2323,10 @@ namespace bpr::adapters::github::detail {
 			}
 			if (const auto validation = validate_graphql_body(
 					aRequest.Body,
-					aRequest.Semantic.GraphqlPage.has_value() || !aRequest.Semantic.ReviewCursor.empty(),
+					aRequest.Semantic.GraphqlPage.has_value() || (!aRequest.Semantic.ReviewCursor.empty() && aRequest.Operation != read_operation::list_home_review_membership),
 					aRequest.Operation == read_operation::resolve_body_images || aRequest.Operation == read_operation::list_reactions,
 					aRequest.Operation == read_operation::get_team_membership,
-					aRequest.Operation == read_operation::list_home_pull_requests);
+					(aRequest.Operation == read_operation::list_home_pull_requests || aRequest.Operation == read_operation::list_home_review_membership));
 				!validation.has_value()) {
 				return validation;
 			}

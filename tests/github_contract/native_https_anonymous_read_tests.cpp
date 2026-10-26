@@ -247,6 +247,7 @@ namespace {
 			semantic.Login        = "octo-reviewer";
 			break;
 		// [[BPR-1680]].
+		case read_operation::list_home_review_membership:
 		case read_operation::list_home_pull_requests:
 			semantic.PullRequestNumbers = { context.Number.value() };
 			break;
@@ -344,8 +345,8 @@ namespace {
 			}
 		}
 		// Every compiled operation has an explicit anonymous admission verdict.
-		expect(admitted == 12U && refused == 12U
-				   && all_read_operations.size() == 24U
+		expect(admitted == 12U && refused == 13U
+				   && all_read_operations.size() == 25U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

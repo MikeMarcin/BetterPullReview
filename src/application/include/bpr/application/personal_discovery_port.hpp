@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_PERSONAL_DISCOVERY_PORT_HPP
 
+#include "bpr/core/discovery_diagnosis.hpp"
+
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/core/review_queue_attention.hpp"
 
@@ -165,6 +167,8 @@ namespace bpr::application {
 		/// Last attempted operation and observed status only; no URL or response content.
 		diagnostic_paged_operation LastReadOperation = diagnostic_paged_operation::none;
 		std::uint16_t              LastHttpStatus    = 0U;
+
+		core::discovery_work Work;
 
 		auto operator<=>(const personal_discovery_cost&) const = default;
 	};

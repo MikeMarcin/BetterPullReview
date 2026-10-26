@@ -911,6 +911,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::search_personal_pull_requests:
 			case read_operation::get_merge_base:
 			case read_operation::get_team_membership:
+			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
 				break;
 			}
@@ -1030,6 +1031,7 @@ namespace bpr::adapters::github::detail {
 				case read_operation::get_merge_base:
 				case read_operation::get_team_membership:
 				case read_operation::list_reactions:
+				case read_operation::list_home_review_membership:
 				case read_operation::list_home_pull_requests:       return failed(contract_failure_code::unexpected_operation);
 				case read_operation::get_viewer_identity:           decoded = decode_record(documents.Viewer, response.Response); break;
 				case read_operation::get_repository:                decoded = decode_record(documents.Repository, response.Response); break;

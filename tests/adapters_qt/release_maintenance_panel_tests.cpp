@@ -8,7 +8,9 @@
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QDateTime>
+#include <QDialog>
 #include <QDialogButtonBox>
 #include <QDir>
 #include <QElapsedTimer>
@@ -280,7 +282,12 @@ namespace {
 		fixture                   test;
 		std::vector<announcement> announcements;
 		const accessible_capture  accessibility{ announcements };
-		auto*                     button = test.button(command::preview_diagnostics);
+		auto*                     recent = test.Panel->findChild<QCheckBox*>(QStringLiteral("diagnosticExportRecent"));
+		expect(recent && recent->text() == QStringLiteral("Include verbose logs from the last 3 minutes") && !recent->isChecked()
+				   && recent->toolTip().contains(QStringLiteral("held in memory")),
+			   "optional verbose log supplement has an exact plain label and remains off by default");
+
+		auto* button = test.button(command::preview_diagnostics);
 		button->setFocus();
 		expect(button->hasFocus(), "preview is keyboard focusable");
 		auto* accessible = QAccessible::queryAccessibleInterface(button);
@@ -296,7 +303,13 @@ namespace {
 		expect(preview && preview->isReadOnly() && preview->toPlainText().contains(QStringLiteral("bpr-diagnostics-v2")) && !preview->toPlainText().contains(QStringLiteral("CANARY")), "rendered preview contains only classified frozen metadata");
 		expect(test.Panel->findChild<QLabel*>(QStringLiteral("releaseMaintenanceSummary"))->text().contains(QStringLiteral("1 records omitted")), "omission count visible");
 		test.Panel->findChild<QToolButton*>(QStringLiteral("diagnosticExportRecords"))->setChecked(true);
+		test.Panel->findChild<QToolButton*>(QStringLiteral("diagnosticExportOptions"))->setChecked(true);
+
 		QApplication::processEvents();
+		auto* exportDialog = test.Panel->findChild<QDialog*>(QStringLiteral("diagnosticExportDialog"));
+		expect(exportDialog && exportDialog->isVisible() && recent->isVisible() && recent->width() >= recent->sizeHint().width(), "verbose-log label fits the real native export options dialog");
+		capture(*exportDialog, QStringLiteral("-export-options"));
+
 		auto cursor = preview->textCursor();
 		cursor.setPosition(2);
 		cursor.setPosition(10, QTextCursor::KeepAnchor);

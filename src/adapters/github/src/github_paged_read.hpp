@@ -265,8 +265,10 @@ namespace bpr::adapters::github::detail {
 	using github_personal_discovery_read_result = std::expected<github_personal_discovery_read, github_paged_read_failure>;
 
 	/// \brief [[BPR-0988]]. Reads the viewer's open pull requests of one
-	/// repository: one bounded search page, then each row's requested
-	/// reviewers up to `maximum_personal_discovery_details`.
+	/// repository: one bounded search page, then up to thirty candidate
+	/// rosters. Requested candidates use narrow GraphQL batches of ten, with
+	/// complete REST fallback only for an unsupported schema. `aWork` receives
+	/// counts even if a later page fails; no membership survives the call.
 	///
 	/// \details Independent of the pull request read: it issues no snapshot,
 	/// file, commit, thread, comment, check, timeline or diff request. An
@@ -287,7 +289,8 @@ namespace bpr::adapters::github::detail {
 		const application::personal_discovery_request& aRequest,
 		std::stop_token                                aStop,
 		const github_paged_read_limits&                aLimits  = { },
-		bool                                           aBatched = true) noexcept
+		bool                                           aBatched = true,
+		core::discovery_work*                          aWork    = nullptr) noexcept
 		-> github_personal_discovery_read_result;
 
 	struct github_markdown_image_resolution

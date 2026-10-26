@@ -384,14 +384,14 @@ try {
 		{
 			// [[BPR-1680]]. A Home discovery read's end: its counts and
 			// timings, and nothing else, reach the file.
-			const auto diagnosis = core::discovery_diagnosis{ .Scope = core::discovery_diagnosis_scope::read, .Refresh = 2U, .Read = 5U, .Reason = core::discovery_diagnosis_reason::requested, .Repositories = 1U, .Requests = 6U, .WaitMilliseconds = 40U, .RunMilliseconds = 3900U, .CredentialMilliseconds = 650U, .WireMilliseconds = 3100U, .DecisionMilliseconds = 12U, .Forbidden = 1U, .Timeouts = 1U };
+			const auto diagnosis = core::discovery_diagnosis{ .Scope = core::discovery_diagnosis_scope::read, .Refresh = 2U, .Read = 5U, .Reason = core::discovery_diagnosis_reason::requested, .Repositories = 1U, .Requests = 6U, .WaitMilliseconds = 40U, .RunMilliseconds = 3900U, .CredentialMilliseconds = 650U, .WireMilliseconds = 3100U, .DecisionMilliseconds = 12U, .Forbidden = 1U, .Timeouts = 1U, .Work = { .SearchCandidates = 39U, .RetainedReuse = 9U, .Rejected = 30U, .Completeness = core::discovery_completeness_reason::complete } };
 			auto       event     = application::diagnostic_event{ .Operation = application::diagnostic_operation::discovery, .Outcome = application::diagnostic_outcome::failed, .GithubFailure = core::github_failure::permission };
 			const auto text      = core::describe(diagnosis);
 			std::ranges::copy(text, event.Summary.Text.begin());
 			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
 			event.Summary.State = application::diagnostic_summary_state::sanitized;
 			expect(log.record(event) == status::available, "a discovery read's end reaches the real log");
-			for (const auto operation : { application::diagnostic_paged_operation::list_requested_reviewers, application::diagnostic_paged_operation::list_home_pull_requests }) {
+			for (const auto operation : { application::diagnostic_paged_operation::list_requested_reviewers, application::diagnostic_paged_operation::list_home_pull_requests, application::diagnostic_paged_operation::list_home_review_membership, application::diagnostic_paged_operation::list_review_requests }) {
 				auto observed           = event;
 				observed.PagedOperation = operation;
 				observed.HttpStatus     = 200U;
@@ -506,7 +506,7 @@ try {
 			   && first.find("\"failure_domain\":\"review_submission\",\"failure\":\"comment_page_too_large\"") != std::string::npos,
 		   "[[BPR-1540]] the reason is kept locally as its domain, name and counts");
 	expect(first.find("\"event\":\"github.discovery.failed\"") != std::string::npos
-			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900 credential_ms=650 wire_ms=3100 decision_ms=12 http_403=1 http_429=0 http_5xx=0 timeouts=1 backoff_s=0\"") != std::string::npos
+			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900 credential_ms=650 wire_ms=3100 decision_ms=12 http_403=1 http_429=0 http_5xx=0 timeouts=1 backoff_s=0 candidates=39 reused=9 direct=0 rejected=30 roster_recoveries=0 completeness=complete\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"permission\"") != std::string::npos,
 		   "[[BPR-1680]] a discovery read's end is kept locally with its counts, timings and failure");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
@@ -519,7 +519,7 @@ try {
 	expect(first.find("\"epoch_stage\":\"protocol_acquire\",\"failure_domain\":\"protocol\",\"failure\":\"pack_sink\",\"pack_failure\":\"input_limit\"") != std::string::npos, "fixed protocol and pack failure names persisted");
 	expect(first.find("Unknown schema field") != std::string::npos && first.find("unclassified-code") != std::string::npos && first.find("newField") == std::string::npos && first.find("NEW_SCHEMA_CODE") == std::string::npos && first.find("\"request\":42,\"http_status\":200") != std::string::npos, "useful sanitized prose and correlation survive file encoding");
 	expect(first.find("runtime-only-file-secret") == std::string::npos, "credential canary absent from persisted file");
-	expect(first.find("\"page_operation\":\"ListRequestedReviewers\"") != std::string::npos && first.find("\"page_operation\":\"ListHomePullRequests\"") != std::string::npos, "new discovery operation names survive persistence with the existing redaction checks");
+	expect(first.find("\"page_operation\":\"ListRequestedReviewers\"") != std::string::npos && first.find("\"page_operation\":\"ListHomePullRequests\"") != std::string::npos && first.find("\"page_operation\":\"ListHomeReviewMembership\"") != std::string::npos && first.find("\"page_operation\":\"ListReviewRequests\"") != std::string::npos, "new discovery operation names survive persistence with the existing redaction checks");
 	expect(first.find("\"op\":\"github.pull_request\",\"outcome\":\"response_received\",\"request\":43,\"http_status\":403") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"rate_limit\",\"pack_failure\":\"none\",\"page_operation\":\"ListPullRequestFiles\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"validation\",\"failure\":\"missing_required_text\"") != std::string::npos

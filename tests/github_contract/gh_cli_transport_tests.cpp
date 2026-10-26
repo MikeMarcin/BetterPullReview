@@ -368,6 +368,7 @@ namespace {
 		case read_operation::search_personal_pull_requests:
 			request.SearchTerms = "author:octo-reviewer";
 			break;
+		case read_operation::list_home_review_membership:
 		case read_operation::list_home_pull_requests:
 			request.PullRequestNumbers = { 17U, 18U };
 			break;
@@ -462,7 +463,7 @@ namespace {
 			.Correlation = github_wire_correlation{
 				.Parent          = aOperation == read_operation::get_viewer_identity
 					? github_wire_parent_context{ session_parent(aProfile) }
-					: aOperation == read_operation::search_personal_pull_requests || aOperation == read_operation::list_home_pull_requests
+					: aOperation == read_operation::search_personal_pull_requests || aOperation == read_operation::list_home_pull_requests || aOperation == read_operation::list_home_review_membership
 					? github_wire_parent_context{ repository_parent(aProfile) }
 					: github_wire_parent_context{
 						  pull_request_parent(aProfile) },

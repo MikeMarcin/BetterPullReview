@@ -84,6 +84,7 @@ namespace bpr::adapters::github::detail {
 		// [[BPR-1589]]. Membership is the viewer's own question.
 		case read_operation::get_team_membership:
 		// [[BPR-1680]]. Home's batched read is the viewer's discovery.
+		case read_operation::list_home_review_membership:
 		case read_operation::list_home_pull_requests:
 		// [[BPR-1741]]. Reactions carry the viewer's own state.
 		case read_operation::list_reactions:

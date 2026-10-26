@@ -2267,7 +2267,7 @@ namespace bpr::app::detail {
 			const auto terms     = std::string_view{ semantic.SearchTerms };
 			const auto separator = terms.find(':');
 			const auto qualifier = terms.substr(0U, separator);
-			const auto login     = fold(std::string{ terms.substr(separator + 1U) });
+			const auto login     = qualifier == "user-review-requested" ? std::string{ "octo-reviewer" } : fold(std::string{ terms.substr(separator + 1U) });
 			auto       items     = QJsonArray{ };
 			auto       total     = 0;
 			const auto root      = QString::fromStdString(std::string{ aState.Profile.rest_root() });
@@ -2277,7 +2277,7 @@ namespace bpr::app::detail {
 				const auto matches = qualifier == "author"
 					? fold(pullRequest.Author) == login
 					: fold(pullRequest.Author) != login
-						&& (pullRequest.RequestedTeams != 0U || std::ranges::any_of(pullRequest.RequestedUsers, [&](const std::string& aUser) { return fold(aUser) == login; }));
+						&& ((qualifier != "user-review-requested" && pullRequest.RequestedTeams != 0U) || std::ranges::any_of(pullRequest.RequestedUsers, [&](const std::string& aUser) { return fold(aUser) == login; }));
 				if (!matches) {
 					continue;
 				}
@@ -2396,6 +2396,29 @@ namespace bpr::app::detail {
 			}
 			auto response = adapters::github::detail::wire_response{ .Status = 200, .Completeness = page_completeness::complete };
 			response.Headers.push_back({ .Name = "Content-Type", .Value = "application/json; charset=utf-8" });
+			response.Body = QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository } } } } }.toJson(QJsonDocument::Compact).toStdString();
+			return response;
+		}
+
+		[[nodiscard]] auto home_membership_response(const fixture_recording_state& aState, const adapters::github::detail::wire_request& aRequest) -> wire_response
+		{
+			const auto& semantic   = aRequest.Semantic;
+			auto        repository = QJsonObject{ { "id", "R_fixture_repository" }, { "nameWithOwner", QString::fromStdString(semantic.Owner + "/" + semantic.Repository) } };
+			for (std::size_t index = 0; index < semantic.PullRequestNumbers.size(); ++index) {
+				const auto number = semantic.PullRequestNumbers[index];
+				auto       nodes  = QJsonArray{ };
+				const auto found  = std::ranges::find(aState.PersonalDiscovery->OpenPullRequests, number, &github_personal_discovery_fixture::pull_request::Number);
+				if (found != aState.PersonalDiscovery->OpenPullRequests.end() && (!found->ReviewerRequestsPresent || found->ReviewerRequestsPresent->load())) {
+					for (const auto& login : found->RequestedUsers) {
+						nodes.append(QJsonObject{ { "id", "RR_" + QString::fromStdString(login) }, { "requestedReviewer", QJsonObject{ { "__typename", "User" }, { "id", login == "octo-reviewer" ? QStringLiteral("U_fixture_viewer") : "U_" + QString::fromStdString(login) }, { "login", QString::fromStdString(login) } } } });
+					}
+					for (std::size_t team = 0; team < found->RequestedTeams; ++team) {
+						nodes.append(QJsonObject{ { "id", QStringLiteral("RR_team_%1").arg(team) }, { "requestedReviewer", QJsonObject{ { "__typename", "Team" }, { "id", QStringLiteral("T_%1").arg(team) } } } });
+					}
+				}
+				repository.insert(QStringLiteral("p%1").arg(index), QJsonObject{ { "id", QStringLiteral("PR_fixture_%1").arg(number) }, { "number", static_cast<qint64>(number) }, { "state", "OPEN" }, { "headRefOid", QString::fromUtf8(aState.Descriptor.HeadOneOid) }, { "baseRefOid", QString::fromUtf8(aState.Descriptor.BaseOid) }, { "baseRefName", "main" }, { "reviewRequests", QJsonObject{ { "totalCount", nodes.size() }, { "nodes", nodes }, { "pageInfo", QJsonObject{ { "hasNextPage", false }, { "endCursor", nodes.empty() ? QJsonValue{ QJsonValue::Null } : QJsonValue{ "end" } } } } } } });
+			}
+			auto response = wire_response{ .Status = 200, .Headers = response_headers(), .Completeness = page_completeness::complete };
 			response.Body = QJsonDocument{ QJsonObject{ { "data", QJsonObject{ { "repository", repository } } } } }.toJson(QJsonDocument::Compact).toStdString();
 			return response;
 		}
@@ -3296,6 +3319,19 @@ namespace bpr::app::detail {
 				// discovery fixture's server has it; one without discovery data
 				// answers as a server without the query's fields, so the provider
 				// reads the REST way.
+				if (aRequest.Wire.Operation == read_operation::list_home_review_membership) {
+					if (Role != fixture_transport_role::account || !adapters::github::detail::validate_github_wire_request(State->Profile, aRequest)) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
+					}
+					if (!State->PersonalDiscovery) {
+						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unsupported_capability) };
+					}
+					++State->DiscoveryDetailReads;
+					auto response = home_membership_response(*State, aRequest.Wire);
+					append_rate_limit_headers(response, aRequest.Wire.Operation);
+					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(response) };
+				}
+
 				if (aRequest.Wire.Operation == read_operation::list_home_pull_requests) {
 					if (Role != fixture_transport_role::account || !adapters::github::detail::validate_github_wire_request(State->Profile, aRequest).has_value()) {
 						State->RecordingFailure = -5;

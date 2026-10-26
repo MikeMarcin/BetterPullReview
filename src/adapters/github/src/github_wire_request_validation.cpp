@@ -47,7 +47,8 @@ namespace bpr::adapters::github::detail {
 						// Home's batched read of its pull requests; nothing else.
 						const auto& semantic = aRequest.Wire.Semantic;
 						return (aRequest.Correlation.Operation == read_operation::search_personal_pull_requests
-								|| aRequest.Correlation.Operation == read_operation::list_home_pull_requests)
+								|| aRequest.Correlation.Operation == read_operation::list_home_pull_requests
+								|| aRequest.Correlation.Operation == read_operation::list_home_review_membership)
 							&& application::detail::valid_context(aParent)
 							&& aParent.Profile == aProfile.profile()
 							&& aParent.Host == aProfile.host()
@@ -62,6 +63,7 @@ namespace bpr::adapters::github::detail {
 								== read_operation::search_personal_pull_requests
 							|| aRequest.Correlation.Operation
 								== read_operation::list_home_pull_requests
+							|| aRequest.Correlation.Operation == read_operation::list_home_review_membership
 							|| !application::detail::valid_context(aParent)
 							|| aParent.Profile != aProfile.profile()
 							|| aParent.Host != aProfile.host()) {

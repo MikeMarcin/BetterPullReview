@@ -60,6 +60,8 @@ namespace bpr::adapters::github::detail {
 		/// comments and reviews, by GraphQL node (`nodes(ids:)`), bound to the
 		/// pull request like `resolve_body_images`.
 		list_reactions,
+		/// [[BPR-1770]]. Identity and paginated direct-user review membership only.
+		list_home_review_membership,
 	};
 
 	/// \brief How many comments one `list_reactions` page asks about.
@@ -98,7 +100,7 @@ namespace bpr::adapters::github::detail {
 	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
 	/// like the timeline: it is an independent read after the snapshot, bound
 	/// to the snapshot's own head.
-	inline constexpr std::array<read_operation, 24> all_read_operations{
+	inline constexpr std::array<read_operation, 25> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -123,6 +125,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::get_team_membership,
 		read_operation::list_home_pull_requests,
 		read_operation::list_reactions,
+		read_operation::list_home_review_membership,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -149,7 +152,7 @@ namespace bpr::adapters::github::detail {
 	{
 		return aOperation == read_operation::list_review_threads || aOperation == read_operation::list_review_requests || aOperation == read_operation::get_merge_assessment
 			|| aOperation == read_operation::resolve_body_images || aOperation == read_operation::get_team_membership
-			|| aOperation == read_operation::list_home_pull_requests || aOperation == read_operation::list_reactions;
+			|| aOperation == read_operation::list_home_review_membership || aOperation == read_operation::list_home_pull_requests || aOperation == read_operation::list_reactions;
 	}
 
 	enum class http_method : std::uint8_t {

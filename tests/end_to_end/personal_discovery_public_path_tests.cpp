@@ -162,7 +162,7 @@ namespace {
 		return std::ranges::all_of(aOperations, [](const std::string& aOperation) {
 			return aOperation == "SearchPersonalPullRequests" || aOperation == "ListRequestedReviewers" || aOperation == "GetPullRequest" || aOperation == "ListReviews"
 				// [[BPR-1680]]. Home's batched read of retained pull requests.
-				|| aOperation == "ListHomePullRequests";
+				|| aOperation == "ListHomePullRequests" || aOperation == "ListHomeReviewMembership";
 		});
 	}
 
@@ -291,6 +291,11 @@ try {
 				  << " wire-error=" << served.RecordingFailure << " state=" << static_cast<int>(own.Status.State) << " problem=" << static_cast<int>(own.Status.Problem)
 				  << " submitted=" << own.Statistics.Submitted << " answered=" << own.Statistics.Answered << " failed=" << own.Statistics.Failed
 				  << " status-text=" << windowA->home_discovery_status()->text().toStdString() << '\n';
+		std::cerr << "operations:";
+		for (const auto& operation : served.AccountReadOperations) {
+			std::cerr << ' ' << operation;
+		}
+		std::cerr << '\n';
 	};
 
 	// [[BPR-1017]]. Without an accepted account session a new window presents as
@@ -625,19 +630,19 @@ try {
 			 "saving the repository runs one discovery refresh", diagnose);
 	const auto served = evidence();
 	const auto reads  = reads_since(served, before, cliCourse);
-	if (served.DiscoverySearches != 4U || reads.size() != 9U) {
+	if (served.DiscoverySearches != 4U || reads.size() != 8U) {
 		std::cerr << "searches=" << served.DiscoverySearches << " details=" << served.DiscoveryDetailReads << " reads:";
 		for (const auto& read : reads) {
 			std::cerr << ' ' << read;
 		}
 		std::cerr << '\n';
 	}
-	expect(served.DiscoverySearches == 4U && served.DiscoveryDetailReads == 5U && reads.size() == 9U && only_discovery(reads),
+	expect(served.DiscoverySearches == 4U && served.DiscoveryDetailReads == 4U && reads.size() == 8U && only_discovery(reads),
 		   "one refresh uses personal searches and bounded reviewer/metadata reads; no files, diffs or conversations");
 	auto terms = served.DiscoverySearchTerms;
 	std::ranges::sort(terms);
 	terms.erase(std::ranges::unique(terms).begin(), terms.end());
-	expect(terms == std::vector<std::string>{ "author:octo-reviewer", "review-requested:octo-reviewer" }, "the searches name the viewer and nothing broader");
+	expect(terms == std::vector<std::string>{ "author:octo-reviewer", "user-review-requested:@me" }, "the searches name the viewer and nothing broader");
 	expect(discovery().Statistics.MaximumInFlight <= application::maximum_personal_discovery_in_flight && discovery().Statistics.Refreshes == 2U,
 		   "never more than two reads at once, one refresh per saved-repository change");
 	wait_for([&] { return contains(state_rows(*windowA, qt::home_group::needs_you), "octo-org/review-repository#4003"); }, "the pull request that asks the viewer is in Needs me");
@@ -937,7 +942,7 @@ try {
 		   "Refresh reads retained PR metadata and review summaries before the bounded personal searches");
 	// [[BPR-1680]]. #4001, #4002 and #4003 were read as retained pull
 	// requests, so the searches that find them read none of them again.
-	expect(discovery().Statistics.Reused == 3U && evidence().DiscoveryDetailReads == 8U, "the searches reuse the refresh's three retained reads");
+	expect(discovery().Statistics.Reused == 3U && evidence().DiscoveryDetailReads == 6U, "the searches reuse the refresh's three retained reads");
 	// [[BPR-1680]]. The four retained pull requests of the one repository
 	// are one GraphQL read; #17, the recorded review, has more reviews than a
 	// page there, so it alone is read the REST way.
@@ -1071,6 +1076,10 @@ try {
 		const auto refreshes = discovery_refreshes(root, cliCourse ? "first-session-cli" : "first-session");
 		expect(refreshes.size() >= 3U && std::ranges::all_of(refreshes, [](const core::discovery_diagnosis& aLine) { return aLine.Requests != 0U && aLine.Reads != 0U; }),
 			   "each refresh that ran is in the diagnostics file with its reads and requests");
+		expect(std::ranges::any_of(refreshes, [](const core::discovery_diagnosis& aLine) { return aLine.Work.DirectMatches == 1U && aLine.Work.SearchCandidates == 3U; })
+				   && std::ranges::any_of(refreshes, [](const core::discovery_diagnosis& aLine) { return aLine.Work.RetainedReuse == 3U && aLine.Work.Rejected == 0U; }),
+			   "actual provider-to-host-to-file diagnostics report direct search candidates and this refresh's retained reuse with no team-only search candidate");
+
 		const auto log = bpr::tests::read_diagnostic_logs(root);
 		expect(log.find("\"event\":\"github.discovery.succeeded\"") != std::string::npos && log.find("\"detail\":\"discovery=read refresh=") != std::string::npos,
 			   "and each read's end, with its requests and timings");

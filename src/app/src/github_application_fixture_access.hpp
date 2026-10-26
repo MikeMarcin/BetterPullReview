@@ -184,8 +184,8 @@ namespace bpr::app::detail {
 	///
 	/// \details The fixture server answers the personal search by evaluating
 	/// its qualifier over this list, as GitHub would: `author:` matches the
-	/// author, `review-requested:` matches a named user or any team request
-	/// (the viewer is taken to be on every team) on a pull request someone
+	/// author, `user-review-requested:@me` matches only a named direct user
+	/// request on a pull request someone
 	/// else authored. Everything else in the list is unrelated, and a read
 	/// that fetched it would have to ask for it.
 	struct github_personal_discovery_fixture

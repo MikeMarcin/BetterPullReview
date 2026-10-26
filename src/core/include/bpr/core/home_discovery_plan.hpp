@@ -58,7 +58,7 @@ namespace bpr::core {
 
 	/// \brief [[BPR-1680]]. The query a personal search sends, exactly:
 	/// `is:pr is:open author:LOGIN repo:OWNER/NAME ...` or with
-	/// `review-requested:LOGIN`, in the repositories' order.
+	/// `user-review-requested:@me`, in the repositories' order.
 	[[nodiscard]] auto discovery_search_query(discovery_search_reason aReason, std::string_view aLogin, std::span<const repository_locator> aRepositories) -> std::string;
 
 	/// \brief [[BPR-1680]]. The saved repositories' personal searches for one

@@ -36,7 +36,7 @@ namespace {
 			.RunMilliseconds  = 3900U,
 		};
 		const auto text = describe(read);
-		expect(text == "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=0 wire_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=0",
+		expect(text == "discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900 credential_ms=0 wire_ms=0 decision_ms=0 http_403=0 http_429=0 http_5xx=0 timeouts=0 backoff_s=0 candidates=0 reused=0 direct=0 rejected=0 roster_recoveries=0 completeness=none",
 			   "a read's line names its keys in their fixed order");
 		expect(parse_discovery_diagnosis(text) == read, "the line reads back as the same diagnosis");
 
@@ -50,11 +50,24 @@ namespace {
 		timed.Throttled              = 2U;
 		timed.ServerErrors           = 3U;
 		timed.Timeouts               = 4U;
-		expect(describe(timed).ends_with(" run_ms=3900 credential_ms=700 wire_ms=2900 decision_ms=45 http_403=1 http_429=2 http_5xx=3 timeouts=4 backoff_s=0")
+		expect(describe(timed).ends_with(" run_ms=3900 credential_ms=700 wire_ms=2900 decision_ms=45 http_403=1 http_429=2 http_5xx=3 timeouts=4 backoff_s=0 candidates=0 reused=0 direct=0 rejected=0 roster_recoveries=0 completeness=none")
 				   && parse_discovery_diagnosis(describe(timed)) == timed,
 			   "a read's timing split and answer counts are named and read back");
 		expect(parse_discovery_diagnosis("discovery=read refresh=3 read=7 reason=authored state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=120 run_ms=3900") == read,
 			   "the line of a build before the timing split reads with those fields zero");
+		auto counted = read;
+		counted.Work = { .SearchCandidates = 39U, .RetainedReuse = 9U, .DirectMatches = 2U, .Rejected = 28U, .RosterRecoveries = 1U, .Completeness = discovery_completeness_reason::candidate_limit };
+		expect(parse_discovery_diagnosis(describe(counted)) == counted, "safe counts and exact completeness round-trip");
+		for (const auto reason : { discovery_completeness_reason::complete, discovery_completeness_reason::search_incomplete, discovery_completeness_reason::search_limit, discovery_completeness_reason::roster_limit, discovery_completeness_reason::summary_limit, discovery_completeness_reason::multiple_limits }) {
+			counted.Work.Completeness = reason;
+			expect(parse_discovery_diagnosis(describe(counted)) == counted, "every closed completeness reason round-trips");
+		}
+		const auto oldTiming = describe(timed).substr(0, describe(timed).find(" candidates="));
+		expect(parse_discovery_diagnosis(oldTiming) == timed, "historical timing form still exports");
+		expect(!parse_discovery_diagnosis(describe(counted) + " repository=private"), "extra private fields are refused");
+		counted.Work.Completeness = static_cast<discovery_completeness_reason>(255);
+		expect(describe(counted).empty(), "unknown completeness reason cannot be logged");
+
 		auto backoff           = read;
 		backoff.BackoffSeconds = 60U;
 		expect(describe(backoff).empty(), "only a refresh's end says how long a rate limit holds the next");
@@ -168,7 +181,7 @@ namespace {
 		expect(discovery_search_query(discovery_search_reason::authored, "octo-reviewer", std::vector{ app }) == "is:pr is:open author:octo-reviewer repo:octo/app",
 			   "a search of one repository is the query it always was");
 		expect(discovery_search_query(discovery_search_reason::requested, "octo-reviewer", std::vector{ app, tools })
-				   == "is:pr is:open review-requested:octo-reviewer repo:octo/app repo:octo/tools",
+				   == "is:pr is:open user-review-requested:@me repo:octo/app repo:octo/tools",
 			   "several repositories are named in order, one qualifier each");
 
 		const auto five = std::vector{ app, tools, repository("octo", "docs"), repository("other-org", "service"), repository("octo", "web") };

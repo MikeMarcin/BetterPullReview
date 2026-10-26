@@ -149,7 +149,7 @@ namespace bpr::qt {
 						categories << QStringLiteral("Git/epochs");
 					}
 					const auto range = snapshot->Sessions == 0U ? QStringLiteral("No dated records") : QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->FirstUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs) + QStringLiteral(" to ") + QDateTime::fromMSecsSinceEpoch(static_cast<qint64>(snapshot->LastUtcMs), QTimeZone::UTC).toString(Qt::ISODateWithMs);
-					return QStringLiteral("%1 · %2 · %3 sessions · %4 records · %5 bytes\n%8\nCategories: %9\n%6 records omitted · %7 recent-context records · %10 records with capture-time identity omissions.")
+					return QStringLiteral("%1 · %2 · %3 sessions · %4 records · %5 bytes\n%8\nCategories: %9\n%6 records omitted · %7 verbose records from the last 3 minutes · %10 records with capture-time identity omissions.")
 							   .arg(snapshot->Options.Policy == core::diagnostic_export_policy::identifying ? QStringLiteral("Identifying details") : QStringLiteral("Anonymized"))
 							   .arg(snapshot->Options.Scope == core::diagnostic_export_scope::current_session ? QStringLiteral("current session") : QStringLiteral("retained sessions"))
 							   .arg(snapshot->Sessions)
@@ -210,8 +210,8 @@ namespace bpr::qt {
 		ExportScope->addItem(QStringLiteral("All retained sessions in this profile"));
 		ExportScope->addItem(QStringLiteral("Current session only"));
 		fields->addWidget(ExportScope);
-		IncludeRecent = new QCheckBox{ QStringLiteral("Include recent context (up to 3 minutes)"), optionsBody };
-		IncludeRecent->setToolTip(QStringLiteral("Already sanitized detail, limited to 512 events and 2 MiB."));
+		IncludeRecent = new QCheckBox{ QStringLiteral("Include verbose logs from the last 3 minutes"), optionsBody };
+		IncludeRecent->setToolTip(QStringLiteral("Adds sanitized verbose records held in memory from the last 3 minutes, limited to 512 events and 2 MiB. Recent file logs are already included."));
 		IncludeRecent->setObjectName(QStringLiteral("diagnosticExportRecent"));
 		fields->addWidget(IncludeRecent);
 		auto* refresh = new quiet_push_button{ QStringLiteral("Update preview"), optionsBody };

@@ -659,6 +659,7 @@ namespace {
 			request.Login        = "octo-reviewer";
 			break;
 		// [[BPR-1680]].
+		case read_operation::list_home_review_membership:
 		case read_operation::list_home_pull_requests:
 			request.PullRequestNumbers = { 17U, 18U };
 			break;
@@ -1055,7 +1056,7 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 24U
+			all_read_operations.size() == 25U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
@@ -1063,7 +1064,7 @@ namespace {
 									 read_operation::list_review_comments)
 					!= all_read_operations.end()
 				&& std::ranges::find(read_operation_catalog, read_operation::get_merge_base) == read_operation_catalog.end(),
-			"the compiled set holds twenty-four reads and the recording holds ten");
+			"the compiled set holds twenty-five reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(
@@ -2171,11 +2172,30 @@ namespace {
 					   && authored->Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20author%3Aocto-reviewer%20repo%3Aocto-org%2Freview-repository"
 					   && validate_outbound_read_request(*authored).has_value(),
 				   "an authored search is one REST GET scoped to the repository and the login");
-			search.SearchTerms   = "review-requested:octo_reviewer-2";
+			search.SearchTerms   = "user-review-requested:@me";
 			const auto requested = compile_read_request(search);
 			expect(requested.has_value()
-					   && requested->Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20review-requested%3Aocto_reviewer-2%20repo%3Aocto-org%2Freview-repository",
-				   "a requested search uses the documented review-requested qualifier");
+					   && requested->Query == "page=1&per_page=100&q=is%3Apr%20is%3Aopen%20user-review-requested%3A%40me%20repo%3Aocto-org%2Freview-repository",
+				   "a requested search uses the documented direct-user qualifier");
+			auto       membership = semantic(read_operation::list_home_review_membership, server);
+			const auto projected  = compile_read_request(membership);
+			expect(projected && projected->Method == http_method::post && projected->Path.ends_with("/graphql")
+					   && projected->Body.find("reviewRequests(first:100)") != std::string::npos && projected->Body.find("User{id login}") != std::string::npos
+					   && projected->Body.find("reviews(") == std::string::npos && projected->Body.find("mergeStateStatus") == std::string::npos
+					   && validate_outbound_read_request(*projected),
+				   "direct membership has only identities, revisions and the first roster page on both server contracts");
+			membership.Page         = 2U;
+			membership.ReviewCursor = R"(cursor"}mutation{bad})";
+			expect(!compile_read_request(membership), "continuation names exactly one PR");
+			membership.PullRequestNumbers = { 17U };
+			const auto continued          = compile_read_request(membership);
+			expect(continued && validate_outbound_read_request(*continued), "bounded cursor bytes are JSON-encoded inside a canonical read document");
+			membership.ReviewCursor.clear();
+			expect(!compile_read_request(membership), "continuation needs a cursor");
+			membership.Page         = 1U;
+			membership.ReviewCursor = "unasked";
+			expect(!compile_read_request(membership), "first membership page accepts no cursor");
+
 			auto reviewers              = semantic(read_operation::list_requested_reviewers, server);
 			reviewers.PullRequestNumber = 17U;
 			const auto detail           = compile_read_request(reviewers);
