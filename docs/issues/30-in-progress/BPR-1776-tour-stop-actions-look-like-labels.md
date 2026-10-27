@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1776"
 title: "Tour stop actions look like labels, and the stop's More button is awkward"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "windows", "linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1776--BPR-1776--a6905583b2f2.json","kind":"defect","found_by":"owner photograph and chat, 2026-10-26: the tour editor's stop card in dark mode","related_cards":["BPR-1593","BPR-1090"]}
-acceptance: []
+acceptance: [{"criterion":"renders","outcome":"pass","revision":"a45cbce8654e24d4afc4def0c9aefaa0df31fb4a","evidence":{"kind":"command","detail":"Offscreen tour-route renders before (73e90cbd0: bare Enhance text, Use selected lines, Show in code, Suggest an outline; '\u22ef' with Qt's arrow) and after (raised chips; one More glyph), light, default drawer width. Dark and narrowest width not rendered."}},{"criterion":"kinds","outcome":"pass","revision":"a45cbce8654e24d4afc4def0c9aefaa0df31fb4a","evidence":{"kind":"command","detail":"qt_workbench_window_scale_100 pins each stop action as a non-flat quiet_push_button and More as an icon with no menu, no instant popup and no text that opens tourStopMoreMenu on a press; tour composition, publication (native, stop), scoped prose editor and drawer fit tests pass."}}]
 ---
 
 # BPR-1776: Tour stop actions look like labels, and the stop's More button is awkward
@@ -63,3 +63,14 @@ code** on the next row beside the blue primary button; under the card,
 - A Qt test pins each control's kind (not flat; More has no menu indicator).
 - The owner accepts the look on a frozen build (attended review, one
   question for the buttons, one for More).
+
+## Done and pending
+
+Done at the recorded revision: every stop action listed under Cause is the
+raised shared chip; More is the conversation cards' More glyph, its menu
+opened under it on a press, its glyph redrawn on a palette change.
+
+Pending: the owner's look on a frozen build (attended review), dark and
+narrowest-width renders. Left as they were, outside the request: the stop
+header's Previous and Next, and the publication row's Check status and Stop,
+which are flat too.
