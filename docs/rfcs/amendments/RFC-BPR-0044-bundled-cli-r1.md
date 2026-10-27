@@ -1,6 +1,6 @@
 # Proposed amendment to RFC-BPR-0044: bundle `bpr` with the desktop app
 
-Status: proposed, 2026-10-26. Source revision: `182e54a1b79b456149517ad946bb22f6c904ce3b`.
+Status: adopted for implementation, 2026-10-27. Source revision: `182e54a1b79b456149517ad946bb22f6c904ce3b`.
 
 ## Owner decision and reason
 

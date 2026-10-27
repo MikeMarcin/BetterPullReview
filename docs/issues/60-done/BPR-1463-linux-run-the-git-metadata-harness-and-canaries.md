@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1463"
 title: "Linux: run the Git metadata differential harness, canary course and cost measurements"
-status: "Ready"
+status: "Done"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1455", "BPR-1456", "BPR-1457", "BPR-1458"]
 priority: "P2"
 platforms: ["linux"]
-metadata: {"milestone_plan": {"id": "git-metadata-readers-v1", "path": "docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"}, "mandate_revision": "git-metadata-readers-r1", "rfc_base_sha": "9a4f61976bba23727acd77d10c23c041f87208f0", "reservation": "docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json"}
+metadata: {"milestone_plan":{"id":"git-metadata-readers-v1","path":"docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"},"mandate_revision":"git-metadata-readers-r1","rfc_base_sha":"9a4f61976bba23727acd77d10c23c041f87208f0","reservation":"docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json","disposition":{"date":"2026-10-26","kind":"done-for-K-L-dropped-by-owner-amendment","amendment":"docs/rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md"}}
+acceptance: [{"criterion":"BPR-1463:AC1","outcome":"pass","revision":"62bfc09f6","evidence":{"kind":"command","path":"docs/verification/RFC-BPR-0083.md","detail":"K only, as amended 2026-10-26: v0.3.4 Ubuntu 26.04 Release and Debug native suites at 62bfc09f6 (Git 2.53) pass git_metadata_harness, review_cycle_git_readers, review_cycle_git_reader_scale and core_review_cycle_manifest. The harness row runs the canary course (no --no-canary) and passes only with Unclassified == 0, Writes == 0 and a passing canary. CTest truncated the passing output at 1 KiB, so per-component GMR summary and canary lines are not retained. L's half is dropped by owner amendment."}}]
 ---
 
 # BPR-1463: Linux: run the Git metadata differential harness, canary course and cost measurements
@@ -43,3 +44,17 @@ From a checkout of main at or after the commit that finished [[BPR-1460]]:
 ## Continuation
 
 Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+
+## Closed, 2026-10-26
+
+The owner accepted RFC-BPR-0083's [2026-10-26 amendment](../../rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md), which drops
+L's Linux measurements. AC2 and AC1's L half are not run. AC1 for K passes
+on evidence that already exists: `git_metadata_harness`,
+`review_cycle_git_readers`, `review_cycle_git_reader_scale` and
+`core_review_cycle_manifest` pass in v0.3.4's Ubuntu 26.04 Release and Debug
+suites at `62bfc09f6`, against Git 2.53. That source includes
+[[BPR-1460]]'s harness. The registered harness row runs the canary course
+and passes only with no unclassified divergence, no write and a passing
+canary. One limit: CTest truncated the passing output at 1 KiB, so the
+per-component `GMR summary` and `GMR canary` lines were not kept. The
+[ledger](../../verification/RFC-BPR-0083.md) records the same.

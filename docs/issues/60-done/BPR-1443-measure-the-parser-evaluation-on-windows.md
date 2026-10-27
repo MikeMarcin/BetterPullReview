@@ -2,18 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1443"
 title: "Measure the C++ parser evaluation on Windows x64"
-status: "Ready"
+status: "Done"
 rfcs: ["RFC-BPR-0081"]
 depends_on: ["BPR-1442"]
 priority: "P2"
 platforms: ["win"]
-metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_plan":{"id":"cpp-identifier-parser-evaluation-v1","path":"docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json"}}
+metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_plan":{"id":"cpp-identifier-parser-evaluation-v1","path":"docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json"},"disposition":{"date":"2026-10-26","kind":"closed-by-owner-amendment","amendment":"docs/rfcs/assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md","measured":false}}
 ---
 
 # BPR-1443: Measure the C++ parser evaluation on Windows x64
 
 Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `windows-measurement`. Runs the harness that
-[BPR-1442](../60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Windows
+[BPR-1442](BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Windows
 x64 station, with the thresholds unchanged.
 
 ## Acceptance
@@ -60,3 +60,14 @@ Windows notes:
 - `measure_size.py` is written for macOS slices (`size -m`, `-arch`). On
   Windows, compare the linked twins' executable sizes instead.
 - libFuzzer is not built on Windows.
+
+## Closed by owner amendment, 2026-10-26
+
+Not run. The owner accepted RFC-BPR-0081's
+[2026-10-26 amendment](../../rfcs/assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md), which completes the evaluation on macOS
+alone. T fails the Contract, Bounded-work and Memory gates on macOS at both
+pins, and one failed gate rejects it, so the Windows x64 measurements
+could not change the outcome. AC03, AC04 and AC06 lose their Windows x64 half.
+Nothing here is a Windows x64 result. The shipped classifier's contract rows
+pass on Windows x64 in v0.3.4's Release suite at `62bfc09f6`. A future re-run
+of the evaluation measures this platform again.

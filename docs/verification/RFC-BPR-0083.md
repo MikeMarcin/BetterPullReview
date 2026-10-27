@@ -306,7 +306,7 @@ in 2.0, with API and ABI changes. 1.9.7 contains no reftable code.
 - **Integration size:** 102 lines of provider, 38 of CMake and 298 of candidate;
   evaluation-only tools 160 (probe), 61 (size), 201 (V differential) and 614
   (course).
-- **Windows and Linux:** not measured ([[BPR-1462]], [[BPR-1463]]).
+- **Windows and Linux:** not measured, by the owner's 2026-10-26 amendment.
 
 A build tree made with the option on inside the checkout fails
 `architecture_boundaries`: its recursive scan of `CMakeLists.txt` files reaches
@@ -345,3 +345,18 @@ presets; no released reftable support or default-build SHA-256 known. **Rejected
 its toolchain, FFI and packaging cost exceeds K's fix cost for every component,
 and it offers no capability in scope that K lacks. Its tests may still serve as a
 semantic reference.
+
+## Owner amendment, 2026-10-26: station halves
+
+The owner accepted the
+[proposed amendment](../rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md).
+L's Windows and Linux measurements are dropped. For K on Linux, the v0.3.4
+Ubuntu 26.04 Release and Debug suites at `62bfc09f6` (Git 2.53) pass
+`git_metadata_harness`, `review_cycle_git_readers`,
+`review_cycle_git_reader_scale` and `core_review_cycle_manifest`. The
+harness row passes only with no unclassified divergence, no write and a
+passing canary course. CTest truncated the passing output at 1 KiB, so the
+per-component `GMR summary` and `GMR canary` lines are not retained. For K
+on Windows, the same rows pass in the v0.3.4 Windows 11 suites (Git 2.55),
+but the canary course reports "skipped" there. Windows containment for K
+stays on [[BPR-1462]].

@@ -1,0 +1,136 @@
+{
+  "schema": "implement-rfc.engineering-handoff.v1",
+  "assignment": "bpr-pr-tour-cli-extension-v1/verification-closeout",
+  "child": "/root/bundled_cli",
+  "role_banner": "Role: rfc-implementer | Model: gpt-6.1-sol | Effort: xhigh",
+  "mandate_revision": "RFC-BPR-0044-bundled-cli-r1",
+  "run_id": "bpr-pr-tour-cli-20260927",
+  "segment_id": "bundled-cli-20261026",
+  "status": "human-pending; unattended amendment implementation complete",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+  "runtime_root": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6",
+  "branch": "main",
+  "amendment_baseline": "182e54a1b79b456149517ad946bb22f6c904ce3b",
+  "dispatch_observed_revision": "c8755b30f933923fa529533650f0242b8e7f3452",
+  "checkpoint_revision": "2bcacaf2ee1a6a42dfdc5c7f7f8912fc2c54a5be",
+  "source_candidate": "e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b",
+  "source_candidate_package": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/clean-package-v003",
+  "bpr_sha256": "a8a855c7ee8ea833b4c8071e45f7d336baefe456388ec393f5b9ed12e1fe9d77",
+  "spdx_sha256": "9a6a24e00721cab85b05bbe9be400562faf88b322d5fe4d369a95bc565d5bc3c",
+  "source_asset_sha256": "fc15e56132603872e35f91fb57142c910558c08fa7e4f1e60261ae4d8b5f75e2",
+  "commits": [
+    "bb8f74a11",
+    "791822c7f",
+    "480f379eb",
+    "e3bf3dc9c",
+    "223098b11",
+    "e114ca220",
+    "c97ac25e6",
+    "2bcacaf2e"
+  ],
+  "canonical_skill": {
+    "root": "/Users/jaeger/Documents/GitHub/AgentSkills",
+    "commit": "64938f9",
+    "paths": [
+      "skills/pr-tour/SKILL.md",
+      "skills/pr-tour/references/setup.md",
+      "skills/pr-tour/scripts/locate_bpr.py"
+    ],
+    "deployment": "MASK scoped authoring links for registered BetterPullReview checkout; exact package/deployed bytes verified",
+    "remote_publication": "not requested; no push",
+    "running_host_loading": "not observed"
+  },
+  "changed_paths": [
+    "CMakePresets.json",
+    "docs/development/release-packages.md",
+    "docs/development/release-packaging-maintainers.md",
+    "docs/development/tour-cli.md",
+    "docs/issues/10-backlog/BPR-1070-document-the-workflow-and-simplify-the-integration.md",
+    "docs/issues/10-backlog/BPR-1071-close-rfc-0046.md",
+    "docs/issues/40-parked/BPR-1068-qualify-standalone-packages-and-native-headless-safety.md",
+    "docs/rfcs/RFC-BPR-0044-headless-tour-runtime-and-terminal-cli.md",
+    "docs/rfcs/amendments/RFC-BPR-0044-bundled-cli-r1.md",
+    "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/MILESTONES.md",
+    "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json",
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "packaging/agent-skills/pr-tour/SKILL.md",
+    "packaging/agent-skills/pr-tour/references/setup.md",
+    "packaging/agent-skills/pr-tour/scripts/locate_bpr.py",
+    "scripts/verify_bundled_cli.py",
+    "scripts/verify_release_package.py",
+    "src/app/CMakeLists.txt",
+    "src/app/src/tour_cli.cpp",
+    "tests/scripts/pr_tour_skill_tests.py",
+    "tests/scripts/verify_release_package_tests.py",
+    "tools/release.sh"
+  ],
+  "verification": {
+    "build": "universal tests-disabled macOS app and CLI pass",
+    "bundle_path_and_relocation": "BUNDLED_CLI_OK; headless closure, capabilities, first-run private profile, noninteractive refusal, not-signed-in open refusal",
+    "package_security": "RELEASE_SECURITY_MECHANICS_OK; 53 files, 20 binaries, 539 first-party units, 540 hardened units",
+    "source": "RELEASE_SOURCE_ASSET_OK; installed notices, 71 Qt package records, 22 source archives",
+    "package_controls": "14/14 pass",
+    "source_release_controls": "24/24 pass",
+    "security_controls": "22/22 pass",
+    "integration": "4/4 pass: architecture_boundaries, release_package_audit_contract, release_security_audit_contract, test_network_isolation_manifest",
+    "documentation_contracts": "67/67 pass; DOCUMENTATION_OK",
+    "skill": "shipped-parser/package smoke passes on final v003 app and deployed canonical skill; locator PATH/fallback/absence controls pass",
+    "variants": "agent-free configure selects app_bpr; automation-off configure excludes it; no native variant runtime qualification claimed",
+    "format": "clang-format 22 check passes",
+    "debug_timings": "No dedicated timing/performance course selected or credited",
+    "release_suite": "local prepare uses --skip-tests; full release suite is not claimed passing"
+  },
+  "failed_or_unavailable_checks": [
+    "v001 profile probe refused a noncanonical macOS temporary path; fixed at 223098b11",
+    "v002 package/security audit refused clean=False; clean v003 passed after other writers committed",
+    "unpackaged distribution CLI smoke produced no envelope; final bundled path passes",
+    "skill scanner included another nested registered worktree; bounded at e114ca220",
+    "skill quick_validate unavailable because PyYAML absent; actual package/parser smoke passes"
+  ],
+  "review": {
+    "session_id": "090216984c73ddb7006b51c64ba42120",
+    "state": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state",
+    "consumed_cursor": 3,
+    "candidate_id": "BPR-1068-bundled-macos-native-auth-v001",
+    "candidate_revision": "223098b11131921ef9f9b2c14b5f2e5b1fef5f1f-bpr-a8a855c7ee8e-v001",
+    "fingerprint": "e50bcb757d796f1b44fc2fd101c001dba43595da9055b9da69141c3954192a8e",
+    "protected_package": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/package",
+    "status": "ready/protected; no verdict",
+    "scope": "native sign-in and following-process BPR-Test read/cleanup only; earlier package remains exact and is not relabelled as v003",
+    "wizard_session_id": "e65bdc93-cf11-4c25-951d-2798edb7148f",
+    "wizard_state": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/wizard-state",
+    "urls": "capability URLs exist only in external host/session state",
+    "commands": [
+      {
+        "role": "review server",
+        "tool_session": 27982,
+        "pid": 35267,
+        "lifecycle": "active; handed to coordinator"
+      },
+      {
+        "role": "wizard server",
+        "tool_session": 84565,
+        "pid": 33740,
+        "lifecycle": "active; handed to coordinator"
+      }
+    ]
+  },
+  "required_pending": [
+    "BPR-1068: bundled native authentication; actual release Developer ID/hardened runtime/timestamp/notarization/stapling/Gatekeeper, remaining platform/native safety and Windows owner sign-in",
+    "BPR-1069: actual native/website/agent three-interface and second-machine acceptance",
+    "BPR-1070: dependency-gated complete workflow docs/integration acceptance; amendment setup documentation implemented",
+    "BPR-1071: full 32-row final acceptance and required independent review; RFCs remain Proposed",
+    "Legal/source-recipient access/retention, vulnerability policy, full native vault/crash/install qualification remain separate release obligations",
+    "Native auth review is exact to older frozen package; v003 rebuilt mimalloc bytes and has no carried-over native auth verdict"
+  ],
+  "ownership": {
+    "engineering": "quiescent after handoff",
+    "other_writers": "their commits preserved; clean main at checkpoint",
+    "task_commands": "all builds/tests/preparations completed; only the two explicitly handed-off review hosts remain",
+    "temporary_work": "Probe profiles removed; failed and passing evidence plus read-only packages retained in external runtime root. Task-owned duplicate build artifact directories removed after confirming copied closure and source assets.",
+    "effects": "no publish, no push, no live GitHub mutation, no owner desktop capture/control, no owner Keychain item reading"
+  },
+  "next_action": "Coordinator presents existing session, checks status after cursor 3, reads secret-free signin-result.json when supplied and starts a fresh implementer after handback. Preserve exact runtime identities; do not infer acceptance from wizard acknowledgement or reuse the old native verdict for changed release bytes.",
+  "self_review": "Changed code retains one shared tour implementation; bundled/standalone plugin layouts are explicit, native closure remains inside the app, and the locator adds no publisher or approval route. Script and source diffs reviewed for scope and simple control flow."
+}

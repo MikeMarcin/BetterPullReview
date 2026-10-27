@@ -1,5 +1,37 @@
 # Tour terminal development
 
+The macOS desktop package with local automation includes `bpr` at
+`BetterPullReview.app/Contents/MacOS/bpr`. Install the app in `/Applications`
+and invoke it directly:
+
+```sh
+/Applications/BetterPullReview.app/Contents/MacOS/bpr tour capabilities --json
+```
+
+For terminal convenience, add its executable directory for this shell:
+
+```sh
+export PATH="/Applications/BetterPullReview.app/Contents/MacOS:$PATH"
+bpr tour capabilities --json
+```
+
+To make that persistent, add the export line yourself to `$HOME/.zshrc` for
+interactive zsh, or `$HOME/.bashrc` for interactive Bash. A Bash login shell
+must source `.bashrc` from `$HOME/.bash_profile`. Open a new terminal or source
+the edited file. Substitute the actual absolute app path if installed elsewhere,
+including under `$HOME/Applications`. BPR never edits shell configuration or
+creates a symlink automatically. There is no desktop setup button in this release.
+
+The `pr-tour` skill checks PATH first and then the standard `/Applications`
+bundle. It retains the located absolute executable path throughout the session,
+including when a GUI-launched agent did not inherit a shell PATH. If neither
+exists, install an app with local automation or supply its actual absolute CLI
+path. The `agent-free` variant includes it; `agent-free-automation-off` does not.
+The final artifact still needs its own release/native qualification; see
+[[BPR-1068]]. macOS evidence does not qualify Windows or Linux.
+
+## Developer fallback
+
 The `tour-cli` preset builds the separate `bpr` executable with tests disabled:
 
 ```sh
@@ -10,11 +42,9 @@ cmake --install build/tour-cli --component TourCLI --prefix /absolute/install/ro
 /absolute/install/root/bin/bpr tour capabilities --json
 ```
 
-For the `pr-tour` skill, the executable must be visible to the agent process.
-For example, choose `$HOME/.local/opt/bpr-tour-cli` as the install prefix,
-then add its `bin` directory to the agent's `PATH` before starting the agent,
-or have the agent use the absolute `bin/bpr` path for every command. Installing
-the desktop release does not provide this executable.
+Choose `$HOME/.local/opt/bpr-tour-cli` as a development install prefix and use
+its absolute `bin/bpr` path or put that `bin` directory on PATH. A standalone
+CLI release is not promised or required for the macOS app workflow.
 
 The same executable serves local Review Cycles as `bpr cycle`; see
 [Review Cycles terminal](cycle-cli.md).
@@ -29,8 +59,7 @@ The macOS development install deploys Qt Core, Qt Network and its native TLS
 plugin with paths relative to `bin/bpr`. The Linux install does the same with
 Qt Core, Network, their ICU and the OpenSSL TLS plugin under `lib/`
 ([[BPR-1267]]), so it needs no Qt on the system. Windows currently uses its
-installed Qt runtime. On every platform this is a development install, not a
-release package: `packaging/package.py` packages only the desktop's `Runtime`
+installed Qt runtime. The `TourCLI` component is a development install: `packaging/package.py` packages only the desktop's `Runtime`
 component, and the `TourCLI` install carries no notices, SBOM or
 corresponding-source reference ([[BPR-1068]]). To remove it, delete the files
 listed in `build/tour-cli/install_manifest_TourCLI.txt`.
@@ -38,8 +67,8 @@ listed in `build/tour-cli/install_manifest_TourCLI.txt`.
 Capability discovery reports implemented commands explicitly. Human text is the
 default; `--json` writes one `bpr.tour.cli-result.v1` envelope. Its `platform`
 object, and the human Platform line, name this build's platform, its native
-vault and whether the gh transport exists there, and say "development install;
-no release package" and "not yet qualified" on every platform (see "Platform
+vault and whether the gh transport exists there, and distinguish "bundled with macOS desktop" / "exact release qualification
+required" from a development install / "not yet qualified" (see "Platform
 status" below). Unsupported options
 refuse before command execution. Available commands include `connect`, `open`, `status`, `show`, `edit`, `add`,
 `move`, `remove`, `ready`, `undo`, `redo`, `walk`, `preview`, `publish`, `recover`, `hooks`, `assist`,

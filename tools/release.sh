@@ -285,6 +285,13 @@ verify_signature_policy() {
     local entitlements
 
     codesign --verify --deep --strict --verbose=4 "${bundle}"
+    if [[ "${VARIANT}" != "agent-free-automation-off" ]]; then
+        codesign --verify --strict --verbose=4 "${bundle}/Contents/MacOS/bpr"
+        details="$(codesign -d --verbose=4 "${bundle}/Contents/MacOS/bpr" 2>&1)"
+        grep -Fq "TeamIdentifier=${TEAM_ID}" <<<"${details}" || fail "Bundled bpr signed team is not ${TEAM_ID}"
+        grep -Eq 'flags=.*\(runtime\)' <<<"${details}" || fail "Bundled bpr hardened runtime is absent"
+        grep -Fq 'Timestamp=' <<<"${details}" || fail "Bundled bpr secure signing timestamp is absent"
+    fi
     details="$(codesign -d --verbose=4 "${bundle}" 2>&1)"
     grep -Fq "Identifier=${BUNDLE_ID}" <<<"${details}" || fail "Signed identifier is not ${BUNDLE_ID}"
     grep -Fq "TeamIdentifier=${TEAM_ID}" <<<"${details}" || fail "Signed team is not ${TEAM_ID}"
@@ -646,7 +653,16 @@ STAGED_APP="${STAGING_ROOT}/${APP_NAME}.app"
 
 log "Deploying the required Qt runtime"
 ditto "${APP_PATH}" "${STAGED_APP}"
-"${MACDEPLOYQT}" "${STAGED_APP}" -always-overwrite -codesign=- -verbose=1
+DEPLOY_ARGUMENTS=("${STAGED_APP}")
+if [[ "${VARIANT}" != "agent-free-automation-off" ]]; then
+    BPR_CLI="${BUILD_DIR}/src/app/bpr"
+    [[ -x "${BPR_CLI}" ]] || fail "The bundled terminal executable is absent: ${BPR_CLI}"
+    ditto "${BPR_CLI}" "${STAGED_APP}/Contents/MacOS/bpr"
+    DEPLOY_ARGUMENTS+=("-executable=${STAGED_APP}/Contents/MacOS/bpr")
+else
+    [[ ! -e "${STAGED_APP}/Contents/MacOS/bpr" ]] || fail "Automation-off package unexpectedly carries bpr"
+fi
+"${MACDEPLOYQT}" "${DEPLOY_ARGUMENTS[@]}" -always-overwrite -codesign=- -verbose=1
 # [[BPR-1485]]. The linked xdiff is its own shared library, loaded through
 # @rpath from Contents/Frameworks beside the Qt frameworks.
 XDIFF_LIBRARY="${BUILD_DIR}/libbpr_xdiff.dylib"
@@ -683,6 +699,9 @@ if [[ "${PREPARE_ONLY}" == "1" ]]; then
     codesign --force --deep --sign - --timestamp=none "${STAGED_APP}"
     codesign --verify --deep --strict "${STAGED_APP}"
     verify_relocated_launch "${STAGED_APP}" "${STAGING_ROOT}/smoke-profile"
+    if [[ "${VARIANT}" != "agent-free-automation-off" ]]; then
+        python3 "${ROOT_DIR}/scripts/verify_bundled_cli.py" --app "${STAGED_APP}"
+    fi
     ditto "${STAGED_APP}" "${LOCAL_APP}"
     python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${LOCAL_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json" --source-archive "${SOURCE_PATH}"
     ditto -c -k --keepParent "${LOCAL_APP}" "${LOCAL_ZIP}"
@@ -695,6 +714,9 @@ log "Signing nested code and application with Developer ID"
 sign_nested_code "${STAGED_APP}"
 verify_signature_policy "${STAGED_APP}"
 verify_relocated_launch "${STAGED_APP}" "${STAGING_ROOT}/smoke-profile"
+if [[ "${VARIANT}" != "agent-free-automation-off" ]]; then
+    python3 "${ROOT_DIR}/scripts/verify_bundled_cli.py" --app "${STAGED_APP}"
+fi
 
 ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal${VARIANT_SUFFIX}"
 DMG_PATH="${OUTPUT_DIR}/${ASSET_BASE}.dmg"

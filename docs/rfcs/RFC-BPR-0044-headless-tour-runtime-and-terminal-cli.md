@@ -13,7 +13,7 @@ metadata: {"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rf
 
 ## Decision and additive scope
 
-Ship `bpr tour` as a separately installable, AI-free terminal frontend to the existing review-tour core and application services. It works without the desktop installed or running and without a display server. The desktop calls shared C++ services directly; it does not shell out to its CLI. `pr-tour` is a later thin caller of the same CLI, not another tour implementation.
+Ship `bpr tour` as an AI-free terminal frontend to the existing review-tour core and application services. Under the owner's [bundled-cli-r1 amendment](amendments/RFC-BPR-0044-bundled-cli-r1.md), macOS desktop releases with local automation include it at `BetterPullReview.app/Contents/MacOS/bpr`, with its runtime closure in the same app. It runs without starting the desktop or requiring a display server. Direct absolute-path invocation and optional user-managed PATH setup require neither a checkout nor another package; the first release adds no desktop button, shell edits or automatic symlink. The automation-off app variant omits it. Standalone archive machinery is development support, not a promised separate CLI release or macOS closeout prerequisite. The desktop calls shared C++ services directly; it does not shell out to its CLI. `pr-tour` is a later thin caller of the same CLI, not another tour implementation.
 
 This RFC extends imported RFC-BPR-0039–0042. It does not replace their authoring model, ordinary GitHub publication format, exact source anchors, staged publication protocol, maintenance rules, or authority journal. Import identifiers may have been remapped: resolve the predecessor pack's actual mapping before editing code. The associated RFC-BPR-0045 provides shared work-in-progress (WIP) handoff. RFC-BPR-0046 provides the optional skill; neither an agent nor AI settings are prerequisites for manual terminal use.
 
@@ -86,7 +86,7 @@ Cancellation after a possible send reports an uncertain or partial outcome. Read
 - **AC44-09:** Native and admitted CLI transports retain host/platform qualification and credential boundaries; unsupported paths refuse honestly.
 - **AC44-10:** Killed/interrupted terminal publication and maintenance reconcile known identities without duplicate sends or automatic resume.
 - **AC44-11:** Terminal rendering neutralizes untrusted control/escape sequences, reports truncation, and remains usable with no color, narrow width, and Unicode paths.
-- **AC44-12:** Separately installable packages include first-run profile/auth setup without the desktop; focused native courses, integration docs and feature discovery distinguish supported from not-yet-qualified platforms.
+- **AC44-12:** A macOS desktop release with local automation includes `Contents/MacOS/bpr` and its runtime closure. Inspect the installed app and run `bpr tour capabilities --json` from that final path; qualify dependencies, signing/notarization, installed notices, SPDX, corresponding source and first-run profile/authentication there. Document stable absolute-path and optional persistent PATH setup, and verify normal and relocated bundles remain headless. The `pr-tour` skill locates PATH first, then the standard macOS app, and retains one absolute executable path. Preserve separately recorded Windows/Linux safety and qualification obligations; macOS evidence does not qualify them.
 
 ## Delivery
 

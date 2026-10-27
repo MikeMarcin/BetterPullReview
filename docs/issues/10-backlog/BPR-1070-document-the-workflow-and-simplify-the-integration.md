@@ -33,3 +33,7 @@ Acceptance ownership: Integration/lineage/closeout slice; no new product criteri
 Milestone: **verification-closeout**. Pack alias PACK-PRTOUR-19 was allocated as live `BPR-1070` at import, preserving original plan lineage.
 
 Run focused tests and record command/result/producing revision. Reuse unchanged valid parent evidence. An implementation card does not authorize real company PR writes, remote pushes, credentials, paid model calls, agent permission changes or upstream skill installation. Use existing isolated fixtures and separately authorized designated acceptance. Missing capabilities/evidence remain explicit. No GitHub Actions or new model-routing topology is introduced.
+
+## Bundled CLI amendment (2026-10-27)
+
+The owner adopted [bundled-cli-r1](../../rfcs/amendments/RFC-BPR-0044-bundled-cli-r1.md). Documentation and skill setup now target `BetterPullReview.app/Contents/MacOS/bpr`, PATH-first/standard-bundle lookup with one retained absolute path, explicit user-managed shell setup and the automation-off exclusion. The source build remains a developer fallback. This amendment work does not bypass the BPR-1068 dependency or claim the rest of this card complete.

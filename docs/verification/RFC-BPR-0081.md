@@ -32,13 +32,25 @@ fixes those classes in the heuristic. It may not take
   `NAMESPACE_BEGIN`-style macros, so that the contract twin passes and T's
   false negatives fall below the baseline's.
 
-**What is still owed.** Windows x64
-([BPR-1443](../issues/20-ready/BPR-1443-measure-the-parser-evaluation-on-windows.md))
+**Trigger status, 2026-10-27.** The 800-line condition has fired.
+`cpp_identifier_context.cpp` is 847 lines at `223098b11`. BPR-1474 left it
+at 698, and later out-of-scope cards took it to 776 (BPR-1710), 788
+(BPR-1711) and 847 (BPR-1714). Nothing is re-run or changed until the owner
+decides on [BPR-1777](../issues/10-backlog/BPR-1777-rfc-0081-re-run-trigger-fired-identifier-refinement-is-847-lines.md).
+On current source the contract twin `syntax_classification_contract@ts-v0.23.4`
+fails first on BPR-1710's `std::` namespace assertion, which T was never
+updated for, before it reaches the enumerator case.
+
+**Windows and Linux are not measured.** Windows x64
+([BPR-1443](../issues/60-done/BPR-1443-measure-the-parser-evaluation-on-windows.md))
 and Linux x64
-([BPR-1444](../issues/20-ready/BPR-1444-measure-the-parser-evaluation-on-linux.md))
-have not been measured. AC03 requires their numbers, but they cannot change
-the outcome: a gate that fails on one platform rejects T whatever the others
-show. Nothing below claims a Windows or Linux result.
+([BPR-1444](../issues/60-done/BPR-1444-measure-the-parser-evaluation-on-linux.md))
+were not run. Their numbers cannot change the outcome, because a gate that
+fails on one platform rejects T whatever the others show. The owner's
+[2026-10-26 amendment](../rfcs/assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md)
+removes them from AC03, AC04 and AC06. Nothing below claims a Windows or
+Linux result. A re-run under the conditions above measures all three
+platforms.
 
 ## Gates
 

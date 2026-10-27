@@ -35,12 +35,12 @@ namespace bpr::app {
 		};
 		auto refuse(std::string aCode, std::string aMessage, int aExit = 2) { return std::unexpected(tour_cli_error{ std::move(aCode), std::move(aMessage), aExit }); }
 		auto supported_commands() -> QStringList { return { "capabilities", "connect", "open", "status", "show", "edit", "move", "remove", "ready", "add", "undo", "redo", "walk", "preview", "publish", "recover", "hooks", "assist", "outline", "labels" }; }
-		/// [[BPR-1068]] What this build offers on its own platform. Nothing here is a
-		/// qualification: no platform has a release package or an observed live
-		/// sign-in, read or publication, so every one says so.
+		/// [[BPR-1068]] Build layout is distinct from exact-package qualification.
 		auto platform_status() -> QJsonObject
 		{
-#if defined(__APPLE__)
+#if defined(__APPLE__) && defined(BPR_BUNDLED_TOUR_CLI)
+			return { { "os", "macos" }, { "native_vault", "Keychain" }, { "gh_transport", "explicit opt-in" }, { "package", "bundled with macOS desktop" }, { "qualification", "exact release qualification required" } };
+#elif defined(__APPLE__)
 			return { { "os", "macos" }, { "native_vault", "Keychain" }, { "gh_transport", "explicit opt-in" }, { "package", "development install; no release package" }, { "qualification", "not yet qualified" } };
 #elif defined(_WIN32)
 			return { { "os", "windows" }, { "native_vault", "Credential Manager" }, { "gh_transport", "unavailable" }, { "package", "development install; no release package" }, { "qualification", "not yet qualified" } };

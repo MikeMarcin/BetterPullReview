@@ -83,7 +83,7 @@ The thin named pr-tour skill uses the active agent and effective scoped hooks ov
 
 ## verification-closeout
 
-Packages, actual interfaces and claimed hosts are qualified and all extension claims are reconciled.
+The macOS desktop bundles bpr with native release qualification; actual interfaces and claimed hosts are qualified and all extension claims are reconciled.
 
 **Work:** `BPR-1068`, `BPR-1069`, `BPR-1070`, `BPR-1071`
 

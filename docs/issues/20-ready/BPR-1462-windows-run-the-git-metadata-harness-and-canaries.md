@@ -1,16 +1,16 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1462"
-title: "Windows: run the Git metadata differential harness, canary course and cost measurements"
+title: "Windows: extend the Git metadata canary course to K"
 status: "Ready"
 rfcs: ["RFC-BPR-0083"]
 depends_on: ["BPR-1455", "BPR-1456", "BPR-1457", "BPR-1458"]
 priority: "P2"
 platforms: ["win"]
-metadata: {"milestone_plan": {"id": "git-metadata-readers-v1", "path": "docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"}, "mandate_revision": "git-metadata-readers-r1", "rfc_base_sha": "9a4f61976bba23727acd77d10c23c041f87208f0", "reservation": "docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json"}
+metadata: {"milestone_plan":{"id":"git-metadata-readers-v1","path":"docs/rfcs/plans/git-metadata-readers-v1/milestone-plan.json"},"mandate_revision":"git-metadata-readers-r1","rfc_base_sha":"9a4f61976bba23727acd77d10c23c041f87208f0","reservation":"docs/issues/_reservations/BPR-1454--BPR-1464--0c7219d3be8c.json","amended":{"date":"2026-10-26","amendment":"docs/rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md","original_title":"Windows: run the Git metadata differential harness, canary course and cost measurements"}}
 ---
 
-# BPR-1462: Windows: run the Git metadata differential harness, canary course and cost measurements
+# BPR-1462: Windows: extend the Git metadata canary course to K
 
 The Windows half of [RFC-BPR-0083](../../rfcs/RFC-BPR-0083-git-metadata-readers.md)'s H2 and H5 and of AC03 and
 AC05, on a native Windows station. Nothing here is measured on macOS.
@@ -45,9 +45,22 @@ From a checkout of main at or after the commit that finished [[BPR-1460]]:
 
 ## Acceptance criteria
 
-- **BPR-1462:AC1:** On native Windows, [[BPR-1454]]'s contract tests and the differential harness pass for K, with every divergence classified, and the canary course records containment, no-execution and no-write results for K and every L component evaluated.
-- **BPR-1462:AC2:** With the evaluation option on, libgit2 builds with the existing Windows toolchain, and the stripped binary-size and build-time deltas are measured and recorded in the decision record.
+- **BPR-1462:AC1** *(amended 2026-10-26)*: On native Windows, the canary course has Windows equivalents of the FIFO and symlink canaries: an `include.path` naming a named pipe or an outside file whose rules would change the answers, and `.gitignore`/`.gitattributes` replaced by a symbolic link or junction pointing outside the root. It records containment, no-execution and no-write results for K, and a negative control shows that each canary fires. A containment failure is a K defect, fixed under this card or a card it names.
+- **BPR-1462:AC2:** Dropped by owner amendment, 2026-10-26. libgit2 is not built or measured on Windows.
+
+The original text of both criteria is in the [amendment record](../../rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md).
 
 ## Continuation
 
 Imported 2026-10-13 under mandate `git-metadata-readers-r1`; nothing is measured or accepted yet.
+
+## Narrowed by owner amendment, 2026-10-26
+
+The owner accepted RFC-BPR-0083's [2026-10-26 amendment](../../rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md). L is
+ineligible on every component, so its Windows canary and cost measurements
+are dropped. Station procedure step 3 is not run, and step 4 records only
+K's H2 cell. K's harness, divergence classification and reader contract
+rows already pass in v0.3.4's Windows 11 Release and Debug suites at
+`62bfc09f6`, against Git 2.55. `run_canary` reports "skipped" on `_WIN32`,
+so the work left is the Windows canary course for K described in the
+amended AC1.

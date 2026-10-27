@@ -4,8 +4,11 @@
 decision rules to each Git metadata component on the evidence in the
 [verification ledger](RFC-BPR-0083.md). Mandate `git-metadata-readers-r1`;
 immutable RFC_BASE_SHA `9a4f61976bba23727acd77d10c23c041f87208f0`. Evidence is
-macOS (arm64, Git 2.50.1); the Windows and Linux halves of H2 and H5 belong to
-[[BPR-1462]] and [[BPR-1463]] and are pending.
+macOS (arm64, Git 2.50.1). Under the owner's
+[2026-10-26 amendment](../rfcs/assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md),
+L's Windows and Linux halves of H2 and H5 are not measured. K's Linux H2 is
+observed by v0.3.4's Ubuntu suites ([[BPR-1463]]). K's Windows H2 is pending
+on [[BPR-1462]].
 
 ## Owner answers relied on
 
@@ -59,8 +62,9 @@ description need no change beyond what [[BPR-1454]] already recorded in the
 
 ## What could change a verdict
 
-- **K's H2 on Windows and Linux** ([[BPR-1462]], [[BPR-1463]]). A failure there
-  is a defect to fix in K: no other candidate is eligible.
+- **K's H2 on Windows** ([[BPR-1462]]). A failure there is a defect to fix in
+  K: no other candidate is eligible. Linux passed in v0.3.4's suites
+  ([[BPR-1463]]).
 - **Reading reftable.** Git 3.0 is announced to make reftable the default for new
   repositories, so refusals will grow. The ways to read it are a first-party
   reftable reader in core, which AGENTS.md says needs the owner's agreement

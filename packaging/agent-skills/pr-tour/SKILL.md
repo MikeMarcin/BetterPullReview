@@ -13,16 +13,9 @@ Help the author explain the problem, the solution, and the important code decisi
 
 ## Get the CLI
 
-The desktop release does not include `bpr`. From a BetterPullReview source checkout, build and install the separate development CLI:
+Run this skill's `scripts/locate_bpr.py` with Python 3. It looks on `PATH` first, then at `/Applications/BetterPullReview.app/Contents/MacOS/bpr` on macOS. Keep the returned absolute executable path for every command in this session, including capability discovery; `bpr` below means that path. This also works for a GUI-launched agent whose shell PATH was never inherited. If lookup fails, stop and give its setup instruction; do not attempt `tour open`. For a nonstandard app location ask for its absolute path and check `<app>/Contents/MacOS/bpr`.
 
-```sh
-cmake --preset tour-cli
-cmake --build --preset tour-cli
-cmake --install build/tour-cli --component TourCLI --prefix "$HOME/.local/opt/bpr-tour-cli"
-"$HOME/.local/opt/bpr-tour-cli/bin/bpr" tour capabilities --json
-```
-
-Add `$HOME/.local/opt/bpr-tour-cli/bin` to the agent's `PATH`, or invoke that absolute executable path for every command below. This is a development install, not a release package. The repository's `docs/development/tour-cli.md` covers platform setup and sign-in. If `bpr` is missing, explain these steps before attempting `tour open`.
+The macOS desktop package includes the terminal executable in builds with local automation. The automation-off variant does not provide it. See [setup](references/setup.md) for direct invocation, optional persistent PATH configuration, other platforms and the source-build fallback. Never edit shell configuration or create a symlink without an explicit user action.
 
 ## Begin or resume
 

@@ -256,6 +256,7 @@ namespace bpr::app {
 		if (Closing) {
 			return;
 		}
+		const auto busy = Context.has_value();
 		for (auto& key : aKeys) {
 			const auto settling = (Pending && Pending->IdempotencyKey == key) || (LookupKey && *LookupKey == key)
 				|| (Recovering && Recovering->IdempotencyKey == key);
@@ -264,6 +265,11 @@ namespace bpr::app {
 			}
 		}
 		next_lookup();
+		// [[BPR-1778]]. A lookup holds every control until it answers; the
+		// page shows that rather than verdicts the workflow would refuse.
+		if (!busy && Context) {
+			present();
+		}
 	}
 
 	void review_submission_workflow::next_lookup()
@@ -483,6 +489,13 @@ namespace bpr::app {
 				|| (kind == command_kind::begin_submit && controls.Submit)
 				|| (kind == command_kind::discard && controls.Discard);
 			if (!allowed) {
+				// [[BPR-1778]]. A refused gesture never passes in silence: the
+				// page is shown again with the controls this workflow allows
+				// and why, so a verdict it shows is one it accepts.
+				if (kind == command_kind::begin_submit && (LookupKey || Recovering)) {
+					Status = QStringLiteral("Not submitted yet: an earlier review's comments are still being checked. Submit again in a moment.");
+				}
+				present();
 				return;
 			}
 			// [[BPR-1735]]. GitHub refuses a whole review carrying a comment it
@@ -511,6 +524,8 @@ namespace bpr::app {
 				}
 				if (AdmitPublication) {
 					if (!DraftBinding) {
+						Status = QStringLiteral("Not published. The current account or pull request changed. Your draft is kept.");
+						present();
 						return;
 					}
 					const auto confirmedDraft   = *Draft;
@@ -526,6 +541,8 @@ namespace bpr::app {
 					}
 					if (!Draft || *Draft != confirmedDraft || !Current
 						|| DraftBinding != confirmedBinding || !decided_controls().Submit) {
+						Status = QStringLiteral("Not published. The current account or pull request changed. Your draft is kept.");
+						present();
 						return;
 					}
 					const auto confirmed = core::prepare_review_decision(*Draft, Selection);
@@ -705,11 +722,15 @@ namespace bpr::app {
 					restore(Unresolved.front());
 					reconcile();
 				} else if (!Draft || Draft->State == draft_state::submitted || Draft->State == draft_state::discarded
-						   || (Draft->State == draft_state::drafting && !core::kept(*Draft) && DraftBinding != std::optional{ Current->Binding })) {
+						   || (Draft->State == draft_state::drafting && Draft->Body.empty() && DraftBinding != std::optional{ Current->Binding })) {
 					// [[BPR-1345]] v003. A finished review is never shown again.
 					// [[BPR-1715]]. Nor is one frozen on an earlier revision
-					// that keeps nothing (no summary, the default verdict): the
-					// review goes on at the current revision, with its comments.
+					// that keeps no summary: the review goes on at the current
+					// revision, with its comments. [[BPR-1778]]. A chosen
+					// verdict is not words to keep: each verdict button chooses
+					// itself again. Approve that GitHub refused left Approve
+					// chosen, and a new revision then froze every verdict until
+					// the application restarted.
 					new_draft();
 				} else {
 					// A finished review never takes the next one's comments.
