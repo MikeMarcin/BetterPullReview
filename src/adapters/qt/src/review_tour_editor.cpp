@@ -4,6 +4,9 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+
+#include "conversation_glyphs.hpp"
+
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
@@ -829,7 +832,6 @@ namespace bpr::qt {
 			tools->setSpacing(6);
 			auto* map = new quiet_push_button{ tr("Use selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
-			map->setFlat(true);
 			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
 			tools->addWidget(map);
 			tools->addStretch(1);
@@ -1214,7 +1216,7 @@ namespace bpr::qt {
 		button->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemMagic") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionMagic")
 																																				: QStringLiteral("tourStopMagic"));
 		button->setFocusPolicy(Qt::TabFocus);
-		button->setFlat(true);
+		// [[BPR-1776]]. Raised, as the shared chip: flat it read as a label.
 		button->setToolTip(tr("Use the selected agent once. The result replaces only the captured text and can be undone."));
 		aLayout->addWidget(button, 0, Qt::AlignLeft);
 		const auto label = [aEditor, aHook, button] { button->setText(aEditor->textCursor().hasSelection() ? tr("Enhance selection") : core::writing_blank(aEditor->raw()) ? (aHook == core::writing_hook::comment ? tr("Generate comment") : tr("Recover explanation"))
@@ -1433,7 +1435,6 @@ namespace bpr::qt {
 		connect(add, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_stop); });
 		auto* suggest = new quiet_push_button{ tr("Suggest an outline"), OutlineTools };
 		suggest->setObjectName(QStringLiteral("tourSuggestOutline"));
-		suggest->setFlat(true);
 		suggest->setToolTip(tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops."));
 		toolsRow->addWidget(suggest);
 		toolsRow->addStretch(1);
@@ -1501,7 +1502,9 @@ namespace bpr::qt {
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
 		const auto button = [this](const QString& aText, const QString& aName, QHBoxLayout* aRow, auto aCallback) {
-			QPushButton* value = aName == QStringLiteral("tourRemoveRelated") ? new QPushButton{ aText, StopFields } : static_cast<QPushButton*>(new quiet_push_button{ aText, StopFields });
+			// [[BPR-1776]]. Every stop action is the shared chip, raised at
+			// rest, so it reads as something to press.
+			QPushButton* value = new quiet_push_button{ aText, StopFields };
 			value->setObjectName(aName);
 			aRow->addWidget(value);
 			connect(value, &QPushButton::clicked, this, aCallback);
@@ -1514,10 +1517,8 @@ namespace bpr::qt {
 		auto* const sources = StopActions->row();
 		add_writing_button(Body, core::writing_hook::comment, sources);
 		auto* const useLines = button(tr("Use selected lines"), QStringLiteral("tourUseSelectedLines"), sources, [retarget] { retarget->trigger(); });
-		useLines->setFlat(true);
 		useLines->setToolTip(retarget->toolTip());
 		auto* const addRelated = button(tr("Related source"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
-		addRelated->setFlat(true);
 		addRelated->setToolTip(tr("Link the lines selected in the code as related source"));
 		auto* const removeRelated = button(tr("Remove link"), QStringLiteral("tourRemoveRelated"), sources, [this] {
 			if (!selected_related() || !Dispatch || Shown.Refusal == core::tour_refusal::bounds) {
@@ -1527,14 +1528,18 @@ namespace bpr::qt {
 			value.Related.erase(value.Related.begin() + Related->currentRow());
 			Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
 		});
-		removeRelated->setFlat(true);
 		// [[BPR-1593]]. The rest of the stop's actions, behind More: the
 		// route has room for the three a stop is written with.
 		auto* const more = new QToolButton{ StopFields };
 		more->setObjectName(QStringLiteral("tourStopMore"));
-		more->setText(QStringLiteral("\u22EF"));
+		// [[BPR-1776]]. One sign: the conversation cards' More glyph. An
+		// instant-popup menu would add Qt's own arrow beside it, so the menu
+		// opens under the button on a press instead.
+		more->setIcon(conversation_icon(conversation_glyph::more, palette()));
+		more->setIconSize(QSize{ 16, 16 });
+		more->setToolButtonStyle(Qt::ToolButtonIconOnly);
 		more->setAutoRaise(true);
-		more->setPopupMode(QToolButton::InstantPopup);
+		more->setCursor(Qt::ArrowCursor);
 		more->setToolTip(tr("More: related source, insert, duplicate, merge, remove"));
 		more->setAccessibleName(tr("More stop actions"));
 		auto* const moreMenu = new QMenu{ more };
@@ -1545,7 +1550,7 @@ namespace bpr::qt {
 		for (auto* const item : menu->actions()) {
 			moreMenu->addAction(item);
 		}
-		more->setMenu(moreMenu);
+		connect(more, &QToolButton::clicked, moreMenu, [more, moreMenu] { moreMenu->popup(more->mapToGlobal(QPoint{ 0, more->height() })); });
 		sources->addWidget(more);
 		AddRelated    = addRelated;
 		RemoveRelated = removeRelated;
@@ -1567,7 +1572,6 @@ namespace bpr::qt {
 		nav->setSpacing(6);
 		fields->addLayout(nav);
 		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
-		returnToTour->setFlat(true);
 		returnToTour->setToolTip(tr("Show the stop's lines in the code"));
 		nav->addStretch(1);
 		auto* complete = new QPushButton{ tr("Ready, next"), StopFields };
@@ -2241,6 +2245,12 @@ namespace bpr::qt {
 			Source->setFont(code_font_of(font()));
 			Related->setFont(code_font_of(font()));
 			place_stop_card();
+		}
+		// [[BPR-1776]]. More's glyph is drawn in the palette's ink.
+		if (aEvent->type() == QEvent::PaletteChange) {
+			if (auto* const more = qobject_cast<QToolButton*>(MoreButton); more != nullptr) {
+				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
+			}
 		}
 	}
 

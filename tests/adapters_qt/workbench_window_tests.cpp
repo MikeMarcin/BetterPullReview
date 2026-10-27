@@ -34,6 +34,7 @@
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/refresh_note.hpp"
 #include "bpr/qt/review_cycle_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
@@ -13785,6 +13786,25 @@ namespace {
 		expect(violations.isEmpty(), "the route keeps RFC-BPR-0085's principles: " + violations.join(QStringLiteral("; ")).toStdString());
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/tour-route.png"), "PNG"), "the route render is saved");
+		}
+		// [[BPR-1776]], the owner's photograph of 2026-10-26 ("don't even
+		// appear to be buttons"): every stop action is the raised shared
+		// chip, and More is one sign that still opens its menu.
+		for (const auto* const name : { "tourStopMagic", "tourUseSelectedLines", "tourAddRelated", "tourRemoveRelated", "tourReturn", "tourSuggestOutline" }) {
+			const auto* const action = editor->findChild<QPushButton*>(QString::fromLatin1(name));
+			expect(action != nullptr && dynamic_cast<const qt::quiet_push_button*>(action) != nullptr && !action->isFlat(), std::string{ name } + " is a raised chip, not bare text");
+		}
+		{
+			auto* const more = editor->findChild<QToolButton*>(QStringLiteral("tourStopMore"));
+			expect(more != nullptr && more->menu() == nullptr && more->popupMode() != QToolButton::InstantPopup && !more->icon().isNull() && more->text().isEmpty(),
+				   "More is one glyph, with no menu arrow of Qt's beside it");
+			more->click();
+			process_events();
+			auto* const menu = editor->findChild<QMenu*>(QStringLiteral("tourStopMoreMenu"));
+			expect(menu != nullptr && menu->isVisible(), "and a press opens its menu");
+			if (menu != nullptr) {
+				menu->hide();
+			}
 		}
 
 		window.findChild<QToolButton*>(QStringLiteral("workbenchExpandTourTool"))->click();
