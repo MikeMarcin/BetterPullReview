@@ -11,6 +11,49 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0015-cli-profile","path":"docs/rfcs/p
 
 # RFC-BPR-0015: Opt-in GitHub CLI Account Profile
 
+## Owner Windows and Linux enablement amendment — 2026-10-27
+
+The owner wrote, in chat on 2026-10-27, "Why do I not have the use GitHub CLI
+option on Windows when I first launch it? That should be there", and then "It
+should work for Linux too." That decision replaces the macOS-only production
+enablement below ("Windows and Linux remain unavailable, composing no GitHub
+CLI entry") for Windows and Linux. [[BPR-1791]] implements it.
+
+- **Same gestures and gates.** Home, the sign-in surface and Accounts & hosts
+  offer Use GitHub CLI on Windows and Linux under the macOS rules: only that
+  gesture runs `gh` before a profile exists, a run inside the automated test
+  boundary withholds it ([[BPR-0797]]), the read question and remembered
+  choice are unchanged, every call is pinned to the chosen account through a
+  private configuration, each operation acquires its own strict credential
+  (RFC-BPR-0078), and every existing failure state is kept. One build switch,
+  `BPR_GITHUB_CLI_PLATFORM`, names the three platforms.
+- **Finding `gh`.** `PATH` first, then the platform's standard locations,
+  each canonicalised, taking the first that is really `gh`/`gh.exe`. Windows:
+  `%ProgramFiles%\GitHub CLI`, `%LOCALAPPDATA%\Programs\GitHub CLI`, WinGet's
+  per-user links and Scoop's current `gh`. Linux: `/usr/bin`,
+  `/usr/local/bin`, `/home/linuxbrew/.linuxbrew/bin`, `~/.local/bin` and
+  `/snap/bin`. The snap launcher canonicalises to `/usr/bin/snap` and is not
+  taken. The child's environment comes from the shell's known folders on
+  Windows and from the home, `XDG_RUNTIME_DIR` and its session bus socket on
+  Linux.
+- **Disclosed differences.** No operating system denies `gh` file writes on
+  Windows or Linux, so the unpinned version and inventory calls of an explicit
+  gesture can let `gh` migrate its global configuration; pinned calls read only
+  their private configuration. The Windows private configuration uses the
+  shared owner-private descriptor with read-only files, but its directory is
+  not write-locked as the POSIX one is. Git-object acquisition and exact blob
+  reads through `gh` stay macOS-only, so full diffs through GitHub CLI are
+  unavailable there and the read warning says so. A Linux session without a
+  bus socket fails configuration and is reported rather than waiting on a
+  keyring.
+- **Unchanged.** Fixed argument arrays, no shell, no ambient `PATH` in the
+  child (Windows passes an empty one), redirect and account-switch handling,
+  redacted failures and no logged bodies. The redirect, CA, executable,
+  keyring-helper and process residual risks recorded below apply on all three
+  platforms. Historical criteria, closeout and plans keep their macOS scope;
+  the last criterion's "unsupported platforms" now means platforms other than
+  macOS, Windows and Linux. Native Windows and Linux evidence is BPR-1791's.
+
 ## Owner strict-credential amendment — 2026-10-13
 
 The adopted `strict-cli-publication-r2` mandate and

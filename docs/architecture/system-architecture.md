@@ -1952,12 +1952,27 @@ strict exact-account/head/content admission and one-use grants from the ordinary
 review/comment gesture, plus
 server reconciliation. The acquired credential stays fixed across checks and dispatch; an ambiguous
 attempted write is not posted twice. Fixture actions
-exercise this path; no live PR was written. Windows and Linux remain
-unavailable. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
+exercise this path; no live PR was written. Windows and Linux were
+unavailable until BPR-1791, below. Mac qualification is recorded by BPR-0787. RFC-BPR-0014 is now
 Auto-Verified, and RFC-BPR-0015 became Auto-Verified on 2026-09-23 through
 BPR-0788. The product owner approved the pending review of the CLI
 authority and protocol changes made after that qualification. That
 approval is an owner decision, not an independent reviewer's report.
+
+[[BPR-1791]] (owner, 2026-10-27) composes the same opt-in on Windows and
+Linux. There the GitHub CLI read, read consent, chosen-account pinning, strict
+per-operation credential and publication admission are the macOS ones, with
+these disclosed differences: no operating system denies `gh` file writes, so the
+unpinned version and account-inventory calls of an explicit Use GitHub CLI
+gesture can let `gh` migrate its own global configuration; every pinned call
+still reads only its private configuration, which is owner-only (on Windows the
+shared owner-private descriptor, with read-only files but a directory that is
+not write-locked) and removed afterwards. gh's Git-object acquisition and exact
+blob reads remain macOS-only, so full diffs through GitHub CLI are unavailable
+there and say so. On Linux `gh` reaches Secret Service only through the
+session bus socket in `XDG_RUNTIME_DIR`; a session without one fails
+configuration and is reported. Native Windows and Linux evidence is pending on
+the card.
 
 Tour Publish is a bounded grouped-confirmation extension: the preview binds one
 immutable plan to the exact actor, head, sources, prose and allowed returned-link
