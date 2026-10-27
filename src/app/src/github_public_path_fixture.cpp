@@ -3,6 +3,7 @@
 #include "review_submission_fixture.hpp"
 
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/core/description_edit.hpp"
 #include "github_capability_probe.hpp"
 #include "github_device_authorization_contract.hpp"
 #include "github_mutation_contract.hpp"
@@ -2132,6 +2133,12 @@ namespace bpr::app::detail {
 			std::string                                   RepositoryNode;
 			std::string                                   PullRequestNode;
 			std::size_t                                   ReactionReads = 0U;
+			// [[BPR-1774]]. With `--description-edit-probe`, the viewer is
+			// the pull request's author and the description is what the
+			// fixture's provider (or another client) last wrote; unset until
+			// the recorded body is first read.
+			bool                       DescriptionServed = false;
+			std::optional<std::string> Description;
 
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
@@ -3457,6 +3464,15 @@ namespace bpr::app::detail {
 					}
 					object.insert(QStringLiteral("requested_reviewers"), QJsonArray{ });
 					object.insert(QStringLiteral("requested_teams"), QJsonArray{ });
+					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (State->DescriptionServed && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+					auto object = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					if (!State->Description.has_value()) {
+						State->Description = object.value(QStringLiteral("body")).toString().toStdString();
+					}
+					object.insert(QStringLiteral("body"), QString::fromStdString(*State->Description));
+					object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (State->ReviewTourCourse) {
@@ -5370,6 +5386,39 @@ namespace bpr::app::detail {
 				};
 			}
 
+			// [[BPR-1774]]. The description as GitHub would keep it: observed
+			// first, the core decides, written once; a conflict writes nothing
+			// and answers with the newer body.
+			auto edit_description(
+				const application::review_description_request& aRequest,
+				std::stop_token)
+				-> std::expected<application::review_description_receipt, application::review_mutation_failure> override
+			{
+				const std::scoped_lock providerLock{ Mutex };
+				++Evidence.DescriptionEdits;
+				if (State == nullptr || !State->DescriptionServed) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				if (aRequest.Target != Designated) {
+					return std::unexpected{ application::review_mutation_failure::undesignated_target };
+				}
+				const std::scoped_lock lock{ State->Mutex };
+				const auto             current = State->Description.value_or(std::string{ });
+				switch (core::decide_description_save({ .Original = aRequest.Original, .Edited = aRequest.Body, .Current = current, .ViewerCanUpdate = true })) {
+				case core::description_save_outcome::already_saved:
+					return application::review_description_receipt{ .Body = current };
+				case core::description_save_outcome::conflict:
+					return application::review_description_receipt{ .Body = current, .Conflict = true };
+				case core::description_save_outcome::not_permitted:
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				case core::description_save_outcome::write:
+					break;
+				}
+				State->Description = aRequest.Body;
+				++Evidence.DescriptionWrites;
+				return application::review_description_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-26T12:00:00Z", .Written = true };
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
@@ -5377,6 +5426,7 @@ namespace bpr::app::detail {
 					.ResolvesThreads    = ResolvesThreads,
 					.RecordsViewedState = false,
 					.Reacts             = State != nullptr && State->ReactionsServed,
+					.EditsDescription   = State != nullptr && State->DescriptionServed,
 				};
 			}
 
@@ -5556,7 +5606,8 @@ namespace bpr::app::detail {
 			Recording->RepeatReads = aOptions.RepeatReadSessions || aOptions.LoseFirstReviewMutationResult;
 			// [[BPR-1741]]. Two others gave the first thread's first post
 			// a thumbs up.
-			Recording->ReactionsServed = aOptions.ServesReactions;
+			Recording->ReactionsServed   = aOptions.ServesReactions;
+			Recording->DescriptionServed = aOptions.EditsDescription;
 			if (aOptions.ServesReactions) {
 				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
 					.ViewerCanReact = true,
@@ -5899,6 +5950,12 @@ namespace bpr::app::detail {
 	{
 		const std::scoped_lock lock{ Implementation->Recording->Mutex };
 		Implementation->Recording->ThreadOverlays[std::move(aThread)].Deleted = true;
+	}
+
+	void github_public_path_fixture_components::stage_server_description(std::string aBody)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		Implementation->Recording->Description = std::move(aBody);
 	}
 
 	void github_public_path_fixture_components::report_review_mutation_target(

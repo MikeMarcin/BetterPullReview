@@ -488,7 +488,11 @@ namespace bpr::app::detail {
 		bool ResolvesThreads = false;
 		/// [[BPR-1741]]. The fixture answers reactions and its mutation
 		/// provider adds and removes them; off, no course reads any.
-		bool                                        ServesReactions         = false;
+		bool ServesReactions = false;
+		/// [[BPR-1774]]. The fixture names the viewer the pull request's
+		/// author and its mutation provider edits the description; off, no
+		/// course offers Edit.
+		bool                                        EditsDescription        = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
 		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
@@ -607,6 +611,10 @@ namespace bpr::app::detail {
 		std::size_t Resolutions = 0U;
 		/// [[BPR-1741]]. Reaction changes asked of the provider.
 		std::size_t Reactions = 0U;
+		/// [[BPR-1774]]. Description edits asked of the provider, and the
+		/// writes it made: a conflict or an edit already saved writes none.
+		std::size_t DescriptionEdits  = 0U;
+		std::size_t DescriptionWrites = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
 		/// it was a file comment.
@@ -824,14 +832,23 @@ namespace bpr::app::detail {
 		/// shown at once and settled by GitHub, the recorded reactions read, a
 		/// chip's reaction shown at once, confirmed and removed, a reaction
 		/// chosen in the picker by keyboard, and a later read agreeing.
-		bool ReopenShownAtOnce  = false;
-		bool Reopened           = false;
-		bool ReactionsRead      = false;
-		bool ReactionShown      = false;
-		bool ReactionConfirmed  = false;
-		bool ReactionRemoved    = false;
-		bool PickerReacted      = false;
-		bool ReactionReconciled = false;
+		bool ReopenShownAtOnce = false;
+		bool Reopened          = false;
+		bool ReactionsRead     = false;
+		bool ReactionShown     = false;
+		bool ReactionConfirmed = false;
+		bool ReactionRemoved   = false;
+		/// [[BPR-1774]]. With the description edited: Edit offered to the
+		/// author, Save performing exactly one write, the next read showing
+		/// GitHub's body, a concurrent change refused with nothing written, and
+		/// editing going on from GitHub's newer text.
+		bool DescriptionOffered         = false;
+		bool DescriptionSavedOnce       = false;
+		bool DescriptionShownAfterRead  = false;
+		bool DescriptionConflictRefused = false;
+		bool DescriptionNewerLoaded     = false;
+		bool PickerReacted              = false;
+		bool ReactionReconciled         = false;
 
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};

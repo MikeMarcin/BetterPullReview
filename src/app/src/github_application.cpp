@@ -16,6 +16,7 @@
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
+#include "bpr/core/description_edit.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/logging/quill_log.hpp"
@@ -8418,6 +8419,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const qt::thread_resolution_gesture& aGesture) { resolve_review_thread(aGesture); });
 			Window->set_reaction_dispatch(
 				[this](const qt::reaction_gesture& aGesture) { react_to_post(aGesture); });
+			// [[BPR-1774]]. Save in Overview's description editor.
+			Window->overview_page()->set_description_save_dispatch(
+				[this](const qt::overview_description_save& aSave) { save_description(aSave); });
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 			// BPR-0533. The six comment-workshop controls reach the composed
@@ -14095,6 +14099,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->publish(placed ? *placed : aUpdate);
 			if (aUpdate.PullRequest) {
 				present_conversation_state();
+				present_description_offer();
 			}
 			select_published_conversation();
 
@@ -14239,6 +14244,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingReviewMutation.reset();
 			DeferredReviewSelection.reset();
 			RetryableReviewDraft.reset();
+			// [[BPR-1774]]. A retired host answers no save of the next one.
+			PendingDescriptionEdit.reset();
 		}
 
 		void compose_review_mutation(
@@ -14396,6 +14403,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1741]]. The GitHub CLI connection resolves threads
 			// too, through `gh api graphql`.
 			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+			present_description_offer();
 		}
 
 		/// [[BPR-1741]]. The posts' reactions and the threads'
@@ -14557,6 +14565,148 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				}
 			}
 			present_conversation_state();
+		}
+
+		/// [[BPR-1774]]. The signed-in login and the pull request's author
+		/// as the accepted read gave them; empty when either is unknown or the
+		/// session reads anonymously.
+		[[nodiscard]] auto description_edit_logins() const -> std::pair<std::string, std::string>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return { };
+			}
+			const auto& snapshot  = *WindowRead->accepted_snapshot();
+			const auto  anonymous = Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(core::anonymous_read_intent::react_to_comment));
+			if (anonymous || !snapshot.PullRequest.Author.has_value()) {
+				return { };
+			}
+			return { snapshot.PullRequest.Author->Login, snapshot.Viewer.Login };
+		}
+
+		/// [[BPR-1774]]. Edit on the description is offered to the pull
+		/// request's author, the core decides, when the connection in use can
+		/// write it; everyone else sees nothing new.
+		void present_description_offer()
+		{
+			if (Closing || Window == nullptr || Window->overview_page() == nullptr) {
+				return;
+			}
+			const auto [author, viewer] = description_edit_logins();
+			Window->overview_page()->set_description_editable(core::description_edit_offered(author, viewer) && ReviewMutationHost != nullptr
+															  && ReviewMutationHost->capabilities().EditsDescription);
+		}
+
+		/// [[BPR-1774]]. Save in the description editor: the core decides on
+		/// the gesture (the author, a change, within GitHub's length), the host
+		/// writes once under a one-shot grant after GitHub, asked first, still
+		/// has the original. Nothing is sent before Save, and a refusal is said
+		/// beside the editor.
+		void save_description(const qt::overview_description_save& aSave)
+		{
+			auto* const page = Window != nullptr ? Window->overview_page() : nullptr;
+			if (Closing || page == nullptr) {
+				return;
+			}
+			++DescriptionEditGestures;
+			const auto [author, viewer] = description_edit_logins();
+			const auto refusal          = core::decide_description_edit({ .Author = author, .Viewer = viewer, .Original = aSave.Original, .Edited = aSave.Body });
+			switch (refusal) {
+			case core::description_edit_refusal::not_author:
+				++DescriptionEditRefusals;
+				page->present_description_status(QStringLiteral("Only the pull request's author can edit its description here."));
+				return;
+			case core::description_edit_refusal::unchanged:
+				++DescriptionEditRefusals;
+				page->present_description_status(QStringLiteral("Nothing has changed, so there is nothing to save."));
+				return;
+			case core::description_edit_refusal::too_long:
+				++DescriptionEditRefusals;
+				page->present_description_status(QStringLiteral("GitHub keeps at most 65,536 characters; this description has %1.")
+													 .arg(QLocale{ }.toString(static_cast<qulonglong>(core::description_characters(aSave.Body)))));
+				return;
+			case core::description_edit_refusal::not_permitted:
+			case core::description_edit_refusal::conflict:
+			case core::description_edit_refusal::none:
+				break;
+			}
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().EditsDescription) {
+				++DescriptionEditRefusals;
+				page->present_description_status(QStringLiteral("This connection cannot edit the description."));
+				return;
+			}
+			if (PendingDescriptionEdit.has_value()) {
+				page->present_description_status(QStringLiteral("Waiting for GitHub to answer the last save."), true);
+				return;
+			}
+			auto request = application::review_description_publication_request{ .Original = aSave.Original, .Body = aSave.Body };
+			auto grant   = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_description(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			page->present_description_status(QStringLiteral("Saving the description to GitHub…"), true);
+			PendingDescriptionEdit = ReviewMutationHost->edit_description(std::move(request), std::move(grant));
+		}
+
+		void publish_description(const application::review_description_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr || PendingDescriptionEdit != std::optional{ aTerminal.Context }) {
+				return;
+			}
+			PendingDescriptionEdit.reset();
+			auto* const page = Window->overview_page();
+			if (page == nullptr) {
+				return;
+			}
+			if (!aTerminal.Result.has_value()) {
+				++DescriptionEditFailures;
+				auto words = QString{ };
+				switch (aTerminal.Result.error()) {
+				case application::review_mutation_failure::refused_by_server:
+					words = QStringLiteral("GitHub does not let you edit this description. Nothing was saved.");
+					break;
+				case application::review_mutation_failure::not_confirmed:
+					words = QStringLiteral("GitHub does not show the new description; it was not sent twice. Check the pull request, then save again.");
+					break;
+				case application::review_mutation_failure::incompatible_body:
+					words = QStringLiteral("GitHub cannot take this text. Nothing was saved.");
+					break;
+				case application::review_mutation_failure::target_moved:
+				case application::review_mutation_failure::undesignated_target:
+				case application::review_mutation_failure::target_unavailable:
+					words = QStringLiteral("The pull request changed on GitHub, so nothing was saved. Refresh and try again.");
+					break;
+				case application::review_mutation_failure::cancelled:
+					words = QStringLiteral("Saving was stopped. Nothing more is sent.");
+					break;
+				default:
+					words = QStringLiteral("The connection could not save the description (%1). Your text is kept.")
+								.arg(QString::fromUtf8(application::name(aTerminal.Result.error())));
+					break;
+				}
+				page->present_description_status(words);
+				return;
+			}
+			if (aTerminal.Result->Conflict) {
+				// Never overwritten silently: the editor says so, keeps the typed
+				// text, and offers GitHub's newer text to go on from.
+				++DescriptionEditConflicts;
+				page->present_description_status(QStringLiteral("Someone changed the description on GitHub since you began. Nothing was saved."));
+				page->offer_newer_description(aTerminal.Result->Body);
+				return;
+			}
+			++DescriptionEditCompletions;
+			page->close_description_editor();
+			// The description shows GitHub's answer the way every other fact
+			// comes back: the next read.
+			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
+			}
 		}
 
 		// [[BPR-0657]]. A card's Resolve or Unresolve: the core decides from
@@ -22883,6 +23033,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_reaction_removed,
 				awaiting_picker_reaction,
 				awaiting_reaction_reconciled,
+				// [[BPR-1774]].
+				awaiting_description_offered,
+				awaiting_description_saved,
+				awaiting_description_conflict,
 				passed,
 				failed,
 			};
@@ -23331,6 +23485,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                          ReactionGestures    = 0U;
 		std::size_t                          ReactionCompletions = 0U;
 		std::size_t                          ReactionFailures    = 0U;
+		/// [[BPR-1774]]. The description save in flight, and what came of saves.
+		std::optional<application::review_mutation_request_context> PendingDescriptionEdit;
+		std::size_t                                                 DescriptionEditGestures    = 0U;
+		std::size_t                                                 DescriptionEditRefusals    = 0U;
+		std::size_t                                                 DescriptionEditCompletions = 0U;
+		std::size_t                                                 DescriptionEditConflicts   = 0U;
+		std::size_t                                                 DescriptionEditFailures    = 0U;
 
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
@@ -32531,6 +32692,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1741]]. With reactions served, the course goes on:
 			// Unresolve conversation at the thread's end, then reactions.
 			if (!implementation->ReviewMutationHost->capabilities().Reacts) {
+				// [[BPR-1774]]. With the description served, it goes on there.
+				if (implementation->ReviewMutationHost->capabilities().EditsDescription) {
+					probe.Phase = state_type::phase::awaiting_description_offered;
+					return result::pending;
+				}
 				probe.Phase = state_type::phase::passed;
 				return result::passed;
 			}
@@ -32711,6 +32877,108 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.ReactionReconciled) {
 				return fail("reaction-not-reconciled");
 			}
+			if (implementation->ReviewMutationHost->capabilities().EditsDescription) {
+				probe.Phase = state_type::phase::awaiting_description_offered;
+				return result::pending;
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		// [[BPR-1774]]. Overview offers the author Edit; Save performs exactly
+		// one write, and the next read shows GitHub's body. A second edit
+		// meets a body another client changed: nothing is written, the typed
+		// text stays, and editing goes on from GitHub's newer text.
+		case state_type::phase::awaiting_description_offered: {
+			auto* const page = window->overview_page();
+			window->choose_modality(qt::review_modality::overview);
+			QCoreApplication::processEvents();
+			note("editable=" + std::to_string(page->description_editable() ? 1 : 0) + " visible=" + std::to_string(page->description_edit_button()->isVisible() ? 1 : 0));
+			if (!page->description_editable() || !page->projection().has_value()) {
+				return result::pending;
+			}
+			probe.Evidence.DescriptionOffered = page->description_edit_button()->isVisible() || page->description_add_button()->isVisible();
+			if (!probe.Evidence.DescriptionOffered) {
+				return fail("edit-not-shown");
+			}
+			(page->description_edit_button()->isVisible() ? static_cast<QAbstractButton*>(page->description_edit_button()) : page->description_add_button())->click();
+			QCoreApplication::processEvents();
+			auto* const text = page->description_editor();
+			if (!page->description_editing() || text->raw() != page->projection()->Body) {
+				return fail("editor-not-on-body");
+			}
+			probe.ReadsBeforeRefresh = implementation->Fixture->evidence().AccountReadCount;
+			text->selectAll();
+			text->insertPlainText(QStringLiteral("Saved from the Overview editor.\n\n- one write"));
+			QCoreApplication::processEvents();
+			page->description_save_button()->click();
+			probe.Phase = state_type::phase::awaiting_description_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_description_saved: {
+			auto* const page     = window->overview_page();
+			const auto  evidence = implementation->Fixture->review_mutation_evidence();
+			note("completions=" + std::to_string(implementation->DescriptionEditCompletions) + " failures=" + std::to_string(implementation->DescriptionEditFailures)
+				 + " refusals=" + std::to_string(implementation->DescriptionEditRefusals) + " edits=" + std::to_string(evidence.DescriptionEdits)
+				 + " writes=" + std::to_string(evidence.DescriptionWrites) + " status=" + page->description_status()->text().toStdString());
+			if (implementation->DescriptionEditFailures != 0U || implementation->DescriptionEditRefusals != 0U || implementation->DescriptionEditConflicts != 0U) {
+				return fail("save-refused-or-failed");
+			}
+			if (implementation->DescriptionEditCompletions < 1U || page->description_editing()) {
+				return result::pending;
+			}
+			probe.Evidence.DescriptionSavedOnce = evidence.DescriptionEdits == 1U && evidence.DescriptionWrites == 1U;
+			if (!probe.Evidence.DescriptionSavedOnce) {
+				return fail("not-exactly-one-write");
+			}
+			constexpr auto saved = std::string_view{ "Saved from the Overview editor.\n\n- one write" };
+			if (implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh || !page->projection().has_value() || page->projection()->Body != saved) {
+				return result::pending;
+			}
+			probe.Evidence.DescriptionShownAfterRead = page->body_view()->original_body() == saved;
+			if (!probe.Evidence.DescriptionShownAfterRead) {
+				return fail("read-not-shown");
+			}
+			// Another client changes the description while this one edits.
+			if (!page->begin_description_edit()) {
+				return fail("no-second-edit");
+			}
+			auto* const text = page->description_editor();
+			auto        end  = text->textCursor();
+			end.movePosition(QTextCursor::End);
+			text->setTextCursor(end);
+			text->insertPlainText(QStringLiteral("\n- mine, typed second"));
+			QCoreApplication::processEvents();
+			implementation->Fixture->stage_server_description("Changed on GitHub by someone else.");
+			page->description_save_button()->click();
+			probe.Phase = state_type::phase::awaiting_description_conflict;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_description_conflict: {
+			auto* const page     = window->overview_page();
+			const auto  evidence = implementation->Fixture->review_mutation_evidence();
+			note("conflicts=" + std::to_string(implementation->DescriptionEditConflicts) + " edits=" + std::to_string(evidence.DescriptionEdits)
+				 + " writes=" + std::to_string(evidence.DescriptionWrites) + " status=" + page->description_status()->text().toStdString());
+			if (implementation->DescriptionEditFailures != 0U || implementation->DescriptionEditCompletions != 1U) {
+				return fail("conflict-written-or-failed");
+			}
+			if (implementation->DescriptionEditConflicts < 1U) {
+				return result::pending;
+			}
+			auto* const text                          = page->description_editor();
+			probe.Evidence.DescriptionConflictRefused = evidence.DescriptionEdits == 2U && evidence.DescriptionWrites == 1U && page->description_editing()
+				&& text->raw().ends_with("- mine, typed second") && page->description_newer_button()->isVisible()
+				&& page->description_status()->text().contains(QStringLiteral("changed the description on GitHub"));
+			if (!probe.Evidence.DescriptionConflictRefused) {
+				return fail("conflict-not-refused");
+			}
+			page->description_newer_button()->click();
+			QCoreApplication::processEvents();
+			probe.Evidence.DescriptionNewerLoaded = text->raw() == "Changed on GitHub by someone else." && page->description_original() == text->raw();
+			if (!probe.Evidence.DescriptionNewerLoaded) {
+				return fail("newer-not-loaded");
+			}
+			page->description_cancel_button()->click();
+			QCoreApplication::processEvents();
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		}

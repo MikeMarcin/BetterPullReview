@@ -89,7 +89,10 @@ namespace bpr::app::detail {
 		/// [[BPR-1745]]. A push makes one thread outdated: from the fake
 		/// server's next read it has no line, and every post in it, a reply
 		/// published later too, was written on `aWrittenOn`.
-		void               stage_server_thread_outdated(std::string aThread, std::string aWrittenOn);
+		void stage_server_thread_outdated(std::string aThread, std::string aWrittenOn);
+		/// [[BPR-1774]]. Another client edits the pull request's description:
+		/// the fake server's next read and its next edit see `aBody`.
+		void               stage_server_description(std::string aBody);
 		void               report_review_mutation_target(core::review_mutation_target aTarget);
 		void               set_private_lineage(std::shared_ptr<application::review_publication_lineage_port>);
 		[[nodiscard]] auto review_mutation_provider() noexcept
