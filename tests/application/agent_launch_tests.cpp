@@ -3,6 +3,7 @@
 
 #include "../core/private_review_fixture.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/review_brief.hpp"
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
@@ -475,6 +476,77 @@ namespace {
 		auto oversized         = observed;
 		oversized.Brief->Title = std::string(core::maximum_brief_title_bytes + 1U, 't');
 		expect(!application::build_agent_context_supplement(oversized, session()), "a brief outside its bounds refuses the build");
+	}
+
+	/// [[BPR-1773]]. A conversation is read from its review thread, and
+	/// crosses after the version-two fields with its comments and lines; a
+	/// launch without one writes no conversation line.
+	void test_a_conversation_is_read_and_crosses()
+	{
+		auto thread                           = application::github_review_thread_record{ };
+		thread.Path                           = "src/cache.cpp";
+		thread.Line                           = 42U;
+		thread.OriginalLine                   = 40U;
+		thread.DiffSide                       = application::github_diff_side::right;
+		thread.Resolved                       = false;
+		auto opening                          = application::github_review_comment_record{ };
+		opening.Author                        = application::github_actor_record{ };
+		opening.Author->Login                 = "ana";
+		opening.Body                          = "Can this race?";
+		opening.Observation.StartLine         = 41U;
+		opening.Observation.OriginalStartLine = 39U;
+		auto gone                             = opening;
+		gone.Deleted                          = true;
+		gone.Body                             = "deleted";
+		auto reply                            = application::github_review_comment_record{ };
+		reply.Body                            = "The lock covers it.";
+		thread.Comments                       = { opening, gone, reply };
+		const auto read                       = application::read_conversation(thread);
+		expect(read.Subject == core::conversation_subject::review_thread && read.Path == "src/cache.cpp" && read.Line == 42U && read.StartLine == 41U
+				   && read.Comments == std::vector<core::brief_comment>{ { "ana", "Can this race?" }, { "", "The lock covers it." } },
+			   "a thread is read with its current lines, its range from the opening comment, and its comments without the deleted one");
+		auto outdated = thread;
+		outdated.Line.reset();
+		outdated.Outdated = true;
+		const auto old    = application::read_conversation(outdated);
+		expect(old.Line == 40U && old.StartLine == 39U && old.Outdated, "an outdated thread is read at its original lines");
+
+		auto input            = read;
+		input.Excerpt         = core::conversation_excerpt{ .FirstLine = 40U, .Lines = { "lock();", "if (!entry) {", "\treturn;" }, .AnchorFirst = 41U, .AnchorLast = 42U };
+		auto observed         = observation();
+		observed.ChatMessage  = "Who is right?";
+		observed.EntryPoint   = core::agent_entry_point::ask_about_conversation;
+		observed.Conversation = core::bound_conversation(input);
+		const auto built      = application::build_agent_context_supplement(observed, session());
+		expect(built.has_value() && built->Conversation == observed.Conversation, "the conversation rides the supplement unchanged");
+		const auto encoded = application::encode_agent_supplement(*built);
+		for (const auto required : {
+				 "conversation.subject\treview_thread\n",
+				 "conversation.path\tsrc/cache.cpp\n",
+				 "conversation.start_line\t41\n",
+				 "conversation.line\t42\n",
+				 "conversation.resolved\t0\n",
+				 "conversation.comment.count\t2\n",
+				 "conversation.comment.0.author\tana\n",
+				 "conversation.comment.0.body\tCan this race?\n",
+				 "conversation.comment.1.body\tThe lock covers it.\n",
+				 "conversation.comment.omitted\t0\n",
+				 "conversation.excerpt.present\t1\n",
+				 "conversation.excerpt.side\thead\n",
+				 "conversation.excerpt.first_line\t40\n",
+				 "conversation.excerpt.anchor_first\t41\n",
+				 "conversation.excerpt.anchor_last\t42\n",
+				 "conversation.excerpt.line.count\t3\n",
+				 "conversation.excerpt.line.2\t\\treturn;\n",
+			 }) {
+			expect(encoded.find(required) != std::string::npos, "the exact conversation field is encoded");
+		}
+		expect(encoded.find("conversation.subject") > encoded.find("draft.count"), "the conversation follows every version-two field");
+		const auto without = application::encode_agent_supplement(*application::build_agent_context_supplement(observation(), session()));
+		expect(without.find("conversation.") == std::string::npos, "a launch without a conversation writes no conversation line");
+		auto forged                                = observed;
+		forged.Conversation->Comments.front().Body = std::string(core::maximum_conversation_comment_bytes + 1U, 'x');
+		expect(!application::build_agent_context_supplement(forged, session()), "a conversation outside its bounds refuses the build");
 	}
 
 	/// [[BPR-1753]], owner decision 2026-10-23 ("Yep build it like
@@ -1498,6 +1570,7 @@ auto main() -> int
 	test_a_press_carries_the_effective_feedback_guidance_and_nothing_more();
 	test_the_complete_encoding_preserves_presence_and_exact_identity();
 	test_the_brief_crosses_after_the_version_two_fields();
+	test_a_conversation_is_read_and_crosses();
 	test_review_findings_are_read_from_the_answer();
 	test_each_protocol_has_exact_argv_and_distinct_input_framing();
 	test_no_credential_crosses_the_environment_boundary();

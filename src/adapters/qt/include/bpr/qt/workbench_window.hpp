@@ -715,6 +715,22 @@ namespace bpr::qt {
 		void set_thread_reply_dispatch(workbench_review_reply_dispatch aDispatch);
 		/// \brief [[BPR-0657]]. Adopts the sink a card's Resolve or Unresolve goes to.
 		void set_thread_resolution_dispatch(workbench_thread_resolution_dispatch aDispatch);
+		/// \brief [[BPR-1773]]. Where a thread's Ask agent goes, by the
+		/// thread's card identity.
+		void set_conversation_ask_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-1773]]. Opens the drawer on the Agent tab with the
+		/// keyboard in its question field; nothing is sent.
+		void open_agent_question();
+		/// \brief [[BPR-1773]]. Lines `aFirst` to `aLast` (one-based,
+		/// clamped to the document) of the compared file `aPath` on `aSide`,
+		/// with the number of the first; none when that file is not the one
+		/// compared.
+		[[nodiscard]] auto compared_lines(const std::string& aPath, core::diff_side aSide, std::uint32_t aFirst, std::uint32_t aLast) const
+			-> std::optional<std::pair<std::uint32_t, std::vector<std::string>>>;
+		/// \brief [[BPR-1773]]. Use as reply: opens the thread's reply, as
+		/// Reply does, and writes `aText` in it once it is open (after any
+		/// words already there). Nothing is published.
+		void use_as_reply(const std::string& aIdentity, const QString& aText);
 		/// \brief [[BPR-1741]]. Where a post's reaction goes.
 		void set_reaction_dispatch(workbench_reaction_dispatch aDispatch);
 		/// \brief [[BPR-1741]]. The posts' reactions, by GitHub node,
@@ -2971,12 +2987,18 @@ namespace bpr::qt {
 		workbench_review_reply_dispatch                              ThreadReplyDispatch;
 		/// [[BPR-1046]]. A Reply pressed while its thread's comparison was
 		/// loading; the next comparison to arrive completes or refuses it.
-		std::optional<std::string>           DeferredReply;
-		bool                                 DeferredReplyInPlace = false;
-		workbench_thread_resolution_dispatch ThreadResolutionDispatch;
-		workbench_reaction_dispatch          ReactionDispatch;
-		bool                                 ProviderResolvesThreads = false;
-		core::github_capabilities            Capabilities;
+		std::optional<std::string>              DeferredReply;
+		bool                                    DeferredReplyInPlace = false;
+		workbench_thread_resolution_dispatch    ThreadResolutionDispatch;
+		std::function<void(const std::string&)> ConversationAskDispatch;
+		/// [[BPR-1773]]. Words waiting for a thread's reply to open, and how
+		/// many more times to look for it.
+		std::optional<std::pair<std::string, QString>> PendingReplyText;
+		int                                            PendingReplyTries = 0;
+		void                                           write_pending_reply();
+		workbench_reaction_dispatch                    ReactionDispatch;
+		bool                                           ProviderResolvesThreads = false;
+		core::github_capabilities                      Capabilities;
 		// [[BPR-0661]].
 		review_behaviour_dispatch                 BehaviourDispatch;
 		application::review_behaviour_settings    Behaviour;

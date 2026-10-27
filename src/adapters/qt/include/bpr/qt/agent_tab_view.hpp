@@ -131,6 +131,26 @@ namespace bpr::qt {
 	/// made, which Go to note opens (owner look v004), when it was saved.
 	using agent_answer_note_done     = std::function<void(bool aSaved, const QString& aWhy, std::uint64_t aNote)>;
 	using agent_answer_note_dispatch = std::function<void(const QString& aText, agent_answer_note_done aDone)>;
+	/// \brief [[BPR-1773]]. The conversation the next questions are about,
+	/// as the question field's chip shows it until it is removed.
+	struct agent_conversation_chip
+	{
+		/// The composition's own name for the conversation; said back with
+		/// Use as reply.
+		std::string Key;
+		/// What the chip reads ("src/cache.cpp line 42 · 3 comments").
+		QString Text;
+		/// What the agent gets, as its tooltip says.
+		QString Detail;
+		/// The conversation takes replies: its answers offer Use as reply.
+		bool Replies = false;
+
+		auto operator==(const agent_conversation_chip&) const -> bool = default;
+	};
+	/// \brief Use as reply: the conversation a turn was about, and the
+	/// answer's text (the whole of it, or the part selected).
+	using agent_reply_dispatch = std::function<void(const std::string& aKey, const QString& aText)>;
+
 	/// \brief Opens a private note the tab saved, in the Notes area.
 	using agent_note_navigation = std::function<void(std::uint64_t aNote)>;
 	/// \brief Owner look v004 ("This should be a link to the file and line I
@@ -307,6 +327,21 @@ namespace bpr::qt {
 		void               set_finding_card_dispatch(agent_finding_card_dispatch aDispatch);
 		void               present_finding_card_state(std::uint64_t aSession, std::size_t aOrdinal, agent_finding_card_state aState, const QString& aWhy = { }, std::uint64_t aNote = 0U);
 		[[nodiscard]] auto finding_card_state(std::size_t aCard) const -> agent_finding_card_state;
+		/// \brief [[BPR-1773]]. Shows the conversation chip (none: removes
+		/// it), with conversation prompts in place of the usual ones while it
+		/// is shown. Its close button calls `set_conversation_dismiss`'s
+		/// callback; nothing else removes it.
+		void               set_conversation_chip(std::optional<agent_conversation_chip> aChip);
+		void               set_conversation_dismiss(std::function<void()> aDismiss);
+		[[nodiscard]] auto conversation_chip() const noexcept -> QWidget* { return ConversationChip; }
+		[[nodiscard]] auto conversation_chip_text() const -> QString;
+		[[nodiscard]] auto conversation_chip_close() const noexcept -> QToolButton* { return ConversationClose; }
+		/// \brief [[BPR-1773]]. Where Use as reply goes.
+		void               set_reply_dispatch(agent_reply_dispatch aDispatch);
+		[[nodiscard]] auto turn_reply_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief What a turn was asked about, as its line above the question
+		/// says; empty for a turn about the pull request.
+		[[nodiscard]] auto turn_about(std::size_t aTurn) const -> QString;
 		/// \brief Save as note on a plain answer.
 		void set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
 		/// \brief Owner look v004 ("After save as note it should turn into Go
@@ -440,6 +475,9 @@ namespace bpr::qt {
 			/// The one file the question names, which a bare "line 34" in the
 			/// answer is in.
 			QString ContextFile;
+			/// [[BPR-1773]]. The conversation it was asked about, if any.
+			std::optional<agent_conversation_chip> About;
+			QPointer<QPushButton>                  Reply;
 		};
 		std::vector<turn> Turns;
 		/// The question and the answer as shown, their references links.
@@ -479,7 +517,9 @@ namespace bpr::qt {
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
-		int                    LastPhase     = 0;
+		/// [[BPR-1773]]. The conversation chip shown when it was sent.
+		std::optional<agent_conversation_chip> PendingAbout;
+		int                                    LastPhase = 0;
 		/// How many times findings were presented, and the count when the
 		/// running turn began: a turn names only the findings it brought.
 		std::uint64_t FindingsPresented = 0U;
@@ -498,8 +538,15 @@ namespace bpr::qt {
 		QPushButton* Ask        = nullptr;
 		QToolButton* Context    = nullptr;
 		QLabel*      Chips      = nullptr;
-		QLabel*      Log        = nullptr;
-		bool         LogShown   = false;
+		/// [[BPR-1773]]. The conversation chip and what it is now.
+		QWidget*                               ConversationChip  = nullptr;
+		QLabel*                                ConversationText  = nullptr;
+		QToolButton*                           ConversationClose = nullptr;
+		std::optional<agent_conversation_chip> ConversationShown;
+		std::function<void()>                  ConversationDismiss;
+		agent_reply_dispatch                   ReplyDispatch;
+		QLabel*                                Log      = nullptr;
+		bool                                   LogShown = false;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
 		/// The panels may go first when the window closes.

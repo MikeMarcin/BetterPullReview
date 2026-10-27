@@ -14247,6 +14247,62 @@ namespace {
 			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
 				   "the reply is shown without its findings block, which is for the cards");
 
+			// [[BPR-1773]]. Ask agent on a conversation: its chip in the
+			// question field, prompts about it, a turn that says what it was
+			// about, and Use as reply, which only names the conversation and
+			// the words; the chip stays for a follow-up until it is closed.
+			{
+				auto dismissed = 0;
+				auto replies   = std::vector<std::pair<std::string, QString>>{ };
+				agent->set_conversation_dismiss([&dismissed] { ++dismissed; });
+				agent->set_reply_dispatch([&replies](const std::string& aKey, const QString& aText) { replies.emplace_back(aKey, aText); });
+				agent->set_conversation_chip(qt::agent_conversation_chip{
+					.Key     = "review-thread:T1",
+					.Text    = QStringLiteral("src/engine/renderer.cpp line 34, 2 comments"),
+					.Detail  = QStringLiteral("The agent gets this conversation's comments and the lines it is on."),
+					.Replies = true,
+				});
+				process_events();
+				expect(agent->conversation_chip()->isVisible() && agent->conversation_chip_text() == QStringLiteral("src/engine/renderer.cpp line 34, 2 comments")
+						   && agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->conversation_chip())
+						   && composer->placeholderText() == QStringLiteral("Ask about this conversation…"),
+					   "the conversation's chip is in the question field, and the field says what it asks about");
+				expect(agent->suggestions()
+						   == QStringList{ QStringLiteral("Summarize this conversation"), QStringLiteral("Is the concern raised here right?"), QStringLiteral("Draft a reply to this conversation") },
+					   "while it is attached the prompts are about the conversation");
+				composer->setPlainText(QStringLiteral("Who is right?"));
+				window.side_chat()->send_action()->setEnabled(true);
+				window.side_chat()->send_action()->trigger();
+				identity.InvocationGeneration = 4U;
+				window.agent_panel()->admit(identity);
+				window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+				window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "The lock covers it: `evict` holds `Mutex` for the whole call." });
+				window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+				process_events();
+				auto* const useReply = agent->turn_reply_button(3U);
+				expect(agent->turn_count() == 4U && agent->turn_about(3U) == QStringLiteral("src/engine/renderer.cpp line 34, 2 comments") && agent->turn_about(2U).isEmpty()
+						   && agent->turn_question(3U) == QStringLiteral("Who is right?"),
+					   "the turn says which conversation it was about; a turn about the pull request says nothing");
+				expect(useReply != nullptr && !useReply->isHidden() && agent->turn_reply_button(2U) != nullptr && agent->turn_reply_button(2U)->isHidden(),
+					   "a reply about a conversation offers Use as reply, and one about the pull request does not");
+				useReply->click();
+				process_events();
+				expect(replies.size() == 1U && replies.front().first == "review-thread:T1" && replies.front().second == QStringLiteral("The lock covers it: `evict` holds `Mutex` for the whole call."),
+					   "Use as reply names the conversation and gives the answer's words, nothing more");
+				expect(agent->conversation_chip()->isVisible(), "the chip stays for a follow-up");
+				agent->conversation_chip_close()->click();
+				expect(dismissed == 1, "its close asks the host to remove it");
+				agent->set_conversation_chip(std::nullopt);
+				process_events();
+				expect(!agent->conversation_chip()->isVisible() && agent->suggestions().front() == QStringLiteral("Review this pull request")
+						   && composer->placeholderText() == QStringLiteral("Ask about this pull request…"),
+					   "removed, the field and the prompts are about the pull request again");
+				agent->set_conversation_chip(qt::agent_conversation_chip{ .Key = "note:7", .Text = QStringLiteral("Your note on src/engine/renderer.cpp line 34"), .Replies = false });
+				expect(agent->suggestions().back() == QStringLiteral("Explain the code this note is on"), "a note's prompts offer no reply, which a note cannot take");
+				agent->set_conversation_chip(std::nullopt);
+				agent->set_conversation_dismiss({ });
+				agent->set_reply_dispatch({ });
+			}
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-thread.png"), "PNG"), "render saved");
 			}
@@ -14262,7 +14318,7 @@ namespace {
 			});
 			agent->clear_session_button()->click();
 			process_events();
-			expect(asks == std::vector<std::size_t>{ 3U } && cleared == 0 && agent->turn_count() == 3U, "declining keeps the thread");
+			expect(asks == std::vector<std::size_t>{ 4U } && cleared == 0 && agent->turn_count() == 4U, "declining keeps the thread");
 			confirm = true;
 			agent->clear_session_button()->click();
 			process_events();

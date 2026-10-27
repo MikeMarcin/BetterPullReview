@@ -272,11 +272,12 @@ namespace bpr::qt {
 		ElsewhereAction = action(tr("Notes on the pull request"), QStringLiteral("privateNotesElsewhereAction"));
 		ElsewhereAction->setCheckable(true);
 		ElsewhereAction->setToolTip(tr("Notes on the pull request, on whole files and on other files"));
-		Save    = action(tr("Save"), QStringLiteral("savePrivateNoteAction"));
-		Promote = action(tr("Draft comment"), QStringLiteral("promotePrivateNoteAction"));
-		Erase   = action(tr("Delete note"), QStringLiteral("deletePrivateNoteAction"));
-		Discard = action(tr("Discard changes"), QStringLiteral("discardPrivateNoteChangesAction"));
-		Close   = action(tr("Close note"), QStringLiteral("closePrivateNoteAction"));
+		Save     = action(tr("Save"), QStringLiteral("savePrivateNoteAction"));
+		Promote  = action(tr("Draft comment"), QStringLiteral("promotePrivateNoteAction"));
+		AskAgent = action(tr("Ask agent about this note"), QStringLiteral("askAgentAboutPrivateNoteAction"));
+		Erase    = action(tr("Delete note"), QStringLiteral("deletePrivateNoteAction"));
+		Discard  = action(tr("Discard changes"), QStringLiteral("discardPrivateNoteChangesAction"));
+		Close    = action(tr("Close note"), QStringLiteral("closePrivateNoteAction"));
 
 		// The list of notes elsewhere has a header: back to the notes at
 		// their lines, and a new note on the pull request.
@@ -322,6 +323,7 @@ namespace bpr::qt {
 		connect(Save, &QAction::triggered, this, [this] { emit_intent(private_note_action::save); });
 		connect(Erase, &QAction::triggered, this, [this] { emit_intent(private_note_action::erase); });
 		connect(Promote, &QAction::triggered, this, [this] { emit_intent(private_note_action::promote); });
+		connect(AskAgent, &QAction::triggered, this, [this] { emit_intent(private_note_action::ask_agent); });
 		connect(Close, &QAction::triggered, this, [this] { close_note(); });
 		connect(Discard, &QAction::triggered, this, [this] {
 			const auto creating = Creating;
@@ -417,6 +419,16 @@ namespace bpr::qt {
 		remove->setAccessibleName(tr("Delete note"));
 		DeleteButton = remove;
 		foot->addWidget(DeleteButton);
+		// [[BPR-1773]]. Ask the agent about this note, with the Agent tab's
+		// own mark.
+		AskAgentButton = new QToolButton{ Card };
+		AskAgentButton->setObjectName(QStringLiteral("privateNoteAskAgent"));
+		AskAgentButton->setAutoRaise(true);
+		AskAgentButton->setIcon(drawer_icon(drawer_glyph::agent, palette()));
+		AskAgentButton->setIconSize(QSize{ 16, 16 });
+		AskAgentButton->setAccessibleName(tr("Ask agent about this note"));
+		AskAgentButton->setFocusPolicy(Qt::StrongFocus);
+		foot->addWidget(AskAgentButton);
 		foot->addStretch(1);
 		auto* const discard = new note_button{ note_button::kind::secondary, tr("Discard changes"), Card };
 		discard->setObjectName(QStringLiteral("privateNoteDiscard"));
@@ -442,6 +454,7 @@ namespace bpr::qt {
 		connect(DeleteButton, &QAbstractButton::clicked, Erase, &QAction::trigger);
 		connect(DiscardButton, &QAbstractButton::clicked, Discard, &QAction::trigger);
 		connect(DraftButton, &QAbstractButton::clicked, Promote, &QAction::trigger);
+		connect(AskAgentButton, &QAbstractButton::clicked, AskAgent, &QAction::trigger);
 		connect(SaveButton, &QAbstractButton::clicked, Save, &QAction::trigger);
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
 			if (!Applying) {
@@ -731,6 +744,12 @@ namespace bpr::qt {
 		DraftButton->setVisible(!Creating);
 		DraftButton->setEnabled(Promote->isEnabled());
 		DraftButton->setToolTip(Promote->toolTip());
+		AskAgent->setEnabled(Shown.Available && Editing.has_value() && !Dirty && !Creating && !Editing->Text.empty());
+		AskAgent->setToolTip(Dirty ? tr("Save your note before asking the agent about it.")
+								   : tr("Open the Agent tab with this note attached to your next question. The note is saved in Private history as it is now and sent as that copy."));
+		AskAgentButton->setVisible(Editing.has_value() && !Creating);
+		AskAgentButton->setEnabled(AskAgent->isEnabled());
+		AskAgentButton->setToolTip(AskAgent->toolTip());
 		Status->setVisible(!Status->text().isEmpty());
 	}
 
@@ -738,6 +757,7 @@ namespace bpr::qt {
 	{
 		refresh_actions();
 		const auto allowed = aAction == private_note_action::save ? Save->isEnabled() : aAction == private_note_action::erase ? Erase->isEnabled()
+			: aAction == private_note_action::ask_agent                                                                       ? AskAgent->isEnabled()
 																															  : can_promote();
 		if (!Dispatch || !allowed) {
 			return;

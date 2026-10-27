@@ -80,4 +80,30 @@ namespace bpr::application {
 		}
 		return input;
 	}
+
+	auto read_conversation(const github_review_thread_record& aThread) -> core::conversation_input
+	{
+		const auto current = aThread.Line.has_value();
+		auto       input   = core::conversation_input{
+			.Subject  = core::conversation_subject::review_thread,
+			.Path     = aThread.Path,
+			.Line     = current ? aThread.Line : aThread.OriginalLine,
+			.Resolved = aThread.Resolved,
+			.Outdated = aThread.Outdated,
+		};
+		for (const auto& comment : aThread.Comments) {
+			if (comment.Deleted) {
+				continue;
+			}
+			if (input.Comments.empty()) {
+				// The opening comment names the range the thread covers.
+				const auto start = current ? comment.Observation.StartLine : comment.Observation.OriginalStartLine;
+				if (start && input.Line && *start > 0U && *start < *input.Line) {
+					input.StartLine = start;
+				}
+			}
+			input.Comments.push_back({ .Author = comment.Author ? comment.Author->Login : std::string{ }, .Body = comment.Body });
+		}
+		return input;
+	}
 } // namespace bpr::application
