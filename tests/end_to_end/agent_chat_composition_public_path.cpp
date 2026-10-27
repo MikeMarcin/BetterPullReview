@@ -408,7 +408,11 @@ auto main(int argc, char** argv) -> int
 		ask->trigger();
 		delete menu;
 		QApplication::processEvents();
-		if (!window.agent_tab()->conversation_chip()->isVisibleTo(window.agent_tab()) || !window.agent_tab()->conversation_chip_text().startsWith(QString::fromStdString(askedPath))) {
+		// [[BPR-1781]]. The chip is the question's: on Overview the Agent tab
+		// really shows, and its first showing may put the agent setup in
+		// front of the conversation, so the chip is checked in its question.
+		auto* const question = window.agent_tab()->findChild<QWidget*>(QStringLiteral("agentQuestion"));
+		if (question == nullptr || !window.agent_tab()->conversation_chip()->isVisibleTo(question) || !window.agent_tab()->conversation_chip_text().startsWith(QString::fromStdString(askedPath))) {
 			return fail(*application, "conversation-chip");
 		}
 	}

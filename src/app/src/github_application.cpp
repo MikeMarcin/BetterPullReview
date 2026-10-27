@@ -8281,6 +8281,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					aCommand.Attention = current_tour_attention();
 					static_cast<void>(TourHost->execute({ .Command = std::move(aCommand) }));
 				} }, [this](qt::tour_editor_action aAction) { dispatch_tour_action(aAction); });
+			// [[BPR-1781]]. Overview's Start tour: the published tour, imported
+			// as following it in Review needs, at its first stop.
+			Window->set_tour_start_dispatch([this] { start_published_tour(); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -11092,8 +11095,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			core::tour_owner                               Owner;
 			std::unique_ptr<application::review_tour_host> Host;
 		};
-		std::vector<retained_tour_host>               RetiredTourHosts;
-		std::optional<core::tour_owner>               TourOwner;
+		std::vector<retained_tour_host> RetiredTourHosts;
+		std::optional<core::tour_owner> TourOwner;
+		/// [[BPR-1781]]. Start tour waits for the published tour's import.
+		bool                                          PendingTourStart = false;
 		std::optional<application::tour_saved_target> RememberedTourTarget;
 		core::git_commit_oid                          TourHead;
 		core::git_commit_oid                          TourAttentionHead;
@@ -11252,6 +11257,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		{
 			PendingTourSource.reset();
 			TourSourceRequest.reset();
+			PendingTourStart = false;
 			if (TourHost && TourOwner) {
 				RetiredTourHosts.push_back({ *TourOwner, std::move(TourHost) });
 			}
@@ -11342,6 +11348,35 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			return true;
 		}
+		/// [[BPR-1781]]. A reader's Start tour from Overview: a published tour
+		/// already in this window opens at its first stop; one only on offer is
+		/// imported first, as Review's Import does, and opens once it arrives.
+		void start_published_tour()
+		{
+			if (Closing || !TourHost || !current(DraftWindow)) {
+				return;
+			}
+			const auto shown = TourHost->presentation();
+			if (shown.Draft && shown.Draft->Remote && !shown.Draft->Stops.empty()) {
+				Window->start_tour_at_first_stop();
+				return;
+			}
+			if (!shown.Offered) {
+				Window->open_review_tour();
+				return;
+			}
+			PendingTourStart = true;
+			Window->open_review_tour();
+			TourHost->import_selected(0U);
+		}
+		void finish_pending_tour_start(const application::tour_presentation& aProjection)
+		{
+			if (!PendingTourStart || !aProjection.Draft || !aProjection.Draft->Remote || aProjection.Draft->Stops.empty()) {
+				return;
+			}
+			PendingTourStart = false;
+			Window->start_tour_at_first_stop();
+		}
 		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff)
 		{
 			const auto owner = core::tour_owner{ DraftWindow.Profile, aHandoff.Host, aHandoff.HostAuthority, aHandoff.Account, aHandoff.Repository, aHandoff.PullRequest };
@@ -11399,6 +11434,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																			   }
 																		   }
 																		   Window->tour_editor()->present(projected);
+																		   finish_pending_tour_start(projected);
 																		   if (TourPublication) {
 																			   TourPublication->observe(projected);
 																		   }
@@ -12153,7 +12189,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// the selected lines, one-based.
 			tab->set_suggestion_context([this] {
 				auto context = qt::agent_suggestion_context{ };
-				if (Closing || Window == nullptr || !SelectedDiffPublication) {
+				// [[BPR-1781]]. Asked on Overview, a question is about the pull
+				// request: no open file, no lines.
+				if (Closing || Window == nullptr || !SelectedDiffPublication || Window->showing_overview()) {
 					return context;
 				}
 				context.OpenFile = QString::fromStdString(SelectedDiffPublication->Request.File.PresentationPath);
