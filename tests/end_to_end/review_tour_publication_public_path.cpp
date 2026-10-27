@@ -275,6 +275,11 @@ auto main(int argc, char** argv) -> int
 				expect(server->StagedCreates == 0 && server->StagedSubmits == 0 && server->CompatibilityComments.size() == 3 && server->StagedWrites == 6, "explicit compatibility emits three visible comments and two link edits, then description");
 			} else {
 				expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedComments.size() == 2 && server->StagedWrites == 5, "native app submits exactly one review after two navigation patches");
+				// [[BPR-1785]]. Each published stop says what to do when Next does not jump.
+				for (const auto& comment : server->StagedComments) {
+					const auto stop = core::map_tour_stop(comment.Body);
+					expect(stop.Footer && comment.Body.ends_with(")\n" + std::string{ core::tour_navigation_note } + "\n"), "each published stop carries the navigation note directly under its links");
+				}
 			}
 			expect(server->StagedDescription && server->StagedDescription->contains(mode == "compat" ? "#issuecomment-703" : "#pullrequestreview-501"), "description uses actual returned index link only after publication");
 			expect(server->StagedDescription->contains(originalTemplate), "first publication preserves original template bytes including CRLF");

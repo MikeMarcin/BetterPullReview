@@ -87,11 +87,43 @@ namespace {
 			expect(tour_link_identity(other) == other, "anything but a Files changed comment anchor is kept");
 		}
 	}
+	/// [[BPR-1785]]. GitHub does not jump to an anchor inside a diff it hides
+	/// as too large, so the line under Previous and Next says to use the
+	/// overview. Stops published before the note still map.
+	void navigation_note()
+	{
+		const std::array  three{ tour_markdown_link{ "Previous", "https://github.com/o/r/pull/7#discussion_r1" }, tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" },
+								 tour_markdown_link{ "Next", "https://github.com/o/r/pull/7#discussion_r3" } };
+		const std::string links = "[Previous](https://github.com/o/r/pull/7#discussion_r1) · [Tour overview](https://github.com/o/r/pull/7#pullrequestreview-9) · [Next](https://github.com/o/r/pull/7#discussion_r3)";
+		const std::string note  = std::string{ tour_navigation_note };
+		expect(note == "_If Next or Previous doesn't jump (GitHub hides large diffs), use the Tour overview._", "the owner's wording");
+		for (const std::string_view nl : { std::string_view{ "\n" }, std::string_view{ "\r\n" } }) {
+			const auto stop = render_tour_stop("Why", 2, "Body", three, { }, nl);
+			const auto line = std::string{ nl };
+			expect(stop && stop->ends_with(line + line + links + line + note + line), "the note sits directly under the links");
+			const auto mapped = map_tour_stop(*stop);
+			expect(mapped.Footer && slice(*stop, *mapped.Footer) == links + line + note + line, "the footer holds the links and the note");
+			expect(mapped.Narrative && slice(*stop, *mapped.Narrative) == line + "Body" + line + line, "the narrative ends before the links");
+			expect(with_tour_navigation_note(*stop) == *stop, "a noted stop is left alone");
+			const auto old    = "### Author's tour · 2 — Why" + line + line + "Body" + line + line + links + line;
+			const auto before = map_tour_stop(old);
+			expect(before.Footer && slice(old, *before.Footer) == links + line && before.Narrative && slice(old, *before.Narrative) == line + "Body" + line + line, "a stop published before the note still maps");
+			expect(with_tour_navigation_note(old) == old + note + line, "an old stop gains the note under its links and nothing else changes");
+		}
+		const std::array alone{ tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" } };
+		const auto       single = render_tour_stop("Only", 1, "Body", alone);
+		expect(single && single->find(note) == std::string::npos, "a stop with no Previous or Next has no note");
+		expect(with_tour_navigation_note(*single) == *single, "nor does it gain one");
+		const auto unterminated = "### Author's tour · 2 — Why\n\nBody\n\n" + links;
+		expect(with_tour_navigation_note(unterminated) == unterminated + "\n" + note + "\n", "a footer with no final newline gains one before the note");
+		expect(!map_tour_stop("### Author's tour · 2 — Why\n\nBody\n\n" + note + "\n").Footer, "the note alone is not a footer");
+	}
 }
 int main()
 {
 	golden();
 	generated();
 	files_changed_links();
+	navigation_note();
 	std::cout << "TOUR_MARKDOWN_OK\n";
 }

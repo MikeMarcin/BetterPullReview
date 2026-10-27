@@ -73,6 +73,12 @@ namespace bpr::core {
 	[[nodiscard]] auto tour_link_identity(std::string_view aLink) -> std::string;
 	/// \brief Destinations are already admitted by the host; the codec additionally refuses Markdown injection.
 	[[nodiscard]] auto render_tour_index(std::span<const tour_markdown_link> aEntries, std::string_view aNewline = "\n") -> std::optional<std::string>;
+	/// \brief [[BPR-1785]]. The line under a stop's Previous or Next link: GitHub
+	/// does not jump to an anchor inside a diff it hides as too large.
+	inline constexpr std::string_view tour_navigation_note = "_If Next or Previous doesn't jump (GitHub hides large diffs), use the Tour overview._";
+	/// \brief Adds the note under a published stop's links when they hold Previous
+	/// or Next and it is missing; any other body comes back unchanged.
+	[[nodiscard]] auto with_tour_navigation_note(std::string_view aRaw) -> std::string;
 	[[nodiscard]] auto render_tour_stop(std::string_view aTitle, std::size_t aOrdinal, std::string_view aNarrative,
 										std::span<const tour_markdown_link> aNavigation, std::string_view aPinnedSource = { }, std::string_view aNewline = "\n") -> std::optional<std::string>;
 }

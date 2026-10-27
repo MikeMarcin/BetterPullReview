@@ -241,6 +241,20 @@ int main()
 	draft.Stops.front().Body += "\nExplicit whole-comment correction.";
 	plan = plan_tour_update(draft, { });
 	expect(plan && plan->Edits.size() == 1 && plan->Edits.front().Desired.ends_with("Explicit whole-comment correction."), "mapped whole-comment editor retains explicit custom-layout changes");
+	// [[BPR-1785]]. A tour published before the navigation note gains it on
+	// its next update, under the links, with every other byte kept.
+	draft = published();
+	for (auto& stop : draft.Stops) {
+		const auto note = stop.Baseline->Raw.find(std::string{ tour_navigation_note } + "\n");
+		if (note != std::string::npos) {
+			stop.Baseline->Raw.erase(note);
+		}
+	}
+	plan = plan_tour_update(draft, { });
+	expect(plan && plan->Edits.size() == 5 && std::ranges::none_of(plan->Edits, [&](const auto& aEdit) { return aEdit.Remote == *draft.Remote; }), "each old stop gains the note and the index is untouched");
+	for (std::size_t i = 0; i < draft.Stops.size(); ++i) {
+		expect(plan->StopBodies[i] == draft.Stops[i].Baseline->Raw + std::string{ tour_navigation_note } + "\n", "only the note is added");
+	}
 
 	std::cout << "TOUR_UPDATE_OK\n";
 }

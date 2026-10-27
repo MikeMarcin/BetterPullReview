@@ -23,7 +23,7 @@ See the entirely synthetic [examples](assets/bpr-review-tour-v1/examples/README.
 
 - PR description: `## Problem`, `## Solution`, other preserved author/team content, and an optional `Review tour` link.
 - Review summary: `## Review tour — Start here`, a concise orientation line, and an ordered list linking each meaningful stop title to its actual comment URL.
-- Stop: `### Author's tour · 2 — Why this boundary matters`, locally meaningful explanation, optional related code links, and a short footer containing Previous, Tour overview, and Next links where applicable.
+- Stop: `### Author's tour · 2 — Why this boundary matters`, locally meaningful explanation, optional related code links, and a short footer containing Previous, Tour overview, and Next links where applicable. When the footer has Previous or Next, the line directly under it reads `_If Next or Previous doesn't jump (GitHub hides large diffs), use the Tour overview._`: GitHub does not jump to an anchor inside a diff it hides as too large. Stops published before that note still map, and gain it on their next update ([[BPR-1785]]).
 
 The root index's **textual list order** defines the route. Markdown numbering is decoration; repeated `1.` list syntax is legal. Neither server comment order, title text nor displayed ordinal identifies a stop. Returned GitHub comment identities do. BPR maintains ordinals/navigation as derived text but preserves author-edited narrative. The index may link comments in several reviews or, in compatibility mode, ordinary PR conversation comments.
 

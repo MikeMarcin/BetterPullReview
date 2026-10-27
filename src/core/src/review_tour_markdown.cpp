@@ -319,9 +319,12 @@ namespace bpr::core {
 		while (last > first + 1 && trim(rows[last - 1].Text).empty()) {
 			--last;
 		}
-		if (last > first + 2 && rows[last - 1].Top && trim(rows[last - 2].Text).empty() && navigation(trim(rows[last - 1].Text))) {
-			result.Footer    = tour_text_span{ rows[last - 1].Begin, rows[last - 1].End };
-			result.Narrative = tour_text_span{ rows[first].End, rows[last - 1].Begin };
+		// [[BPR-1785]]. A stop published before the note has the links alone.
+		const bool noted = last > first + 3 && rows[last - 1].Top && trim(rows[last - 1].Text) == tour_navigation_note;
+		const auto links = noted ? last - 2 : last - 1;
+		if (links > first + 1 && rows[links].Top && trim(rows[links - 1].Text).empty() && navigation(trim(rows[links].Text))) {
+			result.Footer    = tour_text_span{ rows[links].Begin, rows[last - 1].End };
+			result.Narrative = tour_text_span{ rows[first].End, rows[links].Begin };
 		}
 		return result;
 	}
@@ -437,9 +440,36 @@ namespace bpr::core {
 		if (!navigation(footer)) {
 			return { };
 		}
-		const auto  nl     = std::string{ aNewline };
+		const auto nl = std::string{ aNewline };
+		if (aNavigation.size() > 1) {
+			footer += nl + std::string{ tour_navigation_note };
+		}
 		std::string result = aPinnedSource.empty() ? "" : std::string{ aPinnedSource } + nl + nl;
 		result += "### Author's tour · " + std::to_string(aOrdinal) + " — " + tour_markdown_label(aTitle) + nl + nl + std::string{ aNarrative } + nl + nl + footer + nl;
 		return result.size() <= maximum_tour_field_bytes ? std::optional{ std::move(result) } : std::nullopt;
+	}
+
+	auto with_tour_navigation_note(std::string_view aRaw) -> std::string
+	{
+		const auto stop = map_tour_stop(aRaw);
+		if (!stop.Footer) {
+			return std::string{ aRaw };
+		}
+		const auto footer = aRaw.substr(stop.Footer->Begin, stop.Footer->End - stop.Footer->Begin);
+		const auto lf     = footer.find('\n');
+		const auto line   = trim(footer.substr(0, lf));
+		if (lf != std::string_view::npos && lf + 1 < footer.size()) {
+			return std::string{ aRaw };
+		}
+		if (line.find("](") == line.rfind("](")) {
+			return std::string{ aRaw };
+		}
+		const auto  nl     = std::string{ lf != 0 && lf != std::string_view::npos && footer[lf - 1] == '\r' ? "\r\n" : "\n" };
+		std::string result = std::string{ aRaw.substr(0, stop.Footer->End) };
+		if (lf == std::string_view::npos) {
+			result += nl;
+		}
+		result += std::string{ tour_navigation_note } + nl + std::string{ aRaw.substr(stop.Footer->End) };
+		return result;
 	}
 }

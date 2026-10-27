@@ -194,7 +194,11 @@ namespace bpr::core {
 			if (created != aCreated.end() && stop.Remote) {
 				narrative += "\n\nReplaces [original discussion](" + stop.Remote->WebUrl + ").";
 			}
-			const auto body = created == aCreated.end() && unchanged_position(aTour, i) ? propose_tour_stop_text(stop) : patch_stop(baseline, stop.Title, narrative, i + 1, navigation);
+			// [[BPR-1785]]. A stop published before the navigation note gains it here.
+			auto body = created == aCreated.end() && unchanged_position(aTour, i) ? propose_tour_stop_text(stop) : patch_stop(baseline, stop.Title, narrative, i + 1, navigation);
+			if (body) {
+				body = with_tour_navigation_note(*body);
+			}
 			if (!body) {
 				return { };
 			}
