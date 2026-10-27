@@ -217,6 +217,7 @@ namespace bpr::core {
 			|| (aRequest.Operation && !declared(*aRequest.Operation))
 			|| (aRequest.FeedbackGuidance && !valid_feedback_guidance(aRequest.Operation, *aRequest.FeedbackGuidance))
 			|| (aRequest.Brief && !valid_brief(*aRequest.Brief))
+			|| (aRequest.Conversation && !valid_conversation(*aRequest.Conversation))
 			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
 			return std::nullopt;
 		}
@@ -253,6 +254,7 @@ namespace bpr::core {
 			.Operation          = aRequest.Operation,
 			.FeedbackGuidance   = aRequest.FeedbackGuidance,
 			.Brief              = aRequest.Brief,
+			.Conversation       = aRequest.Conversation,
 		};
 	}
 
@@ -458,5 +460,117 @@ namespace bpr::core {
 			said += turn.Asked.size() + turn.Answered.size();
 		}
 		return said <= maximum_brief_conversation_bytes;
+	}
+
+	auto stable_name(const conversation_subject aSubject) noexcept -> std::string_view
+	{
+		switch (aSubject) {
+		case conversation_subject::review_thread: return "review_thread";
+		case conversation_subject::private_note:  return "private_note";
+		}
+		return { };
+	}
+
+	namespace {
+		[[nodiscard]] auto valid_excerpt(const conversation_excerpt& aExcerpt) -> bool
+		{
+			const auto count = aExcerpt.Lines.size();
+			return aExcerpt.FirstLine > 0U && count > 0U && count <= maximum_conversation_excerpt_lines
+				&& aExcerpt.AnchorFirst >= aExcerpt.FirstLine && aExcerpt.AnchorFirst <= aExcerpt.AnchorLast
+				&& aExcerpt.AnchorLast - aExcerpt.FirstLine < count
+				&& std::ranges::all_of(aExcerpt.Lines, [](const std::string& aLine) { return aLine.size() <= maximum_conversation_line_bytes; });
+		}
+
+		[[nodiscard]] auto conversation_bytes(const std::vector<brief_comment>& aComments) noexcept -> std::size_t
+		{
+			auto bytes = std::size_t{ 0U };
+			for (const auto& comment : aComments) {
+				bytes += comment.Author.size() + comment.Body.size();
+			}
+			return bytes;
+		}
+
+		[[nodiscard]] auto valid_shape(const conversation_subject aSubject, const std::string& aPath, const std::optional<std::uint32_t>& aStart,
+									   const std::optional<std::uint32_t>& aLine, const bool aCommented) -> bool
+		{
+			return enumerator_at_most(aSubject, conversation_subject::private_note) && aPath.size() <= maximum_brief_path_bytes
+				&& (aSubject == conversation_subject::review_thread) == aCommented
+				&& (!aStart || (aLine && *aStart > 0U && *aStart <= *aLine)) && (!aLine || *aLine > 0U);
+		}
+	} // namespace
+
+	auto bound_conversation(conversation_input aInput) -> std::optional<supplement_conversation>
+	{
+		if (!valid_shape(aInput.Subject, aInput.Path, aInput.StartLine, aInput.Line, !aInput.Comments.empty())) {
+			return std::nullopt;
+		}
+		auto conversation = supplement_conversation{
+			.Subject   = aInput.Subject,
+			.Path      = std::move(aInput.Path),
+			.StartLine = aInput.StartLine,
+			.Line      = aInput.Line,
+			.Resolved  = aInput.Resolved,
+			.Outdated  = aInput.Outdated,
+		};
+		for (auto& comment : aInput.Comments) {
+			comment.Author = cut_text(comment.Author, maximum_brief_login_bytes);
+			comment.Body   = cut_text(comment.Body, maximum_conversation_comment_bytes);
+		}
+		if (!aInput.Comments.empty()) {
+			// The opening comment says what the conversation is about, and
+			// the newest say where it stands; the cut falls between them.
+			auto room = maximum_conversation_bytes - conversation_bytes({ aInput.Comments.front() });
+			auto kept = std::size_t{ 0U };
+			for (auto comment = aInput.Comments.rbegin(); comment != aInput.Comments.rend() - 1; ++comment) {
+				const auto bytes = comment->Author.size() + comment->Body.size();
+				if (bytes > room) {
+					break;
+				}
+				room -= bytes;
+				++kept;
+			}
+			conversation.Comments.push_back(std::move(aInput.Comments.front()));
+			conversation.Comments.insert(conversation.Comments.end(), std::make_move_iterator(aInput.Comments.end() - static_cast<std::ptrdiff_t>(kept)),
+										 std::make_move_iterator(aInput.Comments.end()));
+			conversation.CommentsOmitted = aInput.Comments.size() - 1U - kept;
+		}
+		if (aInput.Excerpt) {
+			auto&      excerpt = *aInput.Excerpt;
+			const auto count   = excerpt.Lines.size();
+			if (excerpt.FirstLine == 0U || count == 0U || excerpt.AnchorFirst < excerpt.FirstLine || excerpt.AnchorFirst > excerpt.AnchorLast
+				|| excerpt.AnchorLast - excerpt.FirstLine >= count) {
+				return std::nullopt;
+			}
+			if (count > maximum_conversation_excerpt_lines) {
+				// Centred on the anchor, starting at its first line when the
+				// anchor alone is longer than the window.
+				const auto anchorBegin = static_cast<std::size_t>(excerpt.AnchorFirst - excerpt.FirstLine);
+				const auto anchorSpan  = static_cast<std::size_t>(excerpt.AnchorLast - excerpt.AnchorFirst) + 1U;
+				auto       begin       = anchorSpan >= maximum_conversation_excerpt_lines ? anchorBegin
+																						  : anchorBegin - std::min(anchorBegin, (maximum_conversation_excerpt_lines - anchorSpan) / 2U);
+				begin                  = std::min(begin, count - maximum_conversation_excerpt_lines);
+				excerpt.Lines.erase(excerpt.Lines.begin() + static_cast<std::ptrdiff_t>(begin + maximum_conversation_excerpt_lines), excerpt.Lines.end());
+				excerpt.Lines.erase(excerpt.Lines.begin(), excerpt.Lines.begin() + static_cast<std::ptrdiff_t>(begin));
+				excerpt.FirstLine += static_cast<std::uint32_t>(begin);
+				const auto last     = excerpt.FirstLine + static_cast<std::uint32_t>(maximum_conversation_excerpt_lines) - 1U;
+				excerpt.AnchorFirst = std::max(excerpt.AnchorFirst, excerpt.FirstLine);
+				excerpt.AnchorLast  = std::min(excerpt.AnchorLast, last);
+			}
+			for (auto& line : excerpt.Lines) {
+				line = cut_text(line, maximum_conversation_line_bytes);
+			}
+			conversation.Excerpt = std::move(excerpt);
+		}
+		return conversation;
+	}
+
+	auto valid_conversation(const supplement_conversation& aConversation) -> bool
+	{
+		return valid_shape(aConversation.Subject, aConversation.Path, aConversation.StartLine, aConversation.Line, !aConversation.Comments.empty())
+			&& std::ranges::all_of(aConversation.Comments,
+								   [](const brief_comment& aComment) {
+									   return aComment.Author.size() <= maximum_brief_login_bytes && aComment.Body.size() <= maximum_conversation_comment_bytes;
+								   })
+			&& conversation_bytes(aConversation.Comments) <= maximum_conversation_bytes && (!aConversation.Excerpt || valid_excerpt(*aConversation.Excerpt));
 	}
 } // namespace bpr::core

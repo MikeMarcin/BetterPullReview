@@ -15,7 +15,7 @@
 namespace bpr::core {
 	/// \brief Every explicit AI action a reviewer may command.
 	///
-	/// \details The seven `docs/ux/ai-experience.md` names, and nothing else.
+	/// \details The eight `docs/ux/ai-experience.md` names, and nothing else.
 	/// A closed set is the point: an action nobody enumerated cannot be asked
 	/// for, so "every AI action originates from an explicit visible user
 	/// command" is decided here rather than trusted to whatever the adapter
@@ -31,18 +31,22 @@ namespace bpr::core {
 		workshop_comment,
 		run_ai_review,
 		open_full_agent_session,
+		/// [[BPR-1773]]. Ask about one conversation: a review thread or a
+		/// private note, with the lines it is attached to. Its subject is the
+		/// conversation the reviewer chose, never the selection.
+		ask_about_conversation,
 	};
 
 	/// \brief The number of declared entry points.
 	///
-	/// \details Seven. Every switch over `agent_entry_point` in this slice
-	/// omits a `default` label, so an eighth entry point fails the build until
+	/// \details Eight. Every switch over `agent_entry_point` in this slice
+	/// omits a `default` label, so a ninth entry point fails the build until
 	/// somebody says what it acts on and what it is called; this constant fails
-	/// the build until somebody says it is an eighth.
-	inline constexpr std::size_t agent_entry_point_count = 7U;
+	/// the build until somebody says it is a ninth.
+	inline constexpr std::size_t agent_entry_point_count = 8U;
 
 	static_assert(
-		static_cast<std::size_t>(agent_entry_point::open_full_agent_session) + 1U
+		static_cast<std::size_t>(agent_entry_point::ask_about_conversation) + 1U
 			== agent_entry_point_count,
 		"agent_entry_point_count must cover every declared entry point");
 

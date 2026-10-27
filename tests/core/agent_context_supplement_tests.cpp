@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement    = core::agent_context_supplement;
-		const auto whole    = supplement{ };
+		using supplement           = core::agent_context_supplement;
+		const auto whole           = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -235,7 +235,8 @@ namespace {
 					 drafts,
 					 operation,
 					 guidance,
-					 brief] = whole;
+					 brief,
+					 conversation] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
@@ -265,8 +266,13 @@ namespace {
 		// the workspace's kind and the review skill's text; no argv,
 		// environment or token.
 		static_assert(std::is_same_v<decltype(brief), const std::optional<core::supplement_brief>>);
+		// [[BPR-1773]]. One conversation: its path, lines, logins, bodies
+		// and the lines' text; no argv, environment or token.
+		static_assert(std::is_same_v<decltype(conversation), const std::optional<core::supplement_conversation>>);
+		[[maybe_unused]] const auto& [conversationSubject, conversationPath, conversationStart, conversationLine, conversationResolved, conversationOutdated,
+									  conversationComments, conversationOmitted, conversationExcerpt] = core::supplement_conversation{ };
 		[[maybe_unused]] const auto& [briefTitle, briefDescription, briefCut, briefBase, briefFiles, briefFilesOmitted, briefThreads, briefThreadsOmitted, briefWorkspace,
-									  briefSkill, briefConversation, briefConversationOmitted] = core::supplement_brief{ };
+									  briefSkill, briefConversation, briefConversationOmitted]        = core::supplement_brief{ };
 		// [[BPR-1753]]. The conversation so far: questions and answers
 		// as prose, no argv, environment or token.
 		static_assert(std::is_same_v<decltype(briefConversation), const std::vector<core::brief_turn>>);
@@ -685,6 +691,81 @@ namespace {
 		expect(!core::build_agent_supplement(undeclared).has_value(), "an undeclared source is refused");
 		expect(core::stable_name(core::feedback_guidance_source::shipped) == "shipped" && core::stable_name(core::feedback_guidance_source::profile_override) == "profile_override", "the sources have stable names");
 	}
+
+	/// \brief [[BPR-1773]]. A conversation travels bounded, keeps its first
+	/// and newest comments and the lines around its anchor, and a malformed
+	/// one refuses the request whole.
+	void test_a_conversation_travels_bounded_or_refuses_the_request()
+	{
+		auto input      = core::conversation_input{ };
+		input.Path      = "src/cache.cpp";
+		input.StartLine = 41U;
+		input.Line      = 42U;
+		input.Comments  = { { "ana", "Can this race?" }, { "bo", "The lock covers it." } };
+		input.Excerpt   = core::conversation_excerpt{ .FirstLine = 39U, .Lines = { "a", "b", "c", "d", "e" }, .AnchorFirst = 41U, .AnchorLast = 42U };
+		const auto kept = core::bound_conversation(input);
+		expect(kept && kept->Comments == input.Comments && kept->CommentsOmitted == 0U && kept->Excerpt == input.Excerpt && kept->Path == input.Path
+				   && kept->StartLine == 41U && kept->Line == 42U && core::valid_conversation(*kept),
+			   "a small conversation is carried whole");
+
+		auto request         = minimal_request();
+		request.Conversation = kept;
+		const auto built     = core::build_agent_supplement(request);
+		expect(built && built->Conversation == kept, "and travels through the supplement unchanged");
+		auto without = request;
+		without.Conversation.reset();
+		auto expected         = *core::build_agent_supplement(without);
+		expected.Conversation = kept;
+		expect(*built == expected, "changing nothing else");
+		expect(!core::build_agent_supplement(without)->Conversation.has_value(), "and a launch that names no conversation carries none");
+
+		auto longThread = input;
+		longThread.Comments.clear();
+		longThread.Comments.push_back({ "opener", "What about the lock?" });
+		for (auto index = 0; index < 20; ++index) {
+			longThread.Comments.push_back({ "r" + std::to_string(index), std::string(core::maximum_conversation_comment_bytes + 10U, 'x') });
+		}
+		const auto cut = core::bound_conversation(longThread);
+		expect(cut && cut->Comments.front().Author == "opener" && cut->Comments.back().Author == "r19" && cut->CommentsOmitted > 0U
+				   && cut->Comments.size() + cut->CommentsOmitted == longThread.Comments.size() && core::valid_conversation(*cut),
+			   "a long conversation keeps its opening and its newest comments and counts the ones between");
+		expect(cut->Comments.back().Body.size() == core::maximum_conversation_comment_bytes, "and each body is cut to its bound");
+
+		auto longExcerpt                 = input;
+		longExcerpt.Excerpt->Lines       = std::vector<std::string>(200U, "line");
+		longExcerpt.Excerpt->FirstLine   = 1U;
+		longExcerpt.Excerpt->AnchorFirst = 150U;
+		longExcerpt.Excerpt->AnchorLast  = 151U;
+		const auto window                = core::bound_conversation(longExcerpt);
+		expect(window && window->Excerpt->Lines.size() == core::maximum_conversation_excerpt_lines && window->Excerpt->FirstLine <= 150U
+				   && window->Excerpt->FirstLine + core::maximum_conversation_excerpt_lines > 151U && window->Excerpt->AnchorFirst == 150U
+				   && core::valid_conversation(*window),
+			   "a long excerpt keeps the lines around its anchor");
+
+		auto note    = input;
+		note.Subject = core::conversation_subject::private_note;
+		expect(!core::bound_conversation(note).has_value(), "a private note's words never ride as comments");
+		note.Comments.clear();
+		expect(core::bound_conversation(note).has_value(), "a private note with its lines is carried");
+		auto silent = input;
+		silent.Comments.clear();
+		expect(!core::bound_conversation(silent).has_value(), "a review thread with no comment is refused");
+		auto backwards      = input;
+		backwards.StartLine = 43U;
+		expect(!core::bound_conversation(backwards).has_value(), "a start line after the line is refused");
+		auto outside                = input;
+		outside.Excerpt->AnchorLast = 50U;
+		expect(!core::bound_conversation(outside).has_value(), "an excerpt that does not hold its anchor is refused");
+		auto undeclared    = input;
+		undeclared.Subject = static_cast<core::conversation_subject>(2U);
+		expect(!core::bound_conversation(undeclared).has_value(), "an undeclared subject is refused");
+
+		auto forged                                = request;
+		forged.Conversation->Comments.front().Body = std::string(core::maximum_conversation_comment_bytes + 1U, 'x');
+		expect(!core::build_agent_supplement(forged).has_value(), "a conversation outside its bounds refuses the request whole");
+		expect(core::stable_name(core::conversation_subject::review_thread) == "review_thread" && core::stable_name(core::conversation_subject::private_note) == "private_note",
+			   "the subjects have stable names");
+	}
 } // namespace
 
 auto main() -> int
@@ -698,6 +779,7 @@ auto main() -> int
 	test_a_workshop_operation_travels_and_changes_nothing_else();
 	test_feedback_guidance_travels_only_with_a_workshop_operation();
 	test_invalid_or_oversize_context_is_refused_whole();
+	test_a_conversation_travels_bounded_or_refuses_the_request();
 	std::cout << "agent-context-supplement-tests:pass\n";
 	return EXIT_SUCCESS;
 }

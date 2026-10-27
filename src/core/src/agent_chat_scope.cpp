@@ -29,6 +29,8 @@ namespace bpr::core {
 			return "run_ai_review";
 		case agent_entry_point::open_full_agent_session:
 			return "open_full_agent_session";
+		case agent_entry_point::ask_about_conversation:
+			return "ask_about_conversation";
 		}
 		return { };
 	}
@@ -49,6 +51,7 @@ namespace bpr::core {
 		case agent_entry_point::workshop_comment:
 		case agent_entry_point::run_ai_review:
 		case agent_entry_point::open_full_agent_session:
+		case agent_entry_point::ask_about_conversation:
 			return false;
 		}
 		// An undeclared entry point acts on nothing, and is refused by name
