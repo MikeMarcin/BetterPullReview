@@ -14,6 +14,8 @@
 #include <QHeaderView>
 #include <QItemSelectionModel>
 #include <QLabel>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QToolButton>
@@ -397,6 +399,63 @@ namespace bpr::qt {
 		Stack->addWidget(loaded);
 		layout->addWidget(Stack, 1);
 
+		// [[BPR-1781]]. Under the pull request's conversation on Overview, a
+		// new comment of its own: written here, saved privately as a reply
+		// is, and posted only by Send.
+		NewComment = new QWidget{ this };
+		NewComment->setObjectName(QStringLiteral("conversationNewComment"));
+		NewComment->setAccessibleName(QStringLiteral("New comment on the pull request"));
+		NewComment->setAutoFillBackground(true);
+		NewComment->setBackgroundRole(QPalette::Base);
+		auto* const composer = new QVBoxLayout{ NewComment };
+		composer->setContentsMargins(12, 8, 12, 10);
+		composer->setSpacing(6);
+		NewCommentEdit = new QPlainTextEdit{ NewComment };
+		NewCommentEdit->setObjectName(QStringLiteral("conversationNewCommentEditor"));
+		NewCommentEdit->setAccessibleName(QStringLiteral("New comment"));
+		NewCommentEdit->setPlaceholderText(QStringLiteral("Comment on the pull request…"));
+		NewCommentEdit->setTabChangesFocus(true);
+		NewCommentEdit->setFixedHeight(fontMetrics().lineSpacing() * 4 + 12);
+		composer->addWidget(NewCommentEdit);
+		auto* const foot = new QHBoxLayout{ };
+		foot->setContentsMargins(0, 0, 0, 0);
+		foot->setSpacing(8);
+		NewCommentStatus = new QLabel{ NewComment };
+		NewCommentStatus->setObjectName(QStringLiteral("conversationNewCommentStatus"));
+		NewCommentStatus->setWordWrap(true);
+		NewCommentStatus->setForegroundRole(QPalette::PlaceholderText);
+		NewCommentStatus->setText(QStringLiteral("Nothing is posted until you press Comment."));
+		detail::set_plain_text_label(NewCommentStatus);
+		foot->addWidget(NewCommentStatus, 1);
+		NewCommentSend = new QPushButton{ QStringLiteral("Comment"), NewComment };
+		NewCommentSend->setObjectName(QStringLiteral("conversationNewCommentSend"));
+		NewCommentSend->setToolTip(QStringLiteral("Post this comment to the pull request"));
+		NewCommentSend->setEnabled(false);
+		foot->addWidget(NewCommentSend, 0, Qt::AlignTop);
+		composer->addLayout(foot);
+		NewComment->hide();
+		layout->addWidget(NewComment);
+		connect(NewCommentEdit, &QPlainTextEdit::textChanged, this, [this] {
+			if (NewCommentApplying || !NewCommentDispatch) {
+				return;
+			}
+			const auto text = NewCommentEdit->toPlainText();
+			NewCommentSent  = false;
+			// Opened only once the host presents it: an open asked while
+			// another draft is being sent is asked again.
+			if (!NewCommentOpened) {
+				NewCommentDispatch(core::conversation_reply_action::open, text);
+			}
+			NewCommentDispatch(core::conversation_reply_action::edit, text);
+		});
+		connect(NewCommentSend, &QPushButton::clicked, this, [this] {
+			if (!NewCommentDispatch || !NewCommentOpened) {
+				return;
+			}
+			NewCommentSent = true;
+			NewCommentDispatch(core::conversation_reply_action::send, NewCommentEdit->toPlainText());
+		});
+
 		const auto filtersChanged = [this] {
 			if (Discuss && DiscussFiltersChanged) {
 				DiscussFiltersChanged();
@@ -476,6 +535,57 @@ namespace bpr::qt {
 		for (auto index = std::size_t{ 1U }; index < order.size(); ++index) {
 			setTabOrder(order[index - 1U], order[index]);
 		}
+	}
+
+	void github_conversation_panel::set_new_comment_offered(const bool aOffered)
+	{
+		NewComment->setVisible(aOffered);
+	}
+
+	void github_conversation_panel::set_new_comment_dispatch(new_comment_dispatch aDispatch)
+	{
+		NewCommentDispatch = std::move(aDispatch);
+		NewCommentEdit->setReadOnly(!NewCommentDispatch);
+		if (!NewCommentDispatch) {
+			NewCommentStatus->setText(QStringLiteral("Comments are unavailable for this connection."));
+		}
+	}
+
+	void github_conversation_panel::present_new_comment(const std::optional<thread_reply_presentation>& aDraft)
+	{
+		if (!aDraft || aDraft->Thread != core::new_pull_request_comment) {
+			// Another draft is open, or the open one ended. After Send, the
+			// end is the comment posted: the composer starts again empty.
+			if (!aDraft && NewCommentSent) {
+				NewCommentSent     = false;
+				NewCommentOpened   = false;
+				NewCommentApplying = true;
+				NewCommentEdit->clear();
+				NewCommentApplying = false;
+				NewCommentSend->setEnabled(false);
+				NewCommentStatus->setText(QStringLiteral("Comment posted."));
+			} else if (aDraft) {
+				// The host now keeps another draft open; this one is saved,
+				// and is opened again when it is written in.
+				NewCommentOpened = false;
+			} else if (!NewCommentOpened && NewCommentDispatch && !NewCommentEdit->toPlainText().isEmpty()) {
+				// Another draft's send ended while words waited here: they
+				// are opened and kept now.
+				const auto text = NewCommentEdit->toPlainText();
+				NewCommentDispatch(core::conversation_reply_action::open, text);
+				NewCommentDispatch(core::conversation_reply_action::edit, text);
+			}
+			return;
+		}
+		NewCommentOpened = true;
+		if (NewCommentEdit->toPlainText() != aDraft->Body) {
+			NewCommentApplying = true;
+			NewCommentEdit->setPlainText(aDraft->Body);
+			NewCommentApplying = false;
+		}
+		NewCommentEdit->setReadOnly(!aDraft->Editable);
+		NewCommentSend->setEnabled(aDraft->Publishable);
+		NewCommentStatus->setText(aDraft->Notice.isEmpty() ? QStringLiteral("Nothing is posted until you press Comment.") : aDraft->Notice);
 	}
 
 	void github_conversation_panel::apply_filters()

@@ -19457,6 +19457,7 @@ namespace {
 		expect(drawer->holder(qt::overview_drawer_tab::notes)->isAncestorOf(notes) && notes->pull_request_only() && notes->elsewhere_shown(),
 			   "Overview's Notes holds the one notes panel, on the pull request's notes");
 		expect(drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent), "Overview's Agent holds the one Agent tab");
+		expect(!panel->new_comment()->isHidden(), "Overview's Comments offers a new comment on the pull request");
 
 		// The conversation: a pull request comment and a thread on a file.
 		auto comment        = application::github_conversation_projection{ };
@@ -19492,6 +19493,7 @@ namespace {
 		expect(window.private_notes() == notes && window.agent_tab() == agent && window.conversation_panel() == panel, "one notes panel, one agent tab, one conversation panel");
 		expect(!cards->pull_request_comments_shown() && !notes->pull_request_only() && notes->open_note_id() == 3U,
 			   "Review's Comments has no pull request mode; the open note is still open");
+		expect(panel->new_comment()->isHidden(), "beside the code there is no new pull request comment");
 		expect(window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest")) == nullptr || !window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest"))->isVisible(),
 			   "no Pull request | File switch beside the code");
 		auto* const link = cards->pull_request_comments_chip();

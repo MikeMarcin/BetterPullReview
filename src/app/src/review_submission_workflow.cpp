@@ -1130,6 +1130,16 @@ namespace bpr::app {
 		Context    = Host->discover_conversation_replies();
 		Status     = QStringLiteral("Loading saved replies.");
 	}
+	namespace {
+		/// [[BPR-1781]]. A new comment on the pull request is not a reply and
+		/// is not quoted; its saved status says what Send does with it.
+		[[nodiscard]] auto saved_status(const std::string& aConversation) -> QString
+		{
+			return aConversation == core::new_pull_request_comment ? QStringLiteral("Saved locally. Comment posts it to the pull request.")
+																   : QStringLiteral("Saved locally. Send posts a quoted comment to the pull request.");
+		}
+	}
+
 	void conversation_reply_workflow::dispatch(const core::conversation_reply_action aAction, core::conversation_reply_draft aDraft)
 	{
 		if (Closing || !Host || !Binding || !core::valid(aDraft)) {
@@ -1162,7 +1172,7 @@ namespace bpr::app {
 				Context = Host->reconcile_tour(Plans.at(Desired->Conversation));
 			}
 			Failed = false;
-			Status = QStringLiteral("Saved locally. Send posts a quoted comment to the pull request.");
+			Status = saved_status(Desired->Conversation);
 		} else if (Desired && Desired->Conversation == aDraft.Conversation) {
 			if (aAction == core::conversation_reply_action::edit) {
 				Desired->Text = std::move(aDraft.Text);
@@ -1299,7 +1309,7 @@ namespace bpr::app {
 					Failed = true;
 					Status = QStringLiteral("Reply could not be saved. Your text is kept; press Send to retry.");
 				} else {
-					Status = QStringLiteral("Saved locally. Send posts a quoted comment to the pull request.");
+					Status = saved_status(result->Record->Plan.ReplyDraft.Conversation);
 				}
 				Saving.reset();
 			} else if (Sending) {

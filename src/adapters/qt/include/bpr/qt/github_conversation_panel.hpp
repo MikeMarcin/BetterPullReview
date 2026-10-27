@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
@@ -25,6 +26,8 @@ class QComboBox;
 class QHBoxLayout;
 class QLabel;
 class QModelIndex;
+class QPlainTextEdit;
+class QPushButton;
 class QStackedWidget;
 class QToolButton;
 class QTreeView;
@@ -210,6 +213,23 @@ namespace bpr::qt {
 		/// or filter by hand.
 		void set_discuss_filters_changed(std::function<void()> aChanged);
 
+		/// \brief [[BPR-1781]]. What the new-comment composer asks: open the
+		/// draft, keep its text, or send it. The window decides each.
+		using new_comment_dispatch = std::function<void(core::conversation_reply_action, const QString&)>;
+		/// \brief [[BPR-1781]]. Offers the composer for a new comment on the
+		/// pull request under the conversation (Overview's Comments), or
+		/// takes it away (Review, Discuss). Its text is kept either way.
+		void set_new_comment_offered(bool aOffered);
+		void set_new_comment_dispatch(new_comment_dispatch aDispatch);
+		/// \brief [[BPR-1781]]. The host's presentation of the conversation's
+		/// open draft; the composer takes the one for a new comment, and an
+		/// end after Send clears it.
+		void               present_new_comment(const std::optional<thread_reply_presentation>& aDraft);
+		[[nodiscard]] auto new_comment() const noexcept -> QWidget* { return NewComment; }
+		[[nodiscard]] auto new_comment_editor() const noexcept -> QPlainTextEdit* { return NewCommentEdit; }
+		[[nodiscard]] auto new_comment_send() const noexcept -> QPushButton* { return NewCommentSend; }
+		[[nodiscard]] auto new_comment_status() const noexcept -> QLabel* { return NewCommentStatus; }
+
 	private:
 		/// \brief Tells the notes which thread the selection authority is on.
 		void synchronize_current();
@@ -249,9 +269,17 @@ namespace bpr::qt {
 		std::function<void()>                ListingCleared;
 		std::function<void()>                DiscussFiltersChanged;
 		void                                 apply_filters();
-		QWidget*                             NoticeRow    = nullptr;
-		QLabel*                              Notice       = nullptr;
-		QToolButton*                         NoticeAction = nullptr;
+		QWidget*                             NewComment       = nullptr;
+		QPlainTextEdit*                      NewCommentEdit   = nullptr;
+		QPushButton*                         NewCommentSend   = nullptr;
+		QLabel*                              NewCommentStatus = nullptr;
+		new_comment_dispatch                 NewCommentDispatch;
+		bool                                 NewCommentOpened   = false;
+		bool                                 NewCommentSent     = false;
+		bool                                 NewCommentApplying = false;
+		QWidget*                             NoticeRow          = nullptr;
+		QLabel*                              Notice             = nullptr;
+		QToolButton*                         NoticeAction       = nullptr;
 		std::function<void()>                NoticeDispatch;
 		bool                                 Discuss            = false;
 		bool                                 HasThreads         = false;

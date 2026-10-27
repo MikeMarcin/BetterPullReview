@@ -12,6 +12,8 @@
 #include <QMenu>
 #include <QPalette>
 #include <QPixmap>
+#include <QPlainTextEdit>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
 #include <QToolButton>
@@ -380,6 +382,45 @@ namespace {
 		expect(currentText.contains(
 				   QStringLiteral("does not expose the current pull-request diff revision")),
 			   "current GitHub coordinates name a selected-revision mismatch instead of appearing placed");
+	}
+
+	/// [[BPR-1781]]. Overview's Comments takes a new comment of its own: the
+	/// composer asks to open and keep the draft, posts only by Comment, takes
+	/// the host's presentation for its own key alone and starts again empty
+	/// once the comment is posted.
+	void test_a_new_comment_is_written_under_the_conversation()
+	{
+		bpr::qt::github_conversation_panel panel;
+		panel.resize(420, 600);
+		panel.show();
+		QApplication::processEvents();
+		expect(!panel.new_comment()->isVisible(), "the composer waits until it is offered");
+		panel.set_new_comment_offered(true);
+		QApplication::processEvents();
+		expect(panel.new_comment()->isVisible() && !panel.new_comment_send()->isEnabled(), "offered, it shows with Comment off");
+		auto asked = std::vector<std::pair<bpr::core::conversation_reply_action, QString>>{ };
+		panel.set_new_comment_dispatch([&asked](const bpr::core::conversation_reply_action aAction, const QString& aText) { asked.emplace_back(aAction, aText); });
+		panel.new_comment_editor()->setPlainText(QStringLiteral("Looks good"));
+		expect(asked.size() == 2U && asked[0].first == bpr::core::conversation_reply_action::open && asked[1].first == bpr::core::conversation_reply_action::edit && asked[1].second == QStringLiteral("Looks good"),
+			   "the first words open the draft and keep them");
+		const auto key = std::string{ bpr::core::new_pull_request_comment };
+		panel.present_new_comment(bpr::qt::thread_reply_presentation{ .Thread = key, .Body = QStringLiteral("Looks good"), .Publishable = true, .Notice = QStringLiteral("Saved locally.") });
+		expect(panel.new_comment_send()->isEnabled() && panel.new_comment_status()->text() == QStringLiteral("Saved locally."), "the host's presentation enables Comment and says the draft is saved");
+		panel.present_new_comment(bpr::qt::thread_reply_presentation{ .Thread = "issue-comment:other", .Body = QStringLiteral("a reply"), .Publishable = true });
+		expect(panel.new_comment_editor()->toPlainText() == QStringLiteral("Looks good"), "another draft's presentation leaves this one's words alone");
+		asked.clear();
+		panel.new_comment_editor()->setPlainText(QStringLiteral("Looks good to me"));
+		expect(!asked.empty() && asked.front().first == bpr::core::conversation_reply_action::open, "written in again after another draft, it is opened again");
+		panel.present_new_comment(bpr::qt::thread_reply_presentation{ .Thread = key, .Body = QStringLiteral("Looks good to me"), .Publishable = true });
+		asked.clear();
+		panel.new_comment_send()->click();
+		expect(asked.size() == 1U && asked.front().first == bpr::core::conversation_reply_action::send, "Comment asks to send, once");
+		panel.present_new_comment(std::nullopt);
+		expect(panel.new_comment_editor()->toPlainText().isEmpty() && !panel.new_comment_send()->isEnabled() && panel.new_comment_status()->text() == QStringLiteral("Comment posted."),
+			   "posted, the composer starts again empty and says so");
+		panel.set_new_comment_offered(false);
+		QApplication::processEvents();
+		expect(!panel.new_comment()->isVisible(), "taken away beside the code");
 	}
 
 	void test_later_threads_are_hidden_with_their_replies()
@@ -930,6 +971,7 @@ auto main(int argc, char** argv) -> int
 	test_discuss_top_is_one_named_band();
 	test_discuss_top_wraps_when_narrow();
 	test_discuss_top_follows_the_theme();
+	test_a_new_comment_is_written_under_the_conversation();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

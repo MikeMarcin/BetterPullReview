@@ -3332,6 +3332,13 @@ namespace bpr::qt {
 			});
 		}
 		ConversationPanel->cards()->set_pull_request_link_dispatch([this](const std::string& aIdentity) { open_pull_request_conversation(aIdentity); });
+		// [[BPR-1781]]. The new comment goes the way a reply does: a private
+		// draft first, posted only by its Send, by the composition.
+		ConversationPanel->set_new_comment_dispatch([this](const core::conversation_reply_action aAction, const QString& aText) {
+			if (ConversationReplyDispatch) {
+				ConversationReplyDispatch(aAction, { std::string{ core::new_pull_request_comment }, std::string{ }, std::string{ }, aText.toStdString() });
+			}
+		});
 		TourEditor->set_presented_observer([this] { refresh_overview_tour(); });
 		Drawers[1].Panel->set_content_widget(
 			conversationShell, ConversationPanel->cards());
@@ -8932,6 +8939,8 @@ namespace bpr::qt {
 		ConversationReply = std::move(aReply);
 		if (ConversationPanel) {
 			ConversationPanel->cards()->present_reply(ConversationReply);
+			// [[BPR-1781]]. A new comment's draft is the composer's.
+			ConversationPanel->present_new_comment(ConversationReply);
 		}
 	}
 	auto workbench_window::dispatch_conversation_reply(const core::conversation_reply_action aAction, const std::string& aIdentity, const QString& aText) -> bool
@@ -9900,6 +9909,7 @@ namespace bpr::qt {
 				move(ConversationPanel, drawer->holder(overview_drawer_tab::comments));
 				cards->show_pull_request_comments(true);
 			}
+			ConversationPanel->set_new_comment_offered(ConversationPanel->parentWidget() != DiscussPage);
 			move(PrivateNotes, drawer->holder(overview_drawer_tab::notes));
 			PrivateNotes->set_pull_request_only(true);
 			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
@@ -9908,6 +9918,7 @@ namespace bpr::qt {
 				cards->show_pull_request_comments(false);
 				move(ConversationPanel, ConversationHome);
 			}
+			ConversationPanel->set_new_comment_offered(false);
 			PrivateNotes->set_pull_request_only(false);
 			move(PrivateNotes, NotesHome);
 			move(AgentBody, AgentHome);
