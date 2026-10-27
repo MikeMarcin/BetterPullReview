@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1784"
 title: "The tour wizard shows its three steps: Problem, Solution, Stops"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-1783"]
 priority: "P2"
