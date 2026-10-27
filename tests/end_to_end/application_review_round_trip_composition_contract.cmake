@@ -1,3 +1,14 @@
+# [[BPR-1774]] description-edit reseal (2026-10-27), over ce5d19205.
+# github_application.cpp, main.cpp and the public-path fixture add the
+# author's description edit: Overview's Save reaches the core's
+# decide_description_edit, then the mutation host's edit_description under a
+# one-shot issue_description grant bound to session, generation, target,
+# actor and the exact original and body; the terminal closes the editor and
+# refreshes, or says the refusal or conflict in words. The fixture provider
+# decides with decide_description_save and the threaded-reply probe gains a
+# --description-edit-probe continuation. No credential, provider selection,
+# publication or source-inventory change; the mutation-branch pin is
+# unchanged. application_description_edit_contract qualifies these bytes.
 # [[BPR-1769]] setup-repair reseal (2026-10-26), over 447adb28f.
 # github_application.cpp only changes agent setup: canonical migrated wrapper
 # authority/reset, exact saved-entry use, separate bounded workspace details,
@@ -2384,7 +2395,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
 	set(bpr_expected_full_application_digest
-		"226a0907042225bfbc3886bbbe262a6007f1abd95a914fffdac7101d38ca3a4d"
+		"615f593b4a1e8935c070fcea2815d3396fd8cadb913e378564fd40741272d8b4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2615,7 +2626,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "d9ed56a91051d0f079d389695eea53fb2da97082ce4fe53cd8ee90b3ca01a85a"
+        "d01dd02b7d545d8de4e2cd67a66e2cd81e0dcb22a7bba5095842b6de832d83ed"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
