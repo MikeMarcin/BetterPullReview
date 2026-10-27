@@ -1953,6 +1953,34 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	/// [[BPR-1780]]. My draft with reviewers named is mine, not waiting on
+	/// others, until GitHub says it is ready.
+	void test_my_draft_is_not_waiting_on_others()
+	{
+		auto       fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Role = core::github_role::author } } } };
+		const auto session = discovery_session();
+		fixture.Discovery.adopt(session);
+		auto draft             = metadata_row(17U);
+		draft.Draft            = true;
+		draft.ReviewersAwaited = 2U;
+		draft.Waiting.Requests = 2U;
+		fixture.Provider.answer(fixture.Provider.rows({ draft }));
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Facts.Draft == true && fixture.item(17)->Bucket != core::attention_bucket::authored_awaiting_reviewer_action
+				   && core::home_section_for(*fixture.item(17)) == core::home_queue_section::my_pull_requests,
+			   "my draft with two reviewers requested is in My pull requests");
+		fixture.Discovery.refresh();
+		auto ready  = draft;
+		ready.Draft = false;
+		fixture.Provider.answer(fixture.Provider.rows({ ready }));
+		fixture.settle();
+		expect(fixture.item(17) && fixture.item(17)->Bucket == core::attention_bucket::authored_awaiting_reviewer_action
+				   && core::home_section_for(*fixture.item(17)) == core::home_queue_section::waiting_on_others,
+			   "marked ready, it waits on its reviewers");
+		fixture.Discovery.shutdown();
+		fixture.Queue.shutdown();
+	}
+
 	void test_draft_metadata_retains_only_accepted_exact_account_facts()
 	{
 		auto       fixture = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = { .Followed = true } } } };
@@ -3254,6 +3282,7 @@ auto main() -> int
 	test_my_review_codec_refuses_malformed_version_three();
 	test_retained_review_survives_request_withdrawal();
 	test_retained_metadata_preserves_local_attention_and_rejects_late_results();
+	test_my_draft_is_not_waiting_on_others();
 	test_draft_metadata_retains_only_accepted_exact_account_facts();
 	test_retained_metadata_budget_and_restore_after_session();
 	test_retained_failure_and_foreign_envelopes_preserve_accepted_state();

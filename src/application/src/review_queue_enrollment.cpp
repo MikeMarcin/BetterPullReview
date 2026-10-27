@@ -373,6 +373,8 @@ namespace bpr::application {
 				membership.Authored = false;
 			}
 			membership = core::queue_membership_with_activity(membership, facts.Authored, activity.ReviewedByMe);
+			// [[BPR-1780]]. The bucket reads the draft status the facts carry.
+			activity.Draft = facts.Draft;
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = membership,
@@ -1445,7 +1447,9 @@ namespace bpr::application {
 		[[nodiscard]] auto observed_item(const enrollment_record& aRecord, const queue_activity_report& aReport) const -> core::queue_item
 		{
 			const auto membership = core::queue_membership_with_activity(aRecord.Membership, aReport.Facts.Authored, aReport.Observation.ReviewedByMe);
-			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, aReport.Observation), .Facts = aReport.Facts, .Ignored = Ignored.contains(aRecord.Ref) };
+			auto       activity   = aReport.Observation;
+			activity.Draft        = aReport.Facts.Draft;
+			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, activity), .Facts = aReport.Facts, .Ignored = Ignored.contains(aRecord.Ref) };
 		}
 
 		/// \brief [[BPR-1683]]. Where the queue's retained record puts one pull request.

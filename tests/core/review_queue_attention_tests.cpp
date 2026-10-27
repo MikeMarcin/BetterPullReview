@@ -160,6 +160,25 @@ namespace {
 			"with nothing to read, the wait is what the item is about");
 	}
 
+	/// [[BPR-1780]], the owner, 2026-10-27: "I don't think a draft PR of my
+	/// PRS can ever be waiting for others until it's not a draft".
+	void test_my_draft_waits_on_nobody()
+	{
+		const auto author = membership(core::github_role::author);
+		auto       draft  = core::queue_activity_observation{ .ReviewersAwaited = 2U, .Waiting = { .Requests = 2U, .RequiredReview = true }, .Draft = true };
+		expect(core::bucket_for(author, draft) == core::attention_bucket::quiet
+				   && core::home_section_for(author, core::bucket_for(author, draft)) == core::home_queue_section::my_pull_requests,
+			   "my draft with reviewers named and a review required is mine, not waiting on others");
+		draft.Draft = false;
+		expect(core::bucket_for(author, draft) == core::attention_bucket::authored_awaiting_reviewer_action, "marked ready, it waits on its reviewers");
+		draft.Draft = std::nullopt;
+		expect(core::bucket_for(author, draft) == core::attention_bucket::authored_awaiting_reviewer_action, "an unknown draft status changes nothing");
+		auto reading           = draft;
+		reading.Draft          = true;
+		reading.UnseenComments = 1U;
+		expect(core::bucket_for(author, reading) == core::attention_bucket::new_comments_or_author_replies, "something to read on my draft still asks for me");
+	}
+
 	// An item GitHub put in front of the reviewer is not "observed". Saying so
 	// would hide that they were asked.
 	void test_observed_is_only_for_items_no_role_brought_in()
@@ -442,6 +461,7 @@ auto main() -> int
 	test_every_bucket_is_reachable();
 	test_an_unanswered_request_outranks_everything();
 	test_authored_never_displaces_work_the_reviewer_can_do();
+	test_my_draft_waits_on_nobody();
 	test_observed_is_only_for_items_no_role_brought_in();
 	test_every_bucket_names_and_explains_itself_distinctly();
 	test_the_queue_is_ordered_by_attention();

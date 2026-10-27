@@ -206,8 +206,9 @@ namespace bpr::core {
 
 		// Authored comes after the reviewer-facing buckets on purpose. Waiting
 		// on somebody else is not work this reviewer can do, so it must not
-		// displace work they can.
-		if (aMembership.authored()
+		// displace work they can. [[BPR-1780]]. A draft waits on its author:
+		// nobody else is asked to act until it is marked ready.
+		if (aMembership.authored() && aActivity.Draft != std::optional{ true }
 			&& (aActivity.ReviewersAwaited > 0U || review_waiting(aActivity.Waiting))) {
 			return attention_bucket::authored_awaiting_reviewer_action;
 		}
