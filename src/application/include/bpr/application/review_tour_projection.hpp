@@ -48,6 +48,9 @@ namespace bpr::application {
 		std::uint64_t                            SelectionRevision = 0;
 		std::uint64_t                            SavedRevision     = 0;
 		std::vector<std::string>                 ImportChoices;
+		/// [[BPR-1781]]. The first published tour GitHub offers for import, so
+		/// Overview can show a reader its brief and stop titles before Start tour.
+		std::shared_ptr<const core::review_tour> Offered;
 		std::vector<tour_stop_destination>       Destinations;
 		std::string                              ImportNotice;
 		bool                                     Loading = false;

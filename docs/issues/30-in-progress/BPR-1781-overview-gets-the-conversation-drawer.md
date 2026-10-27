@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1781"
 title: "Overview gets the conversation drawer: Comments, Notes, Tour and Agent, with the pull request's conversation on its Comments tab"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1779"]
 priority: "P2"
