@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1765"
 title: "Investigate the Windows Debug 200% diff workbench timeout"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
-metadata: {"origin":"Owner's v0.3.3-only timeout waiver and follow-up request, 2026-10-24","reservation":"docs/issues/_reservations/BPR-1765--BPR-1765--65cc7e762a78.json","related_cards":["BPR-1694"],"release_candidate":"b2801f2aaa858fd5e7d18d76253834d34024abc7","diagnostic_candidate":"ddc43c10ed87e958c9a23a5b9887371d2928ea4c","external_evidence":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
+metadata: {"origin":"Owner's v0.3.3-only timeout waiver and follow-up request, 2026-10-24","reservation":"docs/issues/_reservations/BPR-1765--BPR-1765--65cc7e762a78.json","related_cards":["BPR-1694"],"release_candidate":"b2801f2aaa858fd5e7d18d76253834d34024abc7","diagnostic_candidate":"ddc43c10ed87e958c9a23a5b9887371d2928ea4c","external_evidence":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032","triage_20261026":{"date":"2026-10-26","disposition":"stale","reason":"Superseded by the owner's standing Debug timing policy (2026-10-26); the row is slow, not hung."}}
 ---
 
 # Investigate the Windows Debug 200% diff workbench timeout
@@ -101,3 +101,18 @@ Raw evidence remains outside the repository under the metadata evidence root:
   seals against the final bytes and actual evidence, and run the documentation
   gate. State explicitly that the v0.3.3 waiver has not been renewed for a later
   release.
+
+## Closed in triage, 2026-10-26
+
+Closed as stale. On 2026-10-26 the owner made Debug performance timings
+permanently nongating: "From now and until the end of time I won't care
+about debug timings, we dont even have to run those in debug"
+([standing policy](../../development/release-test-profiles.md#standing-debug-performance-policy)).
+AC3 asks for this Windows Debug row to pass inside its 120-second limit,
+which is now a Debug timing criterion that the policy retires. R187
+completes every phase in 115.62 s, so the row is slow, not hung. The policy
+still requires investigation for a real hang, and there is no evidence of
+one. The 200% workbench rows pass in Windows Release. The row's v0.3.3 and
+v0.3.4 timeouts stay recorded as failures. If the row ever fails to
+complete under a larger bounded watchdog, that is a hang and gets a new
+card.

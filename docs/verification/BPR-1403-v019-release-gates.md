@@ -137,7 +137,7 @@ mac build out, timing misses be damned, and fix everything else including
 windows and ubuntu for a follow-up patch". The coordinator now owns the
 macOS-only v0.1.9 package/sign/notarize/publication path. The implementer supplies
 one frozen clean source candidate and releases its writer ownership. No new
-version is chosen. [BPR-1404](../issues/30-in-progress/BPR-1404-verify-followup-release-gates.md)
+version is chosen. [BPR-1404](../issues/60-done/BPR-1404-verify-followup-release-gates.md)
 retains timing repairs and Windows/Ubuntu native gates/packages for follow-up.
 
 PR-load input gaps miss 100 ms at **111.602 / 107.923 ms**, then reproduce

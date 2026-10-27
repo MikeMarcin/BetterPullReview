@@ -308,7 +308,7 @@ not part of this release.
 The direct owner mandate `release-v010-20261012-fix-and-publish-r4` says
 "fix all the issues and go publish 0.1.10 prerelease afterwards" and selects
 full macOS, Windows and Ubuntu 26.04. A fresh RFC implementer owns
-[BPR-1404](../issues/30-in-progress/BPR-1404-verify-followup-release-gates.md),
+[BPR-1404](../issues/60-done/BPR-1404-verify-followup-release-gates.md),
 with published v0.1.9 candidate
 `6cc7a99e8754ffe482a90dc012d5afe98b3a9da8` immutable. The version bump and
 publication are authorized after the known release issues are repaired and
@@ -334,7 +334,7 @@ publication authority does not supply missing acceptance evidence.
 The owner narrows v0.1.9 to the current macOS build and explicitly accepts
 its timing misses for this release: "timing misses be damned". Windows and
 Ubuntu 26.04 packages and remaining repairs move to an unversioned follow-up
-patch on [BPR-1404](../issues/30-in-progress/BPR-1404-verify-followup-release-gates.md).
+patch on [BPR-1404](../issues/60-done/BPR-1404-verify-followup-release-gates.md).
 [BPR-1403's gate ledger](BPR-1403-v019-release-gates.md) preserves the original
 failed normal gate, exact fixture repairs, focused checks, configured Debug
 cache-bytes skip and failed 100 ms PR-load observations. This owner release

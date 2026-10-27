@@ -86,7 +86,7 @@ missing safe target and read-only permission limits are preserved.
 The owner accepted native banner text, privacy, a real click and exact focused
 selection at BPR-0168's v006 executable. That exact checkpoint and the later
 interim replay waiver remain valid. Standalone
-[BPR-0168](../issues/10-backlog/BPR-0168-rfc-0010-native-notification-delivery.md)
+[BPR-0168](../issues/20-ready/BPR-0168-rfc-0010-native-notification-delivery.md)
 retains terminal candidate identity replay and any necessary successor native
 verdict after BPR-0169. Neither a current banner observation nor another
 platform's native behavior is inferred from the automated composition check.

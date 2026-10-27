@@ -3852,7 +3852,7 @@ were reserved on main (`b1d4e14b`).
 
 BPR-0725 landed in this dispatch (see its verification record); the
 maintenance public path was the one course it disturbed, repaired in the
-probe. Mandate r7 added one card, [BPR-0735](../50-blocked/BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
+probe. Mandate r7 added one card, [BPR-0735](BPR-0735-clangd-cannot-find-the-compile-database-and-reports-every-header-missing.md):
 clangd reads no compile database because the project's lands in
 `build/dev` and there is no `.clangd`; filed, not started. Next: BPR-0726.
 
