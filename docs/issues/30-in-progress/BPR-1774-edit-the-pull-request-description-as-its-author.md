@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1774"
 title: "Edit the pull request's description (summary) as its author"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
