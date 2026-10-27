@@ -1460,6 +1460,9 @@ namespace bpr::application {
 			// a workspace to disk that nobody owns, so the closure consults this
 			// flag under the mutex and cleans up rather than leaking. BPR-0397.
 			bool Abandoned = false;
+			// [[BPR-1772]]. The work was asked for the linked clone's head
+			// only, and the clone does not hold it.
+			bool CloneLacksHead = false;
 		};
 
 		struct workspace_cleanup_waiter final
@@ -7261,21 +7264,57 @@ namespace bpr::application {
 			// be copied out of it. The head's snapshot is fetched first, off the
 			// actor, under the review's own lease; it lives until the workspace
 			// made from it is done.
-			auto snapshot = std::shared_ptr<git_workspace_snapshot>{ };
+			auto context = std::shared_ptr<authority_context>{ };
 			{
-				auto context = std::shared_ptr<authority_context>{ };
-				{
-					std::scoped_lock lock{ actor->BlobAuthorityMutex };
-					context = actor->BlobContext.lock();
-				}
-				if (context && blob_authority_for(*context) == authorization && sparse_review(*context)) {
-					auto acquired = acquire_workspace_snapshot(actor, *context, expected, aRequest.Session.Binding.HeadOid, aStop);
-					if (!acquired) {
-						return std::unexpected{ std::move(acquired.error()) };
-					}
-					snapshot = std::move(*acquired);
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				context = actor->BlobContext.lock();
+			}
+			const auto sparse = context && blob_authority_for(*context) == authorization && sparse_review(*context);
+			// [[BPR-1772]]. A linked clone that already holds the head lends
+			// every file of it, so a sparse review asks the clone first and
+			// downloads the snapshot only when the clone does not hold it. A
+			// large head the clone holds is never refused for its size.
+			if (sparse && aRequest.HistoryClone) {
+				auto fromClone          = aRequest;
+				fromClone.HeadFromClone = true;
+				auto cloneLacksHead     = false;
+				auto lent               = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, aStop);
+				if (lent.has_value() || !cloneLacksHead) {
+					return lent;
 				}
 			}
+			auto snapshot = std::shared_ptr<git_workspace_snapshot>{ };
+			if (sparse) {
+				auto acquired = acquire_workspace_snapshot(actor, *context, expected, aRequest.Session.Binding.HeadOid, aStop);
+				if (!acquired) {
+					auto error = std::move(acquired.error());
+					if (aRequest.HistoryClone && error.Reason == agent_workspace_unavailable_reason::too_large) {
+						error.Reason = agent_workspace_unavailable_reason::too_large_not_in_clone;
+					}
+					return std::unexpected{ std::move(error) };
+				}
+				snapshot = std::move(*acquired);
+			}
+			auto cloneLacksHead = false;
+			return materialize_on_actor(actor, authorization, *authorizationGeneration, expected, aRequest, std::move(snapshot), cloneLacksHead, aStop);
+		}
+
+		/// \brief Makes one workspace on the review's actor, from its cache,
+		/// the linked clone, or `aSnapshot`, and waits for it.
+		///
+		/// \details `aCloneLacksHead` is set when the request asked for the
+		/// clone's head only and the clone does not hold it.
+		[[nodiscard]] auto materialize_on_actor(
+			const std::shared_ptr<authority_effect_actor>& actor,
+			const blob_authority&                          authorization,
+			const std::uint64_t                            aGeneration,
+			const git_cache_open_request&                  expected,
+			const agent_workspace_materialization_request& aRequest,
+			std::shared_ptr<git_workspace_snapshot>        snapshot,
+			bool&                                          aCloneLacksHead,
+			const std::stop_token                          aStop)
+			-> std::expected<owned_agent_workspace, agent_workspace_error>
+		{
 			auto snapshotPack = std::optional<git_workspace_snapshot_pack>{ };
 			if (snapshot) {
 				snapshotPack = git_workspace_snapshot_pack{
@@ -7306,7 +7345,7 @@ namespace bpr::application {
 					[this,
 					 actor,
 					 authorization,
-					 admittedGeneration = *authorizationGeneration,
+					 admittedGeneration = aGeneration,
 					 expected,
 					 aRequest,
 					 aStop,
@@ -7370,6 +7409,10 @@ namespace bpr::application {
 									}
 								} else {
 									auto failure = agent_workspace_failure::unavailable;
+									if (aRequest.HeadFromClone && materialized.error() == git_cache_failure::object_mismatch) {
+										const auto guard       = std::lock_guard{ waiter->Mutex };
+										waiter->CloneLacksHead = true;
+									}
 									if (
 										materialized.error()
 										== git_cache_failure::cancelled) {
@@ -7439,6 +7482,7 @@ namespace bpr::application {
 					return waiter->Result.has_value() || waiter->Abandoned;
 				}));
 			if (waiter->Result.has_value()) {
+				aCloneLacksHead = waiter->CloneLacksHead;
 				return std::move(*waiter->Result);
 			}
 			// Bounded by `WorkspaceWait`, not `BlobWait`: this writes a whole

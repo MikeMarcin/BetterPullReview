@@ -56,6 +56,8 @@ namespace bpr::application {
 			return "sign_in_refused";
 		case agent_workspace_unavailable_reason::too_large:
 			return "too_large";
+		case agent_workspace_unavailable_reason::too_large_not_in_clone:
+			return "too_large_not_in_clone";
 		}
 		return { };
 	}
@@ -122,7 +124,8 @@ namespace bpr::application {
 			== aRequest.Session.Binding.BaseOid.algorithm()
 			&& aRequest.ParentDirectory.is_absolute()
 			&& !aRequest.ParentDirectory.empty()
-			&& (!aRequest.HistoryClone || (aRequest.HistoryClone->is_absolute() && !aRequest.HistoryClone->empty()));
+			&& (!aRequest.HistoryClone || (aRequest.HistoryClone->is_absolute() && !aRequest.HistoryClone->empty()))
+			&& (!aRequest.HeadFromClone || aRequest.HistoryClone.has_value());
 	}
 
 	auto valid(const owned_agent_workspace& aWorkspace) noexcept -> bool

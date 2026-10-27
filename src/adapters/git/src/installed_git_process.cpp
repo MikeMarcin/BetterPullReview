@@ -4458,6 +4458,11 @@ namespace bpr::adapters::git {
 				const auto baseText      = std::string{ core::canonical_hex(materialization.Session.Binding.BaseOid).view() };
 				if (borrowed && present(headText)) {
 					// The clone already holds the head: nothing to copy.
+				} else if (materialization.HeadFromClone) {
+					// [[BPR-1772]]. Asked for the clone's head only: the
+					// review's cache is not a fallback, because a sparse one
+					// cannot supply the head and the host downloads it next.
+					return fail(git_process_error{ git_process_failure::object_unavailable, "The linked clone does not hold the head.\n" });
 				} else if (aRequest.Snapshot) {
 					// [[BPR-1738]]. A sparse review's cache holds the head's
 					// commit and trees but no blobs and no parents, so packing the

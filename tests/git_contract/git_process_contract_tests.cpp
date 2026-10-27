@@ -4308,12 +4308,29 @@ namespace {
 			std::cout << "GIT_CLONE_INVENTORY_CONTROL size_write_detected=1 timestamp_write_detected=1 added_name_detected=1\n";
 		}
 
+		// [[BPR-1772]]. Asked for the clone's head only, a clone without it
+		// is refused as missing the object, with nothing copied from the cache.
+		auto cloneOnly                          = request(5U, clone);
+		cloneOnly.Materialization.HeadFromClone = true;
+		const auto lacking                      = adapter->materialize_agent_workspace(cloneOnly, { });
+		require(!lacking.has_value() && lacking.error() == application::git_process_failure::object_unavailable,
+				"a clone-only workspace from a clone without the head is refused as an unavailable object");
+		require(std::filesystem::is_empty(workspaceParent.Path), "and leaves no workspace behind");
+		require(file_inventory(clone) == cloneBefore, "and writes nothing to the clone");
+
 		// The clone already holds the head: nothing is copied at all.
 		static_cast<void>(run_fixture_git(cache, { "pack-objects", "--revs", (clone / ".git" / "objects" / "pack" / "pack").string() }, head + "\n"));
 		const auto again = adapter->materialize_agent_workspace(request(2U, clone), { });
 		require(again.has_value() && in_pack(std::filesystem::path{ again->Workspace.Path } / ".git") == "0", "a clone that holds the head gives the whole workspace");
 		require(read_text(std::filesystem::path{ again->Workspace.Path } / "README.md") == "the head's readme\n", "and its files are checked out from the clone's objects");
 		require(adapter->cleanup_agent_workspace(*again, { }).has_value(), "and it cleans up");
+
+		cloneOnly.Materialization.Session.Id = core::agent_session_id{ 6U };
+		const auto lent                      = adapter->materialize_agent_workspace(cloneOnly, { });
+		require(lent.has_value() && lent->Workspace.BorrowsHistory && !lent->Workspace.Shallow && in_pack(std::filesystem::path{ lent->Workspace.Path } / ".git") == "0",
+				"a clone-only workspace from a clone that holds the head copies nothing and is complete ([[BPR-1772]])");
+		require(read_text(std::filesystem::path{ lent->Workspace.Path } / "README.md") == "the head's readme\n", "and checks the head's files out of the clone");
+		require(adapter->cleanup_agent_workspace(*lent, { }).has_value(), "and it cleans up");
 
 		const auto notClone = root.Path / "not-a-clone";
 		std::filesystem::create_directories(notClone);
