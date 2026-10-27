@@ -669,9 +669,47 @@ wider than 260 when a larger font needs it, so no control clips); Hide on its
 tab row, its 18-pixel rail and Alt+Shift+6 collapse and expand it. Its width and
 collapsed state belong to the window: they survive a restart through the
 window's layout record and new windows start expanded at 340. Its header is its
-one tab, Status, with Prepare review tour (⌥T) and Open on GitHub (⇧⌘O) as icons
-at the right; the full-width Prepare review tour button is gone. Its content is
-the summary column described below until [[BPR-1589]] rebuilds it.
+tabs, with Open on GitHub (⇧⌘O) and Hide as icons at the right. Status's content
+is the summary column described below until [[BPR-1589]] rebuilds it.
+
+[[BPR-1781]] (owner, 2026-10-27: "comments, notes and agents probably also make
+sense on overview"). The drawer has six tabs: **Status**, **Commits**
+(RFC-BPR-0089), then the conversation tabs Review's tray has, **Comments**,
+**Notes**, **Tour** and **Agent**. Where the names do not fit the row the tabs
+go compact as the tray's do ([[BPR-1684]]): the open tab's glyph and name with
+the others' glyphs, then glyphs only, each tab's tooltip naming it.
+
+- **Comments** is the pull request's conversation: its comments and reviews in
+  time order, a review's inline threads bundled under it, as [[BPR-1779]]
+  arranges them, with Reply in place on a pull request comment. Under it a
+  composer takes a new comment of its own ("Comment on the pull request…"):
+  the first words open a private draft that is saved as a reply's is, and only
+  **Comment** posts it, as its words alone, without a quote. Once posted the
+  composer starts again empty. It is not offered beside the code or in Discuss.
+- **Notes** is the notes on the pull request, whole files and other files, with
+  New note; N there writes a note on the pull request. Line notes stay with
+  their lines in Review.
+- **Agent** is the same Agent tab and conversation as Review's; asked on
+  Overview, a question is about the pull request, so no lines go with it and
+  the suggested prompts name no file or lines. ⌘I and ⌥⇧A open it here.
+- **Tour** presents and routes; writing and following stay in Review. For a
+  tour I can edit it shows the brief (Problem, Solution), the stops in order
+  each with its readiness ring and word (Ready, Editing, Needs attention,
+  Suggested), whether the tour is a private draft or published, and **Continue
+  in Review**, which opens Review's Tour tab at the stop it was on. The author
+  with no tour sees one sentence and **Prepare review tour** (⌥T still works;
+  the icon on the tab row is gone). Any reader of a published tour sees its
+  brief and stop titles, read-only, and **Start tour**, which imports it as
+  Review's Import does and opens Review at its first stop. With no tour and
+  not the author there is no Tour tab.
+
+Comments, Notes and Agent are not copies. The window owns one conversation
+panel, one notes panel and one agent page, and moves each between Review's tray
+and Overview's drawer as Overview shows or leaves, as Discuss already borrows
+the conversation panel and the Agent tab borrows its panels. A draft reply, an
+open note or an agent turn is the same object in both places, and each place
+keeps its own position: the conversation's open card and scroll on Overview,
+the file's open thread and scroll in Review.
 
 ## Overview check details
 
@@ -2389,7 +2427,11 @@ permanent status sentence and no Reload Profiles button, and nothing announces
 
 The drawer is RFC-BPR-0052's right tray, and its header is its tabs:
 **Comments**, then **Notes** ([[BPR-1204]]). It opens on Comments. The
-Comments tab holds this file's threads exactly as described below; its filters
+Comments tab holds this file's threads exactly as described below. It has no
+pull request mode ([[BPR-1781]]): one quiet link at its top, **Pull request
+conversation**, with the count of new comments when there are any, opens
+Overview's Comments tab, and a pull request comment reached from Review (Next
+new comment, a link) opens there too. Its filters
 and Next new comment sit at the right of the tab row; the tab carries the count
 of threads with new comments in the current file as an accent pill and says it
 to accessibility ("Comments, 2 threads with new comments in this file"). Both
