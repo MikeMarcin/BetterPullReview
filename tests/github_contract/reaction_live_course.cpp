@@ -10,6 +10,11 @@
 // the product's parser, and `gh` only carries the bytes. It prints one
 // `REACTION_LIVE:` line per step and `X-RateLimit-Remaining` per request, stops
 // below the floor, and keeps each answer in the output directory.
+//
+// [[BPR-1774]]. tests/scripts/description_live_course.py runs its
+// `--description` (the author) and `--description-second` (another account)
+// modes on a pull request the owner opened, through the shipped
+// `review_mutation_session::edit_description`.
 #include "gh_cli_response.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
@@ -18,6 +23,7 @@
 
 #include "bpr/application/review_mutation_recovery_port.hpp"
 #include "bpr/core/conversation_reactions.hpp"
+#include "bpr/core/description_edit.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
@@ -460,6 +466,69 @@ namespace {
 		}
 		fail("subject-not-read");
 	}
+	/// [[BPR-1774]]. One description save through the shipped session; the
+	/// receipt and the writes it made are held to what is expected.
+	[[nodiscard]] auto edit(review_mutation_session& aSession, gh_mutation_transport& aWire, const std::string& aStep, const std::string& aOriginal, const std::string& aBody)
+		-> std::pair<std::expected<application::review_description_receipt, application::review_mutation_failure>, std::size_t>
+	{
+		const auto before  = aWire.Operations.size();
+		auto       receipt = aSession.edit_description(application::review_description_request{
+				  .Target = target().Semantic, .ActingIdentity = actor().Account, .Original = aOriginal, .Body = aBody, .LiveBinding = binding() });
+		const auto writes  = static_cast<std::size_t>(std::ranges::count(aWire.Operations.begin() + static_cast<std::ptrdiff_t>(before), aWire.Operations.end(),
+																		 review_mutation_operation::update_pull_request_description));
+		std::cout << "REACTION_LIVE:" << aStep << ":" << (receipt ? "answered" : std::string{ application::name(receipt.error()) }) << " writes=" << writes
+				  << (receipt ? " written=" + std::to_string(receipt->Written) + " conflict=" + std::to_string(receipt->Conflict) + " readBack=" + std::to_string(receipt->ConfirmedByReadBack) : std::string{ })
+				  << '\n'
+				  << std::flush;
+		return { std::move(receipt), writes };
+	}
+
+	/// [[BPR-1774]]. The author edits the description, sees GitHub's answer,
+	/// saves the same text again (nothing sent), is refused a stale original
+	/// as a conflict (nothing sent, GitHub's body back), and restores it.
+	void description_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		const auto original = text("originalBody");
+		const auto edited   = text("editedBody");
+		if (!core::description_edit_offered(text("author"), text("actorLogin"))) {
+			fail("description:author-not-offered");
+		}
+		const auto [saved, savedWrites] = edit(aSession, aWire, "description-saved", original, edited);
+		if (!saved || !saved->Written || saved->Conflict || saved->Body != edited || savedWrites != 1U) {
+			fail("description-saved:unexpected");
+		}
+		const auto [again, againWrites] = edit(aSession, aWire, "description-saved-again", original, edited);
+		if (!again || again->Written || again->Conflict || againWrites != 0U) {
+			fail("description-saved-again:unexpected");
+		}
+		const auto [stale, staleWrites] = edit(aSession, aWire, "description-conflict", "A body GitHub no longer has.", "Must not be written.");
+		if (!stale || !stale->Conflict || stale->Written || stale->Body != edited || staleWrites != 0U) {
+			fail("description-conflict:unexpected");
+		}
+		const auto [restored, restoredWrites] = edit(aSession, aWire, "description-restored", edited, original);
+		if (!restored || !restored->Written || restored->Body != original || restoredWrites != 1U) {
+			fail("description-restored:unexpected");
+		}
+	}
+
+	/// [[BPR-1774]]. Another account: the composition offers it no Edit, and
+	/// the session, asked anyway with a stale original, writes nothing:
+	/// refused by GitHub when it may not update, a conflict when it may.
+	void description_second_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		const auto offered = core::description_edit_offered(text("author"), text("actorLogin"));
+		std::cout << "REACTION_LIVE:description-second-offered:" << offered << '\n'
+				  << std::flush;
+		if (offered) {
+			fail("description-second:offered");
+		}
+		const auto [answer, writes] = edit(aSession, aWire, "description-second-asked", "A body GitHub no longer has.", "Must not be written.");
+		const auto refused          = !answer && answer.error() == application::review_mutation_failure::refused_by_server;
+		const auto conflict         = answer && answer->Conflict && !answer->Written;
+		if (writes != 0U || (!refused && !conflict)) {
+			fail("description-second:unexpected");
+		}
+	}
 } // namespace
 
 auto main(int aCount, char** aValues) -> int
@@ -467,7 +536,7 @@ auto main(int aCount, char** aValues) -> int
 	QCoreApplication application{ aCount, aValues };
 	const auto       arguments = QCoreApplication::arguments();
 	if (arguments.size() < 4) {
-		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read) CONFIG OUTPUT [FLOOR]\n";
+		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second) CONFIG OUTPUT [FLOOR]\n";
 		return EXIT_FAILURE;
 	}
 	auto file = QFile{ arguments[2] };
@@ -500,6 +569,10 @@ auto main(int aCount, char** aValues) -> int
 		react(session, wire, "second-removes-thumbs-up", comment, core::reaction_content::thumbs_up, false, true);
 	} else if (mode == QStringLiteral("--read")) {
 		static_cast<void>(read_reactions("read"));
+	} else if (mode == QStringLiteral("--description")) {
+		description_course(session, wire);
+	} else if (mode == QStringLiteral("--description-second")) {
+		description_second_course(session, wire);
 	} else if (mode == QStringLiteral("--main")) {
 		const auto first  = find(read_reactions("before"), comment);
 		const auto thumbs = core::find_reaction_group(first, core::reaction_content::thumbs_up);
