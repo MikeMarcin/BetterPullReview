@@ -135,6 +135,7 @@ add_library(
         src/conversation_reactions.cpp
         src/comment_edit.cpp
         src/overview_tour.cpp
+        src/tour_steps.cpp
         src/description_edit.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
