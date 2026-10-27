@@ -27,8 +27,10 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 #include <vector>
 
+class QAbstractButton;
 class QAction;
 class QFont;
 class QHBoxLayout;
@@ -57,6 +59,7 @@ namespace bpr::qt {
 	class overview_description_view;
 	class overview_summary_splitter;
 	class markdown_body_view;
+	class scoped_prose_editor;
 	class steady_columns;
 
 	/// \brief The colours the overview's marks are drawn in.
@@ -483,6 +486,17 @@ namespace bpr::qt {
 		pending_veil* Side = nullptr;
 	};
 
+	/// \brief [[BPR-1774]]. Save pressed in the description's editor: the body
+	/// editing began with, byte for byte, and the text to save. A gesture
+	/// only; the composition decides whether anything is sent.
+	struct overview_description_save
+	{
+		std::string Original;
+		std::string Body;
+
+		auto operator==(const overview_description_save&) const -> bool = default;
+	};
+
 	/// \brief RFC-BPR-0028's overview: what changed and who has signed off.
 	///
 	/// \details [[BPR-0647]]. The Overview modality's content, drawn from
@@ -632,6 +646,37 @@ namespace bpr::qt {
 		/// \brief [[BPR-1576]]. Motion, contrast and failure ink for the veils.
 		void set_pending_appearance(bool aFullMotion, bool aHighContrast, const QColor& aFailureInk);
 
+		/// \brief [[BPR-1774]]. Offers Edit on the description, or withdraws
+		/// it. The composition offers it to the pull request's author alone;
+		/// withdrawn while editing, the editor closes and nothing is sent.
+		void               set_description_editable(bool aEditable);
+		[[nodiscard]] auto description_editable() const noexcept -> bool;
+		/// \brief [[BPR-1774]]. Where Save goes. Nothing is sent by the page.
+		void set_description_save_dispatch(std::function<void(const overview_description_save&)> aDispatch);
+		/// \brief [[BPR-1774]]. Opens the editor on the presented body, as
+		/// Edit does; false when Edit is not offered.
+		auto               begin_description_edit() -> bool;
+		[[nodiscard]] auto description_editing() const noexcept -> bool;
+		/// \brief [[BPR-1774]]. What the composition says beside the editor:
+		/// a refusal or progress in words. `aSaving` holds the text and Save
+		/// while GitHub is asked.
+		void present_description_status(const QString& aText, bool aSaving = false);
+		/// \brief [[BPR-1774]]. GitHub's body changed since editing began:
+		/// offers to go on editing from `aNewer`. The typed text stays until
+		/// the offer is taken.
+		void offer_newer_description(std::string aNewer);
+		/// \brief [[BPR-1774]]. Closes the editor, as after a save GitHub
+		/// answered; the description then shows what the next read brings.
+		void               close_description_editor();
+		[[nodiscard]] auto description_edit_button() const noexcept -> QToolButton*;
+		[[nodiscard]] auto description_add_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto description_editor() const noexcept -> scoped_prose_editor*;
+		[[nodiscard]] auto description_save_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto description_cancel_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto description_newer_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto description_status() const noexcept -> QLabel*;
+		/// \brief The body editing began with.
+		[[nodiscard]] auto description_original() const noexcept -> const std::string&;
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
@@ -662,6 +707,9 @@ namespace bpr::qt {
 	private:
 		/// [[BPR-1576]]. Puts every section's veil in the look its facts give.
 		void apply_pending();
+		/// [[BPR-1774]]. Shows Edit, Add a description, the reader and the
+		/// editor as the body, the offer and the editing state say.
+		void present_description_controls();
 		void set_description_expanded(bool aExpanded);
 		void show_cached_source(bool aShow);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
@@ -729,32 +777,48 @@ namespace bpr::qt {
 		overview_path_dispatch                                       CachedSourceDispatch;
 		bool                                                         Cached = false;
 		std::string                                                  CachedBase, CachedHead;
-		QPlainTextEdit*                                              CachedSource         = nullptr;
-		QPushButton*                                                 CachedSourceBack     = nullptr;
-		QHBoxLayout*                                                 TechnicalRow         = nullptr;
-		QLabel*                                                      Title                = nullptr;
-		QLabel*                                                      Summary              = nullptr;
-		overview_summary_splitter*                                   SummarySplit         = nullptr;
-		QWidget*                                                     SummaryPane          = nullptr;
-		QWidget*                                                     FilesPane            = nullptr;
-		overview_description_view*                                   Body                 = nullptr;
-		QWidget*                                                     Header               = nullptr;
-		QWidget*                                                     Side                 = nullptr;
-		QLabel*                                                      EmptyBody            = nullptr;
-		QToolButton*                                                 FullView             = nullptr;
-		QLabel*                                                      CachedThreadsHeading = nullptr;
-		QPlainTextEdit*                                              CachedThreads        = nullptr;
-		QPlainTextEdit*                                              CachedDiscussion     = nullptr;
-		QLabel*                                                      FilesHeading         = nullptr;
-		QTreeView*                                                   Files                = nullptr;
-		QToolButton*                                                 CollapseFolders      = nullptr;
-		QToolButton*                                                 ExpandFolders        = nullptr;
-		overview_file_model*                                         Model                = nullptr;
-		QVBoxLayout*                                                 Participants         = nullptr;
-		QLabel*                                                      SinceHeading         = nullptr;
-		QLabel*                                                      Values[overview_value_count]{ };
-		overview_status_splitter*                                    StatusSplit  = nullptr;
-		overview_status_drawer*                                      StatusDrawer = nullptr;
+		QPlainTextEdit*                                              CachedSource     = nullptr;
+		QPushButton*                                                 CachedSourceBack = nullptr;
+		QHBoxLayout*                                                 TechnicalRow     = nullptr;
+		QLabel*                                                      Title            = nullptr;
+		QLabel*                                                      Summary          = nullptr;
+		overview_summary_splitter*                                   SummarySplit     = nullptr;
+		QWidget*                                                     SummaryPane      = nullptr;
+		QWidget*                                                     FilesPane        = nullptr;
+		overview_description_view*                                   Body             = nullptr;
+		QWidget*                                                     Header           = nullptr;
+		QWidget*                                                     Side             = nullptr;
+		QLabel*                                                      EmptyBody        = nullptr;
+		/// [[BPR-1774]]. The description's edit controls and editor.
+		QWidget*                                              DescriptionCorner = nullptr;
+		QToolButton*                                          DescriptionEdit   = nullptr;
+		QPushButton*                                          DescriptionAdd    = nullptr;
+		QWidget*                                              DescriptionPanel  = nullptr;
+		scoped_prose_editor*                                  DescriptionText   = nullptr;
+		QLabel*                                               DescriptionStatus = nullptr;
+		QPushButton*                                          DescriptionNewer  = nullptr;
+		QPushButton*                                          DescriptionCancel = nullptr;
+		QPushButton*                                          DescriptionSave   = nullptr;
+		std::function<void(const overview_description_save&)> DescriptionSaveDispatch;
+		std::string                                           DescriptionOriginal;
+		std::optional<std::string>                            DescriptionNewerText;
+		bool                                                  DescriptionEditable  = false;
+		bool                                                  DescriptionEditing   = false;
+		bool                                                  DescriptionSaving    = false;
+		QToolButton*                                          FullView             = nullptr;
+		QLabel*                                               CachedThreadsHeading = nullptr;
+		QPlainTextEdit*                                       CachedThreads        = nullptr;
+		QPlainTextEdit*                                       CachedDiscussion     = nullptr;
+		QLabel*                                               FilesHeading         = nullptr;
+		QTreeView*                                            Files                = nullptr;
+		QToolButton*                                          CollapseFolders      = nullptr;
+		QToolButton*                                          ExpandFolders        = nullptr;
+		overview_file_model*                                  Model                = nullptr;
+		QVBoxLayout*                                          Participants         = nullptr;
+		QLabel*                                               SinceHeading         = nullptr;
+		QLabel*                                               Values[overview_value_count]{ };
+		overview_status_splitter*                             StatusSplit  = nullptr;
+		overview_status_drawer*                               StatusDrawer = nullptr;
 		/// [[BPR-1589]]. The Status drawer's content.
 		struct status_section_parts
 		{

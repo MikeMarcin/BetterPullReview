@@ -1,6 +1,8 @@
 #include "bpr/qt/pull_request_overview_page.hpp"
 
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
+#include "conversation_glyphs.hpp"
 #include <QAction>
 #include <QActionGroup>
 
@@ -2493,10 +2495,44 @@ namespace bpr::qt {
 		Body->setAccessibleName(QStringLiteral("Pull request description"));
 		Body->Reader->setAccessibleName(QStringLiteral("Pull request description"));
 		summaryColumn->addWidget(Body, 1);
-		EmptyBody = new QLabel{ QStringLiteral("No description"), main };
+		// [[BPR-1774]]. "No description", and beside it, for the author,
+		// Add a description.
+		auto* const emptyRow    = new QWidget{ main };
+		auto* const emptyLayout = new QHBoxLayout{ emptyRow };
+		emptyLayout->setContentsMargins(0, 0, 0, 0);
+		emptyLayout->setSpacing(8);
+		EmptyBody = new QLabel{ QStringLiteral("No description"), emptyRow };
 		EmptyBody->setObjectName(QStringLiteral("overviewNoDescription"));
-		mainColumn->insertWidget(mainColumn->indexOf(SummarySplit), EmptyBody);
-		FullView = new QToolButton{ Body };
+		emptyLayout->addWidget(EmptyBody);
+		DescriptionAdd = new quiet_push_button{ QStringLiteral("Add a description"), emptyRow };
+		DescriptionAdd->setObjectName(QStringLiteral("overviewAddDescription"));
+		DescriptionAdd->setAccessibleDescription(QStringLiteral("Write this pull request's description. Nothing is sent until you save."));
+		DescriptionAdd->hide();
+		emptyLayout->addWidget(DescriptionAdd);
+		emptyLayout->addStretch(1);
+		mainColumn->insertWidget(mainColumn->indexOf(SummarySplit), emptyRow);
+		// [[BPR-1774]]. The reader's corner holds Edit, for the author, beside
+		// Full view: both act on the description they sit on.
+		DescriptionCorner = new QWidget{ Body };
+		DescriptionCorner->setObjectName(QStringLiteral("overviewDescriptionCorner"));
+		auto* const cornerLayout = new QHBoxLayout{ DescriptionCorner };
+		cornerLayout->setContentsMargins(0, 0, 0, 0);
+		cornerLayout->setSpacing(0);
+		DescriptionEdit = new QToolButton{ DescriptionCorner };
+		DescriptionEdit->setObjectName(QStringLiteral("overviewEditDescription"));
+		DescriptionEdit->setAutoRaise(true);
+		DescriptionEdit->setFocusPolicy(Qt::StrongFocus);
+		DescriptionEdit->setText(QStringLiteral("Edit description"));
+		DescriptionEdit->setAccessibleName(DescriptionEdit->text());
+		DescriptionEdit->setAccessibleDescription(QStringLiteral("Edit this pull request's description in Markdown. Nothing is sent until you save."));
+		DescriptionEdit->setToolTip(DescriptionEdit->text());
+		DescriptionEdit->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+		DescriptionEdit->setBackgroundRole(QPalette::Base);
+		DescriptionEdit->setAutoFillBackground(true);
+		DescriptionEdit->hide();
+		cornerLayout->addWidget(DescriptionEdit);
+		FullView = new QToolButton{ DescriptionCorner };
+		cornerLayout->addWidget(FullView);
 		FullView->setObjectName(QStringLiteral("overviewFullView"));
 		// Not checkable: Exit keeps Enter's quiet auto-raised style and only the
 		// glyph, name and tooltip change (owner, overview-v003 rejection).
@@ -2510,8 +2546,87 @@ namespace bpr::qt {
 		// corner never shows through it.
 		FullView->setBackgroundRole(QPalette::Base);
 		FullView->setAutoFillBackground(true);
-		Body->set_corner(FullView);
+		Body->set_corner(DescriptionCorner);
 		connect(FullView, &QToolButton::clicked, this, [this] { set_description_expanded(!Body->expanded()); });
+		connect(DescriptionEdit, &QToolButton::clicked, this, [this] { static_cast<void>(begin_description_edit()); });
+		connect(DescriptionAdd, &QPushButton::clicked, this, [this] { static_cast<void>(begin_description_edit()); });
+		// [[BPR-1774]]. The editor takes the reader's place in the summary
+		// pane: the description is edited where it is read. The app's Markdown
+		// prose editor keeps the body's untouched bytes (CRLF included), so a
+		// save changes only what was typed.
+		DescriptionPanel = new QWidget{ SummaryPane };
+		DescriptionPanel->setObjectName(QStringLiteral("overviewDescriptionEditor"));
+		DescriptionPanel->setAccessibleName(QStringLiteral("Edit description"));
+		auto* const panelColumn = new QVBoxLayout{ DescriptionPanel };
+		panelColumn->setContentsMargins(0, 2, 0, 2);
+		panelColumn->setSpacing(6);
+		auto* const hint = new QLabel{ QStringLiteral("Markdown. Nothing is sent to GitHub until you save."), DescriptionPanel };
+		hint->setObjectName(QStringLiteral("overviewDescriptionHint"));
+		hint->setForegroundRole(QPalette::PlaceholderText);
+		hint->setTextFormat(Qt::PlainText);
+		panelColumn->addWidget(hint);
+		DescriptionText = new scoped_prose_editor{ DescriptionPanel };
+		DescriptionText->setObjectName(QStringLiteral("overviewDescriptionText"));
+		DescriptionText->setAccessibleName(QStringLiteral("Description Markdown source"));
+		DescriptionText->setPlaceholderText(QStringLiteral("Describe what this pull request changes and why."));
+		DescriptionText->setTabChangesFocus(true);
+		DescriptionText->setMinimumHeight(6 * DescriptionText->fontMetrics().lineSpacing());
+		panelColumn->addWidget(DescriptionText, 1);
+		auto* const foot = new QHBoxLayout{ };
+		foot->setSpacing(8);
+		DescriptionStatus = new QLabel{ DescriptionPanel };
+		DescriptionStatus->setObjectName(QStringLiteral("overviewDescriptionStatus"));
+		DescriptionStatus->setTextFormat(Qt::PlainText);
+		DescriptionStatus->setWordWrap(true);
+		DescriptionStatus->setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Preferred);
+		foot->addWidget(DescriptionStatus, 1);
+		DescriptionNewer = new quiet_push_button{ QStringLiteral("Edit GitHub's newer text"), DescriptionPanel };
+		DescriptionNewer->setObjectName(QStringLiteral("overviewDescriptionNewer"));
+		DescriptionNewer->setAccessibleDescription(QStringLiteral("Replaces your text with the description GitHub has now, so you can edit from it."));
+		DescriptionNewer->hide();
+		foot->addWidget(DescriptionNewer);
+		DescriptionCancel = new quiet_push_button{ QStringLiteral("Cancel"), DescriptionPanel };
+		DescriptionCancel->setObjectName(QStringLiteral("overviewDescriptionCancel"));
+		DescriptionCancel->setAccessibleDescription(QStringLiteral("Stops editing. Nothing is sent."));
+		foot->addWidget(DescriptionCancel);
+		DescriptionSave = new QPushButton{ QStringLiteral("Save"), DescriptionPanel };
+		DescriptionSave->setObjectName(QStringLiteral("overviewDescriptionSave"));
+		DescriptionSave->setAccessibleDescription(QStringLiteral("Saves the description to GitHub."));
+		DescriptionSave->setDefault(true);
+		DescriptionSave->setToolTip(QStringLiteral("Save (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		foot->addWidget(DescriptionSave);
+		panelColumn->addLayout(foot);
+		summaryColumn->addWidget(DescriptionPanel, 1);
+		DescriptionPanel->hide();
+		const auto save = [this] {
+			if (!DescriptionEditing || DescriptionSaving || !DescriptionSaveDispatch) {
+				return;
+			}
+			DescriptionSaveDispatch(overview_description_save{ .Original = DescriptionOriginal, .Body = DescriptionText->raw() });
+		};
+		connect(DescriptionSave, &QPushButton::clicked, this, save);
+		auto* const saveKey = new QShortcut{ QKeySequence{ Qt::CTRL | Qt::Key_Return }, DescriptionPanel };
+		saveKey->setContext(Qt::WidgetWithChildrenShortcut);
+		connect(saveKey, &QShortcut::activated, this, save);
+		connect(DescriptionCancel, &QPushButton::clicked, this, [this] { close_description_editor(); });
+		auto* const cancelKey = new QShortcut{ QKeySequence{ Qt::Key_Escape }, DescriptionPanel };
+		cancelKey->setContext(Qt::WidgetWithChildrenShortcut);
+		connect(cancelKey, &QShortcut::activated, this, [this] {
+			if (!DescriptionSaving) {
+				close_description_editor();
+			}
+		});
+		connect(DescriptionNewer, &QPushButton::clicked, this, [this] {
+			if (!DescriptionNewerText.has_value()) {
+				return;
+			}
+			DescriptionOriginal = std::move(*DescriptionNewerText);
+			DescriptionNewerText.reset();
+			DescriptionText->present(DescriptionOriginal, true);
+			DescriptionNewer->hide();
+			present_description_status(QStringLiteral("Editing GitHub's newer text."));
+			DescriptionText->setFocus(Qt::OtherFocusReason);
+		});
 		Body->LayoutChanged = [this] { SummarySplit->queue_layout(); };
 		FilesPane           = new QWidget{ SummarySplit };
 		FilesPane->setObjectName(QStringLiteral("overviewFilesPane"));
@@ -2520,11 +2635,22 @@ namespace bpr::qt {
 		filesColumn->setSpacing(4);
 		SummarySplit->addWidget(SummaryPane);
 		SummarySplit->addWidget(FilesPane);
-		SummarySplit->LineHeight     = [this] { return Body->line_height(); };
-		SummarySplit->NaturalHeight  = [this] { return std::max(Body->natural_height(), FullView->sizeHint().height() + Body->chrome_height()); };
-		SummarySplit->SummaryMinimum = [this] { return std::max(3 * Body->line_height(), FullView->sizeHint().height()) + Body->chrome_height(); };
-		SummarySplit->FilesMinimum   = [this] { return FilesHeading->sizeHint().height() + 4 + Files->header()->sizeHint().height() + 3 * std::max(Files->fontMetrics().height() + 8, Files->sizeHintForRow(0)); };
-		auto* escape                 = new QShortcut{ shortcut_key(shortcut_command::fold_description), this };
+		SummarySplit->LineHeight    = [this] { return Body->line_height(); };
+		SummarySplit->NaturalHeight = [this] {
+			// [[BPR-1774]]. The editor asks for room to write in.
+			if (DescriptionEditing) {
+				return std::max(DescriptionPanel->sizeHint().height(), 16 * DescriptionText->fontMetrics().lineSpacing());
+			}
+			return std::max(Body->natural_height(), FullView->sizeHint().height() + Body->chrome_height());
+		};
+		SummarySplit->SummaryMinimum = [this] {
+			if (DescriptionEditing) {
+				return DescriptionPanel->minimumSizeHint().height();
+			}
+			return std::max(3 * Body->line_height(), FullView->sizeHint().height()) + Body->chrome_height();
+		};
+		SummarySplit->FilesMinimum = [this] { return FilesHeading->sizeHint().height() + 4 + Files->header()->sizeHint().height() + 3 * std::max(Files->fontMetrics().height() + 8, Files->sizeHintForRow(0)); };
+		auto* escape               = new QShortcut{ shortcut_key(shortcut_command::fold_description), this };
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
 		escape->setEnabled(false);
 		connect(escape, &QShortcut::activated, this, [this] { set_description_expanded(false); });
@@ -3160,6 +3286,12 @@ namespace bpr::qt {
 		if (aProjection.Body.empty() && Body->expanded()) {
 			set_description_expanded(false);
 		}
+		// [[BPR-1774]]. Another pull request ends an edit of this one; the
+		// same one keeps it, typed text and all, whatever GitHub now says.
+		if (!samePullRequest && DescriptionEditing) {
+			close_description_editor();
+		}
+		present_description_controls();
 		if (bodyChanged || requirementsChanged) {
 			const auto                   announcement = (bodyChanged ? QStringLiteral("Description updated. ") : QString{ }) + (requirementsChanged ? merge_announcement(aProjection) : QString{ });
 			QAccessibleAnnouncementEvent event{ Body, announcement };
@@ -3427,6 +3559,13 @@ namespace bpr::qt {
 		EmptyBody->setVisible(false);
 		SummaryPane->setVisible(false);
 		FullView->setVisible(false);
+		// [[BPR-1774]]. An invalidated authority withdraws Edit and ends an
+		// edit; nothing is sent.
+		DescriptionEditable = false;
+		if (DescriptionEditing) {
+			close_description_editor();
+		}
+		present_description_controls();
 		present_heading(*FilesHeading, QStringLiteral("Files"));
 		ModeChosen = false;
 		Mode       = DefaultMode;
@@ -3561,6 +3700,7 @@ namespace bpr::qt {
 		Body->setVisible(!aObservation.Body.empty());
 		SummaryPane->setVisible(!aObservation.Body.empty());
 		FullView->setVisible(!aObservation.Body.empty());
+		present_description_controls();
 		SummarySplit->queue_layout();
 		present_heading(*FilesHeading, QStringLiteral("Files — %1 reported; catalogue loading…").arg(count_text(aObservation.ReportedFiles)));
 		SinceHeading->setText(QStringLiteral("Review state — loading…"));
@@ -3668,6 +3808,7 @@ namespace bpr::qt {
 		FullView->setIcon(full_view_icon(palette(), aExpanded));
 		FullView->setVisible(!Body->Reader->original_body().empty());
 		EmptyBody->setVisible(!aExpanded && Projection.has_value() && Projection->Body.empty());
+		present_description_controls();
 		findChild<QShortcut*>(QStringLiteral("overviewDescriptionEscape"))->setEnabled(aExpanded);
 		if (aExpanded) {
 			Body->setFocus(Qt::OtherFocusReason);
@@ -4484,6 +4625,9 @@ namespace bpr::qt {
 			if (FullView) {
 				FullView->setIcon(full_view_icon(palette(), Body->expanded()));
 			}
+			if (DescriptionEdit) {
+				DescriptionEdit->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+			}
 		}
 	}
 
@@ -4633,6 +4777,136 @@ namespace bpr::qt {
 	{
 		FileDispatch = std::move(aDispatch);
 	}
+
+	void pull_request_overview_page::present_description_controls()
+	{
+		if (DescriptionCorner == nullptr) {
+			return;
+		}
+		const auto hasBody  = !Body->Reader->original_body().empty();
+		const auto expanded = Body->expanded();
+		const auto offered  = DescriptionEditable && Projection.has_value() && !Cached && !DescriptionEditing;
+		DescriptionEdit->setVisible(offered && hasBody);
+		DescriptionCorner->setVisible(!FullView->isHidden() || !DescriptionEdit->isHidden());
+		DescriptionCorner->adjustSize();
+		DescriptionAdd->setVisible(offered && !hasBody && !expanded);
+		DescriptionPanel->setVisible(DescriptionEditing);
+		if (DescriptionEditing) {
+			Body->setVisible(false);
+			EmptyBody->setVisible(false);
+			SummaryPane->setVisible(true);
+		}
+		SummarySplit->queue_layout();
+	}
+
+	void pull_request_overview_page::set_description_editable(const bool aEditable)
+	{
+		if (DescriptionEditable == aEditable) {
+			return;
+		}
+		DescriptionEditable = aEditable;
+		if (!aEditable && DescriptionEditing) {
+			close_description_editor();
+		}
+		present_description_controls();
+	}
+
+	auto pull_request_overview_page::description_editable() const noexcept -> bool
+	{
+		return DescriptionEditable;
+	}
+
+	void pull_request_overview_page::set_description_save_dispatch(std::function<void(const overview_description_save&)> aDispatch)
+	{
+		DescriptionSaveDispatch = std::move(aDispatch);
+	}
+
+	auto pull_request_overview_page::begin_description_edit() -> bool
+	{
+		if (!DescriptionEditable || !Projection.has_value() || Cached) {
+			return false;
+		}
+		if (!DescriptionEditing) {
+			if (Body->expanded()) {
+				set_description_expanded(false);
+			}
+			DescriptionEditing  = true;
+			DescriptionSaving   = false;
+			DescriptionOriginal = Projection->Body;
+			DescriptionNewerText.reset();
+			DescriptionText->setReadOnly(false);
+			DescriptionText->present(DescriptionOriginal, true);
+			DescriptionNewer->hide();
+			present_description_status({ });
+			present_description_controls();
+		}
+		DescriptionText->setFocus(Qt::OtherFocusReason);
+		return true;
+	}
+
+	auto pull_request_overview_page::description_editing() const noexcept -> bool
+	{
+		return DescriptionEditing;
+	}
+
+	void pull_request_overview_page::present_description_status(const QString& aText, const bool aSaving)
+	{
+		DescriptionSaving = aSaving && DescriptionEditing;
+		DescriptionStatus->setText(aText);
+		DescriptionStatus->setAccessibleName(aText);
+		DescriptionText->setReadOnly(DescriptionSaving);
+		DescriptionSave->setEnabled(!DescriptionSaving);
+		DescriptionCancel->setEnabled(!DescriptionSaving);
+		DescriptionNewer->setEnabled(!DescriptionSaving);
+		if (!aText.isEmpty() && DescriptionEditing) {
+			QAccessibleAnnouncementEvent event{ DescriptionStatus, aText };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+	}
+
+	void pull_request_overview_page::offer_newer_description(std::string aNewer)
+	{
+		if (!DescriptionEditing) {
+			return;
+		}
+		DescriptionNewerText = std::move(aNewer);
+		DescriptionNewer->show();
+	}
+
+	void pull_request_overview_page::close_description_editor()
+	{
+		const auto wasEditing = DescriptionEditing;
+		DescriptionEditing    = false;
+		DescriptionSaving     = false;
+		DescriptionNewerText.reset();
+		DescriptionNewer->hide();
+		DescriptionStatus->clear();
+		DescriptionText->setReadOnly(false);
+		DescriptionText->present({ }, true);
+		DescriptionPanel->hide();
+		if (wasEditing) {
+			const auto hasBody = !Body->Reader->original_body().empty();
+			Body->setVisible(hasBody);
+			SummaryPane->setVisible(hasBody);
+			EmptyBody->setVisible(Projection.has_value() && Projection->Body.empty() && !Body->expanded());
+		}
+		present_description_controls();
+		if (wasEditing && isVisible()) {
+			auto* const next = DescriptionEdit->isVisible() ? static_cast<QWidget*>(DescriptionEdit) : DescriptionAdd->isVisible() ? static_cast<QWidget*>(DescriptionAdd)
+																																   : static_cast<QWidget*>(Files);
+			next->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	auto pull_request_overview_page::description_edit_button() const noexcept -> QToolButton* { return DescriptionEdit; }
+	auto pull_request_overview_page::description_add_button() const noexcept -> QPushButton* { return DescriptionAdd; }
+	auto pull_request_overview_page::description_editor() const noexcept -> scoped_prose_editor* { return DescriptionText; }
+	auto pull_request_overview_page::description_save_button() const noexcept -> QPushButton* { return DescriptionSave; }
+	auto pull_request_overview_page::description_cancel_button() const noexcept -> QPushButton* { return DescriptionCancel; }
+	auto pull_request_overview_page::description_newer_button() const noexcept -> QPushButton* { return DescriptionNewer; }
+	auto pull_request_overview_page::description_status() const noexcept -> QLabel* { return DescriptionStatus; }
+	auto pull_request_overview_page::description_original() const noexcept -> const std::string& { return DescriptionOriginal; }
 
 	auto pull_request_overview_page::title_label() const noexcept -> QLabel*
 	{
