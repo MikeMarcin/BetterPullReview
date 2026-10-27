@@ -535,8 +535,6 @@ namespace bpr::qt {
 		void               adopt_appearance(const appearance_profile& aProfile);
 		[[nodiscard]] auto colours() const noexcept -> const overview_colours&;
 
-		/// \brief Presents the window-owned private tour action from Overview.
-		void set_prepare_tour_action(QAction* aAction);
 		/// \brief [[BPR-1588]]. Puts the window's Open on GitHub on the Status
 		/// drawer's tab row.
 		void set_open_on_github_action(QAction* aAction);

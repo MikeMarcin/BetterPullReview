@@ -2344,12 +2344,29 @@ namespace {
 		view.set_action_dispatch([&](qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
 		view.show();
 		QApplication::processEvents();
-		// [[BPR-1779]]. The chip counts comments: the two PR comments, the
-		// review's body and the thread it carried; not the review.
-		expect(view.pull_request_comments_chip()->isVisible() && view.pull_request_comments_chip()->accessibleName() == QStringLiteral("4 comments on the pull request, 1 new"), "one top chip counts every live comment, independent of the file");
+		// [[BPR-1781]]. Without a window to take it there, no link is offered.
+		expect(!view.pull_request_comments_chip()->isVisible(), "the link waits for somewhere to go");
+		auto links = std::vector<std::string>{ };
+		view.set_pull_request_link_dispatch([&links](const std::string& aId) { links.push_back(aId); });
+		QApplication::processEvents();
+		// [[BPR-1779]] [[BPR-1781]]. One quiet link, "Pull request
+		// conversation", counting comments: the two PR comments, the review's
+		// body and the thread it carried; not the review.
+		expect(view.pull_request_comments_chip()->isVisible() && view.pull_request_comments_chip()->text() == QStringLiteral("Pull request conversation")
+				   && view.pull_request_comments_chip()->accessibleName() == QStringLiteral("Pull request conversation: 4 comments, 1 new"),
+			   "one quiet link counts every live comment, independent of the file");
 		expect(view.cards().size() == 1U, "file view still shows only its thread");
 		view.pull_request_comments_chip()->click();
 		QApplication::processEvents();
+		expect(links == std::vector<std::string>{ std::string{ } } && !view.pull_request_comments_shown() && view.cards().size() == 1U,
+			   "the link asks the window for Overview's Comments and leaves the file's threads as they are");
+		view.open_thread(old.Id);
+		expect(links.size() == 2U && links.back() == old.Id && !view.pull_request_comments_shown(), "opening a pull request comment beside the code asks the window too");
+		// The window shows the conversation, as Overview's Comments tab does.
+		view.show_pull_request_comments(true);
+		QApplication::processEvents();
+		expect(!view.pull_request_comments_chip()->isVisible() && view.findChild<QAbstractButton*>(QStringLiteral("backToThreadLines")) == nullptr,
+			   "the conversation offers neither the link nor a way back: Review is where the lines are");
 		expect(view.pull_request_comments_shown() && view.cards().size() == 4U && view.cards()[0].Id == old.Id && view.cards()[1].Id == summary.Id && view.cards()[2].Id == file.Id && view.cards()[3].Id == fresh.Id,
 			   "chip opens the conversation in time order, the review's body and its thread together at the review's time");
 		view.open_thread(fresh.Id);
@@ -2378,11 +2395,22 @@ namespace {
 		expect(send && send->text() == QStringLiteral("Send"), "PR reply has an explicit Send");
 		send->click();
 		expect(actions.back() == std::pair{ qt::card_action::publish_reply, summary.Id }, "only the Send press requests publication");
+		// [[BPR-1781]]. Each mode keeps its place: the open card and scroll.
+		const auto openInConversation = view.open_thread_id();
 		view.show_pull_request_comments(false);
-		expect(view.cards().size() == 1U && view.cards()[0].Id == file.Id, "Back restores the file thread view");
+		expect(view.cards().size() == 1U && view.cards()[0].Id == file.Id, "Review's view is the file's threads again");
+		view.open_thread(file.Id);
+		QApplication::processEvents();
+		view.show_pull_request_comments(true);
+		QApplication::processEvents();
+		expect(view.open_thread_id() == openInConversation, "back in the conversation, the card left open there is open again");
+		view.show_pull_request_comments(false);
+		QApplication::processEvents();
+		expect(view.open_thread_id() == file.Id, "and back beside the code, the file's thread is");
 		view.resize(280, 800);
 		QApplication::processEvents();
-		expect(view.pull_request_comments_chip()->text() == QStringLiteral("4"), "narrow chip retains total and accessible full words");
+		expect(view.pull_request_comments_chip()->text() == QStringLiteral("Pull request conversation") && view.pull_request_comments_chip()->width() <= 280,
+			   "a narrow drawer keeps the link's words within it");
 		view.set_feed(true);
 		QApplication::processEvents();
 		expect(!view.pull_request_comments_chip()->isVisible(), "Discuss remains its existing full conversation feed");
@@ -2656,7 +2684,8 @@ namespace {
 			view.show();
 			QApplication::processEvents();
 			if (!discuss) {
-				expect(view.pull_request_comments_chip()->accessibleName() == QStringLiteral("2 comments on the pull request, 1 new"),
+				view.set_pull_request_link_dispatch([](const std::string&) { });
+				expect(view.pull_request_comments_chip()->accessibleName() == QStringLiteral("Pull request conversation: 2 comments, 1 new"),
 					   "the chip counts the two file comments, not the six reviews, and the unread approval is no comment");
 				view.show_pull_request_comments(true);
 				QApplication::processEvents();

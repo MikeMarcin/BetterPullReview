@@ -25,6 +25,7 @@ add_library(
         src/disclosure_button.cpp
         src/drawer_parts.cpp
         src/overview_status_drawer.cpp
+        src/overview_tour_summary.cpp
         src/commit_filter_view.cpp
         src/generated_files_view.cpp
         src/compose_review_sheet.cpp

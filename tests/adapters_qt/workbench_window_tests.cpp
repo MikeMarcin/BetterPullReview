@@ -31,6 +31,8 @@
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/line_details_pane.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
@@ -19423,6 +19425,134 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1781]]. Overview's drawer has the conversation tabs: the pull
+	/// request's conversation in Comments, the pull request's notes, the
+	/// Agent and the Tour. Comments, Notes and Agent are the very panels
+	/// Review's tray holds, moved between the two, so their state is one;
+	/// Review's Comments has no pull request mode, only a link here.
+	void test_overview_drawer_borrows_the_conversation_tabs()
+	{
+		intent_log           log;
+		qt::workbench_window window{ [&log](core::workbench_interaction_intent aIntent) { log.Workbench.push_back(aIntent); } };
+		window.resize(1'400, 860);
+		window.show();
+		process_events();
+		window.publish(every_primary_command_offered());
+		auto overview        = application::pull_request_overview_projection{ };
+		overview.Title       = "Cache the startup reads";
+		overview.AuthorLogin = "someone-else";
+		overview.Status      = { .Viewer = "me", .Roles = { .ViewerKnown = true, .Roles = { } } };
+		window.choose_modality(qt::review_modality::overview);
+		window.publish(overview);
+		process_events();
+		auto* const drawer = window.overview_page()->status_drawer();
+		auto* const panel  = window.conversation_panel();
+		auto* const cards  = panel->cards();
+		auto* const notes  = window.private_notes();
+		auto* const agent  = window.agent_tab();
+		expect(window.showing_overview() && drawer->tabs()->count() == 6, "Overview's drawer has six tabs");
+		expect(!drawer->tour_tab_shown(), "no tour, and not the author: no Tour tab");
+		expect(drawer->holder(qt::overview_drawer_tab::comments)->isAncestorOf(panel) && cards->pull_request_comments_shown(),
+			   "Overview's Comments holds the one conversation panel, showing the pull request's conversation");
+		expect(drawer->holder(qt::overview_drawer_tab::notes)->isAncestorOf(notes) && notes->pull_request_only() && notes->elsewhere_shown(),
+			   "Overview's Notes holds the one notes panel, on the pull request's notes");
+		expect(drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent), "Overview's Agent holds the one Agent tab");
+
+		// The conversation: a pull request comment and a thread on a file.
+		auto comment        = application::github_conversation_projection{ };
+		comment.Id          = "issue-comment:one";
+		comment.Kind        = application::github_conversation_kind::issue_comment;
+		comment.AuthorLogin = "someone-else";
+		comment.Body        = "Thanks for looking. The second commit is the interesting one.";
+		comment.CreatedAt   = "2026-10-20T00:00:00Z";
+		auto later          = comment;
+		later.Id            = "issue-comment:two";
+		later.Body          = "Pushed a fix for the review.";
+		later.CreatedAt     = "2026-10-21T00:00:00Z";
+		panel->adopt({ comment, later }, QString{ });
+		drawer->show_tab(qt::overview_drawer_tab::comments);
+		process_events();
+		expect(cards->cards().size() == 2U && cards->cards()[0].Id == comment.Id, "Overview's Comments lists the pull request's comments in time order");
+		cards->open_thread(later.Id);
+		process_events();
+		expect(cards->open_thread_id() == later.Id, "a comment opens in place on Overview");
+
+		// Notes on Overview are the pull request's; state is the panel's own.
+		notes->present({ .Scope = 7, .Available = true, .Notes = { { .Id = 3, .Revision = 1, .Attachment = std::nullopt, .Label = "Pull request", .Text = "Soak test first." } } });
+		drawer->show_tab(qt::overview_drawer_tab::notes);
+		process_events();
+		notes->open_note(3);
+		expect(notes->open_note_id() == 3U, "a pull request note opens on Overview");
+
+		// To Review: the same objects move back to the tray, each keeping
+		// its state; Comments is the file's threads, with a link back.
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		expect(!drawer->isAncestorOf(panel) && !drawer->isAncestorOf(notes) && !drawer->isAncestorOf(agent), "in Review the panels are the tray's again");
+		expect(window.private_notes() == notes && window.agent_tab() == agent && window.conversation_panel() == panel, "one notes panel, one agent tab, one conversation panel");
+		expect(!cards->pull_request_comments_shown() && !notes->pull_request_only() && notes->open_note_id() == 3U,
+			   "Review's Comments has no pull request mode; the open note is still open");
+		expect(window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest")) == nullptr || !window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest"))->isVisible(),
+			   "no Pull request | File switch beside the code");
+		auto* const link = cards->pull_request_comments_chip();
+		expect(!link->isHidden() && link->text() == QStringLiteral("Pull request conversation"), "Review's Comments offers one quiet link to the pull request's conversation");
+		link->click();
+		process_events();
+		expect(window.showing_overview() && drawer->current_tab() == qt::overview_drawer_tab::comments && drawer->holder(qt::overview_drawer_tab::comments)->isAncestorOf(panel)
+				   && cards->open_thread_id() == later.Id,
+			   "the link opens Overview's Comments, where the comment left open is open again");
+
+		// Ctrl+I on Overview opens Overview's Agent tab, about the pull request.
+		window.ask_agent_action()->trigger();
+		process_events();
+		expect(drawer->current_tab() == qt::overview_drawer_tab::agent && drawer->holder(qt::overview_drawer_tab::agent)->isAncestorOf(agent) && agent->isVisible(),
+			   "the Ask agent key opens the Agent tab on Overview");
+		expect(window.showing_overview(), "and stays on Overview");
+		// N in Overview's Notes is a note on the pull request.
+		expect(notes->new_review_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_note) && notes->new_line_action()->shortcuts().isEmpty(),
+			   "on Overview N writes a note on the pull request");
+
+		// The Tour tab.
+		auto* const summary  = drawer->tour_summary();
+		auto        gestures = 0;
+		window.set_tour_start_dispatch([&gestures] { ++gestures; });
+		auto* const editor = window.tour_editor();
+		editor->set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
+		auto published   = tests::review_tour_fixture();
+		published.Remote = core::tour_remote_binding{ .Entity = "IC_root", .Actor = "someone-else", .Own = false };
+		application::tour_presentation offer;
+		offer.Draft   = std::make_shared<const core::review_tour>(core::review_tour{ });
+		offer.Offered = std::make_shared<const core::review_tour>(published);
+		editor->present(offer);
+		process_events();
+		expect(drawer->tour_tab_shown() && summary->shown().Kind == core::overview_tour_kind::reader && summary->action()->text() == QStringLiteral("Start tour"),
+			   "a published tour gives a reader the Tour tab, with Start tour");
+		drawer->show_tab(qt::overview_drawer_tab::tour);
+		process_events();
+		summary->action()->click();
+		expect(gestures == 1, "Start tour goes to the composition, which imports and opens the first stop");
+		editor->present({ .Draft = std::make_shared<const core::review_tour>(core::review_tour{ }) });
+		process_events();
+		expect(!drawer->tour_tab_shown(), "with the offer gone and not the author, the tab goes");
+		overview.Status.Roles.Roles = { core::review_role{ .Kind = core::review_role_kind::author } };
+		window.publish(overview);
+		process_events();
+		expect(drawer->tour_tab_shown() && summary->shown().Kind == core::overview_tour_kind::prepare, "the author with no tour is offered Prepare");
+		auto draft = tests::review_tour_fixture();
+		editor->present({ .Draft = std::make_shared<const core::review_tour>(draft) });
+		process_events();
+		expect(summary->shown().Kind == core::overview_tour_kind::writer && summary->stop_titles().size() == static_cast<qsizetype>(draft.Stops.size()),
+			   "the author's draft shows its stops");
+		drawer->show_tab(qt::overview_drawer_tab::tour);
+		process_events();
+		summary->action()->click();
+		process_events();
+		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 2 && window.current_modality() == qt::review_modality::review,
+			   "Continue in Review opens Review's Tour tab");
+		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == draft.Stops.front().Id, "at its stop");
+		expect(log.Workbench.size() > 0U, "the window's gestures went to the core");
+	}
+
 	void test_overview_refuses_a_hand_opened_drawer_and_says_so()
 	{
 		// [[BPR-0727]]. Choosing Overview tells the core the modality before
@@ -23140,6 +23270,7 @@ auto main(int argc, char** argv) -> int
 	// folder tree must still skip equal overviews and re-project after a clear.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--overview"))) {
 		runCase("test_overview_refuses_a_hand_opened_drawer_and_says_so", &test_overview_refuses_a_hand_opened_drawer_and_says_so);
+		runCase("test_overview_drawer_borrows_the_conversation_tabs", &test_overview_drawer_borrows_the_conversation_tabs);
 		runCase("test_overview_entry_preserves_start_and_continue_semantics", &test_overview_entry_preserves_start_and_continue_semantics);
 		runCase("test_identical_overview_skips_rebuild_but_restores_cleared_files", &test_identical_overview_skips_rebuild_but_restores_cleared_files);
 		runCase("test_receipt_update_moves_only_its_rows", &test_receipt_update_moves_only_its_rows);
@@ -23264,6 +23395,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_identical_overview_skips_rebuild_but_restores_cleared_files", &test_identical_overview_skips_rebuild_but_restores_cleared_files);
 	runCase("test_receipt_update_moves_only_its_rows", &test_receipt_update_moves_only_its_rows);
 	runCase("test_overview_refuses_a_hand_opened_drawer_and_says_so", &test_overview_refuses_a_hand_opened_drawer_and_says_so);
+	runCase("test_overview_drawer_borrows_the_conversation_tabs", &test_overview_drawer_borrows_the_conversation_tabs);
 	runCase("test_hide_drawers_command_key_icon_and_editor_yield", &test_hide_drawers_command_key_icon_and_editor_yield);
 	runCase("test_threads_finds_and_picks_into_review", &test_threads_finds_and_picks_into_review);
 	runCase("test_threads_opens_a_thread_in_discuss", &test_threads_opens_a_thread_in_discuss);

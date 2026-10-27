@@ -106,7 +106,9 @@ namespace bpr::qt {
 			note_colours Colours;
 			std::size_t  New  = 0U;
 			bool         Face = true;
-			auto         sizeHint() const -> QSize override
+			/// [[BPR-1781]]. A quiet link: no pill until hovered or focused.
+			bool Link = false;
+			auto sizeHint() const -> QSize override
 			{
 				return { QFontMetrics{ font() }.horizontalAdvance(text()) + (Face ? 28 : 18) + (New > 0U ? 24 : 0), chip_height };
 			}
@@ -117,9 +119,11 @@ namespace bpr::qt {
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing);
 				const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				painter.setPen(QPen{ hasFocus() ? Colours.Signal : Colours.Rule2, hasFocus() ? 2.0 : 1.0 });
-				painter.setBrush(Colours.Panel);
-				painter.drawRoundedRect(box, height() / 2.0, height() / 2.0);
+				if (!Link || hasFocus() || underMouse()) {
+					painter.setPen(QPen{ hasFocus() ? Colours.Signal : Colours.Rule2, hasFocus() ? 2.0 : 1.0 });
+					painter.setBrush(Link && !hasFocus() ? Qt::NoBrush : QBrush{ Colours.Panel });
+					painter.drawRoundedRect(box, height() / 2.0, height() / 2.0);
+				}
 				if (Face) {
 					drawer_icon(drawer_glyph::pull_request, palette()).paint(&painter, QRect{ 5, 4, 14, 14 });
 				}
@@ -508,17 +512,19 @@ namespace bpr::qt {
 		viewport()->setAutoFillBackground(true);
 		viewport()->setBackgroundRole(QPalette::Window);
 		viewport()->setMouseTracking(true);
+		// [[BPR-1781]]. Beside the code the drawer is about code: the pull
+		// request's own conversation is Overview's Comments tab, and this quiet
+		// link is the way there. The window decides what it opens.
 		PullRequestChip = new pull_request_chip{ viewport() };
 		PullRequestChip->setObjectName(QStringLiteral("pullRequestCommentsChip"));
-		BackToLines = new pull_request_chip{ viewport() };
-		BackToLines->setObjectName(QStringLiteral("backToThreadLines"));
-		static_cast<pull_request_chip*>(BackToLines)->Face = false;
-		BackToLines->setText(tr("Back to threads at their lines"));
-		BackToLines->setAccessibleName(BackToLines->text());
-		connect(PullRequestChip, &QAbstractButton::clicked, this, [this] { show_pull_request_comments(true); });
-		connect(BackToLines, &QAbstractButton::clicked, this, [this] { show_pull_request_comments(false); });
+		static_cast<pull_request_chip*>(PullRequestChip)->Link = true;
+		PullRequestChip->setAttribute(Qt::WA_Hover);
+		connect(PullRequestChip, &QAbstractButton::clicked, this, [this] {
+			if (PullRequestLinkDispatch) {
+				PullRequestLinkDispatch(std::string{ });
+			}
+		});
 		PullRequestChip->hide();
-		BackToLines->hide();
 		connect(verticalScrollBar(), &QScrollBar::valueChanged, this, [this](int) {
 			place_open_card();
 			sync_edges();
@@ -1840,14 +1846,29 @@ namespace bpr::qt {
 		if (Feed || PullRequestComments == aShown) {
 			return;
 		}
+		// [[BPR-1781]]. The pull request's conversation is Overview's and the
+		// threads at their lines are Review's; the window moves this one view
+		// between them, so each keeps its own place: the current and open
+		// card and how far it was scrolled.
+		auto& leaving       = PullRequestComments ? ConversationPlace : LinesPlace;
+		leaving             = { .Open = Open, .Current = Current, .Scroll = verticalScrollBar()->value() };
 		PullRequestComments = aShown;
 		setVerticalScrollBarPolicy(aShown ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+		const auto& entering = aShown ? ConversationPlace : LinesPlace;
 		Open.clear();
 		Current.clear();
 		Picked.clear();
 		NewConversationBoundary.clear();
 		verticalScrollBar()->setValue(0);
 		relayout();
+		const auto present = [this](const std::string& aId) { return !aId.empty() && std::ranges::any_of(Cards, [&aId](const thread_card& aCard) { return aCard.Id == aId; }); };
+		if (present(entering.Current)) {
+			Current = entering.Current;
+		}
+		if (present(entering.Open)) {
+			Open = entering.Open;
+			relayout();
+		}
 		// [[BPR-1779]]. The New rule stands over the first comment, in time
 		// order, with a post not yet read; reading does not move it.
 		if (aShown) {
@@ -1856,8 +1877,16 @@ namespace bpr::qt {
 				place_cards(true);
 			}
 		}
-		setFocus(Qt::OtherFocusReason);
+		verticalScrollBar()->setValue(std::min(entering.Scroll, verticalScrollBar()->maximum()));
+		viewport()->update();
 	}
+
+	void conversation_cards_view::set_pull_request_link_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		PullRequestLinkDispatch = std::move(aDispatch);
+		sync_pull_request_edge();
+	}
+
 	auto conversation_cards_view::pull_request_comments_shown() const noexcept -> bool { return PullRequestComments; }
 	auto conversation_cards_view::pull_request_comments_chip() const noexcept -> QAbstractButton* { return PullRequestChip; }
 	void conversation_cards_view::sync_pull_request_edge()
@@ -1882,19 +1911,17 @@ namespace bpr::qt {
 		auto* const chip           = static_cast<pull_request_chip*>(PullRequestChip);
 		chip->Colours              = note_colours_of(palette(), Accent, Marker);
 		chip->New                  = unread;
-		chip->setText(viewport()->width() < 320 ? QString::number(count) : tr("%1 on the pull request").arg(count));
-		chip->setAccessibleName(tr("%1 comments on the pull request, %2 new").arg(count).arg(unread));
-		chip->setToolTip(chip->accessibleName());
-		chip->setGeometry(note_margin, 5, chip->sizeHint().width(), chip_height);
-		chip->setVisible(!Feed && !PullRequestComments && count > 0U);
+		// [[BPR-1781]]. One quiet link to Overview's Comments tab, offered
+		// whether or not the conversation has comments yet (a new one is
+		// written there); its new comments are counted on it.
+		chip->setText(tr("Pull request conversation"));
+		chip->setAccessibleName(unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count));
+		chip->setAccessibleDescription(tr("Opens the pull request's comments and reviews on Overview's Comments tab"));
+		chip->setToolTip(tr("The pull request's comments and reviews, on Overview"));
+		chip->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, chip->sizeHint().width()), chip_height);
+		chip->setVisible(!Feed && !PullRequestComments && PullRequestLinkDispatch);
 		chip->raise();
 		chip->update();
-		auto* const back = static_cast<pull_request_chip*>(BackToLines);
-		back->Colours    = chip->Colours;
-		back->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, back->sizeHint().width()), chip_height);
-		back->setVisible(!Feed && PullRequestComments);
-		back->raise();
-		back->update();
 	}
 
 	auto conversation_cards_view::timeline() const noexcept -> bool
@@ -3665,7 +3692,12 @@ namespace bpr::qt {
 	void conversation_cards_view::open_thread(const std::string& aId)
 	{
 		if (!Feed && !PullRequestComments && std::ranges::any_of(Retained, [&aId](const auto& aNode) { return aNode.Id == aId && aNode.Path.empty() && !aNode.ParentId && !aNode.Deleted && (aNode.Kind == application::github_conversation_kind::issue_comment || aNode.Kind == application::github_conversation_kind::review); })) {
-			show_pull_request_comments(true);
+			// [[BPR-1781]]. A comment on the pull request is in its
+			// conversation, on Overview; the window takes it there.
+			if (PullRequestLinkDispatch) {
+				PullRequestLinkDispatch(aId);
+			}
+			return;
 		}
 		if (const auto index = card_index(aId); index.has_value()) {
 			choose(*index, true);
@@ -4091,10 +4123,6 @@ namespace bpr::qt {
 				Current = open;
 				setFocus(Qt::OtherFocusReason);
 				viewport()->update();
-				return true;
-			}
-			if (PullRequestComments) {
-				show_pull_request_comments(false);
 				return true;
 			}
 			return false;

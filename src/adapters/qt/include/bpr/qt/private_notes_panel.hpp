@@ -146,6 +146,12 @@ namespace bpr::qt {
 		/// other files (true), or the notes at their lines (false).
 		void               show_elsewhere(bool aShown);
 		[[nodiscard]] auto elsewhere_shown() const noexcept -> bool;
+		/// \brief [[BPR-1781]]. On Overview the notes are the pull request's:
+		/// the list of notes elsewhere with no way back to lines, and N writes
+		/// a note on the pull request. Turned off, the list and N are what
+		/// they were before.
+		void               set_pull_request_only(bool aOnly);
+		[[nodiscard]] auto pull_request_only() const noexcept -> bool { return PullRequestOnly; }
 		[[nodiscard]] auto open_note_id() const noexcept -> std::uint64_t;
 		/// \brief The notes as last presented, newest first as the host sent them.
 		[[nodiscard]] auto notes() const noexcept -> const std::vector<private_note_item>&;
@@ -233,6 +239,8 @@ namespace bpr::qt {
 		bool                                                Dirty           = false;
 		bool                                                Applying        = false;
 		bool                                                Elsewhere       = false;
+		bool                                                PullRequestOnly = false;
+		bool                                                ElsewhereBefore = false;
 		bool                                                EscArmed        = false;
 		bool                                                TargetAvailable = false;
 		QString                                             TargetReason;

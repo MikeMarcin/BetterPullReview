@@ -9,9 +9,11 @@
 #include "bpr/qt/type_preview.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
+#include "bpr/core/overview_tour.hpp"
 #include "bpr/core/review_comment_range.hpp"
 
 #include "conversation_glyphs.hpp"
+#include "drawer_tab_bar.hpp"
 #if defined(Q_OS_MACOS)
 	#include "insights_menu_mac.hpp"
 #endif
@@ -47,6 +49,7 @@
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
 #include "bpr/qt/native_window_chrome.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
@@ -151,132 +154,7 @@ namespace bpr::qt {
 	} // namespace
 
 	namespace {
-		/// \brief [[BPR-1592]] [[BPR-1684]]. The tray's tabs, each as wide
-		/// as what it shows.
-		///
-		/// \details A tab is the style's own text tab for its name, plus its
-		/// glyph and a gap when it shows one, plus its count when the count is
-		/// showing. The style draws each tab's shape and its name; the bar
-		/// places them, the glyph and the name as one group centred in the
-		/// tab, or ending a gap before the count. Left to the style, the macOS
-		/// style centres a tab's name and keeps its icon's width free on both
-		/// sides, which made the Agent tab about 30 pixels wider than its spark
-		/// and its name; the styles also kept room for the Comments count while
-		/// it was hidden, and set a glyph-only tab's glyph off centre.
-		class tray_tab_bar final : public QTabBar
-		{
-		public:
-			using QTabBar::QTabBar;
-
-			/// \brief The width tab `aIndex` takes showing `aText` and, when
-			/// `aGlyph`, its glyph; its count is counted while it is showing.
-			[[nodiscard]] auto face_width(const int aIndex, const QString& aText, const bool aGlyph) const -> int
-			{
-				auto option = QStyleOptionTab{ };
-				initStyleOption(&option, aIndex);
-				option.text            = aText;
-				option.icon            = QIcon{ };
-				option.leftButtonSize  = QSize{ };
-				option.rightButtonSize = QSize{ };
-				const auto metrics     = fontMetrics();
-				const auto text        = metrics.size(Qt::TextShowMnemonic, aText);
-				const auto contents    = QSize{ text.width() + style()->pixelMetric(QStyle::PM_TabBarTabHSpace, &option, this),
-												std::max(metrics.height(), iconSize().height()) + style()->pixelMetric(QStyle::PM_TabBarTabVSpace, &option, this) };
-				auto       width       = style()->sizeFromContents(QStyle::CT_TabBarTab, &option, contents, this).width();
-				if (aGlyph) {
-					width += iconSize().width() + (aText.isEmpty() ? 0 : glyph_gap);
-				}
-				if (const auto* const count = tabButton(aIndex, QTabBar::RightSide); count != nullptr && !count->isHidden()) {
-					width += glyph_gap + count->sizeHint().width();
-				}
-				return width;
-			}
-
-		protected:
-			[[nodiscard]] auto tabSizeHint(const int aIndex) const -> QSize override
-			{
-				auto size = QTabBar::tabSizeHint(aIndex);
-				size.setWidth(face_width(aIndex, tabText(aIndex), !tabIcon(aIndex).isNull()));
-				return size;
-			}
-
-			/// A tab never elides: the window chooses a face that fits.
-			[[nodiscard]] auto minimumTabSizeHint(const int aIndex) const -> QSize override
-			{
-				return tabSizeHint(aIndex);
-			}
-
-			/// \brief QTabBar's own painting (its base, then each tab with the
-			/// open one last) with each label placed by the bar.
-			void paintEvent(QPaintEvent* const aEvent) override
-			{
-				static_cast<void>(aEvent);
-				auto painter = QPainter{ this };
-				auto base    = QStyleOptionTabBarBase{ };
-				base.initFrom(this);
-				base.shape        = shape();
-				base.documentMode = documentMode();
-				auto overlap      = QStyleOptionTab{ };
-				overlap.shape     = shape();
-				if (const auto lap = style()->pixelMetric(QStyle::PM_TabBarBaseOverlap, &overlap, this); lap > 0) {
-					base.rect = QRect{ 0, height() - lap, width(), lap };
-				}
-				for (auto index = 0; index < count(); ++index) {
-					base.tabBarRect |= tabRect(index);
-				}
-				base.selectedTabRect = tabRect(currentIndex());
-				if (drawBase()) {
-					style()->drawPrimitive(QStyle::PE_FrameTabBarBase, &base, &painter, this);
-				}
-				for (auto index = 0; index < count(); ++index) {
-					if (index != currentIndex()) {
-						paint_tab(painter, index);
-					}
-				}
-				if (currentIndex() >= 0) {
-					paint_tab(painter, currentIndex());
-				}
-			}
-
-		private:
-			void paint_tab(QPainter& aPainter, const int aIndex) const
-			{
-				auto option = QStyleOptionTab{ };
-				initStyleOption(&option, aIndex);
-				if (!(option.state & QStyle::State_Enabled)) {
-					option.palette.setCurrentColorGroup(QPalette::Disabled);
-				}
-				style()->drawControl(QStyle::CE_TabBarTabShape, &option, &aPainter, this);
-				// The name, whole, drawn by the style as a plain text tab whose
-				// centre is the name's place in the group.
-				const auto text       = tabText(aIndex);
-				const auto glyph      = !option.icon.isNull();
-				auto       label      = option;
-				label.text            = text;
-				label.icon            = QIcon{ };
-				label.leftButtonSize  = QSize{ };
-				label.rightButtonSize = QSize{ };
-				const auto textWidth  = text.isEmpty() ? 0 : fontMetrics().size(Qt::TextShowMnemonic, text).width();
-				const auto group      = (glyph ? iconSize().width() + (text.isEmpty() ? 0 : glyph_gap) : 0) + textWidth;
-				auto       left       = option.rect.left() + (option.rect.width() - group) / 2;
-				if (const auto* const count = tabButton(aIndex, QTabBar::RightSide); count != nullptr && !count->isHidden()) {
-					left = count->geometry().left() - glyph_gap - group;
-				}
-				const auto textLeft = left + group - textWidth;
-				label.rect.translate(textLeft + textWidth / 2 - option.rect.center().x(), 0);
-				style()->drawControl(QStyle::CE_TabBarTabLabel, &label, &aPainter, this);
-				if (glyph) {
-					const auto middle = style()->subElementRect(QStyle::SE_TabBarTabText, &label, this).center().y();
-					const auto place  = QRect{ QPoint{ left, middle - iconSize().height() / 2 }, iconSize() };
-					option.icon.paint(&aPainter, place, Qt::AlignCenter, (option.state & QStyle::State_Enabled) ? QIcon::Normal : QIcon::Disabled,
-									  (option.state & QStyle::State_Selected) ? QIcon::On : QIcon::Off);
-				}
-			}
-
-			/// The gap QTabBar and the styles leave between a glyph, a name
-			/// and a tab button.
-			static constexpr int glyph_gap = 4;
-		};
+		using tray_tab_bar = detail::drawer_tab_bar;
 
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
 		{
@@ -2240,7 +2118,6 @@ namespace bpr::qt {
 												&& (!result || result->Alignment.Content != core::diff_content_state::text));
 		});
 		OverviewPage = new pull_request_overview_page{ CentreStack };
-		OverviewPage->set_prepare_tour_action(PrepareTourAction);
 		// [[BPR-1588]]. Status's tab row carries Open on GitHub too.
 		if (OpenOnGithubAction != nullptr) {
 			OverviewPage->set_open_on_github_action(OpenOnGithubAction);
@@ -2885,6 +2762,7 @@ namespace bpr::qt {
 		auto* const conversationHost   = new QWidget{ commentsContents };
 		auto* const conversationLayout = new QVBoxLayout{ conversationHost };
 		ConversationLayout             = conversationLayout;
+		ConversationHome               = conversationHost;
 		conversationLayout->setContentsMargins(0, 0, 0, 0);
 		conversationLayout->addWidget(ConversationPanel, 1);
 		commentsLayout->addWidget(conversationHost, 1);
@@ -3163,10 +3041,20 @@ namespace bpr::qt {
 		auto* const notesPage       = new QWidget{ Drawers[1].Panel };
 		auto* const notesPageLayout = new QVBoxLayout{ notesPage };
 		notesPageLayout->setContentsMargins(0, 0, 0, 0);
+		NotesHome    = notesPage;
 		PrivateNotes = new private_notes_panel{ notesPage };
 		notesPageLayout->addWidget(PrivateNotes, 1);
 		wire_private_notes();
-		auto* const agentPage       = new QWidget{ Drawers[1].Panel };
+		// [[BPR-1781]]. The agent's page is a body in a home: Overview's
+		// drawer borrows the body, whole, while Overview shows.
+		AgentHome = new QWidget{ Drawers[1].Panel };
+		AgentHome->setObjectName(QStringLiteral("workbenchAgentHome"));
+		auto* const agentHomeLayout = new QVBoxLayout{ AgentHome };
+		agentHomeLayout->setContentsMargins(0, 0, 0, 0);
+		auto* const agentPage = new QWidget{ AgentHome };
+		agentPage->setObjectName(QStringLiteral("workbenchAgentBody"));
+		AgentBody = agentPage;
+		agentHomeLayout->addWidget(agentPage, 1);
 		auto* const agentPageLayout = new QVBoxLayout{ agentPage };
 		agentPageLayout->setContentsMargins(0, 0, 0, 0);
 		auto* const notesPurpose = new QLabel{ tr("Private to you and never published. Ask an agent about this pull request, then promote what you want to say to a draft in Comments."), agentPage };
@@ -3338,7 +3226,7 @@ namespace bpr::qt {
 		tourHolding->addWidget(TourEditor);
 		TrayPages->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
 		wire_tour_page();
-		TrayPages->addWidget(agentPage);
+		TrayPages->addWidget(AgentHome);
 		// [[BPR-1290]]. The tab row carries the Comments tab's tools at its
 		// right: Only new, Hide resolved and Next new reply.
 		auto* const trayHeader = new drawer_header{ conversationShell };
@@ -3426,6 +3314,25 @@ namespace bpr::qt {
 			}
 		});
 		connect(AiToolsAction, &QAction::toggled, this, [this](bool aSelected) { TrayTabs->setCurrentIndex(aSelected ? tray_findings_tab : tray_comments_tab); });
+		// [[BPR-1781]]. Overview's drawer: the conversation tabs Review's
+		// tray has, borrowed while Overview shows, and the tour's summary.
+		if (auto* const drawer = OverviewPage->status_drawer(); drawer != nullptr) {
+			drawer->tour_summary()->set_dispatch([this](const overview_tour_gesture aGesture) { follow_overview_tour(aGesture); });
+			drawer->set_tab_observer([this](const overview_drawer_tab aTab) {
+				if (!ConversationTabsLent) {
+					return;
+				}
+				if (aTab == overview_drawer_tab::notes && PrivateNotes != nullptr) {
+					PrivateNotes->refresh_geometry();
+				}
+				if (aTab == overview_drawer_tab::agent && AgentTab != nullptr) {
+					AgentTab->refresh();
+					schedule_agent_suggestions();
+				}
+			});
+		}
+		ConversationPanel->cards()->set_pull_request_link_dispatch([this](const std::string& aIdentity) { open_pull_request_conversation(aIdentity); });
+		TourEditor->set_presented_observer([this] { refresh_overview_tour(); });
 		Drawers[1].Panel->set_content_widget(
 			conversationShell, ConversationPanel->cards());
 		CentralSplitter->addWidget(Drawers[2].Panel);
@@ -8113,6 +8020,8 @@ namespace bpr::qt {
 		if (!unchanged) {
 			OverviewPage->present(aProjection);
 			present_new_threads();
+			// [[BPR-1781]]. Whether I wrote it decides the Tour tab.
+			refresh_overview_tour();
 			PresentedOverview = aProjection;
 			PresentedOverviewRows.clear();
 			PresentedOverviewRows.reserve(aProjection.Files.size());
@@ -8635,6 +8544,16 @@ namespace bpr::qt {
 
 	void workbench_window::show_agent(const bool aAsk)
 	{
+		// [[BPR-1781]]. On Overview the Agent tab is the drawer's, and a
+		// question there is about the pull request: no lines go with it.
+		if (showing_overview() && ConversationTabsLent && OverviewPage->status_drawer() != nullptr) {
+			OverviewPage->status_drawer()->show_tab(overview_drawer_tab::agent);
+			if (AgentTab != nullptr) {
+				AgentTab->refresh();
+				AgentTab->focus_question();
+			}
+			return;
+		}
 		if (Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
 		} else if (!Dispatch && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
@@ -9931,14 +9850,10 @@ namespace bpr::qt {
 			next                 = following != unread.end() ? *following : unread.front();
 		}
 		if (const auto location = Finder->locate(next); location.has_value() && location->Path.isEmpty()) {
-			if (Modality && Modality->current() == review_modality::review) {
-				if (TrayTabs) {
-					TrayTabs->setCurrentIndex(tray_comments_tab);
-				}
-				if (Dispatch) {
-					Dispatch(core::set_workbench_drawer_intent{ .Drawer = core::workbench_drawer::conversations, .State = core::workbench_drawer_state::expanded });
-				}
-				ConversationPanel->cards()->open_thread(next);
+			// [[BPR-1781]]. A comment on the pull request is in its
+			// conversation, Overview's Comments tab.
+			if (Modality && (Modality->current() == review_modality::review || Modality->current() == review_modality::overview)) {
+				open_pull_request_conversation(next);
 			} else {
 				static_cast<void>(move_thread(next, core::workbench_thread_origin::review, core::workbench_thread_destination::discuss));
 			}
@@ -9958,6 +9873,137 @@ namespace bpr::qt {
 		}
 	}
 
+	void workbench_window::lend_conversation_tabs(const bool aToOverview)
+	{
+		// [[BPR-1781]]. One conversation panel, one notes panel and one agent
+		// page: Overview's drawer holds them while Overview shows, and Review's
+		// tray holds them otherwise. Moving the same objects, as Discuss
+		// borrows the conversation panel and the Agent tab borrows its panels,
+		// keeps every draft, open card, note and agent turn as it was; each
+		// mode keeps its own place.
+		auto* const drawer = OverviewPage != nullptr ? OverviewPage->status_drawer() : nullptr;
+		if (drawer == nullptr || ConversationPanel == nullptr || PrivateNotes == nullptr || AgentBody == nullptr || ConversationTabsLent == aToOverview) {
+			return;
+		}
+		ConversationTabsLent = aToOverview;
+		const auto move      = [](QWidget* const aWidget, QWidget* const aHome) {
+			if (aWidget->parentWidget() == aHome) {
+				return;
+			}
+			static_cast<QBoxLayout*>(aHome->layout())->insertWidget(0, aWidget, 1);
+			aWidget->show();
+		};
+		auto* const cards = ConversationPanel->cards();
+		if (aToOverview) {
+			// Discuss's panel stays Discuss's until it leaves.
+			if (ConversationPanel->parentWidget() != DiscussPage) {
+				move(ConversationPanel, drawer->holder(overview_drawer_tab::comments));
+				cards->show_pull_request_comments(true);
+			}
+			move(PrivateNotes, drawer->holder(overview_drawer_tab::notes));
+			PrivateNotes->set_pull_request_only(true);
+			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
+		} else {
+			if (ConversationPanel->parentWidget() == drawer->holder(overview_drawer_tab::comments)) {
+				cards->show_pull_request_comments(false);
+				move(ConversationPanel, ConversationHome);
+			}
+			PrivateNotes->set_pull_request_only(false);
+			move(PrivateNotes, NotesHome);
+			move(AgentBody, AgentHome);
+		}
+		// What the agent's prompts may name follows: the pull request on
+		// Overview, the open file and lines beside the code.
+		schedule_agent_suggestions();
+	}
+
+	void workbench_window::open_overview_tab(const overview_drawer_tab aTab)
+	{
+		if (OverviewPage == nullptr || OverviewPage->status_drawer() == nullptr) {
+			return;
+		}
+		close_review_composition(false);
+		close_review_sheet();
+		choose_home(false);
+		if (Modality != nullptr && Modality->current() != review_modality::overview) {
+			choose_modality(review_modality::overview);
+		}
+		apply_modality_surface();
+		OverviewPage->status_drawer()->show_tab(aTab);
+	}
+
+	void workbench_window::open_pull_request_conversation(const std::string& aIdentity)
+	{
+		open_overview_tab(overview_drawer_tab::comments);
+		if (!showing_overview() || ConversationPanel == nullptr) {
+			return;
+		}
+		if (!aIdentity.empty()) {
+			ConversationPanel->cards()->open_thread(aIdentity);
+		} else {
+			ConversationPanel->cards()->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void workbench_window::set_tour_start_dispatch(std::function<void()> aDispatch)
+	{
+		TourStartDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::refresh_overview_tour()
+	{
+		if (OverviewPage == nullptr || OverviewPage->status_drawer() == nullptr || TourEditor == nullptr) {
+			return;
+		}
+		const auto& shown  = TourEditor->shown();
+		const auto  author = OverviewPage->projection().has_value() && std::ranges::any_of(OverviewPage->projection()->Status.Roles.Roles, [](const core::review_role& aRole) { return aRole.Kind == core::review_role_kind::author; });
+		const auto  tour   = core::decide_overview_tour(shown.Draft.get(), shown.Offered.get(), author);
+		auto* const drawer = OverviewPage->status_drawer();
+		if (drawer->tour_summary()->shown() != tour) {
+			drawer->tour_summary()->present(tour);
+		}
+		drawer->set_tour_tab_shown(tour.Kind != core::overview_tour_kind::hidden);
+	}
+
+	void workbench_window::follow_overview_tour(const overview_tour_gesture aGesture)
+	{
+		// [[BPR-1781]]. The tab presents and routes: writing and following
+		// are Review's, beside the code.
+		switch (aGesture) {
+		case overview_tour_gesture::prepare:
+			if (PrepareTourAction != nullptr && PrepareTourAction->isEnabled()) {
+				PrepareTourAction->trigger();
+			} else {
+				open_review_tour();
+			}
+			return;
+		case overview_tour_gesture::continue_tour:
+			open_review_tour();
+			// Its own place: the stop it was on, or the first.
+			if (const auto* const stop = TourEditor->selected_stop(); stop != nullptr) {
+				TourEditor->go_to_stop(stop->Id);
+			} else if (TourEditor->shown().Draft && !TourEditor->shown().Draft->Stops.empty()) {
+				TourEditor->go_to_stop(TourEditor->shown().Draft->Stops.front().Id);
+			}
+			return;
+		case overview_tour_gesture::start_tour:
+			if (TourStartDispatch) {
+				TourStartDispatch();
+			} else {
+				start_tour_at_first_stop();
+			}
+			return;
+		}
+	}
+
+	void workbench_window::start_tour_at_first_stop()
+	{
+		open_review_tour();
+		if (TourEditor->shown().Draft && !TourEditor->shown().Draft->Stops.empty()) {
+			TourEditor->go_to_stop(TourEditor->shown().Draft->Stops.front().Id);
+		}
+	}
+
 	void workbench_window::apply_modality_surface()
 	{
 		if (CentreStack == nullptr || OverviewPage == nullptr) {
@@ -9973,8 +10019,13 @@ namespace bpr::qt {
 		const auto discuss         = (Modality != nullptr && Modality->current() == review_modality::discuss) || CompositionPage != nullptr;
 		const auto threads         = Modality != nullptr && Modality->current() == review_modality::threads;
 		const auto enteringDiscuss = discuss && ConversationPanel != nullptr && ConversationPanel->parentWidget() != DiscussPage;
+		// [[BPR-1781]]. Overview shows when nothing above covers it; then its
+		// drawer borrows the conversation tabs.
+		const auto overviewShown = overview && !discuss && !(threads && ThreadsPage != nullptr);
 		if (ConversationPanel != nullptr) {
 			if (discuss && ConversationPanel->parentWidget() != DiscussPage) {
+				// Leaving Overview's conversation for Discuss's feed.
+				ConversationPanel->cards()->show_pull_request_comments(false);
 				static_cast<QBoxLayout*>(DiscussPage->layout())->insertWidget(0, ConversationPanel, 1);
 				ConversationPanel->show();
 			} else if (!discuss && ConversationPanel->parentWidget() == DiscussPage) {
@@ -9986,6 +10037,7 @@ namespace bpr::qt {
 			}
 			ConversationPanel->set_discuss(discuss);
 		}
+		lend_conversation_tabs(overviewShown);
 		auto* page = ComparisonPage;
 		if (overview) {
 			page = OverviewPage;

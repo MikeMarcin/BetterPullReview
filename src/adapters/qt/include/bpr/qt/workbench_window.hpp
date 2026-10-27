@@ -128,6 +128,8 @@ namespace bpr::qt {
 
 	class review_tour_editor;
 	enum class dif_clip_id : std::size_t;
+	enum class overview_drawer_tab : std::uint8_t;
+	enum class overview_tour_gesture : std::uint8_t;
 	class dif_catalog_provider;
 	class feedback_mark_preview;
 	class feedback_label_columns_editor;
@@ -592,6 +594,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto overview_page() const noexcept -> pull_request_overview_page*;
 		/// \brief Whether the centre shows the overview rather than the comparison.
 		[[nodiscard]] auto showing_overview() const -> bool;
+		/// \brief [[BPR-1781]]. Shows Overview with `aTab` open in its drawer.
+		void open_overview_tab(overview_drawer_tab aTab);
+		/// \brief [[BPR-1781]]. Where Overview's Start tour goes: the
+		/// composition imports the published tour if it must, then opens
+		/// Review at its first stop.
+		void set_tour_start_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1781]]. Opens Review's Tour tab at the tour's first
+		/// stop and goes to its lines, once the tour has one.
+		void start_tour_at_first_stop();
 		/// \brief Presents one typed receipt refusal without changing the model.
 		void fail(const application::receipt_failure_publication& aFailure);
 		/// \brief Retires receipt actions, optionally naming unavailable storage.
@@ -2502,8 +2513,23 @@ namespace bpr::qt {
 		/// [[BPR-1592]]. The Notes tab's tools in the tray's header.
 		QWidget* NotesTools = nullptr;
 		/// [[BPR-1593]]. The Tour tab's tools, and the tour page.
-		QWidget* TourTools    = nullptr;
-		QWidget* TourHolder   = nullptr;
+		QWidget* TourTools  = nullptr;
+		QWidget* TourHolder = nullptr;
+		/// [[BPR-1781]]. The homes in Review's tray of what Overview's drawer
+		/// borrows: the conversation panel, the notes panel and the agent's
+		/// page. While Overview shows they are in its holders.
+		QWidget*              ConversationHome     = nullptr;
+		QWidget*              NotesHome            = nullptr;
+		QWidget*              AgentHome            = nullptr;
+		QWidget*              AgentBody            = nullptr;
+		bool                  ConversationTabsLent = false;
+		std::function<void()> TourStartDispatch;
+		void                  lend_conversation_tabs(bool aToOverview);
+		void                  refresh_overview_tour();
+		void                  follow_overview_tour(overview_tour_gesture aGesture);
+		/// \brief [[BPR-1781]]. Opens the pull request's conversation on
+		/// Overview, and the comment `aIdentity` in it when one is named.
+		void     open_pull_request_conversation(const std::string& aIdentity);
 		QWidget* TourPage     = nullptr;
 		QWidget* TourPageBody = nullptr;
 		bool     TourPageOpen = false;

@@ -36,6 +36,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_submission_editor.hpp"
@@ -57,6 +58,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -443,24 +445,18 @@ namespace {
 				const auto  at     = std::string{ " " } + name + " at " + std::to_string(width) + (how == reached::restored ? " (restored)" : " (dragged)");
 				expect(drawer->isVisible() && drawer->width() == static_cast<int>(width), "the Comments drawer is " + std::to_string(width) + " pixels" + at + " (" + std::to_string(drawer->width()) + ")");
 
-				// Comments, with the pull request's comments opened from the chip.
+				// Comments, with the quiet link to the pull request's
+				// conversation on Overview ([[BPR-1781]]).
 				window.conversation_panel()->adopt(pull_request_comments(), QString{ });
 				window.tray_tabs()->setCurrentIndex(0);
 				settle();
 				auto* const cards = window.conversation_panel()->cards();
 				auto* const chip  = cards->pull_request_comments_chip();
-				expect(chip != nullptr && chip->isVisible(), "the pull request's comments wait at the edge" + at);
-				require_whole(*drawer, "Comments with the edge chip" + at);
+				expect(chip != nullptr && chip->isVisible() && chip->text() == QStringLiteral("Pull request conversation"), "the link to the pull request's conversation waits at the edge" + at);
+				expect(chip->geometry().right() < cards->viewport()->width(), "the link fits the drawer" + at);
+				require_whole(*drawer, "Comments with the edge link" + at);
 				save(window, QStringLiteral("comments-chip-%1-%2").arg(QString::fromLatin1(name)).arg(width));
-				chip->click();
-				settle();
-				expect(cards->pull_request_comments_shown(), "the chip opens the pull request's comments in place" + at);
-				cards->open_thread("review:one");
-				settle();
-				require_whole(*drawer, "Comments with a review summary open in place" + at);
-				save(window, QStringLiteral("comments-open-%1-%2").arg(QString::fromLatin1(name)).arg(width));
-				cards->show_pull_request_comments(false);
-				settle();
+				expect(!cards->pull_request_comments_shown(), "Review's Comments has no pull request mode" + at);
 
 				// Notes.
 				window.private_notes()->present(notes_projection());
@@ -489,6 +485,87 @@ namespace {
 				require_whole(*drawer, "the Agent tab" + at);
 				save(window, QStringLiteral("agent-%1-%2").arg(QString::fromLatin1(name)).arg(width));
 				window.hide();
+			}
+		}
+	}
+
+	/// \brief [[BPR-1781]]. Overview's drawer with each conversation tab:
+	/// the pull request's conversation in Comments, the pull request's
+	/// notes, the tour as an author with a draft, as an author with none and
+	/// as a reader of a published tour, and the Agent tab; whole in every
+	/// theme at the default and widest widths.
+	void test_the_overview_conversation_tabs_fit()
+	{
+		for (const auto& [mode, name] : themes) {
+			auto profile = profile_for(mode);
+			for (const auto width : { application::default_status_drawer_width, application::maximum_status_drawer_width }) {
+				for (const auto* const tour : { "draft", "none", "reader" }) {
+					qt::workbench_window window;
+					open_review(window, profile, 1'480, 400U);
+					window.conversation_panel()->adopt(pull_request_comments(), QString{ });
+					window.private_notes()->present(notes_projection());
+					auto       projected = status_projection();
+					const auto author    = std::string_view{ tour } != "reader";
+					if (author) {
+						projected.Status.Roles.Roles.insert(projected.Status.Roles.Roles.begin(), core::review_role{ .Kind = core::review_role_kind::author });
+					}
+					window.choose_modality(qt::review_modality::overview);
+					// The core collapses every drawer as Overview is chosen
+					// ([[BPR-0674]]); this window has no core, so it is told.
+					auto collapsed    = application::workbench_projection{ };
+					collapsed.Drawers = core::workbench_drawer_delta{ .Files = core::workbench_drawer_state::collapsed, .Conversations = core::workbench_drawer_state::collapsed, .Repositories = core::workbench_drawer_state::collapsed };
+					window.publish(collapsed);
+					window.publish(projected);
+					auto* const editor = window.tour_editor();
+					editor->set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
+					auto fixture       = tests::review_tour_fixture();
+					auto second        = fixture.Stops.front();
+					second.Id          = core::tour_stop_id{ 2 };
+					second.Title       = "Zero width is a real state, and this stop's title is long enough to wrap";
+					second.Preparation = core::tour_preparation::needs_attention;
+					fixture.LastStopId = 2;
+					fixture.Stops.push_back(second);
+					application::tour_presentation presentation;
+					if (std::string_view{ tour } == "draft") {
+						presentation.Draft = std::make_shared<const core::review_tour>(fixture);
+					} else if (std::string_view{ tour } == "reader") {
+						auto published       = fixture;
+						published.Remote     = core::tour_remote_binding{ .Entity = "IC_root", .Actor = "jiayin", .Own = false };
+						presentation.Draft   = std::make_shared<const core::review_tour>(core::review_tour{ });
+						presentation.Offered = std::make_shared<const core::review_tour>(published);
+					} else {
+						presentation.Draft = std::make_shared<const core::review_tour>(core::review_tour{ });
+					}
+					editor->present(presentation);
+					settle();
+					auto* const drawer = window.overview_page()->status_drawer();
+					drawer->adopt({ .Width = width, .State = core::workbench_drawer_state::expanded });
+					settle();
+					const auto at = std::string{ " " } + name + " at " + std::to_string(width) + " (tour: " + tour + ")";
+					expect(window.showing_overview() && drawer->isVisible(), "Overview shows its drawer" + at);
+					expect(drawer->tour_tab_shown(), "the Tour tab shows for an author and for a published tour" + at);
+					const auto principles = qt::drawer_principles{ .NestedTabs = false };
+					const auto tabs       = std::string_view{ tour } == "draft"
+						? std::vector{ qt::overview_drawer_tab::comments, qt::overview_drawer_tab::notes, qt::overview_drawer_tab::tour, qt::overview_drawer_tab::agent }
+						: std::vector{ qt::overview_drawer_tab::tour };
+					for (const auto tab : tabs) {
+						drawer->show_tab(tab);
+						settle();
+						const auto which = tab == qt::overview_drawer_tab::comments ? QStringLiteral("comments")
+							: tab == qt::overview_drawer_tab::notes                 ? QStringLiteral("notes")
+							: tab == qt::overview_drawer_tab::tour                  ? QStringLiteral("tour-%1").arg(QString::fromLatin1(tour))
+																					: QStringLiteral("agent");
+						const auto where = "Overview's " + which.toStdString() + at;
+						require_whole(*drawer->header(), where + " header", &principles);
+						if (tab != qt::overview_drawer_tab::agent) {
+							require_whole(*drawer, where);
+						}
+						if (tab == qt::overview_drawer_tab::tour) {
+							require_whole(*drawer->tour_summary(), where + " summary", &principles);
+						}
+						save(window, QStringLiteral("overview-%1-%2-%3").arg(which, QString::fromLatin1(name)).arg(width));
+					}
+				}
 			}
 		}
 	}
@@ -558,6 +635,7 @@ auto main(int argc, char** argv) -> int
 	test_the_checks_catch_clipping();
 	test_the_status_drawer_fits();
 	test_the_drawer_tabs_fit();
+	test_the_overview_conversation_tabs_fit();
 	test_the_sheet_and_pages_fit();
 	for (const auto& failure : failures) {
 		std::cerr << "CLIPPED: " << failure << '\n';

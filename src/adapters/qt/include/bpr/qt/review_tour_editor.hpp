@@ -103,6 +103,12 @@ namespace bpr::qt {
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
 		void               show_stops();
+		/// \brief [[BPR-1781]]. Shows the stops with `aStop` current, and goes
+		/// to its lines as choosing it on the route does.
+		void go_to_stop(core::tour_stop_id aStop);
+		/// \brief [[BPR-1781]]. Told after every presentation, so a summary of
+		/// the tour elsewhere follows the same projection.
+		void               set_presented_observer(std::function<void()> aObserver);
 		void               trigger(tour_editor_action aAction);
 		[[nodiscard]] auto selected_stop() const -> const core::tour_stop*;
 		[[nodiscard]] auto selected_related() const -> std::optional<core::tour_source_range>;
@@ -127,6 +133,7 @@ namespace bpr::qt {
 		bool focusNextPrevChild(bool aNext) override;
 
 	private:
+		std::function<void()>                                                      PresentedObserver;
 		void                                                                       edit(core::tour_command_kind aKind, const std::string& aText);
 		void                                                                       add_writing_button(scoped_prose_editor* aEditor, core::writing_hook aHook, QBoxLayout* aLayout);
 		std::function<void(core::writing_hook, prose_capture)>                     WritingRequest;
