@@ -9,6 +9,8 @@
 # --description-edit-probe continuation. No credential, provider selection,
 # publication or source-inventory change; the mutation-branch pin is
 # unchanged. application_description_edit_contract qualifies these bytes.
+# The manifest pin also takes main's 88f252508 src/app changes
+# (review_submission_workflow.cpp, tour_cli.cpp), merged unchanged.
 # [[BPR-1769]] setup-repair reseal (2026-10-26), over 447adb28f.
 # github_application.cpp only changes agent setup: canonical migrated wrapper
 # authority/reset, exact saved-entry use, separate bounded workspace details,
@@ -2626,7 +2628,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "d01dd02b7d545d8de4e2cd67a66e2cd81e0dcb22a7bba5095842b6de832d83ed"
+        "3330cd854edf50c459aaa1c5ae08edb31eee9c0493577d6b10ab511557fab73e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
