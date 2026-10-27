@@ -1370,3 +1370,12 @@ bpr_enable_hardening(test_better_pull_review_agent_entry_core_tests)
 bpr_enable_warnings(test_better_pull_review_agent_entry_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_entry COMMAND test_better_pull_review_agent_entry_core_tests)
 set_tests_properties(core_agent_entry PROPERTIES PASS_REGULAR_EXPRESSION "agent-entry-tests:pass")
+
+# [[BPR-1779]]. The conversation views list comments; a review is the bundle
+# they were posted in, and only a verdict that matters adds a row of its own.
+bpr_add_executable(test_conversation_timeline conversation_timeline_tests.cpp)
+target_link_libraries(test_conversation_timeline PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_conversation_timeline)
+bpr_enable_warnings(test_conversation_timeline)
+bpr_add_network_isolated_test(NAME core_conversation_timeline COMMAND test_conversation_timeline)
+set_tests_properties(core_conversation_timeline PROPERTIES PASS_REGULAR_EXPRESSION "CONVERSATION_TIMELINE_OK")
