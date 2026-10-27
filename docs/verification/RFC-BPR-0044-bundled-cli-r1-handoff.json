@@ -1,12 +1,12 @@
 {
   "schema": "implement-rfc.engineering-handoff.v1",
   "assignment": "bpr-pr-tour-cli-extension-v1/verification-closeout",
-  "child": "/root/bundled_cli",
+  "child": "/root/bundled_cli_handback",
   "role_banner": "Role: rfc-implementer | Model: gpt-6.1-sol | Effort: xhigh",
   "mandate_revision": "RFC-BPR-0044-bundled-cli-r1",
   "run_id": "bpr-pr-tour-cli-20260927",
   "segment_id": "bundled-cli-20261026",
-  "status": "human-pending; unattended amendment implementation complete",
+  "status": "partial; exact protected native-auth candidate accepted; verification-closeout obligations remain pending",
   "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
   "tracker_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
   "runtime_root": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6",
@@ -79,7 +79,19 @@
     "variants": "agent-free configure selects app_bpr; automation-off configure excludes it; no native variant runtime qualification claimed",
     "format": "clang-format 22 check passes",
     "debug_timings": "No dedicated timing/performance course selected or credited",
-    "release_suite": "local prepare uses --skip-tests; full release suite is not claimed passing"
+    "release_suite": "local prepare uses --skip-tests; full release suite is not claimed passing",
+    "native_auth_handback": "Session/candidate/fingerprint and result reconciled; protected CLI hash matches; run-signin.py --check passes; no temporary signin directories remain. Old and clean-v003 mimalloc hashes differ.",
+    "handback_documentation": "DOCUMENTATION_OK; verify_documentation_tests.py 67/67 pass; git diff --check passes. Existing product/package checks are reused unchanged; no new build or timing course selected.",
+    "handback_binding": "milestone_checkpoint.py check: action=pending, engineering_acceptance=not-evaluated; all four obligations and two exits remain bound; no eligible next board card.",
+    "handback_commands": [
+      "attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state status --after 3 (exit 0; exact session/candidate/events reconciled)",
+      "attended_review.py conflicts on the six handback documentation paths (exit 0; conflicts=[])",
+      "python3 /Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/run-signin.py --check (exit 0; SIGNIN_CANDIDATE_READY)",
+      "python3 scripts/verify_documentation.py --root . (exit 0; DOCUMENTATION_OK)",
+      "python3 tests/scripts/verify_documentation_tests.py (exit 0; 67 tests OK)",
+      "milestone_checkpoint.py bind/check with existing run/segment/mandate/selection and five accepted predecessor milestones (exit 0; pending)",
+      "git diff --check (exit 0)"
+    ]
   },
   "failed_or_unavailable_checks": [
     "v001 profile probe refused a noncanonical macOS temporary path; fixed at 223098b11",
@@ -91,13 +103,13 @@
   "review": {
     "session_id": "090216984c73ddb7006b51c64ba42120",
     "state": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state",
-    "consumed_cursor": 3,
+    "consumed_cursor": 6,
     "candidate_id": "BPR-1068-bundled-macos-native-auth-v001",
     "candidate_revision": "223098b11131921ef9f9b2c14b5f2e5b1fef5f1f-bpr-a8a855c7ee8e-v001",
     "fingerprint": "e50bcb757d796f1b44fc2fd101c001dba43595da9055b9da69141c3954192a8e",
     "protected_package": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/package",
-    "status": "ready/protected; no verdict",
-    "scope": "native sign-in and following-process BPR-Test read/cleanup only; earlier package remains exact and is not relabelled as v003",
+    "status": "handed back; human ACCEPT consumed for exact protected candidate",
+    "scope": "Accepted native sign-in and following-process BPR-Test read/cleanup only on the earlier protected package; clean v003 is a different runtime and has no carried-over native-auth verdict.",
     "wizard_session_id": "e65bdc93-cf11-4c25-951d-2798edb7148f",
     "wizard_state": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/wizard-state",
     "urls": "capability URLs exist only in external host/session state",
@@ -106,31 +118,86 @@
         "role": "review server",
         "tool_session": 27982,
         "pid": 35267,
-        "lifecycle": "active; handed to coordinator"
+        "lifecycle": "active; inherited coordinator-owned host verified by exact PID; handed back unchanged"
       },
       {
         "role": "wizard server",
         "tool_session": 84565,
         "pid": 33740,
-        "lifecycle": "active; handed to coordinator"
+        "lifecycle": "active; inherited coordinator-owned host verified by exact PID; handed back unchanged"
       }
-    ]
+    ],
+    "decision": {
+      "event_sequence": 5,
+      "decision_id": "2a18b6a0-4783-47cd-b6cb-9b63d0635ade",
+      "actor": "human",
+      "outcome": "accept",
+      "saved_at": "2026-10-27T15:43:25.273224+00:00",
+      "note": ""
+    },
+    "intake": {
+      "feedback_sequence": 4,
+      "feedback_note": "",
+      "handback_sequence": 6,
+      "handed_back_at": "2026-10-27T15:43:27.323245+00:00",
+      "unanswered_candidates": [],
+      "feedback_pending": []
+    },
+    "objective_result": {
+      "path": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/signin-result.json",
+      "sha256": "4b4f26407d2c63f4d022e68af01a4ce20a7138b22213400e0cf60803abad423c",
+      "bpr_sha256": "a8a855c7ee8ea833b4c8071e45f7d336baefe456388ec393f5b9ed12e1fe9d77",
+      "source_revision": "223098b11131921ef9f9b2c14b5f2e5b1fef5f1f",
+      "native_signin_exit": 0,
+      "following_process_open": {
+        "exit": 0,
+        "status": "ok",
+        "error": null
+      },
+      "cleanup": "temporary Keychain/profile deleted; original default/search restored",
+      "pass": true,
+      "temporary_signin_directories_remaining": 0
+    },
+    "runtime_identity": {
+      "protected_mimalloc_sha256": "f9f15dcaef5b49883d08927e8cdef52687f10e94667bafcfb3c1c5f29eb80984",
+      "clean_v003_mimalloc_sha256": "431080763cca1d2acc6b50aacc06a0dee09b27125f5212b234674c4273cb3e04",
+      "bpr_sha256_equal": true,
+      "native_verdict_transfer": "none"
+    },
+    "wizard_status": "active; 0/1 acknowledgements saved. Completion is established by the secret-free result plus the attended human ACCEPT, not an inferred wizard acknowledgement.",
+    "protection": "retained on exact package and macOS default-Keychain resource; no protected input changed"
   },
   "required_pending": [
-    "BPR-1068: bundled native authentication; actual release Developer ID/hardened runtime/timestamp/notarization/stapling/Gatekeeper, remaining platform/native safety and Windows owner sign-in",
+    "BPR-1068: actual release Developer ID/hardened runtime/timestamp/notarization/stapling/Gatekeeper, remaining platform/native safety and Windows owner sign-in; bundled native-auth acceptance applies only to the protected earlier package",
     "BPR-1069: actual native/website/agent three-interface and second-machine acceptance",
     "BPR-1070: dependency-gated complete workflow docs/integration acceptance; amendment setup documentation implemented",
     "BPR-1071: full 32-row final acceptance and required independent review; RFCs remain Proposed",
     "Legal/source-recipient access/retention, vulnerability policy, full native vault/crash/install qualification remain separate release obligations",
-    "Native auth review is exact to older frozen package; v003 rebuilt mimalloc bytes and has no carried-over native auth verdict"
+    "Native-auth ACCEPT is exact to the older protected package; clean v003 rebuilt mimalloc bytes and has no carried-over native-auth verdict"
   ],
   "ownership": {
-    "engineering": "quiescent after handoff",
-    "other_writers": "their commits preserved; clean main at checkpoint",
-    "task_commands": "all builds/tests/preparations completed; only the two explicitly handed-off review hosts remain",
+    "engineering": "quiescent after handback reconciliation; no product edits",
+    "other_writers": "Other agents' committed ID reservations preserved; only assigned documentation paths edited in this round.",
+    "task_commands": "All handback verification commands complete; the two inherited coordinator-owned review hosts remain active and are not stopped by this child.",
     "temporary_work": "Probe profiles removed; failed and passing evidence plus read-only packages retained in external runtime root. Task-owned duplicate build artifact directories removed after confirming copied closure and source assets.",
     "effects": "no publish, no push, no live GitHub mutation, no owner desktop capture/control, no owner Keychain item reading"
   },
-  "next_action": "Coordinator presents existing session, checks status after cursor 3, reads secret-free signin-result.json when supplied and starts a fresh implementer after handback. Preserve exact runtime identities; do not infer acceptance from wizard acknowledgement or reuse the old native verdict for changed release bytes.",
-  "self_review": "Changed code retains one shared tour implementation; bundled/standalone plugin layouts are explicit, native closure remains inside the app, and the locator adds no publisher or approval route. Script and source diffs reviewed for scope and simple control flow."
+  "next_action": "Coordinator consumes cursor 6 without asking for another handback. Retain exact accepted candidate and external result. Complete BPR-1068 release/native/platform obligations before dependent BPR-1069/1070; BPR-1071 and full pack closure remain pending. No new review is requested by this handback round.",
+  "self_review": "Documentation-only handback reconciliation preserves the original accepted package, differing clean-v003 runtime, unacknowledged wizard state, remaining whole-card/milestone criteria and publication boundaries.",
+  "prior_child": "/root/bundled_cli",
+  "handback_entry_revision": "08c7520329d3ee6df164e22d09b54cd42568cc59",
+  "owner_preference": {
+    "recorded": "2026-10-27",
+    "source": "user statement forwarded by coordinator",
+    "detail": "The owner expects to use gh CLI authentication most of the time and native authentication rarely.",
+    "acceptance_effect": "preference only; no waiver or scope change"
+  },
+  "handback_changed_paths": [
+    "docs/issues/40-parked/BPR-1068-qualify-standalone-packages-and-native-headless-safety.md",
+    "docs/issues/10-backlog/BPR-1071-close-rfc-0046.md",
+    "docs/verification/RFC-BPR-0044-0046.md",
+    "docs/verification/RFC-BPR-0044-bundled-cli-r1-handoff.json",
+    "docs/verification/RFC-BPR-0044-bundled-cli-r1-checkpoint.json",
+    "docs/verification/RFC-BPR-0044-bundled-cli-r1-observation.json"
+  ]
 }
