@@ -308,6 +308,8 @@ auto main(int argc, char** argv) -> int
 			}
 			expect(server->StagedDescription && server->StagedDescription->contains(mode == "compat" ? "#issuecomment-703" : "#pullrequestreview-501"), "description uses actual returned index link only after publication");
 			expect(server->StagedDescription->contains(originalTemplate), "first publication preserves original template bytes including CRLF");
+			// [[BPR-1786]]. The tour link leads the description.
+			expect(server->StagedDescription->starts_with("[Review tour](https://"), "the tour link is at the top of the description");
 		}
 		if (mode == "reconciliation") {
 			saved(editor);

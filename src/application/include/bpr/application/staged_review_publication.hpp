@@ -5,6 +5,7 @@
 #include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/review_tour_update.hpp"
 #include <functional>
+#include <string_view>
 namespace bpr::application {
 	struct staged_tour_stop
 	{
@@ -16,8 +17,10 @@ namespace bpr::application {
 	struct staged_description_edit
 	{
 		std::string Baseline, Desired;
-		bool        AppendIndexLink                                          = false;
-		auto        operator==(const staged_description_edit&) const -> bool = default;
+		/// A first publication puts the returned tour link at the top of
+		/// the description ([[BPR-1786]]; it was appended before).
+		bool AppendIndexLink                                          = false;
+		auto operator==(const staged_description_edit&) const -> bool = default;
 	};
 	/// Immutable user-previewed plan. Only returned URLs may fill navigation slots.
 	struct staged_review_plan
@@ -90,6 +93,9 @@ namespace bpr::application {
 	/// each stop by its number and title, then the description link.
 	/// \details Names the captured plan's stages; it does not say which one
 	/// is under way, since a running publication reports only its terminal.
+	/// \brief [[BPR-1786]]. The description a publication writes: the desired
+	/// text, below a `[Review tour](…)` line when the plan adds the link.
+	[[nodiscard]] auto staged_description_body(const staged_description_edit& aEdit, std::string_view aTourLink) -> std::string;
 	[[nodiscard]] auto staged_publication_stages(const staged_review_plan& aPlan) -> std::vector<std::string>;
 	/// \brief [[BPR-1782]]. Where GitHub shows a published tour: the review,
 	/// the index comment or the updated root's returned address; empty until

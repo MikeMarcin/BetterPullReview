@@ -423,6 +423,18 @@ namespace {
 		record.Review = application::staged_review_entity{ .WebUrl = "https://github.com/o/r/pull/1#pullrequestreview-5" };
 		expect(application::staged_published_link(record) == "https://github.com/o/r/pull/1#pullrequestreview-5", "native: the review's address");
 	}
+	/// [[BPR-1786]]. The owner asked for the tour link at the top of the
+	/// description, not the end; the description's own bytes follow it.
+	void test_description_link_leads()
+	{
+		const auto link = std::string{ "https://github.com/o/r/pull/1#pullrequestreview-5" };
+		auto       edit = application::staged_description_edit{ .Baseline = "Old", .Desired = "## Problem\n\nWhy\n" };
+		expect(application::staged_description_body(edit, link) == "## Problem\n\nWhy\n", "no link when the plan adds none");
+		edit.AppendIndexLink = true;
+		expect(application::staged_description_body(edit, link) == "[Review tour](" + link + ")\n\n## Problem\n\nWhy\n", "the link leads the description");
+		edit.Desired = "Template\r\n\r\n## Problem\r\n";
+		expect(application::staged_description_body(edit, link) == "[Review tour](" + link + ")\r\n\r\nTemplate\r\n\r\n## Problem\r\n", "a CRLF description keeps CRLF");
+	}
 }
 auto main() -> int
 {
@@ -435,6 +447,7 @@ auto main() -> int
 	test_lookup_by_key();
 	test_cancellation_shutdown_and_reentrancy();
 	test_publication_stages_and_link();
+	test_description_link_leads();
 	std::cout << "review-submission-application-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }
