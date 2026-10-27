@@ -46,3 +46,13 @@ buckets still outrank it; an unknown status changes nothing.
 The owner's own Home with their draft (needs a build with this commit).
 Composed Home and Qt Home tests were not rerun; the presentation reads the
 same bucket.
+
+## Regression found later, 2026-10-27
+
+`application_personal_discovery_public_path` and
+`application_home_waiting_public_path` (and their CLI variants) were not run
+at close. Their fixture's authored #4001 was a draft that the courses expected
+in Waiting on others, which is the behavior this card removed. The courses
+now start #4001 ready (it waits on its reviewers) and turn it into a draft at
+the explicit Refresh, after which it is in My pull requests on both windows
+and not in Waiting on others. All four pass.
