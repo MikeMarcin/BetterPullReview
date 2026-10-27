@@ -1,5 +1,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
+#include "bpr/core/tour_steps.hpp"
+
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -41,6 +43,7 @@
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
+#include <array>
 #include <cmath>
 #include <limits>
 #include <vector>
@@ -307,13 +310,57 @@ namespace bpr::qt {
 			}
 		};
 
-		/// \brief [[BPR-1593]]. One row of the brief: its name, its first words,
-		/// and a tick once it says something.
-		class brief_row final : public QAbstractButton
+		[[nodiscard]] auto attention_red(const QPalette& aPalette) -> QColor
+		{
+			const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
+			return dark ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
+		}
+
+		/// \brief [[BPR-1784]]. Change, as the agent setup draws it: words in
+		/// the accent, no frame, a focus ring when the keyboard is on it.
+		class step_change final : public QPushButton
 		{
 		public:
-			brief_row(const QString& aName, QWidget* aParent)
+			using QPushButton::QPushButton;
+
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ font() };
+				return { metrics.horizontalAdvance(text()) + 12, metrics.height() + 6 };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				auto bold = font();
+				bold.setWeight(QFont::DemiBold);
+				painter.setFont(bold);
+				painter.setPen(palette().color(QPalette::Active, QPalette::Highlight));
+				painter.drawText(rect(), Qt::AlignCenter, text());
+				if (hasFocus()) {
+					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 5.0, 5.0);
+				}
+			}
+		};
+
+		/// \brief [[BPR-1784]]. One step's header, in the agent setup's
+		/// language (RFC-BPR-0092): a numbered circle, the step's name, and
+		/// once done what was written and Change. The circle is the accent
+		/// while open, green with a tick once done, a red ring with "!" when
+		/// it needs the author, and quiet ahead; never the stops' amber.
+		class tour_step_row final : public QAbstractButton
+		{
+		public:
+			static constexpr int marker = 24;
+			static constexpr int indent = marker + 10;
+
+			tour_step_row(const int aNumber, const QString& aName, QWidget* aParent)
 				: QAbstractButton{ aParent }
+				, Number{ aNumber }
 				, Name{ aName }
 			{
 				setFocusPolicy(Qt::StrongFocus);
@@ -321,101 +368,168 @@ namespace bpr::qt {
 				setAttribute(Qt::WA_Hover, true);
 				setCheckable(true);
 				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
-				setAccessibleName(aName);
+				Change = new step_change{ tr("Change"), this };
+				Change->setAccessibleName(tr("Change the %1").arg(aName.toLower()));
+				Change->setCursor(Qt::PointingHandCursor);
+				Change->hide();
+				present(core::tour_step_state::to_do, { });
 			}
-			QString Name;
-			QString Words;
-			QString Placeholder;
+			int                   Number;
+			QString               Name;
+			QString               Summary;
+			core::tour_step_state State  = core::tour_step_state::to_do;
+			step_change*          Change = nullptr;
 
-			[[nodiscard]] auto sizeHint() const -> QSize override
+			void present(const core::tour_step_state aState, const QString& aSummary)
 			{
-				const auto metrics = QFontMetrics{ font() };
-				return { 200, 10 + 2 * metrics.lineSpacing() + 8 };
+				State   = aState;
+				Summary = aSummary;
+				Change->setVisible(aState == core::tour_step_state::done);
+				auto said = QString{ };
+				switch (aState) {
+				case core::tour_step_state::to_do:           said = tr("to do"); break;
+				case core::tour_step_state::current:         said = tr("open"); break;
+				case core::tour_step_state::done:            said = tr("done"); break;
+				case core::tour_step_state::needs_attention: said = tr("needs attention"); break;
+				}
+				setAccessibleName(tr("Step %1, %2, %3").arg(Number).arg(Name, said));
+				setAccessibleDescription(aSummary);
+				setToolTip(aState == core::tour_step_state::current ? QString{ } : aState == core::tour_step_state::done ? tr("Change the %1").arg(Name.toLower())
+																														 : tr("Open the %1").arg(Name.toLower()));
+				place_change();
+				update();
 			}
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { 200, std::max(marker, QFontMetrics{ font() }.lineSpacing()) + 8 }; }
 			[[nodiscard]] auto minimumSizeHint() const -> QSize override { return { 120, sizeHint().height() }; }
 
 		protected:
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QAbstractButton::resizeEvent(aEvent);
+				place_change();
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+					click();
+					return;
+				}
+				QAbstractButton::keyPressEvent(aEvent);
+			}
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
 				auto painter = QPainter{ this };
 				painter.setRenderHint(QPainter::Antialiasing, true);
 				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
-				const auto faint  = palette().color(QPalette::Active, QPalette::PlaceholderText);
 				const auto window = palette().color(QPalette::Active, QPalette::Window);
-				if (underMouse() || isChecked()) {
+				const auto accent = palette().color(QPalette::Active, QPalette::Highlight);
+				if (underMouse() && State != core::tour_step_state::current) {
 					painter.setPen(Qt::NoPen);
-					painter.setBrush(mixed(window, ink, isChecked() ? 0.07 : 0.04));
-					painter.drawRect(rect());
+					painter.setBrush(mixed(window, ink, 0.04));
+					painter.drawRoundedRect(QRectF{ rect() }, 6.0, 6.0);
+				}
+				const auto box    = QRectF{ 1.0, (height() - marker) / 2.0 + 1.0, marker - 2.0, marker - 2.0 };
+				auto       number = font();
+				number.setWeight(QFont::DemiBold);
+				number.setPointSizeF(std::max(1.0, number.pointSizeF() * 0.85));
+				switch (State) {
+				case core::tour_step_state::done: {
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(route_green(palette()));
+					painter.drawEllipse(box);
+					auto tick = QPen{ QColor{ Qt::white }, 2.0 };
+					tick.setCapStyle(Qt::RoundCap);
+					tick.setJoinStyle(Qt::RoundJoin);
+					painter.setPen(tick);
+					const auto c = box.center();
+					painter.drawPolyline(std::array{ QPointF{ c.x() - 4.5, c.y() }, QPointF{ c.x() - 1.5, c.y() + 3.0 }, QPointF{ c.x() + 4.5, c.y() - 3.5 } }.data(), 3);
+					break;
+				}
+				case core::tour_step_state::current:
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(accent);
+					painter.drawEllipse(box);
+					painter.setFont(number);
+					painter.setPen(palette().color(QPalette::Active, QPalette::HighlightedText));
+					painter.drawText(box, Qt::AlignCenter, QString::number(Number));
+					break;
+				case core::tour_step_state::needs_attention: {
+					const auto red = attention_red(palette());
+					painter.setPen(QPen{ red, 1.5 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawEllipse(box.adjusted(0.5, 0.5, -0.5, -0.5));
+					painter.setFont(number);
+					painter.drawText(box, Qt::AlignCenter, QStringLiteral("!"));
+					break;
+				}
+				case core::tour_step_state::to_do:
+					painter.setPen(QPen{ mixed(window, ink, 0.35), 1.2 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawEllipse(box);
+					painter.setFont(number);
+					painter.setPen(mixed(window, ink, 0.55));
+					painter.drawText(box, Qt::AlignCenter, QString::number(Number));
+					break;
 				}
 				auto bold = font();
 				bold.setWeight(QFont::DemiBold);
-				const auto nameWidth = std::max(QFontMetrics{ bold }.horizontalAdvance(tr("Solution")), QFontMetrics{ bold }.horizontalAdvance(Name)) + 10;
+				const auto nameWidth = QFontMetrics{ bold }.horizontalAdvance(Name);
 				painter.setFont(bold);
-				painter.setPen(mixed(ink, window, 0.2));
-				painter.drawText(QRect{ 10, 6, nameWidth, QFontMetrics{ bold }.lineSpacing() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
-				const auto left  = 10 + nameWidth;
-				const auto right = width() - 30;
-				painter.setFont(font());
-				painter.setPen(Words.isEmpty() ? faint : ink);
-				// [[BPR-1757]]. Two lines at most: the first as wrapping
-				// lays it out, the rest elided on the second, so a narrow
-				// outline never shows part of a third.
-				const auto room    = std::max(10, right - left);
-				const auto metrics = QFontMetrics{ font() };
-				const auto flat    = QString{ Words.isEmpty() ? Placeholder : Words }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
-				auto       layout  = QTextLayout{ flat, font() };
-				auto       option  = QTextOption{ };
-				option.setWrapMode(QTextOption::WordWrap);
-				layout.setTextOption(option);
-				layout.beginLayout();
-				auto first = layout.createLine();
-				if (first.isValid()) {
-					first.setLineWidth(room);
-				}
-				layout.endLayout();
-				const auto split = first.isValid() ? first.textStart() + first.textLength() : static_cast<int>(flat.size());
-				painter.drawText(QRect{ left, 6, room, metrics.lineSpacing() }, Qt::AlignLeft | Qt::AlignTop, metrics.elidedText(flat.left(split).trimmed(), Qt::ElideRight, room));
-				painter.drawText(QRect{ left, 6 + metrics.lineSpacing(), room, metrics.lineSpacing() }, Qt::AlignLeft | Qt::AlignTop, metrics.elidedText(flat.mid(split).trimmed(), Qt::ElideRight, room));
-				if (!Words.isEmpty()) {
-					const auto green = route_green(palette());
-					painter.setPen(QPen{ green, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-					auto       tick = QPainterPath{ };
-					const auto x    = width() - 22.0;
-					tick.moveTo(x, 13.0);
-					tick.lineTo(x + 3.5, 16.5);
-					tick.lineTo(x + 10.0, 9.0);
-					painter.drawPath(tick);
+				painter.setPen(State == core::tour_step_state::to_do ? mixed(window, ink, 0.55) : ink);
+				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
+				if (!Summary.isEmpty()) {
+					const auto left  = indent + nameWidth + 10;
+					const auto right = Change->isVisible() ? Change->x() - 6 : width() - 6;
+					painter.setFont(font());
+					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
+					const auto flat = QString{ Summary }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }).simplified();
+					painter.drawText(QRect{ left, 0, std::max(0, right - left), height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ font() }.elidedText(flat, Qt::ElideRight, std::max(0, right - left)));
 				}
 				if (hasFocus()) {
-					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 2.0 });
+					painter.setPen(QPen{ accent, 2.0 });
 					painter.setBrush(Qt::NoBrush);
 					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 6.0, 6.0);
 				}
 			}
+
+		private:
+			void place_change()
+			{
+				const auto hint = Change->sizeHint();
+				Change->setGeometry(width() - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
+			}
 		};
 
-		/// \brief [[BPR-1593]]. The brief: one card of two rows, each opening in
-		/// place to its field.
-		class brief_card final : public QWidget
+		/// \brief [[BPR-1784]]. The three steps, joined as the agent setup
+		/// joins its own: a quiet rail from each circle to the next.
+		class tour_steps_frame final : public QWidget
 		{
 		public:
-			explicit brief_card(QWidget* aParent)
+			explicit tour_steps_frame(QWidget* aParent)
 				: QWidget{ aParent }
 			{
-				setObjectName(QStringLiteral("tourBrief"));
-				setAccessibleName(tr("Tour brief"));
+				setObjectName(QStringLiteral("tourSteps"));
+				setAccessibleName(tr("Tour steps"));
 			}
+			std::array<tour_step_row*, core::tour_step_count> Rows{ };
 
 		protected:
 			void paintEvent(QPaintEvent* /*aEvent*/) override
 			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ink  = palette().color(QPalette::Active, QPalette::WindowText);
-				const auto base = palette().color(QPalette::Active, QPalette::Base);
-				painter.setPen(QPen{ mixed(base, ink, 0.16), 1.0 });
-				painter.setBrush(base);
-				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 8.0, 8.0);
+				auto       painter = QPainter{ this };
+				const auto ink     = palette().color(QPalette::Active, QPalette::WindowText);
+				const auto window  = palette().color(QPalette::Active, QPalette::Window);
+				painter.setPen(QPen{ mixed(window, ink, 0.16), 1.5 });
+				for (std::size_t index = 0U; index + 1U < Rows.size(); ++index) {
+					if (Rows[index] == nullptr || Rows[index + 1U] == nullptr || !Rows[index]->isVisible()) {
+						continue;
+					}
+					const auto from = Rows[index]->mapTo(this, QPoint{ tour_step_row::marker / 2, (Rows[index]->height() + tour_step_row::marker) / 2 + 2 });
+					const auto to   = Rows[index + 1U]->mapTo(this, QPoint{ tour_step_row::marker / 2, (Rows[index + 1U]->height() - tour_step_row::marker) / 2 - 2 });
+					if (to.y() > from.y()) {
+						painter.drawLine(QPointF{ from.x() + 0.5, static_cast<qreal>(from.y()) }, QPointF{ from.x() + 0.5, static_cast<qreal>(to.y()) });
+					}
+				}
 			}
 		};
 
@@ -792,25 +906,47 @@ namespace bpr::qt {
 		Roadmap->tabBar()->hide();
 		Roadmap->setDocumentMode(true);
 
-		// The brief: Problem and Solution, each a row that opens to its field.
-		Brief                = new brief_card{ this };
+		// [[BPR-1784]]. The tour's three steps, as the agent setup draws its
+		// own: 1 Problem, 2 Solution, 3 Stops, each a header that opens its
+		// step in place. Problem and Solution hold their fields; Stops holds
+		// the route.
+		auto* const frame    = new tour_steps_frame{ this };
+		Brief                = frame;
 		auto* const briefCol = new QVBoxLayout{ Brief };
-		briefCol->setContentsMargins(1, 1, 1, 1);
-		briefCol->setSpacing(0);
-		const auto field = [&](const int aIndex, const QString& aTitle, const QString& aPrompt, const QString& aHelp, const QString& aName, core::tour_command_kind aKind, tour_editor_action aMapping) {
-			auto* const row = new brief_row{ aTitle, Brief };
+		briefCol->setContentsMargins(0, 0, 0, 0);
+		briefCol->setSpacing(4);
+		const auto block = [&](const int aIndex, const QString& aTitle, const QString& aName) {
+			auto* const step = new QWidget{ Brief };
+			step->setObjectName(QStringLiteral("tourStep%1").arg(aIndex + 1));
+			auto* const column = new QVBoxLayout{ step };
+			column->setContentsMargins(0, 0, 0, 0);
+			column->setSpacing(4);
+			auto* const row = new tour_step_row{ aIndex + 1, aTitle, step };
 			row->setObjectName(aName + QStringLiteral("Row"));
-			row->Placeholder = aPrompt;
-			row->setToolTip(aHelp);
-			briefCol->addWidget(row);
-			connect(row, &QAbstractButton::clicked, this, [this, aIndex] { open_brief(BriefOpen == aIndex && Mode == tour_editor_mode::route ? -1 : aIndex); });
-			BriefSlots[aIndex] = new QWidget{ Brief };
-			auto* const slot   = new QVBoxLayout{ BriefSlots[aIndex] };
-			slot->setContentsMargins(10, 0, 10, 10);
-			briefCol->addWidget(BriefSlots[aIndex]);
-			BriefSlots[aIndex]->hide();
-			auto* const host = new QWidget{ Roadmap };
-			auto* const hold = new QVBoxLayout{ host };
+			row->Change->setObjectName(aName + QStringLiteral("Change"));
+			column->addWidget(row);
+			frame->Rows[static_cast<std::size_t>(aIndex)] = row;
+			StepRows[aIndex]                              = row;
+			const auto open                               = [this, aIndex] {
+				choose_step(aIndex == 2 ? -1 : aIndex);
+			};
+			connect(row, &QAbstractButton::clicked, this, open);
+			connect(row->Change, &QPushButton::clicked, this, open);
+			auto* const slot = new QWidget{ step };
+			auto* const body = new QVBoxLayout{ slot };
+			// The route keeps the drawer's width: its grip, not an indent, sets it in.
+			body->setContentsMargins(aIndex == 2 ? 8 : tour_step_row::indent, 0, 0, 8);
+			body->setSpacing(6);
+			column->addWidget(slot);
+			slot->hide();
+			briefCol->addWidget(step);
+			return slot;
+		};
+		const auto field = [&](const int aIndex, const QString& aTitle, const QString& aPrompt, const QString& aHelp, const QString& aName, core::tour_command_kind aKind, tour_editor_action aMapping) {
+			BriefSlots[aIndex] = block(aIndex, aTitle, aName);
+			auto* const slot   = static_cast<QVBoxLayout*>(BriefSlots[aIndex]->layout());
+			auto* const host   = new QWidget{ Roadmap };
+			auto* const hold   = new QVBoxLayout{ host };
 			hold->setContentsMargins(0, 0, 0, 0);
 			BriefHosts[aIndex] = host;
 			Roadmap->addTab(host, aTitle);
@@ -828,7 +964,13 @@ namespace bpr::qt {
 			editor->setTabChangesFocus(true);
 			editor->setMinimumHeight(110);
 			column->addWidget(editor, 1);
-			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, column);
+			// [[BPR-1784]]. Next shares the assistance row, so the step fits the
+			// narrowest drawer.
+			auto* const first = new QHBoxLayout{ };
+			first->setSpacing(6);
+			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, first);
+			first->addStretch(1);
+			column->addLayout(first);
 			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
 			auto* map = new quiet_push_button{ tr("Use selected description text"), panel };
@@ -837,16 +979,21 @@ namespace bpr::qt {
 			tools->addWidget(map);
 			tools->addStretch(1);
 			column->addLayout(tools);
+			// Moving on is explicit: Next, or the key that marks a stop Ready
+			// and goes on.
+			auto* const next = new QPushButton{ tr("Next"), panel };
+			next->setObjectName(aName + QStringLiteral("Next"));
+			next->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
+			next->setToolTip((aIndex == 0 ? tr("Go on to the solution (%1)") : tr("Go on to the stops (%1)")).arg(next->shortcut().toString(QKeySequence::NativeText)));
+			first->addWidget(next);
 			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
-			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind, row] {
-				row->Words = editor->toPlainText().trimmed();
-				row->update();
-				edit(aKind, editor->raw());
-			});
+			connect(next, &QPushButton::clicked, this, [this, aIndex] { choose_step(aIndex == 0 ? 1 : -1); });
+			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind] { edit(aKind, editor->raw()); });
 			return editor;
 		};
-		Problem  = field(0, tr("Problem"), tr("What problem does this change solve?"), tr("Describe what was wrong, missing, or unnecessarily difficult before this change."), QStringLiteral("tourProblem"), core::tour_command_kind::problem, tour_editor_action::map_problem);
-		Solution = field(1, tr("Solution"), tr("How does this change solve the problem?"), tr("Explain the central approach and any important limits. Save detailed implementation decisions for the tour."), QStringLiteral("tourSolution"), core::tour_command_kind::solution, tour_editor_action::map_solution);
+		Problem   = field(0, tr("Problem"), tr("What problem does this change solve?"), tr("Describe what was wrong, missing, or unnecessarily difficult before this change."), QStringLiteral("tourProblem"), core::tour_command_kind::problem, tour_editor_action::map_problem);
+		Solution  = field(1, tr("Solution"), tr("How does this change solve the problem?"), tr("Explain the central approach and any important limits. Save detailed implementation decisions for the tour."), QStringLiteral("tourSolution"), core::tour_command_kind::solution, tour_editor_action::map_solution);
+		StopsSlot = block(2, tr("Stops"), QStringLiteral("tourStops"));
 		build_stops();
 		Preview = new markdown_body_view{ Roadmap };
 		Preview->setObjectName(QStringLiteral("tourPreview"));
@@ -1263,6 +1410,14 @@ namespace bpr::qt {
 			update_text(Conflict, text);
 		}
 		present_stops(!same);
+		// [[BPR-1784]]. Another draft opens on its first step not yet
+		// written; after that, only the author moves between steps.
+		if (!same) {
+			const auto first = core::decide_tour_steps(Shown.Draft.get(), std::nullopt).Current;
+			open_brief(first == core::tour_step::problem ? 0 : first == core::tour_step::solution ? 1
+																								  : -1);
+		}
+		refresh_steps();
 		refresh_preview();
 		place_stop_card();
 		refresh_excerpt();
@@ -1468,6 +1623,11 @@ namespace bpr::qt {
 		const auto* stop = selected_stop();
 		if (stop != nullptr && stop->Title.empty()) {
 			Title->setFocus();
+		} else if (stop != nullptr) {
+			Body->setFocus();
+		} else if (auto* const add = OutlineTools->findChild<QPushButton*>(QStringLiteral("tourAddStop")); add != nullptr && Mode == tour_editor_mode::route) {
+			// [[BPR-1784]]. No stop yet: the step's first control adds one.
+			add->setFocus(Qt::OtherFocusReason);
 		} else {
 			Body->setFocus();
 		}
@@ -1765,7 +1925,11 @@ namespace bpr::qt {
 			}
 			Selected         = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
 			SelectionChanged = false;
-			Applying         = true;
+			// [[BPR-1784]]. Choosing a stop is working on the stops.
+			if (Mode == tour_editor_mode::route && BriefOpen >= 0) {
+				open_brief(-1);
+			}
+			Applying = true;
 			present_stops(false);
 			Applying = false;
 			place_stop_card();
@@ -2152,9 +2316,10 @@ namespace bpr::qt {
 		if (aMode == tour_editor_mode::route) {
 			auto* const column = static_cast<QVBoxLayout*>(RouteColumn->layout());
 			column->insertWidget(0, Brief);
-			column->insertWidget(1, Outline);
-			column->insertWidget(2, OutlineTools);
 			column->addStretch(1);
+			// [[BPR-1784]]. The route is step 3's body.
+			StopsSlot->layout()->addWidget(Outline);
+			StopsSlot->layout()->addWidget(OutlineTools);
 			for (int field = 0; field < 2; ++field) {
 				BriefSlots[field]->layout()->addWidget(BriefPanels[field]);
 			}
@@ -2180,6 +2345,7 @@ namespace bpr::qt {
 				BriefSlots[field]->hide();
 				BriefHosts[field]->layout()->addWidget(BriefPanels[field]);
 			}
+			StopsSlot->hide();
 			static_cast<QVBoxLayout*>(StopsHost->layout())->insertWidget(2, StopFields, 0);
 			StopFields->show();
 			Outline->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
@@ -2204,7 +2370,8 @@ namespace bpr::qt {
 			StopActions->want(RemoveRelated, aMode == tour_editor_mode::page && Related->currentRow() >= 0);
 		}
 		fit_page_columns();
-		open_brief(aMode == tour_editor_mode::route ? -1 : BriefOpen);
+		// [[BPR-1784]]. The open step stays open in either place.
+		open_brief(BriefOpen);
 		place_stop_card();
 		refresh_excerpt();
 		refresh_foot();
@@ -2213,16 +2380,18 @@ namespace bpr::qt {
 	void review_tour_editor::open_brief(const int aField)
 	{
 		BriefOpen = aField;
-		for (int field = 0; field < 2; ++field) {
-			auto* const row = Brief->findChild<QAbstractButton*>(field == 0 ? QStringLiteral("tourProblemRow") : QStringLiteral("tourSolutionRow"));
+		for (int field = 0; field < 3; ++field) {
+			auto* const row = static_cast<QAbstractButton*>(StepRows[field]);
+			const auto  on  = field == 2 ? aField < 0 : field == aField;
 			if (row != nullptr) {
 				const auto block = QSignalBlocker{ row };
-				row->setChecked(field == aField);
+				row->setChecked(on);
 			}
-			if (Mode == tour_editor_mode::route) {
-				BriefSlots[field]->setVisible(field == aField);
+			if (auto* const slot = field == 2 ? StopsSlot : BriefSlots[field]; slot != nullptr && Mode == tour_editor_mode::route) {
+				slot->setVisible(on);
 			}
 		}
+		refresh_steps();
 		if (aField >= 0) {
 			if (Roadmap->currentIndex() != aField) {
 				Roadmap->setCurrentIndex(aField);
@@ -2232,6 +2401,60 @@ namespace bpr::qt {
 		}
 		place_stop_card();
 		fit_route();
+	}
+
+	void review_tour_editor::choose_step(const int aField)
+	{
+		if (aField < 0) {
+			show_stops();
+			return;
+		}
+		open_brief(aField);
+		focus_step();
+	}
+
+	void review_tour_editor::open_step(const core::tour_step aStep)
+	{
+		switch (aStep) {
+		case core::tour_step::problem:  choose_step(0); break;
+		case core::tour_step::solution: choose_step(1); break;
+		case core::tour_step::stops:    choose_step(-1); break;
+		}
+	}
+
+	void review_tour_editor::focus_step()
+	{
+		// [[BPR-1784]]. The keyboard goes to the open step's first field:
+		// Problem's text, Solution's text, or the stop's.
+		if (BriefOpen == 0) {
+			Problem->setFocus(Qt::OtherFocusReason);
+		} else if (BriefOpen == 1) {
+			Solution->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	void review_tour_editor::refresh_steps()
+	{
+		const auto open = BriefOpen == 0 ? core::tour_step::problem : BriefOpen == 1 ? core::tour_step::solution
+																					 : core::tour_step::stops;
+		Steps           = core::decide_tour_steps(Shown.Draft.get(), open);
+		for (std::size_t index = 0U; index < core::tour_step_count; ++index) {
+			auto* const row = static_cast<tour_step_row*>(StepRows[index]);
+			if (row == nullptr) {
+				continue;
+			}
+			const auto state   = Steps.States[index];
+			auto       summary = QString{ };
+			if (index < 2U && state == core::tour_step_state::done && Shown.Draft) {
+				summary = QString::fromStdString(index == 0U ? Shown.Draft->Problem : Shown.Draft->Solution);
+			} else if (index < 2U && state == core::tour_step_state::needs_attention) {
+				summary = tr("Not written yet");
+			} else if (index == 2U && state != core::tour_step_state::current && Steps.Stops > 0U) {
+				summary = Steps.Stops == 1U ? (Steps.ReadyStops == 1U ? tr("1 stop, ready") : tr("1 stop, not ready yet")) : tr("%1 of %2 stops ready").arg(Steps.ReadyStops).arg(Steps.Stops);
+			}
+			row->present(state, summary);
+		}
+		Brief->update();
 	}
 
 	void review_tour_editor::place_stop_card()
@@ -2316,6 +2539,15 @@ namespace bpr::qt {
 		}
 		// Empty, the route takes no room, and still takes the keyboard.
 		Outline->setFixedHeight(Outline->count() == 0 ? 2 : std::max(height, 40));
+		// [[BPR-1784]]. The route sits in step 3's body, several widgets
+		// below the column: each says its new size, and the column lays out
+		// now, so the step grows with its route rather than a frame later.
+		for (auto* widget = Outline->parentWidget(); widget != nullptr && widget != RouteColumn; widget = widget->parentWidget()) {
+			widget->updateGeometry();
+		}
+		if (RouteColumn != nullptr && RouteColumn->layout() != nullptr) {
+			RouteColumn->layout()->activate();
+		}
 	}
 
 	void review_tour_editor::refresh_excerpt()

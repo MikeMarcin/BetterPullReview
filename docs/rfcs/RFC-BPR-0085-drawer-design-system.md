@@ -304,15 +304,26 @@ original presentation-only scope, not an inferred reply permission.
 
 ### Tours (D4)
 
-The Tour tab is the route: the brief (Problem, Solution) as one compact card
-that opens in place, then the stops in tour order as numbered amber circles on
-an amber route line, a file divider where the route changes file. The current
+The Tour tab is three numbered steps, drawn as the agent setup draws its own
+(RFC-BPR-0092; amended by [[BPR-1784]], replacing the brief's one compact
+card): **1 Problem**, **2 Solution**, **3 Stops**. Each step's circle says its
+state: the accent while open, a green tick once done, a red ring with "!"
+when it was passed unwritten or a stop needs attention, quiet while still to
+do. The open step shows its field (Problem's text, Solution's text, or the
+route); done steps fold to one line with what was written and Change; any step
+opens from its header, so an earlier step is never blocked. Moving on is
+explicit: Next, or ⌥↩ as on a stop. Core decides the states from the draft
+and the open step. Step circles are never amber, so they are not mistaken for
+stops. Step 3 holds the route: the stops in tour order as numbered amber
+circles on an amber route line, a file divider where the route changes file.
+The current
 stop opens in place to write (title, Markdown explanation, related source,
 Use selected lines, Ready and next ⌥↩), and its lines wash amber in the code.
 Readiness reads from the stop's ring: Ready (green tick), Editing, Needs
 attention (amber warning), Suggested (dashed). Drag and Alt+Shift+Up/Down
 reorder. The foot holds the private-draft state and Preview and publish.
-**Expand** opens the tour page in the main pane (outline with drag handles,
+**Expand** opens the tour page in the main pane (the same three steps choosing
+the section, then the outline with drag handles,
 the stop editor with its code excerpt under the same amber bracket, a live
 preview of the GitHub comment, Preview and publish), and Back to the code
 returns. A reviewer following a published tour sees the same route read-only,

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #include "bpr/application/review_tour_projection.hpp"
+#include "bpr/core/tour_steps.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include <QPointer>
 #include <QWidget>
@@ -83,6 +84,12 @@ namespace bpr::qt {
 		void set_excerpt_source(std::function<std::optional<tour_excerpt>(const core::tour_source_range&)> aSource);
 		/// \brief [[BPR-1593]]. The brief's fields open in place in the route.
 		[[nodiscard]] auto brief_open() const noexcept -> int { return BriefOpen; }
+		/// \brief [[BPR-1784]]. The three steps as last presented: each one's
+		/// state and the step that is open.
+		[[nodiscard]] auto steps() const noexcept -> const core::tour_steps& { return Steps; }
+		/// \brief [[BPR-1784]]. Opens a step, as its header, Change or Next
+		/// does, and puts the keyboard in its first field.
+		void open_step(core::tour_step aStep);
 		/// \brief [[BPR-1593]]. The publication column of the tour page.
 		[[nodiscard]] auto publication_panel() const noexcept -> QWidget* { return PublicationPanel; }
 		/// \brief [[BPR-1593]]. The private draft's state and Preview and publish.
@@ -151,6 +158,9 @@ namespace bpr::qt {
 		void                                                                       next_stop(int aOffset);
 		void                                                                       next_changed_stop();
 		void                                                                       open_brief(int aField);
+		void                                                                       choose_step(int aField);
+		void                                                                       refresh_steps();
+		void                                                                       focus_step();
 		void                                                                       place_stop_card();
 		void                                                                       fit_route();
 		void                                                                       fit_page_columns();
@@ -165,37 +175,42 @@ namespace bpr::qt {
 		std::function<void(bool)>                                                  ExpandDispatch;
 		std::function<void()>                                                      CollapseDispatch;
 		std::function<std::optional<tour_excerpt>(const core::tour_source_range&)> ExcerptSource;
-		int                                                                        BriefOpen          = -1;
-		QWidget*                                                                   Brief              = nullptr;
-		QWidget*                                                                   BriefSlots[2]      = { nullptr, nullptr };
-		QWidget*                                                                   BriefPanels[2]     = { nullptr, nullptr };
-		QWidget*                                                                   BriefHosts[2]      = { nullptr, nullptr };
-		QWidget*                                                                   RouteColumn        = nullptr;
-		QWidget*                                                                   PageColumns        = nullptr;
-		QWidget*                                                                   PageLeft           = nullptr;
-		QWidget*                                                                   PageRight          = nullptr;
-		QWidget*                                                                   StopsHost          = nullptr;
-		QWidget*                                                                   StopHeader         = nullptr;
-		QLabel*                                                                    StopHeading        = nullptr;
-		QWidget*                                                                   Excerpt            = nullptr;
-		QWidget*                                                                   PublicationPanel   = nullptr;
-		QWidget*                                                                   OutlineTools       = nullptr;
-		QWidget*                                                                   Notices            = nullptr;
-		QWidget*                                                                   Foot               = nullptr;
-		QLabel*                                                                    FootState          = nullptr;
-		QPushButton*                                                               PreviewPublish     = nullptr;
-		QLabel*                                                                    StopState          = nullptr;
-		QPushButton*                                                               Reaffirm           = nullptr;
-		QPushButton*                                                               Previous           = nullptr;
-		QPushButton*                                                               Next               = nullptr;
-		QComboBox*                                                                 PublicationMode    = nullptr;
-		QCheckBox*                                                                 DescriptionEdit    = nullptr;
-		QLabel*                                                                    PublicationStatus  = nullptr;
-		markdown_body_view*                                                        PublicationPreview = nullptr;
-		QPushButton*                                                               PublishTour        = nullptr;
-		QPushButton*                                                               ResumeTour         = nullptr;
-		QPushButton*                                                               ReconcileTour      = nullptr;
-		QPushButton*                                                               StopTour           = nullptr;
+		int                                                                        BriefOpen      = -1;
+		QWidget*                                                                   Brief          = nullptr;
+		QWidget*                                                                   BriefSlots[2]  = { nullptr, nullptr };
+		QWidget*                                                                   BriefPanels[2] = { nullptr, nullptr };
+		QWidget*                                                                   BriefHosts[2]  = { nullptr, nullptr };
+		/// [[BPR-1784]]. The steps' headers, and the Stops step's body, which
+		/// holds the route in the drawer.
+		QWidget*            StepRows[3] = { nullptr, nullptr, nullptr };
+		QWidget*            StopsSlot   = nullptr;
+		core::tour_steps    Steps;
+		QWidget*            RouteColumn        = nullptr;
+		QWidget*            PageColumns        = nullptr;
+		QWidget*            PageLeft           = nullptr;
+		QWidget*            PageRight          = nullptr;
+		QWidget*            StopsHost          = nullptr;
+		QWidget*            StopHeader         = nullptr;
+		QLabel*             StopHeading        = nullptr;
+		QWidget*            Excerpt            = nullptr;
+		QWidget*            PublicationPanel   = nullptr;
+		QWidget*            OutlineTools       = nullptr;
+		QWidget*            Notices            = nullptr;
+		QWidget*            Foot               = nullptr;
+		QLabel*             FootState          = nullptr;
+		QPushButton*        PreviewPublish     = nullptr;
+		QLabel*             StopState          = nullptr;
+		QPushButton*        Reaffirm           = nullptr;
+		QPushButton*        Previous           = nullptr;
+		QPushButton*        Next               = nullptr;
+		QComboBox*          PublicationMode    = nullptr;
+		QCheckBox*          DescriptionEdit    = nullptr;
+		QLabel*             PublicationStatus  = nullptr;
+		markdown_body_view* PublicationPreview = nullptr;
+		QPushButton*        PublishTour        = nullptr;
+		QPushButton*        ResumeTour         = nullptr;
+		QPushButton*        ReconcileTour      = nullptr;
+		QPushButton*        StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*                                     PublicationWorking = nullptr;
