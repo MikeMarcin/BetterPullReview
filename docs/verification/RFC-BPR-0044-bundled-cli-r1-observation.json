@@ -75,7 +75,7 @@
     "diagnostics_truncated": false
   },
   "disposition": "human-pending",
-  "candidate_revision": "08c7520329d3ee6df164e22d09b54cd42568cc59",
+  "candidate_revision": "5568d62048c8f1e9a6d2b3476af5523c12ca9765",
   "handoff_ref": "docs/verification/RFC-BPR-0044-bundled-cli-r1-handoff.json",
   "required_pending": [
     "BPR-1068: actual release Developer ID/hardened runtime/timestamp/notarization/stapling/Gatekeeper, remaining platform/native safety and Windows owner sign-in; bundled native-auth acceptance applies only to the protected earlier package",

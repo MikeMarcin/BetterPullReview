@@ -13,7 +13,7 @@
   "branch": "main",
   "amendment_baseline": "182e54a1b79b456149517ad946bb22f6c904ce3b",
   "dispatch_observed_revision": "c8755b30f933923fa529533650f0242b8e7f3452",
-  "checkpoint_revision": "2bcacaf2ee1a6a42dfdc5c7f7f8912fc2c54a5be",
+  "checkpoint_revision": "5568d62048c8f1e9a6d2b3476af5523c12ca9765",
   "source_candidate": "e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b",
   "source_candidate_package": "/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/clean-package-v003",
   "bpr_sha256": "a8a855c7ee8ea833b4c8071e45f7d336baefe456388ec393f5b9ed12e1fe9d77",
@@ -82,7 +82,7 @@
     "release_suite": "local prepare uses --skip-tests; full release suite is not claimed passing",
     "native_auth_handback": "Session/candidate/fingerprint and result reconciled; protected CLI hash matches; run-signin.py --check passes; no temporary signin directories remain. Old and clean-v003 mimalloc hashes differ.",
     "handback_documentation": "DOCUMENTATION_OK; verify_documentation_tests.py 67/67 pass; git diff --check passes. Existing product/package checks are reused unchanged; no new build or timing course selected.",
-    "handback_binding": "milestone_checkpoint.py check: action=pending, engineering_acceptance=not-evaluated; all four obligations and two exits remain bound; no eligible next board card.",
+    "handback_binding": "At committed reconciliation 5568d62048c8f1e9a6d2b3476af5523c12ca9765, milestone_checkpoint.py check reports action=pending, engineering_acceptance=not-evaluated; all four obligations and two exits remain bound; no eligible next board card.",
     "handback_commands": [
       "attended_review.py --repo-root /Users/jaeger/Documents/GitHub/BetterPullReview --state /Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state status --after 3 (exit 0; exact session/candidate/events reconciled)",
       "attended_review.py conflicts on the six handback documentation paths (exit 0; conflicts=[])",
@@ -91,7 +91,8 @@
       "python3 tests/scripts/verify_documentation_tests.py (exit 0; 67 tests OK)",
       "milestone_checkpoint.py bind/check with existing run/segment/mandate/selection and five accepted predecessor milestones (exit 0; pending)",
       "git diff --check (exit 0)"
-    ]
+    ],
+    "handback_verified_revision": "5568d62048c8f1e9a6d2b3476af5523c12ca9765"
   },
   "failed_or_unavailable_checks": [
     "v001 profile probe refused a noncanonical macOS temporary path; fixed at 223098b11",
@@ -179,7 +180,7 @@
     "engineering": "quiescent after handback reconciliation; no product edits",
     "other_writers": "Other agents' committed ID reservations preserved; only assigned documentation paths edited in this round.",
     "task_commands": "All handback verification commands complete; the two inherited coordinator-owned review hosts remain active and are not stopped by this child.",
-    "temporary_work": "Probe profiles removed; failed and passing evidence plus read-only packages retained in external runtime root. Task-owned duplicate build artifact directories removed after confirming copied closure and source assets.",
+    "temporary_work": "No new build/profile/test artifact tree was created. The secret-free handback acceptance decision and final check receipts are retained in the external runtime root; original frozen packages and evidence remain protected. No temporary sign-in directories remain.",
     "effects": "no publish, no push, no live GitHub mutation, no owner desktop capture/control, no owner Keychain item reading"
   },
   "next_action": "Coordinator consumes cursor 6 without asking for another handback. Retain exact accepted candidate and external result. Complete BPR-1068 release/native/platform obligations before dependent BPR-1069/1070; BPR-1071 and full pack closure remain pending. No new review is requested by this handback round.",
@@ -199,5 +200,8 @@
     "docs/verification/RFC-BPR-0044-bundled-cli-r1-handoff.json",
     "docs/verification/RFC-BPR-0044-bundled-cli-r1-checkpoint.json",
     "docs/verification/RFC-BPR-0044-bundled-cli-r1-observation.json"
+  ],
+  "handback_commits": [
+    "5568d62048c8f1e9a6d2b3476af5523c12ca9765"
   ]
 }
