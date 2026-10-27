@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1782",
+    "BPR-1783",
+    "BPR-1784"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "owner 2026-10-27: tour publish feedback; new stop focuses title; stepped tour wizard",
+  "created": "2026-10-27T16:26:42.107117+00:00",
+  "base": "5852cb5d20f2502bef39441f9246c91c7cb22a6e"
+}
