@@ -17,6 +17,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/comment_edit.hpp"
+#include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "bpr/core/hex.hpp"
@@ -11561,10 +11562,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1753]], owner decision 2026-10-23. A card's action
 		/// waiting for its file to open in Review: tried again until the file
 		/// is on screen, then given up with words after about ten seconds.
+		/// Where a card's state goes: its card, or ([[BPR-1773]]) the
+		/// answer whose Draft comment borrowed the card's way to a line.
+		using card_report = std::function<void(qt::agent_finding_card_state, const QString&, std::uint64_t)>;
 		struct pending_card_open
 		{
 			qt::agent_finding_card_request Request;
 			int                            Tries = 0;
+			card_report                    Report;
 		};
 		std::optional<pending_card_open> PendingCardOpen;
 
@@ -11579,15 +11584,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key;
 			if (onScreen) {
 				auto request = std::move(PendingCardOpen->Request);
+				auto report  = std::move(PendingCardOpen->Report);
 				PendingCardOpen.reset();
-				act_on_agent_card(request);
+				act_on_agent_card(request, std::move(report));
 				return;
 			}
 			if (++PendingCardOpen->Tries > 40) {
 				const auto request = std::move(PendingCardOpen->Request);
+				const auto report  = std::move(PendingCardOpen->Report);
 				PendingCardOpen.reset();
-				Window->agent_tab()->present_finding_card_state(request.Session, request.Ordinal, qt::agent_finding_card_state::refused,
-																QStringLiteral("%1 did not open, so nothing was made.").arg(QString::fromStdString(request.Finding.Path)));
+				const auto why = QStringLiteral("%1 did not open, so nothing was made.").arg(QString::fromStdString(request.Finding.Path));
+				if (report) {
+					report(qt::agent_finding_card_state::refused, why, 0U);
+				} else {
+					Window->agent_tab()->present_finding_card_state(request.Session, request.Ordinal, qt::agent_finding_card_state::refused, why);
+				}
 				return;
 			}
 			QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
@@ -11642,11 +11653,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// Save as note and Dismiss on one card. A draft and a note are made
 		/// only at lines of the file on screen; for another file the card says
 		/// to open it first. Nothing is published.
-		void act_on_agent_card(const qt::agent_finding_card_request& aRequest)
+		void act_on_agent_card(const qt::agent_finding_card_request& aRequest, card_report aReport = { })
 		{
 			auto* const tab   = Window != nullptr ? Window->agent_tab() : nullptr;
-			const auto  state = [tab, aRequest](const qt::agent_finding_card_state aState, const QString& aWhy = { }, const std::uint64_t aNote = 0U) {
-				if (tab != nullptr) {
+			const auto  state = [tab, aRequest, aReport](const qt::agent_finding_card_state aState, const QString& aWhy = { }, const std::uint64_t aNote = 0U) {
+				if (aReport) {
+					aReport(aState, aWhy, aNote);
+				} else if (tab != nullptr) {
 					tab->present_finding_card_state(aRequest.Session, aRequest.Ordinal, aState, aWhy, aNote);
 				}
 			};
@@ -11675,7 +11688,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return;
 				}
 				state(qt::agent_finding_card_state::working);
-				PendingCardOpen = pending_card_open{ .Request = aRequest };
+				PendingCardOpen = pending_card_open{ .Request = aRequest, .Report = aReport };
 				QTimer::singleShot(250, Window.get(), [this] { resume_card_open(); });
 				return;
 			}
@@ -11840,8 +11853,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (input.Line) {
 				where = input.StartLine ? QStringLiteral("%1 lines %2–%3").arg(path).arg(*input.StartLine).arg(*input.Line) : QStringLiteral("%1 line %2").arg(path).arg(*input.Line);
 			}
-			const auto count = input.Comments.size();
-			auto       chip  = qt::agent_conversation_chip{
+			AskedConversation->Replies = thread->ViewerReplyPermission != application::github_permission_state::denied;
+			const auto count           = input.Comments.size();
+			auto       chip            = qt::agent_conversation_chip{
 				.Key     = aIdentity,
 				.Text    = QStringLiteral("%1, %2").arg(where, count == 1U ? QStringLiteral("1 comment") : QStringLiteral("%1 comments").arg(count)),
 				.Detail  = QStringLiteral("The agent gets this conversation's comments and the lines it is on, as the head has them. Nothing is published."),
@@ -11881,6 +11895,124 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			const auto found = std::ranges::find(AcceptedPrivateNotes, *AskedConversation->Note, &application::local_note_record::Id);
 			return found == AcceptedPrivateNotes.end() ? nullptr : &*found;
+		}
+
+		/// [[BPR-1773]], owner look 2026-10-27. Where a question sent now
+		/// would have its answer drafted: core places it from the review
+		/// thread asked about and the lines selected beside the code (none
+		/// on Overview); the turn keeps the key.
+		[[nodiscard]] auto decide_answer_draft() -> qt::agent_answer_draft_target
+		{
+			auto       draft  = agent_answer_draft{ };
+			const auto thread = AskedConversation && !AskedConversation->Note && AskedConversation->Replies;
+			auto       lines  = false;
+			if (!thread && !Closing && Window != nullptr && SelectedDiffPublication && !Window->showing_overview()) {
+				if (const auto* const surface = Window->comparison_surface(); surface != nullptr && surface->current_result() != nullptr && surface->current_result()->Alignment.Key == SelectedDiffPublication->Key) {
+					if (const auto range = surface->line_draft_range(); range && range->first.Side == range->second.Side) {
+						draft.Path  = SelectedDiffPublication->Request.File.PresentationPath;
+						draft.Side  = range->first.Side;
+						draft.First = std::min(range->first.Line, range->second.Line);
+						draft.Last  = std::max(range->first.Line, range->second.Line);
+						lines       = true;
+					}
+				}
+			}
+			draft.Place = core::answer_draft_place_for(thread, lines);
+			auto tip    = QString{ };
+			switch (draft.Place) {
+			case core::answer_draft_place::thread_reply:
+				draft.Thread = AskedConversation->Identity;
+				tip          = QStringLiteral("Draft this reply, or the part of it you selected, as your reply to the conversation it is about. Nothing is posted until you post it.");
+				break;
+			case core::answer_draft_place::line_comment: {
+				const auto path = QString::fromStdString(draft.Path);
+				const auto at   = draft.First == draft.Last ? QStringLiteral("%1 line %2").arg(path).arg(draft.First + 1U) : QStringLiteral("%1 lines %2–%3").arg(path).arg(draft.First + 1U).arg(draft.Last + 1U);
+				tip             = QStringLiteral("Draft this reply, or the part of it you selected, as a comment on %1, the lines it was asked about. Nothing is posted until you post it.").arg(at);
+				break;
+			}
+			case core::answer_draft_place::pull_request_comment:
+				tip = QStringLiteral("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it.");
+				break;
+			}
+			auto key = "answer-draft:" + std::to_string(++NextAgentAnswerDraft);
+			AgentAnswerDrafts.insert_or_assign(key, std::move(draft));
+			return { .Key = std::move(key), .Tip = tip };
+		}
+
+		/// [[BPR-1773]]. Draft comment on an answer: a thread's reply, as
+		/// Reply opens it; a line comment by a finding card's way to its
+		/// line; or Overview's new pull request comment ([[BPR-1781]]).
+		/// Each is a private draft; nothing is published.
+		void draft_agent_answer(const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone)
+		{
+			const auto answer = [aDone](const bool aDrafted, const QString& aWhy = { }) {
+				if (aDone) {
+					aDone(aDrafted, aWhy);
+				}
+			};
+			if (Closing || Window == nullptr || aText.trimmed().isEmpty()) {
+				answer(false, QStringLiteral("there is nothing to draft"));
+				return;
+			}
+			const auto found = AgentAnswerDrafts.find(aKey);
+			const auto draft = found != AgentAnswerDrafts.end() ? found->second : agent_answer_draft{ };
+			switch (draft.Place) {
+			case core::answer_draft_place::thread_reply:
+				Window->draft_thread_reply(draft.Thread, aText, [answer](const bool aWritten) { answer(aWritten, aWritten ? QString{ } : QStringLiteral("the conversation's reply did not open; the words are on the clipboard")); });
+				return;
+			case core::answer_draft_place::line_comment: {
+				auto finding             = core::agent_finding{ };
+				finding.Path             = draft.Path;
+				finding.Lines            = core::line_span{ .Begin = draft.First, .End = draft.Last + 1U };
+				finding.Anchor.Line      = core::source_line_ref{ .Comparison = { }, .Side = draft.Side, .Line = draft.First };
+				finding.Claim            = aText.toStdString();
+				finding.SuggestedComment = aText.toStdString();
+				act_on_agent_card({ .Session = 0U, .Ordinal = 0U, .Finding = std::move(finding), .Action = qt::agent_finding_card_action::draft_comment },
+								  [answer](const qt::agent_finding_card_state aState, const QString& aWhy, std::uint64_t) {
+									  if (aState == qt::agent_finding_card_state::drafted) {
+										  answer(true);
+									  } else if (aState == qt::agent_finding_card_state::refused) {
+										  auto why = aWhy;
+										  if (why.startsWith(QStringLiteral("Not drafted: "))) {
+											  why.remove(0, QStringLiteral("Not drafted: ").size());
+										  }
+										  if (why.endsWith(QLatin1Char{ '.' })) {
+											  why.chop(1);
+										  }
+										  answer(false, why);
+									  }
+								  });
+				return;
+			}
+			case core::answer_draft_place::pull_request_comment:
+				if (Window->draft_pull_request_comment(aText)) {
+					answer(true);
+				} else {
+					answer(false, QStringLiteral("the pull request's comment could not be opened"));
+				}
+				return;
+			}
+		}
+
+		/// [[BPR-1773]]. Go to draft: the draft Draft comment wrote.
+		void go_to_agent_answer_draft(const std::string& aKey)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto found = AgentAnswerDrafts.find(aKey);
+			const auto draft = found != AgentAnswerDrafts.end() ? found->second : agent_answer_draft{ };
+			switch (draft.Place) {
+			case core::answer_draft_place::thread_reply:
+				Window->open_thread_reply(draft.Thread);
+				return;
+			case core::answer_draft_place::line_comment:
+				static_cast<void>(Window->go_to_file_line(QString::fromStdString(draft.Path), draft.First + 1U, draft.Side == core::diff_side::left));
+				return;
+			case core::answer_draft_place::pull_request_comment:
+				Window->open_pull_request_comment();
+				return;
+			}
 		}
 
 		void dismiss_asked_conversation()
@@ -12111,14 +12243,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
 			tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
 			// [[BPR-1773]]. Ask agent on a thread attaches it; the chip's
-			// close removes it; Use as reply writes an answer in its reply.
+			// close removes it. Owner look 2026-10-27: every answer's Draft
+			// comment writes it as a private draft where core places it when
+			// it was asked, and Go to draft opens that draft.
 			Window->set_conversation_ask_dispatch([this](const std::string& aIdentity) { ask_agent_about_thread(aIdentity); });
 			tab->set_conversation_dismiss([this] { dismiss_asked_conversation(); });
-			tab->set_reply_dispatch([this](const std::string& aKey, const QString& aText) {
-				if (!Closing && Window != nullptr) {
-					Window->use_as_reply(aKey, aText);
-				}
-			});
+			tab->set_answer_draft_target([this] { return decide_answer_draft(); });
+			tab->set_answer_draft_dispatch([this](const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone) { draft_agent_answer(aKey, aText, std::move(aDone)); });
+			tab->set_draft_navigation([this](const std::string& aKey) { go_to_agent_answer_draft(aKey); });
 			// Owner look v004. Go to note; the files and lines a question or an
 			// answer names open in Review; the suggestions' toggle is kept.
 			tab->set_note_navigation([this](const std::uint64_t aNote) {
@@ -23861,10 +23993,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::uint64_t PullRequest = 0U;
 			/// A private note, which is sent as a Private history copy.
 			std::optional<application::local_note_id> Note;
+			/// A review thread the viewer may reply to.
+			bool Replies = false;
 		};
 		std::optional<asked_conversation> AskedConversation;
-		std::stop_source                  AgentSetupWorkspaceStop;
-		std::uint64_t                     AgentSetupWorkspaceGeneration = 0U;
+		/// [[BPR-1773]]. Where each sent question's answer would be drafted,
+		/// by the key its turn holds, as core placed it when it was sent.
+		struct agent_answer_draft
+		{
+			core::answer_draft_place Place = core::answer_draft_place::pull_request_comment;
+			std::string              Thread;
+			std::string              Path;
+			core::diff_side          Side  = core::diff_side::right;
+			std::uint32_t            First = 0U;
+			std::uint32_t            Last  = 0U;
+		};
+		std::map<std::string, agent_answer_draft> AgentAnswerDrafts;
+		std::uint64_t                             NextAgentAnswerDraft = 0U;
+		std::stop_source                          AgentSetupWorkspaceStop;
+		std::uint64_t                             AgentSetupWorkspaceGeneration = 0U;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

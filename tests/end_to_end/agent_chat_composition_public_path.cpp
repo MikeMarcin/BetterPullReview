@@ -43,6 +43,7 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
+#include "bpr/qt/review_draft_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
@@ -55,6 +56,7 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QPushButton>
 #include <QSpinBox>
 #include <QTabBar>
 #include <QTemporaryDir>
@@ -389,7 +391,10 @@ auto main(int argc, char** argv) -> int
 		auto* const cards  = window.conversation_panel()->cards();
 		auto        thread = std::string{ };
 		for (const auto& card : cards->cards()) {
-			if (card.Kind == QStringLiteral("Inline thread") && !card.Path.isEmpty() && !card.Posts.empty() && !card.Draft) {
+			// A thread on a current line that takes a reply on that line, so
+			// Draft comment below writes into its reply.
+			if (card.Kind == QStringLiteral("Inline thread") && !card.Path.isEmpty() && !card.Posts.empty() && !card.Draft && !card.ReplyOnThread && !card.AnchorUnavailable
+				&& card.ReplyRefusal == core::thread_reply_refusal::none) {
 				thread    = card.Id;
 				askedPath = card.Path.toStdString();
 				break;
@@ -582,9 +587,38 @@ auto main(int argc, char** argv) -> int
 		const auto  about   = afterSend.LastTurn.has_value() && afterSend.LastTurn->EntryPoint == core::agent_entry_point::ask_about_conversation;
 		const auto  thread  = carried.has_value() && carried->Subject == core::conversation_subject::review_thread && carried->Path == askedPath
 			&& !carried->Comments.empty() && core::valid_conversation(*carried);
-		const auto passed = about && thread && positive && noGithubMutation && oneLaunchPath;
+		// Owner look 2026-10-27. The turn's asked line names the thread, and
+		// its answer's Draft comment (no Use as reply) writes the answer into
+		// that thread's reply through the shipped composition, becomes Go to
+		// draft, and publishes nothing.
+		auto* const tab   = window.agent_tab();
+		const auto  last  = tab->turn_count() == 0U ? 0U : tab->turn_count() - 1U;
+		const auto  asked = tab->turn_count() != 0U && tab->turn_about(last).startsWith(QString::fromStdString(askedPath))
+			&& tab->turn_asked(last).startsWith(QStringLiteral("About ") + QString::fromStdString(askedPath));
+		auto* const draftButton  = tab->turn_count() != 0U ? tab->turn_draft_button(last) : nullptr;
+		const auto  noUseAsReply = tab->findChildren<QPushButton*>(QStringLiteral("agentTurnUseAsReply")).empty();
+		const auto  answerText   = tab->turn_count() != 0U ? tab->turn_answer(last) : QString{ };
+		auto        drafted      = false;
+		if (draftButton != nullptr && !draftButton->isHidden() && draftButton->text() == QStringLiteral("Draft comment") && !answerText.isEmpty()) {
+			draftButton->click();
+			auto terms = wait_terms{ };
+			drafted    = wait_until_reporting(terms, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				const auto& shown = window.review_editor()->shown_draft();
+				return aTerms.require("reply-open", shown.has_value() && shown->ReplyToThread.has_value())
+					&& aTerms.require("reply-written", window.review_editor()->body_editor()->toPlainText().contains(answerText))
+					&& aTerms.require("go-to-draft", draftButton->text() == QStringLiteral("Go to draft"));
+			});
+			if (!drafted) {
+				std::cerr << "agent-chat-conversation-draft:" << terms.render() << " button=" << draftButton->text().toStdString() << '\n';
+			}
+		}
+		const auto afterDraft            = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
+		const auto draftPublishedNothing = afterDraft.Submissions == 0U && afterDraft.TargetObservations == 0U;
+		const auto passed                = about && thread && positive && noGithubMutation && oneLaunchPath && asked && noUseAsReply && drafted && draftPublishedNothing;
 		if (!passed) {
-			std::cerr << "agent-chat-conversation-evidence:" << about << ':' << thread << ':' << positive << ':' << noGithubMutation << ':' << oneLaunchPath << '\n';
+			std::cerr << "agent-chat-conversation-evidence:" << about << ':' << thread << ':' << positive << ':' << noGithubMutation << ':' << oneLaunchPath << ':' << asked << ':'
+					  << noUseAsReply << ':' << drafted << ':' << draftPublishedNothing << '\n';
 		}
 		if (!shutdown(*application) || !passed) {
 			return EXIT_FAILURE;

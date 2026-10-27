@@ -421,6 +421,14 @@ int main()
 	auto quoted  = fresh;
 	quoted.Quote = "someone's words";
 	expect(!render_conversation_reply(quoted) && !conversation_reply_can_send(quoted), "a new comment never carries a quote");
+	// [[BPR-1773]]. Draft comment on an agent's answer: the thread asked
+	// about first, then the lines asked on, then the pull request.
+	using bpr::core::answer_draft_place;
+	using bpr::core::answer_draft_place_for;
+	expect(answer_draft_place_for(true, true) == answer_draft_place::thread_reply && answer_draft_place_for(true, false) == answer_draft_place::thread_reply,
+		   "an answer about a review thread is drafted as its reply, lines or not");
+	expect(answer_draft_place_for(false, true) == answer_draft_place::line_comment, "an answer asked on selected lines is drafted on them");
+	expect(answer_draft_place_for(false, false) == answer_draft_place::pull_request_comment, "an answer with no anchor is a new pull request comment, never no draft");
 	test_unknown_reasons();
 	test_unknown_notices();
 	test_ending_lines();

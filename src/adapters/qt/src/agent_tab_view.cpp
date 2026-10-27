@@ -920,6 +920,9 @@ namespace bpr::qt {
 			PendingQuestion = Chat.composer()->toPlainText().trimmed();
 			PendingReview   = false;
 			PendingAbout    = ConversationShown;
+			// [[BPR-1773]]. Where its answer's Draft comment would go is
+			// decided now, while what it was asked on is on screen.
+			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
 		});
 		askRow->addWidget(Ask);
 		fieldCol->addLayout(askRow);
@@ -1135,13 +1138,15 @@ namespace bpr::qt {
 			next.Review   = true;
 			next.Question = tr("Review this pull request");
 		} else {
-			next.Question = *PendingQuestion;
-			next.About    = PendingAbout;
+			next.Question    = *PendingQuestion;
+			next.About       = PendingAbout;
+			next.DraftTarget = PendingDraftTarget;
 			// Sent: the field is ready for the next question.
 			Chat.composer()->clear();
 		}
 		PendingQuestion.reset();
 		PendingAbout.reset();
+		PendingDraftTarget.reset();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
@@ -1170,16 +1175,22 @@ namespace bpr::qt {
 		asked->setObjectName(QStringLiteral("agentTurnQuestion"));
 		auto* const askedColumn = new QVBoxLayout{ asked };
 		askedColumn->setContentsMargins(10, 6, 10, 6);
-		// [[BPR-1773]]. A question about a conversation says which, above it.
+		// [[BPR-1773]], owner look 2026-10-27 ("I don't even understand what
+		// the question I asked was"). A question about a conversation names
+		// it first, in the question's own colour and a heavier weight, so the
+		// bubble reads "About <conversation>: <question>".
 		if (aTurn.About) {
 			auto* const about = new QLabel{ tr("About %1").arg(aTurn.About->Text), asked };
 			about->setObjectName(QStringLiteral("agentTurnAbout"));
 			about->setTextFormat(Qt::PlainText);
 			about->setWordWrap(true);
-			about->setForegroundRole(QPalette::PlaceholderText);
+			auto strong = about->font();
+			strong.setWeight(QFont::DemiBold);
+			about->setFont(strong);
 			about->setToolTip(aTurn.About->Detail);
 			askedColumn->addWidget(about);
 		}
+		asked->setAccessibleName(aTurn.About ? tr("About %1: %2").arg(aTurn.About->Text, aTurn.Question) : aTurn.Question);
 		auto* const question = new QLabel{ asked };
 		question->setObjectName(QStringLiteral("agentTurnQuestionText"));
 		question->setWordWrap(true);
@@ -1238,15 +1249,19 @@ namespace bpr::qt {
 		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a private note. Nothing is published."));
 		save->hide();
 		footerRow->addWidget(save);
-		// [[BPR-1773]]. Use as reply: the answer, or the part selected,
-		// goes to the reply field of the conversation it was asked about.
-		// Nothing is published.
-		auto* const useReply = new quiet_push_button{ tr("Use as reply"), reply };
-		useReply->setObjectName(QStringLiteral("agentTurnUseAsReply"));
-		useReply->setFlat(true);
-		useReply->setToolTip(tr("Put this reply, or the part of it you selected, in the conversation's reply field. Nothing is published until you publish it."));
-		useReply->hide();
-		footerRow->addWidget(useReply);
+		// [[BPR-1773]], owner look 2026-10-27 ("let you turn anything into a
+		// note or draft comment directly"). Draft comment, beside Save as
+		// note and in its style: the whole reply, or the part selected, as a
+		// private draft where the host decided when it was asked (the
+		// conversation's reply, the lines asked on, or the pull request).
+		// Nothing is published. Once drafted it goes to the draft.
+		auto* const draft = new quiet_push_button{ tr("Draft comment"), reply };
+		draft->setObjectName(QStringLiteral("agentTurnDraftComment"));
+		draft->setFlat(true);
+		draft->setToolTip(aTurn.DraftTarget && !aTurn.DraftTarget->Tip.isEmpty() ? aTurn.DraftTarget->Tip
+																				 : tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+		draft->hide();
+		footerRow->addWidget(draft);
 		footerRow->addStretch(1);
 		auto* const answeredTime = new QLabel{ reply };
 		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
@@ -1264,11 +1279,23 @@ namespace bpr::qt {
 		aTurn.Copy         = copy;
 		aTurn.AskedTime    = askedTime;
 		aTurn.AnsweredTime = answeredTime;
-		aTurn.Reply        = useReply;
-		connect(useReply, &QPushButton::clicked, this, [this, useReply] {
-			for (const auto& kept : Turns) {
-				if (kept.Reply != useReply || !kept.About || !ReplyDispatch) {
+		aTurn.Draft        = draft;
+		aTurn.Asked        = asked;
+		connect(draft, &QPushButton::clicked, this, [this, draft] {
+			for (auto& kept : Turns) {
+				if (kept.Draft != draft) {
 					continue;
+				}
+				const auto key = kept.DraftTarget ? kept.DraftTarget->Key : std::string{ };
+				// As Go to note does: once drafted, the button opens the draft.
+				if (kept.Drafted) {
+					if (DraftNavigate) {
+						DraftNavigate(key);
+					}
+					return;
+				}
+				if (!DraftDispatch) {
+					return;
 				}
 				auto       text     = kept.AnswerText;
 				const auto selected = kept.Answer != nullptr ? kept.Answer->rendered_view()->textCursor().selectedText() : QString{ };
@@ -1276,7 +1303,26 @@ namespace bpr::qt {
 					text = selected;
 					text.replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
 				}
-				ReplyDispatch(kept.About->Key, text);
+				draft->setEnabled(false);
+				DraftDispatch(key, text, [this, guarded = QPointer{ draft }](const bool aDrafted, const QString& aWhy) {
+					if (guarded == nullptr) {
+						return;
+					}
+					if (!aDrafted) {
+						guarded->setText(tr("Not drafted: %1").arg(aWhy));
+						guarded->setEnabled(true);
+						return;
+					}
+					for (auto& turn : Turns) {
+						if (turn.Draft == guarded) {
+							turn.Drafted = true;
+						}
+					}
+					const auto navigable = static_cast<bool>(DraftNavigate);
+					guarded->setText(navigable ? tr("Go to draft") : tr("Drafted"));
+					guarded->setToolTip(navigable ? tr("Open the draft this reply was written into") : QString{ });
+					guarded->setEnabled(navigable);
+				});
 				return;
 			}
 		});
@@ -1724,8 +1770,8 @@ namespace bpr::qt {
 		if (current.SaveNote != nullptr) {
 			current.SaveNote->setVisible(succeeded && !current.AnswerText.isEmpty());
 		}
-		if (current.Reply != nullptr) {
-			current.Reply->setVisible(succeeded && !current.AnswerText.isEmpty() && current.About && current.About->Replies);
+		if (current.Draft != nullptr) {
+			current.Draft->setVisible(succeeded && !current.AnswerText.isEmpty());
 		}
 		ClearSession->setVisible(true);
 		if (ThreadObserver) {
@@ -1747,8 +1793,8 @@ namespace bpr::qt {
 		if (aTurn.SaveNote != nullptr) {
 			aTurn.SaveNote->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty());
 		}
-		if (aTurn.Reply != nullptr) {
-			aTurn.Reply->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty() && aTurn.About && aTurn.About->Replies);
+		if (aTurn.Draft != nullptr) {
+			aTurn.Draft->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty());
 		}
 		if (aTurn.AnsweredTime != nullptr) {
 			show_time(*aTurn.AnsweredTime, aTurn.AnsweredAt);
@@ -1986,12 +2032,21 @@ namespace bpr::qt {
 		return ConversationShown ? ConversationShown->Text : QString{ };
 	}
 
-	void agent_tab_view::set_reply_dispatch(agent_reply_dispatch aDispatch)
-	{
-		ReplyDispatch = std::move(aDispatch);
-	}
+	void agent_tab_view::set_answer_draft_target(std::function<agent_answer_draft_target()> aTarget) { DraftTargetSource = std::move(aTarget); }
 
-	auto agent_tab_view::turn_reply_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Reply.data() : nullptr; }
+	void agent_tab_view::set_answer_draft_dispatch(agent_answer_draft_dispatch aDispatch) { DraftDispatch = std::move(aDispatch); }
+
+	void agent_tab_view::set_draft_navigation(agent_answer_draft_navigation aNavigate) { DraftNavigate = std::move(aNavigate); }
+
+	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
+
+	auto agent_tab_view::turn_asked(const std::size_t aTurn) const -> QString
+	{
+		if (aTurn >= Turns.size()) {
+			return { };
+		}
+		return Turns[aTurn].Asked != nullptr ? Turns[aTurn].Asked->accessibleName() : Turns[aTurn].Question;
+	}
 
 	auto agent_tab_view::turn_about(const std::size_t aTurn) const -> QString
 	{

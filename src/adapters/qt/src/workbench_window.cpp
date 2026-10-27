@@ -9788,12 +9788,43 @@ namespace bpr::qt {
 		return std::pair{ aFirst, std::move(*lines) };
 	}
 
-	void workbench_window::use_as_reply(const std::string& aIdentity, const QString& aText)
+	void workbench_window::draft_thread_reply(const std::string& aIdentity, const QString& aText, std::function<void(bool)> aDone)
 	{
+		if (PendingReplyDone) {
+			// An earlier one still waiting is replaced: it was not written.
+			std::exchange(PendingReplyDone, { })(false);
+		}
 		PendingReplyText  = std::pair{ aIdentity, aText };
+		PendingReplyDone  = std::move(aDone);
 		PendingReplyTries = 50;
 		reply_to_thread(aIdentity, true);
 		write_pending_reply();
+	}
+
+	void workbench_window::open_thread_reply(const std::string& aIdentity) { reply_to_thread(aIdentity, true); }
+
+	auto workbench_window::draft_pull_request_comment(const QString& aText) -> bool
+	{
+		open_overview_tab(overview_drawer_tab::comments);
+		auto* const composer = ConversationPanel != nullptr ? ConversationPanel->new_comment_editor() : nullptr;
+		if (!showing_overview() || composer == nullptr || ConversationPanel->new_comment()->isHidden() || composer->isReadOnly()) {
+			return false;
+		}
+		// Written as if typed: the composer opens and keeps its own draft.
+		const auto existing = composer->toPlainText();
+		composer->setPlainText(existing.trimmed().isEmpty() ? aText : existing + QStringLiteral("\n\n") + aText);
+		composer->moveCursor(QTextCursor::End);
+		composer->setFocus(Qt::OtherFocusReason);
+		return true;
+	}
+
+	void workbench_window::open_pull_request_comment()
+	{
+		open_overview_tab(overview_drawer_tab::comments);
+		if (auto* const composer = ConversationPanel != nullptr ? ConversationPanel->new_comment_editor() : nullptr; composer != nullptr && showing_overview()) {
+			composer->moveCursor(QTextCursor::End);
+			composer->setFocus(Qt::OtherFocusReason);
+		}
 	}
 
 	void workbench_window::write_pending_reply()
@@ -9814,12 +9845,18 @@ namespace bpr::qt {
 			body->moveCursor(QTextCursor::End);
 			body->setFocus(Qt::OtherFocusReason);
 			PendingReplyText.reset();
+			if (PendingReplyDone) {
+				std::exchange(PendingReplyDone, { })(true);
+			}
 			return;
 		}
 		if (--PendingReplyTries <= 0) {
 			QGuiApplication::clipboard()->setText(PendingReplyText->second);
 			statusBar()->showMessage(tr("The reply could not be opened here. The agent's words are on the clipboard."), 8000);
 			PendingReplyText.reset();
+			if (PendingReplyDone) {
+				std::exchange(PendingReplyDone, { })(false);
+			}
 			return;
 		}
 		QTimer::singleShot(100, this, [this] { write_pending_reply(); });

@@ -135,21 +135,35 @@ namespace bpr::qt {
 	/// as the question field's chip shows it until it is removed.
 	struct agent_conversation_chip
 	{
-		/// The composition's own name for the conversation; said back with
-		/// Use as reply.
+		/// The composition's own name for the conversation.
 		std::string Key;
 		/// What the chip reads ("src/cache.cpp line 42 · 3 comments").
 		QString Text;
 		/// What the agent gets, as its tooltip says.
 		QString Detail;
-		/// The conversation takes replies: its answers offer Use as reply.
+		/// The conversation takes replies (a review thread, not a note): its
+		/// prompts offer to draft one.
 		bool Replies = false;
 
 		auto operator==(const agent_conversation_chip&) const -> bool = default;
 	};
-	/// \brief Use as reply: the conversation a turn was about, and the
-	/// answer's text (the whole of it, or the part selected).
-	using agent_reply_dispatch = std::function<void(const std::string& aKey, const QString& aText)>;
+	/// \brief [[BPR-1773]], owner look 2026-10-27. Where Draft comment on
+	/// an answer writes it, as the host decided when the question was sent:
+	/// its own key for the place, and what the action's tooltip says.
+	struct agent_answer_draft_target
+	{
+		std::string Key;
+		QString     Tip;
+
+		auto operator==(const agent_answer_draft_target&) const -> bool = default;
+	};
+	/// \brief Draft comment on an answer: the place's key (empty for a turn
+	/// whose place was not decided, which the host drafts on the pull
+	/// request), the text (the whole answer, or the part selected), and
+	/// where the host says how it went. Go to draft opens the key's draft.
+	using agent_answer_draft_done       = std::function<void(bool aDrafted, const QString& aWhy)>;
+	using agent_answer_draft_dispatch   = std::function<void(const std::string& aKey, const QString& aText, agent_answer_draft_done aDone)>;
+	using agent_answer_draft_navigation = std::function<void(const std::string& aKey)>;
 
 	/// \brief Opens a private note the tab saved, in the Notes area.
 	using agent_note_navigation = std::function<void(std::uint64_t aNote)>;
@@ -336,12 +350,20 @@ namespace bpr::qt {
 		[[nodiscard]] auto conversation_chip() const noexcept -> QWidget* { return ConversationChip; }
 		[[nodiscard]] auto conversation_chip_text() const -> QString;
 		[[nodiscard]] auto conversation_chip_close() const noexcept -> QToolButton* { return ConversationClose; }
-		/// \brief [[BPR-1773]]. Where Use as reply goes.
-		void               set_reply_dispatch(agent_reply_dispatch aDispatch);
-		[[nodiscard]] auto turn_reply_button(std::size_t aTurn) const -> QPushButton*;
-		/// \brief What a turn was asked about, as its line above the question
-		/// says; empty for a turn about the pull request.
+		/// \brief [[BPR-1773]], owner look 2026-10-27. Draft comment on every
+		/// answer, beside Save as note: where a sent question's answer would
+		/// be drafted (asked when it is sent), where a press goes, and where
+		/// Go to draft goes once it is drafted.
+		void               set_answer_draft_target(std::function<agent_answer_draft_target()> aTarget);
+		void               set_answer_draft_dispatch(agent_answer_draft_dispatch aDispatch);
+		void               set_draft_navigation(agent_answer_draft_navigation aNavigate);
+		[[nodiscard]] auto turn_draft_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief What a turn was asked about, as the line above its question
+		/// names it; empty for a turn about the pull request.
 		[[nodiscard]] auto turn_about(std::size_t aTurn) const -> QString;
+		/// \brief The turn's asked line as read: "About <conversation>:
+		/// <question>" for a turn about a conversation, else the question.
+		[[nodiscard]] auto turn_asked(std::size_t aTurn) const -> QString;
 		/// \brief Save as note on a plain answer.
 		void set_answer_note_dispatch(agent_answer_note_dispatch aDispatch);
 		/// \brief Owner look v004 ("After save as note it should turn into Go
@@ -477,7 +499,11 @@ namespace bpr::qt {
 			QString ContextFile;
 			/// [[BPR-1773]]. The conversation it was asked about, if any.
 			std::optional<agent_conversation_chip> About;
-			QPointer<QPushButton>                  Reply;
+			/// Where Draft comment writes the answer; none: the host decides.
+			std::optional<agent_answer_draft_target> DraftTarget;
+			QPointer<QPushButton>                    Draft;
+			bool                                     Drafted = false;
+			QPointer<QWidget>                        Asked;
 		};
 		std::vector<turn> Turns;
 		/// The question and the answer as shown, their references links.
@@ -518,8 +544,9 @@ namespace bpr::qt {
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
 		/// [[BPR-1773]]. The conversation chip shown when it was sent.
-		std::optional<agent_conversation_chip> PendingAbout;
-		int                                    LastPhase = 0;
+		std::optional<agent_conversation_chip>   PendingAbout;
+		std::optional<agent_answer_draft_target> PendingDraftTarget;
+		int                                      LastPhase = 0;
 		/// How many times findings were presented, and the count when the
 		/// running turn began: a turn names only the findings it brought.
 		std::uint64_t FindingsPresented = 0U;
@@ -539,14 +566,16 @@ namespace bpr::qt {
 		QToolButton* Context    = nullptr;
 		QLabel*      Chips      = nullptr;
 		/// [[BPR-1773]]. The conversation chip and what it is now.
-		QWidget*                               ConversationChip  = nullptr;
-		QLabel*                                ConversationText  = nullptr;
-		QToolButton*                           ConversationClose = nullptr;
-		std::optional<agent_conversation_chip> ConversationShown;
-		std::function<void()>                  ConversationDismiss;
-		agent_reply_dispatch                   ReplyDispatch;
-		QLabel*                                Log      = nullptr;
-		bool                                   LogShown = false;
+		QWidget*                                   ConversationChip  = nullptr;
+		QLabel*                                    ConversationText  = nullptr;
+		QToolButton*                               ConversationClose = nullptr;
+		std::optional<agent_conversation_chip>     ConversationShown;
+		std::function<void()>                      ConversationDismiss;
+		std::function<agent_answer_draft_target()> DraftTargetSource;
+		agent_answer_draft_dispatch                DraftDispatch;
+		agent_answer_draft_navigation              DraftNavigate;
+		QLabel*                                    Log      = nullptr;
+		bool                                       LogShown = false;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
 		/// The panels may go first when the window closes.

@@ -12,6 +12,21 @@ namespace bpr::core {
 	/// itself, written on Overview's Comments tab: it answers no post, so it
 	/// has no author or quote and is sent as its text alone.
 	inline constexpr std::string_view new_pull_request_comment = "pull-request:new-comment";
+	/// [[BPR-1773]], owner look 2026-10-27 ("let you turn anything into a
+	/// note or draft comment"). Where Draft comment on an agent's answer
+	/// writes it: the reply of the review thread the question was about; a
+	/// line comment on the lines selected when it was asked; otherwise a new
+	/// comment on the pull request. Never hidden, so every answer can be one.
+	enum class answer_draft_place : unsigned char { thread_reply,
+													line_comment,
+													pull_request_comment };
+	[[nodiscard]] constexpr auto answer_draft_place_for(const bool aAskedAboutThread, const bool aAskedOnLines) noexcept -> answer_draft_place
+	{
+		if (aAskedAboutThread) {
+			return answer_draft_place::thread_reply;
+		}
+		return aAskedOnLines ? answer_draft_place::line_comment : answer_draft_place::pull_request_comment;
+	}
 	/// Private text and the immutable accepted post it answers; no authority.
 	struct conversation_reply_draft
 	{
