@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1059", "BPR-1062", "BPR-1063", "BPR-1066", "BPR-1067"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-17","milestone":"verification-closeout","acceptance":["AC44-12"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Only the owner's Windows device-flow sign-in remains; it waits on the owner, not on an implementer."}}
 parked_on: "human-review"
-acceptance: [{"criterion":"AC44-12","outcome":"pending","revision":"e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b","evidence":{"kind":"command","detail":"Universal bundled CLI and full package/security/source mechanics pass; final and relocated headless/profile/refusal probes and skill smoke pass. Native sign-in, actual release Developer ID/notarization/Gatekeeper, legal/vulnerability and remaining platform obligations are pending; see RFC-BPR-0044-0046 ledger and external fresh session 090216984c73ddb7006b51c64ba42120."}}]
+acceptance: [{"criterion":"AC44-12","outcome":"pending","revision":"e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b","evidence":{"kind":"observation","detail":"Clean v003 package/source/security and final/relocated public-path mechanics pass. Human ACCEPT in session 090216984c73ddb7006b51c64ba42120 event 5, consumed through handback 6, covers only protected native-auth candidate 223098b11 (fingerprint e50bcb757d796f1b44fc2fd101c001dba43595da9055b9da69141c3954192a8e): native sign-in, following-process BPR-Test read and cleanup pass. Its mimalloc differs from v003; no verdict transfers. Actual release trust, remaining platform/native safety and Windows owner sign-in remain pending. See execution ledger and bundled-cli-r1 handoff."}}]
 ---
 
 # BPR-1068: Qualify bundled macOS CLI and native headless safety
@@ -421,15 +421,43 @@ historical platform observations above retain their original meaning.
   was no push and no observed running-agent reload claim.
 
 Pending: Developer ID/hardened-runtime/timestamp, notarization/stapling and
-Gatekeeper for actual release bytes; native authentication from a bundled
-candidate; existing Windows device-flow and other platform/native safety,
+Gatekeeper for actual release bytes; existing Windows device-flow and other platform/native safety,
 trust/legal/vulnerability and BPR-1069 acceptance. No release is published.
 
 Attended review identity: `090216984c73ddb7006b51c64ba42120`,
-state `/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state`, consumed cursor 3; wizard session
+state `/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state`, consumed cursor 6; wizard session
 `e65bdc93-cf11-4c25-951d-2798edb7148f` in sibling `wizard-state`.
 The protected auth candidate remains the earlier local source `223098b11`,
 with the same CLI bytes but its own mimalloc binary; it is not relabelled as
-the later clean package. No auth or review verdict exists yet. Capability URLs
+the later clean package. Its exact native-auth criterion was accepted at handback
+(below); no verdict transfers to clean v003. Capability URLs
 are retained only in external state. Full evidence and the clean immutable
 package live in `/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6`.
+
+### Bundled native-auth handback — 2026-10-27
+
+Session `090216984c73ddb7006b51c64ba42120` records human **Accept** at event 5,
+decision `2a18b6a0-4783-47cd-b6cb-9b63d0635ade`, followed by handback at event 6.
+Event 4 contains empty feedback. The accepted candidate is
+`BPR-1068-bundled-macos-native-auth-v001`, revision
+`223098b11131921ef9f9b2c14b5f2e5b1fef5f1f-bpr-a8a855c7ee8e-v001`, fingerprint
+`e50bcb757d796f1b44fc2fd101c001dba43595da9055b9da69141c3954192a8e`.
+Its criterion is native device sign-in, a following-process read of BPR-Test#1,
+and restoration/removal of the temporary Keychain/profile.
+
+The secret-free external `signin-result.json` reports `pass: true`, native
+sign-in exit 0, following-process `open` exit 0/status `ok`, and successful
+cleanup. Its CLI hash matches the candidate above; `run-signin.py --check`
+passes and no temporary sign-in directories remain. The wizard has no saved
+acknowledgement; the result and explicit attended Accept establish this scoped
+acceptance. No wizard response is inferred.
+
+The accepted package and clean v003 share the CLI hash but have different
+`libmimalloc.3.dylib` bytes. This acceptance applies only to the protected
+earlier package. Exact runtime hashes, result digest and consumed cursor 6 are
+in the [handoff](../../verification/RFC-BPR-0044-bundled-cli-r1-handoff.json).
+AC44-12 and this card remain pending for their remaining obligations.
+
+Owner preference, forwarded with this handback: use `gh` CLI authentication
+most of the time and native authentication rarely. This guides ordinary usage;
+it waives no native, platform or release acceptance requirement.
