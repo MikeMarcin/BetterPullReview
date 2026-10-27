@@ -32,13 +32,16 @@ fixes those classes in the heuristic. It may not take
   `NAMESPACE_BEGIN`-style macros, so that the contract twin passes and T's
   false negatives fall below the baseline's.
 
-**What is still owed.** Windows x64
-([BPR-1443](../issues/20-ready/BPR-1443-measure-the-parser-evaluation-on-windows.md))
+**Windows and Linux are not measured.** Windows x64
+([BPR-1443](../issues/60-done/BPR-1443-measure-the-parser-evaluation-on-windows.md))
 and Linux x64
-([BPR-1444](../issues/20-ready/BPR-1444-measure-the-parser-evaluation-on-linux.md))
-have not been measured. AC03 requires their numbers, but they cannot change
-the outcome: a gate that fails on one platform rejects T whatever the others
-show. Nothing below claims a Windows or Linux result.
+([BPR-1444](../issues/60-done/BPR-1444-measure-the-parser-evaluation-on-linux.md))
+were not run. Their numbers cannot change the outcome, because a gate that
+fails on one platform rejects T whatever the others show. The owner's
+[2026-10-26 amendment](../rfcs/assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md)
+removes them from AC03, AC04 and AC06. Nothing below claims a Windows or
+Linux result. A re-run under the conditions above measures all three
+platforms.
 
 ## Gates
 

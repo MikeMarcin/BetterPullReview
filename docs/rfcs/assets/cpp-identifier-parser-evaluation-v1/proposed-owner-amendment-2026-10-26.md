@@ -1,8 +1,10 @@
 # RFC-BPR-0081 proposed owner amendment: macOS-only measurements, 2026-10-26
 
-**Status: proposed, not adopted.** Nothing in the live RFC, its cards or its
-plan changes until the owner answers Accept. On Reject, BPR-1443 and BPR-1444
-stay Ready under the original AC03, AC04 and AC06.
+**Status: adopted 2026-10-26.** The owner answered **Accept** in chat on
+2026-10-26, through a one-question Accept/Reject prompt. The live sources
+listed below were changed in the same commit that recorded the answer. The
+live RFC carries the adopted criterion wording, marked *Amended 2026-10-26.*;
+the "After" text below states its substance.
 
 The owner asked, in chat on 2026-10-26: "Draft owner amendments for
 RFC-BPR-0081 and RFC-BPR-0083 that drop the outcome-fixed Windows/Linux station

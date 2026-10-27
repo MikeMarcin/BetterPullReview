@@ -8,13 +8,27 @@ metadata: {"rfc_base_sha":"530d92eaff1578413c0e669f476e740387441152","mandate_re
 
 # Evaluate a mature parser for C++ identifier refinement
 
+## Owner amendment — 2026-10-26
+
+The owner accepted, in chat on 2026-10-26, that this evaluation of
+tree-sitter-cpp (T) is complete on macOS alone. T fails the Contract,
+Bounded-work and Memory gates there at both pins, and any failed gate
+rejects it, so no Windows or Linux result can change the outcome. AC03, AC04
+and AC06 lose their Windows x64 and Linux x64 halves, marked below.
+BPR-1443 and BPR-1444 close without running. A later re-run under the
+report's re-run conditions measures all three platforms again. The
+[amendment record](assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md)
+keeps the text before and after and the evidence for the shipped classifier
+on Windows and Linux.
+
 ## Owner placement amendment — 2026-10-18
 
 Mandate `core-boundaries-r1`, [[BPR-1619]] moves the existing pure identifier
 refinement into core without redesigning it or admitting a new parser library.
 The optional evaluation follows its new core symbol and source location; the
 recorded macOS evaluation remains historical. Windows/Linux measurements on
-BPR-1443/BPR-1444 and closeout BPR-1445 remain owed under the original plan.
+BPR-1443/BPR-1444 and closeout BPR-1445 remain owed under the original plan
+(superseded for BPR-1443/BPR-1444 by the 2026-10-26 amendment above).
 No syntax-version change or new semantic acceptance is claimed.
 
 ## Execution status
@@ -29,11 +43,11 @@ retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labell
 (cancellation test and syntax fuzz target),
 [BPR-1442](../issues/60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md)
 (harness, pins and macOS measurements),
-[BPR-1443](../issues/20-ready/BPR-1443-measure-the-parser-evaluation-on-windows.md)
-(Windows x64),
-[BPR-1444](../issues/20-ready/BPR-1444-measure-the-parser-evaluation-on-linux.md)
-(Linux x64 and the Linux fuzz campaign) and
-[BPR-1445](../issues/10-backlog/BPR-1445-close-rfc-0081.md) (closeout).
+[BPR-1443](../issues/60-done/BPR-1443-measure-the-parser-evaluation-on-windows.md)
+(Windows x64, not run by amendment),
+[BPR-1444](../issues/60-done/BPR-1444-measure-the-parser-evaluation-on-linux.md)
+(Linux x64 and the Linux fuzz campaign, not run by amendment) and
+[BPR-1445](../issues/20-ready/BPR-1445-close-rfc-0081.md) (closeout).
 **Outcome on macOS (2026-10-13): extend.** Candidate T fails the Contract,
 Bounded-work and Memory gates at both pins, so it is rejected. The Contract
 failure comes from the grammar: tree-sitter-cpp accepts no attribute on an
@@ -45,7 +59,8 @@ The [report](../verification/RFC-BPR-0081.md) records every gate, its
 measurements and the conditions for running the evaluation again. Q1 (may an
 untagged tree-sitter-cpp commit be pinned?) is still unanswered, and moot,
 because `master` fails the same gates. The Windows and Linux measurements
-(AC03) are still owed to BPR-1443 and BPR-1444; they cannot change the outcome.
+are not run: they cannot change the outcome, and the 2026-10-26 owner
+amendment removes them from AC03, AC04 and AC06.
 
 ## Problem and grounded current behavior
 
@@ -450,20 +465,24 @@ attended-review session.
   sources are named by digest. For every run, the report gives false positives
   and false negatives per category, and marks each of H1–H8 as confirmed or
   refuted on the baseline and on T.
-- **AC03:** The macOS, Windows and Linux measurements cover every size class and
-  every item under "Measurements", and they measure the baseline in the same
-  runs.
-- **AC04:** A test stops the refinement partway through and observes
+- **AC03:** *Amended 2026-10-26.* The macOS measurements cover every size
+  class and every item under "Measurements", and they measure the baseline in
+  the same runs. Windows x64 and Linux x64 are not measured for this
+  evaluation.
+- **AC04:** *Amended 2026-10-26.* A test stops the refinement partway through and observes
   `cancelled` with no spans, and the syntax fuzz target runs in the fuzz build.
   Both remain after the evaluation. The report gives sanitizer, fuzz,
-  deep-nesting and 8 MiB results for the baseline and for T.
+  deep-nesting and 8 MiB results for the baseline and for T; the macOS
+  4 CPU-hour campaigns satisfy the fuzz results, and the Linux campaign is not
+  run.
 - **AC05:** The recorded outcome (adopt, extend, keep, or eligible pending Q1)
   follows mechanically from "Decision rules" and states when to run the
   evaluation again. Any deviation is recorded as an owner decision.
-- **AC06:** The report records the licence of each shipped file (runtime,
+- **AC06:** *Amended 2026-10-26.* The report records the licence of each shipped file (runtime,
   generated parser and scanner) and the notice, SPDX and corresponding-source
   changes adoption would need. It also records the archive digests, the size
-  added per slice and the build cost.
+  added per macOS architecture slice and the build cost; Windows and Linux
+  sizes are not measured.
 - **AC07:** On the shipping configuration, the evaluation work leaves spans
   byte-identical over the corpus compared with the revision before it, and
   `core-only` and both architecture-boundary checks pass.
