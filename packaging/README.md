@@ -1,7 +1,7 @@
 # Packaging
 
 This root owns distribution metadata and platform packaging. RFC-BPR-0014 M6
-adds tests-disabled Windows per-user x64 MSI and baseline Linux DEB/RPM
+adds tests-disabled Windows per-machine x64 MSI (Program Files) and baseline Linux DEB/RPM
 definitions, and extends the existing universal macOS release path with exact
 SBOM, notices and corresponding source. See the
 [packaging guide for maintainers](../docs/development/release-packaging-maintainers.md).
