@@ -175,10 +175,7 @@ namespace bpr::application {
 			}
 		}
 		if (aRecord.Plan.Description && aRecord.DescriptionDone) {
-			auto body = aRecord.Plan.Description->Desired;
-			if (aRecord.Plan.Description->AppendIndexLink) {
-				body += "\n\n[Review tour](" + result.Remote->WebUrl + ")";
-			}
+			const auto body = staged_description_body(*aRecord.Plan.Description, result.Remote->WebUrl);
 			core::retain_tour_brief_baselines(result, body, aRecord.Plan.Submission.LiveBinding->Target.PullRequestNodeId);
 		} else if ((!result.ProblemBaseline && !result.SolutionBaseline) || (result.ProblemBaseline && result.ProblemBaseline->RemoteEntity == result.Remote->Entity)) {
 			core::retain_tour_brief_baselines(result, result.IndexBaseline->Raw, result.Remote->Entity);

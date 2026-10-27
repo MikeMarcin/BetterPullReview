@@ -18,12 +18,20 @@ namespace bpr::application {
 		}
 		auto description_body(const staged_publication_record& aRecord) -> std::string
 		{
-			auto result = aRecord.Plan.Description->Desired;
-			if (aRecord.Plan.Description->AppendIndexLink) {
-				result += "\n\n[Review tour](" + (aRecord.Index ? aRecord.Index->WebUrl : aRecord.Review->WebUrl) + ")";
-			}
-			return result;
+			return staged_description_body(*aRecord.Plan.Description, aRecord.Index ? aRecord.Index->WebUrl : aRecord.Review->WebUrl);
 		}
+	}
+	auto staged_description_body(const staged_description_edit& aEdit, const std::string_view aTourLink) -> std::string
+	{
+		if (!aEdit.AppendIndexLink) {
+			return aEdit.Desired;
+		}
+		const auto newline = aEdit.Desired.find("\r\n") == std::string::npos ? std::string_view{ "\n" } : std::string_view{ "\r\n" };
+		auto       result  = "[Review tour](" + std::string{ aTourLink } + ")";
+		result += newline;
+		result += newline;
+		result += aEdit.Desired;
+		return result;
 	}
 	auto valid(const staged_review_plan& aPlan) -> bool
 	{

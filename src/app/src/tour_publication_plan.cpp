@@ -81,7 +81,7 @@ namespace bpr::app {
 		for (const auto& stop : aPlan.Stops) {
 			result += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
 		}
-		result += aPlan.Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + aPlan.Description->Desired + (aPlan.Description->AppendIndexLink ? "\n\nThe returned tour index URL will be appended." : "") : "\n\nThe PR description will not be edited.";
+		result += aPlan.Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + aPlan.Description->Desired + (aPlan.Description->AppendIndexLink ? "\n\nThe returned tour link will be placed at the top." : "") : "\n\nThe PR description will not be edited.";
 		if (aPlan.Update) {
 			result += "\n\n### Desired route (original discussion identities retained)";
 			for (const auto& stop : aPlan.Update->Stops) {
