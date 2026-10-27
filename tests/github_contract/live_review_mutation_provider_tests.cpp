@@ -584,6 +584,10 @@ namespace {
 		case review_mutation_operation::remove_reaction:                  return "remove_reaction";
 		case review_mutation_operation::observe_pull_request_description: return "observe_pull_request_description";
 		case review_mutation_operation::update_pull_request_description:  return "update_pull_request_description";
+		case review_mutation_operation::observe_comment_for_edit:         return "observe_comment_for_edit";
+		case review_mutation_operation::edit_review_comment:              return "edit_review_comment";
+		case review_mutation_operation::edit_issue_comment:               return "edit_issue_comment";
+		case review_mutation_operation::edit_review_body:                 return "edit_review_body";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -1980,6 +1984,16 @@ namespace {
 			return Session->edit_description(aRequest, aStop);
 		}
 
+		auto edit_comment(
+			const application::review_comment_edit_request& aRequest,
+			const std::stop_token                           aStop)
+			-> std::expected<
+				application::review_comment_edit_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->edit_comment(aRequest, aStop);
+		}
+
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
@@ -2410,6 +2424,139 @@ namespace {
 			   "the coordinator observes the target, then the provider observes the description and writes it");
 	}
 
+	/// [[BPR-1775]]. One of the viewer's comments (or another's) as an edit
+	/// answer gives it.
+	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true, const std::string_view aId = "IC_kwDOcomment1") -> std::string
+	{
+		return std::string{ R"({"__typename":")" } + std::string{ aTypename } + R"(","id":")" + std::string{ aId } + R"(","body":")" + std::string{ aBody } + R"(","viewerCanUpdate":)"
+			+ (aCan ? "true" : "false") + R"(,"updatedAt":"2026-10-27T12:00:00Z","pullRequest":{"id":")" + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz")
+			+ R"(","databaseId":4246446933,"number":1,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}}})";
+	}
+
+	[[nodiscard]] auto comment_observation_response(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + comment_json(aTypename, aBody, aCan, aDesignated) + "}}" } };
+	}
+
+	[[nodiscard]] auto issue_comment_write_response(const std::string_view aBody, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"updateIssueComment":{"issueComment":)" + comment_json("IssueComment", aBody, true, aDesignated) + "}}}" } };
+	}
+
+	[[nodiscard]] auto comment_edit_request(const core::comment_edit_kind aKind = core::comment_edit_kind::pull_request_comment, std::string aOriginal = "Before.", std::string aBody = "After.")
+		-> application::review_comment_edit_request
+	{
+		return {
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Kind           = aKind,
+			.Subject        = "IC_kwDOcomment1",
+			.Original       = std::move(aOriginal),
+			.Body           = std::move(aBody),
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+	}
+
+	// [[BPR-1775]]. A published comment is bound to itself, its kind and the
+	// designated pull request and observed before it is written; it is
+	// written exactly once by its kind's update, and a body changed on GitHub
+	// since editing began is never overwritten.
+	void test_a_published_comment_is_observed_then_written_once()
+	{
+		struct kind_row
+		{
+			core::comment_edit_kind   Kind;
+			std::string_view          Typename;
+			std::string_view          Mutation;
+			std::string_view          Payload;
+			review_mutation_operation Operation;
+		};
+		for (const auto& kind : { kind_row{ core::comment_edit_kind::review_comment, "PullRequestReviewComment", "EditReviewComment", "updatePullRequestReviewComment\":{\"pullRequestReviewComment", review_mutation_operation::edit_review_comment },
+								  kind_row{ core::comment_edit_kind::pull_request_comment, "IssueComment", "EditIssueComment", "updateIssueComment\":{\"issueComment", review_mutation_operation::edit_issue_comment },
+								  kind_row{ core::comment_edit_kind::review_body, "PullRequestReview", "EditReviewBody", "updatePullRequestReview\":{\"pullRequestReview", review_mutation_operation::edit_review_body } }) {
+			auto transport = fake_transport{ };
+			transport.answer(graphql("ObserveComment"), comment_observation_response(kind.Typename, "Before."));
+			transport.answer(graphql(std::string{ kind.Mutation }), github_mutation_wire_success{ .Response = { .Status = 200, .Body = "{\"data\":{\"" + std::string{ kind.Payload } + "\":" + comment_json(kind.Typename, "After.") + "}}}" } });
+			auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+			const auto receipt = session.edit_comment(comment_edit_request(kind.Kind));
+			expect(receipt.has_value() && receipt->Body == "After." && receipt->Written && !receipt->ConfirmedByReadBack && !receipt->Conflict
+					   && receipt->UpdatedAt == "2026-10-27T12:00:00Z" && transport.Requests.size() == 2U
+					   && transport.Requests[0].Wire.Operation == review_mutation_operation::observe_comment_for_edit && count_operation(transport, kind.Operation) == 1U,
+				   "each kind is observed, then written once by its own update, and GitHub's answer comes back");
+			auto wrongKind = fake_transport{ };
+			wrongKind.answer(graphql("ObserveComment"), comment_observation_response(kind.Kind == core::comment_edit_kind::pull_request_comment ? "PullRequestReview" : "IssueComment", "Before."));
+			auto       wrongSession = review_mutation_session{ wrongKind, configuration(), mutation_lease(), make_recovery() };
+			const auto refusedKind  = wrongSession.edit_comment(comment_edit_request(kind.Kind));
+			expect(!refusedKind && refusedKind.error() == application::review_mutation_failure::undesignated_target && wrongKind.Requests.size() == 1U,
+				   "a node of another kind is refused before any write");
+		}
+
+		auto changed = fake_transport{ };
+		changed.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Someone else's."));
+		auto       changedSession = review_mutation_session{ changed, configuration(), mutation_lease(), make_recovery() };
+		const auto conflict       = changedSession.edit_comment(comment_edit_request());
+		expect(conflict.has_value() && conflict->Conflict && !conflict->Written && conflict->Body == "Someone else's." && changed.Requests.size() == 1U,
+			   "a comment changed on GitHub since editing began is a conflict: nothing is sent, and the newer body comes back");
+
+		auto already = fake_transport{ };
+		already.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "After."));
+		auto       alreadySession = review_mutation_session{ already, configuration(), mutation_lease(), make_recovery() };
+		const auto kept           = alreadySession.edit_comment(comment_edit_request());
+		expect(kept.has_value() && !kept->Written && !kept->Conflict && already.Requests.size() == 1U, "a body GitHub already has is not written again");
+
+		auto forbidden = fake_transport{ };
+		forbidden.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Before.", false));
+		auto       forbiddenSession = review_mutation_session{ forbidden, configuration(), mutation_lease(), make_recovery() };
+		const auto denied           = forbiddenSession.edit_comment(comment_edit_request());
+		expect(!denied && denied.error() == application::review_mutation_failure::refused_by_server && forbidden.Requests.size() == 1U,
+			   "a comment GitHub says the viewer may not update (another's) is not written");
+
+		auto foreign = fake_transport{ };
+		foreign.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Before.", true, false));
+		auto       foreignSession = review_mutation_session{ foreign, configuration(), mutation_lease(), make_recovery() };
+		const auto outside        = foreignSession.edit_comment(comment_edit_request());
+		expect(!outside && outside.error() == application::review_mutation_failure::undesignated_target && foreign.Requests.size() == 1U,
+			   "a comment in another pull request is refused before any write");
+
+		auto mismatched = fake_transport{ };
+		mismatched.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Before."));
+		mismatched.answer(graphql("EditIssueComment"), issue_comment_write_response("After.", false));
+		auto       mismatchedSession = review_mutation_session{ mismatched, configuration(), mutation_lease(), make_recovery() };
+		const auto other             = mismatchedSession.edit_comment(comment_edit_request());
+		expect(!other && other.error() == application::review_mutation_failure::undesignated_target && mismatched.Requests.size() == 2U,
+			   "a write answer naming another pull request is refused, and nothing is sent twice");
+
+		for (const auto took : { true, false }) {
+			auto ambiguous = fake_transport{ };
+			ambiguous.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Before."));
+			ambiguous.answer(graphql("EditIssueComment"), github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = github_mutation_transmission::indeterminate });
+			ambiguous.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", took ? "After." : "Before."));
+			auto       ambiguousSession = review_mutation_session{ ambiguous, configuration(), mutation_lease(), make_recovery() };
+			const auto result           = ambiguousSession.edit_comment(comment_edit_request());
+			expect(ambiguous.Requests.size() == 3U && count_operation(ambiguous, review_mutation_operation::edit_issue_comment) == 1U,
+				   "an ambiguous comment write is observed once more and never sent twice");
+			expect(took ? (result.has_value() && result->Written && result->ConfirmedByReadBack && result->Body == "After.")
+						: (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "the body read back after a lost answer confirms it" : "a body still the original is named not_confirmed");
+		}
+
+		auto coordinated = fake_transport{ };
+		coordinated.answer(pull_request_get(), target_response());
+		coordinated.answer(viewer_get(), viewer_response());
+		coordinated.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Before."));
+		coordinated.answer(graphql("EditIssueComment"), issue_comment_write_response("After."));
+		auto       coordinatedSession = review_mutation_session{ coordinated, configuration(), mutation_lease(), make_recovery() };
+		auto       port               = session_port{ coordinatedSession };
+		auto       coordinator        = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto viaCoordinator     = coordinator.edit_comment(core::comment_edit_kind::pull_request_comment, "IC_kwDOcomment1", "Before.", "After.");
+		expect(viaCoordinator.has_value() && viaCoordinator->Written && coordinator.statistics().TargetObservations == 1U && coordinator.statistics().Submissions == 1U
+				   && coordinated.Requests.size() == 4U,
+			   "the coordinator observes the target, then the provider observes the comment and writes it");
+	}
+
 	void test_the_coordinator_confirms_the_target_and_counts_a_resolution()
 	{
 		auto transport = fake_transport{ };
@@ -2669,6 +2816,7 @@ namespace {
 		row{ "an_ambiguous_change_is_confirmed_by_reading_it_back", &test_an_ambiguous_change_is_confirmed_by_reading_it_back },
 		row{ "the_coordinator_confirms_the_target_before_a_reaction", &test_the_coordinator_confirms_the_target_before_a_reaction },
 		row{ "a_description_is_observed_then_written_once", &test_a_description_is_observed_then_written_once },
+		row{ "a_published_comment_is_observed_then_written_once", &test_a_published_comment_is_observed_then_written_once },
 
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};

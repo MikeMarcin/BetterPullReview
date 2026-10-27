@@ -77,6 +77,14 @@ namespace bpr::adapters::github {
 		return Session.edit_description(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::edit_comment(
+		const application::review_comment_edit_request& aRequest,
+		const std::stop_token                           aStop)
+		-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure>
+	{
+		return Session.edit_comment(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
 	{
 		return Session.reconcile_publication(aRequest, aStop);
@@ -92,11 +100,13 @@ namespace bpr::adapters::github {
 		// viewed state is still not recorded.
 		// [[BPR-1741]]. Reactions are added and removed the same way.
 		// [[BPR-1774]]. And the pull request's description is replaced.
+		// [[BPR-1775]]. And the viewer's published comments.
 		return {
 			.ResolvesThreads    = true,
 			.RecordsViewedState = false,
 			.Reacts             = true,
 			.EditsDescription   = true,
+			.EditsComments      = true,
 		};
 	}
 

@@ -1,6 +1,7 @@
 #include "../support/insights_observer.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
 
 #include "../../src/application/src/review_mutation_execution_authority.hpp"
@@ -339,7 +340,7 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments };
 		}
 		auto set_reaction(
 			const application::review_reaction_request& aRequest,
@@ -371,6 +372,19 @@ namespace {
 		}
 		bool                                                 EditsDescription = false;
 		std::vector<application::review_description_request> Described;
+		auto                                                 edit_comment(
+			const application::review_comment_edit_request& aRequest,
+			const std::stop_token                           aStop)
+			-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Edited.push_back(aRequest);
+			return application::review_comment_edit_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-27T12:00:00Z", .Written = true };
+		}
+		bool                                                  EditsComments = false;
+		std::vector<application::review_comment_edit_request> Edited;
 
 		auto resolve_thread(
 			const application::review_thread_resolution_request& aRequest,
@@ -417,6 +431,11 @@ namespace {
 			Descriptions.push_back(aTerminal);
 		}
 		std::vector<application::review_description_terminal> Descriptions;
+		void                                                  publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
+		{
+			CommentEdits.push_back(aTerminal);
+		}
+		std::vector<application::review_comment_edit_terminal> CommentEdits;
 
 		std::optional<application::review_mutation_source_observation> Source = [] {
 			const auto request = publication_request();
@@ -1306,6 +1325,74 @@ namespace {
 		expect(observed->Described.size() == 1U, "an edit stopped by shutdown never reaches the provider");
 	}
 
+	/// [[BPR-1775]]. A comment edit is admitted like a description edit: the
+	/// provider must edit comments, the grant must permit the exact edit of
+	/// that comment, a grant issued for anything else permits none, and
+	/// nothing reaches the provider until the effect lane runs.
+	void test_a_comment_edit_needs_the_capability_and_a_permitting_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto request = application::review_comment_edit_publication_request{
+			.Kind = core::comment_edit_kind::review_body, .Subject = "PRR_kwDOreview1", .Original = "Before.\r\n", .Body = "After.\r\n"
+		};
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.CommentEdits.empty() && !projection.CommentEdits.back().Result.has_value() && projection.CommentEdits.back().Result.error() == aFailure, aWhy);
+		};
+		static_cast<void>(host.edit_comment(request));
+		refused(application::review_mutation_failure::unsupported, "without the provider's capability the edit is refused before any effect");
+		observed->EditsComments = true;
+		static_cast<void>(host.edit_comment({ .Kind = request.Kind, .Subject = request.Subject, .Original = "Same.", .Body = "Same." }));
+		refused(application::review_mutation_failure::incompatible_body, "an unchanged body is refused before any effect");
+		static_cast<void>(host.edit_comment({ .Kind = request.Kind, .Subject = request.Subject, .Original = "Before.", .Body = " \n" }));
+		refused(application::review_mutation_failure::incompatible_body, "a blank body is refused before any effect");
+		static_cast<void>(host.edit_comment({ .Kind = request.Kind, .Subject = request.Subject, .Original = "Before.", .Body = std::string(core::maximum_comment_characters + 1U, 'a') }));
+		refused(application::review_mutation_failure::incompatible_body, "a body longer than GitHub keeps is refused before any effect");
+		static_cast<void>(host.edit_comment({ .Kind = request.Kind, .Subject = "", .Original = "Before.", .Body = "After." }));
+		refused(application::review_mutation_failure::incompatible_body, "a nameless comment is refused before any effect");
+		static_cast<void>(host.edit_comment(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity())));
+		refused(application::review_mutation_failure::unavailable, "another session's grant permits nothing");
+		static_cast<void>(host.edit_comment(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no comment edit");
+		expect(observed->Edited.empty() && host.statistics().CommentEdits == 0U, "no refusal reached the provider");
+
+		const auto context = host.edit_comment(request);
+		expect(context.Request.value() != 0U && effects.pending() == 1U && observed->Edited.empty(), "an admitted edit is queued and returns immediately");
+		effects.run_next();
+		expect(observed->Edited.size() == 1U && observed->Edited.front().Kind == request.Kind && observed->Edited.front().Subject == request.Subject
+				   && observed->Edited.front().Original == request.Original && observed->Edited.front().Body == request.Body
+				   && observed->Edited.front().Target == target() && observed->Edited.front().LiveBinding.has_value()
+				   && observed->Edited.front().LiveBinding->Target == live_target() && observed->Edited.front().LiveBinding->ActingIdentity == acting_identity(),
+			   "the effect asks the provider for exactly one edit of that comment, with the original, bound to the target and the actor");
+		decisions.run_next();
+		expect(projection.CommentEdits.back().Context == context && projection.CommentEdits.back().Result.has_value() && projection.CommentEdits.back().Result->Body == request.Body
+				   && projection.CommentEdits.back().Request == request && host.statistics().CommentEdits == 1U,
+			   "the terminal carries GitHub's answer for the comment");
+
+		const auto stopped = host.edit_comment(request);
+		host.cancel(stopped);
+		host.shutdown();
+		effects.run_next();
+		expect(observed->Edited.size() == 1U, "an edit stopped by shutdown never reaches the provider");
+	}
+
 	void test_live_binding_uses_exact_right_resolved_path_asynchronously()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -2051,6 +2138,7 @@ auto main() -> int
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
 	test_a_description_edit_needs_the_capability_and_a_permitting_grant();
+	test_a_comment_edit_needs_the_capability_and_a_permitting_grant();
 
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
 	test_an_outdated_threads_reply_is_held_to_its_thread();

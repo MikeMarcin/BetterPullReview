@@ -103,6 +103,16 @@ namespace bpr::application {
 			const std::string& aBody,
 			std::stop_token    aStop = { })
 			-> std::expected<review_description_receipt, review_mutation_failure>;
+		/// \brief [[BPR-1775]]. Replaces one of the viewer's published comments
+		/// through the provider while GitHub still has `aOriginal`, after
+		/// confirming the target as a description edit does.
+		[[nodiscard]] auto edit_comment(
+			core::comment_edit_kind aKind,
+			const std::string&      aSubject,
+			const std::string&      aOriginal,
+			const std::string&      aBody,
+			std::stop_token         aStop = { })
+			-> std::expected<review_comment_edit_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

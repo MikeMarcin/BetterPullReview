@@ -4,6 +4,7 @@
 #include "github_review_list_shapes.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
 
 #include <algorithm>
@@ -583,6 +584,14 @@ namespace {
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveDescription" };
 		case operation::update_pull_request_description:
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UpdateDescription" };
+		case operation::observe_comment_for_edit:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveComment" };
+		case operation::edit_review_comment:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation EditReviewComment" };
+		case operation::edit_issue_comment:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation EditIssueComment" };
+		case operation::edit_review_body:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation EditReviewBody" };
 		}
 		return std::nullopt;
 	}
@@ -684,6 +693,21 @@ namespace {
 			.Body           = "After.",
 			.LiveBinding    = reply.LiveBinding,
 		};
+		const auto commentEdit = application::review_comment_edit_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Kind           = core::comment_edit_kind::review_comment,
+			.Subject        = "PRRC_fixture_1",
+			.Original       = "Before.",
+			.Body           = "After.",
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto issueEdit         = commentEdit;
+		issueEdit.Kind         = core::comment_edit_kind::pull_request_comment;
+		issueEdit.Subject      = "IC_fixture_1";
+		auto reviewBodyEdit    = commentEdit;
+		reviewBodyEdit.Kind    = core::comment_edit_kind::review_body;
+		reviewBodyEdit.Subject = "PRR_fixture_1";
 		return std::array{
 
 			compile_target_observation_request(serverTarget, aServer),
@@ -719,6 +743,10 @@ namespace {
 			compile_reaction_request(unreaction, aServer),
 			compile_description_observation_request(description, aServer),
 			compile_description_request(description, aServer),
+			compile_comment_observation_request(commentEdit, aServer),
+			compile_comment_edit_request(commentEdit, aServer),
+			compile_comment_edit_request(issueEdit, aServer),
+			compile_comment_edit_request(reviewBodyEdit, aServer),
 		};
 	}
 
@@ -770,6 +798,10 @@ namespace {
 			row{ operation::remove_reaction, http_method::post, true, 200, false },
 			row{ operation::observe_pull_request_description, http_method::post, true, 200, false },
 			row{ operation::update_pull_request_description, http_method::post, true, 200, false },
+			row{ operation::observe_comment_for_edit, http_method::post, true, 200, false },
+			row{ operation::edit_review_comment, http_method::post, true, 200, false },
+			row{ operation::edit_issue_comment, http_method::post, true, 200, false },
+			row{ operation::edit_review_body, http_method::post, true, 200, false },
 		};
 
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
@@ -1061,6 +1093,140 @@ namespace {
 		big.Body         = std::string(core::maximum_description_characters, 'b');
 		const auto large = parse_description_response({ .Status = 200, .Body = "{\"data\":{\"updatePullRequest\":{\"pullRequest\":" + description_pull_request_json(big.Body, true) + "}}}" }, big);
 		expect(large.has_value() && large->Body.size() == core::maximum_description_characters, "an answer carrying GitHub's longest body is read");
+	}
+
+	/// [[BPR-1775]]. A comment of one kind as an edit answer spells it.
+	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aId, const std::string_view aBody, const bool aCan, const std::string_view aPullRequest = "PR_kwDOTyvof879G6NV") -> std::string
+	{
+		return "{\"__typename\":\"" + std::string{ aTypename } + "\",\"id\":\"" + std::string{ aId } + "\",\"body\":\"" + std::string{ aBody } + "\",\"viewerCanUpdate\":" + (aCan ? "true" : "false")
+			+ ",\"updatedAt\":\"2026-10-27T12:00:00Z\",\"pullRequest\":{\"id\":\"" + std::string{ aPullRequest }
+		+ "\",\"databaseId\":4246446933,\"number\":1,\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}}";
+	}
+
+	// [[BPR-1775]]. A published comment goes by one read and the update its
+	// kind takes: each names the comment by its node, revalidates
+	// canonically, and is held to the comment asked, of its kind, in the
+	// designated pull request; the write's answer must carry the body asked.
+	void test_a_published_comment_goes_by_graphql_exactly()
+	{
+		const auto pullRequest = std::string{ "pullRequest{id databaseId number repository{id databaseId nameWithOwner}}" };
+		const auto fields      = "body viewerCanUpdate updatedAt " + pullRequest;
+		auto       edit        = application::review_comment_edit_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Kind           = core::comment_edit_kind::review_comment,
+			.Subject        = "PRRC_kwDOTyvof86abc",
+			.Original       = "Before.\r\n",
+			.Body           = "After \"quoted\".\r\n",
+			.LiveBinding    = request().LiveBinding,
+		};
+		struct kind_row
+		{
+			core::comment_edit_kind   Kind;
+			review_mutation_operation Operation;
+			std::string_view          Document;
+			std::string_view          Typename;
+			std::string_view          Payload;
+		};
+		const auto kinds = std::array{
+			kind_row{ core::comment_edit_kind::review_comment, review_mutation_operation::edit_review_comment,
+					  "mutation EditReviewComment($subject:ID!,$body:String!){updatePullRequestReviewComment(input:{pullRequestReviewCommentId:$subject,body:$body}){pullRequestReviewComment{",
+					  "PullRequestReviewComment", "{\"updatePullRequestReviewComment\":{\"pullRequestReviewComment\":" },
+			kind_row{ core::comment_edit_kind::pull_request_comment, review_mutation_operation::edit_issue_comment,
+					  "mutation EditIssueComment($subject:ID!,$body:String!){updateIssueComment(input:{id:$subject,body:$body}){issueComment{",
+					  "IssueComment", "{\"updateIssueComment\":{\"issueComment\":" },
+			kind_row{ core::comment_edit_kind::review_body, review_mutation_operation::edit_review_body,
+					  "mutation EditReviewBody($subject:ID!,$body:String!){updatePullRequestReview(input:{pullRequestReviewId:$subject,body:$body}){pullRequestReview{",
+					  "PullRequestReview", "{\"updatePullRequestReview\":{\"pullRequestReview\":" },
+		};
+		for (const auto& kind : kinds) {
+			edit.Kind        = kind.Kind;
+			const auto write = compile_comment_edit_request(edit);
+			expect(write.has_value() && write->Operation == kind.Operation && write->Method == http_method::post && write->Path == "/graphql"
+					   && write->Body
+						   == "{\"query\":\"" + std::string{ kind.Document } + "__typename id " + fields
+							   + "}}}\",\"variables\":{\"subject\":\"PRRC_kwDOTyvof86abc\",\"body\":\"After \\\"quoted\\\".\\r\\n\"}}",
+				   "each kind's write is its reserved document naming the comment and the exact body");
+			expect(write->Body.find("Before.") == std::string::npos, "the original is never sent");
+			expect(validate_outbound_review_mutation_request(*write).has_value(), "each kind's write revalidates canonically");
+			const auto ok      = comment_json(kind.Typename, "PRRC_kwDOTyvof86abc", "After \\\"quoted\\\".\\r\\n", true);
+			const auto written = parse_comment_edit_response({ .Status = 200, .Body = "{\"data\":" + std::string{ kind.Payload } + ok + "}}}" }, edit);
+			expect(written.has_value() && written->Body == edit.Body && written->UpdatedAt == "2026-10-27T12:00:00Z", "an exact answer of the kind yields the body asked");
+			const auto stale = parse_comment_edit_response({ .Status = 200, .Body = "{\"data\":" + std::string{ kind.Payload } + comment_json(kind.Typename, "PRRC_kwDOTyvof86abc", "Before.", true) + "}}}" }, edit);
+			expect(!stale && stale.error() == review_mutation_contract_failure::identity_mismatch, "an answer with another body is a mismatch, not a success");
+			const auto observed = parse_comment_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + comment_json(kind.Typename, "PRRC_kwDOTyvof86abc", "Before.\\r\\n", false) + "}}" }, edit);
+			expect(observed.has_value() && observed->Body == "Before.\r\n" && !observed->ViewerCanUpdate, "the comment is observed with its exact body and GitHub's permission");
+		}
+		edit.Kind          = core::comment_edit_kind::review_comment;
+		const auto observe = compile_comment_observation_request(edit);
+		expect(observe.has_value() && observe->Operation == review_mutation_operation::observe_comment_for_edit && observe->Path == "/graphql"
+				   && observe->Body
+					   == "{\"query\":\"query ObserveComment($subject:ID!){node(id:$subject){__typename id ... on PullRequestReviewComment{" + fields + "} ... on IssueComment{" + fields
+						   + "} ... on PullRequestReview{" + fields + "}}}\",\"variables\":{\"subject\":\"PRRC_kwDOTyvof86abc\"}}",
+			   "the observation is a read document naming only the comment");
+		expect(validate_outbound_review_mutation_request(*observe).has_value(), "the observation revalidates canonically");
+		auto spoofed      = *observe;
+		spoofed.Operation = review_mutation_operation::edit_review_comment;
+		auto rewritten    = *compile_comment_edit_request(edit);
+		rewritten.Body.replace(rewritten.Body.find("After"), 5U, "Other");
+		auto retargeted = *compile_comment_edit_request(edit);
+		retargeted.Body.replace(retargeted.Body.find("PRRC_kwDOTyvof86abc"), 19U, "PRRC_kwDOTyvof86zzz");
+		auto rekinded      = *compile_comment_edit_request(edit);
+		rekinded.Operation = review_mutation_operation::edit_issue_comment;
+		expect(!validate_outbound_review_mutation_request(spoofed).has_value() && !validate_outbound_review_mutation_request(rewritten).has_value()
+				   && !validate_outbound_review_mutation_request(retargeted).has_value() && !validate_outbound_review_mutation_request(rekinded).has_value(),
+			   "a read passed off as the write, a body changed in flight, another comment and another kind's update are refused");
+
+		auto unbound               = edit;
+		unbound.LiveBinding        = std::nullopt;
+		auto foreign               = edit;
+		foreign.Target.PullRequest = core::pull_request_id{ 99U };
+		auto nodeless              = edit;
+		nodeless.Subject.clear();
+		auto quoted          = edit;
+		quoted.Subject       = "PRRC\"x";
+		auto actor           = edit;
+		actor.ActingIdentity = core::github_account_id{ 99U };
+		for (const auto& refused : { unbound, foreign, nodeless, quoted, actor }) {
+			expect(!compile_comment_edit_request(refused).has_value() && !compile_comment_observation_request(refused).has_value(),
+				   "an unbound, foreign, nodeless, malformed or other-actor edit is refused before the wire");
+		}
+		auto invalid = edit;
+		invalid.Body = std::string{ "\xC3\x28" };
+		expect(!compile_comment_edit_request(invalid).has_value(), "text that is not UTF-8 is refused");
+		auto longest = edit;
+		longest.Body = std::string(core::maximum_comment_characters, 'a');
+		auto huge    = edit;
+		huge.Body    = std::string(maximum_description_request_bytes, 'a');
+		expect(compile_comment_edit_request(longest).has_value() && maximum_review_mutation_wire_request_bytes(review_mutation_operation::edit_review_comment) == maximum_description_request_bytes
+				   && maximum_review_mutation_wire_response_bytes(review_mutation_operation::observe_comment_for_edit) == maximum_description_response_bytes,
+			   "GitHub's 65,536 characters go in one write, and come back in one answer");
+		expect(!compile_comment_edit_request(huge).has_value() && compile_comment_observation_request(huge).has_value(),
+			   "a body past the request ceiling is refused to write, and can still be observed");
+		auto enterprise                               = edit;
+		enterprise.LiveBinding->Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		enterprise.LiveBinding->Target.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+		expect(compile_comment_edit_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && compile_comment_observation_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && !compile_comment_edit_request(edit, application::github_server_contract::ghes_3_18_2022_11_28).has_value(),
+			   "GHES 3.18 edits at its GraphQL root, and a binding for another server is refused");
+
+		// The answers are held to the comment, its kind and the pull request.
+		const auto wrongKind = parse_comment_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + comment_json("IssueComment", "PRRC_kwDOTyvof86abc", "Before.", true) + "}}" }, edit);
+		expect(!wrongKind && wrongKind.error() == review_mutation_contract_failure::identity_mismatch, "a node of another kind is a mismatch");
+		const auto wrongNode = parse_comment_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + comment_json("PullRequestReviewComment", "PRRC_other", "Before.", true) + "}}" }, edit);
+		expect(!wrongNode && wrongNode.error() == review_mutation_contract_failure::identity_mismatch, "another comment is a mismatch");
+		const auto outside = parse_comment_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + comment_json("PullRequestReviewComment", "PRRC_kwDOTyvof86abc", "Before.", true, "PR_kwDOTyvof879Gzzz") + "}}" }, edit);
+		expect(!outside && outside.error() == review_mutation_contract_failure::identity_mismatch, "a comment in another pull request is a mismatch");
+		expect(parse_comment_observation({ .Status = 200, .Body = R"({"data":{"node":null}})" }, edit).error() == review_mutation_contract_failure::target_unavailable,
+			   "a comment GitHub no longer shows is unavailable");
+		expect(parse_comment_observation({ .Status = 502, .Body = "{}" }, edit).error() == review_mutation_contract_failure::invalid_status, "a non-200 answer is an invalid status");
+		expect(!parse_comment_edit_response({ .Status = 200, .Body = R"({"data":{"updatePullRequestReviewComment":null},"errors":[{"type":"FORBIDDEN"}]})" }, edit).has_value(),
+			   "a GraphQL refusal is not a success");
+		auto big         = edit;
+		big.Body         = std::string(core::maximum_comment_characters, 'b');
+		const auto large = parse_comment_edit_response({ .Status = 200, .Body = "{\"data\":{\"updatePullRequestReviewComment\":{\"pullRequestReviewComment\":" + comment_json("PullRequestReviewComment", "PRRC_kwDOTyvof86abc", big.Body, true) + "}}}" }, big);
+		expect(large.has_value() && large->Body.size() == core::maximum_comment_characters, "an answer carrying GitHub's longest body is read");
 	}
 
 	[[nodiscard]] auto recorded_answer(const std::string_view aName) -> review_mutation_wire_response
@@ -2490,6 +2656,7 @@ auto main() -> int
 	test_every_operation_names_its_exchange();
 	test_reactions_go_by_graphql_exactly();
 	test_the_description_goes_by_graphql_exactly();
+	test_a_published_comment_goes_by_graphql_exactly();
 	test_recorded_reaction_and_resolution_answers();
 
 	test_a_reply_is_reconciled_through_its_thread();

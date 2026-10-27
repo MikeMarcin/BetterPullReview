@@ -151,6 +151,10 @@ namespace {
 		case review_mutation_operation::remove_reaction:                  return "remove-reaction";
 		case review_mutation_operation::observe_pull_request_description: return "observe-description";
 		case review_mutation_operation::update_pull_request_description:  return "update-description";
+		case review_mutation_operation::observe_comment_for_edit:         return "observe-comment";
+		case review_mutation_operation::edit_review_comment:              return "edit-review-comment";
+		case review_mutation_operation::edit_issue_comment:               return "edit-issue-comment";
+		case review_mutation_operation::edit_review_body:                 return "edit-review-body";
 		case review_mutation_operation::observe_review_thread:            return "observe-thread";
 		case review_mutation_operation::resolve_review_thread:            return "resolve-thread";
 		case review_mutation_operation::unresolve_review_thread:          return "unresolve-thread";
@@ -473,7 +477,7 @@ namespace {
 	{
 		const auto before  = aWire.Operations.size();
 		auto       receipt = aSession.edit_description(application::review_description_request{
-				  .Target = target().Semantic, .ActingIdentity = actor().Account, .Original = aOriginal, .Body = aBody, .LiveBinding = binding() });
+			.Target = target().Semantic, .ActingIdentity = actor().Account, .Original = aOriginal, .Body = aBody, .LiveBinding = binding() });
 		const auto writes  = static_cast<std::size_t>(std::ranges::count(aWire.Operations.begin() + static_cast<std::ptrdiff_t>(before), aWire.Operations.end(),
 																		 review_mutation_operation::update_pull_request_description));
 		std::cout << "REACTION_LIVE:" << aStep << ":" << (receipt ? "answered" : std::string{ application::name(receipt.error()) }) << " writes=" << writes

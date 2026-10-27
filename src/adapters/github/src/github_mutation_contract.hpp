@@ -110,6 +110,17 @@ namespace bpr::adapters::github::detail {
 		observe_pull_request_description,
 		/// [[BPR-1774]]. GraphQL: the pull request's body replaced.
 		update_pull_request_description,
+		/// [[BPR-1775]]. GraphQL: one of the viewer's published comments (a
+		/// review-thread comment, a pull request comment or a review body),
+		/// its body, `viewerCanUpdate`, `updatedAt` and the pull request it
+		/// belongs to, asked before it is written and once after an
+		/// ambiguous write.
+		observe_comment_for_edit,
+		/// [[BPR-1775]]. GraphQL: a published comment's body replaced, one
+		/// operation for each kind's own update.
+		edit_review_comment,
+		edit_issue_comment,
+		edit_review_body,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -192,7 +203,8 @@ namespace bpr::adapters::github::detail {
 			application::staged_review_request,
 			application::review_thread_resolution_request,
 			application::review_reaction_request,
-			application::review_description_request>;
+			application::review_description_request,
+			application::review_comment_edit_request>;
 
 		semantic_type Semantic;
 
@@ -467,6 +479,33 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto parse_description_response(
 		const review_mutation_wire_response&           aResponse,
 		const application::review_description_request& aExpected)
+		-> review_mutation_parse_result<review_description_observation>;
+	/// \brief [[BPR-1775]]. Compiles the GraphQL mutation that replaces one of
+	/// the viewer's published comments, the update its kind takes; refused for
+	/// an unbound or malformed request.
+	[[nodiscard]] auto compile_comment_edit_request(
+		const application::review_comment_edit_request& aRequest,
+		application::github_server_contract             aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1775]]. Compiles the read of the comment's body,
+	/// permission and pull request, with every guard the mutation has.
+	[[nodiscard]] auto compile_comment_observation_request(
+		const application::review_comment_edit_request& aRequest,
+		application::github_server_contract             aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1775]]. Accepts only the comment asked, of its kind, in
+	/// the designated pull request.
+	[[nodiscard]] auto parse_comment_observation(
+		const review_mutation_wire_response&            aResponse,
+		const application::review_comment_edit_request& aExpected)
+		-> review_mutation_parse_result<review_description_observation>;
+	/// \brief [[BPR-1775]]. Accepts only the comment asked, of its kind, in
+	/// the designated pull request, with the body asked.
+	[[nodiscard]] auto parse_comment_edit_response(
+		const review_mutation_wire_response&            aResponse,
+		const application::review_comment_edit_request& aExpected)
 		-> review_mutation_parse_result<review_description_observation>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
 
@@ -886,7 +925,22 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                                aStop = { })
 			-> std::expected<application::review_description_receipt, application::review_mutation_failure>;
 
+		/// \brief [[BPR-1775]]. Replaces one of the viewer's published
+		/// comments: observed first (bound to the comment, its kind and the
+		/// pull request, with GitHub's body and `viewerCanUpdate`), refused as
+		/// a conflict when GitHub's body is no longer the original, written
+		/// once, and an ambiguous outcome confirmed by one read back.
+		[[nodiscard]] auto edit_comment(
+			const application::review_comment_edit_request& aRequest,
+			std::stop_token                                 aStop = { })
+			-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure>;
+
 	private:
+		[[nodiscard]] auto observe_comment(
+			const application::review_comment_edit_request& aRequest,
+			std::stop_token                                 aStop)
+			-> std::expected<review_description_observation, application::review_mutation_failure>;
+
 		[[nodiscard]] auto observe_reaction_subject(
 			const application::review_reaction_request& aRequest,
 			std::stop_token                             aStop)
