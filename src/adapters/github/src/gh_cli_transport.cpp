@@ -1854,9 +1854,11 @@ namespace bpr::adapters::github::detail {
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.ActingIdentity == authority.Account;
 			} else if constexpr (std::same_as<semantic_type, application::review_thread_resolution_request>
-								 || std::same_as<semantic_type, application::review_reaction_request>) {
+								 || std::same_as<semantic_type, application::review_reaction_request>
+								 || std::same_as<semantic_type, application::review_description_request>) {
 				// [[BPR-1741]]. A resolution or a reaction is bound to
 				// the target and the actor exactly as a comment is.
+				// [[BPR-1774]]. So is a description edit.
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.LiveBinding->ActingIdentity.Account == authority.Account && aSemantic.ActingIdentity == authority.Account;
 			} else {
@@ -1883,15 +1885,21 @@ namespace bpr::adapters::github::detail {
 		// read that reconciles it (`ObserveThreadComments`). Unlike a state
 		// write it is witnessed: the journal marks it possibly sent before
 		// launch, as on the native connection, so it is never sent twice.
+		// [[BPR-1774]]. A description edit (`UpdateDescription`) is a state
+		// write too, with the read that binds it and settles a lost answer
+		// (`ObserveDescription`): the body is the record, so it keeps no
+		// witness and is never sent twice.
 		const auto reply      = aRequest.Wire.Operation == review_mutation_operation::reply_review_thread;
 		const auto stateWrite = aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::add_reaction
-			|| aRequest.Wire.Operation == review_mutation_operation::remove_reaction;
+			|| aRequest.Wire.Operation == review_mutation_operation::remove_reaction
+			|| aRequest.Wire.Operation == review_mutation_operation::update_pull_request_description;
 		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite || reply
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_reaction_subject;
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_reaction_subject
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_description;
 
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
 		if (!exchange || exchange->Graphql != graphql
@@ -1918,7 +1926,7 @@ namespace bpr::adapters::github::detail {
 			.Environment             = Configuration.Environment,
 			.WorkingDirectory        = path_bytes(Configuration.NeutralWorkingDirectory),
 			.StandardInput           = aRequest.Wire.Body,
-			.StandardInputLimit      = maximum_review_mutation_body_bytes,
+			.StandardInputLimit      = maximum_review_mutation_wire_request_bytes(aRequest.Wire.Operation),
 			.StandardOutputLimit     = maximum_review_mutation_wire_response_bytes(aRequest.Wire.Operation) + 32U * 1024U,
 			.StandardErrorLimit      = maximum_standard_error_bytes,
 			.Timeout                 = process_timeout,

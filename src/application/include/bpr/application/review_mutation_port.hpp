@@ -89,6 +89,8 @@ namespace bpr::application {
 		bool RecordsViewedState = true;
 		/// [[BPR-1741]]. Adds and removes reactions on comments.
 		bool Reacts = false;
+		/// [[BPR-1774]]. Updates the pull request's description (its body).
+		bool EditsDescription = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -441,6 +443,47 @@ namespace bpr::application {
 		auto operator<=>(const review_reaction_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-1774]]. Asks the provider to replace the pull request's
+	/// description (its body) with `Body`.
+	///
+	/// \details `Original` is the body editing began with, byte for byte: the
+	/// provider writes only while GitHub still has it, so a body changed on
+	/// GitHub since is never overwritten silently. Bound to the accepted
+	/// target and the acting identity like a resolution, so a provider serving
+	/// another pull request or another account refuses it.
+	struct review_description_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		std::string                                 Original;
+		std::string                                 Body;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_description_request&) const = default;
+	};
+
+	/// \brief The provider's answer: the description as GitHub now has it,
+	/// and how that was learned.
+	struct review_description_receipt
+	{
+		/// The body GitHub has now: the write's answer, the read back, or, on a
+		/// conflict, the newer body editing can go on from.
+		std::string Body;
+		/// GitHub's `updatedAt` for the pull request, as it gave it.
+		std::string UpdatedAt;
+		/// A write was sent; false when GitHub already had the text, and on a
+		/// conflict.
+		bool Written = false;
+		/// The write's own answer was lost or unreadable, and the body read
+		/// back afterwards is the one asked.
+		bool ConfirmedByReadBack = false;
+		/// GitHub's body is no longer `Original`: nothing was sent, and `Body`
+		/// is GitHub's.
+		bool Conflict = false;
+
+		auto operator<=>(const review_description_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -520,6 +563,18 @@ namespace bpr::application {
 			const review_reaction_request& aRequest,
 			std::stop_token                aStop)
 			-> std::expected<review_reaction_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
+		/// \brief [[BPR-1774]]. Replaces the pull request's description while
+		/// GitHub still has the original; a provider without the capability
+		/// answers `unsupported`.
+		[[nodiscard]] virtual auto edit_description(
+			const review_description_request& aRequest,
+			std::stop_token                   aStop)
+			-> std::expected<review_description_receipt, review_mutation_failure>
 		{
 			static_cast<void>(aRequest);
 			static_cast<void>(aStop);

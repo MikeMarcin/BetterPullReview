@@ -95,6 +95,14 @@ namespace bpr::application {
 			bool                   aAdd,
 			std::stop_token        aStop = { })
 			-> std::expected<review_reaction_receipt, review_mutation_failure>;
+		/// \brief [[BPR-1774]]. Replaces the pull request's description
+		/// through the provider while GitHub still has `aOriginal`, after
+		/// confirming the target as a resolution does.
+		[[nodiscard]] auto edit_description(
+			const std::string& aOriginal,
+			const std::string& aBody,
+			std::stop_token    aStop = { })
+			-> std::expected<review_description_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

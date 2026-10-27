@@ -169,6 +169,28 @@ namespace bpr::application {
 		auto operator==(const review_reaction_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-1774]]. Asks the host to replace the pull request's
+	/// description: `Body` in place of `Original`, the body editing began with.
+	struct review_description_publication_request
+	{
+		std::string Original;
+		std::string Body;
+
+		auto operator<=>(const review_description_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-1774]]. One description edit's terminal.
+	struct review_description_terminal
+	{
+		review_mutation_request_context                                    Context;
+		review_description_publication_request                             Request;
+		std::expected<review_description_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_description_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
@@ -184,6 +206,12 @@ namespace bpr::application {
 		/// \brief [[BPR-1741]]. A sink that does not present reactions
 		/// ignores them.
 		virtual void publish_reaction(const review_reaction_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+		/// \brief [[BPR-1774]]. A sink that does not edit the description
+		/// ignores its terminals.
+		virtual void publish_description(const review_description_terminal& aTerminal)
 		{
 			static_cast<void>(aTerminal);
 		}
@@ -260,6 +288,8 @@ namespace bpr::application {
 		std::uint64_t ThreadResolutions = 0U;
 		/// [[BPR-1741]]. Reaction changes GitHub answered as asked.
 		std::uint64_t Reactions = 0U;
+		/// [[BPR-1774]]. Description edits GitHub answered, conflicts included.
+		std::uint64_t DescriptionEdits = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -322,6 +352,14 @@ namespace bpr::application {
 		[[nodiscard]] auto react(
 			review_reaction_publication_request aRequest,
 			review_mutation_execution_grant     aRequestGrant = { })
+			-> review_mutation_request_context;
+		/// \brief [[BPR-1774]]. Replaces the pull request's description under
+		/// a grant bound to the accepted target and actor, as a resolution
+		/// does; refused before any effect when the provider does not edit
+		/// descriptions or the grant does not permit the exact request.
+		[[nodiscard]] auto edit_description(
+			review_description_publication_request aRequest,
+			review_mutation_execution_grant        aRequestGrant = { })
 			-> review_mutation_request_context;
 		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
 

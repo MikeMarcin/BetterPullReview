@@ -1989,7 +1989,7 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 
-		constexpr std::array<std::string_view, 11> mutations{
+		constexpr std::array<std::string_view, 12> mutations{
 			"MarkFileViewed",
 			"MarkFileUnviewed",
 			"CreateReview",
@@ -2003,6 +2003,8 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1741]]. A reaction added or removed.
 			"AddReaction",
 			"RemoveReaction",
+			// [[BPR-1774]]. The pull request's description replaced.
+			"UpdateDescription",
 		};
 		if (std::ranges::find(mutations, aName) != mutations.end()) {
 			return failure(contract_failure_code::mutation_operation);

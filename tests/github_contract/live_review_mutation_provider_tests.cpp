@@ -562,26 +562,28 @@ namespace {
 		-> std::string_view
 	{
 		switch (aOperation) {
-		case review_mutation_operation::staged_list_reviews:           return "staged_list_reviews";
-		case review_mutation_operation::staged_read_review:            return "staged_read_review";
-		case review_mutation_operation::staged_list_comments:          return "staged_list_comments";
-		case review_mutation_operation::staged_create_pending:         return "staged_create_pending";
-		case review_mutation_operation::staged_update_comment:         return "staged_update_comment";
-		case review_mutation_operation::staged_update_summary:         return "staged_update_summary";
-		case review_mutation_operation::staged_submit_comment:         return "staged_submit_comment";
-		case review_mutation_operation::staged_discard_pending:        return "staged_discard_pending";
-		case review_mutation_operation::staged_update_description:     return "staged_update_description";
-		case review_mutation_operation::staged_list_issue_comments:    return "staged_list_issue_comments";
-		case review_mutation_operation::staged_create_issue_comment:   return "staged_create_issue_comment";
-		case review_mutation_operation::staged_update_issue_comment:   return "staged_update_issue_comment";
-		case review_mutation_operation::staged_update_pending_comment: return "staged_update_pending_comment";
-		case review_mutation_operation::observe_merge_base:            return "observe_merge_base";
-		case review_mutation_operation::observe_recorded_merge_base:   return "observe_recorded_merge_base";
-		case review_mutation_operation::observe_base_ancestry:         return "observe_base_ancestry";
-		case review_mutation_operation::observe_server_meta:           return "observe_server_meta";
-		case review_mutation_operation::observe_reaction_subject:      return "observe_reaction_subject";
-		case review_mutation_operation::add_reaction:                  return "add_reaction";
-		case review_mutation_operation::remove_reaction:               return "remove_reaction";
+		case review_mutation_operation::staged_list_reviews:              return "staged_list_reviews";
+		case review_mutation_operation::staged_read_review:               return "staged_read_review";
+		case review_mutation_operation::staged_list_comments:             return "staged_list_comments";
+		case review_mutation_operation::staged_create_pending:            return "staged_create_pending";
+		case review_mutation_operation::staged_update_comment:            return "staged_update_comment";
+		case review_mutation_operation::staged_update_summary:            return "staged_update_summary";
+		case review_mutation_operation::staged_submit_comment:            return "staged_submit_comment";
+		case review_mutation_operation::staged_discard_pending:           return "staged_discard_pending";
+		case review_mutation_operation::staged_update_description:        return "staged_update_description";
+		case review_mutation_operation::staged_list_issue_comments:       return "staged_list_issue_comments";
+		case review_mutation_operation::staged_create_issue_comment:      return "staged_create_issue_comment";
+		case review_mutation_operation::staged_update_issue_comment:      return "staged_update_issue_comment";
+		case review_mutation_operation::staged_update_pending_comment:    return "staged_update_pending_comment";
+		case review_mutation_operation::observe_merge_base:               return "observe_merge_base";
+		case review_mutation_operation::observe_recorded_merge_base:      return "observe_recorded_merge_base";
+		case review_mutation_operation::observe_base_ancestry:            return "observe_base_ancestry";
+		case review_mutation_operation::observe_server_meta:              return "observe_server_meta";
+		case review_mutation_operation::observe_reaction_subject:         return "observe_reaction_subject";
+		case review_mutation_operation::add_reaction:                     return "add_reaction";
+		case review_mutation_operation::remove_reaction:                  return "remove_reaction";
+		case review_mutation_operation::observe_pull_request_description: return "observe_pull_request_description";
+		case review_mutation_operation::update_pull_request_description:  return "update_pull_request_description";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -1968,6 +1970,16 @@ namespace {
 			return Session->set_reaction(aRequest, aStop);
 		}
 
+		auto edit_description(
+			const application::review_description_request& aRequest,
+			const std::stop_token                          aStop)
+			-> std::expected<
+				application::review_description_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->edit_description(aRequest, aStop);
+		}
+
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
@@ -2265,6 +2277,139 @@ namespace {
 		expect(!coordinator.set_reaction("", core::reaction_content::thumbs_up, true).has_value(), "a nameless comment is refused before any read");
 	}
 
+	/// [[BPR-1774]]. The designated pull request (or another) as a
+	/// description answer gives it: its body, GitHub's permission and time.
+	[[nodiscard]] auto description_json(const std::string_view aBody, const bool aCan = true, const bool aDesignated = true) -> std::string
+	{
+		return std::string{ R"({"id":")" } + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz") + R"(","databaseId":4246446933,"number":1,"body":")" + std::string{ aBody }
+		+ R"(","viewerCanUpdate":)" + (aCan ? "true" : "false")
+			+ R"(,"updatedAt":"2026-10-26T12:00:00Z","repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}})";
+	}
+
+	[[nodiscard]] auto description_observation_response(const std::string_view aBody, const bool aCan = true, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + description_json(aBody, aCan, aDesignated) + "}}" } };
+	}
+
+	[[nodiscard]] auto description_write_response(const std::string_view aBody, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"updatePullRequest":{"pullRequest":)" + description_json(aBody, true, aDesignated) + "}}}" } };
+	}
+
+	[[nodiscard]] auto description_request(std::string aOriginal = "Before.", std::string aBody = "After.") -> application::review_description_request
+	{
+		return {
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Original       = std::move(aOriginal),
+			.Body           = std::move(aBody),
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+	}
+
+	// [[BPR-1774]]. A description is bound to the designated pull request
+	// and observed before it is written; it is written exactly once, and a
+	// body changed on GitHub since editing began is never overwritten.
+	void test_a_description_is_observed_then_written_once()
+	{
+		auto transport = fake_transport{ };
+		transport.answer(graphql("ObserveDescription"), description_observation_response("Before."));
+		transport.answer(graphql("UpdateDescription"), description_write_response("After."));
+		auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+		const auto receipt = session.edit_description(description_request());
+		expect(receipt.has_value() && receipt->Body == "After." && receipt->Written && !receipt->ConfirmedByReadBack && !receipt->Conflict
+				   && receipt->UpdatedAt == "2026-10-26T12:00:00Z" && transport.Requests.size() == 2U
+				   && transport.Requests[0].Wire.Operation == review_mutation_operation::observe_pull_request_description
+				   && count_operation(transport, review_mutation_operation::update_pull_request_description) == 1U,
+			   "the designated pull request is observed, then written once, and GitHub's answer comes back");
+
+		auto changed = fake_transport{ };
+		changed.answer(graphql("ObserveDescription"), description_observation_response("Someone else's."));
+		auto       changedSession = review_mutation_session{ changed, configuration(), mutation_lease(), make_recovery() };
+		const auto conflict       = changedSession.edit_description(description_request());
+		expect(conflict.has_value() && conflict->Conflict && !conflict->Written && conflict->Body == "Someone else's." && changed.Requests.size() == 1U
+				   && count_operation(changed, review_mutation_operation::update_pull_request_description) == 0U,
+			   "a body changed on GitHub since editing began is a conflict: nothing is sent, and the newer body comes back");
+
+		auto already = fake_transport{ };
+		already.answer(graphql("ObserveDescription"), description_observation_response("After."));
+		auto       alreadySession = review_mutation_session{ already, configuration(), mutation_lease(), make_recovery() };
+		const auto kept           = alreadySession.edit_description(description_request());
+		expect(kept.has_value() && !kept->Written && !kept->Conflict && kept->Body == "After." && already.Requests.size() == 1U,
+			   "a body GitHub already has is not written again");
+
+		auto forbidden = fake_transport{ };
+		forbidden.answer(graphql("ObserveDescription"), description_observation_response("Before.", false));
+		auto       forbiddenSession = review_mutation_session{ forbidden, configuration(), mutation_lease(), make_recovery() };
+		const auto denied           = forbiddenSession.edit_description(description_request());
+		expect(!denied && denied.error() == application::review_mutation_failure::refused_by_server && forbidden.Requests.size() == 1U,
+			   "a pull request GitHub says the viewer may not update is not written");
+
+		auto foreign = fake_transport{ };
+		foreign.answer(graphql("ObserveDescription"), description_observation_response("Before.", true, false));
+		auto       foreignSession = review_mutation_session{ foreign, configuration(), mutation_lease(), make_recovery() };
+		const auto refused        = foreignSession.edit_description(description_request());
+		expect(!refused && refused.error() == application::review_mutation_failure::undesignated_target && foreign.Requests.size() == 1U,
+			   "an answer naming another pull request is refused before any write");
+
+		auto mismatched = fake_transport{ };
+		mismatched.answer(graphql("ObserveDescription"), description_observation_response("Before."));
+		mismatched.answer(graphql("UpdateDescription"), description_write_response("After.", false));
+		auto       mismatchedSession = review_mutation_session{ mismatched, configuration(), mutation_lease(), make_recovery() };
+		const auto other             = mismatchedSession.edit_description(description_request());
+		expect(!other && other.error() == application::review_mutation_failure::undesignated_target && mismatched.Requests.size() == 2U,
+			   "a write answer naming another pull request is refused, and nothing is sent twice");
+
+		auto huge = fake_transport{ };
+		huge.answer(graphql("ObserveDescription"), description_observation_response("Before."));
+		auto       hugeSession = review_mutation_session{ huge, configuration(), mutation_lease(), make_recovery() };
+		const auto tooLong     = hugeSession.edit_description(description_request("Before.", std::string(maximum_description_request_bytes, 'a')));
+		expect(!tooLong && tooLong.error() == application::review_mutation_failure::incompatible_body && huge.Requests.size() == 1U,
+			   "a body too long to send is refused after the read and never sent");
+
+		for (const auto took : { true, false }) {
+			const auto lost = github_mutation_wire_error{
+				.Failure      = application::review_mutation_failure::unavailable,
+				.Transmission = github_mutation_transmission::indeterminate,
+			};
+			auto ambiguous = fake_transport{ };
+			ambiguous.answer(graphql("ObserveDescription"), description_observation_response("Before."));
+			ambiguous.answer(graphql("UpdateDescription"), lost);
+			ambiguous.answer(graphql("ObserveDescription"), description_observation_response(took ? "After." : "Before."));
+			auto       ambiguousSession = review_mutation_session{ ambiguous, configuration(), mutation_lease(), make_recovery() };
+			const auto result           = ambiguousSession.edit_description(description_request());
+			expect(ambiguous.Requests.size() == 3U && count_operation(ambiguous, review_mutation_operation::update_pull_request_description) == 1U,
+				   "an ambiguous description write is observed once more and never sent twice");
+			expect(took ? (result.has_value() && result->Written && result->ConfirmedByReadBack && result->Body == "After.")
+						: (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "the body read back after a lost answer confirms it" : "a body still the original is named not_confirmed");
+		}
+
+		auto cancelled = fake_transport{ };
+		cancelled.answer(graphql("ObserveDescription"), description_observation_response("Before."));
+		cancelled.answer(graphql("UpdateDescription"), github_mutation_wire_cancelled{ });
+		auto       cancelledSession = review_mutation_session{ cancelled, configuration(), mutation_lease(), make_recovery() };
+		const auto stopped          = cancelledSession.edit_description(description_request());
+		expect(!stopped && stopped.error() == application::review_mutation_failure::cancelled && cancelled.Requests.size() == 2U,
+			   "a cancelled description write is not read back; the next read reconciles it");
+
+		auto coordinated = fake_transport{ };
+		coordinated.answer(pull_request_get(), target_response());
+		coordinated.answer(viewer_get(), viewer_response());
+		coordinated.answer(graphql("ObserveDescription"), description_observation_response("Before."));
+		coordinated.answer(graphql("UpdateDescription"), description_write_response("After."));
+		auto       coordinatedSession = review_mutation_session{ coordinated, configuration(), mutation_lease(), make_recovery() };
+		auto       port               = session_port{ coordinatedSession };
+		auto       coordinator        = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto viaCoordinator     = coordinator.edit_description("Before.", "After.");
+		expect(viaCoordinator.has_value() && viaCoordinator->Written && coordinator.statistics().TargetObservations == 1U && coordinator.statistics().Submissions == 1U
+				   && coordinated.Requests.size() == 4U,
+			   "the coordinator observes the target, then the provider observes the description and writes it");
+	}
+
 	void test_the_coordinator_confirms_the_target_and_counts_a_resolution()
 	{
 		auto transport = fake_transport{ };
@@ -2523,6 +2668,7 @@ namespace {
 		row{ "a_reaction_is_observed_then_written_once", &test_a_reaction_is_observed_then_written_once },
 		row{ "an_ambiguous_change_is_confirmed_by_reading_it_back", &test_an_ambiguous_change_is_confirmed_by_reading_it_back },
 		row{ "the_coordinator_confirms_the_target_before_a_reaction", &test_the_coordinator_confirms_the_target_before_a_reaction },
+		row{ "a_description_is_observed_then_written_once", &test_a_description_is_observed_then_written_once },
 
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};

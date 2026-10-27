@@ -236,20 +236,22 @@ namespace {
 		case review_mutation_operation::observe_base_ancestry:         return "observe_base_ancestry";
 		case review_mutation_operation::observe_server_meta:           return "observe_server_meta";
 
-		case review_mutation_operation::observe_pull_request:           return "observe_pull_request";
-		case review_mutation_operation::observe_viewer:                 return "observe_viewer";
-		case review_mutation_operation::observe_review_comments:        return "observe_review_comments";
-		case review_mutation_operation::create_review_comment:          return "create_review_comment";
-		case review_mutation_operation::create_review:                  return "create_review";
-		case review_mutation_operation::observe_reviews:                return "observe_reviews";
-		case review_mutation_operation::reply_review_thread:            return "reply_review_thread";
-		case review_mutation_operation::resolve_review_thread:          return "resolve_review_thread";
-		case review_mutation_operation::unresolve_review_thread:        return "unresolve_review_thread";
-		case review_mutation_operation::observe_review_thread:          return "observe_review_thread";
-		case review_mutation_operation::observe_review_thread_comments: return "observe_review_thread_comments";
-		case review_mutation_operation::observe_reaction_subject:       return "observe_reaction_subject";
-		case review_mutation_operation::add_reaction:                   return "add_reaction";
-		case review_mutation_operation::remove_reaction:                return "remove_reaction";
+		case review_mutation_operation::observe_pull_request:             return "observe_pull_request";
+		case review_mutation_operation::observe_viewer:                   return "observe_viewer";
+		case review_mutation_operation::observe_review_comments:          return "observe_review_comments";
+		case review_mutation_operation::create_review_comment:            return "create_review_comment";
+		case review_mutation_operation::create_review:                    return "create_review";
+		case review_mutation_operation::observe_reviews:                  return "observe_reviews";
+		case review_mutation_operation::reply_review_thread:              return "reply_review_thread";
+		case review_mutation_operation::resolve_review_thread:            return "resolve_review_thread";
+		case review_mutation_operation::unresolve_review_thread:          return "unresolve_review_thread";
+		case review_mutation_operation::observe_review_thread:            return "observe_review_thread";
+		case review_mutation_operation::observe_review_thread_comments:   return "observe_review_thread_comments";
+		case review_mutation_operation::observe_reaction_subject:         return "observe_reaction_subject";
+		case review_mutation_operation::add_reaction:                     return "add_reaction";
+		case review_mutation_operation::remove_reaction:                  return "remove_reaction";
+		case review_mutation_operation::observe_pull_request_description: return "observe_pull_request_description";
+		case review_mutation_operation::update_pull_request_description:  return "update_pull_request_description";
 		}
 		return "unknown";
 	}

@@ -1,6 +1,7 @@
 #include "../support/insights_observer.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
+#include "bpr/core/description_edit.hpp"
 
 #include "../../src/application/src/review_mutation_execution_authority.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
@@ -338,7 +339,7 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription };
 		}
 		auto set_reaction(
 			const application::review_reaction_request& aRequest,
@@ -357,6 +358,19 @@ namespace {
 		}
 		bool                                              Reacts = false;
 		std::vector<application::review_reaction_request> Reacted;
+		auto                                              edit_description(
+			const application::review_description_request& aRequest,
+			const std::stop_token                          aStop)
+			-> std::expected<application::review_description_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Described.push_back(aRequest);
+			return application::review_description_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-26T12:00:00Z", .Written = true };
+		}
+		bool                                                 EditsDescription = false;
+		std::vector<application::review_description_request> Described;
 
 		auto resolve_thread(
 			const application::review_thread_resolution_request& aRequest,
@@ -398,6 +412,11 @@ namespace {
 			Reactions.push_back(aTerminal);
 		}
 		std::vector<application::review_reaction_terminal> Reactions;
+		void                                               publish_description(const application::review_description_terminal& aTerminal) override
+		{
+			Descriptions.push_back(aTerminal);
+		}
+		std::vector<application::review_description_terminal> Descriptions;
 
 		std::optional<application::review_mutation_source_observation> Source = [] {
 			const auto request = publication_request();
@@ -1226,6 +1245,67 @@ namespace {
 		host.shutdown();
 	}
 
+	/// [[BPR-1774]]. A description edit is admitted like a reaction: the
+	/// provider must edit descriptions, the grant must permit the exact edit,
+	/// a grant issued for anything else permits none, and nothing reaches the
+	/// provider until the effect lane runs.
+	void test_a_description_edit_needs_the_capability_and_a_permitting_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto request = application::review_description_publication_request{ .Original = "Before.\r\n", .Body = "After.\r\n" };
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.Descriptions.empty() && !projection.Descriptions.back().Result.has_value() && projection.Descriptions.back().Result.error() == aFailure, aWhy);
+		};
+		static_cast<void>(host.edit_description(request));
+		refused(application::review_mutation_failure::unsupported, "without the provider's capability the edit is refused before any effect");
+		observed->EditsDescription = true;
+		static_cast<void>(host.edit_description({ .Original = "Same.", .Body = "Same." }));
+		refused(application::review_mutation_failure::incompatible_body, "an unchanged body is refused before any effect");
+		static_cast<void>(host.edit_description({ .Original = "Before.", .Body = std::string(core::maximum_description_characters + 1U, 'a') }));
+		refused(application::review_mutation_failure::incompatible_body, "a body longer than GitHub keeps is refused before any effect");
+		static_cast<void>(host.edit_description(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity())));
+		refused(application::review_mutation_failure::unavailable, "another session's grant permits nothing");
+		static_cast<void>(host.edit_description(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no description edit");
+		expect(observed->Described.empty() && host.statistics().DescriptionEdits == 0U, "no refusal reached the provider");
+
+		const auto context = host.edit_description(request);
+		expect(context.Request.value() != 0U && effects.pending() == 1U && observed->Described.empty(), "an admitted edit is queued and returns immediately");
+		effects.run_next();
+		expect(observed->Described.size() == 1U && observed->Described.front().Original == request.Original && observed->Described.front().Body == request.Body
+				   && observed->Described.front().Target == target() && observed->Described.front().LiveBinding.has_value()
+				   && observed->Described.front().LiveBinding->Target == live_target() && observed->Described.front().LiveBinding->ActingIdentity == acting_identity(),
+			   "the effect asks the provider for exactly one edit, with the original, bound to the target and the actor");
+		decisions.run_next();
+		expect(projection.Descriptions.back().Context == context && projection.Descriptions.back().Result.has_value() && projection.Descriptions.back().Result->Body == request.Body
+				   && projection.Descriptions.back().Request == request && host.statistics().DescriptionEdits == 1U,
+			   "the terminal carries GitHub's answer for the description");
+
+		const auto stopped = host.edit_description(request);
+		host.cancel(stopped);
+		host.shutdown();
+		effects.run_next();
+		expect(observed->Described.size() == 1U, "an edit stopped by shutdown never reaches the provider");
+	}
+
 	void test_live_binding_uses_exact_right_resolved_path_asynchronously()
 	{
 		auto  provider   = std::make_unique<fake_provider>();
@@ -1970,6 +2050,7 @@ auto main() -> int
 	test_one_shot_authority_rejects_same_core_different_full_identity();
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
+	test_a_description_edit_needs_the_capability_and_a_permitting_grant();
 
 	test_a_reply_may_be_drafted_from_a_left_side_selection();
 	test_an_outdated_threads_reply_is_held_to_its_thread();
