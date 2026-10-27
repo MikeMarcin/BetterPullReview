@@ -17,6 +17,7 @@
 #include "public_path_poll.hpp"
 
 #include "bpr/core/review_tour_markdown.hpp"
+#include "bpr/core/review_tour_reconciliation.hpp"
 #include <QAccessible>
 #include <QAction>
 #include <QApplication>
@@ -1040,6 +1041,8 @@ auto main(int argc, char** argv) -> int
 			expect(editor.shown().Draft->Stops.size() == 3 && !editor.shown().Draft->ReadOnly, "cold profile reconstructs editable own route");
 			expect(editor.shown().Draft->Stops[0].Remote->DatabaseId == 71002 && editor.shown().Draft->Stops[1].Remote->DatabaseId == 71001, "website list order overrides returned collection order");
 			expect(editor.shown().Draft->Problem == "\r\n**Keep raw** problem.\r\n\r\n" && editor.shown().Draft->Solution == "\r\nSmall exact solution.\r\n\r\n", "ordinary description sections preserve raw CRLF bytes");
+			// [[BPR-1787]]. The route comment carries no brief: it is read from the description.
+			expect(!core::tour_brief_in_comment(*editor.shown().Draft) && core::tour_brief_in_description(*editor.shown().Draft) && editor.shown().Draft->ProblemBaseline->RemoteEntity != editor.shown().Draft->Remote->Entity, "a cold import of a route-only tour recovers its brief from the description");
 			auto* description = window.overview_page()->body_view();
 			description->show_source(true);
 			auto selection = description->source_view()->textCursor();

@@ -103,6 +103,7 @@ namespace bpr::app {
 			command_line_option{ .Name = "refresh" },
 			command_line_option{ .Name = "compatibility" },
 			command_line_option{ .Name = "description" },
+			command_line_option{ .Name = "no-description" },
 			command_line_option{ .Name = "published" },
 			command_line_option{ .Name = "profile", .TakesValue = true },
 			command_line_option{ .Name = "draft", .TakesValue = true },
@@ -227,7 +228,7 @@ namespace bpr::app {
 				allowed.append("--draft");
 			}
 			if (result.Command == "preview" || result.Command == "publish" || result.Command == "recover") {
-				allowed.append({ "--transport", "--compatibility", "--description" });
+				allowed.append({ "--transport", "--compatibility", "--description", "--no-description" });
 			}
 			if (result.Command == "preview") {
 				allowed.append("--refresh");
@@ -662,7 +663,7 @@ namespace bpr::app {
 			if (aOptions.Command == "publish" && !aOptions.Interactive) {
 				auto    quote   = [](QString aValue) { aValue.replace("'", "'\\''"); return "'" + aValue + "'"; };
 				QString command = "bpr tour publish --data-root " + quote(aBase) + " --profile " + QString::number(aSnapshot.Target.Owner.Profile.value()) + " --draft " + text(token) + " --transport " + (aGh ? "gh" : "native");
-				for (const auto& flag : QStringList{ "--description", "--compatibility" }) {
+				for (const auto& flag : QStringList{ "--description", "--no-description", "--compatibility" }) {
 					if (aOptions.Values.contains(flag)) {
 						command += " " + flag;
 					}
@@ -672,8 +673,13 @@ namespace bpr::app {
 				}
 				return refuse("interaction_required", "Run in a terminal: " + command.toStdString() + "\nJSON, readiness, stdin yes and plan files do not authorize writes.", 3);
 			}
-			const auto attempt  = aOptions.Values.value(aOptions.Command == "publish" ? "--resume" : "--attempt").toStdString();
-			auto       prepared = aRuntime->prepare_publication(token, aGh, { aOptions.Values.contains("--compatibility"), aOptions.Values.contains("--description") }, attempt, aOptions.Command == "recover");
+			const auto attempt = aOptions.Values.value(aOptions.Command == "publish" ? "--resume" : "--attempt").toStdString();
+			if (aOptions.Values.contains("--description") && aOptions.Values.contains("--no-description")) {
+				return refuse("invalid_input", "Choose --description or --no-description, not both.");
+			}
+			// [[BPR-1787]]. As on the desktop, the brief goes in the description
+			// unless --no-description keeps it in the tour comment.
+			auto prepared = aRuntime->prepare_publication(token, aGh, { aOptions.Values.contains("--compatibility"), !aOptions.Values.contains("--no-description") }, attempt, aOptions.Command == "recover");
 			if (!prepared) {
 				return std::unexpected(prepared.error());
 			}

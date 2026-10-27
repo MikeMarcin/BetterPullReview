@@ -1089,7 +1089,10 @@ namespace bpr::qt {
 		publication->addWidget(PublicationMode);
 		DescriptionEdit = new QCheckBox{ tr("Update PR description after publishing"), PublicationPanel };
 		DescriptionEdit->setObjectName(QStringLiteral("tourDescriptionEdit"));
-		DescriptionEdit->setToolTip(tr("The description edit updates mapped Problem/Solution sections, or inserts the brief at the beginning when neither section exists. Other description text is preserved. Compatibility comments become visible one at a time; interrupted publication may remain partial."));
+		// [[BPR-1787]]. The brief is published in one place, the description
+		// by default; the tooltip says where it goes either way.
+		DescriptionEdit->setChecked(true);
+		DescriptionEdit->setToolTip(tr("On: Problem and Solution go in the PR description, under the tour link at its top, and the tour comment lists only the route. Matching Problem and Solution headings are updated in place; other description text is kept. Off: Problem and Solution go in the tour comment and the description is not edited. A tour already on GitHub keeps them where they were first published. Compatibility comments become visible one at a time; interrupted publication may remain partial."));
 		publication->addWidget(DescriptionEdit);
 		auto* const sendRow = new QHBoxLayout{ };
 		sendRow->setSpacing(6);
