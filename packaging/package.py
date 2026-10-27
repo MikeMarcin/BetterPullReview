@@ -36,7 +36,7 @@ def main() -> None:
     if info["platform"] == "Darwin":
         raise ValueError("use tools/release.sh for macOS")
     if info["platform"] == "Windows" and args.generator != "WIX":
-        raise ValueError("Windows packages use the per-user x64 WiX definition")
+        raise ValueError("Windows packages use the per-machine x64 WiX definition")
     if info["platform"] == "Linux":
         baseline = runtime.linux_baseline()
         expected = "DEB" if baseline["distribution"][0] == "ubuntu" else "RPM"
