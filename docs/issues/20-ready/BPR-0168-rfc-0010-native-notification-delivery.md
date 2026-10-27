@@ -2,10 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0168"
 title: "Confirm a native notification is delivered and its link opens the review"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-0164","BPR-0169","BPR-0193","BPR-0223","BPR-0251"]
-metadata: {"origin_rfc":"RFC-BPR-0010","mandate_revision":"r4","deferral":"Standalone terminal-candidate native replay; accepted v006 evidence retained, not an RFC-0010 terminal gate."}
+metadata: {"origin_rfc":"RFC-BPR-0010","mandate_revision":"r4","deferral":"Standalone terminal-candidate native replay; accepted v006 evidence retained, not an RFC-0010 terminal gate.","triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"All five dependencies, including BPR-0169, are Done; the successor native review can be prepared."}}
 ---
 
 # Confirm a native notification is delivered and its link opens the review
@@ -290,3 +290,13 @@ review. No review session is ready under this card's present dependency state.
 The [r4 mandate](../../rfcs/plans/rfc-bpr-0010-owner-closeout/mandate-r4.md)
 removes only its role in the RFC terminal gate and grants no source edit,
 live operation, release or publication authority through this historical record.
+
+## Triage, 2026-10-26
+
+The note above that says to wait until "after
+BPR-0169 is resolved" is out of date. [[BPR-0169]] is Done (2026-10-10),
+and so are [[BPR-0164]], [[BPR-0193]], [[BPR-0223]] and [[BPR-0251]]. The
+next step is the one this card names: bind a current executable, compare it
+with the accepted v006 checkpoint, and if they differ, prepare one short
+attended Accept/Reject question that the banner shows and its link opens
+the review. The card moves to Ready.

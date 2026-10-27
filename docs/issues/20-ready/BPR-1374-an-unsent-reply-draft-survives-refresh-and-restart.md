@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1374"
 title: "An unsent reply draft survives Refresh and restart, and a vanished thread reports it rather than dropping it"
-status: "Parked"
+status: "Ready"
 rfcs: []
 depends_on: []
-parked_on: "human-review"
 priority: "P2"
 platforms: []
-metadata: {"found_by":"BPR-0143's live mixed-client course on BPR-Test#47, shipped (tests-off) composition, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1374--BPR-1374--0119abb53d8c.json","related_cards":["BPR-0143","BPR-0138","BPR-1290","BPR-1212","BPR-1133"]}
+metadata: {"found_by":"BPR-0143's live mixed-client course on BPR-Test#47, shipped (tests-off) composition, 2026-10-09","reservation":"docs/issues/_reservations/BPR-1374--BPR-1374--0119abb53d8c.json","related_cards":["BPR-0143","BPR-0138","BPR-1290","BPR-1212","BPR-1133"],"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"AC4 is a live BPR-Test course an agent can run; nothing waits on the owner."}}
 ---
 
 # BPR-1374: an unsent reply draft survives Refresh and restart
@@ -161,7 +160,7 @@ command. Neither new row is involved.
 ## Owner look (parked on human-review)
 
 Renders from the course, light and dark, are in
-[bpr-1374-reply-flag-v001](../../verification/reviews/bpr-1374-reply-flag-v001/):
+[bpr-1374-reply-flag-v001](../../verification/reviews/bpr-1374-reply-flag-v001):
 
 - `refreshed-deleted`: the kept note.
 - `kept-open`: the kept note opened, with its actions.
@@ -197,3 +196,13 @@ Not sent" note with Keep as comment, Copy text and Discard) from the renders in
 `docs/verification/reviews/bpr-1374-reply-flag-v001/`, verbatim in chat:
 "Accepted". AC1–AC3 and the owner look pass; AC4 (the live BPR-0143 re-run on
 BPR-Test) is still owed, so the card stays parked until it runs.
+
+## Triage, 2026-10-26
+
+AC1 to AC3 and the owner look pass. AC4, the live
+[[BPR-0143]] re-run of the draft rows on `MikeMarcin/BPR-Test`, is agent
+work: AGENTS.md designates BPR-Test for live courses through `gh` and an
+offscreen app. The card should not be parked on `human-review`, so it moves
+to Ready. Rebuild the probe on `claude/bpr-0143-live-probe` against current
+`main` before running it, and check `X-RateLimit-Remaining` as AGENTS.md
+requires.

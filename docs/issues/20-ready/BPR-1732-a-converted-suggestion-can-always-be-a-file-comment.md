@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1732"
 title: "A converted suggestion can always become a file comment"
-status: "Backlog"
+status: "Ready"
 rfcs: []
 depends_on: ["BPR-1716"]
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1726--BPR-1733--4ee9bc97752e.json","origin":"RFC-BPR-0090 adoption, 2026-10-21 (owner answers in session e5387830d18edd8d541b96e47ecbd9cb)","related_cards":["BPR-1723"],"frontend_design":"frontend-design:frontend-design loaded for RFC-BPR-0090's design frames v2","triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Its dependency BPR-1716 is Done."}}
 ---
 
 # BPR-1732: A converted suggestion can always become a file comment
@@ -35,3 +35,8 @@ and the GitHub file-comment path, so it is its own card.
 
 - AC1: After Convert, the comment is published as a file comment with a
   permalink to its lines on every placement, and survives a restart.
+
+## Triage, 2026-10-26
+
+[[BPR-1716]] is Done, so the card moves to Ready.
+It still needs frontend-design for any visible Convert wording.

@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1632"
 title: "Diagnose large-review history input gap"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
-metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"f6ba8f43e4477f60941dd24cdac4450ca68de911","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"f6ba8f43e4477f60941dd24cdac4450ca68de911","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"stale","reason":"The v0.3.0 history input-gap miss does not recur in Release; v0.3.4's macOS, Windows and Ubuntu Release suites pass the course."}}
 ---
 
 # BPR-1632: Diagnose large-review history input gap
@@ -50,3 +50,15 @@ process receipts are retained under ignored `history-diagnosis/`. All three
 owned course/sample processes finish. No timing source, budget, attribution or
 retry policy changes; no further diagnostic course is authorized this round.
 Coordinator disposition remains pending, so this card stays In Progress.
+
+## Closed in triage, 2026-10-26
+
+Closed as stale. The one 142 ms miss came from v0.3.0's frozen Mac
+baseline. The unprofiled rerun on that same source passed, the coordinator
+never dispatched a repair, and the release closed long ago.
+`application_large_review_history` passes in the v0.3.4 Release suites on
+macOS, Windows and Ubuntu. Debug misses are nongating under the owner's
+[standing policy](../../development/release-test-profiles.md#standing-debug-performance-policy),
+and Ubuntu omits that course in Debug. No cause was established, and the
+retained malloc fork-lock stacks are diagnostic only. Open a new card if
+the miss recurs in Release.

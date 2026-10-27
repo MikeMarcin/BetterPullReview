@@ -338,7 +338,7 @@ test C++ units against the clean Mac `4b73e7046` compilation database; their
 verified source is unchanged. New Mac repairs and whole release integration
 remain pending under the same milestone.
 
-[BPR-1632](../issues/30-in-progress/BPR-1632-diagnose-large-review-history-input-gap.md)
+[BPR-1632](../issues/60-done/BPR-1632-diagnose-large-review-history-input-gap.md)
 owns the frozen Mac history failure. The sole violating refresh is
 `epoch_refresh_4`: attributed GUI pulse interval 142.3115 ms exceeds the unchanged
 100 ms limit; refresh completion 440.256 ms is below 12,000 ms. Its wall gap is
@@ -386,7 +386,7 @@ request counts. Ubuntu's complete r5 build passes all original warnings as
 errors. Mac Option typing passes in 1.14 seconds and the actual GitHub provider
 course passes in 3.36 seconds; both changed test units pass focused tidy22.
 
-[BPR-1633](../issues/30-in-progress/BPR-1633-keep-one-native-insights-application-menu-item.md)
+[BPR-1633](../issues/20-ready/BPR-1633-keep-one-native-insights-application-menu-item.md)
 loads the canonical frontend-design skill and preserves the approved native
 Insights label, location, shortcut and profile action. One application-owned
 Cocoa item selects the existing QAction belonging to the actual current menu

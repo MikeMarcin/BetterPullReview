@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1767"
 title: "Investigate the Ubuntu large-review memory failures waived for v0.3.3"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P2"
 platforms: ["linux"]
-metadata: {"origin":"Owner's v0.3.3-only memory-budget waiver and after-release follow-up request","reservation":"docs/issues/_reservations/BPR-1767--BPR-1767--a33c90c65f7d.json","related_cards":["BPR-1694","BPR-0967","BPR-1371","BPR-1764"],"published_source":"193ed10fe24f36c3c6c6498e367afd7ac88c6dca","observed_memory_candidate":"e7514e7d7b3239e7e051e160bb79fe2e308d25f2","external_evidence":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
+metadata: {"origin":"Owner's v0.3.3-only memory-budget waiver and after-release follow-up request","reservation":"docs/issues/_reservations/BPR-1767--BPR-1767--a33c90c65f7d.json","related_cards":["BPR-1694","BPR-0967","BPR-1371","BPR-1764"],"published_source":"193ed10fe24f36c3c6c6498e367afd7ac88c6dca","observed_memory_candidate":"e7514e7d7b3239e7e051e160bb79fe2e308d25f2","external_evidence":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032","triage_20261026":{"date":"2026-10-26","disposition":"superseded","reason":"RFC-BPR-0093 reworked these resource courses under mimalloc; both rows pass in v0.3.4 Ubuntu Release, and BPR-1768 owns the remaining risk."}}
 ---
 
 # Investigate the Ubuntu large-review memory failures waived for v0.3.3
@@ -102,3 +102,18 @@ source bindings, raw outputs and partial measurements before any new work.
   needed, and pass the documentation gate. Keep this card open until the
   direct resource criteria pass or a separately recorded owner amendment
   changes them. The v0.3.3 waiver supplies no follow-up acceptance.
+
+## Closed in triage, 2026-10-26
+
+Closed as superseded. After v0.3.3, RFC-BPR-0093 changed the process
+allocator to mimalloc. Its owner-directed useful-test audit split these
+courses into direct cache, ownership and lifecycle contracts, and kept the
+allocator-calibrated absolute footprint limits as telemetry
+([RFC-BPR-0093 ledger](../../verification/RFC-BPR-0093.md)). Under those
+contracts, `application_large_review_resources` and
+`application_large_review_loaded_close` both pass in v0.3.4's complete
+Ubuntu Release suite (840 of 840). AC3 asked for the "unchanged registered
+bounds", and the owner's RFC-BPR-0093 mandate is what changed them. This
+card does not record a memory reduction. The allocator-neutral
+memory-regression risk that is left belongs to [[BPR-1768]]. The v0.3.3
+failures and their waiver stay recorded as they were.
