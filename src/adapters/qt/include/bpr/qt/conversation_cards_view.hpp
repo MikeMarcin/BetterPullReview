@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_projection.hpp"
 #include "bpr/core/conversation_reactions.hpp"
+#include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
@@ -44,6 +45,7 @@ class QTimer;
 class QKeyEvent;
 class QMouseEvent;
 class QPaintEvent;
+class QPainter;
 class QResizeEvent;
 class QWheelEvent;
 
@@ -233,15 +235,20 @@ namespace bpr::qt {
 	struct thread_card
 	{
 		/// The thread root's identity; empty for the draft note.
-		std::string                                  Id;
-		QString                                      Kind;
-		QString                                      Verdict;
-		std::string                                  CreatedAt;
-		std::vector<std::pair<std::string, QString>> ReviewComments;
-		QString                                      DefectBadge;
-		QString                                      DefectDescription;
-		QString                                      Path;
-		std::optional<core::diff_side>               Side;
+		std::string Id;
+		QString     Kind;
+		QString     Verdict;
+		std::string CreatedAt;
+		/// [[BPR-1779]]. In the conversation's time order (the Pull request
+		/// view and Discuss's whole pull request), the review whose bundle the
+		/// comment was posted in; empty otherwise or outside any review.
+		std::string Bundle;
+		/// [[BPR-1779]]. Its place in that order.
+		std::size_t                    TimelineOrder = 0U;
+		QString                        DefectBadge;
+		QString                        DefectDescription;
+		QString                        Path;
+		std::optional<core::diff_side> Side;
 		/// The one-based line the thread sits on, when it has one.
 		std::optional<std::uint32_t> Line;
 		/// [[BPR-1564]]. A published thread on several lines: GitHub's
@@ -434,6 +441,39 @@ namespace bpr::qt {
 		draft_review_state Review = draft_review_state::none;
 
 		auto operator==(const draft_composer_presentation&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1779]]. A line the conversation's time order draws
+	/// between its comments: a review's quiet line over the comments it
+	/// bundled, a verdict that carried no comment, or a thread's path and line.
+	struct timeline_line
+	{
+		enum class kind : std::uint8_t {
+			/// Who posted the review's comments, when, and the verdict when it
+			/// is Approved or Changes requested.
+			bundle,
+			/// Approved or Changes requested, with nothing posted: who and when.
+			verdict,
+			/// A thread's file and line, above its comment: opens it in Review.
+			path,
+			/// The New rule above the first comment not yet read.
+			fresh,
+		};
+		kind Kind = kind::bundle;
+		/// The review's identity, or the thread's for a path line.
+		std::string Id;
+		QString     Author;
+		QString     Verdict;
+		/// When, in words; empty when GitHub gave no time.
+		QString When;
+		/// The path line's words: "src/a.cpp:42".
+		QString Path;
+		/// Where it is drawn, in content coordinates. A bundle's `Reach` is the
+		/// foot of its last comment, which its rail runs down to.
+		QRect Rect;
+		int   Reach = 0;
+
+		auto operator==(const timeline_line&) const -> bool = default;
 	};
 
 	class open_thread_card;
@@ -696,6 +736,13 @@ namespace bpr::qt {
 		[[nodiscard]] auto hovered_thread() const noexcept -> const std::string&;
 
 		[[nodiscard]] auto cards() const noexcept -> const std::vector<thread_card>&;
+		/// \brief [[BPR-1779]]. Whether the notes read in the conversation's
+		/// time order: the Pull request view, and Discuss over the whole pull
+		/// request. Beside the code and in one file they keep line order.
+		[[nodiscard]] auto timeline() const noexcept -> bool;
+		/// \brief [[BPR-1779]]. The lines drawn between the comments in
+		/// time order, in content coordinates, top to bottom.
+		[[nodiscard]] auto timeline_lines() const noexcept -> const std::vector<timeline_line>&;
 		[[nodiscard]] auto current_thread() const noexcept -> const std::string&;
 		[[nodiscard]] auto layouts() const noexcept -> std::uint64_t;
 		/// \brief [[BPR-0972]]. Retained conversation nodes visited by layouts.
@@ -787,6 +834,16 @@ namespace bpr::qt {
 		void               place_open_card();
 		void               sync_edges();
 		void               sync_pull_request_edge();
+		/// [[BPR-1779]]. The core's items for the roots the notes hold, or for
+		/// every root of the forest, as the time order reads them.
+		[[nodiscard]] auto timeline_item_of(std::size_t aIndex) const -> core::timeline_item;
+		/// [[BPR-1779]]. Puts the cards in the core's time order, keeping only
+		/// the comments it lists.
+		void arrange_timeline();
+		/// [[BPR-1779]]. Lays the cards and their lines out in time order.
+		void               place_timeline();
+		void               paint_timeline(QPainter& aPainter, const QRect& aClip);
+		[[nodiscard]] auto timeline_path_at(QPoint aViewportPoint) const -> const timeline_line*;
 		void               rebuild_open_card();
 		void               relayout_read_state();
 		void               measure_cards();
@@ -818,12 +875,23 @@ namespace bpr::qt {
 		/// layout scoped to one file visits that file's conversations only.
 		/// [[BPR-1362]]. Keyed by value: a view into `Retained` dangled once
 		/// `Retained` was replaced, and MSVC's clear() re-hashes its keys.
-		std::unordered_map<std::string, std::size_t>                        RetainedById;
-		std::vector<std::size_t>                                            RetainedRoot;
-		std::vector<std::size_t>                                            PullRequestRoots;
-		std::map<std::string, std::vector<std::pair<std::string, QString>>> ReviewFileComments;
-		std::vector<std::size_t>                                            RetainedDepth;
-		std::vector<std::pair<core::file_identity, std::size_t>>            RetainedByFile;
+		std::unordered_map<std::string, std::size_t> RetainedById;
+		std::vector<std::size_t>                     RetainedRoot;
+		std::vector<std::size_t>                     PullRequestRoots;
+		/// [[BPR-1779]]. A thread root's first comment: the review it was
+		/// posted in and when, by the root's index.
+		std::unordered_map<std::size_t, std::pair<std::string, std::string>> ThreadOrigins;
+		/// [[BPR-1779]]. The rows the core arranged for the time order, and
+		/// the lines laid out between the comments.
+		std::vector<core::timeline_row> TimelineRows;
+		std::vector<timeline_line>      TimelineLines;
+		/// [[BPR-1779]]. The path line under the pointer, drawn in full ink.
+		std::string HoveredPath;
+		/// [[BPR-1779]]. The pull request's comments and their unread, as the
+		/// Pull request chip counts them: comments, not reviews.
+		mutable std::optional<std::pair<std::size_t, std::size_t>> PullRequestCounts;
+		std::vector<std::size_t>                                   RetainedDepth;
+		std::vector<std::pair<core::file_identity, std::size_t>>   RetainedByFile;
 		/// [[BPR-1083]]. Each retained node's mark, header length and
 		/// ([[BPR-1086]]) lead, read once per adopted forest from the accepted
 		/// body.

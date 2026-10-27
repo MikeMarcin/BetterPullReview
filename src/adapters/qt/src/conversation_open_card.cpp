@@ -1518,12 +1518,11 @@ namespace bpr::qt {
 					}
 				};
 			}
+			// [[BPR-1667]]. A review's missing body is said, never borrowed.
+			// [[BPR-1779]]: in time order a body-less review has no card; its
+			// comments are listed in their own right under its line.
 			if (!aCard.Verdict.isEmpty()) {
-
-				const auto count = aCard.ReviewComments.size();
-				view->reader()->set_empty_body_text(count == 0U       ? QStringLiteral("No overall review comment.")
-														: count == 1U ? QStringLiteral("No overall review comment. 1 file comment is linked below.")
-																	  : QStringLiteral("No overall review comment. %1 file comments are linked below.").arg(count));
+				view->reader()->set_empty_body_text(QStringLiteral("No overall review comment."));
 			}
 			if (Style.Feed && !aCard.Draft) {
 				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
@@ -1733,19 +1732,6 @@ namespace bpr::qt {
 			actions->addWidget(remove);
 			footRow->addLayout(actions);
 		} else if (aCard.Kind == QStringLiteral("Inline thread") || aCard.Path.isEmpty()) {
-			if (aCard.Path.isEmpty()) {
-				for (const auto& [id, caption] : aCard.ReviewComments) {
-					auto* const source = new QToolButton{ Foot };
-					source->setObjectName(QStringLiteral("conversationReviewFileComment"));
-					source->setText(caption);
-					source->setToolTip(QStringLiteral("Open this file comment in Review"));
-					source->setAccessibleName(QStringLiteral("Open file comment at %1 in Review").arg(caption));
-					source->setAutoRaise(true);
-					source->setFocusPolicy(Qt::StrongFocus);
-					connect(source, &QToolButton::clicked, this, [this, id] {const auto dispatch=OpenInReviewRequested;if(dispatch){dispatch(id);} });
-					footRow->addWidget(source);
-				}
-			}
 			footRow->setContentsMargins(gut_left, 8, text_right, 10);
 			if (notice != nullptr) {
 				notice->setContentsMargins(text_left - gut_left, 0, 0, 0);
