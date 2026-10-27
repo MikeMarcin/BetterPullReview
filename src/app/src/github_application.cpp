@@ -16,10 +16,12 @@
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
+#include "bpr/core/review_role.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/event_loop_metrics.hpp"
@@ -28,6 +30,7 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/markdown_image_decoder.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/suggestion_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 #include "github_cli_runtime.hpp"
@@ -8427,6 +8430,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1774]]. Save in Overview's description editor.
 			Window->overview_page()->set_description_save_dispatch(
 				[this](const qt::overview_description_save& aSave) { save_description(aSave); });
+			// [[BPR-1775]]. Save while editing one of my comments.
+			if (Window->conversation_panel() != nullptr && Window->conversation_panel()->cards() != nullptr) {
+				Window->conversation_panel()->cards()->set_comment_edit_dispatch(
+					[this](const qt::comment_edit_save& aSave) { save_comment_edit(aSave); });
+			}
 
 #if defined(BPR_AGENT_INTEGRATIONS)
 			// BPR-0533. The six comment-workshop controls reach the composed
@@ -14105,6 +14113,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (aUpdate.PullRequest) {
 				present_conversation_state();
 				present_description_offer();
+				present_comment_edit_offer();
 			}
 			select_published_conversation();
 
@@ -14251,6 +14260,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			RetryableReviewDraft.reset();
 			// [[BPR-1774]]. A retired host answers no save of the next one.
 			PendingDescriptionEdit.reset();
+			PendingCommentEdit.reset();
 		}
 
 		void compose_review_mutation(
@@ -14409,6 +14419,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// too, through `gh api graphql`.
 			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
 			present_description_offer();
+			present_comment_edit_offer();
 		}
 
 		/// [[BPR-1741]]. The posts' reactions and the threads'
@@ -14709,6 +14720,189 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			page->close_description_editor();
 			// The description shows GitHub's answer the way every other fact
 			// comes back: the next read.
+			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
+			}
+		}
+		/// [[BPR-1775]]. The conversation's cards, where my comments are edited.
+		[[nodiscard]] auto comment_edit_cards() const -> qt::conversation_cards_view*
+		{
+			return Window != nullptr && Window->conversation_panel() != nullptr ? Window->conversation_panel()->cards() : nullptr;
+		}
+
+		/// [[BPR-1775]]. Whether the session reads anonymously, as a reaction
+		/// asks it.
+		[[nodiscard]] auto reads_anonymously() const -> bool
+		{
+			return Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(core::anonymous_read_intent::react_to_comment));
+		}
+
+		/// [[BPR-1775]]. Edit on my own published comments is offered in a
+		/// signed-in read whose connection edits comments; the core decides
+		/// each post from the read's "Mine".
+		void present_comment_edit_offer()
+		{
+			auto* const cards = comment_edit_cards();
+			if (Closing || cards == nullptr) {
+				return;
+			}
+			const auto signedIn = WindowRead && WindowRead->accepted_snapshot() && !WindowRead->accepted_snapshot()->Viewer.Login.empty();
+			cards->set_comment_edit_offered(signedIn && !reads_anonymously() && ReviewMutationHost != nullptr && ReviewMutationHost->capabilities().EditsComments);
+		}
+
+		/// [[BPR-1775]]. The post as the accepted read has it: whether the
+		/// viewer wrote it, and its body; nothing when the read no longer
+		/// shows it.
+		[[nodiscard]] auto accepted_comment(const std::string& aPost) const -> std::optional<std::pair<bool, std::string>>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto  mine     = [&snapshot](const auto& aRecord) {
+				return aRecord.Author.has_value() && !snapshot.Viewer.Login.empty() && core::same_login(aRecord.Author->Login, snapshot.Viewer.Login);
+			};
+			for (const auto& thread : snapshot.ReviewThreads) {
+				for (const auto& comment : thread.Comments) {
+					if (!comment.Deleted && comment_projection_id(comment) == aPost) {
+						return std::pair{ mine(comment), comment.Body };
+					}
+				}
+			}
+			for (const auto& comment : snapshot.IssueComments) {
+				if (!comment.Deleted && comment_projection_id(comment) == aPost) {
+					return std::pair{ mine(comment), comment.Body };
+				}
+			}
+			for (const auto& review : snapshot.Reviews) {
+				if (comment_projection_id(review) == aPost) {
+					return std::pair{ mine(review), review.Body };
+				}
+			}
+			return std::nullopt;
+		}
+
+		/// [[BPR-1775]]. Save while editing one of my comments: the core
+		/// decides on the gesture (mine, a change, not blank, within GitHub's
+		/// length), the host writes once under a one-shot grant after GitHub,
+		/// asked first, still has the original. Nothing is sent before Save,
+		/// and a refusal is said beside the editor.
+		void save_comment_edit(const qt::comment_edit_save& aSave)
+		{
+			auto* const cards = comment_edit_cards();
+			if (Closing || cards == nullptr) {
+				return;
+			}
+			++CommentEditGestures;
+			const auto subject  = core::comment_edit_subject_of(aSave.Post);
+			const auto accepted = accepted_comment(aSave.Post);
+			if (!subject.has_value() || !accepted.has_value()) {
+				++CommentEditRefusals;
+				cards->present_comment_edit_status(QStringLiteral("This comment is no longer in the pull request as read. Refresh and try again."));
+				return;
+			}
+			const auto refusal = core::decide_comment_edit({ .Mine = accepted->first, .Anonymous = reads_anonymously(), .Original = aSave.Original, .Edited = aSave.Body });
+			switch (refusal) {
+			case core::comment_edit_refusal::not_mine:
+				++CommentEditRefusals;
+				cards->present_comment_edit_status(QStringLiteral("Only your own comments can be edited here."));
+				return;
+			case core::comment_edit_refusal::unchanged:
+				++CommentEditRefusals;
+				cards->present_comment_edit_status(QStringLiteral("Nothing has changed, so there is nothing to save."));
+				return;
+			case core::comment_edit_refusal::empty:
+				++CommentEditRefusals;
+				cards->present_comment_edit_status(QStringLiteral("A comment needs some text. Deleting a comment is not offered here."));
+				return;
+			case core::comment_edit_refusal::too_long:
+				++CommentEditRefusals;
+				cards->present_comment_edit_status(QStringLiteral("GitHub keeps at most 65,536 characters; this comment has %1.")
+													   .arg(QLocale{ }.toString(static_cast<qulonglong>(core::description_characters(aSave.Body)))));
+				return;
+			case core::comment_edit_refusal::none:
+				break;
+			}
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().EditsComments) {
+				++CommentEditRefusals;
+				cards->present_comment_edit_status(QStringLiteral("This connection cannot edit comments."));
+				return;
+			}
+			if (PendingCommentEdit.has_value()) {
+				cards->present_comment_edit_status(QStringLiteral("Waiting for GitHub to answer the last save."), true);
+				return;
+			}
+			auto request = application::review_comment_edit_publication_request{
+				.Kind     = subject->Kind,
+				.Subject  = std::string{ subject->Node },
+				.Original = aSave.Original,
+				.Body     = aSave.Body,
+			};
+			auto grant = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_comment_edit(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			cards->present_comment_edit_status(QStringLiteral("Saving your comment to GitHub…"), true);
+			PendingCommentEdit = ReviewMutationHost->edit_comment(std::move(request), std::move(grant));
+		}
+
+		void publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr || PendingCommentEdit != std::optional{ aTerminal.Context }) {
+				return;
+			}
+			PendingCommentEdit.reset();
+			auto* const cards = comment_edit_cards();
+			if (cards == nullptr) {
+				return;
+			}
+			if (!aTerminal.Result.has_value()) {
+				++CommentEditFailures;
+				auto words = QString{ };
+				switch (aTerminal.Result.error()) {
+				case application::review_mutation_failure::refused_by_server:
+					words = QStringLiteral("GitHub does not let you edit this comment. Nothing was saved.");
+					break;
+				case application::review_mutation_failure::not_confirmed:
+					words = QStringLiteral("GitHub does not show the new text; it was not sent twice. Check the comment, then save again.");
+					break;
+				case application::review_mutation_failure::incompatible_body:
+					words = QStringLiteral("GitHub cannot take this text. Nothing was saved.");
+					break;
+				case application::review_mutation_failure::target_moved:
+				case application::review_mutation_failure::undesignated_target:
+				case application::review_mutation_failure::target_unavailable:
+					words = QStringLiteral("The comment or the pull request changed on GitHub, so nothing was saved. Refresh and try again.");
+					break;
+				case application::review_mutation_failure::cancelled:
+					words = QStringLiteral("Saving was stopped. Nothing more is sent.");
+					break;
+				default:
+					words = QStringLiteral("The connection could not save the comment (%1). Your text is kept.")
+								.arg(QString::fromUtf8(application::name(aTerminal.Result.error())));
+					break;
+				}
+				cards->present_comment_edit_status(words);
+				return;
+			}
+			if (aTerminal.Result->Conflict) {
+				// Never overwritten silently: the editor says so, keeps the typed
+				// text, and offers GitHub's newer text to go on from.
+				++CommentEditConflicts;
+				cards->present_comment_edit_status(QStringLiteral("Someone changed this comment on GitHub since you began. Nothing was saved."));
+				cards->offer_newer_comment(aTerminal.Result->Body);
+				return;
+			}
+			++CommentEditCompletions;
+			cards->close_comment_edit();
+			// The comment shows GitHub's answer the way every other fact comes
+			// back: the next read.
 			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
 				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
 			}
@@ -23052,6 +23246,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_description_offered,
 				awaiting_description_saved,
 				awaiting_description_conflict,
+				// [[BPR-1775]].
+				awaiting_comment_edit_offered,
+				awaiting_comment_edit_saved,
+				awaiting_comment_edit_conflict,
 				passed,
 				failed,
 			};
@@ -23060,6 +23258,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string                           Diagnostic;
 			std::optional<std::uint32_t>          ThreadlessLine;
 			int                                   ReadsBeforeRefresh = 0;
+			/// [[BPR-1775]]. The thread's first post was given to another
+			/// account, so the course has someone else's comment to refuse.
+			bool CommentRootRestaged = false;
 		};
 
 		std::optional<threaded_reply_probe_state> ThreadedReplyProbe;
@@ -23507,6 +23708,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                                 DescriptionEditCompletions = 0U;
 		std::size_t                                                 DescriptionEditConflicts   = 0U;
 		std::size_t                                                 DescriptionEditFailures    = 0U;
+		/// [[BPR-1775]]. The comment save in flight, and what came of saves.
+		std::optional<application::review_mutation_request_context> PendingCommentEdit;
+		std::size_t                                                 CommentEditGestures    = 0U;
+		std::size_t                                                 CommentEditRefusals    = 0U;
+		std::size_t                                                 CommentEditCompletions = 0U;
+		std::size_t                                                 CommentEditConflicts   = 0U;
+		std::size_t                                                 CommentEditFailures    = 0U;
 
 		std::vector<std::unique_ptr<application::review_mutation_application_host>>
 			RetiredReviewMutationHosts;
@@ -32712,6 +32920,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					probe.Phase = state_type::phase::awaiting_description_offered;
 					return result::pending;
 				}
+				// [[BPR-1775]]. With comments edited, it goes on to my reply.
+				if (implementation->ReviewMutationHost->capabilities().EditsComments) {
+					probe.Phase = state_type::phase::awaiting_comment_edit_offered;
+					return result::pending;
+				}
 				probe.Phase = state_type::phase::passed;
 				return result::passed;
 			}
@@ -32896,6 +33109,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = state_type::phase::awaiting_description_offered;
 				return result::pending;
 			}
+			if (implementation->ReviewMutationHost->capabilities().EditsComments) {
+				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
+				return result::pending;
+			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		}
@@ -32993,6 +33210,145 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("newer-not-loaded");
 			}
 			page->description_cancel_button()->click();
+			QCoreApplication::processEvents();
+			if (implementation->ReviewMutationHost->capabilities().EditsComments) {
+				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
+				return result::pending;
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		}
+		// [[BPR-1775]]. My published reply offers Edit in Discuss and another's
+		// comment does not; Save performs exactly one write, and the next read
+		// shows GitHub's body. A second edit meets a body another client
+		// changed: nothing is written, the typed text stays, and editing goes
+		// on from GitHub's newer text.
+		case state_type::phase::awaiting_comment_edit_offered: {
+			constexpr auto mine = std::string_view{ "review-comment:fixture-comment-1" };
+			// Every post in the recording is the viewer's: the thread's first
+			// post becomes another account's on the next read.
+			if (!probe.CommentRootRestaged) {
+				auto* const refresh = window->github_refresh_action();
+				if (refresh == nullptr || !refresh->isEnabled()) {
+					return result::pending;
+				}
+				implementation->Fixture->stage_server_root("PRRT_fixture_1", std::nullopt, std::nullopt, std::pair<std::string, std::string>{ "U_fixture_other", "octo-other" });
+				probe.CommentRootRestaged = true;
+				probe.ReadsBeforeRefresh  = implementation->Fixture->evidence().AccountReadCount;
+				refresh->trigger();
+				return result::pending;
+			}
+			// A refresh the window was already running may have answered from
+			// before the change; ask again until a later read arrives.
+			if (implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh) {
+				if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+					refresh->trigger();
+				}
+				return result::pending;
+			}
+			window->choose_modality(qt::review_modality::discuss);
+			cards->open_thread(std::string{ threadIdentity });
+			QCoreApplication::processEvents();
+			const auto others = cards->comment_editable("review-comment:PRRC_fixture_1");
+			note("offered=" + std::to_string(cards->comment_edit_offered() ? 1 : 0) + " mine=" + std::to_string(cards->comment_editable(mine) ? 1 : 0)
+				 + " others=" + std::to_string(others ? 1 : 0) + " open=" + cards->open_thread_id());
+			// Until the read naming another author arrives, the first post is
+			// still the viewer's.
+			if (!cards->comment_edit_offered() || cards->open_card() == nullptr || others || !cards->comment_editable(mine)) {
+				return result::pending;
+			}
+			for (auto* const post : cards->open_card()->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				if (post->property("postIdentity").toString() == QStringLiteral("review-comment:PRRC_fixture_1")
+					&& (post->findChild<QAbstractButton*>(QStringLiteral("threadPostEdit")) == nullptr || !post->findChild<QAbstractButton*>(QStringLiteral("threadPostEdit"))->isHidden())) {
+					return fail("edit-shown-on-another's-comment");
+				}
+			}
+			auto* button = static_cast<QAbstractButton*>(nullptr);
+			for (auto* const post : cards->open_card()->findChildren<QWidget*>(QStringLiteral("threadPost"))) {
+				if (post->property("postIdentity").toString() == QString::fromUtf8(mine.data(), static_cast<qsizetype>(mine.size()))) {
+					button = post->findChild<QAbstractButton*>(QStringLiteral("threadPostEdit"));
+				}
+			}
+			probe.Evidence.CommentEditOffered = button != nullptr && !button->isHidden();
+			if (!probe.Evidence.CommentEditOffered) {
+				return fail("edit-not-shown-on-my-reply");
+			}
+			button->click();
+			QCoreApplication::processEvents();
+			auto* const text = cards->comment_editor();
+			if (text == nullptr || text->raw() != replyBody) {
+				return fail("editor-not-on-reply");
+			}
+			probe.ReadsBeforeRefresh = implementation->Fixture->evidence().AccountReadCount;
+			text->selectAll();
+			text->insertPlainText(QStringLiteral("Edited from the conversation."));
+			QCoreApplication::processEvents();
+			cards->comment_edit_save_button()->click();
+			probe.Phase = state_type::phase::awaiting_comment_edit_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_comment_edit_saved: {
+			constexpr auto mine     = std::string_view{ "review-comment:fixture-comment-1" };
+			constexpr auto saved    = std::string_view{ "Edited from the conversation." };
+			const auto     evidence = implementation->Fixture->review_mutation_evidence();
+			note("completions=" + std::to_string(implementation->CommentEditCompletions) + " failures=" + std::to_string(implementation->CommentEditFailures)
+				 + " refusals=" + std::to_string(implementation->CommentEditRefusals) + " edits=" + std::to_string(evidence.CommentEdits)
+				 + " writes=" + std::to_string(evidence.CommentEditWrites) + " status=" + (cards->comment_edit_status() != nullptr ? cards->comment_edit_status()->text().toStdString() : std::string{ }));
+			if (implementation->CommentEditFailures != 0U || implementation->CommentEditRefusals != 0U || implementation->CommentEditConflicts != 0U) {
+				return fail("save-refused-or-failed");
+			}
+			if (implementation->CommentEditCompletions < 1U || cards->comment_editing().has_value()) {
+				return result::pending;
+			}
+			probe.Evidence.CommentEditSavedOnce = evidence.CommentEdits == 1U && evidence.CommentEditWrites == 1U;
+			if (!probe.Evidence.CommentEditSavedOnce) {
+				return fail("not-exactly-one-write");
+			}
+			const auto reply = model->index_for_id(std::string{ mine });
+			if (implementation->Fixture->evidence().AccountReadCount <= probe.ReadsBeforeRefresh || !reply.isValid()
+				|| reply.data(qt::github_conversation_model::body_role).toString() != QString::fromUtf8(saved.data(), static_cast<qsizetype>(saved.size()))) {
+				return result::pending;
+			}
+			probe.Evidence.CommentEditShownAfterRead = true;
+			// Another client changes the reply while this one edits it.
+			if (!cards->begin_comment_edit(std::string{ mine }) || cards->comment_editor() == nullptr) {
+				return fail("no-second-edit");
+			}
+			auto* const text = cards->comment_editor();
+			auto        end  = text->textCursor();
+			end.movePosition(QTextCursor::End);
+			text->setTextCursor(end);
+			text->insertPlainText(QStringLiteral(" Typed second."));
+			QCoreApplication::processEvents();
+			implementation->Fixture->stage_server_comment("fixture-comment-1", "Changed on GitHub by someone else.");
+			cards->comment_edit_save_button()->click();
+			probe.Phase = state_type::phase::awaiting_comment_edit_conflict;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_comment_edit_conflict: {
+			const auto evidence = implementation->Fixture->review_mutation_evidence();
+			note("conflicts=" + std::to_string(implementation->CommentEditConflicts) + " edits=" + std::to_string(evidence.CommentEdits)
+				 + " writes=" + std::to_string(evidence.CommentEditWrites));
+			if (implementation->CommentEditFailures != 0U || implementation->CommentEditCompletions != 1U) {
+				return fail("conflict-written-or-failed");
+			}
+			if (implementation->CommentEditConflicts < 1U) {
+				return result::pending;
+			}
+			auto* const text                          = cards->comment_editor();
+			probe.Evidence.CommentEditConflictRefused = evidence.CommentEdits == 2U && evidence.CommentEditWrites == 1U && text != nullptr
+				&& text->raw().ends_with(" Typed second.") && cards->comment_edit_newer_button()->isVisible()
+				&& cards->comment_edit_status()->text().contains(QStringLiteral("changed this comment on GitHub"));
+			if (!probe.Evidence.CommentEditConflictRefused) {
+				return fail("conflict-not-refused");
+			}
+			cards->comment_edit_newer_button()->click();
+			QCoreApplication::processEvents();
+			probe.Evidence.CommentEditNewerLoaded = text->raw() == "Changed on GitHub by someone else." && cards->comment_edit_original() == text->raw();
+			if (!probe.Evidence.CommentEditNewerLoaded) {
+				return fail("newer-not-loaded");
+			}
+			cards->comment_edit_cancel_button()->click();
 			QCoreApplication::processEvents();
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

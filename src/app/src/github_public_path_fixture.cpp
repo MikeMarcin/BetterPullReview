@@ -3,6 +3,7 @@
 #include "review_submission_fixture.hpp"
 
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "github_capability_probe.hpp"
 #include "github_device_authorization_contract.hpp"
@@ -2137,7 +2138,10 @@ namespace bpr::app::detail {
 			// the pull request's author and the description is what the
 			// fixture's provider (or another client) last wrote; unset until
 			// the recorded body is first read.
-			bool                       DescriptionServed = false;
+			bool DescriptionServed = false;
+			// [[BPR-1775]]. With `--comment-edit-probe`, the provider edits the
+			// replies it published (their bodies live in `ThreadOverlays`).
+			bool                       CommentsEditable = false;
 			std::optional<std::string> Description;
 
 			// [[BPR-0990]]. The repository's open pull requests discovery
@@ -5419,6 +5423,50 @@ namespace bpr::app::detail {
 				return application::review_description_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-26T12:00:00Z", .Written = true };
 			}
 
+			// [[BPR-1775]]. A reply the fixture published, as GitHub would keep
+			// it: observed first, the core decides, written once; a conflict
+			// writes nothing and answers with the newer body. Another
+			// account's comment is never the viewer's to update.
+			auto edit_comment(
+				const application::review_comment_edit_request& aRequest,
+				std::stop_token)
+				-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure> override
+			{
+				const std::scoped_lock providerLock{ Mutex };
+				++Evidence.CommentEdits;
+				if (State == nullptr || !State->CommentsEditable) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				if (aRequest.Target != Designated) {
+					return std::unexpected{ application::review_mutation_failure::undesignated_target };
+				}
+				const std::scoped_lock lock{ State->Mutex };
+				auto*                  body = static_cast<std::string*>(nullptr);
+				if (aRequest.Kind == core::comment_edit_kind::review_comment) {
+					for (auto& [thread, overlay] : State->ThreadOverlays) {
+						for (auto& [identifier, text] : overlay.Replies) {
+							if (identifier == aRequest.Subject) {
+								body = &text;
+							}
+						}
+					}
+				}
+				const auto current = body != nullptr ? *body : std::string{ };
+				switch (core::decide_comment_save({ .Original = aRequest.Original, .Edited = aRequest.Body, .Current = current, .ViewerCanUpdate = body != nullptr })) {
+				case core::description_save_outcome::already_saved:
+					return application::review_comment_edit_receipt{ .Body = current };
+				case core::description_save_outcome::conflict:
+					return application::review_comment_edit_receipt{ .Body = current, .Conflict = true };
+				case core::description_save_outcome::not_permitted:
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				case core::description_save_outcome::write:
+					break;
+				}
+				*body = aRequest.Body;
+				++Evidence.CommentEditWrites;
+				return application::review_comment_edit_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-27T12:00:00Z", .Written = true };
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
@@ -5427,6 +5475,7 @@ namespace bpr::app::detail {
 					.RecordsViewedState = false,
 					.Reacts             = State != nullptr && State->ReactionsServed,
 					.EditsDescription   = State != nullptr && State->DescriptionServed,
+					.EditsComments      = State != nullptr && State->CommentsEditable,
 				};
 			}
 
@@ -5608,6 +5657,7 @@ namespace bpr::app::detail {
 			// a thumbs up.
 			Recording->ReactionsServed   = aOptions.ServesReactions;
 			Recording->DescriptionServed = aOptions.EditsDescription;
+			Recording->CommentsEditable  = aOptions.EditsComments;
 			if (aOptions.ServesReactions) {
 				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
 					.ViewerCanReact = true,
@@ -5950,6 +6000,18 @@ namespace bpr::app::detail {
 	{
 		const std::scoped_lock lock{ Implementation->Recording->Mutex };
 		Implementation->Recording->ThreadOverlays[std::move(aThread)].Deleted = true;
+	}
+
+	void github_public_path_fixture_components::stage_server_comment(const std::string& aComment, std::string aBody)
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		for (auto& [thread, overlay] : Implementation->Recording->ThreadOverlays) {
+			for (auto& [identifier, text] : overlay.Replies) {
+				if (identifier == aComment) {
+					text = aBody;
+				}
+			}
+		}
 	}
 
 	void github_public_path_fixture_components::stage_server_description(std::string aBody)
