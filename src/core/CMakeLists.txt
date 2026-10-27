@@ -133,6 +133,7 @@ add_library(
         src/review_tour.cpp
         src/review_round_trip.cpp
         src/conversation_reactions.cpp
+        src/comment_edit.cpp
         src/description_edit.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp

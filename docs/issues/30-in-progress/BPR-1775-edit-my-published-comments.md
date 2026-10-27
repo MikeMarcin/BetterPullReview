@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1775"
 title: "Edit my published comments"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
