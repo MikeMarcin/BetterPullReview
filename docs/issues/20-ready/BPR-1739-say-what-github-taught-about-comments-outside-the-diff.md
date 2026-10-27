@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1739"
 title: "Say on the server card and in Support details what GitHub taught about comments outside the diff"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0022"]
 depends_on: ["BPR-1736"]
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1739--BPR-1739--23e3961ce427.json","kind":"feature","origin":"BPR-1736 AC6: the editor's words shipped; the server card's line and the published thread's Support details line did not","related_cards":["BPR-1736","BPR-1735","BPR-1737"],"frontend_design":"load frontend-design:frontend-design before the words and layout"}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1739--BPR-1739--23e3961ce427.json","kind":"feature","origin":"BPR-1736 AC6: the editor's words shipped; the server card's line and the published thread's Support details line did not","related_cards":["BPR-1736","BPR-1735","BPR-1737"],"frontend_design":"load frontend-design:frontend-design before the words and layout","triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Its dependency BPR-1736 is Done."}}
 ---
 
 # BPR-1739: Say on the server card and in Support details what GitHub taught about comments outside the diff
@@ -46,3 +46,9 @@ BPR-1736's design named are not built:
 - AC2: A published native thread at a line the core placed outside the diff
   says in its Support details that GitHub accepted it on this server.
 - AC3: Neither line is derived from the host's name, product or version.
+
+## Triage, 2026-10-26
+
+[[BPR-1736]] is Done, so the card moves to Ready.
+Load frontend-design before writing the words and layout, as the metadata
+says.

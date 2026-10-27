@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1694"
 title: "Prepare and qualify the coordinated v0.3.3 full release"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate":"release-v032-owner-request-20261021","baseline":"111235987772e808f4fae26383925759985b3041","execution_strategy":"direct","milestone_plan":{"id":"release-v032","path":"docs/rfcs/plans/release-v032/milestone-plan.json"},"external_state":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
+metadata: {"mandate":"release-v032-owner-request-20261021","baseline":"111235987772e808f4fae26383925759985b3041","execution_strategy":"direct","milestone_plan":{"id":"release-v032","path":"docs/rfcs/plans/release-v032/milestone-plan.json"},"external_state":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032","triage_20261026":{"date":"2026-10-26","disposition":"done","reason":"v0.3.3 was published on 2026-10-25; v0.3.4 has since superseded it."}}
 ---
 
 # Prepare and qualify v0.3.3
@@ -656,3 +656,13 @@ exhaustion, the shared recovery budget, team-only results, cancellation,
 authentication and malformed-REST refusal, and recovery throttling. Formatting
 and whitespace checks pass. Native build and test results are supplied through
 the parent-owned producer and remain pending until actually observed.
+
+## Closed in triage, 2026-10-26
+
+v0.3.3 is published. GitHub reports `v0.3.3` as a full release, neither
+draft nor prerelease, published `2026-10-25T03:16:51Z`. Its
+[notes](../../releases/v0.3.3.md) and the waiver follow-ups ([[BPR-1765]],
+[[BPR-1766]], [[BPR-1767]]) are committed, and v0.3.4 followed on 2026-10-26.
+AC4's publication happened, so the card is closed. No per-criterion record
+was added here. Unfinished release-security, native-trust and RFC-BPR-0038
+obligations stay with that RFC's cards, as before.

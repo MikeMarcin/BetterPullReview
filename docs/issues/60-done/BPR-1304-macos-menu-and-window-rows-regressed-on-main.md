@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1304"
 title: "macOS menu and window rows regressed on main"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
-parked_on: "human-review"
-metadata: {"found_by":"macOS Debug serial run of origin/main at ebb2cf11e, 2026-10-07","reservation":"docs/issues/_reservations/BPR-1304--BPR-1304--c2a0556d07b5.json","related_cards":["BPR-1295","BPR-1293","BPR-1089","BPR-0796","BPR-1303"],"acceptance":["BPR-1304:desktop-view","BPR-1304:title-row","BPR-1304:native-key-locked","BPR-1304:native-courses"]}
+metadata: {"found_by":"macOS Debug serial run of origin/main at ebb2cf11e, 2026-10-07","reservation":"docs/issues/_reservations/BPR-1304--BPR-1304--c2a0556d07b5.json","related_cards":["BPR-1295","BPR-1293","BPR-1089","BPR-0796","BPR-1303"],"acceptance":["BPR-1304:desktop-view","BPR-1304:title-row","BPR-1304:native-key-locked","BPR-1304:native-courses"],"triage_20261026":{"date":"2026-10-26","disposition":"done-with-declined-criterion","reason":"desktop-view, title-row and native-courses pass; the owner declined native-key-locked."}}
 ---
 
 # BPR-1304: macOS menu and window rows regressed on main
@@ -144,3 +143,14 @@ Both criteria stay pending until the logs are read here.
   verbatim: "No I'm too busy for that and don't care to do it". It is not
   run and not claimed; the wizard was replaced by
   `bpr-mac-frozen-20261009-v002` without that step.
+
+## Closed in triage, 2026-10-26
+
+Closed. `BPR-1304:desktop-view` and `BPR-1304:title-row` passed on
+2026-10-07, and the failing-before control is recorded above.
+`BPR-1304:native-courses` passed in the owner's Aqua session on 2026-10-09.
+Both cocoa courses also pass in v0.3.4's macOS Debug suite.
+`BPR-1304:native-key-locked` was never run. The owner declined it
+("No I'm too busy for that and don't care to do it"). It is recorded as
+declined, not passed, and the card is closed on that decision without
+asking again.

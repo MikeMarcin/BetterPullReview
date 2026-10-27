@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1371"
 title: "macOS: the byte-pressure course's footprint drifts back toward its 184 MiB limit while the live heap stays flat"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
-metadata: {"found_by":"owner, 2026-10-09: application_large_review_cache_bytes footprint median 178.8 MiB (155-190, one miss at 190.0) against 158.6 at BPR-1296's fix; Windows flaked too","reservation":"docs/issues/_reservations/BPR-1371--BPR-1371--a64e15ed93fa.json","related_cards":["BPR-1296","BPR-0967","BPR-1032","BPR-1327","BPR-1344","BPR-1360"]}
+metadata: {"found_by":"owner, 2026-10-09: application_large_review_cache_bytes footprint median 178.8 MiB (155-190, one miss at 190.0) against 158.6 at BPR-1296's fix; Windows flaked too","reservation":"docs/issues/_reservations/BPR-1371--BPR-1371--a64e15ed93fa.json","related_cards":["BPR-1296","BPR-0967","BPR-1032","BPR-1327","BPR-1344","BPR-1360"],"triage_20261026":{"date":"2026-10-26","disposition":"superseded","reason":"The macOS malloc-zone footprint analysis is obsolete under mimalloc (RFC-BPR-0093); BPR-1768 owns the remaining memory-regression risk."}}
 ---
 
 # BPR-1371: macOS byte-pressure footprint drifts back toward its 184 MiB limit
@@ -156,3 +156,16 @@ same allocator effect but was not measured here.
   per label bucket.
 - Bring the assertion proposal to the owner. Change no limit until the owner
   decides.
+
+## Closed in triage, 2026-10-26
+
+Closed as superseded. This card studied the gap between the system
+allocator's footprint and its live heap on macOS. The process now runs
+mimalloc (RFC-BPR-0093), so that zone analysis and the proposed
+`size_allocated` assertion no longer describe the shipped allocator, and
+[[BPR-1768]] says native zone counters do not cover mimalloc.
+`application_large_review_cache_bytes` passes in v0.3.4's macOS, Windows
+and Ubuntu Release suites. Debug runs it as a configured skip. The owner
+question proposed in "Next" was never asked, and it is withdrawn instead of
+being carried over. The bisect results above are kept as history. Any
+allocator-neutral regression signal belongs to [[BPR-1768]].

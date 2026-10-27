@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1138"
 title: "One scratch-directory helper with a Windows branch, for the Windows roots and markers that BPR-1128 and BPR-1139 left as they were"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["win"]
-metadata: {"found_by":"BPR-1128's 'Left for the follow-up' section and BPR-1139's 'Owed to bpr-main-win'","reservation":"docs/issues/_reservations/BPR-1138--BPR-1140--96a55e982e06.json","related_cards":["BPR-1128","BPR-1139","BPR-1126","BPR-1121","BPR-1229"],"written":"2026-10-01, from the reservation of 2026-09-25, when BPR-1128 and BPR-1139 were finished"}
+metadata: {"found_by":"BPR-1128's 'Left for the follow-up' section and BPR-1139's 'Owed to bpr-main-win'","reservation":"docs/issues/_reservations/BPR-1138--BPR-1140--96a55e982e06.json","related_cards":["BPR-1128","BPR-1139","BPR-1126","BPR-1121","BPR-1229"],"written":"2026-10-01, from the reservation of 2026-09-25, when BPR-1128 and BPR-1139 were finished","triage_20261026":{"date":"2026-10-26","disposition":"done","reason":"AC4 and AC5 are met by the v0.3.4 native suites; AC6's scoped tidy passes on the changed canary file."}}
+acceptance: [{"criterion":"BPR-1138:AC4","outcome":"pass","revision":"62bfc09f6","evidence":{"kind":"command","path":"docs/verification/release-v034-results.md","detail":"qt_agent_launch_canary and qt_agent_launch_canary_durable_course pass in the v0.3.4 Windows Release suite at 62bfc09f6 (b1ef63e3a is an ancestor); first observed passing contained at b1ef63e3a on 2026-10-09."}},{"criterion":"BPR-1138:AC5","outcome":"pass","revision":"62bfc09f6","evidence":{"kind":"command","path":"docs/verification/release-v034-results.md","detail":"Part B's canary file builds and qt_agent_launch_canary passes in v0.3.4's macOS Debug, Ubuntu Release and Ubuntu Debug suites at 62bfc09f6; Part A's Linux and macOS builds were recorded on 2026-10-01."}},{"criterion":"BPR-1138:AC6","outcome":"pass","revision":"ad39b7ce1","evidence":{"kind":"command","path":"docs/issues/60-done/BPR-1138-one-scratch-directory-helper-with-a-windows-branch-for-the-roots-and-markers-bpr-1128-and-bpr-1139-left-on-windows.md","detail":"python3 _coding-standard/scripts/tidy.py --build-dir build/dev --paths tests/adapters_qt/agent_launch_canary_tests.cpp --warnings-as-errors: clang-tidy 22 passed (macOS translation unit; the _WIN32-only branches are not compiled there). Part A's tidy passed at 3d78f42f2; clang-format and git diff --check were clean at both parts."}}]
 ---
 
 # BPR-1138: One scratch-directory helper with a Windows branch, for the Windows roots and markers that BPR-1128 and BPR-1139 left as they were
@@ -383,3 +384,21 @@ changed lines is not run on this station.
 compiles exactly the code its `#else` branch already had. A Linux or macOS run
 of `qt_agent_launch_canary` at this commit would confirm it, and is the
 coordinator's to ask for.
+
+## Closed in triage, 2026-10-26
+
+Closed. The last owed items are now observed:
+
+- **AC4 and AC5.** `qt_agent_launch_canary` and its durable course pass in
+  the v0.3.4 Windows Release suite and in the macOS Debug, Ubuntu Release
+  and Ubuntu Debug suites. All of them ran at `62bfc09f6`, which contains
+  Part B's `b1ef63e3a`.
+- **AC6.** A scoped clang-tidy 22 run of
+  `tests/adapters_qt/agent_launch_canary_tests.cpp` with
+  `--warnings-as-errors` passes on macOS. That translation unit does not
+  compile the `_WIN32`-only branches, so tidy has not seen those lines on
+  Windows. Part A's tidy passed at `3d78f42f2`.
+
+The two stale `bpr-agent-*` roots in the station's temporary directory were
+left by runs before this change. Removing them is station upkeep, not part
+of this card.

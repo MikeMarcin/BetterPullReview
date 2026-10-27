@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1713"
 title: "A line chosen while a kept tab revalidates after a reread stays chosen"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0089"]
 depends_on: ["BPR-1707"]
 priority: "P3"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1713--BPR-1713--d7dfe4ce2b88.json","origin":"Observed while building BPR-1707's composed course (2026-10-21)","related_cards":["BPR-1707","BPR-1478","BPR-1527"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1713--BPR-1713--d7dfe4ce2b88.json","origin":"Observed while building BPR-1707's composed course (2026-10-21)","related_cards":["BPR-1707","BPR-1478","BPR-1527"],"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Its dependency BPR-1707 is Done."}}
 ---
 
 # BPR-1713: A line chosen while a kept tab revalidates after a reread stays chosen
@@ -41,3 +41,10 @@ keeps the older selection and presents it when the load completes.
   PR.
 - **AC2.** A reading position restored from the window's kept tabs is still
   restored when the reviewer selected nothing meanwhile.
+
+## Triage, 2026-10-26
+
+[[BPR-1707]] is Done, so nothing blocks this
+defect, and it moves to Ready. BPR-1707's composed course works around it
+by waiting for the tab presentation to settle before selecting a line. The
+fix needs a course that selects inside that window.

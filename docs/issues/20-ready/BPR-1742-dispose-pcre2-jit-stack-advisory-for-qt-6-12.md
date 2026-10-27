@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1742"
 title: "Dispose of PCRE2's JIT-stack advisory for the Qt 6.12.0 releases"
-status: "Inbox"
+status: "Ready"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P2"
 platforms: ["mac","win","linux"]
-metadata: {"reservation":"docs/issues/_reservations/BPR-1742--BPR-1743--04a7cd1de032.json","found_by":"RFC-0038 security-audit port, 2026-10-22","found_at":"4e318b625","related_cards":["BPR-0962"]}
+metadata: {"reservation":"docs/issues/_reservations/BPR-1742--BPR-1743--04a7cd1de032.json","found_by":"RFC-0038 security-audit port, 2026-10-22","found_at":"4e318b625","related_cards":["BPR-0962"],"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"AC2 answered 2026-10-23; AC1 retargeted to current artifacts; AC3 was missed by v0.3.3 and v0.3.4 and carries to the next release."}}
 ---
 
 # BPR-1742: Dispose of PCRE2's JIT-stack advisory for the Qt 6.12.0 releases
@@ -63,3 +63,18 @@ official Qt release ships the fix. The [release policy](../../security/release-p
 records it. AC1 (an independent reviewer's per-artifact decision) and AC3 (the
 next release's security record naming the advisory) remain open; this grants
 no release or security-owner approval.
+
+## Triage, 2026-10-26
+
+The artifact list in AC1 is out of date. The v0.3.1
+and v0.3.2 artifacts it names have been superseded by v0.3.3 and v0.3.4.
+Both are still built on the pinned Qt 6.12.0 (`cmake/BprQtProvider.cmake`)
+and its bundled PCRE2 10.48. Read AC1 as covering the current published
+artifacts, v0.3.4 on macOS, Windows and Ubuntu, plus any later Qt 6.12.x
+candidate. The older artifacts are history and need no decision of their
+own. AC3 is still unmet: neither the v0.3.3 nor the v0.3.4 security record
+names `GHSA-r9hj-j2rw-4q3m` explicitly, and the
+[v0.3.4 results](../../verification/release-v034-results.md) cite only the
+Qt known-issue decision. It carries to the next release. AC2 stays
+answered, as recorded above. The card has been triaged, so it moves from
+Inbox to Ready.

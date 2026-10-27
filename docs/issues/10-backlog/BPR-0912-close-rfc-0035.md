@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0035"]
 depends_on: ["BPR-0911"]
 milestone: "Post-Pack v2"
 closeout_for: ["RFC-BPR-0035"]
-metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans/rfc0035-auto-updater/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"RFC-BPR-0014 is Auto-Verified and the canonical-order gate was removed on 2026-09-27; the private-release evidence on BPR-0911 is the real remaining gate."}}
 ---
 
 # Verify and close RFC-BPR-0035
@@ -515,3 +515,13 @@ success. Intel qualification is expressly deferred by r3 to nonblocking BPR-0950
 BPR-0949:AC-01 passes within its amended scope. Full BPR-0911 acceptance and this
 closeout remain pending for live AC-03 evidence; M4's exit additionally retains
 RFC-0014 and canonical-order gates.
+
+## Triage, 2026-10-26
+
+The "RFC-0014 and canonical-order gates" mentioned
+above no longer hold. RFC-BPR-0014 is Auto-Verified under owner amendment
+r4, and on 2026-09-27 the owner removed the canonical-order rule globally.
+The gate that remains is [[BPR-0911]]'s explicitly authorized live
+private-release, vault and revocation evidence. Native Intel qualification
+stays the nonblocking [[BPR-0950]], and the owner skipped it again for
+v0.3.4. The card stays in Backlog.

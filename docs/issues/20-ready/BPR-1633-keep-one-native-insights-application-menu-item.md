@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1633"
 title: "Keep one native Insights application-menu item"
-status: "In Progress"
+status: "Ready"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0086"]
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
-metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"f6ba8f43e4477f60941dd24cdac4450ca68de911","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"}}
+metadata: {"assigned_implementer":"/root/release_repairs","mandate":"release-v030-coordinated-r1","baseline":"f6ba8f43e4477f60941dd24cdac4450ca68de911","milestone_plan":{"id":"release-v030-repairs","path":"docs/rfcs/plans/release-v030-repairs/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"The offscreen and native-unit courses pass on current source; only the isolated or attended foreground course remains."}}
 ---
 
 # BPR-1633: Keep one native Insights application-menu item
@@ -94,3 +94,16 @@ The changed public-course TU passes scoped clang-tidy22 warnings-as-errors.
 The earlier1b1316 enum-assumption failure remains retained. No foreground
 activation course is run; that required isolated or attended qualification
 keeps this card In Progress.
+
+## Triage, 2026-10-26
+
+No work has been recorded since 2026-10-19. On
+current source, `qt_insights_native_menu`,
+`application_insights_public_path`,
+`application_profile_empty_desktop_native_menu_bar` and
+`qt_hide_drawers_native_menu_key` pass in v0.3.4's macOS Debug suite at
+`62bfc09f6`. The one criterion left is the foreground activation course,
+and an implementer may not run it on the owner's desktop. It needs either
+an isolated macOS session or a frozen build with a short wizard. The card
+moves to Ready, so the next implementer prepares one of those instead of
+leaving the card In Progress.

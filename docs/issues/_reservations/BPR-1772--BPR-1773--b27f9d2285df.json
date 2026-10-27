@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1772",
+    "BPR-1773"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "linked clone supplies a large head (owner photo 2026-10-26); ask the agent about a conversation",
+  "created": "2026-10-27T03:59:46.099327+00:00",
+  "base": "079f46ced98005c771b6061d53258d69dccd81dc"
+}

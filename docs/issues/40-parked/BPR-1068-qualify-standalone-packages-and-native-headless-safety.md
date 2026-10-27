@@ -2,10 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1068"
 title: "Qualify standalone packages and native headless safety"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1059", "BPR-1062", "BPR-1063", "BPR-1066", "BPR-1067"]
-metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-17","milestone":"verification-closeout","acceptance":["AC44-12"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"}}
+metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-17","milestone":"verification-closeout","acceptance":["AC44-12"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Only the owner's Windows device-flow sign-in remains; it waits on the owner, not on an implementer."}}
+parked_on: "human-review"
 ---
 
 # BPR-1068: Qualify standalone packages and native headless safety
@@ -377,3 +378,15 @@ for a code.
   production base and refresh prefixes (`windows_credential_manager.cpp`).
 
 `signin` itself was not started. Its connect is the owner's step.
+
+## Triage, 2026-10-26
+
+Nobody has worked this card since 2026-10-09, and
+what is left is the owner's step. The Linux and macOS owner sign-ins are
+observed. On Windows the station prepared and checked
+`tests/scripts/windows_tour_owner_signin.ps1` up to the device flow.
+Running `signin` and entering the device code is the owner's, through the
+existing JaegAW wizard `bpr-jaegaw-windows-20261009-v001` (`d5ce5d2af`).
+The card moves to Parked on `human-review`. Before handing the wizard back
+to the owner, rebuild the frozen `tour-cli` root from current `main`: the
+`f992c0cf9` root predates three releases.

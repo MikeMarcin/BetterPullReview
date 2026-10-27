@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1468"
 title: "Qualify the adopted diff stack on Linux"
-status: "Backlog"
+status: "Ready"
 rfcs: ["RFC-BPR-0082"]
 depends_on: ["BPR-1467", "BPR-1485", "BPR-1481", "BPR-1480"]
 priority: "P2"
 platforms: ["linux"]
-metadata: {"mandate_revision":"diff-engine-evaluation-r4","rescoped":"2026-10-13: owner delegated the decision (\"decide\"); the coordinating session rescoped candidate measurement to qualification of the adopted stack","original_title":"Measure the diff-engine candidates on Linux"}
+metadata: {"mandate_revision":"diff-engine-evaluation-r4","rescoped":"2026-10-13: owner delegated the decision (\"decide\"); the coordinating session rescoped candidate measurement to qualification of the adopted stack","original_title":"Measure the diff-engine candidates on Linux","triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"All dependencies are Done."}}
 ---
 
 # BPR-1468: Qualify the adopted diff stack on Linux
@@ -61,3 +61,11 @@ is recorded in the RFC. The original acceptance is kept below, superseded.
   baseline in the same runs and the hardware recorded.
 - **AC2:** Cross-platform determinism is checked against the macOS outputs, and
   the report's gate table and decisions are updated with the Linux results.
+
+## Triage, 2026-10-26
+
+Every dependency is Done ([[BPR-1467]],
+[[BPR-1480]], [[BPR-1481]], [[BPR-1485]]), and the 2026-10-18 placement
+amendment keeps this qualification owed. The card moves to Ready for the
+Linux station. Pure xdiff matching now lives in core ([[BPR-1619]]), so
+qualify the adopted stack at its current location.

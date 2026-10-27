@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1404"
 title: "Repair timing and finish Windows and Ubuntu follow-up release gates"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate_revision":"release-v010-20261012-fix-and-publish-r4","reservation":"docs/issues/_reservations/BPR-1404--BPR-1404--ef22c2dc4a83.json","milestone_plan":{"id":"release-v019-gate-repairs","path":"docs/rfcs/plans/release-v019-gate-repairs/milestone-plan.json"}}
+metadata: {"mandate_revision":"release-v010-20261012-fix-and-publish-r4","reservation":"docs/issues/_reservations/BPR-1404--BPR-1404--ef22c2dc4a83.json","milestone_plan":{"id":"release-v019-gate-repairs","path":"docs/rfcs/plans/release-v019-gate-repairs/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"stale","reason":"The v0.1.10 follow-up was published; eleven later releases re-qualified every gate it owned."}}
 ---
 
 # Follow-up release gates
@@ -155,3 +155,17 @@ Overview evidence-output harness now gets 420 seconds, three times the
 measured maximum rounded up to a minute; Mac/Linux keep 90 seconds and the
 100 ms performance criteria remain unchanged. Final normal registered native
 reruns and exact-artifact security acceptance remain pending.
+
+## Closed in triage, 2026-10-26
+
+Closed as stale. This card owned the v0.1.10 follow-up gates, and
+v0.1.10 was published ([notes](../../releases/v0.1.10.md)). Since then
+v0.2.0 through v0.3.4 each went through their own native qualification on
+macOS, Windows and Ubuntu. AC1's Mac PR-load input gaps are covered by
+v0.3.4's macOS Release suite: 861 of 863 rows pass, the two misses are
+updater disk-space guards that then passed, and every large-review timing
+course is in the passing set. AC2 and AC3 described one candidate that no
+longer exists. Current release obligations are tracked by RFC-BPR-0038 and
+the [v0.3.4 results](../../verification/release-v034-results.md). This
+closure claims no qualification; it only records that nothing is left for
+this card to do.

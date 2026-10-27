@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
-metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-1502--BPR-1502--a864d86e31d2.json","origin":"observed while diagnosing BPR-1501 for the 0.2.0 release, 2026-10-14","related_cards":["BPR-1501","BPR-1494","BPR-1409"],"related_rfcs":["RFC-BPR-0071"]}
+metadata: {"kind":"defect","reservation":"docs/issues/_reservations/BPR-1502--BPR-1502--a864d86e31d2.json","origin":"observed while diagnosing BPR-1501 for the 0.2.0 release, 2026-10-14","related_cards":["BPR-1501","BPR-1494","BPR-1409"],"related_rfcs":["RFC-BPR-0071"],"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"BPR-1494 fixed the native sign-in half of this family; the gh path is still open."}}
 ---
 
 # A gh reconnect gives the restarted window's tour draft a new owner
@@ -30,3 +30,13 @@ connection identity.
 - AC2: If it is not intended, a tour draft written before a restart shows in
   the restarted window after a `gh` reconnect to the same account, without
   weakening account isolation; a public-path test shows it.
+
+## Triage, 2026-10-26
+
+Still valid. [[BPR-1494]] fixed the native half of
+this family. A returning native sign-in now re-binds to its earlier
+identity. Its recorded limit says that "CLI accounts still receive a fresh
+identity on rediscovery, which is the BPR-1502 family". AC1 should start
+from `adopt_native_connection` and ask whether the CLI path should re-bind
+the same way under RFC-BPR-0071. The card's `platforms` says `mac`, but the
+cause is portable.

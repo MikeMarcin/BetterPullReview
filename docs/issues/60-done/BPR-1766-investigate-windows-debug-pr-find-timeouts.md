@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1766"
 title: "Investigate the Windows Debug PR Find timeouts"
-status: "Backlog"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P2"
 platforms: ["win"]
-metadata: {"origin":"Owner's v0.3.3 Debug timeout waiver and follow-up request, 2026-10-24","reservation":"docs/issues/_reservations/BPR-1766--BPR-1766--9665eb769091.json","related_cards":["BPR-1694","BPR-1765"],"release_candidate":"b2801f2aaa858fd5e7d18d76253834d34024abc7","diagnostic_candidate":"134711456e97b8162b771f637c1cb155e09dedb3","external_evidence":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032"}
+metadata: {"origin":"Owner's v0.3.3 Debug timeout waiver and follow-up request, 2026-10-24","reservation":"docs/issues/_reservations/BPR-1766--BPR-1766--9665eb769091.json","related_cards":["BPR-1694","BPR-1765"],"release_candidate":"b2801f2aaa858fd5e7d18d76253834d34024abc7","diagnostic_candidate":"134711456e97b8162b771f637c1cb155e09dedb3","external_evidence":"/Users/jaeger/Documents/Codex/2026-10-21/release-v032","triage_20261026":{"date":"2026-10-26","disposition":"stale","reason":"Superseded by the owner's standing Debug timing policy (2026-10-26); Release completes the same courses in about 30 s."}}
 ---
 
 # Investigate the Windows Debug PR Find timeouts
@@ -95,3 +95,19 @@ and source-bound receipts; and
   against exact final bytes and evidence, and run the documentation gate. Keep
   this card open until those criteria are met; the v0.3.3 waiver supplies no
   follow-up acceptance or automatic waiver for a future release.
+
+## Closed in triage, 2026-10-26
+
+Closed as stale under the owner's standing Debug timing policy of
+2026-10-26
+([policy](../../development/release-test-profiles.md#standing-debug-performance-policy)).
+All three rows still time out in Windows Debug, at R188 and again in
+v0.3.4's `windows-dev` junit (120.08 to 120.11 s). The Release build of the
+same source completes them: 30.04, 30.45 and 31.09 s at R168, and they pass
+in v0.3.4's complete Windows Release suite. So the courses finish their
+semantic work; what remains is Debug cost, which the policy no longer gates.
+The timeouts stay recorded as failures. Nothing here shows a hang. The
+policy allows one bounded larger-watchdog Debug run to tell the two apart.
+If such a run does not complete, file a new hang card that starts from this
+card's diagnostic commit
+`134711456e97b8162b771f637c1cb155e09dedb3`.

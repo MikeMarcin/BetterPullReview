@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1376"
 title: "A drawer re-projection never undoes the reviewer's newer file selection"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
-parked_on: "human-review"
 platforms: ["mac", "windows", "linux"]
-metadata: {"found_by":"BPR-1345's Windows Debug diagnosis, bpr-main-win, 2026-10-09","filed_by":"bpr-main-win, at the coordinator's request","reservation":"docs/issues/_reservations/BPR-1376--BPR-1376--71cfe6a1a402.json","related_cards":["BPR-1345","BPR-1344"]}
+metadata: {"found_by":"BPR-1345's Windows Debug diagnosis, bpr-main-win, 2026-10-09","filed_by":"bpr-main-win, at the coordinator's request","reservation":"docs/issues/_reservations/BPR-1376--BPR-1376--71cfe6a1a402.json","related_cards":["BPR-1345","BPR-1344"],"triage_20261026":{"date":"2026-10-26","disposition":"stale","reason":"Seen once, not reproduced in 31 runs, parked for recurrence; nothing waits on the owner and it has not recurred."}}
 acceptance: []
 ---
 
@@ -103,3 +102,15 @@ and `BPR_RESELECT_STRESS_FIRST_SEED`. A tests-only hook at the start of
 Debug run was inconclusive: the course's own settle condition never held on
 seed 0. Its quiet test (refresh enabled, no tab work,
 `RefreshKeptTabView` clear) needs checking before it can judge anything.
+
+## Closed in triage, 2026-10-26
+
+Closed as stale. The coordinator parked this card on 2026-10-09 with
+"reopen if it recurs". It was seen once and not reproduced in 31 runs, and
+it has not recurred in the seventeen days since, which include three
+releases of native suites. It was parked on `human-review`, but no owner
+question existed. The suspected race and its narrowest fix seam
+(`dispatch_workbench_intent` recording the file gesture in the active tab
+synchronously) are kept above. The stress course stays unmerged on
+`origin/bpr-1376-reselect-stress-wip`. If the drawer jump comes back, a new
+card can start from both.

@@ -2,12 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1325"
 title: "Windows: the initial paged review and Git load's input gap straddles its 100 ms budget"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
-metadata: {"found_by":"bpr-main-win, BPR-1293's Windows station run, 2026-10-07","reservation":"docs/issues/_reservations/BPR-1324--BPR-1325--7765882b27a6.json","related_cards":["BPR-1293","BPR-1295","BPR-1297"],"kind":"investigation"}
+metadata: {"found_by":"bpr-main-win, BPR-1293's Windows station run, 2026-10-07","reservation":"docs/issues/_reservations/BPR-1324--BPR-1325--7765882b27a6.json","related_cards":["BPR-1293","BPR-1295","BPR-1297"],"kind":"investigation","triage_20261026":{"date":"2026-10-26","disposition":"stale","reason":"Not recurring: both rows pass in four complete Windows Release suites since (v0.3.3 R81, R159, R168 and v0.3.4)."}}
 ---
 
 # BPR-1325: Windows: the initial paged review and Git load's input gap straddles its 100 ms budget
@@ -54,3 +54,15 @@ nor the known-miss list is loosened without that evidence.
 - Compare against `d8f4a67b7` with measurements kept, so it is clear whether
   this is new work since then or an old, thin margin.
 - macOS and Linux show no miss; this card is Windows-only.
+
+## Closed in triage, 2026-10-26
+
+Closed as not recurring. `application_first_tab_comparison` and
+`application_large_review_responsiveness` both pass in four complete
+Windows Release suites run after this card was filed: v0.3.3's R81, R159
+and R168, and v0.3.4's qualification suite at `62bfc09f6`. The first takes
+about 12 s and the second about 10 s in each. Those receipts are outside
+the repository, beside BPR-1694's and the v0.3.4 release session. No cause
+was found, and no budget or known-miss list was loosened. Reopen this as a
+new card, starting from the 2026-10-07 table, if the Windows Release miss
+comes back.

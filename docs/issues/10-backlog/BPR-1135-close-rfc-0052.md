@@ -8,7 +8,7 @@ depends_on: ["BPR-1129","BPR-1130","BPR-1131","BPR-1132","BPR-1133","BPR-1134","
 milestone: "Review workbench scaffolding"
 platforms: ["mac", "win", "linux"]
 closeout_for: ["RFC-BPR-0052"]
-metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"}}
+metadata: {"milestone_plan":{"id":"rfc-bpr-0052-review-workbench-scaffolding","path":"docs/rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"All seventeen card dependencies are Done; closeout now waits only on RFC-BPR-0028 and RFC-BPR-0037."}}
 ---
 
 # Verify and close RFC-BPR-0052
@@ -589,3 +589,16 @@ keeps its terminal dependency and stays Backlog. Thus m2b and m3 remain
 incomplete, with native Windows/Linux/station and full RFC evidence still owed.
 The [current handoff](../../rfcs/plans/rfc-bpr-0052-review-workbench-scaffolding/HANDOFF-m2b-r3-2026-09-26.md)
 preserves cleanup, the consumed cursor and the separate BPR-1211/BPR-1214 debts.
+
+## Triage, 2026-10-26
+
+Some of the state above is out of date. All
+seventeen card dependencies are now Done, including [[BPR-1204]] and
+[[BPR-1210]], which the 2026-09-26 section still lists as open. RFC-BPR-0052
+closeout now waits only on its RFC dependencies RFC-BPR-0028 and
+RFC-BPR-0037. The chain is in [[BPR-1194]]: [[BPR-1021]] closes RFC-BPR-0028
+once [[BPR-0653]]'s Windows capture at 100% display scale is accepted, and
+RFC-BPR-0037 then needs only its status recorded. The native
+Windows/Linux/station evidence named above is still owed at closeout. Under
+the owner's 2026-09-27 amendment the canonical-order gate no longer applies.
+The card stays in Backlog.

@@ -70,8 +70,8 @@ assumed exactly one; the longest was 261.381 ms around an intentional 250 ms
 block. Its raw timing-sensitive failure and later unreached checks remain
 recorded. Separate Release Insights and Debug core/host/storage controls passed.
 The existing Windows timeouts retain their carried release exception and
-[BPR-1765](../10-backlog/BPR-1765-investigate-windows-debug-diff-workbench-200-timeout.md)
-and [BPR-1766](../10-backlog/BPR-1766-investigate-windows-debug-pr-find-timeouts.md)
+[BPR-1765](BPR-1765-investigate-windows-debug-diff-workbench-200-timeout.md)
+and [BPR-1766](BPR-1766-investigate-windows-debug-pr-find-timeouts.md)
 are unchanged. A fresh threaded-reply semantic completion course passed under
 its larger bounded watchdog; its original failure remains recorded.
 

@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-0878"
 title: "Windows: eight unrelated sweep failures, each needing its own triage"
-status: "Inbox"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P3"
 platforms: ["win"]
-metadata: {"found_by":"bpr-win task-20260917-win-merged-head-runs","found_at":"2b2e5549","run":"run-20260916-stations","dispatch":"dsp-005"}
+metadata: {"found_by":"bpr-win task-20260917-win-merged-head-runs","found_at":"2b2e5549","run":"run-20260916-stations","dispatch":"dsp-005","triage_20261026":{"date":"2026-10-26","disposition":"done","reason":"All eight rows pass on Windows at the v0.3.4 native suite source."}}
+acceptance: [{"criterion":"BPR-0878:every-row-passing-or-carried","outcome":"pass","revision":"62bfc09f6","evidence":{"kind":"command","path":"docs/verification/release-v034-results.md","detail":"v0.3.4 Windows 11 x64 native suites at 62bfc09f6 (Release 832/832 PASS, Debug windows-dev junit): rfc0017_release_absence_negative_control, sqlite_epoch_catalog_behavior_contract, github_cli_process_runner, live_review_submission_restart_recovery, epoch_kill_recovery, epoch_transaction_kill_recovery, rfc0016_production_course_security and application_review_submission_composition_public_path all pass in both junit reports."}}]
 ---
 
 # BPR-0878: Windows: eight unrelated sweep failures, each needing its own triage
@@ -89,3 +90,19 @@ could not run while it failed.
 station patch that put the helper back in text mode, rebuilt and ran, then
 was restored. Under that patch the row fails at the same line. So item 3 is
 accounted for. The other seven are unchanged.
+
+## Closed in triage, 2026-10-26
+
+All eight rows now pass on Windows. Each one passes in both the Release
+and the Debug junit of the v0.3.4 Windows 11 native suites, which ran at
+`62bfc09f6`: `rfc0017_release_absence_negative_control`,
+`sqlite_epoch_catalog_behavior_contract`, `github_cli_process_runner`
+(item 3, fixed under [[BPR-1114]]), `live_review_submission_restart_recovery`,
+`epoch_kill_recovery`, `epoch_transaction_kill_recovery`,
+`rfc0016_production_course_security` and
+`application_review_submission_composition_public_path`. The Release suite
+passed its complete inventory, 832 of 832
+([v0.3.4 results](../../verification/release-v034-results.md)). Nothing
+remains unaccounted for, so the card's acceptance holds. No cause is
+recorded for items 1, 2 and 4 to 8: they stopped failing somewhere between
+the 2026-09-17 sweep and that run.
