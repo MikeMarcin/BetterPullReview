@@ -155,7 +155,7 @@ namespace bpr::app {
 		private:
 			std::string Code;
 		};
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 		[[nodiscard]] auto active_keyring_login(const std::vector<gh_cli_inventory_account>& aAccounts, std::string_view aHostname) -> std::optional<std::string>
 		{
 			std::optional<std::string> selected;
@@ -389,7 +389,7 @@ namespace bpr::app {
 				if (Host) {
 					return refuse("invalid_input", "A remote reader has one immutable host selection.", 2);
 				}
-#if !defined(__APPLE__)
+#if !defined(BPR_GITHUB_CLI_PLATFORM)
 				if (aGh) {
 					return refuse("transport_unavailable", "The gh transport is not qualified on this platform.", 5);
 				}
@@ -400,7 +400,7 @@ namespace bpr::app {
 				if (!validated) {
 					return refuse("host_refused", "Use an explicitly approved canonical GitHub or GHES hostname.", 5);
 				}
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 				if (aGh) {
 					// [[BPR-1377]]. The terminal explicitly selects gh's configured
 					// active account. Bind that one eligible login before the shared
@@ -441,7 +441,7 @@ namespace bpr::app {
 					factory = std::make_shared<loopback_wire_transport_factory>(*Loopback.Configuration);
 				}
 #endif
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 				if (aGh) {
 					factory = make_opted_in_cli_transport_factory();
 				}

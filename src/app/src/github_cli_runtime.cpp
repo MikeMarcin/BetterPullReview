@@ -7,24 +7,109 @@
 
 #include <array>
 #include <mutex>
+
+#if defined(_WIN32)
+	#if !defined(NOMINMAX)
+		#define NOMINMAX
+	#endif
+	#if !defined(WIN32_LEAN_AND_MEAN)
+		#define WIN32_LEAN_AND_MEAN
+	#endif
+	#include <ShlObj.h>
+	#include <Windows.h>
+#endif
 namespace bpr::app {
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 	using adapters::github::validated_github_host_profile;
 	using adapters::github::detail::github_wire_transport_factory_port;
 	using adapters::github::detail::native_github_wire_transport_factory;
+	namespace {
+		[[nodiscard]] auto canonical_executable(const QString& aFound) -> std::filesystem::path
+		{
+			return aFound.isEmpty() ? std::filesystem::path{ } : native_filesystem_path(QFileInfo{ aFound }.canonicalFilePath());
+		}
+
+	#if defined(_WIN32)
+		/// [[BPR-1791]]. A Windows known folder as the shell resolves it, or
+		/// empty when it has none.
+		[[nodiscard]] auto known_folder(REFKNOWNFOLDERID aFolder) -> std::filesystem::path
+		{
+			PWSTR      raw    = nullptr;
+			const auto result = ::SHGetKnownFolderPath(aFolder, KF_FLAG_DEFAULT, nullptr, &raw);
+			auto       path   = std::filesystem::path{ };
+			if (SUCCEEDED(result) && raw != nullptr) {
+				path = std::filesystem::path{ raw };
+			}
+			::CoTaskMemFree(raw);
+			return path;
+		}
+	#endif
+
+	#if !defined(__APPLE__) && !defined(_WIN32)
+		/// An absolute directory the session names, or empty. Discovery only:
+		/// the child's environment is built by the transport.
+		[[nodiscard]] auto environment_directory(const char* aName) -> QString
+		{
+			const auto value = qEnvironmentVariable(aName);
+			return QDir::isAbsolutePath(value) ? QDir::cleanPath(value) : QString{ };
+		}
+	#endif
+
+		/// [[BPR-1791]]. The facts `gh`'s environment is built from: the home
+		/// directory, on Windows the shell's known folders, and on Linux the
+		/// session's runtime directory and bus. The transport validates them.
+		[[nodiscard]] auto platform_environment_facts() -> adapters::github::detail::gh_cli_platform_environment_facts
+		{
+			using namespace adapters::github::detail;
+	#if defined(__APPLE__)
+			return gh_cli_macos_environment_facts{ .HomeDirectory = native_filesystem_path(QDir::homePath()) };
+	#elif defined(_WIN32)
+			return gh_cli_windows_environment_facts{
+				.UserProfileDirectory            = known_folder(FOLDERID_Profile),
+				.RoamingApplicationDataDirectory = known_folder(FOLDERID_RoamingAppData),
+				.LocalApplicationDataDirectory   = known_folder(FOLDERID_LocalAppData),
+				.SystemRootDirectory             = known_folder(FOLDERID_Windows),
+			};
+	#else
+			// The session's runtime directory is the session's own fact, and
+			// gh reaches Secret Service through the session bus socket in it,
+			// where systemd's user session puts it. A session without one
+			// fails configuration and is reported, rather than gh waiting on
+			// a keyring it cannot reach.
+			const auto runtime = environment_directory("XDG_RUNTIME_DIR");
+			auto       bus     = std::string{ };
+			if (!runtime.empty() && QFileInfo{ runtime + QStringLiteral("/bus") }.exists()) {
+				const auto address = (QStringLiteral("unix:path=") + runtime + QStringLiteral("/bus")).toUtf8();
+				bus.assign(address.constData(), static_cast<std::size_t>(address.size()));
+			}
+			return gh_cli_linux_environment_facts{
+				.HomeDirectory     = native_filesystem_path(QDir::homePath()),
+				.RuntimeDirectory  = native_filesystem_path(runtime),
+				.SessionBusAddress = std::move(bus),
+			};
+	#endif
+		}
+	}
+
+	/// [[BPR-1791]]. `PATH` first, then the platform's standard install
+	/// locations, each canonicalised; the first that is really `gh` wins.
 	[[nodiscard]] auto native_gh_executable() -> std::filesystem::path
 	{
-		auto executable = QStandardPaths::findExecutable(QStringLiteral("gh"));
-		if (executable.isEmpty()) {
-			executable = QStandardPaths::findExecutable(
-				QStringLiteral("gh"),
-				{
-					QStringLiteral("/opt/homebrew/bin"),
-					QStringLiteral("/usr/local/bin"),
-					QStringLiteral("/opt/local/bin"),
-				});
+		using namespace adapters::github::detail;
+		constexpr auto platform = *current_gh_cli_host_platform();
+		auto           facts    = gh_cli_install_location_facts{ .HomeDirectory = native_filesystem_path(QDir::homePath()) };
+	#if defined(_WIN32)
+		facts.ProgramFilesDirectory         = known_folder(FOLDERID_ProgramFiles);
+		facts.LocalApplicationDataDirectory = known_folder(FOLDERID_LocalAppData);
+	#endif
+		const auto name       = QStringLiteral("gh");
+		auto       candidates = std::vector<std::filesystem::path>{ canonical_executable(QStandardPaths::findExecutable(name)) };
+		for (const auto& directory : gh_cli_standard_install_directories(platform, facts)) {
+			const auto utf8 = directory.u8string();
+			candidates.push_back(canonical_executable(QStandardPaths::findExecutable(
+				name, { QString::fromUtf8(reinterpret_cast<const char*>(utf8.data()), static_cast<qsizetype>(utf8.size())) })));
 		}
-		return native_filesystem_path(QFileInfo{ executable }.canonicalFilePath());
+		return select_gh_cli_executable(platform, candidates);
 	}
 
 	[[nodiscard]] auto gh_cli_executable_available() -> bool
@@ -40,10 +125,8 @@ namespace bpr::app {
 		const auto candidate  = gh_cli_configuration_candidate{
 			.Executable              = executable,
 			.NeutralWorkingDirectory = native_filesystem_path(QDir::tempPath()),
-			.Platform                = gh_cli_macos_environment_facts{
-				.HomeDirectory = native_filesystem_path(QDir::homePath()),
-			},
-			.Https = { },
+			.Platform                = platform_environment_facts(),
+			.Https                   = { },
 		};
 		const auto configuration = validate_gh_cli_configuration(candidate);
 		return configuration ? std::optional{ *configuration } : std::nullopt;

@@ -12,6 +12,7 @@
 #include <concepts>
 #include <cstddef>
 #include <filesystem>
+#include <initializer_list>
 #include <iterator>
 #include <map>
 #include <string>
@@ -24,6 +25,10 @@
 	#include <fcntl.h>
 	#include <sys/stat.h>
 	#include <unistd.h>
+#else
+	#include "bpr/platform/windows_private_object.hpp"
+
+	#include <random>
 #endif
 
 namespace bpr::adapters::github::detail::auth_status_json_detail {
@@ -719,6 +724,145 @@ namespace bpr::adapters::github::detail {
 			std::filesystem::path Path;
 			bool                  Valid = false;
 		};
+#else
+		/// [[BPR-1373]], [[BPR-1791]]. The Windows form of one launch's private
+		/// `gh` configuration. The directory and both files are created with the
+		/// platform target's owner-private descriptor (the token user, plus the
+		/// AppContainer when contained, and no one else), the files exclusively
+		/// and read-only. Windows has no owner-only read-and-traverse mode to
+		/// put the directory in, so unlike the POSIX one it is not write-locked
+		/// against new entries; it is removed whole with this object.
+		class private_account_directory final
+		{
+		public:
+			private_account_directory(const std::filesystem::path& aParent, const gh_cli_account_pin& aPin)
+			{
+				const auto principals = load_principals();
+				if (!principals) {
+					return;
+				}
+				namespace object = ::bpr::platform::windows_private_object;
+				object::descriptor directory;
+				object::descriptor file;
+				if (!directory.initialize(principals->user(), principals->container(), object::object_kind::directory)
+					|| !file.initialize(principals->user(), principals->container(), object::object_kind::regular_file)) {
+					return;
+				}
+				auto device = std::random_device{ };
+				for (auto attempt = 0; attempt < 16 && Path.empty(); ++attempt) {
+					static constexpr std::string_view digits = "0123456789abcdefghijklmnopqrstuvwxyz";
+					auto                              suffix = std::string(6U, '0');
+					for (auto& character : suffix) {
+						character = digits[device() % digits.size()];
+					}
+					const auto candidate = aParent / (std::string{ gh_cli_account_directory_prefix } + suffix);
+					if (::CreateDirectoryW(candidate.c_str(), directory.attributes()) != FALSE) {
+						Path = candidate;
+					} else if (::GetLastError() != ERROR_ALREADY_EXISTS) {
+						return;
+					}
+				}
+				if (Path.empty()) {
+					return;
+				}
+				const auto hosts = aPin.Hostname + ":\n    users:\n        " + aPin.Login + ":\n    git_protocol: https\n    user: "
+					+ aPin.Login + "\n";
+				if (!write_file(file, L"config.yml", "version: \"1\"\n") || !write_file(file, L"hosts.yml", hosts)) {
+					remove();
+					return;
+				}
+				Valid = true;
+			}
+			private_account_directory(const private_account_directory&)                    = delete;
+			private_account_directory(private_account_directory&&)                         = delete;
+			auto operator=(const private_account_directory&) -> private_account_directory& = delete;
+			auto operator=(private_account_directory&&) -> private_account_directory&      = delete;
+			~private_account_directory() { remove(); }
+
+			[[nodiscard]] auto valid() const noexcept -> bool { return Valid; }
+			[[nodiscard]] auto path() const noexcept -> const std::filesystem::path& { return Path; }
+
+		private:
+			struct principals
+			{
+				std::vector<BYTE> User;
+				std::vector<BYTE> Container;
+
+				[[nodiscard]] auto user() const noexcept -> PSID
+				{
+					return static_cast<const TOKEN_USER*>(static_cast<const void*>(User.data()))->User.Sid;
+				}
+				[[nodiscard]] auto container() const noexcept -> PSID
+				{
+					return Container.empty()
+						? nullptr
+						: static_cast<const TOKEN_APPCONTAINER_INFORMATION*>(static_cast<const void*>(Container.data()))->TokenAppContainer;
+				}
+			};
+
+			[[nodiscard]] static auto load_principals() -> std::optional<principals>
+			{
+				HANDLE token = nullptr;
+				if (::OpenProcessToken(::GetCurrentProcess(), TOKEN_QUERY, &token) == FALSE) {
+					return std::nullopt;
+				}
+				const auto query = [token](const TOKEN_INFORMATION_CLASS aClass, std::vector<BYTE>& aBuffer) {
+					DWORD size = 0U;
+					static_cast<void>(::GetTokenInformation(token, aClass, nullptr, 0U, &size));
+					if (size == 0U || size > 64U * 1024U) {
+						return false;
+					}
+					aBuffer.resize(size);
+					return ::GetTokenInformation(token, aClass, aBuffer.data(), size, &size) != FALSE;
+				};
+				auto  result    = principals{ };
+				auto  loaded    = query(TokenUser, result.User);
+				DWORD contained = 0U;
+				DWORD size      = 0U;
+				if (loaded && ::GetTokenInformation(token, TokenIsAppContainer, &contained, sizeof(contained), &size) != FALSE && contained != 0U) {
+					loaded = query(TokenAppContainerSid, result.Container);
+				}
+				static_cast<void>(::CloseHandle(token));
+				return loaded ? std::optional{ std::move(result) } : std::nullopt;
+			}
+
+			[[nodiscard]] auto write_file(::bpr::platform::windows_private_object::descriptor& aDescriptor, const wchar_t* aName, const std::string_view aContent) const -> bool
+			{
+				const auto handle = ::CreateFileW((Path / aName).c_str(), GENERIC_WRITE, 0U, aDescriptor.attributes(), CREATE_NEW,
+												  FILE_ATTRIBUTE_NORMAL | FILE_FLAG_OPEN_REPARSE_POINT, nullptr);
+				if (handle == INVALID_HANDLE_VALUE) {
+					return false;
+				}
+				auto remaining = aContent;
+				auto written   = true;
+				while (written && !remaining.empty()) {
+					DWORD count = 0U;
+					written     = ::WriteFile(handle, remaining.data(), static_cast<DWORD>(remaining.size()), &count, nullptr) != FALSE && count != 0U;
+					remaining.remove_prefix(written ? count : remaining.size());
+				}
+				const auto closed = ::CloseHandle(handle) != FALSE;
+				return written && closed && ::SetFileAttributesW((Path / aName).c_str(), FILE_ATTRIBUTE_READONLY) != FALSE;
+			}
+
+			void remove() noexcept
+			{
+				if (Path.empty()) {
+					return;
+				}
+				std::error_code error;
+				// The read-only attribute refuses deletion; clear it first.
+				for (auto entry = std::filesystem::directory_iterator{ Path, error };
+					 !error && entry != std::filesystem::directory_iterator{ }; entry.increment(error)) {
+					static_cast<void>(::SetFileAttributesW(entry->path().c_str(), FILE_ATTRIBUTE_NORMAL));
+				}
+				static_cast<void>(std::filesystem::remove_all(Path, error));
+				Path.clear();
+				Valid = false;
+			}
+
+			std::filesystem::path Path;
+			bool                  Valid = false;
+		};
 #endif
 	}
 
@@ -778,10 +922,6 @@ namespace bpr::adapters::github::detail {
 			}
 			return aProcess.run(aRequest, aStop);
 		}
-#if defined(_WIN32)
-		static_cast<void>(aStop);
-		return std::unexpected{ github_cli_process_failure::start_failure };
-#else
 		const auto directory = std::make_shared<private_account_directory>(aConfiguration.NeutralWorkingDirectory, *aConfiguration.Pin);
 		if (!directory->valid()) {
 			return std::unexpected{ github_cli_process_failure::start_failure };
@@ -803,7 +943,6 @@ namespace bpr::adapters::github::detail {
 			return aProcess.run_credentialed(aRequest, retained, gh_cli_credential_environment(aConfiguration.Pin->Hostname), aStop);
 		}
 		return aProcess.run(aRequest, aStop);
-#endif
 	}
 
 	auto gh_cli_credential_environment(std::string_view aHostname) noexcept -> cli_credential_environment
@@ -837,9 +976,6 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
 			}
 		}
-#if defined(_WIN32)
-		return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
-#else
 		const auto directory = std::make_shared<private_account_directory>(aConfiguration.NeutralWorkingDirectory, *aConfiguration.Pin);
 		if (!directory->valid()) {
 			return std::unexpected{ gh_cli_credential_error{ github_cli_process_failure::start_failure } };
@@ -864,7 +1000,71 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected{ gh_cli_credential_error{ acquired.error(), acquired.error() == github_cli_process_failure::nonzero_exit } };
 		}
 		return *acquired;
-#endif
+	}
+
+	auto gh_cli_executable_file_name(const gh_cli_host_platform aPlatform) noexcept -> std::string_view
+	{
+		return aPlatform == gh_cli_host_platform::windows ? std::string_view{ "gh.exe" } : std::string_view{ "gh" };
+	}
+
+	auto gh_cli_standard_install_directories(const gh_cli_host_platform aPlatform, const gh_cli_install_location_facts& aFacts)
+		-> std::vector<std::filesystem::path>
+	{
+		auto       directories = std::vector<std::filesystem::path>{ };
+		const auto under       = [&directories](const std::filesystem::path& aRoot, std::initializer_list<std::string_view> aParts) {
+			if (aRoot.empty() || !aRoot.is_absolute()) {
+				return;
+			}
+			auto path = aRoot;
+			for (const auto part : aParts) {
+				path /= std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(part.data()), part.size() } };
+			}
+			directories.push_back(std::move(path));
+		};
+		switch (aPlatform) {
+		case gh_cli_host_platform::macos:
+			directories = { "/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin" };
+			break;
+		case gh_cli_host_platform::gnu_linux:
+			directories = { "/usr/bin", "/usr/local/bin", "/home/linuxbrew/.linuxbrew/bin" };
+			under(aFacts.HomeDirectory, { ".local", "bin" });
+			directories.emplace_back("/snap/bin");
+			break;
+		case gh_cli_host_platform::windows:
+			// The MSI's machine-wide default, its per-user default (also
+			// WinGet's user scope), WinGet's per-user command links, and Scoop.
+			under(aFacts.ProgramFilesDirectory, { "GitHub CLI" });
+			under(aFacts.LocalApplicationDataDirectory, { "Programs", "GitHub CLI" });
+			under(aFacts.LocalApplicationDataDirectory, { "Microsoft", "WinGet", "Links" });
+			under(aFacts.HomeDirectory, { "scoop", "apps", "gh", "current", "bin" });
+			break;
+		}
+		return directories;
+	}
+
+	auto select_gh_cli_executable(const gh_cli_host_platform aPlatform, const std::vector<std::filesystem::path>& aCandidates)
+		-> std::filesystem::path
+	{
+		const auto expected = gh_cli_executable_file_name(aPlatform);
+		for (const auto& candidate : aCandidates) {
+			if (candidate.empty() || !candidate.is_absolute()) {
+				continue;
+			}
+			const auto name = candidate.filename().u8string();
+			const auto same = name.size() == expected.size()
+				&& std::ranges::equal(name, expected, [aPlatform](const char8_t aLeft, const char aRight) {
+								  const auto left = static_cast<unsigned char>(aLeft);
+								  // Windows file names compare without case.
+								  const auto folded = aPlatform == gh_cli_host_platform::windows && left >= 'A' && left <= 'Z'
+									  ? static_cast<unsigned char>(left - 'A' + 'a')
+									  : left;
+								  return folded == static_cast<unsigned char>(aRight);
+							  });
+			if (same) {
+				return candidate;
+			}
+		}
+		return { };
 	}
 
 	auto validate_gh_cli_configuration(

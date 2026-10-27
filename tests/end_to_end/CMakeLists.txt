@@ -551,12 +551,13 @@ bpr_bound_automated_run(
 # [[BPR-0982]]. Since [[BPR-0909]] the CLI way in is the Use GitHub CLI entry,
 # wired only where the composed run offers the read; no card carries a
 # precomposed GitHub CLI label any more.
-if(APPLE)
+# RFC-BPR-0015 enabled the CLI read on macOS, and [[BPR-1791]] on Windows and
+# Linux, so every registered platform's product run offers it; an unregistered
+# platform composes the same answer as a suite does, for a different reason.
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(bpr_product_run_cli_read "available")
     set(bpr_product_run_cli_entry "offered")
 else()
-    # RFC-BPR-0015 enables the CLI read on macOS only, so off macOS the product
-    # run composes the same answer as a suite does, for a different reason.
     set(bpr_product_run_cli_read "unavailable")
     set(bpr_product_run_cli_entry "absent")
 endif()
@@ -3251,18 +3252,16 @@ set_tests_properties(application_device_binding_relaunch PROPERTIES ENVIRONMENT 
 
 # [[BPR-0803]]. Choosing GitHub CLI while a device sign-in waits keeps the code
 # beside the GitHub CLI choice; each of the two endings runs to a session and
-# leaves no flow behind. The GitHub CLI way in is composed only on macOS: the
-# composition's discovery is `__APPLE__` code, as the CLI courses of
-# `application_setup_destination_public_path` are. So the row is registered
-# only there; elsewhere the course cannot reach a CLI session, and on Linux it
-# failed at "one discovered account connects at once and signs in". The
-# executable still builds everywhere, so its source stays portable.
+# leaves no flow behind. [[BPR-1791]] composes the GitHub CLI way in on macOS,
+# Windows and Linux (`BPR_GITHUB_CLI_PLATFORM`), so the row is registered on
+# all three. Before it, discovery was `__APPLE__` code and on Linux the course
+# failed at "one discovered account connects at once and signs in".
 bpr_add_executable(test_device_flow_cli_choice device_flow_cli_choice_tests.cpp)
 target_link_libraries(test_device_flow_cli_choice PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_device_flow_cli_choice PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_device_flow_cli_choice)
 bpr_enable_warnings(test_device_flow_cli_choice)
-if(APPLE)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_device_flow_cli_choice COMMAND test_device_flow_cli_choice)
     set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
 endif()
@@ -3270,14 +3269,14 @@ endif()
 # [[BPR-1329]]. An inline draft published from its Comments-drawer card over a
 # GitHub CLI session, through the per-publication confirmation answered Yes:
 # the drawer says it is publishing, then shows the posted thread, or says why
-# not and offers Retry. Registered only on macOS for the same reason as the
-# row above: the GitHub CLI way in and its confirmation are `__APPLE__` code.
+# not and offers Retry. Registered wherever the GitHub CLI way in is composed,
+# as the row above is ([[BPR-1791]]).
 bpr_add_executable(test_inline_publish_cli_consent inline_publish_cli_consent_tests.cpp)
 target_link_libraries(test_inline_publish_cli_consent PRIVATE BetterPullReview::Composition)
 target_compile_definitions(test_inline_publish_cli_consent PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_inline_publish_cli_consent)
 bpr_enable_warnings(test_inline_publish_cli_consent)
-if(APPLE)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent COMMAND test_inline_publish_cli_consent)
     set_tests_properties(application_inline_publish_cli_consent PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "inline-publish-cli-consent-tests:pass")
 endif()
@@ -3806,7 +3805,7 @@ bpr_add_network_isolated_test(NAME application_home_waiting_public_path WINDOWS_
 set_tests_properties(application_home_waiting_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
-if(APPLE)
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
     set_tests_properties(application_home_waiting_cli_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
@@ -3815,8 +3814,8 @@ endif()
 
 # [[BPR-1379]]. The same composed Home restoration and Refresh course under
 # a fixture-qualified CLI account lease, with no native sign-in or live API.
-# The CLI sign-in path is composed only on macOS.
-if(APPLE)
+# The CLI sign-in path is composed on macOS, Windows and Linux ([[BPR-1791]]).
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_personal_discovery_cli_public_path COMMAND test_personal_discovery_public_path --gh-cli)
     set_tests_properties(application_personal_discovery_cli_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
@@ -4688,7 +4687,8 @@ bpr_enable_warnings(test_source_pr_search_scope_path)
 bpr_add_network_isolated_test(NAME application_source_pr_search_scope WINDOWS_UNCONTAINED COMMAND test_source_pr_search_scope_path)
 set_tests_properties(application_source_pr_search_scope PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment};BPR_FIND_RENDER_ROOT=${PROJECT_BINARY_DIR}/source-pr-search-scope-renders" TIMEOUT 120 PASS_REGULAR_EXPRESSION "SOURCE_PR_FIND_SCOPE_PATH_OK")
 # RFC0079 ordinary CLI gestures retain exact fixture grants and strict capability.
-if(APPLE)
+# [[BPR-1791]]: on every platform that composes the CLI way in.
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_review_submission_cli_ordinary
         COMMAND test_better_pull_review_review_submission_composition_public_path --cli)
     set_tests_properties(application_review_submission_cli_ordinary PROPERTIES

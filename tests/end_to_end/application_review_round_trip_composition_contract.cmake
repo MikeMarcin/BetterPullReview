@@ -2417,8 +2417,12 @@ function(bpr_verify_full_application_digest source_variable)
 	# Overview, the Agent tab's suggestions name no file or lines. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1791]] CLI-platform reseal (2026-10-27). github_application.cpp
+	# asks BPR_GITHUB_CLI_PLATFORM (macOS, Windows, Linux) where it asked
+	# __APPLE__ for the CLI offer, factory, discovery and read consent; the
+	# BPR-0797 boundary answer, consent and failure states are unchanged.
 	set(bpr_expected_full_application_digest
-		"d596a58284d16215f3c418197314d3f23a6d664aad35c9a8c41d61ce9c8f8860"
+		"7439c92ab34c98df34bfa3e6664b5f2230f353d100e61bc87a38c974063ef810"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2664,8 +2668,12 @@ function(bpr_verify_app_source_tree app_source_root)
 # stages (application staged_publication_stages) and the published address
 # (staged_published_link). The same grant, admission, host call, cancellation
 # and terminal handling; no provider, credential, mutation or inventory change.
+# [[BPR-1791]] CLI-platform reseal (2026-10-27): github_application.cpp only.
+# Its CLI offer, factory, discovery and read consent ask
+# BPR_GITHUB_CLI_PLATFORM (macOS, Windows, Linux) where they asked __APPLE__.
+# No grant, mutation, publication or source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "85ce12e095480b41bf164caf55df78fcc16ec3bba855bd6158d3b14fc93a750d"
+        "b946581728253e8c88feb7b1e9a1669871a69ab2cae3fa687a2fa5e138a1f0f9"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

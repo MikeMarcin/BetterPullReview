@@ -27,6 +27,11 @@ if(BPR_BUILD_TOUR_CLI)
     target_compile_features(better_pull_review_tour_runtime PUBLIC cxx_std_23)
     bpr_enable_hardening(better_pull_review_tour_runtime)
     bpr_enable_warnings(better_pull_review_tour_runtime)
+    if(WIN32)
+        # [[BPR-1791]]. The gh child's environment and search locations come
+        # from the shell's known folders (SHGetKnownFolderPath, CoTaskMemFree).
+        target_link_libraries(better_pull_review_tour_runtime PRIVATE Shell32 Ole32)
+    endif()
     bpr_add_executable(app_bpr src/tour_main.cpp src/installed_runtime.cpp)
     target_link_libraries(app_bpr PRIVATE BetterPullReview::TourRuntime Qt6::Core)
     bpr_enable_hardening(app_bpr)
@@ -231,6 +236,11 @@ if(BPR_BUILD_QT)
     endif()
     bpr_enable_hardening(better_pull_review_composition)
     bpr_enable_warnings(better_pull_review_composition)
+    if(WIN32)
+        # [[BPR-1791]]. The gh child's environment and search locations come
+        # from the shell's known folders (SHGetKnownFolderPath, CoTaskMemFree).
+        target_link_libraries(better_pull_review_composition PRIVATE Shell32 Ole32)
+    endif()
     if(MSVC)
         # github_application.cpp exceeds the COFF object's section limit in the
         # windows-dev Debug graph (C1128).
