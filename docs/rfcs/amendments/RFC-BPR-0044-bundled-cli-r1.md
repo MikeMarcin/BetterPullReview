@@ -18,7 +18,19 @@ retains its headless runtime, core/application service reuse, profile and
 credential boundaries, and command contract. The app does not shell out to it.
 The release's standard installation must give a `pr-tour` agent a documented,
 stable way to invoke the bundled executable without a source checkout or a
-second package. The CLI need not be on the user's global `PATH` automatically.
+second package. Put it at `BetterPullReview.app/Contents/MacOS/bpr`. The first
+release uses instructions rather than a desktop button or automatic shell
+configuration. Explain that a terminal can use the absolute path directly or
+run `export PATH="/Applications/BetterPullReview.app/Contents/MacOS:$PATH"`
+after installing the app in `/Applications`. Document how to make that PATH
+change persistent in the user's shell configuration, and how to substitute the
+actual app location if installed elsewhere. Do not edit shell configuration or
+create a symlink without an explicit user action.
+
+The `pr-tour` skill must look for `bpr` on `PATH`, then the standard macOS app
+location, and give a specific setup instruction if neither works. It must
+invoke the located executable by absolute path for the rest of that session;
+this works even when a GUI-launched agent did not inherit the user's shell PATH.
 
 Replace AC44-12's separately installable package obligation with a bundled
 macOS release qualification: inspect the installed app, invoke `bpr tour
@@ -46,8 +58,9 @@ CLI semantics evidence where the executable and code path are unchanged.
 Package the CLI in the app's executable area, include its runtime closure in
 the same app, and extend release source/legal/security inventory and signature
 verification before claiming a releasable artifact. Update the skill's setup
-section to locate this app-bundled CLI on macOS; its source-build instructions
-become developer fallback. Confirm that the normal app install and relocated
+section and user-facing CLI guide to give the exact PATH and absolute-path
+commands; its source-build instructions become developer fallback. Confirm
+that the normal app install and relocated
 bundle can run the CLI without Qt GUI/QPA initialization. Account for app
 variants whose local automation is disabled: they cannot promise a working
 `bpr` unless their build contract changes.
