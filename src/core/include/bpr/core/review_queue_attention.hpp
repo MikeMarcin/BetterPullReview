@@ -136,6 +136,10 @@ namespace bpr::core {
 		/// Profile-owned dispatch ordering; zero is a legacy local-only observation.
 		std::uint64_t       FactRevision = 0;
 		std::optional<bool> Authored;
+		/// [[BPR-1780]]. GitHub's draft status, from the item's facts. A
+		/// draft I authored waits on nobody until it is marked ready, however
+		/// many reviewers it names; absent is not known and changes nothing.
+		std::optional<bool> Draft;
 
 		auto operator<=>(const queue_activity_observation&) const = default;
 	};

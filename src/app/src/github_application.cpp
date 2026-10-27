@@ -6828,12 +6828,16 @@ namespace bpr::app {
 		auto       active = std::vector<queue_notification_transition>{ };
 		active.reserve(items.size());
 		for (const auto& item : items) {
+			// [[BPR-1780]]. Compared as the queue decided it, with the
+			// item's draft status.
+			auto activity              = QueueActivity.has_value() ? QueueActivity->Activity : core::queue_activity_observation{ };
+			activity.Draft             = item.Facts.Draft;
 			const auto trustedActivity = QueueActivity.has_value()
 				&& QueueActivity->Session == aProjection.Session
 				&& QueueActivity->Ref == item.Ref
 				&& item.Bucket
 					== core::bucket_for(
-						item.Membership, QueueActivity->Activity);
+						item.Membership, activity);
 			if (!trustedActivity
 				|| !application::warrants_notification(item.Bucket)) {
 				continue;
