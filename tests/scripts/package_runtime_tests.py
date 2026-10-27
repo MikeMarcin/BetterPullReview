@@ -35,6 +35,13 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.source_asset_name(info), "Source-BetterPullReview-0.3.2-macos-universal-tour-cli-corresponding-source.zip")
         self.assertEqual(runtime.legal_root(Path("/payload"), info), Path("/payload/ThirdParty"))
 
+    def test_windows_desktop_app_opens_no_console(self):
+        # [[BPR-1789]]. The desktop app is a windowed program; `bpr` stays a console one.
+        cmake = (ROOT / "src/app/CMakeLists.txt").read_text()
+        self.assertIn("set_target_properties(app_better_pull_review PROPERTIES WIN32_EXECUTABLE TRUE)", cmake)
+        self.assertIn('target_link_options(app_better_pull_review PRIVATE "/ENTRY:mainCRTStartup")', cmake)
+        self.assertNotIn("set_target_properties(app_bpr PROPERTIES WIN32_EXECUTABLE", cmake)
+
     def test_windows_installs_per_machine_and_remembers_its_directory(self):
         # [[BPR-1788]]. Program Files, per machine, like a normal Windows application.
         config = (ROOT / "packaging/Install.cmake").read_text()
