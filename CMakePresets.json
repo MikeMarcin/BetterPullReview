@@ -111,6 +111,7 @@
       },
       "cacheVariables": {
         "BPR_BUILD_QT": "ON",
+        "BPR_BUILD_TOUR_CLI": "ON",
         "BPR_MACOS_CODESIGN_IDENTITY": "-",
         "BUILD_TESTING": "OFF",
         "CMAKE_BUILD_TYPE": "Release",
@@ -138,7 +139,8 @@
       "binaryDir": "${sourceDir}/build/macos-release-agent-free-automation-off",
       "cacheVariables": {
         "BPR_BUILD_AGENT_INTEGRATIONS": "OFF",
-        "BPR_BUILD_LOCAL_AUTOMATION": "OFF"
+        "BPR_BUILD_LOCAL_AUTOMATION": "OFF",
+        "BPR_BUILD_TOUR_CLI": "OFF"
       }
     },
     {
@@ -277,7 +279,8 @@
       "inherits": "_build-common",
       "configurePreset": "macos-release",
       "targets": [
-        "app_better_pull_review"
+        "app_better_pull_review",
+        "app_bpr"
       ]
     },
     {
@@ -285,7 +288,8 @@
       "inherits": "_build-common",
       "configurePreset": "macos-release-agent-free",
       "targets": [
-        "app_better_pull_review"
+        "app_better_pull_review",
+        "app_bpr"
       ]
     },
     {

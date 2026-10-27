@@ -5,6 +5,7 @@ that the wrapper stays thin, that it names no publisher or database path of its 
 command it teaches is one the shipped CLI accepts.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -148,9 +149,20 @@ def main():
     trees = (".claude/skills", ".codex/skills", ".agents/skills")
     allowed = {SKILL / "SKILL.md"}
     found = []
-    for candidate in root.rglob("SKILL.md"):
+    for directory, children, files in os.walk(root):
+        current = Path(directory)
+        # A registered nested worktree is another checkout, not a divergent
+        # skill implementation in this checkout. Never inspect its contents.
+        if current != root and (current / ".git").exists():
+            children.clear()
+            continue
+        if current == root:
+            children[:] = [name for name in children if name not in ("build", ".git")]
+        if "SKILL.md" not in files:
+            continue
+        candidate = current / "SKILL.md"
         relative = candidate.relative_to(root).parts
-        if relative[0] in ("build", ".git") or "pr-tour" not in relative:
+        if "pr-tour" not in relative:
             continue
         if "/".join(relative[:2]) in trees and managed_link(root.joinpath(*relative[:3])):
             continue

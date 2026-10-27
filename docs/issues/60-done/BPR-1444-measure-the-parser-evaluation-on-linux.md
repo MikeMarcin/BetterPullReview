@@ -2,18 +2,18 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1444"
 title: "Measure the C++ parser evaluation on Linux x64 and run its Linux fuzz campaign"
-status: "Ready"
+status: "Done"
 rfcs: ["RFC-BPR-0081"]
 depends_on: ["BPR-1442"]
 priority: "P2"
 platforms: ["linux"]
-metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_plan":{"id":"cpp-identifier-parser-evaluation-v1","path":"docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json"}}
+metadata: {"mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_plan":{"id":"cpp-identifier-parser-evaluation-v1","path":"docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json"},"disposition":{"date":"2026-10-26","kind":"closed-by-owner-amendment","amendment":"docs/rfcs/assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md","measured":false}}
 ---
 
 # BPR-1444: Measure the C++ parser evaluation on Linux x64 and run its Linux fuzz campaign
 
 Part of [RFC-BPR-0081](../../rfcs/RFC-BPR-0081-cpp-identifier-parser-evaluation.md), milestone `linux-measurement`. Runs the harness that
-[BPR-1442](../60-done/BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Linux x64
+[BPR-1442](BPR-1442-measure-tree-sitter-cpp-on-macos.md) commits, on the Linux x64
 station, with the thresholds unchanged.
 
 ## Acceptance
@@ -62,3 +62,14 @@ Linux notes:
   `tests/fuzz/markdown_view_lsan.supp`.
 - `measure_size.py` is written for macOS slices. On Linux, compare the linked
   twins' sizes (`size`) instead.
+
+## Closed by owner amendment, 2026-10-26
+
+Not run. The owner accepted RFC-BPR-0081's
+[2026-10-26 amendment](../../rfcs/assets/cpp-identifier-parser-evaluation-v1/proposed-owner-amendment-2026-10-26.md), which completes the evaluation on macOS
+alone. T fails the Contract, Bounded-work and Memory gates on macOS at both
+pins, and one failed gate rejects it, so the Linux x64 measurements and its Linux fuzz campaign
+could not change the outcome. AC03, AC04 and AC06 lose their Linux x64 half.
+Nothing here is a Linux x64 result. The shipped classifier's contract rows
+pass on Linux x64 in v0.3.4's Release suite at `62bfc09f6`. A future re-run
+of the evaluation measures this platform again.

@@ -61,6 +61,11 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
         require(not mcp_helper.exists() and not mcp_helper.is_symlink(), f"omitted-family-file-present:{mcp_helper.name}")
     if info["platform"] == "Darwin":
         helpers.append(directory / "bpr_update_helper")
+        cli = directory / "bpr"
+        if families["local_automation"]:
+            helpers.append(cli)
+        else:
+            require(not cli.exists() and not cli.is_symlink(), "omitted-family-file-present:bpr")
         identity = plistlib.loads((root / "Contents/Info.plist").read_bytes())
         require(identity.get("CFBundleIdentifier") == "com.gamecoretech.betterpullreview"
                 and identity.get("CFBundleExecutable") == app.name
@@ -152,11 +157,16 @@ def check_graph(build: Path, info: dict, revision: str) -> dict:
             require(not re.search(r"Qt(?:Core|Gui|Widgets|Network|6)|/src/adapters/|/src/application/", command), "effect-dependency-in-core-graph")
         if source.name == "installed_runtime.cpp":
             require("BPR_DISTRIBUTION_BUILD" in command, "installed-runtime-not-selected")
-            regions.add("installed-cli-runtime" if "BPR_INSTALLED_TOUR_CLI" in command else "installed-runtime")
+            if "BPR_BUNDLED_TOUR_CLI" in command:
+                regions.add("installed-bundled-cli-runtime")
+            else:
+                regions.add("installed-cli-runtime" if "BPR_INSTALLED_TOUR_CLI" in command else "installed-runtime")
         regions.add(relative.parts[1])
         first_party += 1
     required = {"core", "application", "adapters", "app",
                 "installed-cli-runtime" if info.get("layout") == "tour-cli" else "installed-runtime"}
+    if info["platform"] == "Darwin" and info.get("layout") != "tour-cli" and runtime.families(info)["local_automation"]:
+        required.add("installed-bundled-cli-runtime")
     require(required.issubset(regions), "incomplete-package-graph")
     return {"first_party_compile_units": first_party, "build_platform": info["platform"]}
 

@@ -63,7 +63,7 @@ The full check list is in [signature checks](release-packaging-maintainers.md#si
 
 ## Install and update
 
-- **macOS:** open the DMG and copy the app to `~/Applications`.
+- **macOS:** open the DMG and copy the app to `/Applications` (or another chosen location).
 - **Windows:** run the MSI; it installs into
   `%LOCALAPPDATA%\Programs\BetterPullReview` by default.
 - **Ubuntu:** install the DEB with your package manager, or unpack the
@@ -73,6 +73,20 @@ The full check list is in [signature checks](release-packaging-maintainers.md#si
 Eligible signed macOS installs can use **Check for Updates…**
 ([Application updates](application-updates.md)). Everything else updates by
 installing the new package.
+
+## Use the bundled terminal on macOS
+
+Apps with local automation include `Contents/MacOS/bpr`. Run
+`/Applications/BetterPullReview.app/Contents/MacOS/bpr tour capabilities --json`,
+or set `export PATH="/Applications/BetterPullReview.app/Contents/MacOS:$PATH"`
+in a terminal. For persistence, add that line yourself to `$HOME/.zshrc`
+(interactive zsh) or `$HOME/.bashrc` (interactive Bash; source it from
+`$HOME/.bash_profile` for login shells). Substitute your actual absolute app
+location when installed elsewhere. BPR changes no shell file or symlink.
+The `pr-tour` skill finds PATH first, then the standard app location, and keeps
+an absolute executable path for its session. The automation-off variant omits
+`bpr`; no separate CLI download is required or promised for the standard app.
+See [terminal setup and sign-in](tour-cli.md).
 
 ## Remove BetterPullReview
 

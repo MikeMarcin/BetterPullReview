@@ -8,6 +8,19 @@ metadata: {"rfc_base_sha":"9a4f61976bba23727acd77d10c23c041f87208f0","mandate_re
 
 # Evaluate replacements for the hand-written Git metadata readers
 
+## Owner amendment — 2026-10-26
+
+The owner accepted, in chat on 2026-10-26, that the rejected candidate L
+(libgit2) is measured on macOS only. L fails H1, H2, H3 and H6 there and
+is ineligible for every component, so its Windows and Linux canary, size
+and build-time results cannot change a verdict. K, the shipped readers,
+keeps its canary obligation on all three platforms. AC03 and AC05 are
+amended below, and H2 and H5 apply to L on macOS only. K's Linux H2 is
+observed by v0.3.4's Ubuntu suites, so [[BPR-1463]] closes. K's Windows
+canary has never run, because the course is POSIX-only, so [[BPR-1462]]
+stays open, narrowed to that course. The
+[amendment record](assets/git-metadata-readers-v1/proposed-owner-amendment-2026-10-26.md) keeps the text before and after.
+
 ## Execution status
 
 Mandate `git-metadata-readers-r1` adopts RFC-DRAFT-0019 unchanged apart from
@@ -27,8 +40,8 @@ groups the cards:
 | [[BPR-1459]] | Vendored pieces (V) and gitoxide (G) desk checks and cost records (AC05) |
 | [[BPR-1460]] | The decision record (AC06) |
 | [[BPR-1461]] | A reftable checkout refused under the owner's Q2 answer (AC07) |
-| [[BPR-1462]] | Windows harness, canary and cost measurements |
-| [[BPR-1463]] | Linux harness, canary and cost measurements |
+| [[BPR-1462]] | Windows canary course for K (narrowed 2026-10-26) |
+| [[BPR-1463]] | Linux harness and canary for K (closed 2026-10-26 on v0.3.4 evidence) |
 | [[BPR-1464]] | Verify and close this RFC |
 
 **Progress (2026-10-13, macOS).** Done: [[BPR-1454]] (fixes 1–7),
@@ -36,8 +49,9 @@ groups the cards:
 canary course for K), [[BPR-1457]] (fuzz oracles, H6, scale), [[BPR-1458]] (L)
 and [[BPR-1459]] (V, G). The [decision record](../verification/RFC-BPR-0083-decision.md)
 keeps K for every component: L fails H1, H2, H3 and H6, V fails H6, and G is
-rejected, so Q3 is not asked. Remaining: the Windows and Linux stations
-([[BPR-1462]], [[BPR-1463]]) and closeout ([[BPR-1464]]). Evidence is in the
+rejected, so Q3 is not asked. Remaining: K's Windows canary course
+([[BPR-1462]]) and closeout ([[BPR-1464]]). [[BPR-1463]] is Done under the
+2026-10-26 amendment. Evidence is in the
 [verification ledger](../verification/RFC-BPR-0083.md).
 
 **Owner answers.** Q1 was answered on 2026-10-13: core may link only the
@@ -373,16 +387,16 @@ workspace adapter's description.
   turns red under the negative control.
 - **AC02:** Every divergence of each evaluated implementation is classified under
   H1, and no component's product implementation keeps a silent divergence.
-- **AC03:** The extended canary course records containment, no-execution and
-  no-write results for K and for every L component evaluated, on macOS, Linux and
-  Windows.
+- **AC03:** *Amended 2026-10-26.* The extended canary course records
+  containment, no-execution and no-write results for K on macOS, Linux and
+  Windows, and for every L component evaluated on macOS.
 - **AC04:** Every parser that stays or is adopted has a fuzz target in the
   existing harness with the oracle defined for it. The BPR-0970 input and the
   adversarial corpus meet H6, and performance is reported against rule 3.
-- **AC05:** Each evaluated candidate has a cost record that lists its license and
+- **AC05:** *Amended 2026-10-26.* Each evaluated candidate has a cost record that lists its license and
   SPDX expression, the trial packaging result, the binary-size and build-time
   deltas for each platform, its SHA-256 and reftable status, and the integration
-  size. G's desk check records the reasons it was rejected.
+  size. L's binary-size and build-time deltas are the macOS ones. G's desk check records the reasons it was rejected.
 - **AC06:** The committed decision record gives each component's verdict, the
   gate or rule applied, links to the evidence, and every question answer it relies
   on. An adopted library sits behind the workspace-adapter port with no type

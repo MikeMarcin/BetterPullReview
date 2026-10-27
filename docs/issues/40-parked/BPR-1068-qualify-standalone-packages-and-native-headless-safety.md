@@ -1,21 +1,22 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1068"
-title: "Qualify standalone packages and native headless safety"
+title: "Qualify bundled macOS CLI and native headless safety"
 status: "Parked"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1059", "BPR-1062", "BPR-1063", "BPR-1066", "BPR-1067"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-17","milestone":"verification-closeout","acceptance":["AC44-12"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Only the owner's Windows device-flow sign-in remains; it waits on the owner, not on an implementer."}}
 parked_on: "human-review"
+acceptance: [{"criterion":"AC44-12","outcome":"pending","revision":"e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b","evidence":{"kind":"command","detail":"Universal bundled CLI and full package/security/source mechanics pass; final and relocated headless/profile/refusal probes and skill smoke pass. Native sign-in, actual release Developer ID/notarization/Gatekeeper, legal/vulnerability and remaining platform obligations are pending; see RFC-BPR-0044-0046 ledger and external fresh session 090216984c73ddb7006b51c64ba42120."}}]
 ---
 
-# BPR-1068: Qualify standalone packages and native headless safety
+# BPR-1068: Qualify bundled macOS CLI and native headless safety
 
 Pack alias: **PACK-PRTOUR-17** (live `BPR-1068`, allocated at import).
 
 ## Outcome
 
-Prove first-run profile/auth setup without a desktop install, and produce tests-disabled standalone CLI packages using existing target-native lanes and dependency/notices policy. Exercise native console/process/vault/owner channel, editor/temp and output safety. Preserve supported/unsupported transport distinctions rather than equate compiling with service qualification.
+Apply the owner's [bundled-cli-r1 amendment](../../rfcs/amendments/RFC-BPR-0044-bundled-cli-r1.md): qualify `Contents/MacOS/bpr` and its runtime closure in the macOS desktop release, including final-path capabilities, first-run profile/authentication, relocation, signatures/notarization, installed notices, SPDX and corresponding source. No separate CLI release is promised or required for the macOS workflow. Preserve the historical Windows/Linux native safety obligations and their actual evidence. Exercise native console/process/vault/owner channel, editor/temp and output safety. Preserve supported/unsupported transport distinctions rather than equate compiling with service qualification.
 
 ## Existing ownership seams
 
@@ -390,3 +391,45 @@ existing JaegAW wizard `bpr-jaegaw-windows-20261009-v001` (`d5ce5d2af`).
 The card moves to Parked on `human-review`. Before handing the wizard back
 to the owner, rebuild the frozen `tour-cli` root from current `main`: the
 `f992c0cf9` root predates three releases.
+
+## Bundled macOS CLI amendment — 2026-10-27
+
+Owner amendment: [bundled-cli-r1](../../rfcs/amendments/RFC-BPR-0044-bundled-cli-r1.md).
+Implementation `480f379eb` plus verification corrections `223098b11` and
+`e114ca220`; clean package source `e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b`.
+The current macOS obligation supersedes a standalone release prerequisite; the
+historical platform observations above retain their original meaning.
+
+- Normal and agent-free presets build `bpr`; automation-off omits it. The
+  package producer deploys it at `Contents/MacOS/bpr` and includes its closure,
+  nested signature checks and ordinary legal/source/security inventories.
+- Universal tests-disabled local app preparation passes. Its final bundle and
+  relocated Unicode/space path both pass capabilities, headless closure,
+  first-run profile privacy, noninteractive authentication and not-signed-in
+  online refusal. The CLI SHA-256 is
+  `a8a855c7ee8ea833b4c8071e45f7d336baefe456388ec393f5b9ed12e1fe9d77`.
+- Full package/security mechanics pass: 53 inventoried files, 20 binaries,
+  539 first-party compile units, 540 hardened compile units; installed notices,
+  71 Qt package records and 22 corresponding-source archives verified. The
+  separate source/ZIP/SPDX preflight passes. Ad-hoc signatures verify.
+- Package/graph tests 14/14, source-release tests 24/24, security controls
+  22/22, integration checks 4/4, documentation contracts 67/67, skill smoke
+  against the final CLI and clang-format 22 pass. Prior semantics evidence is
+  reused unchanged. No dedicated Debug timing course was selected.
+- Canonical AgentSkills `64938f9` updates only `pr-tour`; MASK authoring links
+  deploy it for this checkout. The package and deployed bytes agree. There
+  was no push and no observed running-agent reload claim.
+
+Pending: Developer ID/hardened-runtime/timestamp, notarization/stapling and
+Gatekeeper for actual release bytes; native authentication from a bundled
+candidate; existing Windows device-flow and other platform/native safety,
+trust/legal/vulnerability and BPR-1069 acceptance. No release is published.
+
+Attended review identity: `090216984c73ddb7006b51c64ba42120`,
+state `/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6/review-state`, consumed cursor 3; wizard session
+`e65bdc93-cf11-4c25-951d-2798edb7148f` in sibling `wizard-state`.
+The protected auth candidate remains the earlier local source `223098b11`,
+with the same CLI bytes but its own mimalloc binary; it is not relabelled as
+the later clean package. No auth or review verdict exists yet. Capability URLs
+are retained only in external state. Full evidence and the clean immutable
+package live in `/Users/jaeger/bpr-attended/rfc0044-bundled-cli-r1-00nugkp6`.

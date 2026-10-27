@@ -1,0 +1,96 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "bpr-pr-tour-cli-20260927",
+  "segment_id": "bundled-cli-20261026",
+  "mandate_revision": "RFC-BPR-0044-bundled-cli-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:6a3e244394aeed7652d24753f6588c0a9408080bd24ddad0dcfc5198d5369fe4",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0044",
+  "binding": {
+    "plan_id": "bpr-pr-tour-cli-extension-v1",
+    "plan_path": "docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json",
+    "milestone_id": "verification-closeout",
+    "definition_fingerprint": "sha256:684205038ea79609a4d447425eef7d4857b6f2fecda1eefda625b40864a24554",
+    "obligations": [
+      {
+        "id": "BPR-1068:*",
+        "source": "BPR-1068",
+        "selector": null,
+        "source_fingerprint": "sha256:c3c11a50ed952039ef3cb96a1f0a28866b4fa849241ed4478b6f728c2aa1c787"
+      },
+      {
+        "id": "BPR-1069:*",
+        "source": "BPR-1069",
+        "selector": null,
+        "source_fingerprint": "sha256:e8254b82e47202848f17c0ea61dd2d5011320fe0737ba61048cd00f49fb47d34"
+      },
+      {
+        "id": "BPR-1070:*",
+        "source": "BPR-1070",
+        "selector": null,
+        "source_fingerprint": "sha256:9de07b07a69c7867f5faf4b146d330b45976de4155e8ce6177dfd926e2c9529b"
+      },
+      {
+        "id": "BPR-1071:*",
+        "source": "BPR-1071",
+        "selector": null,
+        "source_fingerprint": "sha256:457bf47776ee4cbac24cfb544012673f0eda5d491f101894377102b61e41bdd7"
+      }
+    ],
+    "obligation_fingerprint": "sha256:f17b0e84b99b49ede3efc7f0e877380bd095e6389da19455529f18f90c22e381",
+    "exit_criteria": [
+      {
+        "id": "verification-closeout:exit:1",
+        "text": "Actual native/website/agent courses record supported and absent evidence independently; a fresh machine needs only GitHub for published meaning."
+      },
+      {
+        "id": "verification-closeout:exit:2",
+        "text": "All extension acceptance rows, docs and canonical closure agree; no missing prerequisite is called complete."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:c982b4f6b591ae6439ac8de73880be46cda196c73da20f7074913b7d98483648",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "intake",
+    "headless-manual",
+    "publish-and-recover",
+    "same-machine-handoff",
+    "pr-tour-skill",
+    "verification-closeout"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "2bcacaf2ee1a6a42dfdc5c7f7f8912fc2c54a5be",
+    "workflow_branch": "main",
+    "workflow_revision": "2bcacaf2ee1a6a42dfdc5c7f7f8912fc2c54a5be"
+  }
+}

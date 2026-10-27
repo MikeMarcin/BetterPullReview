@@ -129,7 +129,7 @@
     },
     {
       "id": "verification-closeout",
-      "outcome": "Packages, actual interfaces and claimed hosts are qualified and all extension claims are reconciled.",
+      "outcome": "The macOS desktop bundles bpr with native release qualification; actual interfaces and claimed hosts are qualified and all extension claims are reconciled.",
       "work": [
         {
           "issue": "BPR-1068"

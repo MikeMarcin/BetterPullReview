@@ -150,7 +150,7 @@ class ReleasePackageTests(unittest.TestCase):
                 app = binaries / ("BetterPullReview" if system == "Darwin" else "better_pull_review" + suffix)
                 helpers = [binaries / (name + suffix) for name in ("better_pull_review_agent_supervisor", "better_pull_review_mcp_context_helper")]
                 if system == "Darwin":
-                    helpers.append(binaries / "bpr_update_helper")
+                    helpers.extend([binaries / "bpr_update_helper", binaries / "bpr"])
                     identity = root / "Contents/Info.plist"
                     identity.write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleExecutable": app.name, "CFBundleShortVersionString": "1.2.3"}))
                 for path in (app, *helpers):
@@ -202,7 +202,7 @@ class ReleasePackageTests(unittest.TestCase):
                 app = binaries / ("BetterPullReview" if system == "Darwin" else "better_pull_review" + suffix)
                 helpers = [binaries / ("better_pull_review_agent_supervisor" + suffix)]
                 if system == "Darwin":
-                    helpers.append(binaries / "bpr_update_helper")
+                    helpers.extend([binaries / "bpr_update_helper", binaries / "bpr"])
                     (root / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleExecutable": app.name, "CFBundleShortVersionString": "1.2.3"}))
                 for path in (app, *helpers, *(binaries / name for name in audit.runtime.RUNTIME_DATA[system]),
                              *audit.private_libraries(root, info)):
@@ -213,6 +213,14 @@ class ReleasePackageTests(unittest.TestCase):
                     (plugins / name).parent.mkdir(parents=True, exist_ok=True)
                     (plugins / name).touch()
                 self.assertEqual(audit.package_paths(root, info), (app, helpers))
+                if system == "Darwin":
+                    cli = binaries / "bpr"
+                    cli.unlink()
+                    without_automation = {**info, "families": {**free, "local_automation": False}}
+                    self.assertEqual(audit.package_paths(root, without_automation), (app, helpers[:-1]))
+                    cli.touch()
+                    with self.assertRaisesRegex(ValueError, "omitted-family-file-present:bpr"):
+                        audit.package_paths(root, without_automation)
                 # The same layout is incomplete for a full package...
                 with self.assertRaisesRegex(ValueError, "capability-missing:better_pull_review_mcp_context_helper"):
                     audit.package_paths(root, {"platform": system, "version": "1.2.3"})
@@ -335,6 +343,27 @@ class ReleasePackageTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "tests-present"):
                     check()
                 commands.clear()
+                with self.assertRaisesRegex(ValueError, "incomplete-package-graph"):
+                    check()
+
+    def test_macos_bundle_requires_both_desktop_and_bundled_cli_runtime(self):
+        with ContainedTemporaryDirectory() as directory:
+            build = Path(directory)
+            commands = [{"file": str(ROOT / "src" / region / "source.cpp"), "command": "c++ -O3"}
+                        for region in ("core", "application", "adapters", "app")]
+            commands.append({"file": str(ROOT / "src/app/src/installed_runtime.cpp"),
+                             "command": "c++ -DBPR_DISTRIBUTION_BUILD=1"})
+            bundled = {"file": str(ROOT / "src/app/src/installed_runtime.cpp"),
+                       "command": "c++ -DBPR_DISTRIBUTION_BUILD=1 -DBPR_BUNDLED_TOUR_CLI=1"}
+            def check():
+                (build / "compile_commands.json").write_text(json.dumps(commands))
+                return audit.check_graph(build, {"platform": "Darwin"}, "a" * 40)
+            with patch.object(audit.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)):
+                with self.assertRaisesRegex(ValueError, "incomplete-package-graph"):
+                    check()
+                commands.append(bundled)
+                self.assertEqual(check()["first_party_compile_units"], 6)
+                commands.pop(-2)
                 with self.assertRaisesRegex(ValueError, "incomplete-package-graph"):
                     check()
 

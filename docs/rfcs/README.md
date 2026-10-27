@@ -573,7 +573,7 @@ Owner mandate `strict-cli-publication-r1` selects this order. [Import and proven
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0081](RFC-BPR-0081-cpp-identifier-parser-evaluation.md) | Evaluate a mature parser for C++ identifier refinement | In Progress | RFC-BPR-0072 |
+| [RFC-BPR-0081](RFC-BPR-0081-cpp-identifier-parser-evaluation.md) | Evaluate a mature parser for C++ identifier refinement | Auto-Verified | RFC-BPR-0072 |
 
 Mandate `cpp-identifier-parser-evaluation-r1` adopts RFC-DRAFT-0021. [Import and provenance](assets/cpp-identifier-parser-evaluation-v1.LIVE_IMPORT.md); [plan](plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json).
 
