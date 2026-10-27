@@ -1,18 +1,27 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<!-- Remember the selected per-user directory for repair and uninstall. CPack's
-     registry-keyed components otherwise resolve the default directory again. -->
+<!-- Remember the selected per-machine directory for repair and uninstall.
+     CPack's components otherwise resolve the default directory again.
+     [[BPR-1788]]: an MSI cannot upgrade across install scopes, so a copy
+     installed per user by an earlier package must be removed first; the
+     launch condition says so instead of leaving two installations. -->
 <CPackWiXPatch>
     <CPackWiXFragment Id="#PRODUCT">
         <Property Id="BPR_PREVIOUS_INSTALL_ROOT">
-            <RegistrySearch Id="BprPreviousInstallRoot" Root="HKCU"
+            <RegistrySearch Id="BprPreviousInstallRoot" Root="HKLM"
                 Key="Software\GameCoreTech\BetterPullReview" Name="InstallRoot" Type="raw"/>
         </Property>
         <SetProperty Id="INSTALL_ROOT" Value="[BPR_PREVIOUS_INSTALL_ROOT]"
             Before="CostInitialize" Sequence="both"
             Condition="BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT"/>
+        <Property Id="BPR_PER_USER_INSTALL_ROOT">
+            <RegistrySearch Id="BprPerUserInstallRoot" Root="HKCU"
+                Key="Software\GameCoreTech\BetterPullReview" Name="InstallRoot" Type="raw"/>
+        </Property>
+        <Launch Condition="Installed OR NOT BPR_PER_USER_INSTALL_ROOT"
+            Message="An earlier BetterPullReview is installed for this user only. Uninstall it from Settings, Apps, then run this installer again."/>
     </CPackWiXFragment>
     <CPackWiXFragment Id="CM_CP_better_pull_review.exe">
-        <RegistryValue Root="HKCU" Key="Software\GameCoreTech\BetterPullReview"
+        <RegistryValue Root="HKLM" Key="Software\GameCoreTech\BetterPullReview"
             Name="InstallRoot" Type="string" Value="[INSTALL_ROOT]"/>
     </CPackWiXFragment>
 </CPackWiXPatch>

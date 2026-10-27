@@ -35,9 +35,20 @@ class PackageRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.source_asset_name(info), "Source-BetterPullReview-0.3.2-macos-universal-tour-cli-corresponding-source.zip")
         self.assertEqual(runtime.legal_root(Path("/payload"), info), Path("/payload/ThirdParty"))
 
-    def test_windows_remembers_only_its_per_user_install_directory(self):
+    def test_windows_desktop_app_opens_no_console(self):
+        # [[BPR-1789]]. The desktop app is a windowed program; `bpr` stays a console one.
+        cmake = (ROOT / "src/app/CMakeLists.txt").read_text()
+        self.assertIn("set_target_properties(app_better_pull_review PROPERTIES WIN32_EXECUTABLE TRUE)", cmake)
+        self.assertIn('target_link_options(app_better_pull_review PRIVATE "/ENTRY:mainCRTStartup")', cmake)
+        self.assertNotIn("set_target_properties(app_bpr PROPERTIES WIN32_EXECUTABLE", cmake)
+
+    def test_windows_installs_per_machine_and_remembers_its_directory(self):
+        # [[BPR-1788]]. Program Files, per machine, like a normal Windows application.
         config = (ROOT / "packaging/Install.cmake").read_text()
-        self.assertIn('set(CPACK_WIX_INSTALL_SCOPE perUser)', config)
+        self.assertIn('set(CPACK_WIX_INSTALL_SCOPE perMachine)', config)
+        self.assertIn('set(CPACK_WIX_ROOT_FOLDER_ID ProgramFiles64Folder)', config)
+        self.assertIn('set(CPACK_PACKAGE_INSTALL_DIRECTORY "BetterPullReview")', config)
+        self.assertNotIn("LocalAppDataFolder", config)
         self.assertIn('packaging/windows/InstallRoot.xml', config)
         tree = ET.parse(ROOT / "packaging/windows/InstallRoot.xml").getroot()
         product = tree.find("./CPackWiXFragment[@Id='#PRODUCT']")
@@ -45,13 +56,20 @@ class PackageRuntimeTests(unittest.TestCase):
         stored = tree.find("./CPackWiXFragment[@Id='CM_CP_better_pull_review.exe']/RegistryValue")
         for key in ("Root", "Key", "Name"):
             self.assertEqual(search.get(key), stored.get(key))
-        self.assertEqual(search.get("Root"), "HKCU")
+        self.assertEqual(search.get("Root"), "HKLM")
         self.assertEqual(stored.get("Value"), "[INSTALL_ROOT]")
         restore = product.find("./SetProperty[@Id='INSTALL_ROOT']")
         self.assertEqual(restore.get("Before"), "CostInitialize")
         self.assertEqual(restore.get("Sequence"), "both")
         self.assertEqual(restore.get("Condition"), "BPR_PREVIOUS_INSTALL_ROOT AND NOT INSTALL_ROOT")
         self.assertEqual(restore.get("Value"), "[BPR_PREVIOUS_INSTALL_ROOT]")
+        # An earlier per-user copy cannot be upgraded across scopes: say so.
+        per_user = product.find("./Property[@Id='BPR_PER_USER_INSTALL_ROOT']/RegistrySearch")
+        self.assertEqual(per_user.get("Root"), "HKCU")
+        self.assertEqual((per_user.get("Key"), per_user.get("Name")), (stored.get("Key"), stored.get("Name")))
+        launch = product.find("./Launch")
+        self.assertEqual(launch.get("Condition"), "Installed OR NOT BPR_PER_USER_INSTALL_ROOT")
+        self.assertIn("Uninstall it", launch.get("Message"))
 
     def test_declared_sources_are_closed_and_pinned(self):
         items = runtime.components({"platform": "Darwin"})

@@ -336,6 +336,16 @@ if(BPR_BUILD_QT)
         src/installed_runtime.cpp
     )
     bpr_add_windows_version_resource(app_better_pull_review "BetterPullReview")
+    if(WIN32)
+        # [[BPR-1789]]. A windowed program, so launching it opens no console.
+        # The CRT's own entry still calls main(), so startup is unchanged; a
+        # parent that redirects stderr (the test courses) still reads it.
+        # `bpr`, the command-line tool, stays a console program.
+        set_target_properties(app_better_pull_review PROPERTIES WIN32_EXECUTABLE TRUE)
+        if(MSVC)
+            target_link_options(app_better_pull_review PRIVATE "/ENTRY:mainCRTStartup")
+        endif()
+    endif()
     if(BPR_DISTRIBUTION_BUILD)
         target_compile_definitions(app_better_pull_review PRIVATE BPR_DISTRIBUTION_BUILD=1)
     endif()

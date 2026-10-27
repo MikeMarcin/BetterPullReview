@@ -44,7 +44,7 @@ Build from committed, clean source.
 | Native build host | Preset and output | Required operator inputs |
 |---|---|---|
 | macOS | `macos-release`: universal x86_64/arm64, minimum macOS 14.4; app and ZIP, plus DMG for a full release | The existing Qt/macOS toolchain. Local prepare mode needs no Apple credential. |
-| Windows x64 (tested on Windows 11) | `windows-app-release`: WiX per-user MSI under `%LOCALAPPDATA%/Programs/BetterPullReview` (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, the Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
+| Windows x64 (tested on Windows 11) | `windows-app-release`: WiX per-machine MSI under `%ProgramFiles%\BetterPullReview` (installing asks for administrator approval) (CPack's WiX v4+ .NET-tool mode, `CPACK_WIX_VERSION 4`) | Native MSVC x64 developer environment, Ninja, the WiX .NET tool 4 or 5 with `WixToolset.UI.wixext`, Python 3.10+, the Qt provider SBOM, `VCToolsRedistDir`, and `BPR_MSVC_REDISTRIBUTION_NOTICE` pointing to the licensed toolchain's applicable redistribution notice |
 | Ubuntu 26.04 LTS x86_64 (WSL2 can produce it) | `linux-package`: DEB and per-user archive | A C++23 compiler and library that pass the build's checks, the Qt provider SBOM, `patchelf`, `readelf`, `ldd`, Debian packaging tools, and libsecret and libxcb development files |
 
 All hosts also need CMake 4.4.2, Ninja, Python 3.10+ and a C++23 compiler and
@@ -257,8 +257,13 @@ package trust.
 
 ### MSI installation notes
 
-The MSI stores its selected per-user directory in its own HKCU installer value,
-so repair and uninstall resolve the same directory, including a custom one.
+The MSI installs per machine under Program Files ([[BPR-1788]]; earlier
+packages installed per user under `%LOCALAPPDATA%\Programs`). It stores its
+selected directory in its own HKLM installer value, so repair and uninstall
+resolve the same directory, including a custom one. An MSI cannot upgrade a
+product across install scopes, so when the installing user still has a per-user
+copy from an earlier package, the installer stops and asks for it to be
+uninstalled first rather than leaving two installations.
 CPack supplies the normal installed-location metadata. Use native backslash
 paths with `msiexec`: a forward-slash command was refused before installation.
 

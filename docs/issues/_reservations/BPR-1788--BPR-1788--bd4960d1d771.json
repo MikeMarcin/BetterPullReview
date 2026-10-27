@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1788"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Windows installer installs per machine to Program Files",
+  "created": "2026-10-27T20:35:20.397234+00:00",
+  "base": "354cdbee39d688400fedf73ca0d963913e938eb0"
+}
