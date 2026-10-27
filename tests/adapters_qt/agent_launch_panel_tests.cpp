@@ -451,6 +451,7 @@ namespace {
 				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then ask again.") },
 				 std::pair{ application::agent_workspace_unavailable_reason::sign_in_refused, QStringLiteral("Check that gh is signed in") },
 				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("larger than the agent's private copy allows") },
+				 std::pair{ application::agent_workspace_unavailable_reason::too_large_not_in_clone, QStringLiteral("Fetch the pull request's branch in your clone") },
 			 }) {
 			const auto reasoned = identity(40U + static_cast<std::uint64_t>(reason));
 			panel.admit(reasoned);

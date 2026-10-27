@@ -4740,6 +4740,11 @@ namespace bpr::adapters::git {
 					};
 				}
 				if (!materialized.has_value()) {
+					// [[BPR-1772]]. The clone lacks the head the host asked
+					// it for: said apart, so the host downloads it instead.
+					if (aRequest.HeadFromClone && materialized.error() == application::git_process_failure::object_unavailable) {
+						return std::unexpected{ application::git_cache_error{ application::git_cache_failure::object_mismatch, materialized.error().Detail } };
+					}
 					return std::unexpected{
 						State->process_failure(materialized.error())
 					};

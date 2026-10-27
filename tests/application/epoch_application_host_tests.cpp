@@ -438,20 +438,24 @@ namespace {
 		std::optional<application::owned_agent_workspace>                    WorkspaceResult;
 		std::vector<application::git_smart_workspace_snapshot_request>       SnapshotRequests;
 		std::optional<application::git_smart_transport_failure>              SnapshotFailure;
-		std::optional<application::git_cache_error>                          WorkspaceCleanupFailure;
-		std::vector<std::uint64_t>                                           AuthorityRevocations;
-		std::vector<application::epoch_presentation_update>                  Updates;
-		std::size_t                                                          CacheMutationCalls          = 0U;
-		std::size_t                                                          ActiveCacheSessions         = 0U;
-		std::size_t                                                          MaximumActiveCacheSessions  = 0U;
-		std::size_t                                                          TransportCalls              = 0U;
-		std::size_t                                                          ProjectionCalls             = 0U;
-		std::size_t                                                          ProjectionOutsideDecision   = 0U;
-		std::size_t                                                          ProjectionFailuresRemaining = 0U;
-		std::size_t                                                          ProjectionDepth             = 0U;
-		std::size_t                                                          MaximumProjectionDepth      = 0U;
-		std::size_t                                                          ProjectionIngressCalls      = 0U;
-		std::function<void()>                                                ProjectionIngress;
+		/// [[BPR-1772]]. Whether each workspace asked for the linked clone's
+		/// head only, and whether the clone holds it.
+		std::vector<bool>                                   WorkspaceHeadFromClone;
+		bool                                                CloneHoldsHead = false;
+		std::optional<application::git_cache_error>         WorkspaceCleanupFailure;
+		std::vector<std::uint64_t>                          AuthorityRevocations;
+		std::vector<application::epoch_presentation_update> Updates;
+		std::size_t                                         CacheMutationCalls          = 0U;
+		std::size_t                                         ActiveCacheSessions         = 0U;
+		std::size_t                                         MaximumActiveCacheSessions  = 0U;
+		std::size_t                                         TransportCalls              = 0U;
+		std::size_t                                         ProjectionCalls             = 0U;
+		std::size_t                                         ProjectionOutsideDecision   = 0U;
+		std::size_t                                         ProjectionFailuresRemaining = 0U;
+		std::size_t                                         ProjectionDepth             = 0U;
+		std::size_t                                         MaximumProjectionDepth      = 0U;
+		std::size_t                                         ProjectionIngressCalls      = 0U;
+		std::function<void()>                               ProjectionIngress;
 	};
 
 	template <typename Failure>
@@ -1792,8 +1796,12 @@ namespace {
 		{
 			State.Calls.emplace_back("cache.materialize-agent-workspace");
 			State.WorkspaceSnapshots.push_back(aSnapshot);
+			State.WorkspaceHeadFromClone.push_back(aRequest.HeadFromClone);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
+			}
+			if (aRequest.HeadFromClone && !State.CloneHoldsHead) {
+				return std::unexpected{ application::git_cache_error{ application::git_cache_failure::object_mismatch, "The linked clone does not hold the head.\n" } };
 			}
 			if (State.WorkspaceMaterializationFailure.has_value()) {
 				auto failure = std::move(*State.WorkspaceMaterializationFailure);
@@ -1802,7 +1810,8 @@ namespace {
 			}
 			// [[BPR-1738]]. A sparse cache holds no parent and no blob, so
 			// copying the head's closure out of it fails as installed Git does.
-			if (State.SparseObjects && !aSnapshot) {
+			// A head the linked clone lends is not copied from it.
+			if (State.SparseObjects && !aSnapshot && !aRequest.HeadFromClone) {
 				return std::unexpected{ application::git_cache_error{
 					application::git_cache_failure::process_failure,
 					"error: Could not read " + std::string{ core::canonical_hex(oid<core::git_commit_oid>(10U)).view() }
@@ -7927,12 +7936,14 @@ namespace {
 	/// from the head's snapshot, fetched through the review's own lease.
 	void sparse_agent_workspace_is_made_from_the_heads_snapshot()
 	{
-		const auto run = [](fixture& aValue) {
+		const auto run = [](fixture& aValue, std::optional<std::filesystem::path> aClone = std::nullopt) {
 			auto materialized = std::optional<std::expected<application::owned_agent_workspace, application::agent_workspace_error>>{ };
 			auto done         = std::atomic_bool{ false };
 			{
 				auto caller = std::jthread{ [&] {
-					materialized = aValue.Host->materialize_agent_workspace(workspace_request_for(aValue.Host->state()), { });
+					auto request         = workspace_request_for(aValue.Host->state());
+					request.HistoryClone = aClone;
+					materialized         = aValue.Host->materialize_agent_workspace(request, { });
 					done.store(true);
 				} };
 				while (!done.load()) {
@@ -7996,6 +8007,40 @@ namespace {
 			expect(materialized.has_value() && value.State.SnapshotRequests.empty() && value.State.WorkspaceSnapshots.size() == 1U
 					   && !value.State.WorkspaceSnapshots.front(),
 				   "a complete review's workspace is still copied out of its cache, with no download");
+		}
+		// [[BPR-1772]], owner photograph 2026-10-26: a large sparse head was
+		// refused for its size although the linked clone could lend it.
+		const auto clone = std::filesystem::path{ "/fixture/reviewer-clone" };
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			const auto workspace        = owned_workspace_for(value.Host->state());
+			value.State.WorkspaceResult = workspace;
+			value.State.CloneHoldsHead  = true;
+			value.State.SnapshotFailure = application::git_smart_transport_failure::response_limit;
+			const auto materialized     = run(value, clone);
+			expect(materialized.has_value() && *materialized == workspace && value.State.SnapshotRequests.empty()
+					   && value.State.WorkspaceHeadFromClone == std::vector{ true } && !value.State.WorkspaceSnapshots.front(),
+				   "a sparse head the linked clone holds is taken from the clone, with no download to be too large");
+		}
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			const auto materialized     = run(value, clone);
+			expect(materialized.has_value() && value.State.SnapshotRequests.size() == 1U
+					   && value.State.WorkspaceHeadFromClone == std::vector{ true, false } && value.State.WorkspaceSnapshots.size() == 2U
+					   && value.State.WorkspaceSnapshots.back(),
+				   "a clone without the head is asked first, then the head's snapshot is downloaded as before");
+		}
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.SnapshotFailure = application::git_smart_transport_failure::response_limit;
+			const auto materialized     = run(value, clone);
+			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::too_large_not_in_clone
+					   && value.State.WorkspaceHeadFromClone == std::vector{ true },
+				   "a head too large to download that the clone lacks says to fetch it in the clone");
 		}
 	}
 

@@ -38,6 +38,8 @@ namespace bpr::qt {
 				return QStringLiteral("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then ask again.");
 			case reason::too_large:
 				return QStringLiteral("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
+			case reason::too_large_not_in_clone:
+				return QStringLiteral("This head is larger than the agent's private copy allows, and your clone doesn't have it yet. Fetch the pull request's branch in your clone, then ask again.");
 			}
 			return { };
 		}

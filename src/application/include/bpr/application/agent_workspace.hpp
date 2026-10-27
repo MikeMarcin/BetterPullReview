@@ -100,6 +100,12 @@ namespace bpr::application {
 		/// only, through Git's alternates. Absent: the workspace holds only
 		/// what the application's own copy gives it, as before.
 		std::optional<std::filesystem::path> HistoryClone;
+		/// [[BPR-1772]]. The head comes from `HistoryClone` or not at
+		/// all: a sparse review asks this first, so a head the clone already
+		/// holds is never downloaded. When the clone does not hold it nothing
+		/// is copied and the cache answers `object_mismatch`. Requires
+		/// `HistoryClone`.
+		bool HeadFromClone = false;
 
 		auto operator<=>(const agent_workspace_materialization_request&) const
 			= default;
@@ -170,6 +176,10 @@ namespace bpr::application {
 		/// As `download_failed`, because the head is larger than a
 		/// workspace's snapshot may be.
 		too_large,
+		/// [[BPR-1772]]. As `too_large`, and the reviewer's linked clone,
+		/// which would have lent the head without a download, does not hold
+		/// it yet: fetching it there is the way on.
+		too_large_not_in_clone,
 	};
 
 	[[nodiscard]] auto stable_name(agent_workspace_unavailable_reason aReason) noexcept
