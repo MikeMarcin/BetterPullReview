@@ -15,6 +15,11 @@
 // `--description` (the author) and `--description-second` (another account)
 // modes on a pull request the owner opened, through the shipped
 // `review_mutation_session::edit_description`.
+//
+// [[BPR-1775]]. tests/scripts/comment_edit_live_course.py runs its
+// `--comments` (the author of three comments, one of each kind) and
+// `--comments-other` (asked to edit someone else's comments) modes through
+// the shipped `review_mutation_session::edit_comment`.
 #include "gh_cli_response.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
@@ -22,11 +27,13 @@
 #include "github_read_contract.hpp"
 
 #include "bpr/application/review_mutation_recovery_port.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/description_edit.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
+#include <QJsonArray>
 #include <QFile>
 #include <QJsonDocument>
 #include <QJsonObject>
@@ -533,6 +540,82 @@ namespace {
 			fail("description-second:unexpected");
 		}
 	}
+
+	/// [[BPR-1775]]. One comment save through the shipped session; the
+	/// receipt and the writes it made are held to what is expected.
+	[[nodiscard]] auto edit_comment(review_mutation_session& aSession, gh_mutation_transport& aWire, const std::string& aStep, const std::string& aPost, const std::string& aOriginal, const std::string& aBody)
+		-> std::pair<std::expected<application::review_comment_edit_receipt, application::review_mutation_failure>, std::size_t>
+	{
+		const auto subject = core::comment_edit_subject_of(aPost);
+		if (!subject.has_value()) {
+			fail(aStep + ":not-a-comment");
+		}
+		const auto before  = aWire.Operations.size();
+		auto       receipt = aSession.edit_comment(application::review_comment_edit_request{ .Target = target().Semantic, .ActingIdentity = actor().Account, .Kind = subject->Kind, .Subject = std::string{ subject->Node }, .Original = aOriginal, .Body = aBody, .LiveBinding = binding() });
+		const auto writes  = static_cast<std::size_t>(std::ranges::count_if(aWire.Operations.begin() + static_cast<std::ptrdiff_t>(before), aWire.Operations.end(), [](const review_mutation_operation aOperation) {
+			return aOperation == review_mutation_operation::edit_review_comment || aOperation == review_mutation_operation::edit_issue_comment || aOperation == review_mutation_operation::edit_review_body;
+		}));
+		std::cout << "REACTION_LIVE:" << aStep << ":" << (receipt ? "answered" : std::string{ application::name(receipt.error()) }) << " writes=" << writes
+				  << (receipt ? " written=" + std::to_string(receipt->Written) + " conflict=" + std::to_string(receipt->Conflict) + " readBack=" + std::to_string(receipt->ConfirmedByReadBack) : std::string{ })
+				  << '\n'
+				  << std::flush;
+		return { std::move(receipt), writes };
+	}
+
+	/// [[BPR-1775]]. The author of one comment of each kind edits it, sees
+	/// GitHub's answer, saves the same text again (nothing sent), is refused a
+	/// stale original as a conflict (nothing sent, GitHub's body back), and
+	/// restores it.
+	void comments_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		for (const auto& [key, name] : { std::pair{ "reviewComment", "review-comment" }, std::pair{ "issueComment", "issue-comment" }, std::pair{ "review", "review-body" } }) {
+			const auto post     = text(key);
+			const auto original = text((std::string{ key } + "Body").c_str());
+			const auto edited   = original + "\r\nEdited through the shipped comment session.\n";
+			const auto step     = std::string{ name };
+			if (!core::comment_edit_offered(post, true, false)) {
+				fail(step + ":not-offered");
+			}
+			const auto [saved, savedWrites] = edit_comment(aSession, aWire, step + "-saved", post, original, edited);
+			if (!saved || !saved->Written || saved->Conflict || saved->Body != edited || savedWrites != 1U) {
+				fail(step + "-saved:unexpected");
+			}
+			const auto [again, againWrites] = edit_comment(aSession, aWire, step + "-saved-again", post, original, edited);
+			if (!again || again->Written || again->Conflict || againWrites != 0U) {
+				fail(step + "-saved-again:unexpected");
+			}
+			const auto [stale, staleWrites] = edit_comment(aSession, aWire, step + "-conflict", post, "A body GitHub no longer has.", "Must not be written.");
+			if (!stale || !stale->Conflict || stale->Written || stale->Body != edited || staleWrites != 0U) {
+				fail(step + "-conflict:unexpected");
+			}
+			const auto [restored, restoredWrites] = edit_comment(aSession, aWire, step + "-restored", post, edited, original);
+			if (!restored || !restored->Written || restored->Body != original || restoredWrites != 1U) {
+				fail(step + "-restored:unexpected");
+			}
+		}
+	}
+
+	/// [[BPR-1775]]. Someone else's comments: the composition offers no Edit
+	/// (not mine), and the session, asked anyway with GitHub's own body,
+	/// writes nothing because GitHub says this viewer may not update them.
+	void comments_other_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		const auto others = course().Json.value(QStringLiteral("otherComments")).toArray();
+		if (others.isEmpty()) {
+			fail("comments-other:none");
+		}
+		for (const auto& entry : others) {
+			const auto post = entry.toObject().value(QStringLiteral("post")).toString().toStdString();
+			const auto body = entry.toObject().value(QStringLiteral("body")).toString().toStdString();
+			const auto step = "other-" + post.substr(0, post.find(':'));
+			std::cout << "REACTION_LIVE:" << step << "-offered:" << core::comment_edit_offered(post, false, false) << '\n'
+					  << std::flush;
+			const auto [answer, writes] = edit_comment(aSession, aWire, step + "-asked", post, body, body + " Must not be written.");
+			if (writes != 0U || answer || answer.error() != application::review_mutation_failure::refused_by_server) {
+				fail(step + ":unexpected");
+			}
+		}
+	}
 } // namespace
 
 auto main(int aCount, char** aValues) -> int
@@ -540,7 +623,7 @@ auto main(int aCount, char** aValues) -> int
 	QCoreApplication application{ aCount, aValues };
 	const auto       arguments = QCoreApplication::arguments();
 	if (arguments.size() < 4) {
-		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second) CONFIG OUTPUT [FLOOR]\n";
+		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other) CONFIG OUTPUT [FLOOR]\n";
 		return EXIT_FAILURE;
 	}
 	auto file = QFile{ arguments[2] };
@@ -577,6 +660,10 @@ auto main(int aCount, char** aValues) -> int
 		description_course(session, wire);
 	} else if (mode == QStringLiteral("--description-second")) {
 		description_second_course(session, wire);
+	} else if (mode == QStringLiteral("--comments")) {
+		comments_course(session, wire);
+	} else if (mode == QStringLiteral("--comments-other")) {
+		comments_other_course(session, wire);
 	} else if (mode == QStringLiteral("--main")) {
 		const auto first  = find(read_reactions("before"), comment);
 		const auto thumbs = core::find_reaction_group(first, core::reaction_content::thumbs_up);

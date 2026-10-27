@@ -165,9 +165,9 @@ namespace bpr::adapters::github::detail {
 		/// request it belongs to (as a reaction subject is, [[BPR-1741]]).
 		constexpr auto observe_comment_document = std::string_view{
 			"query ObserveComment($subject:ID!){node(id:$subject){__typename id "
-			"... on PullRequestReviewComment{body viewerCanUpdate updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
-			"... on IssueComment{body viewerCanUpdate updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
-			"... on PullRequestReview{body viewerCanUpdate updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
+			"... on PullRequestReviewComment{body viewerCanUpdate viewerDidAuthor updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on IssueComment{body viewerCanUpdate viewerDidAuthor updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}} "
+			"... on PullRequestReview{body viewerCanUpdate viewerDidAuthor updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}"
 			"}}"
 		};
 		/// [[BPR-1775]]. The update each kind takes. A published review
@@ -175,15 +175,15 @@ namespace bpr::adapters::github::detail {
 		/// its own document name and answer.
 		constexpr auto edit_review_comment_document = std::string_view{
 			"mutation EditReviewComment($subject:ID!,$body:String!){updatePullRequestReviewComment(input:{pullRequestReviewCommentId:$subject,body:$body}){"
-			"pullRequestReviewComment{__typename id body viewerCanUpdate updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+			"pullRequestReviewComment{__typename id body viewerCanUpdate viewerDidAuthor updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 		constexpr auto edit_issue_comment_document = std::string_view{
 			"mutation EditIssueComment($subject:ID!,$body:String!){updateIssueComment(input:{id:$subject,body:$body}){"
-			"issueComment{__typename id body viewerCanUpdate updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+			"issueComment{__typename id body viewerCanUpdate viewerDidAuthor updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 		constexpr auto edit_review_body_document = std::string_view{
 			"mutation EditReviewBody($subject:ID!,$body:String!){updatePullRequestReview(input:{pullRequestReviewId:$subject,body:$body}){"
-			"pullRequestReview{__typename id body viewerCanUpdate updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
+			"pullRequestReview{__typename id body viewerCanUpdate viewerDidAuthor updatedAt pullRequest{id databaseId number repository{id databaseId nameWithOwner}}}}}"
 		};
 		[[nodiscard]] constexpr auto comment_edit_document(const core::comment_edit_kind aKind) noexcept -> std::string_view
 		{
@@ -991,6 +991,7 @@ namespace bpr::adapters::github::detail {
 			std::string              Id;
 			std::string              Body;
 			bool                     ViewerCanUpdate = false;
+			bool                     ViewerDidAuthor = false;
 			std::string              UpdatedAt;
 			thread_pull_request_json PullRequest;
 			struct glaze
@@ -1000,6 +1001,7 @@ namespace bpr::adapters::github::detail {
 					"id", &comment_subject_json::Id,
 					"body", &comment_subject_json::Body,
 					"viewerCanUpdate", &comment_subject_json::ViewerCanUpdate,
+					"viewerDidAuthor", &comment_subject_json::ViewerDidAuthor,
 					"updatedAt", &comment_subject_json::UpdatedAt,
 					"pullRequest", &comment_subject_json::PullRequest);
 			};
@@ -1108,7 +1110,12 @@ namespace bpr::adapters::github::detail {
 				|| !aExpected.LiveBinding.has_value() || !binds_designated_pull_request(aComment.PullRequest, aExpected.LiveBinding->Target)) {
 				return failed(review_mutation_contract_failure::identity_mismatch);
 			}
-			return review_description_observation{ .Body = aComment.Body, .UpdatedAt = aComment.UpdatedAt, .ViewerCanUpdate = aComment.ViewerCanUpdate };
+			// Only the viewer's own comment is theirs to edit here (owner,
+			// 2026-10-27). GitHub also lets a repository's maintainers update
+			// another account's comment (live on BPR-Test), so a comment the
+			// viewer did not write is held not permitted, whatever
+			// `viewerCanUpdate` says.
+			return review_description_observation{ .Body = aComment.Body, .UpdatedAt = aComment.UpdatedAt, .ViewerCanUpdate = aComment.ViewerCanUpdate && aComment.ViewerDidAuthor };
 		}
 
 		/// [[BPR-1741]]. The subject's reactions, held to the
