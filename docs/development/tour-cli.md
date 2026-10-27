@@ -202,7 +202,11 @@ a dirty checkout cannot supply replacement text.
 ## Publication and read-first recovery
 
 `publish` refreshes the exact profile/account/PR and previews the shared desktop
-plan. `--description` selects the separately named PR body edit; `--compatibility`
+plan. As on the desktop, Problem and Solution go in the PR description by
+default and the tour comment lists only the route; `--no-description` keeps them
+in the tour comment and leaves the description alone (`--description` names the
+default explicitly; giving both is refused). A published tour keeps its brief
+where it was first published ([[BPR-1787]]). `--compatibility`
 selects visible non-atomic comments where qualified. The preview names the actor,
 host, repository, head, text, source links and operations. Type `publish` in the
 terminal to authorize that finite plan. The profile lease and provider session
