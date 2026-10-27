@@ -8,6 +8,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 #include <QTextEdit>
 
 #include "../support/resize_cursor_hold_check.hpp"
@@ -867,6 +868,123 @@ namespace {
 		const auto control  = QRect{ aControl.mapTo(&aPage, QPoint{ 0, 0 }), aControl.size() };
 		const auto readerAt = QRect{ reader->mapTo(&aPage, QPoint{ 0, 0 }), reader->size() };
 		return control.right() + 1 == corner.x() && control.top() == corner.y() && readerAt.contains(control);
+	}
+
+	// [[BPR-1774]]. Writes the page as it is now under the directory a
+	// render run names (BPR_DESCRIPTION_EDIT_RENDER_DIR); nothing otherwise.
+	void render_description_edit(QWidget& aPage, const char* const aName)
+	{
+		const auto directory = qEnvironmentVariable("BPR_DESCRIPTION_EDIT_RENDER_DIR");
+		if (!directory.isEmpty()) {
+			aPage.grab().save(directory + QLatin1Char{ '/' } + QString::fromUtf8(aName));
+		}
+	}
+
+	// [[BPR-1774]]. Edit is offered when the composition says so and not
+	// otherwise; the editor opens on the body's exact bytes in the reader's
+	// place; Save hands the composition the original and the text and sends
+	// nothing itself; Cancel and another pull request close it; a conflict
+	// keeps the typed text until the newer one is asked for.
+	void test_the_description_is_edited_in_place()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1100, 760);
+		page.show();
+		auto projected = projection();
+		projected.Body = "Fixes three crashes.\r\n\r\n- One\r\n- Two\r\n";
+		page.present(projected);
+		settle();
+		auto* const edit     = page.description_edit_button();
+		auto* const fullView = page.findChild<QToolButton*>(QStringLiteral("overviewFullView"));
+		expect(edit != nullptr && !edit->isVisible() && !page.begin_description_edit(), "Edit is not offered until the composition offers it");
+		auto saves = std::vector<qt::overview_description_save>{ };
+		page.set_description_save_dispatch([&saves](const qt::overview_description_save& aSave) { saves.push_back(aSave); });
+		page.set_description_editable(true);
+		settle();
+		expect(edit->isVisible() && fullView->isVisible() && in_reader_corner(page, *fullView) && edit->accessibleName() == QStringLiteral("Edit description")
+				   && edit->geometry().right() < fullView->geometry().left() && edit->mapTo(&page, QPoint{ }).y() == fullView->mapTo(&page, QPoint{ }).y(),
+			   "Edit sits in the reader's corner beside Full view, named for what it does");
+		render_description_edit(page, "overview-edit-offered-light.png");
+
+		edit->click();
+		settle();
+		auto* const editor = page.description_editor();
+		expect(page.description_editing() && editor->isVisible() && !page.body_view()->isVisible() && editor->raw() == projected.Body && page.description_original() == projected.Body
+				   && editor->hasFocus() && !edit->isVisible() && saves.empty(),
+			   "Edit opens the Markdown editor in the reader's place on the body's exact bytes, focused, and sends nothing");
+		auto cursor = editor->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		editor->setTextCursor(cursor);
+		editor->insertPlainText(QStringLiteral("- Three\n"));
+		settle();
+		expect(editor->raw() == projected.Body + "- Three\n", "typed text keeps the untouched bytes, CRLF included");
+		render_description_edit(page, "overview-edit-open-light.png");
+		page.description_save_button()->click();
+		expect(saves.size() == 1U && saves.back().Original == projected.Body && saves.back().Body == projected.Body + "- Three\n", "Save hands the composition the original and the text, once");
+		page.present_description_status(QStringLiteral("Saving the description to GitHub…"), true);
+		expect(editor->isReadOnly() && !page.description_save_button()->isEnabled() && !page.description_cancel_button()->isEnabled()
+				   && page.description_status()->text() == QStringLiteral("Saving the description to GitHub…"),
+			   "while GitHub is asked the text and Save are held");
+		page.description_save_button()->click();
+		auto ctrlReturn = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+		QApplication::sendEvent(editor, &ctrlReturn);
+		expect(saves.size() == 1U, "a held Save sends nothing more");
+
+		// A conflict: the text stays until GitHub's newer one is asked for.
+		page.present_description_status(QStringLiteral("Someone changed the description on GitHub since you began. Nothing was saved."));
+		page.offer_newer_description("Newer from GitHub.\r\n");
+		settle();
+		expect(!editor->isReadOnly() && page.description_newer_button()->isVisible() && editor->raw() == projected.Body + "- Three\n", "a conflict keeps the typed text and offers the newer one");
+		render_description_edit(page, "overview-edit-conflict-light.png");
+		page.description_newer_button()->click();
+		settle();
+		expect(editor->raw() == "Newer from GitHub.\r\n" && page.description_original() == "Newer from GitHub.\r\n" && !page.description_newer_button()->isVisible(),
+			   "taking the offer edits from GitHub's newer text, which is now the original");
+		page.description_save_button()->click();
+		expect(saves.size() == 2U && saves.back().Original == "Newer from GitHub.\r\n", "the next Save names the newer original");
+
+		// A new read of the same pull request keeps the edit; Cancel ends it.
+		auto refreshed = projected;
+		refreshed.Body = "Changed under the editor.";
+		page.present(refreshed);
+		settle();
+		expect(page.description_editing() && editor->raw() == "Newer from GitHub.\r\n" && !page.body_view()->isVisible(), "a refresh of the same pull request keeps the editor and its text");
+		page.description_cancel_button()->click();
+		settle();
+		expect(!page.description_editing() && !editor->isVisible() && page.body_view()->isVisible() && edit->isVisible() && saves.size() == 2U,
+			   "Cancel closes the editor and sends nothing");
+
+		// Escape cancels; another pull request closes; withdrawal hides Edit.
+		page.begin_description_edit();
+		settle();
+		auto escape = QKeyEvent{ QEvent::KeyPress, Qt::Key_Escape, Qt::NoModifier };
+		QApplication::sendEvent(editor, &escape);
+		settle();
+		expect(!page.description_editing(), "Escape cancels the edit");
+		page.begin_description_edit();
+		auto other   = refreshed;
+		other.Number = core::pull_request_number{ 1U };
+		page.present(other);
+		settle();
+		expect(!page.description_editing() && page.body_view()->isVisible(), "another pull request ends the edit");
+		page.set_description_editable(false);
+		settle();
+		expect(!edit->isVisible() && in_reader_corner(page, *fullView) && !page.begin_description_edit(), "withdrawn, Edit is gone and Full view keeps its corner");
+
+		// No description: the author is offered Add a description.
+		other.Body.clear();
+		page.present(other);
+		page.set_description_editable(true);
+		settle();
+		auto* const add = page.description_add_button();
+		expect(add->isVisible() && page.findChild<QLabel*>(QStringLiteral("overviewNoDescription"))->isVisible() && !edit->isVisible(), "an empty description offers Add a description");
+		add->click();
+		settle();
+		expect(page.description_editing() && editor->raw().empty() && !add->isVisible(), "Add a description opens the editor on nothing");
+		page.close_description_editor();
+		page.clear();
+		settle();
+		expect(!page.description_editable() && !add->isVisible(), "an invalidated page withdraws Edit");
 	}
 
 	void test_resizable_summary()
@@ -3604,6 +3722,7 @@ auto main(int argc, char** argv) -> int
 	test_collapse_all_and_expand_all_folders();
 	test_document_keys_go_to_the_top_and_bottom_of_the_files();
 	test_compact_descriptions();
+	test_the_description_is_edited_in_place();
 	test_resizable_summary();
 	test_summary_seam_holds_its_cursor();
 	test_retained_description_reader();
