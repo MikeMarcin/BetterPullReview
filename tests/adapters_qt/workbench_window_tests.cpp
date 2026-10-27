@@ -14285,6 +14285,9 @@ namespace {
 					   "the turn says which conversation it was about; a turn about the pull request says nothing");
 				expect(useReply != nullptr && !useReply->isHidden() && agent->turn_reply_button(2U) != nullptr && agent->turn_reply_button(2U)->isHidden(),
 					   "a reply about a conversation offers Use as reply, and one about the pull request does not");
+				if (!root.isEmpty()) {
+					expect(window.grab().save(root + QStringLiteral("/agent-conversation.png"), "PNG"), "render saved");
+				}
 				useReply->click();
 				process_events();
 				expect(replies.size() == 1U && replies.front().first == "review-thread:T1" && replies.front().second == QStringLiteral("The lock covers it: `evict` holds `Mutex` for the whole call."),
