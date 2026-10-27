@@ -38,6 +38,14 @@ namespace bpr::adapters::github::detail {
 	/// transport's 4 MiB response ceiling and, with its headers, under the
 	/// 4 MiB a `gh api --include` answer may print.
 	inline constexpr std::size_t maximum_review_mutation_list_response_bytes = 3U * 1024U * 1024U;
+	/// \brief [[BPR-1774]]. A description write's compiled body: GitHub keeps
+	/// 65,536 characters, four bytes each at most, with its envelope, under the
+	/// native transport's 256 KiB request ceiling. A longer text is refused
+	/// before anything is sent.
+	inline constexpr std::size_t maximum_description_request_bytes = 255U * 1024U;
+	/// \brief [[BPR-1774]]. A description answer carries the whole body,
+	/// JSON-escaped: at most six bytes for each of 65,536 characters.
+	inline constexpr std::size_t maximum_description_response_bytes = 1024U * 1024U;
 	/// \brief [[BPR-1538]]. The JSON values one such page may hold.
 	inline constexpr std::size_t maximum_review_mutation_list_values         = 32U * 1024U;
 	inline constexpr std::size_t maximum_review_mutation_idempotency_records = 1'024U;
@@ -96,6 +104,12 @@ namespace bpr::adapters::github::detail {
 		/// removed from, one comment or review.
 		add_reaction,
 		remove_reaction,
+		/// [[BPR-1774]]. GraphQL: the pull request's body, `viewerCanUpdate`
+		/// and `updatedAt`, asked before its description is written and once
+		/// after an ambiguous write.
+		observe_pull_request_description,
+		/// [[BPR-1774]]. GraphQL: the pull request's body replaced.
+		update_pull_request_description,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -131,6 +145,11 @@ namespace bpr::adapters::github::detail {
 	/// collection may carry `maximum_review_mutation_list_response_bytes`,
 	/// everything else `maximum_review_mutation_response_bytes`.
 	[[nodiscard]] auto maximum_review_mutation_wire_response_bytes(
+		review_mutation_operation aOperation) noexcept -> std::size_t;
+	/// \brief [[BPR-1774]]. The largest request body one operation may send:
+	/// a description write `maximum_description_request_bytes`, everything
+	/// else `maximum_review_mutation_body_bytes`.
+	[[nodiscard]] auto maximum_review_mutation_wire_request_bytes(
 		review_mutation_operation aOperation) noexcept -> std::size_t;
 
 	enum class review_mutation_contract_failure : std::uint8_t {
@@ -172,7 +191,8 @@ namespace bpr::adapters::github::detail {
 			review_submission_request,
 			application::staged_review_request,
 			application::review_thread_resolution_request,
-			application::review_reaction_request>;
+			application::review_reaction_request,
+			application::review_description_request>;
 
 		semantic_type Semantic;
 
@@ -412,6 +432,42 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&        aResponse,
 		const application::review_reaction_request& aExpected)
 		-> review_mutation_parse_result<review_reaction_subject_observation>;
+	/// \brief [[BPR-1774]]. The pull request's description, as an answer
+	/// bound to the designated pull request gave it.
+	struct review_description_observation
+	{
+		std::string Body;
+		std::string UpdatedAt;
+		bool        ViewerCanUpdate = false;
+
+		auto operator<=>(const review_description_observation&) const = default;
+	};
+	/// \brief [[BPR-1774]]. Compiles the GraphQL mutation that replaces the
+	/// designated pull request's body; refused for an unbound or malformed
+	/// request.
+	[[nodiscard]] auto compile_description_request(
+		const application::review_description_request& aRequest,
+		application::github_server_contract            aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1774]]. Compiles the read of the pull request's body and
+	/// permission, with every guard the mutation has.
+	[[nodiscard]] auto compile_description_observation_request(
+		const application::review_description_request& aRequest,
+		application::github_server_contract            aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1774]]. Accepts only the designated pull request.
+	[[nodiscard]] auto parse_description_observation(
+		const review_mutation_wire_response&           aResponse,
+		const application::review_description_request& aExpected)
+		-> review_mutation_parse_result<review_description_observation>;
+	/// \brief [[BPR-1774]]. Accepts only the designated pull request, with
+	/// the body asked.
+	[[nodiscard]] auto parse_description_response(
+		const review_mutation_wire_response&           aResponse,
+		const application::review_description_request& aExpected)
+		-> review_mutation_parse_result<review_description_observation>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
 
 	[[nodiscard]] auto compile_review_submission_request(
@@ -819,11 +875,27 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                             aStop = { })
 			-> std::expected<application::review_reaction_receipt, application::review_mutation_failure>;
 
+		/// \brief [[BPR-1774]]. Replaces the pull request's description:
+		/// observed first (bound to the pull request, with GitHub's body and
+		/// `viewerCanUpdate`), refused as a conflict when GitHub's body is no
+		/// longer the original, written once, and an ambiguous outcome
+		/// confirmed by one read back. No recovery record: the body is the
+		/// record.
+		[[nodiscard]] auto edit_description(
+			const application::review_description_request& aRequest,
+			std::stop_token                                aStop = { })
+			-> std::expected<application::review_description_receipt, application::review_mutation_failure>;
+
 	private:
 		[[nodiscard]] auto observe_reaction_subject(
 			const application::review_reaction_request& aRequest,
 			std::stop_token                             aStop)
 			-> std::expected<review_reaction_subject_observation, application::review_mutation_failure>;
+
+		[[nodiscard]] auto observe_description(
+			const application::review_description_request& aRequest,
+			std::stop_token                                aStop)
+			-> std::expected<review_description_observation, application::review_mutation_failure>;
 
 		[[nodiscard]] auto finish_lineage(const application::review_mutation_request&, application::review_mutation_submission, std::stop_token) -> application::review_mutation_submission;
 		[[nodiscard]] auto submit_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission;

@@ -184,6 +184,44 @@ namespace bpr::application {
 		return Provider->set_reaction(request, aStop);
 	}
 
+	auto review_mutation_coordinator::edit_description(
+		const std::string&    aOriginal,
+		const std::string&    aBody,
+		const std::stop_token aStop)
+		-> std::expected<review_description_receipt, review_mutation_failure>
+	{
+		++Statistics.Attempts;
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
+		if (Provider == nullptr) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
+		// [[BPR-1774]]. A description belongs to the pull request, not to a
+		// commit, so a moved head is acknowledged as for a resolution; the
+		// server must still describe the designated pull request.
+		if (auto confirmed = confirm_target(true, aStop); !confirmed) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(confirmed.error());
+		}
+		auto request = review_description_request{
+			.Target         = Designated,
+			.ActingIdentity = ActingIdentity,
+			.Original       = aOriginal,
+			.Body           = aBody,
+		};
+		if (TargetBinding.has_value() && ActingIdentityBinding.has_value()) {
+			request.LiveBinding = review_mutation_live_binding{
+				.Target         = *TargetBinding,
+				.ActingIdentity = *ActingIdentityBinding,
+			};
+		}
+		++Statistics.Submissions;
+		return Provider->edit_description(request, aStop);
+	}
+
 	auto review_mutation_coordinator::publish_attempt(
 		const core::review_publication_proposal&      aProposal,
 		review_mutation_anchor_binding                aAnchor,

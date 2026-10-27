@@ -69,6 +69,14 @@ namespace bpr::adapters::github {
 		return Session.set_reaction(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::edit_description(
+		const application::review_description_request& aRequest,
+		const std::stop_token                          aStop)
+		-> std::expected<application::review_description_receipt, application::review_mutation_failure>
+	{
+		return Session.edit_description(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
 	{
 		return Session.reconcile_publication(aRequest, aStop);
@@ -83,10 +91,12 @@ namespace bpr::adapters::github {
 		// [[BPR-0657]]. Threads resolve through the leased GraphQL mutation;
 		// viewed state is still not recorded.
 		// [[BPR-1741]]. Reactions are added and removed the same way.
+		// [[BPR-1774]]. And the pull request's description is replaced.
 		return {
 			.ResolvesThreads    = true,
 			.RecordsViewedState = false,
 			.Reacts             = true,
+			.EditsDescription   = true,
 		};
 	}
 

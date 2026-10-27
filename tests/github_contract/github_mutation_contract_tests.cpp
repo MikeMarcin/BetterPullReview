@@ -4,6 +4,7 @@
 #include "github_review_list_shapes.hpp"
 
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/core/description_edit.hpp"
 
 #include <algorithm>
 #include <array>
@@ -578,6 +579,10 @@ namespace {
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation AddReaction" };
 		case operation::remove_reaction:
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation RemoveReaction" };
+		case operation::observe_pull_request_description:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveDescription" };
+		case operation::update_pull_request_description:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation UpdateDescription" };
 		}
 		return std::nullopt;
 	}
@@ -670,8 +675,15 @@ namespace {
 			.Add            = true,
 			.LiveBinding    = reply.LiveBinding,
 		};
-		auto unreaction = reaction;
-		unreaction.Add  = false;
+		auto unreaction        = reaction;
+		unreaction.Add         = false;
+		const auto description = application::review_description_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Original       = "Before.",
+			.Body           = "After.",
+			.LiveBinding    = reply.LiveBinding,
+		};
 		return std::array{
 
 			compile_target_observation_request(serverTarget, aServer),
@@ -705,6 +717,8 @@ namespace {
 			compile_reaction_subject_observation_request(reaction, aServer),
 			compile_reaction_request(reaction, aServer),
 			compile_reaction_request(unreaction, aServer),
+			compile_description_observation_request(description, aServer),
+			compile_description_request(description, aServer),
 		};
 	}
 
@@ -754,6 +768,8 @@ namespace {
 			row{ operation::observe_reaction_subject, http_method::post, true, 200, false },
 			row{ operation::add_reaction, http_method::post, true, 200, false },
 			row{ operation::remove_reaction, http_method::post, true, 200, false },
+			row{ operation::observe_pull_request_description, http_method::post, true, 200, false },
+			row{ operation::update_pull_request_description, http_method::post, true, 200, false },
 		};
 
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
@@ -940,6 +956,111 @@ namespace {
 		expect(removed.has_value() && !removed->Reactions.Groups[0].ViewerReacted && removed->Reactions.Groups[0].Count == 1U, "an exact remove answer yields the comment without mine");
 		expect(!parse_reaction_response({ .Status = 200, .Body = R"({"data":{"addReaction":null},"errors":[{"type":"FORBIDDEN"}]})" }, reaction).has_value(),
 			   "a GraphQL refusal is not a success");
+	}
+
+	/// [[BPR-1774]]. The designated pull request as a description answer
+	/// spells it, with a body, GitHub's permission and its update time.
+	[[nodiscard]] auto description_pull_request_json(const std::string_view aBody, const bool aCan, const std::string_view aId = "PR_kwDOTyvof879G6NV") -> std::string
+	{
+		return "{\"id\":\"" + std::string{ aId } + "\",\"databaseId\":4246446933,\"number\":1,\"body\":\"" + std::string{ aBody } + "\",\"viewerCanUpdate\":"
+			+ (aCan ? "true" : "false")
+			+ ",\"updatedAt\":\"2026-10-26T12:00:00Z\",\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}";
+	}
+
+	// [[BPR-1774]]. The description goes by two fixed GraphQL documents: the
+	// read that binds the pull request and says its body and permission, and
+	// the write. Both name the pull request by the node the accepted read
+	// gave, revalidate canonically, and are held to the designated pull
+	// request; the write's answer must carry the body asked.
+	void test_the_description_goes_by_graphql_exactly()
+	{
+		const auto selection = std::string{ "id databaseId number body viewerCanUpdate updatedAt repository{id databaseId nameWithOwner}" };
+		const auto edit      = application::review_description_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Original       = "Before.\r\n",
+			.Body           = "After \"quoted\".\r\n",
+			.LiveBinding    = request().LiveBinding,
+		};
+		const auto write = compile_description_request(edit);
+		expect(write.has_value() && write->Operation == review_mutation_operation::update_pull_request_description && write->Method == http_method::post && write->Path == "/graphql"
+				   && write->Body
+					   == "{\"query\":\"mutation UpdateDescription($pullRequest:ID!,$body:String!){updatePullRequest(input:{pullRequestId:$pullRequest,body:$body}){pullRequest{"
+						   + selection + "}}}\",\"variables\":{\"pullRequest\":\"PR_kwDOTyvof879G6NV\",\"body\":\"After \\\"quoted\\\".\\r\\n\"}}",
+			   "the description write is the reserved document naming the designated pull request and the exact body");
+		const auto observe = compile_description_observation_request(edit);
+		expect(observe.has_value() && observe->Operation == review_mutation_operation::observe_pull_request_description && observe->Path == "/graphql"
+				   && observe->Body
+					   == "{\"query\":\"query ObserveDescription($pullRequest:ID!){node(id:$pullRequest){... on PullRequest{" + selection
+						   + "}}}\",\"variables\":{\"pullRequest\":\"PR_kwDOTyvof879G6NV\"}}",
+			   "the observation is a read document naming only the pull request");
+		expect(write->Body.find("Before.") == std::string::npos && observe->Body.find("After") == std::string::npos, "the original is never sent, and the read carries no body");
+		for (const auto& wire : { *write, *observe }) {
+			expect(validate_outbound_review_mutation_request(wire).has_value(), "each description request revalidates canonically");
+		}
+		auto spoofed      = *observe;
+		spoofed.Operation = review_mutation_operation::update_pull_request_description;
+		auto rewritten    = *write;
+		rewritten.Body.replace(rewritten.Body.find("After"), 5U, "Other");
+		auto retargeted = *write;
+		retargeted.Body.replace(retargeted.Body.find("PR_kwDOTyvof879G6NV"), 19U, "PR_kwDOTyvof879Gzzz");
+		expect(!validate_outbound_review_mutation_request(spoofed).has_value() && !validate_outbound_review_mutation_request(rewritten).has_value()
+				   && !validate_outbound_review_mutation_request(retargeted).has_value(),
+			   "a read passed off as the write, a body changed in flight and another pull request are refused");
+
+		auto unbound               = edit;
+		unbound.LiveBinding        = std::nullopt;
+		auto foreign               = edit;
+		foreign.Target.PullRequest = core::pull_request_id{ 99U };
+		auto nodeless              = edit;
+		nodeless.LiveBinding->Target.PullRequestNodeId.clear();
+		auto actor           = edit;
+		actor.ActingIdentity = core::github_account_id{ 99U };
+		auto invalid         = edit;
+		invalid.Body         = std::string{ "\xC3\x28" };
+		for (const auto& refused : { unbound, foreign, nodeless, actor }) {
+			expect(!compile_description_request(refused).has_value() && !compile_description_observation_request(refused).has_value(),
+				   "an unbound, foreign, nodeless or other-actor edit is refused before the wire");
+		}
+		expect(!compile_description_request(invalid).has_value(), "text that is not UTF-8 is refused");
+		auto longest = edit;
+		longest.Body = std::string(core::maximum_description_characters, 'a');
+		auto huge    = edit;
+		huge.Body    = std::string(maximum_description_request_bytes, 'a');
+		expect(compile_description_request(longest).has_value() && maximum_review_mutation_wire_request_bytes(review_mutation_operation::update_pull_request_description) == maximum_description_request_bytes,
+			   "GitHub's 65,536 characters go in one write");
+		expect(!compile_description_request(huge).has_value() && compile_description_observation_request(huge).has_value(),
+			   "a body past the request ceiling is refused to write, and can still be observed");
+		auto enterprise                               = edit;
+		enterprise.LiveBinding->Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		enterprise.LiveBinding->Target.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+		expect(compile_description_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && compile_description_observation_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && !compile_description_request(edit, application::github_server_contract::ghes_3_18_2022_11_28).has_value(),
+			   "GHES 3.18 edits at its GraphQL root, and a binding for another server is refused");
+
+		// The answers.
+		const auto observed = parse_description_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + description_pull_request_json("Before.\\r\\n", true) + "}}" }, edit);
+		expect(observed.has_value() && observed->Body == "Before.\r\n" && observed->ViewerCanUpdate && observed->UpdatedAt == "2026-10-26T12:00:00Z",
+			   "the designated pull request is observed with its exact body, permission and time");
+		const auto denied = parse_description_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + description_pull_request_json("Before.", false) + "}}" }, edit);
+		expect(denied.has_value() && !denied->ViewerCanUpdate, "GitHub's refusal of the viewer is read as such");
+		const auto outside = parse_description_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + description_pull_request_json("Before.", true, "PR_kwDOTyvof879Gzzz") + "}}" }, edit);
+		expect(!outside && outside.error() == review_mutation_contract_failure::identity_mismatch, "another pull request is an identity mismatch");
+		expect(parse_description_observation({ .Status = 200, .Body = R"({"data":{"node":null}})" }, edit).error() == review_mutation_contract_failure::target_unavailable,
+			   "a pull request GitHub no longer shows is unavailable");
+		expect(parse_description_observation({ .Status = 502, .Body = "{}" }, edit).error() == review_mutation_contract_failure::invalid_status, "a non-200 answer is an invalid status");
+		const auto written = parse_description_response(
+			{ .Status = 200, .Body = "{\"data\":{\"updatePullRequest\":{\"pullRequest\":" + description_pull_request_json("After \\\"quoted\\\".\\r\\n", true) + "}}}" }, edit);
+		expect(written.has_value() && written->Body == edit.Body, "an exact write answer yields the body asked");
+		const auto other = parse_description_response({ .Status = 200, .Body = "{\"data\":{\"updatePullRequest\":{\"pullRequest\":" + description_pull_request_json("Before.", true) + "}}}" }, edit);
+		expect(!other && other.error() == review_mutation_contract_failure::identity_mismatch, "an answer with another body is a mismatch, not a success");
+		expect(!parse_description_response({ .Status = 200, .Body = R"({"data":{"updatePullRequest":null},"errors":[{"type":"FORBIDDEN"}]})" }, edit).has_value(),
+			   "a GraphQL refusal is not a success");
+		auto big         = edit;
+		big.Body         = std::string(core::maximum_description_characters, 'b');
+		const auto large = parse_description_response({ .Status = 200, .Body = "{\"data\":{\"updatePullRequest\":{\"pullRequest\":" + description_pull_request_json(big.Body, true) + "}}}" }, big);
+		expect(large.has_value() && large->Body.size() == core::maximum_description_characters, "an answer carrying GitHub's longest body is read");
 	}
 
 	[[nodiscard]] auto recorded_answer(const std::string_view aName) -> review_mutation_wire_response
@@ -2368,6 +2489,7 @@ auto main() -> int
 	test_replies_and_thread_resolution_go_by_graphql_exactly();
 	test_every_operation_names_its_exchange();
 	test_reactions_go_by_graphql_exactly();
+	test_the_description_goes_by_graphql_exactly();
 	test_recorded_reaction_and_resolution_answers();
 
 	test_a_reply_is_reconciled_through_its_thread();

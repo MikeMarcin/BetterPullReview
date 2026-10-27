@@ -4,6 +4,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/core/description_edit.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_paged_read.hpp"
 
@@ -2181,6 +2182,42 @@ namespace {
 				const auto before  = process.Calls;
 				const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
 				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a body not exactly the compiled one never launches");
+			}
+			// [[BPR-1774]]. A description edit and its binding read go the same
+			// way: fixed documents, exact bodies on stdin, no witness, and a
+			// body as long as GitHub keeps fits the write's own input ceiling.
+			const auto description = application::review_description_request{
+				.Target         = binding.Target.Semantic,
+				.ActingIdentity = binding.ActingIdentity.Account,
+				.Original       = "Before.",
+				.Body           = "After, with `code`.\r\n",
+				.LiveBinding    = binding,
+			};
+			auto longest = description;
+			longest.Body = std::string(core::maximum_description_characters, 'x');
+			for (const auto& graphql : { compile_description_observation_request(description, profile->server_contract()), compile_description_request(description, profile->server_contract()),
+										 compile_description_request(longest, profile->server_contract()) }) {
+				expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "a description edit compiles at the GraphQL root");
+				const auto launches = process.Calls;
+				const auto answered = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, { });
+				const auto args     = gh_arguments(*process.LastRequest);
+				expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == launches + 1U && args[0] == "api" && args[1] == "graphql"
+						   && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql->Body
+						   && process.LastRequest->StandardInputLimit == maximum_review_mutation_wire_request_bytes(graphql->Operation)
+						   && std::ranges::none_of(args, [](const std::string& aArgument) { return aArgument.find("After") != std::string::npos; }),
+					   "a description edit and its read go by gh api graphql with the exact body on stdin, never in the arguments");
+				auto changed = *graphql;
+				changed.Body.replace(changed.Body.find("PR_kwDO"), 7U, "PR_xxDO");
+				const auto before  = process.Calls;
+				const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
+				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a description body naming another pull request never launches");
+			}
+			{
+				process.Result   = std::unexpected{ github_cli_process_failure::timeout };
+				const auto write = compile_description_request(description, profile->server_contract());
+				const auto lost  = transport.perform_review_mutation({ .Context = request.Context, .Wire = *write }, { }, { });
+				expect(std::holds_alternative<github_mutation_wire_error>(lost) && std::get<github_mutation_wire_error>(lost).Transmission == github_mutation_transmission::indeterminate,
+					   "a description write whose answer is lost stays possibly sent");
 			}
 			process.Result = statePrevious;
 

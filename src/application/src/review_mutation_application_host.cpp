@@ -1,5 +1,6 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 
+#include "bpr/core/description_edit.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "review_mutation_execution_authority.hpp"
@@ -261,6 +262,63 @@ namespace bpr::application {
 			std::memory_order_acq_rel,
 			std::memory_order_acquire);
 	}
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_thread_scope           aScope,
+		review_description_publication_request aRequest)
+		: DescriptionRequest{ std::move(aRequest) }
+		, Scope{ .ApplicationSession  = aScope.ApplicationSession,
+				 .WorkbenchGeneration = aScope.WorkbenchGeneration,
+				 .Target              = aScope.Target,
+				 .ActingIdentity      = aScope.ActingIdentity }
+		, Target{ aScope.Target }
+		, ActingIdentity{ aScope.ActingIdentity }
+		, ExpiresAt{ std::chrono::steady_clock::now() + std::chrono::minutes{ 5 } }
+		, Kind{ kind::user_one_shot }
+		, Bound{ true }
+	{
+	}
+	auto review_mutation_execution_authority::permits_description(
+		const review_mutation_thread_scope&           aScope,
+		const review_description_publication_request& aRequest) noexcept -> bool
+	{
+		// [[BPR-1774]]. The scope's `Thread` is the pull request's own node:
+		// a description has no other subject.
+		if (aScope.ApplicationSession.value() == 0U || aScope.WorkbenchGeneration.value() == 0U
+			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity)
+			|| aScope.Thread.empty() || aScope.Thread != aScope.Target.PullRequestNodeId
+			|| Revoked.load(std::memory_order_acquire)) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (!Bound || Revoked.load(std::memory_order_relaxed)
+			|| !ActingIdentity.has_value()
+			|| Scope.ApplicationSession != aScope.ApplicationSession
+			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
+			|| Scope.Target != aScope.Target
+			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		// A one-shot grant issued for anything else permits no description
+		// edit, and one issued for an edit permits only that text.
+		if (Kind == kind::user_one_shot
+			&& (Request.has_value() || ThreadRequest.has_value() || ReactionRequest.has_value()
+				|| !DescriptionRequest || *DescriptionRequest != aRequest)) {
+			return false;
+		}
+		if (Kind == kind::testing_reusable) {
+			return true;
+		}
+		if (std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		auto expected = false;
+		return Consumed.compare_exchange_strong(
+			expected,
+			true,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire);
+	}
 	void review_mutation_execution_authority::revoke() noexcept
 	{
 		std::scoped_lock lock{ Mutex };
@@ -292,6 +350,33 @@ namespace bpr::application {
 										  .Target              = std::move(aTarget),
 										  .ActingIdentity      = std::move(aActor),
 										  .Thread              = aRequest.Thread },
+			std::move(aRequest) } };
+#endif
+	}
+	auto detail::review_mutation_user_authority_issuer::issue_description(
+		core::application_session_id aSession, core::request_generation aGeneration,
+		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
+		review_description_publication_request aRequest) -> review_mutation_execution_grant
+	{
+#if defined(BPR_APPLICATION_TESTING)
+		static_cast<void>(aSession);
+		static_cast<void>(aGeneration);
+		static_cast<void>(aTarget);
+		static_cast<void>(aActor);
+		static_cast<void>(aRequest);
+		return { };
+#else
+		if (aSession.value() == 0U || aGeneration.value() == 0U
+			|| !valid(aTarget) || !valid(aActor) || aTarget.PullRequestNodeId.empty()) {
+			return { };
+		}
+		auto node = aTarget.PullRequestNodeId;
+		return review_mutation_execution_grant{ new review_mutation_execution_authority{
+			review_mutation_thread_scope{ .ApplicationSession  = aSession,
+										  .WorkbenchGeneration = aGeneration,
+										  .Target              = std::move(aTarget),
+										  .ActingIdentity      = std::move(aActor),
+										  .Thread              = std::move(node) },
 			std::move(aRequest) } };
 #endif
 	}
@@ -435,6 +520,13 @@ namespace bpr::application {
 			review_mutation_request_context     Context;
 			review_reaction_publication_request Request;
 			std::stop_source                    Stop;
+		};
+		// [[BPR-1774]]. One description edit in flight, kept like a reaction.
+		struct description_record final
+		{
+			review_mutation_request_context        Context;
+			review_description_publication_request Request;
+			std::stop_source                       Stop;
 		};
 
 		implementation(
@@ -1227,6 +1319,142 @@ namespace bpr::application {
 				}
 			}
 		}
+		[[nodiscard]] auto edit_description(review_description_publication_request aRequest,
+											review_mutation_execution_grant        aRequestGrant)
+			-> review_mutation_request_context
+		{
+			auto record = std::make_shared<description_record>(description_record{
+				.Context = context(),
+				.Request = std::move(aRequest),
+				.Stop    = { },
+			});
+			auto grant  = review_mutation_execution_grant{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				++Statistics.Attempts;
+				if (Closing) {
+					++Statistics.RefusedBeforeEffect;
+					return {
+						.Session    = Session,
+						.Generation = Generation,
+					};
+				}
+				grant = aRequestGrant ? std::move(aRequestGrant) : Grant;
+			}
+			// [[BPR-1774]]. The core's limit is characters; four bytes each is
+			// the most the provider is ever asked to carry.
+			if (record->Request.Body == record->Request.Original
+				|| core::description_characters(record->Request.Body) > core::maximum_description_characters
+				|| record->Request.Original.size() > 4U * core::maximum_description_characters) {
+				refuse_description(record, review_mutation_failure::incompatible_body);
+				return record->Context;
+			}
+			if (!Coordinator.capabilities().EditsDescription) {
+				refuse_description(record, review_mutation_failure::unsupported);
+				return record->Context;
+			}
+			if (!valid(TargetBinding) || !valid(ActingIdentityBinding)) {
+				refuse_description(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			const auto scope = review_mutation_thread_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Thread              = TargetBinding.PullRequestNodeId,
+			};
+			{
+				std::scoped_lock lock{ Mutex };
+				if (Closing || OutstandingDescriptions.size() >= maximum_outstanding_review_mutations
+					|| grant == nullptr || !grant->bind_thread(scope)
+					|| !grant->permits_description(scope, record->Request)) {
+					++Statistics.RefusedBeforeEffect;
+				} else {
+					OutstandingDescriptions.emplace(record->Context.Request.value(), record);
+					DescriptionQueue.push_back(record);
+					++Statistics.EffectsQueued;
+					auto self = shared_from_this();
+					try {
+						Effects.post([self] { self->drain_descriptions(); });
+						return record->Context;
+					} catch (...) {
+						OutstandingDescriptions.erase(record->Context.Request.value());
+						DescriptionQueue.pop_back();
+					}
+				}
+			}
+			refuse_description(record, review_mutation_failure::unavailable);
+			return record->Context;
+		}
+		void refuse_description(const std::shared_ptr<description_record>& aRecord,
+								const review_mutation_failure              aFailure)
+		{
+			auto self = shared_from_this();
+			try {
+				DecisionLane.post([self, aRecord, aFailure] {
+					self->complete_description(aRecord, std::unexpected(aFailure));
+				});
+			} catch (...) {
+				complete_description(aRecord, std::unexpected(aFailure));
+			}
+		}
+		void drain_descriptions()
+		{
+			for (;;) {
+				auto record = std::shared_ptr<description_record>{ };
+				{
+					std::scoped_lock lock{ Mutex };
+					if (DescriptionQueue.empty()) {
+						return;
+					}
+					record = std::move(DescriptionQueue.front());
+					DescriptionQueue.pop_front();
+				}
+				auto result = std::expected<review_description_receipt, review_mutation_failure>{
+					std::unexpected(review_mutation_failure::cancelled)
+				};
+				if (!record->Stop.stop_requested()) {
+					try {
+						result = Coordinator.edit_description(record->Request.Original, record->Request.Body, record->Stop.get_token());
+					} catch (...) {
+						result = std::unexpected(review_mutation_failure::unavailable);
+					}
+				}
+				auto self = shared_from_this();
+				DecisionLane.post([self, record, answer = std::move(result)]() mutable {
+					self->complete_description(record, std::move(answer));
+				});
+			}
+		}
+		void complete_description(
+			const std::shared_ptr<description_record>&                         aRecord,
+			std::expected<review_description_receipt, review_mutation_failure> aResult)
+		{
+			auto publish = false;
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingDescriptions.erase(aRecord->Context.Request.value());
+				++Statistics.Completions;
+				publish = !Closing;
+				if (publish) {
+					++Statistics.TerminalsPublished;
+					if (aResult.has_value()) {
+						++Statistics.DescriptionEdits;
+					}
+				}
+			}
+			if (publish) {
+				try {
+					Projection.publish_description(review_description_terminal{
+						.Context = aRecord->Context,
+						.Request = aRecord->Request,
+						.Result  = std::move(aResult),
+					});
+				} catch (...) {
+				}
+			}
+		}
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
 								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
@@ -1311,6 +1539,11 @@ namespace bpr::application {
 					++Statistics.ShutdownRequestsStopped;
 				}
 			}
+			for (auto& entry : OutstandingDescriptions) {
+				if (entry.second->Stop.request_stop()) {
+					++Statistics.ShutdownRequestsStopped;
+				}
+			}
 		}
 
 		std::unique_ptr<review_mutation_port> OwnedProvider;
@@ -1328,13 +1561,15 @@ namespace bpr::application {
 		review_provider_capabilities          Capabilities;
 		bool                                  CompleteLiveBinding = false;
 
-		mutable std::mutex                                          Mutex;
-		std::map<std::uint64_t, std::shared_ptr<request_record>>    Outstanding;
-		std::deque<std::shared_ptr<request_record>>                 EffectQueue;
-		std::deque<std::shared_ptr<resolution_record>>              ResolutionQueue;
-		std::map<std::uint64_t, std::shared_ptr<resolution_record>> OutstandingResolutions;
-		std::deque<std::shared_ptr<reaction_record>>                ReactionQueue;
-		std::map<std::uint64_t, std::shared_ptr<reaction_record>>   OutstandingReactions;
+		mutable std::mutex                                           Mutex;
+		std::map<std::uint64_t, std::shared_ptr<request_record>>     Outstanding;
+		std::deque<std::shared_ptr<request_record>>                  EffectQueue;
+		std::deque<std::shared_ptr<resolution_record>>               ResolutionQueue;
+		std::map<std::uint64_t, std::shared_ptr<resolution_record>>  OutstandingResolutions;
+		std::deque<std::shared_ptr<reaction_record>>                 ReactionQueue;
+		std::map<std::uint64_t, std::shared_ptr<reaction_record>>    OutstandingReactions;
+		std::deque<std::shared_ptr<description_record>>              DescriptionQueue;
+		std::map<std::uint64_t, std::shared_ptr<description_record>> OutstandingDescriptions;
 
 		std::shared_ptr<request_record>             Active;
 		review_mutation_application_host_statistics Statistics;
@@ -1442,6 +1677,14 @@ namespace bpr::application {
 		-> review_mutation_request_context
 	{
 		return Implementation->react(std::move(aRequest), std::move(aRequestGrant));
+	}
+
+	auto review_mutation_application_host::edit_description(
+		review_description_publication_request aRequest,
+		review_mutation_execution_grant        aRequestGrant)
+		-> review_mutation_request_context
+	{
+		return Implementation->edit_description(std::move(aRequest), std::move(aRequestGrant));
 	}
 
 	void review_mutation_application_host::cancel(

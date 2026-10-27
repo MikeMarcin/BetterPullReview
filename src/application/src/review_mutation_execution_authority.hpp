@@ -35,6 +35,11 @@ namespace bpr::application::detail {
 												 core::request_generation aGeneration, review_mutation_target_binding aTarget,
 												 review_mutation_acting_identity aActor, review_reaction_publication_request aRequest)
 			-> review_mutation_execution_grant;
+		/// \brief [[BPR-1774]]. The one-shot grant for one exact description edit.
+		[[nodiscard]] static auto issue_description(core::application_session_id aSession,
+													core::request_generation aGeneration, review_mutation_target_binding aTarget,
+													review_mutation_acting_identity aActor, review_description_publication_request aRequest)
+			-> review_mutation_execution_grant;
 	};
 
 	enum class designated_review_bootstrap_failure : std::uint8_t {
@@ -234,6 +239,15 @@ namespace bpr::application {
 		[[nodiscard]] auto permits_reaction(
 			const review_mutation_thread_scope&        aScope,
 			const review_reaction_publication_request& aRequest) noexcept -> bool;
+		// [[BPR-1774]]. A description edit binds and is permitted like a
+		// resolution, the pull request's node in the scope's `Thread`; a user
+		// one-shot grant permits only the exact edit it was issued for.
+		explicit review_mutation_execution_authority(
+			review_mutation_thread_scope           aScope,
+			review_description_publication_request aRequest);
+		[[nodiscard]] auto permits_description(
+			const review_mutation_thread_scope&           aScope,
+			const review_description_publication_request& aRequest) noexcept -> bool;
 		void revoke() noexcept;
 
 		friend class review_mutation_application_host;
@@ -256,6 +270,7 @@ namespace bpr::application {
 		std::optional<review_mutation_publication_request>          Request;
 		std::optional<review_thread_resolution_publication_request> ThreadRequest;
 		std::optional<review_reaction_publication_request>          ReactionRequest;
+		std::optional<review_description_publication_request>       DescriptionRequest;
 		mutable std::mutex                                          Mutex;
 		review_mutation_execution_scope                             Scope;
 		review_mutation_target_binding                              Target;
