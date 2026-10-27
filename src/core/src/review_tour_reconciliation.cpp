@@ -62,6 +62,11 @@ namespace bpr::core {
 			if (baseline && aResult.Remote && baseline->RemoteEntity == aResult.Remote->Entity && aRemote.IndexBaseline) {
 				observed = field_baseline(aRemote.IndexBaseline->Raw, name, aRemote.Remote->Entity);
 			}
+			// [[BPR-1787]]. A brief is compared only with the place it was
+			// published: the description is never matched against the comment.
+			if (observed && baseline && baseline->RemoteEntity != observed->RemoteEntity) {
+				observed.reset();
+			}
 			if (!observed) {
 				aResult.RemoteStale = true;
 				aResult.ImportNotice += "Website brief requires source mapping. ";
@@ -336,6 +341,19 @@ namespace bpr::core {
 				replacement = prefix;
 				replacement += desired;
 				replacement += suffix;
+			} else if (baseline && baseline->SourceSpan) {
+				// [[BPR-1787]]. A cold import holds the exact section text: an
+				// unchanged field writes nothing, and a revision keeps the
+				// section's own blank lines around it.
+				const auto content = baseline->Raw.substr(baseline->SourceSpan->first, baseline->SourceSpan->second - baseline->SourceSpan->first);
+				const auto first   = content.find_first_not_of(" \t\r\n");
+				const auto begin   = desired.find_first_not_of(" \t\r\n");
+				if (desired != content && first != std::string::npos && begin != std::string::npos) {
+					replacement = content.substr(0, first) + desired.substr(begin, desired.find_last_not_of(" \t\r\n") - begin + 1) + content.substr(content.find_last_not_of(" \t\r\n") + 1);
+				} else if (desired != content) {
+					const auto nl = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
+					replacement   = std::string{ nl } + desired + nl + nl;
+				}
 			} else if (!desired.starts_with('\n') && !desired.starts_with("\r\n")) {
 				const auto nl = aRaw.find("\r\n") == std::string_view::npos ? "\n" : "\r\n";
 				replacement   = std::string{ nl } + desired + nl + nl;
@@ -345,5 +363,25 @@ namespace bpr::core {
 			}
 		}
 		return edit_tour_markdown(aRaw, edits);
+	}
+	auto tour_comment_lead(const review_tour& aTour, bool aBriefInDescription) -> std::string
+	{
+		if (aBriefInDescription) {
+			return std::string{ tour_brief_in_description_note };
+		}
+		return "## Problem\n\n" + aTour.Problem + "\n\n## Solution\n\n" + aTour.Solution;
+	}
+	auto tour_brief_in_comment(const review_tour& aTour) -> bool
+	{
+		if (!aTour.IndexBaseline) {
+			return false;
+		}
+		const auto mapped = map_tour_markdown(aTour.IndexBaseline->Raw);
+		return std::ranges::any_of(mapped.Sections, [](const auto& aSection) { return aSection.Name == "Problem" || aSection.Name == "Solution"; });
+	}
+	auto tour_brief_in_description(const review_tour& aTour) -> bool
+	{
+		const auto elsewhere = [&](const std::optional<tour_field_baseline>& aBaseline) { return aBaseline && aTour.Remote && aBaseline->RemoteEntity != aTour.Remote->Entity; };
+		return elsewhere(aTour.ProblemBaseline) || elsewhere(aTour.SolutionBaseline);
 	}
 }
