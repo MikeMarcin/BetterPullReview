@@ -1,7 +1,9 @@
 #include "conversation_open_card.hpp"
 
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 
 #include "conversation_glyphs.hpp"
 #include "conversation_reactions.hpp"
@@ -396,6 +398,46 @@ namespace bpr::qt {
 				QPlainTextEdit::resizeEvent(aEvent);
 				fit();
 			}
+		};
+
+		/// \brief [[BPR-1775]]. ⌘↩ saves and Esc cancels in the comment
+		/// editor, ahead of the window's own keys for them.
+		class comment_edit_keys final : public QObject
+		{
+		public:
+			comment_edit_keys(std::function<void()> aSave, std::function<void()> aCancel, QObject* aParent)
+				: QObject{ aParent }
+				, Save{ std::move(aSave) }
+				, Cancel{ std::move(aCancel) }
+			{
+			}
+
+		protected:
+			auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override
+			{
+				if (aEvent->type() != QEvent::ShortcutOverride && aEvent->type() != QEvent::KeyPress) {
+					return QObject::eventFilter(aWatched, aEvent);
+				}
+				const auto* const key    = static_cast<QKeyEvent*>(aEvent);
+				const auto        save   = (key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & Qt::ControlModifier) != 0;
+				const auto        cancel = key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier;
+				if (!save && !cancel) {
+					return QObject::eventFilter(aWatched, aEvent);
+				}
+				if (aEvent->type() == QEvent::ShortcutOverride) {
+					aEvent->accept();
+					return true;
+				}
+				const auto act = save ? Save : Cancel;
+				if (act) {
+					act();
+				}
+				return true;
+			}
+
+		private:
+			std::function<void()> Save;
+			std::function<void()> Cancel;
 		};
 
 		/// \brief The editor's frame: a signal border with a soft glow.
@@ -804,6 +846,19 @@ namespace bpr::qt {
 		ReactButton->setAccessibleName(QStringLiteral("Add reaction"));
 		ReactButton->hide();
 		connect(ReactButton, &QAbstractButton::clicked, this, [this] { open_reaction_picker(); });
+		// [[BPR-1775]]. Edit, on my own published comment, beside the
+		// post's other tools.
+		EditButton = new post_tool{ conversation_glyph::edit, aStyle.Colours, this };
+		EditButton->setObjectName(QStringLiteral("threadPostEdit"));
+		EditButton->setToolTip(QStringLiteral("Edit comment"));
+		EditButton->setAccessibleName(QStringLiteral("Edit your comment"));
+		EditButton->hide();
+		connect(EditButton, &QAbstractButton::clicked, this, [this] {
+			const auto requested = EditRequested;
+			if (requested) {
+				requested();
+			}
+		});
 		Reactions          = new reaction_bar{ aStyle.Colours, this };
 		Reactions->Toggled = [this](const core::reaction_content aContent) {
 			const auto requested = ReactionRequested;
@@ -822,7 +877,7 @@ namespace bpr::qt {
 		}
 		Summary = aSummary;
 		Reactions->set_reactions(aSummary, Style.Viewer);
-		ReactButton->setVisible(aSummary.has_value() && aSummary->ViewerCanReact);
+		ReactButton->setVisible(EditPanel == nullptr && aSummary.has_value() && aSummary->ViewerCanReact);
 		refresh_tools();
 		updateGeometry();
 		place_children();
@@ -880,15 +935,70 @@ namespace bpr::qt {
 	{
 		const auto name  = name_height();
 		const auto width = std::max(1, this->width() - text_left - text_right);
-		const auto body  = Reader->heightForWidth(width);
-		Reader->setGeometry(text_left, post_padding + name + 1, width, body);
-		const auto size = SourceButton->sizeHint();
-		const auto top  = post_padding + (name - size.height()) / 2;
+		const auto size  = SourceButton->sizeHint();
+		const auto top   = post_padding + (name - size.height()) / 2;
 		CopyButton->setGeometry(this->width() - text_right + 4 - size.width(), top, size.width(), size.height());
 		SourceButton->setGeometry(CopyButton->x() - 2 - size.width(), top, size.width(), size.height());
 		ReactButton->setGeometry(SourceButton->x() - 2 - size.width(), top, size.width(), size.height());
+		EditButton->setGeometry((ReactButton->isVisibleTo(this) ? ReactButton->x() : SourceButton->x()) - 2 - size.width(), top, size.width(), size.height());
+		// [[BPR-1775]]. While the post is edited, the editor takes the body's
+		// place and the reactions wait under it.
+		if (EditPanel != nullptr) {
+			const auto panel = EditPanel->hasHeightForWidth() ? EditPanel->heightForWidth(width) : EditPanel->sizeHint().height();
+			EditPanel->setGeometry(text_left - 4, post_padding + name + 1, width + 8, panel);
+			return;
+		}
+		const auto body = Reader->heightForWidth(width);
+		Reader->setGeometry(text_left, post_padding + name + 1, width, body);
 		const auto chips = Reactions->chips().empty() ? 0 : Reactions->heightForWidth(width);
 		Reactions->setGeometry(text_left, post_padding + name + 1 + body + reaction_gap, width, chips);
+	}
+
+	void thread_post_view::set_editable(const bool aEditable)
+	{
+		Editable = aEditable;
+		EditButton->setVisible(aEditable && EditPanel == nullptr);
+		place_children();
+		refresh_tools();
+	}
+
+	auto thread_post_view::edit_button() const noexcept -> post_tool*
+	{
+		return EditButton;
+	}
+
+	void thread_post_view::set_edit_panel(QWidget* const aPanel)
+	{
+		if (EditPanel == aPanel) {
+			return;
+		}
+		EditPanel = aPanel;
+		if (EditPanel != nullptr) {
+			EditPanel->setParent(this);
+			EditPanel->show();
+		}
+		Reader->setVisible(EditPanel == nullptr);
+		Reactions->setVisible(EditPanel == nullptr);
+		SourceButton->setVisible(EditPanel == nullptr);
+		CopyButton->setVisible(EditPanel == nullptr);
+		ReactButton->setVisible(EditPanel == nullptr && Summary.has_value() && Summary->ViewerCanReact);
+		EditButton->setVisible(Editable && EditPanel == nullptr);
+		refresh_edit_geometry();
+	}
+
+	auto thread_post_view::edit_panel() const noexcept -> QWidget*
+	{
+		return EditPanel;
+	}
+
+	void thread_post_view::refresh_edit_geometry()
+	{
+		updateGeometry();
+		place_children();
+		update();
+		if (HeightChanged) {
+			HeightChanged();
+		}
 	}
 
 	void thread_post_view::refresh_tools()
@@ -897,6 +1007,7 @@ namespace bpr::qt {
 		SourceButton->set_revealed(revealed);
 		CopyButton->set_revealed(revealed);
 		ReactButton->set_revealed(revealed);
+		EditButton->set_revealed(revealed);
 	}
 
 	void thread_post_view::enterEvent(QEnterEvent* const aEvent)
@@ -922,7 +1033,9 @@ namespace bpr::qt {
 	{
 		const auto width = std::max(1, aWidth - text_left - text_right);
 		const auto chips = Reactions->chips().empty() ? 0 : Reactions->heightForWidth(width);
-		const auto text  = name_height() + 1 + Reader->heightForWidth(width) + (chips > 0 ? reaction_gap + chips : 0);
+		const auto body  = EditPanel != nullptr ? (EditPanel->hasHeightForWidth() ? EditPanel->heightForWidth(width) : EditPanel->sizeHint().height())
+												: Reader->heightForWidth(width) + (chips > 0 ? reaction_gap + chips : 0);
+		const auto text  = name_height() + 1 + body;
 		const auto gut   = Post.Label ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
 
 		return post_padding + std::max(text, gut) + post_padding;
@@ -999,7 +1112,9 @@ namespace bpr::qt {
 
 	auto thread_post_view::name_rect() const -> QRect
 	{
-		const auto tools = (ReactButton->isVisibleTo(this) ? ReactButton->x() : SourceButton->x()) - 4;
+		const auto tools = (EditButton->isVisibleTo(this) ? EditButton->x() : ReactButton->isVisibleTo(this) ? ReactButton->x()
+																											 : SourceButton->x())
+			- 4;
 		return QRect{ text_left, post_padding, std::max(0, tools - text_left), std::max(19, QFontMetrics{ semibold(font()) }.height()) };
 	}
 
@@ -1509,6 +1624,33 @@ namespace bpr::qt {
 				}
 			}
 			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
+			// [[BPR-1775]]. Edit on my own published comment: its tool and
+			// its body menu, as the core decides from the read's "Mine".
+			const auto editable = Style.CommentEditOffered && !aCard.Draft && core::comment_edit_offered(post.Id, post.Mine, false);
+			if (editable) {
+				view->set_editable(true);
+				view->EditRequested = [this, id = post.Id] {
+					const auto requested = EditRequested;
+					if (requested) {
+						requested(id);
+					}
+				};
+			}
+			const auto addEdit = [this, editable, id = post.Id](QMenu& aMenu) {
+				if (!editable) {
+					return;
+				}
+				auto* const edit = aMenu.addAction(QStringLiteral("Edit"));
+				edit->setObjectName(QStringLiteral("postEdit"));
+				edit->setToolTip(QStringLiteral("Edit your comment in place. Nothing is sent until you save."));
+				edit->setEnabled(static_cast<bool>(EditRequested));
+				connect(edit, &QAction::triggered, this, [this, id] {
+					const auto requested = EditRequested;
+					if (requested) {
+						requested(id);
+					}
+				});
+			};
 			if (!aCard.Draft) {
 				// [[BPR-1741]]. A reaction names its post.
 				view->ReactionRequested = [this, id = post.Id](const core::reaction_content aContent) {
@@ -1525,9 +1667,10 @@ namespace bpr::qt {
 				view->reader()->set_empty_body_text(QStringLiteral("No overall review comment."));
 			}
 			if (Style.Feed && !aCard.Draft) {
-				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
+				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead, addEdit](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
+					addEdit(aMenu);
 					auto* const open = aMenu.addAction(QStringLiteral("Open in Review"));
 					open->setObjectName(QStringLiteral("postOpenInReview"));
 					// [[BPR-1581]]. The core's route decides: any comment on a
@@ -1555,9 +1698,10 @@ namespace bpr::qt {
 				// Discuss, with the rest of the conversation; its tools stay
 				// in its name row.
 				view->reader()->set_extended_menu(true);
-				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead](QMenu& aMenu) {
+				view->reader()->set_context_menu_builder([this, id = post.Id, author = post.Mine ? QString{ } : post.Author, addAuthorRead, addEdit](QMenu& aMenu) {
 					aMenu.addSeparator();
 					aMenu.setToolTipsVisible(true);
+					addEdit(aMenu);
 					auto* const show = aMenu.addAction(QStringLiteral("Show in Discuss"));
 					show->setObjectName(QStringLiteral("postShowInDiscuss"));
 					show->setEnabled(static_cast<bool>(ShowInDiscussRequested));
@@ -2329,6 +2473,169 @@ namespace bpr::qt {
 	auto open_thread_card::reply_field() const noexcept -> QAbstractButton*
 	{
 		return ReplyField;
+	}
+
+	void open_thread_card::present_comment_edit(const std::optional<comment_edit_presentation>& aEdit)
+	{
+		const auto viewOf = [this](const std::string& aPost) -> thread_post_view* {
+			const auto found = std::ranges::find_if(Posts, [&aPost](const thread_post_view* aView) { return aView->post().Id == aPost; });
+			return found == Posts.end() ? nullptr : *found;
+		};
+		auto* const target = aEdit.has_value() ? viewOf(aEdit->Post) : nullptr;
+		if (EditPanel != nullptr && (target == nullptr || EditPost != aEdit->Post)) {
+			if (auto* const previous = viewOf(EditPost); previous != nullptr) {
+				previous->set_edit_panel(nullptr);
+			}
+			EditPanel->hide();
+			EditPanel->deleteLater();
+			EditPanel        = nullptr;
+			EditEditor       = nullptr;
+			EditStatus       = nullptr;
+			EditSaveButton   = nullptr;
+			EditCancelButton = nullptr;
+			EditNewerButton  = nullptr;
+			EditPost.clear();
+		}
+		if (target == nullptr) {
+			return;
+		}
+		auto created = false;
+		if (EditPanel == nullptr) {
+			// [[BPR-1775]]. The reply's own frame and buttons, in the post's
+			// body place; the Markdown prose editor keeps the body's untouched
+			// bytes (CRLF included), so a save changes only what was typed.
+			created   = true;
+			EditPost  = aEdit->Post;
+			EditPanel = new reply_frame{ Style.Colours.Signal, Style.Colours.CodeBackground.isValid() ? Style.Colours.CodeBackground : Style.Colours.Panel, target };
+			EditPanel->setObjectName(QStringLiteral("threadCommentEditor"));
+			EditPanel->setAccessibleName(QStringLiteral("Edit your comment"));
+			auto* const column = new QVBoxLayout{ EditPanel };
+			column->setContentsMargins(12, 11, 12, 11);
+			column->setSpacing(7);
+			auto* const hint = new QLabel{ QStringLiteral("Markdown. Nothing is sent to GitHub until you save."), EditPanel };
+			hint->setObjectName(QStringLiteral("threadCommentEditHint"));
+			hint->setWordWrap(true);
+			hint->setTextFormat(Qt::PlainText);
+			hint->setFont(scaled(font(), 0.92));
+			auto ink = hint->palette();
+			ink.setColor(QPalette::WindowText, Style.Colours.Ink2);
+			hint->setPalette(ink);
+			column->addWidget(hint);
+			EditEditor = new scoped_prose_editor{ EditPanel };
+			EditEditor->setObjectName(QStringLiteral("threadCommentEditText"));
+			EditEditor->setAccessibleName(QStringLiteral("Your comment's Markdown source"));
+			EditEditor->setFrameShape(QFrame::NoFrame);
+			EditEditor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			EditEditor->setTabChangesFocus(true);
+			EditEditor->document()->setDocumentMargin(0.0);
+			EditEditor->viewport()->setAutoFillBackground(false);
+			EditEditor->setAutoFillBackground(false);
+			const auto lines = EditEditor->fontMetrics().lineSpacing();
+			EditEditor->setFixedHeight(std::clamp(8 * lines + 2, reply_minimum, reply_maximum + 2 * lines));
+			column->addWidget(EditEditor);
+			auto* const controls = new QHBoxLayout{ };
+			controls->setSpacing(6);
+			controls->addStretch(1);
+			auto* const newer = new quiet_tool_button{ EditPanel };
+			newer->setObjectName(QStringLiteral("threadCommentEditNewer"));
+			newer->setAutoRaise(true);
+			newer->setText(QStringLiteral("Edit GitHub's newer text"));
+			newer->setToolTip(QStringLiteral("Replace your text with the comment GitHub has now, so you can edit from it."));
+			newer->setFocusPolicy(Qt::StrongFocus);
+			newer->hide();
+			EditNewerButton = newer;
+			controls->addWidget(newer);
+			auto* const cancel = new quiet_tool_button{ EditPanel };
+			cancel->setObjectName(QStringLiteral("threadCommentEditCancel"));
+			cancel->setAutoRaise(true);
+			cancel->setText(QStringLiteral("Cancel"));
+			cancel->setToolTip(QStringLiteral("Stop editing. Nothing is sent.  Esc"));
+			cancel->setFocusPolicy(Qt::StrongFocus);
+			EditCancelButton = cancel;
+			controls->addWidget(cancel);
+			auto* const save = new note_button{ note_button::kind::primary, QStringLiteral("Save"), EditPanel };
+			save->setObjectName(QStringLiteral("threadCommentEditSave"));
+			save->setToolTip(QStringLiteral("Save your comment to GitHub  %1").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			save->set_style(Style);
+			EditSaveButton = save;
+			controls->addWidget(save);
+			column->addLayout(controls);
+			EditStatus = new QLabel{ EditPanel };
+			EditStatus->setObjectName(QStringLiteral("threadCommentEditStatus"));
+			EditStatus->setWordWrap(true);
+			EditStatus->setTextFormat(Qt::PlainText);
+			EditStatus->setFont(scaled(font(), 0.92));
+			EditStatus->hide();
+			column->addWidget(EditStatus);
+			const auto saveNow = [this] {
+				const auto requested = EditSave;
+				if (requested) {
+					requested();
+				}
+			};
+			const auto cancelNow = [this] {
+				const auto requested = EditCancel;
+				if (requested) {
+					requested();
+				}
+			};
+			connect(save, &QAbstractButton::clicked, this, saveNow);
+			connect(cancel, &QAbstractButton::clicked, this, cancelNow);
+			connect(newer, &QAbstractButton::clicked, this, [this] {
+				const auto requested = EditNewer;
+				if (requested) {
+					requested();
+				}
+			});
+			EditEditor->installEventFilter(new comment_edit_keys{ saveNow, cancelNow, EditEditor });
+			connect(EditEditor, &QPlainTextEdit::textChanged, this, [this] {
+				if (!EditApplying && EditEditor != nullptr && EditText) {
+					EditText(EditEditor->raw());
+				}
+			});
+			target->set_edit_panel(EditPanel);
+		}
+		if (EditEditor->raw() != aEdit->Text) {
+			EditApplying = true;
+			EditEditor->present(aEdit->Text, created);
+			EditApplying = false;
+		}
+		EditEditor->setReadOnly(aEdit->Saving);
+		EditSaveButton->setEnabled(!aEdit->Saving);
+		EditCancelButton->setEnabled(!aEdit->Saving);
+		EditNewerButton->setVisible(aEdit->Newer && !aEdit->Saving);
+		EditStatus->setText(aEdit->Status);
+		EditStatus->setAccessibleName(aEdit->Status);
+		EditStatus->setVisible(!aEdit->Status.isEmpty());
+		target->refresh_edit_geometry();
+		if (created) {
+			EditEditor->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	auto open_thread_card::comment_editor() const noexcept -> scoped_prose_editor*
+	{
+		return EditEditor;
+	}
+
+	auto open_thread_card::comment_edit_save_button() const noexcept -> QAbstractButton*
+	{
+		return EditSaveButton;
+	}
+
+	auto open_thread_card::comment_edit_cancel_button() const noexcept -> QAbstractButton*
+	{
+		return EditCancelButton;
+	}
+
+	auto open_thread_card::comment_edit_newer_button() const noexcept -> QAbstractButton*
+	{
+		return EditNewerButton;
+	}
+
+	auto open_thread_card::comment_edit_status() const noexcept -> QLabel*
+	{
+		return EditStatus;
 	}
 
 	auto open_thread_card::posts() const -> std::vector<thread_post_view*>

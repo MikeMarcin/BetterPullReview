@@ -1,6 +1,9 @@
 #include "bpr/qt/conversation_cards_view.hpp"
+
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/workbench_interaction.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -1063,6 +1066,167 @@ namespace bpr::qt {
 	void conversation_cards_view::set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch)
 	{
 		ReactionDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::set_comment_edit_offered(const bool aOffered)
+	{
+		if (CommentEditOffered == aOffered) {
+			return;
+		}
+		CommentEditOffered = aOffered;
+		// [[BPR-1775]]. A withdrawn offer ends an edit; nothing is sent.
+		if (!aOffered) {
+			CommentEdit.reset();
+		}
+		rebuild_open_card();
+	}
+
+	auto conversation_cards_view::comment_edit_offered() const noexcept -> bool
+	{
+		return CommentEditOffered;
+	}
+
+	auto conversation_cards_view::comment_editable(const std::string_view aPost) const -> bool
+	{
+		if (!CommentEditOffered) {
+			return false;
+		}
+		const auto node = std::ranges::find_if(Retained, [aPost](const auto& aNode) { return aNode.Id == aPost && !aNode.Deleted; });
+		if (node == Retained.end()) {
+			return false;
+		}
+		const auto mine = !Viewer.isEmpty() && text(node->AuthorLogin) == Viewer;
+		return core::comment_edit_offered(aPost, mine, false);
+	}
+
+	void conversation_cards_view::set_comment_edit_dispatch(std::function<void(const comment_edit_save&)> aDispatch)
+	{
+		CommentEditDispatch = std::move(aDispatch);
+	}
+
+	auto conversation_cards_view::begin_comment_edit(const std::string& aPost) -> bool
+	{
+		if (!comment_editable(aPost)) {
+			return false;
+		}
+		if (CommentEdit.has_value() && CommentEdit->Post == aPost) {
+			present_comment_edit();
+			return true;
+		}
+		if (CommentEdit.has_value() && CommentEdit->Saving) {
+			return false;
+		}
+		const auto holder = std::ranges::find_if(Cards, [&aPost](const thread_card& aCard) {
+			return !aCard.Draft && std::ranges::any_of(aCard.Posts, [&aPost](const card_post& aCardPost) { return aCardPost.Id == aPost; });
+		});
+		if (holder == Cards.end()) {
+			return false;
+		}
+		// [[BPR-1775]]. GitHub's exact body as the read gave it, never the
+		// prose the card shows: a save is compared with what GitHub has.
+		const auto node = std::ranges::find_if(Retained, [&aPost](const auto& aNode) { return aNode.Id == aPost; });
+		CommentEdit     = comment_edit_session{ .Post = aPost, .Original = node->Body, .Text = node->Body };
+		if (Open != holder->Id) {
+			open_thread(holder->Id);
+		}
+		present_comment_edit();
+		return true;
+	}
+
+	auto conversation_cards_view::comment_editing() const -> std::optional<std::string>
+	{
+		return CommentEdit.has_value() ? std::optional{ CommentEdit->Post } : std::nullopt;
+	}
+
+	void conversation_cards_view::present_comment_edit_status(const QString& aText, const bool aSaving)
+	{
+		if (!CommentEdit.has_value()) {
+			return;
+		}
+		CommentEdit->Status = aText;
+		CommentEdit->Saving = aSaving;
+		present_comment_edit();
+	}
+
+	void conversation_cards_view::offer_newer_comment(std::string aNewer)
+	{
+		if (!CommentEdit.has_value()) {
+			return;
+		}
+		CommentEdit->Newer = std::move(aNewer);
+		present_comment_edit();
+	}
+
+	void conversation_cards_view::close_comment_edit()
+	{
+		if (!CommentEdit.has_value()) {
+			return;
+		}
+		const auto hadFocus = OpenCard != nullptr && OpenCard->comment_editor() != nullptr && OpenCard->comment_editor()->hasFocus();
+		CommentEdit.reset();
+		present_comment_edit();
+		if (hadFocus) {
+			setFocus(Qt::OtherFocusReason);
+		}
+	}
+
+	auto conversation_cards_view::comment_edit_original() const -> std::string
+	{
+		return CommentEdit.has_value() ? CommentEdit->Original : std::string{ };
+	}
+
+	auto conversation_cards_view::comment_editor() const -> scoped_prose_editor*
+	{
+		return OpenCard != nullptr ? OpenCard->comment_editor() : nullptr;
+	}
+
+	auto conversation_cards_view::comment_edit_save_button() const -> QAbstractButton*
+	{
+		return OpenCard != nullptr ? OpenCard->comment_edit_save_button() : nullptr;
+	}
+
+	auto conversation_cards_view::comment_edit_cancel_button() const -> QAbstractButton*
+	{
+		return OpenCard != nullptr ? OpenCard->comment_edit_cancel_button() : nullptr;
+	}
+
+	auto conversation_cards_view::comment_edit_newer_button() const -> QAbstractButton*
+	{
+		return OpenCard != nullptr ? OpenCard->comment_edit_newer_button() : nullptr;
+	}
+
+	auto conversation_cards_view::comment_edit_status() const -> QLabel*
+	{
+		return OpenCard != nullptr ? OpenCard->comment_edit_status() : nullptr;
+	}
+
+	void conversation_cards_view::present_comment_edit()
+	{
+		if (OpenCard == nullptr) {
+			return;
+		}
+		if (!CommentEdit.has_value()) {
+			OpenCard->present_comment_edit(std::nullopt);
+			return;
+		}
+		OpenCard->present_comment_edit(comment_edit_presentation{
+			.Post   = CommentEdit->Post,
+			.Text   = CommentEdit->Text,
+			.Status = CommentEdit->Status,
+			.Saving = CommentEdit->Saving,
+			.Newer  = CommentEdit->Newer.has_value(),
+		});
+	}
+
+	void conversation_cards_view::save_comment_edit()
+	{
+		if (!CommentEdit.has_value() || CommentEdit->Saving) {
+			return;
+		}
+		const auto dispatch = CommentEditDispatch;
+		if (dispatch) {
+			dispatch(comment_edit_save{ .Post = CommentEdit->Post, .Original = CommentEdit->Original, .Body = CommentEdit->Text });
+		}
 	}
 
 	void conversation_cards_view::present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread)
@@ -2446,13 +2610,14 @@ namespace bpr::qt {
 
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
-			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment));
+			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment)) + QString::number(static_cast<int>(CommentEditOffered));
 		for (const auto& post : card.Posts) {
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body;
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
 			OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
+			present_comment_edit();
 			return;
 		}
 
@@ -2478,6 +2643,7 @@ namespace bpr::qt {
 			.OnFile            = !card.Path.isEmpty(),
 			.Picked            = Picked,
 		};
+		style.CommentEditOffered     = CommentEditOffered;
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
 		style.CodeTheme              = CodeTheme;
@@ -2582,6 +2748,29 @@ namespace bpr::qt {
 			}
 		};
 		OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
+		// [[BPR-1775]]. Edit on my own comment, and its editor's gestures.
+		OpenCard->EditRequested = [this](const std::string& aPost) { static_cast<void>(begin_comment_edit(aPost)); };
+		OpenCard->EditText      = [this](const std::string& aText) {
+			if (CommentEdit.has_value() && !CommentEdit->Saving) {
+				CommentEdit->Text = aText;
+			}
+		};
+		OpenCard->EditSave   = [this] { save_comment_edit(); };
+		OpenCard->EditCancel = [this] {
+			if (CommentEdit.has_value() && !CommentEdit->Saving) {
+				close_comment_edit();
+			}
+		};
+		OpenCard->EditNewer = [this] {
+			if (!CommentEdit.has_value() || !CommentEdit->Newer.has_value()) {
+				return;
+			}
+			CommentEdit->Original = std::move(*CommentEdit->Newer);
+			CommentEdit->Newer.reset();
+			CommentEdit->Text   = CommentEdit->Original;
+			CommentEdit->Status = QStringLiteral("Editing GitHub's newer text.");
+			present_comment_edit();
+		};
 		OpenCard->set_images_shown(ImagesShown);
 		OpenCard->request_images();
 
@@ -2677,6 +2866,7 @@ namespace bpr::qt {
 			previous->hide();
 			previous->deleteLater();
 		}
+		present_comment_edit();
 		if (hadFocus) {
 			auto* scope = static_cast<QWidget*>(OpenCard);
 			if (focusedPost.isValid()) {
