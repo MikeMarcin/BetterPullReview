@@ -904,6 +904,10 @@ namespace {
 		expect(edit->isVisible() && fullView->isVisible() && in_reader_corner(page, *fullView) && edit->accessibleName() == QStringLiteral("Edit description")
 				   && edit->geometry().right() < fullView->geometry().left() && edit->mapTo(&page, QPoint{ }).y() == fullView->mapTo(&page, QPoint{ }).y(),
 			   "Edit sits in the reader's corner beside Full view, named for what it does");
+		// [[BPR-1774]] owner's look: Edit is a labelled action and the reader shows no caret.
+		expect(edit->text() == QStringLiteral("Edit") && edit->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && page.body_view()->rendered_view()->cursorWidth() == 0
+				   && page.body_view()->rendered_view()->isReadOnly(),
+			   "Edit is labelled and the read-only description shows no caret");
 		render_description_edit(page, "overview-edit-offered-light.png");
 
 		edit->click();

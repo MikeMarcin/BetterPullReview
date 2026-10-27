@@ -150,6 +150,9 @@ namespace bpr::qt {
 		{
 			Reader = new markdown_body_view{ this };
 			Reader->set_context_controls(true);
+			// [[BPR-1774]]. The description reads as read-only: no caret, so
+			// only Edit suggests it can change. Text is still selectable.
+			Reader->rendered_view()->setCursorWidth(0);
 			auto* layout = new QVBoxLayout{ this };
 			layout->setContentsMargins(0, 0, 0, 0);
 			layout->addWidget(Reader);
@@ -2522,10 +2525,13 @@ namespace bpr::qt {
 		DescriptionEdit->setObjectName(QStringLiteral("overviewEditDescription"));
 		DescriptionEdit->setAutoRaise(true);
 		DescriptionEdit->setFocusPolicy(Qt::StrongFocus);
-		DescriptionEdit->setText(QStringLiteral("Edit description"));
-		DescriptionEdit->setAccessibleName(DescriptionEdit->text());
+		// [[BPR-1774]]. Labelled, so entering the editor reads as an action:
+		// the owner took the unlabelled pencil for an always-editable body.
+		DescriptionEdit->setText(QStringLiteral("Edit"));
+		DescriptionEdit->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
+		DescriptionEdit->setAccessibleName(QStringLiteral("Edit description"));
 		DescriptionEdit->setAccessibleDescription(QStringLiteral("Edit this pull request's description in Markdown. Nothing is sent until you save."));
-		DescriptionEdit->setToolTip(DescriptionEdit->text());
+		DescriptionEdit->setToolTip(QStringLiteral("Edit description"));
 		DescriptionEdit->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		DescriptionEdit->setBackgroundRole(QPalette::Base);
 		DescriptionEdit->setAutoFillBackground(true);
