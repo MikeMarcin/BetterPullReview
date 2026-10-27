@@ -241,8 +241,10 @@ try {
 	const auto awaiting                              = std::make_shared<std::atomic<bool>>(true);
 	const auto authoredRow                           = std::ranges::find(options.PersonalDiscovery->OpenPullRequests, 4001U, &app::detail::github_personal_discovery_fixture::pull_request::Number);
 	authoredRow->ReviewerRequestsPresent             = awaiting;
-	const auto draftStatus                           = std::make_shared<std::atomic<bool>>(true);
-	authoredRow->Draft                               = draftStatus;
+	// [[BPR-1780]]. #4001 starts ready, so it waits on its reviewers; the
+	// explicit Refresh below turns it into a draft, which waits on nobody.
+	const auto draftStatus = std::make_shared<std::atomic<bool>>(false);
+	authoredRow->Draft     = draftStatus;
 
 	// [[BPR-1681]]. Set before the restart below.
 	const auto otherRepositoriesRefused                 = std::make_shared<std::atomic<bool>>(false);
@@ -917,9 +919,9 @@ try {
 	const auto beforeRefresh = evidence().AccountReadOperations.size();
 	const auto authoredRef   = queue_item(*windowA, 4001)->Ref;
 	expect(windowA->home_list()->select(authoredRef, true), "authored waiting row selected before accepted refresh");
-	expect(queue_item(*windowA, 4001)->Facts.Draft == true && queue_item(*windowA, 4002)->Facts.Draft == false, "unopened discovery shows only the accepted draft chip");
+	expect(queue_item(*windowA, 4001)->Facts.Draft == false && queue_item(*windowA, 4002)->Facts.Draft == false, "unopened discovery shows no draft chip on a ready pull request");
 	approved->store(true);
-	draftStatus->store(false);
+	draftStatus->store(true);
 	awaiting->store(false);
 	const auto heldBefore                    = evidence().MaximumConcurrentAccountReads;
 	options.ReadDelay->DiscoveryMilliseconds = search_hold_ms;
@@ -956,7 +958,7 @@ try {
 	expect(windowA->selected_queue_item() && windowA->selected_queue_item()->Ref == authoredRef
 			   && windowA->home_list()->current_view() == windowA->home_list()->state_view(qt::home_group::my_pull_requests),
 		   "exact authored selection survives its section change without retargeting");
-	expect(queue_item(*windowA, 4001)->Facts.Draft == false && queue_item(*windowB, 4001)->Facts.Draft == false, "accepted ready updates both Homes with the same provider budget");
+	expect(queue_item(*windowA, 4001)->Facts.Draft == true && queue_item(*windowB, 4001)->Facts.Draft == true, "accepted draft status updates both Homes with the same provider budget");
 	expect(!contains(state_rows(*windowA, qt::home_group::waiting_on_others), "octo-org/review-repository#4001")
 			   && !contains(state_rows(*windowA, qt::home_group::needs_you), "octo-org/review-repository#4001"),
 		   "accepted refresh leaves one active authored row and no Needs me contribution");
