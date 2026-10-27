@@ -300,6 +300,17 @@ never overwritten: the editor says so and offers GitHub's newer text. The
 mutation's contract is in the
 [provider contract](github-provider-contract.md#normalized-provider-surface).
 
+## Editing my comments
+
+A comment I wrote and published can be edited in place: a review-thread
+comment, a pull request comment or a review's overall body
+([[BPR-1775]]). Edit is in the post's tools and its body menu in the
+conversation views (Pull request, Discuss, File and Review), only on my own
+posts in a signed-in session. The reply's frame holds the Markdown editor on
+the comment's exact text; nothing is sent until Save. A comment changed on
+GitHub since editing began is never overwritten: the editor says so and offers
+GitHub's newer text. Blank text is refused; deleting a comment is not offered.
+
 ## Explicit non-goals
 
 - Creating, changing PR metadata other than the explicitly previewed description body, merging, closing, or rebasing pull requests.

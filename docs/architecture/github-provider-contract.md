@@ -165,7 +165,11 @@ line and bound to an outdated thread alike, with the read that reconciles it
 sure let gh allow that."). It carries the pull request's description replaced
 by its author (`UpdateDescription`, `updatePullRequest` with the body only),
 after the read that binds the pull request and says its body and
-`viewerCanUpdate` (`ObserveDescription`) ([[BPR-1774]]). Those are the only
+`viewerCanUpdate` (`ObserveDescription`) ([[BPR-1774]]). It carries one of
+the viewer's published comments edited (`EditReviewComment`,
+`EditIssueComment`, `EditReviewBody`), after the read that binds the comment
+to the pull request and says its body, `viewerCanUpdate` and
+`viewerDidAuthor` (`ObserveComment`) ([[BPR-1775]]). Those are the only
 GraphQL writes it admits; each
 body must equal its compiled form byte for byte, and one that differs is never
 launched.
@@ -899,6 +903,7 @@ ResolveThread / UnresolveThread
 ListReactions
 AddReaction / RemoveReaction
 ObserveDescription / UpdateDescription
+ObserveComment / EditReviewComment / EditIssueComment / EditReviewBody
 ```
 
 [[BPR-1774]]. The description edit is offered to the pull request's author
@@ -913,6 +918,22 @@ with is a conflict that sends nothing and returns GitHub's newer body). One
 its own answer must carry the body asked, and a lost or unreadable answer is
 settled by one read back, never a second write. No recovery record is kept:
 the body is the record. The title is not edited.
+
+[[BPR-1775]]. A published comment is edited by the viewer who wrote it: a
+review-thread comment (`EditReviewComment`, `updatePullRequestReviewComment`,
+the mutation the pending tour stop edit of [[BPR-1368]] uses, which is
+unchanged), a pull request comment (`EditIssueComment`, `updateIssueComment`)
+or a review's overall body (`EditReviewBody`, `updatePullRequestReview`).
+Edit is offered on a post the read marks as the viewer's. Save is decided by
+the core on the gesture (`decide_comment_edit`: not mine, unchanged, blank,
+longer than 65,536 characters) and on `ObserveComment`'s answer just before
+the write (`decide_comment_save`, the description's rule). The answer must
+name the comment asked, of the kind asked, in the designated pull request. A
+comment the viewer did not write is not permitted even when `viewerCanUpdate`
+is true: GitHub lets a repository's maintainers update another account's
+comment, as the live course on BPR-Test showed. One write follows on the
+native and the GitHub CLI connection alike, held and settled as the
+description's is. Deleting a comment is not offered.
 
 Unsupported capabilities produce explicit unavailable states and safe fallbacks; they do not silently approximate a mutation.
 
