@@ -6,6 +6,8 @@
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/settings_window.hpp"
@@ -1066,6 +1068,30 @@ auto main(int argc, char** argv) -> int
 			const std::array edits{ core::tour_text_edit{ { span.first, span.second }, baseline.Raw.substr(span.first, span.second - span.first), editor.shown().Draft->Problem } };
 			const auto       edited = core::edit_tour_markdown(baseline.Raw, edits);
 			expect(edited && *edited == baseline.Raw.substr(0, span.first) + "Revised problem." + baseline.Raw.substr(span.second), "only explicitly mapped problem bytes change; testing prose and backlink remain exact");
+			// [[BPR-1781]]. Overview's Tour tab shows the imported route as
+			// mine, published, and routes into Review; nothing is changed.
+			{
+				auto* const drawer  = window.overview_page()->status_drawer();
+				auto* const summary = drawer->tour_summary();
+				const auto  before  = *editor.shown().Draft;
+				window.open_overview_tab(qt::overview_drawer_tab::tour);
+				wait([&] { return window.showing_overview() && drawer->tour_tab_shown() && drawer->current_tab() == qt::overview_drawer_tab::tour; }, "Overview's Tour tab shows the tour");
+				expect(summary->shown().Kind == core::overview_tour_kind::writer && summary->shown().Published && summary->stop_titles().size() == 3 && summary->action()->text() == QStringLiteral("Continue in Review"),
+					   "the imported own route is mine, published, with its three stops");
+				editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
+				window.open_overview_tab(qt::overview_drawer_tab::tour);
+				summary->action()->click();
+				wait([&] {const auto* surface=window.comparison_surface();return !window.showing_overview() && window.tray_tabs()->currentIndex()==2 && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("review.cpp"); }, "Continue in Review opens Review's Tour tab at the stop it was on");
+				// Start tour, as a reader's button asks it: the tour in the
+				// window opens at its first stop.
+				window.open_overview_tab(qt::overview_drawer_tab::tour);
+				auto reader = summary->shown();
+				reader.Kind = core::overview_tour_kind::reader;
+				summary->present(reader);
+				summary->action()->click();
+				wait([&] {const auto* surface=window.comparison_surface();return !window.showing_overview() && surface->current_context() && surface->current_context()->Key.File==core::file_identity_of("secondary.cpp") && editor.selected_stop() && editor.selected_stop()->Id==editor.shown().Draft->Stops.front().Id; }, "Start tour opens Review at the first stop");
+				expect(*editor.shown().Draft == before, "presenting and routing change nothing in the tour");
+			}
 			const auto accepted = *editor.shown().Draft;
 			expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0 && access::review_mutation_evidence(*application).Submissions == 0, "cold import and editing have no inference or remote writes");
 			const auto remoteAfter = access::review_mutation_evidence(*application);
