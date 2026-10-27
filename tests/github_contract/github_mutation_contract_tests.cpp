@@ -1096,10 +1096,10 @@ namespace {
 	}
 
 	/// [[BPR-1775]]. A comment of one kind as an edit answer spells it.
-	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aId, const std::string_view aBody, const bool aCan, const std::string_view aPullRequest = "PR_kwDOTyvof879G6NV") -> std::string
+	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aId, const std::string_view aBody, const bool aCan, const std::string_view aPullRequest = "PR_kwDOTyvof879G6NV", const bool aMine = true) -> std::string
 	{
 		return "{\"__typename\":\"" + std::string{ aTypename } + "\",\"id\":\"" + std::string{ aId } + "\",\"body\":\"" + std::string{ aBody } + "\",\"viewerCanUpdate\":" + (aCan ? "true" : "false")
-			+ ",\"updatedAt\":\"2026-10-27T12:00:00Z\",\"pullRequest\":{\"id\":\"" + std::string{ aPullRequest }
+			+ ",\"viewerDidAuthor\":" + (aMine ? "true" : "false") + ",\"updatedAt\":\"2026-10-27T12:00:00Z\",\"pullRequest\":{\"id\":\"" + std::string{ aPullRequest }
 		+ "\",\"databaseId\":4246446933,\"number\":1,\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}}";
 	}
 
@@ -1110,7 +1110,7 @@ namespace {
 	void test_a_published_comment_goes_by_graphql_exactly()
 	{
 		const auto pullRequest = std::string{ "pullRequest{id databaseId number repository{id databaseId nameWithOwner}}" };
-		const auto fields      = "body viewerCanUpdate updatedAt " + pullRequest;
+		const auto fields      = "body viewerCanUpdate viewerDidAuthor updatedAt " + pullRequest;
 		auto       edit        = application::review_comment_edit_request{
 			.Target         = target().Semantic,
 			.ActingIdentity = identity().Account,
@@ -1220,6 +1220,8 @@ namespace {
 		expect(!outside && outside.error() == review_mutation_contract_failure::identity_mismatch, "a comment in another pull request is a mismatch");
 		expect(parse_comment_observation({ .Status = 200, .Body = R"({"data":{"node":null}})" }, edit).error() == review_mutation_contract_failure::target_unavailable,
 			   "a comment GitHub no longer shows is unavailable");
+		const auto maintained = parse_comment_observation({ .Status = 200, .Body = "{\"data\":{\"node\":" + comment_json("PullRequestReviewComment", "PRRC_kwDOTyvof86abc", "Before.", true, "PR_kwDOTyvof879G6NV", false) + "}}" }, edit);
+		expect(maintained.has_value() && !maintained->ViewerCanUpdate, "another account's comment a maintainer may update is held not permitted: only my own is edited");
 		expect(parse_comment_observation({ .Status = 502, .Body = "{}" }, edit).error() == review_mutation_contract_failure::invalid_status, "a non-200 answer is an invalid status");
 		expect(!parse_comment_edit_response({ .Status = 200, .Body = R"({"data":{"updatePullRequestReviewComment":null},"errors":[{"type":"FORBIDDEN"}]})" }, edit).has_value(),
 			   "a GraphQL refusal is not a success");

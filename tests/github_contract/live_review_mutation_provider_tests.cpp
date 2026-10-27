@@ -2426,10 +2426,10 @@ namespace {
 
 	/// [[BPR-1775]]. One of the viewer's comments (or another's) as an edit
 	/// answer gives it.
-	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true, const std::string_view aId = "IC_kwDOcomment1") -> std::string
+	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true, const std::string_view aId = "IC_kwDOcomment1", const bool aMine = true) -> std::string
 	{
 		return std::string{ R"({"__typename":")" } + std::string{ aTypename } + R"(","id":")" + std::string{ aId } + R"(","body":")" + std::string{ aBody } + R"(","viewerCanUpdate":)"
-			+ (aCan ? "true" : "false") + R"(,"updatedAt":"2026-10-27T12:00:00Z","pullRequest":{"id":")" + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz")
+			+ (aCan ? "true" : "false") + R"(,"viewerDidAuthor":)" + (aMine ? "true" : "false") + R"(,"updatedAt":"2026-10-27T12:00:00Z","pullRequest":{"id":")" + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz")
 			+ R"(","databaseId":4246446933,"number":1,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}}})";
 	}
 
@@ -2513,6 +2513,15 @@ namespace {
 		const auto denied           = forbiddenSession.edit_comment(comment_edit_request());
 		expect(!denied && denied.error() == application::review_mutation_failure::refused_by_server && forbidden.Requests.size() == 1U,
 			   "a comment GitHub says the viewer may not update (another's) is not written");
+
+		// Live on BPR-Test, 2026-10-27: a repository maintainer may update
+		// another account's comment. The session edits only the viewer's own.
+		auto maintained = fake_transport{ };
+		maintained.answer(graphql("ObserveComment"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + comment_json("IssueComment", "Before.", true, true, "IC_kwDOcomment1", false) + "}}" } });
+		auto       maintainedSession = review_mutation_session{ maintained, configuration(), mutation_lease(), make_recovery() };
+		const auto notMine           = maintainedSession.edit_comment(comment_edit_request());
+		expect(!notMine && notMine.error() == application::review_mutation_failure::refused_by_server && maintained.Requests.size() == 1U,
+			   "another account's comment that a maintainer may update is refused before any write");
 
 		auto foreign = fake_transport{ };
 		foreign.answer(graphql("ObserveComment"), comment_observation_response("IssueComment", "Before.", true, false));
