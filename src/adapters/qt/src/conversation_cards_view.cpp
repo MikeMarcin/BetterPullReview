@@ -1389,7 +1389,7 @@ namespace bpr::qt {
 			}
 			// [[BPR-1779]]. A review with no body is no comment: its comments
 			// are the threads, walked above.
-			if (node.Kind == application::github_conversation_kind::review && node.ReviewerProse.value_or(node.Body).find_first_not_of(" \t\r\n") == std::string::npos) {
+			if (node.Kind == application::github_conversation_kind::review && !core::review_body_is_comment(node.ReviewerProse.value_or(node.Body))) {
 				continue;
 			}
 			const auto state = ReadStateByThread.find(node.Id);

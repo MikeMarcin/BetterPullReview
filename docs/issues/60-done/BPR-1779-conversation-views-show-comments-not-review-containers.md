@@ -116,4 +116,15 @@ Comments are the unit; the review is attribution ([[BPR-1779]]).
 - Threads keeps its file grouping; under Not on a file, reviews follow the
   same rule in time order, an approval's row saying "Approved".
 
+Follow-up on read state: an unread body-less review had no card and next new
+skipped it, yet the host still observed it as a post, so the Status "new
+comments" line, the Comments tab count and the queue's unseen count counted a
+comment nothing could open, and Mark all read stayed disabled when it was the
+only one. `core::review_body_is_comment` now decides it once: a review whose
+body is blank is never unread content, in the host's read observations (counts,
+Mark all read, a single read) and in the cards' navigation alike.
+`application_conversation_read_public_path` adds such a review and failed
+before ("host count reaches Status": three new comments, not two);
+`core_conversation_timeline` covers the rule.
+
 The look (one line per bundle, verdict-only rows) is the owner's, pending.

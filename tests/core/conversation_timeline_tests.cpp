@@ -147,6 +147,16 @@ namespace {
 		const auto none = arrange_conversation_timeline(items, { .UnreadOnly = true });
 		expect(none.Rows.empty() && none.Comments == 0U, "with nothing unread, no review line is left standing alone");
 	}
+
+	/// A review's body is a comment only with a visible character; one that
+	/// is not is never unread content.
+	void body_is_comment()
+	{
+		Scenario = "body is comment";
+		expect(!review_body_is_comment("") && !review_body_is_comment(" \t\r\n "), "an empty or blank body is no comment");
+		expect(review_body_is_comment("LGTM") && review_body_is_comment("\n x\n"), "any visible character makes the body a comment");
+		static_assert(!review_body_is_comment(""));
+	}
 }
 
 auto main() -> int
@@ -155,6 +165,7 @@ auto main() -> int
 	bodies();
 	lone();
 	filters();
+	body_is_comment();
 	if (Failures != 0) {
 		std::cerr << Failures << " expectation(s) failed\n";
 		return EXIT_FAILURE;

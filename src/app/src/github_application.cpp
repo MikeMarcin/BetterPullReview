@@ -16,6 +16,7 @@
 #include "bpr/application/remembered_connection_host.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
+#include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
@@ -17249,7 +17250,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				names.emplace_back(id, std::vector<std::string>{ id });
 			};
 			for (const auto& review : snapshot->Reviews) {
-				appendPost(review);
+				// [[BPR-1779]]. A review with no body is no comment: it is
+				// never unread content, so no count can hold what no gesture
+				// reaches.
+				if (core::review_body_is_comment(review.Body)) {
+					appendPost(review);
+				}
 			}
 			for (const auto& comment : snapshot->IssueComments) {
 				if (!comment.Deleted) {
@@ -17500,6 +17506,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			for (const auto& review : snapshot.Reviews) {
 				if (comment_projection_id(review) == aIdentity) {
+					if (!core::review_body_is_comment(review.Body)) {
+						return std::nullopt;
+					}
 					observation.Posts.push_back(post_observation(review, snapshot.Viewer.Login));
 					return observation;
 				}
@@ -17574,7 +17583,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				});
 			};
 			for (const auto& review : snapshot.Reviews) {
-				appendPost(review);
+				if (core::review_body_is_comment(review.Body)) {
+					appendPost(review);
+				}
 			}
 			for (const auto& comment : snapshot.IssueComments) {
 				if (!comment.Deleted) {

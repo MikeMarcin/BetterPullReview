@@ -58,7 +58,7 @@ int main(int aArgc, char** aArgv)
 	const auto    dataRoot = e2e::private_data_root(temporary);
 	expect(dataRoot.has_value(), "private composed course root");
 	auto server                    = std::make_shared<app::detail::review_submission_fixture_state>();
-	server->ReviewHistory          = R"([{"id":4001,"node_id":"read-summary","state":"COMMENTED","body":"Read this review summary","commit_id":"f05373e1184e7067994839ecbe6e2db7a933fa97","user":{"node_id":"U_other","login":"other-reviewer","type":"User"}}])";
+	server->ReviewHistory          = R"([{"id":4001,"node_id":"read-summary","state":"COMMENTED","body":"Read this review summary","commit_id":"f05373e1184e7067994839ecbe6e2db7a933fa97","user":{"node_id":"U_other","login":"other-reviewer","type":"User"}},{"id":4002,"node_id":"empty-summary","state":"COMMENTED","body":"","commit_id":"f05373e1184e7067994839ecbe6e2db7a933fa97","user":{"node_id":"U_other","login":"other-reviewer","type":"User"}}])";
 	server->ConversationComments   = R"([{"id":5001,"node_id":"read-comment","body":"Read this PR comment","user":{"node_id":"U_other","login":"other-reviewer","type":"User"}},{"id":5002,"node_id":"my-comment","body":"My own comment","user":{"node_id":"U_fixture_viewer","login":"fixture-author","type":"User"}}])";
 	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = dataRoot;
@@ -110,6 +110,10 @@ int main(int aArgc, char** aArgv)
 		return found == rows.end() ? std::size_t{ 0U } : found->Unread;
 	};
 	wait_for([&] { return count() == QStringLiteral("2 new comments in the conversation") && unread(comment) == 1U && unread(summary) == 1U; }, "host count reaches Status and both pathless Threads rows");
+	// [[BPR-1779]]. A body-less Commented review is no comment: it adds no
+	// row, next new never stops on it, and so it is never unread content.
+	// Before, it was a third new comment nothing could open or clear.
+	expect(count() == QStringLiteral("2 new comments in the conversation") && unread("review:empty-summary") == 0U, "a body-less review counts as no new comment");
 	{
 		// [[BPR-1668]]. Real pointer/keyboard activation, the existing ledger
 		// effect lane, an ordinary refresh, and a fresh process composition.
