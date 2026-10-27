@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "6967b09aac84ced8b51e98c9e4fb38d93f624bf03bae7809b0d313ebba326ee9",
+      "sha256": "8158d232ff3961b4de2ab3be4ece55a4a774d5dbfcc2c8cb2c95af678a31d7ec",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",

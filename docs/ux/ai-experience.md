@@ -17,10 +17,16 @@ The functional core decides whether an explicit AI action is legal, what local c
   thread (its header and its menu) or on a saved private note opens the
   Agent tab with the conversation as a chip in the question field. The chip
   stays for follow-ups until its close button removes it, the prompts are
-  about the conversation while it is there, each turn says which
-  conversation it was about, and an answer about a review thread offers
-  **Use as reply**, which writes it in that thread's reply field. Nothing is
-  sent until the reviewer asks, and nothing is published.
+  about the conversation while it is there, and each turn's asked line names
+  the conversation above the question ("About src/cache.cpp line 42, 2
+  comments", then the question). Nothing is sent until the reviewer asks.
+- Draft comment on any answer ([[BPR-1773]], owner look 2026-10-27): every
+  answer's footer has Copy, **Save as note** and **Draft comment**, in one
+  quiet style. Draft comment writes the answer, or the part selected, as a
+  private draft: the reply of the review thread the question was about, a
+  comment on the lines selected when it was asked, or otherwise a new pull
+  request comment on Overview. It then reads **Go to draft**, as Save as note
+  then reads Go to note. Nothing is published until the reviewer publishes.
 
 No opening, navigation, refresh, comment arrival, or revision update automatically invokes an agent.
 

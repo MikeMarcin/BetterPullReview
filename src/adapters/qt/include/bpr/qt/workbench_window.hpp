@@ -738,10 +738,22 @@ namespace bpr::qt {
 		/// compared.
 		[[nodiscard]] auto compared_lines(const std::string& aPath, core::diff_side aSide, std::uint32_t aFirst, std::uint32_t aLast) const
 			-> std::optional<std::pair<std::uint32_t, std::vector<std::string>>>;
-		/// \brief [[BPR-1773]]. Use as reply: opens the thread's reply, as
-		/// Reply does, and writes `aText` in it once it is open (after any
-		/// words already there). Nothing is published.
-		void use_as_reply(const std::string& aIdentity, const QString& aText);
+		/// \brief [[BPR-1773]]. Draft comment on an agent's answer about a
+		/// review thread: opens the thread's reply, as Reply does, and writes
+		/// `aText` in it once it is open (after any words already there).
+		/// `aDone` says whether it was written; when the reply never opens the
+		/// words go on the clipboard. Nothing is published.
+		void draft_thread_reply(const std::string& aIdentity, const QString& aText, std::function<void(bool)> aDone = { });
+		/// \brief [[BPR-1773]]. Go to draft for a thread reply: opens it.
+		void open_thread_reply(const std::string& aIdentity);
+		/// \brief [[BPR-1773]]. Draft comment on an answer with no line or
+		/// thread: Overview's new pull request comment ([[BPR-1781]]), with
+		/// `aText` written in it as if typed (after any words already there),
+		/// so it is kept as that composer's private draft. False when the
+		/// composer could not be shown. Nothing is published.
+		auto draft_pull_request_comment(const QString& aText) -> bool;
+		/// \brief [[BPR-1773]]. Go to draft for it: Overview's composer.
+		void open_pull_request_comment();
 		/// \brief [[BPR-1741]]. Where a post's reaction goes.
 		void set_reaction_dispatch(workbench_reaction_dispatch aDispatch);
 		/// \brief [[BPR-1741]]. The posts' reactions, by GitHub node,
@@ -3020,6 +3032,7 @@ namespace bpr::qt {
 		/// [[BPR-1773]]. Words waiting for a thread's reply to open, and how
 		/// many more times to look for it.
 		std::optional<std::pair<std::string, QString>> PendingReplyText;
+		std::function<void(bool)>                      PendingReplyDone;
 		int                                            PendingReplyTries = 0;
 		void                                           write_pending_reply();
 		workbench_reaction_dispatch                    ReactionDispatch;

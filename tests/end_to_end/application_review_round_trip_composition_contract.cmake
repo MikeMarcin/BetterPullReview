@@ -2421,8 +2421,15 @@ function(bpr_verify_full_application_digest source_variable)
 	# asks BPR_GITHUB_CLI_PLATFORM (macOS, Windows, Linux) where it asked
 	# __APPLE__ for the CLI offer, factory, discovery and read consent; the
 	# BPR-0797 boundary answer, consent and failure states are unchanged.
+	# [[BPR-1773]] owner-look rework reseal (2026-10-27). github_application.cpp
+	# retires Use as reply: every Agent tab answer's Draft comment writes it as
+	# a private draft where core::answer_draft_place_for places it when asked
+	# (the asked thread's reply, the selected lines through the finding card's
+	# draft path, or Overview's new pull request comment), and Go to draft
+	# opens it. No credential, grant, provider, mutation, publication or
+	# source-inventory change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"7439c92ab34c98df34bfa3e6664b5f2230f353d100e61bc87a38c974063ef810"
+		"924be92d043590e1f6083537d530b89d82187a0560e66974e6854faa4161b0e7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2672,8 +2679,12 @@ function(bpr_verify_app_source_tree app_source_root)
 # Its CLI offer, factory, discovery and read consent ask
 # BPR_GITHUB_CLI_PLATFORM (macOS, Windows, Linux) where they asked __APPLE__.
 # No grant, mutation, publication or source-inventory change.
+# [[BPR-1773]] owner-look rework reseal (2026-10-27): github_application.cpp
+# only. Draft comment on every Agent tab answer replaces Use as reply; it
+# writes private drafts through the existing reply, line-draft and new
+# pull request comment paths. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "b946581728253e8c88feb7b1e9a1669871a69ab2cae3fa687a2fa5e138a1f0f9"
+        "62203700e80166cc2be74db1b18a4c83662dcff2d7d2245fee09c2a9488a5e42"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

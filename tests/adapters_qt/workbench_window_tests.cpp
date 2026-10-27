@@ -14270,14 +14270,34 @@ namespace {
 				   "the reply is shown without its findings block, which is for the cards");
 
 			// [[BPR-1773]]. Ask agent on a conversation: its chip in the
-			// question field, prompts about it, a turn that says what it was
-			// about, and Use as reply, which only names the conversation and
-			// the words; the chip stays for a follow-up until it is closed.
+			// question field, prompts about it, and a turn whose asked line
+			// names the conversation before the question. Owner look
+			// 2026-10-27: no Use as reply; every answer's footer has Draft
+			// comment beside Save as note, in its style, which becomes Go to
+			// draft; where it drafts is the host's, decided when it was asked.
+			// The chip stays for a follow-up until it is closed.
 			{
 				auto dismissed = 0;
-				auto replies   = std::vector<std::pair<std::string, QString>>{ };
+				auto drafted   = std::vector<std::pair<std::string, QString>>{ };
+				auto wentTo    = std::vector<std::string>{ };
+				auto targets   = 0;
 				agent->set_conversation_dismiss([&dismissed] { ++dismissed; });
-				agent->set_reply_dispatch([&replies](const std::string& aKey, const QString& aText) { replies.emplace_back(aKey, aText); });
+				agent->set_answer_draft_target([&targets, agent] {
+					++targets;
+					return agent->conversation_chip_text().isEmpty()
+						? qt::agent_answer_draft_target{ .Key = "answer-draft:pull-request", .Tip = QStringLiteral("Draft this reply as a comment on the pull request.") }
+						: qt::agent_answer_draft_target{ .Key = "answer-draft:thread", .Tip = QStringLiteral("Draft this reply as your reply to the conversation it is about.") };
+				});
+				agent->set_answer_draft_dispatch([&drafted](const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone) {
+					drafted.emplace_back(aKey, aText);
+					aDone(true, { });
+				});
+				agent->set_draft_navigation([&wentTo](const std::string& aKey) { wentTo.push_back(aKey); });
+				expect(agent->findChildren<QPushButton*>(QStringLiteral("agentTurnUseAsReply")).empty(), "no answer has a Use as reply button");
+				expect(agent->turn_draft_button(2U) != nullptr && !agent->turn_draft_button(2U)->isHidden() && agent->turn_draft_button(2U)->text() == QStringLiteral("Draft comment")
+						   && agent->turn_note_button(2U) != nullptr && !agent->turn_note_button(2U)->isHidden() && agent->turn_note_button(2U)->text() == QStringLiteral("Save as note")
+						   && agent->turn_draft_button(2U)->parentWidget() == agent->turn_note_button(2U)->parentWidget() && agent->turn_draft_button(2U)->isFlat() == agent->turn_note_button(2U)->isFlat(),
+					   "an answer about the pull request offers Draft comment beside Save as note, in its style");
 				agent->set_conversation_chip(qt::agent_conversation_chip{
 					.Key     = "review-thread:T1",
 					.Text    = QStringLiteral("src/engine/renderer.cpp line 34, 2 comments"),
@@ -14301,19 +14321,71 @@ namespace {
 				window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "The lock covers it: `evict` holds `Mutex` for the whole call." });
 				window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
 				process_events();
-				auto* const useReply = agent->turn_reply_button(3U);
+				expect(targets == 1, "where its answer would be drafted is asked once, when the question is sent");
 				expect(agent->turn_count() == 4U && agent->turn_about(3U) == QStringLiteral("src/engine/renderer.cpp line 34, 2 comments") && agent->turn_about(2U).isEmpty()
 						   && agent->turn_question(3U) == QStringLiteral("Who is right?"),
 					   "the turn says which conversation it was about; a turn about the pull request says nothing");
-				expect(useReply != nullptr && !useReply->isHidden() && agent->turn_reply_button(2U) != nullptr && agent->turn_reply_button(2U)->isHidden(),
-					   "a reply about a conversation offers Use as reply, and one about the pull request does not");
+				auto* const about = agent->findChildren<QLabel*>(QStringLiteral("agentTurnAbout")).empty() ? nullptr : agent->findChildren<QLabel*>(QStringLiteral("agentTurnAbout")).back();
+				expect(agent->turn_asked(3U) == QStringLiteral("About src/engine/renderer.cpp line 34, 2 comments: Who is right?") && agent->turn_asked(2U) == QStringLiteral("What could this change break?")
+						   && about != nullptr && about->text() == QStringLiteral("About src/engine/renderer.cpp line 34, 2 comments") && about->font().weight() > QFont::Normal
+						   && about->foregroundRole() != QPalette::PlaceholderText,
+					   "the asked line reads \"About <conversation>: <question>\", the conversation named plainly in the question's colour, not greyed");
+				auto* const conversationDraft = agent->turn_draft_button(3U);
+				auto* const ordinaryDraft     = agent->turn_draft_button(2U);
+				expect(conversationDraft != nullptr && !conversationDraft->isHidden() && conversationDraft->text() == QStringLiteral("Draft comment")
+						   && conversationDraft->toolTip() == QStringLiteral("Draft this reply as your reply to the conversation it is about.") && agent->turn_note_button(3U) != nullptr
+						   && !agent->turn_note_button(3U)->isHidden() && agent->turn_note_button(3U)->text() == QStringLiteral("Save as note"),
+					   "an answer about a conversation offers the same Draft comment, which says it drafts the conversation's reply, and Save as note is unchanged");
 				if (!root.isEmpty()) {
 					expect(window.grab().save(root + QStringLiteral("/agent-conversation.png"), "PNG"), "render saved");
 				}
-				useReply->click();
+				// [[BPR-1773]], light and dark: the conversation turn and the
+				// ordinary turn above it, the tab alone, before and after
+				// Draft comment, written for a person to look at.
+				const auto renderTurns = [&](const QString& aState) {
+					if (root.isEmpty()) {
+						return;
+					}
+					const auto kept = window.palette();
+					for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+						auto scheme = qt::default_appearance_settings();
+						scheme.Mode = mode;
+						auto look   = qt::appearance_profile{ scheme };
+						look.apply_to(window);
+						process_events();
+						const auto shownTurns = agent->findChildren<QWidget*>(QStringLiteral("agentTurn"));
+						for (auto* const scroll : agent->findChildren<QScrollArea*>()) {
+							if (!shownTurns.empty() && scroll->widget() != nullptr && scroll->widget()->isAncestorOf(shownTurns.back())) {
+								scroll->ensureWidgetVisible(shownTurns.back(), 0, 0);
+							}
+						}
+						process_events();
+						expect(agent->grab().save(QStringLiteral("%1/agent-turns-%2-%3.png").arg(root, aState, name), "PNG"), "render saved");
+					}
+					window.setPalette(kept);
+					process_events();
+				};
+				renderTurns(QStringLiteral("draft-comment"));
+				conversationDraft->click();
 				process_events();
-				expect(replies.size() == 1U && replies.front().first == "review-thread:T1" && replies.front().second == QStringLiteral("The lock covers it: `evict` holds `Mutex` for the whole call."),
-					   "Use as reply names the conversation and gives the answer's words, nothing more");
+				expect(drafted.size() == 1U && drafted.front().first == "answer-draft:thread" && drafted.front().second == QStringLiteral("The lock covers it: `evict` holds `Mutex` for the whole call."),
+					   "Draft comment on it gives the host the turn's place and the answer's words, nothing more");
+				expect(conversationDraft->text() == QStringLiteral("Go to draft") && conversationDraft->isEnabled() && wentTo.empty(), "and becomes Go to draft, as Save as note becomes Go to note");
+				conversationDraft->click();
+				process_events();
+				expect(wentTo == std::vector<std::string>{ "answer-draft:thread" } && drafted.size() == 1U, "Go to draft opens that draft, and drafts nothing more");
+				ordinaryDraft->click();
+				process_events();
+				expect(drafted.size() == 2U && drafted.back().first.empty() && drafted.back().second == agent->turn_answer(2U) && ordinaryDraft->text() == QStringLiteral("Go to draft"),
+					   "an ordinary answer is drafted too: a turn whose place was not decided names none, and the host drafts it on the pull request");
+				renderTurns(QStringLiteral("go-to-draft"));
+				// A refusal says why and the action stays.
+				agent->set_answer_draft_dispatch([](const std::string&, const QString&, qt::agent_answer_draft_done aDone) { aDone(false, QStringLiteral("resolve the draft open at that line first")); });
+				auto* const noteDraft = agent->turn_draft_button(1U);
+				expect(noteDraft != nullptr && !noteDraft->isHidden(), "every answer offers Draft comment");
+				noteDraft->click();
+				process_events();
+				expect(noteDraft->text() == QStringLiteral("Not drafted: resolve the draft open at that line first") && noteDraft->isEnabled(), "a refusal says why, and Draft comment can be pressed again");
 				expect(agent->conversation_chip()->isVisible(), "the chip stays for a follow-up");
 				agent->conversation_chip_close()->click();
 				expect(dismissed == 1, "its close asks the host to remove it");
@@ -14326,7 +14398,9 @@ namespace {
 				expect(agent->suggestions().back() == QStringLiteral("Explain the code this note is on"), "a note's prompts offer no reply, which a note cannot take");
 				agent->set_conversation_chip(std::nullopt);
 				agent->set_conversation_dismiss({ });
-				agent->set_reply_dispatch({ });
+				agent->set_answer_draft_target({ });
+				agent->set_answer_draft_dispatch({ });
+				agent->set_draft_navigation({ });
 			}
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-thread.png"), "PNG"), "render saved");

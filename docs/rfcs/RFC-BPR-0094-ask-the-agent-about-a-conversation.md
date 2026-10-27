@@ -4,12 +4,12 @@ title: "Ask the agent about a conversation"
 status: "In Progress"
 area: "BPR"
 depends_on: ["RFC-BPR-0012", "RFC-BPR-0023", "RFC-BPR-0092"]
-metadata: {"origin": {"date": "2026-10-26", "channel": "owner chat"}, "card": "BPR-1773", "revision": "r1 2026-10-26, owner decisions Q1-Q3 in chat", "authoring": "implement-rfc; frontend-design:frontend-design loaded for the Qt surfaces"}
+metadata: {"origin": {"date": "2026-10-26", "channel": "owner chat"}, "card": "BPR-1773", "revision": "r2 2026-10-27, owner look rejected: Draft comment on every answer replaces Use as reply", "authoring": "implement-rfc; frontend-design:frontend-design loaded for the Qt surfaces"}
 ---
 
 # Ask the agent about a conversation
 
-In Progress, revision r1. Card [[BPR-1773]].
+In Progress, revision r2. Card [[BPR-1773]].
 
 ## Problem
 
@@ -41,6 +41,16 @@ Observed before this RFC (`ad39b7ce1`):
   (not a separate thread per conversation).
 - **Q2, Use as reply:** yes. An answer about a review thread offers **Use as
   reply**, which writes it in that thread's reply field as a local draft.
+- **Q2, amended by the owner's look of 2026-10-27 (rejected):** "Seems
+  really weird that's there's already a save as note and we added a second
+  one. The ux doesn't make sense to me I don't even understand what the
+  question I asked was and what the agents response is. And we may as well
+  just let you turn anything into a note or draft comment directly if we're
+  doing it for this. The preexisting save as note goto note looks much better
+  than this." Use as reply is retired. Every answer's footer offers **Draft
+  comment** beside **Save as note**, in its style, and it becomes **Go to
+  draft** as Save as note becomes Go to note. On a turn about a review thread
+  it is that thread's reply.
 - **Q3, notes:** included now. Ask agent on a note saves the note as an
   immutable Private history revision first and sends that copy, as the
   comment workshop does with drafts ([[BPR-1245]]).
@@ -56,8 +66,11 @@ Observed before this RFC (`ad39b7ce1`):
 - While the chip is there the field says "Ask about this conversation…", the
   suggested prompts are about it (Summarize this conversation; Is the concern
   raised here right?; Draft a reply to this conversation, or for a note,
-  Explain the code this note is on), and each turn asked with it says "About
-  …" above its question. The chip stays for follow-ups; its close button
+  Explain the code this note is on), and each turn asked with it names the
+  conversation on its asked line, in the question's own colour and a heavier
+  weight, above the question: the bubble reads "About src/cache.cpp lines
+  41–42, 2 comments" then "Who is right?", and its accessible name is "About
+  …: …". The chip stays for follow-ups; its close button
   removes it. Opening another pull request removes it.
 - A turn asked with the chip is the eighth entry point,
   `ask_about_conversation`. It needs no selection (a selection, when there is
@@ -66,11 +79,23 @@ Observed before this RFC (`ad39b7ce1`):
   path, lines, state, comments (bounded), and up to 40 lines around the anchor
   as the compared file shows them. See the
   [AI agent boundary](../architecture/ai-agent-boundary.md#context-supplement).
-- **Use as reply** opens the thread's reply in place, as Reply does, and
-  writes the answer (or the selected part) after any words already there.
-  Nothing is published until the reviewer publishes. If the reply cannot open
-  within five seconds the words go to the clipboard and the status line says
-  so.
+- **Draft comment** (r2) is in every answer's footer, after Copy and Save as
+  note. Where it drafts is decided when the question is sent, by
+  `core::answer_draft_place_for`: the review thread the question was about
+  (one the viewer may reply to), else the lines selected beside the code,
+  else the pull request. It writes the answer (or the selected part):
+  - in the thread's reply, opened in place as Reply does, after any words
+    already there; if the reply cannot open within five seconds the words go
+    to the clipboard and the action says why;
+  - as a line comment on the first selected line, by the finding card's own
+    Add as draft comment path (the file opens first when another is shown);
+  - in Overview's new pull request comment ([[BPR-1781]]), written as if
+    typed, so the composer keeps it as its private draft.
+  It then reads **Go to draft**, which opens that reply, line or composer. A
+  refusal reads "Not drafted: …" and the action can be pressed again. A turn
+  restored from an earlier session, or a review request, has no recorded
+  place and is drafted on the pull request. Nothing is published until the
+  reviewer publishes.
 - **Notes.** Sending a question with a note's chip first records the note's
   text as one reviewer revision on a new pull-request-level private thread
   (a file-level one would need the note's comparison to be the current one),
@@ -91,9 +116,14 @@ Observed before this RFC (`ad39b7ce1`):
 - **Composition:** which conversation is attached; its excerpt from the
   compared file; the entry point on send; the note's Private history copy
   before the turn.
-- **Qt:** the card and note actions, the chip, prompts, "About" line and
-  Use as reply. Widgets perform no effect: every gesture is a callback the
-  composition decides.
+- **Core (r2):** `answer_draft_place` and `answer_draft_place_for`.
+- **Composition (r2):** the place each sent question's answer would be
+  drafted, kept by an opaque key the turn holds; the draft through the
+  existing reply, finding-card line draft and new-comment paths; Go to draft.
+- **Qt:** the card and note actions, the chip, prompts, the asked line, and
+  Draft comment / Go to draft (the window's `draft_thread_reply`,
+  `draft_pull_request_comment` and their `open_` counterparts). Widgets
+  perform no effect: every gesture is a callback the composition decides.
 
 ## Acceptance criteria
 
@@ -104,17 +134,22 @@ Observed before this RFC (`ad39b7ce1`):
 - AC2. Application: a thread is read as specified and its fields cross after
   every earlier field; a launch without one writes none.
 - AC3. Qt: Ask agent on a thread (header and menu) names it to the host; the
-  chip, prompts, "About" line and Use as reply behave as specified.
+  chip, prompts, the asked line and Draft comment / Go to draft behave as
+  specified, and no answer has Use as reply.
 - AC4. Composition: a turn with a thread attached is `ask_about_conversation`
-  and carries that thread; with a note attached, the note is recorded in
+  and carries that thread, and its Draft comment writes the answer into that
+  thread's reply and publishes nothing; with a note attached, the note is recorded in
   Private history first and the run's only private source is that revision.
-- AC5. Owner look on a frozen build: the thread's Ask agent, the chip and a
-  turn with Use as reply (attended review, one question each).
+- AC5. Owner look on a frozen build: the thread's Ask agent, the chip, a turn
+  about a conversation (its asked line) and the answers' Draft comment / Go
+  to draft beside Save as note (attended review, one question each). r1's
+  look was rejected on 2026-10-27; r2 awaits a fresh look.
 
 ## Not claimed
 
 The excerpt only when the thread's file is the one compared (the agent's
 workspace holds the file in every case); pull-request-level comments and
-review bodies (no Ask agent yet); REST-only anonymous reads; the "About" line
-after the thread is reloaded (it is not kept with the turn); Windows and Linux
+review bodies (no Ask agent yet); REST-only anonymous reads; the asked line's
+conversation and Draft comment's place after the thread is reloaded (neither
+is kept with the turn; a restored turn drafts on the pull request); Windows and Linux
 native runs.
