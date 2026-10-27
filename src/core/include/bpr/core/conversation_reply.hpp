@@ -8,6 +8,10 @@ namespace bpr::core {
 										   edit,
 										   send,
 										   close };
+	/// [[BPR-1781]]. The conversation key of a new comment on the pull request
+	/// itself, written on Overview's Comments tab: it answers no post, so it
+	/// has no author or quote and is sent as its text alone.
+	inline constexpr std::string_view new_pull_request_comment = "pull-request:new-comment";
 	/// Private text and the immutable accepted post it answers; no authority.
 	struct conversation_reply_draft
 	{
@@ -16,6 +20,10 @@ namespace bpr::core {
 	};
 	[[nodiscard]] inline auto valid(const conversation_reply_draft& aDraft) -> bool
 	{
+		// A new comment answers no post: it carries no author or quote.
+		if (aDraft.Conversation == new_pull_request_comment && (!aDraft.Author.empty() || !aDraft.Quote.empty())) {
+			return false;
+		}
 		return !aDraft.Conversation.empty() && aDraft.Conversation.size() <= 256U
 			&& aDraft.Author.size() <= 256U && aDraft.Quote.size() <= 16384U && aDraft.Text.size() <= 32768U;
 	}
@@ -27,6 +35,9 @@ namespace bpr::core {
 	{
 		if (!valid(aDraft)) {
 			return std::nullopt;
+		}
+		if (aDraft.Conversation == new_pull_request_comment) {
+			return aDraft.Text;
 		}
 		auto result = std::string{ "In reply to " } + aDraft.Author + ":\n\n";
 		auto quote  = std::string_view{ aDraft.Quote };

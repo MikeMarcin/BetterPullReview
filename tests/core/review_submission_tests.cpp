@@ -414,6 +414,13 @@ int main()
 	auto oversized  = reply;
 	oversized.Quote = std::string(16385U, 'x');
 	expect(!render_conversation_reply(oversized), "oversized quote is refused rather than silently truncated");
+	// [[BPR-1781]]. A new comment on the pull request answers no post.
+	const auto fresh = conversation_reply_draft{ std::string{ bpr::core::new_pull_request_comment }, "", "", "A comment of its own." };
+	expect(render_conversation_reply(fresh) == std::optional<std::string>{ "A comment of its own." }, "a new pull request comment is sent as its text alone");
+	expect(conversation_reply_can_send(fresh), "a written new comment can send");
+	auto quoted  = fresh;
+	quoted.Quote = "someone's words";
+	expect(!render_conversation_reply(quoted) && !conversation_reply_can_send(quoted), "a new comment never carries a quote");
 	test_unknown_reasons();
 	test_unknown_notices();
 	test_ending_lines();

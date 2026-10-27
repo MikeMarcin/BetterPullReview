@@ -4,6 +4,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_window.hpp"
@@ -22,6 +23,7 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPointer>
+#include <QPushButton>
 #include <QScrollBar>
 #include <QTemporaryDir>
 #include <QThread>
@@ -319,6 +321,26 @@ int main(int aArgc, char** aArgv)
 		std::scoped_lock lock{ server->Mutex };
 		expect(server->StagedComments.empty(), "a PR reply creates no file review comments");
 	}
+	// [[BPR-1781]]. A new comment of its own, under the conversation on
+	// Overview's Comments: saved as a reply is, posted only by Comment, and
+	// sent as its words alone, without a quote.
+	auto* const panel = replyWindow.conversation_panel();
+	wait_for([&] { return replyWindow.showing_overview() && panel->new_comment()->isVisible() && !panel->new_comment_editor()->isReadOnly(); }, "Overview's Comments offers a new comment");
+	panel->new_comment_editor()->setFocus();
+	panel->new_comment_editor()->setPlainText(QStringLiteral("BPR-1781 a comment of its own"));
+	wait_for([&] { return panel->new_comment_send()->isEnabled() && panel->new_comment_status()->text().startsWith(QStringLiteral("Saved locally. Comment posts it")); }, "the new comment is saved before it can be posted");
+	{
+		std::scoped_lock lock{ server->Mutex };
+		expect(server->StagedWrites == 1U, "typing a new comment posts nothing");
+	}
+	render(QStringLiteral("overview-new-comment"));
+	panel->new_comment_send()->click();
+	wait_for([&] {std::scoped_lock lock{server->Mutex};return server->StagedWrites==2U; }, "Comment posts the new comment exactly once");
+	{
+		std::scoped_lock lock{ server->Mutex };
+		expect(!server->CompatibilityComments.empty() && server->CompatibilityComments.back().Body == "BPR-1781 a comment of its own", "the new comment is its words alone, with no quote");
+	}
+	wait_for([&] { return panel->new_comment_editor()->toPlainText().isEmpty() && !panel->new_comment_send()->isEnabled(); }, "the composer starts again empty once posted");
 	stop();
 	std::cout << "CONVERSATION_READ_PUBLIC_PATH_OK\n";
 	return EXIT_SUCCESS;

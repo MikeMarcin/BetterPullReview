@@ -2650,10 +2650,15 @@ function(bpr_verify_app_source_tree app_source_root)
 # mutation or publication change; source inventory and mutation pin unchanged.
 # [[BPR-1775]] comment-edit reseal (2026-10-27): github_application.cpp,
 # main.cpp and the public-path fixture, as described at the full digest.
-# [[BPR-1781]] Overview drawer reseal (2026-10-27): github_application.cpp
-# alone, as described at the full digest.
+# [[BPR-1781]] Overview drawer reseal (2026-10-27): github_application.cpp,
+# as described at the full digest; and review_submission_workflow.cpp, whose
+# conversation-reply workflow says "Saved locally. Comment posts it to the
+# pull request." for a new pull request comment (core's
+# new_pull_request_comment key, sent through the same reply plan and
+# issue-comment publication, its text alone). No grant, provider, credential,
+# mutation or inventory change; the mutation pin is unchanged.
 	set(bpr_expected_production_app_manifest_digest
-        "9a6c4a259dbe3005c90d0d75b870c183ab641d18f7f00a935be436dab54f38a5"
+        "750ec92789e8247ce38080c3988df71a11d61f6e3f9620ec83e4bfc8f162a97d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
