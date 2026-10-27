@@ -1700,6 +1700,7 @@ foreach(
         continued
         anchored-continuation
         construction-cut
+        conversation
 )
     if(course STREQUAL "positive")
         set(chat_test_name application_agent_chat_composition_contract)

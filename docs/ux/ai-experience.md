@@ -13,6 +13,14 @@ The functional core decides whether an explicit AI action is legal, what local c
 - Workshop comment
 - Run AI review
 - Open full agent session
+- Ask about a conversation ([[BPR-1773]]): **Ask agent** on a review
+  thread (its header and its menu) or on a saved private note opens the
+  Agent tab with the conversation as a chip in the question field. The chip
+  stays for follow-ups until its close button removes it, the prompts are
+  about the conversation while it is there, each turn says which
+  conversation it was about, and an answer about a review thread offers
+  **Use as reply**, which writes it in that thread's reply field. Nothing is
+  sent until the reviewer asks, and nothing is published.
 
 No opening, navigation, refresh, comment arrival, or revision update automatically invokes an agent.
 

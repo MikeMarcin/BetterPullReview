@@ -38,8 +38,11 @@
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
+#include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
@@ -50,6 +53,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QSpinBox>
 #include <QTabBar>
@@ -239,7 +243,7 @@ auto main(int argc, char** argv) -> int
 	const auto course = std::string_view{ argv[1] };
 	if (
 		course != "positive" && course != "stale" && course != "continued"
-		&& course != "anchored-continuation" && course != "construction-cut") {
+		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation") {
 		return EXIT_FAILURE;
 	}
 	// The two courses that take `continue_against_old_revision` to a further
@@ -377,6 +381,37 @@ auto main(int argc, char** argv) -> int
 	const auto beforeSend
 		= app::detail::github_application_fixture_access::agent_chat_evidence(
 			*application);
+
+	// [[BPR-1773]]. Ask agent on a review thread's open card attaches
+	// that thread to the question, and the turn is about it.
+	auto askedPath = std::string{ };
+	if (course == "conversation") {
+		auto* const cards  = window.conversation_panel()->cards();
+		auto        thread = std::string{ };
+		for (const auto& card : cards->cards()) {
+			if (card.Kind == QStringLiteral("Inline thread") && !card.Path.isEmpty() && !card.Posts.empty() && !card.Draft) {
+				thread    = card.Id;
+				askedPath = card.Path.toStdString();
+				break;
+			}
+		}
+		if (thread.empty()) {
+			return fail(*application, "conversation-thread");
+		}
+		// The thread's own menu, which the window dispatches as it does the
+		// open card's header button.
+		auto* const menu = cards->thread_menu(thread);
+		auto* const ask  = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadAskAgentAction")) : nullptr;
+		if (ask == nullptr || !ask->isEnabled()) {
+			return fail(*application, "conversation-ask-agent");
+		}
+		ask->trigger();
+		delete menu;
+		QApplication::processEvents();
+		if (!window.agent_tab()->conversation_chip()->isVisibleTo(window.agent_tab()) || !window.agent_tab()->conversation_chip_text().startsWith(QString::fromStdString(askedPath))) {
+			return fail(*application, "conversation-chip");
+		}
+	}
 
 	// The gesture. Typed into the shipped composer and sent with the shipped
 	// action, on the panel the window itself placed.
@@ -538,6 +573,21 @@ auto main(int argc, char** argv) -> int
 		&& afterSend.LastTurn->Message == chat_message
 		&& noGithubMutation && oneLaunchPath;
 
+	if (course == "conversation") {
+		const auto& carried = afterSend.LastConversation;
+		const auto  about   = afterSend.LastTurn.has_value() && afterSend.LastTurn->EntryPoint == core::agent_entry_point::ask_about_conversation;
+		const auto  thread  = carried.has_value() && carried->Subject == core::conversation_subject::review_thread && carried->Path == askedPath
+			&& !carried->Comments.empty() && core::valid_conversation(*carried);
+		const auto passed = about && thread && positive && noGithubMutation && oneLaunchPath;
+		if (!passed) {
+			std::cerr << "agent-chat-conversation-evidence:" << about << ':' << thread << ':' << positive << ':' << noGithubMutation << ':' << oneLaunchPath << '\n';
+		}
+		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-conversation:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (course == "positive") {
 		if (chat->replies_list()->count() != 1) {
 			return fail(*application, "chat-reply-visible");

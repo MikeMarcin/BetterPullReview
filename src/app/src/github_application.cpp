@@ -19800,6 +19800,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// nothing.
 			if (aEntryPoint == core::agent_entry_point::ask_about_conversation) {
 				observation.Conversation = read_asked_conversation();
+	#if defined(BPR_BUILD_TESTING)
+				LastAgentConversation = observation.Conversation;
+	#endif
 				if (!observation.Conversation) {
 					dismiss_asked_conversation();
 					Window->agent_panel()->refuse("the conversation asked about is no longer in this pull request");
@@ -19860,19 +19863,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&& workbench->current_result()->Alignment.Key == selected.Key
 					&& workbench->selection()->Comparison
 						== workbench->current_result()->Alignment.Digest;
-				// [[BPR-1773]]. A question about a conversation is not about
-				// the selection, so it does not carry it.
-				const auto aboutSelection = aEntryPoint != core::agent_entry_point::ask_about_conversation;
 				if (pointing && !continuing) {
-					if (aboutSelection) {
-						observation.Selection = core::supplement_semantic_context{
-							.File       = selected.Request.File.File,
-							.Selection  = *workbench->selection(),
-							.Confidence = core::supplement_mapping_confidence::exact,
-							.Segments   = workbench->current_result()->Alignment.Segments,
-							.Groups     = workbench->current_result()->Alignment.Groups,
-						};
-					}
+					observation.Selection = core::supplement_semantic_context{
+						.File       = selected.Request.File.File,
+						.Selection  = *workbench->selection(),
+						.Confidence = core::supplement_mapping_confidence::exact,
+						.Segments   = workbench->current_result()->Alignment.Segments,
+						.Groups     = workbench->current_result()->Alignment.Groups,
+					};
 				} else if (pointing) {
 					pointedAt = continuation_anchor{
 						.File = selected.Request.File.File,
@@ -20705,11 +20703,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						present_agent_refusal("side chat", "the note asked about is gone or Private history is unavailable");
 						return;
 					}
-					auto subject = core::private_thread_subject{ core::private_pr_subject { } };
-					if (note->Attachment) {
-						subject = core::private_file_subject{ .File = note->Attachment->File, .Comparison = note->Attachment->Comparison };
-					}
-					PrivateReview->record_note_press(std::move(subject), note->Note.Text, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
+					PrivateReview->record_note_press(note->Note.Text, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
 						if (Closing || ChatHost == nullptr) {
 							return;
 						}
@@ -23666,6 +23660,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// chat host afterwards: the launch path admits a session of its own,
 		/// so by the time a turn has run the host is holding a different one.
 		std::optional<application::agent_chat_turn_request> LastChatTurn;
+		std::optional<core::supplement_conversation>        LastAgentConversation;
 #endif
 	};
 
@@ -38119,7 +38114,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				? implementation->ChatHost->statistics()
 				: application::agent_chat_session_statistics{ },
 		};
-		evidence.LastTurn = implementation->LastChatTurn;
+		evidence.LastTurn         = implementation->LastChatTurn;
+		evidence.LastConversation = implementation->LastAgentConversation;
 		if (implementation->ChatHost != nullptr) {
 			evidence.Session    = implementation->ChatHost->session();
 			evidence.Observed   = implementation->ChatHost->observed();

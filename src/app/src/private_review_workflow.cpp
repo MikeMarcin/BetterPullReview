@@ -933,7 +933,7 @@ namespace bpr::app {
 			});
 		});
 	}
-	void private_review_workflow::record_note_press(core::private_thread_subject aSubject, std::string aBody, press_completion aCompletion)
+	void private_review_workflow::record_note_press(std::string aBody, press_completion aCompletion)
 	{
 		if (Closing || !Current || !Binding) {
 			aCompletion(std::unexpected(application::private_run_error{ .Store = application::private_store_failure::unavailable }));
@@ -942,10 +942,10 @@ namespace bpr::app {
 		const auto generation = Generation;
 		auto       context    = Current;
 		++Pending;
-		Effects.post([this, generation, context, binding = *Binding, subject = std::move(aSubject), body = std::move(aBody), completion = std::move(aCompletion)]() mutable {
+		Effects.post([this, generation, context, binding = *Binding, body = std::move(aBody), completion = std::move(aCompletion)]() mutable {
 			auto pressed = [&] {
 				const auto lock = std::scoped_lock{ Gate };
-				return application::private_review_application_host(*context->Store).record_note_press(binding, subject, std::move(body));
+				return application::private_review_application_host(*context->Store).record_note_press(binding, std::move(body));
 			}();
 			Decisions.post([this, generation, context, recorded = std::move(pressed), notify = std::move(completion)]() mutable {
 				--Pending;

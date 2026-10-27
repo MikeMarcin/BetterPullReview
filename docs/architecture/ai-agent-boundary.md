@@ -241,6 +241,26 @@ version-two field and are written only when present, so a launch without a
 brief differs from version two only in its `schema` line. The agent may still
 read GitHub through its own tools.
 
+**A question about one conversation ([[BPR-1773]]).** The eighth entry
+point, `ask_about_conversation`, is a chat turn whose subject is the review
+thread or private note the reviewer chose with **Ask agent** on it, not the
+selection: it needs no selection, though one that exists still travels as
+context and anchors findings. Its `conversation.*` lines
+follow the brief and are written only when present: the subject
+(`review_thread` or `private_note`), the path, the start line and line (the
+original ones for an outdated thread), resolved and outdated, the comments
+oldest first with their logins (each body cut to 8 KiB; the opening comment
+and the newest within 48 KiB, the ones between counted in
+`conversation.comment.omitted`), and an excerpt: up to 40 lines around the
+anchor as the compared file shows them, with the anchor's first and last
+line and its side (`head` or `base`). The excerpt is present only while the
+thread's file is the one compared; the path and lines always are, and the
+agent's workspace holds the file. A private note's words never ride here:
+its subject carries no comment, and the note is first saved as one immutable
+reviewer revision in Private history, which the run selects as its only
+private source (RFC-BPR-0023's private-run rule). Nothing in these lines is a
+credential, and a conversation outside its bounds refuses the build whole.
+
 **Agents the reviewer adds ([[BPR-1753]], owner amendment
 2026-10-23).** The picker offers only the agents in the profile's list
 (`core::agent_entry`, at most 16, kept in `agent-setup.sqlite3`): each a

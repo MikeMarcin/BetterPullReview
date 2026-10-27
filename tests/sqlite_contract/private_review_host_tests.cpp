@@ -812,6 +812,45 @@ namespace {
 		expect(second && second->Thread != press->Thread && f.Store->read_revision_body({ second->Run.Sources.front().Source, 0 })->Bytes == "WORKSHOP_LATER", "a second press records its own revision of the text then");
 	}
 
+	/// [[BPR-1773]]. Ask agent about a note records the note's text as one
+	/// immutable reviewer revision on a thread about its file (or the pull
+	/// request), and the conversation run asks with it alone.
+	void note_press()
+	{
+		fixture    f;
+		const auto threadsBefore = f.Store->list_threads()->Threads.size();
+		auto       press         = f.Private.record_note_press(f.Binding, "NOTE_TEXT\tas saved");
+		expect(press && press->Run.Sources.size() == 1 && press->Run.Purpose == private_run_purpose::conversation, "a note press yields one conversation run over one source");
+		expect(f.Store->list_threads()->Threads.size() == threadsBefore + 1, "and adds one thread to Private history");
+		const auto source   = press->Run.Sources.front().Source;
+		auto       recorded = f.Store->read_revision_body({ source, 0 });
+		expect(recorded && recorded->Bytes == "NOTE_TEXT\tas saved", "the revision holds the note's text as it was asked about");
+		auto header = f.Store->load_thread(press->Thread);
+		expect(header && std::holds_alternative<private_pr_subject>(std::get<exact_private_subject>(header->Binding).Subject), "the thread is about the pull request: the note's file and line travel as the conversation");
+		auto turns = f.Store->list_revisions(press->Thread);
+		expect(turns && turns->Revisions.size() == 1 && std::holds_alternative<private_reviewer_actor>(turns->Revisions.front().Revision.Actor), "the revision is the reviewer's");
+
+		f.Process.OnStart = [&](const agent_launch_request& aRequest) {
+			const auto& context = aRequest.DeferredContext;
+			expect(context.find("private.count\t1\n") != std::string::npos && context.find("private.0.body\tNOTE_TEXT\\tas saved\n") != std::string::npos, "the agent reads the recorded revision");
+			expect(context.find("note.count\t0\n") != std::string::npos, "the mutable note itself never crosses");
+		};
+		auto request               = f.request("What does my note mean?");
+		request.Context.EntryPoint = agent_entry_point::ask_about_conversation;
+		request.PrivateRun         = press->Run;
+		f.send(request);
+		expect(f.Process.Starts == 1 && f.Projection.Errors.empty(), "the note's run starts with its one source");
+		auto runs = f.Store->list_runs();
+		expect(runs && runs->Runs.size() == 1 && runs->Runs.front().EntryPoint == agent_entry_point::ask_about_conversation && runs->Runs.front().SelectedPrivateSources == press->Run.Sources,
+			   "the run's provenance names the question about the conversation and its one source");
+		f.Process.OnStart = { };
+
+		expect(!f.Private.record_note_press(f.Binding, ""), "an empty note is not recorded");
+		auto foreign              = f.Binding;
+		foreign.Scope.PullRequest = pull_request_id{ 999 };
+		expect(!f.Private.record_note_press(foreign, "NOTE"), "a note of another review is not recorded");
+	}
+
 	void composition_adversaries()
 	{
 		fixture f;
@@ -876,6 +915,7 @@ int main()
 	local_compositions();
 	agent_composition();
 	workshop_press();
+	note_press();
 	composition_and_ordering();
 	missing_program_is_a_failed_private_run();
 	refusals_and_lifecycle();
