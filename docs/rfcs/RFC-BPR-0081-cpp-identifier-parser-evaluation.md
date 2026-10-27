@@ -1,12 +1,29 @@
 ---
 id: "RFC-BPR-0081"
 title: "Evaluate a mature parser for C++ identifier refinement"
-status: "In Progress"
+status: "Auto-Verified"
 depends_on: ["RFC-BPR-0072"]
 metadata: {"rfc_base_sha":"530d92eaff1578413c0e669f476e740387441152","mandate_revision":"cpp-identifier-parser-evaluation-r1","milestone_plan":{"id":"cpp-identifier-parser-evaluation-v1","path":"docs/rfcs/plans/cpp-identifier-parser-evaluation-v1/milestone-plan.json"}}
 ---
 
 # Evaluate a mature parser for C++ identifier refinement
+
+## Closeout — 2026-10-27
+
+Auto-Verified through [[BPR-1445]], which records the evidence for each of
+AC01 to AC07 as amended on 2026-10-26. The outcome is **extend**: T is
+rejected on macOS, and [[BPR-1474]] fixed the confirmed gap classes. The
+current source was rechecked. The option-on evaluation tree still builds and
+links tree-sitter only inside `tests/syntax_evaluation`. An option-off tree
+and the v0.3.4 packages contain no tree-sitter. The cancellation, contract
+and architecture-boundary rows pass on macOS, Windows and Linux.
+
+One of the report's re-run conditions has since fired.
+`cpp_identifier_context.cpp` is 847 lines. The RFC's own work left it at
+698, and later cards outside this RFC's scope ([[BPR-1710]], [[BPR-1711]],
+[[BPR-1714]]) took it past 800. No criterion fails because of that. Whether
+to re-run the evaluation or change the trigger is the owner's decision on
+[[BPR-1777]].
 
 ## Owner amendment — 2026-10-26
 
@@ -47,7 +64,7 @@ retain its scope. Cards: [BPR-1440](../issues/60-done/BPR-1440-commit-the-labell
 (Windows x64, not run by amendment),
 [BPR-1444](../issues/60-done/BPR-1444-measure-the-parser-evaluation-on-linux.md)
 (Linux x64 and the Linux fuzz campaign, not run by amendment) and
-[BPR-1445](../issues/20-ready/BPR-1445-close-rfc-0081.md) (closeout).
+[BPR-1445](../issues/60-done/BPR-1445-close-rfc-0081.md) (closeout, Done 2026-10-27; see Closeout above).
 **Outcome on macOS (2026-10-13): extend.** Candidate T fails the Contract,
 Bounded-work and Memory gates at both pins, so it is rejected. The Contract
 failure comes from the grammar: tree-sitter-cpp accepts no attribute on an
