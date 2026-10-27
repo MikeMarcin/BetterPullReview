@@ -429,6 +429,9 @@ namespace bpr::adapters::github::detail {
 			if (*parsed->Description != aRecord.Pending->Body) {
 				return state::conflict;
 			}
+			// [[BPR-1787]]. An update's description write can be its last
+			// step, and so publishes it; the application decides.
+			next                 = aRecord.Plan.Update ? application::confirm_staged_update(aRecord) : next;
 			next.DescriptionDone = true;
 		} else {
 			const auto reviews = observe_staged(request(aRecord, operation::read_review), aStop);
