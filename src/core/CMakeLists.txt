@@ -138,6 +138,7 @@ add_library(
         src/revisioned_review_draft.cpp
         src/reply_draft_standing.cpp
         src/thread_reply.cpp
+        src/conversation_timeline.cpp
         src/note_placement.cpp
         src/review_submission.cpp
         src/review_submission_unknown.cpp

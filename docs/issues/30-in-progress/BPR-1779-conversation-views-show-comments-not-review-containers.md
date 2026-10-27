@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1779"
 title: "Conversation views show the comments themselves; a review is only the bundle they were posted in"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
