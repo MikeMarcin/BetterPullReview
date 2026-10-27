@@ -1,20 +1,20 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1068"
-title: "Qualify standalone packages and native headless safety"
+title: "Qualify bundled macOS CLI and native headless safety"
 status: "In Progress"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1059", "BPR-1062", "BPR-1063", "BPR-1066", "BPR-1067"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-17","milestone":"verification-closeout","acceptance":["AC44-12"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Only the owner's Windows device-flow sign-in remains; it waits on the owner, not on an implementer."}}
 ---
 
-# BPR-1068: Qualify standalone packages and native headless safety
+# BPR-1068: Qualify bundled macOS CLI and native headless safety
 
 Pack alias: **PACK-PRTOUR-17** (live `BPR-1068`, allocated at import).
 
 ## Outcome
 
-Prove first-run profile/auth setup without a desktop install, and produce tests-disabled standalone CLI packages using existing target-native lanes and dependency/notices policy. Exercise native console/process/vault/owner channel, editor/temp and output safety. Preserve supported/unsupported transport distinctions rather than equate compiling with service qualification.
+Apply the owner's [bundled-cli-r1 amendment](../../rfcs/amendments/RFC-BPR-0044-bundled-cli-r1.md): qualify `Contents/MacOS/bpr` and its runtime closure in the macOS desktop release, including final-path capabilities, first-run profile/authentication, relocation, signatures/notarization, installed notices, SPDX and corresponding source. No separate CLI release is promised or required for the macOS workflow. Preserve the historical Windows/Linux native safety obligations and their actual evidence. Exercise native console/process/vault/owner channel, editor/temp and output safety. Preserve supported/unsupported transport distinctions rather than equate compiling with service qualification.
 
 ## Existing ownership seams
 

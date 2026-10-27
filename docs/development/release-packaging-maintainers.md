@@ -24,6 +24,15 @@ human prerequisites are in `.codex/skills/publish-release/references/`.
 
 ## Build hosts and toolchains
 
+macOS builds with local automation also build `app_bpr`; `tools/release.sh`
+deploys it at `Contents/MacOS/bpr` with `macdeployqt -executable`, restricts its
+plugin/library paths to the bundle, signs it as nested executable code, and
+runs `scripts/verify_bundled_cli.py` on the final app and a relocated copy.
+The same notices, SPDX file inventory, security scan and version-bound source
+asset cover the CLI. Exact native sign-in and Developer ID/notarization remain
+additional acceptance for each changed release. The automation-off variant
+excludes `bpr` and must not promise the `pr-tour` workflow.
+
 Every distribution graph uses Release, `BUILD_TESTING=OFF`,
 `BPR_DISTRIBUTION_BUILD=ON`, pinned Qt 6.12.0 and the audited dependencies.
 Build from committed, clean source.
