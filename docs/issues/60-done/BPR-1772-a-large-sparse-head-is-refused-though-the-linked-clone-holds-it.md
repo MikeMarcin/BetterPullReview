@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1772"
 title: "A large sparse head is refused as too large although the linked clone could lend it"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1772--BPR-1773--b27f9d2285df.json","kind":"defect","found_by":"owner photograph, 2026-10-26: Set up an agent, Check it works, on a large repository with a linked clone","related_cards":["BPR-1738","BPR-1751","BPR-1752"],"related_rfcs":["RFC-BPR-0092"]}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3df9e220bdd4910e8c5adafb52b40780fdedda27","evidence":{"kind":"command","detail":"git_process_contract (test_better_pull_review_git_process_contract_tests): a HeadFromClone request against a real clone without the head is refused as object_unavailable, leaves the parent empty and the clone's inventory unchanged; once the clone holds the head it copies nothing (empty pack), is not shallow, and checks the head's files out of the clone."}},{"criterion":"AC2","outcome":"pass","revision":"3df9e220bdd4910e8c5adafb52b40780fdedda27","evidence":{"kind":"command","detail":"application_epoch_host, sparse_agent_workspace_is_made_from_the_heads_snapshot: with a clone that holds the head and a download that would hit response_limit, the workspace is made with no snapshot request (fails before the fix); a clone without the head is asked first, then the snapshot is downloaded; a too-large download the clone lacks reports too_large_not_in_clone."}},{"criterion":"AC3","outcome":"pass","revision":"3df9e220bdd4910e8c5adafb52b40780fdedda27","evidence":{"kind":"command","detail":"qt_agent_launch_panel: the stop banner shows the too_large_not_in_clone words; qt_agent_setup_view and application_agent_workspace pass with the shared reason. Five focused ctest entries pass on macOS dev."}}]
 ---
 
 # BPR-1772: A large sparse head is refused as too large although the linked clone could lend it
@@ -78,5 +78,12 @@ linked clone, which still refuses a head this large.
   `too_large_not_in_clone` (epoch host tests).
 - AC3. The Agent tab's stop banner and the setup's check show the new
   reason's words (Qt launch panel tests; setup view shares the reason).
-- AC4. The owner's Check again on their repository passes when their clone
-  holds the head. Owner-only: their repository and machine.
+
+## Not verified
+
+The owner's own Check again on their repository is not observed: it needs a
+build that contains this commit, their clone holding the head, and their
+machine. If their clone does not hold the head yet, the check now says to
+fetch the pull request's branch there instead of only "too large". The
+format gate ran on the touched files; `coding-tidy` and the full suite did
+not run for this slice.
