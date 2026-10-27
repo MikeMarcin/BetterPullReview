@@ -307,7 +307,11 @@ namespace {
 			select_file(aWindow, "review.cpp");
 			select_range(aWindow, core::diff_side::right, 2, 4);
 			aWindow.add_tour_stop_action()->trigger();
+			// [[BPR-1783]]. A new stop starts in its title, and Tab goes on to its body.
+			wait([&] { return editor.selected_stop() && editor.selected_stop()->Title.empty() && editor.stop_title()->hasFocus(); }, "a new stop takes the keyboard in its title");
 			editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
+			key(editor.stop_title(), QKeyCombination{ Qt::Key_Tab });
+			expect(editor.stop_body()->hasFocus(), "Tab from a new stop's title reaches its body");
 			editor.stop_body()->insertPlainText(QStringLiteral("The explanation and source stay together. Review the invariant and its limits.\n\n") + QString(944, QLatin1Char{ 'x' }));
 		}
 		while (editor.shown().Draft->Stops.size() < aCount) {
@@ -318,6 +322,7 @@ namespace {
 		}
 		saved(editor);
 		editor.show_stops();
+		expect(editor.stop_body()->hasFocus(), "a titled stop still opens on its body");
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		QApplication::processEvents();
 	}

@@ -1379,7 +1379,12 @@ namespace bpr::qt {
 		open_brief(-1);
 		Roadmap->setCurrentIndex(2);
 		place_stop_card();
-		Body->setFocus();
+		const auto* stop = selected_stop();
+		if (stop != nullptr && stop->Title.empty()) {
+			Title->setFocus();
+		} else {
+			Body->setFocus();
+		}
 	}
 	auto review_tour_editor::selected_stop() const -> const core::tour_stop*
 	{
@@ -1824,6 +1829,15 @@ namespace bpr::qt {
 			}
 			Body->bind_document(document);
 			Editing = stop->Id;
+			// [[BPR-1783]]. A stop with no title yet, a new one above all,
+			// takes the keyboard in its title; Tab goes on to the body.
+			if (stop->Title.empty()) {
+				if (RefocusStop != nullptr) {
+					RefocusStop = Title;
+				} else if (StopFields->isAncestorOf(QApplication::focusWidget())) {
+					Title->setFocus(Qt::OtherFocusReason);
+				}
+			}
 		}
 		if (changed || Shown.Refusal == core::tour_refusal::none) {
 			if (Title->text() != QString::fromStdString(stop->Title)) {
