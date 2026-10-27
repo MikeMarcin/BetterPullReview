@@ -65,6 +65,9 @@ auto main(int argc, char** argv) -> int
 	auto* const said     = child<QLabel>(editor, "tourPublicationWorkingStatus");
 	auto* const link     = child<QLabel>(editor, "tourPublicationLink");
 
+	// [[BPR-1787]]. The brief goes in the description unless the author says otherwise.
+	expect(describe->isChecked() && describe->toolTip().contains(QStringLiteral("Problem and Solution go in the PR description")) && describe->toolTip().contains(QStringLiteral("Off: Problem and Solution go in the tour comment")), "Update PR description starts on and says where the brief goes");
+
 	// Admitted: a previewed plan, Publish ready, nothing in the panel.
 	editor.present_publication({ .Status = "Preview ready.", .Markdown = "## Tour\n\nWhat GitHub will show.", .Publish = true, .Reconcile = true });
 	QApplication::processEvents();

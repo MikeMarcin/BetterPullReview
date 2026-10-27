@@ -34,19 +34,23 @@ namespace bpr::app {
 		submission.Proposal.Attempt       = core::review_submission_attempt_id{ draft.Revision };
 		submission.Proposal.Target        = aBinding.Target.Semantic;
 		submission.Proposal.ActingAccount = aBinding.ActingIdentity.Account;
-		submission.Proposal.Body          = "## Problem\n\n" + draft.Problem + "\n\n## Solution\n\n" + draft.Solution;
-		submission.Proposal.Disposition   = core::review_disposition::comment;
-		submission.IdempotencyKey         = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision);
-		submission.LiveBinding            = aBinding;
+		// [[BPR-1787]]. The brief is published in one place. A new tour puts it
+		// where the author chose; a published tour keeps it where it is.
+		const bool briefInDescription   = draft.Remote ? core::tour_brief_in_description(draft) : aOptions.Description;
+		submission.Proposal.Body        = core::tour_comment_lead(draft, draft.Remote ? !core::tour_brief_in_comment(draft) : briefInDescription);
+		submission.Proposal.Disposition = core::review_disposition::comment;
+		submission.IdempotencyKey       = "tour-" + std::to_string(draft.Owner.Profile.value()) + "-" + std::to_string(draft.Id.value()) + "-" + std::to_string(draft.Revision);
+		submission.LiveBinding          = aBinding;
 		application::staged_review_plan value{ .Submission = std::move(submission), .Owner = draft.Owner, .Generation = draft.Revision, .Stops = std::move(stops), .Compatibility = compatibility };
 		if (draft.Remote) {
 			value.Update = draft;
 			std::erase_if(value.Stops, [&](const auto& aStop) {const auto found=std::ranges::find(draft.Stops,aStop.Id,&core::tour_stop::Id);return found!=draft.Stops.end() && !core::needs_tour_destination(*found); });
 		}
-		if (aOptions.Description) {
+		if (briefInDescription) {
 			const auto desired = core::propose_tour_description(draft, aDescription);
 			if (!desired) {
-				result.Status = "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained.";
+				result.Status = draft.Remote ? "Map Problem and Solution in the current website description before updating it. Unrelated template text is retained."
+											 : "The description has a Problem or Solution heading that cannot be matched. Give it exactly one of each, or turn off Update PR description to keep the brief in the tour comment.";
 				return result;
 			}
 			if (*desired != aDescription || !draft.Remote) {
@@ -80,6 +84,14 @@ namespace bpr::app {
 			+ "\n\nHost: " + std::string{ aPlan.Submission.LiveBinding->Target.Hostname.value() } + " · Repository: " + aPlan.Submission.LiveBinding->Target.Repository.Owner + "/" + aPlan.Submission.LiveBinding->Target.Repository.Name + " · Actor: " + aPlan.Submission.LiveBinding->ActingIdentity.Login + " · PR #" + std::to_string(aPlan.Submission.LiveBinding->Target.Number.value()) + "\n\nHead: `" + std::string{ core::canonical_hex(aPlan.Submission.LiveBinding->Target.Semantic.ExpectedHead).view() } + "`\n\n" + aPlan.Submission.Proposal.Body;
 		for (const auto& stop : aPlan.Stops) {
 			result += "\n\n### " + stop.Title + "\n\n" + stop.SourceLink + "\n\n" + stop.Narrative;
+		}
+		// [[BPR-1787]]. The preview says where the brief goes.
+		if (!aPlan.Update) {
+			result += aPlan.Submission.Proposal.Body == core::tour_brief_in_description_note ? "\n\nProblem and Solution go in the PR description, not the tour comment." : "\n\nProblem and Solution go in the tour comment.";
+		} else {
+			const bool comment = core::tour_brief_in_comment(*aPlan.Update), description = core::tour_brief_in_description(*aPlan.Update);
+			result += comment && description ? "\n\nProblem and Solution stay in the tour comment and the PR description, where they were published." : description ? "\n\nProblem and Solution stay in the PR description, where they were published."
+																																									: "\n\nProblem and Solution stay in the tour comment, where they were published.";
 		}
 		result += aPlan.Description ? "\n\n### Separate optional description edit\n\nAfter the tour succeeds, replace the description with:\n\n" + aPlan.Description->Desired + (aPlan.Description->AppendIndexLink ? "\n\nThe returned tour link will be placed at the top." : "") : "\n\nThe PR description will not be edited.";
 		if (aPlan.Update) {
