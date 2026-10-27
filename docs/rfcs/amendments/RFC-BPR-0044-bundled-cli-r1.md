@@ -49,7 +49,7 @@ distribution would need its own decision and qualification.
 
 Affected live sources: RFC-BPR-0044 and AC44-12;
 [the milestone plan](../plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json),
-[BPR-1068](../../issues/30-in-progress/BPR-1068-qualify-standalone-packages-and-native-headless-safety.md),
+[BPR-1068](../../issues/40-parked/BPR-1068-qualify-standalone-packages-and-native-headless-safety.md),
 [BPR-1070](../../issues/10-backlog/BPR-1070-document-the-workflow-and-simplify-the-integration.md),
 the macOS release producer and verifier, `pr-tour` skill package, and CLI/user
 documentation. Reconcile those through `implement-rfc`; retain existing passing

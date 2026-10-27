@@ -2,10 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1068"
 title: "Qualify bundled macOS CLI and native headless safety"
-status: "In Progress"
+status: "Parked"
 rfcs: ["RFC-BPR-0044", "RFC-BPR-0045", "RFC-BPR-0046"]
 depends_on: ["BPR-1059", "BPR-1062", "BPR-1063", "BPR-1066", "BPR-1067"]
 metadata: {"pack":"bpr-pr-tour-cli-extension-v1","pack_alias":"PACK-PRTOUR-17","milestone":"verification-closeout","acceptance":["AC44-12"],"milestone_plan":{"id":"bpr-pr-tour-cli-extension-v1","path":"docs/rfcs/plans/bpr-pr-tour-cli-extension-v1/milestone-plan.json"},"triage_20261026":{"date":"2026-10-26","disposition":"updated","reason":"Only the owner's Windows device-flow sign-in remains; it waits on the owner, not on an implementer."}}
+parked_on: "human-review"
+acceptance: [{"criterion":"AC44-12","outcome":"pending","revision":"e0d07290a9d10b56d8c44a2a6e0e0dcc6792f71b","evidence":{"kind":"command","detail":"Universal bundled CLI and full package/security/source mechanics pass; final and relocated headless/profile/refusal probes and skill smoke pass. Native sign-in, actual release Developer ID/notarization/Gatekeeper, legal/vulnerability and remaining platform obligations are pending; see RFC-BPR-0044-0046 ledger and external fresh session 090216984c73ddb7006b51c64ba42120."}}]
 ---
 
 # BPR-1068: Qualify bundled macOS CLI and native headless safety
