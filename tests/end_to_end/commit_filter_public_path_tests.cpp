@@ -323,7 +323,8 @@ namespace {
 
 		// AC01: the Commits tab sits beside Status and lists C1 to C3.
 		auto* const drawer = window.overview_page()->status_drawer();
-		expect(drawer->tabs()->count() == 2 && drawer->tabs()->tabText(1) == QStringLiteral("Commits"), "Commits sits beside Status");
+		// [[BPR-1781]]: then the conversation tabs.
+		expect(drawer->tabs()->count() == 6 && drawer->tabs()->accessibleTabName(1) == QStringLiteral("Commits"), "Commits sits beside Status");
 		drawer->tabs()->setCurrentIndex(1);
 		wait_for([&] {
 			const auto* rows = tab(window)->model();

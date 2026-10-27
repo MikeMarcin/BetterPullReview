@@ -4,6 +4,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "private_data_root.hpp"
@@ -276,8 +277,12 @@ int main(int aArgc, char** aArgv)
 		finalWindow.conversations_drawer_toggle_action()->trigger();
 	}
 	auto* replyCards = finalWindow.conversation_panel()->cards();
-	wait_for([&] { return replyCards->pull_request_comments_chip()->isVisible(); }, "PR-level chip is reachable in the production Review drawer");
+	wait_for([&] { return replyCards->pull_request_comments_chip()->isVisible(); }, "the pull request conversation link is reachable in the production Review drawer");
+	// [[BPR-1781]]. The link opens Overview's Comments tab, where the pull
+	// request's conversation now lives; the reply is written there.
 	replyCards->pull_request_comments_chip()->click();
+	wait_for([&] { return finalWindow.showing_overview() && replyCards->pull_request_comments_shown() && finalWindow.overview_page()->status_drawer()->isAncestorOf(replyCards); },
+			 "the link opens the conversation on Overview's Comments tab");
 	replyCards->open_thread(comment);
 	auto* reply = replyCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"));
 	expect(reply != nullptr, "PR comment offers Reply in place");
@@ -300,8 +305,9 @@ int main(int aArgc, char** aArgv)
 		replyWindow.conversations_drawer_toggle_action()->trigger();
 	}
 	replyCards = replyWindow.conversation_panel()->cards();
-	wait_for([&] { return replyCards->pull_request_comments_chip()->isVisible(); }, "restarted drawer chip appears");
+	wait_for([&] { return replyCards->pull_request_comments_chip()->isVisible(); }, "restarted drawer link appears");
 	replyCards->pull_request_comments_chip()->click();
+	wait_for([&] { return replyWindow.showing_overview() && replyCards->pull_request_comments_shown(); }, "the restarted link opens Overview's Comments");
 	replyCards->open_thread(comment);
 	replyCards->open_card()->findChild<QAbstractButton*>(QStringLiteral("threadReplyField"))->click();
 	wait_for([&] { return replyCards->reply_editor() && replyCards->reply_editor()->toPlainText() == QStringLiteral("BPR-1603 composed reply"); }, "reply text survives a fresh application");

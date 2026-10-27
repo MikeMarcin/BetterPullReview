@@ -2409,8 +2409,16 @@ function(bpr_verify_full_application_digest source_variable)
 	# No credential, provider selection, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
 	# application_comment_edit_contract qualifies these bytes.
+	# [[BPR-1781]] Overview drawer reseal (2026-10-27), over fa9daf9db.
+	# github_application.cpp routes Overview's Start tour: a published tour
+	# already in the window opens Review's Tour tab at its first stop; one
+	# only on offer is imported first through the tour host's existing
+	# import_selected, and opens once its presentation arrives. Asked on
+	# Overview, the Agent tab's suggestions name no file or lines. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"f42e4cfd0585f931311bcd91d2c473a3448bad60caed4642840c4f98ed4c7d51"
+		"d596a58284d16215f3c418197314d3f23a6d664aad35c9a8c41d61ce9c8f8860"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2642,8 +2650,10 @@ function(bpr_verify_app_source_tree app_source_root)
 # mutation or publication change; source inventory and mutation pin unchanged.
 # [[BPR-1775]] comment-edit reseal (2026-10-27): github_application.cpp,
 # main.cpp and the public-path fixture, as described at the full digest.
+# [[BPR-1781]] Overview drawer reseal (2026-10-27): github_application.cpp
+# alone, as described at the full digest.
 	set(bpr_expected_production_app_manifest_digest
-        "386810bb5b931e820dfcc1b0b12c0f000374ac3e881349edaf408fb9565f8763"
+        "9a6c4a259dbe3005c90d0d75b870c183ab641d18f7f00a935be436dab54f38a5"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
