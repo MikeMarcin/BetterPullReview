@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1785"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "owner 2026-10-27: note under tour stop navigation for hidden large diffs",
+  "created": "2026-10-27T16:57:05.620975+00:00",
+  "base": "0606299a063e2db2c14fe008a30256410024d0f3"
+}
