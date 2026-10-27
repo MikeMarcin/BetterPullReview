@@ -83,6 +83,8 @@ namespace bpr::qt {
 		std::optional<markdown_code_theme> CodeTheme;
 		/// [[BPR-1564]]. A comment on lines: how its suggestions show.
 		std::optional<markdown_suggestion_presentation> Suggestions;
+		/// [[BPR-1775]]. Edit is offered on my own published comments.
+		bool CommentEditOffered = false;
 	};
 
 	/// \brief [[BPR-1290]]. A post's quiet glyph button in its name row:
@@ -147,6 +149,17 @@ namespace bpr::qt {
 		auto open_reaction_picker() -> reaction_picker*;
 		/// \brief A reaction chosen in the picker or pressed under the body.
 		std::function<void(core::reaction_content)> ReactionRequested;
+		/// \brief [[BPR-1775]]. Offers Edit among the post's tools.
+		void               set_editable(bool aEditable);
+		[[nodiscard]] auto edit_button() const noexcept -> post_tool*;
+		/// \brief [[BPR-1775]]. Edit pressed.
+		std::function<void()> EditRequested;
+		/// \brief [[BPR-1775]]. Puts \p aPanel (the editor) in the body's
+		/// place, or the body back with none. The post keeps its name row.
+		void               set_edit_panel(QWidget* aPanel);
+		[[nodiscard]] auto edit_panel() const noexcept -> QWidget*;
+		/// \brief [[BPR-1775]]. The editor's height changed.
+		void refresh_edit_geometry();
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -173,6 +186,10 @@ namespace bpr::qt {
 		post_tool*                            ReactButton = nullptr;
 		reaction_bar*                         Reactions   = nullptr;
 		std::optional<core::reaction_summary> Summary;
+		/// [[BPR-1775]].
+		post_tool* EditButton = nullptr;
+		QWidget*   EditPanel  = nullptr;
+		bool       Editable   = false;
 	};
 
 	/// \brief A button drawn as the prototype draws it: a filled signal pill
@@ -254,6 +271,26 @@ namespace bpr::qt {
 		[[nodiscard]] auto resolve_conversation() const noexcept -> QAbstractButton*;
 		/// \brief [[BPR-1741]]. A reaction asked for on one post.
 		std::function<void(const std::string&, core::reaction_content)> Reaction;
+		/// \brief [[BPR-1775]]. Shows the editor in place of the named
+		/// post's body, or closes it with none. The editor's text is put only
+		/// when it differs from what it holds, so typing is never disturbed.
+		void present_comment_edit(const std::optional<comment_edit_presentation>& aEdit);
+		/// \brief [[BPR-1775]]. The editor's parts, while it is shown.
+		[[nodiscard]] auto comment_editor() const noexcept -> scoped_prose_editor*;
+		[[nodiscard]] auto comment_edit_save_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto comment_edit_cancel_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto comment_edit_newer_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto comment_edit_status() const noexcept -> QLabel*;
+		/// \brief [[BPR-1775]]. Edit asked for on one post, from its tool or
+		/// its body menu.
+		std::function<void(const std::string&)> EditRequested;
+		/// \brief [[BPR-1775]]. The editor's raw text after each change.
+		std::function<void(const std::string&)> EditText;
+		/// \brief [[BPR-1775]]. Save (⌘↩), Cancel (Esc) and Edit GitHub's
+		/// newer text, pressed in the editor.
+		std::function<void()> EditSave;
+		std::function<void()> EditCancel;
+		std::function<void()> EditNewer;
 		/// \brief Updates durable read marks without replacing readers or their menus.
 		void present_read_state(const thread_card& aCard);
 		/// \brief Whether \p aWatched is a post's rendered or source text,
@@ -368,6 +405,15 @@ namespace bpr::qt {
 		/// What a reply here is attached to on GitHub ([[BPR-1084]]).
 		core::suggestion_placement_observation Placement;
 		std::vector<thread_post_view*>         Posts;
+		/// [[BPR-1775]]. The comment editor and the post it is in.
+		QWidget*             EditPanel = nullptr;
+		std::string          EditPost;
+		scoped_prose_editor* EditEditor       = nullptr;
+		QLabel*              EditStatus       = nullptr;
+		QAbstractButton*     EditSaveButton   = nullptr;
+		QAbstractButton*     EditCancelButton = nullptr;
+		QAbstractButton*     EditNewerButton  = nullptr;
+		bool                 EditApplying     = false;
 	};
 } // namespace bpr::qt
 

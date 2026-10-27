@@ -3,6 +3,7 @@
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/github_cli_consent.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/scoped_prose_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
 #include "owner_186_fixture.hpp"
@@ -30,6 +31,7 @@
 #include <QPointer>
 #include <QScrollBar>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QThread>
@@ -2831,6 +2833,170 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-1775]]. A thread with someone's comment and my reply (CRLF in
+	/// its body), and my pull request comment.
+	void editing_view(qt::conversation_cards_view& aView)
+	{
+		aView.resize(440, 900);
+		aView.show();
+		QApplication::processEvents();
+		aView.set_viewer_login(QStringLiteral("reviewer-one"));
+		auto mine = conversation{ .Id = "issue-comment:IC1", .Kind = application::github_conversation_kind::issue_comment, .AuthorLogin = "reviewer-one", .Body = "My pull request comment." };
+		aView.adopt({ thread("review-thread:T1", "src/a.cpp", 10U), reply("review-comment:C1", "review-thread:T1", "someone", "Please rename this."),
+					  reply("review-comment:C2", "review-comment:C1", "reviewer-one", "Done.\r\nRenamed."), mine });
+		aView.set_feed(true);
+		aView.set_scope(qt::cards_scope::whole_pull_request);
+		aView.open_thread("review-thread:T1");
+		QApplication::processEvents();
+	}
+
+	[[nodiscard]] auto edit_menu_of(QWidget* aPost) -> QMenu*
+	{
+		auto* const reader   = static_cast<qt::markdown_body_view*>(aPost->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+		auto* const viewport = reader->rendered_view()->viewport();
+		auto        context  = QContextMenuEvent{ QContextMenuEvent::Mouse, QPoint{ 5, 5 }, viewport->mapToGlobal(QPoint{ 5, 5 }) };
+		QApplication::sendEvent(viewport, &context);
+		QApplication::processEvents();
+		return reader->findChild<QMenu*>(QStringLiteral("markdownReaderContextMenu"));
+	}
+
+	void press_in(QWidget* aWidget, const int aKey, const Qt::KeyboardModifiers aModifiers)
+	{
+		auto overrideEvent = QKeyEvent{ QEvent::ShortcutOverride, aKey, aModifiers };
+		QApplication::sendEvent(aWidget, &overrideEvent);
+		auto press = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+		QApplication::sendEvent(aWidget, &press);
+		QApplication::processEvents();
+	}
+
+	/// [[BPR-1775]]. Edit is offered on my own published comments alone, in
+	/// the post's tools and its body menu; the editor takes the body's place
+	/// on GitHub's exact bytes; Save (⌘↩ too) is a gesture with the original;
+	/// Esc and Cancel close it and send nothing; while GitHub is asked the
+	/// text is held; a conflict keeps the typed text and offers GitHub's
+	/// newer text; a withdrawn offer closes it.
+	auto test_my_comments_are_edited_in_place() -> void
+	{
+		qt::conversation_cards_view view;
+		editing_view(view);
+		auto saves = std::vector<qt::comment_edit_save>{ };
+		view.set_comment_edit_dispatch([&saves](const qt::comment_edit_save& aSave) { saves.push_back(aSave); });
+		auto* mine   = post_named(view, QStringLiteral("review-comment:C2"));
+		auto* theirs = post_named(view, QStringLiteral("review-comment:C1"));
+		expect(mine != nullptr && mine->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->isHidden() && !view.begin_comment_edit("review-comment:C2"),
+			   "without the composition's offer no post offers Edit");
+		auto* menu = edit_menu_of(mine);
+		expect(menu != nullptr && menu->findChild<QAction*>(QStringLiteral("postEdit")) == nullptr, "and the body menu has no Edit");
+		delete menu;
+		view.set_comment_edit_offered(true);
+		QApplication::processEvents();
+		mine             = post_named(view, QStringLiteral("review-comment:C2"));
+		theirs           = post_named(view, QStringLiteral("review-comment:C1"));
+		auto* const edit = mine->findChild<QAbstractButton*>(QStringLiteral("threadPostEdit"));
+		expect(edit != nullptr && !edit->isHidden() && edit->focusPolicy() == Qt::StrongFocus && edit->accessibleName() == QStringLiteral("Edit your comment"),
+			   "my reply offers Edit among its tools, focusable and named");
+		expect(theirs->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->isHidden() && !view.comment_editable("review-comment:C1") && !view.begin_comment_edit("review-comment:C1"),
+			   "someone else's comment offers no Edit");
+		expect(view.comment_editable("issue-comment:IC1") && view.comment_editable("review-comment:C2"), "my pull request comment and my reply are editable");
+		menu = edit_menu_of(theirs);
+		expect(menu != nullptr && menu->findChild<QAction*>(QStringLiteral("postEdit")) == nullptr, "someone else's body menu has no Edit");
+		delete menu;
+		menu              = edit_menu_of(mine);
+		auto* const entry = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("postEdit")) : nullptr;
+		expect(entry != nullptr && entry->isEnabled() && entry->text() == QStringLiteral("Edit"), "my body menu offers Edit");
+		menu->hide();
+		entry->trigger();
+		delete menu;
+		QApplication::processEvents();
+		auto* editor = view.comment_editor();
+		expect(view.comment_editing() == std::optional<std::string>{ "review-comment:C2" } && editor != nullptr && editor->isVisible() && editor->raw() == "Done.\r\nRenamed."
+				   && editor->window()->focusWidget() == editor && view.comment_edit_original() == "Done.\r\nRenamed.",
+			   "Edit opens the editor focused, on GitHub's exact bytes");
+		mine = post_named(view, QStringLiteral("review-comment:C2"));
+		expect(mine->findChild<QWidget*>(QStringLiteral("threadPostReader"))->isHidden() && mine->isAncestorOf(editor) && mine->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->isHidden(),
+			   "the editor takes the body's place in the post, under its name");
+		auto end = editor->textCursor();
+		end.movePosition(QTextCursor::End);
+		editor->setTextCursor(end);
+		editor->insertPlainText(QStringLiteral(" Also tested."));
+		QApplication::processEvents();
+		press_in(editor, Qt::Key_Return, Qt::ControlModifier);
+		expect(saves.size() == 1U && saves.back() == qt::comment_edit_save{ .Post = "review-comment:C2", .Original = "Done.\r\nRenamed.", .Body = "Done.\r\nRenamed. Also tested." },
+			   "⌘↩ is Save: a gesture carrying the post, the original and the text, untouched bytes kept");
+		view.present_comment_edit_status(QStringLiteral("Saving your comment to GitHub…"), true);
+		QApplication::processEvents();
+		expect(editor->isReadOnly() && !view.comment_edit_save_button()->isEnabled() && view.comment_edit_status()->text() == QStringLiteral("Saving your comment to GitHub…"),
+			   "while GitHub is asked the text and Save are held, and the words show");
+		press_in(editor, Qt::Key_Escape, Qt::NoModifier);
+		expect(view.comment_editing().has_value(), "Esc does not abandon a save in flight");
+		view.present_comment_edit_status(QStringLiteral("Someone changed this comment on GitHub since you began. Nothing was saved."));
+		view.offer_newer_comment("Changed elsewhere.");
+		QApplication::processEvents();
+		editor = view.comment_editor();
+		expect(!editor->isReadOnly() && editor->raw() == "Done.\r\nRenamed. Also tested." && view.comment_edit_newer_button()->isVisible(),
+			   "a conflict keeps the typed text and offers GitHub's newer text");
+		// A refresh with GitHub's newer body rebuilds the thread: the edit stays.
+		view.adopt({ thread("review-thread:T1", "src/a.cpp", 10U), reply("review-comment:C1", "review-thread:T1", "someone", "Please rename this."),
+					 reply("review-comment:C2", "review-comment:C1", "reviewer-one", "Changed elsewhere."),
+					 conversation{ .Id = "issue-comment:IC1", .Kind = application::github_conversation_kind::issue_comment, .AuthorLogin = "reviewer-one", .Body = "My pull request comment." } });
+		QApplication::processEvents();
+		editor = view.comment_editor();
+		expect(editor != nullptr && editor->raw() == "Done.\r\nRenamed. Also tested." && view.comment_edit_newer_button()->isVisible(), "a refresh keeps the editor, the typed text and the offer");
+		view.comment_edit_newer_button()->click();
+		QApplication::processEvents();
+		expect(editor->raw() == "Changed elsewhere." && view.comment_edit_original() == "Changed elsewhere." && !view.comment_edit_newer_button()->isVisible()
+				   && view.comment_edit_status()->text() == QStringLiteral("Editing GitHub's newer text."),
+			   "Edit GitHub's newer text loads it as the new original");
+		press_in(editor, Qt::Key_Escape, Qt::NoModifier);
+		expect(!view.comment_editing().has_value() && view.comment_editor() == nullptr && saves.size() == 1U, "Esc cancels and sends nothing");
+		expect(!post_named(view, QStringLiteral("review-comment:C2"))->findChild<QWidget*>(QStringLiteral("threadPostReader"))->isHidden(), "the body is back");
+
+		// The pull request comment is edited from its own tool; Cancel closes.
+		expect(view.begin_comment_edit("issue-comment:IC1") && view.open_thread_id() == "issue-comment:IC1" && view.comment_editor() != nullptr
+				   && view.comment_editor()->raw() == "My pull request comment.",
+			   "Edit on my pull request comment opens its card and the editor");
+		view.comment_edit_cancel_button()->click();
+		QApplication::processEvents();
+		expect(!view.comment_editing().has_value(), "Cancel closes the editor");
+		// Withdrawn while editing: the editor closes and nothing is sent.
+		static_cast<void>(view.begin_comment_edit("issue-comment:IC1"));
+		view.set_comment_edit_offered(false);
+		QApplication::processEvents();
+		expect(!view.comment_editing().has_value() && view.comment_editor() == nullptr && saves.size() == 1U, "a withdrawn offer closes the editor");
+		// In Review (not the feed) the same post offers it too.
+		view.set_comment_edit_offered(true);
+		view.set_feed(false);
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		expect(!post_named(view, QStringLiteral("review-comment:C2"))->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->isHidden() && view.begin_comment_edit("review-comment:C2")
+				   && view.comment_editor() != nullptr,
+			   "in Review my comment offers Edit and edits in place");
+		view.close_comment_edit();
+	}
+
+	/// [[BPR-1775]]. Offscreen renders: Edit offered, the editor open, a
+	/// conflict.
+	auto render_comment_edit(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		editing_view(view);
+		view.set_comment_edit_offered(true);
+		QApplication::processEvents();
+		post_named(view, QStringLiteral("review-comment:C2"))->findChild<QWidget*>(QStringLiteral("threadPostEdit"))->setFocus(Qt::TabFocusReason);
+		QApplication::processEvents();
+		expect(view.grab().save(aDirectory + QStringLiteral("/bpr-1775-edit-offered.png")), "render: Edit offered");
+		static_cast<void>(view.begin_comment_edit("review-comment:C2"));
+		QApplication::processEvents();
+		expect(view.grab().save(aDirectory + QStringLiteral("/bpr-1775-editor-open.png")), "render: the editor open");
+		view.comment_editor()->insertPlainText(QStringLiteral("Typed while someone else edited. "));
+		view.present_comment_edit_status(QStringLiteral("Someone changed this comment on GitHub since you began. Nothing was saved."));
+		view.offer_newer_comment("Changed elsewhere.");
+		QApplication::processEvents();
+		expect(view.grab().save(aDirectory + QStringLiteral("/bpr-1775-conflict.png")), "render: a conflict");
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -2847,6 +3013,11 @@ auto main(int argc, char** argv) -> int
 	if (argc > 3 && std::string_view{ argv[1] } == "--render-bpr-1779") {
 		render_owner_186(QString::fromLocal8Bit(argv[2]), QString::fromLocal8Bit(argv[3]));
 		std::cout << "render-bpr-1779:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-1775") {
+		render_comment_edit(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-bpr-1775:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
@@ -2890,6 +3061,7 @@ auto main(int argc, char** argv) -> int
 	test_reactions_render_in_light_and_dark({ });
 	test_conversation_lists_comments_not_reviews();
 	test_a_review_body_is_a_comment_in_its_bundle();
+	test_my_comments_are_edited_in_place();
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

@@ -43,6 +43,7 @@ class QPlainTextEdit;
 class QToolButton;
 class QTimer;
 class QKeyEvent;
+class QLabel;
 class QMouseEvent;
 class QPaintEvent;
 class QPainter;
@@ -477,6 +478,34 @@ namespace bpr::qt {
 	};
 
 	class open_thread_card;
+	class scoped_prose_editor;
+
+	/// \brief [[BPR-1775]]. Save pressed while editing one of my published
+	/// comments: the post as its card names it, the body editing began with,
+	/// byte for byte, and the text to save. A gesture only; the composition
+	/// decides whether anything is sent.
+	struct comment_edit_save
+	{
+		std::string Post;
+		std::string Original;
+		std::string Body;
+
+		auto operator==(const comment_edit_save&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1775]]. One comment being edited, as the open card shows
+	/// it: the post, the text as typed, the words beside the editor, whether
+	/// GitHub is being asked, and whether GitHub's newer text is offered.
+	struct comment_edit_presentation
+	{
+		std::string Post;
+		std::string Text;
+		QString     Status;
+		bool        Saving = false;
+		bool        Newer  = false;
+
+		auto operator==(const comment_edit_presentation&) const -> bool = default;
+	};
 
 	/// \brief RFC-BPR-0028's Comments tab: this file's threads as notes in a
 	/// margin beside the code ([[BPR-0648]], [[BPR-1290]]).
@@ -621,6 +650,42 @@ namespace bpr::qt {
 		[[nodiscard]] auto reactions_of(std::string_view aPost) const -> std::optional<core::reaction_summary>;
 		/// \brief A reaction asked for on a post: the post's identity and the reaction.
 		void set_reaction_dispatch(std::function<void(const std::string&, core::reaction_content)> aDispatch);
+		/// \brief [[BPR-1775]]. Offers Edit on my own published comments, or
+		/// withdraws it. The composition offers it in a signed-in read whose
+		/// connection edits comments; the core decides each post from the
+		/// read's "Mine". Withdrawn while editing, the editor closes and
+		/// nothing is sent.
+		void               set_comment_edit_offered(bool aOffered);
+		[[nodiscard]] auto comment_edit_offered() const noexcept -> bool;
+		/// \brief [[BPR-1775]]. Whether Edit is offered on this post.
+		[[nodiscard]] auto comment_editable(std::string_view aPost) const -> bool;
+		/// \brief [[BPR-1775]]. Where Save goes. Nothing is sent by the view.
+		void set_comment_edit_dispatch(std::function<void(const comment_edit_save&)> aDispatch);
+		/// \brief [[BPR-1775]]. Opens the editor in place of the post's body,
+		/// on GitHub's exact body as the read gave it, opening its thread
+		/// first when it is not open; false when Edit is not offered on it.
+		auto begin_comment_edit(const std::string& aPost) -> bool;
+		/// \brief [[BPR-1775]]. The post being edited, if any.
+		[[nodiscard]] auto comment_editing() const -> std::optional<std::string>;
+		/// \brief [[BPR-1775]]. What the composition says beside the editor;
+		/// `aSaving` holds the text and Save while GitHub is asked.
+		void present_comment_edit_status(const QString& aText, bool aSaving = false);
+		/// \brief [[BPR-1775]]. GitHub's body changed since editing began:
+		/// offers to go on editing from `aNewer`. The typed text stays until
+		/// the offer is taken.
+		void offer_newer_comment(std::string aNewer);
+		/// \brief [[BPR-1775]]. Closes the editor, as after a save GitHub
+		/// answered or on Cancel; the post then shows what the next read
+		/// brings.
+		void close_comment_edit();
+		/// \brief [[BPR-1775]]. The body editing began with.
+		[[nodiscard]] auto comment_edit_original() const -> std::string;
+		/// \brief [[BPR-1775]]. The editor's parts, while one is shown.
+		[[nodiscard]] auto comment_editor() const -> scoped_prose_editor*;
+		[[nodiscard]] auto comment_edit_save_button() const -> QAbstractButton*;
+		[[nodiscard]] auto comment_edit_cancel_button() const -> QAbstractButton*;
+		[[nodiscard]] auto comment_edit_newer_button() const -> QAbstractButton*;
+		[[nodiscard]] auto comment_edit_status() const -> QLabel*;
 		/// \brief [[BPR-1741]]. Each thread's resolution as the viewer
 		/// should see it and GitHub's permission for it, by thread identity.
 		void present_thread_resolutions(std::map<std::string, thread_resolution_presentation> aByThread);
@@ -956,14 +1021,30 @@ namespace bpr::qt {
 		int                         PickedRevealLast  = 0;
 		std::string                 Hovered;
 		/// The thread whose reply editor is shown in its open card.
-		std::string                                                                 Replying;
-		std::vector<thread_read_state>                                              ReadState;
-		bool                                                                        ReadStateKnown    = false;
-		bool                                                                        Feed              = false;
-		bool                                                                        ResolutionOffered = false;
-		std::map<std::string, core::reaction_summary>                               ReactionsBySubject;
-		std::map<std::string, thread_resolution_presentation>                       ResolutionsByThread;
-		std::function<void(const std::string&, core::reaction_content)>             ReactionDispatch;
+		std::string                                                     Replying;
+		std::vector<thread_read_state>                                  ReadState;
+		bool                                                            ReadStateKnown    = false;
+		bool                                                            Feed              = false;
+		bool                                                            ResolutionOffered = false;
+		std::map<std::string, core::reaction_summary>                   ReactionsBySubject;
+		std::map<std::string, thread_resolution_presentation>           ResolutionsByThread;
+		std::function<void(const std::string&, core::reaction_content)> ReactionDispatch;
+		/// [[BPR-1775]]. Edit on my comments, the comment being edited (its
+		/// original, GitHub's newer text when offered) and where Save goes.
+		struct comment_edit_session
+		{
+			std::string                Post;
+			std::string                Original;
+			std::string                Text;
+			std::optional<std::string> Newer;
+			QString                    Status;
+			bool                       Saving = false;
+		};
+		bool                                                                        CommentEditOffered = false;
+		std::optional<comment_edit_session>                                         CommentEdit;
+		std::function<void(const comment_edit_save&)>                               CommentEditDispatch;
+		void                                                                        present_comment_edit();
+		void                                                                        save_comment_edit();
 		bool                                                                        HasFocus = false;
 		discuss_filters                                                             Filters;
 		QString                                                                     PullRequestAuthor;
