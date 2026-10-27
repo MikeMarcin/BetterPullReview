@@ -1,6 +1,7 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_submission_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/core/review_tour_reconciliation.hpp"
 #include "cli_account_wrapper_support.hpp"
 #include "live_review_submission_provider.hpp"
 #include "review_submission_session.hpp"
@@ -1020,6 +1021,48 @@ namespace {
 		}
 	}
 #if defined(__APPLE__)
+	// [[BPR-1787]]. A tour whose brief lives in the description is updated by
+	// the description alone: no comment changes, one write, published.
+	void test_description_only_update()
+	{
+		scratch root;
+		server  remote;
+		auto    provider               = session(remote, root.Path);
+		auto    input                  = plan();
+		input.Submission.Proposal.Body = std::string{ core::tour_brief_in_description_note };
+		input.Description              = application::staged_description_edit{ "Original description.", "## Problem\nProblem\n\n## Solution\nSolution\n\nOriginal description.", true };
+		expect(application::valid(input), "a plan with its brief in the description is valid");
+		const auto original = provider->publish_tour(input, { }, [](const auto&) { return true; });
+		expect(original.State == publication_state::published && original.Record && original.Record->DescriptionDone && remote.Writes == 5, "the new tour is published with its description");
+		expect(remote.Summary.starts_with(std::string{ core::tour_brief_in_description_note }) && !remote.Summary.contains("## Problem") && remote.Description.starts_with("[Review tour](") && remote.Description.contains("## Problem\nProblem\n"), "the brief is in the description, not the tour comment");
+		core::review_tour draft{ .Id = core::tour_draft_id{ 41 }, .Owner = input.Owner, .Base = target().BaseOid, .Head = target().Semantic.ExpectedHead, .Problem = "Problem", .Solution = "Solution", .Revision = input.Generation, .LastStopId = 2 };
+		for (const auto& stop : input.Stops) {
+			draft.Stops.push_back({ .Id = stop.Id, .Title = stop.Title, .Body = stop.Narrative, .Destination = stop.Source });
+		}
+		draft = *application::published_tour(*original.Record, draft);
+		expect(core::tour_brief_in_description(draft) && !core::tour_brief_in_comment(draft), "the published tour knows its brief is in the description");
+		draft.Problem = "Revised problem";
+		++draft.Revision;
+		const auto desired = core::propose_tour_description(draft, remote.Description);
+		expect(desired && desired->contains("## Problem\nRevised problem\n") && desired->starts_with("[Review tour]("), "the revision maps into the description in place");
+		auto update                        = input;
+		update.Submission.IdempotencyKey   = "description-only-1";
+		update.Submission.Proposal.Attempt = core::review_submission_attempt_id{ 8 };
+		update.Generation                  = draft.Revision;
+		update.Stops.clear();
+		update.Update      = draft;
+		update.Description = application::staged_description_edit{ remote.Description, *desired, false };
+		expect(application::valid(update), "a description-only update plan is valid");
+		const auto bodies = application::staged_update_bodies({ .Plan = update });
+		expect(bodies && bodies->Edits.empty(), "no tour comment changes");
+		const auto first = application::staged_initial_request(update);
+		expect(first && first->Operation == application::staged_review_operation::update_description, "the description is the update's only step");
+		const auto summary = remote.Summary;
+		remote.Maintenance = true;
+		const auto result  = provider->publish_tour(update, { }, [](const auto&) { return true; });
+		expect(result.State == publication_state::published && result.Record && result.Record->Published && result.Record->DescriptionDone && remote.Writes == 6, "one description write publishes the update");
+		expect(remote.Summary == summary && remote.Description == *desired, "the tour comment is unchanged and the description carries the revision");
+	}
 	void test_strict_tour_scope()
 	{
 		for (const bool stopAfterPost : { false, true }) {
@@ -1666,6 +1709,7 @@ try {
 		test_staged_sessions();
 		test_compatibility_sessions();
 		test_maintenance_sessions();
+		test_description_only_update();
 		std::cout << "staged-review-session-tests:pass\n";
 	}
 	return EXIT_SUCCESS;

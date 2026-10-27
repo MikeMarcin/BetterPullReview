@@ -38,6 +38,18 @@ namespace bpr::application {
 		}
 		return core::plan_tour_update(*aRecord.Plan.Update, created);
 	}
+	namespace {
+		// [[BPR-1787]]. A tour whose brief lives in the description can be
+		// updated by the description alone: nothing on the tour's comments
+		// changes, so the update is published once the description is.
+		auto tour_edits_done(const staged_publication_record& aRecord, const core::tour_update_bodies& aBodies) -> bool
+		{
+			if (aBodies.Edits.empty() && aRecord.Plan.Stops.empty() && aRecord.Plan.Description) {
+				return aRecord.DescriptionDone;
+			}
+			return aRecord.Updated == aBodies.Edits.size() && aRecord.Patched == aRecord.Comments.size() && (aRecord.Plan.Compatibility || aRecord.Plan.Stops.empty() || aRecord.DestinationsPublished);
+		}
+	}
 	auto staged_update_request(const staged_publication_record& aRecord) -> std::optional<staged_review_request>
 	{
 		if (!aRecord.Plan.Update) {
@@ -91,7 +103,7 @@ namespace bpr::application {
 			++next.Updated;
 		}
 		const auto bodies = staged_update_bodies(next);
-		next.Published    = bodies && next.Updated == bodies->Edits.size() && next.Patched == next.Comments.size() && (next.Plan.Compatibility || next.Plan.Stops.empty() || next.DestinationsPublished);
+		next.Published    = bodies && tour_edits_done(next, *bodies);
 		return next;
 	}
 	auto valid_staged_update(const staged_publication_record& aRecord) -> bool
@@ -106,7 +118,7 @@ namespace bpr::application {
 			return !aRecord.Patched && !aRecord.Updated && !aRecord.Published && (!aRecord.Pending || aRecord.Pending == staged_next_request(aRecord));
 		}
 		const auto bodies = staged_update_bodies(aRecord);
-		if (!bodies || aRecord.Updated > bodies->Edits.size() || aRecord.Published != (aRecord.Updated == bodies->Edits.size() && aRecord.Patched == aRecord.Comments.size() && (aRecord.Plan.Compatibility || aRecord.Plan.Stops.empty() || aRecord.DestinationsPublished))) {
+		if (!bodies || aRecord.Updated > bodies->Edits.size() || aRecord.Published != tour_edits_done(aRecord, *bodies)) {
 			return false;
 		}
 		if (aRecord.Review) {
