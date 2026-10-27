@@ -269,6 +269,8 @@ namespace bpr::qt {
 		addAction(NewLineAction);
 		NewReview = action(tr("New note on the pull request"), QStringLiteral("newReviewNoteAction"));
 		NewReview->setIconText(tr("New note"));
+		NewReview->setShortcutContext(Qt::WidgetWithChildrenShortcut);
+		addAction(NewReview);
 		ElsewhereAction = action(tr("Notes on the pull request"), QStringLiteral("privateNotesElsewhereAction"));
 		ElsewhereAction->setCheckable(true);
 		ElsewhereAction->setToolTip(tr("Notes on the pull request, on whole files and on other files"));
@@ -671,6 +673,26 @@ namespace bpr::qt {
 		const auto blocker = QSignalBlocker{ ElsewhereAction };
 		ElsewhereAction->setChecked(aShown);
 		relayout();
+	}
+
+	void private_notes_panel::set_pull_request_only(const bool aOnly)
+	{
+		if (PullRequestOnly == aOnly) {
+			return;
+		}
+		PullRequestOnly = aOnly;
+		// N is one action at a time: the line's beside the code, the pull
+		// request's on Overview.
+		NewLineAction->setShortcuts(aOnly ? QList<QKeySequence>{ } : shortcut_keys(shortcut_command::new_note));
+		NewReview->setShortcuts(aOnly ? shortcut_keys(shortcut_command::new_note) : QList<QKeySequence>{ });
+		NewReview->setToolTip(aOnly ? tr("New note on the pull request (N)") : tr("New note on the pull request"));
+		BackChip->setVisible(!aOnly);
+		if (aOnly) {
+			ElsewhereBefore = Elsewhere;
+			show_elsewhere(true);
+		} else {
+			show_elsewhere(ElsewhereBefore);
+		}
 	}
 
 	auto private_notes_panel::elsewhere_shown() const noexcept -> bool { return Elsewhere; }
@@ -1412,7 +1434,7 @@ namespace bpr::qt {
 			}
 			break;
 		case Qt::Key_Escape:
-			if (Elsewhere && !Open) {
+			if (Elsewhere && !Open && !PullRequestOnly) {
 				show_elsewhere(false);
 				aEvent->accept();
 				return;

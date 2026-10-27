@@ -2,12 +2,17 @@
 
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/resize_handle_cursor.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_strip.hpp"
 
+#include "conversation_glyphs.hpp"
+#include "drawer_tab_bar.hpp"
+
 #include <QAction>
 #include <QEvent>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QPainter>
 #include <QScrollArea>
@@ -36,6 +41,48 @@ namespace bpr::qt {
 			QObject::connect(&aButton, &QToolButton::clicked, aAction, &QAction::trigger);
 			QObject::connect(aAction, &QAction::changed, &aButton, [&aButton, aAction] { aButton.setEnabled(aAction->isEnabled()); });
 		}
+
+		[[nodiscard]] auto index_of(const overview_drawer_tab aTab) -> int
+		{
+			return static_cast<int>(aTab);
+		}
+
+		[[nodiscard]] auto make_holder(QWidget* const aParent, const QString& aName) -> QWidget*
+		{
+			auto* const holder = new QWidget{ aParent };
+			holder->setObjectName(aName);
+			auto* const column = new QVBoxLayout{ holder };
+			column->setContentsMargins(0, 0, 0, 0);
+			column->setSpacing(0);
+			return holder;
+		}
+
+		/// [[BPR-1781]]. Each tab's name and what it holds, in tab order.
+		[[nodiscard]] auto tab_name(const int aIndex) -> QString
+		{
+			switch (static_cast<overview_drawer_tab>(aIndex)) {
+			case overview_drawer_tab::status:   return QObject::tr("Status");
+			case overview_drawer_tab::commits:  return QObject::tr("Commits");
+			case overview_drawer_tab::comments: return QObject::tr("Comments");
+			case overview_drawer_tab::notes:    return QObject::tr("Notes");
+			case overview_drawer_tab::tour:     return QObject::tr("Tour");
+			case overview_drawer_tab::agent:    return QObject::tr("Agent");
+			}
+			return { };
+		}
+
+		[[nodiscard]] auto tab_about(const int aIndex) -> QString
+		{
+			switch (static_cast<overview_drawer_tab>(aIndex)) {
+			case overview_drawer_tab::status:   return QObject::tr("Where this pull request stands and your part in its review");
+			case overview_drawer_tab::commits:  return QObject::tr("The pull request's commits; show or hide them to filter the files");
+			case overview_drawer_tab::comments: return QObject::tr("The pull request's conversation: its comments and reviews, newest last, and a new comment");
+			case overview_drawer_tab::notes:    return QObject::tr("Your private notes on this pull request. Nothing here is published.");
+			case overview_drawer_tab::tour:     return QObject::tr("The pull request's review tour; write and follow it in Review");
+			case overview_drawer_tab::agent:    return QObject::tr("Agent conversations about this pull request. Nothing here is published.");
+			}
+			return { };
+		}
 	}
 
 	overview_status_drawer::overview_status_drawer(QWidget* const aContent, QWidget* const aParent)
@@ -61,28 +108,27 @@ namespace bpr::qt {
 		Header->setObjectName(QStringLiteral("overviewStatusHeader"));
 		Header->setAutoFillBackground(true);
 		Header->setBackgroundRole(QPalette::Base);
-		Tabs = new QTabBar{ Header };
+		Tabs = new detail::drawer_tab_bar{ Header };
 		Tabs->setObjectName(QStringLiteral("overviewStatusTabs"));
 		Tabs->setAccessibleName(QStringLiteral("Status drawer"));
 		configure_drawer_tabs(*Tabs);
-		Tabs->addTab(QStringLiteral("Status"));
-		Tabs->setTabToolTip(0, QStringLiteral("Where this pull request stands and your part in its review"));
-		// RFC-BPR-0089. The pull request's commits, and the filter set on them.
-		Tabs->addTab(QStringLiteral("Commits"));
-		Tabs->setTabToolTip(1, QStringLiteral("The pull request's commits; show or hide them to filter the files"));
+		Tabs->setUsesScrollButtons(false);
+		// RFC-BPR-0089: Commits beside Status. [[BPR-1781]]: then the
+		// conversation tabs Review's tray has, in its order.
+		for (auto index = 0; index < overview_drawer_tab_count; ++index) {
+			Tabs->addTab(tab_name(index));
+			Tabs->setAccessibleTabName(index, tab_name(index));
+			Tabs->setTabToolTip(index, tab_about(index));
+		}
 		Tools = new QWidget{ Header };
 		Tools->setObjectName(QStringLiteral("overviewStatusTools"));
 		auto* const tools = new QHBoxLayout{ Tools };
 		tools->setContentsMargins(0, 0, 0, 0);
 		tools->setSpacing(1);
-		Tour = make_drawer_tool(Tools, { }, QStringLiteral("Prepare review tour"), QStringLiteral("overviewPrepareTour"));
-		Tour->setAccessibleDescription(QStringLiteral("Write a private problem statement, solution and source tour."));
-		Tour->hide();
 		Github = make_drawer_tool(Tools, { }, QStringLiteral("Open on GitHub"), QStringLiteral("overviewStatusOpenOnGithub"));
 		Github->hide();
 		Hide = make_drawer_tool(Tools, { }, QStringLiteral("Hide the Status drawer"), QStringLiteral("overviewStatusHide"));
 		connect(Hide, &QToolButton::clicked, this, [this] { toggle(); });
-		tools->addWidget(Tour);
 		tools->addWidget(Github);
 		tools->addWidget(Hide);
 		Header->set_parts(Tabs, Tools);
@@ -96,26 +142,159 @@ namespace bpr::qt {
 		Pages->addWidget(Content);
 		Commits = new commit_filter_tab{ Pages };
 		Pages->addWidget(Commits);
-		connect(Tabs, &QTabBar::currentChanged, Pages, &QStackedWidget::setCurrentIndex);
+		CommentsHolder = make_holder(Pages, QStringLiteral("overviewCommentsHolder"));
+		Pages->addWidget(CommentsHolder);
+		NotesHolder = make_holder(Pages, QStringLiteral("overviewNotesHolder"));
+		Pages->addWidget(NotesHolder);
+		TourSummary = new overview_tour_summary{ Pages };
+		Pages->addWidget(TourSummary);
+		AgentHolder = make_holder(Pages, QStringLiteral("overviewAgentHolder"));
+		Pages->addWidget(AgentHolder);
+		set_tour_tab_shown(false);
+		connect(Tabs, &QTabBar::currentChanged, this, [this](const int aIndex) {
+			Pages->setCurrentIndex(aIndex);
+			fit_tabs();
+			if (TabObserver && aIndex >= 0) {
+				TabObserver(static_cast<overview_drawer_tab>(aIndex));
+			}
+		});
+		Header->installEventFilter(this);
 		column->addWidget(Pages, 1);
 		row->addWidget(Expanded, 1);
 		refresh_icons();
 		present();
 	}
 
-	void overview_status_drawer::set_tools(QAction* const aPrepareTour, QAction* const aOpenOnGithub)
+	void overview_status_drawer::set_tools(QAction* const aOpenOnGithub)
 	{
-		if (aPrepareTour != nullptr) {
-			follow(*Tour, aPrepareTour);
-			const auto key = aPrepareTour->shortcut().toString(QKeySequence::NativeText);
-			Tour->setToolTip(key.isEmpty() ? QStringLiteral("Prepare review tour") : QStringLiteral("Prepare review tour (%1)").arg(key));
-			Tour->show();
-		}
 		if (aOpenOnGithub != nullptr) {
 			follow(*Github, aOpenOnGithub);
 			const auto key = aOpenOnGithub->shortcut().toString(QKeySequence::NativeText);
 			Github->setToolTip(key.isEmpty() ? QStringLiteral("Open on GitHub") : QStringLiteral("Open on GitHub (%1)").arg(key));
 			Github->show();
+		}
+	}
+
+	void overview_status_drawer::show_tab(const overview_drawer_tab aTab)
+	{
+		if (aTab == overview_drawer_tab::tour && !tour_tab_shown()) {
+			return;
+		}
+		if (Drawer.State != core::workbench_drawer_state::expanded) {
+			toggle();
+		}
+		Tabs->setCurrentIndex(index_of(aTab));
+	}
+
+	auto overview_status_drawer::current_tab() const -> overview_drawer_tab
+	{
+		return static_cast<overview_drawer_tab>(std::max(0, Tabs->currentIndex()));
+	}
+
+	auto overview_status_drawer::holder(const overview_drawer_tab aTab) const -> QWidget*
+	{
+		switch (aTab) {
+		case overview_drawer_tab::comments: return CommentsHolder;
+		case overview_drawer_tab::notes:    return NotesHolder;
+		case overview_drawer_tab::agent:    return AgentHolder;
+		case overview_drawer_tab::status:
+		case overview_drawer_tab::commits:
+		case overview_drawer_tab::tour:     return nullptr;
+		}
+		return nullptr;
+	}
+
+	auto overview_status_drawer::tour_summary() const noexcept -> overview_tour_summary*
+	{
+		return TourSummary;
+	}
+
+	void overview_status_drawer::set_tour_tab_shown(const bool aShown)
+	{
+		const auto tour = index_of(overview_drawer_tab::tour);
+		if (Tabs->isTabVisible(tour) == aShown) {
+			return;
+		}
+		if (!aShown && Tabs->currentIndex() == tour) {
+			Tabs->setCurrentIndex(index_of(overview_drawer_tab::status));
+		}
+		Tabs->setTabVisible(tour, aShown);
+		fit_tabs();
+	}
+
+	auto overview_status_drawer::tour_tab_shown() const -> bool
+	{
+		return Tabs->isTabVisible(index_of(overview_drawer_tab::tour));
+	}
+
+	void overview_status_drawer::set_tab_observer(std::function<void(overview_drawer_tab)> aObserver)
+	{
+		TabObserver = std::move(aObserver);
+	}
+
+	void overview_status_drawer::fit_tabs(const bool aRepaint)
+	{
+		// [[BPR-1781]]. Six tabs, fitted as Review's tray fits its four
+		// ([[BPR-1684]]): every name; the open tab's glyph and name with the
+		// others' glyphs; glyphs only. The row takes the first that fits.
+		auto* const tabs = static_cast<detail::drawer_tab_bar*>(Tabs);
+		enum class face : std::uint8_t { names,
+										 open_named,
+										 glyphs };
+		const auto current = tabs->currentIndex();
+		const auto textOf  = [current](const face aFace, const int aIndex) {
+			return aFace == face::names || (aFace == face::open_named && aIndex == current) ? tab_name(aIndex) : QString{ };
+		};
+		auto room = Header->width();
+		if (const auto* const grid = qobject_cast<const QGridLayout*>(Header->layout()); grid != nullptr && room > 0) {
+			room -= grid->contentsMargins().left() + 2 * std::max(0, grid->horizontalSpacing());
+		}
+		auto chosen = face::names;
+		if (room > 0) {
+			for (const auto candidate : { face::names, face::open_named, face::glyphs }) {
+				chosen     = candidate;
+				auto width = 0;
+				for (auto index = 0; index < overview_drawer_tab_count; ++index) {
+					if (tabs->isTabVisible(index)) {
+						width += tabs->face_width(index, textOf(candidate, index), candidate != face::names);
+					}
+				}
+				if (width <= room) {
+					break;
+				}
+			}
+		}
+		const auto glyph = [this](const int aIndex) {
+			switch (static_cast<overview_drawer_tab>(aIndex)) {
+			case overview_drawer_tab::status:   return strip_icon(strip_glyph::review_details, palette());
+			case overview_drawer_tab::commits:  return drawer_icon(drawer_glyph::pull_request, palette());
+			case overview_drawer_tab::comments: return conversation_icon(conversation_glyph::comment, palette());
+			case overview_drawer_tab::notes:    return drawer_icon(drawer_glyph::page, palette());
+			case overview_drawer_tab::tour:     return drawer_icon(drawer_glyph::tour, palette());
+			case overview_drawer_tab::agent:    return drawer_icon(drawer_glyph::agent, palette());
+			}
+			return QIcon{ };
+		};
+		auto reshaped = false;
+		for (auto index = 0; index < overview_drawer_tab_count; ++index) {
+			const auto text  = textOf(chosen, index);
+			const auto shown = chosen != face::names;
+			if (aRepaint || tabs->tabIcon(index).isNull() == shown) {
+				reshaped = reshaped || tabs->tabIcon(index).isNull() == shown;
+				tabs->setTabIcon(index, shown ? glyph(index) : QIcon{ });
+			}
+			if (tabs->tabText(index) != text) {
+				reshaped = true;
+				tabs->setTabText(index, text);
+			}
+			// A tab showing only its glyph says its name first.
+			const auto tip = text.isEmpty() ? QStringLiteral("%1\n%2").arg(tab_name(index), tab_about(index)) : tab_about(index);
+			if (tabs->tabToolTip(index) != tip) {
+				tabs->setTabToolTip(index, tip);
+			}
+		}
+		if (reshaped) {
+			tabs->updateGeometry();
 		}
 	}
 
@@ -198,11 +377,6 @@ namespace bpr::qt {
 		return Content;
 	}
 
-	auto overview_status_drawer::tour_button() const noexcept -> QToolButton*
-	{
-		return Tour;
-	}
-
 	auto overview_status_drawer::github_button() const noexcept -> QToolButton*
 	{
 		return Github;
@@ -237,6 +411,9 @@ namespace bpr::qt {
 
 	auto overview_status_drawer::eventFilter(QObject* const aObject, QEvent* const aEvent) -> bool
 	{
+		if (aObject == Header && aEvent->type() == QEvent::Resize) {
+			fit_tabs();
+		}
 		if (aEvent->type() == QEvent::LayoutRequest && Drawer.State == core::workbench_drawer_state::expanded && minimumWidth() != floor_width()) {
 			setMinimumWidth(floor_width());
 		}
@@ -256,6 +433,7 @@ namespace bpr::qt {
 		QWidget::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::PaletteChange) {
 			refresh_icons();
+			fit_tabs(true);
 		}
 	}
 
@@ -299,7 +477,6 @@ namespace bpr::qt {
 
 	void overview_status_drawer::refresh_icons()
 	{
-		Tour->setIcon(drawer_icon(drawer_glyph::tour, palette()));
 		Github->setIcon(strip_icon(strip_glyph::open_on_github, palette()));
 		Hide->setIcon(drawer_icon(drawer_glyph::hide_right, palette()));
 	}

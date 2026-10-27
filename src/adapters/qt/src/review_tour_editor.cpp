@@ -1042,8 +1042,45 @@ namespace bpr::qt {
 		EditingKind = aKind;
 		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = aKind, .Text = aText });
 	}
+	void review_tour_editor::set_presented_observer(std::function<void()> aObserver)
+	{
+		PresentedObserver = std::move(aObserver);
+	}
+
+	void review_tour_editor::go_to_stop(const core::tour_stop_id aStop)
+	{
+		show_stops();
+		if (!Shown.Draft) {
+			return;
+		}
+		const auto found = std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id);
+		if (found == Shown.Draft->Stops.end()) {
+			return;
+		}
+		const auto row = static_cast<int>(found - Shown.Draft->Stops.begin());
+		if (Outline->currentRow() != row) {
+			Outline->setCurrentRow(row, QItemSelectionModel::ClearAndSelect);
+			return;
+		}
+		Selected = aStop;
+		place_stop_card();
+		trigger(tour_editor_action::navigate_stop);
+	}
+
 	void review_tour_editor::present(const application::tour_presentation& aProjection)
 	{
+		// [[BPR-1781]]. Whatever path the presentation leaves by, a summary
+		// elsewhere hears of it.
+		struct presented
+		{
+			const std::function<void()>& Observer;
+			~presented()
+			{
+				if (Observer) {
+					Observer();
+				}
+			}
+		} const notify{ PresentedObserver };
 		Applying         = true;
 		SelectionChanged = false;
 		const bool same  = Shown.Draft && aProjection.Draft && Shown.Draft->Owner == aProjection.Draft->Owner && Shown.Draft->Id == aProjection.Draft->Id;

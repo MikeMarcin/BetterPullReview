@@ -4,6 +4,7 @@
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/overview_tour_summary.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 
 #include <QAction>
@@ -237,7 +238,6 @@ namespace {
 		qt::overview_status_splitter*                     Split  = nullptr;
 		qt::overview_status_drawer*                       Drawer = nullptr;
 		std::vector<application::workbench_status_drawer> Reported;
-		QAction                                           Tour{ QStringLiteral("Prepare review tour") };
 		QAction                                           Github{ QStringLiteral("Open on GitHub") };
 	};
 
@@ -256,7 +256,7 @@ namespace {
 		aFixture.Split->setStretchFactor(1, 0);
 		QObject::connect(aFixture.Split, &QSplitter::splitterMoved, aFixture.Drawer, [&aFixture](int, int) { aFixture.Drawer->observe_drag(aFixture.Drawer->width()); });
 		aFixture.Drawer->set_change_dispatch([&aFixture](const application::workbench_status_drawer& aDrawer) { aFixture.Reported.push_back(aDrawer); });
-		aFixture.Drawer->set_tools(&aFixture.Tour, &aFixture.Github);
+		aFixture.Drawer->set_tools(&aFixture.Github);
 		row->addWidget(aFixture.Split);
 		aFixture.Window.resize(1200, 700);
 		aFixture.Window.show();
@@ -283,10 +283,13 @@ namespace {
 		auto& drawer = *fixture.Drawer;
 		expect(drawer.width() == static_cast<int>(application::default_status_drawer_width) && fixture.Reported.empty(),
 			   "Status opens at 340 pixels and reports nothing it was not asked");
-		// RFC-BPR-0089: Commits sits beside Status.
-		expect(drawer.tabs()->count() == 2 && drawer.tabs()->tabText(0) == QStringLiteral("Status") && drawer.tabs()->tabText(1) == QStringLiteral("Commits")
-				   && drawer.tour_button()->isVisible() && drawer.github_button()->isVisible() && drawer.hide_button()->isVisible() && !drawer.rail()->isVisible(),
-			   "its header holds Status and Commits, with Prepare review tour, Open on GitHub and Hide at the right");
+		// RFC-BPR-0089: Commits sits beside Status. [[BPR-1781]]: then
+		// Comments, Notes, Tour and Agent; Prepare review tour is the Tour
+		// tab's own action, not an icon on the row.
+		expect(drawer.tabs()->count() == 6 && drawer.tabs()->accessibleTabName(0) == QStringLiteral("Status") && drawer.tabs()->accessibleTabName(1) == QStringLiteral("Commits")
+				   && drawer.findChild<QToolButton*>(QStringLiteral("overviewPrepareTour")) == nullptr && drawer.github_button()->isVisible() && drawer.hide_button()->isVisible()
+				   && !drawer.rail()->isVisible(),
+			   "its header holds Status and Commits, with Open on GitHub and Hide at the right");
 		expect(drawer.content()->isVisible() && !drawer.commits()->isVisible(), "Status shows first");
 		drawer.tabs()->setCurrentIndex(1);
 		settle();
@@ -332,9 +335,147 @@ namespace {
 		expect(drawer.rail()->focusPolicy() == Qt::StrongFocus && drawer.tabs()->focusPolicy() == Qt::StrongFocus
 				   && drawer.hide_button()->focusPolicy() == Qt::StrongFocus,
 			   "its tab, tools and rail are keyboard stops");
-		fixture.Tour.setEnabled(false);
-		expect(!drawer.tour_button()->isEnabled(), "the tour tool follows its action");
+		fixture.Github.setEnabled(false);
+		expect(!drawer.github_button()->isEnabled(), "the GitHub tool follows its action");
 		save(fixture.Window, QStringLiteral("status-drawer"));
+	}
+
+	/// [[BPR-1781]]. Overview's drawer holds the conversation tabs: six,
+	/// the Tour tab only while there is a tour to show, all on one row.
+	void test_overview_drawer_has_the_conversation_tabs()
+	{
+		status_fixture fixture;
+		make(fixture);
+		auto&       drawer = *fixture.Drawer;
+		auto* const tabs   = drawer.tabs();
+		const auto  names  = QStringList{ QStringLiteral("Status"), QStringLiteral("Commits"), QStringLiteral("Comments"), QStringLiteral("Notes"), QStringLiteral("Tour"), QStringLiteral("Agent") };
+		for (auto index = 0; index < 6; ++index) {
+			expect(tabs->accessibleTabName(index) == names[index], "tab " + std::to_string(index) + " is " + names[index].toStdString());
+		}
+		expect(!drawer.tour_tab_shown() && !tabs->isTabVisible(4), "with no tour to show there is no Tour tab");
+		auto observed = std::vector<qt::overview_drawer_tab>{ };
+		drawer.set_tab_observer([&observed](const qt::overview_drawer_tab aTab) { observed.push_back(aTab); });
+		for (const auto tab : { qt::overview_drawer_tab::comments, qt::overview_drawer_tab::notes, qt::overview_drawer_tab::agent }) {
+			auto* const holder = drawer.holder(tab);
+			expect(holder != nullptr && holder->layout() != nullptr, "Comments, Notes and Agent are holders a borrowed panel goes in");
+			auto* const borrowed = new QLabel{ QStringLiteral("borrowed"), holder };
+			holder->layout()->addWidget(borrowed);
+			drawer.show_tab(tab);
+			settle();
+			expect(drawer.current_tab() == tab && borrowed->isVisible() && observed.back() == tab, "show_tab opens the holder and says so");
+		}
+		expect(drawer.holder(qt::overview_drawer_tab::status) == nullptr && drawer.holder(qt::overview_drawer_tab::tour) == nullptr, "Status and Tour borrow nothing");
+		// The row fits its width: at 340 pixels the names give way to glyphs,
+		// with the open tab named; nothing scrolls.
+		auto width = 0;
+		for (auto index = 0; index < tabs->count(); ++index) {
+			if (tabs->isTabVisible(index)) {
+				width += tabs->tabRect(index).width();
+			}
+		}
+		expect(width <= drawer.header()->width(), "five tabs fit the header at the default width");
+		expect(tabs->tabText(tabs->currentIndex()) == QStringLiteral("Agent") && !tabs->tabIcon(0).isNull(), "a compact row names the open tab and shows the others' glyphs");
+		expect(tabs->tabToolTip(0).startsWith(QStringLiteral("Status\n")), "a tab showing only its glyph says its name first");
+		// A hidden Tour tab cannot be opened; shown, it can, and hiding it
+		// while open goes back to Status.
+		drawer.show_tab(qt::overview_drawer_tab::tour);
+		expect(drawer.current_tab() == qt::overview_drawer_tab::agent, "a hidden Tour tab is not opened");
+		drawer.set_tour_tab_shown(true);
+		drawer.show_tab(qt::overview_drawer_tab::tour);
+		settle();
+		expect(drawer.current_tab() == qt::overview_drawer_tab::tour && drawer.tour_summary()->isVisible(), "the Tour tab shows its summary");
+		drawer.set_tour_tab_shown(false);
+		settle();
+		expect(drawer.current_tab() == qt::overview_drawer_tab::status, "hiding the open Tour tab gives way to Status");
+		// Collapsed, show_tab expands it as the rail does.
+		drawer.hide_button()->click();
+		settle();
+		drawer.show_tab(qt::overview_drawer_tab::comments);
+		settle();
+		expect(!drawer.rail()->isVisible() && drawer.current_tab() == qt::overview_drawer_tab::comments, "a collapsed drawer opens on the tab asked for");
+		expect(qt::drawer_principle_violations(drawer, { .EmptyValueRows = false }).isEmpty(), "six tabs keep the principles");
+		drawer.resize(560, drawer.height());
+		fixture.Split->setSizes({ 640, 560 });
+		settle();
+		save(fixture.Window, QStringLiteral("overview-drawer-six-tabs"));
+	}
+
+	[[nodiscard]] auto stop(const std::uint64_t aId, const char* aTitle, const core::tour_preparation aPreparation) -> core::overview_tour_stop
+	{
+		return { .Id = core::tour_stop_id{ aId }, .Title = aTitle, .Preparation = aPreparation };
+	}
+
+	/// [[BPR-1781]]. The Tour tab presents and routes: a writer's brief and
+	/// stops with readiness, a reader's brief and titles, Prepare for an
+	/// author with none; its one button reports a gesture and does nothing else.
+	void test_overview_tour_summary()
+	{
+		auto        window  = QWidget{ };
+		auto* const column  = new QVBoxLayout{ &window };
+		auto* const summary = new qt::overview_tour_summary{ &window };
+		column->addWidget(summary);
+		window.resize(360, 640);
+		window.show();
+		settle();
+		auto gestures = std::vector<qt::overview_tour_gesture>{ };
+		summary->set_dispatch([&gestures](const qt::overview_tour_gesture aGesture) { gestures.push_back(aGesture); });
+		summary->present({ .Kind = core::overview_tour_kind::prepare });
+		settle();
+		expect(summary->action()->isVisible() && summary->action()->text() == QStringLiteral("Prepare review tour") && summary->stop_titles().isEmpty()
+				   && !summary->state_label()->isVisible(),
+			   "an author with no tour is offered Prepare review tour, labelled");
+		summary->action()->click();
+		expect(gestures == std::vector{ qt::overview_tour_gesture::prepare }, "Prepare reports its gesture");
+		save(window, QStringLiteral("overview-tour-prepare"));
+
+		auto writer  = core::overview_tour{ .Kind = core::overview_tour_kind::writer, .Problem = "Startup reads every file twice.", .Solution = "" };
+		writer.Stops = { stop(1, "The cache", core::tour_preparation::ready), stop(2, "", core::tour_preparation::editing), stop(3, "Invalidation", core::tour_preparation::needs_attention),
+						 stop(4, "Tests", core::tour_preparation::suggested) };
+		summary->present(writer);
+		settle();
+		expect(summary->stop_titles() == QStringList{ QStringLiteral("The cache"), QStringLiteral("Untitled stop"), QStringLiteral("Invalidation"), QStringLiteral("Tests") },
+			   "a writer sees every stop, in route order");
+		expect(summary->stop_readiness() == QStringList{ QStringLiteral("Ready"), QStringLiteral("Editing"), QStringLiteral("Needs attention"), QStringLiteral("Suggested") },
+			   "each with its readiness as the route shows it");
+		expect(summary->state_label()->text().startsWith(QStringLiteral("A private draft")), "a private draft says so");
+		auto* const solution = summary->findChild<QLabel*>(QStringLiteral("overviewTourSolution"));
+		expect(solution != nullptr && solution->isVisible() && solution->text() == QStringLiteral("Not written yet"), "a writer sees an empty field as still to write");
+		expect(summary->action()->text() == QStringLiteral("Continue in Review"), "and continues in Review");
+		auto* const firstRow = summary->findChild<QWidget*>(QStringLiteral("overviewTourStop"));
+		summary->present(writer);
+		expect(summary->findChild<QWidget*>(QStringLiteral("overviewTourStop")) == firstRow, "the same route presented again keeps its rows");
+		summary->action()->click();
+		expect(gestures.back() == qt::overview_tour_gesture::continue_tour, "Continue in Review reports its gesture");
+		save(window, QStringLiteral("overview-tour-writer"));
+		writer.Published = true;
+		summary->present(writer);
+		expect(summary->state_label()->text().startsWith(QStringLiteral("Published")), "a published tour says so");
+
+		auto reader      = core::overview_tour{ .Kind = core::overview_tour_kind::reader, .Problem = "Startup reads every file twice.", .Solution = "Read once and cache." };
+		reader.Stops     = { stop(1, "The cache", core::tour_preparation::ready), stop(2, "Invalidation", core::tour_preparation::needs_attention) };
+		reader.Published = true;
+		summary->present(reader);
+		settle();
+		expect(summary->stop_titles().size() == 2 && summary->stop_readiness().isEmpty(), "a reader sees the stop titles without readiness");
+		expect(summary->action()->text() == QStringLiteral("Start tour") && summary->action()->isEnabled(), "and starts the tour");
+		summary->action()->click();
+		expect(gestures.back() == qt::overview_tour_gesture::start_tour, "Start tour reports its gesture");
+		save(window, QStringLiteral("overview-tour-reader"));
+		reader.Solution = "";
+		summary->present(reader);
+		expect(!solution->isVisible(), "a reader sees only what was written");
+		expect(qt::drawer_principle_violations(*summary).isEmpty(), "the Tour tab keeps the principles");
+
+		summary->present({ });
+		expect(!summary->action()->isVisible() && summary->stop_titles().isEmpty(), "no tour presents nothing");
+		// The palette's change recolours the readiness words.
+		summary->present(writer);
+		auto dark = window.palette();
+		dark.setColor(QPalette::Window, QColor{ 0x20, 0x20, 0x20 });
+		window.setPalette(dark);
+		settle();
+		auto* const ready = summary->findChild<QLabel*>(QStringLiteral("overviewTourStopReadiness"));
+		expect(ready != nullptr && ready->palette().color(QPalette::WindowText) == QColor{ 0x3F, 0xB9, 0x50 }, "a dark palette gives the dark ready green");
 	}
 } // namespace
 
@@ -419,6 +560,8 @@ auto main(int argc, char** argv) -> int
 	test_the_header_wraps_its_tools_rather_than_clipping_a_tab();
 	test_the_audit_fails_each_broken_principle();
 	test_status_is_a_real_drawer();
+	test_overview_drawer_has_the_conversation_tabs();
+	test_overview_tour_summary();
 	test_section_header_and_meter_in_every_theme();
 	if (Failures != 0) {
 		std::cerr << Failures << " failure(s)\n";

@@ -4680,16 +4680,9 @@ namespace bpr::qt {
 			.pixmap(QSize{ 16, 16 }, ratio);
 	}
 
-	void pull_request_overview_page::set_prepare_tour_action(QAction* aAction)
-	{
-		// [[BPR-1588]]. An icon on the Status drawer's tab row, no longer a
-		// full-width button at the column's foot (RFC-BPR-0085 principle 5).
-		StatusDrawer->set_tools(aAction, nullptr);
-	}
-
 	void pull_request_overview_page::set_open_on_github_action(QAction* aAction)
 	{
-		StatusDrawer->set_tools(nullptr, aAction);
+		StatusDrawer->set_tools(aAction);
 	}
 
 	void pull_request_overview_page::present_commit_filter(const application::commit_filter_projection& aProjection)

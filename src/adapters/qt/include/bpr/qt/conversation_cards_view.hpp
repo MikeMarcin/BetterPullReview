@@ -548,7 +548,14 @@ namespace bpr::qt {
 		void clear();
 		void set_scope(cards_scope aScope);
 		/// BPR-1603: PR-level comments in place, preserving the file view.
-		void               show_pull_request_comments(bool aShown);
+		/// [[BPR-1781]]: the window turns it on while the view is Overview's
+		/// Comments tab and off in Review; each keeps its own place.
+		void show_pull_request_comments(bool aShown);
+		/// \brief [[BPR-1781]]. Told when the reviewer follows the quiet
+		/// "Pull request conversation" link beside the code (an empty
+		/// identity), or opens a comment on the pull request there (its
+		/// identity). Without it the link is not offered.
+		void               set_pull_request_link_dispatch(std::function<void(const std::string&)> aDispatch);
 		[[nodiscard]] auto pull_request_comments_shown() const noexcept -> bool;
 		[[nodiscard]] auto pull_request_comments_chip() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto scope() const noexcept -> cards_scope;
@@ -1006,8 +1013,17 @@ namespace bpr::qt {
 		bool                                       PullRequestComments = false;
 		std::string                                NewConversationBoundary;
 		QAbstractButton*                           PullRequestChip = nullptr;
-		QAbstractButton*                           BackToLines     = nullptr;
-		std::string                                Open;
+		/// [[BPR-1781]]. Where each mode was left, restored on return.
+		struct mode_place
+		{
+			std::string Open;
+			std::string Current;
+			int         Scroll = 0;
+		};
+		mode_place                              LinesPlace;
+		mode_place                              ConversationPlace;
+		std::function<void(const std::string&)> PullRequestLinkDispatch;
+		std::string                             Open;
 		/// [[BPR-1293]]. The open thread's picked post, and the one a pick
 		/// is about to open with.
 		std::string Picked;
