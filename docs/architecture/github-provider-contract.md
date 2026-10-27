@@ -162,7 +162,11 @@ to the pull request (`ObserveThread`, `ObserveReactionSubject`)
 (`ReplyToThread`, `addPullRequestReviewThreadReply`), on a current thread's
 line and bound to an outdated thread alike, with the read that reconciles it
 (`ObserveThreadComments`) ([[BPR-1746]]; the owner, 2026-10-23: "Oh yeah
-sure let gh allow that."). Those are the only GraphQL writes it admits; each
+sure let gh allow that."). It carries the pull request's description replaced
+by its author (`UpdateDescription`, `updatePullRequest` with the body only),
+after the read that binds the pull request and says its body and
+`viewerCanUpdate` (`ObserveDescription`) ([[BPR-1774]]). Those are the only
+GraphQL writes it admits; each
 body must equal its compiled form byte for byte, and one that differs is never
 launched.
 
@@ -894,7 +898,21 @@ CreateThread / ReplyToThread
 ResolveThread / UnresolveThread
 ListReactions
 AddReaction / RemoveReaction
+ObserveDescription / UpdateDescription
 ```
+
+[[BPR-1774]]. The description edit is offered to the pull request's author
+alone (the accepted read's author login equals the signed-in account; the
+read asks no `viewerCanUpdate`). Save is decided by the core twice: on the
+gesture (`decide_description_edit`: not the author, unchanged, longer than
+GitHub's 65,536 characters) and on `ObserveDescription`'s answer just before
+the write (`decide_description_save`: already saved sends nothing,
+`viewerCanUpdate` false is refused, a body other than the one editing began
+with is a conflict that sends nothing and returns GitHub's newer body). One
+`UpdateDescription` follows on the native and the GitHub CLI connection alike;
+its own answer must carry the body asked, and a lost or unreadable answer is
+settled by one read back, never a second write. No recovery record is kept:
+the body is the record. The title is not edited.
 
 Unsupported capabilities produce explicit unavailable states and safe fallbacks; they do not silently approximate a mutation.
 

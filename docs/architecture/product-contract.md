@@ -291,6 +291,15 @@ An explicit tour writing action may replace one captured local editor span as
 one native undo transaction. It grants no publication authority. Outline entries
 have no generated bodies and require visible per-stop author completion.
 
+## Editing the description
+
+The pull request's author can edit its description (body only) in Overview:
+Edit opens the app's Markdown editor in the reader's place, and nothing is
+sent until Save ([[BPR-1774]]). A body changed on GitHub since editing began is
+never overwritten: the editor says so and offers GitHub's newer text. The
+mutation's contract is in the
+[provider contract](github-provider-contract.md#normalized-provider-surface).
+
 ## Explicit non-goals
 
 - Creating, changing PR metadata other than the explicitly previewed description body, merging, closing, or rebasing pull requests.
