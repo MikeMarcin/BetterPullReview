@@ -22,6 +22,7 @@
 #include <set>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace bpr::core {
@@ -135,6 +136,18 @@ namespace bpr::core {
 
 		auto operator==(const conversation_timeline&) const -> bool = default;
 	};
+
+	/// \brief Whether a review's overall body is a comment: it has a
+	/// character other than spaces, tabs and line breaks.
+	///
+	/// \details A review whose body is not a comment is attribution only: it
+	/// takes no comment row, next new never stops on it, and it is never
+	/// unread content, so no count counts it and no read gesture is needed to
+	/// clear it.
+	[[nodiscard]] constexpr auto review_body_is_comment(const std::string_view aBody) noexcept -> bool
+	{
+		return aBody.find_first_not_of(" \t\r\n") != std::string_view::npos;
+	}
 
 	/// \brief Whether a review's verdict is named on its line: Approved and
 	/// Changes requested matter for merging; Commented and the rest do not.
