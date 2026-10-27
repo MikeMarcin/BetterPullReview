@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1779"
 title: "Conversation views show the comments themselves; a review is only the bundle they were posted in"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "windows", "linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1779--BPR-1779--f70667adfb36.json","kind":"feature","found_by":"owner photograph and chat, 2026-10-26/27: GameEngine/game-engine #186, Pull request view","related_cards":["BPR-1667","BPR-1581","BPR-1586"]}
-acceptance: []
+acceptance: [{"criterion":"AC1 fixture renders","outcome":"pass","revision":"894558239a81471db3a6d61f8b6082ed06125057","evidence":{"kind":"observation","detail":"Offscreen renders of #186's shape (tests/adapters_qt/owner_186_fixture.hpp: a no-body Commented review with two file comments, two body-less Commented reviews that carried replies, two approvals) in the drawer's Pull request view, Discuss over the whole pull request and Threads, closed and with a comment open, light and dark, before (at f71003dad) and after. conversation_cards_view_tests --render-bpr-1779 <dir> <phase> and conversation_finder_tests --render-bpr-1779 <dir> <phase>. Kept outside the repository; forced-style offscreen renders are layout evidence only."}},{"criterion":"AC2 Qt tests","outcome":"pass","revision":"894558239a81471db3a6d61f8b6082ed06125057","evidence":{"kind":"command","detail":"qt_conversation_cards_view test_conversation_lists_comments_not_reviews (Pull request view and Discuss): the no-body review's two file comments are the cards, with path and line lines that open them in Review, the open comment's excerpt, Open in Review, its reply, Reply and Resolve dispatched to the thread and opening reading the thread; body-less Commented reviews add no row; approvals are compact verdict lines; no empty-review notice; Unread and Hide resolved act on comments and drop verdict lines; the chip counts 2 comments, not 6 reviews; File scope keeps line order without review lines. test_a_review_body_is_a_comment_in_its_bundle; test_pull_request_comments_live_at_the_edge updated. qt_conversation_finder test_reviews_are_rows_only_for_a_body_or_a_verdict. core_conversation_timeline for the grouping, visibility, order, filter and count rules. Adjacent: qt_workbench_window_scale_100, qt_composed_markdown_1_0/1_25/2_0, qt_discuss_comment_bodies (updated for the bundle), qt_github_conversation_panel, qt_drawer_surfaces_fit_scale_100, qt_conversation_finder_scale_100/125/200, application_discuss_top_public_path, application_conversation_read_public_path, architecture_boundaries, architecture_boundary_contract pass."}},{"criterion":"AC3 owner look","outcome":"pending","revision":"894558239a81471db3a6d61f8b6082ed06125057","evidence":{"kind":"observation","detail":"Deferred by the owner, not a blocker. Questions for the look on a frozen build: (1) the grouping form chosen, one quiet line per bundle (avatar, who, verdict word when Approved or Changes requested, date) with a rail beside its comments, versus attribution on each comment; (2) verdict-only rows as compact lines."}}]
 ---
 
 # BPR-1779: Conversation views show the comments themselves; a review is only the bundle they were posted in
@@ -89,3 +89,31 @@ Comments are the unit; the review is attribution.
   comments.
 - The owner accepts the look on a frozen build (attended review: one
   question for the grouping, one for verdict-only rows).
+
+## Resolution
+
+Comments are the unit; the review is attribution ([[BPR-1779]]).
+
+- Core: `core::arrange_conversation_timeline`
+  (`src/core/include/bpr/core/conversation_timeline.hpp`) decides which
+  reviews take a row, groups each review's comments (its body, then its
+  threads in file and line order) under one bundle line, orders units by time
+  (legacy items without a time fall back to file and line order), applies
+  Unread, Hide resolved and drill-down filters to comments only, and counts
+  comments, threads and unread comments, never reviews.
+- Qt: the drawer's Pull request view and Discuss over the whole pull request
+  (`conversation_cards_view::timeline()`) read in that order. Each thread a
+  review carried is its own card under a path-and-line line that opens it in
+  Review; open, it shows its excerpt when the compared file has it, its
+  replies, Reply and Resolve, with its own identity and read state. A bundle's
+  quiet line names who and when, and the verdict only when Approved or Changes
+  requested, with a thin rail beside its comments. A body-less Commented
+  review adds nothing; an approval that carried nothing is a compact verdict
+  line. [[BPR-1667]]'s "N file comments are linked below" notice and its links
+  are gone; a review card that still appears outside the time order says only
+  "No overall review comment.", so no body is borrowed. The Pull request chip
+  counts comments. File scope and Review keep file-and-line order.
+- Threads keeps its file grouping; under Not on a file, reviews follow the
+  same rule in time order, an approval's row saying "Approved".
+
+The look (one line per bundle, verdict-only rows) is the owner's, pending.
