@@ -71,7 +71,7 @@ namespace bpr::app {
 		/// already queued, as one reviewer revision that History then shows; answers on the decision lane.
 		void record_workshop_press(core::review_draft_id, press_completion);
 		/// \brief [[BPR-1773]]. Records a note's text as the run's source.
-		void record_note_press(core::private_thread_subject, std::string, press_completion);
+		void record_note_press(std::string, press_completion);
 		auto admit(const application::private_run_intent&, const core::agent_profile&, const core::agent_session&, const application::agent_context_observation&, const core::agent_setting_facts&) -> application::private_run_result<application::private_run_admission> override;
 		auto claim(const application::private_run_admission&, std::stop_token) -> application::private_run_result<std::shared_ptr<application::agent_input_claim>> override;
 		auto finish(const application::private_run_admission&, const application::agent_run_result&, const core::agent_finding_snapshot&) -> application::private_run_result<application::private_review_delta> override;

@@ -722,3 +722,13 @@ the review skill in each request's brief. Milestones BPR-1748 to AQ9.
 | [RFC-BPR-0093](RFC-BPR-0093-process-wide-mimalloc.md) | Process-wide mimalloc for BPR executables | Auto-Verified | None |
 
 [Imported pack](assets/mimalloc-process-wide-v1.LIVE_IMPORT.md), with owner-confirmed process-wide scope. Owner amendment r5 accepts verified universal/static x86_64 proof and native arm64 observations without requiring or claiming native Intel execution. Signed-installed/delivered Cocoa and final package acceptance remain pending; the RFC stays In Progress.
+
+## Asking about a conversation
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0094](RFC-BPR-0094-ask-the-agent-about-a-conversation.md) | Ask the agent about a conversation | In Progress | RFC-BPR-0012, RFC-BPR-0023, RFC-BPR-0092 |
+
+From the owner's request of 2026-10-26 ([BPR-1773](../issues/30-in-progress/BPR-1773-ask-the-agent-about-a-conversation.md)).
+The owner chose in chat: the pull request's own Agent thread with a removable
+conversation chip, Use as reply, and notes sent as a Private history copy.

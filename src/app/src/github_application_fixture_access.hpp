@@ -1331,6 +1331,8 @@ namespace bpr::app::detail {
 		/// of its own, so the chat's current session is no longer the one the
 		/// turn was produced under.
 		std::optional<application::agent_chat_turn_request> LastTurn;
+		/// [[BPR-1773]]. The conversation the last launch carried, if any.
+		std::optional<core::supplement_conversation> LastConversation;
 	};
 
 	struct agent_finding_composition_evidence
