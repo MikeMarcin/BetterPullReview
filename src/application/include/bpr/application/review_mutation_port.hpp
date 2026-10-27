@@ -5,6 +5,7 @@
 #include "bpr/application/private_review_store.hpp"
 #include "bpr/application/review_synchronization.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/github_model.hpp"
 
@@ -91,6 +92,9 @@ namespace bpr::application {
 		bool Reacts = false;
 		/// [[BPR-1774]]. Updates the pull request's description (its body).
 		bool EditsDescription = false;
+		/// [[BPR-1775]]. Updates the viewer's published comments: review-thread
+		/// comments, pull request comments and review bodies.
+		bool EditsComments = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -484,6 +488,31 @@ namespace bpr::application {
 		auto operator<=>(const review_description_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-1775]]. Asks the provider to replace one of the viewer's
+	/// published comments with `Body`.
+	///
+	/// \details `Subject` is the comment's GitHub node and `Kind` says which
+	/// update it takes. `Original` is the body editing began with, byte for
+	/// byte: the provider writes only while GitHub still has it. Bound to the
+	/// accepted target and the acting identity like a description edit, and
+	/// the comment must belong to the designated pull request.
+	struct review_comment_edit_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		core::comment_edit_kind                     Kind = core::comment_edit_kind::review_comment;
+		std::string                                 Subject;
+		std::string                                 Original;
+		std::string                                 Body;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_comment_edit_request&) const = default;
+	};
+
+	/// \brief [[BPR-1775]]. The provider's answer, shaped as a description's:
+	/// the comment's body as GitHub now has it, and how that was learned.
+	using review_comment_edit_receipt = review_description_receipt;
+
 	class review_mutation_port
 	{
 	public:
@@ -575,6 +604,18 @@ namespace bpr::application {
 			const review_description_request& aRequest,
 			std::stop_token                   aStop)
 			-> std::expected<review_description_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
+		/// \brief [[BPR-1775]]. Replaces one of the viewer's published comments
+		/// while GitHub still has the original; a provider without the
+		/// capability answers `unsupported`.
+		[[nodiscard]] virtual auto edit_comment(
+			const review_comment_edit_request& aRequest,
+			std::stop_token                    aStop)
+			-> std::expected<review_comment_edit_receipt, review_mutation_failure>
 		{
 			static_cast<void>(aRequest);
 			static_cast<void>(aStop);

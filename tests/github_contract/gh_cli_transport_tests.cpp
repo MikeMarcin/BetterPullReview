@@ -4,6 +4,7 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/application/review_mutation_coordinator.hpp"
+#include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "gh_cli_transport.hpp"
 #include "github_paged_read.hpp"
@@ -2218,6 +2219,49 @@ namespace {
 				const auto lost  = transport.perform_review_mutation({ .Context = request.Context, .Wire = *write }, { }, { });
 				expect(std::holds_alternative<github_mutation_wire_error>(lost) && std::get<github_mutation_wire_error>(lost).Transmission == github_mutation_transmission::indeterminate,
 					   "a description write whose answer is lost stays possibly sent");
+			}
+			// [[BPR-1775]]. A published comment's read and its kind's update
+			// go the same way: fixed documents, exact bodies on stdin, no
+			// witness, and GitHub's longest body fits.
+			process.Result = statePrevious;
+			for (const auto kind : { core::comment_edit_kind::review_comment, core::comment_edit_kind::pull_request_comment, core::comment_edit_kind::review_body }) {
+				const auto edit = application::review_comment_edit_request{
+					.Target         = binding.Target.Semantic,
+					.ActingIdentity = binding.ActingIdentity.Account,
+					.Kind           = kind,
+					.Subject        = "IC_kwDOcomment1",
+					.Original       = "Before.",
+					.Body           = "After, with `code`.\r\n",
+					.LiveBinding    = binding,
+				};
+				auto longestEdit = edit;
+				longestEdit.Body = std::string(core::maximum_comment_characters, 'x');
+				for (const auto& graphql : { compile_comment_observation_request(edit, profile->server_contract()), compile_comment_edit_request(edit, profile->server_contract()),
+											 compile_comment_edit_request(longestEdit, profile->server_contract()) }) {
+					expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "a comment edit compiles at the GraphQL root");
+					const auto launches = process.Calls;
+					const auto answered = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, { });
+					const auto args     = gh_arguments(*process.LastRequest);
+					expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == launches + 1U && args[0] == "api" && args[1] == "graphql"
+							   && args[3] == profile->hostname() && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql->Body
+							   && process.LastRequest->StandardInputLimit == maximum_review_mutation_wire_request_bytes(graphql->Operation)
+							   && std::ranges::none_of(args, [](const std::string& aArgument) { return aArgument.find("After") != std::string::npos; }),
+						   "a comment edit and its read go by gh api graphql with the exact body on stdin, never in the arguments");
+					auto changed = *graphql;
+					changed.Body.replace(changed.Body.find("IC_kwDOcomment1"), 15U, "IC_kwDOcomment2");
+					const auto before  = process.Calls;
+					const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
+					expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a comment edit naming another comment never launches");
+				}
+			}
+			{
+				process.Result   = std::unexpected{ github_cli_process_failure::timeout };
+				const auto write = compile_comment_edit_request(
+					application::review_comment_edit_request{ .Target = binding.Target.Semantic, .ActingIdentity = binding.ActingIdentity.Account, .Kind = core::comment_edit_kind::pull_request_comment, .Subject = "IC_kwDOcomment1", .Original = "Before.", .Body = "After.", .LiveBinding = binding },
+					profile->server_contract());
+				const auto lost = transport.perform_review_mutation({ .Context = request.Context, .Wire = *write }, { }, { });
+				expect(std::holds_alternative<github_mutation_wire_error>(lost) && std::get<github_mutation_wire_error>(lost).Transmission == github_mutation_transmission::indeterminate,
+					   "a comment write whose answer is lost stays possibly sent");
 			}
 			process.Result = statePrevious;
 

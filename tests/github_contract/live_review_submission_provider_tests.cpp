@@ -252,6 +252,10 @@ namespace {
 		case review_mutation_operation::remove_reaction:                  return "remove_reaction";
 		case review_mutation_operation::observe_pull_request_description: return "observe_pull_request_description";
 		case review_mutation_operation::update_pull_request_description:  return "update_pull_request_description";
+		case review_mutation_operation::observe_comment_for_edit:         return "observe_comment_for_edit";
+		case review_mutation_operation::edit_review_comment:              return "edit_review_comment";
+		case review_mutation_operation::edit_issue_comment:               return "edit_issue_comment";
+		case review_mutation_operation::edit_review_body:                 return "edit_review_body";
 		}
 		return "unknown";
 	}

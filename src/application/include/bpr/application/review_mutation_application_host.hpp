@@ -191,6 +191,31 @@ namespace bpr::application {
 		auto operator==(const review_description_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-1775]]. Asks the host to replace one of the viewer's
+	/// published comments: the comment's kind and GitHub node, and `Body` in
+	/// place of `Original`, the body editing began with.
+	struct review_comment_edit_publication_request
+	{
+		core::comment_edit_kind Kind = core::comment_edit_kind::review_comment;
+		std::string             Subject;
+		std::string             Original;
+		std::string             Body;
+
+		auto operator<=>(const review_comment_edit_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-1775]]. One comment edit's terminal.
+	struct review_comment_edit_terminal
+	{
+		review_mutation_request_context                                     Context;
+		review_comment_edit_publication_request                             Request;
+		std::expected<review_comment_edit_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_comment_edit_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
@@ -212,6 +237,12 @@ namespace bpr::application {
 		/// \brief [[BPR-1774]]. A sink that does not edit the description
 		/// ignores its terminals.
 		virtual void publish_description(const review_description_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+		/// \brief [[BPR-1775]]. A sink that does not edit comments ignores
+		/// their terminals.
+		virtual void publish_comment_edit(const review_comment_edit_terminal& aTerminal)
 		{
 			static_cast<void>(aTerminal);
 		}
@@ -290,6 +321,8 @@ namespace bpr::application {
 		std::uint64_t Reactions = 0U;
 		/// [[BPR-1774]]. Description edits GitHub answered, conflicts included.
 		std::uint64_t DescriptionEdits = 0U;
+		/// [[BPR-1775]]. Comment edits GitHub answered, conflicts included.
+		std::uint64_t CommentEdits = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -360,6 +393,14 @@ namespace bpr::application {
 		[[nodiscard]] auto edit_description(
 			review_description_publication_request aRequest,
 			review_mutation_execution_grant        aRequestGrant = { })
+			-> review_mutation_request_context;
+		/// \brief [[BPR-1775]]. Replaces one of the viewer's published comments
+		/// under a grant bound to the accepted target and actor and to that
+		/// comment; refused before any effect when the provider does not edit
+		/// comments or the grant does not permit the exact request.
+		[[nodiscard]] auto edit_comment(
+			review_comment_edit_publication_request aRequest,
+			review_mutation_execution_grant         aRequestGrant = { })
 			-> review_mutation_request_context;
 		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
 

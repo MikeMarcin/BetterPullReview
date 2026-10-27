@@ -60,6 +60,13 @@ namespace bpr::adapters::github {
 			const application::review_description_request& aRequest,
 			std::stop_token                                aStop)
 			-> std::expected<application::review_description_receipt, application::review_mutation_failure> override;
+		/// [[BPR-1775]]. Replaces one of the viewer's published comments
+		/// through the leased GraphQL mutation its kind takes while GitHub
+		/// still has the original.
+		[[nodiscard]] auto edit_comment(
+			const application::review_comment_edit_request& aRequest,
+			std::stop_token                                 aStop)
+			-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure> override;
 		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token) -> application::review_mutation_submission override;
 		void               repair_pending_publications(std::stop_token) override;
 		[[nodiscard]] auto capabilities() const
