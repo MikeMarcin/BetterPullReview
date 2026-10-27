@@ -492,7 +492,10 @@ namespace bpr::app::detail {
 		/// [[BPR-1774]]. The fixture names the viewer the pull request's
 		/// author and its mutation provider edits the description; off, no
 		/// course offers Edit.
-		bool                                        EditsDescription        = false;
+		bool EditsDescription = false;
+		/// [[BPR-1775]]. The fixture's mutation provider edits the viewer's
+		/// published comments; off, no course offers Edit on a comment.
+		bool                                        EditsComments           = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
 		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
@@ -615,6 +618,10 @@ namespace bpr::app::detail {
 		/// writes it made: a conflict or an edit already saved writes none.
 		std::size_t DescriptionEdits  = 0U;
 		std::size_t DescriptionWrites = 0U;
+		/// [[BPR-1775]]. Comment edits asked of the provider, and the writes
+		/// it made.
+		std::size_t CommentEdits      = 0U;
+		std::size_t CommentEditWrites = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
 		/// it was a file comment.
@@ -847,6 +854,15 @@ namespace bpr::app::detail {
 		bool DescriptionShownAfterRead  = false;
 		bool DescriptionConflictRefused = false;
 		bool DescriptionNewerLoaded     = false;
+		/// [[BPR-1775]]. With comments edited: Edit offered on my reply and
+		/// not on another's comment, Save performing exactly one write, the
+		/// next read showing GitHub's body, a concurrent change refused with
+		/// nothing written, and editing going on from GitHub's newer text.
+		bool CommentEditOffered         = false;
+		bool CommentEditSavedOnce       = false;
+		bool CommentEditShownAfterRead  = false;
+		bool CommentEditConflictRefused = false;
+		bool CommentEditNewerLoaded     = false;
 		bool PickerReacted              = false;
 		bool ReactionReconciled         = false;
 

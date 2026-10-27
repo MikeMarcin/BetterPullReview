@@ -186,6 +186,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "threaded-reply-probe" },
 		bpr::app::command_line_option{ .Name = "reaction-probe" },
 		bpr::app::command_line_option{ .Name = "description-edit-probe" },
+		bpr::app::command_line_option{ .Name = "comment-edit-probe" },
 		bpr::app::command_line_option{ .Name = "attended-launch" },
 		bpr::app::command_line_option{ .Name = "public-preview-enabled-course" },
 		bpr::app::command_line_option{ .Name = "public-preview-ghes-course" },
@@ -5018,6 +5019,11 @@ namespace {
 					   << "DESCRIPTION_EDIT_EVIDENCE:" << evidence.DescriptionOffered << evidence.DescriptionSavedOnce << evidence.DescriptionShownAfterRead
 					   << evidence.DescriptionConflictRefused << evidence.DescriptionNewerLoaded << '\n';
 			}
+			if (evidence.CommentEditOffered) {
+				stream << (evidence.CommentEditNewerLoaded ? "COMMENT_EDIT_OK\n" : "COMMENT_EDIT_FAILED\n")
+					   << "COMMENT_EDIT_EVIDENCE:" << evidence.CommentEditOffered << evidence.CommentEditSavedOnce << evidence.CommentEditShownAfterRead
+					   << evidence.CommentEditConflictRefused << evidence.CommentEditNewerLoaded << '\n';
+			}
 		}
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
@@ -9466,7 +9472,11 @@ auto main(int argc, char** argv) -> int
 		// request's author and the fixture edits its description; with the
 		// threaded-reply course too, the course goes on to it.
 		fixtureOptions.EditsDescription = launch.has("--description-edit-probe");
-		fixtureOptions.ResolvesThreads  = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
+		// [[BPR-1775]]. With `--comment-edit-probe` the fixture edits the
+		// replies it published; with the threaded-reply course too, the course
+		// goes on to edit one.
+		fixtureOptions.EditsComments   = launch.has("--comment-edit-probe");
+		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.
 		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads

@@ -2396,8 +2396,21 @@ function(bpr_verify_full_application_digest source_variable)
 	# core::home_ignore_intent, beside Follow. Nothing reaches a provider;
 	# no credential, grant, mutation, publication or source-inventory
 	# change; mutation-branch pin unchanged.
+	# [[BPR-1775]] comment-edit reseal (2026-10-27), over 7ab100b37.
+	# github_application.cpp, main.cpp and the public-path fixture add the
+	# viewer's published-comment edit: the cards' Save reaches the core's
+	# decide_comment_edit, then the mutation host's edit_comment under a
+	# one-shot issue_comment_edit grant bound to session, generation, target,
+	# actor, the comment's node and the exact original and body; the terminal
+	# closes the editor and refreshes, or says the refusal or conflict in
+	# words. The fixture provider decides with decide_comment_save and the
+	# threaded-reply probe gains a --comment-edit-probe continuation. The
+	# BPR-1779 follow-up drops a body-less review from the read observations.
+	# No credential, provider selection, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
+	# application_comment_edit_contract qualifies these bytes.
 	set(bpr_expected_full_application_digest
-		"615f593b4a1e8935c070fcea2815d3396fd8cadb913e378564fd40741272d8b4"
+		"f42e4cfd0585f931311bcd91d2c473a3448bad60caed4642840c4f98ed4c7d51"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2627,8 +2640,10 @@ function(bpr_verify_app_source_tree app_source_root)
 # Manual-executor real-store red/green and both-lane negative controls are
 # in private_draft_restore_tests. No grant, provider, credential, target,
 # mutation or publication change; source inventory and mutation pin unchanged.
+# [[BPR-1775]] comment-edit reseal (2026-10-27): github_application.cpp,
+# main.cpp and the public-path fixture, as described at the full digest.
 	set(bpr_expected_production_app_manifest_digest
-        "3330cd854edf50c459aaa1c5ae08edb31eee9c0493577d6b10ab511557fab73e"
+        "386810bb5b931e820dfcc1b0b12c0f000374ac3e881349edaf408fb9565f8763"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
