@@ -139,6 +139,7 @@ namespace bpr::application {
 			for (const auto& item : Imports) {
 				State.ImportChoices.push_back(item.Label);
 			}
+			State.Offered = Imports.empty() ? nullptr : std::make_shared<const core::review_tour>(Imports.front().Draft);
 			refresh_bound_tour();
 			notify();
 		}
