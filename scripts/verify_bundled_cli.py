@@ -59,7 +59,7 @@ def probe(app: Path, root: Path) -> dict:
         result = subprocess.run([str(binary), "tour", *arguments, "--json", "--data-root", str(profile)],
                                 stdin=subprocess.DEVNULL, capture_output=True, text=True, cwd=root,
                                 env=environment, timeout=30)
-        require(result.returncode == status, f"{arguments[0]} exit {result.returncode}: {result.stderr[-1000:]}")
+        require(result.returncode == status, f"{arguments[0]} exit {result.returncode}: {result.stdout[:1000]} {result.stderr[-300:]}")
         require(not any(image in result.stderr for image in GUI_IMAGES), "headless CLI loaded a GUI/QPA image")
         value = json.loads(result.stdout)
         require(value.get("schema") == "bpr.tour.cli-result.v1", "unexpected CLI envelope")
@@ -81,7 +81,7 @@ def probe(app: Path, root: Path) -> dict:
 
 def verify(app: Path) -> dict:
     with tempfile.TemporaryDirectory(prefix="bpr-bundled-cli-") as temporary:
-        root = Path(temporary)
+        root = Path(temporary).resolve()
         original = root / "original-profile"
         original.mkdir(mode=0o700)
         installed = probe(app, original)
