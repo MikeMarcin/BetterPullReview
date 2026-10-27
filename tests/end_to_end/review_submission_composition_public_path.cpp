@@ -1169,6 +1169,49 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 		shutdown(*application);
+		application.reset();
+		// [[BPR-1778]]. Approve that GitHub refuses leaves Approve chosen and
+		// no summary. A new revision then arrives. The owner's next Approve
+		// did nothing until a restart: the draft froze on the old revision
+		// because a chosen verdict counted as words to keep.
+		application = make(app::detail::github_epoch_fixture_phase::seed);
+		open(*application, cli);
+		{
+			auto&       verdicts    = *application->window().review_submission_editor_view();
+			auto* const approve     = verdicts.disposition_button(core::review_disposition::approve);
+			const auto  submissions = [&] {
+				std::scoped_lock lock{ server->Mutex };
+				return server->Submissions;
+			};
+			wait([&] { return approve->isEnabled(); }, "Approve is offered on the first revision");
+			const auto refused = *verdicts.shown_draft();
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseBeforeSend = true;
+			}
+			approve->click();
+			wait([&] { return verdicts.shown_draft() && verdicts.shown_draft()->State == state::drafting
+						   && verdicts.status_label()->text().contains(QStringLiteral("not published")); },
+				 "GitHub refuses the Approve; the page says so");
+			expect(verdicts.shown_draft()->Disposition == core::review_disposition::approve && verdicts.shown_draft()->Body.empty(),
+				   "the refused review keeps Approve chosen, with no summary");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseBeforeSend = false;
+			}
+			const auto before = submissions();
+			application->window().github_refresh_action()->trigger();
+			wait([&] { return verdicts.shown_draft() && verdicts.shown_draft()->Target != refused.Target && approve->isEnabled(); },
+				 "a review with no summary goes on at the new revision, and Approve is offered");
+			const auto second = verdicts.shown_draft()->Target;
+			approve->click();
+			wait([&] { return submissions() == before + 1U; }, "the next Approve submits");
+			std::scoped_lock lock{ server->Mutex };
+			expect(server->Reviews.back().Proposal.Disposition == core::review_disposition::approve
+					   && server->Reviews.back().Proposal.Target == second,
+				   "it approves the revision shown, once");
+		}
+		shutdown(*application);
 		cli.check();
 		std::cout << "review-submission-composition:pass\n";
 		return EXIT_SUCCESS;
