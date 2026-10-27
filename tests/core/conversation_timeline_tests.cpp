@@ -113,6 +113,14 @@ namespace {
 			   "a thread whose review is absent stands alone at its own time; a legacy one without a time comes first; a dismissed review with nothing shows nothing");
 		expect(rows.Rows[0].Review.empty(), "a lone thread belongs to no bundle");
 		expect(arrange_conversation_timeline(items) == rows, "equal items arrange equally");
+		auto legacy = std::vector<timeline_item>{
+			thread("t-z", "", "", "z.cpp", 9U),
+			thread("t-a3", "", "", "a.cpp", 3U),
+			comment("c", ""),
+			thread("t-a1", "", "", "a.cpp", 1U),
+		};
+		expect(ids(arrange_conversation_timeline(legacy)) == std::vector<std::string>{ "c", "t-a1", "t-a3", "t-z" },
+			   "without times, what is not on a file comes first, then file and line order");
 	}
 
 	void filters()

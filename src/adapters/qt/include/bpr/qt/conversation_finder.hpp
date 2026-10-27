@@ -96,6 +96,10 @@ namespace bpr::qt {
 		std::vector<finder_post> Posts;
 		std::vector<finder_row>  Rows;
 		std::size_t              Unread = 0U;
+		/// [[BPR-1779]]. A review that carried no comment, kept for its
+		/// verdict: "Approved" or "Changes requested". Its row shows the word;
+		/// no comment's body is shown as the review's.
+		QString Verdict;
 	};
 
 	/// \brief The rows a conversation draws as.
@@ -109,9 +113,11 @@ namespace bpr::qt {
 
 	/// \brief The conversations on a file, from the drawer's forest and the
 	/// ledger's read state, in path order and then line order.
-	/// \details Pull request comments and review summaries, which are not on
-	/// a file, are not listed: Discuss reads them. Until the read state is
-	/// known nothing is new.
+	/// \details Pull request comments and review bodies, which are not on a
+	/// file, come last under "Not on a file", in time order ([[BPR-1779]]):
+	/// a review with no body is listed only for Approved or Changes
+	/// requested, its comments being the threads on their files. Until the
+	/// read state is known nothing is new.
 	[[nodiscard]] auto finder_conversations_of(const std::vector<application::github_conversation_projection>& aForest,
 											   const std::vector<thread_read_state>& aReadState, bool aReadStateKnown,
 											   const QString& aViewer) -> std::vector<finder_conversation>;

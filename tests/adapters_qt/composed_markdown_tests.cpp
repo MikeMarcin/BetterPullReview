@@ -257,11 +257,6 @@ Final content: Ω 日本語 🦊
 				return !aLabel->isHidden() && aLabel->text() == QStringLiteral("No body provided.");
 			});
 		};
-		const auto summaryNotice = [](const qt::markdown_body_view& aReader, const QString& aExpected) {
-			return std::ranges::any_of(aReader.findChildren<QLabel*>(), [&aExpected](const auto* aLabel) {
-				return !aLabel->isHidden() && aLabel->text() == aExpected;
-			});
-		};
 		for (const auto& id : { "review-comment:root", "review-comment:reply", "public-preview-comment:rest-root", "issue-comment:issue" }) {
 			auto* const reader   = readerFor(id);
 			const auto  expected = std::string_view{ id } == "review-comment:root" ? aRootBody : std::string{ corpus };
@@ -271,19 +266,24 @@ Final content: Ω 日本語 🦊
 		}
 		auto* const empty = readerFor("issue-comment:empty");
 		expect(empty != nullptr && empty->original_body().empty() && emptyNotice(*empty), "an actual empty comment retains the explicit empty-body state");
-		auto* const approved = readerFor("review:approved");
-		expect(approved != nullptr && approved->original_body().empty() && !emptyNotice(*approved)
-				   && summaryNotice(*approved, QStringLiteral("No overall review comment.")),
-			   "an approval without a summary says so without borrowing any comment's body");
-		auto* const summary = readerFor("review:summary");
-		expect(summary != nullptr && summary->original_body().empty() && !emptyNotice(*summary)
-				   && summaryNotice(*summary, QStringLiteral("No overall review comment. 1 file comment is linked below.")),
-			   "an empty commented review distinguishes its missing summary from its linked file comment");
+		// [[BPR-1779]]. A review with no overall body is no card: the
+		// approval stays a compact verdict line, the Commented review is the
+		// line over the file comment it carried, which is listed in its own
+		// right. No review presents any comment's body as its words.
+		const auto hasCard = [cards](const std::string& aId) { return std::ranges::any_of(cards->cards(), [&aId](const auto& aCard) { return aCard.Id == aId; }); };
+		expect(!hasCard("review:approved") && !hasCard("review:summary"), "a review with no overall body is not a card of its own");
+		const auto& lines    = cards->timeline_lines();
+		const auto  approved = std::ranges::find(lines, std::string{ "review:approved" }, &qt::timeline_line::Id);
+		expect(approved != lines.end() && approved->Kind == qt::timeline_line::kind::verdict && approved->Verdict == QStringLiteral("Approved"),
+			   "an approval without a summary stays a compact verdict line");
+		const auto summary = std::ranges::find(lines, std::string{ "review:summary" }, &qt::timeline_line::Id);
+		const auto file    = std::ranges::find(lines, std::string{ "review-thread:thread" }, &qt::timeline_line::Id);
+		expect(summary != lines.end() && summary->Kind == qt::timeline_line::kind::bundle && summary->Verdict.isEmpty() && file != lines.end() && file > summary
+				   && file->Kind == qt::timeline_line::kind::path && file->Path == QStringLiteral("src/file.cpp:7"),
+			   "an empty commented review is the line over its exact file comment, shown at its path and line");
+		expect(std::ranges::find(cards->cards(), std::string{ "review-thread:thread" }, &qt::thread_card::Id)->Bundle == "review:summary",
+			   "the file comment is its own thread, posted in the review");
 		capture(aWindow, QStringLiteral("discuss-empty-summary"));
-		auto* const fileComment = cards->open_card()->findChild<QToolButton*>(QStringLiteral("conversationReviewFileComment"));
-		expect(fileComment != nullptr && fileComment->text() == QStringLiteral("src/file.cpp:7")
-				   && fileComment->accessibleName() == QStringLiteral("Open file comment at src/file.cpp:7 in Review"),
-			   "the summary offers its exact file comment with an explicit Review destination");
 		auto* const root   = readerFor("review-comment:root");
 		const auto  suffix = aRootBody == corpus ? QStringLiteral("original") : aRootBody.empty() ? QStringLiteral("empty")
 			: aRootBody.starts_with(corpus)                                                       ? QStringLiteral("changed")

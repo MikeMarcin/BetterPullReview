@@ -5,6 +5,8 @@
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
 
+#include "owner_186_fixture.hpp"
+
 #include "bpr/core/diff_model.hpp"
 #include "bpr/core/reference_page.hpp"
 
@@ -2340,21 +2342,30 @@ namespace {
 		view.set_action_dispatch([&](qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
 		view.show();
 		QApplication::processEvents();
-		expect(view.pull_request_comments_chip()->isVisible() && view.pull_request_comments_chip()->accessibleName() == QStringLiteral("3 comments on the pull request, 1 new"), "one top chip counts every live singleton, independent of the file");
+		// [[BPR-1779]]. The chip counts comments: the two PR comments, the
+		// review's body and the thread it carried; not the review.
+		expect(view.pull_request_comments_chip()->isVisible() && view.pull_request_comments_chip()->accessibleName() == QStringLiteral("4 comments on the pull request, 1 new"), "one top chip counts every live comment, independent of the file");
 		expect(view.cards().size() == 1U, "file view still shows only its thread");
 		view.pull_request_comments_chip()->click();
 		QApplication::processEvents();
-		expect(view.pull_request_comments_shown() && view.cards().size() == 3U && view.cards()[0].Id == old.Id && view.cards()[1].Id == summary.Id && view.cards()[2].Id == fresh.Id, "chip opens only PR comments in creation order across reviews and comments");
+		expect(view.pull_request_comments_shown() && view.cards().size() == 4U && view.cards()[0].Id == old.Id && view.cards()[1].Id == summary.Id && view.cards()[2].Id == file.Id && view.cards()[3].Id == fresh.Id,
+			   "chip opens the conversation in time order, the review's body and its thread together at the review's time");
 		view.open_thread(fresh.Id);
 		QApplication::processEvents();
 		expect(!actions.empty() && actions.back() == std::pair{ qt::card_action::mark_read, fresh.Id }, "opening a PR comment asks the existing durable read owner");
 		view.open_thread(summary.Id);
 		QApplication::processEvents();
-		expect(view.open_card()->findChild<QLabel*>(QStringLiteral("conversationReviewVerdict"))->text() == QStringLiteral("Changes requested"), "review summary retains its verdict");
-		auto* link = view.open_card()->findChild<QToolButton*>(QStringLiteral("conversationReviewFileComment"));
-		expect(link && link->text() == QStringLiteral("src/a.cpp:9"), "review summary links to its exact file comment");
-		link->click();
-		expect(actions.back() == std::pair{ qt::card_action::open_in_code, post.Id }, "file link dispatch names its post");
+		const auto& lines  = view.timeline_lines();
+		const auto  bundle = std::ranges::find(lines, summary.Id, &qt::timeline_line::Id);
+		expect(bundle != lines.end() && bundle->Kind == qt::timeline_line::kind::bundle && bundle->Verdict == QStringLiteral("Changes requested") && bundle->Author == QStringLiteral("reviewer"),
+			   "the review's line carries its verdict and who gave it");
+		expect(view.open_card()->findChild<QLabel*>(QStringLiteral("conversationReviewVerdict")) == nullptr, "the review's body is a comment, without the verdict repeated");
+		const auto path = std::ranges::find(lines, file.Id, &qt::timeline_line::Id);
+		expect(path != lines.end() && path->Kind == qt::timeline_line::kind::path && path->Path == QStringLiteral("src/a.cpp:9"), "the thread the review carried shows its path and line");
+		const auto at    = path->Rect.translated(0, -view.verticalScrollBar()->value()).center();
+		auto       press = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ at }, view.viewport()->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		QApplication::sendEvent(view.viewport(), &press);
+		expect(actions.back() == std::pair{ qt::card_action::open_in_code, file.Id }, "its path line opens the thread in Review");
 		view.open_card()->findChild<QToolButton*>(QStringLiteral("conversationShowInDiscuss"))->click();
 		expect(actions.back() == std::pair{ qt::card_action::show_in_discuss, summary.Id }, "Show in Discuss preserves the singleton identity");
 		view.begin_reply(summary.Id);
@@ -2369,7 +2380,7 @@ namespace {
 		expect(view.cards().size() == 1U && view.cards()[0].Id == file.Id, "Back restores the file thread view");
 		view.resize(280, 800);
 		QApplication::processEvents();
-		expect(view.pull_request_comments_chip()->text() == QStringLiteral("3"), "narrow chip retains total and accessible full words");
+		expect(view.pull_request_comments_chip()->text() == QStringLiteral("4"), "narrow chip retains total and accessible full words");
 		view.set_feed(true);
 		QApplication::processEvents();
 		expect(!view.pull_request_comments_chip()->isVisible(), "Discuss remains its existing full conversation feed");
@@ -2618,6 +2629,206 @@ namespace {
 			view.hide();
 		}
 	}
+	/// [[BPR-1779]]. The owner, 2026-10-27: "to me the review is just a
+	/// bundle of comments posted together and what really matters is the
+	/// comments themselves on the files and lines". #186's shape, in the Pull
+	/// request view and in Discuss over the whole pull request.
+	void test_conversation_lists_comments_not_reviews()
+	{
+		using kind = qt::timeline_line::kind;
+		for (const auto discuss : { false, true }) {
+			qt::conversation_cards_view view;
+			view.resize(420, 900);
+			view.set_resolution_offered(true);
+			view.set_excerpt_locator([](const QString& aPath, core::diff_side, const std::uint32_t aLine) -> std::optional<QString> {
+				return aPath.endsWith(QStringLiteral(".cpp")) ? std::optional{ QStringLiteral("%1     m_Loader.Shutdown();").arg(aLine) } : std::nullopt;
+			});
+			if (discuss) {
+				view.set_feed(true);
+				view.set_scope(qt::cards_scope::whole_pull_request);
+			}
+			auto actions = std::vector<std::pair<qt::card_action, std::string>>{ };
+			view.set_action_dispatch([&actions](const qt::card_action aAction, const std::string& aId) { actions.emplace_back(aAction, aId); });
+			view.adopt(test::owner_186_forest(), core::file_identity_of("Client/AppCore/src/Instance.cpp"));
+			view.set_read_state({ { .Thread = "review-thread:cpp", .UnreadPosts = { "review-comment:cpp-reply" } }, { .Thread = "review:csw", .UnreadPosts = { "review:csw" } } });
+			view.show();
+			QApplication::processEvents();
+			if (!discuss) {
+				expect(view.pull_request_comments_chip()->accessibleName() == QStringLiteral("2 comments on the pull request, 1 new"),
+					   "the chip counts the two file comments, not the six reviews, and the unread approval is no comment");
+				view.show_pull_request_comments(true);
+				QApplication::processEvents();
+			}
+			const auto where = std::string{ discuss ? "Discuss: " : "Pull request view: " };
+			expect(view.timeline(), where + "reads in time order");
+			auto ids = std::vector<std::string>{ };
+			for (const auto& card : view.cards()) {
+				ids.push_back(card.Id);
+			}
+			expect(ids == std::vector<std::string>{ "review-thread:h", "review-thread:cpp" },
+				   where + "the no-body review's two file comments are the conversation's comments, and no review is a card");
+			expect(view.thread_count() == 2U && std::ranges::all_of(view.cards(), [](const qt::thread_card& aCard) { return aCard.Bundle == "review:dos"; }),
+				   where + "the counts count the comments, each knowing the review it was posted in");
+			auto lines = std::vector<std::pair<kind, std::string>>{ };
+			for (const auto& line : view.timeline_lines()) {
+				lines.emplace_back(line.Kind, line.Kind == kind::path ? line.Path.toStdString() : line.Id);
+			}
+			// The Pull request view's New rule stands over the first comment
+			// with a post not yet read.
+			const auto fresh    = std::vector<std::pair<kind, std::string>>{ { kind::fresh, "" } };
+			const auto expected = std::vector<std::pair<kind, std::string>>{
+				{ kind::bundle, "review:dos" },
+				{ kind::path, "Client/AppCore/include/AppCore/Instance.h:18" },
+			};
+			const auto tail = std::vector<std::pair<kind, std::string>>{
+				{ kind::path, "Client/AppCore/src/Instance.cpp:42" },
+				{ kind::verdict, "review:csw" },
+				{ kind::verdict, "review:sau" },
+			};
+			auto whole = expected;
+			if (!discuss) {
+				whole.insert(whole.end(), fresh.begin(), fresh.end());
+			}
+			whole.insert(whole.end(), tail.begin(), tail.end());
+			expect(lines == whole, where + "one quiet line over the bundle, each thread under its path and line, the approvals as compact lines, and nothing for the body-less Commented reviews");
+			const auto& bundle = view.timeline_lines().front();
+			expect(bundle.Author == QStringLiteral("dosullivan") && bundle.Verdict.isEmpty() && !bundle.When.isEmpty(), where + "a Commented bundle names who and when, and no verdict");
+			const auto& approval = view.timeline_lines()[discuss ? 3U : 4U];
+			expect(approval.Author == QStringLiteral("cswiedler") && approval.Verdict == QStringLiteral("Approved"), where + "an approval stays a compact line with whoever gave it");
+			expect(bundle.Reach == view.cards().back().Rect.bottom(), where + "the bundle's rail runs down to its last comment");
+			// Open, read, reply and resolve act on the thread itself.
+			view.open_thread("review-thread:cpp");
+			QApplication::processEvents();
+			expect(!actions.empty() && actions.back() == std::pair{ qt::card_action::mark_read, std::string{ "review-thread:cpp" } }, where + "opening the comment reads its own thread");
+			auto* const excerpt = view.open_card()->findChild<QLabel*>(QStringLiteral("threadExcerpt"));
+			expect(excerpt != nullptr && excerpt->text().contains(QStringLiteral("m_Loader.Shutdown();")), where + "the open comment shows the lines it is on");
+			auto* const open = button(view, "threadShowLine");
+			expect(open != nullptr && open->text() == QStringLiteral("Open in Review"), where + "and offers Open in Review");
+			open->click();
+			expect(actions.back() == std::pair{ qt::card_action::open_in_code, std::string{ "review-thread:cpp" } }, where + "which opens its thread in Review");
+			expect(view.open_card()->findChildren<QWidget*>(QStringLiteral("threadPost")).size() == 2U, where + "the comment shows with its reply");
+			for (auto* const label : view.findChildren<QLabel*>()) {
+				expect(!label->text().startsWith(QStringLiteral("No overall review comment")), where + "no empty-review notice stands where the comments are shown");
+			}
+			button(view, "threadReplyField")->click();
+			expect(actions.back() == std::pair{ qt::card_action::reply, std::string{ "review-thread:cpp" } }, where + "Reply answers the thread");
+			button(view, "threadResolveConversation")->click();
+			expect(actions.back() == std::pair{ qt::card_action::resolve, std::string{ "review-thread:cpp" } }, where + "Resolve resolves the thread");
+			view.close_thread();
+			if (discuss) {
+				// The filters act on comments: verdict lines are not comments.
+				view.set_filters({ .UnreadOnly = true });
+				QApplication::processEvents();
+				expect(view.cards().size() == 1U && view.cards().front().Id == "review-thread:cpp" && view.thread_count() == 1U, "Unread keeps the unread comment and counts it");
+				expect(view.timeline_lines().size() == 2U && view.timeline_lines().front().Kind == kind::bundle, "under its review's line, with no verdict lines");
+				auto resolved                                                                              = test::owner_186_forest();
+				std::ranges::find(resolved, std::string{ "review-thread:h" }, &conversation::Id)->Resolved = true;
+				view.set_filters({ .UnresolvedOnly = true });
+				view.adopt(resolved);
+				QApplication::processEvents();
+				expect(view.cards().size() == 1U && view.cards().front().Id == "review-thread:cpp", "Hide resolved hides the resolved comment");
+				view.set_filters({ });
+				view.set_scope(qt::cards_scope::this_file);
+				QApplication::processEvents();
+				expect(!view.timeline() && view.timeline_lines().empty() && view.cards().size() == 1U, "one file keeps its file-and-line order, without review lines");
+			}
+			view.hide();
+		}
+	}
+
+	/// [[BPR-1779]]. A review's overall body is one more comment in its
+	/// bundle: Approved is named on the bundle's line, not on the body.
+	void test_a_review_body_is_a_comment_in_its_bundle()
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 700);
+		view.set_feed(true);
+		view.set_scope(qt::cards_scope::whole_pull_request);
+		auto review        = conversation{ };
+		review.Id          = "review:said";
+		review.Kind        = application::github_conversation_kind::review;
+		review.AuthorLogin = "jiayin";
+		review.Body        = "Looks right to me.";
+		review.ReviewState = application::github_review_state_projection::approved;
+		review.CreatedAt   = "2026-10-24T00:00:00Z";
+		auto said          = thread("review-thread:said", "src/a.cpp", 4U);
+		auto post          = reply("review-comment:said", said.Id, "jiayin", "nit: a name");
+		post.ReviewId      = review.Id;
+		post.CreatedAt     = review.CreatedAt;
+		auto issue         = conversation{ .Id = "issue-comment:1", .Kind = application::github_conversation_kind::issue_comment, .AuthorLogin = "author", .Body = "Thanks", .CreatedAt = "2026-10-25T00:00:00Z" };
+		view.adopt({ issue, said, post, review });
+		view.show();
+		QApplication::processEvents();
+		expect(view.cards().size() == 3U && view.cards()[0].Id == review.Id && view.cards()[1].Id == said.Id && view.cards()[2].Id == issue.Id,
+			   "the body, then the review's thread, then the later pull request comment");
+		expect(view.cards()[0].Verdict.isEmpty() && view.cards()[0].Posts.front().Body == QStringLiteral("Looks right to me."), "the body is its own words, the verdict left to the line");
+		expect(view.timeline_lines().front().Kind == qt::timeline_line::kind::bundle && view.timeline_lines().front().Verdict == QStringLiteral("Approved"), "Approved is named on the bundle's line");
+		expect(view.cards()[2].Bundle.empty(), "a pull request comment belongs to no bundle");
+		view.hide();
+	}
+
+	/// [[BPR-1779]]. The light or dark palette the renders use.
+	[[nodiscard]] auto render_palette(const bool aDark) -> QPalette
+	{
+		auto palette = QApplication::palette();
+		if (aDark) {
+			palette.setColor(QPalette::Base, QColor{ 0x0D, 0x11, 0x17 });
+			palette.setColor(QPalette::Window, QColor{ 0x16, 0x1B, 0x22 });
+			palette.setColor(QPalette::Text, QColor{ 0xE6, 0xED, 0xF3 });
+			palette.setColor(QPalette::WindowText, QColor{ 0xE6, 0xED, 0xF3 });
+			palette.setColor(QPalette::ButtonText, QColor{ 0xE6, 0xED, 0xF3 });
+			palette.setColor(QPalette::Button, QColor{ 0x21, 0x26, 0x2D });
+			palette.setColor(QPalette::PlaceholderText, QColor{ 0x8B, 0x94, 0x9E });
+			palette.setColor(QPalette::Highlight, QColor{ 0x2F, 0x81, 0xF7 });
+		} else {
+			palette.setColor(QPalette::Base, Qt::white);
+			palette.setColor(QPalette::Text, QColor{ 0x1F, 0x23, 0x28 });
+			palette.setColor(QPalette::Highlight, QColor{ 0x09, 0x69, 0xDA });
+		}
+		return palette;
+	}
+
+	/// [[BPR-1779]]. Offscreen renders of #186's shape in the drawer's Pull
+	/// request view and in Discuss, closed and with the first comment open,
+	/// light and dark: `<dir>/<phase>-<view>-<theme>.png`.
+	auto render_owner_186(const QString& aDirectory, const QString& aPhase) -> void
+	{
+		const auto forest = test::owner_186_forest();
+		for (const auto dark : { false, true }) {
+			const auto theme = dark ? QStringLiteral("dark") : QStringLiteral("light");
+			for (const auto discuss : { false, true }) {
+				qt::conversation_cards_view view;
+				view.setPalette(render_palette(dark));
+				view.resize(discuss ? 520 : 380, 820);
+				view.set_pull_request_author(QStringLiteral("jmarcin"));
+				view.set_excerpt_locator([](const QString& aPath, core::diff_side, const std::uint32_t aLine) -> std::optional<QString> {
+					return aPath.endsWith(QStringLiteral(".h")) ? QStringLiteral("%1     std::string m_Name;").arg(aLine)
+																: QStringLiteral("%1     m_Loader.Shutdown();").arg(aLine);
+				});
+				view.set_resolution_offered(true);
+				if (discuss) {
+					view.set_feed(true);
+					view.set_scope(qt::cards_scope::whole_pull_request);
+				}
+				view.adopt(forest, core::file_identity_of("Client/AppCore/src/Instance.cpp"));
+				view.show();
+				QApplication::processEvents();
+				if (!discuss) {
+					view.show_pull_request_comments(true);
+					QApplication::processEvents();
+				}
+				const auto name = discuss ? QStringLiteral("discuss") : QStringLiteral("pr-view");
+				view.grab().save(aDirectory + QStringLiteral("/%1-%2-%3.png").arg(aPhase, name, theme));
+				const auto first = std::ranges::find_if(view.cards(), [](const qt::thread_card& aCard) { return aCard.Id == "review:dos" || aCard.Id == "review-thread:cpp"; });
+				if (first != view.cards().end()) {
+					view.open_thread(first->Id);
+					QApplication::processEvents();
+					view.grab().save(aDirectory + QStringLiteral("/%1-%2-open-%3.png").arg(aPhase, name, theme));
+				}
+				view.hide();
+			}
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -2631,6 +2842,11 @@ auto main(int argc, char** argv) -> int
 	if (argc > 2 && std::string_view{ argv[1] } == "--render-reactions") {
 		test_reactions_render_in_light_and_dark(QString::fromLocal8Bit(argv[2]));
 		std::cout << "render-reactions:pass\n";
+		return EXIT_SUCCESS;
+	}
+	if (argc > 3 && std::string_view{ argv[1] } == "--render-bpr-1779") {
+		render_owner_186(QString::fromLocal8Bit(argv[2]), QString::fromLocal8Bit(argv[3]));
+		std::cout << "render-bpr-1779:pass\n";
 		return EXIT_SUCCESS;
 	}
 	if (argc > 1 && std::string_view{ argv[1] } == "--publication-status-geometry") {
@@ -2672,6 +2888,8 @@ auto main(int argc, char** argv) -> int
 	test_reactions_show_and_toggle_by_mouse_and_keyboard();
 	test_resolve_conversation_beside_reply();
 	test_reactions_render_in_light_and_dark({ });
+	test_conversation_lists_comments_not_reviews();
+	test_a_review_body_is_a_comment_in_its_bundle();
 	std::cout << "conversation-cards-view-tests:pass\n";
 
 	return EXIT_SUCCESS;

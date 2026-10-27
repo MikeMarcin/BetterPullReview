@@ -1,6 +1,8 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/conversation_finder.hpp"
 
+#include "owner_186_fixture.hpp"
+
 #include <QAbstractButton>
 #include <QAccessible>
 #include <QApplication>
@@ -918,12 +920,66 @@ namespace {
 		QApplication::processEvents();
 		expect(finder.rebuilds() == before + 1U && finder.conversations().size() == 8U, "and rebuilds once when shown");
 	}
+	/// [[BPR-1779]]. #186's shape in Threads: the file comments are rows on
+	/// their files; under Not on a file the body-less Commented reviews add
+	/// nothing, and the approvals stay as their verdicts, in time order.
+	void test_reviews_are_rows_only_for_a_body_or_a_verdict()
+	{
+		auto forest = test::owner_186_forest();
+		auto later  = conversation{ .Id = "issue-comment:early", .Kind = application::github_conversation_kind::issue_comment, .AuthorLogin = "jmarcin", .Body = "Rebased on main.", .CreatedAt = "2026-10-21T00:00:00Z" };
+		forest.insert(forest.begin(), later);
+		const auto conversations = qt::finder_conversations_of(forest, { }, true, { });
+		auto       ids           = std::vector<std::string>{ };
+		for (const auto& conversation : conversations) {
+			ids.push_back(conversation.Id);
+		}
+		expect(ids == std::vector<std::string>{ "review-thread:h", "review-thread:cpp", "issue-comment:early", "review:csw", "review:sau" },
+			   "file comments by file; then, in time order, the comment and the two approvals, and no body-less Commented review");
+		expect(conversations[3].Verdict == QStringLiteral("Approved") && conversations[3].Posts.front().Words == QStringLiteral("Approved")
+				   && conversations[3].Posts.front().Body.isEmpty() && conversations[2].Verdict.isEmpty(),
+			   "an approval's row says Approved; no comment's body is shown as its words");
+	}
+
+	/// [[BPR-1779]]. Offscreen renders of #186's shape in Threads, light and
+	/// dark: `<dir>/<phase>-threads-<theme>.png`.
+	void render_owner_186(const QString& aDirectory, const QString& aPhase)
+	{
+		for (const auto dark : { false, true }) {
+			auto palette = QApplication::palette();
+			if (dark) {
+				palette.setColor(QPalette::Base, QColor{ 0x0D, 0x11, 0x17 });
+				palette.setColor(QPalette::Window, QColor{ 0x16, 0x1B, 0x22 });
+				palette.setColor(QPalette::Text, QColor{ 0xE6, 0xED, 0xF3 });
+				palette.setColor(QPalette::WindowText, QColor{ 0xE6, 0xED, 0xF3 });
+				palette.setColor(QPalette::ButtonText, QColor{ 0xE6, 0xED, 0xF3 });
+				palette.setColor(QPalette::Button, QColor{ 0x21, 0x26, 0x2D });
+				palette.setColor(QPalette::PlaceholderText, QColor{ 0x8B, 0x94, 0x9E });
+			} else {
+				palette.setColor(QPalette::Base, Qt::white);
+				palette.setColor(QPalette::Text, QColor{ 0x1F, 0x23, 0x28 });
+			}
+			auto finder = qt::conversation_finder{ };
+			finder.setPalette(palette);
+			finder.resize(640, 480);
+			finder.adopt(test::owner_186_forest());
+			finder.show();
+			QApplication::processEvents();
+			finder.grab().save(aDirectory + QStringLiteral("/%1-threads-%2.png").arg(aPhase, dark ? QStringLiteral("dark") : QStringLiteral("light")));
+			finder.hide();
+		}
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
 {
 	QApplication::setStyle(QStyleFactory::create(QStringLiteral("Windows")));
 	QApplication application{ aArgc, aArgv };
+	if (aArgc > 3 && std::string_view{ aArgv[1] } == "--render-bpr-1779") {
+		render_owner_186(QString::fromLocal8Bit(aArgv[2]), QString::fromLocal8Bit(aArgv[3]));
+		std::cout << "render-bpr-1779:pass\n";
+		return EXIT_SUCCESS;
+	}
+	test_reviews_are_rows_only_for_a_body_or_a_verdict();
 	test_rows_branch_only_where_replies_have_replies();
 	test_conversations_are_the_ones_on_a_file();
 	test_search_and_filters();

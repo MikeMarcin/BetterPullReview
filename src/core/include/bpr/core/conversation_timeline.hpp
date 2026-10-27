@@ -150,7 +150,9 @@ namespace bpr::core {
 	/// then the review's body, then its threads in file and line order. A
 	/// thread whose review is not among the items stands alone. A review with
 	/// no body that carried no comment adds a verdict row when its verdict is
-	/// named and nothing otherwise. Equal times keep the items' order.
+	/// named and nothing otherwise. Equal times (legacy observations carry
+	/// none) fall back to file and line order, what is not on a file first,
+	/// then to the items' order.
 	///
 	/// Filters act on comment rows only; a kept item is never filtered out.
 	/// While any filter is on, verdict rows are left out (they are not

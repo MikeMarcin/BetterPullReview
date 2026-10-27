@@ -11,6 +11,10 @@ namespace bpr::core {
 		struct unit
 		{
 			std::string_view CreatedAt;
+			/// A lone thread's place, which breaks a tie of times; empty for a
+			/// bundle or a pull request comment, which come first.
+			std::string_view Path;
+			std::uint32_t    Line  = 0U;
 			std::size_t      Order = 0U;
 			/// The review item, for a bundle.
 			const timeline_item* Review = nullptr;
@@ -52,7 +56,7 @@ namespace bpr::core {
 			}
 			const auto review = item.Kind == timeline_item_kind::thread && !item.Review.empty() ? reviews.find(item.Review) : reviews.end();
 			if (review == reviews.end()) {
-				units.push_back(unit{ .CreatedAt = item.CreatedAt, .Order = index, .Members = { &item } });
+				units.push_back(unit{ .CreatedAt = item.CreatedAt, .Path = item.Path, .Line = item.Line.value_or(0U), .Order = index, .Members = { &item } });
 				continue;
 			}
 			auto found = bundle.find(review->second);
@@ -64,7 +68,7 @@ namespace bpr::core {
 			units[found->second].Members.push_back(&item);
 		}
 		std::ranges::stable_sort(units, [](const unit& aLeft, const unit& aRight) {
-			return std::pair{ aLeft.CreatedAt, aLeft.Order } < std::pair{ aRight.CreatedAt, aRight.Order };
+			return std::tuple{ aLeft.CreatedAt, aLeft.Path, aLeft.Line, aLeft.Order } < std::tuple{ aRight.CreatedAt, aRight.Path, aRight.Line, aRight.Order };
 		});
 		const auto filtering = aFilters.UnreadOnly || aFilters.UnresolvedOnly || aFilters.Listed.has_value();
 		auto       result    = conversation_timeline{ };

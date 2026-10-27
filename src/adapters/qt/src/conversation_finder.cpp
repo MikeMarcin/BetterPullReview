@@ -3,6 +3,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 
+#include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/feedback_conversation.hpp"
 
@@ -429,9 +430,51 @@ namespace bpr::qt {
 			conversation.Rows   = finder_rows_of(conversation.Posts);
 			result.push_back(std::move(conversation));
 		}
-		std::ranges::stable_sort(result, [](const finder_conversation& aLeft, const finder_conversation& aRight) {
+		// [[BPR-1779]]. What is not on a file reads as the conversation does:
+		// the core decides which reviews take a row (a body, or a verdict that
+		// matters for merging) and their time order.
+		auto items = std::vector<core::timeline_item>{ };
+		for (const auto& conversation : result) {
+			if (!conversation.Path.isEmpty()) {
+				continue;
+			}
+			const auto& node = aForest[byId.at(conversation.Id)];
+			auto        item = core::timeline_item{ .Id = node.Id, .Author = node.AuthorLogin, .CreatedAt = node.CreatedAt };
+			if (node.Kind == application::github_conversation_kind::review) {
+				using state      = application::github_review_state_projection;
+				const auto& body = node.ReviewerProse.has_value() ? *node.ReviewerProse : node.Body;
+				item.Kind        = core::timeline_item_kind::review;
+				item.Review      = node.Id;
+				item.HasBody     = body.find_first_not_of(" \t\r\n") != std::string::npos;
+				item.Verdict     = node.ReviewState == state::approved ? core::timeline_verdict::approved
+					: node.ReviewState == state::changes_requested     ? core::timeline_verdict::changes_requested
+																	   : core::timeline_verdict::commented;
+			}
+			items.push_back(std::move(item));
+		}
+		const auto arranged = core::arrange_conversation_timeline(items);
+		auto       order    = std::unordered_map<std::string_view, std::size_t>{ };
+		for (const auto& row : arranged.Rows) {
+			if (row.Kind == core::timeline_row_kind::comment || row.Kind == core::timeline_row_kind::verdict) {
+				order.emplace(row.Id, order.size());
+			}
+		}
+		std::erase_if(result, [&order](const finder_conversation& aConversation) { return aConversation.Path.isEmpty() && !order.contains(aConversation.Id); });
+		for (const auto& row : arranged.Rows) {
+			if (row.Kind != core::timeline_row_kind::verdict) {
+				continue;
+			}
+			if (const auto found = std::ranges::find(result, row.Id, &finder_conversation::Id); found != result.end()) {
+				found->Verdict             = row.Verdict == core::timeline_verdict::approved ? QStringLiteral("Approved") : QStringLiteral("Changes requested");
+				found->Posts.front().Words = found->Verdict;
+			}
+		}
+		std::ranges::stable_sort(result, [&order](const finder_conversation& aLeft, const finder_conversation& aRight) {
 			const auto left  = aLeft.Path.toStdString();
 			const auto right = aRight.Path.toStdString();
+			if (left.empty() && right.empty()) {
+				return order.at(aLeft.Id) < order.at(aRight.Id);
+			}
 			return left.empty() != right.empty() ? !left.empty() : (left != right ? left < right : aLeft.Line < aRight.Line);
 		});
 		return result;
