@@ -18,6 +18,13 @@ namespace bpr::application {
 	/// author is its login, or empty when GitHub named none. Nothing here is
 	/// read that the signed-in reviewer cannot already read on GitHub.
 	[[nodiscard]] auto read_review_brief(const github_pull_request_snapshot& aSnapshot, std::optional<core::brief_review_skill> aSkill) -> core::review_brief_input;
+
+	/// \brief [[BPR-1773]]. What an `ask_about_conversation` turn reads of
+	/// one review thread, before its bounds: its path, its lines (the
+	/// current ones, or the original ones of an outdated thread), its state
+	/// and its comments oldest first, deleted ones left out. The excerpt is
+	/// the composition's to add, from the file it shows.
+	[[nodiscard]] auto read_conversation(const github_review_thread_record& aThread) -> core::conversation_input;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_BRIEF_HPP

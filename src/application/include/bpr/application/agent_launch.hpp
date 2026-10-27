@@ -114,6 +114,10 @@ namespace bpr::application {
 		/// not a review request. The host sets its workspace kind once the
 		/// workspace is made.
 		std::optional<core::supplement_brief> Brief;
+		/// [[BPR-1773]]. The conversation an `ask_about_conversation` turn
+		/// is about, already within its bounds (`core::bound_conversation`);
+		/// absent for every other launch.
+		std::optional<core::supplement_conversation> Conversation;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};

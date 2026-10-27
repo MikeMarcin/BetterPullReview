@@ -122,6 +122,9 @@ namespace bpr::qt {
 		carry_suggestion,
 		/// [[BPR-1733]]. My kept suggestion's change, copied as its lines.
 		copy_change,
+		/// [[BPR-1773]]. Ask the agent about this conversation: the Agent
+		/// tab opens with it attached to the next question. Nothing is sent.
+		ask_agent,
 	};
 
 	/// \brief [[BPR-1733]]. My kept suggestion written on an earlier head of

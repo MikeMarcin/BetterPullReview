@@ -627,6 +627,12 @@ namespace bpr::qt {
 			threads->setToolTip(QStringLiteral("Show this thread's row in Threads"));
 			connect(threads, &QAction::triggered, menu, [this, post] { if (ActionDispatch) { ActionDispatch(card_action::show_in_threads, post); } });
 		}
+		// [[BPR-1773]]. Ask the agent about a review thread on a file.
+		if (card.Kind == QStringLiteral("Inline thread") && !card.Path.isEmpty() && !card.Posts.empty()) {
+			add(card_action::ask_agent, QStringLiteral("Ask agent about this conversation"), true, { });
+			menu->actions().back()->setObjectName(QStringLiteral("threadAskAgentAction"));
+			menu->actions().back()->setToolTip(QStringLiteral("Open the Agent tab with this conversation and its lines attached to your next question"));
+		}
 		if (!card.Posts.empty()) {
 			auto* copy = menu->addAction(QStringLiteral("Copy first post"));
 			copy->setObjectName(QStringLiteral("threadCopySource"));

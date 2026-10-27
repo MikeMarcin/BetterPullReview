@@ -806,6 +806,28 @@ namespace bpr::qt {
 		Chips->setWordWrap(true);
 		Chips->hide();
 		fieldCol->addWidget(Chips);
+		// [[BPR-1773]]. The conversation the next questions are about: what
+		// it is, and a close button. It stays until it is closed, so a
+		// follow-up is about the same conversation.
+		ConversationChip = new rounded{ rounded::look::card, field };
+		ConversationChip->setObjectName(QStringLiteral("agentConversationChip"));
+		auto* const chipRow = new QHBoxLayout{ ConversationChip };
+		chipRow->setContentsMargins(8, 3, 2, 3);
+		chipRow->setSpacing(4);
+		ConversationText = new QLabel{ ConversationChip };
+		ConversationText->setObjectName(QStringLiteral("agentConversationChipText"));
+		ConversationText->setTextFormat(Qt::PlainText);
+		ConversationText->setWordWrap(true);
+		chipRow->addWidget(ConversationText, 1);
+		ConversationClose = make_drawer_tool(ConversationChip, drawer_icon(drawer_glyph::close, palette()), tr("Stop asking about this conversation"), QStringLiteral("agentConversationChipClose"));
+		connect(ConversationClose, &QToolButton::clicked, this, [this] {
+			if (ConversationDismiss) {
+				ConversationDismiss();
+			}
+		});
+		chipRow->addWidget(ConversationClose, 0, Qt::AlignTop);
+		ConversationChip->hide();
+		fieldCol->addWidget(ConversationChip);
 		auto* const composer = Chat.composer();
 		Borrowed.emplace_back(composer, composer->parentWidget());
 		composer->setParent(field);
@@ -897,6 +919,7 @@ namespace bpr::qt {
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
 			PendingQuestion = Chat.composer()->toPlainText().trimmed();
 			PendingReview   = false;
+			PendingAbout    = ConversationShown;
 		});
 		askRow->addWidget(Ask);
 		fieldCol->addLayout(askRow);
@@ -1113,10 +1136,12 @@ namespace bpr::qt {
 			next.Question = tr("Review this pull request");
 		} else {
 			next.Question = *PendingQuestion;
+			next.About    = PendingAbout;
 			// Sent: the field is ready for the next question.
 			Chat.composer()->clear();
 		}
 		PendingQuestion.reset();
+		PendingAbout.reset();
 		PendingReview  = false;
 		FindingsAtTurn = FindingsPresented;
 		next.AskedAt   = QDateTime::currentDateTime();
@@ -1145,6 +1170,16 @@ namespace bpr::qt {
 		asked->setObjectName(QStringLiteral("agentTurnQuestion"));
 		auto* const askedColumn = new QVBoxLayout{ asked };
 		askedColumn->setContentsMargins(10, 6, 10, 6);
+		// [[BPR-1773]]. A question about a conversation says which, above it.
+		if (aTurn.About) {
+			auto* const about = new QLabel{ tr("About %1").arg(aTurn.About->Text), asked };
+			about->setObjectName(QStringLiteral("agentTurnAbout"));
+			about->setTextFormat(Qt::PlainText);
+			about->setWordWrap(true);
+			about->setForegroundRole(QPalette::PlaceholderText);
+			about->setToolTip(aTurn.About->Detail);
+			askedColumn->addWidget(about);
+		}
 		auto* const question = new QLabel{ asked };
 		question->setObjectName(QStringLiteral("agentTurnQuestionText"));
 		question->setWordWrap(true);
@@ -1203,6 +1238,15 @@ namespace bpr::qt {
 		save->setToolTip(tr("Keep this reply, or the part of it you selected, as a private note. Nothing is published."));
 		save->hide();
 		footerRow->addWidget(save);
+		// [[BPR-1773]]. Use as reply: the answer, or the part selected,
+		// goes to the reply field of the conversation it was asked about.
+		// Nothing is published.
+		auto* const useReply = new quiet_push_button{ tr("Use as reply"), reply };
+		useReply->setObjectName(QStringLiteral("agentTurnUseAsReply"));
+		useReply->setFlat(true);
+		useReply->setToolTip(tr("Put this reply, or the part of it you selected, in the conversation's reply field. Nothing is published until you publish it."));
+		useReply->hide();
+		footerRow->addWidget(useReply);
 		footerRow->addStretch(1);
 		auto* const answeredTime = new QLabel{ reply };
 		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
@@ -1220,6 +1264,22 @@ namespace bpr::qt {
 		aTurn.Copy         = copy;
 		aTurn.AskedTime    = askedTime;
 		aTurn.AnsweredTime = answeredTime;
+		aTurn.Reply        = useReply;
+		connect(useReply, &QPushButton::clicked, this, [this, useReply] {
+			for (const auto& kept : Turns) {
+				if (kept.Reply != useReply || !kept.About || !ReplyDispatch) {
+					continue;
+				}
+				auto       text     = kept.AnswerText;
+				const auto selected = kept.Answer != nullptr ? kept.Answer->rendered_view()->textCursor().selectedText() : QString{ };
+				if (!selected.trimmed().isEmpty()) {
+					text = selected;
+					text.replace(QChar::ParagraphSeparator, QLatin1Char{ '\n' });
+				}
+				ReplyDispatch(kept.About->Key, text);
+				return;
+			}
+		});
 		connect(copy, &QToolButton::clicked, this, [this, copy] {
 			for (const auto& kept : Turns) {
 				if (kept.Copy == copy) {
@@ -1526,21 +1586,32 @@ namespace bpr::qt {
 		// lines are selected.
 		const auto context = SuggestionContext ? SuggestionContext() : agent_suggestion_context{ };
 		auto       prompts = QStringList{ tr("Review this pull request") };
-		if (!context.OpenFile.isEmpty()) {
-			prompts << tr("Review %1").arg(context.OpenFile);
-		}
-		prompts << tr("What could this change break?");
-		if (context.Lines) {
-			// Owner look v004 ("in an hour I wont remember which file line 34
-			// was in"): the prompt names the file, and the thread links it.
-			// Owner look v005 ("should change to explain selected block or
-			// something when there's a selection, especially a multi-line
-			// selection"): a block says so, and still names its file and lines.
-			const auto [first, last] = *context.Lines;
-			if (context.OpenFile.isEmpty()) {
-				prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last));
+		if (ConversationShown) {
+			// [[BPR-1773]]. While a conversation is attached the prompts are
+			// about it; a reply is offered only where one can be written.
+			prompts = QStringList{ tr("Summarize this conversation"), tr("Is the concern raised here right?") };
+			if (ConversationShown->Replies) {
+				prompts << tr("Draft a reply to this conversation");
 			} else {
-				prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last));
+				prompts << tr("Explain the code this note is on");
+			}
+		} else {
+			if (!context.OpenFile.isEmpty()) {
+				prompts << tr("Review %1").arg(context.OpenFile);
+			}
+			prompts << tr("What could this change break?");
+			if (context.Lines) {
+				// Owner look v004 ("in an hour I wont remember which file line 34
+				// was in"): the prompt names the file, and the thread links it.
+				// Owner look v005 ("should change to explain selected block or
+				// something when there's a selection, especially a multi-line
+				// selection"): a block says so, and still names its file and lines.
+				const auto [first, last] = *context.Lines;
+				if (context.OpenFile.isEmpty()) {
+					prompts << (first == last ? tr("Explain the selected line (%1)").arg(first) : tr("Explain the selected block (lines %1–%2)").arg(first).arg(last));
+				} else {
+					prompts << (first == last ? tr("Explain %1 line %2").arg(context.OpenFile).arg(first) : tr("Explain the selected block (%1 lines %2–%3)").arg(context.OpenFile).arg(first).arg(last));
+				}
 			}
 		}
 		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;
@@ -1653,6 +1724,9 @@ namespace bpr::qt {
 		if (current.SaveNote != nullptr) {
 			current.SaveNote->setVisible(succeeded && !current.AnswerText.isEmpty());
 		}
+		if (current.Reply != nullptr) {
+			current.Reply->setVisible(succeeded && !current.AnswerText.isEmpty() && current.About && current.About->Replies);
+		}
 		ClearSession->setVisible(true);
 		if (ThreadObserver) {
 			ThreadObserver(thread_turns());
@@ -1672,6 +1746,9 @@ namespace bpr::qt {
 		}
 		if (aTurn.SaveNote != nullptr) {
 			aTurn.SaveNote->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty());
+		}
+		if (aTurn.Reply != nullptr) {
+			aTurn.Reply->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty() && aTurn.About && aTurn.About->Replies);
 		}
 		if (aTurn.AnsweredTime != nullptr) {
 			show_time(*aTurn.AnsweredTime, aTurn.AnsweredAt);
@@ -1885,6 +1962,41 @@ namespace bpr::qt {
 	void agent_tab_view::set_finding_card_dispatch(agent_finding_card_dispatch aDispatch) { CardDispatch = std::move(aDispatch); }
 
 	void agent_tab_view::set_answer_note_dispatch(agent_answer_note_dispatch aDispatch) { NoteDispatch = std::move(aDispatch); }
+
+	void agent_tab_view::set_conversation_chip(std::optional<agent_conversation_chip> aChip)
+	{
+		if (aChip == ConversationShown) {
+			return;
+		}
+		ConversationShown = std::move(aChip);
+		ConversationChip->setVisible(ConversationShown.has_value());
+		ConversationText->setText(ConversationShown ? ConversationShown->Text : QString{ });
+		ConversationChip->setToolTip(ConversationShown ? ConversationShown->Detail : QString{ });
+		Chat.composer()->setPlaceholderText(ConversationShown ? tr("Ask about this conversation…") : tr("Ask about this pull request…"));
+		refresh_suggestions();
+	}
+
+	void agent_tab_view::set_conversation_dismiss(std::function<void()> aDismiss)
+	{
+		ConversationDismiss = std::move(aDismiss);
+	}
+
+	auto agent_tab_view::conversation_chip_text() const -> QString
+	{
+		return ConversationShown ? ConversationShown->Text : QString{ };
+	}
+
+	void agent_tab_view::set_reply_dispatch(agent_reply_dispatch aDispatch)
+	{
+		ReplyDispatch = std::move(aDispatch);
+	}
+
+	auto agent_tab_view::turn_reply_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Reply.data() : nullptr; }
+
+	auto agent_tab_view::turn_about(const std::size_t aTurn) const -> QString
+	{
+		return aTurn < Turns.size() && Turns[aTurn].About ? Turns[aTurn].About->Text : QString{ };
+	}
 
 	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
 

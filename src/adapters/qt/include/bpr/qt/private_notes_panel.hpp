@@ -57,7 +57,9 @@ namespace bpr::qt {
 	enum class private_note_action : std::uint8_t { discard,
 													save,
 													erase,
-													promote };
+													promote,
+													/// [[BPR-1773]]. Ask the agent about this saved note.
+													ask_agent };
 	/// \brief One gesture retains its original review scope and durable revision.
 	struct private_note_intent
 	{
@@ -253,6 +255,7 @@ namespace bpr::qt {
 		QPlainTextEdit*                                     Body            = nullptr;
 		QAbstractButton*                                    SaveButton      = nullptr;
 		QAbstractButton*                                    DraftButton     = nullptr;
+		QToolButton*                                        AskAgentButton  = nullptr;
 		QAbstractButton*                                    DeleteButton    = nullptr;
 		QAbstractButton*                                    CloseButton     = nullptr;
 		QAbstractButton*                                    DiscardButton   = nullptr;
@@ -263,6 +266,7 @@ namespace bpr::qt {
 		QAction*                                            Save            = nullptr;
 		QAction*                                            Erase           = nullptr;
 		QAction*                                            Promote         = nullptr;
+		QAction*                                            AskAgent        = nullptr;
 		QAction*                                            Discard         = nullptr;
 		QAction*                                            Close           = nullptr;
 	};

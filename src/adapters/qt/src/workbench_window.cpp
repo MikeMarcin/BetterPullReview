@@ -121,6 +121,7 @@
 #include <QStyleOption>
 #include <QTabBar>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTimer>
@@ -2590,6 +2591,11 @@ namespace bpr::qt {
 					// answers its own thread, through the one Reply path;
 					// [[BPR-1290]] written in place, in the open thread.
 					reply_to_thread(aIdentity, true);
+					break;
+				case card_action::ask_agent:
+					if (ConversationAskDispatch) {
+						ConversationAskDispatch(aIdentity);
+					}
 					break;
 				case card_action::show_line:
 					reveal_thread_line(aIdentity);
@@ -9812,6 +9818,76 @@ namespace bpr::qt {
 			return;
 		}
 		static_cast<void>(begin_new_comment(false));
+	}
+
+	void workbench_window::set_conversation_ask_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		ConversationAskDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::open_agent_question()
+	{
+		show_agent(false);
+		if (AgentTab != nullptr) {
+			AgentTab->focus_question();
+		}
+	}
+
+	auto workbench_window::compared_lines(const std::string& aPath, const core::diff_side aSide, const std::uint32_t aFirst, const std::uint32_t aLast) const
+		-> std::optional<std::pair<std::uint32_t, std::vector<std::string>>>
+	{
+		if (ComparisonSurface == nullptr || ComparisonSurface->current_result() == nullptr || !ComparisonSurface->current_context().has_value()
+			|| ComparisonSurface->current_context()->Key.File != core::file_identity_of(aPath) || aFirst == 0U || aLast < aFirst) {
+			return std::nullopt;
+		}
+		const auto& result   = *ComparisonSurface->current_result();
+		const auto& document = aSide == core::diff_side::right ? result.RightDocument : result.LeftDocument;
+		if (!document.has_value() || document->Lines.empty() || aFirst > document->Lines.size()) {
+			return std::nullopt;
+		}
+		const auto last  = std::min<std::uint32_t>(aLast, static_cast<std::uint32_t>(document->Lines.size()));
+		auto       lines = core::suggestion_source_lines(*document, aFirst - 1U, last - 1U);
+		if (!lines.has_value()) {
+			return std::nullopt;
+		}
+		return std::pair{ aFirst, std::move(*lines) };
+	}
+
+	void workbench_window::use_as_reply(const std::string& aIdentity, const QString& aText)
+	{
+		PendingReplyText  = std::pair{ aIdentity, aText };
+		PendingReplyTries = 50;
+		reply_to_thread(aIdentity, true);
+		write_pending_reply();
+	}
+
+	void workbench_window::write_pending_reply()
+	{
+		if (!PendingReplyText.has_value() || ReviewEditor == nullptr) {
+			return;
+		}
+		// The reply opens once its comparison is shown and its draft made;
+		// the words are written into that draft as if typed, and looked for
+		// again for five seconds at most.
+		constexpr auto prefix = std::string_view{ "review-thread:" };
+		const auto&    shown  = ReviewEditor->shown_draft();
+		const auto     thread = std::string_view{ PendingReplyText->first }.starts_with(prefix) ? PendingReplyText->first.substr(prefix.size()) : PendingReplyText->first;
+		if (shown.has_value() && shown->ReplyToThread == thread) {
+			auto* const body     = ReviewEditor->body_editor();
+			const auto  existing = body->toPlainText();
+			body->setPlainText(existing.trimmed().isEmpty() ? PendingReplyText->second : existing + QStringLiteral("\n\n") + PendingReplyText->second);
+			body->moveCursor(QTextCursor::End);
+			body->setFocus(Qt::OtherFocusReason);
+			PendingReplyText.reset();
+			return;
+		}
+		if (--PendingReplyTries <= 0) {
+			QGuiApplication::clipboard()->setText(PendingReplyText->second);
+			statusBar()->showMessage(tr("The reply could not be opened here. The agent's words are on the clipboard."), 8000);
+			PendingReplyText.reset();
+			return;
+		}
+		QTimer::singleShot(100, this, [this] { write_pending_reply(); });
 	}
 
 	void workbench_window::reply_to_thread(const std::string& aIdentity, const bool aInPlace)

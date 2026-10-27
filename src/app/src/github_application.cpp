@@ -9142,7 +9142,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 								false,
 								aTurn.Message,
 								aTurn.Session,
-								core::agent_entry_point::ask_about_selection,
+								aTurn.EntryPoint == core::agent_entry_point::ask_about_conversation ? core::agent_entry_point::ask_about_conversation
+																									: core::agent_entry_point::ask_about_selection,
 								std::nullopt);
 						},
 						[this]() -> application::agent_chat_private_prose {
@@ -11745,15 +11746,141 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!snapshot) {
 				tab->set_session_title({ });
 				tab->set_inline_code_file({ });
+				dismiss_asked_conversation();
 				return;
 			}
 			tab->set_session_title(QStringLiteral("#%1 %2").arg(snapshot->PullRequest.Number.value()).arg(QString::fromStdString(snapshot->PullRequest.Title)));
+			// [[BPR-1773]]. A conversation of another pull request is not
+			// this one's.
+			if (AskedConversation && AskedConversation->PullRequest != snapshot->PullRequest.Number.value()) {
+				dismiss_asked_conversation();
+			}
 			auto paths = std::vector<std::string>{ };
 			paths.reserve(snapshot->Files.size());
 			for (const auto& file : snapshot->Files) {
 				paths.push_back(file.Path);
 			}
 			tab->set_inline_code_file(QString::fromStdString(core::markdown_inline_code_selector(paths)));
+		}
+
+		/// [[BPR-1773]]. Ask agent on a review thread: the Agent tab opens
+		/// with the conversation attached to the next question. Nothing is
+		/// sent until the reviewer asks.
+		void ask_agent_about_thread(const std::string& aIdentity)
+		{
+			if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto* const thread = accepted_thread(aIdentity);
+			if (thread == nullptr) {
+				return;
+			}
+			const auto input = application::read_conversation(*thread);
+			if (input.Comments.empty()) {
+				return;
+			}
+			AskedConversation = asked_conversation{ .Identity = aIdentity, .PullRequest = WindowRead->accepted_snapshot()->PullRequest.Number.value() };
+			const auto path   = QString::fromStdString(input.Path);
+			auto       where  = path;
+			if (input.Line) {
+				where = input.StartLine ? QStringLiteral("%1 lines %2–%3").arg(path).arg(*input.StartLine).arg(*input.Line) : QStringLiteral("%1 line %2").arg(path).arg(*input.Line);
+			}
+			const auto count = input.Comments.size();
+			auto       chip  = qt::agent_conversation_chip{
+				.Key     = aIdentity,
+				.Text    = QStringLiteral("%1, %2").arg(where, count == 1U ? QStringLiteral("1 comment") : QStringLiteral("%1 comments").arg(count)),
+				.Detail  = QStringLiteral("The agent gets this conversation's comments and the lines it is on, as the head has them. Nothing is published."),
+				.Replies = thread->ViewerReplyPermission != application::github_permission_state::denied,
+			};
+			Window->agent_tab()->set_conversation_chip(std::move(chip));
+			Window->open_agent_question();
+		}
+
+		/// [[BPR-1773]]. Ask agent on a saved private note: as a thread's,
+		/// but the note's words reach the agent only as the copy saved in
+		/// Private history when the question is sent.
+		void ask_agent_about_note(const application::local_note_record& aNote)
+		{
+			if (Closing || Window == nullptr || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			AskedConversation = asked_conversation{ .Identity = "note:" + std::to_string(aNote.Id.value()), .PullRequest = WindowRead->accepted_snapshot()->PullRequest.Number.value(), .Note = aNote.Id };
+			auto where        = QStringLiteral("this pull request");
+			if (aNote.FilePath) {
+				const auto path = QString::fromStdString(*aNote.FilePath);
+				where           = aNote.Attachment && aNote.Attachment->Line ? QStringLiteral("%1 line %2").arg(path).arg(aNote.Attachment->Line->Line + 1U) : path;
+			}
+			Window->agent_tab()->set_conversation_chip(qt::agent_conversation_chip{
+				.Key     = AskedConversation->Identity,
+				.Text    = QStringLiteral("Your note on %1").arg(where),
+				.Detail  = QStringLiteral("When you ask, the note is saved in Private history as it is then, and the agent gets that copy and the lines it is on. Nothing is published."),
+				.Replies = false,
+			});
+			Window->open_agent_question();
+		}
+
+		[[nodiscard]] auto asked_note() const -> const application::local_note_record*
+		{
+			if (!AskedConversation || !AskedConversation->Note) {
+				return nullptr;
+			}
+			const auto found = std::ranges::find(AcceptedPrivateNotes, *AskedConversation->Note, &application::local_note_record::Id);
+			return found == AcceptedPrivateNotes.end() ? nullptr : &*found;
+		}
+
+		void dismiss_asked_conversation()
+		{
+			AskedConversation.reset();
+			if (!Closing && Window != nullptr) {
+				Window->agent_tab()->set_conversation_chip(std::nullopt);
+			}
+		}
+
+		/// [[BPR-1773]]. The conversation an `ask_about_conversation` turn
+		/// carries, bounded, with the lines it is on when its file is the
+		/// one compared; none when it is no longer in this pull request.
+		[[nodiscard]] auto read_asked_conversation() const -> std::optional<core::supplement_conversation>
+		{
+			if (!AskedConversation || Window == nullptr) {
+				return std::nullopt;
+			}
+			if (AskedConversation->Note) {
+				const auto* const note = asked_note();
+				if (note == nullptr) {
+					return std::nullopt;
+				}
+				auto input = core::conversation_input{ .Subject = core::conversation_subject::private_note, .Path = note->FilePath.value_or(std::string{ }) };
+				if (note->Attachment && note->Attachment->Line && note->FilePath) {
+					const auto line       = note->Attachment->Line->Line + 1U;
+					const auto side       = note->Attachment->Line->Side;
+					input.Line            = line;
+					constexpr auto around = 6U;
+					if (const auto lines = Window->compared_lines(*note->FilePath, side, line > around ? line - around : 1U, line + around); lines && !lines->second.empty()) {
+						input.Excerpt = core::conversation_excerpt{ .FirstLine = lines->first, .Lines = lines->second, .AnchorFirst = line, .AnchorLast = line, .Before = side == core::diff_side::left };
+					}
+				}
+				return core::bound_conversation(std::move(input));
+			}
+			const auto* const thread = accepted_thread(AskedConversation->Identity);
+			if (thread == nullptr) {
+				return std::nullopt;
+			}
+			auto input = application::read_conversation(*thread);
+			if (input.Line && !input.Outdated) {
+				constexpr auto around = 6U;
+				const auto     first  = input.StartLine.value_or(*input.Line);
+				const auto     side   = thread->DiffSide == application::github_diff_side::left ? core::diff_side::left : core::diff_side::right;
+				if (const auto lines = Window->compared_lines(input.Path, side, first > around ? first - around : 1U, *input.Line + around); lines && !lines->second.empty()) {
+					input.Excerpt = core::conversation_excerpt{
+						.FirstLine   = lines->first,
+						.Lines       = lines->second,
+						.AnchorFirst = first,
+						.AnchorLast  = std::min<std::uint32_t>(*input.Line, lines->first + static_cast<std::uint32_t>(lines->second.size()) - 1U),
+						.Before      = side == core::diff_side::left,
+					};
+				}
+			}
+			return core::bound_conversation(std::move(input));
 		}
 
 		/// The open pull request's kept thread, shown in the Agent tab.
@@ -11928,6 +12055,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			QObject::connect(Window->agent_panel()->profile_selector(), &QComboBox::currentIndexChanged, Window.get(), [this] { observe_conversation_agent(); });
 			tab->set_finding_card_dispatch([this](const qt::agent_finding_card_request& aRequest) { act_on_agent_card(aRequest); });
 			tab->set_answer_note_dispatch([this](const QString& aText, qt::agent_answer_note_done aDone) { save_agent_note(aText.toStdString(), std::nullopt, { }, std::move(aDone)); });
+			// [[BPR-1773]]. Ask agent on a thread attaches it; the chip's
+			// close removes it; Use as reply writes an answer in its reply.
+			Window->set_conversation_ask_dispatch([this](const std::string& aIdentity) { ask_agent_about_thread(aIdentity); });
+			tab->set_conversation_dismiss([this] { dismiss_asked_conversation(); });
+			tab->set_reply_dispatch([this](const std::string& aKey, const QString& aText) {
+				if (!Closing && Window != nullptr) {
+					Window->use_as_reply(aKey, aText);
+				}
+			});
 			// Owner look v004. Go to note; the files and lines a question or an
 			// answer names open in Review; the suggestions' toggle is kept.
 			tab->set_note_navigation([this](const std::uint64_t aNote) {
@@ -19283,6 +19419,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				panel->refuse(QStringLiteral("This note changed in another window. Your text is kept; discard changes to reload it."));
 				return;
 			}
+			if (aIntent.Action == qt::private_note_action::ask_agent) {
+				if (found != AcceptedPrivateNotes.end()) {
+					ask_agent_about_note(*found);
+				}
+				return;
+			}
 			if (aIntent.Action == qt::private_note_action::promote) {
 				const auto refuse = [guarded = QPointer{ panel }] {
 					if (guarded != nullptr) {
@@ -19653,6 +19795,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					observation.FeedbackGuidance = application::workshop_feedback_supplement(preferences->WritingHooks, preferences->Behaviour.LabelHelper);
 				}
 			}
+			// [[BPR-1773]]. A question about a conversation carries it,
+			// read now; one that is no longer in this pull request asks
+			// nothing.
+			if (aEntryPoint == core::agent_entry_point::ask_about_conversation) {
+				observation.Conversation = read_asked_conversation();
+				if (!observation.Conversation) {
+					dismiss_asked_conversation();
+					Window->agent_panel()->refuse("the conversation asked about is no longer in this pull request");
+					return false;
+				}
+			}
 			observation.CurrentDraft = current_agent_draft_observation();
 			// [[BPR-1752]], RFC-BPR-0092. A review request carries the
 			// brief: what the reviewer can read on GitHub about this pull
@@ -19707,14 +19860,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					&& workbench->current_result()->Alignment.Key == selected.Key
 					&& workbench->selection()->Comparison
 						== workbench->current_result()->Alignment.Digest;
+				// [[BPR-1773]]. A question about a conversation is not about
+				// the selection, so it does not carry it.
+				const auto aboutSelection = aEntryPoint != core::agent_entry_point::ask_about_conversation;
 				if (pointing && !continuing) {
-					observation.Selection = core::supplement_semantic_context{
-						.File       = selected.Request.File.File,
-						.Selection  = *workbench->selection(),
-						.Confidence = core::supplement_mapping_confidence::exact,
-						.Segments   = workbench->current_result()->Alignment.Segments,
-						.Groups     = workbench->current_result()->Alignment.Groups,
-					};
+					if (aboutSelection) {
+						observation.Selection = core::supplement_semantic_context{
+							.File       = selected.Request.File.File,
+							.Selection  = *workbench->selection(),
+							.Confidence = core::supplement_mapping_confidence::exact,
+							.Segments   = workbench->current_result()->Alignment.Segments,
+							.Groups     = workbench->current_result()->Alignment.Groups,
+						};
+					}
 				} else if (pointing) {
 					pointedAt = continuation_anchor{
 						.File = selected.Request.File.File,
@@ -20537,10 +20695,46 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// selection observed earlier would answer for where the
 				// reviewer was, not where they are.
 				ChatHost->observe_selection(current_agent_chat_selection());
+				// [[BPR-1773]]. A note is mutable, so it is not sent: its text
+				// is first saved in Private history as one revision, and the
+				// turn runs with that revision as its only private source.
+				if (AskedConversation && AskedConversation->Note) {
+					const auto* const note = asked_note();
+					if (note == nullptr || !PrivateReview) {
+						dismiss_asked_conversation();
+						present_agent_refusal("side chat", "the note asked about is gone or Private history is unavailable");
+						return;
+					}
+					auto subject = core::private_thread_subject{ core::private_pr_subject { } };
+					if (note->Attachment) {
+						subject = core::private_file_subject{ .File = note->Attachment->File, .Comparison = note->Attachment->Comparison };
+					}
+					PrivateReview->record_note_press(std::move(subject), note->Note.Text, [this, turn = *send](application::private_run_result<application::private_workshop_press> aPressed) {
+						if (Closing || ChatHost == nullptr) {
+							return;
+						}
+						if (!aPressed) {
+							present_agent_refusal("side chat", "the note could not be saved in Private history");
+							return;
+						}
+						ExplicitPrivateRun = std::move(aPressed->Run);
+						static_cast<void>(ChatHost->send(application::agent_chat_send{
+							.Session = turn.Session,
+							.Action  = core::agent_action_intent{ core::agent_entry_point::ask_about_conversation },
+							.Scope   = turn.Scope,
+							.Text    = turn.Text,
+						}));
+						ExplicitPrivateRun.reset();
+					});
+					return;
+				}
+				// [[BPR-1773]]. With a conversation attached the turn is
+				// about it, whatever is selected.
+				const auto action = AskedConversation ? core::agent_action_intent{ core::agent_entry_point::ask_about_conversation } : send->Action;
 				static_cast<void>(
 					ChatHost->send(application::agent_chat_send{
 						.Session = send->Session,
-						.Action  = send->Action,
+						.Action  = action,
 						.Scope   = send->Scope,
 						.Text    = send->Text,
 					}));
@@ -23241,8 +23435,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1751]]. Why the last workspace probe could not make the
 		/// workspace, for its words; absent when it was not that.
 		std::optional<application::agent_workspace_unavailable_reason> LastWorkspaceProbeReason;
-		std::stop_source                                               AgentSetupWorkspaceStop;
-		std::uint64_t                                                  AgentSetupWorkspaceGeneration = 0U;
+		/// [[BPR-1773]]. The conversation the Agent tab's next questions are
+		/// about, by its card identity, and the pull request it is in.
+		struct asked_conversation
+		{
+			std::string   Identity;
+			std::uint64_t PullRequest = 0U;
+			/// A private note, which is sent as a Private history copy.
+			std::optional<application::local_note_id> Note;
+		};
+		std::optional<asked_conversation> AskedConversation;
+		std::stop_source                  AgentSetupWorkspaceStop;
+		std::uint64_t                     AgentSetupWorkspaceGeneration = 0U;
 		/// [[BPR-1375]]. The profile's saved Claude model, as last published.
 		std::string                                              ClaudeModel;
 		std::unique_ptr<composition_agent_invocation_projection> AgentProjections;

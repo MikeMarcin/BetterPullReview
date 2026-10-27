@@ -324,6 +324,24 @@ namespace bpr::application {
 			};
 		});
 	}
+	auto private_review_application_host::record_note_press(const core::private_review_binding& aBinding, const core::private_thread_subject& aSubject, std::string aBody) -> private_run_result<private_workshop_press>
+	{
+		return attempt([&] {
+			auto frontier = take(Store.frontier());
+			require(aBinding.Scope == frontier.Scope, core::private_review_refusal::invalid_binding);
+			require(!aBody.empty() && (std::holds_alternative<core::private_pr_subject>(aSubject) || std::holds_alternative<core::private_file_subject>(aSubject)),
+					core::private_review_refusal::invalid_target);
+			const auto next = frontier.NextIdentity;
+			require(next > 0 && next <= core::maximum_private_identity - 2, core::private_review_refusal::bounds);
+			auto revision = decide(core::create_private_thread(core::private_review_thread_id{ next }, { aBinding, aSubject }, { core::private_review_turn_id{ next + 1 }, core::private_review_turn_revision_id{ next + 2 }, core::private_vertex_order{ next + 2 }, core::private_reviewer_actor{ frontier.Scope.Account }, std::move(aBody) }));
+			take(Store.commit({ .ExpectedNextIdentity = next, .Threads = { { revision.Thread, 0 } }, .Revisions = { revision.Revision } }));
+			const auto source = core::source_of(revision.Revision);
+			return private_workshop_press{
+				.Run    = { .Binding = aBinding, .Purpose = core::private_run_purpose::conversation, .Sources = { { source, source.Key, false } } },
+				.Thread = revision.Thread.Id,
+			};
+		});
+	}
 	auto private_review_application_host::recover(std::optional<core::agent_run_id> aAfter) -> private_run_result<private_run_page>
 	{
 		return attempt([&] {

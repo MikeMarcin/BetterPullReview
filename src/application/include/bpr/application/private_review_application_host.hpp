@@ -76,6 +76,12 @@ namespace bpr::application {
 		/// draft is read from the store, so an edit committed before the press is the text
 		/// recorded. A draft of another review, not drafting, or empty is refused.
 		[[nodiscard]] auto record_workshop_press(const core::private_review_binding&, core::review_draft_id, const core::diff_semantic_index&) -> private_run_result<private_workshop_press>;
+		/// \brief [[BPR-1773]]. Ask agent about a private note: its text as
+		/// it is now becomes one immutable reviewer revision on a new private
+		/// thread about `aSubject` (its file, or the pull request), and the
+		/// run's only source. The note itself, which can still change, is
+		/// never sent.
+		[[nodiscard]] auto record_note_press(const core::private_review_binding&, const core::private_thread_subject& aSubject, std::string aBody) -> private_run_result<private_workshop_press>;
 		/// \brief Call only after old producers are quiescent. One bounded recovery page, no rerun.
 		[[nodiscard]] auto recover(std::optional<core::agent_run_id> aAfter = { }) -> private_run_result<private_run_page>;
 

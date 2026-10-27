@@ -1704,6 +1704,7 @@ namespace bpr::application {
 			.Operation          = admittedOperation,
 			.FeedbackGuidance   = aObservation.FeedbackGuidance,
 			.Brief              = aObservation.Brief,
+			.Conversation       = aObservation.Conversation,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
@@ -1873,6 +1874,36 @@ namespace bpr::application {
 		/// [[BPR-1752]], RFC-BPR-0092. The review brief's wire form, after
 		/// every version-two field. Each collection is counted, and each cut is
 		/// stated, so a reader never has to guess what a missing line meant.
+		template <typename TSink>
+		void encode_conversation_into(TSink& aResult, const core::supplement_conversation& aConversation)
+		{
+			append_field(aResult, "conversation.subject", core::stable_name(aConversation.Subject));
+			append_field(aResult, "conversation.path", aConversation.Path);
+			append_field(aResult, "conversation.start_line", aConversation.StartLine ? std::to_string(*aConversation.StartLine) : std::string{ });
+			append_field(aResult, "conversation.line", aConversation.Line ? std::to_string(*aConversation.Line) : std::string{ });
+			append_number(aResult, "conversation.resolved", aConversation.Resolved ? 1 : 0);
+			append_number(aResult, "conversation.outdated", aConversation.Outdated ? 1 : 0);
+			append_number(aResult, "conversation.comment.count", aConversation.Comments.size());
+			for (auto index = std::size_t{ 0U }; index < aConversation.Comments.size(); ++index) {
+				const auto at = "conversation.comment." + std::to_string(index);
+				append_field(aResult, at + ".author", aConversation.Comments[index].Author);
+				append_field(aResult, at + ".body", aConversation.Comments[index].Body);
+			}
+			append_number(aResult, "conversation.comment.omitted", aConversation.CommentsOmitted);
+			append_number(aResult, "conversation.excerpt.present", aConversation.Excerpt ? 1 : 0);
+			if (aConversation.Excerpt) {
+				const auto& excerpt = *aConversation.Excerpt;
+				append_field(aResult, "conversation.excerpt.side", excerpt.Before ? "base" : "head");
+				append_number(aResult, "conversation.excerpt.first_line", excerpt.FirstLine);
+				append_number(aResult, "conversation.excerpt.anchor_first", excerpt.AnchorFirst);
+				append_number(aResult, "conversation.excerpt.anchor_last", excerpt.AnchorLast);
+				append_number(aResult, "conversation.excerpt.line.count", excerpt.Lines.size());
+				for (auto index = std::size_t{ 0U }; index < excerpt.Lines.size(); ++index) {
+					append_field(aResult, "conversation.excerpt.line." + std::to_string(index), excerpt.Lines[index]);
+				}
+			}
+		}
+
 		template <typename TSink>
 		void encode_brief_into(TSink& aResult, const core::supplement_brief& aBrief, const core::agent_revision_binding& aBinding)
 		{
@@ -2178,6 +2209,12 @@ namespace bpr::application {
 			// guidance is: a launch that is not a review request adds no line.
 			if (aSupplement.Brief) {
 				encode_brief_into(aResult, *aSupplement.Brief, aSupplement.Session.Binding);
+			}
+			// [[BPR-1773]]. The conversation the reviewer asked about,
+			// written only when present: its subject, where it is, its comments
+			// oldest first and the lines it is attached to.
+			if (aSupplement.Conversation) {
+				encode_conversation_into(aResult, *aSupplement.Conversation);
 			}
 		}
 

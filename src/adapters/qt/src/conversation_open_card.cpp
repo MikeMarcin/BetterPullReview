@@ -7,6 +7,7 @@
 #include "conversation_reactions.hpp"
 
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/identity_avatar.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -1386,6 +1387,25 @@ namespace bpr::qt {
 					}
 				});
 				row->addWidget(resolve);
+			}
+			// [[BPR-1773]]. Ask the agent about this conversation, with the
+			// Agent tab's own mark.
+			if (aCard.Kind == QStringLiteral("Inline thread") && !aCard.Path.isEmpty() && !aCard.Posts.empty()) {
+				auto* const askAgent = new QToolButton{ header };
+				askAgent->setObjectName(QStringLiteral("threadAskAgent"));
+				askAgent->setAutoRaise(true);
+				askAgent->setIcon(drawer_icon(drawer_glyph::agent, palette));
+				askAgent->setToolTip(QStringLiteral("Ask agent about this conversation"));
+				askAgent->setAccessibleName(askAgent->toolTip());
+				askAgent->setFocusPolicy(Qt::StrongFocus);
+				askAgent->setIconSize(QSize{ 16, 16 });
+				askAgent->setCursor(Qt::ArrowCursor);
+				connect(askAgent, &QToolButton::clicked, this, [this] {
+					if (Action) {
+						Action(card_action::ask_agent);
+					}
+				});
+				row->addWidget(askAgent);
 			}
 			const auto  unread = aCard.UnreadCount;
 			auto* const read   = tool(header, QStringLiteral("threadMarkRead"),
