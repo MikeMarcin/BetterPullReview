@@ -59,6 +59,62 @@ namespace bpr::adapters::github::detail {
 		auto operator==(const gh_cli_https_environment_facts&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-1791]]. Whose `gh` installation layout a search follows.
+	/// \details A parameter rather than the build's own platform, so every
+	/// host's search is checked on any host. (Not `linux`: GNU C++ predefines
+	/// it as a macro.)
+	enum class gh_cli_host_platform : std::uint8_t {
+		macos,
+		gnu_linux,
+		windows,
+	};
+
+	/// \brief The platform whose `gh` this build searches for; none elsewhere.
+	[[nodiscard]] constexpr auto current_gh_cli_host_platform() noexcept -> std::optional<gh_cli_host_platform>
+	{
+#if defined(__APPLE__)
+		return gh_cli_host_platform::macos;
+#elif defined(_WIN32)
+		return gh_cli_host_platform::windows;
+#elif defined(__linux__)
+		return gh_cli_host_platform::gnu_linux;
+#else
+		return std::nullopt;
+#endif
+	}
+
+	/// \brief The known folders the standard `gh` locations derive from.
+	/// \details The host reads them from the operating system: the home
+	/// directory everywhere; on Windows the Program Files and per-user local
+	/// application data known folders. An empty one contributes no location.
+	struct gh_cli_install_location_facts
+	{
+		std::filesystem::path HomeDirectory;
+		std::filesystem::path ProgramFilesDirectory;
+		std::filesystem::path LocalApplicationDataDirectory;
+	};
+
+	/// \brief `gh.exe` on Windows, `gh` elsewhere.
+	[[nodiscard]] auto gh_cli_executable_file_name(gh_cli_host_platform) noexcept -> std::string_view;
+
+	/// \brief The directories searched, in order, after `PATH` finds no `gh`.
+	/// \details macOS: Homebrew, `/usr/local/bin`, MacPorts. Linux: the
+	/// distribution and local prefixes, Homebrew on Linux, `~/.local/bin` and
+	/// the snap bin. Windows: the machine-wide installer, the per-user
+	/// installer, WinGet's per-user links and Scoop's current `gh`.
+	[[nodiscard]] auto gh_cli_standard_install_directories(gh_cli_host_platform, const gh_cli_install_location_facts&)
+		-> std::vector<std::filesystem::path>;
+
+	/// \brief The first canonical candidate that is the platform's `gh`.
+	/// \details The host canonicalises each candidate it found (the `PATH` hit
+	/// first, then each standard directory's) before asking. A candidate that
+	/// is empty, relative or not named `gh`/`gh.exe` once canonical, such as
+	/// the snap launcher `/snap/bin/gh` resolving to `/usr/bin/snap`, is passed
+	/// over. Empty when none qualifies, which the host reports as a missing
+	/// executable.
+	[[nodiscard]] auto select_gh_cli_executable(gh_cli_host_platform, const std::vector<std::filesystem::path>&)
+		-> std::filesystem::path;
+
 	struct gh_cli_configuration_candidate
 	{
 		std::filesystem::path             Executable;

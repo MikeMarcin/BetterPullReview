@@ -76,7 +76,8 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
 # [[BPR-0982]]. The UTF-8 `gh sign-in` label went with the precomposed CLI
 # rows ([[BPR-0909]]); the release self-test below now observes the Use
 # GitHub CLI entry the shipped graph offers.
-MAC_CLI_BINARY_MARKERS = (
+# [[BPR-1791]]. A release build on macOS, Windows or Linux composes the CLI.
+CLI_BINARY_MARKERS = (
     b"gh_cli_transport",
     b"github_cli_process_runner",
     b"validate_gh_cli_configuration",
@@ -279,28 +280,43 @@ def ninja_build_edges(build_graph: str) -> list[str]:
     return edges
 
 
+def cli_platform() -> bool:
+    """[[BPR-1791]]. Whether this host's build composes the GitHub CLI way in."""
+    return (
+        sys.platform == "darwin"
+        or sys.platform.startswith("linux")
+        or sys.platform == "win32"
+    )
+
+
+# [[BPR-1791]]. The one switch the CLI gates below ask: macOS, Windows and
+# Linux, and nothing else.
+CLI_PLATFORM_DEFINITION = re.compile(
+    r"#\s*if\s+defined\(__APPLE__\)\s*\|\|\s*defined\(_WIN32\)\s*\|\|\s*"
+    r"defined\(__linux__\)\s*#\s*define\s+BPR_GITHUB_CLI_PLATFORM\s+1\s*#\s*endif"
+)
 # [[BPR-0797]] moved both GitHub CLI consent gates from the preprocessor to
-# one run-time question. What the contract protects did not move: a macOS
-# graph that can reach the configured `gh` shows the reader's trust warning and
-# the per-publication confirmation, and a run inside the automated test
-# boundary cannot reach either ([[BPR-0821]]).
+# one run-time question. What the contract protects did not move: a graph on a
+# CLI platform that can reach the configured `gh` shows the reader's trust
+# warning and the per-publication confirmation, and a run inside the automated
+# test boundary cannot reach either ([[BPR-0821]]).
 CLI_READ_OFFERED_DEFINITION = re.compile(
     r"auto\s+cli_read_offered\(\s*\[\[maybe_unused\]\]\s*const\s+bool\s+"
     r"aInsideAutomatedTestBoundary\s*\)\s*noexcept\s*->\s*bool\s*\{\s*"
-    r"#\s*if\s+defined\(__APPLE__\)\s*"
+    r"#\s*if\s+defined\(BPR_GITHUB_CLI_PLATFORM\)\s*"
     r"#\s*if\s+defined\(BPR_BUILD_TESTING\)\s*return\s+!aInsideAutomatedTestBoundary\s*;\s*"
     r"#\s*else\s*return\s+true\s*;\s*#\s*endif\s*"
     r"#\s*else\s*return\s+false\s*;\s*#\s*endif\s*\}"
 )
-# [[BPR-0982]]. [[BPR-0909]] let a tests-enabled macOS run that carries
-# fixture-discovered CLI accounts offer the read, so its discovery courses
-# meet the real read opt-in. That only widens where the question is asked;
-# the accounts exist only with a fixture (checked below), non-Apple graphs
+# [[BPR-0982]]. [[BPR-0909]] let a tests-enabled run on a CLI platform that
+# carries fixture-discovered CLI accounts offer the read, so its discovery
+# courses meet the real read opt-in. That only widens where the question is
+# asked; the accounts exist only with a fixture (checked below), other graphs
 # still answer false, and the shipped graph still asks its one question.
 CLI_READ_OFFERED_HERE_DEFINITION = re.compile(
     r"auto\s+cli_read_offered_here\(\s*\)\s*const\s+noexcept\s*->\s*bool\s*\{\s*"
     r"#\s*if\s+defined\(BPR_BUILD_TESTING\)\s*"
-    r"#\s*if\s+defined\(__APPLE__\)\s*"
+    r"#\s*if\s+defined\(BPR_GITHUB_CLI_PLATFORM\)\s*"
     r"return\s+GithubCliDiscoveryAccounts\.has_value\(\)\s*\|\|\s*"
     r"cli_read_offered\(\s*InsideAutomatedTestBoundary\s*\)\s*;\s*"
     r"#\s*else\s*return\s+false\s*;\s*#\s*endif\s*"
@@ -314,7 +330,7 @@ CLI_DISCOVERY_ACCOUNTS_ASSIGNMENT = re.compile(
 # strict exact-operation admission. Remembered consent skips only this read
 # question; it never substitutes for the ordinary one-use publication grant.
 CLI_READ_CONSENT_GATE = re.compile(
-    r"#\s*if\s+defined\(__APPLE__\)\s*"
+    r"#\s*if\s+defined\(BPR_GITHUB_CLI_PLATFORM\)\s*"
     r"if\s*\(\s*profile->cli_account_login\(\s*\)\.empty\(\s*\)\s*\)\s*\{\s*"
     r"discover_github_cli_accounts\(true\);\s*return;\s*\}\s*"
     r"const\s+auto\s+remembered\s*=\s*Profile->selected_connection\(profile->hostname\(\)\);\s*"
@@ -333,12 +349,12 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
     if len(CLI_READ_OFFERED_DEFINITION.findall(code)) != 1:
         findings.append(
             "cli_read_offered must answer !inside-boundary in the tests-enabled "
-            "macOS graph, true in the shipped macOS graph and false elsewhere"
+            "graph of a CLI platform, true in its shipped graph and false elsewhere"
         )
     if len(CLI_READ_OFFERED_HERE_DEFINITION.findall(code)) != 1:
         findings.append(
             "cli_read_offered_here must pass the run's boundary answer in the "
-            "tests-enabled macOS graph, widened only by fixture-discovered "
+            "tests-enabled graph of a CLI platform, widened only by fixture-discovered "
             "accounts, and the unconditional answer in the shipped graph"
         )
     if (
@@ -350,7 +366,7 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
             "from a fixture"
         )
     if code.count('"Use configured GitHub CLI"') != 1 or len(CLI_READ_CONSENT_GATE.findall(code)) != 1:
-        findings.append("first-use read consent must retain the macOS runtime and remembered-choice gates")
+        findings.append("first-use read consent must retain the CLI-platform runtime and remembered-choice gates")
     if '"Confirm GitHub CLI publication"' in code:
         findings.append("ordinary strict CLI publication must not restore the transport warning")
     admission = re.search(
@@ -811,11 +827,12 @@ class CompositionContractTests(unittest.TestCase):
             completed.stdout + completed.stderr,
         )
         self.assertIn("AUTOMATED_PROFILE_PRIVATE_OK", completed.stdout)
-        # [[BPR-0982]]. The shipped macOS graph offers the Use GitHub CLI
-        # entry and precomposes no CLI row; elsewhere the entry is absent.
+        # [[BPR-0982]], [[BPR-1791]]. The shipped graph of a CLI platform
+        # offers the Use GitHub CLI entry and precomposes no CLI row;
+        # elsewhere the entry is absent.
         cli_marker = (
             "CLI_ENTRY_OFFERED_OK"
-            if sys.platform == "darwin"
+            if cli_platform()
             else "CLI_ENTRY_ABSENT_OK"
         )
         self.assertRegex(
@@ -871,12 +888,17 @@ class CompositionContractTests(unittest.TestCase):
         self.assertRegex(composition_source, r"worker_executor\s+VaultEffects;")
         self.assertIn("make_github_cli_process_runner", composition_source)
         self.assertEqual(cli_consent_gate_findings(composition_source), [])
+        # [[BPR-1791]]. The gates ask one switch, defined for exactly the
+        # three platforms the owner enabled.
+        runtime_header = strip_cxx_comments(read("src/app/src/github_cli_runtime.hpp"))
+        self.assertEqual(len(CLI_PLATFORM_DEFINITION.findall(runtime_header)), 1)
+        self.assertIn('#include "github_cli_runtime.hpp"', composition_source)
         read_gate = CLI_READ_CONSENT_GATE.search(strip_cxx_comments(composition_source))
         self.assertIsNotNone(read_gate)
         hostile_consent_sources = {
             "read-consent-compiled-out-of-tests-enabled-graphs": composition_source.replace(
-                "#if defined(__APPLE__)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
-                "#if defined(__APPLE__) && !defined(BPR_BUILD_TESTING)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
+                "#if defined(BPR_GITHUB_CLI_PLATFORM)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
+                "#if defined(BPR_GITHUB_CLI_PLATFORM) && !defined(BPR_BUILD_TESTING)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
                 1,
             ),
             "strict-capability-admission-disabled": composition_source.replace(
@@ -1460,9 +1482,9 @@ class CompositionContractTests(unittest.TestCase):
             for forbidden in forbidden_bytes:
                 with self.subTest(forbidden=forbidden.decode(errors="replace")):
                     self.assertNotIn(forbidden, binary)
-            for marker in MAC_CLI_BINARY_MARKERS:
+            for marker in CLI_BINARY_MARKERS:
                 with self.subTest(cli_marker=marker.decode(errors="replace")):
-                    if sys.platform == "darwin":
+                    if cli_platform():
                         self.assertIn(marker, binary)
                     else:
                         self.assertNotIn(marker, binary)

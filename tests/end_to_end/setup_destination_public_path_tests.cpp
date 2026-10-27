@@ -151,8 +151,7 @@ namespace {
 		expect(surface->grab().save(root + QLatin1Char{ '/' } + aName), "public fixture window capture");
 	}
 
-#if defined(__APPLE__)
-	// Only the Apple-only CLI source update course composes these checks.
+	// Only the CLI source update course composes these checks.
 	void verify_composed_code_metrics(app::github_application& aApplication, const std::uint32_t aWidth)
 	{
 		auto* const workbench = aApplication.window().comparison_surface();
@@ -255,7 +254,6 @@ namespace {
 				   "actual composed drawer keeps names neutral and paints plus/minus counts independently");
 		}
 	}
-#endif
 
 	void run_folder_selection_course()
 	{
@@ -1785,7 +1783,9 @@ namespace {
 		wait_for([&] { return application->status().ShutdownComplete; }, "setup and review work quiesce");
 	}
 
-#if defined(__APPLE__)
+	// [[BPR-1791]]. The GitHub CLI courses below run wherever the CLI way in
+	// is composed: macOS, Windows and Linux. The native refusal course keeps
+	// its own macOS registration.
 	/// \brief [[BPR-1200]]. Every central page the composed window shows, from
 	/// the moment it is watched: the course's evidence that a refused read
 	/// never passed through the workbench.
@@ -1818,6 +1818,7 @@ namespace {
 		QMetaObject::Connection Watch;
 	};
 
+#if defined(__APPLE__)
 	/// \brief [[BPR-1200]]. The owner's case through the composition: signed
 	/// out, a link to a pull request this connection cannot read. The window
 	/// stays on Home throughout and the refusal card says to sign in.
@@ -1849,6 +1850,7 @@ namespace {
 			   "the card offers Sign in first, and the line under the bar gives way to it");
 		capture(window, QStringLiteral("setup-denied-signed-out.png"));
 	}
+#endif
 
 	void check_denied_read_retains_session(app::github_application& aApplication, const QString& aHostname)
 	{
@@ -1906,6 +1908,7 @@ namespace {
 		expect(!window.sign_in_dialog()->isVisible(), "retrying an accessible target requires no sign-in");
 	}
 
+#if defined(__APPLE__)
 	void run_native_read_refusal_course()
 	{
 		auto temporary = QTemporaryDir{ };
@@ -1942,6 +1945,7 @@ namespace {
 		application->begin_shutdown();
 		wait_for([&] { return application->status().ShutdownComplete; }, "native refusal course quiesces");
 	}
+#endif
 
 	void run_connected_cli_destination_course(const bool aPasteFirst, const bool aUnknownHost = false, const bool aGithubCom = false)
 	{
@@ -2272,7 +2276,7 @@ namespace {
 		application.reset();
 		startup.reset();
 
-	#if defined(Q_OS_MACOS)
+#if defined(Q_OS_MACOS)
 		// Reproduce the attended failure through the installed cache and real
 		// public composition, not a fake cache result. The refused acquisition
 		// above left a pristine repository and no accepted epoch.
@@ -2302,7 +2306,7 @@ namespace {
 			expect(static_cast<bool>(output), "public CLI fixture records a legacy remounted empty cache");
 		}
 		expect(manifestCount == 1U, "public CLI remount course changes only its one empty cache");
-	#endif
+#endif
 
 		options.EpochPhase              = app::detail::github_epoch_fixture_phase::single;
 		options.RefuseFirstSmartAcquire = false;
@@ -2635,7 +2639,6 @@ namespace {
 		wait_for([&] { return application->status().ShutdownComplete; },
 				 "CLI discovery work quiesces");
 	}
-#endif
 }
 int main(int aArgc, char** aArgv)
 try {
@@ -2693,24 +2696,24 @@ try {
 		std::cout << "refused-first-read-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
+#endif
 	if (aArgc == 2 && QString::fromUtf8(aArgv[1]) == QStringLiteral("--cli-source-update")) {
 		run_cli_source_update_course();
 		std::cout << "cli-source-update-public-path:pass\n";
 		return EXIT_SUCCESS;
 	}
-#endif
 	run_course(false);
 	run_course(true);
 	run_link_location_course();
-#if defined(__APPLE__)
 	run_github_cli_discovery_course();
 	run_connected_cli_destination_course(false);
 	run_connected_cli_destination_course(true);
 	run_connected_cli_destination_course(true, true);
 	run_connected_cli_destination_course(false, false, true);
+#if defined(__APPLE__)
 	run_native_read_refusal_course();
-	run_cli_source_update_course();
 #endif
+	run_cli_source_update_course();
 	std::cout << "setup-destination-public-path:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {

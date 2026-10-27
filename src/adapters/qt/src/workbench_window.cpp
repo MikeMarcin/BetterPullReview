@@ -6332,7 +6332,14 @@ namespace bpr::qt {
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::missing_executable:
+			// [[BPR-1791]]. Each platform names where it looks besides PATH.
+#if defined(_WIN32)
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI was not found. Install gh 2.96 or newer (for example, winget install GitHub.cli), then retry."));
+#elif defined(__APPLE__)
 			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI was not found. Install gh 2.96 or newer in PATH or /usr/local/bin, then retry."));
+#else
+			GithubCliDiscoveryStatus->setText(QStringLiteral("GitHub CLI was not found. Install gh 2.96 or newer in PATH or /usr/bin, then retry."));
+#endif
 			GithubCliDiscoveryStatus->show();
 			break;
 		case github_cli_discovery_state::launch_failed:

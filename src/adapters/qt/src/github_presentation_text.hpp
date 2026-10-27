@@ -87,21 +87,37 @@ namespace bpr::qt::detail {
 		return QStringLiteral("Unknown transport");
 	}
 
+	// [[BPR-1791]]. What gh may write and whether full diffs run, which differ
+	// by platform: Windows and Linux have no write denial for gh, and gh's
+	// Git-object acquisition is qualified on macOS only.
+	[[nodiscard]] inline auto cli_platform_confinement_text() -> QString
+	{
+#if defined(__APPLE__)
+		return QStringLiteral(
+			"On macOS, CLI file writes are denied except for an owned temporary object store. "
+			"Full diffs may run Git and gh's shell credential helper with the same operation credential. "
+			"They require gh 2.96 or later and Git 2.49 or later, checked locally, with a 32 MiB per-file limit and supervised temporary-store cutoff. ");
+#else
+		return QStringLiteral(
+			"On this system CLI file writes are not denied; each call's private configuration is removed when it ends. "
+			"Full diffs through GitHub CLI are not yet available on this system. GitHub CLI reads require gh 2.96 or later. ");
+#endif
+	}
+
 	// [[BPR-0772]]. The card's header names the host, so the warning says
 	// "this server" and the host appears once on the card (RFC-BPR-0032 A4).
 	[[nodiscard]] inline auto cli_trust_warning_text() -> QString
 	{
 		return QStringLiteral(
-			"Connect uses the chosen account's existing gh sign-in on this server without saving its token. "
-			"Each operation retrieves a transient credential and validates that exact account; changing gh's active account does not redirect it. "
-			"This connection is reused until you sign out or replace it. "
-			"You trust the configured CLI executable, CA certificates, redirects and child-process behavior. "
-			"Calls use private account configuration, excluding ambient socket routing and CLI environment overrides. "
-			"On macOS, CLI file writes are denied except for an owned temporary object store. "
-			"Full diffs may run Git and gh's shell credential helper with the same operation credential. "
-			"They require gh 2.96 or later and Git 2.49 or later, checked locally, with a 32 MiB per-file limit and supervised temporary-store cutoff. "
-			"Owned token buffers are cleared after children finish; system/child memory, swap and crash dumps remain outside exact erasure guarantees. "
-			"Read trust does not authorize publishing; ordinary review, comment and tour gestures supply exact-operation authority.");
+				   "Connect uses the chosen account's existing gh sign-in on this server without saving its token. "
+				   "Each operation retrieves a transient credential and validates that exact account; changing gh's active account does not redirect it. "
+				   "This connection is reused until you sign out or replace it. "
+				   "You trust the configured CLI executable, CA certificates, redirects and child-process behavior. "
+				   "Calls use private account configuration, excluding ambient socket routing and CLI environment overrides. ")
+			+ cli_platform_confinement_text()
+			+ QStringLiteral(
+				   "Owned token buffers are cleared after children finish; system/child memory, swap and crash dumps remain outside exact erasure guarantees. "
+				   "Read trust does not authorize publishing; ordinary review, comment and tour gestures supply exact-operation authority.");
 	}
 
 	[[nodiscard]] inline auto github_status_text(

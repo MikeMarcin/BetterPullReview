@@ -51,12 +51,6 @@ namespace {
 
 	using bpr::tests::expect;
 
-#if defined(_WIN32)
-	constexpr auto private_cli_configuration_available = false;
-#else
-	constexpr auto private_cli_configuration_available = true;
-#endif
-
 	[[nodiscard]] auto gh_arguments(const github_cli_process_request& aRequest)
 		-> std::vector<std::string>
 	{
@@ -1593,51 +1587,6 @@ namespace {
 	class fixture_mutation_lease final : public application::review_mutation_transport_lease
 	{ };
 
-	[[maybe_unused]] void test_windows_pinned_transport_refuses_before_effects()
-	{
-		for (const auto& originalCandidate : { cloud_candidate(), enterprise_candidate() }) {
-			auto             candidate = originalCandidate;
-			temporary_layout layout;
-			const auto       configuration      = validate_gh_cli_configuration(configuration_candidate(layout));
-			candidate.CliAccountLogin           = "fixture-reviewer";
-			const auto                  profile = validate_github_host_profile(candidate);
-			const auto                  pinned  = pin_gh_cli_configuration(*configuration, profile->hostname(), candidate.CliAccountLogin);
-			successful_counting_process process;
-			process.EnableAcquisition = true;
-			const auto acquired       = acquire_gh_cli_credential(process, *pinned, { });
-			expect(!acquired && acquired.error().Failure == github_cli_process_failure::start_failure && !acquired.error().CredentialUnavailable,
-				   "Windows refuses the unsupported private configuration before named credential lookup");
-			gh_cli_transport transport{ *profile, *pinned, process };
-			const auto       readRequest = wire_request_for(*profile, read_operation::get_repository);
-			const auto       read        = transport.perform(readRequest, { });
-			const auto*      readError   = std::get_if<github_wire_error>(&read);
-			expect(readError && readError->Correlation == readRequest.Correlation
-					   && readError->Error.Failure == application::github_provider_failure::process_startup && !readError->Error.CliCredentialUnavailable,
-				   "Windows pinned read preserves the prelaunch tool refusal, never a missing credential");
-			const auto operation = transport.begin_mutation_operation({ });
-			expect(!operation && operation.error() == application::review_mutation_failure::credential_tool_failed,
-				   "Windows mutation acquisition preserves the unsupported tool refusal");
-			const auto                                 wire = compile_capability_probe_request(*profile);
-			const github_capability_probe_wire_request probe{
-				.Correlation = { .Part = 0U, .Session = session_parent(*profile), .ProfileRevision = profile->revision(), .Host = profile->host(), .ObservedAccount = core::github_account_id{ 42 } },
-				.Wire        = *wire,
-			};
-			const auto  capability      = transport.perform_capability_probe(probe, { });
-			const auto* capabilityError = std::get_if<github_capability_probe_wire_error>(&capability);
-			expect(capabilityError && capabilityError->Correlation == probe.Correlation
-					   && capabilityError->Error.Failure == application::github_provider_failure::process_startup && !capabilityError->Error.CliCredentialUnavailable,
-				   "Windows pinned capability read refuses before an API request");
-			auto        witnesses     = 0U;
-			const auto  mutation      = transport.perform_review_mutation(mutation_request_for(*profile), { }, [&] { ++witnesses; return true; });
-			const auto* mutationError = std::get_if<github_mutation_wire_error>(&mutation);
-			expect(mutationError && mutationError->Transmission == github_mutation_transmission::definitely_not_sent
-					   && witnesses == 0U && process.Acquisitions == 0U && process.Calls == 0U && process.AcquiredCredential.expired()
-					   && std::filesystem::is_empty(configuration->neutral_working_directory()),
-				   "Windows unsupported pinned transport creates no credential, API call, transmission witness or private configuration");
-		}
-		std::cout << "GH_CLI_WINDOWS_PINNED_REFUSAL_OK: github.com and GHES, zero sensitive/API/witness effects\n";
-	}
-
 	[[maybe_unused]] void test_strict_acquisition_failures()
 	{
 		temporary_layout layout;
@@ -2669,7 +2618,93 @@ namespace {
 			   "a pinned transport reads through its private configuration across the switch");
 		process.OnRun = { };
 		std::filesystem::remove_all(directory);
+#else
+		// [[BPR-1791]]. The Windows form: made under the neutral directory for
+		// the launch alone, both files read-only, gone afterwards.
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto       pinned        = configuration ? pin_gh_cli_configuration(*configuration, "github.com", "MikeMarcinTest") : std::nullopt;
+		expect(configuration.has_value() && pinned.has_value(), "a Windows configuration validates and pins");
+		successful_counting_process process;
+		const auto                  request  = compile_gh_cli_version_request(*configuration);
+		auto                        seen     = std::optional<std::filesystem::path>{ };
+		auto                        files    = 0U;
+		auto                        readOnly = 0U;
+		auto                        hosts    = std::string{ };
+		process.OnRun                        = [&] {
+			for (const auto& entry : process.LastRequest->Environment) {
+				expect(entry.Name != "GH_TOKEN" && entry.Name != "GH_ENTERPRISE_TOKEN", "no token variable is ever set");
+				if (entry.Name == "GH_CONFIG_DIR") {
+					seen = std::filesystem::path{ std::u8string{ reinterpret_cast<const char8_t*>(entry.Value.data()), entry.Value.size() } };
+				}
+			}
+			expect(seen.has_value(), "a pinned Windows launch names its private configuration directory");
+			for (const auto& entry : std::filesystem::directory_iterator{ *seen }) {
+				++files;
+				readOnly += (entry.status().permissions() & std::filesystem::perms::owner_write) == std::filesystem::perms::none ? 1U : 0U;
+			}
+			std::ifstream input{ *seen / "hosts.yml" };
+			hosts.assign(std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ });
+		};
+		expect(run_gh_cli(process, *pinned, request, { }).has_value(), "a pinned Windows launch runs");
+		expect(seen && seen->parent_path() == configuration->neutral_working_directory()
+				   && seen->filename().string().starts_with(gh_cli_account_directory_prefix) && files == 2U && readOnly == 2U,
+			   "the Windows private configuration sits under the neutral directory and holds exactly its two read-only files");
+		expect(hosts == "github.com:\n    users:\n        MikeMarcinTest:\n    git_protocol: https\n    user: MikeMarcinTest\n",
+			   "the Windows hosts.yml names only the pinned host and login");
+		expect(seen && !std::filesystem::exists(*seen), "the Windows private configuration is removed when the launch ends");
+		process.OnRun = { };
 #endif
+	}
+
+	/// [[BPR-1791]]. Where each platform looks for gh after PATH, and which
+	/// canonical candidate it takes. Pure, so all three run on every host.
+	void test_executable_search_locations_and_selection()
+	{
+		expect(gh_cli_executable_file_name(gh_cli_host_platform::windows) == "gh.exe"
+				   && gh_cli_executable_file_name(gh_cli_host_platform::macos) == "gh"
+				   && gh_cli_executable_file_name(gh_cli_host_platform::gnu_linux) == "gh",
+			   "Windows looks for gh.exe and the others for gh");
+		// Absolute on this host, whichever it is: the search refuses a relative
+		// known folder and a relative candidate.
+#if defined(_WIN32)
+		const auto root = std::filesystem::path{ "C:\\" };
+#else
+		const auto root = std::filesystem::path{ "/" };
+#endif
+		const auto home  = root / "home" / "reviewer";
+		const auto local = home / "AppData" / "Local";
+		const auto facts = gh_cli_install_location_facts{
+			.HomeDirectory                 = home,
+			.ProgramFilesDirectory         = root / "Program Files",
+			.LocalApplicationDataDirectory = local,
+		};
+		using paths = std::vector<std::filesystem::path>;
+		expect(gh_cli_standard_install_directories(gh_cli_host_platform::macos, facts) == paths{ "/opt/homebrew/bin", "/usr/local/bin", "/opt/local/bin" },
+			   "macOS keeps Homebrew, /usr/local/bin and MacPorts, in that order");
+		expect(gh_cli_standard_install_directories(gh_cli_host_platform::gnu_linux, facts)
+				   == paths{ "/usr/bin", "/usr/local/bin", "/home/linuxbrew/.linuxbrew/bin", home / ".local" / "bin", "/snap/bin" },
+			   "Linux searches the distribution and local prefixes, Homebrew on Linux, ~/.local/bin and the snap bin, in that order");
+		expect(gh_cli_standard_install_directories(gh_cli_host_platform::windows, facts)
+				   == paths{ root / "Program Files" / "GitHub CLI", local / "Programs" / "GitHub CLI", local / "Microsoft" / "WinGet" / "Links",
+							 home / "scoop" / "apps" / "gh" / "current" / "bin" },
+			   "Windows searches the machine-wide and per-user installers, WinGet's links and Scoop, in that order");
+		expect(gh_cli_standard_install_directories(gh_cli_host_platform::windows, { }).empty()
+				   && gh_cli_standard_install_directories(gh_cli_host_platform::gnu_linux, { .HomeDirectory = "relative/home" })
+					   == paths{ "/usr/bin", "/usr/local/bin", "/home/linuxbrew/.linuxbrew/bin", "/snap/bin" },
+			   "an unknown or relative known folder contributes no location");
+
+		const auto bin = root / "usr" / "local" / "bin";
+		expect(select_gh_cli_executable(gh_cli_host_platform::gnu_linux, { { }, root / "usr" / "bin" / "snap", "relative/gh", bin / "gh", root / "usr" / "bin" / "gh" })
+				   == bin / "gh",
+			   "an empty PATH answer, the snap launcher and a relative path are passed over for the first real gh");
+		const auto installed = root / "Program Files" / "GitHub CLI";
+		expect(select_gh_cli_executable(gh_cli_host_platform::windows, { installed / "gh.cmd", installed / "GH.EXE" }) == installed / "GH.EXE",
+			   "Windows compares the file name without case and refuses a script");
+		expect(select_gh_cli_executable(gh_cli_host_platform::macos, { bin / "GH", bin / "gh.exe" }).empty()
+				   && select_gh_cli_executable(gh_cli_host_platform::gnu_linux, { }).empty(),
+			   "with no real gh the search answers empty, which is reported as a missing executable");
+		std::cout << "GH_CLI_EXECUTABLE_SEARCH_OK: macOS, Linux and Windows locations and selection\n";
 	}
 
 }
@@ -2683,6 +2718,7 @@ try {
 	test_gh_help_admission_requires_each_invoked_operation();
 	test_full_inventory_lists_every_account();
 	test_pinned_launch_gets_a_private_configuration();
+	test_executable_search_locations_and_selection();
 	test_auth_status_inventory_is_token_free_bounded_and_fail_closed();
 	for (const std::string_view host : { "github.com", "sub.github.com", "github.localhost", "sub.github.localhost", "tenant.ghe.com", "api.tenant.ghe.com" }) {
 		expect(gh_cli_credential_environment(host) == cli_credential_environment::github, "stock-gh public/tenancy host classes use the selected GH_TOKEN");
@@ -2692,21 +2728,18 @@ try {
 	}
 	test_detected_configuration_change_refuses_launch();
 	test_configuration_file_metadata_changes();
-	if constexpr (private_cli_configuration_available) {
-		test_strict_acquisition_failures();
-		test_cli_mutation_session_recovery();
-		test_thread_replies_publish_over_the_cli_connection();
-		test_mutation_closed_shapes_and_ambiguous_results();
-		test_staged_cli_catalog();
-		test_transport_parses_actual_response_and_fixed_failures();
-		test_capability_probe_uses_closed_query_and_response();
-		test_completed_http_errors_preserve_provider_evidence();
-		test_nonzero_graphql_errors();
-		test_realistic_headers_project_provider_metadata();
-	} else {
-		test_windows_pinned_transport_refuses_before_effects();
-		std::cout << "SKIPPED: successful pinned CLI dispatch, strict acquisition and recovery require the POSIX private-account configuration; Windows remains unavailable\n";
-	}
+	// [[BPR-1791]]. Windows makes the private account configuration too, so
+	// every host runs pinned dispatch, strict acquisition and recovery.
+	test_strict_acquisition_failures();
+	test_cli_mutation_session_recovery();
+	test_thread_replies_publish_over_the_cli_connection();
+	test_mutation_closed_shapes_and_ambiguous_results();
+	test_staged_cli_catalog();
+	test_transport_parses_actual_response_and_fixed_failures();
+	test_capability_probe_uses_closed_query_and_response();
+	test_completed_http_errors_preserve_provider_evidence();
+	test_nonzero_graphql_errors();
+	test_realistic_headers_project_provider_metadata();
 	return EXIT_SUCCESS;
 } catch (...) {
 	return bpr::tests::failing_exit();

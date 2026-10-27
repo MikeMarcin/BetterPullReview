@@ -2460,8 +2460,9 @@ namespace bpr::app {
 		// [[BPR-0797]]. Whether this run offers the GitHub CLI way in, rather
 		// than a profile row labelled `(unavailable)` with nothing behind it.
 		//
-		// macOS is the platform whose CLI read is enabled (RFC-BPR-0015), and
-		// the offer used to be withheld from every tests-enabled build. That is
+		// macOS, Windows and Linux are the platforms whose CLI read is enabled
+		// (RFC-BPR-0015; Windows and Linux since [[BPR-1791]]), and the offer
+		// used to be withheld from every tests-enabled build. That is
 		// every build made with the CMake default, so a developer running their
 		// own application was shown a dead row and told nothing about why. It is
 		// withheld now only from a run inside the automated test boundary, where
@@ -2470,13 +2471,14 @@ namespace bpr::app {
 		// Nothing this decides starts `gh`. `opted_in_cli_transport_factory`
 		// holds a native factory and answers `supports_cli()`; the process is
 		// reached only through `make_cli`, which the host calls after the
-		// account row's explicit opt-in. A non-Apple tests-enabled graph never
-		// asks it (cli_read_offered_here answers false there), hence maybe_unused.
+		// account row's explicit opt-in. A tests-enabled graph on a platform
+		// without the CLI never asks it (cli_read_offered_here answers false
+		// there), hence maybe_unused.
 		[[nodiscard, maybe_unused]] auto cli_read_offered(
 			[[maybe_unused]] const bool aInsideAutomatedTestBoundary) noexcept
 			-> bool
 		{
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 	#if defined(BPR_BUILD_TESTING)
 			return !aInsideAutomatedTestBoundary;
 	#else
@@ -5312,7 +5314,7 @@ namespace bpr::app {
 				// offers the CLI sign-in over a factory whose `supports_cli()`
 				// is false is the `(unavailable)` defect wearing the other
 				// label.
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 				if (cli_read_offered_here()) {
 					TransportFactory = make_opted_in_cli_transport_factory();
 				} else {
@@ -6527,7 +6529,7 @@ namespace bpr::app {
 		[[nodiscard]] auto cli_read_offered_here() const noexcept -> bool
 		{
 #if defined(BPR_BUILD_TESTING)
-	#if defined(__APPLE__)
+	#if defined(BPR_GITHUB_CLI_PLATFORM)
 			return GithubCliDiscoveryAccounts.has_value()
 				|| cli_read_offered(InsideAutomatedTestBoundary);
 	#else
@@ -18800,7 +18802,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// false) only lists.
 		void discover_github_cli_accounts(const bool aConnectSingle = true)
 		{
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 			if (Closing || GithubCliDiscoveryPending || Window == nullptr || Host == nullptr
 				|| !core::github_connection_setup_available(Host->state()) || !Profile->cli_read_offered_here()) {
 				return;
@@ -19507,7 +19509,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						// connection question that says what accepting it means.
 						// A run inside the boundary composes no factory that
 						// can serve a CLI read, so it never reaches here.
-#if defined(__APPLE__)
+#if defined(BPR_GITHUB_CLI_PLATFORM)
 							if (profile->cli_account_login().empty()) {
 								discover_github_cli_accounts(true);
 								return;
