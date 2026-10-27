@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1776"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "owner photo 2026-10-26: tour stop buttons read as labels; More button awkward",
+  "created": "2026-10-27T05:47:09.973686+00:00",
+  "base": "c29264844d09f7f2ef3abea6425969f85007a00f"
+}

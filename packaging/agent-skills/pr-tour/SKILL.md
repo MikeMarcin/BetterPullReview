@@ -11,6 +11,19 @@ metadata:
 
 Help the author explain the problem, the solution, and the important code decisions in a useful order. The `bpr tour` CLI owns draft state, GitHub interpretation, source bindings, hooks, publication and recovery. Do not reimplement any of it.
 
+## Get the CLI
+
+The desktop release does not include `bpr`. From a BetterPullReview source checkout, build and install the separate development CLI:
+
+```sh
+cmake --preset tour-cli
+cmake --build --preset tour-cli
+cmake --install build/tour-cli --component TourCLI --prefix "$HOME/.local/opt/bpr-tour-cli"
+"$HOME/.local/opt/bpr-tour-cli/bin/bpr" tour capabilities --json
+```
+
+Add `$HOME/.local/opt/bpr-tour-cli/bin` to the agent's `PATH`, or invoke that absolute executable path for every command below. This is a development install, not a release package. The repository's `docs/development/tour-cli.md` covers platform setup and sign-in. If `bpr` is missing, explain these steps before attempting `tour open`.
+
 ## Begin or resume
 
 Run `bpr tour capabilities --json` once per binary/session and stop if `cli_contract` is not `1` or `assist` is absent: that is a dependency problem, never permission to fall back to `gh api`, HTTP, or the database. Then `bpr tour open <PR-URL> --json`, and keep the returned `profile_id` and `draft_id` explicit on every later call. Ask only for a missing choice. Read the draft before writing: GitHub is canonical for published content, the shared local store holds unsent work, and neither holds private history the author never entered. See [commands](references/commands.md); load [recovery](references/recovery.md) only for an error.

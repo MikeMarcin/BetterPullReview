@@ -10,6 +10,12 @@ cmake --install build/tour-cli --component TourCLI --prefix /absolute/install/ro
 /absolute/install/root/bin/bpr tour capabilities --json
 ```
 
+For the `pr-tour` skill, the executable must be visible to the agent process.
+For example, choose `$HOME/.local/opt/bpr-tour-cli` as the install prefix,
+then add its `bin` directory to the agent's `PATH` before starting the agent,
+or have the agent use the absolute `bin/bpr` path for every command. Installing
+the desktop release does not provide this executable.
+
 The same executable serves local Review Cycles as `bpr cycle`; see
 [Review Cycles terminal](cycle-cli.md).
 
