@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1772--BPR-1773--b27f9d2285df.json","kind":"feature","found_by":"owner chat, 2026-10-26","authoring":"frontend-design:frontend-design loaded for the Qt surfaces","related_cards":["BPR-1594","BPR-1753","BPR-1245"]}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "core_agent_chat_scope (eighth entry point, no selection needed) and core_agent_context_supplement (test_a_conversation_travels_bounded_or_refuses_the_request: bounds, opening and newest comments, excerpt window, refusals, carried unchanged or refused whole)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_launch, test_a_conversation_is_read_and_crosses: read_conversation (current and original lines, deleted comments left out) and every conversation.* field after the version-two fields; none without one."}}, {"criterion": "AC3", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "qt_conversation_cards_view (header button and menu name the thread once each), qt_workbench_window_scale_100 (chip in the field, prompts, About line, Use as reply only for thread turns, chip close, note prompts), qt_private_notes_panel."}}, {"criterion": "AC4", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_chat_conversation_contract: Ask agent from a fixture thread's menu through the shipped composition, then a send: the turn is ask_about_conversation, carries that thread (path, comments, valid bounds), runs once and mutates nothing on GitHub; the one launch path is unchanged. application_private_review_host note_press: the note's text becomes one reviewer revision and the run's only private source; note.count stays 0."}}, {"criterion": "AC5", "outcome": "fail", "revision": "aaa24c11c865068cc24b918dd9e4e7f7d61b2c99", "evidence": {"kind": "observation", "detail": "Attended review session 41f51349bc37e6c092d31dbf1739c5b1 (state ~/.attended-review-state/bpr-looks-2026-10-27, served over Tailscale, handed back 2026-10-27T21:11Z): candidate BPR-1773-look, owner verdict reject. Owner's note, verbatim: \"Seems really weird that's there's already a save as note and we added a second one.  The ux doesn't make sense to me I don't even understand what the question I asked was and what the agents response is. And we may as well just let you turn anything into a note or draft comment directly if we're doing it for this. The preexisting save as note goto note looks much better than this.\""}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "core_agent_chat_scope (eighth entry point, no selection needed) and core_agent_context_supplement (test_a_conversation_travels_bounded_or_refuses_the_request: bounds, opening and newest comments, excerpt window, refusals, carried unchanged or refused whole)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_launch, test_a_conversation_is_read_and_crosses: read_conversation (current and original lines, deleted comments left out) and every conversation.* field after the version-two fields; none without one."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2 (owner look 2026-10-27): qt_workbench_window_scale_100 (the asked line reads \"About <conversation>: <question>\" in the question's colour and a heavier weight; every answer's footer has Draft comment beside Save as note in its style, on a conversation turn and an ordinary one; Draft comment becomes Go to draft and Go to draft drafts nothing more; a refusal says why; no Use as reply; Save as note and Go to note unchanged), qt_conversation_cards_view, qt_private_notes_panel."}}, {"criterion": "AC4", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2: application_agent_chat_conversation_contract: Ask agent from a fixture thread's menu through the shipped composition, then a send: the turn is ask_about_conversation, carries that thread, runs once; its asked line names the thread; its Draft comment writes the answer into that thread's reply (review editor shows a reply draft holding the answer), becomes Go to draft, and no submission or target observation follows; one launch path. application_private_review_host note_press unchanged. core_review_submission: answer_draft_place_for."}}, {"criterion": "AC5", "outcome": "pending", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "observation", "detail": "r1 rejected 2026-10-27 (session 41f51349bc37e6c092d31dbf1739c5b1, candidate BPR-1773-look; owner's words under 'Owner's look, 2026-10-27: rejected'). r2 awaits a fresh look on a frozen build; no session opened by the implementer. Offscreen renders for it: scratchpad bpr-1773-v2/agent-turns-{draft-comment,go-to-draft}-{light,dark}.png."}}]
 ---
 
 # BPR-1773: Ask the agent about a conversation
@@ -20,19 +20,21 @@ whose problem, owner decisions and criteria this card does not repeat.
 
 - Core: the entry point and the bounded conversation (`686c8c448`).
 - Application, composition and Qt: threads, notes, the chip, Use as reply.
+- r2 rework after the owner's look (`7dacd2e9d`): Draft comment on every answer
+  replaces Use as reply; the asked line names the conversation.
 
 ## Evidence
 
-AC1 to AC4 pass at the recorded revision (front matter). Thirteen focused
+AC1 and AC2 pass at the recorded revision; AC3 and AC4 pass again at the r2
+revision (front matter). Thirteen focused
 ctest entries pass on macOS dev, including the composition courses
 `application_agent_chat_composition_contract` (unchanged) and
 `application_agent_invocation_composition_contract`.
 
 ## Pending
 
-- AC5, the owner's look on a frozen build (attended review): not prepared.
-  The disk filled during this card's full build; a frozen root needs its own
-  build tree.
+- AC5, a fresh owner look at r2 on a frozen build (attended review): not
+  opened by the implementer; the coordinator opens it.
 - Not run: the full suite, `coding-tidy`, Windows and Linux.
 
 ## Owner's look, 2026-10-27: rejected
@@ -51,3 +53,22 @@ Rework:
   offers the existing actions in the existing style, beside **Save as note**
   and **Go to note**: **Draft comment**, which on a conversation turn becomes
   a draft reply to that thread.
+
+### Rework done (r2, 2026-10-27)
+
+- The asked line: a turn about a conversation names it above the question,
+  in the question's own colour and a heavier weight (r1 had a grey "About"
+  line); the bubble's accessible name is "About <conversation>: <question>".
+- Use as reply is gone. Every answer's footer reads Copy, Save as note,
+  Draft comment, in one quiet style. Core's `answer_draft_place_for` places
+  the draft when the question is sent: the thread's reply (a thread the
+  viewer may reply to), else a line comment on the selected lines (the
+  finding card's draft path), else Overview's new pull request comment.
+  Drafted, it reads Go to draft. A restored turn drafts on the pull request.
+- Not claimed: a note conversation drafts by lines or the pull request, not
+  on the note's line; the place is not kept with a restored turn.
+- Found while composing the course: the fixture thread
+  `PRRT_fixture_2` is routed by the window as a reply on the thread
+  (on_thread), but the host's `thread_reply_binding_of` refuses it, so Reply
+  there silently does nothing. Pre-existing and outside this card; the
+  course asks about a thread on a current line instead.
