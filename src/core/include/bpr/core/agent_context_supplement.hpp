@@ -324,6 +324,90 @@ namespace bpr::core {
 	/// \brief Whether a brief is within every bound `bound_review_brief` keeps.
 	[[nodiscard]] auto valid_brief(const supplement_brief& aBrief) -> bool;
 
+	/// \brief [[BPR-1773]]. What a conversation the reviewer asked about is.
+	enum class conversation_subject : std::uint8_t {
+		/// A review thread: its published comments, as GitHub shows them.
+		review_thread,
+		/// A private note. Its words never ride here: they reach the agent
+		/// only as the immutable Private history revision the run selects.
+		private_note,
+	};
+	[[nodiscard]] auto stable_name(conversation_subject aSubject) noexcept -> std::string_view;
+
+	/// \brief The lines a conversation is attached to, with a little
+	/// context, as the head (or, `Before`, the base) has them.
+	struct conversation_excerpt
+	{
+		/// One-based number of the first line in `Lines`.
+		std::uint32_t            FirstLine = 0U;
+		std::vector<std::string> Lines;
+		/// One-based, the lines the conversation names, within `Lines`.
+		std::uint32_t AnchorFirst = 0U;
+		std::uint32_t AnchorLast  = 0U;
+		bool          Before      = false;
+
+		auto operator<=>(const conversation_excerpt&) const = default;
+	};
+
+	/// \brief The longest conversation one turn may carry: each comment's
+	/// body, the comments together, and the excerpt's lines.
+	inline constexpr std::size_t maximum_conversation_comment_bytes = 8U * 1024U;
+	inline constexpr std::size_t maximum_conversation_bytes         = 48U * 1024U;
+	inline constexpr std::size_t maximum_conversation_excerpt_lines = 40U;
+	inline constexpr std::size_t maximum_conversation_line_bytes    = 512U;
+
+	/// \brief What the host read for one conversation, before its bounds.
+	struct conversation_input
+	{
+		conversation_subject         Subject = conversation_subject::review_thread;
+		std::string                  Path;
+		std::optional<std::uint32_t> StartLine;
+		std::optional<std::uint32_t> Line;
+		bool                         Resolved = false;
+		bool                         Outdated = false;
+		/// Oldest first. Empty for a private note.
+		std::vector<brief_comment>          Comments;
+		std::optional<conversation_excerpt> Excerpt;
+
+		auto operator<=>(const conversation_input&) const = default;
+	};
+
+	/// \brief The bounded conversation one turn carries.
+	///
+	/// \details `CommentsOmitted` counts the comments left out between the
+	/// first, which opened the conversation, and the newest ones kept.
+	struct supplement_conversation
+	{
+		conversation_subject                Subject = conversation_subject::review_thread;
+		std::string                         Path;
+		std::optional<std::uint32_t>        StartLine;
+		std::optional<std::uint32_t>        Line;
+		bool                                Resolved = false;
+		bool                                Outdated = false;
+		std::vector<brief_comment>          Comments;
+		std::size_t                         CommentsOmitted = 0U;
+		std::optional<conversation_excerpt> Excerpt;
+
+		auto operator<=>(const supplement_conversation&) const = default;
+	};
+
+	/// \brief Bounds one conversation, deterministically, or refuses it.
+	///
+	/// \details Refused: an undeclared subject, a path past
+	/// `maximum_brief_path_bytes`, a review thread with no comment, a
+	/// private note with any comment, a start line after the line, or an
+	/// excerpt whose anchor is not within its lines. Each body is cut at a
+	/// character boundary to `maximum_conversation_comment_bytes` and each
+	/// login to `maximum_brief_login_bytes`. The first comment is always
+	/// kept; then comments are taken from the newest back while all of them
+	/// fit `maximum_conversation_bytes`, and the ones between are counted.
+	/// The excerpt keeps at most `maximum_conversation_excerpt_lines` lines
+	/// centred on its anchor, each cut to `maximum_conversation_line_bytes`.
+	[[nodiscard]] auto bound_conversation(conversation_input aInput) -> std::optional<supplement_conversation>;
+
+	/// \brief Whether a conversation is within every bound `bound_conversation` keeps.
+	[[nodiscard]] auto valid_conversation(const supplement_conversation& aConversation) -> bool;
+
 	/// \brief What the reviewer approved for one versioned supplement.
 	///
 	/// \details The request contains no store and no implicit note or draft
@@ -358,6 +442,9 @@ namespace bpr::core {
 		/// [[BPR-1752]]. The review brief; a brief outside its bounds
 		/// refuses the request whole.
 		std::optional<supplement_brief> Brief;
+		/// [[BPR-1773]]. The conversation the reviewer asked about; one
+		/// outside its bounds refuses the request whole.
+		std::optional<supplement_conversation> Conversation;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -402,6 +489,9 @@ namespace bpr::core {
 		/// [[BPR-1752]]. The review brief, carried through unchanged;
 		/// absent for a launch that is not a review request.
 		std::optional<supplement_brief> Brief;
+		/// [[BPR-1773]]. The conversation asked about, carried through
+		/// unchanged; absent for every other launch.
+		std::optional<supplement_conversation> Conversation;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

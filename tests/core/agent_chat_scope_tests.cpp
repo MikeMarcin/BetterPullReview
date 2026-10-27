@@ -195,14 +195,19 @@ namespace {
 			false,
 			"open_full_agent_session",
 		},
+		entry_point_row{
+			core::agent_entry_point::ask_about_conversation,
+			false,
+			"ask_about_conversation",
+		},
 	};
 
 	static_assert(
 		entryPoints.size() == core::agent_entry_point_count,
-		"every declared entry point needs a row here; an eighth entry point "
+		"every declared entry point needs a row here; a ninth entry point "
 		"without one fails this count rather than going untested");
 
-	/// \brief Each of the seven is legal only with the intent naming it.
+	/// \brief Each of the eight is legal only with the intent naming it.
 	void test_every_entry_point_is_legal_only_with_its_own_intent()
 	{
 		for (const auto& row : entryPoints) {
@@ -276,9 +281,10 @@ namespace {
 				"is refused exactly as an absent one is");
 		}
 		expect(
-			refused == 3U && permitted == 4U,
-			"three of the seven act on the reviewer's selection and four take "
-			"their subject from the session's binding");
+			refused == 3U && permitted == 5U,
+			"three of the eight act on the reviewer's selection; four take "
+			"their subject from the session's binding and one from the "
+			"conversation the reviewer chose");
 	}
 
 	/// \brief An entry point nobody declared is refused before anything else.
