@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1789",
+    "BPR-1790"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Windows app opens a console; workspace recovery refused on Windows",
+  "created": "2026-10-27T20:38:59.459598+00:00",
+  "base": "37b52a01e9729b19615814d8429bdbe130011327"
+}
