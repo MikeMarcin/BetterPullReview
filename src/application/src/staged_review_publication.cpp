@@ -402,4 +402,34 @@ namespace bpr::application {
 		}
 		return aAfter.Pending.has_value() && !aAfter.PossiblyTransmitted && aBefore->Review == aAfter.Review && aBefore->Index == aAfter.Index && aBefore->Comments == aAfter.Comments && aBefore->Patched == aAfter.Patched && aBefore->Published == aAfter.Published && aBefore->DescriptionDone == aAfter.DescriptionDone && aBefore->Updated == aAfter.Updated && aBefore->DestinationsPublished == aAfter.DestinationsPublished;
 	}
+	auto staged_publication_stages(const staged_review_plan& aPlan) -> std::vector<std::string>
+	{
+		if (aPlan.ConversationReply) {
+			return { "The reply" };
+		}
+		auto stages = std::vector<std::string>{ aPlan.Update ? "The tour's updated comments" : aPlan.Compatibility ? "The index comment"
+																												   : "The tour comment" };
+		if (!aPlan.Update) {
+			for (std::size_t index = 0; index < aPlan.Stops.size(); ++index) {
+				stages.push_back("Stop " + std::to_string(index + 1) + ", \u201c" + aPlan.Stops[index].Title + "\u201d");
+			}
+		}
+		if (aPlan.Description) {
+			stages.emplace_back("The description link");
+		}
+		return stages;
+	}
+	auto staged_published_link(const staged_publication_record& aRecord) -> std::string
+	{
+		if (!aRecord.Published) {
+			return { };
+		}
+		if (aRecord.Plan.Update && aRecord.Plan.Update->Remote) {
+			return aRecord.Plan.Update->Remote->WebUrl;
+		}
+		if (aRecord.Index) {
+			return aRecord.Index->WebUrl;
+		}
+		return aRecord.Review ? aRecord.Review->WebUrl : std::string{ };
+	}
 }

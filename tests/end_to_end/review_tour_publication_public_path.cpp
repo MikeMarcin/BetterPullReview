@@ -214,8 +214,22 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 		button("tourPublish")->click();
+		// [[BPR-1782]]. From the press until GitHub answers, Publish reads as
+		// working, names the captured plan's stages, and Stop stays.
+		auto* working = editor.findChild<QWidget*>(QStringLiteral("tourPublicationWorking"));
+		auto* stages  = editor.findChild<QLabel*>(QStringLiteral("tourPublicationWorkingStages"));
+		expect(working && stages && button("tourPublish")->text() == QStringLiteral("Publishing\u2026") && !button("tourPublish")->isEnabled() && button("tourStop")->isEnabled() && !button("tourPreparePublication")->isEnabled(), "pressed Publish reads as working with Stop available");
+		expect(!working->isHidden() && status->isHidden() && stages->text().startsWith(QStringLiteral("Sending, in order:")) && stages->text().contains(mode == "compat" ? QStringLiteral("The index comment") : QStringLiteral("The tour comment")) && stages->text().contains(QStringLiteral("Stop 2, \u201c")) && stages->text().endsWith(QStringLiteral("The description link")), "working panel names the plan's own stages in order");
 		if (mode == "stop") {
 			wait([&] {std::scoped_lock lock{server->Mutex};return server->StagedBlocked; }, "production session reaches first durable staged effect");
+			expect(button("tourPublish")->text() == QStringLiteral("Publishing\u2026") && button("tourStop")->isEnabled() && !working->isHidden(), "working state holds while GitHub has not answered");
+			if (argc > (cliMode ? 3 : 2)) {
+				// The tour page, where Preview and publish takes the author.
+				button("tourPreviewAndPublish")->click();
+				QApplication::processEvents();
+				expect(window.tour_page_open() && !working->isHidden(), "the tour page shows the working panel");
+				expect(window.grab().save(QString::fromUtf8(argv[cliMode ? 3 : 2]) + "-working.png"), "in-flight publication capture saved");
+			}
 			button("tourStop")->click();
 			wait([&] { return !button("tourStop")->isEnabled(); }, "Stop drains the active grouped grant");
 			std::size_t before;
@@ -255,19 +269,30 @@ auto main(int argc, char** argv) -> int
 				expect(resume->isEnabled(), "the retained original partial plan still permits explicit Resume after repreview");
 			}
 			resume->click();
+			expect(resume->isEnabled() == false && restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->text() == QStringLiteral("Publishing\u2026") && restored.findChild<QPushButton*>(QStringLiteral("tourStop"))->isEnabled(), "Resume reads as working too");
 			wait([&] { return restoredStatus->text().startsWith(QStringLiteral("Published:")); }, "Resume completes the original pending review");
+			expect(restored.findChild<QPushButton*>(QStringLiteral("tourPublish"))->text() == QStringLiteral("Published") && !restoredStatus->isHidden() && restored.findChild<QLabel*>(QStringLiteral("tourPublicationLink"))->text().contains(QStringLiteral("#pullrequestreview-")), "resumed success says Published with where GitHub shows it");
+			if (argc > (cliMode ? 3 : 2)) {
+				restored.findChild<QPushButton*>(QStringLiteral("tourPreviewAndPublish"))->click();
+				QApplication::processEvents();
+				expect(application->window().tour_page_open(), "the tour page shows the published state");
+				expect(application->window().grab().save(QString::fromUtf8(argv[cliMode ? 3 : 2]) + "-done.png"), "published capture saved");
+			}
 		} else if (mode == "conflict") {
 			wait([&] { return status->text().contains(QStringLiteral("Publication conflict")); }, "existing pending conflict is visible");
+			expect(!working->isHidden() && editor.findChild<QLabel*>(QStringLiteral("tourPublicationWorkingTitle"))->text() == QStringLiteral("Publishing didn't finish") && button("tourPublish")->text() == QStringLiteral("Publish tour") && !button("tourStop")->isEnabled(), "a refused publication says it did not finish, why, and stops working");
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedWrites == 0, "existing website pending review is neither adopted nor modified");
 		} else if (mode == "description") {
 			wait([&] { return status->text().contains(QStringLiteral("Tour published; description update needs attention")); }, "description failure is separate from confirmed tour success");
+			expect(!working->isHidden() && button("tourReconcile")->isEnabled() && button("tourPublish")->text() == QStringLiteral("Publish tour"), "description attention is said in the panel with Check status");
 			button("tourReconcile")->click();
 			wait([&] { return !button("tourStop")->isEnabled(); }, "description reconciliation completes read-only");
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->StagedCreates == 1 && server->StagedSubmits == 1 && server->StagedWrites == 4 && !server->StagedDescription, "description failure retains submitted review without reposting");
 		} else {
 			wait([&] { return status->text().startsWith(mode == "compat" ? QStringLiteral("Published as compatibility") : QStringLiteral("Published:")); }, "normal Publish reaches verified success");
+			expect(working->isHidden() && !status->isHidden() && button("tourPublish")->text() == QStringLiteral("Published") && !button("tourStop")->isEnabled() && editor.findChild<QLabel*>(QStringLiteral("tourPublicationLink"))->text().contains(mode == "compat" ? QStringLiteral("#issuecomment-") : QStringLiteral("#pullrequestreview-")), "success says Published with where GitHub shows it");
 		}
 		if (mode != "conflict" && mode != "description") {
 			std::scoped_lock lock{ server->Mutex };

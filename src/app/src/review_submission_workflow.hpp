@@ -184,6 +184,9 @@ namespace bpr::app {
 		std::string                                                                   Description, Status = "Saved locally. Prepare a publication preview.";
 		receipt_sink                                                                  ReceiptSink;
 		bool                                                                          Qualified = false, Closing = false, Previewed = false, Ready = false;
+		/// [[BPR-1782]]. The active effect is a Publish or Resume; a publication
+		/// answered since the last fresh preview without being published.
+		bool Publishing = false, Attempted = false;
 	};
 	/// PR-level replies share the existing witnessed publication host and journal.
 	class conversation_reply_workflow final : public application::review_submission_projection_port

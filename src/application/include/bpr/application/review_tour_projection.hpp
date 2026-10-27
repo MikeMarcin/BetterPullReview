@@ -3,6 +3,8 @@
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/review_tour_destination.hpp"
 #include <memory>
+#include <string>
+#include <vector>
 namespace bpr::application {
 	enum class tour_store_failure : std::uint8_t { unavailable,
 												   cancelled,
@@ -32,10 +34,21 @@ namespace bpr::application {
 		core::tour_destination_plan Plan;
 		std::string                 SourceLink;
 	};
+	/// \brief [[BPR-1782]]. Where the tour's own publication stands, so Publish
+	/// can read as working from the press until GitHub answers.
+	enum class tour_publication_phase : std::uint8_t { idle,
+													   publishing,
+													   published,
+													   attention };
 	struct tour_publication_presentation
 	{
-		std::string Status = "Saved locally. Prepare a publication preview when the tour is ready.";
-		std::string Markdown;
+		std::string            Status = "Saved locally. Prepare a publication preview when the tour is ready.";
+		std::string            Markdown;
+		tour_publication_phase Phase = tour_publication_phase::idle;
+		/// While publishing: what the captured plan sends, in order.
+		std::vector<std::string> Stages;
+		/// Once published: where GitHub shows the tour.
+		std::string Link;
 		bool        Publish = false, Resume = false, Reconcile = false, Stop = false;
 	};
 	struct tour_presentation

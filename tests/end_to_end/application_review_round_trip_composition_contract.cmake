@@ -2657,8 +2657,15 @@ function(bpr_verify_app_source_tree app_source_root)
 # new_pull_request_comment key, sent through the same reply plan and
 # issue-comment publication, its text alone). No grant, provider, credential,
 # mutation or inventory change; the mutation pin is unchanged.
+# [[BPR-1782]] tour Publish working reseal (2026-10-27):
+# review_submission_workflow.cpp/.hpp only. The tour publication workflow
+# marks its own Publish or Resume effect as publishing and a publish answered
+# without publication as needing attention, and presents the captured plan's
+# stages (application staged_publication_stages) and the published address
+# (staged_published_link). The same grant, admission, host call, cancellation
+# and terminal handling; no provider, credential, mutation or inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "750ec92789e8247ce38080c3988df71a11d61f6e3f9620ec83e4bfc8f162a97d"
+        "85ce12e095480b41bf164caf55df78fcc16ec3bba855bd6158d3b14fc93a750d"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

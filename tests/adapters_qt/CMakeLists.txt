@@ -2065,6 +2065,13 @@ bpr_enable_warnings(test_scoped_prose_editor)
 bpr_add_network_isolated_test(NAME qt_scoped_prose_editor COMMAND test_scoped_prose_editor)
 set_tests_properties(qt_scoped_prose_editor PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" TIMEOUT 30)
 
+bpr_add_executable(test_review_tour_publication_working review_tour_publication_working_tests.cpp) # [[BPR-1782]]
+target_link_libraries(test_review_tour_publication_working PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_review_tour_publication_working)
+bpr_enable_warnings(test_review_tour_publication_working)
+bpr_add_network_isolated_test(NAME qt_review_tour_publication_working COMMAND test_review_tour_publication_working)
+set_tests_properties(qt_review_tour_publication_working PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-publication-working:pass" TIMEOUT 30)
+
 bpr_add_executable(test_private_review_panel private_review_panel_tests.cpp)
 target_link_libraries(test_private_review_panel PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_private_review_panel)
