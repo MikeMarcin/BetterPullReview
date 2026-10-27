@@ -73,4 +73,20 @@ int main()
 	root.Binding.WebUrl = "https://github.com/o/r/pull/7#pullrequestreview-10";
 	records.push_back(root);
 	expect(discover_tours(seed(), brief, "pull7", records, true).size() == 2, "multiple roots require selection, no newest heuristic");
+	// [[BPR-1787]]. A new tour's brief is in the description, under its link;
+	// the tour comment lists the route alone.
+	records              = objects();
+	records[1].Raw       = "The problem and solution are in the pull request description.\n\n## Review tour \u2014 Start here\n\n1. [same](" + records[2].Binding.WebUrl + ")\n1. [same](" + records[0].Binding.WebUrl + ")\n";
+	const auto described = "[Review tour](" + records[1].Binding.WebUrl + ")\n\n## Problem\nCrash.\n\n## Solution\nSnapshot.\n\n## Testing\nTemplate.\n";
+	auto       fresh     = discover_tours(seed(), described, "pull7", records, true);
+	expect(fresh.size() == 1 && fresh[0].Preferred && fresh[0].Draft.Problem == "Crash.\n\n" && fresh[0].Draft.Solution == "Snapshot.\n\n" && fresh[0].Draft.ProblemBaseline->RemoteEntity == "pull7" && fresh[0].Draft.SolutionBaseline->RemoteEntity == "pull7" && fresh[0].Draft.ImportNotice.find("requires source mapping") == std::string::npos, "[[BPR-1787]] a cold import of a new tour recovers Problem and Solution from the description");
+	// A tour published before BPR-1787 carries its brief in its own comment
+	// and the description was left alone.
+	records        = objects();
+	records[1].Raw = "## Problem\n\nOld crash.\n\n## Solution\n\nOld snapshot.\n\n## Review tour \u2014 Start here\n\n1. [same](" + records[2].Binding.WebUrl + ")\n1. [same](" + records[0].Binding.WebUrl + ")\n";
+	auto old       = discover_tours(seed(), "Untouched template.\n", "pull7", records, true);
+	expect(old.size() == 1 && old[0].Draft.Problem == "\nOld crash.\n\n" && old[0].Draft.Solution == "\nOld snapshot.\n\n" && old[0].Draft.ProblemBaseline->RemoteEntity == "review9" && old[0].Draft.ProblemBaseline->Raw == records[1].Raw && old[0].Draft.ImportNotice.find("requires source mapping") == std::string::npos, "[[BPR-1787]] an old tour's brief is recovered from its comment");
+	// Neither place maps it: the notice says so.
+	records = objects();
+	expect(discover_tours(seed(), "Untouched template.\n", "pull7", records, true)[0].Draft.ImportNotice.find("Problem requires source mapping") != std::string::npos, "a brief in neither place requires mapping");
 }
