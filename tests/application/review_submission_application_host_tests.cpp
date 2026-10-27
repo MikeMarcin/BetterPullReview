@@ -404,6 +404,25 @@ namespace {
 		reentrant.drain();
 		expect(reentrant.Projection.Terminals.size() == 2U && reentrant.Host.is_quiescent(), "reentrant feedback remains exactly once");
 	}
+	/// [[BPR-1782]]. The tour's working panel names the captured plan's own
+	/// stages, in order, and the published tour's address once it is published.
+	void test_publication_stages_and_link()
+	{
+		auto plan  = application::staged_review_plan{ };
+		plan.Stops = { { .Title = "First" }, { .Title = "Second" } };
+		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The tour comment", "Stop 1, \u201cFirst\u201d", "Stop 2, \u201cSecond\u201d" }, "native plan: the tour comment, then each stop");
+		plan.Compatibility = true;
+		plan.Description   = application::staged_description_edit{ };
+		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The index comment", "Stop 1, \u201cFirst\u201d", "Stop 2, \u201cSecond\u201d", "The description link" }, "compatibility plan: the index comment, each stop, the description link");
+		auto record  = application::staged_publication_record{ .Plan = plan };
+		record.Index = application::staged_review_comment{ .WebUrl = "https://github.com/o/r/pull/1#issuecomment-7" };
+		expect(application::staged_published_link(record).empty(), "no address before the record is published");
+		record.Published = true;
+		expect(application::staged_published_link(record) == "https://github.com/o/r/pull/1#issuecomment-7", "compatibility: the index comment's address");
+		record.Index.reset();
+		record.Review = application::staged_review_entity{ .WebUrl = "https://github.com/o/r/pull/1#pullrequestreview-5" };
+		expect(application::staged_published_link(record) == "https://github.com/o/r/pull/1#pullrequestreview-5", "native: the review's address");
+	}
 }
 auto main() -> int
 {
@@ -415,6 +434,7 @@ auto main() -> int
 	test_recovery_and_bad_results();
 	test_lookup_by_key();
 	test_cancellation_shutdown_and_reentrancy();
+	test_publication_stages_and_link();
 	std::cout << "review-submission-application-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

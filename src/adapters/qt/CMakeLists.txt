@@ -6,6 +6,7 @@ add_library(
         src/insights_chart.cpp
         src/insights_calendar.cpp
         src/review_tour_editor.cpp
+        src/waiting_panel.cpp
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp
         src/suggestion_composer.cpp

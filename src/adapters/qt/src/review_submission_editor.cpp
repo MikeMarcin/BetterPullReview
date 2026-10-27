@@ -8,6 +8,7 @@
 #include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/thread_pick_gestures.hpp"
 #include "conversation_glyphs.hpp"
+#include "waiting_panel.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
@@ -318,48 +319,6 @@ namespace bpr::qt {
 			}
 		};
 
-		/// [[BPR-1541]] v002. The panel a review awaiting GitHub's confirmation
-		/// sits in, under the page's title: the text ground warmed a little
-		/// toward the theme's attention colour, the page's hairline edge, and
-		/// the rail Home's sections carry on its leading side, the one accent. A caution, not an
-		/// alarm: nothing in it is red.
-		/// How far the waiting panel's ground leans toward the attention colour.
-		constexpr auto waiting_tint = 0.05;
-		class waiting_frame final : public QWidget
-		{
-		public:
-			explicit waiting_frame(QWidget* aParent)
-				: QWidget{ aParent }
-			{ }
-
-			void set_attention(const QColor& aColour)
-			{
-				Attention = aColour;
-				update();
-			}
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto        painter = QPainter{ this };
-				const auto& colours = palette();
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto ground = colours.color(QPalette::Active, QPalette::Base);
-				const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				// One accent only: the rail. The edge is the page's own hairline.
-				painter.setPen(QPen{ blend(ground, colours.color(QPalette::Active, QPalette::Text), 0.16), 1.0 });
-				painter.setBrush(blend(ground, Attention, waiting_tint));
-				painter.drawRoundedRect(box, 6.0, 6.0);
-				auto edge = QPainterPath{ };
-				edge.addRoundedRect(box, 6.0, 6.0);
-				painter.setClipPath(edge);
-				painter.fillRect(QRectF{ box.left(), box.top(), 3.0, box.height() }, Attention);
-			}
-
-		private:
-			QColor Attention{ 0xB0, 0x7A, 0x12 };
-		};
-
 		/// [[BPR-1541]] v002. Check status, the panel's one action: the
 		/// highlight's tint and edge, as a verdict is drawn under the pointer.
 		class panel_action_button final : public QToolButton
@@ -415,32 +374,6 @@ namespace bpr::qt {
 				}
 			}
 		};
-
-		/// [[BPR-1541]] v002. The page's "unknown" mark, a ring with a
-		/// question mark, as Compose review's preflight draws it, in the
-		/// attention colour.
-		[[nodiscard]] auto waiting_mark(const QColor& aInk, const qreal aRatio) -> QPixmap
-		{
-			constexpr auto size   = 18.0;
-			const auto     ratio  = std::max<qreal>(1.0, aRatio);
-			const auto     pixels = static_cast<int>(std::ceil(size * ratio));
-			auto           image  = QImage{ pixels, pixels, QImage::Format_ARGB32_Premultiplied };
-			image.fill(Qt::transparent);
-			image.setDevicePixelRatio(ratio);
-			{
-				auto painter = QPainter{ &image };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				painter.setPen(QPen{ aInk, 1.6 });
-				painter.setBrush(Qt::NoBrush);
-				painter.drawEllipse(QRectF{ 1.3, 1.3, size - 2.6, size - 2.6 });
-				auto font = painter.font();
-				font.setPixelSize(11);
-				font.setBold(true);
-				painter.setFont(font);
-				painter.drawText(QRectF{ 0.0, 0.0, size, size }, Qt::AlignCenter, QStringLiteral("?"));
-			}
-			return QPixmap::fromImage(image);
-		}
 
 		/// [[BPR-1345]] v002. The box the pending comments sit in: the text
 		/// ground with a hairline edge, the one boxed thing on the page
@@ -2039,16 +1972,9 @@ namespace bpr::qt {
 		const auto attention = attention_colour();
 		static_cast<waiting_frame*>(Waiting)->set_attention(attention);
 		WaitingMark->setPixmap(waiting_mark(attention, devicePixelRatioF()));
-		// What is safe, said more quietly than why: the text mixed a quarter
-		// toward the panel's ground, never below 4.5:1 against it.
-		const auto ground = blend(palette().color(QPalette::Active, QPalette::Base), attention, waiting_tint);
-		const auto text   = palette().color(QPalette::Active, QPalette::WindowText);
-		auto       quiet  = blend(text, ground, 0.28);
-		if (destructive_contrast(quiet, ground) < 4.5) {
-			quiet = text;
-		}
+		// What is safe, said more quietly than why.
 		auto colours = WaitingAssure->palette();
-		colours.setColor(QPalette::WindowText, quiet);
+		colours.setColor(QPalette::WindowText, waiting_quiet_text(palette(), attention));
 		WaitingAssure->setPalette(colours);
 	}
 	auto review_submission_editor::attention_colour() const -> QColor
@@ -2056,8 +1982,7 @@ namespace bpr::qt {
 		if (Attention.has_value()) {
 			return *Attention;
 		}
-		const auto variant = palette().color(QPalette::Base).lightnessF() < 0.5 ? core::appearance_variant::dark : core::appearance_variant::light;
-		return to_presentation_color(builtin_appearance_palette(variant)[core::index_of(core::appearance_role::state_attention)]);
+		return waiting_attention_colour(palette());
 	}
 	void review_submission_editor::emit_command(core::review_submission_command_kind aKind, const std::optional<core::review_disposition> aDisposition)
 	{

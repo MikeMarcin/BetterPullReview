@@ -6,6 +6,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include "conversation_glyphs.hpp"
+#include "waiting_panel.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
@@ -882,10 +883,59 @@ namespace bpr::qt {
 		PublicationPreview = new markdown_body_view{ PublicationPanel };
 		PublicationPreview->setObjectName(QStringLiteral("tourPublicationPreview"));
 		publication->addWidget(PublicationPreview, 1);
+		// [[BPR-1782]]. A publication under way, or one that did not finish, is
+		// said in Compose review's waiting panel: the mark, a plain title, what
+		// is being sent, and what is safe. Resume and Check status stay below.
+		PublicationWorking = new waiting_frame{ PublicationPanel };
+		PublicationWorking->setObjectName(QStringLiteral("tourPublicationWorking"));
+		{
+			auto* const row = new QHBoxLayout{ PublicationWorking };
+			row->setContentsMargins(15, 12, 14, 13);
+			row->setSpacing(10);
+			WorkingMark = new QLabel{ PublicationWorking };
+			WorkingMark->setObjectName(QStringLiteral("tourPublicationWorkingMark"));
+			WorkingMark->setFixedSize(18, 18);
+			WorkingMark->setAccessibleName(tr("Status unknown"));
+			row->addWidget(WorkingMark, 0, Qt::AlignTop);
+			auto* const text = new QVBoxLayout;
+			text->setContentsMargins(0, 0, 0, 0);
+			text->setSpacing(4);
+			const auto words = [this](const QString& aName) {
+				auto* const label = new QLabel{ PublicationWorking };
+				label->setObjectName(aName);
+				label->setTextFormat(Qt::PlainText);
+				label->setWordWrap(true);
+				label->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+				label->setMinimumWidth(0);
+				label->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+				return label;
+			};
+			WorkingTitle = words(QStringLiteral("tourPublicationWorkingTitle"));
+			WorkingTitle->setTextInteractionFlags(Qt::NoTextInteraction);
+			auto titleFont = WorkingTitle->font();
+			titleFont.setWeight(QFont::DemiBold);
+			titleFont.setPointSizeF(titleFont.pointSizeF() * 1.08);
+			WorkingTitle->setFont(titleFont);
+			text->addWidget(WorkingTitle);
+			WorkingStages = words(QStringLiteral("tourPublicationWorkingStages"));
+			text->addWidget(WorkingStages);
+			WorkingStatus = words(QStringLiteral("tourPublicationWorkingStatus"));
+			text->addWidget(WorkingStatus);
+			row->addLayout(text, 1);
+		}
+		PublicationWorking->hide();
+		publication->addWidget(PublicationWorking);
 		PublicationStatus = paragraph({ }, PublicationPanel);
 		PublicationStatus->setObjectName(QStringLiteral("tourPublicationStatus"));
 		PublicationStatus->setForegroundRole(QPalette::PlaceholderText);
 		publication->addWidget(PublicationStatus);
+		PublicationLink = paragraph({ }, PublicationPanel);
+		PublicationLink->setObjectName(QStringLiteral("tourPublicationLink"));
+		PublicationLink->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		PublicationLink->setAccessibleName(tr("Where GitHub shows the tour"));
+		PublicationLink->hide();
+		publication->addWidget(PublicationLink);
+		restyle_working();
 		PublicationMode = new QComboBox{ PublicationPanel };
 		PublicationMode->setObjectName(QStringLiteral("tourPublicationMode"));
 		PublicationMode->addItems({ tr("Keep single-review publication"), tr("Publish with compatibility comments (non-atomic)") });
@@ -905,8 +955,8 @@ namespace bpr::qt {
 			sendRow->addWidget(value);
 			return value;
 		};
-		button(tr("Preview"), QStringLiteral("tourPreparePublication"), tour_editor_action::preview_publication);
-		PublishTour = button(tr("Publish tour"), QStringLiteral("tourPublish"), tour_editor_action::publish_publication);
+		PreparePublication = button(tr("Preview"), QStringLiteral("tourPreparePublication"), tour_editor_action::preview_publication);
+		PublishTour        = button(tr("Publish tour"), QStringLiteral("tourPublish"), tour_editor_action::publish_publication);
 		PublishTour->setDefault(true);
 		sendRow->addStretch(1);
 		publication->addLayout(sendRow);
@@ -1017,15 +1067,51 @@ namespace bpr::qt {
 	auto review_tour_editor::description_publication() const -> bool { return DescriptionEdit->isChecked(); }
 	void review_tour_editor::present_publication(const application::tour_publication_presentation& aProjection)
 	{
-		PublicationStatus->setText(QString::fromStdString(aProjection.Status));
+		using phase       = application::tour_publication_phase;
+		const auto status = QString::fromStdString(aProjection.Status);
 		PublicationPreview->set_body(aProjection.Markdown, "tour-publication");
 		// [[BPR-1593]]. What a prepared publication sends; until then the
 		// tour's own preview shows what GitHub will show.
 		PublicationPreview->setVisible(!aProjection.Markdown.empty());
-		PublishTour->setEnabled(aProjection.Publish);
+		// [[BPR-1782]]. As Compose review waits for GitHub: the panel says it,
+		// the status line steps aside, and nothing that would change what is
+		// being sent can be used meanwhile. Stop stays.
+		const auto publishing = aProjection.Phase == phase::publishing;
+		const auto attention  = aProjection.Phase == phase::attention;
+		WorkingTitle->setText(publishing ? tr("Publishing the tour to GitHub\u2026") : tr("Publishing didn't finish"));
+		auto stages = QStringList{ };
+		for (const auto& stage : aProjection.Stages) {
+			stages.push_back(QString::fromStdString(stage));
+		}
+		WorkingStages->setText(stages.isEmpty() ? QString{ } : tr("Sending, in order:") + QStringLiteral("\n") + stages.join(QStringLiteral("\n")));
+		WorkingStages->setVisible(publishing && !stages.isEmpty());
+		WorkingStatus->setText(status);
+		PublicationWorking->setVisible(publishing || attention);
+		PublicationWorking->setAccessibleName(WorkingTitle->text());
+		PublicationWorking->setAccessibleDescription(WorkingStatus->text());
+		PublicationStatus->setText(status);
+		PublicationStatus->setVisible(!publishing && !attention && !status.isEmpty());
+		const auto link = QString::fromStdString(aProjection.Link);
+		PublicationLink->setText(link.isEmpty() ? QString{ } : tr("On GitHub: %1").arg(link));
+		PublicationLink->setVisible(aProjection.Phase == phase::published && !link.isEmpty());
+		PublishTour->setText(publishing ? tr("Publishing\u2026") : aProjection.Phase == phase::published ? tr("Published")
+																										 : tr("Publish tour"));
+		PublishTour->setEnabled(aProjection.Publish && !publishing);
+		PreparePublication->setEnabled(!publishing);
+		PublicationMode->setEnabled(!publishing);
+		DescriptionEdit->setEnabled(!publishing);
 		ResumeTour->setEnabled(aProjection.Resume);
 		ReconcileTour->setEnabled(aProjection.Reconcile);
 		StopTour->setEnabled(aProjection.Stop);
+	}
+	void review_tour_editor::restyle_working()
+	{
+		const auto attention = waiting_attention_colour(palette());
+		static_cast<waiting_frame*>(PublicationWorking)->set_attention(attention);
+		WorkingMark->setPixmap(waiting_mark(attention, devicePixelRatioF()));
+		auto quiet = WorkingStatus->palette();
+		quiet.setColor(QPalette::WindowText, waiting_quiet_text(palette(), attention));
+		WorkingStatus->setPalette(quiet);
 	}
 
 	void review_tour_editor::set_dispatch(std::function<void(core::tour_command)> aDispatch, std::function<void(tour_editor_action)> aAction)
@@ -2299,6 +2385,7 @@ namespace bpr::qt {
 		}
 		// [[BPR-1776]]. More's glyph is drawn in the palette's ink.
 		if (aEvent->type() == QEvent::PaletteChange) {
+			restyle_working();
 			if (auto* const more = qobject_cast<QToolButton*>(MoreButton); more != nullptr) {
 				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
 			}

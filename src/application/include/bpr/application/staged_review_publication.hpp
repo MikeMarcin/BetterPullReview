@@ -85,6 +85,16 @@ namespace bpr::application {
 	/// `aRecord.Comments[aRecord.Patched]`, while its own review is still
 	/// pending: GraphQL, by the comment's node ID, never REST.
 	[[nodiscard]] auto staged_pending_edit(const staged_publication_record& aRecord, std::string aBody) -> staged_review_request;
+	/// \brief [[BPR-1782]]. What publishing the plan sends, in order, in the
+	/// reader's words, each starting a sentence: the tour comment (or the index comment, or the update),
+	/// each stop by its number and title, then the description link.
+	/// \details Names the captured plan's stages; it does not say which one
+	/// is under way, since a running publication reports only its terminal.
+	[[nodiscard]] auto staged_publication_stages(const staged_review_plan& aPlan) -> std::vector<std::string>;
+	/// \brief [[BPR-1782]]. Where GitHub shows a published tour: the review,
+	/// the index comment or the updated root's returned address; empty until
+	/// the record is published.
+	[[nodiscard]] auto staged_published_link(const staged_publication_record& aRecord) -> std::string;
 	[[nodiscard]] auto staged_final_bodies(const staged_publication_record& aRecord) -> std::optional<std::pair<std::string, std::vector<std::string>>>;
 }
 #endif

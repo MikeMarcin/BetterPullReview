@@ -830,9 +830,11 @@ namespace bpr::app {
 		Binding.reset();
 		Plan.reset();
 		Record.reset();
-		Ready     = false;
-		Previewed = false;
-		Status    = "Publication authority changed. Refresh and prepare a new preview.";
+		Ready      = false;
+		Previewed  = false;
+		Publishing = false;
+		Attempted  = false;
+		Status     = "Publication authority changed. Refresh and prepare a new preview.";
 		present();
 	}
 	void review_tour_publication_workflow::adopt(application::review_submission_live_binding aBinding, application::workbench_pull_request_authority aAuthority, application::review_submission_provider_factory aFactory, std::string aDescription, bool aQualified, application::insights_review_capture aInsights)
@@ -901,6 +903,7 @@ namespace bpr::app {
 			present();
 			return;
 		}
+		Attempted           = false;
 		const auto prepared = prepare_tour_plan(*Draft.Draft, *Binding, Description, { Editor.compatibility_publication(), Editor.description_publication() }, Qualified);
 		Plan                = prepared.Plan;
 		Previewed           = Plan.has_value();
@@ -965,7 +968,11 @@ namespace bpr::app {
 		const auto grant = IssueGrant ? IssueGrant(Authority.ApplicationSession, Generation, *Plan) : application::review_submission_execution_grant{ };
 		Context          = Host->publish_tour(*Plan, grant);
 		Previewed        = false;
-		Status           = Context ? "Publishing the captured tour. Stop preserves completed operations." : "Publication authority is unavailable. Prepare a new preview.";
+		// [[BPR-1782]]. From the press until GitHub answers, Publish reads as
+		// working and names what the captured plan sends.
+		Publishing = Context.has_value();
+		Attempted  = false;
+		Status     = Context ? "Stop keeps what GitHub already has. Nothing will be sent twice." : "Publication authority is unavailable. Prepare a new preview.";
 		present();
 	}
 	void review_tour_publication_workflow::publish(const application::review_submission_host_terminal& aTerminal)
@@ -975,6 +982,7 @@ namespace bpr::app {
 			return;
 		}
 		Context.reset();
+		const auto wasPublishing = std::exchange(Publishing, false);
 		if (const auto* discovered = std::get_if<application::staged_review_discovery>(&aTerminal.Outcome)) {
 			Ready = discovered->has_value();
 			if (!Ready) {
@@ -1012,6 +1020,7 @@ namespace bpr::app {
 				State = result->State;
 			}
 			Previewed   = false;
+			Attempted   = Attempted || wasPublishing;
 			using state = application::staged_publication_state;
 			if (Record && Record->Published && State != state::published) {
 				Status = "Tour published; description update needs attention. The tour will not be posted again.";
@@ -1052,6 +1061,16 @@ namespace bpr::app {
 		view.Resume    = Ready && Previewed && Record && !Context && (State == application::staged_publication_state::ready || State == application::staged_publication_state::staged || State == application::staged_publication_state::partial || State == application::staged_publication_state::description_attention);
 		view.Reconcile = Plan.has_value() && !Context;
 		view.Stop      = Context.has_value();
+		using phase    = application::tour_publication_phase;
+		if (Context && Publishing && Plan) {
+			view.Phase  = phase::publishing;
+			view.Stages = application::staged_publication_stages(*Plan);
+		} else if (Record && Record->Published && State == application::staged_publication_state::published) {
+			view.Phase = phase::published;
+			view.Link  = application::staged_published_link(*Record);
+		} else if (Attempted && !Context) {
+			view.Phase = phase::attention;
+		}
 		Editor.present_publication(view);
 	}
 	void review_tour_publication_workflow::shutdown()
