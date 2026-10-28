@@ -31,11 +31,12 @@ namespace bpr::core {
 			if (!generated.Heading || !generated.Narrative || !generated.Footer) {
 				return { };
 			}
+			const bool                  narrative_changed = trim(span_text(aRaw, *mapped.Narrative)) != trim(aNarrative);
 			std::vector<tour_text_edit> edits;
-			if (!aPreserveNavigation || mapped.Title != tour_markdown_label(aTitle)) {
+			if (!aPreserveNavigation || mapped.Title != tour_markdown_label(aTitle) || narrative_changed) {
 				append_edit(edits, aRaw, *mapped.Heading, span_text(*rendered, *generated.Heading));
 			}
-			if (trim(span_text(aRaw, *mapped.Narrative)) != trim(aNarrative)) {
+			if (narrative_changed) {
 				append_edit(edits, aRaw, *mapped.Narrative, span_text(*rendered, *generated.Narrative));
 			}
 			if (!aPreserveNavigation) {

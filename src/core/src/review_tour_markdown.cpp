@@ -292,15 +292,19 @@ namespace bpr::core {
 		if (aRaw.size() > maximum_tour_field_bytes) {
 			return result;
 		}
-		const auto                 rows   = lines(aRaw);
-		constexpr auto             prefix = std::string_view{ "### Author's tour · " };
+		const auto                 rows          = lines(aRaw);
+		constexpr auto             prefix        = std::string_view{ "### PR Tour · " };
+		constexpr auto             legacy_prefix = std::string_view{ "### Author's tour · " };
 		std::optional<std::size_t> heading;
+		std::size_t                prefix_size = 0;
 		for (std::size_t index = 0; index < rows.size(); ++index) {
-			if (rows[index].Top && trim(rows[index].Text).starts_with(prefix)) {
+			const auto text = trim(rows[index].Text);
+			if (rows[index].Top && (text.starts_with(prefix) || text.starts_with(legacy_prefix))) {
 				if (heading) {
 					return result;
 				}
-				heading = index;
+				heading     = index;
+				prefix_size = text.starts_with(prefix) ? prefix.size() : legacy_prefix.size();
 			}
 		}
 		if (!heading) {
@@ -308,9 +312,9 @@ namespace bpr::core {
 		}
 		const auto first = *heading;
 		const auto text  = trim(rows[first].Text);
-		const auto dash  = text.find(" — ", prefix.size());
-		if (dash == std::string_view::npos || dash == prefix.size()
-			|| !std::all_of(text.begin() + static_cast<std::ptrdiff_t>(prefix.size()), text.begin() + static_cast<std::ptrdiff_t>(dash), [](unsigned char aByte) { return std::isdigit(aByte); })) {
+		const auto dash  = text.find(" — ", prefix_size);
+		if (dash == std::string_view::npos || dash == prefix_size
+			|| !std::all_of(text.begin() + static_cast<std::ptrdiff_t>(prefix_size), text.begin() + static_cast<std::ptrdiff_t>(dash), [](unsigned char aByte) { return std::isdigit(aByte); })) {
 			return result;
 		}
 		result.Heading   = tour_text_span{ rows[first].Begin, rows[first].End };
@@ -445,7 +449,7 @@ namespace bpr::core {
 			footer += nl + std::string{ tour_navigation_note };
 		}
 		std::string result = aPinnedSource.empty() ? "" : std::string{ aPinnedSource } + nl + nl;
-		result += "### Author's tour · " + std::to_string(aOrdinal) + " — " + tour_markdown_label(aTitle) + nl + nl + std::string{ aNarrative } + nl + nl + footer + nl;
+		result += "### PR Tour · " + std::to_string(aOrdinal) + " — " + tour_markdown_label(aTitle) + nl + nl + std::string{ aNarrative } + nl + nl + footer + nl;
 		return result.size() <= maximum_tour_field_bytes ? std::optional{ std::move(result) } : std::nullopt;
 	}
 

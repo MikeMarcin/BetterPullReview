@@ -58,7 +58,7 @@ namespace {
 		expect(mapped.Lists.size() == 1 && mapped.Lists[0].Entries == std::vector<tour_markdown_link>(entries.begin(), entries.end()), "escaped repeated titles round trip in textual order");
 		const std::array navigation{ tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" }, tour_markdown_link{ "Next", entries[1].Destination } };
 		const auto       stop = render_tour_stop("Why boundary", 2, "Local explanation", navigation, "https://github.com/o/r/blob/1111111111111111111111111111111111111111/a.md?plain=1#L2-L4");
-		expect(stop && stop->starts_with("https://") && stop->find("\n\n###") != std::string::npos, "fallback bare permalink stays first");
+		expect(stop && stop->starts_with("https://") && stop->find("\n\n### PR Tour · 2 — Why boundary\n") != std::string::npos, "fallback bare permalink stays first and the published heading says PR Tour");
 		const auto prefixed = map_tour_stop("Website prefix.\n\n" + *stop);
 		expect(prefixed.Heading && prefixed.Narrative && prefixed.Footer && prefixed.Heading->Begin > std::string{ "Website prefix.\n\n" }.size(), "unique managed spans preserve leading website prose and permalink");
 		expect(!map_tour_stop(*stop + "\n" + *stop).Heading, "multiple managed headings require explicit mapping");
@@ -68,6 +68,7 @@ namespace {
 		expect(!map_tour_stop(prose).Narrative, "website layout edit does not erase unfamiliar text");
 		const auto quoted = "### Author's tour · 1 — Why\n\n```md\n[Tour overview](https://example.com)\n```\n";
 		expect(!map_tour_stop(quoted).Footer, "footer in code is not managed");
+		expect(!map_tour_stop(*stop + "\n" + quoted).Heading, "mixed new and legacy headings still require explicit mapping");
 		expect(!render_tour_index(std::array{ tour_markdown_link{ "bad", "https://example.com/)\n<script>" } }), "destination injection refused");
 	}
 	/// [[BPR-1222]]. The owner asked for stops on the Files changed tab. GitHub's
