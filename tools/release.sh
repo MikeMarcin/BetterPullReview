@@ -614,8 +614,14 @@ if [[ "${SKIP_TESTS}" == "0" ]]; then
     cmake --preset dev
     cmake --build --preset dev
     DEBUG_PROFILE=debug-residual
-    [[ "${TEST_PROFILE}" == comprehensive ]] && DEBUG_PROFILE=comprehensive
-    python3 scripts/run_test_suite.py --preset dev --profile "${DEBUG_PROFILE}" "${TEST_ARGUMENTS[@]}"
+    DEBUG_TEST_ARGUMENTS=("${TEST_ARGUMENTS[@]}")
+    if [[ "${TEST_PROFILE}" == comprehensive ]]; then
+        DEBUG_PROFILE=comprehensive
+        # The standing owner policy omits only these dedicated Debug timing
+        # courses. Mixed functional courses retain their actual results.
+        DEBUG_TEST_ARGUMENTS+=(--tests-regex '^(?!(application_large_review_(history|launch|responsiveness|active_work|pathological|prepared_open)|core_diff_compute_benchmark|application_source_pr_search_performance)$).*')
+    fi
+    python3 scripts/run_test_suite.py --preset dev --profile "${DEBUG_PROFILE}" "${DEBUG_TEST_ARGUMENTS[@]}"
 else
     log "Skipping tests"
 fi
