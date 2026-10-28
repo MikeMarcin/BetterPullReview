@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1799"
+  ],
+  "reserve_for": "release-candidate-build-numbering",
+  "purpose": "Add sequential publish-release candidate build numbers and cohort identity",
+  "created": "2026-10-28T23:25:25.224260+00:00",
+  "base": "3ff95dc21d61fb807d571df18aa456c27b5df560"
+}
