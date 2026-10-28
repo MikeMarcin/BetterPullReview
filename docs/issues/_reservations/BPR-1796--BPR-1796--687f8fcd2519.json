@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1796"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "GFM autolinks md4c misses",
+  "created": "2026-10-28T01:28:54.596898+00:00",
+  "base": "a32c03dd93671ab918d1d175b54f7e1603069396"
+}
