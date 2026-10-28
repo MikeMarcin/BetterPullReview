@@ -72,6 +72,16 @@ namespace bpr::core {
 		pull_request_number             Number;
 	};
 
+	enum class markdown_autolink_form : std::uint8_t {
+		www,
+		email,
+	};
+
+	/// \brief Formats bounded GFM target text; this never admits navigation.
+	/// The reader supplies a recognized token. Activation still requires the
+	/// exact current body/context and `admit_markdown_link`.
+	[[nodiscard]] auto markdown_autolink_target(std::string_view aText, markdown_autolink_form aForm) -> std::optional<std::string>;
+
 	/// \brief Admits bounded HTTP(S) destinations or repository-root paths bound to the accepted head.
 	/// \brief [[BPR-1544]]. Whether an HTML link's destination could ever be
 	/// admitted: a bounded HTTP(S) address, a fragment, or a path without a

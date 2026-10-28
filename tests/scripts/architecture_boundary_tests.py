@@ -2537,6 +2537,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 'const char* endpoint = "https://api.example.test";\n'},
         )
 
+    def test_markdown_reader_keeps_address_construction_out_of_qt(self) -> None:
+        path = "src/adapters/qt/src/markdown_github.cpp"
+        for literal in ('QStringLiteral("http://");\n',
+                        'const char* endpoint = "https://api.example.test";\n',
+                        "QUrl provider_url;\n"):
+            with self.subTest(literal=literal):
+                self.assert_failure("Provider data crossed the core/Qt boundary",
+                                    {path: literal})
+
     def test_core_accepts_deterministic_data_without_provider_capabilities(self) -> None:
         result = self.run_check({"src/core/policy.cpp":
             '#include <chrono>\n#include <ctime>\n#include <thread>\n'

@@ -3,6 +3,7 @@
 #include "markdown_github_html.hpp"
 #include "markdown_github_math.hpp"
 
+#include "bpr/core/markdown_navigation.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
 #include <QPalette>
@@ -1034,7 +1035,7 @@ namespace bpr::qt::detail {
 		}
 
 		// [[BPR-1796]]. GFM's autolink extension, as cmark-gfm's autolink.c
-		// applies it: `www.` and `http://`, `https://` or `ftp://` addresses,
+		// applies it: `www.` and HTTP, HTTPS or FTP addresses,
 		// email addresses and `mailto:` / `xmpp:` ones. md4c's permissive
 		// autolinks linked fewer forms (no non-ASCII path, no `mailto:`) and
 		// ended them differently, so the reader makes each link itself.
@@ -1153,7 +1154,8 @@ namespace bpr::qt::detail {
 			if (end <= aAt + 4) {
 				return std::nullopt;
 			}
-			return autolink_match{ aAt, end, QStringLiteral("http://") + aText.mid(aAt, end - aAt) };
+			const auto target = core::markdown_autolink_target(aText.mid(aAt, end - aAt).toStdString(), core::markdown_autolink_form::www);
+			return target ? std::optional{ autolink_match{ aAt, end, QString::fromStdString(*target) } } : std::nullopt;
 		}
 
 		/// `scheme://` with its `:` at `aAt`: http, https or ftp, the scheme
@@ -1231,7 +1233,11 @@ namespace bpr::qt::detail {
 				return std::nullopt;
 			}
 			const auto begin = start - scheme.size();
-			return autolink_match{ begin, end, scheme.isEmpty() ? QStringLiteral("mailto:") + aText.mid(start, end - start) : aText.mid(begin, end - begin) };
+			if (!scheme.isEmpty()) {
+				return autolink_match{ begin, end, aText.mid(begin, end - begin) };
+			}
+			const auto target = core::markdown_autolink_target(aText.mid(start, end - start).toStdString(), core::markdown_autolink_form::email);
+			return target ? std::optional{ autolink_match{ begin, end, QString::fromStdString(*target) } } : std::nullopt;
 		}
 
 		/// `[text](destination)`: the text and destination as Markdown reads

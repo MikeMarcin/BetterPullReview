@@ -1,4 +1,5 @@
 #include "bpr/core/markdown_navigation.hpp"
+#include "bpr/core/utf8.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -7,7 +8,8 @@
 
 namespace bpr::core {
 	namespace {
-		auto ascii_lower(std::string aText) -> std::string
+		constexpr std::size_t maximum_destination_bytes = 4096;
+		auto                  ascii_lower(std::string aText) -> std::string
 		{
 			std::ranges::transform(aText, aText.begin(), [](const char aChar) {
 				return aChar >= 'A' && aChar <= 'Z' ? static_cast<char>(aChar + ('a' - 'A')) : aChar;
@@ -180,9 +182,35 @@ namespace bpr::core {
 		}
 	}
 
+	auto markdown_autolink_target(const std::string_view aText, const markdown_autolink_form aForm) -> std::optional<std::string>
+	{
+		std::string_view prefix;
+		switch (aForm) {
+		case markdown_autolink_form::www:
+			if (!aText.starts_with("www.") || aText.size() == 4) {
+				return std::nullopt;
+			}
+			prefix = "http://";
+			break;
+		case markdown_autolink_form::email: {
+			const auto at = aText.find('@');
+			if (at == std::string_view::npos || at == 0 || at + 1 == aText.size() || aText.find('@', at + 1) != std::string_view::npos) {
+				return std::nullopt;
+			}
+			prefix = "mailto:";
+			break;
+		}
+		}
+		if (prefix.empty() || aText.size() > maximum_destination_bytes - prefix.size() || !utf8::valid(aText)
+			|| std::ranges::any_of(aText, [](unsigned char aByte) { return aByte <= 32 || aByte == 127; })) {
+			return std::nullopt;
+		}
+		return std::string{ prefix } + std::string{ aText };
+	}
+
 	auto markdown_html_link_kept(const std::string_view aDestination) -> bool
 	{
-		if (aDestination.empty() || aDestination.size() > 4096 || !safe_text(aDestination) || carries_credentials(aDestination)) {
+		if (aDestination.empty() || aDestination.size() > maximum_destination_bytes || !safe_text(aDestination) || carries_credentials(aDestination)) {
 			return false;
 		}
 		if (absolute_web_address(aDestination)) {
@@ -204,7 +232,7 @@ namespace bpr::core {
 			return std::unexpected(markdown_link_result::unavailable);
 		}
 		const auto& destination = aIntent.Destination;
-		if (destination.empty() || destination.size() > 4096 || !safe_text(destination) || carries_credentials(destination)) {
+		if (destination.empty() || destination.size() > maximum_destination_bytes || !safe_text(destination) || carries_credentials(destination)) {
 			return std::unexpected(markdown_link_result::refused);
 		}
 		if (absolute_web_address(destination)) {
