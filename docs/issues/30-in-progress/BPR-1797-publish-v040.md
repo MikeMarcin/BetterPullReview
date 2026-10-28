@@ -24,3 +24,20 @@ The owner requested `$publish-release v0.4.0` with an implement-rfc coordinator 
 ## Initial reconciliation
 
 Entry source is clean `7dc90f2d8`; MASK registration changes no tracked declarations. Broad changes since v0.3.4 require comprehensive qualification. The standing Debug policy omits exactly the eight named dedicated performance courses and retains Debug functional checks. Old observations and failures keep their original source identity. Mac capacity is initially 5 GiB, below the roughly 11 GiB graph footprint before temporary/nested/package work. Native producers and signer state are under inspection. No release/tag mutation has occurred.
+
+## Prepublication UTF-8 correction
+
+The Windows focused course passed five checks and failed both tour publication
+progress-stage checks. A native MSVC/Qt probe confirmed that an ordinary narrow
+smart-quote literal becomes code-page byte 93, which Qt decodes as replacement
+efbfbd; explicit UTF-8 bytes decode correctly as e2809c. The application
+stage formatter and its owning expectations now name explicit UTF-8 bytes.
+No compiler flags change. Focused native verification and fresh package/source
+binding remain required before publishing the corrected candidate. The signed
+previous candidate is retained externally and has never been published.
+
+The owner subsequently requested Mac-first prerelease, then Windows assets on
+the same prerelease, with comprehensive qualification afterward. Stable
+promotion and Ubuntu artifacts retain their complete gates. The exact external
+amendment and new HarfBuzz decision packet are in the recorded runtime root;
+no passing qualification or security decision is inferred.
