@@ -729,7 +729,7 @@ the review skill in each request's brief. Milestones BPR-1748 to AQ9.
 |---|---|---|---|
 | [RFC-BPR-0094](RFC-BPR-0094-ask-the-agent-about-a-conversation.md) | Ask the agent about a conversation | In Progress | RFC-BPR-0012, RFC-BPR-0023, RFC-BPR-0092 |
 
-From the owner's request of 2026-10-26 ([BPR-1773](../issues/30-in-progress/BPR-1773-ask-the-agent-about-a-conversation.md)).
+From the owner's request of 2026-10-26 ([BPR-1773](../issues/60-done/BPR-1773-ask-the-agent-about-a-conversation.md)).
 The owner chose in chat: the pull request's own Agent thread with a removable
 conversation chip, Use as reply, and notes sent as a Private history copy.
 After the owner's look of 2026-10-27 (r2), Draft comment on every answer
