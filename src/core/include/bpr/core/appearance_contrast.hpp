@@ -546,6 +546,26 @@ namespace bpr::core {
 	/// it is that extreme.
 	[[nodiscard]] auto visible_focus_indicator(appearance_color aAccent, appearance_color aSurface) noexcept -> appearance_color;
 
+	/// \brief [[BPR-1798]]. The ring Find draws around a match that lands on
+	/// `aGround`.
+	///
+	/// \details Find's washes are held to the text floor with syntax colouring
+	/// read through them, which keeps a dark theme's wash dark: on the dark
+	/// added row the match wash measured 1.07:1 against the row and the owner
+	/// could not see it. A ring is what makes a match findable, so it is an
+	/// indicator and is held to the indicator floor against both sides of its
+	/// edge: the bare ground and the ground under the match's wash
+	/// (`find_current_match_background` when `aCurrent`, otherwise
+	/// `find_match_background`, composited at `selection_wash_alpha`).
+	///
+	/// The ring is the theme's attention amber (`state_attention`) moved by
+	/// `readable_signal_ink`, so it stays an amber where it can and is never
+	/// mixed toward a ground's hue. The ground is the actual colour under the
+	/// match, row fill and any wash over it composited, because one colour
+	/// cannot reach the floor on every row: the high-contrast dark theme puts
+	/// bright intraline marks on a black canvas.
+	[[nodiscard]] auto find_match_ring(const appearance_palette& aPalette, appearance_color aGround, bool aCurrent) noexcept -> appearance_color;
+
 	/// \brief Reports whether an emphasis fill must carry its own foreground.
 	///
 	/// \details True when any syntax role fails the emphasis floor over the
