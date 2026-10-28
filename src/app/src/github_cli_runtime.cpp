@@ -78,7 +78,7 @@ namespace bpr::app {
 			// a keyring it cannot reach.
 			const auto runtime = environment_directory("XDG_RUNTIME_DIR");
 			auto       bus     = std::string{ };
-			if (!runtime.empty() && QFileInfo{ runtime + QStringLiteral("/bus") }.exists()) {
+			if (!runtime.isEmpty() && QFileInfo{ runtime + QStringLiteral("/bus") }.exists()) {
 				const auto address = (QStringLiteral("unix:path=") + runtime + QStringLiteral("/bus")).toUtf8();
 				bus.assign(address.constData(), static_cast<std::size_t>(address.size()));
 			}
