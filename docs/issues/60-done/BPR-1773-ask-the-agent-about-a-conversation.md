@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1773"
 title: "Ask the agent about a conversation: review threads and private notes, with the code they are on"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0094"]
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1772--BPR-1773--b27f9d2285df.json","kind":"feature","found_by":"owner chat, 2026-10-26","authoring":"frontend-design:frontend-design loaded for the Qt surfaces","related_cards":["BPR-1594","BPR-1753","BPR-1245"]}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "core_agent_chat_scope (eighth entry point, no selection needed) and core_agent_context_supplement (test_a_conversation_travels_bounded_or_refuses_the_request: bounds, opening and newest comments, excerpt window, refusals, carried unchanged or refused whole)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_launch, test_a_conversation_is_read_and_crosses: read_conversation (current and original lines, deleted comments left out) and every conversation.* field after the version-two fields; none without one."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2 (owner look 2026-10-27): qt_workbench_window_scale_100 (the asked line reads \"About <conversation>: <question>\" in the question's colour and a heavier weight; every answer's footer has Draft comment beside Save as note in its style, on a conversation turn and an ordinary one; Draft comment becomes Go to draft and Go to draft drafts nothing more; a refusal says why; no Use as reply; Save as note and Go to note unchanged), qt_conversation_cards_view, qt_private_notes_panel."}}, {"criterion": "AC4", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2: application_agent_chat_conversation_contract: Ask agent from a fixture thread's menu through the shipped composition, then a send: the turn is ask_about_conversation, carries that thread, runs once; its asked line names the thread; its Draft comment writes the answer into that thread's reply (review editor shows a reply draft holding the answer), becomes Go to draft, and no submission or target observation follows; one launch path. application_private_review_host note_press unchanged. core_review_submission: answer_draft_place_for."}}, {"criterion": "AC5", "outcome": "pending", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "observation", "detail": "r1 rejected 2026-10-27 (session 41f51349bc37e6c092d31dbf1739c5b1, candidate BPR-1773-look; owner's words under 'Owner's look, 2026-10-27: rejected'). r2 looked at 2026-10-27 (session e2c47ec080c11512d672f942f5930e5c): question line accepted; footer rejected only for the copy glyph in dark mode. r3 repaints the tab glyphs on a theme change; the footer awaits a fresh look."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "core_agent_chat_scope (eighth entry point, no selection needed) and core_agent_context_supplement (test_a_conversation_travels_bounded_or_refuses_the_request: bounds, opening and newest comments, excerpt window, refusals, carried unchanged or refused whole)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_launch, test_a_conversation_is_read_and_crosses: read_conversation (current and original lines, deleted comments left out) and every conversation.* field after the version-two fields; none without one."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2 (owner look 2026-10-27): qt_workbench_window_scale_100 (the asked line reads \"About <conversation>: <question>\" in the question's colour and a heavier weight; every answer's footer has Draft comment beside Save as note in its style, on a conversation turn and an ordinary one; Draft comment becomes Go to draft and Go to draft drafts nothing more; a refusal says why; no Use as reply; Save as note and Go to note unchanged), qt_conversation_cards_view, qt_private_notes_panel."}}, {"criterion": "AC4", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2: application_agent_chat_conversation_contract: Ask agent from a fixture thread's menu through the shipped composition, then a send: the turn is ask_about_conversation, carries that thread, runs once; its asked line names the thread; its Draft comment writes the answer into that thread's reply (review editor shows a reply draft holding the answer), becomes Go to draft, and no submission or target observation follows; one launch path. application_private_review_host note_press unchanged. core_review_submission: answer_draft_place_for."}}, {"criterion": "AC5", "outcome": "pass", "revision": "9ea99c184ceab216f1cf9d966b50549dc012c2a8", "evidence": {"kind": "observation", "detail": "Owner's attended looks, 2026-10-27: r2 question line accepted (session e2c47ec080c11512d672f942f5930e5c); r3 footer, with the copy glyph repainted for dark mode, accepted (session a97a57a4798edac2287083d44cc0a1b3, candidate BPR-1773-footer-r3)."}}]
 ---
 
 # BPR-1773: Ask the agent about a conversation
@@ -31,11 +31,9 @@ ctest entries pass on macOS dev, including the composition courses
 `application_agent_chat_composition_contract` (unchanged) and
 `application_agent_invocation_composition_contract`.
 
-## Pending
+## Not run
 
-- AC5, a fresh owner look at r2 on a frozen build (attended review): not
-  opened by the implementer; the coordinator opens it.
-- Not run: the full suite, `coding-tidy`, Windows and Linux.
+- The full suite, `coding-tidy`, Windows and Linux.
 
 ## Owner's look, 2026-10-27: rejected
 
@@ -93,3 +91,7 @@ Session `e2c47ec080c11512d672f942f5930e5c`, two candidates at `e4c7ac308`:
 - `qt_workbench_window_scale_100` (test_the_agent_is_a_drawer_tab): after a
   switch to dark, Copy is drawn in light ink.
 
+## Owner's look at r3, 2026-10-27: accepted
+
+Session `a97a57a4798edac2287083d44cc0a1b3`, candidate BPR-1773-footer-r3:
+accepted. Every criterion passes.
