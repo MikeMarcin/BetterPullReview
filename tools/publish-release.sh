@@ -11,10 +11,17 @@ VERSION=""
 MANIFEST_ARGS=()
 ASSETS=()
 INCLUDE_MACOS=0
+APPEND_ASSETS=0
+PROMOTE=0
+SOURCE_REVISION=""
+BASELINE_INVENTORY=""
+PROMOTION_ACCEPTANCE=""
+MACOS_DIR=""
 
 usage() {
     cat <<EOF
 Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--manifest PATH ...] [--macos] [--public] [--prerelease] [--dry-run]
+       tools/publish-release.sh --append-assets|--promote --version VERSION --source-revision SHA --baseline-inventory PATH --notes-file PATH [--manifest PATH ...] [--macos-dir PATH] [--promotion-acceptance PATH] [--public] [--dry-run]
 
 Publish already verified native artifacts to the expected GitHub repository.
 Without --manifest, use the standard macOS eight-asset set. --macos adds that
@@ -26,6 +33,12 @@ remote mutation. The default requires PRIVATE; --public requires PUBLIC.
 --public never changes repository visibility. origin must have one canonical
 GitHub HTTPS or SSH push URL for ${EXPECTED_REPOSITORY}.
 --prerelease marks the GitHub release as a prerelease and keeps it out of Latest.
+--append-assets adds verified missing assets to an existing mutable prerelease;
+existing bytes and the annotated source tag must match the supplied baseline.
+--promote requires the complete standard set and explicit stable qualification.
+These modes require --source-revision and permit only a separately committed
+publisher/test tool revision above that exact producer source. They never retag,
+replace assets or change repository settings. Native trust remains separate.
 EOF
 }
 
@@ -70,6 +83,24 @@ while [[ $# -gt 0 ]]; do
         --notes-file)
             [[ $# -ge 2 ]] || fail "--notes-file requires a value"
             NOTES_FILE="$2"
+            shift 2
+            ;;
+        --append-assets)
+            APPEND_ASSETS=1
+            shift
+            ;;
+        --promote)
+            PROMOTE=1
+            shift
+            ;;
+        --source-revision|--baseline-inventory|--promotion-acceptance|--macos-dir)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            case "$1" in
+                --source-revision) SOURCE_REVISION="$2" ;;
+                --baseline-inventory) BASELINE_INVENTORY="$2" ;;
+                --promotion-acceptance) PROMOTION_ACCEPTANCE="$2" ;;
+                --macos-dir) MACOS_DIR="$2" ;;
+            esac
             shift 2
             ;;
         --dry-run)
@@ -121,6 +152,25 @@ PROJECT_VERSION="$(sed -n '/^project(/,/^)/p' "${ROOT_DIR}/CMakeLists.txt" |
     sed -n 's/^[[:space:]]*VERSION[[:space:]]\{1,\}\([^[:space:]]\{1,\}\).*/\1/p' |
     head -n 1)"
 [[ "${PROJECT_VERSION}" == "${VERSION}" ]] || fail "CMake project version is ${PROJECT_VERSION}, not ${VERSION}"
+
+[[ ! ("${APPEND_ASSETS}" == 1 && "${PROMOTE}" == 1) ]] || fail "Select append or promotion, not both"
+if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 ]]; then
+    [[ "${PRERELEASE}" == 0 ]] || fail "--prerelease applies to initial creation only"
+    [[ -n "${SOURCE_REVISION}" && -n "${BASELINE_INVENTORY}" ]] || fail "Existing release updates require exact source and existing-asset baseline"
+    UPDATE_ARGS=(--repo-root "${ROOT_DIR}" --version "${VERSION}" --source-revision "${SOURCE_REVISION}" --visibility "${EXPECTED_VISIBILITY}" --notes-file "${NOTES_FILE}" --baseline-inventory "${BASELINE_INVENTORY}")
+    if [[ ${#MANIFEST_ARGS[@]} -gt 0 ]]; then UPDATE_ARGS+=("${MANIFEST_ARGS[@]}"); fi
+    if [[ -n "${MACOS_DIR}" ]]; then
+        UPDATE_ARGS+=(--macos-dir "${MACOS_DIR}")
+    elif [[ "${INCLUDE_MACOS}" == 1 || ${#MANIFEST_ARGS[@]} -eq 0 ]]; then
+        UPDATE_ARGS+=(--macos-dir "${ROOT_DIR}/build/releases/${VERSION}")
+    fi
+    if [[ -n "${PROMOTION_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--promotion-acceptance "${PROMOTION_ACCEPTANCE}"); fi
+    if [[ "${PROMOTE}" == 1 ]]; then UPDATE_ARGS+=(--promote); fi
+    if [[ "${DRY_RUN}" == 1 ]]; then UPDATE_ARGS+=(--dry-run); fi
+    python3 "${ROOT_DIR}/packaging/update_release.py" "${UPDATE_ARGS[@]}"
+    exit 0
+fi
+[[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}" ]] || fail "Existing-release identity options require --append-assets or --promote"
 
 TAG="v${VERSION}"
 if [[ ${#MANIFEST_ARGS[@]} -eq 0 || "${INCLUDE_MACOS}" == "1" ]]; then
