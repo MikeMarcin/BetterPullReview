@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1799"
 title: "Number release candidate build cohorts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0035"]
 depends_on: []
 priority: "P1"
