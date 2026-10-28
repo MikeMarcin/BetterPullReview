@@ -1306,6 +1306,21 @@ namespace {
 				text.remove(QStringLiteral("new comments in the conversation"));
 				text.remove(QStringLiteral("new comment in the conversation"));
 			}
+			// [[BPR-1781]]. The accepted Overview drawer names the whole
+			// pull request's conversation, distinct from Review's file threads.
+			if (word.Where.startsWith(QStringLiteral("QAbstractButton pullRequestCommentsChip ("))) {
+				text.remove(QStringLiteral("Pull request conversation"));
+			}
+			if (word.Where.startsWith(QStringLiteral("QTabBar overviewStatusTabs ("))
+				|| word.Where == QStringLiteral("QMainWindow workbenchWindow (accessible tree description)")) {
+				text.remove(QStringLiteral("The pull request's conversation: its comments and reviews, newest last, and a new comment"));
+				text.remove(QStringLiteral("Agent conversations about this pull request. Nothing here is published."));
+			}
+			// [[BPR-1773]], RFC-BPR-0094: the accepted Agent question can
+			// carry either a thread or a private note as its conversation.
+			if (word.Where.startsWith(QStringLiteral("QToolButton agentConversationChipClose ("))) {
+				text.remove(QStringLiteral("Stop asking about this conversation"));
+			}
 			if (text.contains(QStringLiteral("conversation"), Qt::CaseInsensitive)) {
 				found.insert(word.Where + QStringLiteral(": ") + word.Text);
 			}
@@ -1333,8 +1348,22 @@ namespace {
 			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Back to the conversation") },
 			{ QStringLiteral("QPushButton agentHistoryBack (text)"), QStringLiteral("Back to the conversation; resolve this conversation") },
 			{ QStringLiteral("QAction showWorkbenchAiToolsAction (tooltip)"), QStringLiteral("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it. Resolve the conversation.") },
+			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Pull request conversation") },
+			{ QStringLiteral("QAbstractButton pullRequestCommentsChip (accessible name)"), QStringLiteral("Pull request conversation: 1 comment. Resolve this conversation.") },
+			{ QStringLiteral("QToolButton agentConversationChipClose (tooltip)"), QStringLiteral("Stop asking about this conversation. Resolve this conversation.") },
+			{ QStringLiteral("QMainWindow workbenchWindow (accessible tree description)"), QStringLiteral("Agent conversations about this pull request. Nothing here is published. Resolve the conversation.") },
 		});
-		expect(bad.size() == 3U, "Agent wording exceptions still reject review-thread conversation wording");
+		expect(bad.size() == 7U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
+		expect(review_thread_conversation_words({
+													{ QStringLiteral("QAbstractButton pullRequestCommentsChip (text)"), QStringLiteral("Pull request conversation") },
+													{ QStringLiteral("QAbstractButton pullRequestCommentsChip (accessible tree name)"), QStringLiteral("Pull request conversation: 39 comments, 38 new") },
+													{ QStringLiteral("QTabBar overviewStatusTabs (tab tooltip)"), QStringLiteral("Comments\nThe pull request's conversation: its comments and reviews, newest last, and a new comment") },
+													{ QStringLiteral("QTabBar overviewStatusTabs (tab tooltip)"), QStringLiteral("Agent\nAgent conversations about this pull request. Nothing here is published.") },
+													{ QStringLiteral("QMainWindow workbenchWindow (accessible tree description)"), QStringLiteral("Agent\nAgent conversations about this pull request. Nothing here is published.\nComments\nThe pull request's conversation: its comments and reviews, newest last, and a new comment") },
+													{ QStringLiteral("QToolButton agentConversationChipClose (accessible name)"), QStringLiteral("Stop asking about this conversation") },
+												})
+				   .empty(),
+			   "the exact accepted pull-request and Agent conversation surfaces keep their words");
 		auto temporary = QTemporaryDir{ };
 		expect(temporary.isValid(), "isolated thread-words course root");
 		auto options                = app::detail::github_public_path_fixture_options{ };
