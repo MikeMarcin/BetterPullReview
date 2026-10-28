@@ -410,10 +410,16 @@ namespace {
 	{
 		auto plan  = application::staged_review_plan{ };
 		plan.Stops = { { .Title = "First" }, { .Title = "Second" } };
-		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The tour comment", "Stop 1, \u201cFirst\u201d", "Stop 2, \u201cSecond\u201d" }, "native plan: the tour comment, then each stop");
+		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The tour comment", "Stop 1, \xE2\x80\x9C"
+																											 "First\xE2\x80\x9D",
+																						 "Stop 2, \xE2\x80\x9CSecond\xE2\x80\x9D" },
+			   "native plan: the tour comment, then each stop");
 		plan.Compatibility = true;
 		plan.Description   = application::staged_description_edit{ };
-		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The index comment", "Stop 1, \u201cFirst\u201d", "Stop 2, \u201cSecond\u201d", "The description link" }, "compatibility plan: the index comment, each stop, the description link");
+		expect(application::staged_publication_stages(plan) == std::vector<std::string>{ "The index comment", "Stop 1, \xE2\x80\x9C"
+																											  "First\xE2\x80\x9D",
+																						 "Stop 2, \xE2\x80\x9CSecond\xE2\x80\x9D", "The description link" },
+			   "compatibility plan: the index comment, each stop, the description link");
 		auto record  = application::staged_publication_record{ .Plan = plan };
 		record.Index = application::staged_review_comment{ .WebUrl = "https://github.com/o/r/pull/1#issuecomment-7" };
 		expect(application::staged_published_link(record).empty(), "no address before the record is published");

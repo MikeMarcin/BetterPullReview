@@ -419,7 +419,8 @@ namespace bpr::application {
 																												   : "The tour comment" };
 		if (!aPlan.Update) {
 			for (std::size_t index = 0; index < aPlan.Stops.size(); ++index) {
-				stages.push_back("Stop " + std::to_string(index + 1) + ", \u201c" + aPlan.Stops[index].Title + "\u201d");
+				// The presentation consumes UTF-8 on every host, including MSVC.
+				stages.push_back("Stop " + std::to_string(index + 1) + ", \xE2\x80\x9C" + aPlan.Stops[index].Title + "\xE2\x80\x9D");
 			}
 		}
 		if (aPlan.Description) {
