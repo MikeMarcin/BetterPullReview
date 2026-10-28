@@ -2623,7 +2623,34 @@ namespace bpr::qt {
 	{
 		QWidget::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::PaletteChange && Empty != nullptr) {
+			repaint_glyphs();
 			rebuild_findings();
 		}
+	}
+
+	void agent_tab_view::repaint_glyphs()
+	{
+		// [[BPR-1773]], owner look 2026-10-27 ("The copy to clipboard icon is
+		// nearly unseeable on dark mode"). A glyph is painted in the ink of
+		// the palette it was made with, so a theme change paints each again.
+		History->setIcon(drawer_icon(drawer_glyph::history, palette()));
+		ClearSession->setIcon(drawer_icon(drawer_glyph::new_session, palette()));
+		ConversationClose->setIcon(drawer_icon(drawer_glyph::close, palette()));
+		Context->setIcon(drawer_icon(drawer_glyph::plus, palette()));
+		SuggestionsMenu->setIcon(drawer_icon(drawer_glyph::agent, palette()));
+		if (auto* const introIcon = EmptyIntro->findChild<QLabel*>(QStringLiteral("agentEmptyIcon"))) {
+			introIcon->setPixmap(drawer_icon(drawer_glyph::agent, palette()).pixmap(32, 32));
+		}
+		const auto copyIcon = drawer_icon(drawer_glyph::copy, palette());
+		for (const auto& kept : Turns) {
+			if (kept.Copy != nullptr) {
+				kept.Copy->setIcon(copyIcon);
+			}
+		}
+		// The send arrow; while working the button says Stop instead.
+		if (Ask->text().isEmpty()) {
+			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
+		}
+		fit_run_settings();
 	}
 } // namespace bpr::qt

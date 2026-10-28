@@ -399,6 +399,8 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
+		/// Paints each glyph again in the current palette's ink.
+		void repaint_glyphs();
 		void rebuild_findings();
 		/// One finding card: where it came from, what it says, its state.
 		struct card_entry
