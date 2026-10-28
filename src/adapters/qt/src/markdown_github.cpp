@@ -1,6 +1,7 @@
 #include "markdown_github.hpp"
 
 #include "markdown_github_html.hpp"
+#include "markdown_github_math.hpp"
 
 #include "bpr/qt/appearance_profile.hpp"
 
@@ -987,6 +988,80 @@ namespace bpr::qt::detail {
 			return rewrite(aText, edits);
 		}
 
+		/// The inline mark that opens (`aOpen`) or closes a span of `aKind`.
+		auto math_mark(const bool aOpen, const html_kind aKind, const int aField = -1) -> QString
+		{
+			auto result = (aOpen ? html_open_mark : html_close_mark) + QString::number(static_cast<int>(aKind));
+			if (aField >= 0) {
+				result += html_mark_field + QString::number(aField);
+			}
+			return result + html_mark_close;
+		}
+
+		// [[BPR-1792]]. GitHub renders `$…$` with MathJax; a formula that
+		// reads as styled text (`$\color{gray}\text{…}$`, as templates write
+		// it) becomes its text between inline marks, each character a
+		// Markdown escape so the import reads it literally. Any other
+		// formula, and math in code, stays as written.
+		auto mark_inline_math(const QString& aText, prepared_markdown& aPrepared) -> QString
+		{
+			if (!aText.contains(QLatin1Char{ '$' })) {
+				return aText;
+			}
+			const auto                                  source = classify(aText);
+			const auto&                                 lines  = source.Lines;
+			std::vector<std::pair<text_range, QString>> edits;
+			for (std::size_t index = 0; index < lines.size();) {
+				if (lines[index].Code || lines[index].Blank) {
+					++index;
+					continue;
+				}
+				const auto last  = paragraph_end(lines, index, [](const source_line&) { return false; });
+				const auto limit = lines[last].End;
+				scan_inline(aText, lines[index].Content, limit, [&](const qsizetype aAt) -> qsizetype {
+					if (aText[aAt] != QLatin1Char{ '$' }) {
+						return 0;
+					}
+					const auto span = inline_math_at(aText, aAt, limit);
+					if (!span) {
+						return 0;
+					}
+					const auto runs = read_inline_math(span->TeX);
+					if (!runs) {
+						return span->End - aAt;
+					}
+					auto replacement = QString{ };
+					for (const auto& run : *runs) {
+						std::vector<html_kind> kinds;
+						if (run.Colour) {
+							replacement += math_mark(true, html_kind::colour, static_cast<int>(aPrepared.Colours.size()));
+							aPrepared.Colours.push_back(*run.Colour);
+							kinds.push_back(html_kind::colour);
+						}
+						for (const auto& [on, kind] : { std::pair{ run.Bold, html_kind::bold }, std::pair{ run.Italic, html_kind::italic }, std::pair{ run.Mono, html_kind::code } }) {
+							if (on) {
+								replacement += math_mark(true, kind);
+								kinds.push_back(kind);
+							}
+						}
+						for (const auto ch : run.Text) {
+							if (ascii_punctuation(ch)) {
+								replacement += QLatin1Char{ '\\' };
+							}
+							replacement += ch;
+						}
+						for (auto kind = kinds.rbegin(); kind != kinds.rend(); ++kind) {
+							replacement += math_mark(false, *kind);
+						}
+					}
+					edits.push_back({ { aAt, span->End }, replacement });
+					return span->End - aAt;
+				});
+				index = last + 1;
+			}
+			return rewrite(aText, edits);
+		}
+
 		auto holds_reserved(const QString& aText) -> bool
 		{
 			return std::ranges::any_of(aText, [](const QChar aChar) { return aChar.unicode() >= first_reserved && aChar.unicode() <= last_reserved; });
@@ -1322,6 +1397,12 @@ namespace bpr::qt::detail {
 			case html_kind::highlight:
 				format.setProperty(markdown_highlight_property, true);
 				break;
+			case html_kind::colour:
+				if (aField >= 0 && static_cast<std::size_t>(aField) < aPrepared.Colours.size()) {
+					format.setForeground(aPrepared.Colours[static_cast<std::size_t>(aField)]);
+					format.setProperty(markdown_math_colour_property, aPrepared.Colours[static_cast<std::size_t>(aField)]);
+				}
+				break;
 			case html_kind::link:
 				if (aField >= 0 && static_cast<std::size_t>(aField) < aPrepared.Hrefs.size()) {
 					format.setAnchor(true);
@@ -1555,7 +1636,7 @@ namespace bpr::qt::detail {
 		prepared.Marks  = !holds_reserved(aSource);
 		prepared.Breaks = !aSource.contains(break_mark);
 		if (prepared.Marks) {
-			prepared.Text = mark_html_inline(mark_html_blocks(prepared.Text, prepared), prepared);
+			prepared.Text = mark_html_inline(mark_inline_math(mark_html_blocks(prepared.Text, prepared), prepared), prepared);
 			prepared.Text = mark_alerts(move_footnotes(prepared.Text));
 		}
 		if (prepared.Breaks) {
@@ -1802,6 +1883,10 @@ namespace bpr::qt::detail {
 				if (chars.hasProperty(markdown_summary_property)) {
 					chars.setForeground(aStyle.Ink);
 					chars.setFontUnderline(false);
+				}
+				// [[BPR-1792]]. A formula's colour holds, in a summary too.
+				if (chars.hasProperty(markdown_math_colour_property)) {
+					chars.setForeground(chars.colorProperty(markdown_math_colour_property));
 				}
 				if (chars.boolProperty(markdown_keyboard_property)) {
 					chars.merge(key);
