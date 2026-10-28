@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1793",
+    "BPR-1794",
+    "BPR-1795"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "cmark-gfm evaluation; __strong__ shown italic; tab fallback",
+  "created": "2026-10-28T01:11:11.686957+00:00",
+  "base": "ea3f36c86782e0ec72e786f97f425582d8323329"
+}
