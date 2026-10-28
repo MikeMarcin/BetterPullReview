@@ -1077,6 +1077,37 @@ namespace {
 			   "where nothing reaches the floor, the extreme");
 	}
 
+	/// [[BPR-1798]]. A Find match's ring is the theme's amber at the indicator
+	/// ratio against the ground and the ground under the match's wash. The
+	/// owner's case: the dark match wash on the dark added row measured
+	/// 1.07:1, so only the ring makes the match visible.
+	auto test_find_ring_reaches_the_indicator_floor_on_its_ground() -> void
+	{
+		auto palette                                                      = appearance_palette{ };
+		palette[index_of(appearance_role::state_attention)]               = srgb(0xD29922);
+		palette[index_of(appearance_role::find_match_background)]         = srgb(0x5C4214);
+		palette[index_of(appearance_role::find_current_match_background)] = srgb(0x754D00);
+		const auto added                                                  = srgb(0x153622);
+		for (const bool current : { false, true }) {
+			const auto wash   = palette[index_of(current ? appearance_role::find_current_match_background : appearance_role::find_match_background)];
+			const auto washed = composited(wash, added, selection_wash_alpha);
+			expect(contrast_ratio_hundredths(washed, added) < 120U, "the wash alone is the faint mark the owner reported");
+			const auto ring = find_match_ring(palette, added, current);
+			expect(ring == srgb(0xD29922), "an amber that already reads on the added row is kept exactly");
+			expect(contrast_ratio_hundredths(ring, added) >= indicator_contrast_minimum_hundredths && contrast_ratio_hundredths(ring, washed) >= indicator_contrast_minimum_hundredths,
+				   "the ring reaches the indicator floor on both sides of its edge");
+		}
+		// A bright ground on a dark theme (high-contrast dark's intraline mark):
+		// the ring moves away from it rather than staying a light amber.
+		palette[index_of(appearance_role::state_attention)] = srgb(0xFFBC66);
+		const auto bright                                   = srgb(0x55FF55);
+		const auto ring                                     = find_match_ring(palette, bright, true);
+		expect(contrast_ratio_hundredths(ring, bright) >= indicator_contrast_minimum_hundredths
+				   && contrast_ratio_hundredths(ring, composited(palette[index_of(appearance_role::find_current_match_background)], bright, selection_wash_alpha)) >= indicator_contrast_minimum_hundredths,
+			   "a bright ground gets a dark ring at the floor");
+		expect(find_match_ring(palette, bright, true) == ring, "the ring is a pure function of its inputs");
+	}
+
 } // namespace
 
 int main()
@@ -1109,5 +1140,6 @@ int main()
 	test_focus_ring_reaches_the_indicator_floor();
 	test_muted_ink_reaches_the_text_floor_on_every_ground();
 	test_signal_ink_turns_amber_burnt_orange_not_brown();
+	test_find_ring_reaches_the_indicator_floor_on_its_ground();
 	return EXIT_SUCCESS;
 }
