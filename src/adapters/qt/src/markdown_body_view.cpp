@@ -298,13 +298,16 @@ namespace bpr::qt {
 		/// matter, both in Qt's GitHub dialect.
 		constexpr auto md4c_underline  = 0x4000U;
 		constexpr auto qt_front_matter = 0x100000U;
+		/// md4c's permissive URL, email and `www.` autolinks.
+		constexpr auto md4c_autolinks = 0x0004U | 0x0008U | 0x0400U;
 		// [[BPR-1794]]. Without the underline extension md4c reads `_text_` as
 		// emphasis and `__text__` as strong emphasis, as CommonMark and GitHub
 		// do; with it both were underline, and the strong form was lost.
 		// [[BPR-1795]]. A comment or description has no front matter on
 		// GitHub: a body that opens with `---` lines shows them as a rule and
 		// a heading, where Qt hid them.
-		const auto markdown_features = QTextDocument::MarkdownFeatures::fromInt((QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML).toInt() & ~(md4c_underline | qt_front_matter));
+		// [[BPR-1796]]. Preparation makes GFM's autolinks itself.
+		const auto markdown_features = QTextDocument::MarkdownFeatures::fromInt((QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML).toInt() & ~(md4c_underline | qt_front_matter | md4c_autolinks));
 	} // namespace
 
 	class markdown_text_view final : public QTextEdit

@@ -7,6 +7,7 @@
 
 #include <QPalette>
 #include <QRegularExpression>
+#include <QSet>
 #include <QTextBlock>
 #include <QTextCursor>
 #include <QTextDocument>
@@ -1032,6 +1033,339 @@ namespace bpr::qt::detail {
 			return rewrite(aText, edits);
 		}
 
+		// [[BPR-1796]]. GFM's autolink extension, as cmark-gfm's autolink.c
+		// applies it: `www.` and `http://`, `https://` or `ftp://` addresses,
+		// email addresses and `mailto:` / `xmpp:` ones. md4c's permissive
+		// autolinks linked fewer forms (no non-ASCII path, no `mailto:`) and
+		// ended them differently, so the reader makes each link itself.
+
+		auto ascii_alnum(const QChar aChar) -> bool
+		{
+			const auto code = aChar.unicode();
+			return (code >= 'a' && code <= 'z') || (code >= 'A' && code <= 'Z') || (code >= '0' && code <= '9');
+		}
+
+		auto ascii_alpha(const QChar aChar) -> bool { return ascii_alnum(aChar) && !aChar.isDigit(); }
+
+		/// A host character: an ASCII letter or digit, or any non-ASCII
+		/// character that is neither punctuation nor space.
+		auto host_char(const QChar aChar) -> bool
+		{
+			if (aChar.unicode() < 0x80) {
+				return ascii_alnum(aChar);
+			}
+			return !aChar.isPunct() && !aChar.isSpace();
+		}
+
+		/// The end of a domain at `aAt`, or nothing: segments of host
+		/// characters, `-` and `_` parted by `.`, with no `_` in the last two
+		/// segments, and (unless `aShort`) at least one `.`.
+		auto domain_end(const QString& aText, const qsizetype aAt, const qsizetype aLimit, const bool aShort) -> std::optional<qsizetype>
+		{
+			if (aAt >= aLimit) {
+				return std::nullopt;
+			}
+			auto at      = aAt + 1;
+			auto periods = 0;
+			auto last    = 0;
+			auto current = aText[aAt] == QLatin1Char{ '_' } ? 1 : 0;
+			for (; at < aLimit - 1; ++at) {
+				const auto ch = aText[at];
+				if (ch == QLatin1Char{ '\\' } && at < aLimit - 2) {
+					++at;
+				}
+				if (aText[at] == QLatin1Char{ '_' }) {
+					++current;
+				} else if (aText[at] == QLatin1Char{ '.' }) {
+					last    = current;
+					current = 0;
+					++periods;
+				} else if (!host_char(aText[at]) && aText[at] != QLatin1Char{ '-' }) {
+					break;
+				}
+			}
+			if (last > 0 || current > 0 || (!aShort && periods == 0)) {
+				return std::nullopt;
+			}
+			return at;
+		}
+
+		/// GFM's trailing-delimiter rule: a link ends before `<`, and gives
+		/// up trailing `?!.,:*_~'"`, an entity-like `&name;` and a `)` that
+		/// has no `(` of its own.
+		auto autolink_delimit(const QString& aText, const qsizetype aBegin, qsizetype aEnd) -> qsizetype
+		{
+			if (const auto open = QStringView{ aText }.mid(aBegin, aEnd - aBegin).indexOf(QLatin1Char{ '<' }); open >= 0) {
+				aEnd = aBegin + open;
+			}
+			while (aEnd > aBegin) {
+				const auto ch = aText[aEnd - 1];
+				if (QStringLiteral("?!.,:*_~'\"").contains(ch)) {
+					--aEnd;
+				} else if (ch == QLatin1Char{ ';' }) {
+					auto entity = aEnd - 2;
+					while (entity > aBegin && ascii_alpha(aText[entity])) {
+						--entity;
+					}
+					aEnd = entity < aEnd - 2 && aText[entity] == QLatin1Char{ '&' } ? entity : aEnd - 1;
+				} else if (ch == QLatin1Char{ ')' }) {
+					const auto link = QStringView{ aText }.mid(aBegin, aEnd - aBegin);
+					if (link.count(QLatin1Char{ ')' }) <= link.count(QLatin1Char{ '(' })) {
+						break;
+					}
+					--aEnd;
+				} else {
+					break;
+				}
+			}
+			return aEnd;
+		}
+
+		auto extend_to_space(const QString& aText, qsizetype aAt, const qsizetype aLimit) -> qsizetype
+		{
+			while (aAt < aLimit && !aText[aAt].isSpace() && aText[aAt] != QLatin1Char{ '<' }) {
+				++aAt;
+			}
+			return aAt;
+		}
+
+		struct autolink_match
+		{
+			qsizetype Begin = 0;
+			qsizetype End   = 0;
+			QString   Href;
+		};
+
+		/// `www.` at `aAt`, after a line start, a space or one of `*_~(`.
+		auto www_autolink(const QString& aText, const qsizetype aAt, const qsizetype aBegin, const qsizetype aLimit) -> std::optional<autolink_match>
+		{
+			if (aAt > aBegin && !aText[aAt - 1].isSpace() && !QStringLiteral("*_~(").contains(aText[aAt - 1])) {
+				return std::nullopt;
+			}
+			if (!QStringView{ aText }.mid(aAt, aLimit - aAt).startsWith(QLatin1StringView{ "www." })) {
+				return std::nullopt;
+			}
+			const auto domain = domain_end(aText, aAt, aLimit, false);
+			if (!domain) {
+				return std::nullopt;
+			}
+			const auto end = autolink_delimit(aText, aAt, extend_to_space(aText, *domain, aLimit));
+			if (end <= aAt + 4) {
+				return std::nullopt;
+			}
+			return autolink_match{ aAt, end, QStringLiteral("http://") + aText.mid(aAt, end - aAt) };
+		}
+
+		/// `scheme://` with its `:` at `aAt`: http, https or ftp, the scheme
+		/// starting where the run of letters before the `:` starts.
+		auto url_autolink(const QString& aText, const qsizetype aAt, const qsizetype aBegin, const qsizetype aLimit) -> std::optional<autolink_match>
+		{
+			if (aAt + 3 >= aLimit || aText[aAt + 1] != QLatin1Char{ '/' } || aText[aAt + 2] != QLatin1Char{ '/' }) {
+				return std::nullopt;
+			}
+			auto start = aAt;
+			while (start > aBegin && ascii_alpha(aText[start - 1])) {
+				--start;
+			}
+			const auto scheme = QStringView{ aText }.mid(start, aAt - start);
+			if (scheme.compare(QLatin1StringView{ "http" }, Qt::CaseInsensitive) != 0 && scheme.compare(QLatin1StringView{ "https" }, Qt::CaseInsensitive) != 0
+				&& scheme.compare(QLatin1StringView{ "ftp" }, Qt::CaseInsensitive) != 0) {
+				return std::nullopt;
+			}
+			const auto domain = domain_end(aText, aAt + 3, aLimit, true);
+			if (!domain) {
+				return std::nullopt;
+			}
+			const auto end = autolink_delimit(aText, start, extend_to_space(aText, *domain, aLimit));
+			if (end <= aAt + 3) {
+				return std::nullopt;
+			}
+			return autolink_match{ start, end, aText.mid(start, end - start) };
+		}
+
+		/// An email address with its `@` at `aAt`, or a `mailto:` or `xmpp:`
+		/// one when the scheme stands after a non-alphanumeric character.
+		auto email_autolink(const QString& aText, const qsizetype aAt, const qsizetype aBegin, const qsizetype aLimit) -> std::optional<autolink_match>
+		{
+			auto start = aAt;
+			while (start > aBegin && (ascii_alnum(aText[start - 1]) || QStringLiteral(".+-_").contains(aText[start - 1]))) {
+				--start;
+			}
+			if (start == aAt) {
+				return std::nullopt;
+			}
+			auto       scheme   = QString{ };
+			const auto protocol = [&](const QLatin1StringView aName) {
+				const auto from = start - aName.size();
+				return from >= aBegin && QStringView{ aText }.mid(from, aName.size()) == aName && (from == aBegin || !ascii_alnum(aText[from - 1]));
+			};
+			if (protocol(QLatin1StringView{ "mailto:" })) {
+				scheme = QStringLiteral("mailto:");
+			} else if (protocol(QLatin1StringView{ "xmpp:" })) {
+				scheme = QStringLiteral("xmpp:");
+			}
+			const auto xmpp    = scheme == QStringLiteral("xmpp:");
+			auto       end     = aAt;
+			auto       ats     = 0;
+			auto       periods = 0;
+			for (; end < aLimit; ++end) {
+				const auto ch = aText[end];
+				if (ascii_alnum(ch)) {
+					continue;
+				}
+				if (ch == QLatin1Char{ '@' }) {
+					++ats;
+				} else if (ch == QLatin1Char{ '.' } && end < aLimit - 1 && ascii_alnum(aText[end + 1])) {
+					++periods;
+				} else if (ch == QLatin1Char{ '/' } && xmpp) {
+					continue;
+				} else if (ch != QLatin1Char{ '-' } && ch != QLatin1Char{ '_' }) {
+					break;
+				}
+			}
+			if (end - aAt < 2 || ats != 1 || periods == 0 || (!ascii_alpha(aText[end - 1]) && aText[end - 1] != QLatin1Char{ '.' })) {
+				return std::nullopt;
+			}
+			end = autolink_delimit(aText, start, end);
+			if (end <= aAt + 1) {
+				return std::nullopt;
+			}
+			const auto begin = start - scheme.size();
+			return autolink_match{ begin, end, scheme.isEmpty() ? QStringLiteral("mailto:") + aText.mid(start, end - start) : aText.mid(begin, end - begin) };
+		}
+
+		/// `[text](destination)`: the text and destination as Markdown reads
+		/// them literally.
+		auto autolink_markdown(const QString& aText, const autolink_match& aMatch) -> QString
+		{
+			auto link = QString{ QLatin1Char{ '[' } };
+			for (const auto ch : QStringView{ aText }.mid(aMatch.Begin, aMatch.End - aMatch.Begin)) {
+				if (ascii_punctuation(ch)) {
+					link += QLatin1Char{ '\\' };
+				}
+				link += ch;
+			}
+			link += QStringLiteral("](");
+			for (const auto ch : aMatch.Href) {
+				if (QStringLiteral("()<>\\&` ").contains(ch)) {
+					link += QLatin1Char{ '\\' };
+				}
+				link += ch;
+			}
+			return link + QLatin1Char{ ')' };
+		}
+
+		/// The bracketed text that closes at the `]` matching the `[` at
+		/// `aAt`, or -1.
+		auto bracket_close(const QString& aText, const qsizetype aAt, const qsizetype aLimit, const QChar aOpen, const QChar aClose) -> qsizetype
+		{
+			auto depth = 0;
+			for (auto at = aAt; at < aLimit; ++at) {
+				const auto ch = aText[at];
+				if (ch == QLatin1Char{ '\\' }) {
+					++at;
+				} else if (ch == aOpen) {
+					++depth;
+				} else if (ch == aClose && --depth == 0) {
+					return at;
+				}
+			}
+			return -1;
+		}
+
+		auto mark_autolinks(const QString& aText) -> QString
+		{
+			if (!aText.contains(QLatin1Char{ '.' })) {
+				return aText;
+			}
+			const auto        source     = classify(aText);
+			const auto&       lines      = source.Lines;
+			static const auto definition = QRegularExpression{ QStringLiteral(R"(^\[([^\]]+)\]:)") };
+			// Labels of link reference definitions: a `[label]` naming one is
+			// a link, whose text is not autolinked.
+			QSet<QString> labels;
+			for (const auto& line : lines) {
+				if (!line.Code && !line.Blank) {
+					if (const auto match = definition.matchView(line_text(aText, line)); match.hasMatch()) {
+						labels.insert(match.captured(1).simplified().toCaseFolded());
+					}
+				}
+			}
+			std::vector<std::pair<text_range, QString>> edits;
+			auto                                        done = qsizetype{ 0 };
+			for (std::size_t index = 0; index < lines.size();) {
+				if (lines[index].Code || lines[index].Blank) {
+					++index;
+					continue;
+				}
+				const auto last  = paragraph_end(lines, index, [](const source_line&) { return false; });
+				const auto begin = lines[index].Content;
+				const auto limit = lines[last].End;
+				scan_inline(aText, begin, limit, [&](const qsizetype aAt) -> qsizetype {
+					const auto ch = aText[aAt];
+					// A definition line keeps its destination as written.
+					if ((aAt == begin || aText[aAt - 1] == QLatin1Char{ '\n' }) && definition.matchView(QStringView{ aText }.mid(aAt, limit - aAt)).hasMatch()) {
+						const auto eol = aText.indexOf(QLatin1Char{ '\n' }, aAt);
+						return (eol < 0 || eol > limit ? limit : eol) - aAt;
+					}
+					if (ch == QLatin1Char{ '<' }) {
+						if (const auto tag = html_tag_at(QStringView{ aText }.mid(aAt, limit - aAt))) {
+							return tag->Length;
+						}
+						const auto close = aText.indexOf(QLatin1Char{ '>' }, aAt);
+						const auto inner = close < 0 || close > limit ? QStringView{ } : QStringView{ aText }.mid(aAt + 1, close - aAt - 1);
+						if (!inner.isEmpty() && !inner.contains(QLatin1Char{ ' ' }) && !inner.contains(QLatin1Char{ '\n' }) && (inner.contains(QLatin1Char{ ':' }) || inner.contains(QLatin1Char{ '@' }))) {
+							return close + 1 - aAt;
+						}
+						return 0;
+					}
+					if (ch == QLatin1Char{ '$' }) {
+						if (const auto math = inline_math_at(aText, aAt, limit); math && read_inline_math(math->TeX)) {
+							return math->End - aAt;
+						}
+						return 0;
+					}
+					if (ch == QLatin1Char{ '[' }) {
+						const auto close = bracket_close(aText, aAt, limit, QLatin1Char{ '[' }, QLatin1Char{ ']' });
+						if (close < 0) {
+							return 0;
+						}
+						if (aAt + 1 < limit && aText[aAt + 1] == QLatin1Char{ '^' }) {
+							return close + 1 - aAt;
+						}
+						if (close + 1 < limit && aText[close + 1] == QLatin1Char{ '(' }) {
+							const auto end = bracket_close(aText, close + 1, limit, QLatin1Char{ '(' }, QLatin1Char{ ')' });
+							return end < 0 ? 0 : end + 1 - aAt;
+						}
+						if (close + 1 < limit && aText[close + 1] == QLatin1Char{ '[' }) {
+							const auto end = bracket_close(aText, close + 1, limit, QLatin1Char{ '[' }, QLatin1Char{ ']' });
+							return end < 0 ? 0 : end + 1 - aAt;
+						}
+						if (labels.contains(QStringView{ aText }.mid(aAt + 1, close - aAt - 1).toString().simplified().toCaseFolded())) {
+							return close + 1 - aAt;
+						}
+						return 0;
+					}
+					auto match = std::optional<autolink_match>{ };
+					if (ch == QLatin1Char{ 'w' }) {
+						match = www_autolink(aText, aAt, begin, limit);
+					} else if (ch == QLatin1Char{ ':' }) {
+						match = url_autolink(aText, aAt, begin, limit);
+					} else if (ch == QLatin1Char{ '@' }) {
+						match = email_autolink(aText, aAt, begin, limit);
+					}
+					if (!match || match->Begin < done) {
+						return 0;
+					}
+					edits.push_back({ { match->Begin, match->End }, autolink_markdown(aText, *match) });
+					done = match->End;
+					return match->End - aAt;
+				});
+				index = last + 1;
+			}
+			return rewrite(aText, edits);
+		}
+
 		/// The inline mark that opens (`aOpen`) or closes a span of `aKind`.
 		auto math_mark(const bool aOpen, const html_kind aKind, const int aField = -1) -> QString
 		{
@@ -1660,7 +1994,11 @@ namespace bpr::qt::detail {
 		prepared.Marks  = !holds_reserved(aSource);
 		prepared.Breaks = !aSource.contains(break_mark);
 		if (prepared.Marks) {
-			prepared.Text = mark_html_inline(mark_inline_math(mark_html_blocks(prepared.Text, prepared), prepared), prepared);
+			prepared.Text = mark_html_blocks(prepared.Text, prepared);
+		}
+		prepared.Text = mark_autolinks(prepared.Text);
+		if (prepared.Marks) {
+			prepared.Text = mark_html_inline(mark_inline_math(prepared.Text, prepared), prepared);
 			prepared.Text = mark_alerts(move_footnotes(prepared.Text));
 		}
 		if (prepared.Breaks) {
