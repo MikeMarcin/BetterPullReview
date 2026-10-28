@@ -10,6 +10,19 @@ metadata: {"milestone_plan":{"id":"rfc-bpr-0014-release-readiness","path":"docs/
 
 # RFC-BPR-0038: Native Package and Release Security Qualification
 
+## Owner amendment 2026-10-28 — release candidate build cohorts
+
+[[BPR-1799]] adds a product-specific sequential build number to publish-release
+preparation. One durable source/configuration cohort uses the same number on
+all platforms; unchanged retries reuse it and changed inputs require another
+identity. Ordinary local builds allocate nothing. The
+[design](../development/release-build-identity.md) and
+[milestone plan](plans/release-candidate-build-numbering/milestone-plan.json)
+bind native metadata, About/diagnostics, source/legal manifests and asset names.
+Existing qualification/security obligations remain. Published `v0.4.0` source
+and assets are immutable; selecting a corrected semantic version remains an
+owner decision before publication.
+
 ## Summary
 
 Complete the native, trust, security, privacy and distribution qualification

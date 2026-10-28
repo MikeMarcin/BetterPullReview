@@ -11,6 +11,17 @@ metadata: {"milestone_plan":{"id":"rfc0035-auto-updater","path":"docs/rfcs/plans
 
 # RFC-BPR-0035: GitHub Release Auto-Updater
 
+## Owner amendment 2026-10-28 — release build identity compatibility
+
+[[BPR-1799]] adds a separate positive release cohort number without changing
+stable-channel marketing-version precedence or persisted skipped versions.
+Stable tags retain `vMAJOR.MINOR.PATCH`. Canonical downloads include `build.N`;
+the existing exact base-version ZIP remains a byte-identical compatibility
+alias for shipped clients. A numbered staged bundle binds the base short
+version and its native build number. No suffix is silently treated as newer,
+and an occupied tag is never replaced. See the
+[release build identity design](../development/release-build-identity.md).
+
 ## Status and scope
 
 Requested on 2026-09-18: add an RFC for an auto-updater using GitHub Releases,
