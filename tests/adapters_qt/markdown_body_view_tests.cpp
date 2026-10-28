@@ -425,11 +425,19 @@ Final content: Ω 日本語 😀
 
 	void check_bounds(qt::markdown_body_view& aView)
 	{
-		for (const auto& source : { std::string(65'537, 'x'), std::string(4'097, 'x'), std::string(65, ' ') + "deep", std::string(9, '>') + "quote", std::string(17, '[') + "nested", std::string(33, '|'), std::string{ "ordinary\ttab" }, std::string{ "> ```\n> \tquoted code\n> ```" } }) {
+		for (const auto& source : { std::string(65'537, 'x'), std::string(4'097, 'x'), std::string(65, ' ') + "deep", std::string(9, '>') + "quote", std::string(17, '[') + "nested", std::string(33, '|'), std::string{ "> ```\n> \tquoted code\n> ```" }, std::string{ "text\n\n    \t\tindented code" } }) {
 			aView.set_body(source, "bound:" + source.substr(0, 10));
 			expect(!aView.rendered_available() && aView.source_visible() && !aView.fallback_reason().isEmpty(), "pathological input selects explained full source fallback");
 			expect(aView.original_body() == source && aView.source_view()->toPlainText().size() == static_cast<qsizetype>(source.size()), "fallback retains all source");
 		}
+		// [[BPR-1795]]. A tab outside code is read as CommonMark reads it: in
+		// prose, in a list's blank line and in a heading the body renders.
+		for (const auto& source : { std::string{ "ordinary\ttab" }, std::string{ "- a\n\t\n- b" }, std::string{ "hi\n--\t" }, std::string{ "\tfoo\tbaz\t\tbim" } }) {
+			aView.set_body(source, "tab:" + source.substr(0, 10));
+			expect(aView.rendered_available() && !aView.source_visible(), "a tab outside code renders: " + source);
+		}
+		aView.set_body("ordinary\ttab", "tab:kept");
+		expect(aView.rendered_view()->document()->toPlainText() == QStringLiteral("ordinary\ttab"), "and keeps its tab");
 		std::string maximum;
 		while (maximum.size() < 65'536U) {
 			maximum += "A long admitted prose paragraph whose native layout is bounded and readable.\n\n";

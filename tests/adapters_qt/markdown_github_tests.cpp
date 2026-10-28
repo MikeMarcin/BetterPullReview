@@ -208,7 +208,8 @@ namespace {
 			   "a paragraph's lines stay one block with a line separator between each");
 		auto italic = false, strong = false;
 		for (auto it = first.begin(); !it.atEnd(); ++it) {
-			// GitHub reads `_text_` as emphasis; Qt's dialect read it as underline.
+			// GitHub reads `_text_` as emphasis ([[BPR-1794]]: md4c's underline
+			// extension is off).
 			italic |= it.fragment().text() == QStringLiteral("emphasis that ends a line") && it.fragment().charFormat().fontItalic() && !it.fragment().charFormat().fontUnderline();
 			strong |= it.fragment().text() == QStringLiteral("strong") && it.fragment().charFormat().fontWeight() >= QFont::Bold;
 		}
@@ -534,6 +535,32 @@ namespace {
 		expect(control.toPlainText().contains(QStringLiteral("\\color{gray}")), "negative control: without the preparation the TeX shows");
 	}
 
+	// [[BPR-1794]]. `__text__` is strong and `_text_` emphasis, as GitHub
+	// reads them; Qt's dialect read both as underline, and the reader made
+	// every underline italic.
+	void check_underscores(qt::markdown_body_view& aView)
+	{
+		show(aView, "Plain __strong words__ and _emphasis words_ and ***both*** and __*nested*__.\n\nA snake_case_name and __init__ stay literal inside words.\n\n<ins>inserted</ins>\n", "underscores:1");
+		auto&      document = document_of(aView);
+		const auto strong   = format_inside(document, QStringLiteral("strong words"));
+		expect(strong.fontWeight() >= QFont::Bold && !strong.fontItalic() && !strong.fontUnderline(), "__text__ is strong, not italic");
+		const auto emphasis = format_inside(document, QStringLiteral("emphasis words"));
+		expect(emphasis.fontItalic() && emphasis.fontWeight() < QFont::Bold && !emphasis.fontUnderline(), "_text_ is emphasis");
+		const auto nested = format_inside(document, QStringLiteral("nested"));
+		expect(nested.fontItalic() && nested.fontWeight() >= QFont::Bold, "__*text*__ is both");
+		expect(folded_text(document).contains(QStringLiteral("A snake_case_name and init stay literal")) || folded_text(document).contains(QStringLiteral("A snake_case_name and __init__ stay literal")),
+			   "underscores inside a word stay as written");
+		expect(!format_inside(document, QStringLiteral("snake_case_name")).fontItalic(), "an intraword underscore opens no emphasis");
+		expect(format_inside(document, QStringLiteral("inserted")).fontUnderline(), "<ins> still underlines");
+		std::size_t underlined = 0;
+		for (auto block = document.begin(); block.isValid(); block = block.next()) {
+			for (auto it = block.begin(); !it.atEnd(); ++it) {
+				underlined += it.fragment().charFormat().fontUnderline() && !it.fragment().charFormat().isAnchor() ? 1U : 0U;
+			}
+		}
+		expect(underlined == 1U, "only <ins> underlines");
+	}
+
 	/// Renders each fixture in each theme, for review beside GitHub's page.
 	void capture(qt::markdown_body_view& aView)
 	{
@@ -590,6 +617,7 @@ try {
 	check_footnotes(view);
 	check_template(view);
 	check_math(view);
+	check_underscores(view);
 	check_bounds(view);
 	capture(view);
 	std::cout << "markdown-github-tests:pass\n";

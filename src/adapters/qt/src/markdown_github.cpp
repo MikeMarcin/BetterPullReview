@@ -706,24 +706,68 @@ namespace bpr::qt::detail {
 				}
 			}
 			std::vector<text_range> code;
+			// [[BPR-1795]]. An inline link's `](…)`, whose destination and title
+			// may span lines: a mark there would become part of the address.
+			std::vector<text_range> destinations;
 			for (std::size_t index = 0; index < lines.size();) {
 				if (lines[index].Code || lines[index].Blank) {
 					++index;
 					continue;
 				}
-				const auto last = paragraph_end(lines, index, [](const source_line&) { return false; });
-				scan_inline(aText, lines[index].Content, lines[last].End, [](qsizetype) { return qsizetype{ 0 }; }, &code);
+				const auto last  = paragraph_end(lines, index, [](const source_line&) { return false; });
+				const auto limit = lines[last].End;
+				scan_inline(
+					aText, lines[index].Content, limit,
+					[&](const qsizetype aAt) -> qsizetype {
+						if (aText[aAt] != QLatin1Char{ ']' } || aAt + 1 >= limit || aText[aAt + 1] != QLatin1Char{ '(' }) {
+							return 0;
+						}
+						auto depth = 0;
+						for (auto at = aAt + 1; at < limit; ++at) {
+							const auto ch = aText[at];
+							if (ch == QLatin1Char{ '\\' }) {
+								++at;
+							} else if (ch == QLatin1Char{ '(' }) {
+								++depth;
+							} else if (ch == QLatin1Char{ ')' } && --depth == 0) {
+								destinations.emplace_back(aAt, at + 1);
+								return 0;
+							}
+						}
+						return 0;
+					},
+					&code);
 				index = last + 1;
 			}
-			const auto inCode = [&code](const qsizetype aAt) {
-				const auto span = std::ranges::upper_bound(code, aAt, { }, &text_range::first);
-				return span != code.begin() && std::prev(span)->second > aAt;
+			std::ranges::sort(code);
+			std::ranges::sort(destinations);
+			const auto within = [](const std::vector<text_range>& aRanges, const qsizetype aAt) {
+				const auto span = std::ranges::upper_bound(aRanges, aAt, { }, &text_range::first);
+				return span != aRanges.begin() && std::prev(span)->second > aAt;
 			};
+			const auto inCode = [&](const qsizetype aAt) { return within(code, aAt) || within(destinations, aAt); };
+			// A link reference definition's destination and title may follow
+			// on the next lines; their newlines are the definition's own.
+			static const auto definition = QRegularExpression{ QStringLiteral(R"(^\[[^\]]+\]:)") };
+			std::vector<bool> continued(lines.size(), false);
+			for (std::size_t index = 0; index < lines.size(); ++index) {
+				if (lines[index].Code || lines[index].Blank || !definition.matchView(line_text(aText, lines[index])).hasMatch()) {
+					continue;
+				}
+				for (auto next = index + 1; next < lines.size() && next <= index + 2 && !lines[next].Blank && !lines[next].Code; ++next) {
+					const auto rest = line_text(aText, lines[next]).trimmed();
+					const auto part = !rest.isEmpty() && (QStringLiteral("\"'(<").contains(rest.front()) || !rest.contains(QLatin1Char{ ' ' }));
+					if (!part || definition.matchView(rest).hasMatch()) {
+						break;
+					}
+					continued[next] = true;
+				}
+			}
 			std::vector<std::pair<text_range, QString>> edits;
 			for (std::size_t index = 0; index + 1 < lines.size(); ++index) {
 				const auto& line = lines[index];
 				const auto& next = lines[index + 1];
-				if (line.Code || line.Blank || next.Code || next.Blank || table[index] || inCode(line.End) || keeps_soft_break(aText, line)) {
+				if (line.Code || line.Blank || next.Code || next.Blank || table[index] || continued[index] || inCode(line.End) || keeps_soft_break(aText, line)) {
 					continue;
 				}
 				auto end = line.ContentEnd;
@@ -1078,30 +1122,6 @@ namespace bpr::qt::detail {
 		{
 			const auto format = aBlock.blockFormat();
 			return format.hasProperty(QTextFormat::BlockCodeFence) || format.hasProperty(QTextFormat::BlockCodeLanguage);
-		}
-
-		// Qt's GitHub dialect reads `_text_` as underline, which nothing else
-		// in an import produces; GitHub reads it as emphasis.
-		void present_underscore_emphasis(QTextDocument& aDocument)
-		{
-			std::vector<std::pair<int, int>> spans;
-			for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
-				for (auto it = block.begin(); !it.atEnd(); ++it) {
-					const auto format = it.fragment().charFormat();
-					if (format.fontUnderline() && !format.isAnchor()) {
-						spans.emplace_back(it.fragment().position(), it.fragment().length());
-					}
-				}
-			}
-			auto cursor   = QTextCursor{ &aDocument };
-			auto emphasis = QTextCharFormat{ };
-			emphasis.setFontUnderline(false);
-			emphasis.setFontItalic(true);
-			for (const auto& [position, length] : spans) {
-				cursor.setPosition(position);
-				cursor.setPosition(position + length, QTextCursor::KeepAnchor);
-				cursor.mergeCharFormat(emphasis);
-			}
 		}
 
 		void present_breaks(QTextDocument& aDocument)
@@ -1631,8 +1651,12 @@ namespace bpr::qt::detail {
 
 	auto prepare_github_markdown(const QString& aSource) -> prepared_markdown
 	{
-		auto prepared   = prepared_markdown{ };
-		prepared.Text   = replace_emoji(remove_comments(aSource));
+		auto prepared = prepared_markdown{ };
+		// [[BPR-1795]]. CommonMark's line endings are LF, CRLF and a lone CR;
+		// the passes below and Qt's import read LF, so `\r\r\n` is two endings.
+		auto source = aSource;
+		source.replace(QStringLiteral("\r\n"), QStringLiteral("\n")).replace(QLatin1Char{ '\r' }, QLatin1Char{ '\n' });
+		prepared.Text   = replace_emoji(remove_comments(source));
 		prepared.Marks  = !holds_reserved(aSource);
 		prepared.Breaks = !aSource.contains(break_mark);
 		if (prepared.Marks) {
@@ -1647,8 +1671,6 @@ namespace bpr::qt::detail {
 
 	void present_github_markdown(QTextDocument& aDocument, const prepared_markdown& aPrepared)
 	{
-		// Qt's underline for `_text_` is converted before any `<ins>` adds one.
-		present_underscore_emphasis(aDocument);
 		if (aPrepared.Marks) {
 			present_html_blocks(aDocument, aPrepared);
 			present_inline_html(aDocument, aPrepared);
