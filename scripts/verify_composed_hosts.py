@@ -283,9 +283,10 @@ PRODUCTION_FORBIDDEN = (
     ),
 )
 
-# RFC-BPR-0015 permits the opt-in configured-CLI read profile only in the
-# tests-disabled macOS product. The other release targets must still omit it.
-MAC_PRODUCTION_CLI_REQUIRED = (
+# [[BPR-1791]]. The RFC-BPR-0015 owner amendment enables the same opt-in CLI
+# composition on macOS, Windows and Linux; unsupported targets must omit it.
+PRODUCTION_CLI_PLATFORMS = frozenset(("darwin", "win32", "linux"))
+PRODUCTION_CLI_REQUIRED = (
     type_anchor(
         "GitHub CLI transport",
         "bpr::adapters::github::detail::gh_cli_transport",
@@ -708,7 +709,7 @@ ANCHOR_SCOPE_CHAINS = tuple(
             *PRODUCTION_REQUIRED,
             *FIXTURE_FORBIDDEN,
             *PRODUCTION_FORBIDDEN,
-            *MAC_PRODUCTION_CLI_REQUIRED,
+            *PRODUCTION_CLI_REQUIRED,
         )
     )
 )
@@ -880,8 +881,8 @@ def required_anchors(profile: str, *, agent_integrations: bool = True, local_aut
     if profile == DEVELOPMENT_FIXTURE_PROFILE:
         return required + FIXTURE_REQUIRED
     required += PRODUCTION_REQUIRED
-    if sys.platform == "darwin":
-        required += MAC_PRODUCTION_CLI_REQUIRED
+    if sys.platform in PRODUCTION_CLI_PLATFORMS:
+        required += PRODUCTION_CLI_REQUIRED
     return required
 
 
@@ -891,8 +892,8 @@ def forbidden_anchors(profile: str, *, agent_integrations: bool = True, local_au
     if profile == DEVELOPMENT_FIXTURE_PROFILE:
         return forbidden + FIXTURE_FORBIDDEN
     forbidden += PRODUCTION_FORBIDDEN
-    if sys.platform != "darwin":
-        forbidden += MAC_PRODUCTION_CLI_REQUIRED
+    if sys.platform not in PRODUCTION_CLI_PLATFORMS:
+        forbidden += PRODUCTION_CLI_REQUIRED
     return forbidden
 
 

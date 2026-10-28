@@ -91,7 +91,7 @@ CLI_LINES = {
         "0036 T bpr::adapters::github::detail::make_github_cli_process_runner()"
     ),
 }
-PRODUCTION_LINES = LIVE_PRODUCTION_LINES | (CLI_LINES if sys.platform == "darwin" else {})
+PRODUCTION_LINES = LIVE_PRODUCTION_LINES | (CLI_LINES if sys.platform in VERIFIER.PRODUCTION_CLI_PLATFORMS else {})
 
 
 def rendered(lines: dict[str, str]) -> str:
@@ -242,17 +242,27 @@ class ComposedHostVerifierTests(unittest.TestCase):
             [],
         )
 
-    def test_cli_linkage_is_required_only_in_macos_production(self) -> None:
+    def test_cli_linkage_is_required_on_each_supported_native_platform(self) -> None:
         base = rendered(SHARED_LINES | LIVE_PRODUCTION_LINES)
-        with mock.patch.object(VERIFIER.sys, "platform", "darwin"):
-            missing = audit_nm(base, VERIFIER.PRODUCTION_PROFILE)
-            self.assertEqual(len(missing), len(CLI_LINES))
-            self.assertTrue(all("GitHub CLI" in failure for failure in missing))
-            self.assertEqual(
-                audit_nm(base + rendered(CLI_LINES), VERIFIER.PRODUCTION_PROFILE),
-                [],
-            )
-        with mock.patch.object(VERIFIER.sys, "platform", "linux"):
+        for platform in ("darwin", "win32", "linux"):
+            with self.subTest(platform=platform), mock.patch.object(VERIFIER.sys, "platform", platform):
+                missing = audit_nm(base, VERIFIER.PRODUCTION_PROFILE)
+                self.assertEqual(len(missing), len(CLI_LINES))
+                self.assertTrue(all("GitHub CLI" in failure for failure in missing))
+                self.assertEqual(
+                    audit_nm(base + rendered(CLI_LINES), VERIFIER.PRODUCTION_PROFILE),
+                    [],
+                )
+                for removed in CLI_LINES:
+                    partial = {name: line for name, line in CLI_LINES.items() if name != removed}
+                    self.assertEqual(
+                        audit_nm(base + rendered(partial), VERIFIER.PRODUCTION_PROFILE),
+                        [f"required exact demangled anchor is absent: {removed}"],
+                    )
+
+    def test_cli_linkage_stays_forbidden_on_unsupported_platform(self) -> None:
+        base = rendered(SHARED_LINES | LIVE_PRODUCTION_LINES)
+        with mock.patch.object(VERIFIER.sys, "platform", "freebsd"):
             self.assertEqual(audit_nm(base, VERIFIER.PRODUCTION_PROFILE), [])
             present = audit_nm(base + rendered(CLI_LINES), VERIFIER.PRODUCTION_PROFILE)
             self.assertEqual(len(present), len(CLI_LINES))
@@ -457,7 +467,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             len(failures),
             len(VERIFIER.SHARED_REQUIRED)
             + len(VERIFIER.PRODUCTION_REQUIRED)
-            + (len(VERIFIER.MAC_PRODUCTION_CLI_REQUIRED) if sys.platform == "darwin" else 0),
+            + (len(VERIFIER.PRODUCTION_CLI_REQUIRED) if sys.platform in VERIFIER.PRODUCTION_CLI_PLATFORMS else 0),
         )
 
     def test_embedded_template_reference_does_not_satisfy_function_anchor(self) -> None:
@@ -538,7 +548,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
         }
         self.assertEqual(
             audit_nm(
-                rendered(windows_shared | windows_production | (CLI_LINES if sys.platform == "darwin" else {})),
+                rendered(windows_shared | windows_production | (CLI_LINES if sys.platform in VERIFIER.PRODUCTION_CLI_PLATFORMS else {})),
                 VERIFIER.PRODUCTION_PROFILE,
             ),
             [],
@@ -993,7 +1003,7 @@ class ComposedHostVerifierTests(unittest.TestCase):
             len(failures),
             len(VERIFIER.SHARED_REQUIRED)
             + len(VERIFIER.PRODUCTION_REQUIRED)
-            + (len(VERIFIER.MAC_PRODUCTION_CLI_REQUIRED) if sys.platform == "darwin" else 0),
+            + (len(VERIFIER.PRODUCTION_CLI_REQUIRED) if sys.platform in VERIFIER.PRODUCTION_CLI_PLATFORMS else 0),
         )
 
     def test_nm_without_a_demangler_falls_back_to_objdump(self) -> None:
