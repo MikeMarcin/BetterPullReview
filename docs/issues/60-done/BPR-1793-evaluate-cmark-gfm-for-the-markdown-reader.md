@@ -8,7 +8,7 @@ depends_on: []
 priority: "P3"
 platforms: ["mac", "windows", "linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1793--BPR-1795--a53cc4b7106f.json","kind":"evaluation","found_by":"owner chat, 2026-10-27","related_rfcs":["RFC-BPR-0036"]}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "0ce8b879c71f121786d4ce41f9d516d9198cf0ae", "evidence": {"kind": "command", "detail": "Scratch harness (not committed) fed every example of cmark-gfm 27d942c8b's spec.txt (670), extensions.txt (30) and regression.txt (26) through markdown_body_view and, for the expected side, cmark-gfm's expected HTML through QTextDocument::setHtml, reducing both to block kind and styled runs. cmark-gfm passes its own suites (670 and 30)."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "0ce8b879c71f121786d4ce41f9d516d9198cf0ae", "evidence": {"kind": "command", "detail": "Scratch harness (not committed) fed every example of cmark-gfm 27d942c8b's spec.txt (670), extensions.txt (30) and regression.txt (26) through markdown_body_view and, for the expected side, cmark-gfm's expected HTML through QTextDocument::setHtml, reducing both to block kind and styled runs. cmark-gfm passes its own suites (670 and 30)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "1a43b807d7157626d760a16eae43b0c01af5aa40", "evidence": {"kind": "command", "detail": "qt_markdown_cmark_spec: 726 examples read, 604 match cmark-gfm, 122 listed in known-differences.json with a category and reason; a negative control (one listed difference removed, one matching example added) fails with NEW DIFFERENCE and NOW MATCHES."}}]
 ---
 
 # BPR-1793: Evaluate cmark-gfm for the Markdown reader
@@ -92,3 +92,41 @@ Do instead:
   a later comparison shows parsing gaps the preparation passes cannot close.
 - Optionally keep the comparison as a nongating course, with the spec
   acquired pinned at test time rather than vendored (CC BY-SA 4.0).
+
+## Follow-up, 2026-10-27: fixes and a regression course
+
+The owner asked for the defects to be fixed and the comparison kept as a
+regression test if its licences allow.
+
+- Fixed: BPR-1794 (`__strong__`) and BPR-1795 (tabs), and with them Qt's
+  front matter hiding a body's opening `---` lines, the soft-break mark
+  inside multi-line links and link reference definitions, and a lone CR.
+  Matches across the three suites went from 569 to 604 of 726; nothing that
+  matched before stopped matching.
+- Kept for later: md4c's narrower autolinks, BPR-1796.
+
+### The course
+
+`qt_markdown_cmark_spec` (`tests/adapters_qt/markdown_cmark_spec_tests.cpp`)
+reads every example of the three suites with the reader and compares it
+with cmark-gfm's expected HTML, as this evaluation did. It is a ratchet:
+`known-differences.json` lists each of the 122 known differences by
+category with a reason (images, sanitized HTML, footnotes, the HTML
+import's quote levels, link encoding and md4c's own table, autolink,
+entity and strikethrough rules). A new difference fails the course, and so
+does a listed example that now matches. `BPR_CMARK_SPEC_DUMP=<file>` writes
+each difference's shapes for classifying.
+
+### Licences
+
+The suites live in `tests/fixtures/markdown/cmark-gfm-spec-v1/`, copied
+unmodified with a provenance record (source commit, SHA-256 of each file):
+`spec.txt` and `extensions.txt` are CC BY-SA 4.0, `regression.txt` is
+covered by cmark-gfm's BSD-2 `COPYING`, kept beside it. This causes no
+trouble: they are test data that one test reads at run time, never built
+from, linked or installed, and no part of them is copied into another file.
+Share-alike binds only those files, which stay unchanged with their
+attribution, so it reaches neither our code nor `known-differences.json`
+(example names and our reasons). The source archive carries them with
+their notices. They are not runtime components, so they are not in
+`third_party/` or the installed notices.
