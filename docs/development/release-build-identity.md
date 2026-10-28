@@ -106,3 +106,44 @@ configuration/source mismatches, missing aliases and changed alias bytes.
 Native bundle/PE/MSI/DEB metadata must be inspected on their actual platforms.
 This feature does not waive release qualification, source/legal, security,
 signing, native trust or the owner-selected next semantic version.
+
+## Preparation commands and declared inputs
+
+Only the publisher controller allocates, on reconciled clean `main`. No CMake
+preset, compiler invocation or package driver advances the counter. Supply an
+external `bpr.release-inputs.v1` JSON object with `producers` and
+`previousWindows`. Each named producer declares its platform (`Darwin`,
+`Windows` or `Linux`), architecture array, preset name, single `buildType`,
+`toolchain` (`cmake`, `compilerId`, `compilerVersion`, `qtVersion`) and `options`.
+The options explicitly name `BUILD_TESTING`, `BPR_DISTRIBUTION_BUILD`,
+`BPR_BUILD_QT`, `BPR_BUILD_TOUR_CLI`, `BPR_BUILD_AGENT_INTEGRATIONS`,
+`BPR_BUILD_LOCAL_AUTOMATION` and `BPR_EXTERNAL_QT_RESOURCES`, each `ON` or `OFF`.
+Include every other effective `BPR_*` Boolean and the `settings` object from
+`_bpr/release-observed.json` in each native preconfigured graph. That observation
+also supplies the actual compiler/linker flags, generator, runtime and SDK
+selection; changing those settings requires a new cohort. Observation itself
+allocates nothing.
+`previousWindows` holds the previous `marketingVersion` and actual
+`msiProductVersion` when Windows is selected; otherwise it may be null. The
+source tree binds every tracked build/dependency definition; the receipt also
+records exact SHA-256 values for the preset and dependency inventory.
+
+Run `tools/publish-release.sh --prepare-candidate --candidate-inputs
+/absolute/inputs.json --cohort-output /absolute/allocation.json`. Commit exactly
+the reported counter and allocation receipt over the recorded base. Then run
+`tools/publish-release.sh --freeze-candidate N --cohort-output
+/absolute/cohort.json`. Preserve that external cohort file with the request's
+native evidence and give identical bytes to all producers. An interrupted
+reservation is recovered by repeating preparation with the same inputs. Do not
+remove the common-Git reservation journal to reclaim a number.
+
+Configure each producer with `-DBPR_RELEASE_COHORT=/absolute/cohort.json` and
+`-DBPR_RELEASE_PRODUCER=its-declared-name`. Configure checks the actual compiler,
+CMake/Qt versions, architectures, configuration and feature flags; every build
+rechecks the frozen source before compiling its identity. Ordinary local builds
+leave both settings empty and remain unnumbered. Multi-configuration generators
+must select exactly one configuration for a numbered producer.
+
+Initial publication requires `--cohort /absolute/cohort.json`. The occupied
+unnumbered preview retains its separately guarded append/promote path and its
+original source and bytes; it never acquires a retroactive build number.
