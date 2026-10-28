@@ -45,5 +45,49 @@ inline math, so it showed the TeX source.
 ## Not done
 
 - Fractions, scripts and symbols still show as written. Drawing them needs a
-  TeX math library (MicroTeX, MIT, is the candidate), which is the owner's
-  call.
+  TeX math library; the owner asked for MicroTeX to be evaluated (below).
+
+## MicroTeX evaluation, 2026-10-27
+
+Candidate: `NanoMichael/MicroTeX`, MIT, C++17, its `openmath` branch (the
+OpenType-math rewrite) at `086f4eb74`, built statically against the
+product's Qt 6.12 in a scratch tree. It would live in `src/adapters/qt` as an
+inline text object. Nothing was added to the repository.
+
+For it:
+
+- Builds cleanly in about four seconds; 2.1 MB static library plus a 49 KB
+  Qt backend. FiraMath (SIL OFL 1.1) with its metrics file is about 450 KB.
+- Good typesetting of fractions, roots, sums and scripts, inline in a
+  `QTextDocument` through a `QTextObjectInterface`, light and dark.
+- Fast: under 0.05 ms a formula after a 2 ms initialisation; two renders of
+  each sample were pixel-identical.
+- A formula reads no file: `\input` and `\includegraphics` draw as text.
+  Only font loading opens files, from paths the caller gives.
+
+Against it:
+
+- Unmaintained: last push August 2024, no release beyond a `v0.0.1` tag,
+  49 open issues.
+- Crashes on hostile input: about 8,000 nested braces, or 4,000 nested
+  `\frac`, overflow the main thread's stack (status 139). The product
+  would have to cap length and depth before calling it, and fuzz it.
+- `\color{…}`, the form GitHub templates use, is ignored by design outside
+  array cells (`macro_env.h`); only `\textcolor` colours. The case that
+  started this card still needs our reader, or a patch to a fork.
+- Malformed input draws partially (`\frac{a}{` shows `a` over nothing)
+  instead of being refused, unlike MathJax's error mark; an unknown
+  command draws as text.
+- `\rule{100000em}{100000em}` yields a 1.6-million-pixel-square box; the
+  product would cap the size.
+- One process-wide static context (`MicroTeX::init`/`release`).
+- Inline placement needs baseline work: a text object sits on its bottom
+  edge, so a formula with depth rides high.
+- The `.clm` metrics come from `prebuilt/otf2clm.py`; a pinned
+  acquisition must regenerate or vendor them.
+
+Recommendation: do not adopt now. Keep the narrow reader, which covers what
+templates write and leaves everything else as written. If drawn formulas
+become wanted, adopting it is one card: pin `openmath` at a commit in a
+fork, patch `\color`, wrap it in the Qt adapter behind length, depth and
+size caps, render on the GUI thread, add a fuzz target, and ship FiraMath.
