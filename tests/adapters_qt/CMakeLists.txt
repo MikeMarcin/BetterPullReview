@@ -2010,6 +2010,24 @@ foreach(markdown_scale IN ITEMS 1.0 1.25 2.0)
     )
 endforeach()
 
+# [[BPR-1793]]. cmark-gfm's GFM spec, extensions and regression examples,
+# compared with the reader as a ratchet over the listed known differences.
+bpr_add_executable(test_better_pull_review_markdown_cmark_spec_tests markdown_cmark_spec_tests.cpp)
+target_link_libraries(test_better_pull_review_markdown_cmark_spec_tests PRIVATE BetterPullReview::AdapterQt)
+target_compile_definitions(test_better_pull_review_markdown_cmark_spec_tests PRIVATE
+    "BPR_CMARK_SPEC_FIXTURES=\"${PROJECT_SOURCE_DIR}/tests/fixtures/markdown/cmark-gfm-spec-v1\"")
+bpr_enable_hardening(test_better_pull_review_markdown_cmark_spec_tests)
+bpr_enable_warnings(test_better_pull_review_markdown_cmark_spec_tests)
+bpr_add_network_isolated_test(
+    NAME "qt_markdown_cmark_spec"
+    COMMAND test_better_pull_review_markdown_cmark_spec_tests
+)
+set_tests_properties("qt_markdown_cmark_spec" PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "markdown-cmark-spec-tests:pass"
+    TIMEOUT 120
+)
+
 # [[BPR-1544]]. GitHub parity: details, the sanitised HTML subset (with
 # hostile-HTML courses) and emoji shortcodes, compared with GitHub's rendering.
 bpr_add_executable(test_better_pull_review_markdown_github_html_tests markdown_github_html_tests.cpp)
