@@ -314,6 +314,7 @@ auto main(int argc, char** argv) -> int
 				// [[BPR-1785]]. Each published stop says what to do when Next does not jump.
 				for (const auto& comment : server->StagedComments) {
 					const auto stop = core::map_tour_stop(comment.Body);
+					expect(stop.Heading && comment.Body.substr(stop.Heading->Begin, stop.Heading->End - stop.Heading->Begin).starts_with("### PR Tour · "), "the comment published to GitHub is headed PR Tour");
 					expect(stop.Footer && comment.Body.ends_with(")\n" + std::string{ core::tour_navigation_note } + "\n"), "each published stop carries the navigation note directly under its links");
 				}
 			}
