@@ -2597,7 +2597,7 @@ namespace bpr::qt {
 		DescriptionSave->setObjectName(QStringLiteral("overviewDescriptionSave"));
 		DescriptionSave->setAccessibleDescription(QStringLiteral("Saves the description to GitHub."));
 		DescriptionSave->setDefault(true);
-		DescriptionSave->setToolTip(QStringLiteral("Save (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		DescriptionSave->setToolTip(QStringLiteral("Save (%1)").arg(shortcut_key(shortcut_command::description_save).toString(QKeySequence::NativeText)));
 		foot->addWidget(DescriptionSave);
 		panelColumn->addLayout(foot);
 		summaryColumn->addWidget(DescriptionPanel, 1);
@@ -2609,11 +2609,13 @@ namespace bpr::qt {
 			DescriptionSaveDispatch(overview_description_save{ .Original = DescriptionOriginal, .Body = DescriptionText->raw() });
 		};
 		connect(DescriptionSave, &QPushButton::clicked, this, save);
-		auto* const saveKey = new QShortcut{ QKeySequence{ Qt::CTRL | Qt::Key_Return }, DescriptionPanel };
+		auto* const saveKey = new QShortcut{ shortcut_key(shortcut_command::description_save), DescriptionPanel };
+		saveKey->setObjectName(QStringLiteral("overviewDescriptionSaveKey"));
 		saveKey->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(saveKey, &QShortcut::activated, this, save);
 		connect(DescriptionCancel, &QPushButton::clicked, this, [this] { close_description_editor(); });
-		auto* const cancelKey = new QShortcut{ QKeySequence{ Qt::Key_Escape }, DescriptionPanel };
+		auto* const cancelKey = new QShortcut{ shortcut_key(shortcut_command::description_cancel), DescriptionPanel };
+		cancelKey->setObjectName(QStringLiteral("overviewDescriptionCancelKey"));
 		cancelKey->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(cancelKey, &QShortcut::activated, this, [this] {
 			if (!DescriptionSaving) {

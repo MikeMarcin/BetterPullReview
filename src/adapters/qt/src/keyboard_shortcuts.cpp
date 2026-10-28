@@ -81,6 +81,8 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::finish_review, .Group = review, .Binding = bound, .Title = "Finish the review", .Keys = "Ctrl+Alt+Return;Ctrl+Alt+Enter", .Shown = 1U, .Objects = "finishReviewAction" },
 			shortcut_entry{ .Command = command::open_on_github, .Group = review, .Binding = bound, .Title = "Open the pull request on GitHub", .Keys = "Ctrl+Shift+O", .Objects = "openOnGithubAction;desktopOpenOnGithubAction" },
 			shortcut_entry{ .Command = command::fold_description, .Group = review, .Binding = bound, .Title = "Fold the description", .Place = "On Overview", .Keys = "Escape", .Objects = "overviewDescriptionEscape" },
+			shortcut_entry{ .Command = command::description_save, .Group = review, .Binding = bound, .Title = "Save the description", .Place = "In the description editor", .Keys = "Ctrl+Return", .Objects = "overviewDescriptionSaveKey" },
+			shortcut_entry{ .Command = command::description_cancel, .Group = review, .Binding = bound, .Title = "Cancel editing the description", .Place = "In the description editor", .Keys = "Escape", .Objects = "overviewDescriptionCancelKey" },
 
 			// Comments and labels.
 			shortcut_entry{ .Command = command::comment, .Group = comments, .Binding = bound, .Title = "Comment, or reply to the selected thread", .Keys = "Alt+C", .Objects = "composeInlineDraftAction;desktopComposeInlineDraftAction" },
