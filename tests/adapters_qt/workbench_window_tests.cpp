@@ -14118,6 +14118,32 @@ namespace {
 			expect(copy != nullptr && !copy->isHidden(), "a reply offers Copy");
 			copy->click();
 			expect(QGuiApplication::clipboard()->text() == agent->turn_answer(1U), "Copy copies the whole response as written");
+			// [[BPR-1773]], owner look 2026-10-27 ("The copy to clipboard icon
+			// is nearly unseeable on dark mode"): a theme change paints it
+			// again, in the new palette's ink.
+			{
+				const auto keptPalette = window.palette();
+				const auto inkOf       = [](const QIcon& aIcon) {
+					const auto image = aIcon.pixmap(QSize{ 24, 24 }).toImage();
+					auto       ink   = -1;
+					for (auto y = 0; y < image.height(); ++y) {
+						for (auto x = 0; x < image.width(); ++x) {
+							const auto pixel = image.pixelColor(x, y);
+							if (pixel.alpha() > 200) {
+								ink = std::max(ink, pixel.lightness());
+							}
+						}
+					}
+					return ink;
+				};
+				auto scheme = qt::default_appearance_settings();
+				scheme.Mode = core::appearance_mode::dark;
+				qt::appearance_profile{ scheme }.apply_to(window);
+				process_events();
+				expect(inkOf(copy->icon()) > 160, "in dark mode Copy is drawn in light ink");
+				window.setPalette(keptPalette);
+				process_events();
+			}
 			expect(agent->turn_time(1U) != nullptr && !agent->turn_time(1U)->isHidden() && agent->turn_time(1U)->text() == QStringLiteral("just now")
 					   && !agent->turn_time(1U)->toolTip().isEmpty(),
 				   "and says when it answered, the whole time on hover");

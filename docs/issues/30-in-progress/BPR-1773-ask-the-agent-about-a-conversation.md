@@ -8,7 +8,7 @@ depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1772--BPR-1773--b27f9d2285df.json","kind":"feature","found_by":"owner chat, 2026-10-26","authoring":"frontend-design:frontend-design loaded for the Qt surfaces","related_cards":["BPR-1594","BPR-1753","BPR-1245"]}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "core_agent_chat_scope (eighth entry point, no selection needed) and core_agent_context_supplement (test_a_conversation_travels_bounded_or_refuses_the_request: bounds, opening and newest comments, excerpt window, refusals, carried unchanged or refused whole)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_launch, test_a_conversation_is_read_and_crosses: read_conversation (current and original lines, deleted comments left out) and every conversation.* field after the version-two fields; none without one."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2 (owner look 2026-10-27): qt_workbench_window_scale_100 (the asked line reads \"About <conversation>: <question>\" in the question's colour and a heavier weight; every answer's footer has Draft comment beside Save as note in its style, on a conversation turn and an ordinary one; Draft comment becomes Go to draft and Go to draft drafts nothing more; a refusal says why; no Use as reply; Save as note and Go to note unchanged), qt_conversation_cards_view, qt_private_notes_panel."}}, {"criterion": "AC4", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2: application_agent_chat_conversation_contract: Ask agent from a fixture thread's menu through the shipped composition, then a send: the turn is ask_about_conversation, carries that thread, runs once; its asked line names the thread; its Draft comment writes the answer into that thread's reply (review editor shows a reply draft holding the answer), becomes Go to draft, and no submission or target observation follows; one launch path. application_private_review_host note_press unchanged. core_review_submission: answer_draft_place_for."}}, {"criterion": "AC5", "outcome": "pending", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "observation", "detail": "r1 rejected 2026-10-27 (session 41f51349bc37e6c092d31dbf1739c5b1, candidate BPR-1773-look; owner's words under 'Owner's look, 2026-10-27: rejected'). r2 awaits a fresh look on a frozen build; no session opened by the implementer. Offscreen renders for it: scratchpad bpr-1773-v2/agent-turns-{draft-comment,go-to-draft}-{light,dark}.png."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "core_agent_chat_scope (eighth entry point, no selection needed) and core_agent_context_supplement (test_a_conversation_travels_bounded_or_refuses_the_request: bounds, opening and newest comments, excerpt window, refusals, carried unchanged or refused whole)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d7322f02675655a3cd04dc58cf7a52c6b12498b6", "evidence": {"kind": "command", "detail": "application_agent_launch, test_a_conversation_is_read_and_crosses: read_conversation (current and original lines, deleted comments left out) and every conversation.* field after the version-two fields; none without one."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2 (owner look 2026-10-27): qt_workbench_window_scale_100 (the asked line reads \"About <conversation>: <question>\" in the question's colour and a heavier weight; every answer's footer has Draft comment beside Save as note in its style, on a conversation turn and an ordinary one; Draft comment becomes Go to draft and Go to draft drafts nothing more; a refusal says why; no Use as reply; Save as note and Go to note unchanged), qt_conversation_cards_view, qt_private_notes_panel."}}, {"criterion": "AC4", "outcome": "pass", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "command", "detail": "r2: application_agent_chat_conversation_contract: Ask agent from a fixture thread's menu through the shipped composition, then a send: the turn is ask_about_conversation, carries that thread, runs once; its asked line names the thread; its Draft comment writes the answer into that thread's reply (review editor shows a reply draft holding the answer), becomes Go to draft, and no submission or target observation follows; one launch path. application_private_review_host note_press unchanged. core_review_submission: answer_draft_place_for."}}, {"criterion": "AC5", "outcome": "pending", "revision": "7dacd2e9dd478883297a7fb386b022e50182b5b7", "evidence": {"kind": "observation", "detail": "r1 rejected 2026-10-27 (session 41f51349bc37e6c092d31dbf1739c5b1, candidate BPR-1773-look; owner's words under 'Owner's look, 2026-10-27: rejected'). r2 looked at 2026-10-27 (session e2c47ec080c11512d672f942f5930e5c): question line accepted; footer rejected only for the copy glyph in dark mode. r3 repaints the tab glyphs on a theme change; the footer awaits a fresh look."}}]
 ---
 
 # BPR-1773: Ask the agent about a conversation
@@ -72,3 +72,24 @@ Rework:
   (on_thread), but the host's `thread_reply_binding_of` refuses it, so Reply
   there silently does nothing. Pre-existing and outside this card; the
   course asks about a thread on a current line instead.
+
+## Owner's look at r2, 2026-10-27
+
+Session `e2c47ec080c11512d672f942f5930e5c`, two candidates at `e4c7ac308`:
+
+- BPR-1773-question-line (the asked line names its conversation): accepted.
+- BPR-1773-footer (Draft comment beside Save as note): rejected, only for
+  the copy glyph:
+
+> The copy to clipboard icon is nearly unseeable on dark mode but otherwise
+> good.
+
+### Rework done (r3, 2026-10-27)
+
+- The agent tab painted its glyphs once, in the palette's ink when each was
+  made, so a theme change left Copy, and the composer's plus, close and send
+  glyphs, in the light theme's dark ink. A palette change now paints each
+  again (`agent_tab_view::repaint_glyphs`).
+- `qt_workbench_window_scale_100` (test_the_agent_is_a_drawer_tab): after a
+  switch to dark, Copy is drawn in light ink.
+
