@@ -2,6 +2,7 @@
 #include "../support/source_find_event_turns.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
+#include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/appearance_settings_panel.hpp"
 #include "bpr/qt/desktop_menu_bar.hpp"
@@ -69,6 +70,18 @@ namespace {
 		}
 		expect(QDir{ }.mkpath(root), "owned render root");
 		expect(aWindow.grab().save(root + QLatin1Char('/') + aName + QStringLiteral(".png")), "full shipped composition render saved");
+	}
+	/// [[BPR-1798]]. The top rows of one pane's code, enlarged three times:
+	/// the viewport alone, so the floating Find widget does not cover them.
+	void render_pane(const QPlainTextEdit& aPane, const QString& aName)
+	{
+		const auto root = qEnvironmentVariable("BPR_FIND_RENDER_ROOT");
+		if (root.isEmpty()) {
+			return;
+		}
+		expect(QDir{ }.mkpath(root), "owned render root");
+		const auto image = aPane.viewport()->grab(QRect{ 0, 0, aPane.viewport()->width(), std::min(aPane.viewport()->height(), 120) }).toImage();
+		expect(image.scaled(image.size() * 3, Qt::IgnoreAspectRatio, Qt::FastTransformation).save(root + QLatin1Char('/') + aName + QStringLiteral(".png")), "pane render saved");
 	}
 	void query(app::github_application& aApplication, qt::source_find_bar& aFind, const QString& aQuery)
 	{
@@ -469,6 +482,36 @@ int main(int aArgc, char** aArgv)
 	settle();
 	expect(bar->palette().color(QPalette::Window) == window.palette().color(QPalette::Window), "Find inherits the accepted live window palette");
 	render(window, QStringLiteral("04-dark-native-controls"));
+	{
+		// [[BPR-1798]]. A match on a dark added line: its wash alone measured
+		// 1.07:1 on the row, so the ring the pane draws is what shows it, and
+		// it has to reach the indicator ratio against the row beside it.
+		query(*application, *bar, QStringLiteral("added bridge"));
+		auto* const right = surface->right_pane();
+		expect(bar->projection().Summary.Matches == 1U && right->textCursor().selectedText() == QStringLiteral("added bridge"), "the dark course finds the added row");
+		auto start = right->textCursor();
+		start.setPosition(start.selectionStart());
+		const auto at     = right->cursorRect(start);
+		const auto pixels = right->viewport()->grab().toImage();
+		const auto scale  = pixels.devicePixelRatio();
+		const auto sample = [&](const int aX) {
+			const auto colour = pixels.pixelColor(QPoint{ qRound(aX * scale), qRound(at.center().y() * scale) });
+			return core::appearance_color{ static_cast<std::uint8_t>(colour.red()), static_cast<std::uint8_t>(colour.green()), static_cast<std::uint8_t>(colour.blue()), 255U };
+		};
+		const auto ring = sample(at.left() + 1);
+		// The row's own full-width fill, past the end of its text.
+		const auto ground = sample(right->viewport()->width() - 4);
+		expect(ground != qt::builtin_appearance_palette(core::appearance_variant::dark)[core::index_of(core::appearance_role::code_background)], "the sampled ground is the added row's fill, not the bare canvas");
+		std::cerr << "source-find-dark-added ring=" << int{ ring.Red } << ',' << int{ ring.Green } << ',' << int{ ring.Blue } << " ground=" << int{ ground.Red } << ',' << int{ ground.Green } << ',' << int{ ground.Blue }
+				  << " ratio=" << core::contrast_ratio_hundredths(ring, ground) << '\n';
+		expect(core::contrast_ratio_hundredths(ring, ground) >= core::indicator_contrast_minimum_hundredths, "the current match's ring stands out from the dark added row");
+		render(window, QStringLiteral("04-dark-added-match"));
+		render_pane(*right, QStringLiteral("04-dark-added-match-pane"));
+		// Every other match is ringed too: "ge" lands on each context row.
+		query(*application, *bar, QStringLiteral("ge"));
+		render_pane(*right, QStringLiteral("04-dark-many-matches-pane"));
+		query(*application, *bar, QStringLiteral("needle"));
+	}
 	window.resize(900, 700);
 	settle();
 	render(window, QStringLiteral("04-dark-900"));
@@ -479,6 +522,11 @@ int main(int aArgc, char** aArgv)
 	settle();
 	appearance->choose_mode(beforeMode);
 	settle();
+	// [[BPR-1798]]. The same two cases in the light theme, for comparison.
+	query(*application, *bar, QStringLiteral("added bridge"));
+	render_pane(*surface->right_pane(), QStringLiteral("06-light-added-match-pane"));
+	query(*application, *bar, QStringLiteral("ge"));
+	render_pane(*surface->right_pane(), QStringLiteral("06-light-many-matches-pane"));
 	query(*application, *bar, QStringLiteral("needle"));
 	open(*application, "src/other.cpp");
 	expect(!bar->projection().Matches && !bar->findChild<QToolButton*>(QStringLiteral("sourceFindSelection"))->isChecked(), "document replacement clears decorations and fixed selection immediately");
