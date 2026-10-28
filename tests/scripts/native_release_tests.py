@@ -2,6 +2,8 @@
 """Native release ordering, final bytes, wrong signers and offline publication guards."""
 from __future__ import annotations
 
+import contextlib
+import copy
 import hashlib
 import io
 import json
@@ -12,6 +14,7 @@ import subprocess
 import sys
 import tarfile
 import unittest
+import tempfile
 from unittest.mock import patch
 import zipfile
 
@@ -22,6 +25,7 @@ from skip_report import SkipReportingTestRunner
 
 sys.path.insert(0, str(ROOT / "packaging"))
 import package as producer
+import update_release as publisher
 import package_runtime as runtime
 import release_signing as signing
 import verify_native_release as release
@@ -375,6 +379,115 @@ else:
         result = subprocess.run(command, env=environment, text=True, capture_output=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertFalse(any(item[0] == "gh" for item in map(json.loads, log.read_text().splitlines())))
+
+
+SOURCE = "a" * 40
+TAG = "refs/tags/v0.4.0"
+ROW = {"sha256": "b" * 64, "bytes": 3}
+
+
+class ExistingReleaseTests(unittest.TestCase):
+    def release(self):
+        return {"id": 42, "tag_name": "v0.4.0", "draft": False, "prerelease": True, "immutable": False,
+                "html_url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/v0.4.0", "assets": []}
+
+    def test_only_missing_assets_are_selected_and_old_bytes_are_preserved(self):
+        baseline = {"mac.zip": ROW}
+        selected = {"win.msi": ROW}
+        self.assertEqual(publisher.check_assets(baseline, baseline, selected, complete=False), ["win.msi"])
+        complete = baseline | selected
+        self.assertEqual(publisher.check_assets(complete, baseline, selected, complete=True), [])
+        for observed in [{}, {"mac.zip": ROW | {"sha256": "c" * 64}}, complete | {"unowned": ROW}]:
+            with self.assertRaises(ValueError):
+                publisher.check_assets(observed, baseline, selected, complete=False)
+        with self.assertRaises(ValueError):
+            publisher.check_assets(baseline, baseline, {"mac.zip": ROW | {"bytes": 4}}, complete=False)
+        with self.assertRaises(ValueError):
+            publisher.check_assets(baseline, baseline, selected, complete=True)
+
+    def test_unknown_digest_duplicate_or_traversal_refuses(self):
+        for rows in [[{"name": "../outside", **ROW}], [{"name": "x", **ROW}] * 2, [{"name": "x", **ROW, "sha256": "bad"}]]:
+            with self.assertRaises(ValueError):
+                publisher.inventory(rows)
+        release = self.release();release["assets"] = [{"name": "x", "size": 3, "digest": None}]
+        with self.assertRaises(ValueError):
+            publisher.remote_inventory(release)
+
+    def test_remote_guards_refuse_wrong_destination_visibility_immutability_source_and_state(self):
+        options = {"origin": "https://github.com/MikeMarcin/BetterPullReview.git", "visibility": "PUBLIC", "immutable": False, "source": SOURCE, "prerelease": True, "id": 42}
+        def command(*args, **kwargs):
+            if args[:3] == ("git", "remote", "get-url"): return options["origin"]
+            if args[:3] == ("gh", "repo", "view"): return json.dumps({"nameWithOwner": publisher.REPOSITORY, "visibility": options["visibility"]})
+            if args[:3] == ("gh", "api", "-H"): return json.dumps({"enabled": options["immutable"], "enforced_by_owner": False})
+            if args[:3] == ("git", "ls-remote", "--tags"): return "f" * 40 + "\t" + TAG + "\n" + options["source"] + "\t" + TAG + "^{}"
+            if args[:2] == ("gh", "api"): return json.dumps(self.release() | {"prerelease": options["prerelease"], "id": options["id"]})
+            raise AssertionError(args)
+        with patch.object(publisher, "command", side_effect=command):
+            self.assertEqual(publisher.guard(ROOT, SOURCE, "0.4.0", "PUBLIC", 42)["id"], 42)
+            for key, bad in [("origin", "https://github.com/other/repo.git"), ("origin", options["origin"] + "\n" + options["origin"]), ("visibility", "PRIVATE"), ("immutable", True), ("source", "c" * 40), ("prerelease", False), ("id", 43)]:
+                old = options[key];options[key] = bad
+                with self.subTest(key=key), self.assertRaises(ValueError):
+                    publisher.guard(ROOT, SOURCE, "0.4.0", "PUBLIC", 42)
+                options[key] = old
+
+    def test_append_uses_upload_without_clobber_or_tag_mutation_and_preserves_latest(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            artifact = root / "win.msi";artifact.write_bytes(b"new")
+            selected = {"win.msi": {"sha256": publisher.runtime.digest(artifact), "bytes": 3}}
+            baseline = {"mac.zip": ROW}
+            record = {"source": SOURCE, "version": "0.4.0", "repository": publisher.REPOSITORY, "assets": [{"name": name, **row} for name, row in baseline.items()]}
+            baseline_file = root / "baseline.json";baseline_file.write_text(json.dumps(record))
+            notes = root / "notes.md";notes.write_text("Qualification pending")
+            release = self.release();release["assets"] = [{"name": name, "size": row["bytes"], "digest": "sha256:" + row["sha256"]} for name, row in baseline.items()]
+            mutations = []
+            def command(*args, **kwargs):
+                if args[:3] == ("git", "status", "--porcelain"): return ""
+                if args[:3] == ("git", "branch", "--show-current"): return "main"
+                if args[:3] == ("git", "diff", "--name-only"): return "packaging/update_release.py"
+                if args[:3] == ("git", "rev-parse", "HEAD"): return "d" * 40
+                if args[:2] == ("gh", "api"): return json.dumps(release)
+                raise AssertionError(args)
+            def run(args, **kwargs):
+                if args[:2] == ["git", "merge-base"]: return subprocess.CompletedProcess(args, 0)
+                mutations.append(args)
+                if args[:3] == ["gh", "release", "upload"]:
+                    self.assertNotIn("--clobber", args)
+                    release["assets"].append({"name": artifact.name, "size": 3, "digest": "sha256:" + selected[artifact.name]["sha256"]})
+                else:
+                    self.assertEqual(args[:3], ["gh", "release", "edit"])
+                    self.assertNotIn("--latest=true", args)
+                    self.assertNotIn("--prerelease=false", args)
+                return subprocess.CompletedProcess(args, 0)
+            argv = ["update_release.py", "--repo-root", str(root), "--version", "0.4.0", "--source-revision", SOURCE, "--visibility", "PUBLIC", "--notes-file", str(notes), "--baseline-inventory", str(baseline_file)]
+            with patch.object(sys, "argv", argv), patch.object(publisher, "command", side_effect=command), patch.object(publisher, "selected_assets", return_value=({artifact.name: artifact}, {"Windows"})), patch.object(publisher, "guard", side_effect=lambda *a, **k: copy.deepcopy(release)), patch.object(publisher.subprocess, "run", side_effect=run), contextlib.redirect_stdout(io.StringIO()):
+                publisher.main()
+            self.assertEqual([x[:3] for x in mutations], [["gh", "release", "upload"], ["gh", "release", "edit"]])
+            self.assertEqual(publisher.remote_inventory(release)["mac.zip"], ROW)
+            self.assertTrue(release["prerelease"])
+
+
+
+class PromotionAcceptanceTests(unittest.TestCase):
+    def test_pending_stable_qualification_refuses_before_remote_access(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            baseline = root / "baseline.json"
+            baseline.write_text(json.dumps({"source": SOURCE, "version": "0.4.0", "repository": publisher.REPOSITORY, "assets": [{"name": "mac.zip", **ROW}]}))
+            notes = root / "notes.md";notes.write_text("pending")
+            acceptance = root / "acceptance.json"
+            acceptance.write_text(json.dumps({"schema": "bpr.release-promotion-acceptance.v1", "accepted": False, "source": SOURCE, "version": "0.4.0", "remainingBlocking": ["qualification pending"]}))
+            artifact = root / "mac.zip";artifact.write_bytes(b"new")
+            argv = ["update_release.py", "--repo-root", str(root), "--version", "0.4.0", "--source-revision", SOURCE, "--visibility", "PUBLIC", "--notes-file", str(notes), "--baseline-inventory", str(baseline), "--promote", "--promotion-acceptance", str(acceptance)]
+            def command(*args, **kwargs):
+                if args[:3] == ("git", "status", "--porcelain"): return ""
+                if args[:3] == ("git", "branch", "--show-current"): return "main"
+                if args[:3] == ("git", "diff", "--name-only"): return "packaging/update_release.py"
+                raise AssertionError(args)
+            with patch.object(sys, "argv", argv), patch.object(publisher, "command", side_effect=command), patch.object(publisher, "selected_assets", return_value=({"mac.zip": artifact}, {"Darwin", "Windows", "Linux"})), patch.object(publisher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(publisher, "guard") as remote:
+                with self.assertRaisesRegex(ValueError, "stable qualification"):
+                    publisher.main()
+                remote.assert_not_called()
 
 
 if __name__ == "__main__":
