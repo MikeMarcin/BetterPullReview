@@ -17,8 +17,9 @@ class QTextDocument;
 /// \file
 /// \brief [[BPR-1543]], [[BPR-1544]]. What a GitHub pull request body shows
 /// that Qt's Markdown reader does not: hidden HTML comments, single newlines
-/// as line breaks, alerts, footnotes, `<details>`, GitHub's HTML subset and
-/// emoji shortcodes (RFC-BPR-0036 amendment 1).
+/// as line breaks, alerts, footnotes, `<details>`, GitHub's HTML subset,
+/// emoji shortcodes (RFC-BPR-0036 amendment 1) and inline math that reads as
+/// styled text ([[BPR-1792]]).
 /// \details Two halves around `QTextDocument::setMarkdown`. Preparation
 /// rewrites the source line by line before the import: it removes comments,
 /// marks each soft line break, moves footnote definitions to a section at the
@@ -65,6 +66,9 @@ namespace bpr::qt::detail {
 	inline constexpr auto markdown_highlight_property = QTextFormat::UserProperty + 0x0B5A;
 	/// Character property: summary text, which toggles its `<details>`.
 	inline constexpr auto markdown_summary_property = QTextFormat::UserProperty + 0x0B59;
+	/// Character property: the colour a formula's `\color` gave its text
+	/// ([[BPR-1792]]), kept through the styling that recolours summaries.
+	inline constexpr auto markdown_math_colour_property = QTextFormat::UserProperty + 0x0B5B;
 	/// The in-body target that toggles `<details>` number N is `details:N`.
 	inline constexpr auto markdown_details_target = QLatin1StringView{ "details:" };
 
@@ -82,6 +86,8 @@ namespace bpr::qt::detail {
 		std::vector<QString> Html;
 		/// [[BPR-1544]]. Each kept HTML link's destination, by its mark's number.
 		std::vector<QString> Hrefs;
+		/// [[BPR-1792]]. Each formula colour, by its mark's number.
+		std::vector<QColor> Colours;
 	};
 
 	/// \brief Rewrites a body for Qt's GitHub-dialect import.

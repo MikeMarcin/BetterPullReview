@@ -88,6 +88,7 @@ add_library(
         src/markdown_github.cpp
         src/markdown_code.cpp
         src/markdown_github_html.cpp
+        src/markdown_github_math.cpp
         src/pull_request_overview_page.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp

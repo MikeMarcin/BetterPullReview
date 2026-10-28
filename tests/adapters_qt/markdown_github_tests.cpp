@@ -494,6 +494,46 @@ namespace {
 		expect(aView.original_body() == body, "the source is kept");
 	}
 
+	/// The character format inside the first occurrence of `aText`.
+	auto format_inside(QTextDocument& aDocument, const QString& aText) -> QTextCharFormat
+	{
+		auto cursor = aDocument.find(aText);
+		expect(!cursor.isNull(), "the reader shows: " + aText.toStdString());
+		cursor.setPosition(cursor.selectionStart() + 1);
+		return cursor.charFormat();
+	}
+
+	// [[BPR-1792]]. GitHub renders `$…$` with MathJax, so a template's
+	// `$\color{gray}\text{…}$` reads as grey words; the reader shows those
+	// words in that colour, and leaves any other formula as written.
+	void check_math(qt::markdown_body_view& aView)
+	{
+		const auto body = fixture(QStringLiteral("math"));
+		show(aView, body, "math:1");
+		auto&      document = document_of(aView);
+		const auto text     = folded_text(document);
+		// GitHub's own page: which spans are math.
+		const auto formulas = matches(reference(QStringLiteral("math")), QStringLiteral("<math-renderer[^>]*>\\$(.*?)\\$</math-renderer>"));
+		expect(formulas.size() == 6 && formulas.contains(QStringLiteral("\\frac{a}{b}")), "GitHub takes six spans for math, the code span and a price not among them");
+		const auto note = QStringLiteral("A tidy pull request template. Ping @template-keeper with questions.");
+		expect(text.contains(note) && !text.contains(QStringLiteral("\\color{gray}")) && !text.contains(QStringLiteral("@{}")) && !text.contains(QStringLiteral("\\text{notes")), "a coloured text formula reads as its words, the empty group gone");
+		expect(format_inside(document, note).foreground().color() == QColor{ QStringLiteral("gray") }, "in the colour it names");
+		expect(format_inside(document, QStringLiteral("notes for tools")).foreground().color() == QColor{ QStringLiteral("silver") }, "a summary's formula keeps its colour too");
+		const auto boldRed = format_inside(document, QStringLiteral("bold red"));
+		expect(boldRed.foreground().color() == QColor{ QStringLiteral("#cc3300") } && boldRed.fontWeight() >= QFont::Bold, "\\textcolor and \\textbf: bold, in the hex colour");
+		expect(format_inside(document, QStringLiteral("backtick form")).foreground().color() == QColor{ QStringLiteral("teal") }, "the dollar-backtick form reads the same");
+		expect(text.contains(QStringLiteral("Math mode x+1 reads italic")) && format_inside(document, QStringLiteral("x+1")).fontItalic(), "math mode drops spaces and sets a letter italic, as TeX does");
+		expect(text.contains(QStringLiteral("$\\frac{a}{b}$ stays as written")), "a formula the reader does not draw stays as written");
+		expect(text.contains(QStringLiteral("$\\color{red}\\text{code}$")) && format_inside(document, QStringLiteral("color{red}")).fontFixedPitch(), "math in code stays code");
+		expect(text.contains(QStringLiteral("It costs $5 and that is all.")), "a price is not math");
+		expect(reserved_marks(document) == 0, "no mark is left in the document");
+		expect(aView.original_body() == body, "the source is kept");
+		// Negative control: Qt's own import shows the TeX.
+		auto control = QTextDocument{ };
+		control.setMarkdown(QString::fromStdString(body), QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML);
+		expect(control.toPlainText().contains(QStringLiteral("\\color{gray}")), "negative control: without the preparation the TeX shows");
+	}
+
 	/// Renders each fixture in each theme, for review beside GitHub's page.
 	void capture(qt::markdown_body_view& aView)
 	{
@@ -505,7 +545,7 @@ namespace {
 		const auto inherited = aView.palette();
 		for (const auto& [mode, name] : themes) {
 			aView.setPalette(palette_of(mode));
-			for (const auto& page : { QStringLiteral("pr-template"), QStringLiteral("comments"), QStringLiteral("breaks"), QStringLiteral("alerts"), QStringLiteral("footnotes") }) {
+			for (const auto& page : { QStringLiteral("pr-template"), QStringLiteral("comments"), QStringLiteral("breaks"), QStringLiteral("alerts"), QStringLiteral("footnotes"), QStringLiteral("math") }) {
 				aView.resize(720, 400);
 				show(aView, fixture(page), (page + QLatin1Char{ ':' } + QString::fromLatin1(name)).toStdString());
 				auto* const reader = aView.rendered_view();
@@ -549,6 +589,7 @@ try {
 	check_alerts(view);
 	check_footnotes(view);
 	check_template(view);
+	check_math(view);
 	check_bounds(view);
 	capture(view);
 	std::cout << "markdown-github-tests:pass\n";

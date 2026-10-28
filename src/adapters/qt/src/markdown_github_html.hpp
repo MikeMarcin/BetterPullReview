@@ -60,6 +60,8 @@ namespace bpr::qt::detail {
 		block,
 		/// `<mark>`, highlighted as GitHub's attention tint.
 		highlight,
+		/// [[BPR-1792]]. A formula's `\color`; never a tag's.
+		colour,
 	};
 
 	[[nodiscard]] auto html_kind_of(const QString& aName) -> html_kind;
