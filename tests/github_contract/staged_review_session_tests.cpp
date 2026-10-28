@@ -1020,7 +1020,6 @@ namespace {
 			expect(result.State == publication_state::conflict && remote.Writes == 5, "remote body/actor/head drift refuses maintenance before write");
 		}
 	}
-#if defined(__APPLE__)
 	// [[BPR-1787]]. A tour whose brief lives in the description is updated by
 	// the description alone: no comment changes, one write, published.
 	void test_description_only_update()
@@ -1063,6 +1062,7 @@ namespace {
 		expect(result.State == publication_state::published && result.Record && result.Record->Published && result.Record->DescriptionDone && remote.Writes == 6, "one description write publishes the update");
 		expect(remote.Summary == summary && remote.Description == *desired, "the tour comment is unchanged and the description carries the revision");
 	}
+#if defined(__APPLE__)
 	void test_strict_tour_scope()
 	{
 		for (const bool stopAfterPost : { false, true }) {
