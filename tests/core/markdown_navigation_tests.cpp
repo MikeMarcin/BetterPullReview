@@ -26,6 +26,24 @@ int main()
 	using namespace bpr::core;
 	const markdown_context          context{ { default_bpr_profile_id, bpr_window_id{ 2 }, bpr_window_generation{ 3 } }, application_session_id{ 4 }, github_identity_generation{ 5 }, provider_snapshot_id{ 6 }, 7 };
 	const markdown_link_observation observation{ context, true, true, "ghe.example.invalid", "owner", "repository", "2222222222222222222222222222222222222222", pull_request_number{ 42 } };
+	const auto                      www = markdown_autolink_target("www.example.invalid/path", markdown_autolink_form::www);
+	expect(www == "http://www.example.invalid/path", "core formats the GFM www target");
+	expect(markdown_autolink_target("person@example.invalid", markdown_autolink_form::email) == "mailto:person@example.invalid", "core formats the GFM email target");
+	expect(markdown_autolink_target("www.example.invalid/é", markdown_autolink_form::www) == "http://www.example.invalid/é", "target formatting preserves UTF8 text");
+	for (const auto* text : { "", "www.", "example.invalid", "www.example.invalid/a b", "www.example.invalid/\n" }) {
+		expect(!markdown_autolink_target(text, markdown_autolink_form::www), "malformed www tokens are refused");
+	}
+	for (const auto* text : { "", "person", "@example.invalid", "person@", "person@@example.invalid", "per son@example.invalid" }) {
+		expect(!markdown_autolink_target(text, markdown_autolink_form::email), "malformed email tokens are refused");
+	}
+	expect(!markdown_autolink_target(std::string{ "www." } + std::string(4096, 'a'), markdown_autolink_form::www), "formatted destinations remain bounded");
+	expect(!markdown_autolink_target("www.example.invalid", static_cast<markdown_autolink_form>(255)), "unknown autolink forms are refused");
+	expect(!markdown_autolink_target("www.example.invalid/\xff", markdown_autolink_form::www), "ill-formed UTF8 tokens are refused");
+	expect(www && admit_markdown_link({ context, { }, *www }, observation).has_value(), "formatted web targets still pass through host navigation admission");
+	const auto credential = markdown_autolink_target("www.example.invalid/?access_token=x", markdown_autolink_form::www);
+	expect(credential && !admit_markdown_link({ context, { }, *credential }, observation), "presentation formatting grants no credential-bearing navigation");
+	const auto email = markdown_autolink_target("person@example.invalid", markdown_autolink_form::email);
+	expect(email && !admit_markdown_link({ context, { }, *email }, observation), "rendering an email link grants no mail-client capability");
 	for (const auto* address : { "https://example.invalid/path?q=safe#section", "http://example.invalid:8080/doc", "HTTPS://EXAMPLE.INVALID/read", "https://example.invalid/%E6%97%A5" }) {
 		const auto admitted = admit_markdown_link({ context, { }, address }, observation);
 		expect(admitted && admitted->Kind == markdown_destination_kind::absolute_web && admitted->Target == address, "explicit web destination is preserved exactly");

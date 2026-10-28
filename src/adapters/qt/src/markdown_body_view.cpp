@@ -298,7 +298,7 @@ namespace bpr::qt {
 		/// matter, both in Qt's GitHub dialect.
 		constexpr auto md4c_underline  = 0x4000U;
 		constexpr auto qt_front_matter = 0x100000U;
-		/// md4c's permissive URL, email and `www.` autolinks.
+		/// md4c's permissive web, email and `www.` autolinks.
 		constexpr auto md4c_autolinks = 0x0004U | 0x0008U | 0x0400U;
 		// [[BPR-1794]]. Without the underline extension md4c reads `_text_` as
 		// emphasis and `__text__` as strong emphasis, as CommonMark and GitHub
