@@ -2265,6 +2265,32 @@ namespace {
 	// The pair set and the minimums are taken from the core as-is. Narrowing
 	// either to make a built-in palette pass would leave a check that measures
 	// only the cases already known to be fine.
+	/// [[BPR-1798]]. Every built-in profile rings a Find match at the indicator
+	/// ratio on every ground a match can land on, bare or under the selection
+	/// wash, against both the ground and the ground under the match's wash.
+	/// The owner could not see a dark-theme match on an added line.
+	void test_every_builtin_profile_rings_find_matches_on_every_ground()
+	{
+		for (const auto variant : all_variants) {
+			const auto& palette = qt::builtin_appearance_palette(variant);
+			for (const auto row : { role::code_background, role::diff_added_background, role::diff_removed_background, role::diff_intraline_added_background, role::diff_intraline_removed_background, role::diff_moved_background }) {
+				const auto bare = palette[core::index_of(row)];
+				for (const auto ground : { bare, core::composited(palette[core::index_of(role::code_selection_background)], bare, core::selection_wash_alpha) }) {
+					for (const bool current : { false, true }) {
+						const auto washed = core::composited(palette[core::index_of(current ? role::find_current_match_background : role::find_match_background)], ground, core::selection_wash_alpha);
+						const auto ring   = core::find_match_ring(palette, ground, current);
+						const auto onRow  = core::contrast_ratio_hundredths(ring, ground);
+						const auto onWash = core::contrast_ratio_hundredths(ring, washed);
+						if (onRow < core::indicator_contrast_minimum_hundredths || onWash < core::indicator_contrast_minimum_hundredths) {
+							std::cerr << "  variant " << static_cast<int>(variant) << " row role " << static_cast<int>(row) << " current " << current << ": " << onRow << '/' << onWash << " hundredths\n";
+						}
+						expect(onRow >= core::indicator_contrast_minimum_hundredths && onWash >= core::indicator_contrast_minimum_hundredths, "a Find ring reaches the indicator floor on its ground and its wash");
+					}
+				}
+			}
+		}
+	}
+
 	void test_every_builtin_profile_passes_the_published_contrast_audit()
 	{
 		// Every variant is measured before anything fails, because stopping at
@@ -2763,6 +2789,7 @@ auto main(int argc, char** argv) -> int
 	test_a_selected_rows_mark_stays_visible_and_readable();
 	test_hue_critical_pairs_are_measured_for_every_builtin_profile();
 	test_every_builtin_profile_passes_the_published_contrast_audit();
+	test_every_builtin_profile_rings_find_matches_on_every_ground();
 	test_attention_colours_read_as_text_in_every_variant();
 	test_the_attention_amber_is_a_visible_mark_in_every_variant();
 

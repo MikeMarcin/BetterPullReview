@@ -79,23 +79,31 @@
 
 namespace bpr::qt {
 	namespace {
-		/// \brief [[BPR-1503]]. The current find match's outline colour.
-		///
-		/// \details The current-match wash is held to the text floor, which
-		/// keeps it pale on a light canvas and dark on a dark one, too faint
-		/// to draw a one-pixel rule with. The outline is the same hue moved
-		/// toward the canvas's opposite until it reaches the indicator ratio
-		/// the theme checks every other mark on the canvas against.
-		[[nodiscard]] auto find_outline_color(const core::appearance_color aCurrent, const core::appearance_color aCanvas) -> QColor
+		/// \brief [[BPR-1798]]. The colour a Find match starting at `aPosition`
+		/// is drawn on: the pane's base with every row selection that covers
+		/// the position composited over it in paint order, so a selected
+		/// added line reads as the added fill under the selection wash.
+		[[nodiscard]] auto find_ground_at(const QPlainTextEdit& aPane, const std::span<const QTextEdit::ExtraSelection> aBeneath, const int aPosition) -> core::appearance_color
 		{
-			const auto canvasLight = core::contrast_ratio_hundredths(aCanvas, core::appearance_color{ 0U, 0U, 0U, 255U })
-				> core::contrast_ratio_hundredths(aCanvas, core::appearance_color{ 255U, 255U, 255U, 255U });
-			const auto toward = canvasLight ? core::appearance_color{ 0U, 0U, 0U, 255U } : core::appearance_color{ 255U, 255U, 255U, 255U };
-			auto       mark   = aCurrent;
-			for (auto alpha = 0U; alpha <= 255U && core::contrast_ratio_hundredths(mark, aCanvas) < core::indicator_contrast_minimum_hundredths; alpha += 8U) {
-				mark = core::composited(toward, aCurrent, static_cast<std::uint8_t>(std::min(alpha, 255U)));
+			const auto opaque = [](const QColor& aColour) {
+				return core::appearance_color{ static_cast<std::uint8_t>(aColour.red()), static_cast<std::uint8_t>(aColour.green()), static_cast<std::uint8_t>(aColour.blue()), 255U };
+			};
+			auto       ground = opaque(aPane.palette().color(QPalette::Base));
+			const auto block  = aPane.document()->findBlock(aPosition).blockNumber();
+			for (const auto& selection : aBeneath) {
+				const auto& brush = selection.format.background();
+				if (brush.style() == Qt::NoBrush) {
+					continue;
+				}
+				const auto& cursor = selection.cursor;
+				const bool  covers = selection.format.boolProperty(QTextFormat::FullWidthSelection)
+					? aPane.document()->findBlock(cursor.selectionStart()).blockNumber() <= block && block <= aPane.document()->findBlock(cursor.selectionEnd()).blockNumber()
+					: cursor.selectionStart() <= aPosition && aPosition < cursor.selectionEnd();
+				if (covers) {
+					ground = core::composited(opaque(brush.color()), ground, static_cast<std::uint8_t>(brush.color().alpha()));
+				}
 			}
-			return to_presentation_color(mark);
+			return ground;
 		}
 		/// Width of the change-group boundary rule, in device-independent pixels.
 		constexpr auto BoundaryRuleWidth = 2.0;
@@ -485,11 +493,17 @@ namespace bpr::qt {
 		{
 		public:
 			explicit source_pane(QWidget* aParent = nullptr);
-			QList<QTextCursor> FindOutlines;
-			/// [[BPR-1503]]. The current match's outline: the theme's current
-			/// match colour, carried to the indicator ratio on the canvas.
-			QColor FindOutlineColor;
-			void   set_unified_rows(const std::vector<unified_source_row>* aRows)
+			/// [[BPR-1798]]. A ring around one Find match: every match has one,
+			/// in a colour that reaches the indicator ratio on the ground the
+			/// match lands on, and the current match's is heavier.
+			struct find_ring
+			{
+				QTextCursor Cursor;
+				QColor      Colour;
+				bool        Current = false;
+			};
+			std::vector<find_ring> FindRings;
+			void                   set_unified_rows(const std::vector<unified_source_row>* aRows)
 			{
 				UnifiedRows = aRows;
 				refresh_gutter_width();
@@ -1174,29 +1188,7 @@ namespace bpr::qt {
 			void paintEvent(QPaintEvent* const aEvent) override
 			{
 				paint_text(aEvent);
-				for (const auto& outlineCursor : FindOutlines) {
-					auto outlinePainter = QPainter{ viewport() };
-					outlinePainter.setPen(QPen{ FindOutlineColor.isValid() ? FindOutlineColor : palette().color(QPalette::Highlight), 1.5 });
-					const auto first = outlineCursor.selectionStart();
-					const auto last  = outlineCursor.selectionEnd();
-					for (auto visible = firstVisibleBlock(); visible.isValid(); visible = visible.next()) {
-						const auto rowBox = blockBoundingGeometry(visible).translated(contentOffset());
-						if (rowBox.top() > viewport()->height()) {
-							break;
-						}
-						if (visible.position() + visible.length() <= first || visible.position() > last) {
-							continue;
-						}
-						auto beginCursor = QTextCursor{ visible };
-						beginCursor.setPosition(std::max(first, visible.position()));
-						auto endCursor = QTextCursor{ visible };
-						endCursor.setPosition(std::min(last, visible.position() + visible.length() - 1));
-						const auto beginRect = cursorRect(beginCursor);
-						const auto endRect   = cursorRect(endCursor);
-						const auto spanBox   = QRect{ beginRect.left(), beginRect.top(), std::max(2, endRect.left() - beginRect.left()), beginRect.height() };
-						outlinePainter.drawRect(spanBox.adjusted(0, 0, 0, -1));
-					}
-				}
+				paint_find_rings();
 				auto block = firstVisibleBlock();
 				if (!block.isValid()) {
 					return;
@@ -1364,6 +1356,11 @@ namespace bpr::qt {
 			/// read-only and draw no caret, placeholder or preedit, which Qt's
 			/// paint also skips for them.
 			void paint_text(QPaintEvent* aEvent);
+			/// \brief [[BPR-1798]]. Draws `FindRings` over the painted text:
+			/// one pixel for a match, two for the current one. Each ring
+			/// walks only its own blocks, so the work follows the visible
+			/// matches rather than matches times visible lines.
+			void paint_find_rings();
 
 		public:
 			/// \brief [[BPR-1533]]. The ink of unclassified text and the
@@ -2022,6 +2019,42 @@ namespace bpr::qt {
 			aLayout.draw(&aPainter, QPointF{ }, { }, QRectF{ 0.0, above, 1.0, 1.0 });
 		}
 
+		void source_pane::paint_find_rings()
+		{
+			if (FindRings.empty()) {
+				return;
+			}
+			auto       painter = QPainter{ viewport() };
+			const auto offset  = contentOffset();
+			const auto height  = viewport()->height();
+			for (const auto& ring : FindRings) {
+				// Inset by half the pen, so the ring lies on the match's own box
+				// and does not spill onto the neighbouring characters.
+				const auto width = ring.Current ? 2.0 : 1.0;
+				painter.setPen(QPen{ ring.Colour.isValid() ? ring.Colour : palette().color(QPalette::Highlight), width });
+				const auto first = ring.Cursor.selectionStart();
+				const auto last  = ring.Cursor.selectionEnd();
+				for (auto block = document()->findBlock(first); block.isValid() && block.position() <= last; block = block.next()) {
+					const auto rowBox = blockBoundingGeometry(block).translated(offset);
+					if (rowBox.top() > height) {
+						break;
+					}
+					if (!block.isVisible() || rowBox.bottom() < 0.0 || block.position() + block.length() <= first) {
+						continue;
+					}
+					auto beginCursor = QTextCursor{ block };
+					beginCursor.setPosition(std::max(first, block.position()));
+					auto endCursor = QTextCursor{ block };
+					endCursor.setPosition(std::min(last, block.position() + block.length() - 1));
+					const auto beginRect = cursorRect(beginCursor);
+					const auto endRect   = cursorRect(endCursor);
+					const auto spanBox   = QRectF{ QRect{ beginRect.left(), beginRect.top(), std::max(2, endRect.left() - beginRect.left()), beginRect.height() } };
+					const auto inset     = width / 2.0;
+					painter.drawRect(spanBox.adjusted(inset, inset, -inset, -inset));
+				}
+			}
+		}
+
 		void source_pane::paint_text(QPaintEvent* const aEvent)
 		{
 			auto painter = QPainter{ viewport() };
@@ -2067,8 +2100,8 @@ namespace bpr::qt {
 			const auto cursor = textCursor();
 			// [[BPR-1503]]. Find selects the current match; its own wash and
 			// outline mark it, so the selection is not stacked on top.
-			const bool findCurrent   = std::ranges::any_of(FindOutlines, [&cursor](const QTextCursor& aOutline) {
-				return aOutline.selectionStart() == cursor.selectionStart() && aOutline.selectionEnd() == cursor.selectionEnd();
+			const bool findCurrent   = std::ranges::any_of(FindRings, [&cursor](const find_ring& aRing) {
+				return aRing.Current && aRing.Cursor.selectionStart() == cursor.selectionStart() && aRing.Cursor.selectionEnd() == cursor.selectionEnd();
 			});
 			auto       textSelection = std::optional<std::pair<int, int>>{ };
 			auto       fullWidth     = false;
@@ -3201,18 +3234,25 @@ namespace bpr::qt {
 		if (!Find) {
 			return;
 		}
-		pane(&aPane)->FindOutlines.clear();
+		auto& rings = pane(&aPane)->FindRings;
+		rings.clear();
 		if (Find->Bar->isHidden()) {
 			return;
 		}
-		const auto& records = Find->Decorations[&aPane == Left ? 0U : &aPane == Right ? 1U
-																					  : 2U];
-		const auto  visible = paintable_line_bounds(aPane);
-		const auto  start   = aPane.document()->findBlockByNumber(static_cast<int>(visible.Begin));
-		const auto  finish  = aPane.document()->findBlockByNumber(static_cast<int>(visible.End));
-		const auto  begin   = start.isValid() ? start.position() : 0;
-		const auto  end     = finish.isValid() ? finish.position() : aPane.document()->characterCount();
-		auto        at      = std::ranges::lower_bound(records, begin, { }, &find_presentation::decoration::PrefixEnd);
+		// [[BPR-1798]]. The rows' own selections, before any match is added:
+		// the ground each match lands on is read from them. Grounds repeat
+		// (a pane has a handful of row fills), so each ring colour is
+		// derived once per ground.
+		const auto  beneath    = aSelections.size();
+		auto        ringColour = std::vector<std::pair<std::pair<core::appearance_color, bool>, QColor>>{ };
+		const auto& records    = Find->Decorations[&aPane == Left ? 0U : &aPane == Right ? 1U
+																						 : 2U];
+		const auto  visible    = paintable_line_bounds(aPane);
+		const auto  start      = aPane.document()->findBlockByNumber(static_cast<int>(visible.Begin));
+		const auto  finish     = aPane.document()->findBlockByNumber(static_cast<int>(visible.End));
+		const auto  begin      = start.isValid() ? start.position() : 0;
+		const auto  end        = finish.isValid() ? finish.position() : aPane.document()->characterCount();
+		auto        at         = std::ranges::lower_bound(records, begin, { }, &find_presentation::decoration::PrefixEnd);
 		for (; at != records.end() && at->Begin < end; ++at) {
 			if (at->End < begin) {
 				continue;
@@ -3223,16 +3263,21 @@ namespace bpr::qt {
 			selection.cursor.setPosition(at->Begin);
 			selection.cursor.setPosition(at->End, QTextCursor::KeepAnchor);
 			// [[BPR-1503]]. Every match carries the theme's find wash, and the
-			// current one its stronger wash plus an outline, composited at the
-			// selection's opacity so the contrast checks hold for both.
+			// current one its stronger wash, composited at the selection's
+			// opacity so the contrast checks hold for both. [[BPR-1798]]. The
+			// wash alone measured 1.07:1 on the dark added row, so every match
+			// also gets a ring, read against the ground it actually lands on.
 			const bool current = Find->Current == std::optional{ at->Match };
 			auto       color   = find_wash(current);
 			color.setAlpha(core::selection_wash_alpha);
 			selection.format.setBackground(color);
 			aSelections.push_back(selection);
-			if (current) {
-				pane(&aPane)->FindOutlines.push_back(selection.cursor);
+			const auto key    = std::pair{ find_ground_at(aPane, std::span{ aSelections }.first(static_cast<std::size_t>(beneath)), at->Begin), current };
+			auto       cached = std::ranges::find(ringColour, key, &decltype(ringColour)::value_type::first);
+			if (cached == ringColour.end()) {
+				cached = ringColour.insert(ringColour.end(), { key, Colors.Supplied ? to_presentation_color(core::find_match_ring(Colors.Palette, key.first, current)) : QColor{ } });
 			}
+			rings.push_back({ .Cursor = selection.cursor, .Colour = cached->second, .Current = current });
 		}
 	}
 	void diff_workbench::refresh_find_ticks()
@@ -6288,14 +6333,8 @@ namespace bpr::qt {
 		// to how a role becomes a colour cannot reach one surface and miss another.
 		colors.Syntax = code_role_colors_of(aProfile.palette());
 		Colors        = std::move(colors);
-		{
-			const auto outline = find_outline_color(aProfile.palette()[core::index_of(role::find_current_match_background)], aProfile.palette()[core::index_of(role::code_background)]);
-			for (auto* const source : { Left, Right, Unified }) {
-				pane(source)->FindOutlineColor = outline;
-			}
-			if (Find) {
-				Find->Bar->adopt_appearance(aProfile);
-			}
+		if (Find) {
+			Find->Bar->adopt_appearance(aProfile);
 		}
 		// [[BPR-1334]]. Line details repeats the panes' lines in their colours.
 		Detail->set_colors(line_details_colors{

@@ -885,6 +885,17 @@ namespace bpr::core {
 		return reaching_floor(aAccent, aSurface, indicator_contrast_minimum_hundredths);
 	}
 
+	auto find_match_ring(const appearance_palette& aPalette, const appearance_color aGround, const bool aCurrent) noexcept -> appearance_color
+	{
+		const auto wash    = aPalette[index_of(aCurrent ? appearance_role::find_current_match_background : appearance_role::find_match_background)];
+		const auto grounds = std::array{
+			contrast_ground{ .Colour = aGround, .MinimumHundredths = indicator_contrast_minimum_hundredths },
+			contrast_ground{ .Colour = composited(wash, aGround, selection_wash_alpha), .MinimumHundredths = indicator_contrast_minimum_hundredths },
+		};
+		const auto amber = aPalette[index_of(appearance_role::state_attention)];
+		return readable_signal_ink(appearance_color{ amber.Red, amber.Green, amber.Blue, 255U }, grounds);
+	}
+
 	auto emphasis_needs_own_foreground(
 		const appearance_palette& aPalette,
 		const appearance_role     aFill,
