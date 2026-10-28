@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1798"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "dark find match highlight visible on added lines",
+  "created": "2026-10-28T21:55:23+00:00",
+  "base": "144de719a8d972162f92ec04f98ba11293ae0a8f"
+}
