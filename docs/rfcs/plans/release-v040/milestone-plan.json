@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v040",
+  "scope": {
+    "issues": [
+      "BPR-1797"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "qualified-publication",
+      "outcome": "Publish one committed full v0.4.0 macOS universal, Windows x64 and Ubuntu 26.04 WSL x64 release with exact native qualification, artifacts and downloaded trust, retaining the owner-carried historical limitations.",
+      "work": [
+        {
+          "issue": "BPR-1797",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Version and grounded release notes identify one clean committed source used by all producers.",
+        "All selected native Release, Debug functional and distribution graphs compile before long suites; comprehensive actual native results and matching historical waivers are reconciled without relabeling failures.",
+        "Final binary, corresponding source, SPDX, checksums, provenance, security and native trust evidence bind the delivered artifacts; unmet M8/M9 gaps remain explicit under the user amendment.",
+        "The existing guarded publisher creates stable v0.4.0 and all uploaded assets are downloaded, hash matched and natively trust checked; upkeep and command ownership are complete."
+      ],
+      "boundary": "Only the owner-requested standard full coordinated v0.4.0 release. Explicit owner amendment carries all matching previously waived release limitations forward; it changes no observed failure into a pass. No owner desktop driving, unrelated source edits, credential changes or extra agents."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
