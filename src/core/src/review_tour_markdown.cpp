@@ -292,19 +292,19 @@ namespace bpr::core {
 		if (aRaw.size() > maximum_tour_field_bytes) {
 			return result;
 		}
-		const auto                 rows          = lines(aRaw);
-		constexpr auto             prefix        = std::string_view{ "### PR Tour · " };
-		constexpr auto             legacy_prefix = std::string_view{ "### Author's tour · " };
+		const auto                 rows         = lines(aRaw);
+		constexpr auto             prefix       = std::string_view{ "### PR Tour · " };
+		constexpr auto             legacyPrefix = std::string_view{ "### Author's tour · " };
 		std::optional<std::size_t> heading;
-		std::size_t                prefix_size = 0;
+		std::size_t                prefixSize = 0;
 		for (std::size_t index = 0; index < rows.size(); ++index) {
 			const auto text = trim(rows[index].Text);
-			if (rows[index].Top && (text.starts_with(prefix) || text.starts_with(legacy_prefix))) {
+			if (rows[index].Top && (text.starts_with(prefix) || text.starts_with(legacyPrefix))) {
 				if (heading) {
 					return result;
 				}
-				heading     = index;
-				prefix_size = text.starts_with(prefix) ? prefix.size() : legacy_prefix.size();
+				heading    = index;
+				prefixSize = text.starts_with(prefix) ? prefix.size() : legacyPrefix.size();
 			}
 		}
 		if (!heading) {
@@ -312,9 +312,9 @@ namespace bpr::core {
 		}
 		const auto first = *heading;
 		const auto text  = trim(rows[first].Text);
-		const auto dash  = text.find(" — ", prefix_size);
-		if (dash == std::string_view::npos || dash == prefix_size
-			|| !std::all_of(text.begin() + static_cast<std::ptrdiff_t>(prefix_size), text.begin() + static_cast<std::ptrdiff_t>(dash), [](unsigned char aByte) { return std::isdigit(aByte); })) {
+		const auto dash  = text.find(" — ", prefixSize);
+		if (dash == std::string_view::npos || dash == prefixSize
+			|| !std::all_of(text.begin() + static_cast<std::ptrdiff_t>(prefixSize), text.begin() + static_cast<std::ptrdiff_t>(dash), [](unsigned char aByte) { return std::isdigit(aByte); })) {
 			return result;
 		}
 		result.Heading   = tour_text_span{ rows[first].Begin, rows[first].End };

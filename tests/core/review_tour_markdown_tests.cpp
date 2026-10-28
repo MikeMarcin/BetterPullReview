@@ -99,17 +99,19 @@ namespace {
 		const std::string note  = std::string{ tour_navigation_note };
 		expect(note == "_If Next or Previous doesn't jump (GitHub hides large diffs), use the Tour overview._", "the owner's wording");
 		for (const std::string_view nl : { std::string_view{ "\n" }, std::string_view{ "\r\n" } }) {
-			const auto stop = render_tour_stop("Why", 2, "Body", three, { }, nl);
-			const auto line = std::string{ nl };
-			expect(stop && stop->ends_with(line + line + links + line + note + line), "the note sits directly under the links");
+			const auto stop      = render_tour_stop("Why", 2, "Body", three, { }, nl);
+			const auto line      = std::string{ nl };
+			const auto footer    = std::string{ links }.append(line).append(note).append(line);
+			const auto narrative = std::string{ line }.append("Body").append(line).append(line);
+			expect(stop && stop->ends_with(std::string{ line }.append(line).append(footer)), "the note sits directly under the links");
 			const auto mapped = map_tour_stop(*stop);
-			expect(mapped.Footer && slice(*stop, *mapped.Footer) == links + line + note + line, "the footer holds the links and the note");
-			expect(mapped.Narrative && slice(*stop, *mapped.Narrative) == line + "Body" + line + line, "the narrative ends before the links");
+			expect(mapped.Footer && slice(*stop, *mapped.Footer) == footer, "the footer holds the links and the note");
+			expect(mapped.Narrative && slice(*stop, *mapped.Narrative) == narrative, "the narrative ends before the links");
 			expect(with_tour_navigation_note(*stop) == *stop, "a noted stop is left alone");
-			const auto old    = "### Author's tour · 2 — Why" + line + line + "Body" + line + line + links + line;
+			const auto old    = std::string{ "### Author's tour · 2 — Why" }.append(line).append(narrative).append(links).append(line);
 			const auto before = map_tour_stop(old);
-			expect(before.Footer && slice(old, *before.Footer) == links + line && before.Narrative && slice(old, *before.Narrative) == line + "Body" + line + line, "a stop published before the note still maps");
-			expect(with_tour_navigation_note(old) == old + note + line, "an old stop gains the note under its links and nothing else changes");
+			expect(before.Footer && slice(old, *before.Footer) == std::string{ links }.append(line) && before.Narrative && slice(old, *before.Narrative) == narrative, "a stop published before the note still maps");
+			expect(with_tour_navigation_note(old) == std::string{ old }.append(note).append(line), "an old stop gains the note under its links and nothing else changes");
 		}
 		const std::array alone{ tour_markdown_link{ "Tour overview", "https://github.com/o/r/pull/7#pullrequestreview-9" } };
 		const auto       single = render_tour_stop("Only", 1, "Body", alone);
