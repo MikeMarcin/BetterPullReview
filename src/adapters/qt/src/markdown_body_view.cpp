@@ -152,10 +152,14 @@ namespace bpr::qt {
 			return result;
 		}
 
-		// Qt expands code tabs during import. Restore them only when a complete
-		// top-level fenced-code sequence exactly matches the imported blocks.
-		// This is a checked repair, not a second Markdown parser: any ambiguity
-		// (including a tab outside those fences) retains the complete source.
+		// Qt expands a code line's leading tabs during import. Restore them only
+		// when a complete top-level fenced-code sequence exactly matches the
+		// imported blocks. This is a checked repair, not a second Markdown
+		// parser: any ambiguity retains the complete source. [[BPR-1795]]: a
+		// tab outside those fences is read as CommonMark reads it (prose, list
+		// indentation, a blank line); only an indented code block that starts
+		// with whitespace, which an expanded tab could have made, still
+		// retains the source.
 		bool restore_code_tabs(QTextDocument& aDocument, const QString& aSource)
 		{
 			if (!aSource.contains(QLatin1Char{ '\t' })) {
@@ -163,7 +167,8 @@ namespace bpr::qt {
 			}
 			QStringList sourceLines;
 			code_fence  active;
-			const auto  lines = aSource.split(QLatin1Char{ '\n' });
+			auto        outsideTab = false;
+			const auto  lines      = aSource.split(QLatin1Char{ '\n' });
 			for (qsizetype index = 0; index < lines.size(); ++index) {
 				auto line = lines[index];
 				if (line.endsWith(QLatin1Char{ '\r' })) {
@@ -171,10 +176,8 @@ namespace bpr::qt {
 				}
 				const auto fence = fence_at(line);
 				if (active.Count == 0) {
-					if (line.contains(QLatin1Char{ '\t' })) {
-						return false;
-					}
-					active = fence;
+					outsideTab = outsideTab || line.contains(QLatin1Char{ '\t' });
+					active     = fence;
 				} else if (fence.Character == active.Character && fence.Count >= active.Count && fence.Info.isEmpty()) {
 					active = { };
 				} else if (index + 1 < lines.size() || !line.isEmpty()) {
@@ -187,8 +190,13 @@ namespace bpr::qt {
 			}
 			std::vector<QTextBlock> blocks;
 			for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
-				if (block.blockFormat().hasProperty(QTextFormat::BlockCodeFence)) {
+				const auto format = block.blockFormat();
+				if (format.hasProperty(QTextFormat::BlockCodeFence)) {
 					blocks.push_back(block);
+				} else if (outsideTab && format.hasProperty(QTextFormat::BlockCodeLanguage) && !block.text().isEmpty() && block.text().front().isSpace()) {
+					// An indented code line that begins with whitespace: an
+					// expanded tab cannot be told from authored spaces.
+					return false;
 				}
 			}
 			if (blocks.size() != static_cast<std::size_t>(sourceLines.size())) {
@@ -286,7 +294,17 @@ namespace bpr::qt {
 			return QColor{ blend(aFrom.red(), aTo.red()), blend(aFrom.green(), aTo.green()), blend(aFrom.blue(), aTo.blue()) };
 		}
 
-		constexpr auto markdown_features = QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML;
+		/// md4c's underline extension (`MD_FLAG_UNDERLINE`) and Qt's YAML front
+		/// matter, both in Qt's GitHub dialect.
+		constexpr auto md4c_underline  = 0x4000U;
+		constexpr auto qt_front_matter = 0x100000U;
+		// [[BPR-1794]]. Without the underline extension md4c reads `_text_` as
+		// emphasis and `__text__` as strong emphasis, as CommonMark and GitHub
+		// do; with it both were underline, and the strong form was lost.
+		// [[BPR-1795]]. A comment or description has no front matter on
+		// GitHub: a body that opens with `---` lines shows them as a rule and
+		// a heading, where Qt hid them.
+		const auto markdown_features = QTextDocument::MarkdownFeatures::fromInt((QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML).toInt() & ~(md4c_underline | qt_front_matter));
 	} // namespace
 
 	class markdown_text_view final : public QTextEdit
