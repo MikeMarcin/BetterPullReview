@@ -227,9 +227,19 @@ namespace {
 			   "only the server with a GitHub CLI profile has the GitHub CLI offer, and it is not offered while GitHub CLI is already the card's way in");
 		expect(!warning->isHidden() && warning->wordWrap() && warning->textFormat() == Qt::PlainText,
 			   "the CLI card shows a wrapped literal warning before Connect");
-		for (const auto* phrase : { "this server", "existing gh sign-in", "transient credential", "exact account", "executable", "private account configuration", "CA", "redirects", "child-process", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "does not authorize publishing" }) {
-			expect(warning->text().contains(QString::fromLatin1(phrase)), "CLI warning states each residual trust risk and read boundary");
+		for (const auto* phrase : { "this server", "existing gh sign-in", "transient credential", "exact account", "executable", "private account configuration", "CA", "redirects", "child-process", "gh 2.96 or later", "does not authorize publishing" }) {
+			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "CLI warning states each residual trust risk and read boundary: " } + phrase);
 		}
+#if defined(__APPLE__)
+		for (const auto* phrase : { "file writes are denied", "owned temporary object store", "shell credential helper", "Git 2.49 or later", "checked locally", "32 MiB" }) {
+			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "the macOS CLI card states its confinement and full-diff boundary: " } + phrase);
+		}
+#else
+		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs through GitHub CLI are not yet available" }) {
+			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "the CLI card states this platform's residual boundary: " } + phrase);
+		}
+		expect(!warning->text().contains(QStringLiteral("file writes are denied")) && !warning->text().contains(QStringLiteral("32 MiB")), "the CLI card does not promise macOS confinement or a full-diff limit on this platform");
+#endif
 		const auto host = QString::fromStdString(cliCard->hostname());
 		expect(!host.isEmpty() && cliCard->host_label()->text() == host
 				   && !warning->text().contains(host, Qt::CaseInsensitive),
@@ -284,10 +294,20 @@ namespace {
 		expect(missing != failed && missing.contains(QStringLiteral("sign-in and credential access")) && failed.contains(QStringLiteral("credential check")) && missing.contains(host) && failed.contains(QStringLiteral("chosen-reviewer")), "typed missing/access and tool failures have distinct exact-account statuses");
 		expect(!qt::github_cli_publication_failure_text(application::review_mutation_failure::credential_unavailable, QStringLiteral("chosen-reviewer"), host, true).startsWith(QStringLiteral("Not published")), "a resumed partial publication is not falsely labelled wholly unpublished");
 		const auto details = question->detailedText();
-		for (const auto* phrase : { "chosen account", "retrieves its credential into memory", "same credential", "does not save the token", "redirects", "CA certificates", "child processes", "private account configuration", "temporary object store", "shell credential helper", "gh 2.96 or later", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store limit", "swap and crash dumps", "exact-operation authority" }) {
+		for (const auto* phrase : { "chosen account", "retrieves its credential into memory", "same credential", "does not save the token", "redirects", "CA certificates", "child processes", "private account configuration", "gh 2.96 or later", "swap and crash dumps", "exact-operation authority" }) {
 			expect(details.contains(QString::fromLatin1(phrase)),
 				   std::string{ "every residual risk the long warning named is behind the disclosure: " } + phrase);
 		}
+#if defined(__APPLE__)
+		for (const auto* phrase : { "file writes are denied", "owned temporary object store", "shell credential helper", "Git 2.49 or later", "checked locally", "32 MiB", "supervised temporary-store cutoff" }) {
+			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the macOS consent disclosure states its confinement and full-diff boundary: " } + phrase);
+		}
+#else
+		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs through GitHub CLI are not yet available" }) {
+			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the consent disclosure states this platform's residual boundary: " } + phrase);
+		}
+		expect(!details.contains(QStringLiteral("file writes are denied")) && !details.contains(QStringLiteral("32 MiB")), "the consent disclosure does not promise macOS confinement or a full-diff limit on this platform");
+#endif
 
 		auto* const connect = question->button(QMessageBox::Yes);
 		auto* const cancel  = question->button(QMessageBox::Cancel);
