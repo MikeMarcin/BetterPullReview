@@ -33,8 +33,8 @@
 
 #include <QByteArray>
 #include <QCoreApplication>
-#include <QJsonArray>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
