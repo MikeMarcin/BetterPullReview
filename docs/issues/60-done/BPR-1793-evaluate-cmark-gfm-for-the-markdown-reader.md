@@ -103,7 +103,7 @@ regression test if its licences allow.
   inside multi-line links and link reference definitions, and a lone CR.
   Matches across the three suites went from 569 to 604 of 726; nothing that
   matched before stopped matching.
-- Kept for later: md4c's narrower autolinks, BPR-1796.
+- Then GFM's autolinks, BPR-1796: 607 of 726 match, 119 listed.
 
 ### The course
 
