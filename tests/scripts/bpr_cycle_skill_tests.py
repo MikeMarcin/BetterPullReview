@@ -437,9 +437,20 @@ def no_divergent_copies(package):
     MASK link may deploy it; that link must be the shared source's copy, byte for byte the package here."""
     trees = (".claude/skills", ".codex/skills", ".agents/skills")
     found = []
-    for candidate in REPOSITORY.rglob("SKILL.md"):
+    for directory, children, files in os.walk(REPOSITORY):
+        current = Path(directory)
+        # A nested checkout owns its own package. As in the PR Tour course,
+        # stop at its Git marker rather than inspecting another worktree.
+        if current != REPOSITORY and (current / ".git").exists():
+            children.clear()
+            continue
+        if current == REPOSITORY:
+            children[:] = [name for name in children if name not in ("build", ".git")]
+        if "SKILL.md" not in files:
+            continue
+        candidate = current / "SKILL.md"
         relative = candidate.relative_to(REPOSITORY).parts
-        if relative[0] in ("build", ".git") or NAME not in relative:
+        if NAME not in relative:
             continue
         if "/".join(relative[:2]) in trees and managed_link(REPOSITORY.joinpath(*relative[:3])):
             continue
