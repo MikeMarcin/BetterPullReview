@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1797"
+  ],
+  "reserve_for": "release-v040",
+  "purpose": "Prepare qualify and publish v0.4.0",
+  "created": "2026-10-28T14:21:37.978514+00:00",
+  "base": "7dc90f2d8e7a6ef9c852a1db93f6c20e2c1570ae"
+}
