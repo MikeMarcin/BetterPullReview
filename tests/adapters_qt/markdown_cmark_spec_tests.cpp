@@ -205,7 +205,9 @@ try {
 			++total;
 			const auto ours   = shape(*view.rendered_view()->document());
 			const auto theirs = shape(expected);
-			if (ours == theirs) {
+			// `<IGNORE>` marks a does-not-crash example, which cmark-gfm does not
+			// compare: reading it is the test.
+			if (ours == theirs || example.Html.trimmed() == QStringLiteral("<IGNORE>")) {
 				++matching;
 			} else {
 				found.emplace(example.Name, example.Section);

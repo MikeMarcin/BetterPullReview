@@ -561,6 +561,43 @@ namespace {
 		expect(underlined == 1U, "only <ins> underlines");
 	}
 
+	/// The link targets in document order, with their text.
+	auto hrefs_of(QTextDocument& aDocument) -> std::vector<std::pair<QString, QString>>
+	{
+		std::vector<std::pair<QString, QString>> found;
+		for (const auto& link : links_of(aDocument)) {
+			found.emplace_back(link.Text, link.Href);
+		}
+		return found;
+	}
+
+	// [[BPR-1796]]. GFM's autolinks, as GitHub makes them: the reader links
+	// what md4c's permissive autolinks missed and ends each link where GFM
+	// does, and links nothing inside code, an existing link or a scheme it
+	// does not know.
+	void check_autolinks(qt::markdown_body_view& aView)
+	{
+		show(aView,
+			 "See http://example.com/caf\xC3\xA9 and www.example.org/a_(b).\n\n"
+			 "Mail mailto:dev@example.com, xmpp:bot@example.com/home or dev@example.com.\n\n"
+			 "Quoted \"https://example.com/q\" and www.example.com/search?q=x&amp; done.\n\n"
+			 "Not javascript:alert(1), not `http://in.code/x`, not [text](https://kept.example/) twice, not www.bad._host.com.\n",
+			 "autolinks:1");
+		const auto links    = hrefs_of(document_of(aView));
+		const auto expected = std::vector<std::pair<QString, QString>>{
+			{ QStringLiteral("http://example.com/caf\u00e9"), QStringLiteral("http://example.com/caf\u00e9") },
+			{ QStringLiteral("www.example.org/a_(b)"), QStringLiteral("http://www.example.org/a_(b)") },
+			{ QStringLiteral("mailto:dev@example.com"), QStringLiteral("mailto:dev@example.com") },
+			{ QStringLiteral("xmpp:bot@example.com/home"), QStringLiteral("xmpp:bot@example.com/home") },
+			{ QStringLiteral("dev@example.com"), QStringLiteral("mailto:dev@example.com") },
+			{ QStringLiteral("https://example.com/q"), QStringLiteral("https://example.com/q") },
+			{ QStringLiteral("www.example.com/search?q=x"), QStringLiteral("http://www.example.com/search?q=x") },
+			{ QStringLiteral("text"), QStringLiteral("https://kept.example/") },
+		};
+		expect(links == expected, "GFM autolinks: a non-ASCII path, balanced parentheses, mailto: and xmpp:, an email, a quoted URL, an entity-like end; trailing punctuation left out");
+		expect(folded_text(document_of(aView)).contains(QStringLiteral("Not javascript:alert(1), not http://in.code/x, not text twice, not www.bad._host.com.")), "no other scheme, code, existing link or underscored host is linked");
+	}
+
 	/// Renders each fixture in each theme, for review beside GitHub's page.
 	void capture(qt::markdown_body_view& aView)
 	{
@@ -618,6 +655,7 @@ try {
 	check_template(view);
 	check_math(view);
 	check_underscores(view);
+	check_autolinks(view);
 	check_bounds(view);
 	capture(view);
 	std::cout << "markdown-github-tests:pass\n";
