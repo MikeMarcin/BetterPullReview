@@ -502,8 +502,9 @@ namespace {
 		reply.Body                            = "The lock covers it.";
 		thread.Comments                       = { opening, gone, reply };
 		const auto read                       = application::read_conversation(thread);
+		const auto expectedComments           = std::vector<core::brief_comment>{ { "ana", "Can this race?" }, { "", "The lock covers it." } };
 		expect(read.Subject == core::conversation_subject::review_thread && read.Path == "src/cache.cpp" && read.Line == 42U && read.StartLine == 41U
-				   && read.Comments == std::vector<core::brief_comment>{ { "ana", "Can this race?" }, { "", "The lock covers it." } },
+				   && read.Comments == expectedComments,
 			   "a thread is read with its current lines, its range from the opening comment, and its comments without the deleted one");
 		auto outdated = thread;
 		outdated.Line.reset();
