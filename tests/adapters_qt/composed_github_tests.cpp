@@ -8238,7 +8238,12 @@ namespace {
 			const auto* const card   = cards[index];
 			const auto        name   = "the card for " + card->hostname();
 			const auto        within = [card](const QWidget* const aWidget) { return card->isAncestorOf(aWidget); };
-			const auto        option = std::ranges::find(fixture, presented[index], &application::github_profile_option::Profile);
+			// The required trust disclosure is checked separately by the CLI
+			// warning course. Only that exact widget is outside header density.
+			const auto transportWithin = [card](const QWidget* const aWidget) {
+				return card->isAncestorOf(aWidget) && aWidget != card->cli_trust_warning();
+			};
+			const auto option = std::ranges::find(fixture, presented[index], &application::github_profile_option::Profile);
 			expect(option != fixture.end() && card->profile() == presented[index],
 				   during(name + " speaks for the profile the state chose for it"));
 			const auto speaks = option->Transport == application::github_profile_transport::github_cli ? cli : native;
@@ -8248,19 +8253,19 @@ namespace {
 			const auto logins = aState.SignedIn && card->holds(aState.Current) ? 1U : 0U;
 			expect_mentions(texts, login, fact_kind::words, within, logins, logins,
 							during(name + (logins == 1U ? " names its signed-in account once" : " names no account")));
-			expect_mentions(texts, speaks, fact_kind::words, within, 1U, 1U,
+			expect_mentions(texts, speaks, fact_kind::words, transportWithin, 1U, 1U,
 							during(name + " names the transport it speaks for once"));
 			expect_mentions(
 				texts, speaks, fact_kind::words, [card](const QWidget* const aWidget) { return aWidget == card->kind_label(); }, 1U, 1U,
 				during(name + " names the transport it speaks for in its kind line"));
-			expect_mentions(texts, other, fact_kind::words, within, 0U, 1U,
+			expect_mentions(texts, other, fact_kind::words, transportWithin, 0U, 1U,
 							during(name + " names the other transport at most once"));
 			expect_mentions(
 				texts, cli, fact_kind::words,
 				[card](const QWidget* const aWidget) {
-					return card->isAncestorOf(aWidget) && aWidget != card->kind_label() && aWidget != card->cli_offer_button();
+					return card->isAncestorOf(aWidget) && aWidget != card->kind_label() && aWidget != card->cli_offer_button() && aWidget != card->cli_trust_warning();
 				},
-				0U, 0U, during("only the kind line and the GitHub CLI offer name GitHub CLI on " + name));
+				0U, 0U, during("outside the trust warning only the kind line and the GitHub CLI offer name GitHub CLI on " + name));
 			expect_mentions(
 				texts, native, fact_kind::words,
 				[card](const QWidget* const aWidget) { return card->isAncestorOf(aWidget) && aWidget != card->kind_label(); },
@@ -8334,8 +8339,10 @@ namespace {
 			texts, aTransport, fact_kind::words,
 			[&aSigning](const QWidget* const aWidget) { return aWidget == aSigning.kind_label(); }, 1U, 1U,
 			during("the card names the transport it speaks for in its kind line"));
-		expect_mentions(texts, aTransport, fact_kind::words, anywhere, 1U, 1U,
-						during("the dialog names that transport once"));
+		expect_mentions(
+			texts, aTransport, fact_kind::words,
+			[&aSigning](const QWidget* const aWidget) { return aWidget != aSigning.cli_trust_warning(); }, 1U, 1U,
+			during("outside the trust warning the dialog names that transport once"));
 		expect_mentions(
 			texts, QStringLiteral("Signing in"), fact_kind::words,
 			[&aSigning](const QWidget* const aWidget) { return aWidget == aSigning.state_label(); }, 1U, 1U,
@@ -8381,6 +8388,29 @@ namespace {
 		expect(page != nullptr && window.settings()->isVisible()
 				   && window.settings()->current_page() == qt::settings_page::accounts_and_hosts,
 			   "Settings is open on Accounts and hosts");
+		{
+			auto* const card = window.server_card_for(core::host_profile_id{ 21U });
+			expect(card != nullptr && card->cli_offer_button() != nullptr && card->cli_trust_warning() != nullptr,
+				   "the density controls use the real card, offer and trust warning");
+			const auto summary = [card](const QWidget* const aWidget) {
+				return card->isAncestorOf(aWidget) && aWidget != card->cli_trust_warning();
+			};
+			const auto cli   = QStringLiteral("GitHub CLI");
+			auto       texts = shown_texts(page);
+			expect(mentions(texts, cli, fact_kind::words, summary) == 1U,
+				   "the native card's one CLI offer is counted outside its full trust warning");
+			auto duplicate = QLabel{ cli, card };
+			duplicate.setObjectName(card->cli_trust_warning()->objectName());
+			duplicate.show();
+			texts = shown_texts(page);
+			expect(mentions(texts, cli, fact_kind::words, summary) == 2U,
+				   "a second CLI label is detected even when it copies the warning's object name");
+			duplicate.hide();
+			texts = shown_texts(page);
+			std::erase_if(texts, [card](const shown_text& aText) { return aText.Widget == card->cli_offer_button(); });
+			expect(mentions(texts, cli, fact_kind::words, summary) == 0U,
+				   "a missing CLI offer cannot satisfy the density oracle");
+		}
 		const auto inspect = [&window, page](const accounts_page_state& aState) {
 			QApplication::processEvents();
 			auto* const current = window.server_card_for(aState.Current);
