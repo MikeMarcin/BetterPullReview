@@ -65,7 +65,7 @@ namespace {
 	constexpr auto overview = std::string_view{ "https://github.com/octo/widgets/pull/7#pullrequestreview-9" };
 	constexpr auto source   = std::string_view{ "https://github.com/octo/widgets/blob/1111111111111111111111111111111111111111/src/frame.cpp#L12-L18" };
 
-	[[nodiscard]] auto stop_body(const std::string& aTitle, const std::size_t aOrdinal, const std::string& aNarrative, const std::size_t aCount) -> std::string
+	[[nodiscard]] auto stop_body(const std::string& aTitle, const std::size_t aOrdinal, const std::string_view aNarrative, const std::size_t aCount) -> std::string
 	{
 		auto links = std::vector<core::tour_markdown_link>{ };
 		if (aOrdinal > 1U) {
@@ -80,7 +80,7 @@ namespace {
 		return *body;
 	}
 
-	const auto narrative = std::string{ "The frame is clamped **before** layout, so a `nullptr` view never reaches the painter.\n\nThe caller owns the width." };
+	constexpr auto narrative = std::string_view{ "The frame is clamped **before** layout, so a `nullptr` view never reaches the painter.\n\nThe caller owns the width." };
 
 	void add_thread(std::vector<conversation>& aForest, const std::string& aThread, const std::string& aBody, const std::uint32_t aLine)
 	{

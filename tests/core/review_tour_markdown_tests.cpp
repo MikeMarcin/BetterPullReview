@@ -1,9 +1,11 @@
 #include "bpr/core/review_tour_markdown.hpp"
 #include <array>
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <tuple>
 #include <vector>
 
@@ -145,8 +147,17 @@ namespace {
 			return result;
 		};
 		for (const std::string nl : { "\n", "\r\n" }) {
-			const auto narrative = std::string{ "question: Should the clamp *live* here?" } + nl + nl + "The renderer trusts it.";
-			const auto middle    = render_tour_stop("Why `width` is [clamped]", 6, narrative, links(true, true), source, nl);
+			// Each body written line by line in this newline style.
+			const auto lined = [&nl](const std::initializer_list<std::string_view> aLines) {
+				auto result = std::string{ };
+				for (const auto line : aLines) {
+					result.append(line).append(nl);
+				}
+				return result;
+			};
+			auto narrative = lined({ "question: Should the clamp *live* here?", "" });
+			narrative.append("The renderer trusts it.");
+			const auto middle = render_tour_stop("Why `width` is [clamped]", 6, narrative, links(true, true), source, nl);
 			expect(middle.has_value(), "the publisher renders a middle stop");
 			const auto stop = recognize_published_tour_stop(*middle);
 			expect(stop.has_value() && stop->Ordinal == 6U && stop->Title == "Why `width` is [clamped]", "the number and the unescaped title are read back");
@@ -159,38 +170,40 @@ namespace {
 			expect(read && read->Ordinal == 1U && !read->PinnedSource && !read->Previous && read->Next && slice(*first, read->Narrative) == "Plain words.",
 				   "a first stop without a pinned source is recognized");
 			// A stop published before its note, and one only partly published.
-			const auto noteless = "### PR Tour · 2 — Old" + nl + nl + "Words." + nl + nl + "[Previous](https://x/1) · [Tour overview](https://x/o)" + nl;
+			const auto noteless = lined({ "### PR Tour · 2 — Old", "", "Words.", "", "[Previous](https://x/1) · [Tour overview](https://x/o)" });
 			expect(recognize_published_tour_stop(noteless).has_value(), "a stop published before BPR-1785's note is still a stop");
 			const auto pending = render_tour_stop("Pending", 3, "Words.", links(false, false), { }, nl);
 			expect(pending && recognize_published_tour_stop(*pending).has_value(), "a stop with only Tour overview is a stop");
-			const auto legacy = "### Author's tour · 4 — Legacy" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl + nl;
+			const auto legacy = lined({ "### Author's tour · 4 — Legacy", "", "Words.", "", "[Tour overview](https://x/o)", "" });
 			expect(recognize_published_tour_stop(legacy).has_value(), "the legacy heading and trailing blank lines are accepted");
 
 			// Not stops: anything other than the exact envelope.
-			const auto refused = std::array{
+			constexpr auto overviewLink = std::string_view{ "[Tour overview](https://x/o)" };
+			const auto     plain        = [&lined, overviewLink](const std::string_view aHeading) { return lined({ aHeading, "", "Words.", "", overviewLink }); };
+			const auto     refused      = std::array{
 				std::string{ "Ordinary comment." },
 				std::string{ },
-				"### PR Tour · 2 — Missing navigation" + nl + nl + "Words." + nl,
-				"### PR Tour · 2 — No narrative" + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 — Blank narrative" + nl + nl + "   " + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"Intro words" + nl + nl + "### PR Tour · 2 — Prose before" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"https://x/a https://x/b" + nl + nl + "### PR Tour · 2 — Two sources" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 02 — Leading zero" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 0 — Zero" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 257 — Too many" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · six — Words" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 —   " + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 - Hyphen" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"## PR Tour · 2 — Level two" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 — No gap" + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 — Glued links" + nl + nl + "Words." + nl + "[Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 — After" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl + nl + "Postscript." + nl,
-				"### PR Tour · 2 — Order" + nl + nl + "Words." + nl + nl + "[Next](https://x/n) · [Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 — Other" + nl + nl + "Words." + nl + nl + "[Home](https://x/o)" + nl,
-				"### PR Tour · 1 — First with previous" + nl + nl + "Words." + nl + nl + "[Previous](https://x/p) · [Tour overview](https://x/o)" + nl,
-				"```" + nl + "### PR Tour · 2 — Fenced" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl + "```" + nl,
-				"> ### PR Tour · 2 — Quoted" + nl + ">" + nl + "> Words." + nl + ">" + nl + "> [Tour overview](https://x/o)" + nl,
-				"### PR Tour · 2 — Fence open" + nl + nl + "```" + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				lined({ "### PR Tour · 2 — Missing navigation", "", "Words." }),
+				lined({ "### PR Tour · 2 — No narrative", "", overviewLink }),
+				lined({ "### PR Tour · 2 — Blank narrative", "", "   ", "", overviewLink }),
+				lined({ "Intro words", "", "### PR Tour · 2 — Prose before", "", "Words.", "", overviewLink }),
+				lined({ "https://x/a https://x/b", "", "### PR Tour · 2 — Two sources", "", "Words.", "", overviewLink }),
+				plain("### PR Tour · 02 — Leading zero"),
+				plain("### PR Tour · 0 — Zero"),
+				plain("### PR Tour · 257 — Too many"),
+				plain("### PR Tour · six — Words"),
+				plain("### PR Tour · 2 —   "),
+				plain("### PR Tour · 2 - Hyphen"),
+				plain("## PR Tour · 2 — Level two"),
+				lined({ "### PR Tour · 2 — No gap", "Words.", "", overviewLink }),
+				lined({ "### PR Tour · 2 — Glued links", "", "Words.", overviewLink }),
+				lined({ "### PR Tour · 2 — After", "", "Words.", "", overviewLink, "", "Postscript." }),
+				lined({ "### PR Tour · 2 — Order", "", "Words.", "", "[Next](https://x/n) · [Tour overview](https://x/o)" }),
+				lined({ "### PR Tour · 2 — Other", "", "Words.", "", "[Home](https://x/o)" }),
+				lined({ "### PR Tour · 1 — First with previous", "", "Words.", "", "[Previous](https://x/p) · [Tour overview](https://x/o)" }),
+				lined({ "```", "### PR Tour · 2 — Fenced", "", "Words.", "", overviewLink, "```" }),
+				lined({ "> ### PR Tour · 2 — Quoted", ">", "> Words.", ">", "> [Tour overview](https://x/o)" }),
+				lined({ "### PR Tour · 2 — Fence open", "", "```", "Words.", "", overviewLink }),
 			};
 			for (const auto& body : refused) {
 				if (recognize_published_tour_stop(body)) {
