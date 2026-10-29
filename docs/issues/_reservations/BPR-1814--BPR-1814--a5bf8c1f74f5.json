@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1814"
+  ],
+  "reserve_for": "release-v041-msvc-bigobj",
+  "purpose": "Permit the Windows Debug epoch application host object section count with a narrow MSVC bigobj option and regression proof",
+  "created": "2026-10-29T18:17:30.517893+00:00",
+  "base": "22022f13b1096601ee7ebe1536f8cc8b8156f893"
+}
