@@ -60,3 +60,26 @@ run correctly refused an absent `gh_cli_git_smart_transport` executable in the
 partial engineering build; it supplied no metadata acceptance. After building that exact
 helper, the complete Mac manifest passes (0.54 s). No test is removed to avoid
 the prerequisite. Actual new-source Windows verification remains pending.
+
+## BPR-1800 controlled refresh course
+
+On 2026-10-29, the new `application_thread_resolution_refresh` course was
+measured on source `a74c9a8755e0ec87365f00a758e963fc360d7bb7` in the isolated
+`C:/Users/mikem/bpr-v040-repairs-r1` checkout, in the same approved limited
+interactive context. The exact Release image passes directly in 7.21 seconds
+and its contained command exits 1 at `FAILED: fixture application starts`.
+The exact Debug image passes directly in 17.80 seconds and its contained
+command exits 1 at the same predicate. These are functional observations,
+with no performance or lower-level Win32 cause claim.
+
+The paired commands preserve each manifest's environment, working directory,
+arguments and executable digest. Release image SHA-256 is
+`995009ebc4d47d1f04f43cf12c9b95459e937823fe55cc26866a6b3f7be27590`;
+Debug is `f44f0ffb06420ff18949dabce7188e05edb121a7d7cc472adc74b82b427669d3`.
+Raw streams, manifests and the terminal receipt remain externally under
+`lifecycle-containment-r1`; the Mac copy is in the release run's
+`qualification-repairs-r1` directory. The `fixture-startup-unavailable` pin
+names only that observed predicate. It changes this new Windows registration;
+the product, assertions, deadline, fixture and capability requests are unchanged.
+Registered native functional verification follows separately; these pairs do
+not supply a successful contained course or native package/trust acceptance.

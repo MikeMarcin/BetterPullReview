@@ -750,6 +750,9 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # the exact first predicates are retained without a Win32 cause.
                 "startup-registry-unavailable",
                 "ineligible-inventory-composition-refused",
+                # [[BPR-1800]]. Both native configurations refuse the first
+                # fixture-startup predicate; no lower-level cause was sampled.
+                "fixture-startup-unavailable",
                 # RFC-BPR-0093 measured native loader refusals.
                 "cmake-dll-initialization",
                 "qt-dll-initialization",
