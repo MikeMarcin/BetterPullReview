@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1813"
+  ],
+  "reserve_for": "release-v041-cold-options",
+  "purpose": "Declare the portable SHA256 option before release-cohort observation and prove cold/warm configuration equivalence",
+  "created": "2026-10-29T16:29:53.234038+00:00",
+  "base": "c674b7038c785b1401383f9d27e1cf7cc0b18721"
+}
