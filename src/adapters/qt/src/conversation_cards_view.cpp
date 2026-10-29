@@ -773,6 +773,7 @@ namespace bpr::qt {
 		RetainedLeads.clear();
 		RetainedTourStops.clear();
 		RetainedTourCounts.clear();
+		RetainedTourLinks.clear();
 		index_retained();
 		Draft.reset();
 		Current.clear();
@@ -872,6 +873,16 @@ namespace bpr::qt {
 			RetainedTourCounts = std::vector<std::optional<std::size_t>>(Retained.size());
 			for (std::size_t index = 0U; index < owners.size(); ++index) {
 				RetainedTourCounts[owners[index]] = counts[index];
+			}
+			// [[BPR-1810]]. Where each stop's Previous and Next lead, as
+			// retained indexes.
+			const auto links  = core::published_tour_stop_neighbours(stops);
+			RetainedTourLinks = std::vector<core::published_tour_stop_links>(Retained.size());
+			const auto owner  = [&owners](const std::optional<std::size_t> aStop) -> std::optional<std::size_t> {
+				return aStop.has_value() ? std::optional{ owners[*aStop] } : std::nullopt;
+			};
+			for (std::size_t index = 0U; index < owners.size(); ++index) {
+				RetainedTourLinks[owners[index]] = { .Previous = owner(links[index].Previous), .Next = owner(links[index].Next) };
 			}
 		}
 		RetainedById.reserve(Retained.size());
@@ -1166,6 +1177,59 @@ namespace bpr::qt {
 	{
 		TourOpenDispatch = std::move(aDispatch);
 		rebuild_open_card();
+	}
+
+	void conversation_cards_view::set_tour_step_dispatch(std::function<void(const std::string&)> aDispatch)
+	{
+		TourStepDispatch = std::move(aDispatch);
+	}
+
+	auto conversation_cards_view::step_tour(const bool aForward) -> bool
+	{
+		const auto index = card_index(Open);
+		if (!index.has_value() || Cards[*index].Posts.empty()) {
+			return false;
+		}
+		const auto& post     = Cards[*index].Posts.front();
+		const auto& reaching = aForward ? post.TourNext : post.TourPrevious;
+		if (!post.TourStop.has_value() || !reaching.has_value()) {
+			return false;
+		}
+		// The stepped-to plate takes focus on the same chevron, so the
+		// keyboard can go on stepping, when the stepping plate held it.
+		const auto thread = reaching->Thread;
+		const auto focus  = OpenCard != nullptr && OpenCard->isAncestorOf(QApplication::focusWidget());
+		TourStepThread    = thread;
+		TourStepFocus     = focus ? (aForward ? QStringLiteral("threadPostTourNext") : QStringLiteral("threadPostTourPrevious")) : QString{ };
+		if (const auto dispatch = TourStepDispatch; dispatch) {
+			dispatch(thread);
+		} else if (card_index(thread).has_value()) {
+			open_thread(thread);
+		}
+		if (!TourStepThread.empty() && Open == TourStepThread) {
+			focus_tour_step();
+		}
+		TourStepThread.clear();
+		TourStepFocus.clear();
+		return true;
+	}
+
+	void conversation_cards_view::focus_tour_step()
+	{
+		const auto name = std::exchange(TourStepFocus, QString{ });
+		TourStepThread.clear();
+		if (name.isEmpty() || OpenCard == nullptr || OpenCard->posts().empty() || OpenCard->posts().front()->tour_plate() == nullptr) {
+			return;
+		}
+		auto* const plate  = OpenCard->posts().front()->tour_plate();
+		auto*       chosen = plate->findChild<QAbstractButton*>(name);
+		if (chosen == nullptr || !chosen->isEnabled()) {
+			// At the tour's end the other chevron keeps the keyboard on the plate.
+			chosen = plate->findChild<QAbstractButton*>(name == QStringLiteral("threadPostTourNext") ? QStringLiteral("threadPostTourPrevious") : QStringLiteral("threadPostTourNext"));
+		}
+		if (chosen != nullptr && chosen->isEnabled()) {
+			chosen->setFocus(Qt::OtherFocusReason);
+		}
 	}
 
 	auto conversation_cards_view::comment_editable(const std::string_view aPost) const -> bool
@@ -2358,6 +2422,22 @@ namespace bpr::qt {
 		}
 		LayoutNodesVisited += candidates.size();
 		auto cardsById = std::unordered_map<std::string_view, std::size_t>{ };
+		// [[BPR-1810]]. A stop's neighbour, by its retained index: its thread
+		// (its topmost retained ancestor), number and title.
+		const auto neighbour = [this](const std::size_t aPost, const bool aForward) -> std::optional<tour_stop_neighbour> {
+			if (aPost >= RetainedTourLinks.size()) {
+				return std::nullopt;
+			}
+			const auto reached = aForward ? RetainedTourLinks[aPost].Next : RetainedTourLinks[aPost].Previous;
+			if (!reached.has_value() || *reached >= RetainedRoot.size() || !RetainedTourStops[*reached].has_value()) {
+				return std::nullopt;
+			}
+			auto result     = std::optional<tour_stop_neighbour>{ std::in_place };
+			result->Thread  = Retained[RetainedRoot[*reached]].Id;
+			result->Ordinal = RetainedTourStops[*reached]->Ordinal;
+			result->Title   = RetainedTourStops[*reached]->Title;
+			return result;
+		};
 		for (const auto index : candidates) {
 			const auto& node = Retained[index];
 			// Beside the code the notes are review threads. Discuss also lists
@@ -2436,6 +2516,8 @@ namespace bpr::qt {
 					.Lead          = RetainedLeads[index],
 					.TourStop      = RetainedTourStops[index],
 					.TourStopCount = RetainedTourCounts[index],
+					.TourPrevious  = neighbour(index, false),
+					.TourNext      = neighbour(index, true),
 				});
 			}
 			cardsById.emplace(node.Id, Cards.size());
@@ -2502,6 +2584,8 @@ namespace bpr::qt {
 				.Lead          = RetainedLeads[index],
 				.TourStop      = firstPost ? RetainedTourStops[index] : std::nullopt,
 				.TourStopCount = firstPost ? RetainedTourCounts[index] : std::nullopt,
+				.TourPrevious  = firstPost ? neighbour(index, false) : std::nullopt,
+				.TourNext      = firstPost ? neighbour(index, true) : std::nullopt,
 			});
 		}
 		// [[BPR-1779]]. In time order the core keeps the comments it lists, in
@@ -2729,6 +2813,11 @@ namespace bpr::qt {
 		for (const auto& post : card.Posts) {
 			// [[BPR-1775]]. Who wrote it decides Edit, so it is drawn too.
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QChar{ 0x1f } + post.Author + QString::number(static_cast<int>(post.Mine));
+			// [[BPR-1810]]. A neighbouring stop arriving or going changes the
+			// plate's chevrons.
+			for (const auto& reached : { post.TourPrevious, post.TourNext }) {
+				key += QChar{ 0x1f } + (reached.has_value() ? QString::fromStdString(reached->Thread + '\x1f' + reached->Title) : QString{ });
+			}
 		}
 		if (OpenCard != nullptr && OpenCard->property("threadKey").toString() == key) {
 			OpenCard->present_read_state(card);
@@ -2874,7 +2963,10 @@ namespace bpr::qt {
 				dispatch(aPost, aStop);
 			}
 		};
-		OpenCard->EditText = [this](const std::string& aText) {
+		// [[BPR-1810]]. Its chevrons step to the neighbouring stops' threads;
+		// the card they leave is deleted later, so the press finishes.
+		OpenCard->TourStepRequested = [this](const bool aForward) { static_cast<void>(step_tour(aForward)); };
+		OpenCard->EditText          = [this](const std::string& aText) {
 			if (CommentEdit.has_value() && !CommentEdit->Saving) {
 				CommentEdit->Text = aText;
 			}

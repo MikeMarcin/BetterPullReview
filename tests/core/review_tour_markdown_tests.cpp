@@ -238,6 +238,21 @@ namespace {
 		const auto publishing = std::array{ stop("a", 1, false, false), stop("a", 2, false, false) };
 		expect(published_tour_stop_counts(publishing) == std::vector<std::optional<std::size_t>>{ std::nullopt, std::nullopt }, "a tour still being published has no count yet");
 
+		// [[BPR-1810]]. Where each stop's Previous and Next lead among the stops at hand.
+		using hops            = published_tour_stop_links;
+		const auto neighbours = published_tour_stop_neighbours(whole);
+		expect(neighbours == std::vector<hops>{ hops{ 2U, 3U }, hops{ }, hops{ std::nullopt, 0U }, hops{ 0U, std::nullopt } },
+			   "a whole tour's stops lead to their neighbours by index, in the given order; a tour of one leads nowhere");
+		expect(published_tour_stop_neighbours(missing) == std::vector<hops>{ hops{ }, hops{ } }, "a neighbour not at hand is reached by nothing");
+		const auto doubled = std::array{ stop("a", 1, false, true), stop("a", 2, true, true), stop("a", 2, true, true), stop("a", 3, true, false) };
+		expect(published_tour_stop_neighbours(doubled) == std::vector<hops>{ hops{ }, hops{ 0U, 3U }, hops{ 0U, 3U }, hops{ } },
+			   "a number two stops share is reached by nothing, though they reach their own neighbours");
+		expect(published_tour_stop_neighbours(publishing) == std::vector<hops>{ hops{ }, hops{ } }, "a stop without its links reaches nothing, though its neighbour is at hand");
+		const auto tours = std::array{ stop("a", 1, false, true), stop("b", 2, true, false), stop("b", 1, false, true) };
+		expect(published_tour_stop_neighbours(tours) == std::vector<hops>{ hops{ }, hops{ 2U, std::nullopt }, hops{ std::nullopt, 1U } },
+			   "a stop of another tour at the next number is not a neighbour");
+		expect(published_tour_stop_neighbours(std::span<const published_tour_stop>{ }).empty(), "no stops, no links");
+
 		// The tour's own stop for a comment: by its binding, then by number and title.
 		auto tour = review_tour{ };
 		for (const auto& [id, title, entity] : std::array{ std::tuple{ 1U, "Start", "PRRC_1" }, std::tuple{ 2U, "Middle", "PRRC_2" }, std::tuple{ 3U, "End", "" } }) {

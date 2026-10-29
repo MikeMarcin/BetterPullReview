@@ -2,6 +2,7 @@
 
 #include "bpr/core/tour_steps.hpp"
 
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -1846,7 +1847,7 @@ namespace bpr::qt {
 		StopReader->setAccessibleName(tr("Stop explanation"));
 		StopReader->set_in_place(true);
 		StopReader->set_context_controls(true);
-		StopReader->set_code_font(code_font_of(font()), 4.0 * QFontMetricsF{ code_font_of(font()) }.horizontalAdvance(QLatin1Char{ ' ' }));
+		apply_reader_code_font();
 		StopReader->set_empty_body_text(tr("No explanation yet. Use the pencil to write one."));
 		// Placing the card reparents the reader, which reports a new height:
 		// the card is placed again once, after, never from inside itself.
@@ -2307,6 +2308,14 @@ namespace bpr::qt {
 		ReadTitle->setVisible(!writing);
 		StopReader->setVisible(!writing);
 		EditStop->setVisible(!writing);
+		// [[BPR-1805]] repair (owner review, 2026-10-29). A stop being written
+		// but not yet ready says "Editing" only while its editor is open: read,
+		// that word beside the pencil made the reader look like the editor.
+		// Ready, Needs attention and Suggested still show either way.
+		if (StopState != nullptr) {
+			const auto* const stop = selected_stop();
+			StopState->setVisible(writing || (stop != nullptr && stop->Preparation != core::tour_preparation::editing));
+		}
 		EditStop->setEnabled(Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly);
 		// The keyboard stays with the stop as it changes between read and written.
 		if (writing && onRead) {
@@ -2776,13 +2785,58 @@ namespace bpr::qt {
 		}
 	}
 
+	void review_tour_editor::set_code_font(const QFont& aFont)
+	{
+		if (ReaderCodeFont == aFont) {
+			return;
+		}
+		ReaderCodeFont = aFont;
+		apply_reader_code_font();
+		place_stop_card();
+	}
+
+	void review_tour_editor::apply_reader_code_font()
+	{
+		// [[BPR-1805]] repair (owner review, 2026-10-29). Code in a stop reads
+		// as code in a comment does: the profile's code font, by default the
+		// default typography's, never the platform's bare fixed font, which an
+		// offscreen or unconfigured platform resolves to a small serif.
+		const auto code = ReaderCodeFont.value_or(to_presentation_font(default_typography_settings().Code));
+		const auto tab  = 4.0 * QFontMetricsF{ code }.horizontalAdvance(QLatin1Char{ ' ' });
+		for (auto* const reader : { StopReader, Preview, PublicationPreview }) {
+			if (reader != nullptr) {
+				reader->set_code_font(code, tab);
+			}
+		}
+	}
+
+	void review_tour_editor::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		for (auto* const reader : { StopReader, Preview, PublicationPreview }) {
+			if (reader != nullptr) {
+				reader->set_code_syntax_dispatch(aDispatch);
+				reader->request_code_syntax();
+			}
+		}
+	}
+
+	void review_tour_editor::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		// A reader takes an answer only for code it shows.
+		for (auto* const reader : { StopReader, Preview, PublicationPreview }) {
+			if (reader != nullptr) {
+				reader->apply_code_syntax(aSpans);
+			}
+		}
+	}
+
 	void review_tour_editor::changeEvent(QEvent* aEvent)
 	{
 		QWidget::changeEvent(aEvent);
 		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::PaletteChange) {
 			Source->setFont(code_font_of(font()));
 			Related->setFont(code_font_of(font()));
-			StopReader->set_code_font(code_font_of(font()), 4.0 * QFontMetricsF{ code_font_of(font()) }.horizontalAdvance(QLatin1Char{ ' ' }));
+			apply_reader_code_font();
 			place_stop_card();
 		}
 		// [[BPR-1776]]. More's glyph is drawn in the palette's ink.

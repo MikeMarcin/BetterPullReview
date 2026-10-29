@@ -2,6 +2,8 @@
 
 #include <algorithm>
 #include <cctype>
+#include <map>
+#include <utility>
 
 namespace bpr::core {
 	namespace {
@@ -643,6 +645,33 @@ namespace bpr::core {
 				for (const auto member : tour) {
 					result[member] = count;
 				}
+			}
+		}
+		return result;
+	}
+
+	auto published_tour_stop_neighbours(const std::span<const published_tour_stop> aStops) -> std::vector<published_tour_stop_links>
+	{
+		// The stop at each tour's number; a number given twice holds none.
+		auto at = std::map<std::pair<std::string_view, std::size_t>, std::optional<std::size_t>>{ };
+		for (std::size_t index = 0; index < aStops.size(); ++index) {
+			const auto [place, added] = at.try_emplace(std::pair{ std::string_view{ aStops[index].Overview }, aStops[index].Ordinal }, index);
+			if (!added) {
+				place->second.reset();
+			}
+		}
+		const auto find = [&at](const published_tour_stop& aStop, const std::size_t aOrdinal) -> std::optional<std::size_t> {
+			const auto place = at.find(std::pair{ std::string_view{ aStop.Overview }, aOrdinal });
+			return place != at.end() ? place->second : std::nullopt;
+		};
+		auto result = std::vector<published_tour_stop_links>(aStops.size());
+		for (std::size_t index = 0; index < aStops.size(); ++index) {
+			const auto& stop = aStops[index];
+			if (stop.Previous.has_value() && stop.Ordinal > 1U) {
+				result[index].Previous = find(stop, stop.Ordinal - 1U);
+			}
+			if (stop.Next.has_value()) {
+				result[index].Next = find(stop, stop.Ordinal + 1U);
 			}
 		}
 		return result;

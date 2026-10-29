@@ -1,9 +1,11 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
+#include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
+#include <QFont>
 #include <QPointer>
 #include <QWidget>
 #include <functional>
@@ -139,6 +141,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto roadmap() const -> QTabWidget* { return Roadmap; }
 		[[nodiscard]] auto preview() const -> markdown_body_view* { return Preview; }
 		[[nodiscard]] auto publication_preview() const -> markdown_body_view* { return PublicationPreview; }
+		/// \brief [[BPR-1805]] repair. The code typography the stop's reader
+		/// and the previews set code in, as comments set theirs; the default
+		/// typography's code font until the window hands the profile's.
+		void set_code_font(const QFont& aFont);
+		/// \brief [[BPR-1805]] repair. Where the readers ask for their fenced
+		/// code's colours, as comments do; answered by `apply_code_syntax`.
+		void               set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		void               apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		[[nodiscard]] auto shown() const -> const application::tour_presentation& { return Shown; }
 		/// \brief True while an input method holds uncommitted preedit text in any field; committed text is unaffected.
 		[[nodiscard]] auto composing() const -> bool { return !Composing.empty(); }
@@ -245,19 +255,23 @@ namespace bpr::qt {
 		QLabel*              Source             = nullptr;
 		/// [[BPR-1805]]. The stop read: its title, its rendered explanation,
 		/// the pencil; and Done while it is written.
-		core::tour_stop_view                         StopView;
-		QLabel*                                      ReadTitle        = nullptr;
-		markdown_body_view*                          StopReader       = nullptr;
-		QToolButton*                                 EditStop         = nullptr;
-		QPushButton*                                 DoneStop         = nullptr;
-		QWidget*                                     StopMagic        = nullptr;
-		bool                                         StopPlacePending = false;
-		QWidget*                                     StopFields       = nullptr;
-		QAction*                                     MergeStops       = nullptr;
-		QAction*                                     DuplicateStops   = nullptr;
-		QAction*                                     RemoveStops      = nullptr;
-		QAction*                                     UndoStructure    = nullptr;
-		QAction*                                     RedoStructure    = nullptr;
+		core::tour_stop_view StopView;
+		QLabel*              ReadTitle        = nullptr;
+		markdown_body_view*  StopReader       = nullptr;
+		QToolButton*         EditStop         = nullptr;
+		QPushButton*         DoneStop         = nullptr;
+		QWidget*             StopMagic        = nullptr;
+		bool                 StopPlacePending = false;
+		/// [[BPR-1805]] repair. The readers' code font, once the window
+		/// hands the profile's; and applying it to every reader.
+		std::optional<QFont>                         ReaderCodeFont;
+		void                                         apply_reader_code_font();
+		QWidget*                                     StopFields     = nullptr;
+		QAction*                                     MergeStops     = nullptr;
+		QAction*                                     DuplicateStops = nullptr;
+		QAction*                                     RemoveStops    = nullptr;
+		QAction*                                     UndoStructure  = nullptr;
+		QAction*                                     RedoStructure  = nullptr;
 		core::tour_stop_id                           Selected;
 		core::tour_stop_id                           Editing;
 		std::optional<core::tour_command_kind>       EditingKind;

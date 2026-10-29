@@ -839,9 +839,106 @@ namespace bpr::qt {
 		private:
 			note_colours Colours;
 		};
+
+		/// [[BPR-1810]]. The stepper's chevrons: round ends of the pill that
+		/// holds the badge.
+		constexpr int plate_step = 22;
+
+		/// \brief [[BPR-1810]]. A chevron at one end of the stop's stepper: a
+		/// quiet round wash under the pointer, the focus ring the post's tools
+		/// draw, and faint ink while there is no stop to step to.
+		class tour_step_button final : public QAbstractButton
+		{
+		public:
+			tour_step_button(const bool aForward, const note_colours& aColours, QWidget* aParent)
+				: QAbstractButton{ aParent }
+				, Forward{ aForward }
+				, Colours{ aColours }
+			{
+				setObjectName(aForward ? QStringLiteral("threadPostTourNext") : QStringLiteral("threadPostTourPrevious"));
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+				setAttribute(Qt::WA_Hover, true);
+				anchor_tooltips(*this);
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				return { plate_step, plate_step };
+			}
+
+		protected:
+			void keyPressEvent(QKeyEvent* const aEvent) override
+			{
+				// Return steps as Space does: the chevron is a link along the route.
+				if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+					if (isEnabled()) {
+						click();
+					}
+					aEvent->accept();
+					return;
+				}
+				QAbstractButton::keyPressEvent(aEvent);
+			}
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box = QRectF{ rect() }.adjusted(2.0, 2.0, -2.0, -2.0);
+				if (isEnabled() && (underMouse() || isDown())) {
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(isDown() ? with_alpha(Colours.Route, Colours.Dark ? 0.30 : 0.22) : with_alpha(Colours.Route, Colours.Dark ? 0.20 : 0.14));
+					painter.drawEllipse(box);
+				}
+				const auto ink = !isEnabled() ? with_alpha(Colours.Ink2, 0.32) : underMouse() ? Colours.Ink
+																							  : Colours.Ink2;
+				auto       pen = QPen{ ink, 1.6, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin };
+				painter.setPen(pen);
+				painter.setBrush(Qt::NoBrush);
+				const auto centre = QRectF{ rect() }.center();
+				const auto arm    = 3.4;
+				const auto lean   = Forward ? 1.0 : -1.0;
+				// The chevron's point leads the way it steps.
+				auto chevron = QPainterPath{ };
+				chevron.moveTo(centre.x() - lean * arm * 0.55, centre.y() - arm);
+				chevron.lineTo(centre.x() + lean * arm * 0.55, centre.y());
+				chevron.lineTo(centre.x() - lean * arm * 0.55, centre.y() + arm);
+				painter.drawPath(chevron);
+				if (hasFocus()) {
+					painter.setPen(QPen{ Colours.Signal, 1.5 });
+					painter.drawEllipse(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0));
+				}
+			}
+
+		private:
+			bool         Forward = false;
+			note_colours Colours;
+		};
+
+		/// [[BPR-1810]]. What a chevron says: the stop it reaches, or why it
+		/// reaches none.
+		void describe_step(QAbstractButton& aButton, const bool aForward, const core::published_tour_stop& aStop, const std::optional<tour_stop_neighbour>& aReached)
+		{
+			const auto direction = aForward ? QStringLiteral("Next stop") : QStringLiteral("Previous stop");
+			if (aReached.has_value()) {
+				const auto title = QString::fromStdString(aReached->Title);
+				aButton.setToolTip(QStringLiteral("%1: %2").arg(direction, title));
+				aButton.setAccessibleName(QStringLiteral("%1: %2").arg(direction, title));
+				aButton.setAccessibleDescription(QStringLiteral("Opens stop %1 of the tour").arg(aReached->Ordinal));
+				aButton.setEnabled(true);
+				return;
+			}
+			const auto linked = aForward ? aStop.Next.has_value() : aStop.Previous.has_value();
+			const auto why    = !linked ? (aForward ? QStringLiteral("This is the tour's last stop") : QStringLiteral("This is the tour's first stop"))
+										: QStringLiteral("Stop %1 is not among these comments").arg(aForward ? aStop.Ordinal + 1U : aStop.Ordinal - 1U);
+			aButton.setToolTip(why);
+			aButton.setAccessibleName(direction);
+			aButton.setAccessibleDescription(why);
+			aButton.setEnabled(false);
+		}
 	}
 
-	tour_stop_plate::tour_stop_plate(const core::published_tour_stop& aStop, const std::optional<std::size_t> aCount, const note_colours& aColours, const bool aOpenOffered, QWidget* const aParent)
+	tour_stop_plate::tour_stop_plate(const core::published_tour_stop& aStop, const std::optional<std::size_t> aCount, const std::optional<tour_stop_neighbour>& aPrevious,
+									 const std::optional<tour_stop_neighbour>& aNext, const note_colours& aColours, const bool aOpenOffered, QWidget* const aParent)
 		: QWidget{ aParent }
 		, Stop{ aStop }
 		, Count{ aCount }
@@ -853,6 +950,22 @@ namespace bpr::qt {
 		setAccessibleDescription(badge);
 		setToolTip(QStringLiteral("%1 of the pull request's tour").arg(badge));
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+		// [[BPR-1810]]. A stop of a longer tour steps along it; created
+		// before Open in tour, so Tab reaches Previous, Next, then Open.
+		if (Stop.Previous.has_value() || Stop.Next.has_value()) {
+			Previous = new tour_step_button{ false, Colours, this };
+			Next     = new tour_step_button{ true, Colours, this };
+			describe_step(*Previous, false, Stop, aPrevious);
+			describe_step(*Next, true, Stop, aNext);
+			for (auto* const button : { Previous, Next }) {
+				connect(button, &QAbstractButton::clicked, this, [this, forward = button == Next] {
+					const auto requested = StepRequested;
+					if (requested) {
+						requested(forward);
+					}
+				});
+			}
+		}
 		if (aOpenOffered) {
 			Open = new tour_open_button{ Colours, this };
 			Open->setToolTip(QStringLiteral("Open this stop in the Tour tab, beside its code"));
@@ -886,8 +999,37 @@ namespace bpr::qt {
 		const auto text   = std::max(40, aWidth - plate_text - plate_padding);
 		const auto title  = QFontMetrics{ title_font() }.boundingRect(QRect{ 0, 0, text, 10000 }, Qt::TextWordWrap, QString::fromStdString(Stop.Title)).height();
 		const auto button = Open != nullptr ? Open->sizeHint().height() : 0;
-		const auto badge  = std::max(QFontMetrics{ badge_font() }.height(), button);
+		const auto step   = Previous != nullptr ? plate_step : 0;
+		const auto badge  = std::max({ QFontMetrics{ badge_font() }.height(), button, step });
 		return std::max(plate_padding + title + 2 + badge + plate_padding, plate_padding * 2 + plate_marker);
+	}
+
+	auto tour_stop_plate::badge_top() const -> int
+	{
+		const auto text = std::max(40, width() - plate_text - plate_padding);
+		return plate_padding + QFontMetrics{ title_font() }.boundingRect(QRect{ 0, 0, text, 10000 }, Qt::TextWordWrap, QString::fromStdString(Stop.Title)).height() + 2;
+	}
+
+	auto tour_stop_plate::stepper_rect() const -> QRect
+	{
+		if (Previous == nullptr) {
+			return { };
+		}
+		const auto row  = height() - plate_padding - badge_top();
+		const auto end  = Open != nullptr ? Open->x() - 8 : width() - plate_padding;
+		const auto room = std::max(0, end - plate_text - 2 * plate_step);
+		const auto text = std::min(room, QFontMetrics{ badge_font() }.horizontalAdvance(tour_stop_badge(Stop, Count)) + 4);
+		return { plate_text - 2, badge_top() + (row - plate_step) / 2, 2 * plate_step + text, plate_step };
+	}
+
+	auto tour_stop_plate::previous_button() const noexcept -> QAbstractButton*
+	{
+		return Previous;
+	}
+
+	auto tour_stop_plate::next_button() const noexcept -> QAbstractButton*
+	{
+		return Next;
 	}
 
 	auto tour_stop_plate::sizeHint() const -> QSize
@@ -908,11 +1050,15 @@ namespace bpr::qt {
 
 	void tour_stop_plate::place_children()
 	{
-		if (Open == nullptr) {
-			return;
+		if (Open != nullptr) {
+			const auto size = Open->sizeHint();
+			Open->setGeometry(width() - plate_padding - size.width(), height() - plate_padding - size.height(), size.width(), size.height());
 		}
-		const auto size = Open->sizeHint();
-		Open->setGeometry(width() - plate_padding - size.width(), height() - plate_padding - size.height(), size.width(), size.height());
+		if (Previous != nullptr) {
+			const auto pill = stepper_rect();
+			Previous->setGeometry(pill.left(), pill.top(), plate_step, plate_step);
+			Next->setGeometry(pill.right() + 1 - plate_step, pill.top(), plate_step, plate_step);
+		}
 	}
 
 	void tour_stop_plate::resizeEvent(QResizeEvent* const aEvent)
@@ -961,9 +1107,22 @@ namespace bpr::qt {
 		painter.setFont(title_font());
 		painter.drawText(QRect{ plate_text, plate_padding, text, title }, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, QString::fromStdString(Stop.Title));
 		painter.setFont(badge_font());
-		painter.setPen(Colours.Ink2);
 		const auto badgeTop = plate_padding + title + 2;
-		const auto room     = std::max(1, (Open != nullptr ? Open->x() - 8 : width() - plate_padding) - plate_text);
+		if (Previous != nullptr) {
+			// [[BPR-1810]]. The stepper: a hairline pill on the panel, its
+			// chevrons at the round ends and the badge between them.
+			const auto pill   = QRectF{ stepper_rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+			const auto radius = pill.height() / 2.0;
+			painter.setPen(QPen{ Colours.RouteLine, 1.0 });
+			painter.setBrush(Colours.Panel);
+			painter.drawRoundedRect(pill, radius, radius);
+			const auto words = stepper_rect().adjusted(plate_step, 0, -plate_step, 0);
+			painter.setPen(Colours.Ink2);
+			painter.drawText(words, Qt::AlignCenter, QFontMetrics{ badge_font() }.elidedText(tour_stop_badge(Stop, Count), Qt::ElideRight, std::max(1, words.width())));
+			return;
+		}
+		painter.setPen(Colours.Ink2);
+		const auto room = std::max(1, (Open != nullptr ? Open->x() - 8 : width() - plate_padding) - plate_text);
 		painter.drawText(QRect{ plate_text, badgeTop, room, height() - badgeTop - plate_padding }, Qt::AlignLeft | Qt::AlignVCenter,
 						 QFontMetrics{ badge_font() }.elidedText(tour_stop_badge(Stop, Count), Qt::ElideRight, room));
 	}
@@ -996,11 +1155,18 @@ namespace bpr::qt {
 		// its narrative alone; View source and Copy source keep every byte.
 		if (aPost.TourStop.has_value()) {
 			Reader->set_rendered_range(std::pair{ aPost.TourStop->Narrative.Begin, aPost.TourStop->Narrative.End });
-			TourPlate                = new tour_stop_plate{ *aPost.TourStop, aPost.TourStopCount, aStyle.Colours, aStyle.TourOpenOffered, this };
+			TourPlate                = new tour_stop_plate{ *aPost.TourStop, aPost.TourStopCount, aPost.TourPrevious, aPost.TourNext, aStyle.Colours, aStyle.TourOpenOffered, this };
 			TourPlate->OpenRequested = [this] {
 				const auto requested = TourOpenRequested;
 				if (requested) {
 					requested();
+				}
+			};
+			// [[BPR-1810]]. Stepping along the tour.
+			TourPlate->StepRequested = [this](const bool aForward) {
+				const auto requested = TourStepRequested;
+				if (requested) {
+					requested(aForward);
 				}
 			};
 			setAccessibleName(QStringLiteral("%1, %2: %3").arg(accessibleName(), tour_stop_badge(*aPost.TourStop, aPost.TourStopCount), QString::fromStdString(aPost.TourStop->Title)));
@@ -1849,6 +2015,13 @@ namespace bpr::qt {
 					const auto requested = TourOpenRequested;
 					if (requested) {
 						requested(id, stop);
+					}
+				};
+				// [[BPR-1810]]. And its chevrons step along the tour.
+				view->TourStepRequested = [this](const bool aForward) {
+					const auto requested = TourStepRequested;
+					if (requested) {
+						requested(aForward);
 					}
 				};
 			}

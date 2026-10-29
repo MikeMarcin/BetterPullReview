@@ -2097,7 +2097,7 @@ bpr_enable_warnings(test_review_tour_steps)
 bpr_add_network_isolated_test(NAME qt_review_tour_steps COMMAND test_review_tour_steps)
 set_tests_properties(qt_review_tour_steps PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-steps:pass" TIMEOUT 30)
 bpr_add_executable(test_review_tour_stop_view review_tour_stop_view_tests.cpp) # [[BPR-1805]]
-target_link_libraries(test_review_tour_stop_view PRIVATE BetterPullReview::AdapterQt)
+target_link_libraries(test_review_tour_stop_view PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)
 bpr_enable_hardening(test_review_tour_stop_view)
 bpr_enable_warnings(test_review_tour_stop_view)
 bpr_add_network_isolated_test(NAME qt_review_tour_stop_view COMMAND test_review_tour_stop_view)

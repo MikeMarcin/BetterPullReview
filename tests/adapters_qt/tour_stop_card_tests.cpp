@@ -9,6 +9,7 @@
 /// read as they always have.
 
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/bundled_code_font.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -19,6 +20,7 @@
 #include <QClipboard>
 #include <QDir>
 #include <QImage>
+#include <QKeyEvent>
 #include <QPlainTextEdit>
 #include <QTextEdit>
 
@@ -49,6 +51,15 @@ namespace {
 		for (auto round = 0; round < 4; ++round) {
 			QApplication::processEvents();
 		}
+	}
+
+	/// \brief A key pressed and released on a widget.
+	void press(QWidget& aWidget, const Qt::Key aKey)
+	{
+		auto down = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier, aKey == Qt::Key_Space ? QStringLiteral(" ") : QString{ } };
+		QApplication::sendEvent(&aWidget, &down);
+		auto up = QKeyEvent{ QEvent::KeyRelease, aKey, Qt::NoModifier, aKey == Qt::Key_Space ? QStringLiteral(" ") : QString{ } };
+		QApplication::sendEvent(&aWidget, &up);
 	}
 
 	/// \brief Saves a render when `BPR_TOUR_STOP_RENDER_DIR` names a folder:
@@ -232,6 +243,104 @@ namespace {
 			   "a broken envelope reads whole, its heading included");
 	}
 
+	struct plate_parts
+	{
+		QWidget*         Plate    = nullptr;
+		QAbstractButton* Previous = nullptr;
+		QAbstractButton* Next     = nullptr;
+	};
+
+	[[nodiscard]] auto open_plate(const qt::conversation_cards_view& aView) -> plate_parts
+	{
+		auto* const card  = aView.open_card();
+		const auto  posts = card != nullptr ? posts_of(*card) : std::vector<QWidget*>{ };
+		auto* const plate = posts.empty() ? nullptr : posts.front()->findChild<QWidget*>(QStringLiteral("threadPostTourStop"));
+		return { plate, plate != nullptr ? plate->findChild<QAbstractButton*>(QStringLiteral("threadPostTourPrevious")) : nullptr,
+				 plate != nullptr ? plate->findChild<QAbstractButton*>(QStringLiteral("threadPostTourNext")) : nullptr };
+	}
+
+	/// \brief [[BPR-1810]]. The plate steps along the tour: Previous and Next
+	/// chevrons beside "Stop 2 of 3", named for the stops they reach, open the
+	/// neighbouring stop's thread in the same notes, and are unavailable at
+	/// the tour's ends or while a stop is not among the comments.
+	void test_the_plate_steps_along_the_tour()
+	{
+		qt::conversation_cards_view view;
+		view.resize(440, 900);
+		view.show();
+		view.adopt(forest());
+		settle();
+		const auto& middle = card_of(view, "stop-2")->Posts.front();
+		expect(middle.TourPrevious == qt::tour_stop_neighbour{ "stop-1", 1U, "Where the frame starts" } && middle.TourNext == qt::tour_stop_neighbour{ "stop-3", 3U, "Teardown" },
+			   "a middle stop knows the threads, numbers and titles of its neighbours");
+		expect(!card_of(view, "stop-1")->Posts.front().TourPrevious && card_of(view, "stop-3")->Posts.front().TourPrevious.has_value() && !card_of(view, "stop-3")->Posts.front().TourNext,
+			   "the first stop has no previous and the last no next");
+		expect(!card_of(view, "stop-2")->Posts[1].TourNext && !card_of(view, "plain")->Posts.front().TourNext, "a reply and an ordinary comment step nowhere");
+
+		view.open_thread("stop-2");
+		settle();
+		auto plate = open_plate(view);
+		expect(plate.Plate != nullptr && plate.Previous != nullptr && plate.Next != nullptr, "the middle stop's plate has both chevrons");
+		expect(plate.Previous->isEnabled() && plate.Next->isEnabled(), "both lead somewhere");
+		expect(plate.Previous->accessibleName() == QStringLiteral("Previous stop: Where the frame starts") && plate.Next->accessibleName() == QStringLiteral("Next stop: Teardown"),
+			   "each chevron is named for the stop it reaches");
+		expect(plate.Previous->toolTip() == QStringLiteral("Previous stop: Where the frame starts") && plate.Next->toolTip() == QStringLiteral("Next stop: Teardown"), "and says so under the pointer");
+		expect(plate.Previous->focusPolicy() == Qt::StrongFocus && plate.Next->focusPolicy() == Qt::StrongFocus, "both are reachable by keyboard");
+		expect(plate.Previous->geometry().right() < plate.Next->geometry().left() && plate.Next->geometry().bottom() <= plate.Plate->height(), "the chevrons sit inside the plate, Previous first");
+		save_render(*view.open_card(), QStringLiteral("tour-stop-step-middle"));
+
+		// Next opens the following stop's thread, keeping the keyboard on Next.
+		plate.Next->setFocus(Qt::OtherFocusReason);
+		plate.Next->click();
+		settle();
+		expect(view.open_thread_id() == "stop-3", "Next opens the next stop's thread");
+		plate = open_plate(view);
+		expect(plate.Previous != nullptr && plate.Previous->isEnabled() && plate.Next != nullptr && !plate.Next->isEnabled(), "at the last stop Next is unavailable");
+		expect(plate.Next->toolTip() == QStringLiteral("This is the tour's last stop") && plate.Next->accessibleName() == QStringLiteral("Next stop"), "and says why");
+		expect(QApplication::focusWidget() == plate.Previous, "the keyboard stays on the plate, on the chevron that still leads somewhere");
+		save_render(*view.open_card(), QStringLiteral("tour-stop-step-last"));
+
+		// Previous twice, by keyboard, reaches the first stop.
+		press(*plate.Previous, Qt::Key_Return);
+		settle();
+		expect(view.open_thread_id() == "stop-2", "Return on Previous opens the previous stop");
+		plate = open_plate(view);
+		expect(QApplication::focusWidget() == plate.Previous, "focus follows to the same chevron");
+		press(*plate.Previous, Qt::Key_Space);
+		settle();
+		expect(view.open_thread_id() == "stop-1", "Space steps too");
+		plate = open_plate(view);
+		expect(plate.Previous != nullptr && !plate.Previous->isEnabled() && plate.Previous->toolTip() == QStringLiteral("This is the tour's first stop") && plate.Next->isEnabled(),
+			   "at the first stop Previous is unavailable");
+		save_render(*view.open_card(), QStringLiteral("tour-stop-step-first"));
+		expect(!view.step_tour(false) && view.open_thread_id() == "stop-1", "stepping past the first stop does nothing");
+
+		// A dispatch decides where a step goes: the window's, for another file.
+		auto asked = std::vector<std::string>{ };
+		view.set_tour_step_dispatch([&asked](const std::string& aThread) { asked.push_back(aThread); });
+		expect(view.step_tour(true) && asked == std::vector<std::string>{ "stop-2" } && view.open_thread_id() == "stop-1", "with a dispatch the view names the thread and opens nothing");
+		view.set_tour_step_dispatch({ });
+
+		// A neighbour not among the comments.
+		auto partial = forest();
+		std::erase_if(partial, [](const conversation& aNode) { return aNode.Id == "stop-3" || aNode.Id == "review-comment:stop-3"; });
+		view.adopt(std::move(partial));
+		view.open_thread("stop-2");
+		settle();
+		plate = open_plate(view);
+		expect(plate.Next != nullptr && !plate.Next->isEnabled() && plate.Next->toolTip() == QStringLiteral("Stop 3 is not among these comments"), "a stop not at hand is unavailable, and says so");
+		expect(plate.Previous != nullptr && plate.Previous->isEnabled(), "its other neighbour still leads");
+
+		// A tour of one has nothing to step along.
+		auto single = std::vector<conversation>{ };
+		add_thread(single, "only", stop_body("Only stop", 1, "Alone.", 1), 4U);
+		view.adopt(std::move(single));
+		view.open_thread("only");
+		settle();
+		plate = open_plate(view);
+		expect(plate.Plate != nullptr && plate.Previous == nullptr && plate.Next == nullptr, "a tour of one has no chevrons");
+	}
+
 	struct theme
 	{
 		core::appearance_mode Mode;
@@ -281,6 +390,17 @@ namespace {
 				amber           = std::abs(ring.red() - route.red()) <= 24 && std::abs(ring.green() - route.green()) <= 24 && std::abs(ring.blue() - route.blue()) <= 24;
 			}
 			expect(amber, "the route marker is drawn in the tour's colour");
+			// [[BPR-1810]]. The stepper at the tour's first, middle and last stop.
+			for (const auto& [thread, place] : std::array{ std::pair{ "stop-1", "first" }, std::pair{ "stop-2", "middle" }, std::pair{ "stop-3", "last" } }) {
+				view.open_thread(thread);
+				settle();
+				const auto parts = open_plate(view);
+				expect(parts.Previous != nullptr && parts.Next != nullptr, "every stop of the tour has its stepper in every theme");
+				auto* const open = parts.Plate->findChild<QAbstractButton*>(QStringLiteral("threadPostTourOpen"));
+				expect(open != nullptr && parts.Previous->nextInFocusChain() == parts.Next && parts.Next->nextInFocusChain() == open,
+					   "Tab goes Previous, Next, then Open in tour");
+				save_render(*view.open_card(), QStringLiteral("tour-stop-step-%1-%2").arg(QString::fromLatin1(place), QString::fromLatin1(name)));
+			}
 		}
 	}
 }
@@ -288,8 +408,11 @@ namespace {
 int main(int aArgc, char** aArgv)
 {
 	QApplication application{ aArgc, aArgv };
+	// As the composition does at startup: code reads in the bundled code font.
+	expect(qt::register_bundled_code_font(), "the bundled code font registers");
 	test_stops_are_recognized_in_the_notes();
 	test_the_open_stop_shows_its_plate_and_narrative();
+	test_the_plate_steps_along_the_tour();
 	test_every_theme();
 	std::cout << "tour-stop-card-tests:pass\n";
 	return EXIT_SUCCESS;
