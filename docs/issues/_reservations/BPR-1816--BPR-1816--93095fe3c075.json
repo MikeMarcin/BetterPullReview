@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1816"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Finishing a review returns home and closes it; settings per comment/approve",
+  "created": "2026-10-29T18:46:30.236657+00:00",
+  "base": "28554675afe45aa63f486e17e9ee6fba13028cb9"
+}
