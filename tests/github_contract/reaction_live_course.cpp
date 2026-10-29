@@ -33,8 +33,8 @@
 
 #include <QByteArray>
 #include <QCoreApplication>
-#include <QJsonArray>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -162,6 +162,8 @@ namespace {
 		case review_mutation_operation::edit_review_comment:              return "edit-review-comment";
 		case review_mutation_operation::edit_issue_comment:               return "edit-issue-comment";
 		case review_mutation_operation::edit_review_body:                 return "edit-review-body";
+		case review_mutation_operation::observe_reviewers:                return "observe-reviewers";
+		case review_mutation_operation::request_reviews:                  return "request-reviews";
 		case review_mutation_operation::observe_review_thread:            return "observe-thread";
 		case review_mutation_operation::resolve_review_thread:            return "resolve-thread";
 		case review_mutation_operation::unresolve_review_thread:          return "unresolve-thread";
