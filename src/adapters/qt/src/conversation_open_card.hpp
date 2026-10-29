@@ -92,6 +92,9 @@ namespace bpr::qt {
 		bool CommentEditOffered = false;
 		/// [[BPR-1806]]. Open in tour is offered on a published tour stop.
 		bool TourOpenOffered = false;
+		/// [[BPR-1802]]. The pull request's repository, whose permalinks show
+		/// as snippet boxes.
+		std::optional<core::markdown_repository> PermalinkRepository;
 	};
 
 	/// \brief [[BPR-1806]]. A published tour stop's plate, over its
@@ -369,6 +372,13 @@ namespace bpr::qt {
 		void set_images_shown(bool aShown);
 		/// [[BPR-1562]]. Published posts' fenced code to classify.
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeRequest;
+		/// [[BPR-1802]]. Published posts' standing permalinks to read.
+		std::function<void(std::vector<application::markdown_blob_snippet_request>)> PermalinkRequest;
+		/// \brief Shows a permalink's lines in every post that holds it.
+		void apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
+		/// \brief Asks again for every published post's permalinks.
+		void request_permalink_snippets();
+		void set_permalink_repository(const std::optional<core::markdown_repository>& aRepository);
 		/// \brief Colours every post showing the answer's code.
 		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		/// \brief Asks again for every published post's code.

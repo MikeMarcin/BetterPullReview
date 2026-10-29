@@ -992,10 +992,17 @@ namespace bpr::qt {
 		}
 		// [[BPR-1564]]. Before the body, so it is read once.
 		Reader->set_suggestions(aStyle.Suggestions);
+		// [[BPR-1802]]. Likewise the repository its permalinks are judged by.
+		Reader->set_permalink_repository(aStyle.PermalinkRepository);
 		// [[BPR-1806]]. A published tour stop reads as one: its plate over
 		// its narrative alone; View source and Copy source keep every byte.
 		if (aPost.TourStop.has_value()) {
 			Reader->set_rendered_range(std::pair{ aPost.TourStop->Narrative.Begin, aPost.TourStop->Narrative.End });
+			// [[BPR-1802]]. Its pinned source shows as its snippet box above
+			// the narrative once the lines are read, and never as a link.
+			if (aPost.TourStop->PinnedSource.has_value()) {
+				Reader->set_rendered_lead(std::pair{ aPost.TourStop->PinnedSource->Begin, aPost.TourStop->PinnedSource->End });
+			}
 			TourPlate                = new tour_stop_plate{ *aPost.TourStop, aPost.TourStopCount, aStyle.Colours, aStyle.TourOpenOffered, this };
 			TourPlate->OpenRequested = [this] {
 				const auto requested = TourOpenRequested;
@@ -1971,6 +1978,11 @@ namespace bpr::qt {
 				view->reader()->set_image_dispatch([this, id = post.Id](std::vector<core::markdown_image_reference> aReferences) {
 					if (ImageRequest) {
 						ImageRequest(id, std::move(aReferences));
+					}
+				});
+				view->reader()->set_permalink_dispatch([this](std::vector<application::markdown_blob_snippet_request> aRequests) {
+					if (PermalinkRequest) {
+						PermalinkRequest(std::move(aRequests));
 					}
 				});
 			}
@@ -3014,6 +3026,28 @@ namespace bpr::qt {
 		Style.CodeTheme = aTheme;
 		for (auto* const view : posts()) {
 			view->reader()->set_code_theme(aTheme);
+		}
+	}
+
+	void open_thread_card::apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
+	{
+		for (auto* const view : posts()) {
+			view->reader()->apply_permalink_snippet(aSnippet);
+		}
+	}
+
+	void open_thread_card::request_permalink_snippets()
+	{
+		for (auto* const view : posts()) {
+			view->reader()->request_permalink_snippets();
+		}
+	}
+
+	void open_thread_card::set_permalink_repository(const std::optional<core::markdown_repository>& aRepository)
+	{
+		Style.PermalinkRepository = aRepository;
+		for (auto* const view : posts()) {
+			view->reader()->set_permalink_repository(aRepository);
 		}
 	}
 

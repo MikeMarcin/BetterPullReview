@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_MARKDOWN_BODY_VIEW_HPP
 
+#include "bpr/application/markdown_blob_snippet_host.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/markdown_code.hpp"
@@ -108,6 +109,27 @@ namespace bpr::qt {
 		void apply_image(const application::markdown_image_projection& aImage);
 		/// \brief The current body's images, for tests and accessibility.
 		[[nodiscard]] auto image_store() const noexcept -> const detail::markdown_image_store*;
+		/// \brief [[BPR-1802]]. The pull request's repository: a blob permalink
+		/// in it reads without its owner, and one alone on a line becomes
+		/// GitHub's snippet box once its lines arrive.
+		void set_permalink_repository(std::optional<core::markdown_repository> aRepository);
+		/// \brief [[BPR-1802]]. Asks for the lines of the body's standing
+		/// permalinks in the repository through `aDispatch`, which answers by
+		/// `apply_permalink_snippet`. Without one every permalink keeps the
+		/// compact link and nothing is asked for.
+		void set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		/// \brief Asks again for the lines not yet shown.
+		void request_permalink_snippets();
+		/// \brief Shows a permalink's lines as its box; ignored unless the body
+		/// holds that permalink, standing, in the repository.
+		void apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
+		/// \brief [[BPR-1802]]. A line before the rendered range (a published
+		/// tour stop's pinned source) that is shown only as its snippet box,
+		/// above the range, once its lines arrive; never as a link. Call
+		/// before `set_body`.
+		void set_rendered_lead(std::optional<std::pair<std::size_t, std::size_t>> aLead);
+		/// \brief How many snippet boxes the rendered body shows.
+		[[nodiscard]] auto permalink_snippets_shown() const -> std::size_t;
 		/// \brief Uses the composed code typography without overriding the native palette.
 		void set_code_font(const QFont& aFont, qreal aTabStopDistance);
 		/// \brief [[BPR-1562]]. Draws fenced code in the review panes' colours.
@@ -202,6 +224,7 @@ namespace bpr::qt {
 		void               dispatch_images();
 		[[nodiscard]] auto has_images() const -> bool;
 		void               dispatch_code();
+		void               dispatch_permalinks();
 		void               style_code();
 		[[nodiscard]] auto selected_markdown(const QTextCursor& aCursor) const -> QString;
 		void               schedule_animation();
@@ -248,6 +271,19 @@ namespace bpr::qt {
 		qsizetype                                                                   SourceColumns = 0;
 		mutable int                                                                 CachedWidth   = -1;
 		mutable int                                                                 CachedHeight  = 0;
+		/// [[BPR-1802]]. The repository permalinks are judged by, the
+		/// permalinks this body could show as boxes, and the lines held.
+		struct held_snippet
+		{
+			core::markdown_blob_permalink                   Permalink;
+			std::shared_ptr<const std::vector<std::string>> Lines;
+		};
+		std::optional<core::markdown_repository>                                     PermalinkRepository;
+		std::function<void(std::vector<application::markdown_blob_snippet_request>)> PermalinkDispatch;
+		std::vector<core::markdown_blob_permalink>                                   Standing;
+		std::vector<held_snippet>                                                    Snippets;
+		std::optional<std::pair<std::size_t, std::size_t>>                           RenderedLead;
+		std::size_t                                                                  SnippetsShown = 0U;
 	};
 } // namespace bpr::qt
 

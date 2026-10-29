@@ -113,8 +113,8 @@ namespace bpr::application {
 		/// over-bound permalink is refused and nothing is read for it.
 		void request(const std::vector<markdown_blob_snippet_request>& aRequests);
 		/// \brief Stops every read, forgets every file and refusal.
-		void reset();
-		void shutdown();
+		void               reset();
+		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
 		/// \brief Files the source was asked for.
 		[[nodiscard]] auto reads() const noexcept -> std::size_t;

@@ -115,8 +115,8 @@ namespace {
 		shouted.Owner      = "OCTO-ORG";
 		shouted.Repository = "Widgets";
 		expect(markdown_blob_permalink_same_lines(permalink, shouted) && markdown_blob_permalink_source_key(permalink) == markdown_blob_permalink_source_key(shouted), "owner and repository compare without case");
-		auto other      = permalink;
-		other.LastLine  = 6U;
+		auto other     = permalink;
+		other.LastLine = 6U;
 		expect(!markdown_blob_permalink_same_lines(permalink, other) && markdown_blob_permalink_source_key(permalink) == markdown_blob_permalink_source_key(other), "another range is the same file, not the same lines");
 	}
 

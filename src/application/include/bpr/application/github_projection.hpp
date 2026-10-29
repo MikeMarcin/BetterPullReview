@@ -350,8 +350,11 @@ namespace bpr::application {
 		std::vector<github_conversation_projection> Conversations{ };
 		/// Exact window publication admitted for explicit body-link gestures.
 		std::optional<core::markdown_context> MarkdownContext;
-		bool                                  PublicPreview           = false;
-		bool                                  ReviewCommentsAvailable = false;
+		/// [[BPR-1802]]. The accepted profile's hostname, which a body's blob
+		/// permalinks are judged against; stamped with `MarkdownContext`.
+		std::string Hostname{ };
+		bool        PublicPreview           = false;
+		bool        ReviewCommentsAvailable = false;
 
 		auto operator<=>(const github_pull_request_projection&) const = default;
 	};
