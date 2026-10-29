@@ -235,7 +235,7 @@ bpr_add_build_identity(probe)
     def test_native_mapping_bounds_and_actual_legacy_msi_order(self):
         self.assertEqual(cohort.native("0.4.1", 1, self.inputs["previousWindows"]), {
             "displayVersion": "0.4.1 (build 1)", "assetVersion": "0.4.1-build.1", "macBundleVersion": "1",
-            "releaseTag": "v0.4.1-build.1",
+            "releaseTag": "v0.4.1-build.1", "msiProductCode": cohort.native("0.4.1", 1)["msiProductCode"],
             "windowsImageVersion": "0.4.1.1", "msiProductVersion": "0.4.1", "debianVersion": "0.4.1+build.1"})
         for version, number in [("0.4.1", 0), ("0.4.1", 10000), ("256.4.1", 1), ("0.256.1", 1), ("0.4.65536", 1)]:
             with self.assertRaises(ValueError):
@@ -251,6 +251,8 @@ bpr_add_build_identity(probe)
         self.commit("first marketing version")
         first = self.frozen()["allocation"]
         self.assertEqual(first["native"]["msiProductVersion"], "0.4.1")
+        self.assertNotEqual(cohort.native("0.4.0", 1)["msiProductCode"], cohort.native("0.4.0", 2)["msiProductCode"])
+        self.assertEqual(cohort.native("0.4.0", 1)["msiProductCode"], cohort.native("0.4.0", 1)["msiProductCode"])
         observed = windows_floor() | {"msiProductVersion": "0.4.1", "releaseTag": "v0.4.0-build.1",
                                      "installerName": "BetterPullReview-0.4.0-build.1-windows-x64.msi",
                                      "sourceCommit": self.git("rev-parse", "HEAD"), "installerSHA256": "a" * 64, "releaseId": 43}

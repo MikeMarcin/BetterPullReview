@@ -116,9 +116,9 @@ class NativeReleaseTests(unittest.TestCase):
         def identity(path, *, msi=False):
             release = release_cohort["allocation"]
             if msi and path.name == "previous.msi":
-                return {"ProductName": "BetterPullReview", "ProductVersion": "0.4.0", "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}"}
+                return {"ProductName": "BetterPullReview", "ProductVersion": "0.4.0", "ProductCode": "{AAAAAAAA-AAAA-AAAA-AAAA-AAAAAAAAAAAA}", "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}"}
             if msi:
-                return {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}",
+                return {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}",
                         "BPR_MARKETING_VERSION": "1.2.3", "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": release_cohort["cohortDigest"], "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
             return {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
         def runtime_command(*args):

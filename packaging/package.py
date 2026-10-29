@@ -45,11 +45,13 @@ def main() -> None:
         if (previous.get("ProductName") != "BetterPullReview" or previous.get("ALLUSERS") != "1"
                 or previous.get("UpgradeCode") != "{18DF84A8-5883-4979-B1C6-6F226934AA68}"
                 or previous.get("ProductVersion") != declared["msiProductVersion"]
+                or not previous.get("ProductCode") or previous["ProductCode"] == release["native"]["msiProductCode"]
                 or previous.get("BPR_MARKETING_VERSION", previous.get("ProductVersion")) != declared["marketingVersion"]
                 or runtime.digest(args.previous_msi) != floor["installerSHA256"]):
             raise ValueError("actual previous per-machine MSI differs from the frozen upgrade identity")
         runtime.release_build.native(info["version"], release["number"], declared)
         native_identity["previousMsiSHA256"] = runtime.digest(args.previous_msi)
+        native_identity["previousProductCode"] = previous["ProductCode"]
         native_identity["previousWindows"] = declared
 
     if info["platform"] == "Darwin":
@@ -107,7 +109,7 @@ def main() -> None:
     if release:
         if info["platform"] == "Windows":
             observed = signing.windows_identity(artifact, msi=True)
-            expected = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ALLUSERS": "1",
+            expected = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1",
                         "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": info["version"],
                         "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": info["releaseCohort"]["cohortDigest"],
                         "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
