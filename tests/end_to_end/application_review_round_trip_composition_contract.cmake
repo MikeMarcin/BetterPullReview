@@ -1,3 +1,9 @@
+# [[BPR-1815]] review-bar view controls reseal (2026-10-29), over 28554675a.
+# github_application.cpp changes only its navigation-row probe: the review
+# bar's exact order gains the view rule, One pane and Go to header/source
+# between the progress track and the spacer (19 actions, was 16). No
+# composition, credential, grant, provider, mutation, publication or
+# source-inventory change; the mutation-branch pin is unchanged.
 # [[BPR-1797]] release closeout merge reseal (2026-10-29): canonical main
 # 9d02a77d4 and release proof 40236a669 preserve both histories. Reviewed the
 # only added pinned-scope commits, 344ab410d (github_application.cpp's exact
@@ -2485,7 +2491,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# publication or source-inventory change; the mutation-branch pin is
 	# unchanged.
 	set(bpr_expected_full_application_digest
-		"fdb064b8364a53d69f55bc7c73f489ce558ef0dc778c50db7d374627115cc6c1"
+		"847de7be5c0eec293e929189c24f22dbf8b5a6479a5b1f4800a12cebd49bf47b"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2748,7 +2754,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # or source-inventory change. Native About/copy courses cover local and numbered
 # presentation; real numbered producer/native acceptance remains pending.
 	set(bpr_expected_production_app_manifest_digest
-        "a17d8c7d1b293e81404632f8311aa0113f001a06c48ecfab84eba1bbab8c46dc"
+        "1ed36c6669389706f6e1eb3cddedad9858602bb5c39c1f1dbb115e5325192c70"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

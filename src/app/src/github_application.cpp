@@ -31334,7 +31334,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
 		const auto* const acceptFile          = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto        exactReviewBarOrder = reviewBarActions.size() == 16
+		const auto        exactReviewBarOrder = reviewBarActions.size() == 19
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
@@ -31350,10 +31350,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& acceptFile != nullptr && acceptFile->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
 			&& acceptFile->defaultAction() == window->accept_action()
 			&& reviewControls->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
-			&& widgetActionNamed(reviewBarActions, 12, "reviewBarSpacerAction")
-			&& reviewBarActions[13] == window->review_chip_action()
-			&& reviewBarActions[14] == window->compose_review_action()
-			&& reviewBarActions[15] == window->comment_action()
+			// [[BPR-1815]]. A rule, the layout toggle and Go to header/source.
+			&& widgetActionNamed(reviewBarActions, 12, "reviewBarViewDividerAction")
+			&& reviewBarActions[13] == window->one_pane_action()
+			&& reviewBarActions[14] == window->header_source_action()
+			&& widgetActionNamed(reviewBarActions, 15, "reviewBarSpacerAction")
+			&& reviewBarActions[16] == window->review_chip_action()
+			&& reviewBarActions[17] == window->compose_review_action()
+			&& reviewBarActions[18] == window->comment_action()
 			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
 		if (!exactRowOrder || !exactReviewBarOrder) {
 			// [[BPR-0859]]. An exact row order that no longer holds names the

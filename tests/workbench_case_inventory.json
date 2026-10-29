@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "1b78274d9f0f41438a3c91bb4d76211fe5e1f69ee62d00d35232ee1f82c1f40d",
+  "source_sha256": "bd93bbc96eecaed87c1e7b08741b84597eaeb827404524560c8a4b64d5eca36f",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -175,6 +175,7 @@
       "test_drawer_toggles_follow_core_command_projections",
       "test_the_view_menu_offers_a_core_decided_line_number_toggle",
       "test_the_view_menu_projects_one_pane_without_changing_modality",
+      "test_the_review_bar_presents_the_layout_and_header_source",
       "test_the_view_menu_reaches_the_composed_source_panes",
       "test_one_pane_places_threads_on_their_own_changed_rows",
       "test_collapsing_a_drawer_returns_space_to_the_centre",
