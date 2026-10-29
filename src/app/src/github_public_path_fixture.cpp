@@ -2097,6 +2097,8 @@ namespace bpr::app::detail {
 			/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
 			std::atomic<std::size_t>                    MarkdownImageResolutions{ 0U };
 			std::atomic<std::size_t>                    MarkdownImageFetches{ 0U };
+			std::vector<std::string>                    MarkdownImageResolutionNodes;
+			std::vector<std::string>                    MarkdownImageFetchReferences;
 			std::size_t                                 SmartAcquireCalls    = 0U;
 			std::size_t                                 SmartAcquireRefusals = 0U;
 			std::size_t                                 SmartDiscoveryCalls  = 0U;
@@ -3083,7 +3085,11 @@ namespace bpr::app::detail {
 					if (!validate_github_wire_request(State->Profile, aRequest)) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::malformed_response) };
 					}
-					++State->MarkdownImageResolutions;
+					{
+						const std::scoped_lock lock{ State->Mutex };
+						++State->MarkdownImageResolutions;
+						State->MarkdownImageResolutionNodes.insert(State->MarkdownImageResolutionNodes.end(), aRequest.Wire.Semantic.Nodes.begin(), aRequest.Wire.Semantic.Nodes.end());
+					}
 					auto body = markdown_images_response(State->Descriptor, aRequest.Wire.Semantic.Nodes);
 					if (!body) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::unavailable) };
@@ -5831,7 +5837,12 @@ namespace bpr::app::detail {
 		auto       recording = Implementation->Recording;
 		return [root, recording](const adapters::github::validated_github_host_profile&) -> adapters::github::detail::github_provider::media_performer {
 			return [root, recording](const application::markdown_image_fetch_request& aRequest, std::stop_token aStop) -> application::markdown_image_fetch_result {
-				++recording->MarkdownImageFetches;
+				{
+					const auto             reference = QCryptographicHash::hash(QByteArray::fromStdString(aRequest.First.Address), QCryptographicHash::Sha256).toHex().toStdString();
+					const std::scoped_lock lock{ recording->Mutex };
+					++recording->MarkdownImageFetches;
+					recording->MarkdownImageFetchReferences.push_back(reference);
+				}
 				if (aStop.stop_requested() || !core::admit_markdown_image_fetch(aRequest.First.Address, aRequest.Policy)) {
 					return std::unexpected{ core::markdown_image_state::failed };
 				}
@@ -5913,12 +5924,14 @@ namespace bpr::app::detail {
 			result.RecordingFailure           = Implementation->Recording->RecordingFailure;
 			result.AccountReadCount           = static_cast<int>(
 				Implementation->Recording->AccountReadCalls);
-			result.MarkdownImageResolutions = Implementation->Recording->MarkdownImageResolutions.load();
-			result.MarkdownImageFetches     = Implementation->Recording->MarkdownImageFetches.load();
-			result.LastReadOperation        = Implementation->Recording->LastReadOperation;
-			result.MergeBaseReads           = Implementation->Recording->MergeBaseReads;
-			result.MergeBaseConfirmations   = Implementation->Recording->MergeBaseConfirmations;
-			result.SmartAcquireCount        = static_cast<int>(
+			result.MarkdownImageResolutions     = Implementation->Recording->MarkdownImageResolutions.load();
+			result.MarkdownImageFetches         = Implementation->Recording->MarkdownImageFetches.load();
+			result.MarkdownImageResolutionNodes = Implementation->Recording->MarkdownImageResolutionNodes;
+			result.MarkdownImageFetchReferences = Implementation->Recording->MarkdownImageFetchReferences;
+			result.LastReadOperation            = Implementation->Recording->LastReadOperation;
+			result.MergeBaseReads               = Implementation->Recording->MergeBaseReads;
+			result.MergeBaseConfirmations       = Implementation->Recording->MergeBaseConfirmations;
+			result.SmartAcquireCount            = static_cast<int>(
 				Implementation->Recording->SmartAcquireCalls);
 			result.SmartAcquireRefusalCount = static_cast<int>(
 				Implementation->Recording->SmartAcquireRefusals);

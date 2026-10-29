@@ -8568,6 +8568,11 @@ namespace {
 						&& aRun->ContinueReviewEnteredReview
 						&& aRun->ContinueReviewPublishedNothing;
 				} else {
+					const auto* const panel = window.conversation_panel();
+					QTextStream{ stdout } << "REVIEW_BEHAVIOUR_FILTER_CONTEXT:modality=" << static_cast<int>(window.current_modality())
+										  << ":conversation=" << panel->pull_request_conversation() << ":discuss=" << panel->discuss()
+										  << ":unread=" << panel->filter_unread_button()->isChecked()
+										  << ":unresolved=" << panel->filter_unresolved_button()->isChecked() << '\n';
 					passed = window.conversation_panel()->filter_unread_button()->isChecked()
 						&& !window.conversation_panel()->filter_unresolved_button()->isChecked();
 				}

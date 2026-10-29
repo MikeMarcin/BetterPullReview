@@ -786,6 +786,15 @@ namespace {
 			expect(state(*reread, index) == core::markdown_image_state::loaded, "a cached image shows after the restart");
 		}
 		const auto second = github_application_fixture_access::evidence(*owner);
+		if (second.MarkdownImageFetches != 0U || second.MarkdownImageResolutions != 0U) {
+			std::cerr << "MARKDOWN_RESTART_REQUESTS:fetches=" << second.MarkdownImageFetches << ":resolutions=" << second.MarkdownImageResolutions << '\n';
+			for (const auto& node : second.MarkdownImageResolutionNodes) {
+				std::cerr << "MARKDOWN_RESTART_RESOLUTION_NODE:" << node << '\n';
+			}
+			for (const auto& reference : second.MarkdownImageFetchReferences) {
+				std::cerr << "MARKDOWN_RESTART_FETCH_ADDRESS_SHA256:" << reference << '\n';
+			}
+		}
 		expect(second.MarkdownImageFetches == 0U && second.MarkdownImageResolutions == 0U, "after the restart nothing is resolved or fetched");
 
 		// RFC-BPR-0084 Q3. Don't load, chosen in Settings, reaches the open
