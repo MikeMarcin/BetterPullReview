@@ -16158,6 +16158,68 @@ namespace {
 
 	/// \brief RFC-BPR-0084 Q3. Settings' "Descriptions and comments: Images"
 	/// row is one profile preference; the window follows what the host publishes.
+	/// \brief [[BPR-1816]]. Settings › Review › Finishing a review: one box
+	/// per finishing verdict, ticked by default, each dispatching only its own
+	/// choice; the row follows what the host publishes; Reset ticks all three.
+	/// With BPR_FINISH_REVIEW_RENDER_DIR set, the section renders in light and
+	/// dark.
+	void test_finish_review_settings_follow_the_projection()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		const auto verdicts = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+		const auto names    = std::array{ QStringLiteral("Comment"), QStringLiteral("Approve"), QStringLiteral("Request changes") };
+		for (std::size_t index = 0U; index < verdicts.size(); ++index) {
+			auto* const box = window.finish_review_switch(verdicts[index]);
+			expect(box != nullptr && box->isChecked() && box->text() == names[index]
+					   && box->accessibleName() == QStringLiteral("Close the review and go Home after %1").arg(names[index])
+					   && box->focusPolicy() == Qt::StrongFocus && window.behaviour_editor()->isAncestorOf(box),
+				   "each finishing verdict has its own box on Settings › Review, ticked by default");
+		}
+		auto* const label = window.findChild<QLabel*>(QStringLiteral("finishReviewLabel"));
+		auto* const info  = window.findChild<QToolButton*>(QStringLiteral("finishReviewInfo"));
+		auto* const reset = window.findChild<QToolButton*>(QStringLiteral("resetFinishReview"));
+		expect(label != nullptr && label->text() == QStringLiteral("Close and go Home after") && info != nullptr && reset != nullptr
+				   && window.findChild<QLabel*>(QStringLiteral("resetFinishReviewHeading"))->text() == QStringLiteral("Finishing a review"),
+			   "the group is named, its row says what the boxes do, and it has an information glyph and its own Reset");
+		if (const auto directory = qEnvironmentVariable("BPR_FINISH_REVIEW_RENDER_DIR"); !directory.isEmpty()) {
+			auto* const settings = window.settings();
+			expect(settings != nullptr, "the window has Settings to render");
+			settings->resize(980, 640);
+			settings->present(qt::settings_page::review);
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				auto profile = qt::appearance_profile{ };
+				profile.select_mode(mode);
+				settings->setPalette(profile.derive(QApplication::palette()));
+				process_events();
+				expect(settings->grab().save(directory + QStringLiteral("/finish-review-settings-%1.png").arg(name)), "the Review page renders");
+			}
+			settings->close();
+		}
+		window.finish_review_switch(core::review_disposition::approve)->click();
+		expect(records.size() == 1U
+				   && records.back().FinishReview == core::review_finish_settings{ .Approve = core::review_finish_return::pull_request }
+				   && records.back().MarkdownImages == application::review_behaviour_settings{ }.MarkdownImages,
+			   "unticking Approve dispatches the whole record with only Approve staying on the pull request");
+		auto stays                        = application::review_behaviour_settings{ };
+		stays.FinishReview.RequestChanges = core::review_finish_return::pull_request;
+		window.publish(application::workbench_projection{ .Behaviour = stays });
+		process_events();
+		expect(window.finish_review_switch(core::review_disposition::comment)->isChecked() && window.finish_review_switch(core::review_disposition::approve)->isChecked()
+				   && !window.finish_review_switch(core::review_disposition::request_changes)->isChecked() && records.size() == 1U,
+			   "the boxes show what the host published, without dispatching again");
+		reset->click();
+		expect(records.size() == 2U && records.back().FinishReview == core::review_finish_settings{ }, "Reset ticks all three again, and nothing else changes");
+		window.hide();
+	}
+
 	void test_markdown_images_preference_follows_the_projection()
 	{
 		qt::workbench_window window;
@@ -23148,6 +23210,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_center_ribbon_width_settings_and_rendering", &test_center_ribbon_width_settings_and_rendering);
 		runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
 		runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+		runCase("test_finish_review_settings_follow_the_projection", &test_finish_review_settings_follow_the_projection);
 		if (!listCases) {
 			std::cout << "center-ribbon-width:pass\n";
 		}
@@ -23531,6 +23594,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_hidden_drawer_controls_leave_no_column_and_no_hide_button", &test_hidden_drawer_controls_leave_no_column_and_no_hide_button);
 	runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
 	runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+	runCase("test_finish_review_settings_follow_the_projection", &test_finish_review_settings_follow_the_projection);
 	runCase("test_continue_review_and_opening_honour_the_modality_preferences", &test_continue_review_and_opening_honour_the_modality_preferences);
 	runCase("test_comments_filter_and_return_comparison_preferences_apply_on_open", &test_comments_filter_and_return_comparison_preferences_apply_on_open);
 	runCase("test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison", &test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison);

@@ -156,7 +156,9 @@ namespace bpr::qt {
 	} // namespace
 
 	namespace {
-		using tray_tab_bar = detail::drawer_tab_bar;
+		/// [[BPR-1816]]. The finish switches' order: the finish buttons'.
+		constexpr auto finish_verdicts = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+		using tray_tab_bar             = detail::drawer_tab_bar;
 
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
 		{
@@ -3018,7 +3020,9 @@ namespace bpr::qt {
 		// returns to the view the reviewer came from, Review or Discuss,
 		// with a brief line saying so (owner, finish-page v002). A refused or
 		// unknown answer keeps the page and its recovery.
-		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments) {
+		// [[BPR-1816]]. Or, as the core decided from that verdict's setting,
+		// the review closes too and Home shows (owner, 2026-10-29).
+		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments, const core::review_finish_transition aTransition) {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
 				close_review_composition(false);
 			}
@@ -3027,6 +3031,14 @@ namespace bpr::qt {
 				: aComments == 1U             ? tr("Review submitted with 1 comment")
 											  : tr("Review submitted with %1 comments").arg(aComments);
 			statusBar()->showMessage(said, 8000);
+			if (aTransition == core::review_finish_transition::close_review_and_go_home && CloseReviewDispatch) {
+				// The workflow that confirmed the review is still on the
+				// stack; closing the review retires its host, so the close
+				// waits for the next turn and is said there.
+				FinishingAtHome = IdentityText;
+				QTimer::singleShot(0, this, [this, said] { finish_review_at_home(said); });
+				return;
+			}
 			QAccessibleAnnouncementEvent event{ this, said };
 			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 			QAccessible::updateAccessibility(&event);
@@ -12302,6 +12314,52 @@ namespace bpr::qt {
 				aNext.CommentsFilter = application::review_behaviour_settings{ }.CommentsFilter;
 				aNext.ReadingWidth   = core::default_reading_width;
 			});
+		// [[BPR-1816]]. The owner, 2026-10-29: "Finishing a review should take
+		// you to Home and close that review", a setting per outcome, on by
+		// default. Request changes has its own box as well: each finish
+		// button is its own gesture. One line reads as a sentence, its boxes
+		// named as the buttons are.
+		auto* const finishRow    = new QWidget{ BehaviourEditor };
+		auto* const finishLayout = new QHBoxLayout{ finishRow };
+		finishLayout->setContentsMargins(0, 0, 0, 0);
+		finishLayout->setSpacing(4);
+		auto* const finishBoxes = new QHBoxLayout{ };
+		finishBoxes->setSpacing(16);
+		finishLayout->addLayout(finishBoxes);
+		{
+			const auto verdicts = std::array{ std::pair{ QStringLiteral("Comment"), QStringLiteral("finishReviewComment") },
+											  std::pair{ QStringLiteral("Approve"), QStringLiteral("finishReviewApprove") },
+											  std::pair{ QStringLiteral("Request changes"), QStringLiteral("finishReviewRequestChanges") } };
+			for (std::size_t index = 0U; index < verdicts.size(); ++index) {
+				auto* const box = new QCheckBox{ verdicts[index].first, finishRow };
+				box->setObjectName(verdicts[index].second);
+				box->setAccessibleName(QStringLiteral("Close the review and go Home after %1").arg(verdicts[index].first));
+				box->setFocusPolicy(Qt::StrongFocus);
+				connect(box, &QCheckBox::toggled, this, [this] {
+					if (!ApplyingBehaviour) {
+						dispatch_behaviour_from_controls();
+					}
+				});
+				finishBoxes->addWidget(box);
+				FinishReviewSwitches[index] = box;
+			}
+		}
+		auto* const finishInfo = new info_glyph{ QStringLiteral("Once GitHub confirms a review you finished with a ticked verdict, the review closes and Home shows. Unticked, you stay on the pull request. A review that isn't published stays open, with its summary and comments."), finishRow };
+		finishInfo->setObjectName(QStringLiteral("finishReviewInfo"));
+		finishLayout->addWidget(finishInfo);
+		for (auto* const box : FinishReviewSwitches) {
+			box->setAccessibleDescription(finishInfo->consequence());
+		}
+		addGroup(
+			column,
+			QStringLiteral("Finishing a review"),
+			QStringLiteral("resetFinishReview"),
+			{
+				row{ .Index = 0U, .Label = QStringLiteral("Close and go Home after"), .Name = QStringLiteral("finishReview"), .Options = { }, .Control = finishRow },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.FinishReview = core::review_finish_settings{ };
+			});
 		// [[BPR-0721]]. The owner found the collapsed rails and the Hide
 		// buttons took room the strip's toggles already cover, and asked for
 		// a setting rather than their removal. Off is the default.
@@ -12728,6 +12786,12 @@ namespace bpr::qt {
 		if (LabelHelperSwitch != nullptr) {
 			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
 		}
+		// [[BPR-1816]]. Ticked is Home.
+		for (std::size_t index = 0U; index < FinishReviewSwitches.size(); ++index) {
+			if (FinishReviewSwitches[index] != nullptr) {
+				FinishReviewSwitches[index]->setChecked(core::finish_return(Behaviour.FinishReview, finish_verdicts[index]) == core::review_finish_return::home);
+			}
+		}
 		// [[BPR-1568]]. The Review feedback hook's line says what this
 		// window's published record says.
 		if (WritingHooks != nullptr) {
@@ -12744,8 +12808,21 @@ namespace bpr::qt {
 		ApplyingBehaviour = false;
 	}
 
+	auto workbench_window::finish_review_switch(const core::review_disposition aDisposition) const noexcept -> QCheckBox*
+	{
+		for (std::size_t index = 0U; index < finish_verdicts.size(); ++index) {
+			if (finish_verdicts[index] == aDisposition) {
+				return FinishReviewSwitches[index];
+			}
+		}
+		return nullptr;
+	}
+
 	auto workbench_window::behaviour_from_controls() const -> application::review_behaviour_settings
 	{
+		const auto finish_choice = [](const QCheckBox* const aBox) {
+			return aBox->isChecked() ? core::review_finish_return::home : core::review_finish_return::pull_request;
+		};
 		const auto chosen = [this](const std::size_t aRow) -> std::size_t {
 			const auto& buttons = BehaviourOptions[aRow];
 			for (std::size_t index = 0U; index < buttons.size(); ++index) {
@@ -12769,6 +12846,11 @@ namespace bpr::qt {
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
+			.FinishReview      = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
+																								   .Comment        = finish_choice(FinishReviewSwitches[0]),
+																								   .Approve        = finish_choice(FinishReviewSwitches[1]),
+																								   .RequestChanges = finish_choice(FinishReviewSwitches[2]),
+																							   },
 		};
 	}
 
@@ -16922,10 +17004,10 @@ namespace bpr::qt {
 		CloseReviewDispatch = std::move(aDispatch);
 	}
 
-	void workbench_window::close_review()
+	auto workbench_window::release_review() -> std::optional<QString>
 	{
 		if (HomeLanding == nullptr || HomeLanding->state() != landing_state::back_to_review || !CloseReviewDispatch) {
-			return;
+			return std::nullopt;
 		}
 		// The pull request's short name, as a link names it, not the strip's
 		// identity with its title.
@@ -16934,14 +17016,49 @@ namespace bpr::qt {
 			: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber);
 		CloseReviewDispatch();
 		if (HomeLanding->state() == landing_state::back_to_review) {
+			return std::nullopt;
+		}
+		return closing;
+	}
+
+	void workbench_window::close_review()
+	{
+		const auto closed = release_review();
+		if (!closed) {
 			return;
 		}
 		statusBar()->showMessage(
-			closing.isEmpty() ? QStringLiteral("Closed the review.") : QStringLiteral("Closed the review of %1.").arg(closing), 8000);
+			closed->isEmpty() ? QStringLiteral("Closed the review.") : QStringLiteral("Closed the review of %1.").arg(*closed), 8000);
 		if (showing_home() && HomeOpenBar != nullptr) {
 			HomeOpenBar->setFocus(Qt::OtherFocusReason);
 		}
 	}
+
+	void workbench_window::finish_review_at_home(QString aSaid)
+	{
+		// [[BPR-1816]]. Only the review that was confirmed: another opened
+		// meanwhile, or none left open, is not closed.
+		const auto expected = std::exchange(FinishingAtHome, std::nullopt);
+		auto       said     = std::move(aSaid);
+		if (expected && *expected == IdentityText) {
+			choose_home(true);
+			if (const auto closed = release_review(); closed) {
+				said = closed->isEmpty() ? tr("%1. Closed the review.").arg(said) : tr("%1. Closed the review of %2.").arg(said, *closed);
+				if (showing_home() && HomeOpenBar != nullptr) {
+					HomeOpenBar->setFocus(Qt::OtherFocusReason);
+				}
+			} else {
+				// Nothing was closed, so Home does not cover the review.
+				choose_home(false);
+			}
+		}
+		statusBar()->showMessage(said, 8000);
+		QAccessibleAnnouncementEvent event{ this, said };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
+	}
+
+	auto workbench_window::finishing_at_home() const noexcept -> bool { return FinishingAtHome.has_value(); }
 
 	void workbench_window::set_home_failure_ink(const QColor& aInk)
 	{
