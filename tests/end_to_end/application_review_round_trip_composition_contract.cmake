@@ -2496,8 +2496,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# answers a submission; core::decide_review_finish decides. No credential,
 	# grant, provider, mutation, publication or source-inventory change; the
 	# mutation-branch pin is unchanged.
+	# [[BPR-1817]] chosen-agent send reseal (2026-10-29). github_application.cpp
+	# tells the chat session host the agent the composer's menu shows at the
+	# send gesture (agent_chat_session_host::choose_agent) and hands a refused
+	# send's core::agent_send_refusal to the Agent tab beside the composer. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"b43b6d889b673928877d4a770707c29e398e5668fe98b45d837949d02fda2564"
+		"c5591b2bbac4ac24ed714c2b79d9483a70dfc5573bd4c57e483b46b18ecec08d"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2764,8 +2770,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # Submit sent and passes core::decide_review_finish's transition with the
 # confirmation; the composition supplies the profile's accepted finish
 # choices. No grant, mutation, publication or source-inventory change.
+# [[BPR-1817]] chosen-agent send reseal (2026-10-29): github_application.cpp
+# only, as described at the full digest. No grant, mutation, publication or
+# source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "b0dc07855226d0ff825dce0af37243e08a76393bb2d691498655a36eb0ff2917"
+        "abc3dee49fb6e1fd264dddec4137aed6f88ddbd15e7fd8a47c2f8fc6af4967f1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

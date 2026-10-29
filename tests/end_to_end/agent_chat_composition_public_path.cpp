@@ -28,7 +28,11 @@
 /// computed for that same revision before the review left it.
 /// **construction-cut**: with the chat host's construction
 /// removed, the same send gesture is still made and still observed, its turn
-/// count is zero, and the positive marker is false.
+/// count is zero, and the positive marker is false. **custom-agent**
+/// ([[BPR-1817]]): with no built-in program offered, a custom agent added in
+/// Settings and chosen in the composer's agent menu is the one a send asks,
+/// through the Agent tab's own Send, and a send refused before it is made is
+/// said beside the composer.
 
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
@@ -38,6 +42,7 @@
 
 #include "bpr/adapters/mcp/mcp_context_helper.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -245,7 +250,8 @@ auto main(int argc, char** argv) -> int
 	const auto course = std::string_view{ argv[1] };
 	if (
 		course != "positive" && course != "stale" && course != "continued"
-		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation") {
+		&& course != "anchored-continuation" && course != "construction-cut" && course != "conversation"
+		&& course != "custom-agent") {
 		return EXIT_FAILURE;
 	}
 	// The two courses that take `continue_against_old_revision` to a further
@@ -253,7 +259,9 @@ auto main(int argc, char** argv) -> int
 	const auto continuing
 		= course == "continued" || course == "anchored-continuation";
 	const auto anchored = course == "anchored-continuation";
-	auto       data     = QTemporaryDir{ };
+	// [[BPR-1817]]. The course whose only agent is one the reviewer added.
+	const auto custom = course == "custom-agent";
+	auto       data   = QTemporaryDir{ };
 	if (!data.isValid()) {
 		return EXIT_FAILURE;
 	}
@@ -281,7 +289,7 @@ auto main(int argc, char** argv) -> int
 				? app::detail::github_epoch_fixture_phase::seed
 				: app::detail::github_epoch_fixture_phase::single,
 			.DisableChatSessionHostComposition = course == "construction-cut",
-			.CodexAgentExecutable              = std::filesystem::path{ argv[2] },
+			.CodexAgentExecutable              = custom ? std::nullopt : std::optional{ std::filesystem::path{ argv[2] } },
 		},
 		[&](auto aResult) {
 			startupTerminal = true;
@@ -317,15 +325,28 @@ auto main(int argc, char** argv) -> int
 
 	auto* const panel     = window.agent_panel();
 	auto        offerings = wait_terms{ };
-	if (!wait_until_reporting(offerings, [&window, panel](wait_terms& aTerms) {
+	if (!wait_until_reporting(offerings, [&window, panel, custom](wait_terms& aTerms) {
 			return aTerms.require(
 					   "files-listed",
 					   window.files_drawer()->contents_view()->model()->rowCount()
 						   != 0)
 				&& aTerms.require(
-					"profiles-is-four", panel->profile_selector()->count() == 4);
+					"profiles-is-four", custom || panel->profile_selector()->count() == 4);
 		})) {
 		return fail(*application, "agent-offerings", offerings.render());
+	}
+	// [[BPR-1817]]. A send asks the agent the composer's menu shows, so the
+	// course chooses the one its fixture program speaks, Codex JSONL, before
+	// each send: a refresh offers the agents again, from the first.
+	const auto chooseJsonl = [panel] {
+		const auto jsonl = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
+		if (jsonl >= 0) {
+			panel->profile_selector()->setCurrentIndex(jsonl);
+		}
+		return jsonl >= 0;
+	};
+	if (!custom && !chooseJsonl()) {
+		return fail(*application, "agent-offerings-jsonl");
 	}
 
 	auto* const files = window.files_drawer()->contents_view();
@@ -380,6 +401,47 @@ auto main(int argc, char** argv) -> int
 		})) {
 		return fail(*application, "chat-presented", presented.render());
 	}
+	// [[BPR-1817]]. The custom agent: added in Settings as a reviewer adds
+	// one, under a neutral name, running the fixture program, and chosen in
+	// the composer's agent menu.
+	const auto customSlot = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U);
+	if (custom) {
+		const auto program = std::string{ argv[2] };
+		window.agent_programs()->set_editor([&program](const core::agent_entry& aStart, QWidget*) -> std::optional<core::agent_entry> {
+			auto entry     = aStart;
+			entry.Name     = "Fixture agent";
+			entry.Protocol = core::agent_protocol::codex_jsonl_exec;
+			entry.Program  = program;
+			entry.Preset.reset();
+			return entry;
+		});
+		auto* const selector = panel->profile_selector();
+		auto        added    = wait_terms{ };
+		if (!wait_until_reporting(added, [&](wait_terms& aTerms) {
+				QApplication::processEvents();
+				if (selector->findData(QVariant::fromValue<qulonglong>(customSlot.value())) < 0) {
+					window.agent_programs()->add_agent(std::nullopt);
+				}
+				return aTerms.require("custom-agent-offered", selector->findData(QVariant::fromValue<qulonglong>(customSlot.value())) >= 0); }, extended_agent_budget)) {
+			return fail(*application, "custom-agent-added", added.render());
+		}
+		selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(customSlot.value())));
+		QApplication::processEvents();
+		if (panel->selected_profile() != std::optional{ customSlot } || selector->count() != 1) {
+			return fail(*application, "custom-agent-chosen");
+		}
+		// A send with nothing typed is refused before anything is sent, and
+		// the composer says so instead of doing nothing.
+		auto* const tab = window.agent_tab();
+		chat->composer()->clear();
+		tab->ask_button()->click();
+		QApplication::processEvents();
+		if (tab->send_refusal() != core::agent_send_refusal::empty_message || tab->send_refusal_strip()->isHidden()
+			|| !tab->send_refusal_text().startsWith(QStringLiteral("Not sent."))
+			|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != 0U) {
+			return fail(*application, "custom-agent-empty-refusal-said", tab->send_refusal_text().toStdString());
+		}
+	}
 	const auto beforeSend
 		= app::detail::github_application_fixture_access::agent_chat_evidence(
 			*application);
@@ -427,7 +489,13 @@ auto main(int argc, char** argv) -> int
 	chat->composer()->setPlainText(QString::fromUtf8(
 		chat_message.data(), static_cast<qsizetype>(chat_message.size())));
 	QApplication::processEvents();
-	chat->send_action()->trigger();
+	if (custom) {
+		// The Agent tab's own Send, as the reviewer presses it.
+		window.agent_tab()->ask_button()->click();
+	} else {
+		static_cast<void>(chooseJsonl());
+		chat->send_action()->trigger();
+	}
 	QApplication::processEvents();
 
 	const auto sendIntents = chat->statistics().SendIntents;
@@ -626,6 +694,27 @@ auto main(int argc, char** argv) -> int
 		std::cout << "agent-chat-conversation:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (custom) {
+		// The added agent was the one asked: the turn ran under its slot, its
+		// program answered with the typed message, and no refusal is shown.
+		auto* const tab    = window.agent_tab();
+		const auto  passed = afterSend.ChatHostComposed && afterSend.Statistics.Turns == 1U && afterSend.Statistics.Replies == 1U
+			&& afterSend.Statistics.Refusals == 0U && afterSend.LastTurn.has_value() && afterSend.LastTurn->Session.Profile == customSlot
+			&& afterSend.Session.has_value() && afterSend.Session->Profile == customSlot && invocation.Statistics.ProcessStarts == 1U
+			&& finding.QueuedClaim.find(exactly_once_echo(chat_message)) != std::string::npos && tab->send_refusal() == core::agent_send_refusal::none
+			&& tab->send_refusal_strip()->isHidden() && noGithubMutation;
+		if (!passed) {
+			std::cerr << "agent-chat-custom-agent-evidence:" << afterSend.Statistics.Turns << ':' << afterSend.Statistics.Replies << ':'
+					  << afterSend.Statistics.Refusals << ':' << (afterSend.LastTurn ? afterSend.LastTurn->Session.Profile.value() : 0U) << ':'
+					  << invocation.Statistics.ProcessStarts << "\nrefusal:" << tab->send_refusal_text().toStdString()
+					  << "\npanel-status:" << afterSend.AgentPanelStatusText << '\n';
+		}
+		if (!shutdown(*application) || !passed) {
+			return EXIT_FAILURE;
+		}
+		std::cout << "agent-chat-custom-agent:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (course == "positive") {
 		if (chat->replies_list()->count() != 1) {
 			return fail(*application, "chat-reply-visible");
@@ -725,6 +814,7 @@ auto main(int argc, char** argv) -> int
 	// The send the panel will not let a reviewer make, put to the host that
 	// must refuse it anyway. Delivered on the panel's own composed dispatch
 	// edge, carrying exactly the value the panel would have emitted.
+	static_cast<void>(chooseJsonl());
 	if (!app::detail::github_application_fixture_access::dispatch_side_chat_send(
 			*application, std::string{ chat_message })) {
 		return fail(*application, "stale-send");
@@ -898,6 +988,7 @@ auto main(int argc, char** argv) -> int
 		const auto beforeContinuedSend = app::detail::
 			github_application_fixture_access::agent_finding_evidence(
 				*application);
+		static_cast<void>(chooseJsonl());
 		chat->send_action()->trigger();
 		QApplication::processEvents();
 

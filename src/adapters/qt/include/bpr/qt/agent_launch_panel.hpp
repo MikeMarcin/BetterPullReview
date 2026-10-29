@@ -153,6 +153,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
+		/// [[BPR-1817]]. How many refusals the host has named here, and the
+		/// last one. Counted even while a turn runs, when the status line
+		/// keeps saying it runs, so the composer can say a send was refused.
+		[[nodiscard]] auto refusal_count() const noexcept -> std::uint64_t { return Refusals; }
+		[[nodiscard]] auto last_refusal() const -> QString { return LastRefusal; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
@@ -189,6 +194,8 @@ namespace bpr::qt {
 		std::optional<application::agent_draft_choice> OfferedDraft;
 		QString                                        StopReason;
 		std::optional<application::agent_run_outcome>  LastOutcome;
+		std::uint64_t                                  Refusals = 0U;
+		QString                                        LastRefusal;
 		QString                                        LastModel;
 		QString                                        LastCost;
 		phase                                          Phase = phase::idle;

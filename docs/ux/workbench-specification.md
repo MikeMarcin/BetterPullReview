@@ -2570,6 +2570,18 @@ head moved (Start
 a new session or Continue on the old head) and stopped (what happened, the
 question kept, Ask again and Show the log; Check again when the Ask ended
 because the workspace could not be made or the agent did not start).
+A send asks the agent the pill shows, whatever agent the conversation used
+before; choosing another agent starts that agent's conversation
+([[BPR-1817]]). A send that produces no turn is never silent: a danger strip
+directly above the field says "Not sent." and why, in words (nothing typed,
+the agent still answering, the server not allowing that agent, no lines
+selected for a question about them, the agent not starting, and the rest of
+the core's `agent_send_refusal` reasons), until the next send or its Dismiss,
+and keeps the question in the field. A Send that cannot be pressed says why in
+its tooltip. A run that ends without an answer is the turn's answer in words
+(it did not start, exited with an error, ran out of time) followed by the last
+lines it wrote to its error stream; the stopped banner says the same words,
+never an outcome's stable name.
 [RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md): setting up replaces the conversation the first time it is
 needed: once the agents have been looked for and the repository's link has
 been checked, and a step is missing. Its four numbered steps are Agent

@@ -478,6 +478,94 @@ namespace bpr::core {
 		const agent_session&                    aSession,
 		const agent_action_intent&              aIntent) noexcept
 		-> agent_action_verdict;
+
+	/// \brief [[BPR-1817]]. Why one send from the agent composer produced no
+	/// turn, in the one vocabulary the composer presents.
+	///
+	/// \details A send can be stopped before it is made (nothing typed, no
+	/// review open, a turn still running), by the host's own questions, or by
+	/// the core's action verdict. Each stop has a name here so the composer
+	/// says which one it was. A send that stopped and said nothing is the
+	/// defect this enumeration exists to make impossible.
+	enum class agent_send_refusal : std::uint8_t {
+		/// Not a refusal.
+		none,
+		/// No review is open, so there is no session to ask in.
+		no_review,
+		/// No agent is chosen in the composer's agent menu.
+		no_agent,
+		/// Nothing was typed.
+		empty_message,
+		/// The agent is still answering the previous question.
+		request_in_flight,
+		/// The pull request moved on and the reviewer has not chosen how to
+		/// continue.
+		session_stale,
+		/// The chosen agent is not one this application has.
+		agent_unknown,
+		/// The review's server has no agent policy at all.
+		host_not_mapped,
+		/// The review's server does not allow the chosen agent.
+		agent_forbidden_on_host,
+		/// The review's server requires a different agent.
+		agent_not_required_one,
+		/// The conversation belongs to a different agent.
+		session_profile_mismatch,
+		/// The question acts on selected lines and none are selected.
+		selection_required,
+		/// The question names an action nobody declared.
+		unknown_action,
+		/// The question's context is no longer a valid scope.
+		scope_invalid,
+		/// The private notes or draft chosen belong to another conversation.
+		private_context_refused,
+		/// The launch path refused the turn before the agent started.
+		launch_refused,
+	};
+
+	/// \brief The number of declared send refusals.
+	inline constexpr std::size_t agent_send_refusal_count = 16U;
+
+	static_assert(
+		static_cast<std::size_t>(agent_send_refusal::launch_refused) + 1U
+			== agent_send_refusal_count,
+		"agent_send_refusal_count must cover every declared send refusal");
+
+	[[nodiscard]] auto stable_name(agent_send_refusal aRefusal) noexcept
+		-> std::string_view;
+
+	/// \brief The send refusal one action verdict amounts to.
+	///
+	/// \details A permitted verdict is `none`. A profile refusal is told apart
+	/// by the invocation verdict it carries, so "this server forbids that
+	/// agent" and "that agent does not exist" are different answers.
+	[[nodiscard]] auto agent_send_refusal_of(
+		const agent_action_verdict& aVerdict) noexcept -> agent_send_refusal;
+
+	/// \brief What the composer knows before a send is made.
+	struct agent_send_facts
+	{
+		/// A review is open and its chat has a session to ask in.
+		bool ReviewOpen = false;
+		/// The session stopped matching and the reviewer must choose first.
+		bool ContinuationRequired = false;
+		/// An agent is chosen in the composer's agent menu.
+		bool AgentChosen = false;
+		/// The composer holds no words.
+		bool MessageEmpty = true;
+		/// A turn is still running.
+		bool InFlight = false;
+
+		auto operator<=>(const agent_send_facts&) const = default;
+	};
+
+	/// \brief Whether a send may be made now, or the first reason it may not.
+	///
+	/// \details Pure, and decided in this order, which is the order a reviewer
+	/// can act on: a review to ask in, a continuation chosen, a turn no longer
+	/// running, an agent chosen, then something typed.
+	[[nodiscard]] auto decide_agent_send(const agent_send_facts& aFacts) noexcept
+		-> agent_send_refusal;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CHAT_SCOPE_HPP
