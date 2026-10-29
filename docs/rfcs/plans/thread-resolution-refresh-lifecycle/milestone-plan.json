@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "thread-resolution-refresh-lifecycle",
+  "scope": {
+    "issues": [
+      "BPR-1800"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "typed-terminal-lifecycle",
+      "outcome": "An admitted conversation mutation settles exactly once across accepted same-context refresh, while changed authority and shutdown cannot leak a stale terminal into a different document.",
+      "work": [
+        {
+          "issue": "BPR-1800",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The controlled public held-refresh/held-resolution counterexample completes without retrying the mutation in Debug and Release.",
+        "Core and host proofs cover exact request/context ownership, success, failure, refusal, cancellation or unknown outcomes, duplicates, real retirement and shutdown.",
+        "The affected native Windows threaded course completes on repaired source after the shared Windows/WSL machine is actually quiet; prior failures and other agent-course obligations remain explicit.",
+        "Focused integration, format and documentation checks pass; explicit commits and durable evidence leave task-owned commands quiescent."
+      ],
+      "boundary": "Only BPR-1800 lifecycle repair under release-v0.4.0-20261028. Preserve BPR-1799 numbering and original release assets. No extra agents, real GitHub mutation, general infrastructure or new visual design."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

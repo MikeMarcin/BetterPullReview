@@ -772,12 +772,15 @@ try {
 			// reads. Finish those reads before closing this course's window,
 			// so their CLI identity checks cannot spill into the next course's
 			// assertion that opening an empty Home window reads no account.
+			// A preparation can be scheduled, or resolving its inputs, while
+			// the active job counters are zero. Those reads must finish too.
 			wait_for([&] {
 				const auto state = owner->status(other);
 				const auto work  = app::detail::github_application_fixture_access::diff_work_evidence(*owner, other);
 				return state && state->EpochStatus == core::epoch_status::ready
 					&& work.EpochOutstandingJobs == 0U && work.WorkbenchOutstandingRequests == 0U
-					&& work.OutstandingJobs == 0U && !work.Pending;
+					&& work.OutstandingJobs == 0U && !work.Pending && !work.PreparationPending
+					&& work.Preparing == 0U && work.PreparationsInFlight == 0U;
 			},
 					 "the opened pull request's reads settle before the Home-only window course");
 			sibling->close();

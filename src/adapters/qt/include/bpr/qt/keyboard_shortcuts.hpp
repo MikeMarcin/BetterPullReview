@@ -66,6 +66,9 @@ namespace bpr::qt {
 		finish_review,
 		open_on_github,
 		fold_description,
+		/// Save or cancel the description being edited on Overview.
+		description_save,
+		description_cancel,
 
 		comment,
 		add_comment,

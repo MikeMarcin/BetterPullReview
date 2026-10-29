@@ -17,11 +17,12 @@ import release_gpg_vault as vault
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True, help="new, empty artifact directory")
+    parser.add_argument("--output", type=Path, help="fresh artifact directory; default build/releases/VERSION-build.N for numbered RCs")
     parser.add_argument("--generator", choices=("WIX", "DEB", "RPM"), required=True)
     parser.add_argument("--signtool", type=Path)
     parser.add_argument("--azure-dlib", type=Path)
     parser.add_argument("--azure-metadata", type=Path)
+    parser.add_argument("--previous-msi", type=Path, help="actual prior per-machine MSI; required for a numbered Windows cohort")
     parser.add_argument("--publisher", help="approved exact certificate publisher, e.g. Michael Marcin")
     parser.add_argument("--gpg-key", help="approved full OpenPGP fingerprint; already enrolled locally")
     parser.add_argument("--gpg-vault-config", type=Path,
@@ -33,10 +34,32 @@ def main() -> None:
     if runtime.run("git", "-C", source, "status", "--porcelain").strip():
         raise ValueError("commit source before packaging")
     revision = runtime.run("git", "-C", source, "rev-parse", "HEAD").strip()
+    release = runtime.release_identity(info, revision)
+    native_identity = {}
+    if release and info["platform"] == "Windows":
+        if not args.previous_msi or not args.previous_msi.is_file():
+            raise ValueError("numbered Windows production requires the actual --previous-msi before building/signing")
+        previous = signing.windows_identity(args.previous_msi, msi=True)
+        floor = release["windowsUpgradeFloor"]
+        declared = runtime.release_build.floor_identity(floor)
+        if (previous.get("ProductName") != "BetterPullReview" or previous.get("ALLUSERS") != "1"
+                or previous.get("UpgradeCode") != "{18DF84A8-5883-4979-B1C6-6F226934AA68}"
+                or previous.get("ProductVersion") != declared["msiProductVersion"]
+                or not previous.get("ProductCode") or previous["ProductCode"] == release["native"]["msiProductCode"]
+                or previous.get("BPR_MARKETING_VERSION", previous.get("ProductVersion")) != declared["marketingVersion"]
+                or runtime.digest(args.previous_msi) != floor["installerSHA256"]):
+            raise ValueError("actual previous per-machine MSI differs from the frozen upgrade identity")
+        runtime.release_build.native(info["version"], release["number"], declared)
+        native_identity["previousMsiSHA256"] = runtime.digest(args.previous_msi)
+        native_identity["previousProductCode"] = previous["ProductCode"]
+        native_identity["previousWindows"] = declared
+
     if info["platform"] == "Darwin":
         raise ValueError("use tools/release.sh for macOS")
     if info["platform"] == "Windows" and args.generator != "WIX":
         raise ValueError("Windows packages use the per-machine x64 WiX definition")
+    if release and info["platform"] == "Linux" and args.generator != "DEB":
+        raise ValueError("numbered Linux release cohorts use the selected Debian package route")
     if info["platform"] == "Linux":
         baseline = runtime.linux_baseline()
         expected = "DEB" if baseline["distribution"][0] == "ubuntu" else "RPM"
@@ -61,7 +84,7 @@ def main() -> None:
     for path in (args.signtool, args.azure_dlib, args.azure_metadata):
         if path and not path.is_file():
             raise ValueError(f"signing input is absent: {path}")
-    output = args.output.resolve()
+    output = (args.output or source / "build/releases" / runtime.asset_version(info)).resolve()
     output.mkdir(parents=True, exist_ok=False)
     subprocess.run(["cmake", "--build", str(build), "--target", "app_better_pull_review"], check=True)
     signatures = {}
@@ -83,6 +106,29 @@ def main() -> None:
         raise ValueError("source changed during package production; artifacts are not accepted")
     artifact = artifacts[0]
     installed = inventories[0].parent
+    if release:
+        if info["platform"] == "Windows":
+            observed = signing.windows_identity(artifact, msi=True)
+            expected = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1",
+                        "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": info["version"],
+                        "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": info["releaseCohort"]["cohortDigest"],
+                        "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
+            if observed != expected:
+                raise ValueError("actual MSI product/cohort metadata differs from frozen identity")
+            native_identity["msiProperties"] = observed
+            expected_image = {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
+            native_identity["images"] = {}
+            for image in [Path(info["app"]), *(Path(value) for value in info["helpers"])]:
+                observed_image = signing.windows_identity(image)
+                if observed_image != expected_image:
+                    raise ValueError("actual PE cohort version differs: " + image.name)
+                native_identity["images"][image.name] = observed_image
+        else:
+            observed = runtime.run("dpkg-deb", "-f", artifact, "Version").strip()
+            if args.generator != "DEB" or observed != release["native"]["debianVersion"]:
+                raise ValueError("actual DEB version differs from frozen cohort")
+            native_identity["debianVersion"] = observed
+
     if all(windows_options):
         for name, receipt in producers.items():
             image = installed / name
@@ -124,7 +170,7 @@ def main() -> None:
     checksums = output / (artifact.name + ".sha256")
     checksums.write_text("".join(f"{runtime.digest(path)}  {path.name}\n" for path in products), encoding="utf-8")
     provenance_file = output / (artifact.name + ".provenance.json")
-    runtime.write_json(provenance_file, {"schema": "bpr.package-provenance.v1", "sourceCommit": revision,
+    runtime.write_json(provenance_file, {"schema": "bpr.package-provenance.v1", "sourceCommit": revision, **runtime.release_fields(info), **({"nativeIdentity": native_identity} if release else {}),
                        "platform": info["platform"], "generator": args.generator, "families": runtime.families(info),
                        "artifactSHA256": runtime.digest(artifact), "sbomSHA256": runtime.digest(sbom),
                        "products": {path.name: runtime.digest(path) for path in products},
@@ -140,7 +186,7 @@ def main() -> None:
         if runtime.run("git", "-C", source, "rev-parse", "HEAD").strip() != revision or runtime.run("git", "-C", source, "status", "--porcelain").strip():
             raise ValueError("source changed during signing; no release manifest will be emitted")
         runtime.write_json(output / (artifact.name + ".release.json"), {
-            "schema": "bpr.native-release.v1", "version": info["version"], "sourceCommit": revision,
+            "schema": "bpr.native-release.v1", "version": info["version"], "sourceCommit": revision, **runtime.release_fields(info), **({"nativeIdentity": native_identity} if release else {}),
             "platform": info["platform"], "generator": args.generator, "families": runtime.families(info),
             "target": info.get("target", ""), "installer": artifact.name, "runtimeArchive": archive.name,
             "sbom": sbom.name, "sourceArchive": source_asset.name, "checksums": checksums.name,

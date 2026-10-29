@@ -76,13 +76,6 @@ RELEASE_BINARY_FORBIDDEN_BYTES = (
 # [[BPR-0982]]. The UTF-8 `gh sign-in` label went with the precomposed CLI
 # rows ([[BPR-0909]]); the release self-test below now observes the Use
 # GitHub CLI entry the shipped graph offers.
-# [[BPR-1791]]. A release build on macOS, Windows or Linux composes the CLI.
-CLI_BINARY_MARKERS = (
-    b"gh_cli_transport",
-    b"github_cli_process_runner",
-    b"validate_gh_cli_configuration",
-    b"compile_gh_cli_process_request",
-)
 
 
 def parse_arguments() -> tuple[argparse.Namespace, list[str]]:
@@ -1482,12 +1475,10 @@ class CompositionContractTests(unittest.TestCase):
             for forbidden in forbidden_bytes:
                 with self.subTest(forbidden=forbidden.decode(errors="replace")):
                     self.assertNotIn(forbidden, binary)
-            for marker in CLI_BINARY_MARKERS:
-                with self.subTest(cli_marker=marker.decode(errors="replace")):
-                    if cli_platform():
-                        self.assertIn(marker, binary)
-                    else:
-                        self.assertNotIn(marker, binary)
+            # The production composition audit above checks all four exact
+            # demangled CLI anchors on supported platforms, and forbids them
+            # elsewhere. Raw function-name bytes are not a portable second
+            # proof: Windows keeps those symbols in the linked image's map.
 
             runtime_environment = os.environ.copy()
             runtime_environment["QT_QPA_PLATFORM"] = "offscreen"

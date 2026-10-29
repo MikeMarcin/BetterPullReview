@@ -17,11 +17,11 @@ BEGIN
         BEGIN
             VALUE "CompanyName", "@BPR_VENDOR_NAME@"
             VALUE "FileDescription", "@BPR_VERSION_RESOURCE_DESCRIPTION@"
-            VALUE "FileVersion", "@PROJECT_VERSION@"
+            VALUE "FileVersion", "@BPR_RELEASE_DISPLAY_VERSION@"
             VALUE "InternalName", "@BPR_VERSION_RESOURCE_INTERNAL_NAME@"
             VALUE "OriginalFilename", "@BPR_VERSION_RESOURCE_FILE_NAME@"
             VALUE "ProductName", "@PROJECT_NAME@"
-            VALUE "ProductVersion", "@PROJECT_VERSION@"
+            VALUE "ProductVersion", "@BPR_RELEASE_DISPLAY_VERSION@"
         END
     END
     BLOCK "VarFileInfo"

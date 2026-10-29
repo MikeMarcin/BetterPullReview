@@ -1,0 +1,20 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-candidate-build-numbering",
+  "scope": {"issues": ["BPR-1799"]},
+  "milestones": [{
+    "id": "numbered-cohort",
+    "outcome": "The BPR publish-release workflow allocates one durable release candidate build number and binds it through all native identities, artifacts and public diagnostics while preserving installed updater compatibility.",
+    "work": [{"issue": "BPR-1799", "criteria": ["AC1", "AC2", "AC3", "AC4"]}],
+    "depends_on": [],
+    "exit_criteria": [
+      "Durable allocation and unchanged retry preserve one number for one exact source/configuration cohort; changed inputs cannot reuse it and local builds allocate nothing.",
+      "About, copied version facts, diagnostics and native bundle/image/installer/package metadata expose the checked marketing version and common cohort number.",
+      "Source, SPDX, provenance, manifests and canonical asset names bind the cohort; the guarded publisher refuses mixed identities and validates the exact legacy ZIP alias.",
+      "Focused public-path, recovery and misuse proofs plus actual native identity observations pass; remaining release/version/security acceptance is explicitly preserved."
+    ],
+    "boundary": "BPR only. Preserve published v0.4.0 tag/source/assets, original qualification reports, other owner work and the separate pending AgentSkills publication decision. No next semantic version or publication is selected by this milestone."
+  }],
+  "coverage": "complete",
+  "unplanned_work": []
+}

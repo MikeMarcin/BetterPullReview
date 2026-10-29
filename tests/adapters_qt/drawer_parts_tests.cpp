@@ -365,8 +365,8 @@ namespace {
 			expect(drawer.current_tab() == tab && borrowed->isVisible() && observed.back() == tab, "show_tab opens the holder and says so");
 		}
 		expect(drawer.holder(qt::overview_drawer_tab::status) == nullptr && drawer.holder(qt::overview_drawer_tab::tour) == nullptr, "Status and Tour borrow nothing");
-		// The row fits its width: at 340 pixels the names give way to glyphs,
-		// with the open tab named; nothing scrolls.
+		// The row fits its width. Native font metrics decide whether all names
+		// fit or the other tabs give way to glyphs, with the open tab named.
 		auto width = 0;
 		for (auto index = 0; index < tabs->count(); ++index) {
 			if (tabs->isTabVisible(index)) {
@@ -374,8 +374,20 @@ namespace {
 			}
 		}
 		expect(width <= drawer.header()->width(), "five tabs fit the header at the default width");
-		expect(tabs->tabText(tabs->currentIndex()) == QStringLiteral("Agent") && !tabs->tabIcon(0).isNull(), "a compact row names the open tab and shows the others' glyphs");
-		expect(tabs->tabToolTip(0).startsWith(QStringLiteral("Status\n")), "a tab showing only its glyph says its name first");
+		expect(tabs->tabText(tabs->currentIndex()) == QStringLiteral("Agent"), "the open tab is named at the default width");
+		const auto compact = tabs->tabText(0).isEmpty();
+		for (auto index = 0; index < names.size(); ++index) {
+			if (!tabs->isTabVisible(index)) {
+				continue;
+			}
+			const auto named    = !compact || index == tabs->currentIndex();
+			const auto hasGlyph = !tabs->tabIcon(index).isNull();
+			expect(tabs->tabText(index) == (named ? names[index] : QString{ }) && hasGlyph == compact,
+				   "the fitted row shows every name or the open name and every glyph");
+			if (!named) {
+				expect(tabs->tabToolTip(index).startsWith(names[index] + QLatin1Char{ '\n' }), "a tab showing only its glyph says its name first");
+			}
+		}
 		// A hidden Tour tab cannot be opened; shown, it can, and hiding it
 		// while open goes back to Status.
 		drawer.show_tab(qt::overview_drawer_tab::tour);

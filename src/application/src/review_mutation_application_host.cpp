@@ -683,6 +683,7 @@ namespace bpr::application {
 			review_mutation_request_context              Context;
 			review_thread_resolution_publication_request Request;
 			std::stop_source                             Stop;
+			bool                                         Completed = false;
 		};
 		// [[BPR-1741]]. One reaction change in flight, kept like a
 		// resolution: its own record and queue.
@@ -691,6 +692,7 @@ namespace bpr::application {
 			review_mutation_request_context     Context;
 			review_reaction_publication_request Request;
 			std::stop_source                    Stop;
+			bool                                Completed = false;
 		};
 		// [[BPR-1774]]. One description edit in flight, kept like a reaction.
 		struct description_record final
@@ -1302,6 +1304,10 @@ namespace bpr::application {
 		void refuse_resolution(const std::shared_ptr<resolution_record>& aRecord,
 							   const review_mutation_failure             aFailure)
 		{
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingResolutions.emplace(aRecord->Context.Request.value(), aRecord);
+			}
 			auto self = shared_from_this();
 			try {
 				DecisionLane.post([self, aRecord, aFailure] {
@@ -1350,9 +1356,12 @@ namespace bpr::application {
 			auto publish = false;
 			{
 				std::scoped_lock lock{ Mutex };
+				if (std::exchange(aRecord->Completed, true)) {
+					return;
+				}
 				OutstandingResolutions.erase(aRecord->Context.Request.value());
 				++Statistics.Completions;
-				publish = !Closing;
+				publish = !Closing || DrainConversationTerminals;
 				if (publish) {
 					++Statistics.TerminalsPublished;
 					if (aResult.has_value()) {
@@ -1439,6 +1448,10 @@ namespace bpr::application {
 		void refuse_reaction(const std::shared_ptr<reaction_record>& aRecord,
 							 const review_mutation_failure           aFailure)
 		{
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingReactions.emplace(aRecord->Context.Request.value(), aRecord);
+			}
 			auto self = shared_from_this();
 			try {
 				DecisionLane.post([self, aRecord, aFailure] {
@@ -1484,9 +1497,12 @@ namespace bpr::application {
 			auto publish = false;
 			{
 				std::scoped_lock lock{ Mutex };
+				if (std::exchange(aRecord->Completed, true)) {
+					return;
+				}
 				OutstandingReactions.erase(aRecord->Context.Request.value());
 				++Statistics.Completions;
-				publish = !Closing;
+				publish = !Closing || DrainConversationTerminals;
 				if (publish) {
 					++Statistics.TerminalsPublished;
 					if (aResult.has_value()) {
@@ -1974,13 +1990,14 @@ namespace bpr::application {
 			}
 		}
 
-		void shutdown() noexcept
+		void close(const bool aDrainConversations) noexcept
 		{
 			std::scoped_lock lock{ Mutex };
-			if (Closing) {
+			if (Closing && (aDrainConversations || !DrainConversationTerminals)) {
 				return;
 			}
-			Closing = true;
+			Closing                    = true;
+			DrainConversationTerminals = aDrainConversations;
 			static_cast<void>(RepairStop.request_stop());
 			if (Grant != nullptr) {
 				Grant->revoke();
@@ -1993,14 +2010,16 @@ namespace bpr::application {
 					++Statistics.ShutdownRequestsStopped;
 				}
 			}
-			for (auto& entry : OutstandingResolutions) {
-				if (entry.second->Stop.request_stop()) {
-					++Statistics.ShutdownRequestsStopped;
+			if (!aDrainConversations) {
+				for (auto& entry : OutstandingResolutions) {
+					if (entry.second->Stop.request_stop()) {
+						++Statistics.ShutdownRequestsStopped;
+					}
 				}
-			}
-			for (auto& entry : OutstandingReactions) {
-				if (entry.second->Stop.request_stop()) {
-					++Statistics.ShutdownRequestsStopped;
+				for (auto& entry : OutstandingReactions) {
+					if (entry.second->Stop.request_stop()) {
+						++Statistics.ShutdownRequestsStopped;
+					}
 				}
 			}
 			for (auto& entry : OutstandingDescriptions) {
@@ -2051,10 +2070,11 @@ namespace bpr::application {
 
 		std::shared_ptr<request_record>             Active;
 		review_mutation_application_host_statistics Statistics;
-		std::atomic<std::uint64_t>                  NextRequest    = 1U;
-		bool                                        Closing        = false;
-		bool                                        DrainScheduled = false;
-		bool                                        RepairPending  = false;
+		std::atomic<std::uint64_t>                  NextRequest                = 1U;
+		bool                                        Closing                    = false;
+		bool                                        DrainConversationTerminals = false;
+		bool                                        DrainScheduled             = false;
+		bool                                        RepairPending              = false;
 		std::stop_source                            RepairStop;
 	};
 
@@ -2210,10 +2230,17 @@ namespace bpr::application {
 		}
 	}
 
+	void review_mutation_application_host::retire_conversation_changes() noexcept
+	{
+		if (Implementation) {
+			Implementation->close(true);
+		}
+	}
+
 	void review_mutation_application_host::shutdown() noexcept
 	{
 		if (Implementation) {
-			Implementation->shutdown();
+			Implementation->close(false);
 		}
 	}
 
@@ -2233,6 +2260,10 @@ namespace bpr::application {
 	{
 		std::scoped_lock lock{ Implementation->Mutex };
 		return Implementation->Outstanding.empty()
+			&& Implementation->OutstandingResolutions.empty()
+			&& Implementation->OutstandingReactions.empty()
+			&& Implementation->OutstandingDescriptions.empty()
+			&& Implementation->OutstandingCommentEdits.empty()
 			&& Implementation->EffectQueue.empty()
 			&& !Implementation->DrainScheduled
 			&& !Implementation->RepairPending;
@@ -2242,7 +2273,11 @@ namespace bpr::application {
 		-> std::size_t
 	{
 		std::scoped_lock lock{ Implementation->Mutex };
-		return Implementation->Outstanding.size();
+		return Implementation->Outstanding.size()
+			+ Implementation->OutstandingResolutions.size()
+			+ Implementation->OutstandingReactions.size()
+			+ Implementation->OutstandingDescriptions.size()
+			+ Implementation->OutstandingCommentEdits.size();
 	}
 
 	auto review_mutation_application_host::statistics() const noexcept

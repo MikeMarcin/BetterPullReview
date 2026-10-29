@@ -122,6 +122,13 @@ namespace bpr::qt {
 		return line;
 	}
 
+	namespace {
+		auto version_text(const about_facts& aFacts) -> QString
+		{
+			return aFacts.BuildNumber == 0U ? aFacts.Version : QStringLiteral("%1 (build %2)").arg(aFacts.Version).arg(aFacts.BuildNumber);
+		}
+	}
+
 	auto about_version_report(const about_facts& aFacts) -> QString
 	{
 		auto commit = aFacts.Commit.isEmpty() ? QStringLiteral("unavailable") : aFacts.Commit;
@@ -131,13 +138,17 @@ namespace bpr::qt {
 		if (aFacts.LocalChanges) {
 			commit += QStringLiteral(", with local changes");
 		}
-		const auto lines = QStringList{
-			QStringLiteral("BetterPullReview %1").arg(aFacts.Version),
+		auto lines = QStringList{
+			QStringLiteral("BetterPullReview %1").arg(version_text(aFacts)),
 			QStringLiteral("Commit: %1").arg(commit),
 			QStringLiteral("Configuration: %1").arg(aFacts.Configuration),
 			QStringLiteral("Qt: %1").arg(aFacts.QtVersion),
 			QStringLiteral("System: %1").arg(aFacts.System),
 		};
+		if (aFacts.BuildNumber != 0U) {
+			lines.push_back(QStringLiteral("Release configuration: %1").arg(aFacts.ConfigurationDigest));
+			lines.push_back(QStringLiteral("Release cohort: %1").arg(aFacts.CohortDigest));
+		}
 		return lines.join(QLatin1Char{ '\n' }) + QLatin1Char{ '\n' };
 	}
 
@@ -176,7 +187,7 @@ namespace bpr::qt {
 		layout->addWidget(Name);
 		layout->addSpacing(em / 3);
 
-		Version = centred_label(QStringLiteral("Version %1").arg(Facts.Version), this, QStringLiteral("aboutVersion"));
+		Version = centred_label(QStringLiteral("Version %1").arg(version_text(Facts)), this, QStringLiteral("aboutVersion"));
 		Version->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		layout->addWidget(Version);
 		layout->addSpacing(em / 6);

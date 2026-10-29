@@ -629,6 +629,21 @@ confirmed change is dropped when a read agrees with it or disagrees twice, so
 a read begun before the write cannot undo it on screen. A failed change shows
 the read again and names why.
 
+[[BPR-1800]] binds each pending conversation change to its complete request,
+application session and originating workbench generation in
+`core::conversation_mutation_state`. A refreshed snapshot can change the read
+and workbench generations without answering that request. When the core's
+stable authority and base/head scope and the host's complete target/actor
+binding still agree, composition retires admission on the old mutation host
+but drains its admitted resolution and reaction effects to their original
+terminals. Quiescence includes every mutation family and held conversation
+refusals. A changed authority, account, document or source revision retires
+the overlay and request ownership together and hard-stops old hosts; shutdown
+also overrides a previously admitted drain. Only an exact pending identity and
+gesture can settle once, so a later host reusing a numeric request ID cannot
+consume an old terminal. Failed, cancelled and unconfirmed results release
+pending ownership and retain the ordinary read; none resubmits a write.
+
 ## Replies on the GitHub CLI connection ([[BPR-1746]])
 
 The owner, 2026-10-23: "Oh yeah sure let gh allow that." `gh_cli_transport`

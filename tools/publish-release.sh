@@ -8,13 +8,32 @@ DRY_RUN=0
 PRERELEASE=0
 NOTES_FILE=""
 VERSION=""
+PREPARE_CANDIDATE=0
+FREEZE_CANDIDATE=""
+CANDIDATE_INPUTS=""
+COHORT_OUTPUT=""
+RELEASE_COHORT=""
 MANIFEST_ARGS=()
 ASSETS=()
 INCLUDE_MACOS=0
+APPEND_ASSETS=0
+PROMOTE=0
+COPY_STABLE=0
+STABLE_ACCEPTANCE=""
+PUBLICATION_AUTHORIZATION=""
+STABLE_RESUME=""
+SOURCE_REVISION=""
+BASELINE_INVENTORY=""
+PROMOTION_ACCEPTANCE=""
+MACOS_DIR=""
 
 usage() {
     cat <<EOF
-Usage: tools/publish-release.sh --version VERSION --notes-file PATH [--manifest PATH ...] [--macos] [--public] [--prerelease] [--dry-run]
+Candidate preparation: --prepare-candidate --candidate-inputs ABS.json --cohort-output ABS.json
+After committing exactly the counter/receipt: --freeze-candidate N --cohort-output ABS.json
+
+Usage: tools/publish-release.sh --version VERSION --notes-file PATH --cohort ABS.json [--manifest PATH ...] [--macos] [--public] [--prerelease] [--dry-run]
+       tools/publish-release.sh --append-assets|--promote|--copy-stable --version VERSION --source-revision SHA --baseline-inventory PATH --notes-file PATH [--manifest PATH ...] [--macos-dir PATH] [--promotion-acceptance PATH] [--public] [--dry-run]
 
 Publish already verified native artifacts to the expected GitHub repository.
 Without --manifest, use the standard macOS eight-asset set. --macos adds that
@@ -26,6 +45,19 @@ remote mutation. The default requires PRIVATE; --public requires PUBLIC.
 --public never changes repository visibility. origin must have one canonical
 GitHub HTTPS or SSH push URL for ${EXPECTED_REPOSITORY}.
 --prerelease marks the GitHub release as a prerelease and keeps it out of Latest.
+--append-assets adds verified missing assets to an existing mutable prerelease;
+existing bytes and the annotated source tag must match the supplied baseline.
+--promote requires the complete standard set and explicit stable qualification.
+These modes require --source-revision and permit only a separately committed
+publisher/test tool revision above that exact producer source. They never retag,
+replace assets or change repository settings. Native trust remains separate.
+--copy-stable copies a complete numbered RC to a new bare VERSION tag and release.
+It requires --cohort and all three platforms; missing source RC assets remain an
+explicit dry-run prerequisite. Mutation additionally requires --stable-acceptance
+and --publication-authorization, bound to the exact source/cohort/asset inventory.
+Its draft stays outside Latest until every selected asset is verified.
+After inspecting a partial operation, --resume-stable PATH binds its exact draft
+ID, annotated tag object and existing asset inventory; it creates nothing anew.
 EOF
 }
 
@@ -62,6 +94,11 @@ repository_guard() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --prepare-candidate) PREPARE_CANDIDATE=1; shift ;;
+        --freeze-candidate) FREEZE_CANDIDATE="$2"; shift 2 ;;
+        --candidate-inputs) CANDIDATE_INPUTS="$2"; shift 2 ;;
+        --cohort-output) COHORT_OUTPUT="$2"; shift 2 ;;
+        --cohort) RELEASE_COHORT="$2"; shift 2 ;;
         --version)
             [[ $# -ge 2 ]] || fail "--version requires a value"
             VERSION="${2#v}"
@@ -70,6 +107,28 @@ while [[ $# -gt 0 ]]; do
         --notes-file)
             [[ $# -ge 2 ]] || fail "--notes-file requires a value"
             NOTES_FILE="$2"
+            shift 2
+            ;;
+        --append-assets)
+            APPEND_ASSETS=1
+            shift
+            ;;
+        --promote)
+            PROMOTE=1
+            shift
+            ;;
+        --copy-stable) COPY_STABLE=1; shift ;;
+        --stable-acceptance) STABLE_ACCEPTANCE="$2"; shift 2 ;;
+        --publication-authorization) PUBLICATION_AUTHORIZATION="$2"; shift 2 ;;
+        --resume-stable) STABLE_RESUME="$2"; shift 2 ;;
+        --source-revision|--baseline-inventory|--promotion-acceptance|--macos-dir)
+            [[ $# -ge 2 ]] || fail "$1 requires a value"
+            case "$1" in
+                --source-revision) SOURCE_REVISION="$2" ;;
+                --baseline-inventory) BASELINE_INVENTORY="$2" ;;
+                --promotion-acceptance) PROMOTION_ACCEPTANCE="$2" ;;
+                --macos-dir) MACOS_DIR="$2" ;;
+            esac
             shift 2
             ;;
         --dry-run)
@@ -105,6 +164,22 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+[[ "${COPY_STABLE}" == 0 || ("${PREPARE_CANDIDATE}" == 0 && -z "${FREEZE_CANDIDATE}") ]] || fail "Stable copy cannot allocate or freeze a candidate"
+if [[ "${PREPARE_CANDIDATE}" == 1 || -n "${FREEZE_CANDIDATE}" ]]; then
+    [[ -n "${COHORT_OUTPUT}" && "${COHORT_OUTPUT}" == /* ]] || fail "Candidate output must be an absolute external path"
+    if [[ "${PREPARE_CANDIDATE}" == 1 ]]; then
+        [[ -z "${FREEZE_CANDIDATE}" && -n "${CANDIDATE_INPUTS}" ]] || fail "Preparation needs one complete candidate-inputs JSON"
+        # One controller reconciles authoritative main before reserving from another clone.
+        git -C "${ROOT_DIR}" fetch --no-tags origin main
+        git -C "${ROOT_DIR}" merge-base --is-ancestor origin/main HEAD || fail "Reconcile authoritative main before allocating"
+        python3 "${ROOT_DIR}/packaging/release_build.py" allocate --root "${ROOT_DIR}" --inputs "${CANDIDATE_INPUTS}" --output "${COHORT_OUTPUT}"
+    else
+        python3 "${ROOT_DIR}/packaging/release_build.py" freeze --root "${ROOT_DIR}" --number "${FREEZE_CANDIDATE}" --output "${COHORT_OUTPUT}"
+    fi
+    exit 0
+fi
+[[ -z "${CANDIDATE_INPUTS}${COHORT_OUTPUT}" ]] || fail "Candidate preparation options require prepare/freeze"
+
 [[ "${VERSION}" =~ ^[0-9]+\.[0-9]+\.[0-9]+([.-][0-9A-Za-z.-]+)?$ ]] || \
     fail "--version must be a SemVer value"
 [[ -n "${NOTES_FILE}" ]] || fail "--notes-file is required"
@@ -122,10 +197,43 @@ PROJECT_VERSION="$(sed -n '/^project(/,/^)/p' "${ROOT_DIR}/CMakeLists.txt" |
     head -n 1)"
 [[ "${PROJECT_VERSION}" == "${VERSION}" ]] || fail "CMake project version is ${PROJECT_VERSION}, not ${VERSION}"
 
-TAG="v${VERSION}"
+[[ $((APPEND_ASSETS + PROMOTE + COPY_STABLE)) -le 1 ]] || fail "Select one existing-source publication mode"
+if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 || "${COPY_STABLE}" == 1 ]]; then
+    [[ "${PRERELEASE}" == 0 ]] || fail "--prerelease applies to initial creation only"
+    [[ -n "${SOURCE_REVISION}" && -n "${BASELINE_INVENTORY}" ]] || fail "Existing release updates require exact source and existing-asset baseline"
+    UPDATE_ASSET_VERSION="${VERSION}"
+    if [[ -n "${RELEASE_COHORT}" ]]; then
+        [[ "${PROMOTE}" == 0 ]] || fail "Numbered RC build tags cannot be promoted to stable; compatible stable policy is a separate decision"
+        UPDATE_ASSET_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["assetVersion"])' "${RELEASE_COHORT}")"
+    fi
+    UPDATE_ARGS=(--repo-root "${ROOT_DIR}" --version "${VERSION}" --source-revision "${SOURCE_REVISION}" --visibility "${EXPECTED_VISIBILITY}" --notes-file "${NOTES_FILE}" --baseline-inventory "${BASELINE_INVENTORY}")
+    if [[ ${#MANIFEST_ARGS[@]} -gt 0 ]]; then UPDATE_ARGS+=("${MANIFEST_ARGS[@]}"); fi
+    if [[ -n "${MACOS_DIR}" ]]; then
+        UPDATE_ARGS+=(--macos-dir "${MACOS_DIR}")
+    elif [[ "${INCLUDE_MACOS}" == 1 || ${#MANIFEST_ARGS[@]} -eq 0 ]]; then
+        UPDATE_ARGS+=(--macos-dir "${ROOT_DIR}/build/releases/${UPDATE_ASSET_VERSION}")
+    fi
+    if [[ -n "${RELEASE_COHORT}" ]]; then UPDATE_ARGS+=(--cohort "${RELEASE_COHORT}"); fi
+    if [[ -n "${PROMOTION_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--promotion-acceptance "${PROMOTION_ACCEPTANCE}"); fi
+    if [[ "${PROMOTE}" == 1 ]]; then UPDATE_ARGS+=(--promote); fi
+    if [[ "${COPY_STABLE}" == 1 ]]; then UPDATE_ARGS+=(--copy-stable); fi
+    if [[ -n "${STABLE_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--stable-acceptance "${STABLE_ACCEPTANCE}"); fi
+    if [[ -n "${PUBLICATION_AUTHORIZATION}" ]]; then UPDATE_ARGS+=(--publication-authorization "${PUBLICATION_AUTHORIZATION}"); fi
+    if [[ -n "${STABLE_RESUME}" ]]; then UPDATE_ARGS+=(--resume-stable "${STABLE_RESUME}"); fi
+    if [[ "${DRY_RUN}" == 1 ]]; then UPDATE_ARGS+=(--dry-run); fi
+    python3 "${ROOT_DIR}/packaging/update_release.py" "${UPDATE_ARGS[@]}"
+    exit 0
+fi
+[[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}${STABLE_ACCEPTANCE}${PUBLICATION_AUTHORIZATION}${STABLE_RESUME}" ]] || fail "Existing-release identity options require append, promotion or stable copy"
+
+[[ -n "${RELEASE_COHORT}" ]] || fail "Initial publication requires --cohort from publish-release candidate preparation"
+[[ "${PRERELEASE}" == 1 ]] || fail "Numbered RC publication requires --prerelease; stable policy is a separate decision"
+python3 "${ROOT_DIR}/packaging/release_build.py" check --root "${ROOT_DIR}" --cohort "${RELEASE_COHORT}" --version "${VERSION}"
+ASSET_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["assetVersion"])' "${RELEASE_COHORT}")"
+TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["releaseTag"])' "${RELEASE_COHORT}")"
 if [[ ${#MANIFEST_ARGS[@]} -eq 0 || "${INCLUDE_MACOS}" == "1" ]]; then
-ASSET_BASE="BetterPullReview-${VERSION}-macos-universal"
-DIST_DIR="${ROOT_DIR}/build/releases/${VERSION}"
+ASSET_BASE="BetterPullReview-${ASSET_VERSION}-macos-universal"
+DIST_DIR="${ROOT_DIR}/build/releases/${ASSET_VERSION}"
 DMG="${DIST_DIR}/${ASSET_BASE}.dmg"
 ZIP="${DIST_DIR}/${ASSET_BASE}.zip"
 DMG_SHA="${DMG}.sha256"
@@ -146,14 +254,14 @@ done
     verify_checksums "$(basename "${SOURCE_SHA}")"
 )
 python3 "${ROOT_DIR}/packaging/verify_release_sources.py" --app-zip "${ZIP}" --sbom "${SBOM}" \
-    --source-archive "${SOURCE}" --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)"
-ASSETS+=("${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}")
+    --source-archive "${SOURCE}" --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)" --cohort "${RELEASE_COHORT}" --legacy-zip "${DIST_DIR}/BetterPullReview-${VERSION}-macos-universal.zip"
+ASSETS+=("${DIST_DIR}/BetterPullReview-${VERSION}-macos-universal.zip" "${DIST_DIR}/BetterPullReview-${VERSION}-macos-universal.zip.sha256" "${DMG}" "${ZIP}" "${DMG_SHA}" "${ZIP_SHA}" "${SBOM}" "${SBOM_SHA}" "${SOURCE}" "${SOURCE_SHA}")
 fi
 if [[ ${#MANIFEST_ARGS[@]} -gt 0 ]]; then
     asset_list="$(mktemp)"
     trap 'exit_status=$?; rm -f "${asset_list}"; exit "${exit_status}"' EXIT
     python3 "${ROOT_DIR}/packaging/verify_native_release.py" "${MANIFEST_ARGS[@]}" \
-        --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)" --asset-list "${asset_list}"
+        --version "${VERSION}" --source-revision "$(git -C "${ROOT_DIR}" rev-parse HEAD)" --asset-list "${asset_list}" --cohort "${RELEASE_COHORT}"
     while IFS= read -r -d '' artifact; do
         # The Python gate has already rejected conflicting native basenames.
         # macOS ships Bash 3.2: expanding an empty array under nounset fails.

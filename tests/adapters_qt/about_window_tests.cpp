@@ -121,6 +121,24 @@ namespace {
 		settle();
 	}
 
+	void test_numbered_content_and_copy()
+	{
+		auto facts                = released_facts();
+		facts.BuildNumber         = 54U;
+		facts.ConfigurationDigest = QString(64, QLatin1Char{ 'a' });
+		facts.CohortDigest        = QString(64, QLatin1Char{ 'b' });
+		auto page                 = qt::about_window{ facts, { } };
+		page.show();
+		settle();
+		expect(page.version_label()->text() == QStringLiteral("Version 0.14.0 (build 54)"), "a numbered release presents its cohort beside the marketing version");
+		page.copy_button()->click();
+		const auto copied = QApplication::clipboard()->text();
+		expect(copied.startsWith(QStringLiteral("BetterPullReview 0.14.0 (build 54)\n"))
+				   && copied.contains(QStringLiteral("Release configuration: ") + facts.ConfigurationDigest)
+				   && copied.contains(QStringLiteral("Release cohort: ") + facts.CohortDigest),
+			   "Copy version info retains source, configuration and cohort identity");
+	}
+
 	void test_content_and_copy()
 	{
 		auto       backend = host{ };
@@ -412,6 +430,13 @@ namespace {
 				settle(40);
 				expect(bare.grab().save(QStringLiteral("%1/about-%2-built-from-source@%3x.png").arg(aRenders, QString::fromStdString(subject.Name)).arg(scale)), "the built-from-source render is saved");
 				bare.hide();
+				auto numberedFacts        = released_facts();
+				numberedFacts.BuildNumber = 54U;
+				auto numbered             = qt::about_window{ numberedFacts, qt::about_actions{ }, &subject.Owner };
+				numbered.show();
+				settle(40);
+				expect(numbered.grab().save(QStringLiteral("%1/about-%2-numbered@%3x.png").arg(aRenders, QString::fromStdString(subject.Name)).arg(scale)), "the numbered release render is saved");
+				numbered.hide();
 			}
 			page.hide();
 		}
@@ -430,6 +455,7 @@ try {
 		}
 	}
 	test_content_and_copy();
+	test_numbered_content_and_copy();
 	test_links_and_documents();
 	test_build_from_source();
 	test_keyboard();

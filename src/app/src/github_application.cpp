@@ -18,6 +18,7 @@
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/comment_edit.hpp"
+#include "bpr/core/conversation_mutation_lifecycle.hpp"
 #include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/description_edit.hpp"
@@ -14508,11 +14509,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_filtered_comment();
 		}
 
-		void retire_review_mutation_host()
+		void retire_review_mutation_host(const core::conversation_mutation_retirement aConversation)
 		{
 			complete_shared_draft(false, { }, PendingReviewMutation.has_value());
+			if (aConversation == core::conversation_mutation_retirement::cancel) {
+				for (auto& host : RetiredReviewMutationHosts) {
+					host->shutdown();
+				}
+			}
 			if (ReviewMutationHost != nullptr) {
-				ReviewMutationHost->shutdown();
+				if (aConversation == core::conversation_mutation_retirement::drain) {
+					ReviewMutationHost->retire_conversation_changes();
+				} else {
+					ReviewMutationHost->shutdown();
+				}
 				RetiredReviewMutationHosts.push_back(
 					std::move(ReviewMutationHost));
 			}
@@ -14533,10 +14543,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void compose_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
+			// A fixture retry waiting for a draining host may already have been
+			// superseded by another accepted read. Never compose that old context.
+			if (!LastAcceptedHandoff || workbench_authority(aHandoff) != workbench_authority(*LastAcceptedHandoff)) {
+				return;
+			}
+			const auto binding = WindowRead && WindowRead->accepted_snapshot()
+				? select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot())
+				: std::nullopt;
+			const auto scope   = core::conversation_mutation_scope{
+				.Session            = aHandoff.ApplicationSession,
+				.Profile            = aHandoff.Profile,
+				.ProfileRevision    = aHandoff.ProfileRevision,
+				.Host               = aHandoff.Host,
+				.HostAuthority      = aHandoff.HostAuthority,
+				.Account            = aHandoff.Account,
+				.Viewer             = aHandoff.Viewer,
+				.IdentityGeneration = aHandoff.IdentityGeneration,
+				.Repository         = aHandoff.Repository,
+				.PullRequest        = aHandoff.PullRequest,
+				.Number             = aHandoff.Number,
+				.Base               = application::recorded_base(aHandoff),
+				.Head               = aHandoff.Head,
+				.Mode               = aHandoff.Mode,
+			};
+			const auto bindingCurrent = binding && ConversationMutationBinding
+				&& binding->Target == ConversationMutationBinding->Target
+				&& binding->ActingIdentity == ConversationMutationBinding->ActingIdentity;
+			const auto retirement       = core::adopt_conversation_mutations(ConversationMutations, ConversationOverlay, scope, bindingCurrent);
+			ConversationMutationBinding = binding;
 			// [[BPR-1477]]. Retired with the composition below, and needed to
 			// say again why a held comment's outcome is unknown.
 			const auto heldRetry = RetryableReviewDraft;
-			retire_review_mutation_host();
+			retire_review_mutation_host(retirement);
 			InlineReviewBinding.reset();
 			if (Window != nullptr && Window->review_editor() != nullptr) {
 				Window->review_editor()->present(
@@ -14739,13 +14778,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!WindowRead || !WindowRead->accepted_snapshot()) {
 				return;
 			}
-			const auto& snapshot = *WindowRead->accepted_snapshot();
-			if (ConversationOverlayPullRequest != snapshot.PullRequest.PullRequest) {
-				ConversationOverlay            = { };
-				ConversationOverlayPullRequest = snapshot.PullRequest.PullRequest;
-				ConversationChanges.clear();
-			}
-			auto observation              = core::conversation_read_observation{ };
+			const auto& snapshot          = *WindowRead->accepted_snapshot();
+			auto        observation       = core::conversation_read_observation{ };
 			observation.ReactionsObserved = snapshot.ReactionsAvailability == application::github_reaction_availability::available;
 			for (const auto& record : snapshot.Reactions) {
 				observation.Reactions.insert_or_assign(record.Subject, record.Reactions);
@@ -14819,7 +14853,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
 				});
 			const auto context = ReviewMutationHost->react(std::move(request), std::move(grant));
-			ConversationChanges.insert_or_assign(context.Request.value(), aGesture.Subject);
+			if (!core::retain_conversation_mutation(ConversationMutations, { context.Request, context.Session, context.Generation },
+													{ core::conversation_mutation_kind::reaction, aGesture.Subject, aGesture.Content, aGesture.Add })) {
+				core::abandon_reaction_change(ConversationOverlay, aGesture.Subject, aGesture.Content);
+				present_conversation_state();
+			}
 		}
 
 		void publish_reaction(const application::review_reaction_terminal& aTerminal) override
@@ -14827,17 +14865,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
-			const auto change = ConversationChanges.find(aTerminal.Context.Request.value());
-			if (change == ConversationChanges.end()) {
+			if (!core::settle_conversation_mutation(ConversationMutations, ConversationOverlay,
+													{ aTerminal.Context.Request, aTerminal.Context.Session, aTerminal.Context.Generation },
+													{ core::conversation_mutation_kind::reaction, aTerminal.Request.Subject, aTerminal.Request.Content, aTerminal.Request.Add },
+													aTerminal.Result.has_value(), aTerminal.Result ? std::optional{ aTerminal.Result->Reactions } : std::nullopt)) {
 				return;
 			}
-			ConversationChanges.erase(change);
 			if (aTerminal.Result.has_value()) {
 				++ReactionCompletions;
-				core::confirm_reaction_change(ConversationOverlay, aTerminal.Request.Subject, aTerminal.Request.Content, aTerminal.Result->Reactions);
 			} else {
 				++ReactionFailures;
-				core::abandon_reaction_change(ConversationOverlay, aTerminal.Request.Subject, aTerminal.Request.Content);
 				if (auto* const panel = Window->conversation_panel(); panel != nullptr) {
 					const auto words = QString::fromUtf8(core::reaction_label(aTerminal.Request.Content).data(),
 														 static_cast<qsizetype>(core::reaction_label(aTerminal.Request.Content).size()));
@@ -15468,8 +15505,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1741]]. The thread shows what was asked at once.
 			static_cast<void>(core::begin_resolution_change(ConversationOverlay, aGesture.Identity, aGesture.Resolve));
 			present_conversation_state();
-			PendingThreadResolution = ReviewMutationHost->resolve(std::move(request), std::move(grant));
-			ConversationChanges.insert_or_assign(PendingThreadResolution->Request.value(), aGesture.Identity);
+			const auto context = ReviewMutationHost->resolve(std::move(request), std::move(grant));
+			if (!core::retain_conversation_mutation(ConversationMutations, { context.Request, context.Session, context.Generation },
+													{ .Subject = aGesture.Identity, .Add = aGesture.Resolve })) {
+				core::abandon_resolution_change(ConversationOverlay, aGesture.Identity);
+				present_conversation_state();
+			}
 		}
 
 		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
@@ -15477,21 +15518,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (Closing || Window == nullptr) {
 				return;
 			}
-			// [[BPR-1741]]. Every answer settles its own change, the
-			// latest or not.
-			if (const auto change = ConversationChanges.find(aTerminal.Context.Request.value()); change != ConversationChanges.end()) {
-				if (aTerminal.Result.has_value()) {
-					core::confirm_resolution_change(ConversationOverlay, change->second);
-				} else {
-					core::abandon_resolution_change(ConversationOverlay, change->second);
-				}
-				ConversationChanges.erase(change);
-				present_conversation_state();
-			}
-			if (PendingThreadResolution != std::optional{ aTerminal.Context }) {
+			if (!core::settle_conversation_mutation(ConversationMutations, ConversationOverlay,
+													{ aTerminal.Context.Request, aTerminal.Context.Session, aTerminal.Context.Generation },
+													{ .Subject = "review-thread:" + aTerminal.Request.Thread, .Add = aTerminal.Request.Resolve }, aTerminal.Result.has_value())) {
 				return;
 			}
-			PendingThreadResolution.reset();
+			present_conversation_state();
 			auto* const panel = Window->conversation_panel();
 			if (!aTerminal.Result.has_value()) {
 				++ThreadResolutionFailures;
@@ -18995,7 +19027,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (retiresLedger) {
 				PendingUnsentReplyCommands.reset();
 				retire_review_ledger();
-				retire_review_mutation_host();
+				core::retire_conversation_mutations(ConversationMutations, ConversationOverlay);
+				ConversationMutationBinding.reset();
+				retire_review_mutation_host(core::conversation_mutation_retirement::cancel);
 				if (SharedDrafts) {
 					SharedDrafts->detach(DraftConsumer);
 					SharedDrafts.reset();
@@ -24197,20 +24231,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		decltype(github_profile_runtime::AttendedReviewMutationMode)& AttendedReviewMutationMode = Profile->AttendedReviewMutationMode;
 		/// [[BPR-0657]]. The thread the next draft answers, named by a card's Reply.
 		/// [[BPR-0657]]. The thread resolution in flight and what came of them.
-		std::optional<application::review_mutation_request_context> PendingThreadResolution;
-		std::size_t                                                 ThreadResolutionGestures    = 0U;
-		std::size_t                                                 ThreadResolutionRefusals    = 0U;
-		std::size_t                                                 ThreadResolutionCompletions = 0U;
-		std::size_t                                                 ThreadResolutionFailures    = 0U;
+		std::size_t ThreadResolutionGestures    = 0U;
+		std::size_t ThreadResolutionRefusals    = 0U;
+		std::size_t ThreadResolutionCompletions = 0U;
+		std::size_t ThreadResolutionFailures    = 0U;
 		/// [[BPR-1741]]. The viewer's reaction and resolution changes
 		/// reads have not caught up with, the pull request they are on, and
 		/// each unanswered request's subject.
-		core::conversation_overlay           ConversationOverlay;
-		core::pull_request_id                ConversationOverlayPullRequest;
-		std::map<std::uint64_t, std::string> ConversationChanges;
-		std::size_t                          ReactionGestures    = 0U;
-		std::size_t                          ReactionCompletions = 0U;
-		std::size_t                          ReactionFailures    = 0U;
+		core::conversation_overlay                          ConversationOverlay;
+		core::conversation_mutation_state                   ConversationMutations;
+		std::optional<designated_review_mutation_selection> ConversationMutationBinding;
+		std::size_t                                         ReactionGestures    = 0U;
+		std::size_t                                         ReactionCompletions = 0U;
+		std::size_t                                         ReactionFailures    = 0U;
 		/// [[BPR-1774]]. The description save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingDescriptionEdit;
 		std::size_t                                                 DescriptionEditGestures    = 0U;
