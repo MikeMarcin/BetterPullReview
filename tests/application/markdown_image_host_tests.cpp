@@ -1,7 +1,9 @@
+#include "bpr/application/identity_avatar_window.hpp"
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/markdown_image_window.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <map>
@@ -473,6 +475,162 @@ namespace {
 		other.settle();
 		expect(other.Window->quiescent() && other.Service.quiescent(), "probes settle");
 	}
+
+	/// [[BPR-1807]]. One window's people's pictures, through the profile's image lane.
+	struct avatar_fixture
+	{
+		manual_executor                         Decision;
+		manual_executor                         DecodeLane;
+		fake_fetch                              Fetch;
+		fake_decoder                            Decoder;
+		markdown_image_disk_cache_port*         Disk = nullptr;
+		markdown_image_service                  Service{ Decision, DecodeLane, &Fetch, &Decoder, core::markdown_image_memory_cache_bytes, Disk };
+		std::string                             Scope     = "scope-1";
+		bool                                    Available = true;
+		core::markdown_image_fetch_policy       Policy{ .Contract = core::markdown_image_host_contract::github_com, .Hostname = "github.com", .CredentialAvailable = true };
+		std::vector<identity_avatar_projection> Published;
+		std::unique_ptr<identity_avatar_window> Window;
+
+		explicit avatar_fixture(markdown_image_disk_cache_port* aDisk = nullptr)
+			: Disk{ aDisk }
+		{
+			Window = std::make_unique<identity_avatar_window>(
+				Decision, &Service,
+				[this] {
+					auto facts      = markdown_image_window_facts{ };
+					facts.Scope     = Scope;
+					facts.Available = Available;
+					facts.Policy    = Policy;
+					facts.Account   = 99U;
+					return facts;
+				},
+				[this](std::vector<identity_avatar_projection> aAvatars) {
+					for (auto& avatar : aAvatars) {
+						Published.push_back(std::move(avatar));
+					}
+				});
+		}
+
+		void request(std::vector<core::identity_avatar_intent> aIntents)
+		{
+			Window->request(aIntents);
+		}
+
+		void settle()
+		{
+			::settle(Decision, DecodeLane);
+		}
+
+		[[nodiscard]] auto published(const std::string& aLogin, const std::uint32_t aPixels) const -> const identity_avatar_projection*
+		{
+			const auto found = std::ranges::find_if(Published, [&](const auto& aAvatar) { return aAvatar.Login == aLogin && aAvatar.Pixels == aPixels; });
+			return found == Published.end() ? nullptr : &*found;
+		}
+	};
+
+	void avatar_flow()
+	{
+		avatar_fixture fixture;
+		fixture.request({ { "MikeMarcin", 40U }, { "mikemarcin", 44U }, { "../etc/passwd", 40U }, { "octocat", 120U } });
+		expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::blocked, "a login that is not an account's is blocked at once");
+		fixture.settle();
+		expect(fixture.Fetch.Calls.size() == 2U, "the same person at the same size is fetched once; another person is fetched too");
+		const auto& first = fixture.Fetch.Calls[0].Request;
+		expect(first.First.Address == "https://avatars.githubusercontent.com/mikemarcin?s=48" && !first.First.Credential, "the avatar host, by login, without credential");
+		expect(first.Policy.AvatarOrigins && first.MaximumBytes == core::identity_avatar_encoded_bytes && first.DeadlineMs == core::identity_avatar_fetch_deadline_ms,
+			   "held to the avatar origins and the picture bounds");
+		expect(fixture.Fetch.Calls[1].Request.First.Address == "https://avatars.githubusercontent.com/octocat?s=128", "a larger face asks a larger copy");
+		fixture.Fetch.ok(0);
+		fixture.Fetch.ok(1);
+		fixture.settle();
+		const auto* const mine = fixture.published("mikemarcin", 48U);
+		expect(mine != nullptr && mine->State == core::markdown_image_state::loaded && mine->Image != nullptr, "a loaded picture is published with its pixels");
+		expect(fixture.published("octocat", 128U) != nullptr, "under its folded login and size");
+		fixture.Published.clear();
+		fixture.request({ { "MikeMarcin", 48U } });
+		expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::loaded, "a held picture answers at once");
+		fixture.settle();
+		expect(fixture.Fetch.Calls.size() == 2U && fixture.Window->pending() == 0U, "and asks the host nothing");
+	}
+
+	void avatar_refusals_and_scope()
+	{
+		{
+			avatar_fixture fixture;
+			fixture.Available = false;
+			fixture.request({ { "octocat", 40U } });
+			fixture.settle();
+			expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::failed && fixture.Fetch.Calls.empty(),
+				   "a window that cannot fetch keeps the initials and asks nothing");
+		}
+		{
+			avatar_fixture fixture;
+			fixture.request({ { "octocat", 40U } });
+			fixture.settle();
+			fixture.Fetch.Calls[0].Complete(std::unexpected{ core::markdown_image_state::failed });
+			fixture.settle();
+			expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::failed, "a failed fetch is published as failed");
+		}
+		{
+			avatar_fixture fixture;
+			fixture.request({ { "octocat", 40U } });
+			fixture.settle();
+			fixture.Scope = "scope-2";
+			fixture.request({ { "hubot", 40U } });
+			expect(fixture.Fetch.Calls[0].Stop.stop_requested(), "a changed scope cancels the earlier fetch");
+			fixture.Fetch.ok(0);
+			fixture.settle();
+			expect(fixture.published("octocat", 48U) == nullptr, "and nothing of the earlier scope is published");
+		}
+		{
+			avatar_fixture fixture;
+			auto           many = std::vector<core::identity_avatar_intent>{ };
+			for (std::size_t index = 0U; index <= core::identity_avatar_window_queue; ++index) {
+				many.push_back({ "person" + std::to_string(index), 40U });
+			}
+			fixture.request(many);
+			expect(std::ranges::count(fixture.Published, core::markdown_image_state::over_limit, &identity_avatar_projection::State) == 1,
+				   "past the window's queue a picture is over the limit");
+			fixture.Window->shutdown();
+			fixture.Service.shutdown();
+			fixture.settle();
+		}
+		{
+			avatar_fixture fixture;
+			fixture.Policy = { .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = true };
+			fixture.request({ { "octo", 40U } });
+			fixture.settle();
+			expect(fixture.Fetch.Calls.size() == 1U && fixture.Fetch.Calls[0].Request.First.Address == "https://ghe.example.com/octo.png?size=48"
+					   && fixture.Fetch.Calls[0].Request.First.Credential,
+				   "a GHES picture is asked of the host itself, with its credential");
+			fixture.Fetch.ok(0, "bad");
+			fixture.settle();
+			expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::unsupported && fixture.Published[0].Image == nullptr,
+				   "a picture that does not decode keeps the initials");
+		}
+	}
+
+	void avatar_restart_from_disk()
+	{
+		fake_disk disk;
+		{
+			avatar_fixture first{ &disk };
+			first.request({ { "octocat", 40U } });
+			first.settle();
+			first.Fetch.ok(0);
+			first.settle();
+			expect(disk.Stored.size() == 1U, "a decoded picture is kept on disk");
+			first.Window->shutdown();
+			first.Service.shutdown();
+			first.settle();
+		}
+		avatar_fixture second{ &disk };
+		second.request({ { "OctoCat", 40U } });
+		expect(second.Published.empty(), "a disk probe never answers inline");
+		second.settle();
+		expect(second.Published.size() == 1U && second.Published[0].State == core::markdown_image_state::loaded && second.Fetch.Calls.empty(),
+			   "a restarted profile shows the picture without asking the host");
+	}
 } // namespace
 
 int main()
@@ -484,5 +642,8 @@ int main()
 	window_supersession();
 	window_bounds();
 	window_restart_from_disk();
+	avatar_flow();
+	avatar_refusals_and_scope();
+	avatar_restart_from_disk();
 	return EXIT_SUCCESS;
 }

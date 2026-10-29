@@ -1508,6 +1508,9 @@ namespace bpr::application {
 			if (Images) {
 				Images->reset();
 			}
+			if (Avatars) {
+				Avatars->reset();
+			}
 			forget_cached_source();
 			CacheReadStop.request_stop();
 			if (!PendingProvider) {
@@ -1540,6 +1543,9 @@ namespace bpr::application {
 			}
 			if (Images) {
 				Images->reset();
+			}
+			if (Avatars) {
+				Avatars->reset();
 			}
 			forget_cached_source();
 			CacheReadStop.request_stop();
@@ -1661,6 +1667,20 @@ namespace bpr::application {
 						ProjectionDeliveryFailed = true;
 					}
 				});
+			// [[BPR-1807]]. People's pictures go through the same lane, under the
+			// same facts, so they share its bounds, caches and scope.
+			Avatars = std::make_unique<identity_avatar_window>(
+				DecisionLane, aService, [this] { return markdown_image_facts(); },
+				[this](std::vector<identity_avatar_projection> aAvatars) {
+					if (!Publish || Closing || SuppressPublication) {
+						return;
+					}
+					try {
+						Publish({ Policy.window(), { }, { }, { }, github_presentation_update{ .Avatars = std::move(aAvatars) } });
+					} catch (...) {
+						ProjectionDeliveryFailed = true;
+					}
+				});
 		}
 
 		auto markdown_identity() const -> std::optional<core::markdown_context>
@@ -1766,6 +1786,7 @@ namespace bpr::application {
 		bool                                              MarkdownExhausted = false;
 		std::unordered_set<std::string>                   MarkdownBodies;
 		std::unique_ptr<markdown_image_window>            Images;
+		std::unique_ptr<identity_avatar_window>           Avatars;
 		bool                                              SuppressPublication = false;
 		core::github_window_read                          Policy;
 		const core::github_state&                         State;
@@ -1904,6 +1925,12 @@ namespace bpr::application {
 			Implementation->Images->request(aIntent);
 		}
 	}
+	void github_window_read_host::request_identity_avatars(const std::span<const core::identity_avatar_intent> aIntents)
+	{
+		if (!Implementation->Closing && Implementation->Avatars) {
+			Implementation->Avatars->request(aIntents);
+		}
+	}
 	void github_window_read_host::cancel() { Implementation->cancel(); }
 	void github_window_read_host::share_snapshot(
 		const std::span<const std::shared_ptr<github_window_read_host>> aWindows,
@@ -1942,6 +1969,9 @@ namespace bpr::application {
 		Implementation->release();
 		if (Implementation->Images) {
 			Implementation->Images->shutdown();
+		}
+		if (Implementation->Avatars) {
+			Implementation->Avatars->shutdown();
 		}
 	}
 	auto github_window_read_host::state() const noexcept -> const core::github_state& { return Implementation->State; }

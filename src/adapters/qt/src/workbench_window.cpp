@@ -44,6 +44,7 @@
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
@@ -1097,6 +1098,8 @@ namespace bpr::qt {
 		DifCueClock = std::make_unique<QElapsedTimer>();
 		DifCueClock->start();
 		setObjectName(QStringLiteral("workbenchWindow"));
+		// [[BPR-1807]]. Before any face is drawn, so every one finds it.
+		AvatarPictures = new qt::identity_avatar_pictures{ this };
 		setWindowTitle(QStringLiteral("BetterPullReview"));
 #if defined(__APPLE__)
 		// [[BPR-0646]]. The strip is the title row. The window's content
@@ -14120,6 +14123,20 @@ namespace bpr::qt {
 				}
 			}
 		}
+		// [[BPR-1807]]. A picture belongs to one host and account: another one, or
+		// a sign-in that changed the account, forgets them all first.
+		if (aUpdate.Session.has_value() || aUpdate.PullRequest.has_value()) {
+			const auto scope = aUpdate.PullRequest.has_value()
+				? std::to_string(aUpdate.PullRequest->Profile.value()) + ":" + std::to_string(aUpdate.PullRequest->Host.value()) + ":" + std::to_string(aUpdate.PullRequest->Account.value())
+				: std::to_string(aUpdate.Session->Profile.value()) + ":" + std::to_string(aUpdate.Session->Host.value()) + ":" + std::to_string(aUpdate.Session->Account.value());
+			if (scope != AvatarScope) {
+				AvatarPictures->reset();
+			}
+			AvatarScope = scope;
+		}
+		for (const auto& avatar : aUpdate.Avatars) {
+			AvatarPictures->apply(avatar);
+		}
 		if (aUpdate.PullRequest.has_value()) {
 			apply_github_pull_request(*aUpdate.PullRequest, aUpdate.PreserveWindowNavigation);
 		}
@@ -14454,6 +14471,21 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch)
 	{
 		MarkdownImageDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_identity_avatar_dispatch(std::function<void(std::vector<core::identity_avatar_intent>)> aDispatch)
+	{
+		AvatarPictures->set_dispatch(std::move(aDispatch));
+	}
+
+	void workbench_window::adopt_avatar_style(const core::identity_avatar_style aStyle)
+	{
+		AvatarPictures->set_style(aStyle);
+	}
+
+	auto workbench_window::identity_avatar_pictures() const noexcept -> qt::identity_avatar_pictures*
+	{
+		return AvatarPictures;
 	}
 
 	void workbench_window::set_markdown_code_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)

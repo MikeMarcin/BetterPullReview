@@ -300,7 +300,7 @@ namespace bpr::qt {
 		if (!geometry.Avatar.isEmpty()) {
 			const auto owner = Panel.avatar_name().section(QLatin1Char{ '/' }, 0, 0);
 			paint_identity_avatar(painter, QRectF{ geometry.Avatar }.adjusted(0.5, 0.5, -0.5, -0.5),
-								  { .Identity = owner, .Shape = Panel.avatar_round() ? identity_avatar_shape::person : identity_avatar_shape::group },
+								  { .Identity = owner, .Shape = Panel.avatar_round() ? identity_avatar_shape::person : identity_avatar_shape::group, .Generated = true },
 								  grounds, font());
 		}
 		painter.setPen(colours.color(QPalette::Active, QPalette::Text));

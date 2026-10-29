@@ -358,6 +358,10 @@ keyword, at most 128 bytes, listed once, and at most 64 entries. A list with a
 refused entry is not offered; the line under the field says "Not saved." and
 names the first three refused entries with their reasons, the text stays for
 correcting, and the line goes as soon as the text is legal.
+**People** ([[BPR-1807]]) is one row, **Avatars**: GitHub pictures, the
+default, or Coloured initials. It applies at once to every window of the
+profile; [People's avatars](workbench-specification.md#peoples-avatars) says
+what each shows.
 
 Every row is one line: label, an info glyph and the control. The consequence
 sentence lives in the glyph's popover, which is shown on hover and on keyboard

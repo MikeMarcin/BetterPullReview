@@ -8147,6 +8147,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					WindowRead->request_markdown_images(aIntent);
 				}
 			});
+			// [[BPR-1807]]. People's pictures, as logins and sizes the faces drew.
+			Window->set_identity_avatar_dispatch([this, weak](const std::vector<core::identity_avatar_intent>& aIntents) {
+				if (!weak.expired() && !Closing && Profile->current_window(DraftWindow)) {
+					WindowRead->request_identity_avatars(aIntents);
+				}
+			});
 			Window->set_pull_request_page_dispatch([this, weak](const application::pull_request_page_intent& aIntent) {
 				return !weak.expired() && !Closing && Profile->current_window(DraftWindow)
 					? open_pull_request_page(aIntent)
@@ -22653,6 +22659,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						AppearanceHost->reset(aValue.Scope, variant);
 					} else if constexpr (std::is_same_v<intent, application::apply_known_namespaces_intent>) {
 						AppearanceHost->apply(std::move(aValue.Namespaces));
+					} else if constexpr (std::is_same_v<intent, application::apply_avatar_style_intent>) {
+						AppearanceHost->apply(aValue.Style);
 					} else if constexpr (std::is_same_v<intent, application::export_appearance_theme_intent>) {
 						// The theme on screen, built-in colours included. The
 						// record holds only what a reviewer customised, so
@@ -22703,6 +22711,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (Window != nullptr) {
 				Window->adopt_dif(AppearanceHost->dif_resolution());
+				// [[BPR-1807]]. What every face in the window is drawn from.
+				Window->adopt_avatar_style(settings.Avatars);
 				if (auto* const panel = Window->appearance_settings();
 					panel != nullptr) {
 					auto activePreview
