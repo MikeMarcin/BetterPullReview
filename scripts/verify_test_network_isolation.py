@@ -92,8 +92,8 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 #
 # The set is exact in both directions: an uncontained test outside it fails
 # the manifest gate, and a member found contained fails it too, so the pin has
-# to move when the truth does. The value names the cause so the next reader
-# does not have to re-measure it.
+# to move when the truth does. The value names the measured refusal (and its cause when measured), so the
+# next reader does not have to infer an unobserved OS cause.
 #
 # BPR-0903. `test_network_isolation_external` and `_child` are never pinned
 # here: each passes only on the container's own refusal, for itself and for a
@@ -131,6 +131,24 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
 # STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    # [[BPR-1797]]. Actual paired Release/Debug observations on JaegAW,
+    # source144de719a, 2026-10-28. Every named normal baseline passes and every
+    # forced zero-capability contained course exits1 before its functional
+    # checkpoints. These pins name the first observed predicate, without a
+    # guessed Win32/ACL cause. The two tour courses return immediately when
+    # private_data_root is absent; only their QTemporaryDir cleanup diagnostic
+    # is printed. Exact commands, streams/digests and source controls are in
+    # docs/verification/release-v040-windows-contained-observations.md.
+    "application_agent_chat_conversation_contract": "private-test-root-refused",
+    "application_description_edit_contract": "startup-registry-unavailable",
+    "application_comment_edit_contract": "startup-registry-unavailable",
+    "application_device_flow_cli_choice": "ineligible-inventory-composition-refused",
+    "application_inline_publish_cli_consent": "private-test-root-refused",
+    "application_home_waiting_cli_public_path": "private-test-root-refused",
+    "application_personal_discovery_cli_public_path": "private-test-root-refused",
+    "application_review_submission_cli_ordinary": "private-test-root-refused",
+    "application_review_tour_cli_ordinary_native": "private-test-root-refused",
+    "application_review_tour_cli_ordinary_stop": "private-test-root-refused",
     # Plain cmake --version also fails lowbox startup (0xc0000142).
     "mimalloc_provider": "cmake-dll-initialization",
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",

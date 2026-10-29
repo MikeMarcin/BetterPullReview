@@ -3264,7 +3264,7 @@ target_compile_definitions(test_device_flow_cli_choice PRIVATE BPR_BUILD_TESTING
 bpr_enable_hardening(test_device_flow_cli_choice)
 bpr_enable_warnings(test_device_flow_cli_choice)
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_device_flow_cli_choice COMMAND test_device_flow_cli_choice)
+    bpr_add_network_isolated_test(NAME application_device_flow_cli_choice WINDOWS_UNCONTAINED COMMAND test_device_flow_cli_choice)
     set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
 endif()
 
@@ -3279,7 +3279,7 @@ target_compile_definitions(test_inline_publish_cli_consent PRIVATE BPR_BUILD_TES
 bpr_enable_hardening(test_inline_publish_cli_consent)
 bpr_enable_warnings(test_inline_publish_cli_consent)
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent COMMAND test_inline_publish_cli_consent)
+    bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent WINDOWS_UNCONTAINED COMMAND test_inline_publish_cli_consent)
     set_tests_properties(application_inline_publish_cli_consent PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "inline-publish-cli-consent-tests:pass")
 endif()
 
@@ -3808,7 +3808,7 @@ set_tests_properties(application_home_waiting_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
+    bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
     set_tests_properties(application_home_waiting_cli_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
         PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
@@ -3818,7 +3818,7 @@ endif()
 # a fixture-qualified CLI account lease, with no native sign-in or live API.
 # The CLI sign-in path is composed on macOS, Windows and Linux ([[BPR-1791]]).
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_personal_discovery_cli_public_path COMMAND test_personal_discovery_public_path --gh-cli)
+    bpr_add_network_isolated_test(NAME application_personal_discovery_cli_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --gh-cli)
     set_tests_properties(application_personal_discovery_cli_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
         PASS_REGULAR_EXPRESSION "personal-discovery-cli-public-path:pass")
@@ -4692,12 +4692,14 @@ set_tests_properties(application_source_pr_search_scope PROPERTIES ENVIRONMENT "
 # [[BPR-1791]]: on every platform that composes the CLI way in.
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_review_submission_cli_ordinary
+        WINDOWS_UNCONTAINED
         COMMAND test_better_pull_review_review_submission_composition_public_path --cli)
     set_tests_properties(application_review_submission_cli_ordinary PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120
         PASS_REGULAR_EXPRESSION "review-submission-composition:pass")
     foreach(course IN ITEMS native stop)
         bpr_add_network_isolated_test(NAME application_review_tour_cli_ordinary_${course}
+            WINDOWS_UNCONTAINED
             COMMAND test_review_tour_publication_public_path --cli ${course})
         set_tests_properties(application_review_tour_cli_ordinary_${course} PROPERTIES
             ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180

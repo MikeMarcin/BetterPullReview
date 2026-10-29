@@ -746,6 +746,10 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "agent-setup-default-read-refused",
                 "private-test-root-refused",
                 "persistent-recovery-open-unavailable",
+                # [[BPR-1797]]. Actual source144de Release/Debug pairs;
+                # the exact first predicates are retained without a Win32 cause.
+                "startup-registry-unavailable",
+                "ineligible-inventory-composition-refused",
                 # RFC-BPR-0093 measured native loader refusals.
                 "cmake-dll-initialization",
                 "qt-dll-initialization",
