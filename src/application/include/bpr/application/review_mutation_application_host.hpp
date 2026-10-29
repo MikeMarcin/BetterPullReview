@@ -416,6 +416,11 @@ namespace bpr::application {
 		void cancel(review_mutation_request_context aContext) noexcept;
 		/// Queues a read-only repair pass on the serialized mutation effect lane.
 		void repair_pending_publications();
+		/// \brief [[BPR-1800]]. Stop admission and retire source-bound work,
+		/// but drain admitted conversation changes to their original terminals.
+		/// Composition uses this only after core accepts an unchanged scope.
+		/// A subsequent shutdown cancels the drain and withholds late terminals.
+		void retire_conversation_changes() noexcept;
 		void shutdown() noexcept;
 
 		[[nodiscard]] auto designated() const noexcept

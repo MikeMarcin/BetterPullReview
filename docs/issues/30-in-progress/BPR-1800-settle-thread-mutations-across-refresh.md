@@ -44,3 +44,62 @@ The coordinator assigned this sole non-delegating milestone under mandate
 `/Users/jaeger/.codex/release-runs/v0.4.0-20261028/qualification-repairs-r1/`:
 `threaded-refresh-controlled-r1`, `windows-threaded-reply-native-r1` and
 `windows-agent-completion-native-r1`. No numbered cohort is allocated here.
+
+## Engineering checkpoint and pinned-source review
+
+The core owns stable conversation scope, full request/session/generation keys,
+and exact-once settlement. An accepted same-context refresh retires admission
+while the old host drains admitted conversation effects and terminals. A
+changed complete target/actor binding or core authority/source scope retires
+pending ownership and hard-stops old hosts; shutdown overrides any drain.
+Quiescence now includes resolution, reaction, description and comment-edit
+records, and held conversation refusals. No Qt surface or provider write
+catalog changes; no new library or general infrastructure was introduced.
+
+Self-review of the entire pinned delta from matching `b1dcb8ba2` through this
+issue's repair commit found only `src/app/src/github_application.cpp` changed
+inside the existing production manifest; no intervening pinned-source commits
+exist. Reviewed unchanged per-gesture grant issuance, exact target/actor/source
+binding, hard retirement, late/duplicate correlation and stale fixture retry
+rejection. The production constructor/grant branch digest remains
+`16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1`.
+Full-source and manifest pins are resealed with this recorded review, followed
+by the actual positive inventory and hostile bypass controls. This is
+self-review, not independent or native acceptance.
+
+Initial evidence: Debug core/host tests pass; the controlled public course
+passes both recorded hosts in 6.15 seconds; the original threaded/reaction
+course passes in 8.29 seconds. The first controlled driver read a cached
+phase-8 diagnostic without advancing the probe to phase 9; that failed run
+remains recorded separately, and the corrected driver observes the same held
+read and terminal conditions before accepting success. Release and Windows
+verification are not yet supplied.
+
+## Current verification, 2026-10-29 UTC
+
+- Mac Debug: the expanded core/host tests, controlled public regression and
+  original threaded/reaction course pass (4/4, final r3). This includes
+  overlapping hosts reusing a numeric request, every scope-field retirement,
+  duplicate success/failure/refusal/cancellation/unconfirmed terminals for
+  both conversation operations, and held edit-terminal quiescence.
+- Mac Release: those four courses pass (4/4). The affected composition closure
+  also passes (5/5): source/seal hostile controls, round-trip composition,
+  description editing, comment editing and the network-isolation manifest.
+- Core-only: configure and focused build pass; conversation policy and both
+  architecture checks pass (3/3). Clang-format 22 checks all eight touched C++
+  files. Documentation structure, 67 documentation cases and two allocation
+  cases pass. Strict LLVM 22 analysis is still pending.
+- A causal negative control compiles a copied host translation unit that
+  changes only `retire_conversation_changes` from drain to hard close and
+  links it ahead of the exact candidate application library. The controlled
+  course fails at the original predicate: one resolution, zero completions
+  and pending state after refresh. Its expected-failure driver passes; this
+  is discrimination evidence, not a successful product course.
+
+Raw evidence and receipts remain in the external release run under
+`lifecycle-*` and `qualification-repairs-r1/lifecycle-retirement-negative-r1/`.
+All Mac functional commands are terminal. The original Ubuntu N qualification
+is still running (PID 2883647, source `144de719a`); no Windows build/replay has
+started while it is active. Required repaired-source Windows acceptance and
+final release/numbering/security obligations remain pending. No shared cause
+with the five other Windows agent-course failures has been established.
