@@ -334,6 +334,22 @@ always uses the whole window." The core holds the vocabulary and the rule
 schema 22, a migrated profile reads Wide). It never applies to the code
 comparison, the Comments drawer's own bounds, the search field or the
 composer's list.
+**Finishing a review** ([[BPR-1816]], the owner, 2026-10-29: "Finishing a
+review should take you to Home and close that review"). Once GitHub confirms a
+review the reviewer submitted with Comment, Approve or Request changes, the
+Finish your review sheet closes, the review closes as Close review closes it
+(its drafts kept), Home shows with the Open bar focused, and the status bar
+says "Review submitted. Closed the review of owner/name#N." Settings › Review
+› Finishing a review has one line, **Close and go Home after**, with a box per
+verdict, each ticked by default and each its own preference; an unticked
+verdict returns to the pull request as before ([[BPR-1345]] v003). Request
+changes has its own box rather than sharing Comment's: the three finish
+buttons are three gestures, and a reviewer who asks for changes may want to
+stay where one who approves does not. Nothing leaves the pull request on a
+refused or unknown answer (the page keeps its summary, verdict and comments),
+on a confirmation found by Check status or on reopening, or while another of
+the pull request's submissions still awaits its answer.
+
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position

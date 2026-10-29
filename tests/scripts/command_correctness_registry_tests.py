@@ -37,7 +37,7 @@ class RegistryTests(unittest.TestCase):
         for name, called in re.findall(r'runCase\("([^\"]+)", &([A-Za-z0-9_]+)\)', main):
             self.assertEqual(name, called, "an inventory label must name the function actually called")
         self.assertEqual(actual, data["selector_cases"])
-        self.assertEqual(len(actual["<default>"]), 120)
+        self.assertEqual(len(actual["<default>"]), 121)
         for platform, count in (("Windows", 46), ("Darwin", 45), ("Linux", 45)):
             self.assertEqual(len(inventory.expected_rows(platform)), count)
 

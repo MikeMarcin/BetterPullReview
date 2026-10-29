@@ -213,8 +213,16 @@ namespace bpr::qt {
 		/// hears how many line comments it carried, so the window can close
 		/// the page and say so (owner, finish-page v002: "once the review is
 		/// submitted I just want it to close and return to the PR instead").
-		void confirm_submitted(const core::review_submission_draft& aSubmitted);
-		void set_submitted_observer(std::function<void(std::size_t)> aObserver);
+		///
+		/// \details [[BPR-1816]]. With the core's transition for it: back to
+		/// the pull request, or the review closed and Home shown. A refused or
+		/// unknown answer is never confirmed, so the page keeps its draft.
+		void confirm_submitted(const core::review_submission_draft& aSubmitted,
+							   core::review_finish_transition       aTransition = core::review_finish_transition::return_to_pull_request);
+		using submitted_observer = std::function<void(std::size_t, core::review_finish_transition)>;
+		void set_submitted_observer(submitted_observer aObserver);
+		/// \brief [[BPR-1816]]. The transition the last confirmation carried.
+		[[nodiscard]] auto last_finish() const noexcept -> core::review_finish_transition;
 		/// \brief The last review GitHub confirmed, and how many were.
 		[[nodiscard]] auto last_submitted() const noexcept -> const std::optional<core::review_submission_draft>&;
 		[[nodiscard]] auto confirmed_submissions() const noexcept -> std::size_t;
@@ -277,7 +285,8 @@ namespace bpr::qt {
 		std::map<core::review_draft_id, held_comment>               Held;
 		std::function<void(const core::review_submission_comment&)> PendingConvert;
 		std::function<void()>                                       DiscardObserver;
-		std::function<void(std::size_t)>                            SubmittedObserver;
+		submitted_observer                                          SubmittedObserver;
+		core::review_finish_transition                              LastFinish = core::review_finish_transition::keep_review;
 		std::optional<core::review_submission_draft>                LastSubmitted;
 		std::size_t                                                 Confirmed = 0U;
 		std::optional<feedback_mark_theme>                          MarkTheme;

@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "bd93bbc96eecaed87c1e7b08741b84597eaeb827404524560c8a4b64d5eca36f",
+      "sha256": "419185fb770af38d39c0fa46a44b90ff3a71c43cdad71fd879d756302be996b4",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -1291,7 +1291,7 @@
     },
     {
       "source": "tests/end_to_end/review_submission_composition_public_path.cpp",
-      "sha256": "62d218ab1a9c0335ed37b73a8f20299d4c21ca1120b219303534f6aa0bc72e77",
+      "sha256": "611f035ba48dd4b0d3bd964918cd28b5acb162520ef01772207134d7d22f3c04",
       "directory": "tests/end_to_end",
       "configurations": [
         "Debug",

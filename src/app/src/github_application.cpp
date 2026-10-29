@@ -8451,6 +8451,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 			ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
 			ReviewSubmission->set_unplaceable_refusal_observer([this](const application::review_submission_request& aRefused) { demote_off_hunk_fact(aRefused); });
+			// [[BPR-1816]]. Where a finished review goes is the profile's
+			// accepted choice when GitHub answers, not the window's.
+			ReviewSubmission->set_finish_settings([this] {
+				const auto* const preferences = Profile->WorkbenchPreferences.get();
+				const auto&       accepted    = preferences != nullptr ? preferences->accepted() : std::optional<application::workbench_profile_preferences>{ };
+				return accepted ? accepted->Behaviour.FinishReview : core::review_finish_settings{ };
+			});
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
