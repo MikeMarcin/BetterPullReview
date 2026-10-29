@@ -197,7 +197,7 @@ namespace bpr::qt {
 			case core::reviewer_request_failure::cancelled:      return QStringLiteral("The request for %1 was stopped.").arg(who);
 			case core::reviewer_request_failure::connection:     break;
 			}
-			return QStringLiteral("GitHub's answer for %1 was lost and it was not sent twice. People shows it after the next refresh.").arg(who);
+			return QStringLiteral("The connection could not confirm a review request for %1; it was not sent twice. People shows any request after the next refresh.").arg(who);
 		case core::reviewer_notice::none: break;
 		}
 		if (aState.Searching) {
