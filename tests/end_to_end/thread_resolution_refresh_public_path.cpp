@@ -58,8 +58,8 @@ namespace {
 				changed.wait(lock, aStop, [&] { return !holdRead; });
 			}
 		};
-		auto       ready        = false;
-		auto       startup      = fixture_access::start(aFixture, options, [&](auto aResult) {
+		auto       ready       = false;
+		auto       startup     = fixture_access::start(aFixture, options, [&](auto aResult) {
 			ready = true;
 			if (aResult) {
 				owner = std::move(*aResult);
