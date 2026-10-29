@@ -230,7 +230,7 @@ else:
             path.write_text(stub)
             path.chmod(0o755)
         environment = {**runtime.os.environ, "PATH": str(fake_bin) + runtime.os.pathsep + runtime.os.environ["PATH"]}
-        command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes), "--cohort", str(cohort_path)]
+        command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes), "--prerelease", "--cohort", str(cohort_path)]
         return command, environment, commands, dist, files
 
     @staticmethod
@@ -283,6 +283,23 @@ else:
             self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
 
     @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_numbered_rc_requires_prerelease_and_uses_its_own_tag_and_source_url(self):
+        command, environment, commands, _, _ = self.publisher_fixture()
+        unflagged = [item for item in command if item != "--prerelease"]
+        result = subprocess.run(unflagged, env=environment, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires --prerelease", result.stderr)
+        self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
+        commands.write_text("")
+        result = subprocess.run(command, env=environment, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = list(map(json.loads, commands.read_text().splitlines()))
+        upload = next(item for item in calls if item[:3] == ["gh", "release", "create"])
+        self.assertEqual(upload[3], "v1.2.3-build.1")
+        self.assertIn("/releases/download/v1.2.3-build.1/", runtime.source_asset_url(self.info))
+        self.assertNotIn("/releases/download/v1.2.3/", runtime.source_asset_url(self.info))
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
     def test_publication_requires_explicit_matching_visibility_and_origin(self):
         command, environment, commands, _, _ = self.publisher_fixture()
         for flags, settings, succeeds in [
@@ -322,6 +339,44 @@ else:
             self.assertIn(flag, upload)
         self.assertTrue(any(call[0] == "git" and "--atomic" in call for call in calls))
         self.assertFalse(any(call[:3] == ["gh", "repo", "edit"] for call in calls))
+
+
+@unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
+class NumberedOutputTests(unittest.TestCase):
+    def test_repeated_marketing_rc_paths_preserve_legacy_local_and_prior_cohort_bytes(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            legacy = root / "build/releases/0.4.0"
+            local = root / "build/releases/0.4.0-local"
+            for directory, count in [(legacy, 15), (local, 8)]:
+                directory.mkdir(parents=True)
+                for index in range(count):
+                    (directory / str(index)).write_bytes(f"immutable fixture {directory.name}/{index}".encode())
+            def snapshot():
+                return {str(path.relative_to(root)): runtime.digest(path) for path in root.rglob("*") if path.is_file()}
+            before = snapshot()
+            script = (ROOT / "tools/release.sh").read_text().split('[[ "$(uname -s)" == "Darwin" ]]', 1)[0]
+            prefix = "\n".join("ROOT_DIR=" + shlex.quote(str(root)) if line.startswith("ROOT_DIR=") else line for line in script.splitlines())
+            def select(number, output=""):
+                harness = prefix + "\nPRESET=macos-release\nRELEASE_COHORT=checked-cohort\nASSET_VERSION=0.4.0-build." + str(number)
+                harness += "\nOUTPUT_DIR=" + shlex.quote(output) + '\nselect_release_paths\nprintf "%s\\n%s\\n" "$BUILD_DIR" "$OUTPUT_DIR"\n'
+                return subprocess.run(["bash", "-s"], input=harness, text=True, capture_output=True)
+            first = select(1)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            build, output = map(Path, first.stdout.splitlines())
+            self.assertEqual(build, root / "build/macos-release-0.4.0-build.1")
+            self.assertEqual(output, root / "build/releases/0.4.0-build.1")
+            output.mkdir()
+            (output / "sealed.zip").write_bytes(b"first cohort")
+            sealed = snapshot()
+            for result in (select(1), select(2, str(legacy)), select(2, str(local))):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("output already exists", result.stderr)
+                self.assertEqual(snapshot(), sealed)
+            second = select(2)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("/build/releases/0.4.0-build.2", second.stdout)
+            self.assertEqual({name: value for name, value in snapshot().items() if name in before}, before)
 
 
 @unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")

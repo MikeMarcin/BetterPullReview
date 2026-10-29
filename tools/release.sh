@@ -40,7 +40,7 @@ Options:
   --identity NAME         Developer ID Application identity.
   --notary-profile NAME  notarytool Keychain profile (default: ${DEFAULT_NOTARY_PROFILE}).
   --notary-keychain PATH Existing file Keychain for the selected profile.
-  --output-dir DIR       Artifact directory (default: build/releases/VERSION).
+  --output-dir DIR       Fresh artifact directory (default: build/releases/VERSION-build.N for numbered RCs).
   --skip-tests           Skip the dev build and test preset.
   --test-profile NAME    normal (default) or comprehensive qualification.
   --test-scope NAME      Declared owning change scope; repeat as needed.
@@ -67,6 +67,22 @@ EOF
 fail() {
     printf 'error: %s\n' "$*" >&2
     exit 1
+}
+
+select_release_paths() {
+    BUILD_DIR="${ROOT_DIR}/build/${PRESET}"
+    if [[ -n "${RELEASE_COHORT}" ]]; then BUILD_DIR="${BUILD_DIR}-${ASSET_VERSION}"; fi
+    APP_PATH="${BUILD_DIR}/src/app/${APP_NAME}.app"
+    if [[ -z "${OUTPUT_DIR}" ]]; then
+        OUTPUT_DIR="${ROOT_DIR}/build/releases/${ASSET_VERSION}"
+    elif [[ "${OUTPUT_DIR}" != /* ]]; then
+        OUTPUT_DIR="${ROOT_DIR}/${OUTPUT_DIR}"
+    fi
+    [[ "${OUTPUT_DIR}" != "/" && "${OUTPUT_DIR}" != "${ROOT_DIR}" ]] || fail "Release output directory is too broad: ${OUTPUT_DIR}"
+    if [[ -n "${RELEASE_COHORT}" ]]; then
+        # A retry verifies sealed bytes; production never cleans or replaces a cohort.
+        [[ ! -e "${OUTPUT_DIR}" ]] || fail "Numbered cohort output already exists; inspect/verify it or use a fresh directory; no bytes were replaced"
+    fi
 }
 
 log() {
@@ -579,6 +595,7 @@ if [[ -n "${RELEASE_COHORT}" ]]; then
     ASSET_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["assetVersion"])' "${RELEASE_COHORT}")"
     COHORT_CONFIGURE=("-DBPR_RELEASE_COHORT=${RELEASE_COHORT}" "-DBPR_RELEASE_PRODUCER=${RELEASE_PRODUCER}")
 fi
+select_release_paths
 
 if [[ "${ALLOW_DIRTY}" == "0" && -n "$(git -C "${ROOT_DIR}" status --porcelain)" ]]; then
     fail "Working tree has uncommitted changes. Commit them or pass --allow-dirty."
@@ -642,8 +659,8 @@ else
 fi
 
 log "Building the universal tests-disabled application (${PRESET})"
-cmake --preset "${PRESET}" "${COHORT_CONFIGURE[@]}"
-cmake --build --preset "${PRESET}"
+cmake --preset "${PRESET}" -B "${BUILD_DIR}" "${COHORT_CONFIGURE[@]}"
+cmake --build "${BUILD_DIR}" --config Release
 [[ -d "${APP_PATH}" ]] || fail "Expected application bundle is absent: ${APP_PATH}"
 
 INFO_PLIST="${APP_PATH}/Contents/Info.plist"
@@ -660,14 +677,12 @@ if [[ -z "${MACDEPLOYQT}" ]]; then
 fi
 [[ -x "${MACDEPLOYQT}" ]] || fail "macdeployqt is unavailable: ${MACDEPLOYQT}"
 
-if [[ -z "${OUTPUT_DIR}" ]]; then
-    OUTPUT_DIR="${ROOT_DIR}/build/releases/${ASSET_VERSION}"
-elif [[ "${OUTPUT_DIR}" != /* ]]; then
-    OUTPUT_DIR="${ROOT_DIR}/${OUTPUT_DIR}"
+if [[ -n "${RELEASE_COHORT}" ]]; then
+    mkdir -p "$(dirname "${OUTPUT_DIR}")"
+    mkdir "${OUTPUT_DIR}"
+else
+    mkdir -p "${OUTPUT_DIR}"
 fi
-[[ "${OUTPUT_DIR}" != "/" && "${OUTPUT_DIR}" != "${ROOT_DIR}" ]] || \
-    fail "Release output directory is too broad: ${OUTPUT_DIR}"
-mkdir -p "${OUTPUT_DIR}"
 STAGING_ROOT="$(mktemp -d "${OUTPUT_DIR}/.staging.XXXXXX")"
 trap 'rm -rf "${STAGING_ROOT}"' EXIT
 STAGED_APP="${STAGING_ROOT}/${APP_NAME}.app"
@@ -746,7 +761,9 @@ DMG_CHECKSUM_PATH="${DMG_PATH}.sha256"
 ZIP_CHECKSUM_PATH="${ZIP_PATH}.sha256"
 NOTARY_ZIP="${STAGING_ROOT}/${ASSET_BASE}-notary.zip"
 
-rm -f "${DMG_PATH}" "${ZIP_PATH}" "${DMG_CHECKSUM_PATH}" "${ZIP_CHECKSUM_PATH}"
+if [[ -z "${RELEASE_COHORT}" ]]; then
+    rm -f "${DMG_PATH}" "${ZIP_PATH}" "${DMG_CHECKSUM_PATH}" "${ZIP_CHECKSUM_PATH}"
+fi
 
 if [[ "${SKIP_NOTARIZE}" == "0" ]]; then
     log "Submitting the signed application to Apple"

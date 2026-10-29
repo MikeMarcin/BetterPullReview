@@ -185,12 +185,17 @@ PROJECT_VERSION="$(sed -n '/^project(/,/^)/p' "${ROOT_DIR}/CMakeLists.txt" |
 if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 ]]; then
     [[ "${PRERELEASE}" == 0 ]] || fail "--prerelease applies to initial creation only"
     [[ -n "${SOURCE_REVISION}" && -n "${BASELINE_INVENTORY}" ]] || fail "Existing release updates require exact source and existing-asset baseline"
+    UPDATE_ASSET_VERSION="${VERSION}"
+    if [[ -n "${RELEASE_COHORT}" ]]; then
+        [[ "${PROMOTE}" == 0 ]] || fail "Numbered RC build tags cannot be promoted to stable; compatible stable policy is a separate decision"
+        UPDATE_ASSET_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["assetVersion"])' "${RELEASE_COHORT}")"
+    fi
     UPDATE_ARGS=(--repo-root "${ROOT_DIR}" --version "${VERSION}" --source-revision "${SOURCE_REVISION}" --visibility "${EXPECTED_VISIBILITY}" --notes-file "${NOTES_FILE}" --baseline-inventory "${BASELINE_INVENTORY}")
     if [[ ${#MANIFEST_ARGS[@]} -gt 0 ]]; then UPDATE_ARGS+=("${MANIFEST_ARGS[@]}"); fi
     if [[ -n "${MACOS_DIR}" ]]; then
         UPDATE_ARGS+=(--macos-dir "${MACOS_DIR}")
     elif [[ "${INCLUDE_MACOS}" == 1 || ${#MANIFEST_ARGS[@]} -eq 0 ]]; then
-        UPDATE_ARGS+=(--macos-dir "${ROOT_DIR}/build/releases/${VERSION}")
+        UPDATE_ARGS+=(--macos-dir "${ROOT_DIR}/build/releases/${UPDATE_ASSET_VERSION}")
     fi
     if [[ -n "${RELEASE_COHORT}" ]]; then UPDATE_ARGS+=(--cohort "${RELEASE_COHORT}"); fi
     if [[ -n "${PROMOTION_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--promotion-acceptance "${PROMOTION_ACCEPTANCE}"); fi
@@ -202,9 +207,10 @@ fi
 [[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}" ]] || fail "Existing-release identity options require --append-assets or --promote"
 
 [[ -n "${RELEASE_COHORT}" ]] || fail "Initial publication requires --cohort from publish-release candidate preparation"
+[[ "${PRERELEASE}" == 1 ]] || fail "Numbered RC publication requires --prerelease; stable policy is a separate decision"
 python3 "${ROOT_DIR}/packaging/release_build.py" check --root "${ROOT_DIR}" --cohort "${RELEASE_COHORT}" --version "${VERSION}"
 ASSET_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["assetVersion"])' "${RELEASE_COHORT}")"
-TAG="v${VERSION}"
+TAG="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["releaseTag"])' "${RELEASE_COHORT}")"
 if [[ ${#MANIFEST_ARGS[@]} -eq 0 || "${INCLUDE_MACOS}" == "1" ]]; then
 ASSET_BASE="BetterPullReview-${ASSET_VERSION}-macos-universal"
 DIST_DIR="${ROOT_DIR}/build/releases/${ASSET_VERSION}"

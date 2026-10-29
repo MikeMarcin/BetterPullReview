@@ -68,10 +68,17 @@ run is active, serialized after the Windows follow-ups.
 
 BPR-1799 implements the separately requested numbered candidate identity. The
 existing Find-ring owner fix and guarded publisher are deliberately integrated
-with the qualification repairs on the engineering branch. The next corrected
-semantic version is still a separate pending choice before publication.
-AgentSkills source publication and its portable deployment are independently
-pending explicit source permission. M8/M9/native Intel/vault/crash/privacy,
+with the qualification repairs on the engineering branch. The owner clarified that corrected numbered RCs retain marketing version 0.4.0
+and use distinct prerelease tags. The unanswered patch-bump proposal was
+withdrawn; future stable base-version publication is a separate decision.
+The owner separately approved the prepared PR-tour source publication and
+project pin update directly. AgentSkills main now contains exact safe candidate
+`677128ae334a4cbb9d9fdee0028aec698f351d48` by normal fast-forward. This checkout’s
+PR-tour portable pin/deploy is `ae21489d0`; all seven payload files match the
+authoritative package, every other pin is unchanged, and the previously failed
+`skill_pr_tour_package` plus all three bootstrap checks pass. The actual attended
+UI had no verdict; its cursor 5 and direct approval are recorded separately,
+protections released and only its own transport stopped. M8/M9/native Intel/vault/crash/privacy,
 allocator/fuzz and final exact-artifact security dispositions remain open; the
 preview-specific HarfBuzz and v0.4.0 CBOR decisions do not automatically accept
 a future corrected version or stable/Ubuntu distribution.

@@ -37,12 +37,17 @@ Give identical cohort bytes to every producer. Configure with
 `-DBPR_RELEASE_COHORT=/absolute/cohort.json -DBPR_RELEASE_PRODUCER=declared-name`;
 `tools/release.sh` takes `--cohort /absolute/cohort.json --producer declared-name`.
 A numbered Windows package also requires `--previous-msi /absolute/previous.msi`
-so the native producer checks real per-machine upgrade ordering before building
+so the native producer checks real per-machine upgrade ordering and the exact
+installer digest in the committed authoritative Windows floor before building
 or signing. Unchanged retries reuse N; changed source/configuration gets another
 identity. Never remove the durable common-Git reservations to reuse a number.
 
-Initial publication requires `--cohort /absolute/cohort.json`. Canonical products
-use `VERSION-build.N`; stable tags and macOS short versions keep the base version.
+Initial numbered RC publication requires `--cohort /absolute/cohort.json` and
+`--prerelease`. It derives the distinct `vVERSION-build.N` tag; macOS short
+versions keep the base marketing version. Repeated 0.4.0 RCs need no patch bump.
+Default artifact directories and filenames include `VERSION-build.N`; an existing
+numbered output directory is refused without replacement. Build-tag stable
+promotion is refused; a compatible stable route is a separate owner decision.
 The macOS ZIP also has an exact byte-identical legacy base-version alias and
 checksum for installed updaters. The publisher verifies that alias and refuses
 mixed source/configuration/cohorts. Existing unnumbered published releases retain

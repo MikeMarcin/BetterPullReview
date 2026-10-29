@@ -19,7 +19,11 @@ Stable tags retain `vMAJOR.MINOR.PATCH`. Canonical downloads include `build.N`;
 the existing exact base-version ZIP remains a byte-identical compatibility
 alias for shipped clients. A numbered staged bundle binds the base short
 version and its native build number. No suffix is silently treated as newer,
-and an occupied tag is never replaced. See the
+and an occupied tag is never replaced. The 2026-10-29 UTC clarification permits
+multiple RCs of marketing version 0.4.0 under `v0.4.0-build.N` tags, always
+GitHub prereleases. Stable clients ignore them; the manual RC source offer binds
+the actual RC tag. Build-tag stable promotion is refused until a separately
+accepted compatible stable policy exists. See the
 [release build identity design](../development/release-build-identity.md).
 
 ## Status and scope

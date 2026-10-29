@@ -15,6 +15,14 @@ sys.path.insert(0, str(ROOT / "packaging"))
 import release_build
 
 
+def windows_floor() -> dict:
+    return {"schema": "bpr.windows-upgrade-floor.v1", "product": release_build.PRODUCT,
+            "marketingVersion": "0.4.0", "msiProductVersion": "0.4.0",
+            "installerName": "BetterPullReview-0.4.0-windows-x64.msi",
+            "installerSHA256": hashlib.sha256(b"prior actual MSI fixture").hexdigest(),
+            "releaseTag": "v0.4.0", "sourceCommit": "e" * 40, "releaseId": 42}
+
+
 def cohort(version: str, revision: str, number: int = 1) -> dict:
     producers = {}
     for name, platform in [("mac", "Darwin"), ("windows", "Windows"), ("linux", "Linux")]:
@@ -24,7 +32,8 @@ def cohort(version: str, revision: str, number: int = 1) -> dict:
     configuration = {"schema": "bpr.release-inputs.v1", "producers": producers,
                      "previousWindows": {"marketingVersion": "0.4.0", "msiProductVersion": "0.4.0"}}
     identity = {"sourceBase": "b" * 40, "sourceTree": "c" * 40, "version": version, "configuration": configuration,
-                "configurationDigest": release_build.digest(configuration), "sourceInputs": {name: hashlib.sha256(b"fixture").hexdigest() for name in release_build.CONFIG_FILES}}
+                "configurationDigest": release_build.digest(configuration), "sourceInputs": {name: hashlib.sha256(b"fixture").hexdigest() for name in release_build.CONFIG_FILES},
+                "windowsUpgradeFloor": windows_floor()}
     receipt = {"schema": "bpr.release-allocation.v1", "product": release_build.PRODUCT, "number": number,
                "inputDigest": release_build.digest(identity), **identity, "native": release_build.native(version, number, configuration["previousWindows"])}
     value = {"schema": "bpr.release-cohort.v1", "product": release_build.PRODUCT, "sourceCommit": revision, "sourceTree": "d" * 40,
