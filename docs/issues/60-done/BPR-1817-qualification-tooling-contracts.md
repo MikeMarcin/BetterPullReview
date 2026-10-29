@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1817"
 title: "Keep release tooling tests within their declared contracts"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v041-same-preview-waivers-r1", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"03ba3555d4d81a7e85145999ce4387546d03e638","evidence":{"kind":"command","detail":"ExactN4raw3contractfailures retained; staticpublished040comparison distinguishesexistingtemp/skipdefects fromlaterstaleWorkbenchpositivefixture. Threeunitfilesonly: sharedcontainedtemp andexplicitSkipRunner, privatecurrentregistryfixtures. Productionseals/validators/schedulingunchanged; sourceandall7transitiveinputs plusargv/environment/occurrence negativecontrols refuse.","references":["qualification-contract-repairs-r1/history-r1.json","qualification-contract-repairs-r1/production-boundary-r1.json","qualification-contract-repairs-r1/focused-contracts-r1.json"]}},{"criterion":"AC2","outcome":"pass","revision":"03ba3555d4d81a7e85145999ce4387546d03e638","evidence":{"kind":"command","detail":"Mac24focusedmetacases plus2affectedmockedpublicationcasesPASS. Releasebuild16PASS/1unchangedofflinecacheenvironmentrefusal preserved; notafull17PASSclaim. Documentationgate and67documentationtestsPASS withinstalledskillhelperPYTHONPATH. FrozenN4source/Git/nativeimages/rawsuitesunchanged. Successorcohort andaffectednativecontractrecheck remainBPR1811; noautomaticfullmatrixrepeat orproducerrelabel.","references":["qualification-contract-repairs-r1/focused-contracts-r1.json","qualification-contract-repairs-r1/affected-paths-r1.json","qualification-contract-repairs-r1/production-boundary-r1.json"]}}]
 ---
 
 # Keep release tooling tests within their declared contracts
