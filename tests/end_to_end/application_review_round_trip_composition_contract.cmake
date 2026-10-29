@@ -1,3 +1,15 @@
+# [[BPR-1800]] lifecycle reseal over matching b1dcb8ba2 through this
+# issue's repair commit. The only pinned production file changed is
+# github_application.cpp: the core adopts exact conversation scope and full
+# request/gesture ownership; unchanged refresh drains the old host's admitted
+# conversation terminals, changed scope hard-stops it, and a stale fixture
+# composition retry is refused. Resolution/reaction handlers settle each exact
+# pending request once. Self-review covers all changed pinned bytes; no new
+# provider/credential/grant/write path or app-source file is introduced. The
+# production constructor/grant branch remains byte-identical (16d135419).
+# Core/host lifecycle and the controlled public Debug course pass; native
+# Release/Windows and final release qualification remain separate obligations.
+# The original drift failure is retained; print-only mode is not verification.
 # [[BPR-1774]] description-edit reseal (2026-10-27), over ce5d19205.
 # github_application.cpp, main.cpp and the public-path fixture add the
 # author's description edit: Overview's Save reaches the core's
@@ -2429,7 +2441,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# opens it. No credential, grant, provider, mutation, publication or
 	# source-inventory change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"924be92d043590e1f6083537d530b89d82187a0560e66974e6854faa4161b0e7"
+		"9a4cf511f6565578101b6df30dafbe455eb49689547c7d534f4349fbcabe1057"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2689,7 +2701,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # or source-inventory change. Native About/copy courses cover local and numbered
 # presentation; real numbered producer/native acceptance remains pending.
 	set(bpr_expected_production_app_manifest_digest
-        "b159ff78772601e104a109c0a4c4f55a9cc797265c8e8945e5079fd17484cd58"
+        "6e91a3cd1d9616902c136a188bbaebe8f929c10b476f15e8a99985eca42dd1e2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

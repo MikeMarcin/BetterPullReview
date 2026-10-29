@@ -351,15 +351,19 @@ namespace {
 				return std::unexpected(application::review_mutation_failure::cancelled);
 			}
 			Reacted.push_back(aRequest);
+			if (ReactionFailure) {
+				return std::unexpected(*ReactionFailure);
+			}
 			auto reactions = core::reaction_summary{ .ViewerCanReact = true };
 			if (aRequest.Add) {
 				reactions.Groups.push_back(core::reaction_group{ .Content = aRequest.Content, .Count = 1U, .ViewerReacted = true });
 			}
 			return application::review_reaction_receipt{ .Subject = aRequest.Subject, .Content = aRequest.Content, .Reacted = aRequest.Add, .Reactions = reactions, .Written = true };
 		}
-		bool                                              Reacts = false;
-		std::vector<application::review_reaction_request> Reacted;
-		auto                                              edit_description(
+		bool                                                Reacts = false;
+		std::optional<application::review_mutation_failure> ReactionFailure;
+		std::vector<application::review_reaction_request>   Reacted;
+		auto                                                edit_description(
 			const application::review_description_request& aRequest,
 			const std::stop_token                          aStop)
 			-> std::expected<application::review_description_receipt, application::review_mutation_failure> override
@@ -395,10 +399,14 @@ namespace {
 				return std::unexpected(application::review_mutation_failure::cancelled);
 			}
 			Resolved.push_back(aRequest);
+			if (ResolutionFailure) {
+				return std::unexpected(*ResolutionFailure);
+			}
 			return application::review_thread_resolution_receipt{ .Thread = aRequest.Thread, .Resolved = aRequest.Resolve };
 		}
 
 		bool                                                       Resolves = false;
+		std::optional<application::review_mutation_failure>        ResolutionFailure;
 		std::vector<application::review_thread_resolution_request> Resolved;
 		core::review_mutation_target                               Reported     = target();
 		std::size_t                                                Observations = 0U;
@@ -1207,6 +1215,91 @@ namespace {
 		host.shutdown();
 	}
 
+	void test_conversation_retirement_drains_exact_terminals_and_shutdown_overrides_it()
+	{
+		for (const auto afterEffect : { false, true }) {
+			for (const auto shutdown : { false, true }) {
+				auto provider          = std::make_unique<fake_provider>();
+				provider->Resolves     = true;
+				provider->Reacts       = true;
+				auto* const observed   = provider.get();
+				auto        effects    = application::manual_executor{ };
+				auto        decisions  = application::manual_executor{ };
+				auto        projection = recording_projection{ };
+				auto        host       = application::review_mutation_application_host{ std::move(provider), live_target(), acting_identity(),
+																						core::application_session_id{ 3U }, core::request_generation{ 8U }, testing_grant(), effects, decisions, projection };
+				const auto  resolution = host.resolve({ .Thread = "PRRT_fixture_1" });
+				const auto  reaction   = host.react({ .Subject = "PRRC_fixture_1", .Content = core::reaction_content::heart, .Add = true });
+				expect(!host.is_quiescent() && host.outstanding_requests() == 2U, "conversation effects keep their host alive");
+				if (afterEffect) {
+					effects.drain();
+					expect(!host.is_quiescent() && decisions.pending() == 2U, "a held terminal is still owned work");
+				}
+				host.retire_conversation_changes();
+				expect(host.resolve({ .Thread = "PRRT_fixture_2" }).Request.value() == 0U, "retirement admits no fresh write");
+				if (shutdown) {
+					host.shutdown();
+					// A late same-context refresh cannot reopen a genuinely closed host.
+					host.retire_conversation_changes();
+				}
+				effects.drain();
+				expect(!host.is_quiescent(), "the decision lane remains required until conversation terminals drain");
+				decisions.drain();
+				expect(host.is_quiescent() && host.outstanding_requests() == 0U && host.statistics().Completions == 2U, "every admitted operation reaches one terminal and quiescence");
+				if (shutdown) {
+					expect(projection.Resolutions.empty() && projection.Reactions.empty(), "true retirement or shutdown withholds stale terminal publication");
+					expect(observed->Resolved.size() == (afterEffect ? 1U : 0U) && observed->Reacted.size() == (afterEffect ? 1U : 0U), "shutdown stops queued work without replaying an already performed write");
+				} else {
+					expect(projection.Resolutions.size() == 1U && projection.Resolutions.front().Context == resolution && projection.Resolutions.front().Result.has_value()
+							   && projection.Reactions.size() == 1U && projection.Reactions.front().Context == reaction && projection.Reactions.front().Result.has_value(),
+						   "same-context retirement publishes each original successful answer exactly once");
+					expect(observed->Resolved.size() == 1U && observed->Reacted.size() == 1U, "neither write is retried");
+				}
+			}
+		}
+	}
+
+	void test_conversation_refusal_failure_and_duplicate_terminals_settle_once()
+	{
+		class duplicated_decisions final : public application::decision_executor
+		{
+		public:
+			void post(std::function<void()> aTask) override
+			{
+				Tasks.post(aTask);
+				Tasks.post(std::move(aTask));
+			}
+			application::manual_executor Tasks;
+		};
+		for (const auto failure : { std::optional<application::review_mutation_failure>{ }, std::optional{ application::review_mutation_failure::unavailable }, std::optional{ application::review_mutation_failure::cancelled }, std::optional{ application::review_mutation_failure::not_confirmed }, std::optional{ application::review_mutation_failure::unsupported } }) {
+			auto provider               = std::make_unique<fake_provider>();
+			provider->Resolves          = failure != std::optional{ application::review_mutation_failure::unsupported };
+			provider->ResolutionFailure = failure;
+			provider->Reacts            = provider->Resolves;
+			provider->ReactionFailure   = failure;
+			auto* const observed        = provider.get();
+			auto        effects         = application::manual_executor{ };
+			auto        decisions       = duplicated_decisions{ };
+			auto        projection      = recording_projection{ };
+			auto        host            = application::review_mutation_application_host{ std::move(provider), live_target(), acting_identity(),
+																						 core::application_session_id{ 3U }, core::request_generation{ 8U }, testing_grant(), effects, decisions, projection };
+			const auto  context         = host.resolve({ .Thread = "PRRT_fixture_1" });
+			const auto  reaction        = host.react({ .Subject = "PRRC_fixture_1", .Content = core::reaction_content::heart, .Add = true });
+			expect(!host.is_quiescent() && host.outstanding_requests() == 2U, "even refused queued conversation terminals keep the host alive");
+			host.retire_conversation_changes();
+			effects.drain();
+			decisions.Tasks.drain();
+			expect(host.is_quiescent() && projection.Resolutions.size() == 1U && projection.Resolutions.front().Context == context
+					   && (failure ? !projection.Resolutions.front().Result && projection.Resolutions.front().Result.error() == *failure : projection.Resolutions.front().Result.has_value())
+					   && projection.Reactions.size() == 1U && projection.Reactions.front().Context == reaction
+					   && (failure ? !projection.Reactions.front().Result && projection.Reactions.front().Result.error() == *failure : projection.Reactions.front().Result.has_value())
+					   && host.statistics().Completions == 2U && host.statistics().TerminalsPublished == 2U,
+				   "success, failure, cancellation, unknown or refusal is delivered once despite a duplicate terminal task");
+			expect(observed->Resolved.size() == (failure == std::optional{ application::review_mutation_failure::unsupported } ? 0U : 1U), "an uncertain outcome is never written again");
+			expect(observed->Reacted.size() == observed->Resolved.size(), "a reaction has the same no-retry contract");
+		}
+	}
+
 	/// [[BPR-1741]]. A reaction is admitted like a resolution: the
 	/// provider must react, the grant must permit the exact change, and a
 	/// grant issued for anything else permits none.
@@ -1313,6 +1406,7 @@ namespace {
 				   && observed->Described.front().Target == target() && observed->Described.front().LiveBinding.has_value()
 				   && observed->Described.front().LiveBinding->Target == live_target() && observed->Described.front().LiveBinding->ActingIdentity == acting_identity(),
 			   "the effect asks the provider for exactly one edit, with the original, bound to the target and the actor");
+		expect(!host.is_quiescent() && host.outstanding_requests() == 1U, "a held description edit terminal keeps the host alive");
 		decisions.run_next();
 		expect(projection.Descriptions.back().Context == context && projection.Descriptions.back().Result.has_value() && projection.Descriptions.back().Result->Body == request.Body
 				   && projection.Descriptions.back().Request == request && host.statistics().DescriptionEdits == 1U,
@@ -1381,6 +1475,7 @@ namespace {
 				   && observed->Edited.front().Target == target() && observed->Edited.front().LiveBinding.has_value()
 				   && observed->Edited.front().LiveBinding->Target == live_target() && observed->Edited.front().LiveBinding->ActingIdentity == acting_identity(),
 			   "the effect asks the provider for exactly one edit of that comment, with the original, bound to the target and the actor");
+		expect(!host.is_quiescent() && host.outstanding_requests() == 1U, "a held comment edit terminal keeps the host alive");
 		decisions.run_next();
 		expect(projection.CommentEdits.back().Context == context && projection.CommentEdits.back().Result.has_value() && projection.CommentEdits.back().Result->Body == request.Body
 				   && projection.CommentEdits.back().Request == request && host.statistics().CommentEdits == 1U,
@@ -2136,6 +2231,8 @@ auto main() -> int
 	test_one_shot_authority_expiry_invalidation_and_shutdown_revoke_grants();
 	test_one_shot_authority_rejects_same_core_different_full_identity();
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
+	test_conversation_retirement_drains_exact_terminals_and_shutdown_overrides_it();
+	test_conversation_refusal_failure_and_duplicate_terminals_settle_once();
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
 	test_a_description_edit_needs_the_capability_and_a_permitting_grant();
 	test_a_comment_edit_needs_the_capability_and_a_permitting_grant();

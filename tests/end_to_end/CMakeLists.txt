@@ -951,6 +951,18 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_queue_composition_public_path)
 bpr_enable_warnings(test_better_pull_review_queue_composition_public_path)
 
+bpr_add_executable(test_better_pull_review_thread_resolution_refresh thread_resolution_refresh_public_path.cpp)
+target_link_libraries(test_better_pull_review_thread_resolution_refresh PRIVATE BetterPullReview::Composition BetterPullReview::Platform)
+target_compile_definitions(test_better_pull_review_thread_resolution_refresh PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_better_pull_review_thread_resolution_refresh PRIVATE cxx_std_23)
+bpr_enable_hardening(test_better_pull_review_thread_resolution_refresh)
+bpr_enable_warnings(test_better_pull_review_thread_resolution_refresh)
+bpr_add_network_isolated_test(NAME application_thread_resolution_refresh COMMAND test_better_pull_review_thread_resolution_refresh)
+set_tests_properties(application_thread_resolution_refresh PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "thread-resolution-refresh-public-path:pass"
+    TIMEOUT 120)
+
 # [[BPR-1720]]. Help › About as composed: this build's facts, the
 # installed legal folder and its regular-file rule, and the links reaching the
 # tests-only browser launch with exactly their admitted addresses.
