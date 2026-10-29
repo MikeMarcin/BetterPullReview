@@ -19652,6 +19652,37 @@ namespace {
 		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 2 && window.current_modality() == qt::review_modality::review,
 			   "Continue in Review opens Review's Tour tab");
 		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == draft.Stops.front().Id, "at its stop");
+
+		// [[BPR-1806]]. A published tour stop's Open in tour is offered while
+		// the window has a published tour, and opens Review's Tour tab at the
+		// stop bound to that comment.
+		expect(!cards->tour_open_offered(), "an unpublished draft offers no Open in tour");
+		auto followed   = tests::review_tour_fixture();
+		auto root       = core::tour_remote_binding{ };
+		root.Entity     = "PRR_root";
+		followed.Remote = root;
+		auto second     = followed.Stops.front();
+		second.Id       = core::tour_stop_id{ 2 };
+		second.Title    = "How";
+		auto bound      = core::tour_remote_binding{ };
+		bound.Kind      = core::tour_remote_kind::line_comment;
+		bound.Entity    = "PRRC_how";
+		second.Remote   = bound;
+		followed.Stops.push_back(second);
+		followed.LastStopId = 2;
+		editor->present({ .Draft = std::make_shared<const core::review_tour>(followed) });
+		process_events();
+		expect(cards->tour_open_offered(), "a published tour in the window offers Open in tour");
+		auto asked    = core::published_tour_stop{ };
+		asked.Ordinal = 2U;
+		asked.Title   = "Renamed on GitHub";
+		window.start_tour_at_published_stop("review-comment:PRRC_how", asked);
+		process_events();
+		expect(window.tray_tabs()->currentIndex() == 2 && editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 },
+			   "Open in tour opens the Tour tab at the stop bound to the comment");
+		editor->present({ .Draft = std::make_shared<const core::review_tour>(core::review_tour{ }) });
+		process_events();
+		expect(!cards->tour_open_offered(), "without a published tour, Open in tour is withdrawn");
 		expect(log.Workbench.size() > 0U, "the window's gestures went to the core");
 	}
 
