@@ -149,6 +149,15 @@ def stable_permission(path: Path | None, schema: str, args: argparse.Namespace, 
     return record.get("accepted") is True and record.get("remainingBlocking") == []
 
 
+def created_stable_draft(tag: str) -> int:
+    # GitHub's tag endpoint omits drafts. Discover the one just created, then
+    # use its numeric identity for every subsequent observation.
+    pages = json.loads(command("gh", "api", "--paginate", "--slurp", "repos/" + REPOSITORY + "/releases?per_page=100"))
+    matches = [release for page in pages for release in page if release["tag_name"] == tag]
+    require(len(matches) == 1 and type(matches[0]["id"]) is int, "created stable draft identity is ambiguous; inspect before retry")
+    return matches[0]["id"]
+
+
 def copy_stable(args: argparse.Namespace, root: Path, source_tag: str, baseline: dict, paths: dict[str, Path], platforms: set[str], selected: dict) -> None:
     require(args.cohort is not None and not args.promote, "stable copy requires a numbered cohort and never promotes its RC")
     require(re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", args.version) is not None, "stable copy requires an exact bare marketing version")
@@ -164,9 +173,45 @@ def copy_stable(args: argparse.Namespace, root: Path, source_tag: str, baseline:
     source = guard(root, args.source_revision, args.version, args.visibility, tag=source_tag)
     source_id = source["id"]
     missing = check_assets(remote_inventory(source), baseline, selected, complete=False)
-    stable_tag_guard(root, tag, args.source_revision)
-    release_absent(tag)
+    resume_digest = runtime.digest(args.resume_stable) if args.resume_stable else None
+    resume = json.loads(args.resume_stable.read_text()) if args.resume_stable else None
+    resumed_assets = {}
+    if resume is not None:
+        require(resume.get("schema") == "bpr.release-stable-copy-resume.v1" and resume.get("source") == args.source_revision
+                and resume.get("version") == args.version and resume.get("tag") == tag and resume.get("sourceTag") == source_tag
+                and resume.get("cohortDigest") == cohort["cohortDigest"] and type(resume.get("releaseId")) is int
+                and resume["releaseId"] > 0 and re.fullmatch(r"[0-9a-f]{40}", resume.get("tagObject", "")) is not None,
+                "stable resume identity differs from inspected candidate")
+        local_tag = resume["tagObject"]
+        stable_tag_guard(root, tag, args.source_revision, local_tag, pushed=True)
+        resumed_assets = inventory(resume["assets"])
+        check_assets(resumed_assets, {}, selected, complete=False)
+    else:
+        stable_tag_guard(root, tag, args.source_revision)
+        release_absent(tag)
     notes_digest = runtime.digest(args.notes_file)
+
+    def target(release_id: int, *, published: bool = False) -> dict:
+        source_guard()
+        stable_tag_guard(root, tag, args.source_revision, local_tag, pushed=True)
+        current = json.loads(command("gh", "api", "repos/" + REPOSITORY + "/releases/" + str(release_id)))
+        require(current["tag_name"] == tag and current["draft"] is (not published) and current["prerelease"] is (not published)
+                and current.get("immutable") is False and type(current["id"]) is int and current["id"] == release_id,
+                "stable copy release identity or state changed")
+        require(current.get("body", "").rstrip() == args.notes_file.read_text().rstrip(), "stable draft notes changed")
+        return current
+
+    def source_guard() -> None:
+        require(runtime.digest(args.cohort) == cohort_digest, "stable cohort file changed")
+        current = guard(root, args.source_revision, args.version, args.visibility, source_id, tag=source_tag)
+        check_assets(remote_inventory(current), baseline, selected, complete=True)
+        require(stable_permission(args.stable_acceptance, "bpr.release-stable-copy-acceptance.v1", args, tag, selected, cohort)
+                and stable_permission(args.publication_authorization, "bpr.release-publication-authorization.v1", args, tag, selected, cohort), "stable permission changed")
+        require(runtime.digest(args.notes_file) == notes_digest, "stable notes changed")
+        require(args.resume_stable is None or runtime.digest(args.resume_stable) == resume_digest, "stable resume record changed")
+
+    if resume is not None:
+        require(remote_inventory(target(resume["releaseId"])) == resumed_assets, "inspected stable draft assets changed")
     print(json.dumps({"result": "STABLE_COPY_PREFLIGHT_OK", "source": args.source_revision, "sourceTag": source_tag, "stableTag": tag,
                       "assetCount": len(selected), "missingSourceRCAssets": missing, "qualificationAccepted": qualified,
                       "publicationAuthorized": authorized, "readyToPublish": not missing and qualified and authorized,
@@ -176,38 +221,27 @@ def copy_stable(args: argparse.Namespace, root: Path, source_tag: str, baseline:
     require(qualified and authorized, "stable copy requires accepted qualification and specific publication authorization")
     require(not missing, "complete source RC assets are required before stable creation; append and verify missing assets first")
 
-    def source_guard() -> None:
-        require(runtime.digest(args.cohort) == cohort_digest, "stable cohort file changed")
-        current = guard(root, args.source_revision, args.version, args.visibility, source_id, tag=source_tag)
-        check_assets(remote_inventory(current), baseline, selected, complete=True)
-        require(stable_permission(args.stable_acceptance, "bpr.release-stable-copy-acceptance.v1", args, tag, selected, cohort)
-                and stable_permission(args.publication_authorization, "bpr.release-publication-authorization.v1", args, tag, selected, cohort), "stable permission changed")
-        require(runtime.digest(args.notes_file) == notes_digest, "stable notes changed")
-
-    def target(release_id: int | None, *, published: bool = False) -> dict:
+    source_guard()
+    if resume is not None:
+        release_id = resume["releaseId"]
+    else:
+        stable_tag_guard(root, tag, args.source_revision)
+        release_absent(tag)
+        subprocess.run(["git", "tag", "-a", tag, args.source_revision, "-m", "BetterPullReview " + tag + " from " + source_tag], cwd=root, check=True)
+        local_tag = command("git", "rev-parse", "refs/tags/" + tag, cwd=root)
+        source_guard()
+        stable_tag_guard(root, tag, args.source_revision, local_tag)
+        release_absent(tag)
+        subprocess.run(["git", "push", "origin", "refs/tags/" + tag + ":refs/tags/" + tag], cwd=root, check=True)
         source_guard()
         stable_tag_guard(root, tag, args.source_revision, local_tag, pushed=True)
-        current = json.loads(command("gh", "api", "repos/" + REPOSITORY + "/releases/tags/" + tag))
-        require(current["tag_name"] == tag and current["draft"] is (not published) and current["prerelease"] is (not published)
-                and current.get("immutable") is False and type(current["id"]) is int
-                and (release_id is None or current["id"] == release_id), "stable copy release identity or state changed")
-        return current
-
-    source_guard()
-    stable_tag_guard(root, tag, args.source_revision)
-    release_absent(tag)
-    subprocess.run(["git", "tag", "-a", tag, args.source_revision, "-m", "BetterPullReview " + tag + " from " + source_tag], cwd=root, check=True)
-    local_tag = command("git", "rev-parse", "refs/tags/" + tag, cwd=root)
-    source_guard()
-    stable_tag_guard(root, tag, args.source_revision, local_tag)
-    release_absent(tag)
-    subprocess.run(["git", "push", "origin", "refs/tags/" + tag + ":refs/tags/" + tag], cwd=root, check=True)
-    source_guard()
-    stable_tag_guard(root, tag, args.source_revision, local_tag, pushed=True)
-    release_absent(tag)
-    subprocess.run(["gh", "release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--prerelease", "--latest=false", "--title", "BetterPullReview " + tag, "--notes-file", str(args.notes_file)], check=True)
-    release_id = target(None)["id"]
+        release_absent(tag)
+        subprocess.run(["gh", "release", "create", tag, "--repo", REPOSITORY, "--verify-tag", "--draft", "--prerelease", "--latest=false", "--title", "BetterPullReview " + tag, "--notes-file", str(args.notes_file)], check=True)
+        release_id = created_stable_draft(tag)
+    target(release_id)
     for name, path in sorted(paths.items()):
+        if name in resumed_assets:
+            continue
         current = target(release_id)
         remaining = check_assets(remote_inventory(current), {}, selected, complete=False)
         require(name in remaining and runtime.digest(path) == selected[name]["sha256"] and path.stat().st_size == selected[name]["bytes"], "stable asset changed or appeared concurrently; inspect before retry")
@@ -237,6 +271,7 @@ def main() -> None:
     parser.add_argument("--copy-stable", action="store_true")
     parser.add_argument("--stable-acceptance", type=Path)
     parser.add_argument("--publication-authorization", type=Path)
+    parser.add_argument("--resume-stable", type=Path, help="exact inspected draft/tag/asset checkpoint; never an automatic retry")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
     require(not (args.cohort and args.promote), "numbered RC build tags cannot be promoted to stable; compatible stable policy is a separate decision")
@@ -264,7 +299,7 @@ def main() -> None:
         require(args.promotion_acceptance is None, "stable copy uses its separately bound stable acceptance")
         copy_stable(args, root, tag, baseline, paths, platforms, selected)
         return
-    require(args.stable_acceptance is None and args.publication_authorization is None, "stable permission options require --copy-stable")
+    require(args.stable_acceptance is None and args.publication_authorization is None and args.resume_stable is None, "stable permission options require --copy-stable")
     if args.promote:
         require(platforms == {"Darwin", "Windows", "Linux"} and args.promotion_acceptance is not None, "promotion requires the complete standard platform set and acceptance")
         acceptance = json.loads(args.promotion_acceptance.read_text())

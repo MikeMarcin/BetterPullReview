@@ -21,6 +21,7 @@ PROMOTE=0
 COPY_STABLE=0
 STABLE_ACCEPTANCE=""
 PUBLICATION_AUTHORIZATION=""
+STABLE_RESUME=""
 SOURCE_REVISION=""
 BASELINE_INVENTORY=""
 PROMOTION_ACCEPTANCE=""
@@ -55,6 +56,8 @@ It requires --cohort and all three platforms; missing source RC assets remain an
 explicit dry-run prerequisite. Mutation additionally requires --stable-acceptance
 and --publication-authorization, bound to the exact source/cohort/asset inventory.
 Its draft stays outside Latest until every selected asset is verified.
+After inspecting a partial operation, --resume-stable PATH binds its exact draft
+ID, annotated tag object and existing asset inventory; it creates nothing anew.
 EOF
 }
 
@@ -117,6 +120,7 @@ while [[ $# -gt 0 ]]; do
         --copy-stable) COPY_STABLE=1; shift ;;
         --stable-acceptance) STABLE_ACCEPTANCE="$2"; shift 2 ;;
         --publication-authorization) PUBLICATION_AUTHORIZATION="$2"; shift 2 ;;
+        --resume-stable) STABLE_RESUME="$2"; shift 2 ;;
         --source-revision|--baseline-inventory|--promotion-acceptance|--macos-dir)
             [[ $# -ge 2 ]] || fail "$1 requires a value"
             case "$1" in
@@ -215,11 +219,12 @@ if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 || "${COPY_STABLE}" == 1 ]]; 
     if [[ "${COPY_STABLE}" == 1 ]]; then UPDATE_ARGS+=(--copy-stable); fi
     if [[ -n "${STABLE_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--stable-acceptance "${STABLE_ACCEPTANCE}"); fi
     if [[ -n "${PUBLICATION_AUTHORIZATION}" ]]; then UPDATE_ARGS+=(--publication-authorization "${PUBLICATION_AUTHORIZATION}"); fi
+    if [[ -n "${STABLE_RESUME}" ]]; then UPDATE_ARGS+=(--resume-stable "${STABLE_RESUME}"); fi
     if [[ "${DRY_RUN}" == 1 ]]; then UPDATE_ARGS+=(--dry-run); fi
     python3 "${ROOT_DIR}/packaging/update_release.py" "${UPDATE_ARGS[@]}"
     exit 0
 fi
-[[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}${STABLE_ACCEPTANCE}${PUBLICATION_AUTHORIZATION}" ]] || fail "Existing-release identity options require append, promotion or stable copy"
+[[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}${STABLE_ACCEPTANCE}${PUBLICATION_AUTHORIZATION}${STABLE_RESUME}" ]] || fail "Existing-release identity options require append, promotion or stable copy"
 
 [[ -n "${RELEASE_COHORT}" ]] || fail "Initial publication requires --cohort from publish-release candidate preparation"
 [[ "${PRERELEASE}" == 1 ]] || fail "Numbered RC publication requires --prerelease; stable policy is a separate decision"
