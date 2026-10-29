@@ -136,6 +136,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
+    "application_reviewer_request_contract": "unmeasured (registered on macOS)",
     "mimalloc_app_bpr": "qt-dll-initialization",
     "mimalloc_app_better_pull_review": "qt-dll-initialization",
     "mimalloc_disabled_redirect": "qt-dll-initialization",

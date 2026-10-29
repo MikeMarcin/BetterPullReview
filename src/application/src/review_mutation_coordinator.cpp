@@ -263,6 +263,49 @@ namespace bpr::application {
 		return Provider->edit_comment(request, aStop);
 	}
 
+	auto review_mutation_coordinator::reviewers(
+		const review_reviewer_operation aOperation,
+		const std::string&              aQuery,
+		const std::string&              aUser,
+		const std::string&              aLogin,
+		const std::stop_token           aStop)
+		-> std::expected<review_reviewer_receipt, review_mutation_failure>
+	{
+		++Statistics.Attempts;
+		if (aStop.stop_requested()) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::cancelled);
+		}
+		if (Provider == nullptr) {
+			++Statistics.RefusedBeforeSubmit;
+			return std::unexpected(review_mutation_failure::undesignated_target);
+		}
+		// [[BPR-1804]]. A review request belongs to the pull request, not to a
+		// commit: a moved head is acknowledged as for a description.
+		if (aOperation == review_reviewer_operation::request) {
+			if (auto confirmed = confirm_target(true, aStop); !confirmed) {
+				++Statistics.RefusedBeforeSubmit;
+				return std::unexpected(confirmed.error());
+			}
+		}
+		auto request = review_reviewer_request{
+			.Target         = Designated,
+			.ActingIdentity = ActingIdentity,
+			.Operation      = aOperation,
+			.Query          = aQuery,
+			.User           = aUser,
+			.Login          = aLogin,
+		};
+		if (TargetBinding.has_value() && ActingIdentityBinding.has_value()) {
+			request.LiveBinding = review_mutation_live_binding{
+				.Target         = *TargetBinding,
+				.ActingIdentity = *ActingIdentityBinding,
+			};
+		}
+		++Statistics.Submissions;
+		return Provider->reviewers(request, aStop);
+	}
+
 	auto review_mutation_coordinator::publish_attempt(
 		const core::review_publication_proposal&      aProposal,
 		review_mutation_anchor_binding                aAnchor,
