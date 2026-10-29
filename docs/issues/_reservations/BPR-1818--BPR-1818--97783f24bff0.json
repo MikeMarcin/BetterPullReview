@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1818"
+  ],
+  "reserve_for": "release-v041-public-contracts",
+  "purpose": "Diagnose and repair four concrete review, reviewer-request, Markdown-image restart and thread-filter public contracts exposed by v0.4.1 qualification",
+  "created": "2026-10-29T22:59:01.532098+00:00",
+  "base": "8f27f88a6b7497de5a8402b7f243210ac494d900"
+}
