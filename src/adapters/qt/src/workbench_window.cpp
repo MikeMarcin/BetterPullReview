@@ -3342,7 +3342,18 @@ namespace bpr::qt {
 				ConversationReplyDispatch(aAction, { std::string{ core::new_pull_request_comment }, std::string{ }, std::string{ }, aText.toStdString() });
 			}
 		});
-		TourEditor->set_presented_observer([this] { refresh_overview_tour(); });
+		TourEditor->set_presented_observer([this] {
+			refresh_overview_tour();
+			refresh_tour_open_offer();
+		});
+		// [[BPR-1806]]. A published tour stop's Open in tour.
+		ConversationPanel->cards()->set_tour_open_dispatch([this](const std::string& aPost, const core::published_tour_stop& aStop) {
+			if (TourStopDispatch) {
+				TourStopDispatch(aPost, aStop);
+			} else {
+				start_tour_at_published_stop(aPost, aStop);
+			}
+		});
 		Drawers[1].Panel->set_content_widget(
 			conversationShell, ConversationPanel->cards());
 		CentralSplitter->addWidget(Drawers[2].Panel);
@@ -9235,6 +9246,9 @@ namespace bpr::qt {
 			}
 		} else if (TourEditor->stop_body()->isVisible()) {
 			TourEditor->stop_body()->setFocus(Qt::OtherFocusReason);
+		} else if (auto* const edit = TourEditor->findChild<QWidget*>(QStringLiteral("tourStopEdit")); edit != nullptr && edit->isVisible()) {
+			// [[BPR-1805]]. A read stop: its pencil.
+			edit->setFocus(Qt::OtherFocusReason);
 		}
 	}
 
@@ -10051,6 +10065,33 @@ namespace bpr::qt {
 				start_tour_at_first_stop();
 			}
 			return;
+		}
+	}
+
+	void workbench_window::set_tour_stop_dispatch(std::function<void(const std::string&, const core::published_tour_stop&)> aDispatch)
+	{
+		TourStopDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::refresh_tour_open_offer()
+	{
+		if (TourEditor == nullptr || ConversationPanel == nullptr) {
+			return;
+		}
+		// [[BPR-1806]]. Open in tour while there is a published tour to
+		// follow: the window's own, or one GitHub offers for import.
+		const auto& shown = TourEditor->shown();
+		ConversationPanel->cards()->set_tour_open_offered((shown.Draft && shown.Draft->Remote && !shown.Draft->Stops.empty()) || shown.Offered != nullptr);
+	}
+
+	void workbench_window::start_tour_at_published_stop(const std::string& aPost, const core::published_tour_stop& aStop)
+	{
+		open_review_tour();
+		if (!TourEditor->shown().Draft) {
+			return;
+		}
+		if (const auto stop = core::find_published_tour_stop(*TourEditor->shown().Draft, aPost, aStop)) {
+			TourEditor->go_to_stop(*stop);
 		}
 	}
 

@@ -3158,6 +3158,19 @@ namespace bpr::qt {
 		PeopleSummary->setForegroundRole(QPalette::PlaceholderText);
 		facesRow->addWidget(PeopleSummary, 1);
 		people.Body->addLayout(facesRow);
+		// [[BPR-1804]]. Request review opens the people picker under it.
+		RequestReview = new quiet_push_button{ QStringLiteral("Request review"), peopleBody };
+		RequestReview->setObjectName(QStringLiteral("overviewRequestReview"));
+		RequestReview->setAccessibleName(QStringLiteral("Request review"));
+		RequestReview->setAccessibleDescription(QStringLiteral("Opens a search of the people who can review this pull request"));
+		RequestReview->setToolTip(QStringLiteral("Ask someone to review this pull request"));
+		RequestReview->hide();
+		people.Body->addWidget(RequestReview, 0, Qt::AlignLeft);
+		connect(RequestReview, &QPushButton::clicked, this, [this] {
+			if (ReviewersOffered && ReviewerDispatch) {
+				ReviewerDispatch({ .Kind = reviewer_picker_gesture::kind::open });
+			}
+		});
 		Participants = new QVBoxLayout;
 		Participants->setContentsMargins(0, 0, 0, 0);
 		Participants->setSpacing(0);
@@ -5376,6 +5389,51 @@ namespace bpr::qt {
 	auto pull_request_overview_page::people_faces() const noexcept -> overview_faces*
 	{
 		return Faces;
+	}
+
+	void pull_request_overview_page::set_reviewer_requests_offered(const bool aOffered)
+	{
+		ReviewersOffered = aOffered;
+		RequestReview->setVisible(aOffered);
+		if (!aOffered && ReviewerPicker != nullptr && ReviewerPicker->isVisible()) {
+			// Withdrawn while open: the picker closes and says so.
+			ReviewerPicker->hide();
+		}
+	}
+
+	auto pull_request_overview_page::reviewer_requests_offered() const noexcept -> bool
+	{
+		return ReviewersOffered;
+	}
+
+	void pull_request_overview_page::set_reviewer_picker_dispatch(std::function<void(const reviewer_picker_gesture&)> aDispatch)
+	{
+		ReviewerDispatch = std::move(aDispatch);
+		if (ReviewerPicker != nullptr) {
+			ReviewerPicker->set_dispatch(ReviewerDispatch);
+		}
+	}
+
+	void pull_request_overview_page::present_reviewer_picker(const core::reviewer_picker_state& aState)
+	{
+		if (ReviewerPicker == nullptr) {
+			if (!aState.Open) {
+				return;
+			}
+			ReviewerPicker = new reviewer_picker{ this };
+			ReviewerPicker->set_dispatch(ReviewerDispatch);
+		}
+		ReviewerPicker->present(aState, RequestReview);
+	}
+
+	auto pull_request_overview_page::request_review_button() const noexcept -> QPushButton*
+	{
+		return RequestReview;
+	}
+
+	auto pull_request_overview_page::reviewer_picker_popup() const noexcept -> reviewer_picker*
+	{
+		return ReviewerPicker;
 	}
 
 	auto pull_request_overview_page::people_summary() const noexcept -> QLabel*

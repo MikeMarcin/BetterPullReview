@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1808"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "coordinator: overview comments filters",
+  "created": "2026-10-29T04:28:13.543469+00:00",
+  "base": "2440aa5a9257a893b193b224e468e773ba273028"
+}

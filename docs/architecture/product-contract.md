@@ -311,9 +311,23 @@ the comment's exact text; nothing is sent until Save. A comment changed on
 GitHub since editing began is never overwritten: the editor says so and offers
 GitHub's newer text. Blank text is refused; deleting a comment is not offered.
 
+## Requesting reviewers
+
+People in Overview's Status drawer has Request review in a signed-in session
+whose connection can request reviewers ([[BPR-1804]]). It opens a people
+search: GitHub's suggested reviewers first, then everyone GitHub lets be asked
+on the repository, narrowed as the query is typed. Each person shows whether a
+request is open, a review is in (choosing them asks again), or neither; the
+author is never listed. Choosing a person asks GitHub once, and the picker
+says what GitHub answered, including when GitHub did not add someone who
+cannot review the repository. People then shows the request through the
+ordinary read. Up and Down move through the people from the search field,
+Return chooses and Escape closes. The mutation's contract is in the
+[provider contract](github-provider-contract.md#normalized-provider-surface).
+
 ## Explicit non-goals
 
-- Creating, changing PR metadata other than the explicitly previewed description body, merging, closing, or rebasing pull requests.
+- Creating, changing PR metadata other than the explicitly previewed description body and review requests chosen in People, merging, closing, or rebasing pull requests.
 - Replacing GitHub notifications for all repository activity.
 - Running builds, tests, repository scripts, hooks, filters, or arbitrary code.
 - Maintaining a hosted BetterPullReview account or synchronization service.

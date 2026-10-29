@@ -605,6 +605,14 @@ namespace bpr::qt {
 		/// \brief [[BPR-1781]]. Opens Review's Tour tab at the tour's first
 		/// stop and goes to its lines, once the tour has one.
 		void start_tour_at_first_stop();
+		/// \brief [[BPR-1806]]. Where a published tour stop's Open in tour
+		/// goes: the composition imports the published tour if it must, then
+		/// opens Review at that stop. Without one, the window's own tour is used.
+		void set_tour_stop_dispatch(std::function<void(const std::string&, const core::published_tour_stop&)> aDispatch);
+		/// \brief [[BPR-1806]]. Opens Review's Tour tab at the stop the
+		/// published comment `aPost` is (`core::find_published_tour_stop`), or
+		/// on the tour as it was when the window's tour has no such stop.
+		void start_tour_at_published_stop(const std::string& aPost, const core::published_tour_stop& aStop);
 		/// \brief Presents one typed receipt refusal without changing the model.
 		void fail(const application::receipt_failure_publication& aFailure);
 		/// \brief Retires receipt actions, optionally naming unavailable storage.
@@ -2545,9 +2553,12 @@ namespace bpr::qt {
 		QWidget*              AgentBody            = nullptr;
 		bool                  ConversationTabsLent = false;
 		std::function<void()> TourStartDispatch;
-		void                  lend_conversation_tabs(bool aToOverview);
-		void                  refresh_overview_tour();
-		void                  follow_overview_tour(overview_tour_gesture aGesture);
+		/// [[BPR-1806]].
+		std::function<void(const std::string&, const core::published_tour_stop&)> TourStopDispatch;
+		void                                                                      refresh_tour_open_offer();
+		void                                                                      lend_conversation_tabs(bool aToOverview);
+		void                                                                      refresh_overview_tour();
+		void                                                                      follow_overview_tour(overview_tour_gesture aGesture);
 		/// \brief [[BPR-1781]]. Opens the pull request's conversation on
 		/// Overview, and the comment `aIdentity` in it when one is named.
 		void     open_pull_request_conversation(const std::string& aIdentity);

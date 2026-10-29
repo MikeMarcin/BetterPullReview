@@ -495,7 +495,10 @@ namespace bpr::app::detail {
 		bool EditsDescription = false;
 		/// [[BPR-1775]]. The fixture's mutation provider edits the viewer's
 		/// published comments; off, no course offers Edit on a comment.
-		bool                                        EditsComments           = false;
+		bool EditsComments = false;
+		/// [[BPR-1804]]. The fixture's mutation provider searches reviewers
+		/// and requests reviews; off, no course offers Request review.
+		bool                                        RequestsReviewers       = false;
 		std::int64_t                                DeviceWallOffsetSeconds = 0;
 		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
@@ -622,6 +625,10 @@ namespace bpr::app::detail {
 		/// it made.
 		std::size_t CommentEdits      = 0U;
 		std::size_t CommentEditWrites = 0U;
+		/// [[BPR-1804]]. Reviewer searches answered, and review requests
+		/// written: an open request is never written again.
+		std::size_t ReviewerSearches = 0U;
+		std::size_t ReviewerWrites   = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
 		/// it was a file comment.
@@ -863,8 +870,16 @@ namespace bpr::app::detail {
 		bool CommentEditShownAfterRead  = false;
 		bool CommentEditConflictRefused = false;
 		bool CommentEditNewerLoaded     = false;
-		bool PickerReacted              = false;
-		bool ReactionReconciled         = false;
+		/// [[BPR-1804]]. With reviewers served: Request review offered in
+		/// People, the picker listing GitHub's suggestion and a narrowed
+		/// search, a choice by keyboard written exactly once, and choosing the
+		/// person again sending nothing.
+		bool ReviewerOffered       = false;
+		bool ReviewerSearched      = false;
+		bool ReviewerRequestedOnce = false;
+		bool ReviewerNotRepeated   = false;
+		bool PickerReacted         = false;
+		bool ReactionReconciled    = false;
 
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};

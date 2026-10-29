@@ -12,7 +12,9 @@
 #include <QWidget>
 
 #include <functional>
+#include <optional>
 #include <string>
+#include <utility>
 
 class QLabel;
 class QMenu;
@@ -75,6 +77,11 @@ namespace bpr::qt {
 
 		/// \brief Replaces one admitted body; identical identity and bytes are a no-op.
 		void set_body(std::string aBody, std::string aIdentity);
+		/// \brief [[BPR-1806]]. Renders only the half-open byte range
+		/// `aShown` of the body (a published tour stop's narrative), while View
+		/// source, Copy source and `original_body` keep every byte. A range that
+		/// does not fit the body renders the whole body. Call before `set_body`.
+		void set_rendered_range(std::optional<std::pair<std::size_t, std::size_t>> aShown);
 		/// \brief Names the owning surface's empty-body state; empty text restores the default.
 		void set_empty_body_text(QString aText);
 		/// \brief Discards both documents and all local reading/link state.
@@ -202,6 +209,7 @@ namespace bpr::qt {
 
 		std::string                                                                 Body;
 		std::string                                                                 Identity;
+		std::optional<std::pair<std::size_t, std::size_t>>                          RenderedRange;
 		QString                                                                     EmptyBodyText = QStringLiteral("No body provided.");
 		std::function<void(const std::string&)>                                     LinkDispatch;
 		std::function<void(QMenu&)>                                                 ContextMenuBuilder;

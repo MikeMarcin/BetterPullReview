@@ -203,6 +203,16 @@ namespace {
 			expect(sheet.save(aCapture + QStringLiteral("-status-icons.png")), "status icon palette and size comparison saved");
 		}
 	}
+	/// [[BPR-1805]]. A written stop opens to read; its pencil opens the
+	/// source, which is where the keyboard writes and undoes.
+	auto write(qt::review_tour_editor& aEditor) -> QPlainTextEdit*
+	{
+		if (aEditor.stop_view().Mode == core::tour_stop_view_mode::read) {
+			aEditor.begin_stop_edit();
+			QApplication::processEvents();
+		}
+		return aEditor.stop_body();
+	}
 	void tab_leaves(QPlainTextEdit* aEditor)
 	{
 		aEditor->window()->raise();
@@ -323,7 +333,7 @@ namespace {
 		}
 		saved(editor);
 		editor.show_stops();
-		expect(editor.stop_body()->hasFocus(), "a titled stop still opens on its body");
+		expect(editor.stop_view().Mode == core::tour_stop_view_mode::read && QApplication::focusWidget() == editor.findChild<QWidget*>(QStringLiteral("tourStopEdit")), "a written stop opens to read, the keyboard on its pencil (BPR-1805)");
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		QApplication::processEvents();
 	}
@@ -998,7 +1008,7 @@ auto main(int argc, char** argv) -> int
 			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
 			expect(editor.selected_stop()->Preparation != core::tour_preparation::ready, "another visible range cannot complete the captured generated stop");
 			editor.trigger(qt::tour_editor_action::navigate_stop);
-			window.findChild<QScrollArea*>(QStringLiteral("workbenchTourScroll"))->ensureWidgetVisible(editor.stop_body());
+			window.findChild<QScrollArea*>(QStringLiteral("workbenchTourScroll"))->ensureWidgetVisible(write(editor));
 			QApplication::processEvents();
 			expect(editor.writing_visible(core::writing_hook::comment) && window.comparison_surface()->source_line_visible(core::diff_side::right, 3), "completion shows current editor and selected source line");
 			editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
@@ -1012,6 +1022,7 @@ auto main(int argc, char** argv) -> int
 			saved(editor);
 			editor.outline()->setCurrentRow(generatedRow, QItemSelectionModel::ClearAndSelect);
 			editor.trigger(qt::tour_editor_action::navigate_stop);
+			write(editor);
 			editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic"))->click();
 			wait([&] { const auto evidence = access::agent_invocation_evidence(*application); return evidence.AgentProcessLauncherInvocations == commentCalls + 2 && evidence.Quiescent; }, "explicit regeneration finishes");
 			saved(editor);
@@ -1230,16 +1241,16 @@ auto main(int argc, char** argv) -> int
 		window.add_tour_stop_action()->trigger();
 		expect(editor.shown().Draft->Stops.size() == 1U && editor.selected_stop() && editor.selected_stop()->Original->First.Line == 2U && editor.selected_stop()->Original->Last.Line == 4U && editor.selected_stop()->Original->Blob, "Add tour stop captures exact range and blob through normal source action");
 		const auto firstId = editor.selected_stop()->Id;
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		expect(editor.shown().Draft->Stops.empty(), "standard Undo after Add tour stop removes that stop even with its editor focused");
 		key(editor.outline(), QKeySequence{ QKeySequence::Redo }[0]);
 		expect(editor.shown().Draft->Stops.size() == 1 && editor.selected_stop()->Id == firstId, "standard Redo restores the same source and stable stop identity");
-		tab_leaves(editor.stop_body());
+		tab_leaves(write(editor));
 		editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
 		editor.stop_body()->insertPlainText(QStringLiteral("First thought.\n\nSecond thought."));
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		expect(editor.selected_stop()->Body.empty() && editor.shown().Draft->Stops.size() == 1, "later typing gives standard Undo back to the native text editor");
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Redo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Redo }[0]);
 		expect(editor.selected_stop()->Body == "First thought.\n\nSecond thought.", "native redo replays prose without another structural action");
 		select_range(window, core::diff_side::left, 1, 1);
 		editor.findChild<QPushButton*>(QStringLiteral("tourAddRelated"))->click();
@@ -1284,7 +1295,7 @@ auto main(int argc, char** argv) -> int
 		arrange->hide();
 		editor.findChild<QAction*>(QStringLiteral("tourDuplicate"))->trigger();
 		expect(editor.shown().Draft->Stops.size() == beforeMenu.size() + 1 && editor.selected_stop()->Body == beforeMenu.front().Body, "context action duplicates the clicked stop through the application host");
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		expect(editor.shown().Draft->Stops == beforeMenu, "standard Undo restores a context-menu structural edit");
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		wait([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp") && window.comparison_surface()->selected_source_range() && window.comparison_surface()->selected_source_range()->first.Line == 2U; }, "outline returns to first stop source");
@@ -1335,22 +1346,22 @@ auto main(int argc, char** argv) -> int
 		editor.findChild<QAction*>(QStringLiteral("tourInsertAfter"))->trigger();
 		expect(editor.shown().Draft->Stops.size() == 4 && editor.shown().Draft->Stops[1].Id == thirdId && editor.selected_stop()->Id == editor.shown().Draft->Stops[2].Id, "Insert after locates and selects the new stop after the current identity");
 		const auto insertedId = editor.selected_stop()->Id;
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		expect(editor.shown().Draft->Stops == beforeInsert && editor.selected_stop()->Id == thirdId, "insert undo restores the prior selected stop");
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Redo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Redo }[0]);
 		expect(editor.selected_stop()->Id == insertedId && editor.outline()->currentRow() == 2, "redo reselects inserted stop even after another selection");
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		editor.outline()->setCurrentRow(0, QItemSelectionModel::ClearAndSelect);
 		select_file(window, "review.cpp");
 		select_range(window, core::diff_side::right, 2, 4);
 		window.add_tour_stop_action()->trigger();
 		expect(editor.shown().Draft->Stops[0].Id == firstId && editor.shown().Draft->Stops[2].Id == thirdId && editor.selected_stop()->Id == editor.shown().Draft->Stops[1].Id, "Add inserts after current selection rather than appending");
 		const auto addedId = editor.selected_stop()->Id;
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Redo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Redo }[0]);
 		expect(editor.selected_stop()->Id == addedId && editor.outline()->currentRow() == 1, "Add redo restores new selected identity and ordinal");
-		key(editor.stop_body(), QKeySequence{ QKeySequence::Undo }[0]);
+		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		editor.outline()->setCurrentRow(1, QItemSelectionModel::ClearAndSelect);
 		saved(editor);
 		const auto boundedBody = editor.stop_body()->toPlainText();

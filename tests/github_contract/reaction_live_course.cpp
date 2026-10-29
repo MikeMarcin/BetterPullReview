@@ -20,6 +20,10 @@
 // `--comments` (the author of three comments, one of each kind) and
 // `--comments-other` (asked to edit someone else's comments) modes through
 // the shipped `review_mutation_session::edit_comment`.
+//
+// [[BPR-1804]]. tests/scripts/reviewer_live_course.py runs its `--reviewers`
+// (the author) and `--reviewers-second` (another account) modes through the
+// shipped `review_mutation_session::reviewers`.
 #include "gh_cli_response.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
@@ -30,11 +34,13 @@
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/description_edit.hpp"
+#include "bpr/core/review_role.hpp"
+#include "bpr/core/reviewer_request.hpp"
 
 #include <QByteArray>
 #include <QCoreApplication>
-#include <QJsonArray>
 #include <QFile>
+#include <QJsonArray>
 #include <QJsonDocument>
 #include <QJsonObject>
 #include <QProcess>
@@ -162,6 +168,8 @@ namespace {
 		case review_mutation_operation::edit_review_comment:              return "edit-review-comment";
 		case review_mutation_operation::edit_issue_comment:               return "edit-issue-comment";
 		case review_mutation_operation::edit_review_body:                 return "edit-review-body";
+		case review_mutation_operation::observe_reviewers:                return "observe-reviewers";
+		case review_mutation_operation::request_reviews:                  return "request-reviews";
 		case review_mutation_operation::observe_review_thread:            return "observe-thread";
 		case review_mutation_operation::resolve_review_thread:            return "resolve-thread";
 		case review_mutation_operation::unresolve_review_thread:          return "unresolve-thread";
@@ -616,6 +624,78 @@ namespace {
 			}
 		}
 	}
+	/// [[BPR-1804]]. One reviewer operation through the shipped session; the
+	/// receipt and the writes it made are printed and returned.
+	[[nodiscard]] auto reviewers(review_mutation_session& aSession, gh_mutation_transport& aWire, const std::string& aStep, const application::review_reviewer_operation aOperation,
+								 const std::string& aQuery, const std::string& aUser = { }, const std::string& aLogin = { })
+		-> std::pair<std::expected<application::review_reviewer_receipt, application::review_mutation_failure>, std::size_t>
+	{
+		const auto before  = aWire.Operations.size();
+		auto       receipt = aSession.reviewers(application::review_reviewer_request{
+			.Target = target().Semantic, .ActingIdentity = actor().Account, .Operation = aOperation, .Query = aQuery, .User = aUser, .Login = aLogin, .LiveBinding = binding() });
+		const auto writes  = static_cast<std::size_t>(std::ranges::count(aWire.Operations.begin() + static_cast<std::ptrdiff_t>(before), aWire.Operations.end(),
+																		 review_mutation_operation::request_reviews));
+		auto       facts   = std::string{ };
+		if (receipt) {
+			const auto rows = core::reviewer_rows(receipt->Answer, aQuery);
+			facts += " author=" + receipt->Answer.Author + " suggested=" + std::to_string(receipt->Answer.Suggested.size()) + " matches=" + std::to_string(receipt->Answer.Matches.size())
+				+ " rows=" + std::to_string(rows.size()) + " requested=" + std::to_string(receipt->Answer.Requested.size()) + " written=" + std::to_string(receipt->Written);
+		}
+		std::cout << "REACTION_LIVE:" << aStep << ":" << (receipt ? "answered" : std::string{ application::name(receipt.error()) }) << " writes=" << writes << facts << '\n'
+				  << std::flush;
+		return { std::move(receipt), writes };
+	}
+
+	/// [[BPR-1804]]. The author searches (everyone, then their own login,
+	/// which GitHub lists but the picker never shows), asks for a review
+	/// from someone who may not review here (written once, and GitHub's
+	/// answer does not list them: the core says not added), and is refused
+	/// a request of themselves before anything is written.
+	void reviewers_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		using operation      = application::review_reviewer_operation;
+		const auto [all, _a] = reviewers(aSession, aWire, "reviewers-search-all", operation::search, "");
+		const auto rowsAll   = all ? core::reviewer_rows(all->Answer, "") : std::vector<core::reviewer_row>{ };
+		if (!all || all->Answer.Author != text("author") || std::ranges::any_of(rowsAll, [](const core::reviewer_row& aRow) { return core::same_login(aRow.Candidate.Login, text("author")); })) {
+			fail("reviewers-search-all:unexpected");
+		}
+		const auto [own, _o] = reviewers(aSession, aWire, "reviewers-search-author", operation::search, text("author"));
+		if (!own || std::ranges::none_of(own->Answer.Matches, [](const core::reviewer_candidate& aPerson) { return aPerson.Login == text("author"); })
+			|| !core::reviewer_rows(own->Answer, text("author")).empty()) {
+			fail("reviewers-search-author:unexpected");
+		}
+		auto state                     = core::accept_reviewer_search(core::open_reviewer_picker({ }).State, 1U, all->Answer);
+		const auto [outsider, written] = reviewers(aSession, aWire, "reviewers-request-outsider", operation::request, "", text("secondNode"), text("secondLogin"));
+		if (!outsider || written != 1U) {
+			fail("reviewers-request-outsider:unexpected");
+		}
+		state.Rows.push_back(core::reviewer_row{ .Candidate = { .NodeId = text("secondNode"), .Login = text("secondLogin") } });
+		const auto chose = core::choose_reviewer(state, text("secondLogin"));
+		const auto said  = core::finish_reviewer_request(chose.State, chose.State.Request, { .Requested = outsider->Answer.Requested, .Written = outsider->Written });
+		std::cout << "REACTION_LIVE:reviewers-outsider-notice:" << core::name(said.Notice) << '\n'
+				  << std::flush;
+		if (said.Notice != core::reviewer_notice::not_added) {
+			fail("reviewers-outsider:not-said-not-added");
+		}
+		const auto [self, selfWrites] = reviewers(aSession, aWire, "reviewers-request-author", operation::request, "", text("actorNode"), text("author"));
+		if (self || self.error() != application::review_mutation_failure::refused_by_server || selfWrites != 0U) {
+			fail("reviewers-request-author:unexpected");
+		}
+	}
+
+	/// [[BPR-1804]]. Another account, not a collaborator: its search is
+	/// answered or refused, and asking for its own review is never claimed.
+	void reviewers_second_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		using operation           = application::review_reviewer_operation;
+		const auto [found, _f]    = reviewers(aSession, aWire, "reviewers-second-search", operation::search, "");
+		const auto [asked, wrote] = reviewers(aSession, aWire, "reviewers-second-request-self", operation::request, "", text("actorNode"), text("actorLogin"));
+		const auto listed         = asked && std::ranges::any_of(asked->Answer.Requested, [](const std::string& aLogin) { return core::same_login(aLogin, text("actorLogin")); });
+		if (wrote > 1U || listed) {
+			fail("reviewers-second:unexpected");
+		}
+		static_cast<void>(found);
+	}
 } // namespace
 
 auto main(int aCount, char** aValues) -> int
@@ -623,7 +703,7 @@ auto main(int aCount, char** aValues) -> int
 	QCoreApplication application{ aCount, aValues };
 	const auto       arguments = QCoreApplication::arguments();
 	if (arguments.size() < 4) {
-		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other) CONFIG OUTPUT [FLOOR]\n";
+		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other|--reviewers|--reviewers-second) CONFIG OUTPUT [FLOOR]\n";
 		return EXIT_FAILURE;
 	}
 	auto file = QFile{ arguments[2] };
@@ -662,6 +742,10 @@ auto main(int aCount, char** aValues) -> int
 		description_second_course(session, wire);
 	} else if (mode == QStringLiteral("--comments")) {
 		comments_course(session, wire);
+	} else if (mode == QStringLiteral("--reviewers")) {
+		reviewers_course(session, wire);
+	} else if (mode == QStringLiteral("--reviewers-second")) {
+		reviewers_second_course(session, wire);
 	} else if (mode == QStringLiteral("--comments-other")) {
 		comments_other_course(session, wire);
 	} else if (mode == QStringLiteral("--main")) {

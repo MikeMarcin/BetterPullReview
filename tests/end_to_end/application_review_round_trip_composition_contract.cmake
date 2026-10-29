@@ -1,3 +1,14 @@
+# [[BPR-1804]] reviewer-request reseal (2026-10-28), over 1ff1314c4.
+# github_application.cpp, main.cpp and the public-path fixture add Request
+# review in People: the picker's gestures reach the core's reviewer picker
+# transitions, a search goes to the mutation host's reviewers as a read with
+# no grant, and a choice under a one-shot issue_reviewer grant bound to
+# session, generation, target, actor and the exact person; the terminal
+# updates the picker and refreshes after a write. The fixture provider decides
+# with decide_reviewer_write and the threaded-reply probe gains a
+# --reviewer-request-probe continuation. No credential, provider selection,
+# publication or source-inventory change; the mutation-branch pin is
+# unchanged. application_reviewer_request_contract qualifies these bytes.
 # [[BPR-1774]] description-edit reseal (2026-10-27), over ce5d19205.
 # github_application.cpp, main.cpp and the public-path fixture add the
 # author's description edit: Overview's Save reaches the core's
@@ -2435,10 +2446,9 @@ function(bpr_verify_full_application_digest source_variable)
 	# existing profile image lane. The appearance dispatch gains
 	# apply_avatar_style_intent. No credential, grant, provider, mutation,
 	# publication or source-inventory change; the mutation-branch pin is
-	# unchanged. Main's own pin (924be92d) no longer matched main's file
-	# (f70fc745) when this reseal was taken.
+	# unchanged.
 	set(bpr_expected_full_application_digest
-		"7bfdbb3b362267b8fc94e024c71728bd87f399021cbde0469574fef632559e71"
+		"fc9333e67646df83bd9735efc8358cbe426f52755d7fcf71f4c75e4934fa0905"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2696,7 +2706,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # only. Avatar style adoption, the avatar style appearance intent and each
 # window's picture dispatch. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "e7028dea07aafccb1642ec792405524340960b57534a8c2389b495f6655fecd4"
+        "2dd7a335cb20c9b1607345ac4e4c97d74c86eff186cfedf37d098a985f549aea"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

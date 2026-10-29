@@ -3,6 +3,7 @@
 #include "bpr/application/review_mutation_application_host.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
+#include "bpr/core/reviewer_request.hpp"
 
 #include "../../src/application/src/review_mutation_execution_authority.hpp"
 #include "bpr/core/feedback_draft_edit.hpp"
@@ -340,7 +341,7 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments, .RequestsReviewers = RequestsReviewers };
 		}
 		auto set_reaction(
 			const application::review_reaction_request& aRequest,
@@ -385,6 +386,24 @@ namespace {
 		}
 		bool                                                  EditsComments = false;
 		std::vector<application::review_comment_edit_request> Edited;
+		auto                                                  reviewers(
+			const application::review_reviewer_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Reviewed.push_back(aRequest);
+			auto receipt = application::review_reviewer_receipt{ .Answer = { .Author = "octo-author" } };
+			if (aRequest.Operation == application::review_reviewer_operation::request) {
+				receipt.Answer.Requested = { aRequest.Login };
+				receipt.Written          = true;
+			}
+			return receipt;
+		}
+		bool                                              RequestsReviewers = false;
+		std::vector<application::review_reviewer_request> Reviewed;
 
 		auto resolve_thread(
 			const application::review_thread_resolution_request& aRequest,
@@ -431,7 +450,12 @@ namespace {
 			Descriptions.push_back(aTerminal);
 		}
 		std::vector<application::review_description_terminal> Descriptions;
-		void                                                  publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
+		void                                                  publish_reviewers(const application::review_reviewer_terminal& aTerminal) override
+		{
+			Reviewers.push_back(aTerminal);
+		}
+		std::vector<application::review_reviewer_terminal> Reviewers;
+		void                                               publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
 		{
 			CommentEdits.push_back(aTerminal);
 		}
@@ -1325,6 +1349,71 @@ namespace {
 		expect(observed->Described.size() == 1U, "an edit stopped by shutdown never reaches the provider");
 	}
 
+	/// [[BPR-1804]]. A reviewer search is a read: it needs the capability but
+	/// no grant, and the latest search wins (an earlier one queued is stopped
+	/// and never reaches the provider). A request needs a grant that permits
+	/// that exact person; a grant issued for anything else permits none.
+	void test_reviewers_are_searched_freely_and_requested_under_a_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		using operation    = application::review_reviewer_operation;
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.Reviewers.empty() && !projection.Reviewers.back().Result.has_value() && projection.Reviewers.back().Result.error() == aFailure, aWhy);
+		};
+		static_cast<void>(host.reviewers({ .Operation = operation::search, .Query = "sa" }));
+		refused(application::review_mutation_failure::unsupported, "without the provider's capability a search is refused before any effect");
+		observed->RequestsReviewers = true;
+		static_cast<void>(host.reviewers({ .Operation = operation::search, .Query = std::string(core::maximum_reviewer_query_bytes + 1U, 'a') }));
+		refused(application::review_mutation_failure::incompatible_body, "a query longer than the core sends is refused");
+		static_cast<void>(host.reviewers({ .Operation = operation::request, .User = "U_sam" }));
+		refused(application::review_mutation_failure::incompatible_body, "a request without a login is refused");
+		const auto ask = application::review_reviewer_publication_request{ .Operation = operation::request, .User = "U_sam", .Login = "sam" };
+		static_cast<void>(host.reviewers(ask, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no review request");
+		expect(observed->Reviewed.empty(), "no refusal reached the provider");
+
+		const auto first  = host.reviewers({ .Operation = operation::search, .Query = "s" });
+		const auto second = host.reviewers({ .Operation = operation::search, .Query = "sa" });
+		expect(first.Request.value() != 0U && second.Request.value() != first.Request.value() && effects.pending() == 2U, "searches are admitted without a grant");
+		effects.run_next();
+		expect(observed->Reviewed.size() == 1U && observed->Reviewed.front().Query == "sa" && observed->Reviewed.front().LiveBinding.has_value(),
+			   "the earlier search was stopped before the provider; the latest one is asked, bound to the target");
+		decisions.run_next();
+		decisions.run_next();
+		expect(projection.Reviewers.size() == 6U && projection.Reviewers[4].Context == first && !projection.Reviewers[4].Result.has_value()
+				   && projection.Reviewers[4].Result.error() == application::review_mutation_failure::cancelled && projection.Reviewers[5].Context == second
+				   && projection.Reviewers[5].Result.has_value() && host.statistics().ReviewerSearches == 1U,
+			   "the stopped search ends cancelled and the latest carries GitHub's answer");
+		effects.run_next();
+
+		const auto requested = host.reviewers(ask);
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Reviewed.size() == 2U && observed->Reviewed.back().Operation == operation::request && observed->Reviewed.back().User == "U_sam"
+				   && projection.Reviewers.back().Context == requested && projection.Reviewers.back().Result.has_value() && projection.Reviewers.back().Result->Written
+				   && host.statistics().ReviewerRequests == 1U,
+			   "a request under a permitting grant reaches the provider once and its terminal carries GitHub's answer");
+		host.shutdown();
+	}
+
 	/// [[BPR-1775]]. A comment edit is admitted like a description edit: the
 	/// provider must edit comments, the grant must permit the exact edit of
 	/// that comment, a grant issued for anything else permits none, and
@@ -2138,6 +2227,7 @@ auto main() -> int
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
 	test_a_description_edit_needs_the_capability_and_a_permitting_grant();
+	test_reviewers_are_searched_freely_and_requested_under_a_grant();
 	test_a_comment_edit_needs_the_capability_and_a_permitting_grant();
 
 	test_a_reply_may_be_drafted_from_a_left_side_selection();

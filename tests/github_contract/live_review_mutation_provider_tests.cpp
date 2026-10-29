@@ -588,6 +588,8 @@ namespace {
 		case review_mutation_operation::edit_review_comment:              return "edit_review_comment";
 		case review_mutation_operation::edit_issue_comment:               return "edit_issue_comment";
 		case review_mutation_operation::edit_review_body:                 return "edit_review_body";
+		case review_mutation_operation::observe_reviewers:                return "observe_reviewers";
+		case review_mutation_operation::request_reviews:                  return "request_reviews";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -1984,6 +1986,16 @@ namespace {
 			return Session->edit_description(aRequest, aStop);
 		}
 
+		auto reviewers(
+			const application::review_reviewer_request& aRequest,
+			const std::stop_token                       aStop)
+			-> std::expected<
+				application::review_reviewer_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->reviewers(aRequest, aStop);
+		}
+
 		auto edit_comment(
 			const application::review_comment_edit_request& aRequest,
 			const std::stop_token                           aStop)
@@ -2424,6 +2436,144 @@ namespace {
 			   "the coordinator observes the target, then the provider observes the description and writes it");
 	}
 
+	/// [[BPR-1804]]. The designated pull request's reviewer facts, with the
+	/// logins GitHub has open requests for.
+	[[nodiscard]] auto reviewer_facts(const std::vector<std::string>& aRequested, const bool aDesignated) -> std::string
+	{
+		auto requests = std::string{ };
+		for (const auto& login : aRequested) {
+			requests += std::string{ requests.empty() ? "" : "," } + R"({"requestedReviewer":{"__typename":"User","id":"U_)" + login + R"(","login":")" + login + R"("}})";
+		}
+		return std::string{ R"("id":")" } + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz")
+			+ R"(","databaseId":4246446933,"number":1,"author":{"login":"octo-author"},"reviewRequests":{"nodes":[)" + requests
+			+ R"(]},"latestReviews":{"nodes":[{"author":{"login":"bea"}}]})";
+	}
+
+	[[nodiscard]] auto reviewer_observation_response(const std::vector<std::string>& aRequested, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":{)" + reviewer_facts(aRequested, aDesignated) + R"(,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test","assignableUsers":{"nodes":[{"id":"U_sam","login":"sam","name":"Sam"}]}},"suggestedReviewers":[]}}})" } };
+	}
+
+	[[nodiscard]] auto reviewer_write_response(const std::vector<std::string>& aRequested, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"requestReviews":{"pullRequest":{)" + reviewer_facts(aRequested, aDesignated) + R"(,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}}}}})" } };
+	}
+
+	[[nodiscard]] auto reviewer_request(const application::review_reviewer_operation aOperation, std::string aLogin = "sam") -> application::review_reviewer_request
+	{
+		auto result = application::review_reviewer_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Operation      = aOperation,
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+		if (aOperation == application::review_reviewer_operation::search) {
+			result.Query = std::move(aLogin);
+		} else {
+			result.User  = "U_" + aLogin;
+			result.Login = std::move(aLogin);
+		}
+		return result;
+	}
+
+	// [[BPR-1804]]. A search is one read. A request is observed first, then
+	// written once; nothing is sent for an open request or the author, and an
+	// ambiguous write is read back once and never sent again.
+	void test_a_review_request_is_observed_then_written_once()
+	{
+		auto searching = fake_transport{ };
+		searching.answer(graphql("ObserveReviewers"), reviewer_observation_response({ "rui" }));
+		auto       searchSession = review_mutation_session{ searching, configuration(), mutation_lease(), make_recovery() };
+		const auto found         = searchSession.reviewers(reviewer_request(application::review_reviewer_operation::search, "sa"));
+		expect(found.has_value() && !found->Written && found->Answer.Matches.size() == 1U && found->Answer.Requested == std::vector<std::string>{ "rui" }
+				   && searching.Requests.size() == 1U && count_operation(searching, review_mutation_operation::request_reviews) == 0U,
+			   "a search is one read and writes nothing");
+
+		auto transport = fake_transport{ };
+		transport.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }));
+		transport.answer(graphql("RequestReviews"), reviewer_write_response({ "sam" }));
+		auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+		const auto receipt = session.reviewers(reviewer_request(application::review_reviewer_operation::request));
+		expect(receipt.has_value() && receipt->Written && !receipt->ConfirmedByReadBack && receipt->Answer.Requested == std::vector<std::string>{ "sam" }
+				   && transport.Requests.size() == 2U && transport.Requests[0].Wire.Operation == review_mutation_operation::observe_reviewers
+				   && transport.Requests[0].Wire.Body.find(R"("query":"sam")") != std::string::npos
+				   && count_operation(transport, review_mutation_operation::request_reviews) == 1U,
+			   "the pull request is observed for the person, then the request is written once");
+
+		auto open = fake_transport{ };
+		open.answer(graphql("ObserveReviewers"), reviewer_observation_response({ "sam" }));
+		auto       openSession = review_mutation_session{ open, configuration(), mutation_lease(), make_recovery() };
+		const auto kept        = openSession.reviewers(reviewer_request(application::review_reviewer_operation::request));
+		expect(kept.has_value() && !kept->Written && open.Requests.size() == 1U, "an open request is not written again");
+
+		auto author = fake_transport{ };
+		author.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }));
+		auto       authorSession = review_mutation_session{ author, configuration(), mutation_lease(), make_recovery() };
+		const auto refusedAuthor = authorSession.reviewers(reviewer_request(application::review_reviewer_operation::request, "octo-author"));
+		expect(!refusedAuthor && refusedAuthor.error() == application::review_mutation_failure::refused_by_server && author.Requests.size() == 1U,
+			   "the author is never asked");
+
+		auto dropped = fake_transport{ };
+		dropped.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }));
+		dropped.answer(graphql("RequestReviews"), reviewer_write_response({ }));
+		auto       droppedSession = review_mutation_session{ dropped, configuration(), mutation_lease(), make_recovery() };
+		const auto silent         = droppedSession.reviewers(reviewer_request(application::review_reviewer_operation::request));
+		expect(silent.has_value() && silent->Written && silent->Answer.Requested.empty() && dropped.Requests.size() == 2U,
+			   "GitHub answering without the person is GitHub's answer, written once, for the core to say not added");
+
+		auto refused = fake_transport{ };
+		refused.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }));
+		refused.answer(graphql("RequestReviews"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"requestReviews":null},"errors":[{"type":"FORBIDDEN"}]})" } });
+		auto       refusedSession = review_mutation_session{ refused, configuration(), mutation_lease(), make_recovery() };
+		const auto forbidden      = refusedSession.reviewers(reviewer_request(application::review_reviewer_operation::request));
+		expect(!forbidden && forbidden.error() == application::review_mutation_failure::refused_by_server && refused.Requests.size() == 2U,
+			   "a GraphQL refusal is refused by the server, not read back");
+
+		auto foreign = fake_transport{ };
+		foreign.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }, false));
+		auto       foreignSession = review_mutation_session{ foreign, configuration(), mutation_lease(), make_recovery() };
+		const auto elsewhere      = foreignSession.reviewers(reviewer_request(application::review_reviewer_operation::request));
+		expect(!elsewhere && elsewhere.error() == application::review_mutation_failure::undesignated_target && foreign.Requests.size() == 1U,
+			   "an answer naming another pull request is refused before any write");
+
+		for (const auto took : { true, false }) {
+			const auto lost = github_mutation_wire_error{
+				.Failure      = application::review_mutation_failure::unavailable,
+				.Transmission = github_mutation_transmission::indeterminate,
+			};
+			auto ambiguous = fake_transport{ };
+			ambiguous.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }));
+			ambiguous.answer(graphql("RequestReviews"), lost);
+			ambiguous.answer(graphql("ObserveReviewers"), reviewer_observation_response(took ? std::vector<std::string>{ "sam" } : std::vector<std::string>{ }));
+			auto       ambiguousSession = review_mutation_session{ ambiguous, configuration(), mutation_lease(), make_recovery() };
+			const auto result           = ambiguousSession.reviewers(reviewer_request(application::review_reviewer_operation::request));
+			expect(ambiguous.Requests.size() == 3U && count_operation(ambiguous, review_mutation_operation::request_reviews) == 1U,
+				   "an ambiguous request is observed once more and never sent twice");
+			expect(took ? (result.has_value() && result->Written && result->ConfirmedByReadBack)
+						: (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "the request read back after a lost answer confirms it" : "a request GitHub does not show is named not_confirmed");
+		}
+
+		auto coordinated = fake_transport{ };
+		coordinated.answer(pull_request_get(), target_response());
+		coordinated.answer(viewer_get(), viewer_response());
+		coordinated.answer(graphql("ObserveReviewers"), reviewer_observation_response({ }));
+		coordinated.answer(graphql("RequestReviews"), reviewer_write_response({ "sam" }));
+		auto       coordinatedSession = review_mutation_session{ coordinated, configuration(), mutation_lease(), make_recovery() };
+		auto       port               = session_port{ coordinatedSession };
+		auto       coordinator        = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto viaCoordinator     = coordinator.reviewers(application::review_reviewer_operation::request, "", "U_sam", "sam");
+		expect(viaCoordinator.has_value() && viaCoordinator->Written && coordinator.statistics().TargetObservations == 1U && coordinated.Requests.size() == 4U,
+			   "the coordinator confirms the target before a request");
+		coordinated.answer(graphql("ObserveReviewers"), reviewer_observation_response({ "sam" }));
+		const auto searchedViaCoordinator = coordinator.reviewers(application::review_reviewer_operation::search, "sa", "", "");
+		expect(searchedViaCoordinator.has_value() && coordinator.statistics().TargetObservations == 1U && coordinated.Requests.size() == 5U,
+			   "a search confirms no target first: typing costs one read a query");
+	}
+
 	/// [[BPR-1775]]. One of the viewer's comments (or another's) as an edit
 	/// answer gives it.
 	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true, const std::string_view aId = "IC_kwDOcomment1", const bool aMine = true) -> std::string
@@ -2826,6 +2976,7 @@ namespace {
 		row{ "the_coordinator_confirms_the_target_before_a_reaction", &test_the_coordinator_confirms_the_target_before_a_reaction },
 		row{ "a_description_is_observed_then_written_once", &test_a_description_is_observed_then_written_once },
 		row{ "a_published_comment_is_observed_then_written_once", &test_a_published_comment_is_observed_then_written_once },
+		row{ "a_review_request_is_observed_then_written_once", &test_a_review_request_is_observed_then_written_once },
 
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};
