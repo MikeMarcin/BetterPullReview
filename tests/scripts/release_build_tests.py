@@ -257,7 +257,7 @@ bpr_add_build_identity(probe)
         self.assertEqual(first["native"]["msiProductVersion"], "0.4.1")
         self.assertNotEqual(cohort.native("0.4.0", 1)["msiProductCode"], cohort.native("0.4.0", 2)["msiProductCode"])
         self.assertEqual(cohort.native("0.4.0", 1)["msiProductCode"], cohort.native("0.4.0", 1)["msiProductCode"])
-        observed = windows_floor() | {"msiProductVersion": "0.4.1", "releaseTag": "v0.4.0-build.1",
+        observed = windows_floor() | {"msiProductVersion": "0.4.1", "releaseTag": "0.4.0",
                                      "installerName": "BetterPullReview-0.4.0-build.1-windows-x64.msi",
                                      "sourceCommit": self.git("rev-parse", "HEAD"), "installerSHA256": "a" * 64, "releaseId": 43}
         cohort.write(self.root / cohort.WINDOWS_FLOOR, observed)
@@ -268,6 +268,40 @@ bpr_add_build_identity(probe)
         self.assertEqual((second["number"], second["native"]["msiProductVersion"]), (2, "0.4.2"))
         self.commit("second allocation")
         self.assertEqual(self.allocate(), second)
+        frozen = cohort.freeze(self.root, 2)
+        self.assertEqual(cohort.check(frozen, self.root)["number"], 2)
+        self.assertNotEqual(first["native"]["msiProductCode"], second["native"]["msiProductCode"])
+
+    def test_numbered_windows_floor_binds_stable_or_rc_tag_to_installer_and_msi(self):
+        observed = windows_floor() | {"msiProductVersion": "0.4.1", "releaseTag": "0.4.0",
+                                     "installerName": "BetterPullReview-0.4.0-build.1-windows-x64.msi"}
+        for tag in ("0.4.0", "v0.4.0", "v0.4.0-build.1"):
+            with self.subTest(tag=tag):
+                self.assertEqual(cohort.windows_floor(observed | {"releaseTag": tag})["msiProductVersion"], "0.4.1")
+        for changes in ({"releaseTag": "0.4.1"}, {"releaseTag": "0.4.0-build.1"},
+                        {"releaseTag": "v0.4.0-build.2"}, {"msiProductVersion": "0.4.0"},
+                        {"installerName": "BetterPullReview-0.4.1-build.1-windows-x64.msi"},
+                        {"installerName": "BetterPullReview-0.4.0-build.0-windows-x64.msi"},
+                        {"installerName": "BetterPullReview-0.4.0-build.10000-windows-x64.msi"},
+                        {"installerName": "BetterPullReview-0.4.0-build.2-windows-x64.msi"}):
+            with self.subTest(changes=changes), self.assertRaises(ValueError):
+                cohort.windows_floor(observed | changes)
+
+    def test_stable_numbered_windows_floor_history_still_refuses_rollback_and_replacement(self):
+        observed = windows_floor() | {"msiProductVersion": "0.4.1", "releaseTag": "0.4.0",
+                                     "installerName": "BetterPullReview-0.4.0-build.1-windows-x64.msi"}
+        cohort.write(self.root / cohort.WINDOWS_FLOOR, observed)
+        self.commit("observed stable numbered MSI")
+        self.inputs["previousWindows"] = cohort.floor_identity(observed)
+        for replacement in (windows_floor(), observed | {"installerSHA256": "a" * 64},
+                            observed | {"releaseId": 43}, observed | {"releaseTag": "v0.4.0-build.1"}):
+            cohort.write(self.root / cohort.WINDOWS_FLOOR, replacement)
+            self.commit("attempted published floor replacement")
+            self.inputs["previousWindows"] = cohort.floor_identity(replacement)
+            with self.assertRaisesRegex(ValueError, "roll back or replace"):
+                self.allocate()
+            self.assertEqual(cohort.counter_value(self.root), 0)
+            self.assertEqual(list((self.root / ".git/bpr-release-builds/reservations").glob("*.json")), [])
 
     def test_legacy_floor_refuses_insufficient_number_without_reservation(self):
         observed = windows_floor() | {"marketingVersion": "0.4.7", "msiProductVersion": "0.4.7",

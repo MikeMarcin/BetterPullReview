@@ -124,10 +124,14 @@ def windows_floor(value: dict) -> dict:
             raise ValueError("invalid native version in authoritative Windows floor")
     tag = value["releaseTag"]
     version = value["marketingVersion"]
-    if not re.fullmatch(r"v" + re.escape(version) + r"(?:-build\.[1-9][0-9]{0,3})?", tag):
+    numbered_tag = re.fullmatch(r"v" + re.escape(version) + r"-build\.([1-9][0-9]{0,3})", tag)
+    if tag not in {version, "v" + version} and numbered_tag is None:
         raise ValueError("Windows floor release tag differs from its marketing version")
-    if value["installerName"] != f"BetterPullReview-{tag[1:]}-windows-x64.msi":
+    installer = re.fullmatch(r"BetterPullReview-" + re.escape(version) + r"(?:-build\.([1-9][0-9]{0,3}))?-windows-x64\.msi", value["installerName"])
+    if installer is None or (numbered_tag is not None and installer[1] != numbered_tag[1]):
         raise ValueError("Windows floor installer differs from its release identity")
+    if installer[1] is not None and value["msiProductVersion"] != native(version, int(installer[1]))["msiProductVersion"]:
+        raise ValueError("Windows floor MSI version differs from its numbered installer")
     return value
 
 
