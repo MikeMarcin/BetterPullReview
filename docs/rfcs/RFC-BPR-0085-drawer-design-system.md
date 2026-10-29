@@ -317,8 +317,12 @@ and the open step. Step circles are never amber, so they are not mistaken for
 stops. Step 3 holds the route: the stops in tour order as numbered amber
 circles on an amber route line, a file divider where the route changes file.
 The current
-stop opens in place to write (title, Markdown explanation, related source,
+stop opens in place (title, Markdown explanation, related source,
 Use selected lines, Ready and next ⌥↩), and its lines wash amber in the code.
+A written stop opens to read, its explanation rendered as a comment is, with
+the comments' pencil; the pencil or Return opens its title and source, and
+Done, Esc or ⌘↩ reads it again. A stop with nothing to read yet opens to be
+written, and text the draft has not taken keeps it open ([[BPR-1805]]).
 Readiness reads from the stop's ring: Ready (green tick), Editing, Needs
 attention (amber warning), Suggested (dashed). Drag and Alt+Shift+Up/Down
 reorder. The foot holds the private-draft state and Preview and publish.
