@@ -3,7 +3,10 @@
 
 #include <algorithm>
 #include <charconv>
+#include <cstdint>
+#include <optional>
 #include <string>
+#include <system_error>
 #include <vector>
 
 namespace bpr::core {
@@ -206,6 +209,160 @@ namespace bpr::core {
 			return std::nullopt;
 		}
 		return std::string{ prefix } + std::string{ aText };
+	}
+
+	namespace {
+		/// [[BPR-1801]]. GitHub's line anchors stop well short of this.
+		constexpr std::uint32_t maximum_permalink_line = 99'999'999;
+
+		/// A line number at the front of `aText`, consumed: decimal, no
+		/// leading zero, from one to `maximum_permalink_line`.
+		auto take_line(std::string_view& aText) -> std::optional<std::uint32_t>
+		{
+			auto digits = std::size_t{ 0 };
+			while (digits < aText.size() && aText[digits] >= '0' && aText[digits] <= '9') {
+				++digits;
+			}
+			if (digits == 0 || digits > 8 || aText.front() == '0') {
+				return std::nullopt;
+			}
+			auto       value  = std::uint32_t{ 0 };
+			const auto number = aText.substr(0, digits);
+			const auto parsed = std::from_chars(number.data(), number.data() + number.size(), value);
+			aText.remove_prefix(digits);
+			return parsed.ec == std::errc{ } && value <= maximum_permalink_line ? std::optional{ value } : std::nullopt;
+		}
+
+		/// `L<n>` with an optional `C<k>`, consumed; the column is dropped.
+		auto take_anchor(std::string_view& aText) -> std::optional<std::uint32_t>
+		{
+			if (!aText.starts_with('L')) {
+				return std::nullopt;
+			}
+			aText.remove_prefix(1);
+			const auto line = take_line(aText);
+			if (line && aText.starts_with('C')) {
+				aText.remove_prefix(1);
+				if (!take_line(aText)) {
+					return std::nullopt;
+				}
+			}
+			return line;
+		}
+
+		/// One path segment, percent-decoded; nothing when it is empty, a
+		/// dot segment, or decodes to a separator, a control character or
+		/// ill-formed UTF-8.
+		auto decoded_segment(const std::string_view aSegment) -> std::optional<std::string>
+		{
+			auto decoded = std::string{ };
+			for (std::size_t index = 0; index < aSegment.size(); ++index) {
+				if (aSegment[index] != '%') {
+					decoded += aSegment[index];
+					continue;
+				}
+				// The address was already held to two hex digits per escape.
+				decoded += static_cast<char>(hex(aSegment[index + 1]) * 16 + hex(aSegment[index + 2]));
+				index += 2;
+			}
+			if (decoded.empty() || decoded == "." || decoded == ".." || !utf8::valid(decoded)
+				|| std::ranges::any_of(decoded, [](const unsigned char aByte) { return aByte < 32 || aByte == 127 || aByte == '/' || aByte == '\\'; })) {
+				return std::nullopt;
+			}
+			return decoded;
+		}
+	}
+
+	auto recognize_markdown_blob_permalink(const std::string_view aAddress) -> std::optional<markdown_blob_permalink>
+	{
+		// Printable ASCII with well-formed escapes; what an escape decodes to
+		// is judged per path segment, so a `%20` in a file name is kept.
+		for (std::size_t index = 0; index < aAddress.size(); ++index) {
+			const auto ch = static_cast<unsigned char>(aAddress[index]);
+			if (ch <= 32 || ch >= 127 || ch == '\\'
+				|| (ch == '%' && (index + 2 >= aAddress.size() || hex(aAddress[index + 1]) < 0 || hex(aAddress[index + 2]) < 0))) {
+				return std::nullopt;
+			}
+		}
+		if (aAddress.empty() || aAddress.size() > maximum_destination_bytes || carries_credentials(aAddress) || !absolute_web_address(aAddress)) {
+			return std::nullopt;
+		}
+		auto       rest     = aAddress.substr(aAddress.find("://") + 3);
+		const auto fragment = rest.find('#');
+		if (fragment == std::string_view::npos) {
+			return std::nullopt;
+		}
+		auto anchor = rest.substr(fragment + 1);
+		rest        = rest.substr(0, fragment);
+		if (const auto query = rest.find('?'); query != std::string_view::npos) {
+			if (rest.substr(query + 1) != "plain=1") {
+				return std::nullopt;
+			}
+			rest = rest.substr(0, query);
+		}
+		std::vector<std::string_view> parts;
+		while (true) {
+			const auto end = rest.find('/');
+			parts.push_back(rest.substr(0, end));
+			if (end == std::string_view::npos) {
+				break;
+			}
+			rest.remove_prefix(end + 1);
+		}
+		// host, owner, repository, "blob", commit and at least one path segment.
+		if (parts.size() < 6 || parts[3] != "blob" || !safe_name(parts[1]) || !safe_name(parts[2])) {
+			return std::nullopt;
+		}
+		const auto commit = parts[4];
+		if ((commit.size() != 40 && commit.size() != 64) || !std::ranges::all_of(commit, [](const char aChar) { return hex(aChar) >= 0; })) {
+			return std::nullopt;
+		}
+		auto path = std::string{ };
+		for (auto index = std::size_t{ 5 }; index < parts.size(); ++index) {
+			const auto segment = decoded_segment(parts[index]);
+			if (!segment) {
+				return std::nullopt;
+			}
+			if (!path.empty()) {
+				path += '/';
+			}
+			path += *segment;
+		}
+		const auto first = take_anchor(anchor);
+		auto       last  = first;
+		if (first && anchor.starts_with('-')) {
+			anchor.remove_prefix(1);
+			last = take_anchor(anchor);
+		}
+		if (!first || !last || !anchor.empty()) {
+			return std::nullopt;
+		}
+		return markdown_blob_permalink{
+			.Host       = ascii_lower(std::string{ parts[0] }),
+			.Owner      = std::string{ parts[1] },
+			.Repository = std::string{ parts[2] },
+			.Commit     = ascii_lower(std::string{ commit }),
+			.Path       = std::move(path),
+			.FirstLine  = std::min(*first, *last),
+			.LastLine   = std::max(*first, *last),
+		};
+	}
+
+	auto markdown_blob_permalink_label(const markdown_blob_permalink& aPermalink) -> std::string
+	{
+		auto label = aPermalink.Owner + '/' + aPermalink.Repository + '/' + aPermalink.Path + "#L" + std::to_string(aPermalink.FirstLine);
+		if (aPermalink.LastLine != aPermalink.FirstLine) {
+			label += "-L" + std::to_string(aPermalink.LastLine);
+		}
+		return label + " at " + aPermalink.Commit.substr(0, 7);
+	}
+
+	auto markdown_blob_permalink_in_repository(const markdown_blob_permalink& aPermalink, const std::string_view aHost, const std::string_view aOwner, const std::string_view aRepository) -> bool
+	{
+		const auto same = [](const std::string& aLeft, const std::string_view aRight) {
+			return !aRight.empty() && ascii_lower(aLeft) == ascii_lower(std::string{ aRight });
+		};
+		return same(aPermalink.Host, aHost) && same(aPermalink.Owner, aOwner) && same(aPermalink.Repository, aRepository);
 	}
 
 	auto markdown_html_link_kept(const std::string_view aDestination) -> bool

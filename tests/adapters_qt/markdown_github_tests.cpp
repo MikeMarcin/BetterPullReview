@@ -29,6 +29,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -598,6 +599,39 @@ namespace {
 		expect(folded_text(document_of(aView)).contains(QStringLiteral("Not javascript:alert(1), not http://in.code/x, not text twice, not www.bad._host.com.")), "no other scheme, code, existing link or underscored host is linked");
 	}
 
+	// [[BPR-1801]]. A bare blob line permalink, on github.com or an
+	// Enterprise host, bare or in angle brackets, reads as its repository,
+	// path, lines and short commit, still linking its whole address. An
+	// authored link's text, a branch's blob link and a permalink in code
+	// stay as written.
+	constexpr auto permalink_body = std::string_view{
+		"https://github.com/MikeMarcin/BPR-Test/blob/0123456789abcdef0123456789abcdef01234567/src/widget/frame.cpp#L93\n"
+		"Frame validation reads the stale field here.\n\n"
+		"Compare <https://ghe.example.invalid/team/tools/blob/89abcdef0123456789abcdef0123456789abcdef/docs/guide%20book.md#L10-L20>, "
+		"[the guide](https://github.com/MikeMarcin/BPR-Test/blob/0123456789abcdef0123456789abcdef01234567/docs/guide.md#L1), "
+		"https://github.com/MikeMarcin/BPR-Test/blob/main/src/main.cpp#L3 and "
+		"`https://github.com/MikeMarcin/BPR-Test/blob/0123456789abcdef0123456789abcdef01234567/a.cpp#L1`.\n"
+	};
+
+	void check_permalinks(qt::markdown_body_view& aView)
+	{
+		show(aView, std::string{ permalink_body }, "permalinks:1");
+		const auto links    = hrefs_of(document_of(aView));
+		const auto expected = std::vector<std::pair<QString, QString>>{
+			{ QStringLiteral("MikeMarcin/BPR-Test/src/widget/frame.cpp#L93 at 0123456"),
+			  QStringLiteral("https://github.com/MikeMarcin/BPR-Test/blob/0123456789abcdef0123456789abcdef01234567/src/widget/frame.cpp#L93") },
+			{ QStringLiteral("team/tools/docs/guide book.md#L10-L20 at 89abcde"),
+			  QStringLiteral("https://ghe.example.invalid/team/tools/blob/89abcdef0123456789abcdef0123456789abcdef/docs/guide%20book.md#L10-L20") },
+			{ QStringLiteral("the guide"), QStringLiteral("https://github.com/MikeMarcin/BPR-Test/blob/0123456789abcdef0123456789abcdef01234567/docs/guide.md#L1") },
+			{ QStringLiteral("https://github.com/MikeMarcin/BPR-Test/blob/main/src/main.cpp#L3"), QStringLiteral("https://github.com/MikeMarcin/BPR-Test/blob/main/src/main.cpp#L3") },
+		};
+		expect(links == expected, "permalinks read compactly and keep their address; authored text and branch links stay as written");
+		const auto text = folded_text(document_of(aView));
+		expect(text.contains(QStringLiteral("https://github.com/MikeMarcin/BPR-Test/blob/0123456789abcdef0123456789abcdef01234567/a.cpp#L1")), "a permalink in code is code");
+		expect(!text.contains(QStringLiteral("/blob/0123456789abcdef0123456789abcdef01234567/src/widget")), "the compact permalink shows no raw address");
+		expect(aView.original_body() == permalink_body, "the body's source is unchanged");
+	}
+
 	/// Renders each fixture in each theme, for review beside GitHub's page.
 	void capture(qt::markdown_body_view& aView)
 	{
@@ -637,6 +671,13 @@ namespace {
 				settle();
 				expect(holder.grab().save(root + QStringLiteral("/in-place-") + page + QLatin1Char{ '-' } + QString::fromLatin1(name) + QStringLiteral(".png")), "save in-place capture");
 			}
+			// [[BPR-1801]]. A review comment that starts with a permalink.
+			post->set_body(std::string{ permalink_body }, std::string{ "in-place:permalinks:" } + name);
+			const auto height = post->heightForWidth(480);
+			holder.resize(496, height + 16);
+			post->setGeometry(8, 8, 480, height);
+			settle();
+			expect(holder.grab().save(root + QStringLiteral("/in-place-permalinks-") + QString::fromLatin1(name) + QStringLiteral(".png")), "save in-place permalink capture");
 		}
 	}
 } // namespace
@@ -656,6 +697,7 @@ try {
 	check_math(view);
 	check_underscores(view);
 	check_autolinks(view);
+	check_permalinks(view);
 	check_bounds(view);
 	capture(view);
 	std::cout << "markdown-github-tests:pass\n";

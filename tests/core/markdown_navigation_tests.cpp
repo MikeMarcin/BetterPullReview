@@ -2,6 +2,7 @@
 #include "bpr/core/reference_page.hpp"
 
 #include <cstdlib>
+#include <initializer_list>
 #include <iostream>
 #include <optional>
 #include <string>
@@ -185,5 +186,37 @@ int main()
 	const auto source = admit_reference_page(reference_page::source_repository, true);
 	expect(source && source->Hostname == "github.com" && source->Path == "/MikeMarcin/BetterPullReview", "the source is the application's own repository");
 	expect(admit_reference_page(reference_page::source_repository, false).error() == markdown_link_result::unavailable, "no browser, no source page");
+	// [[BPR-1801]]. Blob line permalinks, on github.com and on an
+	// Enterprise host, one line or a range; every other address stays itself.
+	const auto commit = std::string{ "0123456789abcdef0123456789abcdef01234567" };
+	const auto single = recognize_markdown_blob_permalink("https://github.com/MikeMarcin/BPR-Test/blob/" + commit + "/src/frame.cpp#L93");
+	expect(single && single->Host == "github.com" && single->Owner == "MikeMarcin" && single->Repository == "BPR-Test" && single->Commit == commit && single->Path == "src/frame.cpp"
+			   && single->FirstLine == 93 && single->LastLine == 93,
+		   "a one-line github.com permalink is read part by part");
+	expect(single && markdown_blob_permalink_label(*single) == "MikeMarcin/BPR-Test/src/frame.cpp#L93 at 0123456", "one line reads as path, anchor and short commit");
+	const auto range = recognize_markdown_blob_permalink("https://GHE.Example.Invalid:8443/team/tools/blob/" + std::string{ "0123456789ABCDEF0123456789ABCDEF01234567" } + "/docs/read%20me.md?plain=1#L20C3-L10C1");
+	expect(range && range->Host == "ghe.example.invalid:8443" && range->Commit == commit && range->Path == "docs/read me.md" && range->FirstLine == 10 && range->LastLine == 20,
+		   "an Enterprise permalink with a port, plain view, columns and a reversed range is put in order");
+	expect(range && markdown_blob_permalink_label(*range) == "team/tools/docs/read me.md#L10-L20 at 0123456", "a range reads as GitHub writes it");
+	const auto repeated = recognize_markdown_blob_permalink("http://github.com/o/r/blob/" + commit + "/a#L5-L5");
+	expect(repeated && repeated->FirstLine == 5 && repeated->LastLine == 5 && markdown_blob_permalink_label(*repeated) == "o/r/a#L5 at 0123456", "a one-line range reads as one line");
+	expect(recognize_markdown_blob_permalink("https://github.com/o/r/blob/" + std::string(64, 'a') + "/a.txt#L1").has_value(), "a SHA-256 commit is a permalink");
+	for (const auto& address : std::initializer_list<std::string>{
+			 "", "https://github.com/o/r/blob/main/src/frame.cpp#L93", "https://github.com/o/r/blob/" + commit.substr(0, 7) + "/a#L1", "https://github.com/o/r/blob/" + commit + "/a",
+			 "https://github.com/o/r/blob/" + commit + "/a#L0", "https://github.com/o/r/blob/" + commit + "/a#L01", "https://github.com/o/r/blob/" + commit + "/a#L1-",
+			 "https://github.com/o/r/blob/" + commit + "/a#L1-L2-L3", "https://github.com/o/r/blob/" + commit + "/a#L1x", "https://github.com/o/r/blob/" + commit + "/a#L123456789",
+			 "https://github.com/o/r/blob/" + commit + "/a#diff", "https://github.com/o/r/blob/" + commit + "#L1", "https://github.com/o/r/blob/" + commit + "/#L1",
+			 "https://github.com/o/r/tree/" + commit + "/a#L1", "https://github.com/o/r/raw/" + commit + "/a#L1", "https://github.com/o/blob/" + commit + "/a#L1",
+			 "https://github.com/o/r/blob/" + commit + "/../a#L1", "https://github.com/o/r/blob/" + commit + "/a%2Fb#L1", "https://github.com/o/r/blob/" + commit + "/a%00#L1",
+			 "https://github.com/o/r/blob/" + commit + "/a%ff#L1", "https://github.com/o/r/blob/" + commit + "/a//b#L1", "https://github.com/o/r/blob/" + commit + "/a b#L1",
+			 "https://github.com/o/r/blob/" + commit + "/a?token=x#L1", "https://github.com/o/r/blob/" + commit + "/a?plain=0#L1", "ftp://github.com/o/r/blob/" + commit + "/a#L1",
+			 "javascript://github.com/o/r/blob/" + commit + "/a#L1", "https://user@github.com/o/r/blob/" + commit + "/a#L1", "https://github.com/o!/r/blob/" + commit + "/a#L1",
+			 "https://github.com/o/r/blob/" + commit + "/" + std::string(4096, 'a') + "#L1", "github.com/o/r/blob/" + commit + "/a#L1" }) {
+		expect(!recognize_markdown_blob_permalink(address), "an address that is not a blob line permalink stays itself");
+	}
+	expect(single && markdown_blob_permalink_in_repository(*single, "GitHub.com", "mikemarcin", "bpr-test"), "the pull request's own repository matches without case");
+	expect(single && !markdown_blob_permalink_in_repository(*single, "ghe.example.invalid", "MikeMarcin", "BPR-Test"), "the same names on another host are another repository");
+	expect(single && !markdown_blob_permalink_in_repository(*single, "github.com", "MikeMarcin", "other"), "another repository is not embedded");
+	expect(single && !markdown_blob_permalink_in_repository(*single, "github.com", "", ""), "an unknown repository is never the permalink's");
 	std::cout << "Markdown navigation policy passed\n";
 }

@@ -1135,7 +1135,17 @@ namespace bpr::qt::detail {
 			qsizetype Begin = 0;
 			qsizetype End   = 0;
 			QString   Href;
+			/// [[BPR-1801]]. The text the link reads as, when not its source.
+			QString Label;
 		};
+
+		/// [[BPR-1801]]. A blob line permalink's compact text, or nothing for
+		/// any other address.
+		auto permalink_label(const QString& aAddress) -> QString
+		{
+			const auto permalink = core::recognize_markdown_blob_permalink(aAddress.toStdString());
+			return permalink ? QString::fromStdString(core::markdown_blob_permalink_label(*permalink)) : QString{ };
+		}
 
 		/// `www.` at `aAt`, after a line start, a space or one of `*_~(`.
 		auto www_autolink(const QString& aText, const qsizetype aAt, const qsizetype aBegin, const qsizetype aLimit) -> std::optional<autolink_match>
@@ -1155,7 +1165,7 @@ namespace bpr::qt::detail {
 				return std::nullopt;
 			}
 			const auto target = core::markdown_autolink_target(aText.mid(aAt, end - aAt).toStdString(), core::markdown_autolink_form::www);
-			return target ? std::optional{ autolink_match{ aAt, end, QString::fromStdString(*target) } } : std::nullopt;
+			return target ? std::optional{ autolink_match{ aAt, end, QString::fromStdString(*target), { } } } : std::nullopt;
 		}
 
 		/// `scheme://` with its `:` at `aAt`: http, https or ftp, the scheme
@@ -1182,7 +1192,8 @@ namespace bpr::qt::detail {
 			if (end <= aAt + 3) {
 				return std::nullopt;
 			}
-			return autolink_match{ start, end, aText.mid(start, end - start) };
+			auto href = aText.mid(start, end - start);
+			return autolink_match{ start, end, href, permalink_label(href) };
 		}
 
 		/// An email address with its `@` at `aAt`, or a `mailto:` or `xmpp:`
@@ -1234,10 +1245,10 @@ namespace bpr::qt::detail {
 			}
 			const auto begin = start - scheme.size();
 			if (!scheme.isEmpty()) {
-				return autolink_match{ begin, end, aText.mid(begin, end - begin) };
+				return autolink_match{ begin, end, aText.mid(begin, end - begin), { } };
 			}
 			const auto target = core::markdown_autolink_target(aText.mid(start, end - start).toStdString(), core::markdown_autolink_form::email);
-			return target ? std::optional{ autolink_match{ begin, end, QString::fromStdString(*target) } } : std::nullopt;
+			return target ? std::optional{ autolink_match{ begin, end, QString::fromStdString(*target), { } } } : std::nullopt;
 		}
 
 		/// `[text](destination)`: the text and destination as Markdown reads
@@ -1245,7 +1256,7 @@ namespace bpr::qt::detail {
 		auto autolink_markdown(const QString& aText, const autolink_match& aMatch) -> QString
 		{
 			auto link = QString{ QLatin1Char{ '[' } };
-			for (const auto ch : QStringView{ aText }.mid(aMatch.Begin, aMatch.End - aMatch.Begin)) {
+			for (const auto ch : aMatch.Label.isEmpty() ? QStringView{ aText }.mid(aMatch.Begin, aMatch.End - aMatch.Begin) : QStringView{ aMatch.Label }) {
 				if (ascii_punctuation(ch)) {
 					link += QLatin1Char{ '\\' };
 				}
@@ -1321,6 +1332,13 @@ namespace bpr::qt::detail {
 						const auto close = aText.indexOf(QLatin1Char{ '>' }, aAt);
 						const auto inner = close < 0 || close > limit ? QStringView{ } : QStringView{ aText }.mid(aAt + 1, close - aAt - 1);
 						if (!inner.isEmpty() && !inner.contains(QLatin1Char{ ' ' }) && !inner.contains(QLatin1Char{ '\n' }) && (inner.contains(QLatin1Char{ ':' }) || inner.contains(QLatin1Char{ '@' }))) {
+							// [[BPR-1801]]. `<permalink>` reads as compactly as a bare one.
+							if (const auto href = inner.toString(); aAt >= done) {
+								if (auto label = permalink_label(href); !label.isEmpty()) {
+									edits.push_back({ { aAt, close + 1 }, autolink_markdown(aText, { aAt, close + 1, href, std::move(label) }) });
+									done = close + 1;
+								}
+							}
 							return close + 1 - aAt;
 						}
 						return 0;
