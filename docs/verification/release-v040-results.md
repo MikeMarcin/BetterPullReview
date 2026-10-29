@@ -12,7 +12,9 @@ Installed source offers continue to resolve to the complete RC.
 
 All 30 stable files were downloaded without authentication and matched their
 final producer sizes and SHA-256 values. Fresh stable-download native trust/source checks passed on macOS. Stable
-Windows 11 and Ubuntu 26.04 WSL2/WSLg native audits remain pending. The Ubuntu
+Windows 11 stable native verification subsequently passed all 39 audit
+commands after its seven anonymous downloads. The Ubuntu 26.04 WSL2/WSLg
+stable native audit remains pending. The Ubuntu
 RC audit passed after all thirteen anonymous downloads, with 77 native commands. The
 [asset inventory](release-v040-assets.json) records ten Mac, seven Windows and
 thirteen Ubuntu assets, including each separate corresponding-source archive.
@@ -62,8 +64,9 @@ passed on downloaded bytes. The existing Windows RC audit passed native Authenti
 checks and MSI/runtime extraction equivalence. The Ubuntu RC audit passed six
 approved OpenPGP signatures, public-only verification/tamper control and
 DEB/user-archive file, mode and link equivalence. Those audits bind installed
-notices, SPDX, provenance and exact corresponding source. Fresh native audits of
-the stable Windows and Ubuntu downloads remain pending. Extraction supplies no
+notices, SPDX, provenance and exact corresponding source. Fresh native verification of the stable Windows downloads subsequently passed
+39 commands, including Authenticode and MSI/runtime/source equivalence. The
+stable Ubuntu native audit remains pending. Extraction supplies no
 ordinary-user installation acceptance.
 
 Fresh unfiltered Grype scans retain 23 Mac, 21 Windows and 23 Ubuntu findings;
@@ -119,11 +122,11 @@ or transient logs are tracked here.
 
 ## Continuation
 
-BPR-1797 remains In Progress: AC4 still needs the stable Windows and Ubuntu
-native download audits and their final reconciliation. The owner sequencing
+BPR-1797 remains In Progress: AC4 still needs the stable Ubuntu native download
+audit and final reconciliation. The owner sequencing
 amendment starts a fresh v0.4.1 owner from the integrated latest main now that
-v0.4.0 is live and all thirty public hashes match. That owner adopts the two
-v0.4.0 native audits before further PC producer work, then closes BPR-1797 only
+v0.4.0 is live and all thirty public hashes match. That owner adopts the remaining Ubuntu v0.4.0 native audit before further PC
+producer work, then closes BPR-1797 only
 after their actual passing receipts. No stable native acceptance is inferred
 from matching hashes or the earlier RC audits. The prepared native task guards
 refused before registration while other PC work was observed; no foreign

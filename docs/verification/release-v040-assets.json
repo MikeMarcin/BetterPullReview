@@ -10,7 +10,7 @@
   "anonymousHashVerification": "PASS30/30",
   "stableNativeVerification": {
     "macos": "PASS",
-    "windows": "PENDING",
+    "windows": "PASS",
     "ubuntu": "PENDING"
   },
   "assets": [

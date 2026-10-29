@@ -6,8 +6,9 @@
 `0.4.0` at frozen `0941326aee0f51002e205784a1b220a01ecba384`, build 1. All
 thirty public files were anonymously downloaded and matched producer sizes and
 SHA-256 values. Fresh Mac stable native trust/source checks and the thirteen-file
-Ubuntu RC native audit pass. Stable Windows and Ubuntu native audits remain
-pending; BPR-1797 remains open. The original `v0.4.0` preview's fifteen files
+Ubuntu RC native audit pass. Stable Windows native verification subsequently passed 39 commands after all
+seven anonymous downloads. The stable Ubuntu native audit remains pending;
+BPR-1797 remains open. The original `v0.4.0` preview's fifteen files
 and the numbered RC's original seventeen files are unchanged; the RC remains
 a prerelease with the approved thirteen Ubuntu files appended.
 
