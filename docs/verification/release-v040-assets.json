@@ -1,0 +1,168 @@
+{
+  "schema": "bpr.release-public-assets.v1",
+  "version": "0.4.0",
+  "build": 1,
+  "source": "0941326aee0f51002e205784a1b220a01ecba384",
+  "cohortDigest": "4bfd1b5ab2b0c07fbad0b74692ba085f2f67931c68babc1a3875571f57841249",
+  "tag": "0.4.0",
+  "releaseId": 428060158,
+  "url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.0",
+  "anonymousHashVerification": "PASS30/30",
+  "stableNativeVerification": {
+    "macos": "PASS",
+    "windows": "PENDING",
+    "ubuntu": "PENDING"
+  },
+  "assets": [
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64-user.tar.gz",
+      "sha256": "7e242f5f6824b309e1764f8bf693920c94f7c31af1d4257f2c164e5c142c33e8",
+      "bytes": 52869850
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64-user.tar.gz.asc",
+      "sha256": "602df3636f7c16e548975f43ac3145f5ec3da9118da24eb1ce998fe3e0543854",
+      "bytes": 228
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb",
+      "sha256": "5a38dc8842e60c91b862990294947d7c4ab034ed3cb62907517f294f3929cba5",
+      "bytes": 53127394
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.asc",
+      "sha256": "0ec92eb5d407fd3b934e3deae82982b3772a4b5c2c1b45a3e4387d6915413dba",
+      "bytes": 228
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.provenance.json",
+      "sha256": "df08bf0739ceb0dc960aed8eff1e557f7fc8a7002623a1e2cf0d01c2c3fc6f9b",
+      "bytes": 11761
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.provenance.json.asc",
+      "sha256": "c43130a99a0b7aa1e0fe8e4530245a7cb18a413acacca8929d9814a980420713",
+      "bytes": 228
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.release.json",
+      "sha256": "076e1106ef121faa8f4952706fdc6232183d2785ef12ab566049cfa99d03b204",
+      "bytes": 13401
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.sha256",
+      "sha256": "bf4dc5c77351b48967417308b06f51700faa68a3c0cbfab0069752f5984f7fe0",
+      "bytes": 1100
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.sha256.asc",
+      "sha256": "5f4d44a62234dd49133453d34913e98928a29fe9842a76db3d69891fb600a9f3",
+      "bytes": 228
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.spdx.json",
+      "sha256": "c5529fedb0a3981cadf1e3bae4e9c48521aae6a4e460540e810c772790c2e74f",
+      "bytes": 196932
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64.deb.spdx.json.asc",
+      "sha256": "ce1aaed8f5d97dc82410379b6dbacc8ee5134a10561ff6902099bdf94483dae1",
+      "bytes": 228
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-macos-universal.dmg",
+      "sha256": "821bb808cc1e53558aea686c7a87a85f6d746a3c3995c18881ee9ff8b39c496d",
+      "bytes": 81793647
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-macos-universal.dmg.sha256",
+      "sha256": "c5ed101c6d1ef1b119e067b9305cbfece5f062a479b6970e563c88196a1251e2",
+      "bytes": 117
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-macos-universal.spdx.json",
+      "sha256": "ed72019db36d35b52d1139c0277baba1ef2d775a27dd5caf3977477a23571667",
+      "bytes": 214329
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-macos-universal.spdx.json.sha256",
+      "sha256": "d6f436b141af9bdb778c14c2bbf915c7d36b615e2cd0d841802dd04e1404551a",
+      "bytes": 123
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-macos-universal.zip",
+      "sha256": "88fc6be986f82278b0fef91dccf309517fcedd31a8a42a552494a908bdcbbe34",
+      "bytes": 73924917
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-macos-universal.zip.sha256",
+      "sha256": "e9d515077f24c79696a21bcc19eedc111dad1ed44b38904528a04f30579a2bf5",
+      "bytes": 117
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-windows-x64-runtime.zip",
+      "sha256": "edcc82dafb9834e7e8dee1f63884fddc3d86b552a1133057569e51d552c4cf60",
+      "bytes": 30975464
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-windows-x64.msi",
+      "sha256": "cfbd8aee7b308b3001fe87cececc43a7de5100dda4fe8ca433872c00ac2a6625",
+      "bytes": 26746880
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-windows-x64.msi.provenance.json",
+      "sha256": "ed9ad8756d08a72f6ece0c8c06adb4733dbd6c700c4bf8d9afaa2e5cb6ba9b24",
+      "bytes": 13083
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-windows-x64.msi.release.json",
+      "sha256": "43a35c4737f5168811ee025150045399da0f1d2f5414c5ad1c3803d9526425fb",
+      "bytes": 13682
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-windows-x64.msi.sha256",
+      "sha256": "a907bdbfc5cd0071f3fd546bf08ad9b0622ca3bf227e622d94b9146ab0f23354",
+      "bytes": 502
+    },
+    {
+      "name": "BetterPullReview-0.4.0-build.1-windows-x64.msi.spdx.json",
+      "sha256": "971d14d47c0c4be7d27183e2f4980e79c2b2ea9e6c6859bb679be3db709f4065",
+      "bytes": 198331
+    },
+    {
+      "name": "BetterPullReview-0.4.0-macos-universal.zip",
+      "sha256": "88fc6be986f82278b0fef91dccf309517fcedd31a8a42a552494a908bdcbbe34",
+      "bytes": 73924917
+    },
+    {
+      "name": "BetterPullReview-0.4.0-macos-universal.zip.sha256",
+      "sha256": "a8c8c5a7c5232b5aee6a7cfcb5d3a858cc0ca38c6ede247fe002742c6a8548a0",
+      "bytes": 109
+    },
+    {
+      "name": "Source-BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64-corresponding-source.zip",
+      "sha256": "a8cc1eb75de7ffe3a5d20c60416b023953a25aa6903470177abb01a5645e2cf1",
+      "bytes": 126236123
+    },
+    {
+      "name": "Source-BetterPullReview-0.4.0-build.1-linux-ubuntu-26.04-x64-corresponding-source.zip.asc",
+      "sha256": "746f8052e720e5b3f2f39045a03f1e0e51e8cf8755e8021a06fb8bf7fddf6367",
+      "bytes": 228
+    },
+    {
+      "name": "Source-BetterPullReview-0.4.0-build.1-macos-universal-corresponding-source.zip",
+      "sha256": "fc15e56132603872e35f91fb57142c910558c08fa7e4f1e60261ae4d8b5f75e2",
+      "bytes": 106321838
+    },
+    {
+      "name": "Source-BetterPullReview-0.4.0-build.1-macos-universal-corresponding-source.zip.sha256",
+      "sha256": "16d24b58099e551d717690b24c7a47956b115e3e40467b73c008557acfc2c69d",
+      "bytes": 145
+    },
+    {
+      "name": "Source-BetterPullReview-0.4.0-build.1-windows-x64-corresponding-source.zip",
+      "sha256": "817072787958cf7a7eabbaa14563d439d8fb2682e097a1af2967ebc9f2527e97",
+      "bytes": 99704020
+    }
+  ]
+}

@@ -1,5 +1,25 @@
 # RFC-BPR-0038 qualification ledger
 
+## 0.4.0 build 1 stable publication; native follow-up pending, 2026-10-29
+
+[Release results](release-v040-results.md) record new stable/Latest bare tag
+`0.4.0` at frozen `0941326aee0f51002e205784a1b220a01ecba384`, build 1. All
+thirty public files were anonymously downloaded and matched producer sizes and
+SHA-256 values. Fresh Mac stable native trust/source checks and the thirteen-file
+Ubuntu RC native audit pass. Stable Windows and Ubuntu native audits remain
+pending; BPR-1797 remains open. The original `v0.4.0` preview's fifteen files
+and the numbered RC's original seventeen files are unchanged; the RC remains
+a prerelease with the approved thirteen Ubuntu files appended.
+
+The exact human publication decision and guarded draft recovery are recorded in
+the results. All six original comprehensive reports remain failed, with 91
+failed rows separately mapped to repair proof or applicable carried waivers.
+The eight Debug timing omissions, configured skips and unreached checks retain
+no passing credit. Raw Grype gates remain exit 2, with 23/21/23 findings. The
+exact build 1 HarfBuzz deferral, matching CBOR/historical waivers and M8/M9,
+Intel, vault/authentication, accessibility, crash/privacy, allocator/fuzz and
+independent-review limitations remain explicit. RFC-BPR-0038 stays open.
+
 ## v0.3.4 publication and permanent Debug timing policy, 2026-10-26
 
 [Release results](release-v034-results.md) record stable Latest v0.3.4 at

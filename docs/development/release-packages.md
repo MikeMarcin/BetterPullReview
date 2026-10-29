@@ -21,7 +21,9 @@ optional GitHub CLI support is macOS-only and needs `gh` 2.96+ and Git 2.49+.
 
 Numbered candidates show `VERSION (build N)` in Help > About and copied version
 information. Their download and corresponding-source names include
-`VERSION-build.N`; the release tag retains `vVERSION`. Keep the exact names and
+`VERSION-build.N`; numbered prereleases use `vVERSION-build.N`. The 0.4.0
+build 1 stable release uses the distinct bare `0.4.0` tag, preserving the older
+`v0.4.0` preview and the numbered RC. Keep the exact names and
 checksums supplied by that release. Older unnumbered releases remain unchanged.
 
 ## Verify a download
