@@ -75,7 +75,7 @@ namespace bpr::qt {
 				setObjectName(QStringLiteral("reactionPickerOption"));
 				setProperty("reactionContent", static_cast<int>(aContent));
 				const auto words = capitalised(label(aContent));
-				setAccessibleName(aMine ? QStringLiteral("%1, you reacted").arg(words) : words);
+				setAccessibleName(aMine ? QStringLiteral("%1, added").arg(words) : words);
 				setToolTip(aMine ? QStringLiteral("Remove %1").arg(label(aContent)) : capitalised(label(aContent)));
 				anchor_tooltips(*this);
 			}
@@ -150,16 +150,15 @@ namespace bpr::qt {
 
 	auto reaction_description(const core::reaction_group& aGroup, const QString& aViewer) -> QString
 	{
+		// [[BPR-1803]]. I am named by my login where GitHub lists me, as
+		// anyone is; GitHub's list may stop short of me, so a reaction it
+		// says is mine names me first. Without a login I am one of the count.
 		auto names = QStringList{ };
-		if (aGroup.ViewerReacted) {
-			names << QStringLiteral("You");
-		}
 		for (const auto& login : aGroup.Reactors) {
-			const auto name = QString::fromStdString(login);
-			if (aGroup.ViewerReacted && !aViewer.isEmpty() && name.compare(aViewer, Qt::CaseInsensitive) == 0) {
-				continue;
-			}
-			names << name;
+			names << QString::fromStdString(login);
+		}
+		if (aGroup.ViewerReacted && !aViewer.isEmpty() && !names.contains(aViewer, Qt::CaseInsensitive)) {
+			names.prepend(aViewer);
 		}
 		const auto named  = static_cast<std::uint32_t>(names.size());
 		const auto others = aGroup.Count > named ? aGroup.Count - named : 0U;

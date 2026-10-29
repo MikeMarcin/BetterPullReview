@@ -420,8 +420,9 @@ namespace {
 		expect(has_row_of(finder, "r6") && has_row_of(finder, "r12") && shown_rows(finder).size() == 2U, "a file's name finds its conversations");
 		finder.search_field()->setText(QStringLiteral("highlight"));
 		expect(shown_rows(finder).size() == 1U && has_row_of(finder, "t656"), "words find a conversation by any of its posts");
-		finder.search_field()->setText(QStringLiteral("you"));
-		expect(has_row_of(finder, "t656") && has_row_of(finder, "t38") && has_row_of(finder, "g282") && !has_row_of(finder, "r6"), "\"you\" finds my posts");
+		// [[BPR-1803]]. My posts are named by my login, as anyone's are.
+		finder.search_field()->setText(QStringLiteral("fixture-author"));
+		expect(has_row_of(finder, "t656") && has_row_of(finder, "t38") && has_row_of(finder, "g282") && !has_row_of(finder, "r6"), "my login finds my posts");
 		finder.search_field()->setText(QStringLiteral("observer-three"));
 		expect(shown_rows(finder).size() == 4U && shown_rows(finder).front().starts_with("row:review-thread:branching-thread-v1/"),
 			   "a person finds the conversations they posted in");

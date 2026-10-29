@@ -65,6 +65,11 @@ namespace bpr::qt {
 	/// `paint_identity_avatar` ([[BPR-1583]]) over the notes' grounds.
 	void paint_avatar(QPainter& aPainter, const QRectF& aBox, const QString& aLogin, bool aMine, const note_colours& aColours, const QFont& aFont);
 
+	/// \brief [[BPR-1803]]. The name a post's author is shown by: the GitHub
+	/// login, mine as anyone else's, never "you"; "Unknown author", as the
+	/// other surfaces say, while no login is known.
+	[[nodiscard]] auto shown_author(const QString& aLogin) -> QString;
+
 	/// \brief What the open card draws with.
 	struct open_card_style
 	{
