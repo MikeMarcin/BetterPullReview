@@ -144,6 +144,7 @@ include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprMimallocProvider.cmake")
 bpr_configure_mimalloc()
 
 bpr_configure_dependencies()
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprReleaseCohort.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/_coding-standard/cmake/CodingStandard.cmake")
 bpr_acquire_sqlite(BPR_SQLITE_SOURCE_DIR)
 
@@ -156,6 +157,9 @@ function(bpr_add_executable target)
     endif()
 
     add_executable("${target}" ${ARGN})
+    if(TARGET bpr_release_cohort_check)
+        add_dependencies("${target}" bpr_release_cohort_check)
+    endif()
     bpr_attach_product_allocator("${target}")
     string(REGEX REPLACE "^[^_]+_" "" output_name "${target}")
     set_target_properties("${target}" PROPERTIES OUTPUT_NAME "${output_name}")

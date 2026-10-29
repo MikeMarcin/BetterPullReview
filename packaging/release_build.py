@@ -87,6 +87,8 @@ def native(version: str, number: int, previous: dict | None = None) -> dict:
     if previous:
         if set(previous) != {"marketingVersion", "msiProductVersion"}:
             raise ValueError("previous Windows identity requires actual marketing and MSI versions")
+        if any(not isinstance(item, str) or not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", item) for item in previous.values()):
+            raise ValueError("invalid previous Windows identity")
         try:
             old_marketing = tuple(map(int, previous["marketingVersion"].split(".")))
             old_msi = tuple(map(int, previous["msiProductVersion"].split(".")))
@@ -270,7 +272,11 @@ def check(cohort: dict, root: Path | None = None, version: str | None = None) ->
     seal = value.pop("cohortDigest", None)
     if seal != digest(value) or value.get("schema") != "bpr.release-cohort.v1" or value.get("product") != PRODUCT:
         raise ValueError("invalid release cohort seal/product")
+    if set(value) != {"schema", "product", "sourceCommit", "sourceTree", "allocation", "allocationDigest"}:
+        raise ValueError("unknown or missing release cohort fields")
     receipt = value["allocation"]
+    if set(receipt) != {"schema", "product", "number", "inputDigest", "sourceBase", "sourceTree", "version", "configuration", "configurationDigest", "sourceInputs", "native"}:
+        raise ValueError("unknown or missing release allocation fields")
     configuration(receipt["configuration"])
     identity = {key: receipt[key] for key in ("sourceBase", "sourceTree", "version", "configuration", "configurationDigest", "sourceInputs")}
     if (value["allocationDigest"] != digest(receipt) or receipt["inputDigest"] != digest(identity)
@@ -278,6 +284,12 @@ def check(cohort: dict, root: Path | None = None, version: str | None = None) ->
             or receipt["native"] != native(receipt["version"], receipt["number"], receipt["configuration"]["previousWindows"])
             or receipt.get("schema") != "bpr.release-allocation.v1" or receipt.get("product") != PRODUCT):
         raise ValueError("invalid allocation/configuration/native identity")
+    for item in (value["sourceCommit"], value["sourceTree"], receipt["sourceBase"], receipt["sourceTree"]):
+        if not isinstance(item, str) or not re.fullmatch(r"[0-9a-f]{40}", item):
+            raise ValueError("full Git source/tree identities required")
+    if (set(receipt["sourceInputs"]) != set(CONFIG_FILES)
+            or any(not re.fullmatch(r"[0-9a-f]{64}", item) for item in receipt["sourceInputs"].values())):
+        raise ValueError("exact source configuration input digests required")
     if version is not None and version != receipt["version"]:
         raise ValueError("release cohort marketing version mismatch")
     if root is not None:

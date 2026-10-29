@@ -30,6 +30,8 @@ import package_runtime as runtime
 import release_signing as signing
 import verify_native_release as release
 from release_gpg_vault_tests import VaultTests
+from release_build_tests import ReleaseBuildTests
+import release_build_fixture
 
 
 class NativeReleaseTests(unittest.TestCase):
@@ -45,13 +47,15 @@ class NativeReleaseTests(unittest.TestCase):
         self.addCleanup(self.patches.stop)
         self.key = "B" * 40
 
-    def package(self, generator, signed=True, use_vault=False, vault_failure=False, tamper_library=False):
+    def package(self, generator, signed=True, use_vault=False, vault_failure=False, tamper_library=False, release_cohort=None):
         build = self.root / ("build-" + generator)
         build.mkdir()
         system = "Windows" if generator == "WIX" else "Linux"
         target = "" if generator == "WIX" else "linux-ubuntu-26.04-x64" if generator == "DEB" else "linux-rhel-10-x64"
         info = {"platform": system, "version": "1.2.3", "target": target,
                 "families": {"agent_integrations": False, "local_automation": True}, "variant": "-agent-free"}
+        if release_cohort is not None:
+            info["releaseCohort"] = release_cohort
         image_suffix = ".exe" if system == "Windows" else ""
         app, helper = build / ("better_pull_review" + image_suffix), build / ("better_pull_review_agent_supervisor" + image_suffix)
         info.update(app=str(app), helpers=[str(helper)])
@@ -65,7 +69,7 @@ class NativeReleaseTests(unittest.TestCase):
         binding = runtime.source_provenance(info, self.revision, runtime.digest(source))
         output = self.root / ("output-" + generator)
         extension = {"WIX": ".msi", "DEB": ".deb", "RPM": ".rpm"}[generator]
-        base = "BetterPullReview-1.2.3-" + ("windows-x64" if generator == "WIX" else target) + "-agent-free"
+        base = "BetterPullReview-" + runtime.asset_version(info) + "-" + ("windows-x64" if generator == "WIX" else target) + "-agent-free"
         self.events = []
         self.detached_options = []
         def unlock(path, key):
@@ -108,7 +112,23 @@ class NativeReleaseTests(unittest.TestCase):
             return signature, {"keyFingerprint": key, "signingFingerprint": key}
         def rpm(path, key):
             path.write_bytes(path.read_bytes() + b"rpm-signed")
+        def identity(path, *, msi=False):
+            release = release_cohort["allocation"]
+            if msi and path.name == "previous.msi":
+                return {"ProductName": "BetterPullReview", "ProductVersion": "0.4.0", "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}"}
+            if msi:
+                return {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ALLUSERS": "1", "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}",
+                        "BPR_MARKETING_VERSION": "1.2.3", "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": release_cohort["cohortDigest"], "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
+            return {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
+        def runtime_command(*args):
+            if args[0] == "dpkg-deb":
+                return release_cohort["allocation"]["native"]["debianVersion"]
+            return "" if args[-1] == "--porcelain" else self.revision
         argv = ["package.py", "--build", str(build), "--output", str(output), "--generator", generator]
+        if release_cohort is not None and system == "Windows":
+            previous = build / "previous.msi"
+            previous.write_bytes(b"prior actual MSI fixture")
+            argv += ["--previous-msi", str(previous)]
         if signed and generator == "WIX":
             inputs = [build / name for name in ("signtool.exe", "dlib.dll", "metadata.json")]
             for path in inputs:
@@ -119,10 +139,10 @@ class NativeReleaseTests(unittest.TestCase):
         if use_vault:
             argv += ["--gpg-vault-config", str(self.root / "vault.json")]
         with (patch.object(sys, "argv", argv), patch.object(runtime, "inputs", return_value=info),
-              patch.object(runtime, "run", side_effect=lambda *args: "" if args[-1] == "--porcelain" else self.revision),
+              patch.object(runtime, "run", side_effect=runtime_command),
               patch.object(runtime, "linux_baseline", return_value={"distribution": ["ubuntu" if generator == "DEB" else "rhel", "fixture"]}),
               patch.object(producer.subprocess, "run", side_effect=native), patch.object(signing, "sign_windows", side_effect=windows),
-              patch.object(signing, "authenticode"), patch.object(signing, "sign_detached", side_effect=detached),
+              patch.object(signing, "windows_identity", side_effect=identity), patch.object(signing, "authenticode"), patch.object(signing, "sign_detached", side_effect=detached),
               patch.object(signing, "sign_rpm", side_effect=rpm), patch.object(signing, "verify_rpm"),
               patch.object(producer.vault, "prepare_linux_signing", side_effect=unlock)):
             producer.main()
@@ -316,13 +336,17 @@ class NativeReleaseTests(unittest.TestCase):
 
     @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
     def test_publisher_uses_native_assets_and_refuses_bad_bytes_before_github(self):
-        manifest = self.package("DEB")
-        windows = self.package("WIX")
+        release_cohort = release_build_fixture.cohort("1.2.3", self.revision)
+        manifest = self.package("DEB", release_cohort=release_cohort)
+        windows = self.package("WIX", release_cohort=release_cohort)
         repo = self.root / "repository"
         for name in ("tools/publish-release.sh", "packaging/package_runtime.py", "packaging/verify_native_release.py"):
             destination = repo / name
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / name, destination)
+        release_build_fixture.checker_bridge(repo)
+        cohort_path = self.root / "cohort.json"
+        runtime.write_json(cohort_path, release_cohort)
         (repo / "packaging/dependencies.json").write_text(json.dumps({"components": self.components}))
         (repo / "CMakeLists.txt").write_text("project(\n VERSION 1.2.3\n)\n")
         notes = repo / "notes.md"
@@ -352,7 +376,7 @@ else:
             path.chmod(0o755)
         environment = {**os.environ, "PATH": str(bin_path) + os.pathsep + os.environ["PATH"]}
         command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes),
-                   "--manifest", str(manifest), "--manifest", str(windows)]
+                   "--manifest", str(manifest), "--manifest", str(windows), "--cohort", str(cohort_path)]
         result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(any(item[:3] == ["gh", "release", "create"] for item in map(json.loads, log.read_text().splitlines())))
@@ -373,6 +397,16 @@ else:
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         upload = next(item for item in map(json.loads, log.read_text().splitlines()) if item[:3] == ["gh", "release", "create"])
         self.assertEqual(set(upload[4:upload.index("--repo")]), expected)
+        log.unlink()
+        saved = windows.read_bytes()
+        changed = json.loads(saved)
+        changed["releaseCohort"] = release_build_fixture.cohort("1.2.3", self.revision, 2)
+        windows.write_text(json.dumps(changed))
+        result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("mixed native release cohorts", result.stderr)
+        self.assertFalse(any(item[0] == "gh" for item in map(json.loads, log.read_text().splitlines())))
+        windows.write_bytes(saved)
         log.unlink()
         record = json.loads(manifest.read_text())
         (manifest.parent / record["installer"]).write_bytes(b"tampered")

@@ -256,7 +256,24 @@ namespace bpr::application {
 			}
 			aBuild.remove_prefix(first + 1U);
 			constexpr std::array<std::string_view, 4> configurations{ "-Debug", "-Release", "-RelWithDebInfo", "-MinSizeRel" };
-			return aBuild.size() > 64U && hex_identity(aBuild.substr(0U, 64U), 64U) && member(aBuild.substr(64U), configurations);
+			if (aBuild.size() <= 64U || !hex_identity(aBuild.substr(0U, 64U), 64U)) {
+				return false;
+			}
+			auto suffix = aBuild.substr(64U);
+			if (suffix.starts_with("-build.")) {
+				suffix.remove_prefix(7U);
+				const auto end           = suffix.find('-');
+				const auto releaseNumber = number(suffix.substr(0U, end));
+				if (!releaseNumber || *releaseNumber == 0U || *releaseNumber > 9999U || suffix.starts_with('0') || end == std::string_view::npos) {
+					return false;
+				}
+				suffix.remove_prefix(end + 1U);
+				if (suffix.size() <= 64U || !hex_identity(suffix.substr(0U, 64U), 64U)) {
+					return false;
+				}
+				suffix.remove_prefix(64U);
+			}
+			return member(suffix, configurations);
 		}
 		auto classified_values(const json_values& aValues) -> bool
 		{
@@ -673,6 +690,11 @@ namespace bpr::application {
 		const bool  built  = build_identity(aCapture.Build);
 		std::string header = "{\"format\":\"bpr-diagnostics-v2\",\"exported_at\":\"" + format_diagnostic_export_time(aStamp) + "\",\"app_version\":\"";
 		header += built ? aCapture.Build.substr(0U, aCapture.Build.find('-')) : std::string{ "unknown" };
+		const auto releaseStart = aCapture.Build.find("-build.");
+		if (built && releaseStart != std::string::npos) {
+			const auto releaseNumber = aCapture.Build.substr(releaseStart + 7U, aCapture.Build.find('-', releaseStart + 7U) - releaseStart - 7U);
+			header += " (build " + releaseNumber + ")";
+		}
 		header += "\",\"app_build\":\"";
 		header += built ? aCapture.Build : std::string{ "unknown" };
 		header += "\",\"policy\":\"";

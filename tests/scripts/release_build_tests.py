@@ -135,6 +135,10 @@ class ReleaseBuildTests(unittest.TestCase):
             target.parent.mkdir(parents=True, exist_ok=True)
             target.write_bytes((ROOT / name).read_bytes())
         self.commit("public tooling")
+        remote = Path(self.temporary.name) / "origin.git"
+        subprocess.run(["git", "init", "--bare", "--quiet", str(remote)], check=True)
+        self.git("remote", "add", "origin", str(remote))
+        self.git("push", "--quiet", "-u", "origin", "main")
         inputs = Path(self.temporary.name) / "inputs.json"
         cohort.write(inputs, self.inputs)
         output = Path(self.temporary.name) / "allocation.json"

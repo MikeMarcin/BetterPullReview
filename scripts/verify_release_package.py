@@ -70,6 +70,11 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
         require(identity.get("CFBundleIdentifier") == "com.gamecoretech.betterpullreview"
                 and identity.get("CFBundleExecutable") == app.name
                 and identity.get("CFBundleShortVersionString") == info["version"], "invalid-package-identity")
+    receipt = runtime.release_identity(info)
+    if receipt and info["platform"] == "Darwin":
+        require(identity.get("CFBundleVersion") == str(receipt["number"])
+                and identity.get("BPRReleaseCohort") == info["releaseCohort"]["cohortDigest"]
+                and identity.get("BPRReleaseConfiguration") == receipt["configurationDigest"], "invalid-package-cohort")
     for path in (app, *helpers):
         require(path.is_file() and not path.is_symlink(), f"required-packaged-capability-missing:{path.name}")
     # [[BPR-0974]]. Declared runtime data the image refuses to start without.

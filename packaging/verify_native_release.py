@@ -73,14 +73,17 @@ def archive_contents(path: Path, platform: str) -> tuple[dict[str, str], dict[st
     return hashes, material
 
 
-def verify(manifest: Path, version: str, revision: str) -> list[Path]:
+def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | None = None) -> list[Path]:
     record = json.loads(manifest.read_text(encoding="utf-8"))
     if record.get("schema") != "bpr.native-release.v1" or record.get("version") != version or record.get("sourceCommit") != revision:
         raise ValueError("native release version or producer mismatch")
+    if expected_cohort is not None and record.get("releaseCohort") != expected_cohort:
+        raise ValueError("native release cohort mismatch")
+    release = runtime.release_identity(record, revision)
     platform, generator = record["platform"], record["generator"]
     if (platform, generator) not in {("Windows", "WIX"), ("Linux", "DEB"), ("Linux", "RPM")}:
         raise ValueError("invalid native release platform/generator")
-    info = {"platform": platform, "version": version, "families": runtime.families(record), "target": record["target"]}
+    info = {"platform": platform, "version": version, "families": runtime.families(record), "target": record["target"], **runtime.release_fields(record)}
     if platform == "Linux" and info["target"] != runtime.LINUX_TARGETS[generator]:
         raise ValueError("Linux baseline and generator mismatch")
     products = record["products"]
@@ -96,7 +99,7 @@ def verify(manifest: Path, version: str, revision: str) -> list[Path]:
     extension = {"WIX": ".msi", "DEB": ".deb", "RPM": ".rpm"}[generator]
     variant = ("" if info["families"]["agent_integrations"] else "-agent-free") + ("" if info["families"]["local_automation"] else "-automation-off")
     target = "windows-x64" if platform == "Windows" else info["target"]
-    base = f"BetterPullReview-{version}-{target}{variant}"
+    base = f"BetterPullReview-{runtime.asset_version(info)}-{target}{variant}"
     installer = base + extension
     if (record["installer"] != installer or manifest.name != installer + ".release.json"
             or record["runtimeArchive"] != base + ("-runtime.zip" if platform == "Windows" else "-user.tar.gz")
@@ -109,6 +112,30 @@ def verify(manifest: Path, version: str, revision: str) -> list[Path]:
             or provenance.get("artifactSHA256") != products[record["installer"]]
             or provenance.get("sbomSHA256") != products[record["sbom"]]):
         raise ValueError("native provenance mismatch or unsigned candidate")
+    if provenance.get("releaseCohort") != record.get("releaseCohort"):
+        raise ValueError("native provenance release cohort mismatch")
+    if release:
+        identity = record.get("nativeIdentity")
+        if not isinstance(identity, dict) or provenance.get("nativeIdentity") != identity:
+            raise ValueError("missing or mixed actual native cohort identity")
+        if platform == "Linux":
+            if identity != {"debianVersion": release["native"]["debianVersion"]}:
+                raise ValueError("native Debian version mismatch")
+        else:
+            expected_msi = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ALLUSERS": "1",
+                            "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": version,
+                            "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": record["releaseCohort"]["cohortDigest"],
+                            "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
+            images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe"}
+            if info["families"]["agent_integrations"]:
+                images.add("better_pull_review_mcp_context_helper.exe")
+            expected_image = {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
+            if (set(identity) != {"previousMsiSHA256", "previousWindows", "msiProperties", "images"}
+                    or not re.fullmatch(r"[a-f0-9]{64}", identity.get("previousMsiSHA256", ""))
+                    or identity.get("previousWindows") != release["configuration"]["previousWindows"]
+                    or identity.get("msiProperties") != expected_msi
+                    or identity.get("images") != {name: expected_image for name in images}):
+                raise ValueError("native MSI/PE version or prior upgrade binding mismatch")
     checksums = paths[record["checksums"]].read_text(encoding="utf-8")
     expected = provenance["products"]
     expected_names = {record[field] for field in ("installer", "runtimeArchive", "sbom", "sourceArchive")}
@@ -191,13 +218,20 @@ def verify(manifest: Path, version: str, revision: str) -> list[Path]:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--manifest", type=Path, action="append", required=True)
+    parser.add_argument("--cohort", type=Path)
     parser.add_argument("--version", required=True)
     parser.add_argument("--source-revision", required=True)
     parser.add_argument("--asset-list", type=Path, required=True, help="NUL-delimited verified absolute paths")
     args = parser.parse_args()
     assets = {}
+    expected = runtime.release_build.read(args.cohort) if args.cohort else None
+    identities = set()
     for manifest in args.manifest:
-        for path in verify(manifest.resolve(strict=True), args.version, args.source_revision):
+        record = json.loads(manifest.read_text())
+        identities.add(runtime.release_build.digest(record.get("releaseCohort")))
+        if len(identities) != 1:
+            raise ValueError("mixed native release cohorts")
+        for path in verify(manifest.resolve(strict=True), args.version, args.source_revision, expected):
             if path.name in assets and runtime.digest(path) != runtime.digest(assets[path.name]):
                 raise ValueError("conflicting release asset name: " + path.name)
             assets[path.name] = path

@@ -2683,8 +2683,13 @@ function(bpr_verify_app_source_tree app_source_root)
 # only. Draft comment on every Agent tab answer replaces Use as reply; it
 # writes private drafts through the existing reply, line-draft and new
 # pull request comment paths. No grant, mutation or publication change.
+# [[BPR-1799]] release-cohort reseal (2026-10-29): about_desktop.cpp only
+# adds the compiled release build number and configuration/cohort digests to
+# its immutable About facts. It introduces no effect, provider, grant, mutation
+# or source-inventory change. Native About/copy courses cover local and numbered
+# presentation; real numbered producer/native acceptance remains pending.
 	set(bpr_expected_production_app_manifest_digest
-        "62203700e80166cc2be74db1b18a4c83662dcff2d7d2245fee09c2a9488a5e42"
+        "b159ff78772601e104a109c0a4c4f55a9cc797265c8e8945e5079fd17484cd58"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

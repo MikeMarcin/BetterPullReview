@@ -120,7 +120,7 @@ if(BPR_BUILD_TOUR_CLI)
             string(APPEND bpr_tour_allocator ",\"bin/mimalloc-redirect.dll\":\"$<TARGET_FILE_DIR:mimalloc>/mimalloc-redirect.dll\"")
         endif()
         file(GENERATE OUTPUT "${CMAKE_BINARY_DIR}/_bpr/tour-package-inputs.json" CONTENT
-            "{\"schema\":\"bpr.tour-package-inputs.v1\",\"layout\":\"tour-cli\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"qt_version\":\"${BPR_PRODUCT_QT_VERSION}\",\"qt_root\":\"${bpr_tour_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_bpr>\",\"helpers\":[\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\"],\"private_libraries\":{\"${bpr_tour_library_directory}$<TARGET_FILE_NAME:better_pull_review_xdiff>\":\"$<TARGET_FILE:better_pull_review_xdiff>\",${bpr_tour_allocator}},\"families\":{\"agent_integrations\":false,\"local_automation\":true}}\n")
+            "{\"schema\":\"bpr.tour-package-inputs.v1\",\"layout\":\"tour-cli\",\"platform\":\"${CMAKE_SYSTEM_NAME}\",\"version\":\"${PROJECT_VERSION}\",\"releaseCohort\":${BPR_RELEASE_JSON},\"qt_version\":\"${BPR_PRODUCT_QT_VERSION}\",\"qt_root\":\"${bpr_tour_qt_root}\",\"source\":\"${PROJECT_SOURCE_DIR}\",\"cache\":\"${CPM_SOURCE_CACHE}\",\"app\":\"$<TARGET_FILE:app_bpr>\",\"helpers\":[\"$<TARGET_FILE:tool_better_pull_review_agent_supervisor>\"],\"private_libraries\":{\"${bpr_tour_library_directory}$<TARGET_FILE_NAME:better_pull_review_xdiff>\":\"$<TARGET_FILE:better_pull_review_xdiff>\",${bpr_tour_allocator}},\"families\":{\"agent_integrations\":false,\"local_automation\":true}}\n")
     endif()
 endif()
 
@@ -618,13 +618,14 @@ if(BPR_BUILD_QT)
                 PROPERTIES
                     MACOSX_BUNDLE TRUE
                     MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview (tests)"
-                    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+                    MACOSX_BUNDLE_BUNDLE_VERSION "${BPR_RELEASE_MAC_VERSION}"
                     MACOSX_BUNDLE_GUI_IDENTIFIER
                         "io.github.MikeMarcin.BetterPullReview.tests"
                     MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
                     MACOSX_BUNDLE_INFO_PLIST
                         "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
                     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+                    MACOSX_BUNDLE_LONG_VERSION_STRING "${BPR_RELEASE_DISPLAY_VERSION}"
             )
         else()
             set(BPR_MACOS_CODESIGN_IDENTITY "-" CACHE STRING
@@ -635,13 +636,14 @@ if(BPR_BUILD_QT)
                     OUTPUT_NAME "BetterPullReview"
                     MACOSX_BUNDLE TRUE
                     MACOSX_BUNDLE_BUNDLE_NAME "BetterPullReview"
-                    MACOSX_BUNDLE_BUNDLE_VERSION "${PROJECT_VERSION}"
+                    MACOSX_BUNDLE_BUNDLE_VERSION "${BPR_RELEASE_MAC_VERSION}"
                     MACOSX_BUNDLE_GUI_IDENTIFIER
                         "com.gamecoretech.betterpullreview"
                     MACOSX_BUNDLE_ICON_FILE "better_pull_review.icns"
                     MACOSX_BUNDLE_INFO_PLIST
                         "${PROJECT_SOURCE_DIR}/packaging/macos/Info.plist.in"
                     MACOSX_BUNDLE_SHORT_VERSION_STRING "${PROJECT_VERSION}"
+                    MACOSX_BUNDLE_LONG_VERSION_STRING "${BPR_RELEASE_DISPLAY_VERSION}"
             )
             # Seal the completed bundle, not only the linker's Mach-O image.
             # A stable locally configured identity also survives rebuilds for

@@ -489,6 +489,23 @@ namespace {
 			   "without a stamp or a well-formed build the header says unknown");
 	}
 
+	void test_numbered_release_export_stamp()
+	{
+		const auto hash          = std::string(64U, 'a');
+		const auto configuration = std::string(64U, 'b');
+		for (const auto suffix : { "54", "0", "10000", "054", "54-PRIVATE" }) {
+			const auto                                   identity = "0.4.1-" + hash + "-build." + suffix + "-" + configuration + "-Release";
+			const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, identity };
+			const auto                                   document = application::prepare_diagnostic_export(structured_line(1U), core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+			expect(document.has_value(), "a numbered export prepares under the same redaction policy");
+			if (std::string_view{ suffix } == "54") {
+				expect(document->Bytes.contains("\"app_version\":\"0.4.1 (build 54)\"") && document->Bytes.contains(identity), "export names the release number and retains its cohort/configuration digests");
+			} else {
+				expect(document->Bytes.contains("\"app_build\":\"unknown\"") && !document->Bytes.contains("PRIVATE"), "invalid or unclassified release identity is omitted");
+			}
+		}
+	}
+
 	void test_git_capability_step_export()
 	{
 		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
@@ -833,6 +850,7 @@ auto main() -> int
 	test_export_archive_compresses();
 	test_export_bounds();
 	test_export_stamp();
+	test_numbered_release_export_stamp();
 	test_preview_export();
 	test_cancel_invalidate_and_shutdown();
 	test_lifecycle_failure_and_reentrancy();

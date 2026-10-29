@@ -105,3 +105,36 @@ def verify_rpm(path: Path, approved_key: str) -> None:
     observed = re.findall(r"signature.*key ID ([0-9a-f]+): OK", output, re.I)
     if not observed or any(not any(key.endswith(item.lower()) for key in allowed) for item in observed):
         raise ValueError("RPM signature does not identify the approved key")
+
+
+def windows_identity(path: Path, *, msi: bool = False) -> dict:
+    """Read native MSI properties or PE fixed numeric versions on the producer."""
+    if sys.platform != "win32":
+        raise ValueError("Windows package identity requires native Windows")
+    data = base64.b64encode(json.dumps({"path": str(path.resolve()), "msi": msi}).encode()).decode()
+    script = "$ErrorActionPreference = 'Stop'\n"
+    script += f"$inputData = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{data}')) | ConvertFrom-Json\n"
+    script += """if ($inputData.msi) {
+  $installer = New-Object -ComObject WindowsInstaller.Installer
+  $db = $installer.OpenDatabase($inputData.path, 0)
+  $view = $db.OpenView('SELECT `Property`, `Value` FROM `Property`')
+  $view.Execute()
+  $result = @{}
+  while ($row = $view.Fetch()) {
+    $key = $row.StringData(1)
+    if ($key -in @('ProductVersion', 'ProductName', 'UpgradeCode', 'ALLUSERS', 'BPR_MARKETING_VERSION', 'BPR_RELEASE_BUILD', 'BPR_RELEASE_COHORT', 'BPR_RELEASE_CONFIGURATION')) {
+      $result[$key] = $row.StringData(2)
+    }
+    [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($row)
+  }
+  $view.Close()
+  foreach ($object in @($view, $db, $installer)) { [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($object) }
+  $result | ConvertTo-Json -Compress
+} else {
+  $v = (Get-Item -LiteralPath $inputData.path).VersionInfo
+  @{fileVersion=(@($v.FileMajorPart,$v.FileMinorPart,$v.FileBuildPart,$v.FilePrivatePart) -join '.');
+    productVersion=(@($v.ProductMajorPart,$v.ProductMinorPart,$v.ProductBuildPart,$v.ProductPrivatePart) -join '.')} | ConvertTo-Json -Compress
+}
+"""
+    encoded = base64.b64encode(script.encode("utf-16le")).decode()
+    return json.loads(command("powershell.exe", "-NoProfile", "-NonInteractive", "-EncodedCommand", encoded))

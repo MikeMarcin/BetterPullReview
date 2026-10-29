@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <chrono>
 #include <cstring>
 #include <set>
@@ -492,6 +493,24 @@ namespace bpr::adapters::update {
 			}
 			return std::string{ bytes.data() };
 		}
+
+		auto numbered_bundle_identity(CFDictionaryRef aDictionary, const std::string& aVersion) -> bool
+		{
+			const auto build         = string_value(aDictionary, CFSTR("BPRReleaseBuild"));
+			const auto nativeVersion = string_value(aDictionary, CFSTR("CFBundleVersion"));
+			const auto configuration = string_value(aDictionary, CFSTR("BPRReleaseConfiguration"));
+			const auto cohort        = string_value(aDictionary, CFSTR("BPRReleaseCohort"));
+			if (build.empty() || build == "0") {
+				return configuration.empty() && cohort.empty() && (nativeVersion.empty() || nativeVersion == aVersion);
+			}
+			unsigned   number = 0U;
+			const auto parsed = std::from_chars(build.data(), build.data() + build.size(), number);
+			const auto digest = [](const std::string& aText) {
+				return aText.size() == 64U && std::ranges::all_of(aText, [](const char aByte) { return (aByte >= '0' && aByte <= '9') || (aByte >= 'a' && aByte <= 'f'); });
+			};
+			return parsed.ec == std::errc{ } && parsed.ptr == build.data() + build.size() && number > 0U && number <= 9999U
+				&& !build.starts_with('0') && nativeVersion == build && digest(configuration) && digest(cohort);
+		}
 		auto bundle_identity(const fs::path& aBundle, const core::release_update_candidate& aCandidate) -> reason
 		{
 			descriptor               file{ open((aBundle / "Contents/Info.plist").c_str(), O_RDONLY | O_NOFOLLOW | O_CLOEXEC) };
@@ -515,6 +534,7 @@ namespace bpr::adapters::update {
 			const auto os           = QOperatingSystemVersion::current();
 			const auto exactVersion = aCandidate.Tag.starts_with('v') ? aCandidate.Tag.substr(1) : aCandidate.Tag;
 			if (identifier != application::release_update_bundle_identifier || version != exactVersion || core::parse_release_update_version(version) != aCandidate.Version
+				|| !numbered_bundle_identity(dictionary, version)
 				|| (!minimumText.empty() && (minimum.isNull() || minimum > QVersionNumber{ os.majorVersion(), os.minorVersion(), os.microVersion() }))) {
 				return reason::invalid_bundle;
 			}

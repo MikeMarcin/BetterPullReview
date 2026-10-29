@@ -16,6 +16,14 @@ from scripts.contained_temporary_support import contained_temporary_directory
 
 def archive(path: Path, scenario: str):
     info = {"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleShortVersionString": "0.1.3", "CFBundleExecutable": "BetterPullReview", "LSMinimumSystemVersion": "11.0"}
+    if scenario.startswith("numbered"):
+        info.update(CFBundleVersion="54", BPRReleaseBuild="54", BPRReleaseConfiguration="a" * 64, BPRReleaseCohort="b" * 64)
+        if scenario == "numbered-zero":
+            info.update(CFBundleVersion="0", BPRReleaseBuild="0")
+        if scenario == "numbered-mismatch":
+            info["CFBundleVersion"] = "55"
+        if scenario == "numbered-missing-seal":
+            del info["BPRReleaseCohort"]
     if scenario == "wrong-id":
         info["CFBundleIdentifier"] = "com.example.other"
     if scenario == "wrong-version":
@@ -61,7 +69,7 @@ def main():
         base = Path(temporary).resolve()
         installed = base / "installed"
         installed.mkdir(mode=0o700)
-        scenarios = ("unsigned", "traversal", "absolute", "symlink-escape", "symlink-write", "duplicate", "device", "wrong-top", "wrong-id", "wrong-version", "future-os", "wrong-architecture", "digest", "changed-archive", "cancel", "expanded-size", "entry-limit")
+        scenarios = ("numbered", "numbered-zero", "numbered-mismatch", "numbered-missing-seal", "unsigned", "traversal", "absolute", "symlink-escape", "symlink-write", "duplicate", "device", "wrong-top", "wrong-id", "wrong-version", "future-os", "wrong-architecture", "digest", "changed-archive", "cancel", "expanded-size", "entry-limit")
         if args.signed_archive:
             scenarios = ("signed",)
             subprocess.run(["/usr/bin/ditto", "-x", "-k", str(args.signed_archive.resolve()), str(installed)], check=True, timeout=90, capture_output=True)
