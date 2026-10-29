@@ -1,3 +1,12 @@
+# [[BPR-1802]] permalink snippet reseal (2026-10-28), over 20a3048ab.
+# github_application.cpp composes the reader's permalink snippet host: a
+# source port over the epoch host's new resolve_permalink_source (a file at a
+# commit, read from the review's own objects, never fetched), a scope from the
+# accepted handoff's host, owner, repository, account and head, the window's
+# permalink dispatch, shutdown and quiescence, a re-ask on each commit-filter
+# refresh, and the projection's Hostname kept across the placement's
+# re-projection. No credential, grant, provider, mutation, publication or
+# source-inventory change; the mutation-branch pin is unchanged.
 # [[BPR-1806]] tour-stop merge reseal (2026-10-28), over 27c65aa4b.
 # github_application.cpp gains BPR-1806's Open in tour beside BPR-1804's
 # Request review: a published tour stop card's dispatch starts the published
@@ -2455,7 +2464,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# publication or source-inventory change; the mutation-branch pin is
 	# unchanged.
 	set(bpr_expected_full_application_digest
-		"fc9333e67646df83bd9735efc8358cbe426f52755d7fcf71f4c75e4934fa0905"
+		"78100f639c3fb8a2767e7a2b4a3395af442fff85eed3d52ee29d939dc92b9a3a"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2713,7 +2722,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # only. Avatar style adoption, the avatar style appearance intent and each
 # window's picture dispatch. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "2dd7a335cb20c9b1607345ac4e4c97d74c86eff186cfedf37d098a985f549aea"
+        "8b9cba319fb6070da38e50ee268da671ddf1ca6c9be1004f5d669ccf073a9fc2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

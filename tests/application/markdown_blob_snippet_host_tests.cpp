@@ -11,6 +11,7 @@
 #include <iostream>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -76,11 +77,11 @@ namespace {
 		bool                 Refuse = false;
 	};
 
-	const std::string commit = "0123456789abcdef0123456789abcdef01234567";
+	constexpr auto commit = std::string_view{ "0123456789abcdef0123456789abcdef01234567" };
 
 	auto permalink(const std::string& aRepository, const std::string& aPath, const std::string& aAnchor, const std::string& aHost = "github.com") -> core::markdown_blob_permalink
 	{
-		const auto found = core::recognize_markdown_blob_permalink("https://" + aHost + "/" + aRepository + "/blob/" + commit + "/" + aPath + "#" + aAnchor);
+		const auto found = core::recognize_markdown_blob_permalink(std::string{ "https://" }.append(aHost).append("/").append(aRepository).append("/blob/").append(commit).append("/").append(aPath).append("#").append(aAnchor));
 		expect(found.has_value(), "fixture permalink");
 		return *found;
 	}

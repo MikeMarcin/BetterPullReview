@@ -35,6 +35,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -98,13 +99,13 @@ namespace {
 	};
 
 	/// The file the fixture's permalinks name, at their commit.
-	const std::string frame_file = "#include <algorithm>\n"
-								   "\n"
-								   "int clamp_width(int aWidth, int aMaximum)\n"
-								   "{\n"
-								   "\t// Never wider than the frame allows.\n"
-								   "\treturn std::clamp(aWidth, 0, aMaximum);\n"
-								   "}\n";
+	constexpr auto frame_file = std::string_view{ "#include <algorithm>\n"
+												  "\n"
+												  "int clamp_width(int aWidth, int aMaximum)\n"
+												  "{\n"
+												  "\t// Never wider than the frame allows.\n"
+												  "\treturn std::clamp(aWidth, 0, aMaximum);\n"
+												  "}\n" };
 
 	/// Answers every read from `frame_file`, as the review's Git cache would.
 	class fixture_source final : public application::markdown_blob_source_port
@@ -121,7 +122,7 @@ namespace {
 			Decisions.post([path = aRead.Permalink.Path, completion = std::move(aCompletion)] {
 				auto result   = application::markdown_blob_source_result{ };
 				result.Status = path == "src/frame.cpp" ? application::markdown_blob_source_status::read : application::markdown_blob_source_status::absent;
-				result.Bytes  = path == "src/frame.cpp" ? frame_file : std::string{ };
+				result.Bytes  = path == "src/frame.cpp" ? std::string{ frame_file } : std::string{ };
 				completion(std::move(result));
 			});
 			return true;
@@ -131,9 +132,13 @@ namespace {
 		std::vector<std::string> Paths;
 	};
 
-	const auto repository = core::markdown_repository{ .Host = "github.com", .Owner = "octo-org", .Repository = "widgets" };
-	const auto commit     = std::string{ "0123456789abcdef0123456789abcdef01234567" };
-	const auto standing   = "https://github.com/octo-org/widgets/blob/" + commit + "/src/frame.cpp#L3-L7";
+	constexpr auto commit_text   = std::string_view{ "0123456789abcdef0123456789abcdef01234567" };
+	constexpr auto standing_text = std::string_view{ "https://github.com/octo-org/widgets/blob/0123456789abcdef0123456789abcdef01234567/src/frame.cpp#L3-L7" };
+
+	auto own_repository() -> core::markdown_repository
+	{
+		return { .Host = "github.com", .Owner = "octo-org", .Repository = "widgets" };
+	}
 
 	/// The composed path: the snippet host over a fixture file, the
 	/// reader's code classification over the packaged definitions.
@@ -164,7 +169,7 @@ namespace {
 
 		void bind(qt::markdown_body_view& aView)
 		{
-			aView.set_permalink_repository(repository);
+			aView.set_permalink_repository(own_repository());
 			aView.set_code_syntax_dispatch([this](std::vector<application::markdown_code_syntax_request> aRequests) { Code.request(aRequests); });
 			aView.set_permalink_dispatch([this](std::vector<application::markdown_blob_snippet_request> aRequests) {
 				Asked += aRequests.size();
@@ -247,12 +252,25 @@ namespace {
 		return { };
 	}
 
-	const auto body = standing + "\n" + "The width is clamped here, so a wide frame never overflows.\n\n"
-		+ "Compare https://github.com/octo-org/gadgets/blob/" + commit + "/src/frame.cpp#L3 and, in a sentence, " + standing + " too.\n";
+	/// A permalink alone on a line, prose, another repository's permalink and
+	/// the first one again inside a sentence.
+	auto fixture_body() -> std::string
+	{
+		auto text = std::string{ standing_text };
+		text += "\nThe width is clamped here, so a wide frame never overflows.\n\nCompare https://github.com/octo-org/gadgets/blob/";
+		text += commit_text;
+		text += "/src/frame.cpp#L3 and, in a sentence, ";
+		text += standing_text;
+		text += " too.\n";
+		return text;
+	}
 
 	void check_box(composed& aPath)
 	{
-		auto view = qt::markdown_body_view{ };
+		const auto commit   = std::string{ commit_text };
+		const auto standing = std::string{ standing_text };
+		const auto body     = fixture_body();
+		auto       view     = qt::markdown_body_view{ };
 		view.resize(720, 600);
 		view.show();
 		aPath.bind(view);
@@ -303,9 +321,10 @@ namespace {
 
 	void check_lead(composed& aPath)
 	{
-		const auto stop  = standing + "\n\nThe width is clamped here.\n";
-		const auto start = stop.find("The width");
-		auto       view  = qt::markdown_body_view{ };
+		const auto standing = std::string{ standing_text };
+		const auto stop     = standing + "\n\nThe width is clamped here.\n";
+		const auto start    = stop.find("The width");
+		auto       view     = qt::markdown_body_view{ };
 		aPath.bind(view);
 		view.set_rendered_range(std::pair{ start, stop.size() });
 		view.set_rendered_lead(std::pair{ std::size_t{ 0U }, standing.size() });
@@ -320,6 +339,7 @@ namespace {
 	/// The box in every theme, as a post reads in place in the Comments drawer.
 	void capture(composed& aPath)
 	{
+		const auto body = fixture_body();
 		const auto root = qEnvironmentVariable("BPR_PERMALINK_SNIPPET_RENDER_DIR");
 		if (root.isEmpty()) {
 			return;
