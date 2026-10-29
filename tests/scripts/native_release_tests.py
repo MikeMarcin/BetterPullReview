@@ -15,6 +15,7 @@ import sys
 import tarfile
 import unittest
 import tempfile
+from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
 
@@ -538,6 +539,173 @@ class PromotionAcceptanceTests(unittest.TestCase):
                 with self.assertRaisesRegex(ValueError, "stable qualification"):
                     publisher.main()
                 remote.assert_not_called()
+
+
+class StableCopyTests(unittest.TestCase):
+    def setUp(self):
+        temporary = ContainedTemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        self.root = Path(temporary.name)
+        self.notes = self.root / "notes.md"
+        self.notes.write_text("Synthetic unit fixture; no publication authority")
+        self.cohort = release_build_fixture.cohort("0.4.0", SOURCE, 1)
+        cohort_file = self.root / "cohort.json"
+        cohort_file.write_text(json.dumps(self.cohort))
+        self.paths = {}
+        for name in ["mac.zip", "win.msi", "linux.deb"]:
+            path = self.root / name
+            path.write_bytes(name.encode())
+            self.paths[name] = path
+        self.selected = {name: {"sha256": runtime.digest(path), "bytes": path.stat().st_size} for name, path in self.paths.items()}
+        self.baseline = {"mac.zip": self.selected["mac.zip"]}
+        self.source_tag = self.cohort["allocation"]["native"]["releaseTag"]
+        self.source = {"id": 42, "assets": self.remote_assets(self.selected)}
+        self.args = SimpleNamespace(cohort=cohort_file, version="0.4.0", source_revision=SOURCE, visibility="PUBLIC", promote=False,
+                                    notes_file=self.notes, stable_acceptance=None, publication_authorization=None, dry_run=False)
+        self.platforms = {"Darwin", "Windows", "Linux"}
+        self.mutations = []
+        self.destination = {"id": 43, "tag_name": "0.4.0", "draft": True, "prerelease": True, "immutable": False,
+                            "html_url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.0", "assets": []}
+
+    @staticmethod
+    def remote_assets(rows):
+        return [{"name": name, "size": row["bytes"], "digest": "sha256:" + row["sha256"]} for name, row in rows.items()]
+
+    def permissions(self):
+        for option, schema in [("stable_acceptance", "bpr.release-stable-copy-acceptance.v1"), ("publication_authorization", "bpr.release-publication-authorization.v1")]:
+            path = self.root / (option + ".json")
+            path.write_text(json.dumps({"schema": schema, "source": SOURCE, "version": "0.4.0", "tag": "0.4.0", "sourceTag": self.source_tag,
+                                        "cohortDigest": self.cohort["cohortDigest"], "assets": [{"name": name, **row} for name, row in self.selected.items()],
+                                        "accepted": True, "remainingBlocking": [], "evidence": [{"path": str(self.notes), "sha256": runtime.digest(self.notes)}]}))
+            setattr(self.args, option, path)
+
+    def command(self, *args, **kwargs):
+        if args[:2] == ("git", "rev-parse"):
+            return "f" * 40
+        if args[:2] == ("gh", "api"):
+            return json.dumps(self.destination)
+        raise AssertionError(args)
+
+    def run_stub(self, args, **kwargs):
+        self.mutations.append(args)
+        if args[:3] == ["gh", "release", "create"]:
+            self.assertIn("--draft", args)
+            self.assertIn("--prerelease", args)
+            self.assertIn("--latest=false", args)
+        elif args[:3] == ["gh", "release", "upload"]:
+            self.assertNotIn("--clobber", args)
+            name = Path(args[4]).name
+            self.destination["assets"].extend(self.remote_assets({name: self.selected[name]}))
+        elif args[:3] == ["gh", "release", "edit"]:
+            self.assertEqual(publisher.remote_inventory(self.destination), self.selected)
+            self.assertTrue(self.destination["draft"] and self.destination["prerelease"])
+            self.assertIn("--draft=false", args)
+            self.assertIn("--prerelease=false", args)
+            self.assertIn("--latest=true", args)
+            self.destination.update(draft=False, prerelease=False)
+        else:
+            self.assertEqual(args[:2], ["git", "tag"] if "tag" in args else ["git", "push"])
+            self.assertNotIn("--force", args)
+            self.assertNotIn("main", args)
+        return subprocess.CompletedProcess(args, 0)
+
+    def invoke(self, *, run=None):
+        with patch.object(publisher, "guard", side_effect=lambda *a, **k: copy.deepcopy(self.source)), \
+             patch.object(publisher, "stable_tag_guard"), patch.object(publisher, "release_absent"), \
+             patch.object(publisher, "command", side_effect=self.command), patch.object(publisher.subprocess, "run", side_effect=run or self.run_stub), \
+             contextlib.redirect_stdout(io.StringIO()) as output:
+            publisher.copy_stable(self.args, self.root, self.source_tag, copy.deepcopy(self.baseline), self.paths, self.platforms, self.selected)
+        return output.getvalue()
+
+    def test_stable_copy_remains_draft_until_every_exact_asset_is_verified(self):
+        self.permissions()
+        self.invoke()
+        self.assertEqual([row[:3] for row in self.mutations if row[:2] == ["gh", "release"]],
+                         [["gh", "release", "create"]] + [["gh", "release", "upload"]] * 3 + [["gh", "release", "edit"]])
+        self.assertEqual(publisher.remote_inventory(self.source), self.selected)
+
+    def test_dry_run_reports_missing_source_assets_and_no_authority_without_mutation(self):
+        self.args.dry_run = True
+        self.source["assets"] = self.remote_assets({"mac.zip": self.selected["mac.zip"]})
+        result = json.loads(self.invoke())
+        self.assertEqual(result["missingSourceRCAssets"], ["linux.deb", "win.msi"])
+        self.assertFalse(result["readyToPublish"])
+        self.assertFalse(result["publicationAuthorized"])
+        self.assertEqual(result["externalMutations"], 0)
+        self.assertEqual(self.mutations, [])
+
+    def test_incomplete_source_rc_and_missing_authorization_refuse_before_tag_creation(self):
+        with self.assertRaisesRegex(ValueError, "specific publication authorization"):
+            self.invoke()
+        self.permissions()
+        self.source["assets"] = self.remote_assets({"mac.zip": self.selected["mac.zip"]})
+        with self.assertRaisesRegex(ValueError, "complete source RC"):
+            self.invoke()
+        self.assertEqual(self.mutations, [])
+
+    def test_wrong_source_mixed_cohort_and_changed_permission_asset_refuse(self):
+        self.args.source_revision = "c" * 40
+        with self.assertRaisesRegex(ValueError, "cohort source"):
+            self.invoke()
+        self.args.source_revision = SOURCE
+        self.permissions()
+        saved = self.args.stable_acceptance.read_text()
+        for change in ["cohort", "asset"]:
+            record = json.loads(saved)
+            if change == "cohort": record["cohortDigest"] = "c" * 64
+            else: record["assets"][0]["sha256"] = "c" * 64
+            self.args.stable_acceptance.write_text(json.dumps(record))
+            with self.subTest(change=change), self.assertRaisesRegex(ValueError, "identity or assets differ"):
+                self.invoke()
+        self.assertEqual(self.mutations, [])
+
+    def test_changed_upload_and_failed_upload_never_mark_latest(self):
+        self.permissions()
+        def failed(args, **kwargs):
+            if args[:3] == ["gh", "release", "upload"]:
+                raise subprocess.CalledProcessError(1, args)
+            return self.run_stub(args, **kwargs)
+        with self.assertRaises(subprocess.CalledProcessError): self.invoke(run=failed)
+        self.assertFalse(any(row[:3] == ["gh", "release", "edit"] for row in self.mutations))
+        self.mutations.clear()
+        self.paths["linux.deb"].write_bytes(b"tampered")
+        with self.assertRaisesRegex(ValueError, "stable asset changed"):
+            self.invoke()
+        self.assertFalse(any(row[:3] == ["gh", "release", "edit"] for row in self.mutations))
+
+    def test_occupied_local_or_remote_tag_and_release_refuse(self):
+        with patch.object(publisher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), self.assertRaisesRegex(ValueError, "local stable tag already exists"):
+            publisher.stable_tag_guard(self.root, "0.4.0", SOURCE)
+        with patch.object(publisher.subprocess, "run", return_value=subprocess.CompletedProcess([], 1)), \
+             patch.object(publisher, "command", return_value="f" * 40 + "\trefs/tags/0.4.0"), self.assertRaisesRegex(ValueError, "remote stable tag occupied"):
+            publisher.stable_tag_guard(self.root, "0.4.0", SOURCE)
+        with patch.object(publisher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout="{}")), self.assertRaisesRegex(ValueError, "already exists"):
+            publisher.release_absent("0.4.0")
+
+    def test_already_published_destination_refuses_without_upload_or_latest_edit(self):
+        self.permissions()
+        self.destination.update(draft=False, prerelease=False)
+        with self.assertRaisesRegex(ValueError, "identity or state changed"):
+            self.invoke()
+        self.assertFalse(any(row[:3] in [["gh", "release", "upload"], ["gh", "release", "edit"]] for row in self.mutations))
+
+    def test_tool_revision_cannot_change_producer_paths(self):
+        baseline = self.root / "baseline.json"
+        baseline.write_text(json.dumps({"source": SOURCE, "version": "0.4.0", "repository": publisher.REPOSITORY,
+                                        "tag": self.source_tag, "assets": [{"name": name, **row} for name, row in self.baseline.items()]}))
+        argv = ["update_release.py", "--repo-root", str(self.root), "--version", "0.4.0", "--source-revision", SOURCE,
+                "--visibility", "PUBLIC", "--notes-file", str(self.notes), "--baseline-inventory", str(baseline),
+                "--cohort", str(self.args.cohort), "--copy-stable", "--dry-run"]
+        def command(*args, **kwargs):
+            if args[:3] == ("git", "status", "--porcelain"): return ""
+            if args[:3] == ("git", "branch", "--show-current"): return "main"
+            if args[:3] == ("git", "diff", "--name-only"): return "src/core/src/release_update.cpp"
+            raise AssertionError(args)
+        with patch.object(sys, "argv", argv), patch.object(publisher, "command", side_effect=command), \
+             patch.object(publisher.subprocess, "run", return_value=subprocess.CompletedProcess([], 0)), patch.object(publisher, "guard") as remote:
+            with self.assertRaisesRegex(ValueError, "changes producer inputs"):
+                publisher.main()
+            remote.assert_not_called()
 
 
 if __name__ == "__main__":

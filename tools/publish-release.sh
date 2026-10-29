@@ -18,6 +18,9 @@ ASSETS=()
 INCLUDE_MACOS=0
 APPEND_ASSETS=0
 PROMOTE=0
+COPY_STABLE=0
+STABLE_ACCEPTANCE=""
+PUBLICATION_AUTHORIZATION=""
 SOURCE_REVISION=""
 BASELINE_INVENTORY=""
 PROMOTION_ACCEPTANCE=""
@@ -29,7 +32,7 @@ Candidate preparation: --prepare-candidate --candidate-inputs ABS.json --cohort-
 After committing exactly the counter/receipt: --freeze-candidate N --cohort-output ABS.json
 
 Usage: tools/publish-release.sh --version VERSION --notes-file PATH --cohort ABS.json [--manifest PATH ...] [--macos] [--public] [--prerelease] [--dry-run]
-       tools/publish-release.sh --append-assets|--promote --version VERSION --source-revision SHA --baseline-inventory PATH --notes-file PATH [--manifest PATH ...] [--macos-dir PATH] [--promotion-acceptance PATH] [--public] [--dry-run]
+       tools/publish-release.sh --append-assets|--promote|--copy-stable --version VERSION --source-revision SHA --baseline-inventory PATH --notes-file PATH [--manifest PATH ...] [--macos-dir PATH] [--promotion-acceptance PATH] [--public] [--dry-run]
 
 Publish already verified native artifacts to the expected GitHub repository.
 Without --manifest, use the standard macOS eight-asset set. --macos adds that
@@ -47,6 +50,11 @@ existing bytes and the annotated source tag must match the supplied baseline.
 These modes require --source-revision and permit only a separately committed
 publisher/test tool revision above that exact producer source. They never retag,
 replace assets or change repository settings. Native trust remains separate.
+--copy-stable copies a complete numbered RC to a new bare VERSION tag and release.
+It requires --cohort and all three platforms; missing source RC assets remain an
+explicit dry-run prerequisite. Mutation additionally requires --stable-acceptance
+and --publication-authorization, bound to the exact source/cohort/asset inventory.
+Its draft stays outside Latest until every selected asset is verified.
 EOF
 }
 
@@ -106,6 +114,9 @@ while [[ $# -gt 0 ]]; do
             PROMOTE=1
             shift
             ;;
+        --copy-stable) COPY_STABLE=1; shift ;;
+        --stable-acceptance) STABLE_ACCEPTANCE="$2"; shift 2 ;;
+        --publication-authorization) PUBLICATION_AUTHORIZATION="$2"; shift 2 ;;
         --source-revision|--baseline-inventory|--promotion-acceptance|--macos-dir)
             [[ $# -ge 2 ]] || fail "$1 requires a value"
             case "$1" in
@@ -149,6 +160,7 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
+[[ "${COPY_STABLE}" == 0 || ("${PREPARE_CANDIDATE}" == 0 && -z "${FREEZE_CANDIDATE}") ]] || fail "Stable copy cannot allocate or freeze a candidate"
 if [[ "${PREPARE_CANDIDATE}" == 1 || -n "${FREEZE_CANDIDATE}" ]]; then
     [[ -n "${COHORT_OUTPUT}" && "${COHORT_OUTPUT}" == /* ]] || fail "Candidate output must be an absolute external path"
     if [[ "${PREPARE_CANDIDATE}" == 1 ]]; then
@@ -181,8 +193,8 @@ PROJECT_VERSION="$(sed -n '/^project(/,/^)/p' "${ROOT_DIR}/CMakeLists.txt" |
     head -n 1)"
 [[ "${PROJECT_VERSION}" == "${VERSION}" ]] || fail "CMake project version is ${PROJECT_VERSION}, not ${VERSION}"
 
-[[ ! ("${APPEND_ASSETS}" == 1 && "${PROMOTE}" == 1) ]] || fail "Select append or promotion, not both"
-if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 ]]; then
+[[ $((APPEND_ASSETS + PROMOTE + COPY_STABLE)) -le 1 ]] || fail "Select one existing-source publication mode"
+if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 || "${COPY_STABLE}" == 1 ]]; then
     [[ "${PRERELEASE}" == 0 ]] || fail "--prerelease applies to initial creation only"
     [[ -n "${SOURCE_REVISION}" && -n "${BASELINE_INVENTORY}" ]] || fail "Existing release updates require exact source and existing-asset baseline"
     UPDATE_ASSET_VERSION="${VERSION}"
@@ -200,11 +212,14 @@ if [[ "${APPEND_ASSETS}" == 1 || "${PROMOTE}" == 1 ]]; then
     if [[ -n "${RELEASE_COHORT}" ]]; then UPDATE_ARGS+=(--cohort "${RELEASE_COHORT}"); fi
     if [[ -n "${PROMOTION_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--promotion-acceptance "${PROMOTION_ACCEPTANCE}"); fi
     if [[ "${PROMOTE}" == 1 ]]; then UPDATE_ARGS+=(--promote); fi
+    if [[ "${COPY_STABLE}" == 1 ]]; then UPDATE_ARGS+=(--copy-stable); fi
+    if [[ -n "${STABLE_ACCEPTANCE}" ]]; then UPDATE_ARGS+=(--stable-acceptance "${STABLE_ACCEPTANCE}"); fi
+    if [[ -n "${PUBLICATION_AUTHORIZATION}" ]]; then UPDATE_ARGS+=(--publication-authorization "${PUBLICATION_AUTHORIZATION}"); fi
     if [[ "${DRY_RUN}" == 1 ]]; then UPDATE_ARGS+=(--dry-run); fi
     python3 "${ROOT_DIR}/packaging/update_release.py" "${UPDATE_ARGS[@]}"
     exit 0
 fi
-[[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}" ]] || fail "Existing-release identity options require --append-assets or --promote"
+[[ -z "${SOURCE_REVISION}${BASELINE_INVENTORY}${PROMOTION_ACCEPTANCE}${MACOS_DIR}${STABLE_ACCEPTANCE}${PUBLICATION_AUTHORIZATION}" ]] || fail "Existing-release identity options require append, promotion or stable copy"
 
 [[ -n "${RELEASE_COHORT}" ]] || fail "Initial publication requires --cohort from publish-release candidate preparation"
 [[ "${PRERELEASE}" == 1 ]] || fail "Numbered RC publication requires --prerelease; stable policy is a separate decision"
