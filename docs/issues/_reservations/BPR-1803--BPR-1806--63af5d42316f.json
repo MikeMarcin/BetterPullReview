@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1803",
+    "BPR-1804",
+    "BPR-1805",
+    "BPR-1806"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "coordinator: self-name labels, reviewer picker, tour read view, tour-stop cards",
+  "created": "2026-10-29T04:02:03.066261+00:00",
+  "base": "1f5c7667913964488dc1d11a53c766e87675147a"
+}
