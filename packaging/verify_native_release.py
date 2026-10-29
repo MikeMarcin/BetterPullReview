@@ -131,8 +131,8 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
                 images.add("better_pull_review_mcp_context_helper.exe")
             expected_image = {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
             if (set(identity) != {"previousMsiSHA256", "previousWindows", "msiProperties", "images"}
-                    or not re.fullmatch(r"[a-f0-9]{64}", identity.get("previousMsiSHA256", ""))
-                    or identity.get("previousWindows") != release["configuration"]["previousWindows"]
+                    or identity.get("previousMsiSHA256") != release["windowsUpgradeFloor"]["installerSHA256"]
+                    or identity.get("previousWindows") != runtime.release_build.floor_identity(release["windowsUpgradeFloor"])
                     or identity.get("msiProperties") != expected_msi
                     or identity.get("images") != {name: expected_image for name in images}):
                 raise ValueError("native MSI/PE version or prior upgrade binding mismatch")

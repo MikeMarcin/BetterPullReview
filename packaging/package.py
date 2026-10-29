@@ -17,7 +17,7 @@ import release_gpg_vault as vault
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", type=Path, required=True)
-    parser.add_argument("--output", type=Path, required=True, help="new, empty artifact directory")
+    parser.add_argument("--output", type=Path, help="fresh artifact directory; default build/releases/VERSION-build.N for numbered RCs")
     parser.add_argument("--generator", choices=("WIX", "DEB", "RPM"), required=True)
     parser.add_argument("--signtool", type=Path)
     parser.add_argument("--azure-dlib", type=Path)
@@ -40,11 +40,13 @@ def main() -> None:
         if not args.previous_msi or not args.previous_msi.is_file():
             raise ValueError("numbered Windows production requires the actual --previous-msi before building/signing")
         previous = signing.windows_identity(args.previous_msi, msi=True)
-        declared = release["configuration"]["previousWindows"]
+        floor = release["windowsUpgradeFloor"]
+        declared = runtime.release_build.floor_identity(floor)
         if (previous.get("ProductName") != "BetterPullReview" or previous.get("ALLUSERS") != "1"
                 or previous.get("UpgradeCode") != "{18DF84A8-5883-4979-B1C6-6F226934AA68}"
                 or previous.get("ProductVersion") != declared["msiProductVersion"]
-                or previous.get("BPR_MARKETING_VERSION", previous.get("ProductVersion")) != declared["marketingVersion"]):
+                or previous.get("BPR_MARKETING_VERSION", previous.get("ProductVersion")) != declared["marketingVersion"]
+                or runtime.digest(args.previous_msi) != floor["installerSHA256"]):
             raise ValueError("actual previous per-machine MSI differs from the frozen upgrade identity")
         runtime.release_build.native(info["version"], release["number"], declared)
         native_identity["previousMsiSHA256"] = runtime.digest(args.previous_msi)
@@ -80,7 +82,7 @@ def main() -> None:
     for path in (args.signtool, args.azure_dlib, args.azure_metadata):
         if path and not path.is_file():
             raise ValueError(f"signing input is absent: {path}")
-    output = args.output.resolve()
+    output = (args.output or source / "build/releases" / runtime.asset_version(info)).resolve()
     output.mkdir(parents=True, exist_ok=False)
     subprocess.run(["cmake", "--build", str(build), "--target", "app_better_pull_review"], check=True)
     signatures = {}

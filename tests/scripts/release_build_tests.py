@@ -15,6 +15,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "packaging"))
 import release_build as cohort
+from release_build_fixture import windows_floor
 
 
 def lock_holder(common, ready, release):
@@ -37,6 +38,7 @@ class ReleaseBuildTests(unittest.TestCase):
             path = self.root / name
             path.parent.mkdir(exist_ok=True)
             path.write_text("{}\n")
+        cohort.write(self.root / cohort.WINDOWS_FLOOR, windows_floor())
         cohort.write(self.root / cohort.COUNTER, {"schema": "bpr.release-counter.v1", "product": cohort.PRODUCT, "last": 0})
         self.commit("base")
         self.inputs = {"schema": "bpr.release-inputs.v1", "previousWindows": {"marketingVersion": "0.4.0", "msiProductVersion": "0.4.0"},
@@ -181,6 +183,7 @@ class ReleaseBuildTests(unittest.TestCase):
     def test_native_mapping_bounds_and_actual_legacy_msi_order(self):
         self.assertEqual(cohort.native("0.4.1", 1, self.inputs["previousWindows"]), {
             "displayVersion": "0.4.1 (build 1)", "assetVersion": "0.4.1-build.1", "macBundleVersion": "1",
+            "releaseTag": "v0.4.1-build.1",
             "windowsImageVersion": "0.4.1.1", "msiProductVersion": "0.4.1", "debianVersion": "0.4.1+build.1"})
         for version, number in [("0.4.1", 0), ("0.4.1", 10000), ("256.4.1", 1), ("0.256.1", 1), ("0.4.65536", 1)]:
             with self.assertRaises(ValueError):
@@ -189,6 +192,54 @@ class ReleaseBuildTests(unittest.TestCase):
             cohort.native("0.3.9", 9999, self.inputs["previousWindows"])
         with self.assertRaisesRegex(ValueError, "MSI upgrade"):
             cohort.native("0.4.2", 1, {"marketingVersion": "0.4.1", "msiProductVersion": "0.4.1"})
+
+    def test_global_number_crosses_marketing_patch_without_msi_collision(self):
+        project = self.root / "CMakeLists.txt"
+        project.write_text(project.read_text().replace("0.4.1", "0.4.0"))
+        self.commit("first marketing version")
+        first = self.frozen()["allocation"]
+        self.assertEqual(first["native"]["msiProductVersion"], "0.4.1")
+        observed = windows_floor() | {"msiProductVersion": "0.4.1", "releaseTag": "v0.4.0-build.1",
+                                     "installerName": "BetterPullReview-0.4.0-build.1-windows-x64.msi",
+                                     "sourceCommit": self.git("rev-parse", "HEAD"), "installerSHA256": "a" * 64, "releaseId": 43}
+        cohort.write(self.root / cohort.WINDOWS_FLOOR, observed)
+        project.write_text(project.read_text().replace("0.4.0", "0.4.1"))
+        self.commit("observed prior numbered MSI and next patch")
+        self.inputs["previousWindows"] = cohort.floor_identity(observed)
+        second = self.allocate()
+        self.assertEqual((second["number"], second["native"]["msiProductVersion"]), (2, "0.4.2"))
+        self.commit("second allocation")
+        self.assertEqual(self.allocate(), second)
+
+    def test_legacy_floor_refuses_insufficient_number_without_reservation(self):
+        observed = windows_floor() | {"marketingVersion": "0.4.7", "msiProductVersion": "0.4.7",
+                                     "releaseTag": "v0.4.7", "installerName": "BetterPullReview-0.4.7-windows-x64.msi"}
+        cohort.write(self.root / cohort.WINDOWS_FLOOR, observed)
+        project = self.root / "CMakeLists.txt"
+        project.write_text(project.read_text().replace("0.4.1", "0.4.7"))
+        self.commit("observed legacy MSI above fresh number")
+        self.inputs["previousWindows"] = cohort.floor_identity(observed)
+        with self.assertRaisesRegex(ValueError, "MSI upgrade"):
+            self.allocate()
+        self.assertEqual(cohort.counter_value(self.root), 0)
+        self.assertEqual(self.git("status", "--porcelain"), "")
+        self.assertEqual(list((self.root / ".git/bpr-release-builds/reservations").glob("*.json")), [])
+        # An operator cannot select an older input or edit the tracked floor backwards.
+        self.inputs["previousWindows"] = cohort.floor_identity(windows_floor())
+        with self.assertRaisesRegex(ValueError, "authoritative"):
+            self.allocate()
+        cohort.write(self.root / cohort.WINDOWS_FLOOR, windows_floor())
+        self.commit("attempted floor rollback")
+        with self.assertRaisesRegex(ValueError, "roll back"):
+            self.allocate()
+        self.assertEqual(cohort.counter_value(self.root), 0)
+
+    def test_unknown_windows_floor_is_fail_closed(self):
+        cohort.write(self.root / cohort.WINDOWS_FLOOR, {})
+        self.commit("unknown prior observation")
+        with self.assertRaisesRegex(ValueError, "floor"):
+            self.allocate()
+        self.assertEqual(cohort.counter_value(self.root), 0)
 
     def test_configuration_mixed_cohort_and_tampered_source_are_refused(self):
         frozen = self.frozen()

@@ -3,8 +3,9 @@
 Owner amendment, 2026-10-28; implementation tracked by [[BPR-1799]]. A build
 number belongs to a BetterPullReview release candidate cohort, not a compiler
 invocation or an ordinary local build. The marketing version remains the CMake
-three-component version. Human text uses `0.4.1 (build 1)` as an example, not a
-selection of the next release version.
+three-component version. Human text uses `0.4.0 (build 1)` for the first numbered RC. The owner clarified
+on 2026-10-29 UTC that several RCs may retain marketing version 0.4.0.
+A patch bump is not a native prerequisite for another RC.
 
 ## Existing contracts and compatibility
 
@@ -15,17 +16,22 @@ manifests bind version and source but have no candidate cohort. BPR's shipped
 updater reads GitHub releases directly; there is no Sparkle appcast path.
 It derives the ZIP name from the base-version tag, rejects prereleases, ignores
 SemVer metadata for precedence, and validates the staged bundle's short version
-against that tag. Adding a tag suffix would break existing installed clients.
+against that tag. A build-tag stable release would break existing installed clients.
 
 Keep stable tags `vMAJOR.MINOR.PATCH` and the bundle short version unchanged.
 Canonical assets use `VERSION-build.N`; emit the legacy
 `BetterPullReview-VERSION-macos-universal.zip` as an exact byte alias of the
 numbered ZIP for already shipped updaters. The publisher/audit must compare
-their digests and cohort rather than accept an unrelated second ZIP. A base
-version can publish only one cohort: occupied tags/releases are never replaced.
+their digests and cohort rather than accept an unrelated second ZIP. A stable base-version tag can identify only one cohort; occupied tags/releases
+are never replaced. Numbered RCs use distinct `vVERSION-build.N` tags and must
+remain GitHub prereleases. Installed stable updaters already exclude prereleases,
+so manually distributed RCs do not need their RC tag to pass stable staging.
+Their corresponding-source URLs must name the actual RC tag. A build tag cannot
+be promoted to stable; choosing a compatible future base-version stable route
+is a separate owner decision.
 The existing `v0.4.0` is occupied by immutable source
-`144de719a8d972162f92ec04f98ba11293ae0a8f`. Choosing a new corrected semantic
-version is a separate owner decision before publication.
+`144de719a8d972162f92ec04f98ba11293ae0a8f`. That preview remains unchanged while corrected 0.4.0 RCs use their own tags.
+The withdrawn 0.4.1 proposal was not a human approval or a native requirement.
 
 The stable updater continues to order marketing versions, preserving its
 persisted skipped-version contract. It checks a numbered staged bundle's
@@ -75,7 +81,8 @@ without a cohort document uses no release number and allocates nothing.
 | Windows MSI `ProductVersion` | `MAJOR.MINOR.N`; marketing version and cohort also bound in metadata |
 | Debian package version | `MAJOR.MINOR.PATCH+build.N` |
 | Canonical download/source asset | `VERSION-build.N` plus platform/variant |
-| Stable tag / old-updater ZIP alias | existing base-version format |
+| RC tag | `vMAJOR.MINOR.PATCH-build.N`, prerelease only |
+| Future stable tag / old-updater ZIP alias | existing base-version format; separate stable policy |
 
 Use an explicit common range `1..9999`, fail before allocation/build at
 exhaustion, and never wrap. Major/minor must fit MSI's `0..255`; PE numeric
@@ -84,6 +91,12 @@ putting N there would not establish upgrade order. For the existing per-machine
 `0.4.0` package, a next `0.4.x` candidate with positive N maps to `0.4.N`, which
 is strictly newer; every later same-major/minor cohort increases N. Refuse a
 marketing downgrade and verify the actual prior MSI version before publishing.
+A committed authoritative native/publication floor binds the prior MSI identity
+and digest. Inputs cannot choose an older baseline. If legacy 0.4.7 would map
+a fresh N=1 to MSI 0.4.1, allocation fails before reservation; no clamping or
+number reuse is allowed. Recovery requires reconciling the durable counter/history
+against authoritative observations. Global N continues across patch versions:
+0.4.0/build 1 maps to MSI 0.4.1, then 0.4.1/build 2 maps to MSI 0.4.2.
 Preserve the existing UpgradeCode and BPR-1788 per-machine scope; this change
 does not add a cross-scope migration.
 
@@ -105,7 +118,7 @@ local build. Package/audit/publisher fixtures must reject mixed numbers,
 configuration/source mismatches, missing aliases and changed alias bytes.
 Native bundle/PE/MSI/DEB metadata must be inspected on their actual platforms.
 This feature does not waive release qualification, source/legal, security,
-signing, native trust or the owner-selected next semantic version.
+signing, native trust or the separate future stable release policy.
 
 ## Preparation commands and declared inputs
 
@@ -124,7 +137,15 @@ also supplies the actual compiler/linker flags, generator, runtime and SDK
 selection; changing those settings requires a new cohort. Observation itself
 allocates nothing.
 `previousWindows` holds the previous `marketingVersion` and actual
-`msiProductVersion` when Windows is selected; otherwise it may be null. The
+`msiProductVersion` when Windows is selected; otherwise it may be null. These
+values must equal the committed `packaging/release-builds/windows-upgrade-floor.json`.
+That reviewed record names the published release ID/tag/source, installer and
+SHA-256, bootstrapped from the verified v0.4.0 per-machine MSI. Known Git history
+prevents rolling that floor backwards or replacing the same published identity.
+Before a later allocation, advance the floor only from an actual native and
+published observation; an unknown prior identity fails closed. Packaging requires
+the exact prior MSI digest as well as its per-machine metadata, before building
+or signing. The
 source tree binds every tracked build/dependency definition; the receipt also
 records exact SHA-256 values for the preset and dependency inventory.
 
@@ -137,6 +158,12 @@ native evidence and give identical bytes to all producers. An interrupted
 reservation is recovered by repeating preparation with the same inputs. Do not
 remove the common-Git reservation journal to reclaim a number.
 
+Default artifact directories include `VERSION-build.N`, as do the macOS
+producer build directories. A numbered production retry refuses an existing
+output directory and preserves its bytes; audit/verify the existing result or
+select a fresh directory. It never removes assets from a prior numbered cohort
+or the unnumbered preview directory.
+
 Configure each producer with `-DBPR_RELEASE_COHORT=/absolute/cohort.json` and
 `-DBPR_RELEASE_PRODUCER=its-declared-name`. Configure checks the actual compiler,
 CMake/Qt versions, architectures, configuration and feature flags; every build
@@ -144,6 +171,8 @@ rechecks the frozen source before compiling its identity. Ordinary local builds
 leave both settings empty and remain unnumbered. Multi-configuration generators
 must select exactly one configuration for a numbered producer.
 
-Initial publication requires `--cohort /absolute/cohort.json`. The occupied
+Initial numbered RC publication requires `--cohort /absolute/cohort.json` and
+`--prerelease`; it derives the distinct RC tag from that cohort. No marketing
+version bump is required for another RC. The occupied
 unnumbered preview retains its separately guarded append/promote path and its
 original source and bytes; it never acquires a retroactive build number.

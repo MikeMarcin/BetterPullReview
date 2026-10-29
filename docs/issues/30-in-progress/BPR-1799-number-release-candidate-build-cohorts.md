@@ -41,9 +41,10 @@ requires another identity. This is BPR-only work.
 
 See [the design](../../development/release-build-identity.md). The already
 published `v0.4.0` tag and its N144de source/assets remain immutable. The corrected
-source needs an owner-selected next semantic version before publication; this
-card does not select it. The pending AgentSkills source publication remains a
-separate authorization. BPR-1797 qualification continues with its original
+source may retain marketing version 0.4.0 for multiple distinct numbered
+prerelease tags, per the owner’s 2026-10-29 UTC clarification. A future stable
+base-version publication/promotion policy remains separate. AgentSkills source
+publication and the project PR-tour pin used their separate direct approval. BPR-1797 qualification continues with its original
 reports, waivers and native command ownership.
 
 ## Implementation checkpoint, 2026-10-29 UTC
@@ -65,11 +66,30 @@ actual Windows MSI/PE and Linux DEB observations, or final native acceptance.
 The initial incorrect build target, old fixture refusals and corrected checks
 remain in the external request evidence rather than becoming passing claims.
 
-A fresh one-criterion attended session `4ac6d45421394cb192ab263b9c4d895a`
-asks only whether the next corrected candidate should use 0.4.1. Its state is
-outside source under the request's `attended-version041-r1` directory. It is
-ready and protected; no decision has been consumed. The published v0.4.0
-preview is unchanged. Separate functional follow-ups remain open: the five
+The initial one-criterion 0.4.1 proposal is now obsolete and withdrawn, as
+recorded below. No native requirement forces that patch bump. Separate functional follow-ups remain open: the five
 Windows Debug agent observations reproduced their precondition failures, and
 the bounded threaded-reply recovery still did not complete. Ubuntu's original
 source qualification is running. This card and BPR-1797 remain In Progress.
+
+## Owner clarification, 2026-10-29 UTC
+
+Several RCs retain marketing version 0.4.0 and publish under distinct
+`v0.4.0-build.N` prerelease tags. Native mappings do not force a patch bump.
+The unanswered 0.4.1 proposal was withdrawn after checking actual intake; its
+session is waiting/unprotected at consumed cursor 5 and its scoped transport
+was stopped. No human verdict was invented. Installed stable updaters ignore
+these prereleases, while the source URL and manifests bind the actual RC tag.
+Build-tag stable promotion is refused; stable policy remains a future decision.
+The current implementation is being amended to this clarified mandate.
+
+The clarified RC guards now derive the actual numbered prerelease tag and source
+URL, refuse stable promotion, and isolate numbered build/artifact directories.
+The committed authoritative Windows floor binds the verified published MSI digest;
+allocation rejects unknown, caller-selected older and rolled-back baselines.
+Thirteen allocation cases pass and include global numbering across a marketing patch and
+legacy 0.4.7 refusing fresh N=1 before any reservation. The native/tool course records
+49 passes and one native Windows skip, and 27 source/publication controls pass,
+including unchanged legacy/local directories and exact RC tag/source offers.
+The original 15 public asset digests and eight original Mac producer file digests
+were rechecked unchanged. Actual numbered native positives remain pending.

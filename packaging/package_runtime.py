@@ -279,7 +279,9 @@ def source_asset_name(info: dict) -> str:
 
 
 def source_asset_url(info: dict) -> str:
-    return f"https://github.com/MikeMarcin/BetterPullReview/releases/download/v{info['version']}/{source_asset_name(info)}"
+    receipt = release_identity(info)
+    tag = receipt["native"]["releaseTag"] if receipt else "v" + info["version"]
+    return f"https://github.com/MikeMarcin/BetterPullReview/releases/download/{tag}/{source_asset_name(info)}"
 
 
 def source_asset_path(build: Path, info: dict, revision: str) -> Path:

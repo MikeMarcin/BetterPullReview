@@ -16,10 +16,11 @@ import tempfile
 PRODUCT = "BetterPullReview"
 DIRECTORY = Path("packaging/release-builds")
 COUNTER = DIRECTORY / "counter.json"
+WINDOWS_FLOOR = DIRECTORY / "windows-upgrade-floor.json"
 MAXIMUM = 9999
 OPTIONS = ("BUILD_TESTING", "BPR_DISTRIBUTION_BUILD", "BPR_BUILD_QT", "BPR_BUILD_TOUR_CLI",
            "BPR_BUILD_AGENT_INTEGRATIONS", "BPR_BUILD_LOCAL_AUTOMATION", "BPR_EXTERNAL_QT_RESOURCES")
-CONFIG_FILES = ("CMakePresets.json", "packaging/dependencies.json")
+CONFIG_FILES = ("CMakePresets.json", "packaging/dependencies.json", WINDOWS_FLOOR.as_posix())
 
 
 def canonical(value: object) -> bytes:
@@ -97,6 +98,7 @@ def native(version: str, number: int, previous: dict | None = None) -> dict:
         if len(old_marketing) != 3 or len(old_msi) != 3 or (major, minor, patch) < old_marketing or msi <= old_msi:
             raise ValueError("release would downgrade marketing version or fail MSI upgrade ordering")
     return {"displayVersion": f"{version} (build {number})", "assetVersion": f"{version}-build.{number}",
+            "releaseTag": f"v{version}-build.{number}",
             "macBundleVersion": str(number), "windowsImageVersion": f"{version}.{number}",
             "msiProductVersion": ".".join(map(str, msi)), "debianVersion": f"{version}+build.{number}"}
 
@@ -104,6 +106,49 @@ def native(version: str, number: int, previous: dict | None = None) -> dict:
 def source_inputs(root: Path, revision: str) -> dict:
     return {name: hashlib.sha256(subprocess.check_output(["git", "-C", str(root), "show", revision + ":" + name])).hexdigest()
             for name in CONFIG_FILES}
+
+
+def windows_floor(value: dict) -> dict:
+    """A reviewed published/native observation, never a caller-selected baseline."""
+    fields = {"schema", "product", "marketingVersion", "msiProductVersion", "installerName",
+              "installerSHA256", "releaseTag", "sourceCommit", "releaseId"}
+    if (set(value) != fields or value["schema"] != "bpr.windows-upgrade-floor.v1" or value["product"] != PRODUCT
+            or type(value["releaseId"]) is not int or value["releaseId"] <= 0
+            or not re.fullmatch(r"[0-9a-f]{40}", value["sourceCommit"])
+            or not re.fullmatch(r"[0-9a-f]{64}", value["installerSHA256"])):
+        raise ValueError("authoritative published Windows upgrade floor is missing or invalid")
+    for field in ("marketingVersion", "msiProductVersion"):
+        if not re.fullmatch(r"[0-9]+\.[0-9]+\.[0-9]+", value[field]):
+            raise ValueError("invalid native version in authoritative Windows floor")
+    tag = value["releaseTag"]
+    version = value["marketingVersion"]
+    if not re.fullmatch(r"v" + re.escape(version) + r"(?:-build\.[1-9][0-9]{0,3})?", tag):
+        raise ValueError("Windows floor release tag differs from its marketing version")
+    if value["installerName"] != f"BetterPullReview-{tag[1:]}-windows-x64.msi":
+        raise ValueError("Windows floor installer differs from its release identity")
+    return value
+
+
+def floor_identity(value: dict) -> dict:
+    return {key: value[key] for key in ("marketingVersion", "msiProductVersion")}
+
+
+def source_windows_floor(root: Path, revision: str) -> dict:
+    try:
+        return windows_floor(json.loads(git(root, "show", revision + ":" + WINDOWS_FLOOR.as_posix())))
+    except (subprocess.CalledProcessError, json.JSONDecodeError) as error:
+        raise ValueError("record an authoritative published/native Windows upgrade floor before allocating") from error
+
+
+def check_floor_history(root: Path, current: dict) -> None:
+    def versions(value):
+        return tuple(map(int, value["marketingVersion"].split("."))), tuple(map(int, value["msiProductVersion"].split(".")))
+    present = versions(current)
+    for revision in git(root, "log", "--all", "--format=%H", "--", WINDOWS_FLOOR.as_posix()).splitlines():
+        previous = source_windows_floor(root, revision)
+        prior = versions(previous)
+        if any(now < old for now, old in zip(present, prior)) or (present == prior and current != previous):
+            raise ValueError("authoritative Windows floor would roll back or replace a published identity; reconcile observed history")
 
 
 def counter_value(root: Path) -> int:
@@ -186,6 +231,7 @@ def validate_allocation_commit(root: Path, receipt: dict) -> str:
     revision = git(root, "rev-parse", "HEAD")
     if (receipt["sourceTree"] != git(root, "rev-parse", receipt["sourceBase"] + "^{tree}")
             or receipt["sourceInputs"] != source_inputs(root, receipt["sourceBase"])
+            or receipt["windowsUpgradeFloor"] != source_windows_floor(root, receipt["sourceBase"])
             or receipt["version"] != marketing(root, receipt["sourceBase"])):
         raise ValueError("allocation source base/configuration digest mismatch")
     if git(root, "rev-list", "--parents", "-n", "1", revision).split() != [revision, receipt["sourceBase"]]:
@@ -218,11 +264,16 @@ def allocation(root: Path, inputs: dict) -> dict:
                 except ValueError:
                     pass
     files = source_inputs(root, head)
+    prior_windows = source_windows_floor(root, head)
+    if inputs["previousWindows"] is not None and inputs["previousWindows"] != floor_identity(prior_windows):
+        raise ValueError("previous Windows input differs from the authoritative published/native floor")
     identity = {"sourceBase": head, "sourceTree": git(root, "rev-parse", head + "^{tree}"),
-                "version": version, "configuration": inputs, "configurationDigest": config_digest, "sourceInputs": files}
+                "version": version, "configuration": inputs, "configurationDigest": config_digest, "sourceInputs": files,
+                "windowsUpgradeFloor": prior_windows}
     key = digest(identity)
     common = Path(git(root, "rev-parse", "--path-format=absolute", "--git-common-dir")) / "bpr-release-builds"
     with reservation_lock(common):
+        check_floor_history(root, prior_windows)
         journal = common / "reservations"
         journal.mkdir(exist_ok=True)
         reservations = [read(path) for path in journal.glob("*.json")]
@@ -234,7 +285,7 @@ def allocation(root: Path, inputs: dict) -> dict:
         counter = counter_value(root) if (root / COUNTER).exists() else 0
         floor = max([counter, *history, *(item["number"] for item in reservations)])
         number = existing[0]["number"] if existing else floor + 1
-        mappings = native(version, number, inputs["previousWindows"])
+        mappings = native(version, number, floor_identity(prior_windows))
         receipt = {"schema": "bpr.release-allocation.v1", "product": PRODUCT, "number": number,
                    "inputDigest": key, **identity, "native": mappings}
         expected_paths = {COUNTER.as_posix(), receipt_path(number).as_posix()}
@@ -275,13 +326,16 @@ def check(cohort: dict, root: Path | None = None, version: str | None = None) ->
     if set(value) != {"schema", "product", "sourceCommit", "sourceTree", "allocation", "allocationDigest"}:
         raise ValueError("unknown or missing release cohort fields")
     receipt = value["allocation"]
-    if set(receipt) != {"schema", "product", "number", "inputDigest", "sourceBase", "sourceTree", "version", "configuration", "configurationDigest", "sourceInputs", "native"}:
+    if set(receipt) != {"schema", "product", "number", "inputDigest", "sourceBase", "sourceTree", "version", "configuration", "configurationDigest", "sourceInputs", "windowsUpgradeFloor", "native"}:
         raise ValueError("unknown or missing release allocation fields")
     configuration(receipt["configuration"])
-    identity = {key: receipt[key] for key in ("sourceBase", "sourceTree", "version", "configuration", "configurationDigest", "sourceInputs")}
+    prior_windows = windows_floor(receipt["windowsUpgradeFloor"])
+    if receipt["configuration"]["previousWindows"] is not None and receipt["configuration"]["previousWindows"] != floor_identity(prior_windows):
+        raise ValueError("previous Windows input differs from authoritative floor")
+    identity = {key: receipt[key] for key in ("sourceBase", "sourceTree", "version", "configuration", "configurationDigest", "sourceInputs", "windowsUpgradeFloor")}
     if (value["allocationDigest"] != digest(receipt) or receipt["inputDigest"] != digest(identity)
             or receipt["configurationDigest"] != digest(receipt["configuration"])
-            or receipt["native"] != native(receipt["version"], receipt["number"], receipt["configuration"]["previousWindows"])
+            or receipt["native"] != native(receipt["version"], receipt["number"], floor_identity(prior_windows))
             or receipt.get("schema") != "bpr.release-allocation.v1" or receipt.get("product") != PRODUCT):
         raise ValueError("invalid allocation/configuration/native identity")
     for item in (value["sourceCommit"], value["sourceTree"], receipt["sourceBase"], receipt["sourceTree"]):

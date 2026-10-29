@@ -47,7 +47,8 @@ class NativeReleaseTests(unittest.TestCase):
         self.addCleanup(self.patches.stop)
         self.key = "B" * 40
 
-    def package(self, generator, signed=True, use_vault=False, vault_failure=False, tamper_library=False, release_cohort=None):
+    def package(self, generator, signed=True, use_vault=False, vault_failure=False, tamper_library=False, release_cohort=None,
+                previous_msi_bytes=b"prior actual MSI fixture"):
         build = self.root / ("build-" + generator)
         build.mkdir()
         system = "Windows" if generator == "WIX" else "Linux"
@@ -127,7 +128,7 @@ class NativeReleaseTests(unittest.TestCase):
         argv = ["package.py", "--build", str(build), "--output", str(output), "--generator", generator]
         if release_cohort is not None and system == "Windows":
             previous = build / "previous.msi"
-            previous.write_bytes(b"prior actual MSI fixture")
+            previous.write_bytes(previous_msi_bytes)
             argv += ["--previous-msi", str(previous)]
         if signed and generator == "WIX":
             inputs = [build / name for name in ("signtool.exe", "dlib.dll", "metadata.json")]
@@ -164,6 +165,13 @@ class NativeReleaseTests(unittest.TestCase):
     def test_unsigned_candidate_cannot_enter_publisher(self):
         manifest = self.package("WIX", signed=False)
         self.assertFalse(manifest.exists())
+
+    def test_same_version_substitute_prior_msi_refuses_before_build_or_signing(self):
+        frozen = release_build_fixture.cohort("1.2.3", self.revision)
+        with self.assertRaisesRegex(ValueError, "frozen upgrade identity"):
+            self.package("WIX", release_cohort=frozen, previous_msi_bytes=b"same native version but different installer")
+        self.assertEqual(self.events, [])
+        self.assertFalse((self.root / "output-WIX").exists())
 
     def test_changed_staged_library_is_refused_before_installer_signing(self):
         with self.assertRaisesRegex(ValueError, "CPack changed a signed first-party image: bpr_xdiff.dll"):
@@ -376,7 +384,7 @@ else:
             path.chmod(0o755)
         environment = {**os.environ, "PATH": str(bin_path) + os.pathsep + os.environ["PATH"]}
         command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes),
-                   "--manifest", str(manifest), "--manifest", str(windows), "--cohort", str(cohort_path)]
+                   "--manifest", str(manifest), "--manifest", str(windows), "--prerelease", "--cohort", str(cohort_path)]
         result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
         self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
         self.assertFalse(any(item[:3] == ["gh", "release", "create"] for item in map(json.loads, log.read_text().splitlines())))
@@ -503,6 +511,14 @@ class ExistingReleaseTests(unittest.TestCase):
 
 
 class PromotionAcceptanceTests(unittest.TestCase):
+    def test_numbered_rc_promotion_refuses_before_any_remote_or_asset_access(self):
+        with patch.object(sys, "argv", ["update_release.py", "--repo-root", str(ROOT), "--version", "0.4.0", "--source-revision", SOURCE,
+                                       "--visibility", "PUBLIC", "--notes-file", "unused", "--baseline-inventory", "unused",
+                                       "--cohort", "unused", "--promote"]), patch.object(publisher, "command") as remote:
+            with self.assertRaisesRegex(ValueError, "cannot be promoted"):
+                publisher.main()
+            remote.assert_not_called()
+
     def test_pending_stable_qualification_refuses_before_remote_access(self):
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)

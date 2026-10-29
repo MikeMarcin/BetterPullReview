@@ -20,8 +20,9 @@ identity. Ordinary local builds allocate nothing. The
 [milestone plan](plans/release-candidate-build-numbering/milestone-plan.json)
 bind native metadata, About/diagnostics, source/legal manifests and asset names.
 Existing qualification/security obligations remain. Published `v0.4.0` source
-and assets are immutable; selecting a corrected semantic version remains an
-owner decision before publication.
+and assets are immutable; numbered RCs retain the marketing version and use distinct prerelease tags.
+Those tags remain excluded from stable updating; future stable base-version
+publication is a separate decision.
 
 ## Summary
 

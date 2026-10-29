@@ -59,7 +59,7 @@ def check_assets(observed: dict, baseline: dict, selected: dict, *, complete: bo
     return missing
 
 
-def guard(root: Path, revision: str, version: str, visibility: str, release_id: int | None = None, *, prerelease: bool = True) -> dict:
+def guard(root: Path, revision: str, version: str, visibility: str, release_id: int | None = None, *, prerelease: bool = True, tag: str | None = None) -> dict:
     urls = command("git", "remote", "get-url", "--push", "--all", "origin", cwd=root).splitlines()
     allowed = {"https://github.com/" + REPOSITORY, "https://github.com/" + REPOSITORY + ".git", "git@github.com:" + REPOSITORY, "git@github.com:" + REPOSITORY + ".git", "ssh://git@github.com/" + REPOSITORY, "ssh://git@github.com/" + REPOSITORY + ".git"}
     require(len(urls) == 1 and urls[0] in allowed, "noncanonical or multiple publication destinations")
@@ -67,7 +67,7 @@ def guard(root: Path, revision: str, version: str, visibility: str, release_id: 
     require(repo == {"nameWithOwner": REPOSITORY, "visibility": visibility}, "repository identity or visibility changed")
     immutable = json.loads(command("gh", "api", "-H", "X-GitHub-Api-Version: 2026-03-10", "repos/" + REPOSITORY + "/immutable-releases"))
     require(immutable.get("enabled") is False and immutable.get("enforced_by_owner") is False, "immutable releases prohibit this staged publication")
-    tag = "v" + version
+    tag = tag or "v" + version
     refs = dict((line.split()[1], line.split()[0]) for line in command("git", "ls-remote", "--tags", "origin", "refs/tags/" + tag, "refs/tags/" + tag + "^{}", cwd=root).splitlines())
     require(refs.get("refs/tags/" + tag + "^{}") == revision and refs.get("refs/tags/" + tag) not in {None, revision}, "annotated release tag source changed")
     release = json.loads(command("gh", "api", "repos/" + REPOSITORY + "/releases/tags/" + tag))
@@ -132,6 +132,11 @@ def main() -> None:
     parser.add_argument("--promote", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
     args = parser.parse_args()
+    require(not (args.cohort and args.promote), "numbered RC build tags cannot be promoted to stable; compatible stable policy is a separate decision")
+    tag = "v" + args.version
+    if args.cohort:
+        cohort = runtime.release_build.read(args.cohort)
+        tag = runtime.release_build.check(cohort, version=args.version)["native"]["releaseTag"]
     root = args.repo_root.resolve(strict=True)
     require(re.fullmatch(r"[0-9a-f]{40}", args.source_revision) is not None, "explicit full producer revision required")
     require(not command("git", "status", "--porcelain", cwd=root) and command("git", "branch", "--show-current", cwd=root) == "main", "clean main required")
@@ -140,7 +145,8 @@ def main() -> None:
     require(changed <= TOOL_PATHS, "tool revision changes producer inputs")
     require(args.notes_file.is_file(), "notes file missing")
     record = json.loads(args.baseline_inventory.read_text())
-    require(record["source"] == args.source_revision and record["version"] == args.version and record["repository"] == REPOSITORY, "baseline identity mismatch")
+    require(record["source"] == args.source_revision and record["version"] == args.version and record["repository"] == REPOSITORY
+            and record.get("tag", "v" + args.version) == tag, "baseline identity mismatch")
     baseline = inventory(record["assets"])
     require(baseline, "empty existing-asset baseline")
     paths, platforms = selected_assets(args)
@@ -152,25 +158,25 @@ def main() -> None:
         require(acceptance.get("evidence"), "promotion acceptance has no evidence")
         for item in acceptance["evidence"]:
             require(runtime.digest(Path(item["path"])) == item["sha256"], "promotion evidence changed")
-    release = guard(root, args.source_revision, args.version, args.visibility)
+    release = guard(root, args.source_revision, args.version, args.visibility, tag=tag)
     release_id = release["id"]
     missing = check_assets(remote_inventory(release), baseline, selected, complete=args.promote)
     print(json.dumps({"result": "EXISTING_RELEASE_PREFLIGHT_OK", "source": args.source_revision, "toolRevision": command("git", "rev-parse", "HEAD", cwd=root), "releaseId": release_id, "missingAssets": missing, "promote": args.promote, "dryRun": args.dry_run}), flush=True)
     if args.dry_run:
         return
     for name in missing:
-        current = guard(root, args.source_revision, args.version, args.visibility, release_id)
+        current = guard(root, args.source_revision, args.version, args.visibility, release_id, tag=tag)
         remaining = check_assets(remote_inventory(current), baseline, selected, complete=False)
         require(name in remaining, "asset changed concurrently; inspect before retry")
         require(runtime.digest(paths[name]) == selected[name]["sha256"] and paths[name].stat().st_size == selected[name]["bytes"], "selected bytes changed before upload")
-        subprocess.run(["gh", "release", "upload", "v" + args.version, str(paths[name]), "--repo", REPOSITORY], check=True)
-    current = guard(root, args.source_revision, args.version, args.visibility, release_id)
+        subprocess.run(["gh", "release", "upload", tag, str(paths[name]), "--repo", REPOSITORY], check=True)
+    current = guard(root, args.source_revision, args.version, args.visibility, release_id, tag=tag)
     check_assets(remote_inventory(current), baseline, selected, complete=True)
-    edit = ["gh", "release", "edit", "v" + args.version, "--repo", REPOSITORY, "--notes-file", str(args.notes_file)]
+    edit = ["gh", "release", "edit", tag, "--repo", REPOSITORY, "--notes-file", str(args.notes_file)]
     if args.promote:
         edit += ["--prerelease=false", "--latest=true"]
     subprocess.run(edit, check=True)
-    result = guard(root, args.source_revision, args.version, args.visibility, release_id, prerelease=not args.promote)
+    result = guard(root, args.source_revision, args.version, args.visibility, release_id, prerelease=not args.promote, tag=tag)
     require(result["id"] == release_id and result["draft"] is False and result["prerelease"] is (not args.promote), "unexpected final release state")
     check_assets(remote_inventory(result), baseline, selected, complete=True)
     if args.promote:
