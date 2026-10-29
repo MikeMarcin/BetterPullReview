@@ -19,6 +19,7 @@ SKIP_NOTARIZE=0
 SKIP_TESTS=0
 PREPARE_ONLY=0
 OUTPUT_DIR=""
+BUILD_DIR_OVERRIDE=""
 REQUESTED_VERSION=""
 RELEASE_COHORT=""
 RELEASE_PRODUCER=""
@@ -41,6 +42,7 @@ Options:
   --notary-profile NAME  notarytool Keychain profile (default: ${DEFAULT_NOTARY_PROFILE}).
   --notary-keychain PATH Existing file Keychain for the selected profile.
   --output-dir DIR       Fresh artifact directory (default: build/releases/VERSION-build.N for numbered RCs).
+  --build-dir ABS        Existing configured graph under this checkout's build directory.
   --skip-tests           Skip the dev build and test preset.
   --test-profile NAME    normal (default) or comprehensive qualification.
   --test-scope NAME      Declared owning change scope; repeat as needed.
@@ -72,6 +74,12 @@ fail() {
 select_release_paths() {
     BUILD_DIR="${ROOT_DIR}/build/${PRESET}"
     if [[ -n "${RELEASE_COHORT}" ]]; then BUILD_DIR="${BUILD_DIR}-${ASSET_VERSION}"; fi
+    if [[ -n "${BUILD_DIR_OVERRIDE}" ]]; then
+        [[ "${BUILD_DIR_OVERRIDE}" == /* && -d "${BUILD_DIR_OVERRIDE}" ]] || fail "--build-dir requires an absolute existing graph"
+        BUILD_DIR="$(cd "${BUILD_DIR_OVERRIDE}" && pwd -P)"
+        [[ "${BUILD_DIR}" == "${ROOT_DIR}/build/"* && -f "${BUILD_DIR}/CMakeCache.txt" ]] || fail "--build-dir must name a configured graph under this checkout's build directory"
+        [[ "$(sed -n 's/^CMAKE_HOME_DIRECTORY:INTERNAL=//p' "${BUILD_DIR}/CMakeCache.txt")" == "${ROOT_DIR}" ]] || fail "--build-dir belongs to another source checkout"
+    fi
     APP_PATH="${BUILD_DIR}/src/app/${APP_NAME}.app"
     if [[ -z "${OUTPUT_DIR}" ]]; then
         OUTPUT_DIR="${ROOT_DIR}/build/releases/${ASSET_VERSION}"
@@ -506,6 +514,11 @@ while [[ $# -gt 0 ]]; do
         --output-dir)
             [[ $# -ge 2 ]] || fail "--output-dir requires a value"
             OUTPUT_DIR="$2"
+            shift 2
+            ;;
+        --build-dir)
+            [[ $# -ge 2 && -n "$2" ]] || fail "--build-dir requires a nonempty value"
+            BUILD_DIR_OVERRIDE="$2"
             shift 2
             ;;
         --skip-tests)

@@ -184,6 +184,15 @@ rechecks the frozen source before compiling its identity. Ordinary local builds
 leave both settings empty and remain unnumbered. Multi-configuration generators
 must select exactly one configuration for a numbered producer.
 
+Every first-party Boolean option is declared before the observation is written,
+including the core's portable SHA-256 selection. A cold and warm configure must
+report the same complete option set. If an observation was incomplete, retain
+the refused cohort and allocate a successor from corrected actual observations.
+On macOS, `tools/release.sh --build-dir /absolute/source/build/existing-graph`
+can preserve an unsealed graph's compilation paths. It requires this checkout's
+cache home and build root; actual frozen configure checks and fresh artifact
+directories remain mandatory. It does not move caches or reuse a native verdict.
+
 Initial numbered RC publication requires `--cohort /absolute/cohort.json` and
 `--prerelease`; it derives the distinct RC tag from that cohort. No marketing
 version bump is required for another RC. The occupied

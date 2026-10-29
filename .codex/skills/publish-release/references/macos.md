@@ -50,6 +50,13 @@ For an existing file Keychain, pass `--notary-profile NAME --notary-keychain
 that selector. Verify with `xcrun notarytool history --keychain-profile NAME
 --keychain /absolute/path/to/login.keychain-db` before building.
 
+An existing unsealed graph may be reused with `--build-dir /absolute/source/build/graph`.
+The graph must live under this checkout's build directory and its CMake cache
+must name this exact source root. The normal configure still checks the actual
+toolchain, architectures, options and frozen cohort before building. Keep the
+new cohort's artifact directory fresh; this option reuses compilation paths,
+not a previous qualification or signed artifact. Do not move or edit CMake caches.
+
 `--prepare-only` needs no Apple credentials; its ad-hoc seal does not supply
 Developer ID/notarization/Gatekeeper trust. For requested variants use
 `--variant agent-free` or `--variant agent-free-automation-off` with a separate

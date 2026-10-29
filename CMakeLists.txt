@@ -43,6 +43,7 @@ if(NOT PROJECT_IS_TOP_LEVEL)
 endif()
 
 option(BPR_BUILD_QT "Build the Qt presentation adapter" ON)
+option(BPR_CORE_SHA256_PORTABLE "Use portable HACL SHA-256 instead of platform crypto" OFF)
 option(BPR_BUILD_TOUR_CLI "Build the non-GUI bpr tour terminal frontend" OFF)
 # [[BPR-1179]]. Two removable component families (RFC-BPR-0060). Agent
 # integrations are the agent launch adapter, the application's agent hosts, the
