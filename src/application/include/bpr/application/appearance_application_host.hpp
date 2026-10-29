@@ -78,6 +78,8 @@ namespace bpr::application {
 		void step_code_zoom(core::code_zoom_step aStep);
 		/// \brief [[BPR-1714]]. Applies one known-namespace list; see the preferences host.
 		void apply(core::known_namespaces aNamespaces);
+		/// \brief [[BPR-1807]]. Chooses what people's avatars show; see the preferences host.
+		void apply(core::identity_avatar_style aStyle);
 		/// \brief Imports one local document into a preview candidate.
 		///
 		/// \details The effect reads through the bounded document port, calls the

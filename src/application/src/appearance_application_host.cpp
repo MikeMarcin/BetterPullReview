@@ -166,6 +166,12 @@ namespace bpr::application {
 			Implementation->Preferences->apply(Implementation->Consumer, std::move(aNamespaces));
 		}
 	}
+	void appearance_application_host::apply(const core::identity_avatar_style aStyle)
+	{
+		if (!Implementation->Closing) {
+			Implementation->Preferences->apply(Implementation->Consumer, aStyle);
+		}
+	}
 	auto appearance_application_host::classification_key(token_span_cache_key aKey) const -> token_span_cache_key
 	{
 		return application::classification_key(std::move(aKey), Implementation->Preferences->settings().Namespaces);

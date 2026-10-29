@@ -183,6 +183,16 @@ namespace {
 		::sqlite3* raw = nullptr;
 		expect(::sqlite3_open(aPath.string().c_str(), &raw) == SQLITE_OK,
 			   "a legacy fixture opens raw");
+		// [[BPR-1807]]. Every version before 11 lacks the avatar style.
+		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN avatar_style", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "a legacy down-edit drops the version-11 column");
+		if (aVersion == 10) {
+			for (const auto& statement : { std::string{ "UPDATE appearance_meta SET schema_format = 10" }, std::string{ "PRAGMA user_version = 10" } }) {
+				expect(::sqlite3_exec(raw, statement.c_str(), nullptr, nullptr, nullptr) == SQLITE_OK, "a version-10 down-edit statement runs: " + statement);
+			}
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the legacy fixture closes");
+			return;
+		}
 		// [[BPR-1714]]. Every version before 10 lacks the known namespaces.
 		expect(::sqlite3_exec(raw, "ALTER TABLE appearance_settings DROP COLUMN known_namespaces", nullptr, nullptr, nullptr) == SQLITE_OK,
 			   "a legacy down-edit drops the version-10 column");
@@ -1488,6 +1498,62 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1807]]. What people's avatars show is stored, migrates to
+	/// GitHub pictures and refuses a value outside the vocabulary.
+	auto test_avatar_style_round_trips_migrates_and_refuses() -> void
+	{
+		const auto scratch = scratch_directory{ };
+		{
+			const auto path     = scratch.file("avatars.sqlite3");
+			auto       database = appearance_settings_database::open(path, { });
+			expect(database.has_value(), "a fresh store opens");
+			for (const auto style : { core::identity_avatar_style::generated, core::identity_avatar_style::github }) {
+				auto settings    = legal_baseline();
+				settings.Avatars = style;
+				expect(database->store(settings, { }).has_value(), "every avatar style stores");
+				const auto loaded = database->load({ });
+				expect(loaded.has_value() && loaded->has_value() && **loaded == settings, "and loads back exactly");
+			}
+			const auto columns = appearance_settings_columns(database->handle());
+			expect(columns.has_value() && std::ranges::find(*columns, std::string{ "appearance_settings.avatar_style" }) != columns->end(),
+				   "the schema declares avatar_style");
+		}
+		for (const auto version : { std::int64_t{ 10 }, std::int64_t{ 9 } }) {
+			const auto path     = scratch.file("v" + std::to_string(version) + "-avatars.sqlite3");
+			auto       original = distinct_settings();
+			original.Avatars    = core::identity_avatar_style::generated;
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(original, { }).has_value(), "a current record stores before the down-edit");
+			}
+			down_edit_to_version(path, version, core::appearance_variant::dark, true);
+			auto migrated = appearance_settings_database::open(path, { });
+			expect(migrated.has_value(), "an older file opens and migrates forward: version " + std::to_string(version));
+			const auto loaded   = migrated->load({ });
+			auto       expected = original;
+			expected.Avatars    = core::identity_avatar_style::github;
+			if (version < 10) {
+				expected.Namespaces = core::known_namespaces{ };
+			}
+			expect(loaded.has_value() && loaded->has_value() && **loaded == expected,
+				   "it keeps every value it had and shows GitHub pictures: version " + std::to_string(version));
+			const auto stamped = scalar_integer(migrated->handle(), "PRAGMA user_version");
+			expect(stamped.has_value() && *stamped == appearance_settings_schema_version, "and is stamped at the current version");
+		}
+		{
+			const auto path = scratch.file("corrupt-avatars.sqlite3");
+			{
+				auto database = appearance_settings_database::open(path, { });
+				expect(database.has_value() && database->store(legal_baseline(), { }).has_value(), "a record stores");
+			}
+			::sqlite3* raw = nullptr;
+			expect(::sqlite3_open(path.string().c_str(), &raw) == SQLITE_OK, "the file opens raw");
+			expect(::sqlite3_exec(raw, "UPDATE appearance_settings SET avatar_style = 2", nullptr, nullptr, nullptr) != SQLITE_OK,
+				   "the table's CHECK refuses a style outside the vocabulary");
+			expect(::sqlite3_close(raw) == SQLITE_OK, "the raw handle closes");
+		}
+	}
+
 	auto test_the_schema_stores_no_review_content() -> void
 	{
 		const auto scratch = scratch_directory{ };
@@ -1562,6 +1628,7 @@ try {
 	test_white_space_round_trips_migrates_and_refuses();
 	test_code_zoom_round_trips_migrates_and_refuses();
 	test_known_namespaces_round_trip_migrate_and_refuse();
+	test_avatar_style_round_trips_migrates_and_refuses();
 	test_the_schema_stores_no_review_content();
 	std::cout << "appearance-settings-storage-tests:pass\n";
 	return EXIT_SUCCESS;

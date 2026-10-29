@@ -394,6 +394,8 @@ namespace bpr::qt {
 		// [[BPR-1583]]. The account's own avatar, as every surface draws it.
 		Avatar = new identity_avatar_view{ avatar_side, Account };
 		Avatar->setObjectName(QStringLiteral("serverCardAvatar"));
+		// [[BPR-1807]]. A server's account is not the open pull request's person.
+		Avatar->set_generated(true);
 		LoginLabel = make_label(Account, QStringLiteral("serverCardLogin"));
 		LoginLabel->setAccessibleName(QStringLiteral("Account"));
 		ConsequenceLabel = make_quiet_label(Account, QStringLiteral("serverCardConsequence"));
@@ -753,6 +755,7 @@ namespace bpr::qt {
 			layout->setVerticalSpacing(2);
 			auto* const avatar = new identity_avatar_view{ avatar_side, row };
 			avatar->setObjectName(QStringLiteral("serverCardCliAccountAvatar"));
+			avatar->set_generated(true);
 			avatar->set_identity(login);
 			auto* const name     = make_label(row, QStringLiteral("serverCardCliAccountLogin"), login);
 			auto* const sentence = make_quiet_label(row, QStringLiteral("serverCardCliAccountSentence"), cli_account_sentence(account));

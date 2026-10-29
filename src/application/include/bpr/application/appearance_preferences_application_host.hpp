@@ -64,6 +64,11 @@ namespace bpr::application {
 		/// not a namespace name; accepted, it is persisted and published as the
 		/// `Namespaces` invalidation, so every window asks again for its C++ spans.
 		void apply(appearance_consumer_id aConsumer, core::known_namespaces aNamespaces);
+		/// \brief [[BPR-1807]]. Chooses what people's avatars show.
+		///
+		/// \details Persisted and published as the `Avatars` invalidation; a value
+		/// outside the vocabulary is a host failure and changes nothing.
+		void apply(appearance_consumer_id aConsumer, core::identity_avatar_style aStyle);
 		void import_theme_file(appearance_consumer_id aConsumer, std::string aPath);
 		void cancel_theme_import(appearance_consumer_id aConsumer);
 		/// \brief Writes a theme document whose base is `aVariant`, the theme the palette customises.

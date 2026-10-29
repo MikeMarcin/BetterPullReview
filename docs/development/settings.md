@@ -43,6 +43,14 @@ starts as `std`, which brings the namespaces the standard puts in it
 `boost::asio`. A class or enum a file declares with the same name still reads
 as a class there. Open files recolour when you press Return or leave the field.
 
+**Appearance > People > Avatars** chooses what a person's avatar shows in a
+pull request's window. **GitHub pictures**, the default, shows each person's
+own picture from the pull request's server (GitHub.com or your GitHub
+Enterprise Server), and their coloured initials while it loads or when it
+cannot be fetched. **Coloured initials** shows only the initials and fetches
+no picture. Pictures are kept with the profile's other images, in memory and
+on disk.
+
 ## Notifications
 
 A notification carries only the repository, pull-request number, attention
