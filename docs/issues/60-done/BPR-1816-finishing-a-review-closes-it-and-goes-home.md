@@ -86,3 +86,7 @@ gesture it governs share vocabulary.
 - macOS offscreen only; Windows and Linux were not run.
 - No owner look at the Settings line was asked for; the renders are offered
   with the handoff.
+
+## Owner review
+
+On 2026-10-29 the owner accepted the look from offscreen screenshots (no frozen build was requested).
