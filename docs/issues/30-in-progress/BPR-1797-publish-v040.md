@@ -136,15 +136,15 @@ release or file was replaced.
 [Release results](../../verification/release-v040-results.md) and the
 [asset inventory](../../verification/release-v040-assets.json) record all thirty
 anonymous hash/size matches, passing Mac stable native trust/source checks and
-unchanged original preview/RC identities. Stable Windows and Ubuntu native
-audits remain pending, so AC4 and this card remain open. Existing producer and
+unchanged original preview/RC identities. Stable Windows native verification subsequently passed 39 commands after all
+seven anonymous downloads. The stable Ubuntu native audit remains pending, so
+AC4 and this card remain open. Existing producer and
 RC native evidence supplies no fresh stable native acceptance.
 
 Under the owner's sequencing amendment, a fresh v0.4.1 owner starts from the
-integrated latest main now and adopts these two residual native audits before
-new PC producer work. The external runtime root retains prepared guarded
+integrated latest main now and adopts the remaining Ubuntu native audit before new PC producer work. The external runtime root retains prepared guarded
 commands, the safely refused starts, physical-host observations and the durable
 handoff. No foreign process was stopped. Close this card only after actual
-stable Windows/Ubuntu native receipts and final reconciliation pass. All
+stable Ubuntu native receipt and final reconciliation pass. All
 original failures, source bridges, matching owner-carried waivers and RFC-0038
 limitations remain as recorded above.
