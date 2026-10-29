@@ -2484,8 +2484,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# apply_avatar_style_intent. No credential, grant, provider, mutation,
 	# publication or source-inventory change; the mutation-branch pin is
 	# unchanged.
+	# [[BPR-1816]] finish-home reseal (2026-10-29), over f95914215.
+	# github_application.cpp gives the review submission workflow the
+	# profile's accepted finish choices (set_finish_settings), read when GitHub
+	# answers a submission; core::decide_review_finish decides. No credential,
+	# grant, provider, mutation, publication or source-inventory change; the
+	# mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"fdb064b8364a53d69f55bc7c73f489ce558ef0dc778c50db7d374627115cc6c1"
+		"4cbe91d75e24766807fb0a4885331e8d6f0dbd0d5eafbc92299a7c9fe4358815"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2747,8 +2753,13 @@ function(bpr_verify_app_source_tree app_source_root)
 # its immutable About facts. It introduces no effect, provider, grant, mutation
 # or source-inventory change. Native About/copy courses cover local and numbered
 # presentation; real numbered producer/native acceptance remains pending.
+# [[BPR-1816]] finish-home reseal (2026-10-29): github_application.cpp and
+# review_submission_workflow.cpp/.hpp. The workflow remembers the key its own
+# Submit sent and passes core::decide_review_finish's transition with the
+# confirmation; the composition supplies the profile's accepted finish
+# choices. No grant, mutation, publication or source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "a17d8c7d1b293e81404632f8311aa0113f001a06c48ecfab84eba1bbab8c46dc"
+        "b34005f47e2dbdd88a7a87c6539b62999903ee787cc4b47175f02a02a943bd23"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
