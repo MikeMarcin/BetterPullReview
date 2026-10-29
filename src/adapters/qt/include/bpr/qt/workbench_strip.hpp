@@ -72,6 +72,16 @@ namespace bpr::qt {
 		/// command's glyph. The coloured circles are the file's state; a
 		/// command never wears one.
 		accept_file,
+		/// [[BPR-1815]]. Two panes: a frame parted down the middle, a row of
+		/// text in each half. The review bar's layout toggle shows it while
+		/// the comparison stands side by side.
+		two_panes,
+		/// [[BPR-1815]]. One pane: the same frame whole, its rows running
+		/// the full width, the second one indented as a changed row is.
+		one_pane,
+		/// [[BPR-1815]]. Go to header/source: two pages side by side, each
+		/// with its folded corner, and an arrow headed both ways between them.
+		header_source,
 	};
 
 	/// \brief Paints one strip glyph for a palette.

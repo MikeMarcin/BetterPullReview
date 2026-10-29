@@ -32,7 +32,7 @@ authored and directly requested pull requests of the saved repositories
 
 ```text
 ┌ Title row: Home | Repositories | Files | name ↗ ······ Overview Review Discuss Threads | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
-├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ···· (● Review · 2 pending │ Finish review) Compose review | Comment ┤
+├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ │ ◫ ⇄ ···· (● Review · 2 pending │ Finish review) Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Notes      │
@@ -383,7 +383,18 @@ Cycle suggestion editor) the key is the editor's, so Option-A still types
 `å` there. On macOS the key is the one labelled A in the current layout; a
 non-Latin layout whose A key types another letter does not offer it.
 Opening or seeing
-a file does not accept it. At the bar's right
+a file does not accept it. Right of the track, after a rule, are the
+**layout toggle** and **Go to header/source** ([[BPR-1815]], the owner,
+2026-10-29: a toggle for one pane or two with a key, and Go to header/source,
+on the row with Seen, Read and Accept). They are icon buttons on no rail,
+presenting the View menu's One pane and Go to header/source, so the bar, the
+menu and the keys are one command each and the core decides the layout. The
+toggle's glyph is the layout showing, two panes parted down the middle or one
+whole pane, as Hide drawers' glyph is the drawers showing; it is checked in one
+pane. Its tooltip names the other layout and its key ("One pane (⌥⇧P)" or "Two
+panes (⌥⇧P)") and Go to header/source's names its key ("Go to header/source
+(⌥O)"); a second line says what the layout is or why the command is
+unavailable. At the bar's right
 are **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C), whose tooltips name the command and its key. Comment is an
 icon. With no review in progress Compose review says what it is for:
@@ -395,9 +406,10 @@ there's not a active review"). Its accessible name is "Compose review: approve
 or comment", and its tooltip names Approve, Request changes and Comment. It
 only opens the review: the verdict is chosen there. While a review is in
 progress the chip below leads and Compose review is its plain icon. As the
-window narrows its words shorten first, to "Approve…" (it shows at 1280 beside
-the comparison's dates and the positions). "Approve…" is the review bar's last
-yield, and the pencil and its edge stay after it, so the floor is unchanged.
+window narrows its words shorten first, to "Approve…". It shows at 1280
+beside the positions; since the view controls came ([[BPR-1815]]) the
+comparison's dates yield to them at 1280 and show again from 1366. "Approve…"
+is the review bar's last yield, and the pencil and its edge stay after it.
 Compose review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
 Pull Request menu. Compose review opens the whole-review summary in Discuss,
@@ -1420,10 +1432,13 @@ owner and then the modality's shortcuts, keeping the name's number. Open on
 GitHub goes with the name and is counted in its room, so the title elides
 around it; it stays beside the number down to the floor ([[BPR-1338]]). No control
 folds into an overflow menu at any width down to the platform's floor. The
-floor follows the bar ([[BPR-1255]], the owner's choice of 2026-10-06). When a
-larger font makes the fully yielded review bar wider than the platform's 900
-pixels (902 on Windows), the window's minimum width rises to the bar's width.
-It returns to the platform's floor at the default font, and it is measured
+floor follows the bar ([[BPR-1255]], the owner's choice of 2026-10-06). When the
+fully yielded review bar is wider than the platform's 900 pixels (902 on
+Windows), the window's minimum width rises to the bar's width. Since the
+bar gained its view controls ([[BPR-1815]]) it is the wider at the default
+font too: 957 pixels on macOS with the test fixtures' summary, pending the
+owner's judgement. A larger font raises it further; it returns to the
+default floor at the default font, and it is measured
 again on a font, style, theme or scale change. A restored geometry narrower
 than the floor opens at the floor.
 
@@ -1628,6 +1643,7 @@ never invents enabled state.
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
 | Toggle source line numbers | `Alt+Shift+5` |
+| One pane or two panes; the review bar's layout toggle ([[BPR-1815]]) | `Alt+Shift+P` (⌥⇧P) |
 | Compose review | `Alt+R` (Option-R) |
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
 | Move the selected line; with Shift, extend the selection ([[BPR-1212]]) | `Up`, `Down`; `Shift+Up`, `Shift+Down`, in a code pane |

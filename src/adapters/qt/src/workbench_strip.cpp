@@ -257,6 +257,48 @@ namespace bpr::qt {
 				aPainter.drawPath(head);
 				break;
 			}
+			case strip_glyph::two_panes:
+				// The drawers glyph's frame, so the review bar's layout toggle
+				// and the title row's Hide drawers read as one family.
+				aPainter.drawRect(QRectF{ 3.0, 5.0, 18.0, 14.0 });
+				aPainter.drawLine(QPointF{ 12.0, 5.0 }, QPointF{ 12.0, 19.0 });
+				aPainter.drawLine(QPointF{ 6.0, 9.5 }, QPointF{ 9.0, 9.5 });
+				aPainter.drawLine(QPointF{ 6.0, 14.5 }, QPointF{ 8.0, 14.5 });
+				aPainter.drawLine(QPointF{ 15.0, 9.5 }, QPointF{ 18.0, 9.5 });
+				aPainter.drawLine(QPointF{ 15.0, 14.5 }, QPointF{ 17.0, 14.5 });
+				break;
+			case strip_glyph::one_pane:
+				aPainter.drawRect(QRectF{ 3.0, 5.0, 18.0, 14.0 });
+				aPainter.drawLine(QPointF{ 6.0, 9.0 }, QPointF{ 15.0, 9.0 });
+				aPainter.drawLine(QPointF{ 9.0, 12.0 }, QPointF{ 18.0, 12.0 });
+				aPainter.drawLine(QPointF{ 6.0, 15.0 }, QPointF{ 13.0, 15.0 });
+				break;
+			case strip_glyph::header_source: {
+				// Two pages, each with its corner folded at the upper right.
+				const auto page = [&aPainter](const qreal aLeft) {
+					auto outline = QPainterPath{ };
+					outline.moveTo(aLeft, 5.0);
+					outline.lineTo(aLeft + 3.0, 5.0);
+					outline.lineTo(aLeft + 6.0, 8.0);
+					outline.lineTo(aLeft + 6.0, 19.0);
+					outline.lineTo(aLeft, 19.0);
+					outline.closeSubpath();
+					aPainter.drawPath(outline);
+				};
+				page(2.0);
+				page(16.0);
+				// The way across, either way: one arrow with a head at each end.
+				aPainter.drawLine(QPointF{ 10.0, 13.0 }, QPointF{ 14.0, 13.0 });
+				auto heads = QPainterPath{ };
+				heads.moveTo(11.5, 11.0);
+				heads.lineTo(10.0, 13.0);
+				heads.lineTo(11.5, 15.0);
+				heads.moveTo(12.5, 11.0);
+				heads.lineTo(14.0, 13.0);
+				heads.lineTo(12.5, 15.0);
+				aPainter.drawPath(heads);
+				break;
+			}
 			}
 		}
 

@@ -942,7 +942,7 @@ namespace {
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 16
+			return ordered.size() == 19
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -955,12 +955,17 @@ namespace {
 				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "reviewBarProgressGapAction")
 				&& named(ordered, 11, "workbenchProgressTrackAction")
-				&& named(ordered, 12, "reviewBarSpacerAction")
+				// [[BPR-1815]]. A rule, the layout toggle and Go to
+				// header/source: the View menu's own actions.
+				&& named(ordered, 12, "reviewBarViewDividerAction")
+				&& ordered[13] == window.one_pane_action()
+				&& ordered[14] == window.header_source_action()
+				&& named(ordered, 15, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
-				&& ordered[13] == window.review_chip_action()
-				&& ordered[14] == window.compose_review_action()
-				&& ordered[15] == window.comment_action();
+				&& ordered[16] == window.review_chip_action()
+				&& ordered[17] == window.compose_review_action()
+				&& ordered[18] == window.comment_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -1448,10 +1453,16 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 		auto* const action = window.one_pane_action();
+		// [[BPR-1815]]. Its key is the catalogue's. On macOS typing lifts an
+		// Option key from the menu bar's items ([[BPR-1536]]), so while a
+		// text field has the keyboard it carries none.
+		const auto onePaneKeys = qt::shortcut_keys(qt::shortcut_command::one_pane);
 		expect(action != nullptr && action->isCheckable()
-				   && action->shortcut().isEmpty()
+				   && onePaneKeys == QList{ QKeySequence{ QStringLiteral("Alt+Shift+P") } }
+				   && (action->shortcuts() == onePaneKeys || action->shortcuts().isEmpty())
+				   && action->shortcutContext() == Qt::WindowShortcut
 				   && window.view_menu()->actions().contains(action),
-			   "One pane is a checkable View item with no shortcut");
+			   "One pane is a checkable View item on Option-Shift-P");
 		expect(!action->isEnabled() && !action->isChecked(),
 			   "One pane starts disabled and unchecked without a comparison");
 
@@ -1495,6 +1506,138 @@ namespace {
 
 	void process_events();
 	void window_key(qt::workbench_window& aWindow, int aKey, Qt::KeyboardModifiers aModifiers);
+
+	/// \brief [[BPR-1815]]. The owner, 2026-10-29: a toggle for one pane or
+	/// two, with a key, and Go to header/source, on the row with Seen, Read
+	/// and Accept. The review bar presents the View menu's own two actions
+	/// right of the progress track, after a rule: the layout toggle shows the
+	/// layout the core decided and names the other with its key, and Go to
+	/// header/source names its key. `BPR_QT_RENDER_PATH` names the bar's
+	/// renders, light and dark, in both layouts.
+	void test_the_review_bar_presents_the_layout_and_header_source()
+	{
+		intent_log           log;
+		qt::workbench_window window{ [&log](core::workbench_interaction_intent aIntent) {
+			log.Workbench.push_back(std::move(aIntent));
+		} };
+		window.resize(1'280, 820);
+		window.show();
+		auto headerSourceCalls = 0;
+		window.set_header_source_dispatch([&headerSourceCalls] { ++headerSourceCalls; });
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner          = "EpicGames",
+				.RepositoryName = "UnrealEngine",
+				.Number         = core::pull_request_number{ 14366U },
+				.Title          = "Hair strand lighting fixes for LSS",
+			},
+		});
+		auto projection = every_primary_command_offered();
+		projection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::go_to_header_source)]
+			= offered(core::workbench_command_id::go_to_header_source);
+		projection.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::disabled };
+		window.publish(projection);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+
+		auto* const bar      = window.review_bar();
+		auto* const layout   = window.findChild<QToolButton*>(QStringLiteral("workbenchOnePaneButton"));
+		auto* const header   = window.findChild<QToolButton*>(QStringLiteral("workbenchHeaderSourceButton"));
+		auto* const progress = window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack"));
+		expect(layout != nullptr && header != nullptr && progress != nullptr
+				   && bar->widgetForAction(window.one_pane_action()) == layout
+				   && bar->widgetForAction(window.header_source_action()) == header
+				   && layout->toolButtonStyle() == Qt::ToolButtonIconOnly && header->toolButtonStyle() == Qt::ToolButtonIconOnly
+				   && layout->focusPolicy() == Qt::StrongFocus && header->focusPolicy() == Qt::StrongFocus,
+			   "the review bar presents the View menu's One pane and Go to header/source as icon buttons");
+		expect(layout->geometry().left() > progress->geometry().right() && header->geometry().left() > layout->geometry().right()
+				   && layout->geometry().top() == header->geometry().top()
+				   && qAbs(layout->geometry().center().y() - progress->geometry().center().y()) <= 1,
+			   "the layout toggle and Go to header/source sit right of Seen, Read and Accept, on their row");
+		const auto order = window.focus_order();
+		expect(order.indexOf(window.review_controls_button()) >= 0
+				   && order.indexOf(layout) == order.indexOf(window.review_controls_button()) + 1
+				   && order.indexOf(header) == order.indexOf(layout) + 1,
+			   "the keyboard reaches them after private progress, as they sit");
+
+		const auto image = [](const QIcon& aIcon) {
+			return aIcon.pixmap(QSize{ 16, 16 }, 2.0).toImage().convertToFormat(QImage::Format_ARGB32);
+		};
+		const auto key     = QKeySequence{ QStringLiteral("Alt+Shift+P") }.toString(QKeySequence::NativeText);
+		const auto showing = [&](const qt::strip_glyph aGlyph) {
+			return image(layout->icon()) == image(qt::strip_icon(aGlyph, window.palette()));
+		};
+		expect(layout->isEnabled() && !layout->isChecked() && showing(qt::strip_glyph::two_panes) && !showing(qt::strip_glyph::one_pane)
+				   && layout->toolTip().startsWith(QStringLiteral("One pane (%1)\n").arg(key)),
+			   "two panes showing: the toggle shows two panes and names One pane with its key");
+		expect(header->isEnabled() && image(header->icon()) == image(qt::strip_icon(qt::strip_glyph::header_source, window.palette()))
+				   && header->toolTip().startsWith(QStringLiteral("Go to header/source (%1)\n").arg(window.header_source_action()->shortcut().toString(QKeySequence::NativeText)))
+				   && header->accessibleName() == QStringLiteral("Go to header/source"),
+			   "Go to header/source shows its glyph and names its key");
+
+		const auto save = [&window, bar](const QString& aSuffix) {
+			const auto rendered = bar->grab();
+			expect(!rendered.isNull(), "the review bar renders");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG")
+						   && window.grab().save(QStringLiteral("%1/%2-%3-window.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+					   "the review bar render is saved for inspection");
+			}
+		};
+
+		const auto toggles = [&log] {
+			return std::ranges::count_if(log.Workbench, [](const core::workbench_interaction_intent& aIntent) {
+				return std::holds_alternative<core::toggle_workbench_one_pane_intent>(aIntent);
+			});
+		};
+		expect(toggles() == 0, "nothing has asked for a layout yet");
+		layout->click();
+		process_events();
+		expect(toggles() == 1 && std::get_if<core::toggle_workbench_one_pane_intent>(&log.Workbench.back()) != nullptr
+				   && !layout->isChecked() && showing(qt::strip_glyph::two_panes),
+			   "a press sends one toggle intent and the toggle keeps the layout the core last decided");
+		// The key from a control that takes no typed text, so no text field
+		// has lifted it.
+		window.activateWindow();
+		layout->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(window.one_pane_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::one_pane),
+			   "outside text input One pane carries its key");
+		window_key(window, Qt::Key_P, Qt::AltModifier | Qt::ShiftModifier);
+		expect(toggles() == 2, "Option-Shift-P sends the same intent");
+		header->click();
+		process_events();
+		expect(headerSourceCalls == 1, "a press on Go to header/source is the View action's dispatch");
+
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			window.setPalette(profile.derive(QApplication::palette()));
+			projection.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::disabled };
+			window.publish(projection);
+			process_events();
+			expect(showing(qt::strip_glyph::two_panes) && !layout->isChecked(), "a theme change repaints the two-pane glyph in the new ink");
+			save(QStringLiteral("two-panes-%1").arg(name));
+			projection.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::enabled };
+			window.publish(projection);
+			process_events();
+			expect(layout->isChecked() && showing(qt::strip_glyph::one_pane) && !showing(qt::strip_glyph::two_panes)
+					   && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key))
+					   && window.comparison_surface()->one_pane_enabled(),
+				   "one pane showing: the toggle is checked, shows one pane and names Two panes with its key");
+			save(QStringLiteral("one-pane-%1").arg(name));
+		}
+
+		auto refusedProjection = every_primary_command_offered();
+		refusedProjection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::toggle_one_pane)]
+			= refused(core::workbench_command_id::toggle_one_pane, core::workbench_reason_code::no_active_workbench);
+		window.publish(refusedProjection);
+		process_events();
+		expect(!layout->isEnabled() && !header->isEnabled() && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key)),
+			   "refused commands disable both buttons, and the toggle still names its key and says why");
+		window.hide();
+	}
 
 	/// \brief [[BPR-1212]]. A composition page shows: it is Discuss's composer
 	/// column, beside the conversations, on the centre's Discuss page.
@@ -1974,11 +2117,16 @@ namespace {
 			wordsGone = wordsGone || !words;
 		}
 		expect(compactFirst > 0, "the modality's shortcuts yield on the way down to the floor");
+		// [[BPR-1255]], [[BPR-1815]]. The floor follows the bar with everything
+		// yielded, or the platform's, whichever is wider. Since the review bar
+		// gained its view controls the yielded bar is the wider at the default
+		// font, so nothing on it folds.
+		const auto yieldedBar = window.review_bar()->sizeHint().width() + std::max(0, window.width() - window.review_bar()->width());
 #if defined(_WIN32)
 		// [[BPR-0653]], [[BPR-1129]]. The owner's floor on Windows is 902. With the
 		// navigation on the review bar, the title row there holds the name and
 		// the whole modality words, with the menu control and caption buttons.
-		expect(window.minimumWidth() == 902, "the Windows title row's width floor is 902");
+		expect(window.minimumWidth() == std::max(902, yieldedBar), "the Windows floor is 902 or the yielded review bar");
 		expect(!window.modality()->abbreviated() && window.identity_label()->isVisible()
 				   && !window.caption_buttons()->isHidden() && !window.strip_menu_button()->isHidden(),
 			   "at the Windows floor the name, the whole modality words and every title-row control show");
@@ -1988,7 +2136,7 @@ namespace {
 				   "at the Windows floor each segment shows its whole word");
 		}
 #else
-		expect(window.minimumWidth() == 900, "the width floor stays 900 off Windows");
+		expect(window.minimumWidth() == std::max(900, yieldedBar), "off Windows the floor is 900 or the yielded review bar");
 #endif
 		// Straight from the default width to the narrowest that keeps the
 		// shortcuts: the rows measure their items in the form this resize
@@ -6069,14 +6217,17 @@ namespace {
 		window.show();
 		publish_positioned_review_bar(window);
 		process_events();
-		expect(window.minimumWidth() == platform_floor_width(), "at the default font the window keeps the platform's floor");
+		// [[BPR-1815]]. With the view controls the yielded bar can be wider
+		// than the platform's floor at the default font; the floor is then the bar's.
+		const auto defaultFloor = window.minimumWidth();
+		expect(defaultFloor >= platform_floor_width() && !review_bar_folded(window), "at the default font the window keeps at least the platform's floor, where nothing folds");
 		const auto normal = window.review_bar()->font();
 		auto       larger = normal;
 		larger.setPointSizeF(normal.pointSizeF() * 3.0);
 		window.review_bar()->setFont(larger);
 		process_events();
 		const auto raised = window.minimumWidth();
-		expect(raised > platform_floor_width(), "a font too large for the floor raises the window's minimum");
+		expect(raised > defaultFloor, "a font too large for the floor raises the window's minimum");
 		window.resize(platform_floor_width(), 820);
 		process_events();
 		expect(window.width() == raised && !review_bar_folded(window),
@@ -6084,7 +6235,7 @@ namespace {
 		expect(window.review_bar()->sizeHint().width() <= raised, "the raised floor holds the bar with everything yielded");
 		window.review_bar()->setFont(normal);
 		process_events();
-		expect(window.minimumWidth() == platform_floor_width(), "the floor returns at the default font");
+		expect(window.minimumWidth() == defaultFloor, "the floor returns at the default font");
 		auto windowFont = window.font();
 		windowFont.setPointSizeF(windowFont.pointSizeF() * 3.0);
 		window.setFont(windowFont);
@@ -6162,13 +6313,21 @@ namespace {
 		// fits at 1280. Its words yield before the comparison's dates and
 		// position; the full wording fits at 1460 on the supported fonts.
 		auto* const composeButton = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.compose_review_action()));
+		// [[BPR-1815]]. The view controls take the width the dates had at 1280:
+		// there the dates yield first, as they always have, and they return by
+		// 1366, the common laptop width.
+		expect(composeButton->text() == QStringLiteral("Approve…") && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
+				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40") && window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS")),
+			   "at 1280 the review bar fits the view controls, the position and \"Approve…\", and the title row names the pull request whole");
+		window.resize(1'366, 852);
+		process_events();
 		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
 				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
 				   && composeButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
 				   && (composeButton->text() == QStringLiteral("Approve…") || composeButton->text() == QStringLiteral("Approve or comment…"))
 				   && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
 				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
-			   "at 1280 the title row names the pull request whole and the review bar fits the comparison's dates, the position and the approve command's words");
+			   "at 1366 the title row names the pull request whole and the review bar fits the comparison's dates, the position and the approve command's words");
 		window.resize(1'460, 852);
 		process_events();
 		expect(window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
@@ -6224,7 +6383,8 @@ namespace {
 				log.Change.push_back(aIntent);
 			}
 		};
-		window.resize(1'280, 852);
+		// [[BPR-1815]]. Wide enough for the comparison's dates beside the view controls.
+		window.resize(1'366, 852);
 		window.show();
 		window.publish(application::github_presentation_update{
 			.PullRequest = application::github_pull_request_projection{
@@ -7826,6 +7986,9 @@ namespace {
 			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep")),
 			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
+			// [[BPR-1815]]. The layout toggle and Go to header/source.
+			barStop(window.one_pane_action()),
+			barStop(window.header_source_action()),
 			barStop(window.compose_review_action()),
 			barStop(window.comment_action()),
 		};
@@ -23457,6 +23620,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_drawer_toggles_follow_core_command_projections", &test_drawer_toggles_follow_core_command_projections);
 	runCase("test_the_view_menu_offers_a_core_decided_line_number_toggle", &test_the_view_menu_offers_a_core_decided_line_number_toggle);
 	runCase("test_the_view_menu_projects_one_pane_without_changing_modality", &test_the_view_menu_projects_one_pane_without_changing_modality);
+	runCase("test_the_review_bar_presents_the_layout_and_header_source", &test_the_review_bar_presents_the_layout_and_header_source);
 	runCase("test_the_view_menu_reaches_the_composed_source_panes", &test_the_view_menu_reaches_the_composed_source_panes);
 	runCase("test_one_pane_places_threads_on_their_own_changed_rows", &test_one_pane_places_threads_on_their_own_changed_rows);
 	runCase("test_collapsing_a_drawer_returns_space_to_the_centre", &test_collapsing_a_drawer_returns_space_to_the_centre);

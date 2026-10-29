@@ -1041,14 +1041,17 @@ namespace bpr::qt {
 		/// file.") or why the arrow is disabled. The status tip carries the
 		/// sentence alone.
 		void describe_navigation_action(
-			QAction* const aAction,
-			const QString& aName,
-			const bool     aEnabled,
-			const QString& aEnabledText,
-			const QString& aDetail)
+			QAction* const                aAction,
+			const QString&                aName,
+			const bool                    aEnabled,
+			const QString&                aEnabledText,
+			const QString&                aDetail,
+			const std::optional<QString>& aKey = std::nullopt)
 		{
 			aAction->setEnabled(aEnabled);
-			const auto key   = aAction->shortcut().toString(QKeySequence::NativeText);
+			// [[BPR-1815]]. A View menu key that typing lifts from the menu bar
+			// is named by the caller, which knows the lifted key.
+			const auto key   = aKey.value_or(aAction->shortcut().toString(QKeySequence::NativeText));
 			const auto title = key.isEmpty() ? aName : QStringLiteral("%1 (%2)").arg(aName, key);
 			aAction->setToolTip(aDetail.isEmpty() ? title : title + QLatin1Char{ '\n' } + aDetail);
 			aAction->setStatusTip(aDetail.isEmpty() ? aEnabledText : aDetail);
@@ -1775,7 +1778,7 @@ namespace bpr::qt {
 		ReviewBar->setAccessibleName(QStringLiteral("Review bar"));
 		ReviewBar->setAccessibleDescription(QStringLiteral(
 			"Updates and the comparison, file and change navigation, private "
-			"progress, Compose review and Comment"));
+			"progress, the layout and header/source, Compose review and Comment"));
 		auto* const barInset = new QWidget{ ReviewBar };
 		barInset->setObjectName(QStringLiteral("reviewBarInset"));
 		barInset->setFocusPolicy(Qt::NoFocus);
@@ -1853,6 +1856,23 @@ namespace bpr::qt {
 			{ .First = ChangePositionAction, .Last = Navigation[3].Action },
 			{ .First = trackAction, .Last = trackAction },
 		});
+		// [[BPR-1815]]. How the file is shown, right of what the reviewer has
+		// done with it: a rule, then the layout toggle and Go to
+		// header/source, icon buttons on no rail. They are the View menu's
+		// own actions, so the bar, the menu and the keys are one command
+		// each, and the core decides the layout.
+		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"));
+		ReviewBar->addAction(OnePaneAction);
+		ReviewBar->addAction(HeaderSourceAction);
+		for (const auto& [action, name] : { std::pair{ OnePaneAction, QStringLiteral("workbenchOnePaneButton") }, std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {
+			if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(action)); button != nullptr) {
+				button->setObjectName(name);
+				button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			}
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(HeaderSourceAction)); button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Go to header/source"));
+		}
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
 		// keys work from anywhere in it without a visible presenter; the bar and
@@ -13778,8 +13798,15 @@ namespace bpr::qt {
 		const auto  reason     = !inReview ? reason_text(core::workbench_reason_code::header_source_requires_review)
 			: editing                      ? tr("Keep Option/Alt text input in the editor. Focus the source comparison to navigate.")
 										   : reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::header_source_no_selection);
-		describe_action(HeaderSourceAction, inReview && !editing && projection && projection->Enabled && static_cast<bool>(HeaderSourceDispatch),
-						tr("Go to the closest matching header or source file in this review"), reason);
+		// [[BPR-1815]]. The review bar presents it, so its tooltip names its
+		// key first, as the arrows beside it do.
+		const auto enabled = inReview && !editing && projection && projection->Enabled && static_cast<bool>(HeaderSourceDispatch);
+		const auto purpose = tr("Go to the closest matching header or source file in this review");
+		describe_navigation_action(HeaderSourceAction, tr("Go to header/source"), enabled, purpose, enabled ? purpose : reason, presented_key(HeaderSourceAction));
+		if (auto* const button = ReviewBar != nullptr ? qobject_cast<QToolButton*>(ReviewBar->widgetForAction(HeaderSourceAction)) : nullptr;
+			button != nullptr && button->accessibleDescription() != HeaderSourceAction->toolTip()) {
+			button->setAccessibleDescription(HeaderSourceAction->toolTip());
+		}
 	}
 
 	auto workbench_window::previous_change_action() const noexcept -> QAction*
@@ -17882,6 +17909,9 @@ namespace bpr::qt {
 			append(ReadStepButton);
 			append(AcceptFileButton);
 			append(ReviewControlsButton);
+			// [[BPR-1815]]. The view controls, as they sit.
+			append(barPresenter(OnePaneAction));
+			append(barPresenter(HeaderSourceAction));
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));
 		}
@@ -18735,6 +18765,9 @@ namespace bpr::qt {
 		OnePaneAction = new QAction{ QStringLiteral("&One pane"), this };
 		OnePaneAction->setObjectName(QStringLiteral("toggleWorkbenchOnePaneAction"));
 		OnePaneAction->setCheckable(true);
+		// [[BPR-1815]]. Its key, and the review bar's layout toggle.
+		OnePaneAction->setShortcuts(shortcut_keys(shortcut_command::one_pane));
+		OnePaneAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(OnePaneAction);
 		ViewMenu->addAction(OnePaneAction);
 		connect(OnePaneAction, &QAction::triggered, this, [this] {
@@ -19308,15 +19341,33 @@ namespace bpr::qt {
 		const auto enabled = OnePaneState.State == core::workbench_one_pane::enabled;
 		OnePaneAction->setChecked(enabled);
 		const auto projection = command(core::workbench_command_id::toggle_one_pane);
-		describe_action(
+		const auto offered    = projection && projection->Enabled;
+		// [[BPR-1815]]. The tooltip's first line is what a press does and its
+		// key, as the file and change arrows' are; the second says what that
+		// layout is, or why the toggle is unavailable.
+		const auto purpose = enabled
+			? QStringLiteral("Show the comparison in two source panes.")
+			: QStringLiteral("Show both sides in one document.");
+		describe_navigation_action(
 			OnePaneAction,
-			projection && projection->Enabled,
-			enabled
-				? QStringLiteral("Show the comparison in two source panes.")
-				: QStringLiteral("Show both sides in one document."),
-			drawer_reason_text(projection
-								   ? projection->DisabledReason
-								   : core::workbench_reason_code::no_active_workbench));
+			enabled ? QStringLiteral("Two panes") : QStringLiteral("One pane"),
+			offered,
+			purpose,
+			offered ? purpose
+					: drawer_reason_text(projection
+											 ? projection->DisabledReason
+											 : core::workbench_reason_code::no_active_workbench),
+			presented_key(OnePaneAction));
+		// The glyph says the layout showing, as Hide drawers' says the drawers.
+		if (OnePaneAction->icon().isNull() || OnePaneAction->property("bprOnePane").toBool() != enabled) {
+			OnePaneAction->setProperty("bprOnePane", enabled);
+			OnePaneAction->setIcon(strip_icon(enabled ? strip_glyph::one_pane : strip_glyph::two_panes, palette()));
+		}
+		if (auto* const button = ReviewBar != nullptr ? qobject_cast<QToolButton*>(ReviewBar->widgetForAction(OnePaneAction)) : nullptr;
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("One pane"));
+			button->setAccessibleDescription(OnePaneAction->toolTip());
+		}
 		if (ComparisonSurface != nullptr) {
 			ComparisonSurface->set_one_pane_enabled(enabled);
 		}
@@ -19833,6 +19884,15 @@ namespace bpr::qt {
 			}
 		}
 		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));
+		// [[BPR-1815]]. The review bar's view controls.
+		if (HeaderSourceAction != nullptr) {
+			HeaderSourceAction->setIcon(strip_icon(strip_glyph::header_source, ink));
+		}
+		if (OnePaneAction != nullptr) {
+			// Cleared so the layout pass paints it again in the new ink.
+			OnePaneAction->setIcon(QIcon{ });
+			apply_one_pane();
+		}
 		if (ToggleDrawersAction != nullptr) {
 			// Painted again in the new ink by the next projection's pass.
 			ToggleDrawersAction->setIcon(QIcon{ });
