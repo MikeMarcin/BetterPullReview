@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1813"
 title: "Observe complete cohort options on a cold configure"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
