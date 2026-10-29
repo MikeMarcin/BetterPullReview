@@ -476,4 +476,200 @@ namespace bpr::core {
 		result += std::string{ tour_navigation_note } + nl + std::string{ aRaw.substr(stop.Footer->End) };
 		return result;
 	}
+
+	namespace {
+		/// \brief A row without its carriage return, as both newline styles write it.
+		auto bare(std::string_view aText) -> std::string_view
+		{
+			return aText.ends_with('\r') ? aText.substr(0, aText.size() - 1) : aText;
+		}
+		/// \brief The inverse of `tour_markdown_label`: a backslash before one of
+		/// the bytes it escapes is dropped; any other byte is kept.
+		auto unescaped_label(std::string_view aLabel) -> std::string
+		{
+			constexpr auto escaped = std::string_view{ "\\`*_{}[]()<>!#|&" };
+			std::string    result;
+			result.reserve(aLabel.size());
+			for (std::size_t at = 0; at < aLabel.size(); ++at) {
+				if (aLabel[at] == '\\' && at + 1 < aLabel.size() && escaped.find(aLabel[at + 1]) != std::string_view::npos) {
+					++at;
+				}
+				result += aLabel[at];
+			}
+			return result;
+		}
+		/// \brief The published heading's number and title, or none.
+		auto published_heading(std::string_view aText) -> std::optional<std::pair<std::size_t, std::string>>
+		{
+			constexpr auto prefix       = std::string_view{ "### PR Tour · " };
+			constexpr auto legacyPrefix = std::string_view{ "### Author's tour · " };
+			constexpr auto dash         = std::string_view{ " — " };
+			auto           size         = std::size_t{ 0 };
+			if (aText.starts_with(prefix)) {
+				size = prefix.size();
+			} else if (aText.starts_with(legacyPrefix)) {
+				size = legacyPrefix.size();
+			} else {
+				return { };
+			}
+			const auto split = aText.find(dash, size);
+			if (split == std::string_view::npos || split - size > 3U || !decimal(aText.substr(size, split - size))) {
+				return { };
+			}
+			auto ordinal = std::size_t{ 0 };
+			for (const auto digit : aText.substr(size, split - size)) {
+				ordinal = ordinal * 10U + static_cast<std::size_t>(digit - '0');
+			}
+			auto title = unescaped_label(trim(aText.substr(split + dash.size())));
+			if (ordinal == 0U || ordinal > maximum_tour_stops || trim(title).empty()) {
+				return { };
+			}
+			return std::pair{ ordinal, std::move(title) };
+		}
+	}
+
+	auto recognize_published_tour_stop(const std::string_view aBody) -> std::optional<published_tour_stop>
+	{
+		if (aBody.size() > maximum_tour_field_bytes) {
+			return { };
+		}
+		const auto rows   = lines(aBody);
+		auto       result = published_tour_stop{ };
+		// The pinned source, alone on the first line, then a blank line.
+		auto heading = std::size_t{ 0 };
+		if (!rows.empty() && !published_heading(bare(rows[0].Text))) {
+			const auto source = bare(rows[0].Text);
+			if (rows.size() < 2U || !rows[0].Top || !safe_destination(source) || !absolute_link(source) || !bare(rows[1].Text).empty()) {
+				return { };
+			}
+			result.PinnedSource = tour_text_span{ rows[0].Begin, rows[0].Begin + source.size() };
+			heading             = 2U;
+		}
+		// The heading, a blank line, the narrative, a blank line and the
+		// navigation: five rows at least.
+		if (heading + 5U > rows.size() || !rows[heading].Top || !bare(rows[heading + 1U].Text).empty()) {
+			return { };
+		}
+		auto parsed = published_heading(bare(rows[heading].Text));
+		if (!parsed) {
+			return { };
+		}
+		result.Ordinal = parsed->first;
+		result.Title   = std::move(parsed->second);
+		// Trailing blank lines only, after the navigation and its note.
+		auto last = rows.size();
+		while (last > heading && trim(rows[last - 1U].Text).empty()) {
+			--last;
+		}
+		if (last < heading + 5U) {
+			return { };
+		}
+		auto links = last - 1U;
+		if (bare(rows[links].Text) == tour_navigation_note) {
+			if (!rows[links].Top) {
+				return { };
+			}
+			--links;
+		}
+		const auto footer = bare(rows[links].Text);
+		if (links < heading + 4U || !rows[links].Top || !trim(rows[links - 1U].Text).empty() || !navigation(footer)) {
+			return { };
+		}
+		auto at = std::size_t{ 0 };
+		while (at < footer.size()) {
+			auto link = read_link(footer, at);
+			if (!link) {
+				return { };
+			}
+			if (link->Label == "Previous") {
+				result.Previous = std::move(link->Destination);
+			} else if (link->Label == "Next") {
+				result.Next = std::move(link->Destination);
+			} else {
+				result.Overview = std::move(link->Destination);
+			}
+			if (at < footer.size()) {
+				at += std::string_view{ " · " }.size();
+			}
+		}
+		// A first stop has nothing before it.
+		if (result.Ordinal == 1U && result.Previous.has_value()) {
+			return { };
+		}
+		// The narrative: the rows between the heading's blank line and the
+		// navigation's, without the blank rows around it.
+		auto first = heading + 2U;
+		auto end   = links - 1U;
+		while (first < end && trim(rows[first].Text).empty()) {
+			++first;
+		}
+		while (end > first && trim(rows[end - 1U].Text).empty()) {
+			--end;
+		}
+		if (first >= end) {
+			return { };
+		}
+		result.Narrative = tour_text_span{ rows[first].Begin, rows[end - 1U].Begin + bare(rows[end - 1U].Text).size() };
+		return result;
+	}
+
+	auto published_tour_stop_counts(const std::span<const published_tour_stop> aStops) -> std::vector<std::optional<std::size_t>>
+	{
+		auto result  = std::vector<std::optional<std::size_t>>(aStops.size());
+		auto visited = std::vector<bool>(aStops.size(), false);
+		for (std::size_t index = 0; index < aStops.size(); ++index) {
+			if (visited[index]) {
+				continue;
+			}
+			auto tour = std::vector<std::size_t>{ };
+			for (std::size_t other = index; other < aStops.size(); ++other) {
+				if (!visited[other] && aStops[other].Overview == aStops[index].Overview) {
+					visited[other] = true;
+					tour.push_back(other);
+				}
+			}
+			const auto count = tour.size();
+			auto       seen  = std::vector<bool>(count + 1U, false);
+			const auto whole = std::ranges::all_of(tour, [&](const std::size_t aMember) {
+				const auto& stop = aStops[aMember];
+				if (stop.Ordinal == 0U || stop.Ordinal > count || seen[stop.Ordinal] || stop.Previous.has_value() != (stop.Ordinal > 1U)
+					|| stop.Next.has_value() != (stop.Ordinal < count)) {
+					return false;
+				}
+				seen[stop.Ordinal] = true;
+				return true;
+			});
+			if (whole) {
+				for (const auto member : tour) {
+					result[member] = count;
+				}
+			}
+		}
+		return result;
+	}
+
+	auto find_published_tour_stop(const review_tour& aTour, const std::string_view aPost, const published_tour_stop& aStop) -> std::optional<tour_stop_id>
+	{
+		const auto named = [aPost](const tour_remote_binding& aRemote) {
+			auto prefix = std::string_view{ };
+			if (aRemote.Kind == tour_remote_kind::conversation_comment) {
+				prefix = "issue-comment:";
+			} else if (aRemote.Kind == tour_remote_kind::line_comment || aRemote.Kind == tour_remote_kind::file_comment) {
+				prefix = "review-comment:";
+			}
+			return !prefix.empty() && !aRemote.Entity.empty() && aPost.starts_with(prefix) && aPost.substr(prefix.size()) == aRemote.Entity;
+		};
+		for (const auto& stop : aTour.Stops) {
+			if (stop.Remote && named(*stop.Remote)) {
+				return stop.Id;
+			}
+		}
+		if (aStop.Ordinal >= 1U && aStop.Ordinal <= aTour.Stops.size()) {
+			const auto& stop = aTour.Stops[aStop.Ordinal - 1U];
+			if (stop.Remote && stop.Title == aStop.Title) {
+				return stop.Id;
+			}
+		}
+		return { };
+	}
 }

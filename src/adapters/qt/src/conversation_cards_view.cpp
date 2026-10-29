@@ -262,6 +262,27 @@ namespace bpr::qt {
 			return header_length_of(aBody, core::recognize_feedback_body(aBody, segment), lead_of(aBody, segment));
 		}
 
+		/// \brief [[BPR-1086, BPR-1806]]. The words a closed note reads from:
+		/// from its lead, and for a published tour stop only to the end of its
+		/// narrative, so the website's navigation is not read.
+		[[nodiscard]] auto narrative_of(const card_post& aPost) -> QString
+		{
+			const auto begin = std::clamp<qsizetype>(aPost.Lead, 0, aPost.Body.size());
+			if (!aPost.TourStop.has_value()) {
+				return aPost.Body.mid(begin);
+			}
+			const auto bytes = aPost.Body.toStdString();
+			const auto end   = std::clamp<qsizetype>(feedback_text_index(bytes, aPost.TourStop->Narrative.End), begin, aPost.Body.size());
+			return aPost.Body.mid(begin, end - begin);
+		}
+
+		/// \brief The text a closed note measures: its narrative, after a tour
+		/// stop's title and line break.
+		[[nodiscard]] auto closed_text(const card_post& aPost) -> QString
+		{
+			return aPost.TourStop.has_value() ? QString::fromStdString(aPost.TourStop->Title) + QChar::LineSeparator + narrative_of(aPost) : narrative_of(aPost);
+		}
+
 		/// \brief A closed note's body: one flowing paragraph, the header in
 		/// semibold and inline code in the code font, backticks dropped as the
 		/// prototype sets them.
@@ -274,14 +295,24 @@ namespace bpr::qt {
 		[[nodiscard]] auto display_of(const card_post& aPost, const QFont& aFont, const QFont& aCodeFont, const QColor& aCodeFill) -> display_text
 		{
 			auto result = display_text{ };
-			auto body   = aPost.Body.mid(std::clamp<qsizetype>(aPost.Lead, 0, aPost.Body.size()));
+			auto body   = narrative_of(aPost);
 			body.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
+			// [[BPR-1806]]. A tour stop's note leads with its title, in
+			// semibold, on a line of its own.
+			if (aPost.TourStop.has_value()) {
+				const auto title = QString::fromStdString(aPost.TourStop->Title);
+				result.Text      = title + QChar::LineSeparator;
+				auto format      = QTextCharFormat{ };
+				format.setFontWeight(QFont::DemiBold);
+				result.Formats.push_back(QTextLayout::FormatRange{ .start = 0, .length = static_cast<int>(title.size()), .format = format });
+			}
+			const auto lead   = result.Text.size();
 			const auto header = std::clamp<qsizetype>(aPost.HeaderLength, 0, body.size());
-			result.Text       = body.left(header);
+			result.Text += body.left(header);
 			if (header > 0) {
 				auto format = QTextCharFormat{ };
 				format.setFontWeight(QFont::DemiBold);
-				result.Formats.push_back(QTextLayout::FormatRange{ .start = 0, .length = static_cast<int>(header), .format = format });
+				result.Formats.push_back(QTextLayout::FormatRange{ .start = static_cast<int>(lead), .length = static_cast<int>(header), .format = format });
 			}
 			auto at = header;
 			while (at < body.size()) {
@@ -740,6 +771,8 @@ namespace bpr::qt {
 		RetainedMarks.clear();
 		RetainedHeaders.clear();
 		RetainedLeads.clear();
+		RetainedTourStops.clear();
+		RetainedTourCounts.clear();
 		index_retained();
 		Draft.reset();
 		Current.clear();
@@ -800,10 +833,12 @@ namespace bpr::qt {
 			RetainedMarks.clear();
 			RetainedHeaders.clear();
 			RetainedLeads.clear();
+			RetainedTourStops.clear();
 			AnnotatedBodies.reserve(Retained.size());
 			RetainedMarks.reserve(Retained.size());
 			RetainedHeaders.reserve(Retained.size());
 			RetainedLeads.reserve(Retained.size());
+			RetainedTourStops.reserve(Retained.size());
 			for (const auto& node : Retained) {
 				// [[BPR-1083, BPR-1086]]. An annotation depends on the exact
 				// accepted body, including a tour stop's narrative boundary.
@@ -820,7 +855,23 @@ namespace bpr::qt {
 				const auto lead = lead_of(body, segment);
 				RetainedLeads.push_back(lead);
 				RetainedHeaders.push_back(recognized ? header_length_of(body, annotation, lead) : 0);
+				// [[BPR-1806]]. A thread's first post may be a published
+				// tour stop; a reply never is one.
+				RetainedTourStops.push_back(node.Deleted ? std::nullopt : core::recognize_published_tour_stop(body));
 				++BodyAnnotations;
+			}
+			auto stops  = std::vector<core::published_tour_stop>{ };
+			auto owners = std::vector<std::size_t>{ };
+			for (std::size_t index = 0U; index < RetainedTourStops.size(); ++index) {
+				if (RetainedTourStops[index].has_value()) {
+					stops.push_back(*RetainedTourStops[index]);
+					owners.push_back(index);
+				}
+			}
+			const auto counts  = core::published_tour_stop_counts(stops);
+			RetainedTourCounts = std::vector<std::optional<std::size_t>>(Retained.size());
+			for (std::size_t index = 0U; index < owners.size(); ++index) {
+				RetainedTourCounts[owners[index]] = counts[index];
 			}
 		}
 		RetainedById.reserve(Retained.size());
@@ -1090,6 +1141,31 @@ namespace bpr::qt {
 	auto conversation_cards_view::comment_edit_offered() const noexcept -> bool
 	{
 		return CommentEditOffered;
+	}
+
+	auto tour_stop_badge(const core::published_tour_stop& aStop, const std::optional<std::size_t> aCount) -> QString
+	{
+		return aCount.has_value() ? QStringLiteral("Stop %1 of %2").arg(aStop.Ordinal).arg(*aCount) : QStringLiteral("Stop %1").arg(aStop.Ordinal);
+	}
+
+	void conversation_cards_view::set_tour_open_offered(const bool aOffered)
+	{
+		if (TourOpenOffered == aOffered) {
+			return;
+		}
+		TourOpenOffered = aOffered;
+		rebuild_open_card();
+	}
+
+	auto conversation_cards_view::tour_open_offered() const noexcept -> bool
+	{
+		return TourOpenOffered;
+	}
+
+	void conversation_cards_view::set_tour_open_dispatch(std::function<void(const std::string&, const core::published_tour_stop&)> aDispatch)
+	{
+		TourOpenDispatch = std::move(aDispatch);
+		rebuild_open_card();
 	}
 
 	auto conversation_cards_view::comment_editable(const std::string_view aPost) const -> bool
@@ -2214,7 +2290,8 @@ namespace bpr::qt {
 			}
 		}
 		// [[BPR-1086]]. From its lead: a published tour stop's narrative.
-		const auto  body   = aCard.Posts.empty() ? QString{ } : aCard.Posts.front().Body.mid(std::clamp<qsizetype>(aCard.Posts.front().Lead, 0, aCard.Posts.front().Body.size()));
+		// [[BPR-1806]]. A tour stop's title, then its narrative alone.
+		const auto  body   = aCard.Posts.empty() ? QString{ } : closed_text(aCard.Posts.front());
 		const auto  marked = !aCard.Posts.empty() && aCard.Posts.front().Label.has_value();
 		const auto& cached = Measurements.Notes.find(aCard.Id);
 		if (cached != Measurements.Notes.end() && cached->second.Body == body && cached->second.Resolved == aCard.Resolved
@@ -2237,7 +2314,9 @@ namespace bpr::qt {
 			const auto header  = std::clamp<qsizetype>(aCard.Posts.front().HeaderLength, 0, flowing.size());
 			const auto advance = QFontMetrics{ semibold(font()) }.horizontalAdvance(flowing.left(header))
 				+ QFontMetrics{ font() }.horizontalAdvance(flowing.mid(header));
-			count = advance <= width ? 1 : lines;
+			// [[BPR-1806]]. A tour stop's title has its own line.
+			count = aCard.Posts.front().TourStop.has_value() ? lines : advance <= width ? 1
+																						: lines;
 		}
 		measure.Lines = count;
 		// [[BPR-1374]]. What became of a reply's thread, under the name, in
@@ -2344,17 +2423,19 @@ namespace bpr::qt {
 				const auto& mark   = RetainedMarks[index];
 				const auto  author = text(node.AuthorLogin);
 				card.Posts.push_back(card_post{
-					.Id           = node.Id,
-					.Author       = author,
-					.Body         = text(node.ReviewerProse.value_or(node.Body)),
-					.Mine         = !Viewer.isEmpty() && author == Viewer,
-					.Unread       = card.RootUnread,
-					.Role         = !PullRequestAuthor.isEmpty() && author == PullRequestAuthor ? QStringLiteral("author") : QStringLiteral("reviewer"),
-					.Label        = mark.Label,
-					.Emphasis     = mark.Emphasis,
-					.Name         = feedback_post_name(author, mark),
-					.HeaderLength = RetainedHeaders[index],
-					.Lead         = RetainedLeads[index],
+					.Id            = node.Id,
+					.Author        = author,
+					.Body          = text(node.ReviewerProse.value_or(node.Body)),
+					.Mine          = !Viewer.isEmpty() && author == Viewer,
+					.Unread        = card.RootUnread,
+					.Role          = !PullRequestAuthor.isEmpty() && author == PullRequestAuthor ? QStringLiteral("author") : QStringLiteral("reviewer"),
+					.Label         = mark.Label,
+					.Emphasis      = mark.Emphasis,
+					.Name          = feedback_post_name(author, mark),
+					.HeaderLength  = RetainedHeaders[index],
+					.Lead          = RetainedLeads[index],
+					.TourStop      = RetainedTourStops[index],
+					.TourStopCount = RetainedTourCounts[index],
 				});
 			}
 			cardsById.emplace(node.Id, Cards.size());
@@ -2403,21 +2484,24 @@ namespace bpr::qt {
 					replyingTo = text(Retained[parent->second].AuthorLogin);
 				}
 			}
-			const auto& mark = RetainedMarks[index];
+			const auto& mark      = RetainedMarks[index];
+			const auto  firstPost = target.Posts.empty();
 			target.Posts.push_back(card_post{
-				.Id           = node.Id,
-				.Author       = author,
-				.Body         = text(node.ReviewerProse.value_or(node.Body)),
-				.Depth        = depth,
-				.Mine         = !Viewer.isEmpty() && author == Viewer,
-				.Unread       = unread,
-				.Role         = !PullRequestAuthor.isEmpty() && author == PullRequestAuthor ? QStringLiteral("author") : QStringLiteral("reviewer"),
-				.ReplyingTo   = replyingTo,
-				.Label        = mark.Label,
-				.Emphasis     = mark.Emphasis,
-				.Name         = feedback_post_name(author, mark),
-				.HeaderLength = RetainedHeaders[index],
-				.Lead         = RetainedLeads[index],
+				.Id            = node.Id,
+				.Author        = author,
+				.Body          = text(node.ReviewerProse.value_or(node.Body)),
+				.Depth         = depth,
+				.Mine          = !Viewer.isEmpty() && author == Viewer,
+				.Unread        = unread,
+				.Role          = !PullRequestAuthor.isEmpty() && author == PullRequestAuthor ? QStringLiteral("author") : QStringLiteral("reviewer"),
+				.ReplyingTo    = replyingTo,
+				.Label         = mark.Label,
+				.Emphasis      = mark.Emphasis,
+				.Name          = feedback_post_name(author, mark),
+				.HeaderLength  = RetainedHeaders[index],
+				.Lead          = RetainedLeads[index],
+				.TourStop      = firstPost ? RetainedTourStops[index] : std::nullopt,
+				.TourStopCount = firstPost ? RetainedTourCounts[index] : std::nullopt,
 			});
 		}
 		// [[BPR-1779]]. In time order the core keeps the comments it lists, in
@@ -2640,7 +2724,8 @@ namespace bpr::qt {
 
 			+ QString::number(static_cast<int>(ResolutionOffered)) + QString::number(static_cast<int>(Feed))
 			+ card.Excerpt + card.Verdict + Viewer + QChar{ 0x1f } + QString::fromStdString(Picked) + QString::number(static_cast<int>(card.Writing))
-			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment)) + QString::number(static_cast<int>(CommentEditOffered));
+			+ QChar{ 0x1f } + card.Notice + QString::number(static_cast<int>(card.KeepableAsComment)) + QString::number(static_cast<int>(CommentEditOffered))
+			+ QString::number(static_cast<int>(TourOpenOffered && static_cast<bool>(TourOpenDispatch)));
 		for (const auto& post : card.Posts) {
 			// [[BPR-1775]]. Who wrote it decides Edit, so it is drawn too.
 			key += QChar{ 0x1e } + QString::fromStdString(post.Id) + QChar{ 0x1f } + post.Body + QChar{ 0x1f } + post.Author + QString::number(static_cast<int>(post.Mine));
@@ -2675,6 +2760,7 @@ namespace bpr::qt {
 			.Picked            = Picked,
 		};
 		style.CommentEditOffered     = CommentEditOffered;
+		style.TourOpenOffered        = TourOpenOffered && static_cast<bool>(TourOpenDispatch);
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
 		style.CodeTheme              = CodeTheme;
@@ -2781,7 +2867,14 @@ namespace bpr::qt {
 		OpenCard->present_reactions([this](const std::string& aPost) { return reactions_of(aPost); });
 		// [[BPR-1775]]. Edit on my own comment, and its editor's gestures.
 		OpenCard->EditRequested = [this](const std::string& aPost) { static_cast<void>(begin_comment_edit(aPost)); };
-		OpenCard->EditText      = [this](const std::string& aText) {
+		// [[BPR-1806]]. Open in tour on a published tour stop.
+		OpenCard->TourOpenRequested = [this](const std::string& aPost, const core::published_tour_stop& aStop) {
+			const auto dispatch = TourOpenDispatch;
+			if (dispatch && TourOpenOffered) {
+				dispatch(aPost, aStop);
+			}
+		};
+		OpenCard->EditText = [this](const std::string& aText) {
 			if (CommentEdit.has_value() && !CommentEdit->Saving) {
 				CommentEdit->Text = aText;
 			}
@@ -3397,9 +3490,26 @@ namespace bpr::qt {
 		aPainter.setPen(colours.Ink);
 		// [[BPR-1803]]. Mine is named by my login, as anyone's is; a draft
 		// says what it is in the meta at the right and its dashed frame.
-		const auto who = shown_author(root.Author);
-		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter,
-						  QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left)));
+		const auto who      = shown_author(root.Author);
+		const auto shownWho = QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left));
+		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter, shownWho);
+		// [[BPR-1806]]. A published tour stop says so beside its author: the
+		// tour's route marker, then "Stop 6 of 9".
+		if (!aCard.Draft && root.TourStop.has_value()) {
+			const auto badge = tour_stop_badge(*root.TourStop, root.TourStopCount);
+			const auto x     = left + QFontMetrics{ bold }.horizontalAdvance(shownWho) + 8;
+			const auto room  = right - x - 12;
+			if (room > 24) {
+				aPainter.save();
+				aPainter.setPen(Qt::NoPen);
+				aPainter.setBrush(colours.Route);
+				aPainter.drawEllipse(QRectF{ static_cast<qreal>(x), top + (nameH - 8) / 2.0, 8.0, 8.0 });
+				aPainter.setFont(small);
+				aPainter.setPen(colours.Ink2);
+				aPainter.drawText(QRect{ x + 12, top, room, nameH }, Qt::AlignLeft | Qt::AlignVCenter, smallMetrics.elidedText(badge, Qt::ElideRight, room));
+				aPainter.restore();
+			}
+		}
 		// [[BPR-1374]]. What became of the thread a reply answers, whole,
 		// under the name and above the words.
 		auto bodyTop = top + nameH + 1;

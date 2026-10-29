@@ -2162,6 +2162,37 @@ namespace {
 				const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
 				expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a description body naming another pull request never launches");
 			}
+			// [[BPR-1804]]. A reviewer search and a review request go the same
+			// way: fixed documents, exact bodies on stdin, no witness.
+			{
+				auto search = application::review_reviewer_request{
+					.Target         = binding.Target.Semantic,
+					.ActingIdentity = binding.ActingIdentity.Account,
+					.Operation      = application::review_reviewer_operation::search,
+					.Query          = "sam",
+					.LiveBinding    = binding,
+				};
+				auto ask      = search;
+				ask.Operation = application::review_reviewer_operation::request;
+				ask.Query.clear();
+				ask.User  = "U_kgDOsam";
+				ask.Login = "sam";
+				for (const auto& graphql : { compile_reviewer_request(search, profile->server_contract()), compile_reviewer_request(ask, profile->server_contract()) }) {
+					expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "a reviewer operation compiles at the GraphQL root");
+					const auto launches = process.Calls;
+					const auto answered = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, { });
+					const auto args     = gh_arguments(*process.LastRequest);
+					expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == launches + 1U && args[0] == "api" && args[1] == "graphql"
+							   && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql->Body
+							   && std::ranges::none_of(args, [](const std::string& aArgument) { return aArgument.find("U_kgDOsam") != std::string::npos; }),
+						   "a reviewer search and request go by gh api graphql with the exact body on stdin, never in the arguments");
+					auto changed = *graphql;
+					changed.Body.replace(changed.Body.find("PR_kwDO"), 7U, "PR_xxDO");
+					const auto before  = process.Calls;
+					const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
+					expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a reviewer body naming another pull request never launches");
+				}
+			}
 			{
 				process.Result   = std::unexpected{ github_cli_process_failure::timeout };
 				const auto write = compile_description_request(description, profile->server_contract());

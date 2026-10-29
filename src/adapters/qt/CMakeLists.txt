@@ -90,6 +90,7 @@ add_library(
         src/markdown_github_html.cpp
         src/markdown_github_math.cpp
         src/pull_request_overview_page.cpp
+        src/reviewer_picker.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp
         src/conversation_glyphs.cpp
