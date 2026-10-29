@@ -8,6 +8,7 @@
 #include "bpr/application/github_epoch_handoff.hpp"
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/application/identity_avatar_window.hpp"
 #include "bpr/application/markdown_image_window.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/public_preview_projection.hpp"
@@ -135,7 +136,10 @@ namespace bpr::application {
 		/// \brief RFC-BPR-0084. Admits a rendered body's image references against the
 		/// current publication and starts their resolution and loads; results arrive
 		/// as `github_presentation_update::Images`.
-		void               request_markdown_images(const core::markdown_image_intent& aIntent);
+		void request_markdown_images(const core::markdown_image_intent& aIntent);
+		/// \brief [[BPR-1807]]. Admits the people's pictures a presentation drew and
+		/// starts their loads; results arrive as `github_presentation_update::Avatars`.
+		void               request_identity_avatars(std::span<const core::identity_avatar_intent> aIntents);
 		void               cancel();
 		void               shutdown();
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;

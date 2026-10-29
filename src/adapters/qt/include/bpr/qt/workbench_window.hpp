@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_WORKBENCH_WINDOW_HPP
 #include "bpr/core/conversation_reply.hpp"
+#include "bpr/core/identity_avatar_picture.hpp"
 
 #include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/application/profile_management_projection.hpp"
@@ -131,6 +132,7 @@ namespace bpr::qt {
 	enum class overview_drawer_tab : std::uint8_t;
 	enum class overview_tour_gesture : std::uint8_t;
 	class dif_catalog_provider;
+	class identity_avatar_pictures;
 	class feedback_mark_preview;
 	class feedback_label_columns_editor;
 	class dif_cue_router;
@@ -1714,6 +1716,13 @@ namespace bpr::qt {
 		/// \brief RFC-BPR-0084. Sends a rendered body's image references, with this
 		/// window's accepted Markdown context, to the application.
 		void set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch);
+		/// \brief [[BPR-1807]]. Sends the people's pictures this window's faces ask
+		/// for, as logins and device sizes, to the application.
+		void set_identity_avatar_dispatch(std::function<void(std::vector<core::identity_avatar_intent>)> aDispatch);
+		/// \brief [[BPR-1807]]. Applies the profile's accepted avatar style.
+		void adopt_avatar_style(core::identity_avatar_style aStyle);
+		/// \brief [[BPR-1807]]. The pictures every face in this window is drawn from.
+		[[nodiscard]] auto identity_avatar_pictures() const noexcept -> qt::identity_avatar_pictures*;
 		/// \brief [[BPR-1562]]. Sends the fenced code of the description and
 		/// the open thread's posts to the application's classification host.
 		void set_markdown_code_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
@@ -3164,8 +3173,11 @@ namespace bpr::qt {
 
 		std::function<core::markdown_link_result(const core::markdown_link_intent&)> MarkdownDispatch;
 		std::function<void(const core::markdown_image_intent&)>                      MarkdownImageDispatch;
-		std::function<void(std::vector<application::markdown_code_syntax_request>)>  MarkdownCodeDispatch;
-		std::string                                                                  MarkdownAuthority;
+		qt::identity_avatar_pictures*                                                AvatarPictures = nullptr;
+		/// [[BPR-1807]]. The profile, host and account the pictures were asked under.
+		std::string                                                                 AvatarScope;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> MarkdownCodeDispatch;
+		std::string                                                                 MarkdownAuthority;
 		/// [[BPR-1338]]. Open on GitHub and what it names.
 		std::function<core::markdown_link_result(const application::pull_request_page_intent&)> PageDispatch;
 		std::function<core::markdown_link_result(core::reference_page)>                         ReferenceDispatch;

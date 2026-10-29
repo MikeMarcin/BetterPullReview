@@ -2428,8 +2428,17 @@ function(bpr_verify_full_application_digest source_variable)
 	# draft path, or Overview's new pull request comment), and Go to draft
 	# opens it. No credential, grant, provider, mutation, publication or
 	# source-inventory change; the mutation-branch pin is unchanged.
+	# [[BPR-1807]] avatar-picture reseal (2026-10-28). github_application.cpp
+	# gives each window's identity_avatar_pictures the profile's avatar style
+	# (Appearance > People) and sends the logins and sizes its faces ask for to
+	# the window read host's request_identity_avatars, which fetches through the
+	# existing profile image lane. The appearance dispatch gains
+	# apply_avatar_style_intent. No credential, grant, provider, mutation,
+	# publication or source-inventory change; the mutation-branch pin is
+	# unchanged. Main's own pin (924be92d) no longer matched main's file
+	# (f70fc745) when this reseal was taken.
 	set(bpr_expected_full_application_digest
-		"924be92d043590e1f6083537d530b89d82187a0560e66974e6854faa4161b0e7"
+		"7bfdbb3b362267b8fc94e024c71728bd87f399021cbde0469574fef632559e71"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2683,8 +2692,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # only. Draft comment on every Agent tab answer replaces Use as reply; it
 # writes private drafts through the existing reply, line-draft and new
 # pull request comment paths. No grant, mutation or publication change.
+# [[BPR-1807]] avatar-picture reseal (2026-10-28): github_application.cpp
+# only. Avatar style adoption, the avatar style appearance intent and each
+# window's picture dispatch. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "62203700e80166cc2be74db1b18a4c83662dcff2d7d2245fee09c2a9488a5e42"
+        "e7028dea07aafccb1642ec792405524340960b57534a8c2389b495f6655fecd4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

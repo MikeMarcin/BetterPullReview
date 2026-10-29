@@ -316,6 +316,27 @@ namespace bpr::application {
 		}
 	};
 
+	/// \brief [[BPR-1807]]. The state of one person's picture at one size.
+	/// \details `Login` is case-folded; `Pixels` is the size asked for. A
+	/// loaded picture carries its decoded pixels; any other state keeps the
+	/// generated initials.
+	struct identity_avatar_projection
+	{
+		std::string                                   Login;
+		std::uint32_t                                 Pixels = 0U;
+		core::markdown_image_state                    State  = core::markdown_image_state::loading;
+		std::shared_ptr<const markdown_decoded_image> Image;
+
+		auto operator<=>(const identity_avatar_projection& aOther) const
+		{
+			return std::tie(Login, Pixels, State) <=> std::tie(aOther.Login, aOther.Pixels, aOther.State);
+		}
+		auto operator==(const identity_avatar_projection& aOther) const -> bool
+		{
+			return (*this <=> aOther) == 0 && Image == aOther.Image;
+		}
+	};
+
 	/// \brief Describes the github pull request projection record.
 	struct github_pull_request_projection
 	{
@@ -405,6 +426,8 @@ namespace bpr::application {
 		std::optional<github_cached_overview_projection> CachedOverview           = std::nullopt;
 		/// RFC-BPR-0084. Images of this window's rendered bodies that changed state.
 		std::vector<markdown_image_projection> Images{ };
+		/// [[BPR-1807]]. People's pictures this window asked for that changed state.
+		std::vector<identity_avatar_projection> Avatars{ };
 
 		auto operator<=>(const github_presentation_update&) const = default;
 	};
