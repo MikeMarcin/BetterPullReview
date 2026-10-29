@@ -18,7 +18,7 @@ endif()
 
 project(
     BetterPullReview
-    VERSION 0.4.0
+    VERSION 0.4.1
     DESCRIPTION "Native GitHub pull-request review workbench"
     HOMEPAGE_URL "https://github.com/MikeMarcin/BetterPullReview"
     LANGUAGES C CXX
