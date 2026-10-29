@@ -2473,7 +2473,7 @@ namespace bpr::qt {
 			card.Line       = core::thread_bound_anchor(saved->Anchor) ? std::nullopt : std::optional{ saved->Anchor.Line + 1U };
 			const auto mark = feedback_body_mark_of(saved->Body);
 			card.Posts.push_back(card_post{
-				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
+				.Author       = Viewer,
 				.Body         = text(saved->Body),
 				.Mine         = true,
 				.Label        = mark.Label,
@@ -2520,7 +2520,7 @@ namespace bpr::qt {
 			const auto mark = feedback_body_mark_of(draft->Body);
 			if (!writing) {
 				card.Posts.push_back(card_post{
-					.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
+					.Author       = Viewer,
 					.Body         = text(draft->Body),
 					.Mine         = true,
 					.Label        = mark.Label,
@@ -2555,7 +2555,7 @@ namespace bpr::qt {
 			}
 			const auto mark = feedback_body_mark_of(draft.Body);
 			card.Posts.push_back(card_post{
-				.Author       = Viewer.isEmpty() ? QStringLiteral("you") : Viewer,
+				.Author       = Viewer,
 				.Body         = text(draft.Body),
 				.Mine         = true,
 				.Label        = mark.Label,
@@ -3210,7 +3210,7 @@ namespace bpr::qt {
 					chip->Draft      = card.Draft;
 					chip->Unread     = card.UnreadCount > 0U;
 					set_if_changed(chip->text(), [chip](const QString& aValue) { chip->setText(aValue); }, QString::number(card.Line.value_or(0U)));
-					const auto author = card.Posts.empty() ? QString{ } : (card.Posts.front().Mine ? QStringLiteral("you") : card.Posts.front().Author);
+					const auto author = card.Posts.empty() ? QString{ } : shown_author(card.Posts.front().Author);
 					auto       first  = card.Posts.empty() ? QString{ } : card.Posts.front().Body;
 					first.replace(QLatin1Char{ '`' }, QString{ });
 					first.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' });
@@ -3343,7 +3343,7 @@ namespace bpr::qt {
 			// [[BPR-1374]]. My reply written in this thread and not sent, in
 			// the writing blue, at full strength on a resolved note too.
 			if (!meta.UnsentReply.isEmpty()) {
-				const auto words = QStringLiteral("Your reply");
+				const auto words = QStringLiteral("Draft reply");
 				aPainter.save();
 				aPainter.setOpacity(1.0);
 				aPainter.setPen(colours.Signal);
@@ -3392,9 +3392,9 @@ namespace bpr::qt {
 		}
 		aPainter.setFont(bold);
 		aPainter.setPen(colours.Ink);
-		const auto who = aCard.Draft ? (aCard.UnsentReply.has_value() ? QStringLiteral("Your reply") : aCard.MovedSuggestion ? QStringLiteral("Your suggestion")
-																															 : QStringLiteral("Your note"))
-									 : (root.Mine ? QStringLiteral("you") : root.Author);
+		// [[BPR-1803]]. Mine is named by my login, as anyone's is; a draft
+		// says what it is in the meta at the right and its dashed frame.
+		const auto who = shown_author(root.Author);
 		aPainter.drawText(QRect{ left, top, std::max(0, right - left), nameH }, Qt::AlignLeft | Qt::AlignVCenter,
 						  QFontMetrics{ bold }.elidedText(who, Qt::ElideRight, std::max(0, right - left)));
 		// [[BPR-1374]]. What became of the thread a reply answers, whole,
@@ -3544,7 +3544,7 @@ namespace bpr::qt {
 			right -= w + 6;
 		}
 		if (aCard.UnsentReply.has_value()) {
-			const auto w     = QFontMetrics{ scaled(font(), 0.92) }.horizontalAdvance(QStringLiteral("Your reply"));
+			const auto w     = QFontMetrics{ scaled(font(), 0.92) }.horizontalAdvance(QStringLiteral("Draft reply"));
 			meta.UnsentReply = QRectF{ static_cast<qreal>(right - w - 16), top, static_cast<qreal>(w + 16), static_cast<qreal>(nameH) };
 			right -= w + 16 + 8;
 		}

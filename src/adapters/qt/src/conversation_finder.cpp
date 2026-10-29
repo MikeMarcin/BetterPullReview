@@ -195,7 +195,7 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto who(const finder_post& aPost) -> QString
 		{
-			return aPost.Mine ? QStringLiteral("you") : aPost.Author;
+			return shown_author(aPost.Author);
 		}
 
 		[[nodiscard]] auto first_words(const QString& aWords, const int aCharacters) -> QString
@@ -485,8 +485,7 @@ namespace bpr::qt {
 		if (aSearch.isEmpty()) {
 			return false;
 		}
-		return aPost.Body.contains(aSearch, Qt::CaseInsensitive) || aPost.Author.contains(aSearch, Qt::CaseInsensitive)
-			|| (aPost.Mine && QStringLiteral("you").contains(aSearch, Qt::CaseInsensitive));
+		return aPost.Body.contains(aSearch, Qt::CaseInsensitive) || aPost.Author.contains(aSearch, Qt::CaseInsensitive);
 	}
 
 	/// \brief One item the list can show: a file's header or a conversation's row.

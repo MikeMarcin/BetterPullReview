@@ -712,6 +712,11 @@ namespace bpr::qt {
 							  { .Window = aColours.Drawer, .Base = aColours.Panel }, aFont);
 	}
 
+	auto shown_author(const QString& aLogin) -> QString
+	{
+		return aLogin.isEmpty() ? QStringLiteral("Unknown author") : aLogin;
+	}
+
 	post_tool::post_tool(const conversation_glyph aGlyph, const note_colours& aColours, QWidget* const aParent)
 		: QAbstractButton{ aParent }
 		, Glyph{ aGlyph }
@@ -788,7 +793,7 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("threadPost"));
 		setProperty("postIdentity", QString::fromStdString(aPost.Id));
-		setAccessibleName(aPost.Name.isEmpty() ? aPost.Author : aPost.Name);
+		setAccessibleName(aPost.Name.isEmpty() ? shown_author(aPost.Author) : aPost.Name);
 		setAccessibleDescription(aPost.Unread ? QStringLiteral("New") : QString{ });
 		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Preferred);
 		// RFC-BPR-0036. The body reads through the shared Markdown reader, in
@@ -807,11 +812,11 @@ namespace bpr::qt {
 		Reader->set_body(aPost.Body.toStdString(), aPost.Id);
 		auto* const rendered = Reader->rendered_view();
 		rendered->setObjectName(QStringLiteral("threadPostBody"));
-		rendered->setAccessibleName(QStringLiteral("Post by %1").arg(aPost.Author));
+		rendered->setAccessibleName(QStringLiteral("Post by %1").arg(shown_author(aPost.Author)));
 		rendered->setAccessibleDescription(QStringLiteral("Read-only post. Tab visits its links; Return opens the link. Wide code and tables scroll sideways."));
 		auto* const source = Reader->source_view();
 		source->setObjectName(QStringLiteral("threadPostSourceText"));
-		source->setAccessibleName(QStringLiteral("Source of the post by %1").arg(aPost.Author));
+		source->setAccessibleName(QStringLiteral("Source of the post by %1").arg(shown_author(aPost.Author)));
 		Reader->set_height_observer([this] {
 			updateGeometry();
 			place_children();
@@ -1167,7 +1172,7 @@ namespace bpr::qt {
 		const auto tools = room.right() + 1;
 		// [[BPR-1757]]. A long name elides before the post's tools
 		// and says itself whole in its tooltip.
-		const auto who = QFontMetrics{ bold }.elidedText(Post.Mine ? QStringLiteral("you") : Post.Author, Qt::ElideRight, std::max(0, tools - x));
+		const auto who = QFontMetrics{ bold }.elidedText(shown_author(Post.Author), Qt::ElideRight, std::max(0, tools - x));
 		painter.setFont(bold);
 		painter.setPen(colours.Ink);
 		painter.drawText(QRect{ x, post_padding, std::max(0, tools - x), name }, Qt::AlignLeft | Qt::AlignVCenter, who);
@@ -1200,13 +1205,13 @@ namespace bpr::qt {
 				return true;
 			}
 			if (QRect{ gut_left, post_padding, avatar_size, avatar_size }.contains(point)) {
-				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, Post.Mine ? QStringLiteral("%1 (you)").arg(Post.Author) : Post.Author);
+				show_anchored_tooltip(*this, QRect{ gut_left, post_padding, avatar_size, avatar_size }, shown_author(Post.Author));
 				return true;
 			}
 			// [[BPR-1757]]. A name cut short says itself whole.
-			if (const auto room = name_rect(); room.contains(point) && !Post.Mine
-				&& QFontMetrics{ semibold(font()) }.horizontalAdvance(Post.Author) > room.width()) {
-				show_anchored_tooltip(*this, room, Post.Author);
+			if (const auto room = name_rect(); room.contains(point)
+				&& QFontMetrics{ semibold(font()) }.horizontalAdvance(shown_author(Post.Author)) > room.width()) {
+				show_anchored_tooltip(*this, room, shown_author(Post.Author));
 				return true;
 			}
 			hide_anchored_tooltip();

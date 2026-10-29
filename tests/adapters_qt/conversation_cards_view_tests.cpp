@@ -2502,9 +2502,9 @@ namespace {
 		expect(chips.size() == 2U && chips[0]->property("reactionContent").toInt() == static_cast<int>(core::reaction_content::thumbs_up)
 				   && chips[1]->property("reactionContent").toInt() == static_cast<int>(core::reaction_content::heart),
 			   "the post's reactions are its chips, in GitHub's order");
-		expect(chips[0]->toolTip() == QStringLiteral("someone and octocat reacted with thumbs up") && chips[1]->toolTip() == QStringLiteral("You reacted with heart")
+		expect(chips[0]->toolTip() == QStringLiteral("someone and octocat reacted with thumbs up") && chips[1]->toolTip() == QStringLiteral("reviewer-one reacted with heart")
 				   && chips[0]->accessibleName() == QStringLiteral("Thumbs up 2") && chips[1]->accessibleDescription().contains(QStringLiteral("Press to remove yours")),
-			   "a chip says who reacted, and that pressing it adds or removes mine");
+			   "a chip says who reacted, me by my login as anyone, and that pressing it adds or removes mine");
 		expect(chips[1]->y() > first->findChild<QWidget*>(QStringLiteral("threadPostReader"))->geometry().bottom() - first->findChild<QWidget*>(QStringLiteral("reactionBar"))->y(),
 			   "the chips sit under the body");
 		chips[0]->click();
@@ -2523,7 +2523,7 @@ namespace {
 		expect(picker != nullptr, "Add reaction opens the picker");
 		auto options = picker->findChildren<QAbstractButton*>(QStringLiteral("reactionPickerOption"));
 		std::ranges::sort(options, { }, [](const QAbstractButton* aOption) { return aOption->x(); });
-		expect(options.size() == 8U && options[5]->isChecked() && options[5]->accessibleName() == QStringLiteral("Heart, you reacted")
+		expect(options.size() == 8U && options[5]->isChecked() && options[5]->accessibleName() == QStringLiteral("Heart, added")
 				   && std::ranges::count_if(options, &QAbstractButton::isChecked) == 1 && options[5]->hasFocus(),
 			   "the picker offers the eight reactions, mine checked and focused");
 		key_click(options[5], Qt::Key_Right);
@@ -2541,6 +2541,10 @@ namespace {
 		expect(open_picker() == nullptr && asked.size() == 3U, "Esc closes the picker without asking for anything");
 
 		auto* const second = post_named(view, QStringLiteral("review-comment:C2"));
+		// [[BPR-1803]]. My post is named by my login, as anyone's is.
+		const auto* const mine = second == nullptr ? nullptr : second->findChild<QWidget*>(QStringLiteral("threadPostBody"));
+		expect(mine != nullptr && mine->accessibleName() == QStringLiteral("Post by reviewer-one") && second->accessibleName() == QStringLiteral("reviewer-one"),
+			   "my own post is named by my GitHub login, not \"you\"");
 		expect(second != nullptr && chips_of(second).empty() && second->findChild<QWidget*>(QStringLiteral("threadPostReact"))->isHidden(),
 			   "a post GitHub does not let me react to offers no Add reaction");
 		reactions["C2"].Groups.push_back(core::reaction_group{ .Content = core::reaction_content::eyes, .Count = 3U });
@@ -2556,7 +2560,7 @@ namespace {
 		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
 		const auto shown = chips_of(post_named(view, QStringLiteral("review-comment:C1")));
 		expect(heldCard && heldCard == view.open_card() && shown.size() == 2U && shown[0]->accessibleName() == QStringLiteral("Thumbs up 3")
-				   && shown[0]->toolTip() == QStringLiteral("You, someone and octocat reacted with thumbs up, waiting for GitHub"),
+				   && shown[0]->toolTip() == QStringLiteral("reviewer-one, someone and octocat reacted with thumbs up, waiting for GitHub"),
 			   "new counts are shown in place, without rebuilding the thread, and say they wait for GitHub");
 		view.hide();
 	}
@@ -2659,6 +2663,67 @@ namespace {
 			view.hide();
 		}
 	}
+	/// [[BPR-1803]]. The owner, 2026-10-28: "I don't like the comments or
+	/// windows saying "you" id rather just always have our GitHub names like
+	/// everyone else". My thread, my reply and my unpublished note are named
+	/// by my login; with no login known, a note is an unknown author's, as
+	/// other surfaces say, never "you". With a directory, the light list and
+	/// my open thread are drawn there.
+	auto test_my_posts_are_named_by_my_login(const QString& aDirectory) -> void
+	{
+		qt::conversation_cards_view view;
+		view.resize(420, 640);
+		view.show();
+		QApplication::processEvents();
+		auto lineY = std::map<std::uint32_t, int>{ { 10U, 80 }, { 30U, 300 } };
+		view.set_line_locator([&lineY](core::diff_side, const std::uint32_t aLine) -> std::optional<int> {
+			const auto found = lineY.find(aLine);
+			return found == lineY.end() ? std::nullopt : std::optional{ found->second };
+		});
+		view.set_anchor_file(core::file_identity_of("src/a.cpp"));
+		view.set_viewer_login(QStringLiteral("reviewer-one"));
+		view.adopt({ thread("review-thread:T1", "src/a.cpp", 10U), reply("review-comment:C1", "review-thread:T1", "reviewer-one", "Should this cache be per frame?"),
+					 reply("review-comment:C2", "review-comment:C1", "someone", "Per frame, yes."), reply("review-comment:C3", "review-comment:C2", "reviewer-one", "Thanks, resolving.") });
+		auto note   = core::review_comment_draft{ };
+		note.Id     = core::review_draft_id{ 5U };
+		note.Anchor = core::source_line_ref{ .Comparison = core::file_comparison_digest{ }, .Side = core::diff_side::right, .Line = 29U };
+		note.Body   = "nit: this could be constexpr.";
+		view.set_draft(std::nullopt, core::file_comparison_digest{ });
+		view.set_saved_drafts({ note });
+		QApplication::processEvents();
+		const auto cardOn = [&view](const std::uint32_t aLine, const bool aDraft) {
+			return std::ranges::find_if(view.cards(), [aLine, aDraft](const qt::thread_card& aCard) { return aCard.Draft == aDraft && aCard.Line == std::optional{ aLine }; });
+		};
+		const auto mine  = cardOn(10U, false);
+		const auto draft = cardOn(30U, true);
+		expect(mine != view.cards().end() && mine->Posts.size() == 3U && mine->Posts.front().Mine && mine->Posts.front().Author == QStringLiteral("reviewer-one")
+				   && mine->Posts.back().Author == QStringLiteral("reviewer-one"),
+			   "my thread and my reply are named by my login");
+		expect(draft != view.cards().end() && !draft->Posts.empty() && draft->Posts.front().Author == QStringLiteral("reviewer-one"), "my unpublished note is named by my login");
+		if (!aDirectory.isEmpty()) {
+			view.grab().save(aDirectory + QStringLiteral("/list-light.png"));
+		}
+		view.open_thread("review-thread:T1");
+		QApplication::processEvents();
+		auto* const post = post_named(view, QStringLiteral("review-comment:C3"));
+		expect(post != nullptr && post->accessibleName() == QStringLiteral("reviewer-one"), "my open reply is named by my login");
+		if (!aDirectory.isEmpty() && view.open_card() != nullptr) {
+			view.open_card()->grab().save(aDirectory + QStringLiteral("/open-thread-light.png"));
+		}
+		view.set_viewer_login({ });
+		view.set_saved_drafts({ note });
+		QApplication::processEvents();
+		const auto unknown = cardOn(30U, true);
+		expect(unknown != view.cards().end() && !unknown->Posts.empty() && unknown->Posts.front().Author.isEmpty(),
+			   "with no login known my note carries no login, so it is drawn as an unknown author's, not \"you\"");
+		if (!aDirectory.isEmpty()) {
+			view.close_thread();
+			QApplication::processEvents();
+			view.grab().save(aDirectory + QStringLiteral("/list-no-login-light.png"));
+		}
+		view.hide();
+	}
+
 	/// [[BPR-1779]]. The owner, 2026-10-27: "to me the review is just a
 	/// bundle of comments posted together and what really matters is the
 	/// comments themselves on the files and lines". #186's shape, in the Pull
@@ -3039,6 +3104,12 @@ auto main(int argc, char** argv) -> int
 		std::cout << "render-reactions:pass\n";
 		return EXIT_SUCCESS;
 	}
+	if (argc > 2 && std::string_view{ argv[1] } == "--render-bpr-1803") {
+		test_my_posts_are_named_by_my_login(QString::fromLocal8Bit(argv[2]));
+		test_reactions_render_in_light_and_dark(QString::fromLocal8Bit(argv[2]));
+		std::cout << "render-bpr-1803:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (argc > 3 && std::string_view{ argv[1] } == "--render-bpr-1779") {
 		render_owner_186(QString::fromLocal8Bit(argv[2]), QString::fromLocal8Bit(argv[3]));
 		std::cout << "render-bpr-1779:pass\n";
@@ -3088,6 +3159,7 @@ auto main(int argc, char** argv) -> int
 	test_reactions_show_and_toggle_by_mouse_and_keyboard();
 	test_resolve_conversation_beside_reply();
 	test_reactions_render_in_light_and_dark({ });
+	test_my_posts_are_named_by_my_login({ });
 	test_conversation_lists_comments_not_reviews();
 	test_a_review_body_is_a_comment_in_its_bundle();
 	test_my_comments_are_edited_in_place();
