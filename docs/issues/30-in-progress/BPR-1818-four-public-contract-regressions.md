@@ -45,3 +45,24 @@ requirement for restoring these existing contracts. Load the required desktop
 frontend-design skill before Qt, accessibility or UX edits. Keep semantic fixes
 narrow, use meaningful negative controls, and preserve source/Git/artifacts/maps
 and actual source metadata on every existing producer or reused test graph.
+
+## Diagnosis boundary
+
+The per-criterion classification is recorded externally in
+`public-contract-repairs-r1/classification-before-edits-r1.json`. AC1 remains
+unresolved: the original dump says Review modality, but omits the panel's actual
+host and filters. AC2 omits before/after request counts, picker context and
+status. AC3 shows all ten cached description images but does not attribute the
+nonzero global request count. Diagnostic fixture snapshots now retain body-node
+names and SHA-256 address references, with an external map to committed fixture
+references; they print no URLs. Existing functional assertions are unchanged.
+
+AC4 is a new production wording defect introduced by BPR-1808: its new clear
+button's accessible descriptions say conversation on a review-comment surface.
+The private correction says all comments and leaves routing, focus and behavior
+unchanged. The existing BPR-1355/BPR-1797 public oracle retains its exact accepted
+Agent/Overview exemptions and its negative controls. Native proof is pending.
+
+The required `frontend-design:frontend-design` skill was read from the installed
+1.1.1 plugin before the Qt edit, with the managed desktop guidance also read.
+No new design or attended judgement is introduced by this contract restoration.

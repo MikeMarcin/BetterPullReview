@@ -228,6 +228,7 @@
 #include <QLabel>
 #include <QLineEdit>
 #include <QListView>
+#include <QListWidget>
 #include <QMenu>
 #include <QMessageBox>
 #include <QMouseEvent>
@@ -34000,9 +34001,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.ReviewerRequestedOnce) {
 				return fail("not-requested-once");
 			}
-			const auto asked = implementation->ReviewerRequestsAsked;
+			const auto asked   = implementation->ReviewerRequestsAsked;
+			const auto context = [&] {
+				const auto* const selected = picker->people()->currentItem();
+				return "open=" + std::to_string(implementation->ReviewerPicker.Open)
+					+ " visible=" + std::to_string(picker->isVisible())
+					+ " selected=" + (selected != nullptr ? selected->data(Qt::AccessibleTextRole).toString().toStdString() : "<none>")
+					+ " asked=" + std::to_string(implementation->ReviewerRequestsAsked)
+					+ " writes=" + std::to_string(implementation->Fixture->review_mutation_evidence().ReviewerWrites)
+					+ " status=" + picker->status()->text().toStdString();
+			};
+			note("repeat-before " + context());
 			picker->choose_highlighted();
 			QCoreApplication::processEvents();
+			note("repeat-after " + context());
 			probe.Evidence.ReviewerNotRepeated = implementation->ReviewerRequestsAsked == asked && implementation->Fixture->review_mutation_evidence().ReviewerWrites == 1U
 				&& picker->status()->text() == QStringLiteral("octo-maintainer already has a review request.");
 			if (!probe.Evidence.ReviewerNotRepeated) {

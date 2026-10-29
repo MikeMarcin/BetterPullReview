@@ -680,6 +680,9 @@ namespace bpr::app::detail {
 		/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
 		std::size_t MarkdownImageResolutions = 0U;
 		std::size_t MarkdownImageFetches     = 0U;
+		/// Fixture-only attribution: body node names and address digests, never URLs.
+		std::vector<std::string> MarkdownImageResolutionNodes;
+		std::vector<std::string> MarkdownImageFetchReferences;
 		/// [[BPR-1560]]. Compare reads and pull request confirmations served.
 		std::size_t MergeBaseReads           = 0U;
 		std::size_t MergeBaseConfirmations   = 0U;
