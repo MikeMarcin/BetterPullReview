@@ -66,7 +66,7 @@ approved OpenPGP signatures, public-only verification/tamper control and
 DEB/user-archive file, mode and link equivalence. Those audits bind installed
 notices, SPDX, provenance and exact corresponding source. Fresh native verification of the stable Windows downloads subsequently passed
 39 commands, including Authenticode and MSI/runtime/source equivalence. The
-stable Ubuntu native audit remains pending. Extraction supplies no
+stable Ubuntu native audit subsequently passed all 77 commands. Extraction supplies no
 ordinary-user installation acceptance.
 
 Fresh unfiltered Grype scans retain 23 Mac, 21 Windows and 23 Ubuntu findings;
@@ -120,14 +120,20 @@ state and all thirty anonymous hashes; the durable handoff records exact command
 revisions and ownership. No credentials, private keys, authenticated review URLs
 or transient logs are tracked here.
 
-## Continuation
+## Final download and native reconciliation
 
-BPR-1797 remains In Progress: AC4 still needs the stable Ubuntu native download
-audit and final reconciliation. The owner sequencing
-amendment starts a fresh v0.4.1 owner from the integrated latest main now that
-v0.4.0 is live and all thirty public hashes match. That owner adopts the remaining Ubuntu v0.4.0 native audit before further PC
-producer work, then closes BPR-1797 only
-after their actual passing receipts. No stable native acceptance is inferred
-from matching hashes or the earlier RC audits. The prepared native task guards
-refused before registration while other PC work was observed; no foreign
-process was stopped and no duplicate native task was launched.
+The inherited Ubuntu stable audit completed on 2026-10-29 UTC: 13 anonymous
+downloads match the sealed assets and all 77 native commands pass. Its
+collected evidence archive has SHA-256
+`68e6ec78a03ce352a1a77794b5b980c13d5b217c8ba5d3e479141d30d5aee0c9`.
+`publication-final-verification-r1.json` in the external run root records the
+final PASS for all 30 stable public hashes, downloaded native trust/source
+evidence, annotated tag/source identity, stable Latest, the immutable legacy
+15 files and unchanged original RC 17 files. BPR-1797 is complete under the
+recorded owner waivers; RFC-BPR-0038 remains open. The actual raw comprehensive
+and vulnerability failures above retain their meaning.
+
+The fresh v0.4.1 owner continues from integrated latest main in its own checkout
+and external run root. All inherited audit commands are terminal. The old
+producer trees and public assets are preserved, and no foreign process was
+stopped.

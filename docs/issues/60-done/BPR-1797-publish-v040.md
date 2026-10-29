@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1797"
 title: "Prepare, qualify and publish v0.4.0"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v040-owner-request-r1-20261028", "baseline": "7dc90f2d8e7a6ef9c852a1db93f6c20e2c1570ae", "execution_strategy": "coordinator-implementer", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.0-20261028", "milestone_plan": {"id": "release-v040", "path": "docs/rfcs/plans/release-v040/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"Clean common source 0941326a and build1 cohort 4bfd1b5a; grounded notes and all producers bound. Existing history preserved.","externalRoot":"/Users/jaeger/.codex/release-runs/v0.4.0-20261028"}},{"criterion":"AC2","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"Actual native compilation and six comprehensive reports reconciled by full-N-to-repair-inventory-r1.json; all original 91 failed rows retain exact repairs or owner-carried waivers, Debug omissions/skips/unreached preserved. No complete-suite PASS inferred.","externalRoot":"/Users/jaeger/.codex/release-runs/v0.4.0-20261028"}},{"criterion":"AC3","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"All three final artifact/source/SPDX/provenance and native signature/source audits pass; fresh raw Grype 23/21/23 exit2 retained with exact owner HarfBuzz/CBOR/matching waivers and native/M8M9 limits.","externalRoot":"/Users/jaeger/.codex/release-runs/v0.4.0-20261028"}},{"criterion":"AC4","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"Actual human authorized publication complete. publication-final-verification-r1.json confirms all 30 stable anonymous hashes + Mac native trust, Windows39 and Ubuntu77 native commands; immutable older releases and stableLatest verified. Documentation and ownership updated.","externalRoot":"/Users/jaeger/.codex/release-runs/v0.4.0-20261028"}}]
 ---
 
 # Prepare, qualify and publish v0.4.0
@@ -148,3 +149,11 @@ handoff. No foreign process was stopped. Close this card only after actual
 stable Ubuntu native receipt and final reconciliation pass. All
 original failures, source bridges, matching owner-carried waivers and RFC-0038
 limitations remain as recorded above.
+
+## Final publication reconciliation, 2026-10-29 UTC
+
+The owner accepted publication in short session `aa41ee505768731907ac3ff66223d84d`, decision `15ef6885-8661-425e-aadd-6dbc5d298c07`, consumed cursor 6. The approved Ubuntu append and distinct stable copy are complete: bare `0.4.0`, annotated tag `6a3f9b851fd246d1cbe828668258b123a7135091`, release `428060158`, source `0941326aee0f51002e205784a1b220a01ecba384`, build 1/cohort `4bfd1b5a…`, is stable Latest with exactly 30 files. Legacy `v0.4.0` and the RC's original 17 files remain immutable; the RC stays prerelease and has its approved additional 13 Ubuntu files.
+
+All 30 stable files were anonymously downloaded and SHA-256 matched. Downloaded Mac trust/source commands, Windows 39 native commands, and the final Ubuntu 77 native commands pass. Ubuntu's 13-file evidence archive SHA-256 is `68e6ec78a03ce352a1a77794b5b980c13d5b217c8ba5d3e479141d30d5aee0c9`. `publication-final-verification-r1.json` under the external run root records the complete remote/native reconciliation. No new PC production began before that inherited audit finished. No foreign process was stopped.
+
+The six original comprehensive reports remain failed, with every original failed row mapped to its recorded repair proof or matching carried owner waiver. Grype remains raw exit 2 with 23/21/23 findings. This release closes under its actual owner waivers, including HarfBuzz all-platform build 1 and CBOR, rather than a clean scanner or full M8/M9 claim. RFC-BPR-0038 and its separately owned native/security gaps remain open.
