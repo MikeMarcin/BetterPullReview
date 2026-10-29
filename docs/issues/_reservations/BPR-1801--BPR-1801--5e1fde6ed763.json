@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1801"
+  ],
+  "reserve_for": "overview-request-reviewers",
+  "purpose": "Request and re-request reviewers from the overview People section with a searchable picker",
+  "created": "2026-10-29T03:47:29.777849+00:00",
+  "base": "b29afb66c74940d9915e33dbb43e5431ab5741c7"
+}
