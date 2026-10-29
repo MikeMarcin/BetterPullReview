@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "release-v041",
+  "scope": {
+    "issues": [
+      "BPR-1811"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "preview-and-qualification",
+      "outcome": "Publish signed/notarized macOS 0.4.1 preview then signed Windows on the same numbered prerelease, verify downloads, and complete comprehensive coordinated native qualification with matching carried waivers; prepare the concrete complete stable operation for separate authorization.",
+      "work": [
+        {
+          "issue": "BPR-1811",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Finish inherited 0.4.0 Ubuntu public-byte/native verification and truthful BPR-1797 upkeep; freeze 0.4.1 from latest authoritative main using real native observed configuration and monotone candidate/MSI identities.",
+        "Publish public macOS signed/notarized preview first and native signed Windows append next through the existing guarded prerelease route, retaining stable Latest and immutable old assets; verify anonymous hashes and downloaded native trust.",
+        "Run comprehensive fresh native Release and Debug functional qualification on selected Mac, Windows and Ubuntu26.04 WSL producers after the compilation barrier. Preserve exact failures, skips, Debug performance omissions and matching carried waivers.",
+        "Bind all final platform artifacts, corresponding source, SPDX, provenance, fresh security scans and native trust; prepare complete stable publication with exact pending owner decision, upkeep and command quiescence."
+      ],
+      "boundary": "User v0.4.1 same prerelease pattern/waivers mandate, revision release-v041-same-preview-waivers-r1. No stable 0.4.1 publication without separate authorization; no extra agents, owner desktop control, old release mutation, credentials changes or unrelated source changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
