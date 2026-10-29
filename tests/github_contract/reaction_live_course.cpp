@@ -34,6 +34,7 @@
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 #include "bpr/core/description_edit.hpp"
+#include "bpr/core/review_role.hpp"
 #include "bpr/core/reviewer_request.hpp"
 
 #include <QByteArray>
@@ -654,7 +655,8 @@ namespace {
 	{
 		using operation      = application::review_reviewer_operation;
 		const auto [all, _a] = reviewers(aSession, aWire, "reviewers-search-all", operation::search, "");
-		if (!all || all->Answer.Author != text("author") || !core::reviewer_rows(all->Answer, "").empty() && std::ranges::any_of(core::reviewer_rows(all->Answer, ""), [](const core::reviewer_row& aRow) { return core::same_login(aRow.Candidate.Login, text("author")); })) {
+		const auto rowsAll   = all ? core::reviewer_rows(all->Answer, "") : std::vector<core::reviewer_row>{ };
+		if (!all || all->Answer.Author != text("author") || std::ranges::any_of(rowsAll, [](const core::reviewer_row& aRow) { return core::same_login(aRow.Candidate.Login, text("author")); })) {
 			fail("reviewers-search-all:unexpected");
 		}
 		const auto [own, _o] = reviewers(aSession, aWire, "reviewers-search-author", operation::search, text("author"));
