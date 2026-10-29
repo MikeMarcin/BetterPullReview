@@ -103,3 +103,33 @@ rendered form exists only in the Preview tab and in the publication column.
 ## Owner review
 
 Attended screenshot review session 00fef88b0f9a8d6133fc06b452010a90 (state /Users/jaeger/bpr-attended/tour-cards-v001/state, closed 2026-10-29) at efcaafa33: edit view accepted; read view rejected as not judgeable — the renders carried no code or rich Markdown. A re-review with richer stop content is pending.
+
+## Repair after owner review (BPR-1810 branch, 2026-10-29)
+
+The owner's notes: the read renders had "no code or interesting markdown to
+look at", and "All screenshots are editing none in reading". Rendering a stop
+with a heading, emphasis, a list, inline and fenced C++, a table and a link
+found three faults, all repaired in the adapter (no composition change):
+
+- **"Editing" beside the pencil.** The stop's preparation label said
+  "Editing" for any stop not yet marked ready, in read as well, so a read
+  stop looked like the editor. It now shows only while the editor is open;
+  Ready, Needs attention and Suggested still show either way.
+- **Code font.** The reader and the previews set code in the platform's bare
+  fixed font at 86% of the interface size, not the profile's code font that
+  comments use. `review_tour_editor::set_code_font` takes the profile's code
+  font from `workbench_window::adopt_code_zoom`; until then the default
+  typography's code font is used, as comments do.
+- **No syntax colours.** Fenced code in a stop stayed plain while a
+  comment's is coloured. The editor's readers now take the window's Markdown
+  code dispatch and its answers (`set_code_syntax_dispatch`,
+  `apply_code_syntax`), beside the conversation panel and the agent tab.
+
+`qt_review_tour_stop_view` adds the rich stop: rendered with no Markdown
+markers, a table, the code typography, a syntax request answered through the
+composed classifier and host, colours applied, no Editing label while read,
+Editing while written, and route-read-rich, route-edit-rich and
+page-read-rich renders in the application's light and dark themes. The
+tests register the bundled code font as the composition does at startup.
+The owner re-review is in attended session 3313da47114fe2f10516fc0166882a08 (state
+/Users/jaeger/bpr-attended/tour-cards-v002/state).
