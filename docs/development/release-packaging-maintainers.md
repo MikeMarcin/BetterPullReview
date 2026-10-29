@@ -95,6 +95,31 @@ No Linux compiler or libstdc++ baseline has completed native qualification yet.
   course, Secret Service or the installer. Native Linux desktops and other
   distributions are untested, not refused.
 
+## Numbered release candidates
+
+The [release build identity procedure](release-build-identity.md) allocates only
+through publish-release preparation. One frozen external cohort binds the source,
+declared native configurations and common sequential N. Local builds remain
+unnumbered. Each producer receives the same cohort and its declared producer name;
+CMake checks actual flags, compiler/Qt versions and architecture before accepting
+that identity. A changed source or configuration requires a new cohort.
+
+Canonical assets use `VERSION-build.N`. The macOS short version and stable tag
+retain the base version for already installed updaters, with an exact byte alias
+of the canonical ZIP under the legacy base-version name. A numbered Mac release
+therefore has ten assets: the eight canonical assets and the alias/checksum.
+Never replace an occupied base-version release or retroactively number it.
+
+For initial publication, add `--cohort /absolute/cohort.json` to both dry-run and
+publication commands. Pass `--cohort` and `--producer` to `tools/release.sh`, or
+configure the native CPack graph with `BPR_RELEASE_COHORT` and
+`BPR_RELEASE_PRODUCER`. Numbered Windows production also takes
+`--previous-msi /absolute/previous.msi`: it reads the actual previous per-machine
+MSI, preserves UpgradeCode and checks its native ProductVersion before any build
+or signing. The package driver then inspects actual MSI/PE or DEB identities and
+binds those observations to final hashes. Offline preflight is still separate
+from native trust, install/upgrade qualification and publication approval.
+
 ## Prepare an unpublished candidate
 
 Preparation builds packages locally without signing for distribution, tagging
@@ -595,7 +620,8 @@ the archive: extract and audit final installers and verify native signatures
 separately.
 
 The full macOS path emits DMG, app ZIP, SPDX and source ZIP plus four checksum
-files. The publication script requires all eight assets and checks the source
+files. Numbered releases also emit the exact legacy ZIP alias and checksum.
+The publication script requires that complete ten-asset set and checks the source
 reference inside the actual app ZIP against the SPDX and the separate source
 ZIP before any remote operation. Its offline, non-mutating sub-check is
 `packaging/verify_release_sources.py`; `--help` lists the artifact and producer
@@ -622,7 +648,7 @@ run and the real publication command to require the repository to be public.
 
 ```sh
 # Only after BPR is already public and this release is authorized:
-tools/publish-release.sh --public --version X.Y.Z --notes-file /absolute/notes.md \
+tools/publish-release.sh --public --version X.Y.Z --cohort /absolute/cohort.json --notes-file /absolute/notes.md \
   --macos --manifest /absolute/windows/INSTALLER.msi.release.json --dry-run
 ```
 
