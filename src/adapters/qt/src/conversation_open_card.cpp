@@ -785,6 +785,189 @@ namespace bpr::qt {
 		}
 	}
 
+	namespace {
+		/// [[BPR-1806]]. The plate's measures: its padding, the route
+		/// marker's diameter, and the gap before the title.
+		constexpr int   plate_padding = 8;
+		constexpr int   plate_marker  = 22;
+		constexpr int   plate_gap     = 10;
+		constexpr int   plate_text    = plate_padding + plate_marker + plate_gap;
+		constexpr int   plate_below   = 6;
+		constexpr qreal plate_radius  = 6.0;
+
+		/// \brief [[BPR-1806]]. Open in tour: quiet words that answer the
+		/// pointer and show focus, as the post's tools do.
+		class tour_open_button final : public QAbstractButton
+		{
+		public:
+			tour_open_button(const note_colours& aColours, QWidget* aParent)
+				: QAbstractButton{ aParent }
+				, Colours{ aColours }
+			{
+				setObjectName(QStringLiteral("threadPostTourOpen"));
+				setText(QStringLiteral("Open in tour"));
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+				setAttribute(Qt::WA_Hover, true);
+				anchor_tooltips(*this);
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				const auto metrics = QFontMetrics{ semibold(scaled(font(), 0.92)) };
+				return { metrics.horizontalAdvance(text()) + 16, metrics.height() + 6 };
+			}
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto box = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				painter.setPen(QPen{ Colours.RouteLine, 1.0 });
+				painter.setBrush(underMouse() || isDown() ? Colours.Hover : Colours.Panel);
+				painter.drawRoundedRect(box, 5.0, 5.0);
+				painter.setFont(semibold(scaled(font(), 0.92)));
+				painter.setPen(underMouse() ? Colours.Ink : Colours.Ink2);
+				painter.drawText(rect(), Qt::AlignCenter, text());
+				if (hasFocus()) {
+					painter.setPen(QPen{ Colours.Signal, 1.5 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box, 5.0, 5.0);
+				}
+			}
+
+		private:
+			note_colours Colours;
+		};
+	}
+
+	tour_stop_plate::tour_stop_plate(const core::published_tour_stop& aStop, const std::optional<std::size_t> aCount, const note_colours& aColours, const bool aOpenOffered, QWidget* const aParent)
+		: QWidget{ aParent }
+		, Stop{ aStop }
+		, Count{ aCount }
+		, Colours{ aColours }
+	{
+		setObjectName(QStringLiteral("threadPostTourStop"));
+		const auto badge = tour_stop_badge(Stop, Count);
+		setAccessibleName(QStringLiteral("Tour stop: %1").arg(QString::fromStdString(Stop.Title)));
+		setAccessibleDescription(badge);
+		setToolTip(QStringLiteral("%1 of the pull request's tour").arg(badge));
+		setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
+		if (aOpenOffered) {
+			Open = new tour_open_button{ Colours, this };
+			Open->setToolTip(QStringLiteral("Open this stop in the Tour tab, beside its code"));
+			Open->setAccessibleName(QStringLiteral("Open stop %1 in the tour").arg(Stop.Ordinal));
+			connect(Open, &QAbstractButton::clicked, this, [this] {
+				const auto requested = OpenRequested;
+				if (requested) {
+					requested();
+				}
+			});
+		}
+	}
+
+	auto tour_stop_plate::title_font() const -> QFont
+	{
+		return semibold(font());
+	}
+
+	auto tour_stop_plate::badge_font() const -> QFont
+	{
+		return scaled(font(), 0.92);
+	}
+
+	auto tour_stop_plate::hasHeightForWidth() const -> bool
+	{
+		return true;
+	}
+
+	auto tour_stop_plate::heightForWidth(const int aWidth) const -> int
+	{
+		const auto text   = std::max(40, aWidth - plate_text - plate_padding);
+		const auto title  = QFontMetrics{ title_font() }.boundingRect(QRect{ 0, 0, text, 10000 }, Qt::TextWordWrap, QString::fromStdString(Stop.Title)).height();
+		const auto button = Open != nullptr ? Open->sizeHint().height() : 0;
+		const auto badge  = std::max(QFontMetrics{ badge_font() }.height(), button);
+		return std::max(plate_padding + title + 2 + badge + plate_padding, plate_padding * 2 + plate_marker);
+	}
+
+	auto tour_stop_plate::sizeHint() const -> QSize
+	{
+		const auto width = std::max(200, this->width());
+		return { width, heightForWidth(width) };
+	}
+
+	auto tour_stop_plate::marker_rect() const -> QRectF
+	{
+		return QRectF{ static_cast<qreal>(plate_padding), static_cast<qreal>(plate_padding), static_cast<qreal>(plate_marker), static_cast<qreal>(plate_marker) };
+	}
+
+	auto tour_stop_plate::open_button() const noexcept -> QAbstractButton*
+	{
+		return Open;
+	}
+
+	void tour_stop_plate::place_children()
+	{
+		if (Open == nullptr) {
+			return;
+		}
+		const auto size = Open->sizeHint();
+		Open->setGeometry(width() - plate_padding - size.width(), height() - plate_padding - size.height(), size.width(), size.height());
+	}
+
+	void tour_stop_plate::resizeEvent(QResizeEvent* const aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		place_children();
+	}
+
+	void tour_stop_plate::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if (aEvent->type() == QEvent::FontChange) {
+			updateGeometry();
+			place_children();
+		}
+	}
+
+	void tour_stop_plate::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		auto painter = QPainter{ this };
+		painter.setRenderHint(QPainter::Antialiasing, true);
+		const auto box = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+		painter.setPen(QPen{ Colours.RouteLine, 1.0 });
+		painter.setBrush(with_alpha(Colours.Route, Colours.Dark ? 0.13 : 0.08));
+		painter.drawRoundedRect(box, plate_radius, plate_radius);
+		// The route through the marker: up to the stop before it, down to the
+		// one after it.
+		const auto marker = marker_rect();
+		auto       route  = QPen{ Colours.Route, 2.0, Qt::DotLine, Qt::RoundCap };
+		painter.setPen(route);
+		if (Stop.Previous.has_value()) {
+			painter.drawLine(QPointF{ marker.center().x(), 1.0 }, QPointF{ marker.center().x(), marker.top() - 2.0 });
+		}
+		if (Stop.Next.has_value()) {
+			painter.drawLine(QPointF{ marker.center().x(), marker.bottom() + 2.0 }, QPointF{ marker.center().x(), static_cast<qreal>(height()) - 1.0 });
+		}
+		painter.setPen(QPen{ Colours.Route, 2.0 });
+		painter.setBrush(Colours.Panel);
+		painter.drawEllipse(marker.adjusted(1.0, 1.0, -1.0, -1.0));
+		auto number = semibold(scaled(font(), Stop.Ordinal >= 100U ? 0.72 : 0.85));
+		painter.setFont(number);
+		painter.setPen(Colours.Ink);
+		painter.drawText(marker, Qt::AlignCenter, QString::number(Stop.Ordinal));
+		const auto text  = std::max(40, width() - plate_text - plate_padding);
+		const auto title = QFontMetrics{ title_font() }.boundingRect(QRect{ 0, 0, text, 10000 }, Qt::TextWordWrap, QString::fromStdString(Stop.Title)).height();
+		painter.setFont(title_font());
+		painter.drawText(QRect{ plate_text, plate_padding, text, title }, Qt::AlignLeft | Qt::AlignTop | Qt::TextWordWrap, QString::fromStdString(Stop.Title));
+		painter.setFont(badge_font());
+		painter.setPen(Colours.Ink2);
+		const auto badgeTop = plate_padding + title + 2;
+		const auto room     = std::max(1, (Open != nullptr ? Open->x() - 8 : width() - plate_padding) - plate_text);
+		painter.drawText(QRect{ plate_text, badgeTop, room, height() - badgeTop - plate_padding }, Qt::AlignLeft | Qt::AlignVCenter,
+						 QFontMetrics{ badge_font() }.elidedText(tour_stop_badge(Stop, Count), Qt::ElideRight, room));
+	}
+
 	thread_post_view::thread_post_view(const card_post& aPost, const open_card_style& aStyle, const bool aRuleAbove, QWidget* const aParent)
 		: QWidget{ aParent }
 		, Post{ aPost }
@@ -809,6 +992,19 @@ namespace bpr::qt {
 		}
 		// [[BPR-1564]]. Before the body, so it is read once.
 		Reader->set_suggestions(aStyle.Suggestions);
+		// [[BPR-1806]]. A published tour stop reads as one: its plate over
+		// its narrative alone; View source and Copy source keep every byte.
+		if (aPost.TourStop.has_value()) {
+			Reader->set_rendered_range(std::pair{ aPost.TourStop->Narrative.Begin, aPost.TourStop->Narrative.End });
+			TourPlate                = new tour_stop_plate{ *aPost.TourStop, aPost.TourStopCount, aStyle.Colours, aStyle.TourOpenOffered, this };
+			TourPlate->OpenRequested = [this] {
+				const auto requested = TourOpenRequested;
+				if (requested) {
+					requested();
+				}
+			};
+			setAccessibleName(QStringLiteral("%1, %2: %3").arg(accessibleName(), tour_stop_badge(*aPost.TourStop, aPost.TourStopCount), QString::fromStdString(aPost.TourStop->Title)));
+		}
 		Reader->set_body(aPost.Body.toStdString(), aPost.Id);
 		auto* const rendered = Reader->rendered_view();
 		rendered->setObjectName(QStringLiteral("threadPostBody"));
@@ -953,10 +1149,14 @@ namespace bpr::qt {
 			EditPanel->setGeometry(text_left - 4, post_padding + name + 1, width + 8, panel);
 			return;
 		}
+		const auto plate = plate_height(width);
+		if (TourPlate != nullptr) {
+			TourPlate->setGeometry(text_left, post_padding + name + 3, width, plate - 2 - plate_below);
+		}
 		const auto body = Reader->heightForWidth(width);
-		Reader->setGeometry(text_left, post_padding + name + 1, width, body);
+		Reader->setGeometry(text_left, post_padding + name + 1 + plate, width, body);
 		const auto chips = Reactions->chips().empty() ? 0 : Reactions->heightForWidth(width);
-		Reactions->setGeometry(text_left, post_padding + name + 1 + body + reaction_gap, width, chips);
+		Reactions->setGeometry(text_left, post_padding + name + 1 + plate + body + reaction_gap, width, chips);
 	}
 
 	void thread_post_view::set_editable(const bool aEditable)
@@ -983,6 +1183,9 @@ namespace bpr::qt {
 			EditPanel->show();
 		}
 		Reader->setVisible(EditPanel == nullptr);
+		if (TourPlate != nullptr) {
+			TourPlate->setVisible(EditPanel == nullptr);
+		}
 		Reactions->setVisible(EditPanel == nullptr);
 		SourceButton->setVisible(EditPanel == nullptr);
 		CopyButton->setVisible(EditPanel == nullptr);
@@ -1039,7 +1242,7 @@ namespace bpr::qt {
 		const auto width = std::max(1, aWidth - text_left - text_right);
 		const auto chips = Reactions->chips().empty() ? 0 : Reactions->heightForWidth(width);
 		const auto body  = EditPanel != nullptr ? (EditPanel->hasHeightForWidth() ? EditPanel->heightForWidth(width) : EditPanel->sizeHint().height())
-												: Reader->heightForWidth(width) + (chips > 0 ? reaction_gap + chips : 0);
+												: plate_height(width) + Reader->heightForWidth(width) + (chips > 0 ? reaction_gap + chips : 0);
 		const auto text  = name_height() + 1 + body;
 		const auto gut   = Post.Label ? avatar_size + mark_gap + mark_size + 1 : avatar_size + 1;
 
@@ -1055,6 +1258,17 @@ namespace bpr::qt {
 	auto thread_post_view::reader() const noexcept -> markdown_body_view*
 	{
 		return Reader;
+	}
+
+	auto thread_post_view::tour_plate() const noexcept -> tour_stop_plate*
+	{
+		return TourPlate;
+	}
+
+	auto thread_post_view::plate_height(const int aWidth) const -> int
+	{
+		// The plate, and the room around it, while the body shows.
+		return TourPlate == nullptr || EditPanel != nullptr ? 0 : 2 + TourPlate->heightForWidth(aWidth) + plate_below;
 	}
 
 	auto thread_post_view::source_button() const noexcept -> post_tool*
@@ -1629,6 +1843,15 @@ namespace bpr::qt {
 				}
 			}
 			auto* const view = new thread_post_view{ post, Style, ruleAbove, this };
+			// [[BPR-1806]]. Open in tour names the post and the stop it is.
+			if (post.TourStop.has_value()) {
+				view->TourOpenRequested = [this, id = post.Id, stop = *post.TourStop] {
+					const auto requested = TourOpenRequested;
+					if (requested) {
+						requested(id, stop);
+					}
+				};
+			}
 			// [[BPR-1775]]. Edit on my own published comment: its tool and
 			// its body menu, as the core decides from the read's "Mine".
 			const auto editable = Style.CommentEditOffered && !aCard.Draft && core::comment_edit_offered(post.Id, post.Mine, false);

@@ -90,6 +90,42 @@ namespace bpr::qt {
 		std::optional<markdown_suggestion_presentation> Suggestions;
 		/// [[BPR-1775]]. Edit is offered on my own published comments.
 		bool CommentEditOffered = false;
+		/// [[BPR-1806]]. Open in tour is offered on a published tour stop.
+		bool TourOpenOffered = false;
+	};
+
+	/// \brief [[BPR-1806]]. A published tour stop's plate, over its
+	/// narrative: the tour's numbered route marker, the stop's title, "Stop 6
+	/// of 9", and Open in tour when the window has the tour to follow. The
+	/// route marker's line runs up when a stop comes before and down when one
+	/// follows, as the stops sit on the tour's route.
+	class tour_stop_plate final : public QWidget
+	{
+	public:
+		tour_stop_plate(const core::published_tour_stop& aStop, std::optional<std::size_t> aCount, const note_colours& aColours, bool aOpenOffered, QWidget* aParent);
+		[[nodiscard]] auto hasHeightForWidth() const -> bool override;
+		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		/// \brief The marker's box, for tests.
+		[[nodiscard]] auto marker_rect() const -> QRectF;
+		[[nodiscard]] auto open_button() const noexcept -> QAbstractButton*;
+		/// \brief Open in tour pressed.
+		std::function<void()> OpenRequested;
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+		void resizeEvent(QResizeEvent* aEvent) override;
+		void changeEvent(QEvent* aEvent) override;
+
+	private:
+		void               place_children();
+		[[nodiscard]] auto title_font() const -> QFont;
+		[[nodiscard]] auto badge_font() const -> QFont;
+
+		core::published_tour_stop  Stop;
+		std::optional<std::size_t> Count;
+		note_colours               Colours;
+		QAbstractButton*           Open = nullptr;
 	};
 
 	/// \brief [[BPR-1290]]. A post's quiet glyph button in its name row:
@@ -165,6 +201,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto edit_panel() const noexcept -> QWidget*;
 		/// \brief [[BPR-1775]]. The editor's height changed.
 		void refresh_edit_geometry();
+		/// \brief [[BPR-1806]]. A published tour stop's plate; null otherwise.
+		[[nodiscard]] auto tour_plate() const noexcept -> tour_stop_plate*;
+		/// \brief [[BPR-1806]]. Open in tour pressed on the stop's plate.
+		std::function<void()> TourOpenRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -175,6 +215,9 @@ namespace bpr::qt {
 
 	private:
 		[[nodiscard]] auto name_height() const -> int;
+		/// \brief [[BPR-1806]]. The tour stop plate's height and its gaps at
+		/// a text width; zero for any other post or while editing.
+		[[nodiscard]] auto plate_height(int aWidth) const -> int;
 		void               place_children();
 		void               refresh_tools();
 		void               refresh_source_button();
@@ -195,6 +238,8 @@ namespace bpr::qt {
 		post_tool* EditButton = nullptr;
 		QWidget*   EditPanel  = nullptr;
 		bool       Editable   = false;
+		/// [[BPR-1806]].
+		tour_stop_plate* TourPlate = nullptr;
 	};
 
 	/// \brief A button drawn as the prototype draws it: a filled signal pill
@@ -289,6 +334,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1775]]. Edit asked for on one post, from its tool or
 		/// its body menu.
 		std::function<void(const std::string&)> EditRequested;
+		/// \brief [[BPR-1806]]. Open in tour pressed on a published tour
+		/// stop: its post and the stop it was read as.
+		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenRequested;
 		/// \brief [[BPR-1775]]. The editor's raw text after each change.
 		std::function<void(const std::string&)> EditText;
 		/// \brief [[BPR-1775]]. Save (⌘↩), Cancel (Esc) and Edit GitHub's

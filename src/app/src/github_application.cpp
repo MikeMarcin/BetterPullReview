@@ -8287,6 +8287,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1781]]. Overview's Start tour: the published tour, imported
 			// as following it in Review needs, at its first stop.
 			Window->set_tour_start_dispatch([this] { start_published_tour(); });
+			// [[BPR-1806]]. A published tour stop's Open in tour: the same,
+			// at that stop.
+			Window->set_tour_stop_dispatch([this](const std::string& aPost, const core::published_tour_stop& aStop) { start_published_tour(std::pair{ aPost, aStop }); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -11101,11 +11104,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::vector<retained_tour_host> RetiredTourHosts;
 		std::optional<core::tour_owner> TourOwner;
 		/// [[BPR-1781]]. Start tour waits for the published tour's import.
-		bool                                          PendingTourStart = false;
-		std::optional<application::tour_saved_target> RememberedTourTarget;
-		core::git_commit_oid                          TourHead;
-		core::git_commit_oid                          TourAttentionHead;
-		std::optional<core::tour_code_destination>    PendingTourSource;
+		bool PendingTourStart = false;
+		/// [[BPR-1806]]. The published stop Open in tour asked for, while
+		/// the start waits; none starts at the first stop.
+		std::optional<std::pair<std::string, core::published_tour_stop>> PendingTourStop;
+		std::optional<application::tour_saved_target>                    RememberedTourTarget;
+		core::git_commit_oid                                             TourHead;
+		core::git_commit_oid                                             TourAttentionHead;
+		std::optional<core::tour_code_destination>                       PendingTourSource;
 		/// [[BPR-1227]]. Source reads a forwarded `bpr tour` command has on the diff lane. Counted and
 		/// atomic because the worker ends its read; shutdown stops them and waits for none.
 		std::atomic_size_t TourSourceReadsInFlight{ 0U };
@@ -11261,6 +11267,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingTourSource.reset();
 			TourSourceRequest.reset();
 			PendingTourStart = false;
+			PendingTourStop.reset();
 			if (TourHost && TourOwner) {
 				RetiredTourHosts.push_back({ *TourOwner, std::move(TourHost) });
 			}
@@ -11354,14 +11361,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1781]]. A reader's Start tour from Overview: a published tour
 		/// already in this window opens at its first stop; one only on offer is
 		/// imported first, as Review's Import does, and opens once it arrives.
-		void start_published_tour()
+		void start_published_tour(std::optional<std::pair<std::string, core::published_tour_stop>> aStop = std::nullopt)
 		{
 			if (Closing || !TourHost || !current(DraftWindow)) {
 				return;
 			}
 			const auto shown = TourHost->presentation();
 			if (shown.Draft && shown.Draft->Remote && !shown.Draft->Stops.empty()) {
-				Window->start_tour_at_first_stop();
+				start_tour_at(aStop);
 				return;
 			}
 			if (!shown.Offered) {
@@ -11369,8 +11376,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingTourStart = true;
+			PendingTourStop  = std::move(aStop);
 			Window->open_review_tour();
 			TourHost->import_selected(0U);
+		}
+		void start_tour_at(const std::optional<std::pair<std::string, core::published_tour_stop>>& aStop)
+		{
+			if (aStop) {
+				Window->start_tour_at_published_stop(aStop->first, aStop->second);
+			} else {
+				Window->start_tour_at_first_stop();
+			}
 		}
 		void finish_pending_tour_start(const application::tour_presentation& aProjection)
 		{
@@ -11378,7 +11394,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingTourStart = false;
-			Window->start_tour_at_first_stop();
+			const auto stop  = std::exchange(PendingTourStop, std::nullopt);
+			start_tour_at(stop);
 		}
 		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff)
 		{

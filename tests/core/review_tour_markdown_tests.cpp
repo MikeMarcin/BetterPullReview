@@ -2,6 +2,10 @@
 #include <array>
 #include <cstdlib>
 #include <iostream>
+#include <optional>
+#include <string>
+#include <tuple>
+#include <vector>
 
 namespace {
 	using namespace bpr::core;
@@ -122,11 +126,139 @@ namespace {
 		expect(!map_tour_stop("### Author's tour · 2 — Why\n\nBody\n\n" + note + "\n").Footer, "the note alone is not a footer");
 	}
 }
+namespace {
+	/// \brief [[BPR-1806]]. A published stop is read back exactly as
+	/// `render_tour_stop` wrote it, and nothing looser is a stop.
+	void published_stops()
+	{
+		constexpr auto overview = std::string_view{ "https://github.com/o/r/pull/7#pullrequestreview-9" };
+		constexpr auto source   = std::string_view{ "https://github.com/o/r/blob/1111111111111111111111111111111111111111/src/light.cpp?plain=1#L12" };
+		const auto     links    = [&](const bool aPrevious, const bool aNext) {
+			auto result = std::vector<tour_markdown_link>{ };
+			if (aPrevious) {
+				result.push_back({ "Previous", "https://github.com/o/r/pull/7/files#r11" });
+			}
+			result.push_back({ "Tour overview", std::string{ overview } });
+			if (aNext) {
+				result.push_back({ "Next", "https://github.com/o/r/pull/7/files#r13" });
+			}
+			return result;
+		};
+		for (const std::string nl : { "\n", "\r\n" }) {
+			const auto narrative = std::string{ "question: Should the clamp *live* here?" } + nl + nl + "The renderer trusts it.";
+			const auto middle    = render_tour_stop("Why `width` is [clamped]", 6, narrative, links(true, true), source, nl);
+			expect(middle.has_value(), "the publisher renders a middle stop");
+			const auto stop = recognize_published_tour_stop(*middle);
+			expect(stop.has_value() && stop->Ordinal == 6U && stop->Title == "Why `width` is [clamped]", "the number and the unescaped title are read back");
+			expect(stop && slice(*middle, stop->Narrative) == narrative, "the narrative is exactly the author's words");
+			expect(stop && stop->PinnedSource && slice(*middle, *stop->PinnedSource) == source, "the pinned source is named");
+			expect(stop && stop->Overview == overview && stop->Previous == "https://github.com/o/r/pull/7/files#r11" && stop->Next == "https://github.com/o/r/pull/7/files#r13",
+				   "the navigation's destinations are read");
+			const auto first = render_tour_stop("Start", 1, "Plain words.", links(false, true), { }, nl);
+			const auto read  = first ? recognize_published_tour_stop(*first) : std::nullopt;
+			expect(read && read->Ordinal == 1U && !read->PinnedSource && !read->Previous && read->Next && slice(*first, read->Narrative) == "Plain words.",
+				   "a first stop without a pinned source is recognized");
+			// A stop published before its note, and one only partly published.
+			const auto noteless = "### PR Tour · 2 — Old" + nl + nl + "Words." + nl + nl + "[Previous](https://x/1) · [Tour overview](https://x/o)" + nl;
+			expect(recognize_published_tour_stop(noteless).has_value(), "a stop published before BPR-1785's note is still a stop");
+			const auto pending = render_tour_stop("Pending", 3, "Words.", links(false, false), { }, nl);
+			expect(pending && recognize_published_tour_stop(*pending).has_value(), "a stop with only Tour overview is a stop");
+			const auto legacy = "### Author's tour · 4 — Legacy" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl + nl;
+			expect(recognize_published_tour_stop(legacy).has_value(), "the legacy heading and trailing blank lines are accepted");
+
+			// Not stops: anything other than the exact envelope.
+			const auto refused = std::array{
+				std::string{ "Ordinary comment." },
+				std::string{ },
+				"### PR Tour · 2 — Missing navigation" + nl + nl + "Words." + nl,
+				"### PR Tour · 2 — No narrative" + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 — Blank narrative" + nl + nl + "   " + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"Intro words" + nl + nl + "### PR Tour · 2 — Prose before" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"https://x/a https://x/b" + nl + nl + "### PR Tour · 2 — Two sources" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 02 — Leading zero" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 0 — Zero" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 257 — Too many" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · six — Words" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 —   " + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 - Hyphen" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"## PR Tour · 2 — Level two" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 — No gap" + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 — Glued links" + nl + nl + "Words." + nl + "[Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 — After" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl + nl + "Postscript." + nl,
+				"### PR Tour · 2 — Order" + nl + nl + "Words." + nl + nl + "[Next](https://x/n) · [Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 — Other" + nl + nl + "Words." + nl + nl + "[Home](https://x/o)" + nl,
+				"### PR Tour · 1 — First with previous" + nl + nl + "Words." + nl + nl + "[Previous](https://x/p) · [Tour overview](https://x/o)" + nl,
+				"```" + nl + "### PR Tour · 2 — Fenced" + nl + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl + "```" + nl,
+				"> ### PR Tour · 2 — Quoted" + nl + ">" + nl + "> Words." + nl + ">" + nl + "> [Tour overview](https://x/o)" + nl,
+				"### PR Tour · 2 — Fence open" + nl + nl + "```" + nl + "Words." + nl + nl + "[Tour overview](https://x/o)" + nl,
+			};
+			for (const auto& body : refused) {
+				if (recognize_published_tour_stop(body)) {
+					std::cerr << "recognized: " << body << '\n';
+				}
+				expect(!recognize_published_tour_stop(body), "a body other than the published envelope is not a stop");
+			}
+		}
+		expect(!recognize_published_tour_stop(std::string(maximum_tour_field_bytes + 1U, 'a')), "an oversized body is not read");
+
+		// How many stops a tour has, only when the stops prove it.
+		const auto stop = [](const std::string& aOverview, const std::size_t aOrdinal, const bool aPrevious, const bool aNext) {
+			auto result     = published_tour_stop{ };
+			result.Ordinal  = aOrdinal;
+			result.Title    = "t";
+			result.Overview = aOverview;
+			if (aPrevious) {
+				result.Previous = "p";
+			}
+			if (aNext) {
+				result.Next = "n";
+			}
+			return result;
+		};
+		const auto whole  = std::array{ stop("a", 2, true, true), stop("b", 1, false, false), stop("a", 1, false, true), stop("a", 3, true, false) };
+		const auto counts = published_tour_stop_counts(whole);
+		expect(counts == std::vector<std::optional<std::size_t>>{ 3U, 1U, 3U, 3U }, "a whole tour of three and a tour of one are counted, in the given order");
+		const auto missing = std::array{ stop("a", 1, false, true), stop("a", 3, true, false) };
+		expect(published_tour_stop_counts(missing) == std::vector<std::optional<std::size_t>>{ std::nullopt, std::nullopt }, "a missing stop leaves the count unknown");
+		const auto twice = std::array{ stop("a", 1, false, true), stop("a", 1, false, true) };
+		expect(published_tour_stop_counts(twice) == std::vector<std::optional<std::size_t>>{ std::nullopt, std::nullopt }, "a number given twice leaves the count unknown");
+		const auto publishing = std::array{ stop("a", 1, false, false), stop("a", 2, false, false) };
+		expect(published_tour_stop_counts(publishing) == std::vector<std::optional<std::size_t>>{ std::nullopt, std::nullopt }, "a tour still being published has no count yet");
+
+		// The tour's own stop for a comment: by its binding, then by number and title.
+		auto tour = review_tour{ };
+		for (const auto& [id, title, entity] : std::array{ std::tuple{ 1U, "Start", "PRRC_1" }, std::tuple{ 2U, "Middle", "PRRC_2" }, std::tuple{ 3U, "End", "" } }) {
+			auto added    = tour_stop{ };
+			added.Id      = tour_stop_id{ id };
+			added.Title   = title;
+			auto remote   = tour_remote_binding{ };
+			remote.Kind   = tour_remote_kind::line_comment;
+			remote.Entity = entity;
+			added.Remote  = std::move(remote);
+			tour.Stops.push_back(std::move(added));
+		}
+		auto read    = published_tour_stop{ };
+		read.Ordinal = 3U;
+		read.Title   = "Middle";
+		const auto a = find_published_tour_stop(tour, "review-comment:PRRC_2", read);
+		expect(a && *a == tour_stop_id{ 2U }, "the stop bound to that very comment is found, whatever its number");
+		read.Title   = "End";
+		const auto b = find_published_tour_stop(tour, "review-comment:PRRC_9", read);
+		expect(b && *b == tour_stop_id{ 3U }, "otherwise the bound stop at its number with its title");
+		read.Title = "Renamed";
+		expect(!find_published_tour_stop(tour, "review-comment:PRRC_9", read), "a different title at that number is not the stop");
+		read.Ordinal = 9U;
+		read.Title   = "Start";
+		expect(!find_published_tour_stop(tour, "issue-comment:PRRC_1", read), "a conversation comment does not match a line comment's binding");
+	}
+}
+
 int main()
 {
 	golden();
 	generated();
 	files_changed_links();
 	navigation_note();
+	published_stops();
 	std::cout << "TOUR_MARKDOWN_OK\n";
 }

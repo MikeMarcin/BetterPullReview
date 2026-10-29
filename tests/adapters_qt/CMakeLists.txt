@@ -2240,6 +2240,30 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "feedback-label-threads-tests:pass"
 )
 
+# [[BPR-1806]]. A published tour stop reads as one: its note's badge and
+# title, its plate over its narrative alone, Open in tour, in all four themes.
+bpr_add_executable(
+    test_better_pull_review_qt_tour_stop_card_tests
+    tour_stop_card_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_tour_stop_card_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_tour_stop_card_tests)
+bpr_enable_warnings(test_better_pull_review_qt_tour_stop_card_tests)
+bpr_add_network_isolated_test(
+    NAME qt_tour_stop_card
+    COMMAND test_better_pull_review_qt_tour_stop_card_tests
+)
+set_tests_properties(
+    qt_tour_stop_card
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};BPR_TOUR_STOP_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/tour-stop-card"
+        PASS_REGULAR_EXPRESSION "tour-stop-card-tests:pass"
+)
+
 # [[BPR-1583]]. One avatar and one colour per person: the same login is the
 # same fill on Threads, Overview, Home and Settings in all four themes.
 bpr_add_executable(
