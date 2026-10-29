@@ -14330,6 +14330,13 @@ namespace bpr::qt {
 		};
 		OverviewPage->body_view()->set_image_dispatch([images](std::vector<core::markdown_image_reference> aReferences) { images({ }, std::move(aReferences)); });
 		ConversationPanel->set_image_dispatch(images);
+		// [[BPR-1802]]. Permalinks are judged by this pull request's repository.
+		auto repository = std::optional<core::markdown_repository>{ };
+		if (!aPullRequest.Hostname.empty() && !aPullRequest.Owner.empty() && !aPullRequest.RepositoryName.empty()) {
+			repository = core::markdown_repository{ .Host = aPullRequest.Hostname, .Owner = aPullRequest.Owner, .Repository = aPullRequest.RepositoryName };
+		}
+		OverviewPage->body_view()->set_permalink_repository(repository);
+		ConversationPanel->set_permalink_repository(repository);
 		OverviewPage->set_check_link_dispatch(dispatch);
 		ConversationPanel->set_link_dispatch(dispatch);
 		PullRequestPanel->adopt(aPullRequest);
@@ -14533,6 +14540,43 @@ namespace bpr::qt {
 		} // [[BPR-1805]] repair: a tour stop's code as a comment's.
 		if (TourEditor != nullptr) {
 			TourEditor->set_code_syntax_dispatch(relay);
+		}
+	}
+
+	void workbench_window::set_markdown_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch)
+	{
+		MarkdownPermalinkDispatch = std::move(aDispatch);
+		const auto relay          = [this](std::vector<application::markdown_blob_snippet_request> aRequests) {
+			if (MarkdownPermalinkDispatch) {
+				MarkdownPermalinkDispatch(std::move(aRequests));
+			}
+		};
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->set_permalink_dispatch(relay);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->set_permalink_dispatch(relay);
+		}
+	}
+
+	void workbench_window::apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
+	{
+		// A reader takes an answer only for a permalink it holds.
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->apply_permalink_snippet(aSnippet);
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->apply_markdown_permalink_snippet(aSnippet);
+		}
+	}
+
+	void workbench_window::request_markdown_permalinks()
+	{
+		if (OverviewPage != nullptr) {
+			OverviewPage->body_view()->request_permalink_snippets();
+		}
+		if (ConversationPanel != nullptr) {
+			ConversationPanel->request_permalink_snippets();
 		}
 	}
 
@@ -14810,6 +14854,8 @@ namespace bpr::qt {
 		PageContext.reset();
 		OverviewPage->body_view()->set_link_dispatch({ });
 		ConversationPanel->set_link_dispatch({ });
+		OverviewPage->body_view()->set_permalink_repository(std::nullopt);
+		ConversationPanel->set_permalink_repository(std::nullopt);
 		RefreshConversationAnchor.reset();
 		RefreshConversationContext.reset();
 		LastWorkbenchContext.reset();

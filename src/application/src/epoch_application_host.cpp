@@ -4789,6 +4789,68 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief [[BPR-1802]]. See `epoch_application_host::resolve_permalink_source`.
+		[[nodiscard]] auto resolve_permalink_source(
+			permalink_source_request    aRequest,
+			permalink_source_completion aCompletion) -> bool
+		{
+			if (!aCompletion || !aRequest.Commit.valid() || !aRequest.Head.valid() || aRequest.Commit.algorithm() != aRequest.Head.algorithm()
+				|| aRequest.Path.empty() || aRequest.Path.size() > maximum_git_tree_entry_path_bytes || aRequest.Path.starts_with('/')) {
+				return false;
+			}
+			auto reviewActor = review_cache_actor(aRequest.WorkbenchAuthority, aRequest.Head);
+			if (!reviewActor) {
+				return false;
+			}
+			auto       actor         = std::move(reviewActor->first);
+			const auto expected      = std::move(reviewActor->second);
+			auto       reviewContext = Active && Active->Actor == actor && Active->Revision.Head == aRequest.Head ? Active : std::shared_ptr<authority_context>{ };
+			auto       admitted      = admit_job(std::nullopt, std::nullopt, std::nullopt, std::nullopt, false);
+			if (!admitted.has_value()) {
+				return false;
+			}
+			auto        control      = std::move(*admitted);
+			const auto  gate         = std::weak_ptr<completion_gate>{ CompletionGate };
+			auto* const decisionLane = &DecisionLane;
+			try {
+				enqueue_actor_work(
+					actor,
+					[this,
+					 actor,
+					 expected,
+					 context = std::move(reviewContext),
+					 gate,
+					 decisionLane,
+					 control,
+					 request    = std::move(aRequest),
+					 completion = std::move(aCompletion)]() mutable {
+						auto observation   = permalink_source_observation{ .Request = request, .Status = permalink_source_status::failure, .Bytes = std::nullopt };
+						observation.Status = read_exact_file_sides(*actor, expected, context, request.Head, core::file_comparison_key{ }, control->Stop.get_token(),
+																   [&](const auto& aLoad, const auto& /*aCompare*/) -> permalink_source_status {
+																	   auto side = aLoad(request.Path, request.Commit);
+																	   if (!side) {
+																		   return side.error();
+																	   }
+																	   if (side->Bytes) {
+																		   if (side->Bytes->size() > maximum_permalink_source_bytes) {
+																			   return permalink_source_status::too_large;
+																		   }
+																		   observation.Bytes.emplace(side->Bytes->begin(), side->Bytes->end());
+																	   }
+																	   return permalink_source_status::resolved;
+																   });
+						if (observation.Status != permalink_source_status::resolved) {
+							observation.Bytes.reset();
+						}
+						enqueue_completion(gate, decisionLane, std::move(control), [answer = std::move(observation), deliver = std::move(completion)](implementation&) { deliver(answer); });
+					});
+			} catch (...) {
+				finish_job(control);
+				return false;
+			}
+			return true;
+		}
+
 		/// \brief [[BPR-1735]]. See `epoch_application_host::resolve_github_diff_lines`.
 		[[nodiscard]] auto resolve_github_diff_lines(
 			github_diff_lines_request    aRequest,
@@ -11012,6 +11074,13 @@ namespace bpr::application {
 		head_move_lines_completion aCompletion) -> bool
 	{
 		return Implementation->resolve_head_move_lines(std::move(aRequest), std::move(aCompletion));
+	}
+
+	auto epoch_application_host::resolve_permalink_source(
+		permalink_source_request    aRequest,
+		permalink_source_completion aCompletion) -> bool
+	{
+		return Implementation->resolve_permalink_source(std::move(aRequest), std::move(aCompletion));
 	}
 
 	auto epoch_application_host::resolve_github_diff_lines(

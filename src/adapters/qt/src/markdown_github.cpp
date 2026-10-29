@@ -3,6 +3,7 @@
 #include "markdown_github_html.hpp"
 #include "markdown_github_math.hpp"
 
+#include "bpr/core/markdown_blob_snippet.hpp"
 #include "bpr/core/markdown_navigation.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 
@@ -1141,10 +1142,16 @@ namespace bpr::qt::detail {
 
 		/// [[BPR-1801]]. A blob line permalink's compact text, or nothing for
 		/// any other address.
-		auto permalink_label(const QString& aAddress) -> QString
+		/// [[BPR-1802]]. In the reader's own repository the owner is dropped,
+		/// as GitHub's snippet header drops it.
+		auto permalink_label(const QString& aAddress, const core::markdown_repository* aOwn = nullptr) -> QString
 		{
 			const auto permalink = core::recognize_markdown_blob_permalink(aAddress.toStdString());
-			return permalink ? QString::fromStdString(core::markdown_blob_permalink_label(*permalink)) : QString{ };
+			if (!permalink) {
+				return { };
+			}
+			const auto own = aOwn != nullptr && core::markdown_blob_permalink_in_repository(*permalink, *aOwn);
+			return QString::fromStdString(core::markdown_blob_permalink_label(*permalink, own));
 		}
 
 		/// `www.` at `aAt`, after a line start, a space or one of `*_~(`.
@@ -1290,7 +1297,7 @@ namespace bpr::qt::detail {
 			return -1;
 		}
 
-		auto mark_autolinks(const QString& aText) -> QString
+		auto mark_autolinks(const QString& aText, const core::markdown_repository* aOwn) -> QString
 		{
 			if (!aText.contains(QLatin1Char{ '.' })) {
 				return aText;
@@ -1334,7 +1341,7 @@ namespace bpr::qt::detail {
 						if (!inner.isEmpty() && !inner.contains(QLatin1Char{ ' ' }) && !inner.contains(QLatin1Char{ '\n' }) && (inner.contains(QLatin1Char{ ':' }) || inner.contains(QLatin1Char{ '@' }))) {
 							// [[BPR-1801]]. `<permalink>` reads as compactly as a bare one.
 							if (const auto href = inner.toString(); aAt >= done) {
-								if (auto label = permalink_label(href); !label.isEmpty()) {
+								if (auto label = permalink_label(href, aOwn); !label.isEmpty()) {
 									edits.push_back({ { aAt, close + 1 }, autolink_markdown(aText, { aAt, close + 1, href, std::move(label) }) });
 									done = close + 1;
 								}
@@ -1380,6 +1387,9 @@ namespace bpr::qt::detail {
 					}
 					if (!match || match->Begin < done) {
 						return 0;
+					}
+					if (!match->Label.isEmpty()) {
+						match->Label = permalink_label(match->Href, aOwn);
 					}
 					edits.push_back({ { match->Begin, match->End }, autolink_markdown(aText, *match) });
 					done = match->End;
@@ -2007,7 +2017,7 @@ namespace bpr::qt::detail {
 		}
 	} // namespace
 
-	auto prepare_github_markdown(const QString& aSource) -> prepared_markdown
+	auto prepare_github_markdown(const QString& aSource, const core::markdown_repository* aOwn) -> prepared_markdown
 	{
 		auto prepared = prepared_markdown{ };
 		// [[BPR-1795]]. CommonMark's line endings are LF, CRLF and a lone CR;
@@ -2020,7 +2030,7 @@ namespace bpr::qt::detail {
 		if (prepared.Marks) {
 			prepared.Text = mark_html_blocks(prepared.Text, prepared);
 		}
-		prepared.Text = mark_autolinks(prepared.Text);
+		prepared.Text = mark_autolinks(prepared.Text, aOwn);
 		if (prepared.Marks) {
 			prepared.Text = mark_html_inline(mark_inline_math(prepared.Text, prepared), prepared);
 			prepared.Text = mark_alerts(move_footnotes(prepared.Text));

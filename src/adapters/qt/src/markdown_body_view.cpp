@@ -480,7 +480,7 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override
 		{
 			const auto offset      = QPointF{ static_cast<qreal>(-horizontalScrollBar()->value()), static_cast<qreal>(-verticalScrollBar()->value()) };
-			const auto suggestions = Code != nullptr && Code->suggestions();
+			const auto suggestions = Code != nullptr && (Code->suggestions() || Code->snippets());
 			if (suggestions) {
 				// [[BPR-1564]]. A suggested change's rows are filled under the text.
 				auto under = QPainter{ viewport() };
@@ -771,9 +771,12 @@ namespace bpr::qt {
 			return;
 		}
 		const auto retainSource = source_visible() && Identity == aIdentity;
-		Body                    = std::move(aBody);
-		Identity                = std::move(aIdentity);
-		const auto text         = QString::fromUtf8(Body.data(), static_cast<qsizetype>(Body.size()));
+		if (Identity != aIdentity) {
+			Snippets.clear();
+		}
+		Body            = std::move(aBody);
+		Identity        = std::move(aIdentity);
+		const auto text = QString::fromUtf8(Body.data(), static_cast<qsizetype>(Body.size()));
 		Source->setPlainText(text);
 		// The widest source line in columns, tabs at four, for the in-place
 		// height: a line wider than the post gets the sideways scroll bar.
@@ -811,6 +814,7 @@ namespace bpr::qt {
 	{
 		Body.clear();
 		Identity.clear();
+		Snippets.clear();
 		Source->clear();
 		VisitedSource   = false;
 		VisitedRendered = false;
@@ -1053,13 +1057,56 @@ namespace bpr::qt {
 		document->setLayoutEnabled(false);
 		document->clear();
 		Rendered->AlertBars.clear();
+		Standing.clear();
+		SnippetsShown = 0U;
 		if (RenderedAvailable) {
 			const auto source = QString::fromUtf8(shown.data(), static_cast<qsizetype>(shown.size()));
+			// [[BPR-1802]]. Each standing permalink in the repository whose
+			// lines are held becomes its box; the others keep the compact link.
+			auto       snippets   = std::vector<detail::markdown_code_snippet>{ };
+			auto       placements = std::vector<core::markdown_blob_snippet_placement>{ };
+			auto       rendered   = std::string{ shown };
+			const auto held       = [this](const core::markdown_blob_permalink& aPermalink) -> const held_snippet* {
+				const auto found = std::ranges::find_if(Snippets, [&](const held_snippet& aHeld) { return core::markdown_blob_permalink_same_lines(aHeld.Permalink, aPermalink); });
+				return found == Snippets.end() ? nullptr : &*found;
+			};
+			const auto add = [&](const std::string& aAddress, const core::markdown_blob_permalink& aPermalink) {
+				snippets.push_back({ .Permalink     = aPermalink,
+									 .Address       = QString::fromStdString(aAddress),
+									 .CommitAddress = QString::fromStdString(core::markdown_blob_permalink_commit_address(aAddress)) });
+			};
+			if (PermalinkRepository) {
+				for (const auto& standing : core::markdown_standalone_permalinks(shown)) {
+					if (!core::markdown_blob_permalink_in_repository(standing.Permalink, *PermalinkRepository) || !core::markdown_blob_snippet_range_shown(standing.Permalink)) {
+						continue;
+					}
+					Standing.push_back(standing.Permalink);
+					if (const auto* lines = held(standing.Permalink)) {
+						placements.push_back({ .Begin = standing.Begin, .End = standing.End, .Ordinal = static_cast<std::uint32_t>(snippets.size()), .Lines = *lines->Lines });
+						add(standing.Address, standing.Permalink);
+					}
+				}
+				rendered = core::markdown_with_blob_snippets(shown, placements);
+				// A tour stop's pinned source, above its narrative, as a box only.
+				if (RenderedLead && RenderedLead->first < RenderedLead->second && RenderedLead->second <= Body.size()) {
+					const auto lead = std::string_view{ Body }.substr(RenderedLead->first, RenderedLead->second - RenderedLead->first);
+					if (const auto found = core::markdown_standalone_permalinks(lead); found.size() == 1U && core::markdown_blob_permalink_in_repository(found[0].Permalink, *PermalinkRepository)
+						&& core::markdown_blob_snippet_range_shown(found[0].Permalink) && rendered.find(core::markdown_blob_snippet_mark) == std::string::npos) {
+						Standing.push_back(found[0].Permalink);
+						if (const auto* lines = held(found[0].Permalink)) {
+							const auto box = core::markdown_blob_snippet_placement{ .Begin = 0U, .End = 0U, .Ordinal = static_cast<std::uint32_t>(snippets.size()), .Lines = *lines->Lines };
+							add(found[0].Address, found[0].Permalink);
+							rendered = core::markdown_with_blob_snippets({ }, std::span{ &box, 1U }) + "\n" + rendered;
+						}
+					}
+				}
+			}
 			// [[BPR-1543]]. GitHub's comments, line breaks, alerts and
 			// footnotes; the import and its tab repair read the prepared text.
 			// Presentation runs before images are placed, which find them in
 			// the presented document and name them by ordinal.
-			auto prepared = detail::prepare_github_markdown(source);
+			auto prepared = detail::prepare_github_markdown(placements.empty() && snippets.empty() ? source : QString::fromStdString(rendered),
+															PermalinkRepository ? &*PermalinkRepository : nullptr);
 			// [[BPR-1564]]. An empty suggestion keeps a line for its rows.
 			detail::markdown_code_store::prepare(prepared.Text, Suggestions.has_value());
 			document->setMarkdown(prepared.Text, markdown_features);
@@ -1067,7 +1114,8 @@ namespace bpr::qt {
 				detail::present_github_markdown(*document, prepared);
 				// [[BPR-1562]]. Each fenced block found by its lines; suggestions
 				// laid out before images are placed.
-				Code->place(*document, prepared.Text, Suggestions);
+				Code->place(*document, prepared.Text, Suggestions, snippets);
+				SnippetsShown = static_cast<std::size_t>(std::ranges::count_if(Code->blocks(), [](const auto& aBlock) { return aBlock.Snippet.has_value(); }));
 				// RFC-BPR-0084. With a holder to ask, images become objects that
 				// load; without one they stay the accessible placeholder.
 				if (ImageDispatch && ImagesShown) {
@@ -1095,6 +1143,10 @@ namespace bpr::qt {
 						probe.setMarkdown(source.mid(start - offset, feedback_text_index(Body, annotation.Header->End) - start), markdown_features);
 						const auto header = probe.toPlainText().trimmed();
 						for (auto block = document->begin(); !header.isEmpty() && block.isValid(); block = block.next()) {
+							// [[BPR-1802]]. A tour stop's pinned source box comes first.
+							if (block.blockFormat().hasProperty(detail::markdown_code_ordinal_property) && SnippetsShown > 0U) {
+								continue;
+							}
 							if (block.text().startsWith(header)) {
 								HeaderStart = block.position();
 								HeaderChars = header.size();
@@ -1131,6 +1183,7 @@ namespace bpr::qt {
 		}
 		dispatch_images();
 		dispatch_code();
+		dispatch_permalinks();
 		schedule_animation();
 	}
 
@@ -1518,6 +1571,85 @@ namespace bpr::qt {
 		if (auto requests = Code->requests(); !requests.empty()) {
 			CodeDispatch(std::move(requests));
 		}
+	}
+
+	void markdown_body_view::set_permalink_repository(std::optional<core::markdown_repository> aRepository)
+	{
+		if (PermalinkRepository == aRepository) {
+			return;
+		}
+		PermalinkRepository = std::move(aRepository);
+		Snippets.clear();
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
+	void markdown_body_view::set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch)
+	{
+		PermalinkDispatch = std::move(aDispatch);
+		dispatch_permalinks();
+	}
+
+	void markdown_body_view::set_rendered_lead(std::optional<std::pair<std::size_t, std::size_t>> aLead)
+	{
+		if (RenderedLead == aLead) {
+			return;
+		}
+		RenderedLead = aLead;
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
+	auto markdown_body_view::permalink_snippets_shown() const -> std::size_t
+	{
+		return SnippetsShown;
+	}
+
+	void markdown_body_view::request_permalink_snippets()
+	{
+		dispatch_permalinks();
+	}
+
+	void markdown_body_view::dispatch_permalinks()
+	{
+		if (!PermalinkDispatch || !RenderedAvailable) {
+			return;
+		}
+		auto requests = std::vector<application::markdown_blob_snippet_request>{ };
+		for (const auto& permalink : Standing) {
+			const auto held = std::ranges::any_of(Snippets, [&](const held_snippet& aHeld) { return core::markdown_blob_permalink_same_lines(aHeld.Permalink, permalink); });
+			if (!held) {
+				auto request      = application::markdown_blob_snippet_request{ };
+				request.Permalink = permalink;
+				requests.push_back(std::move(request));
+			}
+		}
+		if (!requests.empty()) {
+			PermalinkDispatch(std::move(requests));
+		}
+	}
+
+	void markdown_body_view::apply_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
+	{
+		if (!aSnippet.Lines || aSnippet.Lines->empty() || !PermalinkRepository || !core::markdown_blob_permalink_in_repository(aSnippet.Permalink, *PermalinkRepository)) {
+			return;
+		}
+		const auto shows = std::ranges::any_of(Standing, [&](const core::markdown_blob_permalink& aStanding) { return core::markdown_blob_permalink_same_lines(aStanding, aSnippet.Permalink); });
+		const auto held  = std::ranges::any_of(Snippets, [&](const held_snippet& aHeld) { return core::markdown_blob_permalink_same_lines(aHeld.Permalink, aSnippet.Permalink); });
+		if (!shows || held) {
+			return;
+		}
+		Snippets.push_back({ .Permalink = aSnippet.Permalink, .Lines = aSnippet.Lines });
+		// The box replaces its link where it stands; the reading position stays.
+		auto*      scroll = Rendered->verticalScrollBar();
+		const auto at     = scroll->value();
+		prepare_rendered();
+		scroll->setValue(at);
+		height_changed();
 	}
 
 	void markdown_body_view::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)

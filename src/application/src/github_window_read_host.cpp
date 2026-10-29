@@ -432,6 +432,9 @@ namespace bpr::application {
 				if (aSnapshot != nullptr) {
 					presentation.PullRequest                  = project_github_pull_request(*aSnapshot);
 					presentation.PullRequest->MarkdownContext = markdown_identity();
+					if (AcceptedProfileAuthority) {
+						presentation.PullRequest->Hostname = std::string{ AcceptedProfileAuthority->Hostname.value() };
+					}
 					MarkdownBodies.clear();
 					for (const auto& body : presentation.PullRequest->Conversations) {
 						if (!body.Deleted) {

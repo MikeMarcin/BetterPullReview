@@ -11,6 +11,10 @@
 #include <utility>
 #include <vector>
 
+namespace bpr::core {
+	struct markdown_repository;
+}
+
 class QPalette;
 class QTextDocument;
 
@@ -91,7 +95,9 @@ namespace bpr::qt::detail {
 	};
 
 	/// \brief Rewrites a body for Qt's GitHub-dialect import.
-	[[nodiscard]] auto prepare_github_markdown(const QString& aSource) -> prepared_markdown;
+	/// [[BPR-1802]]. With `aOwn`, a blob permalink in that repository reads
+	/// without its owner.
+	[[nodiscard]] auto prepare_github_markdown(const QString& aSource, const core::markdown_repository* aOwn = nullptr) -> prepared_markdown;
 
 	/// \brief Turns the prepared marks in an imported document into line
 	/// separators, alert blocks and footnote links.

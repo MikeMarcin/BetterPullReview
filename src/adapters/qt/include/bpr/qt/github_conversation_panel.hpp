@@ -138,6 +138,11 @@ namespace bpr::qt {
 		void set_images_shown(bool aShown);
 		/// \brief [[BPR-1562]]. Code classification for the open thread's posts.
 		void set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		/// \brief [[BPR-1802]]. See `conversation_cards_view::set_permalink_repository`.
+		void set_permalink_repository(std::optional<core::markdown_repository> aRepository);
+		void set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		void apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
+		void request_permalink_snippets();
 		void apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		void adopt_appearance(const appearance_profile& aProfile);
 		/// \brief [[BPR-1083]]. The label tints and mark style for the notes.

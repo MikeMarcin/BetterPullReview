@@ -29,6 +29,7 @@
 #include <cmath>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -405,6 +406,49 @@ namespace {
 	}
 }
 
+namespace {
+	/// \brief [[BPR-1802]]. With the pull request's repository known and its
+	/// lines read, the stop's pinned source shows as its snippet box between
+	/// the plate and the narrative; until then, nothing of it shows.
+	void test_the_pinned_source_shows_as_its_box()
+	{
+		for (const auto& [mode, name] : themes) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			qt::conversation_cards_view view;
+			view.setPalette(profile.derive(QApplication::palette()));
+			view.resize(440, 760);
+			view.show();
+			auto asked = std::vector<application::markdown_blob_snippet_request>{ };
+			view.set_permalink_repository(core::markdown_repository{ .Host = "github.com", .Owner = "octo", .Repository = "widgets" });
+			view.set_permalink_dispatch([&asked](std::vector<application::markdown_blob_snippet_request> aRequests) { asked.insert(asked.end(), aRequests.begin(), aRequests.end()); });
+			view.adopt(forest());
+			settle();
+			view.open_thread("stop-2");
+			settle();
+			auto posts = posts_of(*view.open_card());
+			expect(asked.size() == 1U && asked[0].Permalink.Path == "src/frame.cpp" && asked[0].Permalink.FirstLine == 12U && asked[0].Permalink.LastLine == 18U, "the stop asks for its pinned source's lines");
+			expect(!posts[0]->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->toPlainText().contains(QStringLiteral("frame.cpp")), "until they arrive nothing of the source shows");
+			auto lines        = std::vector<std::string>{ "void frame::layout(int aWidth)", "{", "\t// A null view never reaches the painter.", "\tif (View == nullptr) {", "\t\treturn;", "\t}", "\tWidth = std::clamp(aWidth, 0, Maximum);" };
+			auto snippet      = application::markdown_blob_snippet_publication{ };
+			snippet.Permalink = asked[0].Permalink;
+			snippet.Lines     = std::make_shared<const std::vector<std::string>>(std::move(lines));
+			view.apply_markdown_permalink_snippet(snippet);
+			settle();
+			posts                = posts_of(*view.open_card());
+			auto* const reader   = dynamic_cast<qt::markdown_body_view*>(posts[0]->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+			auto* const plate    = posts[0]->findChild<QWidget*>(QStringLiteral("threadPostTourStop"));
+			const auto  rendered = posts[0]->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->toPlainText();
+			expect(reader->permalink_snippets_shown() == 1U && rendered.startsWith(QStringLiteral("widgets/src/frame.cpp")) && rendered.contains(QStringLiteral("Lines 12 to 18 in 1111111")),
+				   "the pinned source is the box, first");
+			expect(rendered.contains(QStringLiteral("The frame is clamped before layout")) && !rendered.contains(QStringLiteral("PR Tour")), "the narrative follows, the scaffolding still hidden");
+			expect(plate != nullptr && plate->geometry().bottom() < reader->geometry().top(), "the plate stays over it");
+			expect(reader->original_body() == stop_body("Why the width is clamped", 2, narrative, 3), "the stop's source is unchanged");
+			save_render(view, QStringLiteral("tour-stop-pinned-") + QString::fromLatin1(name));
+		}
+	}
+}
+
 int main(int aArgc, char** aArgv)
 {
 	QApplication application{ aArgc, aArgv };
@@ -414,6 +458,7 @@ int main(int aArgc, char** aArgv)
 	test_the_open_stop_shows_its_plate_and_narrative();
 	test_the_plate_steps_along_the_tour();
 	test_every_theme();
+	test_the_pinned_source_shows_as_its_box();
 	std::cout << "tour-stop-card-tests:pass\n";
 	return EXIT_SUCCESS;
 }
