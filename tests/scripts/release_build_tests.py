@@ -188,7 +188,7 @@ class ReleaseBuildTests(unittest.TestCase):
     @unittest.skipUnless(shutil.which("cmake"), "native CMake is unavailable")
     def test_production_cold_and_warm_observations_include_the_same_core_options(self):
         build = Path(self.temporary.name) / "production-build"
-        command = ["cmake", "-S", str(ROOT), "-B", str(build),
+        command = ["cmake", "-S", str(ROOT), "-B", str(build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release",
                    "-DBPR_BUILD_QT=OFF", "-DBUILD_TESTING=OFF", "-DBPR_ENABLE_CODING_TARGETS=OFF",
                    "-DBPR_DEPENDENCY_OFFLINE=ON", "-DCPM_SOURCE_CACHE=" + str(ROOT / "build/.cpm-cache")]
         for attempt in ("cold", "warm"):
