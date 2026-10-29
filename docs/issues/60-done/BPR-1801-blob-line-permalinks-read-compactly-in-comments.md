@@ -27,7 +27,7 @@ commit, even mid-paragraph. A permalink to another repository, an authored
 links.
 
 This card lands the compact link. The fetched snippet is
-[BPR-1802](../10-backlog/BPR-1802-blob-line-permalinks-show-their-lines-as-a-snippet.md).
+[BPR-1802](BPR-1802-blob-line-permalinks-show-their-lines-as-a-snippet.md).
 
 ## Acceptance
 
