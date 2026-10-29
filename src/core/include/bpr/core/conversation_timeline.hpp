@@ -172,6 +172,48 @@ namespace bpr::core {
 	/// comments), and a bundle shows its line only over comments still shown.
 	[[nodiscard]] auto arrange_conversation_timeline(std::span<const timeline_item> aItems, const timeline_filters& aFilters = { })
 		-> conversation_timeline;
+
+	/// \brief [[BPR-1808]]. Why a filtered conversation lists nothing.
+	enum class timeline_empty : std::uint8_t {
+		/// Something is listed, or nothing is filtered.
+		none,
+		/// The conversation has comments, and none has a post I have not read.
+		no_new,
+		/// Every comment is a resolved thread.
+		no_unresolved,
+		/// The comments with new posts are all resolved threads.
+		no_new_unresolved,
+		/// The drill-down's list names no comment the conversation holds.
+		no_match,
+	};
+
+	/// \brief [[BPR-1808]]. What the conversation's filters leave, counted
+	/// against the whole conversation.
+	struct timeline_filter_summary
+	{
+		/// Comment rows with no filter on.
+		std::size_t Comments = 0U;
+		/// Of those, with a post I have not read.
+		std::size_t Unread = 0U;
+		/// Of those, resolved threads.
+		std::size_t Resolved = 0U;
+		/// Comment rows the filters leave, kept items included.
+		std::size_t Shown = 0U;
+		/// Why nothing is listed; `none` when something is, or when the
+		/// conversation itself has no comment.
+		timeline_empty Empty = timeline_empty::none;
+
+		auto operator==(const timeline_filter_summary&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1808]]. Counts the conversation the way
+	/// `arrange_conversation_timeline` lists it, before and after `aFilters`,
+	/// and says why a filtered list is empty.
+	///
+	/// \details A conversation with no comment is not a filter's doing:
+	/// `Empty` stays `none` and the view says the conversation is empty.
+	[[nodiscard]] auto summarize_conversation_timeline(std::span<const timeline_item> aItems, const timeline_filters& aFilters = { })
+		-> timeline_filter_summary;
 }
 
 #endif
