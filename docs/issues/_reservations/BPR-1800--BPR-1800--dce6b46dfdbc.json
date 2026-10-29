@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1800"
+  ],
+  "reserve_for": "release-refresh-mutation-lifecycle",
+  "purpose": "Preserve typed pending resolution outcomes across accepted refresh host retirement",
+  "created": "2026-10-29T00:57:40.747451+00:00",
+  "base": "f4fcab4837f49fa43af7550dda1060eee44d6fa8"
+}
