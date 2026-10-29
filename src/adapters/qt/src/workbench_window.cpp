@@ -9914,7 +9914,7 @@ namespace bpr::qt {
 		}
 		// The conversation view's current index is what reveals the line, as a
 		// press on a card does; the cards follow it.
-		ConversationPanel->cards()->show_pull_request_comments(false);
+		ConversationPanel->set_pull_request_conversation(false);
 		const auto index = ConversationPanel->model()->index_for_id(next);
 		if (index.isValid()) {
 			ConversationPanel->view()->setCurrentIndex(index);
@@ -9946,12 +9946,11 @@ namespace bpr::qt {
 			static_cast<QBoxLayout*>(aHome->layout())->insertWidget(0, aWidget, 1);
 			aWidget->show();
 		};
-		auto* const cards = ConversationPanel->cards();
 		if (aToOverview) {
 			// Discuss's panel stays Discuss's until it leaves.
 			if (ConversationPanel->parentWidget() != DiscussPage) {
 				move(ConversationPanel, drawer->holder(overview_drawer_tab::comments));
-				cards->show_pull_request_comments(true);
+				ConversationPanel->set_pull_request_conversation(true);
 			}
 			ConversationPanel->set_new_comment_offered(ConversationPanel->parentWidget() != DiscussPage);
 			move(PrivateNotes, drawer->holder(overview_drawer_tab::notes));
@@ -9959,7 +9958,7 @@ namespace bpr::qt {
 			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
 		} else {
 			if (ConversationPanel->parentWidget() == drawer->holder(overview_drawer_tab::comments)) {
-				cards->show_pull_request_comments(false);
+				ConversationPanel->set_pull_request_conversation(false);
 				move(ConversationPanel, ConversationHome);
 			}
 			ConversationPanel->set_new_comment_offered(false);
@@ -9994,6 +9993,8 @@ namespace bpr::qt {
 			return;
 		}
 		if (!aIdentity.empty()) {
+			// [[BPR-1808]]. Overview's own filters never hide what a link asked for.
+			static_cast<void>(ConversationPanel->reveal_in_conversation(aIdentity));
 			ConversationPanel->cards()->open_thread(aIdentity);
 		} else {
 			ConversationPanel->cards()->setFocus(Qt::OtherFocusReason);
@@ -10080,7 +10081,7 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			if (discuss && ConversationPanel->parentWidget() != DiscussPage) {
 				// Leaving Overview's conversation for Discuss's feed.
-				ConversationPanel->cards()->show_pull_request_comments(false);
+				ConversationPanel->set_pull_request_conversation(false);
 				static_cast<QBoxLayout*>(DiscussPage->layout())->insertWidget(0, ConversationPanel, 1);
 				ConversationPanel->show();
 			} else if (!discuss && ConversationPanel->parentWidget() == DiscussPage) {
