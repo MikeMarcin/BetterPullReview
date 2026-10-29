@@ -87,3 +87,7 @@ and no sign column, coloured as fenced code is.
   link; GitHub splits the paragraph there.
 - The tour authoring read view (BPR-1805) and the agent tab do not ask for
   snippets.
+
+## Owner review
+
+Owner accepted the look from the offscreen dark renders (snippet box and tour-stop pinned source) sent in the coordinator session, 2026-10-29: "Screenshots enough". No attended session was opened.
