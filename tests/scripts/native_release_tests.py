@@ -561,11 +561,11 @@ class StableCopyTests(unittest.TestCase):
         self.source_tag = self.cohort["allocation"]["native"]["releaseTag"]
         self.source = {"id": 42, "assets": self.remote_assets(self.selected)}
         self.args = SimpleNamespace(cohort=cohort_file, version="0.4.0", source_revision=SOURCE, visibility="PUBLIC", promote=False,
-                                    notes_file=self.notes, stable_acceptance=None, publication_authorization=None, dry_run=False)
+                                    notes_file=self.notes, stable_acceptance=None, publication_authorization=None, resume_stable=None, dry_run=False)
         self.platforms = {"Darwin", "Windows", "Linux"}
         self.mutations = []
         self.destination = {"id": 43, "tag_name": "0.4.0", "draft": True, "prerelease": True, "immutable": False,
-                            "html_url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.0", "assets": []}
+                            "html_url": "https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.0", "assets": [], "body": self.notes.read_text()}
 
     @staticmethod
     def remote_assets(rows):
@@ -583,6 +583,10 @@ class StableCopyTests(unittest.TestCase):
         if args[:2] == ("git", "rev-parse"):
             return "f" * 40
         if args[:2] == ("gh", "api"):
+            if "/releases/tags/0.4.0" in args[-1]:
+                raise subprocess.CalledProcessError(1, args, stderr="GitHub omits drafts from tag lookup: 404")
+            if "--slurp" in args:
+                return json.dumps([[self.destination]])
             return json.dumps(self.destination)
         raise AssertionError(args)
 
@@ -623,6 +627,43 @@ class StableCopyTests(unittest.TestCase):
         self.assertEqual([row[:3] for row in self.mutations if row[:2] == ["gh", "release"]],
                          [["gh", "release", "create"]] + [["gh", "release", "upload"]] * 3 + [["gh", "release", "edit"]])
         self.assertEqual(publisher.remote_inventory(self.source), self.selected)
+
+    def resume_checkpoint(self):
+        self.permissions()
+        self.args.resume_stable = self.root / "resume.json"
+        self.args.resume_stable.write_text(json.dumps({"schema": "bpr.release-stable-copy-resume.v1", "source": SOURCE,
+            "version": "0.4.0", "tag": "0.4.0", "sourceTag": self.source_tag, "cohortDigest": self.cohort["cohortDigest"],
+            "releaseId": 43, "tagObject": "f" * 40,
+            "assets": [{"name": name, **row} for name, row in publisher.remote_inventory(self.destination).items()]}))
+
+    def test_inspected_partial_draft_resumes_without_new_tag_release_or_replacement(self):
+        self.destination["assets"] = self.remote_assets({"mac.zip": self.selected["mac.zip"]})
+        self.resume_checkpoint()
+        self.invoke()
+        self.assertEqual([row[:3] for row in self.mutations], [["gh", "release", "upload"]] * 2 + [["gh", "release", "edit"]])
+
+    def test_resume_refuses_changed_source_draft_id_unknown_assets_and_changed_snapshot(self):
+        self.resume_checkpoint()
+        original = self.args.resume_stable.read_text()
+        for change in ["source", "draft-id", "unknown-asset", "changed-snapshot"]:
+            checkpoint = json.loads(original)
+            self.destination["assets"] = []
+            self.destination["id"] = 43
+            if change == "source": checkpoint["source"] = "c" * 40
+            elif change == "draft-id": self.destination["id"] = 44
+            elif change == "unknown-asset": checkpoint["assets"] = [{"name": "unselected.zip", **ROW}]
+            else: self.destination["assets"] = self.remote_assets({"mac.zip": self.selected["mac.zip"]})
+            self.args.resume_stable.write_text(json.dumps(checkpoint))
+            with self.subTest(change=change), self.assertRaises(ValueError):
+                self.invoke()
+            self.assertEqual(self.mutations, [])
+
+    def test_resume_refuses_changed_draft_notes(self):
+        self.resume_checkpoint()
+        self.destination["body"] = "foreign draft notes"
+        with self.assertRaisesRegex(ValueError, "draft notes changed"):
+            self.invoke()
+        self.assertEqual(self.mutations, [])
 
     def test_dry_run_reports_missing_source_assets_and_no_authority_without_mutation(self):
         self.args.dry_run = True
