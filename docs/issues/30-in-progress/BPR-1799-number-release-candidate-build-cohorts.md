@@ -93,3 +93,12 @@ legacy 0.4.7 refusing fresh N=1 before any reservation. The native/tool course r
 including unchanged legacy/local directories and exact RC tag/source offers.
 The original 15 public asset digests and eight original Mac producer file digests
 were rechecked unchanged. Actual numbered native positives remain pending.
+
+A real CMake module composition now configures/builds an ordinary tiny native
+probe as build 0 without allocation, then consumes a frozen fixture cohort as
+build 1, reuses that allocation unchanged and refuses changed source before
+compiling. It caught duplicate observed option names; the module now deduplicates
+them before emitting JSON. All 14 allocation/module cases pass. This tiny probe
+is module evidence, not the pending full numbered application/package/native
+acceptance. The publisher retry control also refuses an already-created RC
+without another remote mutation; all 27 source/publication cases pass.

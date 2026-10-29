@@ -8,6 +8,7 @@ import multiprocessing
 import os
 from pathlib import Path
 import subprocess
+import shutil
 import sys
 import tempfile
 import unittest
@@ -179,6 +180,57 @@ class ReleaseBuildTests(unittest.TestCase):
         altered["options"]["BPR_BUILD_AGENT_INTEGRATIONS"] = "ON"
         with self.assertRaisesRegex(ValueError, "actual CMake"):
             cohort.configure(frozen, self.root, altered, "mac")
+
+    @unittest.skipUnless(shutil.which("cmake"), "native CMake is unavailable")
+    def test_real_cmake_module_consumes_frozen_identity_and_local_build_consumes_nothing(self):
+        for name in ("BprReleaseCohort.cmake", "BprBuildIdentity.cmake"):
+            destination = self.root / "cmake" / name
+            destination.parent.mkdir(exist_ok=True)
+            shutil.copyfile(ROOT / "cmake" / name, destination)
+        (self.root / "packaging/release_build.py").write_bytes((ROOT / "packaging/release_build.py").read_bytes())
+        (self.root / ".gitignore").write_text("/build/\n")
+        options = "\n".join(f'option({name} "fixture option" OFF)' for name in cohort.OPTIONS)
+        (self.root / "CMakeLists.txt").write_text('''cmake_minimum_required(VERSION 3.25)
+project(
+ BetterPullReview
+ VERSION 0.4.1
+ LANGUAGES CXX
+)
+''' + options + '''
+set(BPR_PRODUCT_QT_VERSION "6.12.0")
+include(cmake/BprReleaseCohort.cmake)
+include(cmake/BprBuildIdentity.cmake)
+add_executable(probe probe.cpp)
+bpr_add_build_identity(probe)
+''')
+        (self.root / "probe.cpp").write_text('#include "bpr_build_identity.hpp"\n#include <iostream>\nint main(){std::cout<<BPR_RELEASE_BUILD_NUMBER;}\n')
+        self.commit("native CMake identity composition fixture")
+        build = self.root / "build"
+        def run(*args):
+            result = subprocess.run(args, cwd=self.root, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            return result.stdout.strip()
+        run("cmake", "-S", str(self.root), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release")
+        run("cmake", "--build", str(build), "--config", "Release")
+        candidates = [build / "probe.exe", build / "Release/probe.exe"] if os.name == "nt" else [build / "probe"]
+        executable = next(path for path in candidates if path.is_file())
+        self.assertEqual(run(str(executable)), "0")
+        self.assertEqual(cohort.counter_value(self.root), 0)
+        observed = cohort.read(build / "_bpr/release-observed.json")
+        self.inputs["producers"] = {"native": {key: value for key, value in observed.items() if key != "version"} | {"preset": "fixture"}}
+        frozen = self.frozen()
+        external = Path(self.temporary.name) / "native-cohort.json"
+        cohort.write(external, frozen)
+        run("cmake", "-S", str(self.root), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release",
+            "-DBPR_RELEASE_COHORT=" + str(external), "-DBPR_RELEASE_PRODUCER=native")
+        run("cmake", "--build", str(build), "--config", "Release")
+        self.assertEqual(run(str(executable)), "1")
+        self.assertEqual(self.allocate(), frozen["allocation"])
+        (self.root / "probe.cpp").write_text("#error changed source must not compile\n")
+        refused = subprocess.run(["cmake", "--build", str(build), "--config", "Release"], capture_output=True, text=True)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("release cohort source/configuration binding mismatch", refused.stdout + refused.stderr)
+        self.assertNotIn("#error changed source", refused.stdout + refused.stderr)
 
     def test_native_mapping_bounds_and_actual_legacy_msi_order(self):
         self.assertEqual(cohort.native("0.4.1", 1, self.inputs["previousWindows"]), {
