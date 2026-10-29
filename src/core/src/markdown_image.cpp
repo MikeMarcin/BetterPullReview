@@ -538,6 +538,16 @@ namespace bpr::core {
 				&& (aAddress.Host == hostname || aAddress.Host == "media." + hostname);
 		}
 
+		/// [[BPR-1807]]. Whether a hop's host is one of the profile's avatar origins.
+		auto avatar_origin(const web_address& aAddress, const markdown_image_fetch_policy& aPolicy) -> bool
+		{
+			if (aPolicy.Contract == markdown_image_host_contract::github_com) {
+				return aAddress.Host == "avatars.githubusercontent.com";
+			}
+			const auto hostname = ascii_lower(aPolicy.Hostname);
+			return !hostname.empty() && (aAddress.Host == hostname || aAddress.Host == "avatars." + hostname);
+		}
+
 		auto admit_hop(const std::string_view aAddress, const bool aCredentialSoFar, const bool aRedirect,
 					   const markdown_image_fetch_policy& aPolicy, const std::uint32_t aHop)
 			-> std::expected<markdown_image_hop, markdown_image_state>
@@ -548,6 +558,9 @@ namespace bpr::core {
 			}
 			const auto parsed = parse_web_address(address);
 			if (!parsed || parsed->Scheme != "https" || (!parsed->Port.empty() && parsed->Port != "443")) {
+				return std::unexpected{ markdown_image_state::blocked };
+			}
+			if (aPolicy.AvatarOrigins && !avatar_origin(*parsed, aPolicy)) {
 				return std::unexpected{ markdown_image_state::blocked };
 			}
 			if (aPolicy.Contract == markdown_image_host_contract::github_com) {

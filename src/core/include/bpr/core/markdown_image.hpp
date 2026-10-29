@@ -195,6 +195,10 @@ namespace bpr::core {
 		std::string Hostname;
 		/// Whether the transport performing the fetch holds the profile's credential.
 		bool CredentialAvailable = false;
+		/// [[BPR-1807]]. Every hop, redirects included, only to the host's own
+		/// avatar origins: `avatars.githubusercontent.com` on GitHub.com; the
+		/// host itself or `avatars.<host>` on GHES.
+		bool AvatarOrigins = false;
 	};
 
 	/// \brief One admitted request: its exact address and whether the credential rides it.
