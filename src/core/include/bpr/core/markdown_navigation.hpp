@@ -82,6 +82,46 @@ namespace bpr::core {
 	/// exact current body/context and `admit_markdown_link`.
 	[[nodiscard]] auto markdown_autolink_target(std::string_view aText, markdown_autolink_form aForm) -> std::optional<std::string>;
 
+	/// \brief [[BPR-1801]]. A GitHub blob permalink to lines of one file at
+	/// one commit: `https://host/owner/repo/blob/<sha>/<path>#L10-L20`.
+	/// \details GitHub (and GitHub Enterprise, on its own host) shows such an
+	/// address as a code snippet. Only a full 40 or 64 digit commit is a
+	/// permalink; a branch or tag name is not, since its lines move. The
+	/// path is percent-decoded; the host and commit are lower case.
+	struct markdown_blob_permalink
+	{
+		std::string   Host;
+		std::string   Owner;
+		std::string   Repository;
+		std::string   Commit;
+		std::string   Path;
+		std::uint32_t FirstLine = 0;
+		/// Equal to `FirstLine` for one line.
+		std::uint32_t LastLine = 0;
+
+		auto operator==(const markdown_blob_permalink&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1801]]. Reads a bare address as a blob line permalink.
+	/// \details An HTTP(S) address with a safe host, owner and repository,
+	/// `blob`, a full commit, a non-empty path of safe segments, an optional
+	/// `?plain=1` and a fragment `#L<n>` or `#L<n>-L<m>` (columns `C<k>` are
+	/// accepted and dropped; a reversed range is put in order). Anything
+	/// else, including a credential-bearing query, is not one. Recognition
+	/// is presentation only: following the link still goes through
+	/// `admit_markdown_link`.
+	[[nodiscard]] auto recognize_markdown_blob_permalink(std::string_view aAddress) -> std::optional<markdown_blob_permalink>;
+
+	/// \brief [[BPR-1801]]. The compact text a permalink reads as in place of
+	/// its address, GitHub's snippet header in one line:
+	/// `owner/repo/path#L10-L20 at 1a2b3c4` (the commit's first seven digits).
+	[[nodiscard]] auto markdown_blob_permalink_label(const markdown_blob_permalink& aPermalink) -> std::string;
+
+	/// \brief [[BPR-1801]]. Whether a permalink names the pull request's own
+	/// repository on its own host, the only case GitHub embeds as a snippet.
+	/// Host, owner and repository compare without regard to ASCII case.
+	[[nodiscard]] auto markdown_blob_permalink_in_repository(const markdown_blob_permalink& aPermalink, std::string_view aHost, std::string_view aOwner, std::string_view aRepository) -> bool;
+
 	/// \brief Admits bounded HTTP(S) destinations or repository-root paths bound to the accepted head.
 	/// \brief [[BPR-1544]]. Whether an HTML link's destination could ever be
 	/// admitted: a bounded HTTP(S) address, a fragment, or a path without a
