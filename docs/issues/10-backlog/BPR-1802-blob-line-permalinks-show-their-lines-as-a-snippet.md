@@ -13,7 +13,7 @@ acceptance: []
 
 # BPR-1802: Blob line permalinks show their lines as a snippet
 
-Follow-up to [BPR-1801](../30-in-progress/BPR-1801-blob-line-permalinks-read-compactly-in-comments.md),
+Follow-up to [BPR-1801](../60-done/BPR-1801-blob-line-permalinks-read-compactly-in-comments.md),
 which made a bare blob line permalink read as one compact link
 (`owner/repo/path#L10-L20 at 1a2b3c4`). GitHub goes further and embeds the
 referenced lines. Left out of BPR-1801 because it needs a host fetch lane
