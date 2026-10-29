@@ -2107,6 +2107,11 @@ namespace bpr::qt {
 		void present_reply_placement();
 		void update_new_comment_group();
 		void step_to_next_new_comment();
+		/// \brief [[BPR-1601, BPR-1810]]. Goes to one conversation where the
+		/// reader is, as Next new comment does: a comment on the pull request
+		/// in its conversation, a thread on another file at its line, and
+		/// opens it in place.
+		void go_to_conversation(const std::string& aIdentity);
 		/// \brief [[BPR-1588]]. The pull request the Overview shows, as owner/name#number.
 		[[nodiscard]] auto overview_review_key() const -> QString;
 		/// \brief Selects a file-row or thread path and enters Review.

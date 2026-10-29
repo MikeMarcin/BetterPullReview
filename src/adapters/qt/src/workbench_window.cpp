@@ -31,6 +31,7 @@
 
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/destructive_question.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -3353,6 +3354,16 @@ namespace bpr::qt {
 			} else {
 				start_tour_at_published_stop(aPost, aStop);
 			}
+		});
+		// [[BPR-1810]]. A stop's chevrons: the neighbouring stop opens where
+		// the reader is, in place among these notes or at its own line.
+		ConversationPanel->cards()->set_tour_step_dispatch([this](const std::string& aThread) {
+			auto* const cards = ConversationPanel->cards();
+			if (std::ranges::any_of(cards->cards(), [&aThread](const thread_card& aCard) { return aCard.Id == aThread; })) {
+				cards->open_thread(aThread);
+				return;
+			}
+			go_to_conversation(aThread);
 		});
 		Drawers[1].Panel->set_content_widget(
 			conversationShell, ConversationPanel->cards());
@@ -9919,6 +9930,15 @@ namespace bpr::qt {
 			const auto following = std::next(at);
 			next                 = following != unread.end() ? *following : unread.front();
 		}
+		go_to_conversation(next);
+	}
+
+	void workbench_window::go_to_conversation(const std::string& aIdentity)
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
+		}
+		const auto& next = aIdentity;
 		if (const auto location = Finder->locate(next); location.has_value() && location->Path.isEmpty()) {
 			// [[BPR-1781]]. A comment on the pull request is in its
 			// conversation, Overview's Comments tab.
@@ -13906,6 +13926,11 @@ namespace bpr::qt {
 		const auto moved = CodeZoom && CodeZoom->ZoomPercent != aCode.ZoomPercent;
 		CodeZoom         = aCode;
 		apply_code_zoom();
+		// [[BPR-1805]] repair. A tour stop sets its code in the profile's
+		// code font, as comments do.
+		if (TourEditor != nullptr) {
+			TourEditor->set_code_font(to_presentation_font(aCode));
+		}
 		if (moved && ComparisonSurface != nullptr) {
 			ComparisonSurface->show_code_zoom(aCode.ZoomPercent, core::zoomed_point_size(aCode));
 		}
@@ -14505,6 +14530,9 @@ namespace bpr::qt {
 		// [[BPR-1753]], owner look v003: the agent's answers' code too.
 		if (AgentTab != nullptr) {
 			AgentTab->set_code_syntax_dispatch(relay);
+		} // [[BPR-1805]] repair: a tour stop's code as a comment's.
+		if (TourEditor != nullptr) {
+			TourEditor->set_code_syntax_dispatch(relay);
 		}
 	}
 
@@ -14519,6 +14547,9 @@ namespace bpr::qt {
 		}
 		if (AgentTab != nullptr) {
 			AgentTab->apply_code_syntax(aSpans);
+		}
+		if (TourEditor != nullptr) {
+			TourEditor->apply_code_syntax(aSpans);
 		}
 	}
 

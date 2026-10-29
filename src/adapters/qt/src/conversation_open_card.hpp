@@ -99,18 +99,30 @@ namespace bpr::qt {
 	/// of 9", and Open in tour when the window has the tour to follow. The
 	/// route marker's line runs up when a stop comes before and down when one
 	/// follows, as the stops sit on the tour's route.
+	///
+	/// \details [[BPR-1810]]. A stop of a longer tour steps along it: "Stop 6
+	/// of 9" sits in a small pill between a previous and a next chevron, each
+	/// named for the stop it reaches and unavailable at the tour's end or
+	/// while that stop is not among the comments at hand.
 	class tour_stop_plate final : public QWidget
 	{
 	public:
-		tour_stop_plate(const core::published_tour_stop& aStop, std::optional<std::size_t> aCount, const note_colours& aColours, bool aOpenOffered, QWidget* aParent);
+		tour_stop_plate(const core::published_tour_stop& aStop, std::optional<std::size_t> aCount, const std::optional<tour_stop_neighbour>& aPrevious,
+						const std::optional<tour_stop_neighbour>& aNext, const note_colours& aColours, bool aOpenOffered, QWidget* aParent);
 		[[nodiscard]] auto hasHeightForWidth() const -> bool override;
 		[[nodiscard]] auto heightForWidth(int aWidth) const -> int override;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 		/// \brief The marker's box, for tests.
 		[[nodiscard]] auto marker_rect() const -> QRectF;
 		[[nodiscard]] auto open_button() const noexcept -> QAbstractButton*;
+		/// \brief [[BPR-1810]]. The chevrons; null on a stop with no tour to
+		/// step along (a tour of one).
+		[[nodiscard]] auto previous_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto next_button() const noexcept -> QAbstractButton*;
 		/// \brief Open in tour pressed.
 		std::function<void()> OpenRequested;
+		/// \brief [[BPR-1810]]. A chevron pressed: true for Next.
+		std::function<void(bool)> StepRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -121,11 +133,16 @@ namespace bpr::qt {
 		void               place_children();
 		[[nodiscard]] auto title_font() const -> QFont;
 		[[nodiscard]] auto badge_font() const -> QFont;
+		/// The badge row's top and the stepper's box, at the plate's width.
+		[[nodiscard]] auto badge_top() const -> int;
+		[[nodiscard]] auto stepper_rect() const -> QRect;
 
 		core::published_tour_stop  Stop;
 		std::optional<std::size_t> Count;
 		note_colours               Colours;
-		QAbstractButton*           Open = nullptr;
+		QAbstractButton*           Open     = nullptr;
+		QAbstractButton*           Previous = nullptr;
+		QAbstractButton*           Next     = nullptr;
 	};
 
 	/// \brief [[BPR-1290]]. A post's quiet glyph button in its name row:
@@ -205,6 +222,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto tour_plate() const noexcept -> tour_stop_plate*;
 		/// \brief [[BPR-1806]]. Open in tour pressed on the stop's plate.
 		std::function<void()> TourOpenRequested;
+		/// \brief [[BPR-1810]]. A chevron pressed on the stop's plate: true
+		/// for Next.
+		std::function<void(bool)> TourStepRequested;
 
 	protected:
 		void paintEvent(QPaintEvent* aEvent) override;
@@ -337,6 +357,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1806]]. Open in tour pressed on a published tour
 		/// stop: its post and the stop it was read as.
 		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenRequested;
+		/// \brief [[BPR-1810]]. A chevron pressed on the stop's plate: true
+		/// for Next.
+		std::function<void(bool)> TourStepRequested;
 		/// \brief [[BPR-1775]]. The editor's raw text after each change.
 		std::function<void(const std::string&)> EditText;
 		/// \brief [[BPR-1775]]. Save (⌘↩), Cancel (Esc) and Edit GitHub's

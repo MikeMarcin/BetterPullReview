@@ -124,6 +124,24 @@ namespace bpr::core {
 	/// leaves its count unknown.
 	[[nodiscard]] auto published_tour_stop_counts(std::span<const published_tour_stop> aStops) -> std::vector<std::optional<std::size_t>>;
 
+	/// \brief [[BPR-1810]]. Where a recognized stop's Previous and Next lead
+	/// among the stops at hand: indexes into the stops given.
+	struct published_tour_stop_links
+	{
+		std::optional<std::size_t> Previous;
+		std::optional<std::size_t> Next;
+		auto                       operator==(const published_tour_stop_links&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1810]]. For each stop given, in order, the stops at hand
+	/// its Previous and Next links reach.
+	/// \details A link reaches the one other stop of the same tour (the same
+	/// Tour overview) numbered one less, for Previous, or one more, for Next.
+	/// A stop without the link, a neighbour not at hand, or a number two
+	/// stops of the tour share reaches nothing, so a reader is never taken to
+	/// a guess.
+	[[nodiscard]] auto published_tour_stop_neighbours(std::span<const published_tour_stop> aStops) -> std::vector<published_tour_stop_links>;
+
 	/// \brief [[BPR-1806]]. The stop of `aTour` a published comment is: the
 	/// stop bound to that very comment (`review-comment:<id>` for a line
 	/// comment, `issue-comment:<id>` for a conversation comment, as the

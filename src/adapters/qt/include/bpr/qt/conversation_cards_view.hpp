@@ -187,6 +187,17 @@ namespace bpr::qt {
 		auto operator<=>(const thread_read_state&) const = default;
 	};
 
+	/// \brief [[BPR-1810]]. The stop a published tour stop's Previous or Next
+	/// reaches among the comments at hand: its thread, number and title.
+	struct tour_stop_neighbour
+	{
+		std::string Thread;
+		std::size_t Ordinal = 0U;
+		std::string Title;
+
+		auto operator==(const tour_stop_neighbour&) const -> bool = default;
+	};
+
 	/// \brief One post as the notes draw it.
 	struct card_post
 	{
@@ -225,6 +236,10 @@ namespace bpr::qt {
 		std::optional<core::published_tour_stop> TourStop;
 		/// [[BPR-1806]]. How many stops its tour has, when its stops prove it.
 		std::optional<std::size_t> TourStopCount;
+		/// [[BPR-1810]]. The stops its Previous and Next reach, when they are
+		/// among the comments at hand; the plate steps to their threads.
+		std::optional<tour_stop_neighbour> TourPrevious;
+		std::optional<tour_stop_neighbour> TourNext;
 	};
 
 	/// \brief [[BPR-1806]]. A tour stop's badge: "Stop 6 of 9", or "Stop 6"
@@ -686,6 +701,13 @@ namespace bpr::qt {
 		/// \brief [[BPR-1806]]. Where Open in tour goes: the post's identity
 		/// and the stop it was read as. Nothing is opened by the view.
 		void set_tour_open_dispatch(std::function<void(const std::string&, const core::published_tour_stop&)> aDispatch);
+		/// \brief [[BPR-1810]]. Where a stop plate's Previous or Next goes:
+		/// the neighbouring stop's thread, which may be on another file. With
+		/// none, a thread among these notes opens in place.
+		void set_tour_step_dispatch(std::function<void(const std::string&)> aDispatch);
+		/// \brief [[BPR-1810]]. Steps from the open stop to its neighbour's
+		/// thread, as the plate's chevron does; false when it has none.
+		auto step_tour(bool aForward) -> bool;
 		/// \brief [[BPR-1775]]. Whether Edit is offered on this post.
 		[[nodiscard]] auto comment_editable(std::string_view aPost) const -> bool;
 		/// \brief [[BPR-1775]]. Where Save goes. Nothing is sent by the view.
@@ -1003,7 +1025,10 @@ namespace bpr::qt {
 		/// and its tour's length when known.
 		std::vector<std::optional<core::published_tour_stop>> RetainedTourStops;
 		std::vector<std::optional<std::size_t>>               RetainedTourCounts;
-		feedback_mark_theme                                   MarkTheme;
+		/// [[BPR-1810]]. Where each retained stop's Previous and Next lead,
+		/// as retained indexes.
+		std::vector<core::published_tour_stop_links> RetainedTourLinks;
+		feedback_mark_theme                          MarkTheme;
 		/// [[BPR-0972]]. The first read state of each thread.
 		std::unordered_map<std::string, std::size_t>                                         ReadStateByThread;
 		mutable std::optional<std::vector<std::string>>                                      UnreadThreads;
@@ -1083,9 +1108,15 @@ namespace bpr::qt {
 			QString                    Status;
 			bool                       Saving = false;
 		};
-		bool                                                                        CommentEditOffered = false;
-		bool                                                                        TourOpenOffered    = false;
-		std::function<void(const std::string&, const core::published_tour_stop&)>   TourOpenDispatch;
+		bool                                                                      CommentEditOffered = false;
+		bool                                                                      TourOpenOffered    = false;
+		std::function<void(const std::string&, const core::published_tour_stop&)> TourOpenDispatch;
+		/// [[BPR-1810]]. Where a stop's chevrons go, and which chevron the
+		/// stepped-to thread's plate takes focus on ("" for none).
+		void                                                                        focus_tour_step();
+		std::function<void(const std::string&)>                                     TourStepDispatch;
+		std::string                                                                 TourStepThread;
+		QString                                                                     TourStepFocus;
 		std::optional<comment_edit_session>                                         CommentEdit;
 		std::function<void(const comment_edit_save&)>                               CommentEditDispatch;
 		void                                                                        present_comment_edit();
