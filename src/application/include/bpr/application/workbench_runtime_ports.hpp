@@ -680,6 +680,44 @@ namespace bpr::application {
 
 	using github_diff_lines_completion = std::function<void(const github_diff_lines_observation&)>;
 
+	/// \brief [[BPR-1802]]. Asks for one file's bytes at one commit of the
+	/// review's repository, for a blob line permalink's snippet box.
+	///
+	/// \details The host reads the file by literal path from the review's own
+	/// objects, as a filtered diff's sides are read: the retained cache, or a
+	/// sparse review's chain store and its lease's exact, OID-checked blob
+	/// read. It never fetches a commit or tree it does not hold; such a
+	/// commit answers `objects_unavailable`.
+	struct permalink_source_request
+	{
+		workbench_pull_request_authority WorkbenchAuthority;
+		core::git_commit_oid             Head;
+		core::git_commit_oid             Commit;
+		std::string                      Path;
+
+		auto operator<=>(const permalink_source_request&) const = default;
+	};
+
+	/// \brief [[BPR-1802]]. A filtered diff's answers; `too_large` past
+	/// `maximum_permalink_source_bytes`.
+	using permalink_source_status = filtered_comment_lines_status;
+
+	/// Bytes of the file a snippet's lines are read from.
+	inline constexpr std::uint64_t maximum_permalink_source_bytes = 1024U * 1024U;
+
+	/// \brief [[BPR-1802]]. One exact answer to a `permalink_source_request`:
+	/// the bytes, or none for a path the commit does not hold.
+	struct permalink_source_observation
+	{
+		permalink_source_request   Request;
+		permalink_source_status    Status = permalink_source_status::failure;
+		std::optional<std::string> Bytes;
+
+		auto operator<=>(const permalink_source_observation&) const = default;
+	};
+
+	using permalink_source_completion = std::function<void(const permalink_source_observation&)>;
+
 	/// \brief Asks which of a review's files differ between two exact commits.
 	///
 	/// \details [[BPR-0654]]. The overview's "changed since my last review"

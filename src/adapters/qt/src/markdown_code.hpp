@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_SRC_MARKDOWN_CODE_HPP
 
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/core/markdown_blob_snippet.hpp"
 #include "bpr/core/markdown_code.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -13,11 +14,13 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
 class QPainter;
 class QPalette;
+class QTextBlock;
 class QTextDocument;
 
 /// \file
@@ -50,6 +53,19 @@ namespace bpr::qt::detail {
 		removed,
 		added,
 		header,
+		/// [[BPR-1802]]. A line of a permalink's snippet box.
+		snippet,
+	};
+
+	/// \brief [[BPR-1802]]. A permalink shown as GitHub's snippet box: its
+	/// fence's info names it by its place in the reader's list.
+	struct markdown_code_snippet
+	{
+		core::markdown_blob_permalink Permalink;
+		/// The permalink as written, which the title links.
+		QString Address;
+		/// The commit's page, which the short commit links.
+		QString CommitAddress;
 	};
 
 	/// \brief The colours fenced code is drawn in: the theme's roles, held
@@ -72,6 +88,8 @@ namespace bpr::qt::detail {
 		QColor Header;
 		QColor Rule;
 		QColor Muted;
+		/// [[BPR-1802]]. A snippet header's links, readable on the code background.
+		QColor Link;
 		/// 4.5, or 7 in a high-contrast theme.
 		double Target = 4.5;
 	};
@@ -100,6 +118,9 @@ namespace bpr::qt::detail {
 			application::shared_token_spans            RemovedSpans;
 			std::vector<core::markdown_suggestion_row> Rows;
 			bool                                       Numbered = false;
+			/// [[BPR-1802]]. A permalink's snippet box, by its place in the
+			/// reader's list.
+			std::optional<markdown_code_snippet> Snippet;
 		};
 
 		/// \brief Before the import: an empty suggestion gets one marked line,
@@ -123,7 +144,9 @@ namespace bpr::qt::detail {
 		/// \brief After the import: finds every fenced block's lines, and
 		/// shows each suggestion when `aSuggestions` says this body is a line
 		/// comment.
-		void place(QTextDocument& aDocument, const QString& aPrepared, const std::optional<markdown_suggestion_presentation>& aSuggestions);
+		/// [[BPR-1802]]: and each fence `aSnippets` names as a snippet box.
+		void place(QTextDocument& aDocument, const QString& aPrepared, const std::optional<markdown_suggestion_presentation>& aSuggestions,
+				   std::span<const markdown_code_snippet> aSnippets = { });
 		void clear();
 
 		/// \brief Every text to classify, once each.
@@ -143,6 +166,8 @@ namespace bpr::qt::detail {
 
 		[[nodiscard]] auto blocks() const noexcept -> const std::vector<block>& { return Blocks; }
 		[[nodiscard]] auto suggestions() const noexcept -> bool;
+		/// \brief [[BPR-1802]]. Whether any block is a snippet box.
+		[[nodiscard]] auto snippets() const noexcept -> bool;
 
 	private:
 		struct box
@@ -155,8 +180,11 @@ namespace bpr::qt::detail {
 			qreal Bottom  = 0.0;
 			qreal Gutter  = 0.0;
 			qreal Numbers = 0.0;
+			bool  Snippet = false;
 		};
 		[[nodiscard]] auto boxes(const QTextDocument& aDocument) const -> std::vector<box>;
+		/// [[BPR-1802]]. One block of a snippet box: its header or a line.
+		void style_snippet(QTextDocument& aDocument, const QTextBlock& aBlock, const block& aEntry, std::uint32_t aIndex, const code_role_colors& aRoles, const QFont& aFont, qreal aDigit) const;
 
 		/// Each inline code run outside fenced code: the fragments' text.
 		void                     place_inline(const QTextDocument& aDocument);

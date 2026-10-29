@@ -55,6 +55,7 @@ add_library(
         src/appearance_application_host.cpp
         src/appearance_preferences_application_host.cpp
         src/syntax_classification_application_host.cpp
+        src/markdown_blob_snippet_host.cpp
         src/markdown_code_syntax.cpp
 		src/designated_review_authority_bootstrap.cpp
         src/review_ledger_application_host.cpp

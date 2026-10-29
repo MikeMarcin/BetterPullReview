@@ -1488,6 +1488,36 @@ namespace bpr::qt {
 		}
 	}
 
+	void conversation_cards_view::set_permalink_repository(std::optional<core::markdown_repository> aRepository)
+	{
+		if (PermalinkRepository == aRepository) {
+			return;
+		}
+		PermalinkRepository = std::move(aRepository);
+		if (OpenCard != nullptr) {
+			OpenCard->set_permalink_repository(PermalinkRepository);
+		}
+	}
+
+	void conversation_cards_view::set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch)
+	{
+		PermalinkDispatch = std::move(aDispatch);
+	}
+
+	void conversation_cards_view::apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->apply_permalink_snippet(aSnippet);
+		}
+	}
+
+	void conversation_cards_view::request_permalink_snippets()
+	{
+		if (OpenCard != nullptr) {
+			OpenCard->request_permalink_snippets();
+		}
+	}
+
 	void conversation_cards_view::apply_markdown_image(const application::markdown_image_projection& aImage)
 	{
 		if (OpenCard != nullptr) {
@@ -2853,6 +2883,7 @@ namespace bpr::qt {
 		style.Colours.CodeBackground = palette().color(QPalette::Active, QPalette::Base);
 		style.Colours.CodeInk        = CodeInk;
 		style.CodeTheme              = CodeTheme;
+		style.PermalinkRepository    = PermalinkRepository;
 		// [[BPR-1564]]. A published comment on lines shows its suggestions as
 		// GitHub does: against the commented lines while the thread is current
 		// on the compared file, otherwise the suggested lines alone.
@@ -2942,6 +2973,11 @@ namespace bpr::qt {
 				CodeDispatch(std::move(aRequests));
 			}
 		};
+		OpenCard->PermalinkRequest = [this](std::vector<application::markdown_blob_snippet_request> aRequests) {
+			if (PermalinkDispatch) {
+				PermalinkDispatch(std::move(aRequests));
+			}
+		};
 		OpenCard->ImageRequest = [this](const std::string& aPost, std::vector<core::markdown_image_reference> aReferences) {
 			if (ImageDispatch) {
 				ImageDispatch(aPost, std::move(aReferences));
@@ -2991,6 +3027,7 @@ namespace bpr::qt {
 		OpenCard->request_images();
 
 		OpenCard->request_code_syntax();
+		OpenCard->request_permalink_snippets();
 		OpenCard->ReplyText = [this, id](const QString& aText) {
 			if (ReplyTextDispatch) {
 				ReplyTextDispatch(id, aText);

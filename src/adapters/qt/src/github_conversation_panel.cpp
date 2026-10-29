@@ -940,6 +940,26 @@ namespace bpr::qt {
 		Cards->apply_markdown_code_syntax(aSpans);
 	}
 
+	void github_conversation_panel::set_permalink_repository(std::optional<core::markdown_repository> aRepository)
+	{
+		Cards->set_permalink_repository(std::move(aRepository));
+	}
+
+	void github_conversation_panel::set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch)
+	{
+		Cards->set_permalink_dispatch(std::move(aDispatch));
+	}
+
+	void github_conversation_panel::apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet)
+	{
+		Cards->apply_markdown_permalink_snippet(aSnippet);
+	}
+
+	void github_conversation_panel::request_permalink_snippets()
+	{
+		Cards->request_permalink_snippets();
+	}
+
 	void github_conversation_panel::request_images()
 	{
 		Cards->request_images();

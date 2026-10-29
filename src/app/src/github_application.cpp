@@ -11,6 +11,7 @@
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/insights_host.hpp"
+#include "bpr/application/markdown_blob_snippet_host.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
@@ -2927,6 +2928,30 @@ namespace bpr::app {
 
 	private:
 		const application::markdown_code_texts& Texts;
+	};
+
+	/// \brief [[BPR-1802]]. A permalink's file, read through the review's
+	/// own objects by the composition's epoch host.
+	class permalink_snippet_source final : public application::markdown_blob_source_port
+	{
+	public:
+		using reader = std::function<bool(const application::markdown_blob_source_read&, std::function<void(application::markdown_blob_source_result)>)>;
+
+		explicit permalink_snippet_source(reader aRead)
+			: Read{ std::move(aRead) }
+		{
+		}
+
+		[[nodiscard]] auto read(const application::markdown_blob_source_read&                 aRead, std::stop_token /*aStop*/,
+								std::function<void(application::markdown_blob_source_result)> aCompletion) -> bool override
+		{
+			// The epoch job is bounded and takes no outside stop; the host
+			// drops a stopped read's answer by its generation.
+			return Read && Read(aRead, std::move(aCompletion));
+		}
+
+	private:
+		reader Read;
 	};
 
 	class composition_blob_source final : public adapters::syntax::blob_source
@@ -9602,6 +9627,42 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					MarkdownCode->request(aRequests);
 				}
 			});
+			// [[BPR-1802]]. Permalinks in the accepted repository show their
+			// lines, read from the review's objects at their commit.
+			MarkdownSnippetSource = std::make_unique<permalink_snippet_source>(
+				[this](const application::markdown_blob_source_read& aRead, std::function<void(application::markdown_blob_source_result)> aCompletion) {
+					const auto commit = core::parse_git_commit_oid(aRead.Permalink.Commit);
+					if (Closing || EpochHost == nullptr || !LastAcceptedHandoff || !commit) {
+						return false;
+					}
+					auto request               = application::permalink_source_request{ };
+					request.WorkbenchAuthority = workbench_authority(*LastAcceptedHandoff);
+					request.Head               = LastAcceptedHandoff->Head;
+					request.Commit             = *commit;
+					request.Path               = aRead.Permalink.Path;
+					return EpochHost->resolve_permalink_source(std::move(request), [completion = std::move(aCompletion)](const application::permalink_source_observation& aObservation) {
+						using status  = application::permalink_source_status;
+						auto result   = application::markdown_blob_source_result{ };
+						result.Status = aObservation.Status == status::resolved ? (aObservation.Bytes ? application::markdown_blob_source_status::read : application::markdown_blob_source_status::absent)
+							: aObservation.Status == status::too_large          ? application::markdown_blob_source_status::refused
+							: aObservation.Status == status::cancelled          ? application::markdown_blob_source_status::cancelled
+																				: application::markdown_blob_source_status::unavailable;
+						result.Bytes  = aObservation.Bytes.value_or(std::string{ });
+						completion(std::move(result));
+					});
+				});
+			MarkdownSnippets = std::make_unique<application::markdown_blob_snippet_host>(
+				*MarkdownSnippetSource, DecisionLane, [this] { return permalink_snippet_scope(); },
+				[this](const application::markdown_blob_snippet_publication& aSnippet) {
+					if (!Closing && Window != nullptr) {
+						Window->apply_markdown_permalink_snippet(aSnippet);
+					}
+				});
+			Window->set_markdown_permalink_dispatch([this](std::vector<application::markdown_blob_snippet_request> aRequests) {
+				if (!Closing && MarkdownSnippets) {
+					MarkdownSnippets->request(aRequests);
+				}
+			});
 
 			AppearanceProjections.set_span_sink(
 				[this](const application::token_span_publication& aSpans) {
@@ -14289,10 +14350,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// window publication the read host stamped on its projection
 				// stays, or body links and Open on GitHub would name none.
 				PublishedMarkdownContext = aUpdate.PullRequest->MarkdownContext;
+				PublishedHostname        = aUpdate.PullRequest->Hostname;
 				if (auto source = conversation_source()) {
 					placed                               = aUpdate;
 					placed->PullRequest                  = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), std::move(source));
 					placed->PullRequest->MarkdownContext = PublishedMarkdownContext;
+					placed->PullRequest->Hostname        = PublishedHostname;
 					place_filtered_threads(*placed->PullRequest);
 				} else if (selected_diff_filtered()) {
 					ReviewCommentPlacement.clear();
@@ -14330,6 +14393,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!Closing && Window && WindowRead && WindowRead->accepted_snapshot()) {
 				auto projection            = ReviewCommentPlacement.project(*WindowRead->accepted_snapshot(), conversation_source());
 				projection.MarkdownContext = PublishedMarkdownContext;
+				projection.Hostname        = PublishedHostname;
 				place_filtered_threads(projection);
 				Window->publish(application::github_presentation_update{
 					.PullRequest              = std::move(projection),
@@ -17075,11 +17139,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// \brief Re-decides the filtered file set and shows it everywhere it
 		/// applies: the Commits tab and chips, the Files drawer and walk, and
 		/// the Overview.
+		/// \brief [[BPR-1802]]. The accepted pull request permalinks are read
+		/// for: its host, owner and repository under this window's account and
+		/// head; none before a handoff.
+		[[nodiscard]] auto permalink_snippet_scope() const -> std::optional<application::markdown_blob_snippet_scope>
+		{
+			if (Closing || !LastAcceptedHandoff) {
+				return std::nullopt;
+			}
+			const auto& handoff = *LastAcceptedHandoff;
+			auto        scope   = application::markdown_blob_snippet_scope{ };
+			scope.Host          = std::string{ handoff.Hostname.value() };
+			scope.Owner         = handoff.Locator.Owner;
+			scope.Repository    = handoff.Locator.Name;
+			scope.Identity      = std::to_string(handoff.ApplicationSession.value()) + ':' + std::to_string(handoff.Profile.value()) + ':' + std::to_string(handoff.Account.value()) + ':'
+				+ std::to_string(handoff.Repository.value()) + ':' + std::to_string(handoff.PullRequest.value()) + ':' + std::string{ core::canonical_hex(handoff.Head).view() };
+			return scope;
+		}
+
 		void refresh_commit_filter()
 		{
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			// [[BPR-1802]]. The review's objects may now hold a permalink's commit.
+			Window->request_markdown_permalinks();
 			CommitFilter.adopt_comparison(commit_filter_comparison());
 			request_commit_filter_trees();
 			request_generated_attributes();
@@ -23075,6 +23159,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (MarkdownCode) {
 				MarkdownCode->shutdown();
 			}
+			if (MarkdownSnippets) {
+				MarkdownSnippets->shutdown();
+			}
 			if (ReviewMutationHost) {
 				ReviewMutationHost->shutdown();
 			}
@@ -23134,6 +23221,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				|| (TabHost && !TabHost->is_quiescent()) || TabAdvanceQueued
 				|| (AppearanceHost && !AppearanceHost->is_quiescent())
 				|| (MarkdownCode && !MarkdownCode->is_quiescent())
+				|| (MarkdownSnippets && !MarkdownSnippets->is_quiescent())
 				|| (ReviewSubmission && !ReviewSubmission->is_quiescent())
 				|| (TourPublication && !TourPublication->is_quiescent())
 				|| (ConversationReply && !ConversationReply->is_quiescent())
@@ -23368,6 +23456,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		application::review_comment_placement ReviewCommentPlacement{ adapters::github::detail::parse_review_permalink_body };
 		/// [[BPR-1338]]. The read host's last window publication, kept across the placement's re-projection.
 		std::optional<core::markdown_context>                       PublishedMarkdownContext;
+		std::string                                                 PublishedHostname;
 		std::optional<application::accepted_pull_request_handoff>   LastAcceptedHandoff;
 		std::optional<application::review_mutation_source_material> ReviewSourceMaterial;
 
@@ -24395,6 +24484,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::unique_ptr<markdown_code_blob_source>                      MarkdownCodeBlobs;
 		std::unique_ptr<adapters::syntax::packaged_syntax_classifier>   MarkdownCodeClassifier;
 		std::unique_ptr<application::markdown_code_syntax_host>         MarkdownCode;
+		std::unique_ptr<permalink_snippet_source>                       MarkdownSnippetSource;
+		std::unique_ptr<application::markdown_blob_snippet_host>        MarkdownSnippets;
 		std::uint64_t                                                   MotionSubscription       = 0U;
 		decltype(github_profile_runtime::QueueStore)&                   QueueStore               = Profile->QueueStore;
 		decltype(github_profile_runtime::QueueRefresh)&                 QueueRefresh             = Profile->QueueRefresh;
