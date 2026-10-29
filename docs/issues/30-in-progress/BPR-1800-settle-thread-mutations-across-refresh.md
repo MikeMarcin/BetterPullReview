@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1800"
 title: "Settle admitted thread mutations across an accepted refresh"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0008", "RFC-BPR-0091", "RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
