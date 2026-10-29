@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1801",
+    "BPR-1802"
+  ],
+  "reserve_for": "comment-blob-permalinks",
+  "purpose": "Present GitHub blob line permalinks in comments compactly, then as fetched code snippets",
+  "created": "2026-10-29T03:50:12+00:00",
+  "base": "b29afb66c74940d9915e33dbb43e5431ab5741c7"
+}
