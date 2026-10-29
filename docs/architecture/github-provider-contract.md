@@ -169,7 +169,10 @@ after the read that binds the pull request and says its body and
 the viewer's published comments edited (`EditReviewComment`,
 `EditIssueComment`, `EditReviewBody`), after the read that binds the comment
 to the pull request and says its body, `viewerCanUpdate` and
-`viewerDidAuthor` (`ObserveComment`) ([[BPR-1775]]). Those are the only
+`viewerDidAuthor` (`ObserveComment`) ([[BPR-1775]]). It carries one review
+requested (`RequestReviews`, `requestReviews` with one user and
+`union:true`), after the read that binds the pull request and lists its
+requests (`ObserveReviewers`) ([[BPR-1804]]). Those are the only
 GraphQL writes it admits; each
 body must equal its compiled form byte for byte, and one that differs is never
 launched.
@@ -904,6 +907,7 @@ ListReactions
 AddReaction / RemoveReaction
 ObserveDescription / UpdateDescription
 ObserveComment / EditReviewComment / EditIssueComment / EditReviewBody
+ObserveReviewers / RequestReviews
 ```
 
 [[BPR-1774]]. The description edit is offered to the pull request's author
@@ -934,6 +938,27 @@ is true: GitHub lets a repository's maintainers update another account's
 comment, as the live course on BPR-Test showed. One write follows on the
 native and the GitHub CLI connection alike, held and settled as the
 description's is. Deleting a comment is not offered.
+
+[[BPR-1804]]. Reviewers are searched and requested from Overview's People.
+`ObserveReviewers` names the pull request by the accepted read's node and
+asks for its author, `suggestedReviewers`, the repository's
+`assignableUsers(query:, first:20)`, `reviewRequests(first:100)` and
+`latestReviews(first:100)`; every field is in GitHub.com's and GHES 3.18's
+recorded schemas. Each list is bounded, every login must be one GitHub makes,
+and a team request is not a person. A search confirms no target first and
+needs no grant (it is a read); the latest search wins and an earlier one is
+stopped. A request is a one-shot grant for one person: the coordinator
+confirms the target, the session reads `ObserveReviewers` for the person's
+login, and the core decides (`decide_reviewer_write`: an open request sends
+nothing, the author is refused). One `RequestReviews` follows on the native
+and the GitHub CLI connection alike. GitHub answers it with success while
+silently leaving out someone who may not review the repository (measured on
+BPR-Test #140, 2026-10-28), so the answer's `reviewRequests` is what the core
+believes: a person it does not list is said to be not added. A GraphQL
+refusal (`requestReviews: null`) is refused by the server; a lost or
+unreadable answer is settled by one read back, never a second write. No
+recovery record is kept: GitHub's list is the record. Removing a request and
+teams as reviewers are not offered yet.
 
 Unsupported capabilities produce explicit unavailable states and safe fallbacks; they do not silently approximate a mutation.
 

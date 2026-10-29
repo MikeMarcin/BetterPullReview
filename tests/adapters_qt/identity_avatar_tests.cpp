@@ -513,7 +513,7 @@ namespace {
 			return;
 		}
 		const auto pictures = qEnvironmentVariable("BPR_AVATAR_PICTURE_DIR");
-		const auto file_for = [&pictures](const std::string& aLogin) {
+		const auto fileFor  = [&pictures](const std::string& aLogin) {
 			const auto path = QDir{ pictures }.filePath(QString::fromStdString(aLogin) + QStringLiteral(".png"));
 			return !pictures.isEmpty() && QFileInfo::exists(path) ? path : QString{ };
 		};
@@ -525,7 +525,7 @@ namespace {
 				const auto answer    = [&](picture_window& aHost) {
 					auto index = std::size_t{ 0U };
 					for (const auto* const login : { "tbutler", "jiayin", "rcaloca", "mike", "reviewer-four" }) {
-						aHost.answer(login, { .State = core::markdown_image_state::loaded, .Image = decoded_picture(fallback.at(index++ % fallback.size()), file_for(login)) });
+						aHost.answer(login, { .State = core::markdown_image_state::loaded, .Image = decoded_picture(fallback.at(index++ % fallback.size()), fileFor(login)) });
 					}
 					settle();
 				};

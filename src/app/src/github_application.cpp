@@ -23,6 +23,7 @@
 #include "bpr/core/hex.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/review_role.hpp"
+#include "bpr/core/reviewer_request.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/event_loop_metrics.hpp"
@@ -8293,6 +8294,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1781]]. Overview's Start tour: the published tour, imported
 			// as following it in Review needs, at its first stop.
 			Window->set_tour_start_dispatch([this] { start_published_tour(); });
+			// [[BPR-1806]]. A published tour stop's Open in tour: the same,
+			// at that stop.
+			Window->set_tour_stop_dispatch([this](const std::string& aPost, const core::published_tour_stop& aStop) { start_published_tour(std::pair{ aPost, aStop }); });
 #if defined(_WIN32)
 			// [[BPR-0653]]. The strip is the title row: the host removes the
 			// system title bar and answers the platform's hit test for it.
@@ -8442,6 +8446,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1774]]. Save in Overview's description editor.
 			Window->overview_page()->set_description_save_dispatch(
 				[this](const qt::overview_description_save& aSave) { save_description(aSave); });
+			// [[BPR-1804]]. Request review in People and its picker.
+			Window->overview_page()->set_reviewer_picker_dispatch(
+				[this](const qt::reviewer_picker_gesture& aGesture) { reviewer_gesture(aGesture); });
 			// [[BPR-1775]]. Save while editing one of my comments.
 			if (Window->conversation_panel() != nullptr && Window->conversation_panel()->cards() != nullptr) {
 				Window->conversation_panel()->cards()->set_comment_edit_dispatch(
@@ -11107,11 +11114,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::vector<retained_tour_host> RetiredTourHosts;
 		std::optional<core::tour_owner> TourOwner;
 		/// [[BPR-1781]]. Start tour waits for the published tour's import.
-		bool                                          PendingTourStart = false;
-		std::optional<application::tour_saved_target> RememberedTourTarget;
-		core::git_commit_oid                          TourHead;
-		core::git_commit_oid                          TourAttentionHead;
-		std::optional<core::tour_code_destination>    PendingTourSource;
+		bool PendingTourStart = false;
+		/// [[BPR-1806]]. The published stop Open in tour asked for, while
+		/// the start waits; none starts at the first stop.
+		std::optional<std::pair<std::string, core::published_tour_stop>> PendingTourStop;
+		std::optional<application::tour_saved_target>                    RememberedTourTarget;
+		core::git_commit_oid                                             TourHead;
+		core::git_commit_oid                                             TourAttentionHead;
+		std::optional<core::tour_code_destination>                       PendingTourSource;
 		/// [[BPR-1227]]. Source reads a forwarded `bpr tour` command has on the diff lane. Counted and
 		/// atomic because the worker ends its read; shutdown stops them and waits for none.
 		std::atomic_size_t TourSourceReadsInFlight{ 0U };
@@ -11267,6 +11277,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			PendingTourSource.reset();
 			TourSourceRequest.reset();
 			PendingTourStart = false;
+			PendingTourStop.reset();
 			if (TourHost && TourOwner) {
 				RetiredTourHosts.push_back({ *TourOwner, std::move(TourHost) });
 			}
@@ -11360,14 +11371,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-1781]]. A reader's Start tour from Overview: a published tour
 		/// already in this window opens at its first stop; one only on offer is
 		/// imported first, as Review's Import does, and opens once it arrives.
-		void start_published_tour()
+		void start_published_tour(std::optional<std::pair<std::string, core::published_tour_stop>> aStop = std::nullopt)
 		{
 			if (Closing || !TourHost || !current(DraftWindow)) {
 				return;
 			}
 			const auto shown = TourHost->presentation();
 			if (shown.Draft && shown.Draft->Remote && !shown.Draft->Stops.empty()) {
-				Window->start_tour_at_first_stop();
+				start_tour_at(aStop);
 				return;
 			}
 			if (!shown.Offered) {
@@ -11375,8 +11386,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingTourStart = true;
+			PendingTourStop  = std::move(aStop);
 			Window->open_review_tour();
 			TourHost->import_selected(0U);
+		}
+		void start_tour_at(const std::optional<std::pair<std::string, core::published_tour_stop>>& aStop)
+		{
+			if (aStop) {
+				Window->start_tour_at_published_stop(aStop->first, aStop->second);
+			} else {
+				Window->start_tour_at_first_stop();
+			}
 		}
 		void finish_pending_tour_start(const application::tour_presentation& aProjection)
 		{
@@ -11384,7 +11404,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			PendingTourStart = false;
-			Window->start_tour_at_first_stop();
+			const auto stop  = std::exchange(PendingTourStop, std::nullopt);
+			start_tour_at(stop);
 		}
 		void compose_review_tour(const application::accepted_pull_request_handoff& aHandoff)
 		{
@@ -14290,6 +14311,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			Window->publish(placed ? *placed : aUpdate);
 			if (aUpdate.PullRequest) {
 				present_conversation_state();
+				present_reviewer_offer();
 				present_description_offer();
 				present_comment_edit_offer();
 			}
@@ -14439,6 +14461,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1774]]. A retired host answers no save of the next one.
 			PendingDescriptionEdit.reset();
 			PendingCommentEdit.reset();
+			// [[BPR-1804]]. Nor any reviewer search or request: the picker
+			// closes, and a request waiting is said to have gone unanswered.
+			retire_reviewer_picker();
 		}
 
 		void compose_review_mutation(
@@ -14596,6 +14621,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1741]]. The GitHub CLI connection resolves threads
 			// too, through `gh api graphql`.
 			Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+			present_reviewer_offer();
 			present_description_offer();
 			present_comment_edit_offer();
 		}
@@ -15083,6 +15109,214 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// back: the next read.
 			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
 				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
+			}
+		}
+
+		/// [[BPR-1804]]. Request review is offered in People when the
+		/// connection in use requests reviewers and the session is signed in.
+		void present_reviewer_offer()
+		{
+			if (Closing || Window == nullptr || Window->overview_page() == nullptr) {
+				return;
+			}
+			const auto anonymous = Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(core::anonymous_read_intent::react_to_comment));
+			const auto offered = !anonymous && WindowRead && WindowRead->accepted_snapshot() && ReviewMutationHost != nullptr
+				&& ReviewMutationHost->capabilities().RequestsReviewers;
+			Window->overview_page()->set_reviewer_requests_offered(offered);
+			if (!offered && ReviewerPicker.Open) {
+				ReviewerPicker = core::close_reviewer_picker(std::move(ReviewerPicker));
+			}
+		}
+
+		void present_reviewer_picker()
+		{
+			if (!Closing && Window != nullptr && Window->overview_page() != nullptr) {
+				Window->overview_page()->present_reviewer_picker(ReviewerPicker);
+			}
+		}
+
+		/// [[BPR-1804]]. The core's transition, then its one effect: a search
+		/// typed waits 250 ms for the next keystroke (only the last is asked),
+		/// opening asks at once, and a choice asks GitHub once under a one-shot
+		/// grant for that person.
+		void reviewer_gesture(const qt::reviewer_picker_gesture& aGesture)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			auto transition = core::reviewer_picker_transition{ .State = ReviewerPicker, .Effect = std::monostate{ } };
+			switch (aGesture.Kind) {
+			case qt::reviewer_picker_gesture::kind::open:
+				if (!Window->overview_page()->reviewer_requests_offered()) {
+					return;
+				}
+				transition = core::open_reviewer_picker(ReviewerPicker);
+				break;
+			case qt::reviewer_picker_gesture::kind::query:
+				transition = core::type_reviewer_query(ReviewerPicker, aGesture.Text);
+				break;
+			case qt::reviewer_picker_gesture::kind::choose:
+				++ReviewerChoices;
+				transition = core::choose_reviewer(ReviewerPicker, aGesture.Text);
+				break;
+			case qt::reviewer_picker_gesture::kind::close:
+				ReviewerPicker = core::close_reviewer_picker(std::move(ReviewerPicker));
+				ReviewerSearchDebounce.reset();
+				return;
+			}
+			ReviewerPicker = std::move(transition.State);
+			if (const auto* const search = std::get_if<core::reviewer_search_effect>(&transition.Effect); search != nullptr) {
+				if (aGesture.Kind == qt::reviewer_picker_gesture::kind::open) {
+					search_reviewers(*search);
+				} else {
+					debounce_reviewer_search(*search);
+				}
+			} else if (const auto* const request = std::get_if<core::reviewer_request_effect>(&transition.Effect); request != nullptr) {
+				request_reviewer(*request);
+			}
+			present_reviewer_picker();
+		}
+
+		void debounce_reviewer_search(core::reviewer_search_effect aSearch)
+		{
+			if (!ReviewerSearchDebounce) {
+				ReviewerSearchDebounce = std::make_unique<QTimer>();
+				ReviewerSearchDebounce->setSingleShot(true);
+				ReviewerSearchDebounce->setInterval(reviewer_search_delay);
+				QObject::connect(ReviewerSearchDebounce.get(), &QTimer::timeout, Window.get(), [this] {
+					if (DebouncedReviewerSearch) {
+						auto search = std::move(*DebouncedReviewerSearch);
+						DebouncedReviewerSearch.reset();
+						search_reviewers(search);
+					}
+				});
+			}
+			DebouncedReviewerSearch = std::move(aSearch);
+			ReviewerSearchDebounce->start();
+		}
+
+		[[nodiscard]] static auto reviewer_failure(const application::review_mutation_failure aFailure) -> core::reviewer_request_failure
+		{
+			switch (aFailure) {
+			case application::review_mutation_failure::refused_by_server:
+			case application::review_mutation_failure::unsupported:
+				return core::reviewer_request_failure::refused;
+			case application::review_mutation_failure::target_moved:
+			case application::review_mutation_failure::undesignated_target:
+			case application::review_mutation_failure::target_unavailable:
+			case application::review_mutation_failure::stale_head:
+				return core::reviewer_request_failure::target_changed;
+			case application::review_mutation_failure::cancelled:
+				return core::reviewer_request_failure::cancelled;
+			default:
+				return core::reviewer_request_failure::connection;
+			}
+		}
+
+		void search_reviewers(const core::reviewer_search_effect& aSearch)
+		{
+			if (Closing || !ReviewerPicker.Open || aSearch.Search != ReviewerPicker.Search) {
+				return;
+			}
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().RequestsReviewers) {
+				ReviewerPicker = core::fail_reviewer_search(std::move(ReviewerPicker), aSearch.Search, core::reviewer_request_failure::refused);
+				present_reviewer_picker();
+				return;
+			}
+			++ReviewerSearches;
+			const auto context                               = ReviewMutationHost->reviewers({ .Operation = application::review_reviewer_operation::search, .Query = aSearch.Query });
+			PendingReviewerSearches[context.Request.value()] = aSearch.Search;
+		}
+
+		void request_reviewer(const core::reviewer_request_effect& aRequest)
+		{
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().RequestsReviewers) {
+				ReviewerPicker = core::fail_reviewer_request(std::move(ReviewerPicker), aRequest.Request, core::reviewer_request_failure::refused);
+				return;
+			}
+			auto request = application::review_reviewer_publication_request{
+				.Operation = application::review_reviewer_operation::request,
+				.User      = aRequest.NodeId,
+				.Login     = aRequest.Login,
+			};
+			auto grant = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_reviewer(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			++ReviewerRequestsAsked;
+			const auto context                               = ReviewMutationHost->reviewers(std::move(request), std::move(grant));
+			PendingReviewerRequests[context.Request.value()] = aRequest.Request;
+		}
+
+		void publish_reviewers(const application::review_reviewer_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto key = aTerminal.Context.Request.value();
+			if (aTerminal.Request.Operation == application::review_reviewer_operation::search) {
+				const auto found = PendingReviewerSearches.find(key);
+				if (found == PendingReviewerSearches.end()) {
+					return;
+				}
+				const auto search = found->second;
+				PendingReviewerSearches.erase(found);
+				if (aTerminal.Result.has_value()) {
+					ReviewerPicker = core::accept_reviewer_search(std::move(ReviewerPicker), search, aTerminal.Result->Answer);
+				} else {
+					ReviewerPicker = core::fail_reviewer_search(std::move(ReviewerPicker), search, reviewer_failure(aTerminal.Result.error()));
+				}
+				present_reviewer_picker();
+				return;
+			}
+			const auto found = PendingReviewerRequests.find(key);
+			if (found == PendingReviewerRequests.end()) {
+				return;
+			}
+			const auto request = found->second;
+			PendingReviewerRequests.erase(found);
+			if (!aTerminal.Result.has_value()) {
+				++ReviewerRequestFailures;
+				ReviewerPicker = core::fail_reviewer_request(std::move(ReviewerPicker), request, reviewer_failure(aTerminal.Result.error()));
+				present_reviewer_picker();
+				return;
+			}
+			++ReviewerRequestCompletions;
+			ReviewerPicker = core::finish_reviewer_request(std::move(ReviewerPicker), request, { .Requested = aTerminal.Result->Answer.Requested, .Written = aTerminal.Result->Written });
+			present_reviewer_picker();
+			// People shows GitHub's answer the way every other fact comes back:
+			// the next read.
+			if (aTerminal.Result->Written) {
+				if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
+					Window->run_automatic_refresh([refresh] { refresh->trigger(); });
+				}
+			}
+		}
+
+		/// [[BPR-1804]]. A retired host answers nothing more: searches are
+		/// forgotten, the picker closes, and a request still waiting is said to
+		/// have gone unanswered (it is never sent again).
+		void retire_reviewer_picker()
+		{
+			PendingReviewerSearches.clear();
+			for (const auto& [context, request] : PendingReviewerRequests) {
+				static_cast<void>(context);
+				ReviewerPicker = core::fail_reviewer_request(std::move(ReviewerPicker), request, core::reviewer_request_failure::connection);
+			}
+			PendingReviewerRequests.clear();
+			DebouncedReviewerSearch.reset();
+			if (ReviewerSearchDebounce) {
+				ReviewerSearchDebounce->stop();
+			}
+			if (ReviewerPicker.Open) {
+				ReviewerPicker = core::close_reviewer_picker(std::move(ReviewerPicker));
+				present_reviewer_picker();
 			}
 		}
 
@@ -23432,6 +23666,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_comment_edit_offered,
 				awaiting_comment_edit_saved,
 				awaiting_comment_edit_conflict,
+				// [[BPR-1804]].
+				awaiting_reviewer_offered,
+				awaiting_reviewer_listed,
+				awaiting_reviewer_filtered,
+				awaiting_reviewer_requested,
 				passed,
 				failed,
 			};
@@ -23890,6 +24129,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                                 DescriptionEditCompletions = 0U;
 		std::size_t                                                 DescriptionEditConflicts   = 0U;
 		std::size_t                                                 DescriptionEditFailures    = 0U;
+		/// [[BPR-1804]]. The reviewer picker's state, the searches and
+		/// requests in flight by host request, the typing debounce, and what
+		/// came of gestures.
+		static constexpr int                        reviewer_search_delay = 250;
+		core::reviewer_picker_state                 ReviewerPicker;
+		std::map<std::uint64_t, std::uint64_t>      PendingReviewerSearches;
+		std::map<std::uint64_t, std::uint64_t>      PendingReviewerRequests;
+		std::unique_ptr<QTimer>                     ReviewerSearchDebounce;
+		std::optional<core::reviewer_search_effect> DebouncedReviewerSearch;
+		std::size_t                                 ReviewerSearches           = 0U;
+		std::size_t                                 ReviewerChoices            = 0U;
+		std::size_t                                 ReviewerRequestsAsked      = 0U;
+		std::size_t                                 ReviewerRequestCompletions = 0U;
+		std::size_t                                 ReviewerRequestFailures    = 0U;
 		/// [[BPR-1775]]. The comment save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingCommentEdit;
 		std::size_t                                                 CommentEditGestures    = 0U;
@@ -32851,6 +33104,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		if (cards == nullptr || editor == nullptr || model == nullptr) {
 			return result::pending;
 		}
+		// [[BPR-1804]]. Where each course ends: with reviewers served, it goes
+		// on to request one from People.
+		const auto go_on_to_reviewers = [&probe, implementation] {
+			if (implementation->ReviewMutationHost->capabilities().RequestsReviewers) {
+				probe.Phase = state_type::phase::awaiting_reviewer_offered;
+				return result::pending;
+			}
+			probe.Phase = state_type::phase::passed;
+			return result::passed;
+		};
 		const auto fail = [&probe](const std::string_view aWhy) {
 			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
 			probe.Phase = state_type::phase::failed;
@@ -33122,8 +33385,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 					return result::pending;
 				}
-				probe.Phase = state_type::phase::passed;
-				return result::passed;
+				return go_on_to_reviewers();
 			}
 			cards->open_thread(std::string{ threadIdentity });
 			QCoreApplication::processEvents();
@@ -33310,8 +33572,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 				return result::pending;
 			}
-			probe.Phase = state_type::phase::passed;
-			return result::passed;
+			return go_on_to_reviewers();
 		}
 		// [[BPR-1774]]. Overview offers the author Edit; Save performs exactly
 		// one write, and the next read shows GitHub's body. A second edit
@@ -33412,8 +33673,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 				return result::pending;
 			}
-			probe.Phase = state_type::phase::passed;
-			return result::passed;
+			return go_on_to_reviewers();
 		}
 		// [[BPR-1775]]. My published reply offers Edit in Discuss and another's
 		// comment does not; Save performs exactly one write, and the next read
@@ -33546,6 +33806,85 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return fail("newer-not-loaded");
 			}
 			cards->comment_edit_cancel_button()->click();
+			QCoreApplication::processEvents();
+			return go_on_to_reviewers();
+		}
+		// [[BPR-1804]]. People offers Request review; the picker lists GitHub's
+		// suggestion, a typed query narrows it to one person, and choosing them
+		// by keyboard writes exactly once; choosing them again sends nothing.
+		case state_type::phase::awaiting_reviewer_offered: {
+			auto* const page = window->overview_page();
+			window->choose_modality(qt::review_modality::overview);
+			QCoreApplication::processEvents();
+			if (!page->reviewer_requests_offered()) {
+				return result::pending;
+			}
+			probe.Evidence.ReviewerOffered = page->request_review_button()->isVisibleTo(page);
+			if (!probe.Evidence.ReviewerOffered) {
+				return fail("request-review-not-shown");
+			}
+			page->request_review_button()->click();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_reviewer_listed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reviewer_listed: {
+			auto* const picker = window->overview_page()->reviewer_picker_popup();
+			if (picker == nullptr || implementation->ReviewerPicker.Searching) {
+				return result::pending;
+			}
+			if (picker->listed_logins() != QStringList{ "fixture-other-reviewer", "octo-maintainer", "octo-outsider" }) {
+				return fail("picker-not-listed");
+			}
+			for (const auto character : QStringLiteral("maint")) {
+				auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_unknown, Qt::NoModifier, QString{ character } };
+				QCoreApplication::sendEvent(picker->search_field(), &down);
+			}
+			probe.Phase = state_type::phase::awaiting_reviewer_filtered;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reviewer_filtered: {
+			auto* const picker   = window->overview_page()->reviewer_picker_popup();
+			const auto  evidence = implementation->Fixture->review_mutation_evidence();
+			note("searches=" + std::to_string(evidence.ReviewerSearches) + " listed=" + picker->listed_logins().join(QLatin1Char{ ',' }).toStdString());
+			if (implementation->ReviewerPicker.Searching || evidence.ReviewerSearches < 2U) {
+				return result::pending;
+			}
+			probe.Evidence.ReviewerSearched = picker->listed_logins() == QStringList{ "octo-maintainer" } && implementation->ReviewerPicker.Query == "maint";
+			if (!probe.Evidence.ReviewerSearched) {
+				return fail("search-not-narrowed");
+			}
+			for (const auto key : { Qt::Key_Down, Qt::Key_Return }) {
+				auto down = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
+				QCoreApplication::sendEvent(picker->search_field(), &down);
+			}
+			probe.Phase = state_type::phase::awaiting_reviewer_requested;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reviewer_requested: {
+			auto* const picker   = window->overview_page()->reviewer_picker_popup();
+			const auto  evidence = implementation->Fixture->review_mutation_evidence();
+			note("completions=" + std::to_string(implementation->ReviewerRequestCompletions) + " failures=" + std::to_string(implementation->ReviewerRequestFailures)
+				 + " writes=" + std::to_string(evidence.ReviewerWrites) + " status=" + picker->status()->text().toStdString());
+			if (implementation->ReviewerRequestFailures != 0U) {
+				return fail("request-failed");
+			}
+			if (implementation->ReviewerRequestCompletions < 1U) {
+				return result::pending;
+			}
+			probe.Evidence.ReviewerRequestedOnce = evidence.ReviewerWrites == 1U && picker->status()->text() == QStringLiteral("Requested a review from octo-maintainer.");
+			if (!probe.Evidence.ReviewerRequestedOnce) {
+				return fail("not-requested-once");
+			}
+			const auto asked = implementation->ReviewerRequestsAsked;
+			picker->choose_highlighted();
+			QCoreApplication::processEvents();
+			probe.Evidence.ReviewerNotRepeated = implementation->ReviewerRequestsAsked == asked && implementation->Fixture->review_mutation_evidence().ReviewerWrites == 1U
+				&& picker->status()->text() == QStringLiteral("octo-maintainer already has a review request.");
+			if (!probe.Evidence.ReviewerNotRepeated) {
+				return fail("request-repeated");
+			}
+			picker->hide();
 			QCoreApplication::processEvents();
 			probe.Phase = state_type::phase::passed;
 			return result::passed;

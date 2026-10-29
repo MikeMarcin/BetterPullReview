@@ -216,6 +216,30 @@ namespace bpr::application {
 		auto operator==(const review_comment_edit_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-1804]]. Asks the host to search reviewers (`Query`) or
+	/// to request one review (`User`, the person's GitHub node, and `Login`).
+	struct review_reviewer_publication_request
+	{
+		review_reviewer_operation Operation = review_reviewer_operation::search;
+		std::string               Query;
+		std::string               User;
+		std::string               Login;
+
+		auto operator<=>(const review_reviewer_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-1804]]. One reviewer operation's terminal.
+	struct review_reviewer_terminal
+	{
+		review_mutation_request_context                                 Context;
+		review_reviewer_publication_request                             Request;
+		std::expected<review_reviewer_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_reviewer_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
@@ -243,6 +267,12 @@ namespace bpr::application {
 		/// \brief [[BPR-1775]]. A sink that does not edit comments ignores
 		/// their terminals.
 		virtual void publish_comment_edit(const review_comment_edit_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+		/// \brief [[BPR-1804]]. A sink without a reviewer picker ignores its
+		/// terminals.
+		virtual void publish_reviewers(const review_reviewer_terminal& aTerminal)
 		{
 			static_cast<void>(aTerminal);
 		}
@@ -323,6 +353,9 @@ namespace bpr::application {
 		std::uint64_t DescriptionEdits = 0U;
 		/// [[BPR-1775]]. Comment edits GitHub answered, conflicts included.
 		std::uint64_t CommentEdits = 0U;
+		/// [[BPR-1804]]. Reviewer searches and requests GitHub answered.
+		std::uint64_t ReviewerSearches = 0U;
+		std::uint64_t ReviewerRequests = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -401,6 +434,15 @@ namespace bpr::application {
 		[[nodiscard]] auto edit_comment(
 			review_comment_edit_publication_request aRequest,
 			review_mutation_execution_grant         aRequestGrant = { })
+			-> review_mutation_request_context;
+		/// \brief [[BPR-1804]]. Searches reviewers, a read that needs no
+		/// grant and in which the latest search wins (an earlier one queued or
+		/// in flight is stopped), or requests one review under a one-shot grant
+		/// bound to the accepted target, actor and that person. Refused before
+		/// any effect when the provider does not request reviewers.
+		[[nodiscard]] auto reviewers(
+			review_reviewer_publication_request aRequest,
+			review_mutation_execution_grant     aRequestGrant = { })
 			-> review_mutation_request_context;
 		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
 

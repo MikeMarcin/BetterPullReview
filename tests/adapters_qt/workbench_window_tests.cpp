@@ -13775,8 +13775,9 @@ namespace {
 		auto* const tools   = window.findChild<QWidget*>(QStringLiteral("workbenchTourTools"));
 		expect(editor->mode() == qt::tour_editor_mode::route && outline->isVisible() && outline->count() == 2 && outline->verticalScrollBar()->maximum() == 0,
 			   "the Tour tab is the route: every stop in view, no list of its own to scroll");
-		expect(editor->stop_body()->isVisible() && outline->isAncestorOf(editor->stop_body()) && outline->itemWidget(outline->item(1)) != nullptr,
-			   "the current stop is written in place on the route");
+		// [[BPR-1805]]. A written stop opens in place to read, its pencil beside it.
+		expect(editor->stop_view().Mode == core::tour_stop_view_mode::read && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()) && outline->itemWidget(outline->item(1)) != nullptr,
+			   "the current stop opens in place on the route");
 		expect(!editor->findChild<QTabWidget*>(QStringLiteral("tourRoadmap"))->isVisible() && tools != nullptr && tools->isVisible(),
 			   "the route shows no section tabs, and the tab row has Add stop and Expand");
 		editor->show_problem();
@@ -13815,8 +13816,8 @@ namespace {
 		expect(window.tour_page_open() && page != nullptr && page->isVisible() && page->isAncestorOf(editor) && editor->mode() == qt::tour_editor_mode::page
 				   && !window.conversations_drawer()->isVisible() && !window.files_drawer()->isVisible(),
 			   "Expand opens the tour page in the main pane, with no drawers beside it");
-		expect(editor->stop_body()->isVisible() && !outline->isAncestorOf(editor->stop_body()) && editor->publication_panel()->isVisible() && outline->isVisible(),
-			   "the page has the outline, the stop's editor and what GitHub will show, together");
+		expect(editor->stop_reader()->isVisible() && !outline->isAncestorOf(editor->stop_reader()) && editor->publication_panel()->isVisible() && outline->isVisible(),
+			   "the page has the outline, the stop and what GitHub will show, together");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/tour-page.png"), "PNG"), "the page render is saved");
 		}
@@ -13825,7 +13826,7 @@ namespace {
 		process_events();
 		static_cast<void>(escape);
 		expect(!window.tour_page_open() && editor->mode() == qt::tour_editor_mode::route && window.conversations_drawer()->isVisible() && window.files_drawer()->isVisible()
-				   && window.tray_tabs()->currentIndex() == 2 && editor->stop_body()->isVisible() && outline->isAncestorOf(editor->stop_body()),
+				   && window.tray_tabs()->currentIndex() == 2 && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()),
 			   "Back to the code returns to the route, the drawers as they were");
 		window.hide();
 	}
@@ -19652,6 +19653,37 @@ namespace {
 		expect(!window.showing_overview() && window.tray_tabs()->currentIndex() == 2 && window.current_modality() == qt::review_modality::review,
 			   "Continue in Review opens Review's Tour tab");
 		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == draft.Stops.front().Id, "at its stop");
+
+		// [[BPR-1806]]. A published tour stop's Open in tour is offered while
+		// the window has a published tour, and opens Review's Tour tab at the
+		// stop bound to that comment.
+		expect(!cards->tour_open_offered(), "an unpublished draft offers no Open in tour");
+		auto followed   = tests::review_tour_fixture();
+		auto root       = core::tour_remote_binding{ };
+		root.Entity     = "PRR_root";
+		followed.Remote = root;
+		auto second     = followed.Stops.front();
+		second.Id       = core::tour_stop_id{ 2 };
+		second.Title    = "How";
+		auto bound      = core::tour_remote_binding{ };
+		bound.Kind      = core::tour_remote_kind::line_comment;
+		bound.Entity    = "PRRC_how";
+		second.Remote   = bound;
+		followed.Stops.push_back(second);
+		followed.LastStopId = 2;
+		editor->present({ .Draft = std::make_shared<const core::review_tour>(followed) });
+		process_events();
+		expect(cards->tour_open_offered(), "a published tour in the window offers Open in tour");
+		auto asked    = core::published_tour_stop{ };
+		asked.Ordinal = 2U;
+		asked.Title   = "Renamed on GitHub";
+		window.start_tour_at_published_stop("review-comment:PRRC_how", asked);
+		process_events();
+		expect(window.tray_tabs()->currentIndex() == 2 && editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 },
+			   "Open in tour opens the Tour tab at the stop bound to the comment");
+		editor->present({ .Draft = std::make_shared<const core::review_tour>(core::review_tour{ }) });
+		process_events();
+		expect(!cards->tour_open_offered(), "without a published tour, Open in tour is withdrawn");
 		expect(log.Workbench.size() > 0U, "the window's gestures went to the core");
 	}
 

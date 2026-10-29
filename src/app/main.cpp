@@ -187,6 +187,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "reaction-probe" },
 		bpr::app::command_line_option{ .Name = "description-edit-probe" },
 		bpr::app::command_line_option{ .Name = "comment-edit-probe" },
+		bpr::app::command_line_option{ .Name = "reviewer-request-probe" },
 		bpr::app::command_line_option{ .Name = "attended-launch" },
 		bpr::app::command_line_option{ .Name = "public-preview-enabled-course" },
 		bpr::app::command_line_option{ .Name = "public-preview-ghes-course" },
@@ -5024,6 +5025,11 @@ namespace {
 					   << "COMMENT_EDIT_EVIDENCE:" << evidence.CommentEditOffered << evidence.CommentEditSavedOnce << evidence.CommentEditShownAfterRead
 					   << evidence.CommentEditConflictRefused << evidence.CommentEditNewerLoaded << '\n';
 			}
+			if (evidence.ReviewerOffered) {
+				stream << (evidence.ReviewerNotRepeated ? "REVIEWER_REQUEST_OK\n" : "REVIEWER_REQUEST_FAILED\n")
+					   << "REVIEWER_REQUEST_EVIDENCE:" << evidence.ReviewerOffered << evidence.ReviewerSearched << evidence.ReviewerRequestedOnce
+					   << evidence.ReviewerNotRepeated << '\n';
+			}
 		}
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
@@ -9475,8 +9481,12 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1775]]. With `--comment-edit-probe` the fixture edits the
 		// replies it published; with the threaded-reply course too, the course
 		// goes on to edit one.
-		fixtureOptions.EditsComments   = launch.has("--comment-edit-probe");
-		fixtureOptions.ResolvesThreads = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
+		fixtureOptions.EditsComments = launch.has("--comment-edit-probe");
+		// [[BPR-1804]]. With `--reviewer-request-probe` the fixture searches
+		// reviewers and requests reviews; with the threaded-reply course too,
+		// the course goes on to request one from People.
+		fixtureOptions.RequestsReviewers = launch.has("--reviewer-request-probe");
+		fixtureOptions.ResolvesThreads   = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.
 		fixtureOptions.RepeatReadSessions = fixtureOptions.ResolvesThreads
