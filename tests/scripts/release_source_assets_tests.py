@@ -298,6 +298,11 @@ else:
         self.assertEqual(upload[3], "v1.2.3-build.1")
         self.assertIn("/releases/download/v1.2.3-build.1/", runtime.source_asset_url(self.info))
         self.assertNotIn("/releases/download/v1.2.3/", runtime.source_asset_url(self.info))
+        commands.write_text("")
+        retry = subprocess.run(command, env=environment, text=True, capture_output=True)
+        self.assertNotEqual(retry.returncode, 0)
+        self.assertIn("GitHub release already exists", retry.stderr)
+        self.assertEqual(self.publication_mutations(commands), [])
 
     @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
     def test_publication_requires_explicit_matching_visibility_and_origin(self):
