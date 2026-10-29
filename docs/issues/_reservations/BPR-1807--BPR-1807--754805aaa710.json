@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1807"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "coordinator: real GitHub avatars with setting",
+  "created": "2026-10-29T04:12:55.465826+00:00",
+  "base": "4e649d27c293f5c4e3a590ab7b6540e79d1a4c20"
+}
