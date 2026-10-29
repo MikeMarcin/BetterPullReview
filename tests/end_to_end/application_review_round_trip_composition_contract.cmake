@@ -1,3 +1,14 @@
+# [[BPR-1804]] reviewer-request reseal (2026-10-28), over 1ff1314c4.
+# github_application.cpp, main.cpp and the public-path fixture add Request
+# review in People: the picker's gestures reach the core's reviewer picker
+# transitions, a search goes to the mutation host's reviewers as a read with
+# no grant, and a choice under a one-shot issue_reviewer grant bound to
+# session, generation, target, actor and the exact person; the terminal
+# updates the picker and refreshes after a write. The fixture provider decides
+# with decide_reviewer_write and the threaded-reply probe gains a
+# --reviewer-request-probe continuation. No credential, provider selection,
+# publication or source-inventory change; the mutation-branch pin is
+# unchanged. application_reviewer_request_contract qualifies these bytes.
 # [[BPR-1774]] description-edit reseal (2026-10-27), over ce5d19205.
 # github_application.cpp, main.cpp and the public-path fixture add the
 # author's description edit: Overview's Save reaches the core's
@@ -2429,7 +2440,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# opens it. No credential, grant, provider, mutation, publication or
 	# source-inventory change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"924be92d043590e1f6083537d530b89d82187a0560e66974e6854faa4161b0e7"
+		"a0f27d577e0a0817e9840e9a4cfe228722de6b0570f52fbaacfbb54b84c1a1ed"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2684,7 +2695,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # writes private drafts through the existing reply, line-draft and new
 # pull request comment paths. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "62203700e80166cc2be74db1b18a4c83662dcff2d7d2245fee09c2a9488a5e42"
+        "879ed47948dd8abd143421756a6b8842511863da35681f9ee06a6e373559bbe1"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

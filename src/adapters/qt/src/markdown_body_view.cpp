@@ -795,6 +795,18 @@ namespace bpr::qt {
 		height_changed();
 	}
 
+	void markdown_body_view::set_rendered_range(std::optional<std::pair<std::size_t, std::size_t>> aShown)
+	{
+		if (RenderedRange == aShown) {
+			return;
+		}
+		RenderedRange = aShown;
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
 	void markdown_body_view::clear()
 	{
 		Body.clear();
@@ -1029,7 +1041,10 @@ namespace bpr::qt {
 		// header and decorations included (owner, decorations-v003).
 		BodyMark = MarkTheme.has_value() ? feedback_body_mark_of(Body) : feedback_body_mark{ };
 		refresh_mark();
-		const auto shown  = std::string_view{ Body };
+		// [[BPR-1806]]. A published tour stop renders its narrative alone.
+		const auto shown  = RenderedRange.has_value() && RenderedRange->first < RenderedRange->second && RenderedRange->second <= Body.size()
+			? std::string_view{ Body }.substr(RenderedRange->first, RenderedRange->second - RenderedRange->first)
+			: std::string_view{ Body };
 		HeaderChars       = 0;
 		HeaderStart       = 0;
 		Fallback          = rendering_limit(shown);
@@ -1056,7 +1071,7 @@ namespace bpr::qt {
 				// RFC-BPR-0084. With a holder to ask, images become objects that
 				// load; without one they stay the accessible placeholder.
 				if (ImageDispatch && ImagesShown) {
-					Images->place(*document, dark_palette(), core::markdown_linked_images(Body));
+					Images->place(*document, dark_palette(), core::markdown_linked_images(shown));
 				} else {
 					Images->clear();
 					replace_images(*document);
@@ -1074,7 +1089,10 @@ namespace bpr::qt {
 					if (annotation.Status == core::feedback_prefix_status::recognized && annotation.Header.has_value()) {
 						const auto from  = segment.UserBody.has_value() ? feedback_text_index(Body, segment.UserBody->Begin) : 0;
 						auto       probe = QTextDocument{ };
-						probe.setMarkdown(source.mid(from, feedback_text_index(Body, annotation.Header->End) - from), markdown_features);
+						// [[BPR-1806]]. `source` starts where the shown range does.
+						const auto offset = feedback_text_index(Body, static_cast<std::size_t>(shown.data() - Body.data()));
+						const auto start  = std::max(from, offset);
+						probe.setMarkdown(source.mid(start - offset, feedback_text_index(Body, annotation.Header->End) - start), markdown_features);
 						const auto header = probe.toPlainText().trimmed();
 						for (auto block = document->begin(); !header.isEmpty() && block.isValid(); block = block.next()) {
 							if (block.text().startsWith(header)) {

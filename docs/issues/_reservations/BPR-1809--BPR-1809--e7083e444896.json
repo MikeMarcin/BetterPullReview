@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1809"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "coordinator: reviewer request removal and teams follow-up",
+  "created": "2026-10-29T04:59:32.310611+00:00",
+  "base": "27c65aa4bf3069a2e8153c403625ff868bf9e010"
+}

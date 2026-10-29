@@ -9,6 +9,7 @@
 #include "bpr/core/reference_page.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/suggestion_applicability.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
@@ -218,7 +219,17 @@ namespace bpr::qt {
 		/// stop's narrative, after its pinned source and generated heading, so
 		/// its label reads beside its mark; zero for any other post.
 		qsizetype Lead = 0;
+		/// [[BPR-1806]]. The thread's first post read as a published tour
+		/// stop, which shows as one: its number and title, its narrative
+		/// alone. `Body` stays the whole body as written.
+		std::optional<core::published_tour_stop> TourStop;
+		/// [[BPR-1806]]. How many stops its tour has, when its stops prove it.
+		std::optional<std::size_t> TourStopCount;
 	};
+
+	/// \brief [[BPR-1806]]. A tour stop's badge: "Stop 6 of 9", or "Stop 6"
+	/// while the tour's length is unknown.
+	[[nodiscard]] auto tour_stop_badge(const core::published_tour_stop& aStop, std::optional<std::size_t> aCount) -> QString;
 
 	/// \brief [[BPR-1741]]. A review thread's resolution as the viewer
 	/// should see it, and whether GitHub lets the viewer resolve or reopen it.
@@ -668,6 +679,13 @@ namespace bpr::qt {
 		/// nothing is sent.
 		void               set_comment_edit_offered(bool aOffered);
 		[[nodiscard]] auto comment_edit_offered() const noexcept -> bool;
+		/// \brief [[BPR-1806]]. Offers Open in tour on a published tour stop,
+		/// or withdraws it: offered while the window has the tour to follow.
+		void               set_tour_open_offered(bool aOffered);
+		[[nodiscard]] auto tour_open_offered() const noexcept -> bool;
+		/// \brief [[BPR-1806]]. Where Open in tour goes: the post's identity
+		/// and the stop it was read as. Nothing is opened by the view.
+		void set_tour_open_dispatch(std::function<void(const std::string&, const core::published_tour_stop&)> aDispatch);
 		/// \brief [[BPR-1775]]. Whether Edit is offered on this post.
 		[[nodiscard]] auto comment_editable(std::string_view aPost) const -> bool;
 		/// \brief [[BPR-1775]]. Where Save goes. Nothing is sent by the view.
@@ -981,7 +999,11 @@ namespace bpr::qt {
 		std::vector<feedback_body_mark> RetainedMarks;
 		std::vector<qsizetype>          RetainedHeaders;
 		std::vector<qsizetype>          RetainedLeads;
-		feedback_mark_theme             MarkTheme;
+		/// [[BPR-1806]]. Each retained post read as a published tour stop,
+		/// and its tour's length when known.
+		std::vector<std::optional<core::published_tour_stop>> RetainedTourStops;
+		std::vector<std::optional<std::size_t>>               RetainedTourCounts;
+		feedback_mark_theme                                   MarkTheme;
 		/// [[BPR-0972]]. The first read state of each thread.
 		std::unordered_map<std::string, std::size_t>                                         ReadStateByThread;
 		mutable std::optional<std::vector<std::string>>                                      UnreadThreads;
@@ -1062,6 +1084,8 @@ namespace bpr::qt {
 			bool                       Saving = false;
 		};
 		bool                                                                        CommentEditOffered = false;
+		bool                                                                        TourOpenOffered    = false;
+		std::function<void(const std::string&, const core::published_tour_stop&)>   TourOpenDispatch;
 		std::optional<comment_edit_session>                                         CommentEdit;
 		std::function<void(const comment_edit_save&)>                               CommentEditDispatch;
 		void                                                                        present_comment_edit();

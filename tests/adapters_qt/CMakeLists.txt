@@ -2096,6 +2096,12 @@ bpr_enable_hardening(test_review_tour_steps)
 bpr_enable_warnings(test_review_tour_steps)
 bpr_add_network_isolated_test(NAME qt_review_tour_steps COMMAND test_review_tour_steps)
 set_tests_properties(qt_review_tour_steps PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-steps:pass" TIMEOUT 30)
+bpr_add_executable(test_review_tour_stop_view review_tour_stop_view_tests.cpp) # [[BPR-1805]]
+target_link_libraries(test_review_tour_stop_view PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_review_tour_stop_view)
+bpr_enable_warnings(test_review_tour_stop_view)
+bpr_add_network_isolated_test(NAME qt_review_tour_stop_view COMMAND test_review_tour_stop_view)
+set_tests_properties(qt_review_tour_stop_view PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-stop-view:pass" TIMEOUT 30)
 
 bpr_add_executable(test_private_review_panel private_review_panel_tests.cpp)
 target_link_libraries(test_private_review_panel PRIVATE BetterPullReview::AdapterQt)
@@ -2238,6 +2244,30 @@ set_tests_properties(
     PROPERTIES
         ENVIRONMENT "${bpr_qt_github_common_environment}"
         PASS_REGULAR_EXPRESSION "feedback-label-threads-tests:pass"
+)
+
+# [[BPR-1806]]. A published tour stop reads as one: its note's badge and
+# title, its plate over its narrative alone, Open in tour, in all four themes.
+bpr_add_executable(
+    test_better_pull_review_qt_tour_stop_card_tests
+    tour_stop_card_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_qt_tour_stop_card_tests
+    PRIVATE
+        BetterPullReview::AdapterQt
+)
+bpr_enable_hardening(test_better_pull_review_qt_tour_stop_card_tests)
+bpr_enable_warnings(test_better_pull_review_qt_tour_stop_card_tests)
+bpr_add_network_isolated_test(
+    NAME qt_tour_stop_card
+    COMMAND test_better_pull_review_qt_tour_stop_card_tests
+)
+set_tests_properties(
+    qt_tour_stop_card
+    PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};BPR_TOUR_STOP_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/tour-stop-card"
+        PASS_REGULAR_EXPRESSION "tour-stop-card-tests:pass"
 )
 
 # [[BPR-1583]]. One avatar and one colour per person: the same login is the

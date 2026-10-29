@@ -11,6 +11,8 @@
 
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
+#include "bpr/core/review_role.hpp"
+#include "bpr/core/reviewer_request.hpp"
 
 #include <QByteArray>
 #include <QDateTime>
@@ -158,6 +160,27 @@ namespace bpr::adapters::github::detail {
 		constexpr auto update_description_document = std::string_view{
 			"mutation UpdateDescription($pullRequest:ID!,$body:String!){updatePullRequest(input:{pullRequestId:$pullRequest,body:$body}){"
 			"pullRequest{id databaseId number body viewerCanUpdate updatedAt repository{id databaseId nameWithOwner}}}}"
+		};
+		/// [[BPR-1804]]. The people who may review the pull request named by
+		/// its node, as GitHub's picker lists them: its suggestions, then the
+		/// repository's assignable users matching the query; with the author,
+		/// the open requests and the submitted reviews that say where each
+		/// stands. Users only: teams are not asked for here.
+		constexpr auto observe_reviewers_document = std::string_view{
+			"query ObserveReviewers($pullRequest:ID!,$query:String!){node(id:$pullRequest){... on PullRequest{"
+			"id databaseId number author{login} repository{id databaseId nameWithOwner assignableUsers(query:$query,first:20){nodes{id login name}}} "
+			"suggestedReviewers{isAuthor isCommenter reviewer{id login name}} "
+			"reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{id login}}}} "
+			"latestReviews(first:100){nodes{author{login}}}}}}"
+		};
+		/// [[BPR-1804]]. One review requested, added to the open requests
+		/// (`union:true`). GitHub answers success without adding someone who
+		/// may not review, so the answer's requests are what is believed.
+		constexpr auto request_reviews_document = std::string_view{
+			"mutation RequestReviews($pullRequest:ID!,$user:ID!){requestReviews(input:{pullRequestId:$pullRequest,userIds:[$user],union:true}){"
+			"pullRequest{id databaseId number author{login} repository{id databaseId nameWithOwner} "
+			"reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{id login}}}} "
+			"latestReviews(first:100){nodes{author{login}}}}}}"
 		};
 		/// [[BPR-1775]]. One of the viewer's published comments, named by its
 		/// node, of one of the three kinds that can be edited, with its body,
@@ -984,6 +1007,291 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("data", &description_update_response_json::Data);
 			};
 		};
+		// [[BPR-1804]]. Reviewer envelopes, outbound.
+		struct reviewer_observation_variables_json
+		{
+			std::string_view PullRequest;
+			std::string_view Query;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &reviewer_observation_variables_json::PullRequest, "query", &reviewer_observation_variables_json::Query);
+			};
+		};
+		struct reviewer_observation_query_json
+		{
+			std::string_view                    Query;
+			reviewer_observation_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &reviewer_observation_query_json::Query, "variables", &reviewer_observation_query_json::Variables);
+			};
+		};
+		struct reviewer_write_variables_json
+		{
+			std::string_view PullRequest;
+			std::string_view User;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &reviewer_write_variables_json::PullRequest, "user", &reviewer_write_variables_json::User);
+			};
+		};
+		struct reviewer_write_query_json
+		{
+			std::string_view              Query;
+			reviewer_write_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &reviewer_write_query_json::Query, "variables", &reviewer_write_query_json::Variables);
+			};
+		};
+		// [[BPR-1804]]. Reviewer answers, inbound. A name, an author and a
+		// requested reviewer may be null; a team request carries no user
+		// fields.
+		struct reviewer_user_json
+		{
+			std::string                Id;
+			std::string                Login;
+			std::optional<std::string> Name;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("id", &reviewer_user_json::Id, "login", &reviewer_user_json::Login, "name", &reviewer_user_json::Name);
+			};
+		};
+		struct reviewer_user_nodes_json
+		{
+			std::vector<reviewer_user_json> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("nodes", &reviewer_user_nodes_json::Nodes);
+			};
+		};
+		struct reviewer_login_json
+		{
+			std::string Login;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("login", &reviewer_login_json::Login);
+			};
+		};
+		struct reviewer_suggestion_json
+		{
+			bool                              IsAuthor    = false;
+			bool                              IsCommenter = false;
+			std::optional<reviewer_user_json> Reviewer;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("isAuthor", &reviewer_suggestion_json::IsAuthor, "isCommenter", &reviewer_suggestion_json::IsCommenter, "reviewer", &reviewer_suggestion_json::Reviewer);
+			};
+		};
+		struct reviewer_requested_json
+		{
+			std::string                Typename;
+			std::optional<std::string> Id;
+			std::optional<std::string> Login;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("__typename", &reviewer_requested_json::Typename, "id", &reviewer_requested_json::Id, "login", &reviewer_requested_json::Login);
+			};
+		};
+		struct reviewer_request_node_json
+		{
+			std::optional<reviewer_requested_json> RequestedReviewer;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("requestedReviewer", &reviewer_request_node_json::RequestedReviewer);
+			};
+		};
+		struct reviewer_request_nodes_json
+		{
+			std::vector<reviewer_request_node_json> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("nodes", &reviewer_request_nodes_json::Nodes);
+			};
+		};
+		struct reviewer_review_node_json
+		{
+			std::optional<reviewer_login_json> Author;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("author", &reviewer_review_node_json::Author);
+			};
+		};
+		struct reviewer_review_nodes_json
+		{
+			std::vector<reviewer_review_node_json> Nodes;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("nodes", &reviewer_review_nodes_json::Nodes);
+			};
+		};
+		struct reviewer_repository_json
+		{
+			std::string              Id;
+			std::uint64_t            DatabaseId = 0U;
+			std::string              NameWithOwner;
+			reviewer_user_nodes_json AssignableUsers;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &reviewer_repository_json::Id,
+					"databaseId", &reviewer_repository_json::DatabaseId,
+					"nameWithOwner", &reviewer_repository_json::NameWithOwner,
+					"assignableUsers", &reviewer_repository_json::AssignableUsers);
+			};
+		};
+		/// The pull request as `ObserveReviewers` names it.
+		struct reviewer_pull_request_json
+		{
+			std::string                           Id;
+			std::uint64_t                         DatabaseId = 0U;
+			std::uint64_t                         Number     = 0U;
+			std::optional<reviewer_login_json>    Author;
+			reviewer_repository_json              Repository;
+			std::vector<reviewer_suggestion_json> SuggestedReviewers;
+			reviewer_request_nodes_json           ReviewRequests;
+			reviewer_review_nodes_json            LatestReviews;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &reviewer_pull_request_json::Id,
+					"databaseId", &reviewer_pull_request_json::DatabaseId,
+					"number", &reviewer_pull_request_json::Number,
+					"author", &reviewer_pull_request_json::Author,
+					"repository", &reviewer_pull_request_json::Repository,
+					"suggestedReviewers", &reviewer_pull_request_json::SuggestedReviewers,
+					"reviewRequests", &reviewer_pull_request_json::ReviewRequests,
+					"latestReviews", &reviewer_pull_request_json::LatestReviews);
+			};
+		};
+		struct reviewer_node_data_json
+		{
+			std::variant<reviewer_pull_request_json, std::nullptr_t> Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &reviewer_node_data_json::Node);
+			};
+		};
+		struct reviewer_node_response_json
+		{
+			reviewer_node_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &reviewer_node_response_json::Data);
+			};
+		};
+		/// The pull request as `RequestReviews` answers it.
+		struct reviewer_written_pull_request_json
+		{
+			std::string                        Id;
+			std::uint64_t                      DatabaseId = 0U;
+			std::uint64_t                      Number     = 0U;
+			std::optional<reviewer_login_json> Author;
+			thread_repository_json             Repository;
+			reviewer_request_nodes_json        ReviewRequests;
+			reviewer_review_nodes_json         LatestReviews;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &reviewer_written_pull_request_json::Id,
+					"databaseId", &reviewer_written_pull_request_json::DatabaseId,
+					"number", &reviewer_written_pull_request_json::Number,
+					"author", &reviewer_written_pull_request_json::Author,
+					"repository", &reviewer_written_pull_request_json::Repository,
+					"reviewRequests", &reviewer_written_pull_request_json::ReviewRequests,
+					"latestReviews", &reviewer_written_pull_request_json::LatestReviews);
+			};
+		};
+		struct reviewer_payload_json
+		{
+			reviewer_written_pull_request_json PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &reviewer_payload_json::PullRequest);
+			};
+		};
+		struct reviewer_write_data_json
+		{
+			std::variant<reviewer_payload_json, std::nullptr_t> Request;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("requestReviews", &reviewer_write_data_json::Request);
+			};
+		};
+		struct reviewer_write_response_json
+		{
+			reviewer_write_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &reviewer_write_response_json::Data);
+			};
+		};
+		/// \brief [[BPR-1804]]. A login as GitHub makes them: at most 39
+		/// characters; a name is bounded text.
+		[[nodiscard]] auto reviewer_login(const std::string_view aLogin) -> bool
+		{
+			return !aLogin.empty() && aLogin.size() <= 39U
+				&& std::ranges::all_of(aLogin, [](const char aCharacter) {
+					   return (aCharacter >= 'a' && aCharacter <= 'z') || (aCharacter >= 'A' && aCharacter <= 'Z')
+						   || (aCharacter >= '0' && aCharacter <= '9') || aCharacter == '-' || aCharacter == '_' || aCharacter == '[' || aCharacter == ']';
+				   });
+		}
+		/// \brief [[BPR-1804]]. One person as GitHub listed them, or none
+		/// when the entry is not a person who may be asked.
+		[[nodiscard]] auto reviewer_person(const reviewer_user_json& aUser) -> std::optional<core::reviewer_candidate>
+		{
+			const auto name = aUser.Name.value_or(std::string{ });
+			if (!reviewer_login(aUser.Login) || aUser.Id.empty() || aUser.Id.size() > 256U || name.size() > 512U) {
+				return std::nullopt;
+			}
+			return core::reviewer_candidate{ .NodeId = aUser.Id, .Login = aUser.Login, .Name = name };
+		}
+		/// \brief [[BPR-1804]]. The facts both answers share: the author, the
+		/// open user requests and the submitted reviews, each list bounded and
+		/// every login well formed. Team requests are not users and are left out.
+		[[nodiscard]] auto reviewer_standing_facts(
+			const std::optional<reviewer_login_json>& aAuthor,
+			const reviewer_request_nodes_json&        aRequests,
+			const reviewer_review_nodes_json&         aReviews)
+			-> review_mutation_parse_result<core::reviewer_search_answer>
+		{
+			auto answer = core::reviewer_search_answer{ };
+			if (aAuthor.has_value()) {
+				if (!reviewer_login(aAuthor->Login)) {
+					return failed(review_mutation_contract_failure::malformed_response);
+				}
+				answer.Author = aAuthor->Login;
+			}
+			if (aRequests.Nodes.size() > maximum_reviewer_list_items || aReviews.Nodes.size() > maximum_reviewer_list_items) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			for (const auto& node : aRequests.Nodes) {
+				if (!node.RequestedReviewer.has_value() || node.RequestedReviewer->Typename != "User") {
+					continue;
+				}
+				if (!node.RequestedReviewer->Login || !reviewer_login(*node.RequestedReviewer->Login) || !node.RequestedReviewer->Id || node.RequestedReviewer->Id->empty()) {
+					return failed(review_mutation_contract_failure::malformed_response);
+				}
+				answer.Requested.push_back(*node.RequestedReviewer->Login);
+			}
+			for (const auto& node : aReviews.Nodes) {
+				if (!node.Author.has_value()) {
+					continue;
+				}
+				if (!reviewer_login(node.Author->Login)) {
+					return failed(review_mutation_contract_failure::malformed_response);
+				}
+				answer.Reviewed.push_back(node.Author->Login);
+			}
+			return answer;
+		}
+		[[nodiscard]] auto reviewer_binds(
+			const std::string& aId, const std::uint64_t aDatabaseId, const std::uint64_t aNumber,
+			const thread_repository_json& aRepository, const application::review_reviewer_request& aExpected) -> bool
+		{
+			return aExpected.LiveBinding.has_value()
+				&& binds_designated_pull_request(thread_pull_request_json{ .Id = aId, .DatabaseId = aDatabaseId, .Number = aNumber, .Repository = aRepository }, aExpected.LiveBinding->Target);
+		}
 		// [[BPR-1775]]. A comment as an edit's observation or answer names it.
 		struct comment_subject_json
 		{
@@ -2826,6 +3134,10 @@ namespace bpr::adapters::github::detail {
 		case operation::edit_review_comment:
 		case operation::edit_issue_comment:
 		case operation::edit_review_body:
+		// [[BPR-1804]]. Nor does a review request: GitHub's list of open
+		// requests is the record, read back after an ambiguous write.
+		case operation::observe_reviewers:
+		case operation::request_reviews:
 			return review_mutation_exchange{
 
 				.Method  = http_method::post,
@@ -3259,6 +3571,68 @@ namespace bpr::adapters::github::detail {
 		return observation;
 	}
 
+	auto compile_reviewer_request(
+		const application::review_reviewer_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		// [[BPR-1804]]. Bound to the target and the actor as a description
+		// edit is, naming the pull request by the accepted read's node. A
+		// search carries only its query; a request only its person.
+		const auto search = aRequest.Operation == application::review_reviewer_operation::search;
+		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
+			|| !application::valid(aRequest.LiveBinding->Target)
+			|| !application::valid(aRequest.LiveBinding->ActingIdentity)
+			|| aRequest.LiveBinding->Target.ServerContract != aServer
+			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
+			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
+			|| !graphql_token(aRequest.LiveBinding->Target.PullRequestNodeId)
+			|| (search && (!aRequest.User.empty() || !aRequest.Login.empty() || aRequest.Query.size() > core::maximum_reviewer_query_bytes || core::normalize_reviewer_query(aRequest.Query) != aRequest.Query || !utf8_round_trip(aRequest.Query)))
+			|| (!search && (!aRequest.Query.empty() || !graphql_token(aRequest.User) || !reviewer_login(aRequest.Login)))) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto headers = common_headers();
+		headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+		auto body = search
+			? glz::write<review_json_options{ }>(reviewer_observation_query_json{
+				  .Query     = observe_reviewers_document,
+				  .Variables = { .PullRequest = aRequest.LiveBinding->Target.PullRequestNodeId, .Query = aRequest.Query },
+			  })
+			: glz::write<review_json_options{ }>(reviewer_write_query_json{
+				  .Query     = request_reviews_document,
+				  .Variables = { .PullRequest = aRequest.LiveBinding->Target.PullRequestNodeId, .User = aRequest.User },
+			  });
+		if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		return review_mutation_wire_request{
+			.Semantic  = aRequest,
+			.Server    = aServer,
+			.Operation = search ? review_mutation_operation::observe_reviewers : review_mutation_operation::request_reviews,
+			.Method    = http_method::post,
+			.Path      = std::string{ graphql_path(aServer) },
+			.Headers   = std::move(headers),
+			.Body      = std::move(*body),
+		};
+	}
+
+	auto compile_reviewer_observation_request(
+		const application::review_reviewer_request& aRequest,
+		const application::github_server_contract   aServer)
+		-> review_mutation_request_result
+	{
+		// The write's own guards, then the search for the person's login.
+		if (aRequest.Operation != application::review_reviewer_operation::request || !compile_reviewer_request(aRequest, aServer).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		auto observation      = aRequest;
+		observation.Operation = application::review_reviewer_operation::search;
+		observation.Query     = aRequest.Login;
+		observation.User.clear();
+		observation.Login.clear();
+		return compile_reviewer_request(observation, aServer);
+	}
+
 	auto compile_comment_edit_request(
 		const application::review_comment_edit_request& aRequest,
 		const application::github_server_contract       aServer)
@@ -3470,6 +3844,8 @@ namespace bpr::adapters::github::detail {
 						canonical = aRequest.Operation == review_mutation_operation::observe_pull_request_description
 							? compile_description_observation_request(aSemantic, aRequest.Server)
 							: compile_description_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::review_reviewer_request>) {
+						canonical = compile_reviewer_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_comment_edit_request>) {
 						canonical = aRequest.Operation == review_mutation_operation::observe_comment_for_edit
 							? compile_comment_observation_request(aSemantic, aRequest.Server)
@@ -4028,6 +4404,86 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return observed;
+	}
+
+	auto parse_reviewer_observation(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reviewer_request& aExpected)
+		-> review_mutation_parse_result<core::reviewer_search_answer>
+	{
+		if (!aExpected.LiveBinding.has_value() || aExpected.Operation != application::review_reviewer_operation::search
+			|| !compile_reviewer_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<reviewer_node_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+			return failed(review_mutation_contract_failure::target_unavailable);
+		}
+		const auto& pull       = std::get<reviewer_pull_request_json>(response->Data.Node);
+		const auto  repository = thread_repository_json{ .Id = pull.Repository.Id, .DatabaseId = pull.Repository.DatabaseId, .NameWithOwner = pull.Repository.NameWithOwner };
+		if (!reviewer_binds(pull.Id, pull.DatabaseId, pull.Number, repository, aExpected)) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		auto answer = reviewer_standing_facts(pull.Author, pull.ReviewRequests, pull.LatestReviews);
+		if (!answer.has_value()) {
+			return answer;
+		}
+		if (pull.SuggestedReviewers.size() > maximum_reviewer_list_items || pull.Repository.AssignableUsers.Nodes.size() > maximum_reviewer_matches) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		for (const auto& suggestion : pull.SuggestedReviewers) {
+			if (!suggestion.Reviewer.has_value() || suggestion.IsAuthor) {
+				continue;
+			}
+			auto person = reviewer_person(*suggestion.Reviewer);
+			if (!person) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			person->Suggested = true;
+			person->Commenter = suggestion.IsCommenter;
+			answer->Suggested.push_back(std::move(*person));
+		}
+		for (const auto& user : pull.Repository.AssignableUsers.Nodes) {
+			auto person = reviewer_person(user);
+			if (!person) {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			answer->Matches.push_back(std::move(*person));
+		}
+		return answer;
+	}
+
+	auto parse_reviewer_response(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reviewer_request& aExpected)
+		-> review_mutation_parse_result<core::reviewer_search_answer>
+	{
+		if (!aExpected.LiveBinding.has_value() || aExpected.Operation != application::review_reviewer_operation::request
+			|| !compile_reviewer_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<reviewer_write_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		// A null payload is GraphQL's refusal of the mutation: nothing written.
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Request)) {
+			return failed(review_mutation_contract_failure::unexpected_body);
+		}
+		const auto& pull = std::get<reviewer_payload_json>(response->Data.Request).PullRequest;
+		if (!reviewer_binds(pull.Id, pull.DatabaseId, pull.Number, pull.Repository, aExpected)) {
+			return failed(review_mutation_contract_failure::identity_mismatch);
+		}
+		return reviewer_standing_facts(pull.Author, pull.ReviewRequests, pull.LatestReviews);
 	}
 
 	auto parse_comment_observation(
@@ -4953,6 +5409,113 @@ namespace bpr::adapters::github::detail {
 			const auto after = observe_description(aRequest, aStop);
 			if (after.has_value() && after->Body == aRequest.Body) {
 				return receipt(*after, true, true, false);
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+	}
+
+	auto review_mutation_session::reviewers(
+		const application::review_reviewer_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+				|| aRequest.LiveBinding->Target != Configuration.Target
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			const auto server  = Configuration.CredentialContext.Authority.ServerContract;
+			const auto observe = [&]() -> std::expected<core::reviewer_search_answer, application::review_mutation_failure> {
+				auto search = aRequest;
+				if (aRequest.Operation == application::review_reviewer_operation::request) {
+					search.Operation = application::review_reviewer_operation::search;
+					search.Query     = aRequest.Login;
+					search.User.clear();
+					search.Login.clear();
+				}
+				const auto wire = aRequest.Operation == application::review_reviewer_operation::request
+					? compile_reviewer_observation_request(aRequest, server)
+					: compile_reviewer_request(aRequest, server);
+				if (!wire.has_value()) {
+					return std::unexpected(map_contract_failure(wire.error()));
+				}
+				const auto response = perform(*wire, aStop, { });
+				if (!response.has_value()) {
+					return std::unexpected(response.error());
+				}
+				auto observed = parse_reviewer_observation(*response, search);
+				if (!observed.has_value()) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				return std::move(*observed);
+			};
+			// [[BPR-1804]]. A search is one read.
+			if (aRequest.Operation == application::review_reviewer_operation::search) {
+				auto answer = observe();
+				if (!answer.has_value()) {
+					return std::unexpected(answer.error());
+				}
+				return application::review_reviewer_receipt{ .Answer = std::move(*answer) };
+			}
+			// A request is bound to the pull request first, and the core decides
+			// on what GitHub has now.
+			const auto before = observe();
+			if (!before.has_value()) {
+				return std::unexpected(before.error());
+			}
+			switch (core::decide_reviewer_write(*before, aRequest.Login)) {
+			case core::reviewer_write_decision::already_requested:
+				return application::review_reviewer_receipt{ .Answer = *before };
+			case core::reviewer_write_decision::author:
+				return std::unexpected(application::review_mutation_failure::refused_by_server);
+			case core::reviewer_write_decision::write:
+				break;
+			}
+			const auto wire = compile_reviewer_request(aRequest, server);
+			if (!wire.has_value()) {
+				return std::unexpected(map_contract_failure(wire.error()));
+			}
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				auto observed = parse_reviewer_response(*response, aRequest);
+				if (observed.has_value()) {
+					return application::review_reviewer_receipt{ .Answer = std::move(*observed), .Written = true };
+				}
+				// GraphQL refused the mutation, or the answer names another pull
+				// request: neither is ambiguous.
+				if (observed.error() == review_mutation_contract_failure::unexpected_body) {
+					return std::unexpected(application::review_mutation_failure::refused_by_server);
+				}
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
+			}
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			// The outcome is ambiguous: ask once what GitHub has. Success only
+			// when it lists the person; the write is never sent again.
+			const auto after = observe();
+			if (after.has_value() && std::ranges::any_of(after->Requested, [&](const std::string& aLogin) { return core::same_login(aLogin, aRequest.Login); })) {
+				return application::review_reviewer_receipt{ .Answer = *after, .Written = true, .ConfirmedByReadBack = true };
 			}
 			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
 		} catch (const std::bad_alloc&) {

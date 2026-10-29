@@ -67,6 +67,12 @@ namespace bpr::adapters::github {
 			const application::review_comment_edit_request& aRequest,
 			std::stop_token                                 aStop)
 			-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure> override;
+		/// [[BPR-1804]]. Searches reviewers and requests one review through
+		/// the leased GraphQL read and write.
+		[[nodiscard]] auto reviewers(
+			const application::review_reviewer_request& aRequest,
+			std::stop_token                             aStop)
+			-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure> override;
 		[[nodiscard]] auto reconcile_publication(const application::review_mutation_request&, std::stop_token) -> application::review_mutation_submission override;
 		void               repair_pending_publications(std::stop_token) override;
 		[[nodiscard]] auto capabilities() const
