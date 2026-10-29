@@ -102,7 +102,9 @@ rendered form exists only in the Preview tab and in the publication column.
 
 ## Owner review
 
-Attended screenshot review session 00fef88b0f9a8d6133fc06b452010a90 (state /Users/jaeger/bpr-attended/tour-cards-v001/state, closed 2026-10-29) at efcaafa33: edit view accepted; read view rejected as not judgeable — the renders carried no code or rich Markdown. A re-review with richer stop content is pending.
+Attended screenshot review session 00fef88b0f9a8d6133fc06b452010a90 (state /Users/jaeger/bpr-attended/tour-cards-v001/state, closed 2026-10-29) at efcaafa33: edit view accepted; read view rejected as not judgeable — the renders carried no code or rich Markdown.
+
+Re-review: attended screenshot review session 3313da47114fe2f10516fc0166882a08 (state /Users/jaeger/bpr-attended/tour-cards-v002/state, handed back 2026-10-29, host stopped) at aa4d56cf1, after the repair below: the read view with a heading, emphasis, a list, inline and fenced C++, a table and a link, in the drawer route and on the tour page, light and dark, accepted with no note (candidate BPR-1805-read-view-rich). The merge with main's BPR-1802 (9816b7092) renders those images pixel-identical.
 
 ## Repair after owner review (BPR-1810 branch, 2026-10-29)
 
