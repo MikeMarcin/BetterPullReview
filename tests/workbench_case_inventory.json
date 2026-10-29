@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "bd93bbc96eecaed87c1e7b08741b84597eaeb827404524560c8a4b64d5eca36f",
+  "source_sha256": "419185fb770af38d39c0fa46a44b90ff3a71c43cdad71fd879d756302be996b4",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -17,7 +17,8 @@
     "--center-ribbon-width": [
       "test_center_ribbon_width_settings_and_rendering",
       "test_line_details_view_menu_and_settings_follow_the_projection",
-      "test_markdown_images_preference_follows_the_projection"
+      "test_markdown_images_preference_follows_the_projection",
+      "test_finish_review_settings_follow_the_projection"
     ],
     "--native-window-geometry": [
       "test_building_the_window_shows_no_window_of_its_own",
@@ -250,6 +251,7 @@
       "test_hidden_drawer_controls_leave_no_column_and_no_hide_button",
       "test_line_details_view_menu_and_settings_follow_the_projection",
       "test_markdown_images_preference_follows_the_projection",
+      "test_finish_review_settings_follow_the_projection",
       "test_continue_review_and_opening_honour_the_modality_preferences",
       "test_comments_filter_and_return_comparison_preferences_apply_on_open",
       "test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison",

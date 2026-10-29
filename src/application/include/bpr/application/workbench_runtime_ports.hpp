@@ -8,6 +8,7 @@
 #include "bpr/core/generated_files.hpp"
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
+#include "bpr/core/review_submission.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
 #include <compare>
@@ -1024,6 +1025,9 @@ namespace bpr::application {
 		review_markdown_images MarkdownImages = review_markdown_images::load;
 		/// [[BPR-1584]]. How wide Threads and Discuss grow; never the code.
 		core::reading_width ReadingWidth = core::default_reading_width;
+		/// [[BPR-1816]]. Where a confirmed review goes, by its verdict: Home,
+		/// closing the review, for each by default (owner, 2026-10-29).
+		core::review_finish_settings FinishReview{ };
 
 		auto operator<=>(const review_behaviour_settings&) const = default;
 	};
@@ -1066,6 +1070,7 @@ namespace bpr::application {
 			&& aSettings.CenterRibbonWidth >= minimum_center_ribbon_width
 			&& aSettings.CenterRibbonWidth <= maximum_center_ribbon_width
 			&& core::valid(aSettings.ReadingWidth)
+			&& core::valid(aSettings.FinishReview)
 			&& core::check_feedback_label_columns(aSettings.LabelColumns).has_value();
 	}
 

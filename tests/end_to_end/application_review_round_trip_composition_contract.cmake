@@ -1,4 +1,4 @@
-# [[BPR-1815]] review-bar view controls reseal (2026-10-29), over 28554675a.
+# [[BPR-1815]] review-bar view controls reseal (2026-10-29), merged over main 826583ec3 (BPR-1816).
 # github_application.cpp changes only its navigation-row probe: the review
 # bar's exact order gains the view rule, One pane and Go to header/source
 # between the progress track and the spacer (19 actions, was 16). No
@@ -2490,8 +2490,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# apply_avatar_style_intent. No credential, grant, provider, mutation,
 	# publication or source-inventory change; the mutation-branch pin is
 	# unchanged.
+	# [[BPR-1816]] finish-home reseal (2026-10-29), over f95914215.
+	# github_application.cpp gives the review submission workflow the
+	# profile's accepted finish choices (set_finish_settings), read when GitHub
+	# answers a submission; core::decide_review_finish decides. No credential,
+	# grant, provider, mutation, publication or source-inventory change; the
+	# mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"847de7be5c0eec293e929189c24f22dbf8b5a6479a5b1f4800a12cebd49bf47b"
+		"b43b6d889b673928877d4a770707c29e398e5668fe98b45d837949d02fda2564"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2753,8 +2759,13 @@ function(bpr_verify_app_source_tree app_source_root)
 # its immutable About facts. It introduces no effect, provider, grant, mutation
 # or source-inventory change. Native About/copy courses cover local and numbered
 # presentation; real numbered producer/native acceptance remains pending.
+# [[BPR-1816]] finish-home reseal (2026-10-29): github_application.cpp and
+# review_submission_workflow.cpp/.hpp. The workflow remembers the key its own
+# Submit sent and passes core::decide_review_finish's transition with the
+# confirmation; the composition supplies the profile's accepted finish
+# choices. No grant, mutation, publication or source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "1ed36c6669389706f6e1eb3cddedad9858602bb5c39c1f1dbb115e5325192c70"
+        "b0dc07855226d0ff825dce0af37243e08a76393bb2d691498655a36eb0ff2917"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

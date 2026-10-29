@@ -204,6 +204,74 @@ namespace bpr::core {
 	/// \brief Proposes only a valid submitting draft with its exact active attempt.
 	[[nodiscard]] auto propose(const review_submission_draft& aDraft)
 		-> std::optional<review_submission_proposal>;
+
+	/// \brief [[BPR-1816]]. Where a review finished with one verdict leaves
+	/// the reviewer once GitHub confirms it.
+	enum class review_finish_return : std::uint8_t {
+		/// The review closes and Home shows: the default (owner, 2026-10-29).
+		home,
+		/// The page closes and the pull request stays open, as before.
+		pull_request,
+	};
+
+	/// \brief [[BPR-1816]]. One choice per finishing verdict, each its own
+	/// Settings row: the three buttons that finish a review are three
+	/// separate gestures, so none shares another's choice.
+	struct review_finish_settings
+	{
+		review_finish_return Comment        = review_finish_return::home;
+		review_finish_return Approve        = review_finish_return::home;
+		review_finish_return RequestChanges = review_finish_return::home;
+
+		auto operator<=>(const review_finish_settings&) const = default;
+	};
+	[[nodiscard]] auto valid(const review_finish_settings& aSettings) noexcept -> bool;
+	/// \brief [[BPR-1816]]. The choice for `aDisposition`; an unknown verdict
+	/// stays on the pull request.
+	[[nodiscard]] auto finish_return(const review_finish_settings& aSettings, review_disposition aDisposition) noexcept -> review_finish_return;
+
+	/// \brief [[BPR-1816]]. What GitHub's answer to a submission established.
+	enum class review_finish_answer : std::uint8_t {
+		/// Published, with a receipt that matches the exact request.
+		published,
+		/// Definitely not published: the draft is kept for another try.
+		not_published,
+		/// Unknown or partial: Check status settles it; nothing is retried.
+		unknown,
+	};
+	/// \brief [[BPR-1816]]. What the answer answers: the reviewer's own
+	/// Submit, or a recovery (Check status, or an unfinished review found on
+	/// opening the pull request).
+	enum class review_finish_origin : std::uint8_t {
+		submit,
+		recovery,
+	};
+	struct review_finish_event
+	{
+		review_disposition   Disposition = review_disposition::comment;
+		review_finish_answer Answer      = review_finish_answer::unknown;
+		review_finish_origin Origin      = review_finish_origin::submit;
+		/// Another of this pull request's submissions still awaits its answer,
+		/// and the page shows it next.
+		bool AnotherUnsettled = false;
+
+		auto operator<=>(const review_finish_event&) const = default;
+	};
+	/// \brief [[BPR-1816]]. What the window does with a finished review.
+	enum class review_finish_transition : std::uint8_t {
+		/// The page stays, with its summary, verdict and comments.
+		keep_review,
+		/// The page closes and the pull request stays open ([[BPR-1345]] v003).
+		return_to_pull_request,
+		/// The page closes, the review closes and Home shows.
+		close_review_and_go_home,
+	};
+	/// \brief [[BPR-1816]]. Only a published answer to the reviewer's own
+	/// Submit leaves the pull request, and only when that verdict's choice is
+	/// Home and no other submission is waiting to be settled on it. Any other
+	/// published answer returns to the pull request; an unpublished or
+	/// unknown one keeps the review.
+	[[nodiscard]] auto decide_review_finish(const review_finish_settings& aSettings, const review_finish_event& aEvent) noexcept -> review_finish_transition;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REVIEW_SUBMISSION_HPP
