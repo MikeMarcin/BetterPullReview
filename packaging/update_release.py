@@ -79,19 +79,24 @@ def guard(root: Path, revision: str, version: str, visibility: str, release_id: 
 def selected_assets(args: argparse.Namespace) -> tuple[dict[str, Path], set[str]]:
     paths: dict[str, Path] = {}
     platforms = set()
+    expected = runtime.release_build.read(args.cohort) if args.cohort else None
+    if expected:
+        runtime.release_build.check(expected, version=args.version)
+        require(expected["sourceCommit"] == args.source_revision, "frozen release source mismatch")
     for manifest in args.manifest:
         record = json.loads(manifest.read_text())
+        require(record.get("releaseCohort") == expected, "staged asset cohort differs or explicit --cohort is missing")
         require(all(runtime.families(record).values()), "staged release requires the full variant")
         require((record["platform"], record["generator"]) in {("Windows", "WIX"), ("Linux", "DEB")}, "unselected native platform")
         platform = record["platform"]
         require(platform not in platforms, "multiple manifests for one platform")
         platforms.add(platform)
-        for path in native.verify(manifest.resolve(strict=True), args.version, args.source_revision):
+        for path in native.verify(manifest.resolve(strict=True), args.version, args.source_revision, expected):
             require(path.name not in paths, "asset collision")
             paths[path.name] = path
     if args.macos_dir:
         directory = args.macos_dir.resolve(strict=True)
-        base = "BetterPullReview-" + args.version + "-macos-universal"
+        base = "BetterPullReview-" + (expected["allocation"]["native"]["assetVersion"] if expected else args.version) + "-macos-universal"
         names = [base + suffix for suffix in [".dmg", ".zip", ".spdx.json"]] + ["Source-" + base + "-corresponding-source.zip"]
         for name in names:
             path = directory / name
@@ -100,7 +105,13 @@ def selected_assets(args: argparse.Namespace) -> tuple[dict[str, Path], set[str]
             for item in [path, sidecar]:
                 require(item.name not in paths, "asset collision")
                 paths[item.name] = item
-        macos.verify(directory / (base + ".zip"), directory / (base + ".spdx.json"), directory / ("Source-" + base + "-corresponding-source.zip"), args.version, args.source_revision)
+        macos.verify(directory / (base + ".zip"), directory / (base + ".spdx.json"), directory / ("Source-" + base + "-corresponding-source.zip"), args.version, args.source_revision, expected,
+                     directory / ("BetterPullReview-" + args.version + "-macos-universal.zip") if expected else None)
+        if expected:
+            alias = directory / ("BetterPullReview-" + args.version + "-macos-universal.zip")
+            for item in [alias, alias.with_name(alias.name + ".sha256")]:
+                require(item.name not in paths, "legacy alias collision")
+                paths[item.name] = item
         platforms.add("Darwin")
     require(paths, "no verified assets selected")
     return paths, platforms
@@ -115,6 +126,7 @@ def main() -> None:
     parser.add_argument("--notes-file", type=Path, required=True)
     parser.add_argument("--baseline-inventory", type=Path, required=True)
     parser.add_argument("--manifest", type=Path, action="append", default=[])
+    parser.add_argument("--cohort", type=Path)
     parser.add_argument("--macos-dir", type=Path)
     parser.add_argument("--promotion-acceptance", type=Path)
     parser.add_argument("--promote", action="store_true")

@@ -983,6 +983,8 @@ target_compile_definitions(
         BPR_BUILD_TESTING=1
         "BPR_TEST_LEGAL_NONREGULAR_ROOT=\"${bpr_about_legal_fixture}/linked\""
         "BPR_TEST_PROJECT_VERSION=\"${PROJECT_VERSION}\""
+        "BPR_TEST_RELEASE_BUILD_NUMBER=${BPR_RELEASE_BUILD_NUMBER}"
+        "BPR_TEST_RELEASE_CONFIGURATION_DIGEST=\"${BPR_RELEASE_CONFIGURATION_DIGEST}\""
         "BPR_TEST_CONFIGURATION=\"$<CONFIG>\""
 )
 target_compile_features(test_better_pull_review_about_composition PRIVATE cxx_std_23)

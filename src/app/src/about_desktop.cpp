@@ -57,6 +57,9 @@ namespace bpr::app {
 	{
 		auto facts                 = qt::about_facts{ };
 		facts.Version              = QStringLiteral(BPR_ABOUT_VERSION);
+		facts.BuildNumber          = BPR_RELEASE_BUILD_NUMBER;
+		facts.ConfigurationDigest  = QStringLiteral(BPR_RELEASE_CONFIGURATION_DIGEST);
+		facts.CohortDigest         = QStringLiteral(BPR_RELEASE_COHORT_DIGEST);
 		facts.Commit               = QStringLiteral(BPR_BUILD_COMMIT);
 		facts.CommitDate           = QStringLiteral(BPR_BUILD_COMMIT_DATE);
 		facts.LocalChanges         = BPR_BUILD_LOCAL_CHANGES != 0;

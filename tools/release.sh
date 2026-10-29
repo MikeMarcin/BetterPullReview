@@ -20,6 +20,9 @@ SKIP_TESTS=0
 PREPARE_ONLY=0
 OUTPUT_DIR=""
 REQUESTED_VERSION=""
+RELEASE_COHORT=""
+RELEASE_PRODUCER=""
+ASSET_VERSION=""
 TEST_PROFILE="normal"
 TEST_SCOPES=()
 TEST_HEAVY_GROUPS=()
@@ -32,6 +35,7 @@ Usage: tools/release.sh --version VERSION [options]
 Build, deploy, sign, notarize, and package the universal macOS application.
 
 Options:
+  --cohort ABS.json       Frozen publish-release cohort; --producer names its native producer.
   --version VERSION       Required SemVer; must match the CMake project version.
   --identity NAME         Developer ID Application identity.
   --notary-profile NAME  notarytool Keychain profile (default: ${DEFAULT_NOTARY_PROFILE}).
@@ -460,6 +464,8 @@ verify_relocated_launch() {
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --cohort) RELEASE_COHORT="$2"; shift 2 ;;
+        --producer) RELEASE_PRODUCER="$2"; shift 2 ;;
         --version)
             [[ $# -ge 2 ]] || fail "--version requires a value"
             REQUESTED_VERSION="${2#v}"
@@ -565,6 +571,15 @@ APP_PATH="${BUILD_DIR}/src/app/${APP_NAME}.app"
 [[ "$(project_version)" == "${REQUESTED_VERSION}" ]] || \
     fail "Requested version ${REQUESTED_VERSION} does not match CMake project version $(project_version)"
 
+ASSET_VERSION="${REQUESTED_VERSION}"
+COHORT_CONFIGURE=()
+if [[ -n "${RELEASE_COHORT}" ]]; then
+    [[ "${RELEASE_COHORT}" == /* && -n "${RELEASE_PRODUCER}" ]] || fail "Numbered builds require an absolute cohort and declared producer"
+    python3 "${ROOT_DIR}/packaging/release_build.py" check --root "${ROOT_DIR}" --cohort "${RELEASE_COHORT}" --version "${REQUESTED_VERSION}"
+    ASSET_VERSION="$(python3 -c 'import json,sys; print(json.load(open(sys.argv[1]))["allocation"]["native"]["assetVersion"])' "${RELEASE_COHORT}")"
+    COHORT_CONFIGURE=("-DBPR_RELEASE_COHORT=${RELEASE_COHORT}" "-DBPR_RELEASE_PRODUCER=${RELEASE_PRODUCER}")
+fi
+
 if [[ "${ALLOW_DIRTY}" == "0" && -n "$(git -C "${ROOT_DIR}" status --porcelain)" ]]; then
     fail "Working tree has uncommitted changes. Commit them or pass --allow-dirty."
 fi
@@ -627,7 +642,7 @@ else
 fi
 
 log "Building the universal tests-disabled application (${PRESET})"
-cmake --preset "${PRESET}"
+cmake --preset "${PRESET}" "${COHORT_CONFIGURE[@]}"
 cmake --build --preset "${PRESET}"
 [[ -d "${APP_PATH}" ]] || fail "Expected application bundle is absent: ${APP_PATH}"
 
@@ -646,7 +661,7 @@ fi
 [[ -x "${MACDEPLOYQT}" ]] || fail "macdeployqt is unavailable: ${MACDEPLOYQT}"
 
 if [[ -z "${OUTPUT_DIR}" ]]; then
-    OUTPUT_DIR="${ROOT_DIR}/build/releases/${REQUESTED_VERSION}"
+    OUTPUT_DIR="${ROOT_DIR}/build/releases/${ASSET_VERSION}"
 elif [[ "${OUTPUT_DIR}" != /* ]]; then
     OUTPUT_DIR="${ROOT_DIR}/${OUTPUT_DIR}"
 fi
@@ -692,12 +707,12 @@ Plugins = PlugIns
 EOF
 verify_dependency_policy "${STAGED_APP}"
 log "Preparing exact third-party notices and corresponding source"
-SOURCE_ASSET="Source-${APP_NAME}-${REQUESTED_VERSION}-macos-universal-corresponding-source.zip"
+SOURCE_ASSET="Source-${APP_NAME}-${ASSET_VERSION}-macos-universal-corresponding-source.zip"
 SOURCE_PATH="${OUTPUT_DIR}/${SOURCE_ASSET}"
 python3 "${ROOT_DIR}/packaging/package_runtime.py" notices --build "${BUILD_DIR}" --root "${STAGED_APP}" --source-archive "${SOURCE_PATH}"
 
 if [[ "${PREPARE_ONLY}" == "1" ]]; then
-    ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal${VARIANT_SUFFIX}-local"
+    ASSET_BASE="${APP_NAME}-${ASSET_VERSION}-macos-universal${VARIANT_SUFFIX}-local"
     LOCAL_APP="${OUTPUT_DIR}/${APP_NAME}.app"
     LOCAL_ZIP="${OUTPUT_DIR}/${ASSET_BASE}.zip"
     [[ ! -e "${LOCAL_APP}" && ! -e "${LOCAL_ZIP}" ]] || fail "Use a fresh output directory for local preparation"
@@ -724,7 +739,7 @@ if [[ "${VARIANT}" != "agent-free-automation-off" ]]; then
     python3 "${ROOT_DIR}/scripts/verify_bundled_cli.py" --app "${STAGED_APP}"
 fi
 
-ASSET_BASE="${APP_NAME}-${REQUESTED_VERSION}-macos-universal${VARIANT_SUFFIX}"
+ASSET_BASE="${APP_NAME}-${ASSET_VERSION}-macos-universal${VARIANT_SUFFIX}"
 DMG_PATH="${OUTPUT_DIR}/${ASSET_BASE}.dmg"
 ZIP_PATH="${OUTPUT_DIR}/${ASSET_BASE}.zip"
 DMG_CHECKSUM_PATH="${DMG_PATH}.sha256"
@@ -764,6 +779,11 @@ fi
 
 log "Creating the release ZIP and checksums"
 ditto -c -k --keepParent "${STAGED_APP}" "${ZIP_PATH}"
+if [[ -n "${RELEASE_COHORT}" ]]; then
+    LEGACY_ZIP="${OUTPUT_DIR}/${APP_NAME}-${REQUESTED_VERSION}-macos-universal.zip"
+    cp "${ZIP_PATH}" "${LEGACY_ZIP}"
+    (cd "${OUTPUT_DIR}" && shasum -a 256 "$(basename "${LEGACY_ZIP}")" > "$(basename "${LEGACY_ZIP}").sha256")
+fi
 python3 "${ROOT_DIR}/packaging/package_runtime.py" audit --build "${BUILD_DIR}" --root "${STAGED_APP}" --output "${OUTPUT_DIR}/${ASSET_BASE}.spdx.json" --source-archive "${SOURCE_PATH}"
 (
     cd "${OUTPUT_DIR}"
