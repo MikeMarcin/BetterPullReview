@@ -48,6 +48,7 @@ add_library(
         src/pending_presentation.cpp
         src/refresh_feedback.cpp
         src/cached_review_overview.cpp
+        src/markdown_blob_snippet.cpp
         src/markdown_navigation.cpp
         src/reference_page.cpp
         src/markdown_image.cpp

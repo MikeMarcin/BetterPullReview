@@ -233,6 +233,15 @@ namespace bpr::application {
 		[[nodiscard]] auto resolve_github_diff_lines(
 			github_diff_lines_request    aRequest,
 			github_diff_lines_completion aCompletion) -> bool;
+		/// \brief [[BPR-1802]]. Reads one file at a commit of the review's
+		/// repository, for a permalink's snippet box.
+		/// \details Never fetches trees: a commit the review's objects do not
+		/// hold answers `objects_unavailable`. Runs on the review's cache actor
+		/// like `resolve_filtered_comment_lines`, with the same admission, reads
+		/// and completion.
+		[[nodiscard]] auto resolve_permalink_source(
+			permalink_source_request    aRequest,
+			permalink_source_completion aCompletion) -> bool;
 		/// \brief [[BPR-1212]]. Answers whether a comparison's left document is
 		/// the merge base's version of its file, which GitHub numbers `LEFT`
 		/// lines in.
