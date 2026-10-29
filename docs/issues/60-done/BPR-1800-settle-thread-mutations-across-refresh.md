@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1800"
 title: "Settle admitted thread mutations across an accepted refresh"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0008", "RFC-BPR-0091", "RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v040-typed-mutation-lifecycle-r1", "milestone_plan": {"id": "thread-resolution-refresh-lifecycle", "path": "docs/rfcs/plans/thread-resolution-refresh-lifecycle/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"1c543f372ce5a2338dc9b634cecf661f0fbf3754","evidence":{"kind":"observation","detail":"Controlled real-composition held second refresh and held mutation terminal settles exactly once for GitHub/GHES in both Mac configurations and same-image native Windows both configurations.","refs":["lifecycle-dev-final-tests-r3.log","lifecycle-release-focused-r1.json","qualification-repairs-r1/lifecycle-closure-r1/receipt.json","qualification-repairs-r1/lifecycle-linux-final-r1/lifecycle-functional-r1/receipt.json"]}},{"criterion":"AC2","outcome":"pass","revision":"1c543f372ce5a2338dc9b634cecf661f0fbf3754","evidence":{"kind":"observation","detail":"Expanded core/host exact full key/scope/gesture tests cover success/failure/refusal/cancel/unknown, overlapping reused numeric identities, duplicates, genuine retirement/shutdown, all-operation quiescence. Causal negative control restores original unresolved phase9.","refs":["lifecycle-dev-final-tests-r3.log","lifecycle-release-focused-r1.json","qualification-repairs-r1/lifecycle-retirement-negative-r1/receipt.json"]}},{"criterion":"AC3","outcome":"pass","revision":"1c543f372ce5a2338dc9b634cecf661f0fbf3754","evidence":{"kind":"observation","detail":"Shared PC serialized after original Ubuntu terminal. Native Windows a74 built and actual registered closure at metadata1c: Release6/6 via prior5+new1 with unchanged exe/dll/pdb and source-input bridge; Debug6/6, manifests bothPASS. Original failures retained; no shared five-agent mechanism claimed.","refs":["qualification-repairs-r1/lifecycle-native-r1/receipt.json","qualification-repairs-r1/lifecycle-closure-r1/receipt.json","lifecycle-agent-mechanism-comparison-r1.json"]}},{"criterion":"AC4","outcome":"pass","revision":"1c543f372ce5a2338dc9b634cecf661f0fbf3754","evidence":{"kind":"observation","detail":"Mac Release integration5/5/core-only3/3, LLVM22 sixTUs and clang-format22 touched8C++ files pass; documentation gate and67cases/allocation2 pass. Native Linux focused6+6 pass with originalN12459producerfiles+source/runtime copies unchanged. Windows manifest contracts73 and native manifests bothpass. Intentional slice commits, final doc-only upkeep, verified native PID quiescence and no own Mac background jobs. No broader release/package/trust or separate agent-failure closure claimed.","refs":["lifecycle-release-integration-tests-r1.log","lifecycle-core-only-tests-r1.log","lifecycle-tidy-r1.log","lifecycle-tidy-public-test-r2.log","lifecycle-format-final-r2.log","lifecycle-docs-final-r1.log","lifecycle-documentation-tests-r1.log","lifecycle-allocation-tests-r1.log","qualification-repairs-r1/lifecycle-linux-final-r1/lifecycle-functional-r1/receipt.json","qualification-repairs-r1/lifecycle-linux-final-r1/lifecycle-functional-r1/final-binding.json","lifecycle-native-quiescence-r1.json"]}}]
 ---
 
 # Settle admitted thread mutations across an accepted refresh
@@ -99,8 +100,18 @@ is collected and hash verified: Release 848 passed/10 failed; Debug 836
 passed/13 failed/1 skipped. The optimized-only Debug cache-byte skip and eight
 separate Debug timing omissions receive no credit. Threaded reply, description
 and comment courses fail at the same phase-9 resolution before edit acceptance.
-These original-source failures remain unchanged; repaired Linux closure is
-pending a retained-source/producer inventory and coordinator reconciliation.
+These original-source failures remain unchanged. Exact N source/archive/objects, compact
+raw/configuration, selected runtime images and their dynamic dependencies are
+retained externally. The separate Linux package graph is hash protected; the
+coordinator reconciled that manifest before authorizing only the two warm test
+graphs to advance to `1c543f372`. The original N reports remain unchanged. Repaired Linux source `1c543f372`
+then passes the six affected functional courses in both Release and Debug
+(6/6 each, no skips), after the three native bootstrap checks and source
+tripwire pass. Final rehashes and the complete file-set comparison preserve
+all 12,459 package files and the retained N source/runtime copies. The separate
+N package graph is unsuitable for rebuilding against the advanced working
+source; its archived N source is retained for reproduction. No distribution
+configure, package build or signing operation ran.
 
 The isolated Windows repair checkout completed source `a74c9a875` builds in
 both configurations after the original Ubuntu task became terminal. Normal
@@ -111,7 +122,13 @@ inside containment. Debug functional rows were unreached by that fail-fast run.
 Paired same-image Release and Debug controls then pass directly and refuse
 contained startup at the exact `fixture application starts` predicate. Only
 the measured new registration and its verifier pin change; no Win32 cause is
-inferred. Registered new Release and complete Debug closure remain pending.
+inferred. Registered closure then passes: the new Release course plus the five retained
+passing rows supply 6/6 Release; all six Debug courses pass, with both native
+network-isolation manifests passing. Metadata commit `1c543f372` changes only
+the measured registration/pin and documentation. The selected executable, DLL
+and PDB digests remain unchanged before/after configuration and after tests,
+preserving the actual compiled source identity `a74c9a875`. No timing credit
+or native package/trust acceptance is inferred.
 
 Raw receipts and streams remain in the external release run under
 `lifecycle-*` and `qualification-repairs-r1/`. Original Windows 40-second and
@@ -120,3 +137,18 @@ agent-completion failures has been demonstrated. A separate test-only bounded
 recovery proposal is handed to the coordinator without running it in this
 milestone. Final numbering, package/native trust and security obligations
 remain outside this issue. No numbered cohort is allocated here.
+
+## Milestone handoff
+
+The coordinator accepted the focused Mac, Windows and Linux functional evidence.
+Product commit `344ab410d`, naming `02516413e`, whitespace `a74c9a875` and
+measured Windows metadata `1c543f372` are intentional slices. Final issue and
+verification-document upkeep changes documentation only; native Linux compiles
+source `1c543f372`, and Windows retains the proven `a74c9a875` images under
+`1c543f372` test metadata. Corresponding-source and actual numbered native
+identity/trust acceptance belong to BPR-1799's next cohort. No cohort was
+allocated, no published asset changed, and no attended review is required for
+this nonvisual repair. Task-owned compiler/test/collection commands are terminal.
+The five agent failures and their unexecuted bounded recovery plan remain a
+separate release obligation. The release's existing security and native gaps
+remain explicit in the external handoff.

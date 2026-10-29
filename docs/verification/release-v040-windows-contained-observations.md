@@ -81,5 +81,10 @@ Raw streams, manifests and the terminal receipt remain externally under
 `qualification-repairs-r1` directory. The `fixture-startup-unavailable` pin
 names only that observed predicate. It changes this new Windows registration;
 the product, assertions, deadline, fixture and capability requests are unchanged.
-Registered native functional verification follows separately; these pairs do
-not supply a successful contained course or native package/trust acceptance.
+Registered native functional verification at metadata commit `1c543f372`
+then passes the new course in both configurations. The six-course affected
+closure passes in Release (five unchanged passing rows plus the new registered
+course) and Debug (all six run), and both actual native manifest checks pass.
+Before/after configuration and final executable, DLL and PDB hashes are equal;
+the compiled source remains `a74c9a875`. These results supply functional
+evidence, with no successful contained course or native package/trust claim.
