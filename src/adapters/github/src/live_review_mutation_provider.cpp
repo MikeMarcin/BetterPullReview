@@ -85,6 +85,14 @@ namespace bpr::adapters::github {
 		return Session.edit_comment(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::reviewers(
+		const application::review_reviewer_request& aRequest,
+		const std::stop_token                       aStop)
+		-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure>
+	{
+		return Session.reviewers(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
 	{
 		return Session.reconcile_publication(aRequest, aStop);
@@ -107,6 +115,7 @@ namespace bpr::adapters::github {
 			.Reacts             = true,
 			.EditsDescription   = true,
 			.EditsComments      = true,
+			.RequestsReviewers  = true,
 		};
 	}
 

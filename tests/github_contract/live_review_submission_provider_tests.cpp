@@ -256,6 +256,8 @@ namespace {
 		case review_mutation_operation::edit_review_comment:              return "edit_review_comment";
 		case review_mutation_operation::edit_issue_comment:               return "edit_issue_comment";
 		case review_mutation_operation::edit_review_body:                 return "edit_review_body";
+		case review_mutation_operation::observe_reviewers:                return "observe_reviewers";
+		case review_mutation_operation::request_reviews:                  return "request_reviews";
 		}
 		return "unknown";
 	}

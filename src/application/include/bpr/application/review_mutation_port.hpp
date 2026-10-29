@@ -11,6 +11,7 @@
 
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/reviewer_request.hpp"
 
 #include <atomic>
 #include <cstdint>
@@ -95,6 +96,9 @@ namespace bpr::application {
 		/// [[BPR-1775]]. Updates the viewer's published comments: review-thread
 		/// comments, pull request comments and review bodies.
 		bool EditsComments = false;
+		/// [[BPR-1804]]. Searches the people who may review and requests a
+		/// review from one of them.
+		bool RequestsReviewers = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -513,6 +517,48 @@ namespace bpr::application {
 	/// the comment's body as GitHub now has it, and how that was learned.
 	using review_comment_edit_receipt = review_description_receipt;
 
+	/// \brief [[BPR-1804]]. What a reviewer operation asks.
+	enum class review_reviewer_operation : std::uint8_t {
+		/// Read the people who may be asked that match `Query`, with GitHub's
+		/// suggestions and the pull request's open requests and reviews.
+		search,
+		/// Request a review from `User` (`Login`), once.
+		request,
+	};
+
+	/// \brief [[BPR-1804]]. Asks the provider about reviewers of the
+	/// designated pull request. Bound to the accepted target and the acting
+	/// identity like a description edit, so a provider serving another pull
+	/// request or another account refuses it.
+	struct review_reviewer_request
+	{
+		core::review_mutation_target Target;
+		core::github_account_id      ActingIdentity;
+		review_reviewer_operation    Operation = review_reviewer_operation::search;
+		/// The normalized query of a search (`core::normalize_reviewer_query`).
+		std::string Query;
+		/// The person a request names: GitHub's node identity and the login.
+		std::string                                 User;
+		std::string                                 Login;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_reviewer_request&) const = default;
+	};
+
+	/// \brief [[BPR-1804]]. The provider's answer: what GitHub listed, and
+	/// for a request whether a write was sent and how its outcome was learned.
+	struct review_reviewer_receipt
+	{
+		/// A search's answer; for a request, `Requested` is GitHub's list
+		/// after it (the write's answer, the read back, or the read before
+		/// when nothing was sent).
+		core::reviewer_search_answer Answer;
+		bool                         Written             = false;
+		bool                         ConfirmedByReadBack = false;
+
+		auto operator<=>(const review_reviewer_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -616,6 +662,17 @@ namespace bpr::application {
 			const review_comment_edit_request& aRequest,
 			std::stop_token                    aStop)
 			-> std::expected<review_comment_edit_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
+		/// \brief [[BPR-1804]]. Searches reviewers or requests one review; a
+		/// provider without the capability answers `unsupported`.
+		[[nodiscard]] virtual auto reviewers(
+			const review_reviewer_request& aRequest,
+			std::stop_token                aStop)
+			-> std::expected<review_reviewer_receipt, review_mutation_failure>
 		{
 			static_cast<void>(aRequest);
 			static_cast<void>(aStop);

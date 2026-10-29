@@ -8,6 +8,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
+#include "bpr/qt/reviewer_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include <QTextEdit>
 
@@ -29,9 +30,11 @@
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
 #include <QMouseEvent>
+#include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QRect>
@@ -878,6 +881,139 @@ namespace {
 		if (!directory.isEmpty()) {
 			aPage.grab().save(directory + QLatin1Char{ '/' } + QString::fromUtf8(aName));
 		}
+	}
+
+	/// [[BPR-1804]]. The page with the picker drawn where it opened, for the
+	/// owner's look; nothing is written unless the directory is named.
+	void render_reviewer_picker(qt::pull_request_overview_page& aPage, const char* const aName)
+	{
+		const auto directory = qEnvironmentVariable("BPR_REVIEWER_PICKER_RENDER_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		auto image = aPage.grab().toImage();
+		if (auto* const picker = aPage.reviewer_picker_popup(); picker != nullptr && picker->isVisible()) {
+			auto painter = QPainter{ &image };
+			painter.drawPixmap(aPage.mapFromGlobal(picker->mapToGlobal(QPoint{ })), picker->grab());
+		}
+		image.save(directory + QLatin1Char{ '/' } + QString::fromUtf8(aName));
+	}
+
+	/// [[BPR-1804]]. One key pressed and released on `aWidget`.
+	void press(QWidget* const aWidget, const int aKey, const QString& aText = { })
+	{
+		auto down = QKeyEvent{ QEvent::KeyPress, aKey, Qt::NoModifier, aText };
+		QCoreApplication::sendEvent(aWidget, &down);
+		auto up = QKeyEvent{ QEvent::KeyRelease, aKey, Qt::NoModifier, aText };
+		QCoreApplication::sendEvent(aWidget, &up);
+	}
+
+	[[nodiscard]] auto reviewer_answer() -> core::reviewer_search_answer
+	{
+		return {
+			.Author    = "octo-author",
+			.Suggested = { { .NodeId = "U_sam", .Login = "samira-o", .Name = "Samira Ortega" }, { .NodeId = "U_bea", .Login = "bea", .Name = "Beatriz Nunes" } },
+			.Matches   = { { .NodeId = "U_ana", .Login = "ana-lima", .Name = "Ana Lima" }, { .NodeId = "U_rui", .Login = "rui", .Name = "" }, { .NodeId = "U_ola", .Login = "ola-dev", .Name = "Ola Nordmann" } },
+			.Requested = { "rui" },
+			.Reviewed  = { "bea" },
+		};
+	}
+
+	// [[BPR-1804]]. Request review appears in People only when offered and
+	// sends only an open gesture; the picker shows the core's rows with
+	// GitHub's suggestions first under their heading and each standing in a
+	// word and in its accessible text; the keyboard moves past headings and
+	// chooses; Escape and a withdrawn offer close it; the page performs
+	// nothing itself.
+	void test_reviewers_are_requested_from_people()
+	{
+		qt::pull_request_overview_page page;
+		page.resize(1100, 760);
+		page.show();
+		page.present(projection());
+		page.status_section_header(qt::overview_status_section::people)->setChecked(true);
+		settle();
+		auto* const button = page.request_review_button();
+		expect(button != nullptr && !button->isVisible() && !page.reviewer_requests_offered(), "Request review is not offered until the composition offers it");
+		auto gestures = std::vector<qt::reviewer_picker_gesture>{ };
+		page.set_reviewer_picker_dispatch([&gestures](const qt::reviewer_picker_gesture& aGesture) { gestures.push_back(aGesture); });
+		page.set_reviewer_requests_offered(true);
+		settle();
+		expect(button->isVisible() && button->text() == QStringLiteral("Request review") && button->accessibleName() == QStringLiteral("Request review"),
+			   "Request review shows in People, named for what it does");
+		render_reviewer_picker(page, "people-request-review-offered-light.png");
+		button->click();
+		expect(gestures.size() == 1U && gestures.back().Kind == qt::reviewer_picker_gesture::kind::open && page.reviewer_picker_popup() == nullptr,
+			   "pressing it only asks the composition to open the picker");
+
+		auto state = core::open_reviewer_picker({ }).State;
+		page.present_reviewer_picker(state);
+		settle();
+		auto* const picker = page.reviewer_picker_popup();
+		expect(picker != nullptr && picker->isVisible() && picker->status()->text() == QStringLiteral("Searching…") && picker->search_field()->hasFocus(),
+			   "the picker opens under the button, focused in its search, and says it is searching");
+		render_reviewer_picker(page, "people-reviewer-picker-searching-light.png");
+
+		state = core::accept_reviewer_search(state, 1U, reviewer_answer());
+		page.present_reviewer_picker(state);
+		settle();
+		expect(picker->listed_logins() == QStringList{ "samira-o", "bea", "ana-lima", "rui", "ola-dev" }, "suggestions lead, then everyone else, in the core's order");
+		auto* const list = picker->people();
+		expect(list->item(0)->text() == QStringLiteral("Suggested") && list->item(3)->text() == QStringLiteral("Everyone who can review") && list->count() == 7,
+			   "the two groups have their headings");
+		expect(list->item(2)->data(Qt::AccessibleTextRole).toString() == QStringLiteral("bea, Beatriz Nunes, suggested, reviewed, choose to ask again")
+				   && list->item(5)->data(Qt::AccessibleTextRole).toString() == QStringLiteral("rui, review requested")
+				   && list->item(4)->data(Qt::AccessibleTextRole).toString() == QStringLiteral("ana-lima, Ana Lima, can be asked to review"),
+			   "each row says who they are and where they stand to assistive technology");
+		expect(picker->status()->isHidden() && list->accessibleName() == QStringLiteral("People who can review"), "a full list needs no status line");
+
+		gestures.clear();
+		press(picker->search_field(), Qt::Key_Down);
+		expect(list->currentRow() == 1, "Down from the search moves to the first person, past the heading");
+		press(picker->search_field(), Qt::Key_Down);
+		press(picker->search_field(), Qt::Key_Down);
+		expect(list->currentRow() == 4, "and on past the next heading");
+		press(picker->search_field(), Qt::Key_Up);
+		expect(list->currentRow() == 2, "Up comes back past it");
+		press(picker->search_field(), Qt::Key_Return);
+		expect(gestures.size() == 1U && gestures.back().Kind == qt::reviewer_picker_gesture::kind::choose && gestures.back().Text == "bea", "Return chooses the highlighted person");
+		render_reviewer_picker(page, "people-reviewer-picker-list-light.png");
+
+		press(picker->search_field(), Qt::Key_A, QStringLiteral("a"));
+		press(picker->search_field(), Qt::Key_N, QStringLiteral("n"));
+		expect(gestures.size() == 3U && gestures.back().Kind == qt::reviewer_picker_gesture::kind::query && gestures.back().Text == "an", "typing hands the composition the text");
+
+		auto chose = core::choose_reviewer(core::type_reviewer_query(state, "ana").State, "ana-lima");
+		page.present_reviewer_picker(chose.State);
+		settle();
+		expect(picker->listed_logins() == QStringList{ "ana-lima" } && list->item(0)->data(Qt::AccessibleTextRole).toString().endsWith(QStringLiteral("asking GitHub now"))
+				   && picker->status()->text() == QStringLiteral("Asking GitHub for a review from ana-lima…"),
+			   "a choice waiting on GitHub is said on its row and in the line");
+		auto done = core::finish_reviewer_request(chose.State, 1U, { .Requested = { "rui", "ana-lima" }, .Written = true });
+		page.present_reviewer_picker(done);
+		settle();
+		expect(picker->status()->text() == QStringLiteral("Requested a review from ana-lima.") && picker->status()->accessibleName() == picker->status()->text(),
+			   "GitHub's answer is said, and named for assistive technology");
+		render_reviewer_picker(page, "people-reviewer-picker-requested-light.png");
+		auto dropped = core::finish_reviewer_request(core::choose_reviewer(core::type_reviewer_query(state, "ola").State, "ola-dev").State, 1U, { .Requested = { "rui" }, .Written = true });
+		expect(qt::reviewer_picker::status_text(dropped) == QStringLiteral("GitHub did not add ola-dev. Only people with access to this repository can review it."),
+			   "someone GitHub did not add is said plainly");
+		auto nobody = core::accept_reviewer_search(core::type_reviewer_query(state, "zz").State, 2U, { });
+		expect(qt::reviewer_picker::status_text(nobody) == QStringLiteral("No one who can review matches \u201Czz\u201D."), "an empty answer says what to change");
+
+		gestures.clear();
+		press(picker->search_field(), Qt::Key_Escape);
+		settle();
+		expect(!picker->isVisible() && gestures.size() == 1U && gestures.back().Kind == qt::reviewer_picker_gesture::kind::close, "Escape closes the picker and says so");
+		page.present_reviewer_picker(core::close_reviewer_picker(done));
+		expect(gestures.size() == 1U, "a close the core asked for is not reported back");
+
+		page.present_reviewer_picker(core::open_reviewer_picker(core::close_reviewer_picker(done)).State);
+		settle();
+		expect(picker->isVisible(), "it opens again");
+		page.set_reviewer_requests_offered(false);
+		settle();
+		expect(!picker->isVisible() && !button->isVisible() && gestures.back().Kind == qt::reviewer_picker_gesture::kind::close, "a withdrawn offer closes the picker and hides the button");
 	}
 
 	// [[BPR-1774]]. Edit is offered when the composition says so and not
@@ -3728,6 +3864,7 @@ auto main(int argc, char** argv) -> int
 	test_document_keys_go_to_the_top_and_bottom_of_the_files();
 	test_compact_descriptions();
 	test_the_description_is_edited_in_place();
+	test_reviewers_are_requested_from_people();
 	test_resizable_summary();
 	test_summary_seam_holds_its_cursor();
 	test_retained_description_reader();
