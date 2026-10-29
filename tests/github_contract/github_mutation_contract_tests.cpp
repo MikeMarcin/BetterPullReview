@@ -592,6 +592,10 @@ namespace {
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation EditIssueComment" };
 		case operation::edit_review_body:
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation EditReviewBody" };
+		case operation::observe_reviewers:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveReviewers" };
+		case operation::request_reviews:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation RequestReviews" };
 		}
 		return std::nullopt;
 	}
@@ -708,6 +712,19 @@ namespace {
 		auto reviewBodyEdit    = commentEdit;
 		reviewBodyEdit.Kind    = core::comment_edit_kind::review_body;
 		reviewBodyEdit.Subject = "PRR_fixture_1";
+		// [[BPR-1804]].
+		const auto reviewerSearch = application::review_reviewer_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Operation      = application::review_reviewer_operation::search,
+			.Query          = "sam",
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto reviewerRequest      = reviewerSearch;
+		reviewerRequest.Operation = application::review_reviewer_operation::request;
+		reviewerRequest.Query.clear();
+		reviewerRequest.User  = "U_kgDOsam";
+		reviewerRequest.Login = "sam";
 		return std::array{
 
 			compile_target_observation_request(serverTarget, aServer),
@@ -747,6 +764,8 @@ namespace {
 			compile_comment_edit_request(commentEdit, aServer),
 			compile_comment_edit_request(issueEdit, aServer),
 			compile_comment_edit_request(reviewBodyEdit, aServer),
+			compile_reviewer_request(reviewerSearch, aServer),
+			compile_reviewer_request(reviewerRequest, aServer),
 		};
 	}
 
@@ -802,6 +821,8 @@ namespace {
 			row{ operation::edit_review_comment, http_method::post, true, 200, false },
 			row{ operation::edit_issue_comment, http_method::post, true, 200, false },
 			row{ operation::edit_review_body, http_method::post, true, 200, false },
+			row{ operation::observe_reviewers, http_method::post, true, 200, false },
+			row{ operation::request_reviews, http_method::post, true, 200, false },
 		};
 
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
@@ -1093,6 +1114,147 @@ namespace {
 		big.Body         = std::string(core::maximum_description_characters, 'b');
 		const auto large = parse_description_response({ .Status = 200, .Body = "{\"data\":{\"updatePullRequest\":{\"pullRequest\":" + description_pull_request_json(big.Body, true) + "}}}" }, big);
 		expect(large.has_value() && large->Body.size() == core::maximum_description_characters, "an answer carrying GitHub's longest body is read");
+	}
+
+	/// [[BPR-1804]]. The designated pull request's reviewer facts as GitHub
+	/// answers them: the author, open requests (a user and a team) and
+	/// submitted reviews (one by a deleted account).
+	[[nodiscard]] auto reviewer_facts_json(const std::string_view aRequested, const std::string_view aId = "PR_kwDOTyvof879G6NV") -> std::string
+	{
+		return "\"id\":\"" + std::string{ aId } + "\",\"databaseId\":4246446933,\"number\":1,\"author\":{\"login\":\"octo-author\"},"
+			+ "\"reviewRequests\":{\"nodes\":[" + std::string{ aRequested } + "{\"requestedReviewer\":{\"__typename\":\"Team\"}}]},"
+			+ "\"latestReviews\":{\"nodes\":[{\"author\":{\"login\":\"bea\"}},{\"author\":null}]}";
+	}
+	[[nodiscard]] auto reviewer_repository_json(const std::string_view aUsers) -> std::string
+	{
+		return "\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\",\"assignableUsers\":{\"nodes\":[" + std::string{ aUsers } + "]}}";
+	}
+	constexpr auto reviewer_written_repository = std::string_view{ "\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}" };
+
+	// [[BPR-1804]]. Reviewers go by one fixed read and one fixed write. Both
+	// name the pull request by the accepted read's node, revalidate
+	// canonically, and are held to the designated pull request; GitHub's
+	// suggestions, matches, requests and reviews are each bounded and well
+	// formed, and a team request is not a person.
+	void test_reviewers_go_by_graphql_exactly()
+	{
+		const auto search = application::review_reviewer_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Operation      = application::review_reviewer_operation::search,
+			.Query          = "sa\"m",
+			.LiveBinding    = request().LiveBinding,
+		};
+		const auto read = compile_reviewer_request(search);
+		expect(read.has_value() && read->Operation == review_mutation_operation::observe_reviewers && read->Method == http_method::post && read->Path == "/graphql"
+				   && read->Body
+					   == "{\"query\":\"query ObserveReviewers($pullRequest:ID!,$query:String!){node(id:$pullRequest){... on PullRequest{"
+						  "id databaseId number author{login} repository{id databaseId nameWithOwner assignableUsers(query:$query,first:20){nodes{id login name}}} "
+						  "suggestedReviewers{isAuthor isCommenter reviewer{id login name}} "
+						  "reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{id login}}}} "
+						  "latestReviews(first:100){nodes{author{login}}}}}}\",\"variables\":{\"pullRequest\":\"PR_kwDOTyvof879G6NV\",\"query\":\"sa\\\"m\"}}",
+			   "a search is the reserved read naming the designated pull request and the exact query");
+		auto ask      = search;
+		ask.Operation = application::review_reviewer_operation::request;
+		ask.Query.clear();
+		ask.User         = "U_kgDOsam";
+		ask.Login        = "sam";
+		const auto write = compile_reviewer_request(ask);
+		expect(write.has_value() && write->Operation == review_mutation_operation::request_reviews && write->Path == "/graphql"
+				   && write->Body
+					   == "{\"query\":\"mutation RequestReviews($pullRequest:ID!,$user:ID!){requestReviews(input:{pullRequestId:$pullRequest,userIds:[$user],union:true}){"
+						  "pullRequest{id databaseId number author{login} repository{id databaseId nameWithOwner} "
+						  "reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{id login}}}} "
+						  "latestReviews(first:100){nodes{author{login}}}}}}\",\"variables\":{\"pullRequest\":\"PR_kwDOTyvof879G6NV\",\"user\":\"U_kgDOsam\"}}",
+			   "a request is the reserved write naming the pull request and one person");
+		const auto before = compile_reviewer_observation_request(ask);
+		expect(before.has_value() && before->Operation == review_mutation_operation::observe_reviewers && before->Body.find("\"query\":\"sam\"") != std::string::npos,
+			   "the read before a request searches for the person's login");
+		for (const auto& wire : { *read, *write, *before }) {
+			expect(validate_outbound_review_mutation_request(wire).has_value(), "each reviewer request revalidates canonically");
+		}
+		auto spoofed      = *read;
+		spoofed.Operation = review_mutation_operation::request_reviews;
+		auto retargeted   = *write;
+		retargeted.Body.replace(retargeted.Body.find("U_kgDOsam"), 9U, "U_kgDOzed");
+		expect(!validate_outbound_review_mutation_request(spoofed).has_value() && !validate_outbound_review_mutation_request(retargeted).has_value(),
+			   "a read passed off as the write and another person put in flight are refused");
+
+		auto unbound               = ask;
+		unbound.LiveBinding        = std::nullopt;
+		auto foreign               = ask;
+		foreign.Target.PullRequest = core::pull_request_id{ 99U };
+		auto actor                 = ask;
+		actor.ActingIdentity       = core::github_account_id{ 99U };
+		auto nobody                = ask;
+		nobody.User.clear();
+		auto badLogin  = ask;
+		badLogin.Login = "sam; rm";
+		auto mixed     = ask;
+		mixed.Query    = "sam";
+		for (const auto& refused : { unbound, foreign, actor, nobody, badLogin, mixed }) {
+			expect(!compile_reviewer_request(refused).has_value() && !compile_reviewer_observation_request(refused).has_value(),
+				   "an unbound, foreign, other-actor, nameless or malformed request is refused before the wire");
+		}
+		auto padded   = search;
+		padded.Query  = " sam";
+		auto longer   = search;
+		longer.Query  = std::string(core::maximum_reviewer_query_bytes + 1U, 'a');
+		auto invalid  = search;
+		invalid.Query = std::string{ "\xC3\x28" };
+		auto carrying = search;
+		carrying.User = "U_kgDOsam";
+		for (const auto& refused : { padded, longer, invalid, carrying }) {
+			expect(!compile_reviewer_request(refused).has_value(), "an unnormalized, long, non-UTF-8 or person-carrying search is refused");
+		}
+		expect(!compile_reviewer_observation_request(search).has_value(), "a search has no pre-write read");
+		auto enterprise                               = ask;
+		enterprise.LiveBinding->Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		enterprise.LiveBinding->Target.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+		expect(compile_reviewer_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && !compile_reviewer_request(ask, application::github_server_contract::ghes_3_18_2022_11_28).has_value(),
+			   "GHES 3.18 asks at its GraphQL root, and a binding for another server is refused");
+
+		// The read's answer.
+		const auto users       = std::string{ "{\"id\":\"U_kgDOana\",\"login\":\"ana\",\"name\":\"Ana Lima\"},{\"id\":\"U_kgDOsam\",\"login\":\"sam\",\"name\":null}" };
+		const auto suggestions = std::string{ "\"suggestedReviewers\":[{\"isAuthor\":false,\"isCommenter\":true,\"reviewer\":{\"id\":\"U_kgDObea\",\"login\":\"bea\",\"name\":\"Bea\"}},"
+											  "{\"isAuthor\":true,\"isCommenter\":false,\"reviewer\":{\"id\":\"U_kgDOauth\",\"login\":\"octo-author\",\"name\":null}}]," };
+		const auto answer      = [&](const std::string& aRequested, const std::string& aUsers, const std::string& aId = "PR_kwDOTyvof879G6NV") {
+			return review_mutation_wire_response{ .Status = 200, .Body = "{\"data\":{\"node\":{" + reviewer_facts_json(aRequested, aId) + "," + reviewer_repository_json(aUsers) + "," + suggestions.substr(0, suggestions.size() - 1U) + "}}}" };
+		};
+		const auto observed = parse_reviewer_observation(answer("{\"requestedReviewer\":{\"__typename\":\"User\",\"id\":\"U_kgDOrui\",\"login\":\"rui\"}},", users), search);
+		expect(observed.has_value() && observed->Author == "octo-author" && observed->Requested == std::vector<std::string>{ "rui" } && observed->Reviewed == std::vector<std::string>{ "bea" },
+			   "the author, the user requests (not the team's) and the reviews by known accounts are read");
+		expect(observed->Suggested.size() == 1U && observed->Suggested[0].Login == "bea" && observed->Suggested[0].Commenter && observed->Suggested[0].Suggested,
+			   "GitHub's suggestions are read, the author's own suggestion left out");
+		expect(observed->Matches.size() == 2U && observed->Matches[0].Name == "Ana Lima" && observed->Matches[1].Name.empty() && observed->Matches[1].NodeId == "U_kgDOsam",
+			   "the matches keep GitHub's order, a null name read as none");
+		const auto outside = parse_reviewer_observation(answer("", users, "PR_kwDOTyvof879Gzzz"), search);
+		expect(!outside && outside.error() == review_mutation_contract_failure::identity_mismatch, "another pull request is an identity mismatch");
+		expect(parse_reviewer_observation({ .Status = 200, .Body = R"({"data":{"node":null}})" }, search).error() == review_mutation_contract_failure::target_unavailable,
+			   "a pull request GitHub no longer shows is unavailable");
+		const auto badUser = parse_reviewer_observation(answer("", "{\"id\":\"U_x\",\"login\":\"not a login\",\"name\":null}"), search);
+		expect(!badUser && badUser.error() == review_mutation_contract_failure::malformed_response, "a login GitHub would not make is malformed");
+		auto many = std::string{ };
+		for (int index = 0; index < 21; ++index) {
+			many += std::string{ index == 0 ? "" : "," } + "{\"id\":\"U_" + std::to_string(index) + "\",\"login\":\"p" + std::to_string(index) + "\",\"name\":null}";
+		}
+		expect(parse_reviewer_observation(answer("", many), search).error() == review_mutation_contract_failure::malformed_response, "more matches than were asked for are malformed");
+		expect(!parse_reviewer_observation(answer("", users), ask).has_value(), "a request's answer is not read as a search's");
+
+		// The write's answer.
+		const auto written = [&](const std::string& aRequested, const std::string& aId = "PR_kwDOTyvof879G6NV") {
+			return review_mutation_wire_response{ .Status = 200, .Body = "{\"data\":{\"requestReviews\":{\"pullRequest\":{" + reviewer_facts_json(aRequested, aId) + "," + std::string{ reviewer_written_repository } + "}}}}" };
+		};
+		const auto added = parse_reviewer_response(written("{\"requestedReviewer\":{\"__typename\":\"User\",\"id\":\"U_kgDOsam\",\"login\":\"sam\"}},"), ask);
+		expect(added.has_value() && added->Requested == std::vector<std::string>{ "sam" }, "an exact write answer yields GitHub's requests after it");
+		const auto dropped = parse_reviewer_response(written(""), ask);
+		expect(dropped.has_value() && dropped->Requested.empty(), "an answer without the person is read as such, for the core to say not added");
+		const auto elsewhere = parse_reviewer_response(written("", "PR_kwDOTyvof879Gzzz"), ask);
+		expect(!elsewhere && elsewhere.error() == review_mutation_contract_failure::identity_mismatch, "an answer for another pull request is a mismatch");
+		const auto refusal = parse_reviewer_response({ .Status = 200, .Body = R"({"data":{"requestReviews":null},"errors":[{"type":"FORBIDDEN"}]})" }, ask);
+		expect(!refusal && refusal.error() == review_mutation_contract_failure::unexpected_body, "a GraphQL refusal is not a success, and is told apart");
+		expect(parse_reviewer_response({ .Status = 502, .Body = "{}" }, ask).error() == review_mutation_contract_failure::invalid_status, "a non-200 answer is an invalid status");
 	}
 
 	/// [[BPR-1775]]. A comment of one kind as an edit answer spells it.
@@ -2659,6 +2821,7 @@ auto main() -> int
 	test_reactions_go_by_graphql_exactly();
 	test_the_description_goes_by_graphql_exactly();
 	test_a_published_comment_goes_by_graphql_exactly();
+	test_reviewers_go_by_graphql_exactly();
 	test_recorded_reaction_and_resolution_answers();
 
 	test_a_reply_is_reconciled_through_its_thread();

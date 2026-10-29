@@ -120,6 +120,14 @@ namespace bpr::adapters::github::detail {
 		/// operation for each kind's own update.
 		edit_review_comment,
 		edit_issue_comment,
+		/// [[BPR-1804]]. GraphQL: the people who may review the pull request
+		/// matching a query, GitHub's suggestions, and its open requests and
+		/// submitted reviews; asked for a search, before a request is
+		/// written and once after an ambiguous one.
+		observe_reviewers,
+		/// [[BPR-1804]]. GraphQL: one review requested (`requestReviews`,
+		/// one user, `union:true`).
+		request_reviews,
 		edit_review_body,
 	};
 
@@ -204,7 +212,8 @@ namespace bpr::adapters::github::detail {
 			application::review_thread_resolution_request,
 			application::review_reaction_request,
 			application::review_description_request,
-			application::review_comment_edit_request>;
+			application::review_comment_edit_request,
+			application::review_reviewer_request>;
 
 		semantic_type Semantic;
 
@@ -507,6 +516,41 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&            aResponse,
 		const application::review_comment_edit_request& aExpected)
 		-> review_mutation_parse_result<review_description_observation>;
+	/// \brief [[BPR-1804]]. The most people GitHub is asked for in one
+	/// search, and the most suggestions, requests and reviews an answer may
+	/// list.
+	inline constexpr std::size_t maximum_reviewer_matches    = 20U;
+	inline constexpr std::size_t maximum_reviewer_list_items = 100U;
+	/// \brief [[BPR-1804]]. Compiles `ObserveReviewers` for a search's
+	/// query, or `RequestReviews` for a request; refused for an unbound or
+	/// malformed request.
+	[[nodiscard]] auto compile_reviewer_request(
+		const application::review_reviewer_request& aRequest,
+		application::github_server_contract         aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1804]]. The read a request is bound by before it is
+	/// written, and settled by after an ambiguous write: `ObserveReviewers`
+	/// for the person's login, with every guard the write has.
+	[[nodiscard]] auto compile_reviewer_observation_request(
+		const application::review_reviewer_request& aRequest,
+		application::github_server_contract         aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1804]]. Accepts only the designated pull request, every
+	/// person with a node and a login, and lists within their bounds.
+	[[nodiscard]] auto parse_reviewer_observation(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reviewer_request& aExpected)
+		-> review_mutation_parse_result<core::reviewer_search_answer>;
+	/// \brief [[BPR-1804]]. A write's answer: the pull request's open
+	/// requests and reviews after it, only for the designated pull request.
+	/// A GraphQL refusal (no payload) is `target_unavailable`'s sibling,
+	/// `unexpected_body`: definitely not written.
+	[[nodiscard]] auto parse_reviewer_response(
+		const review_mutation_wire_response&        aResponse,
+		const application::review_reviewer_request& aExpected)
+		-> review_mutation_parse_result<core::reviewer_search_answer>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
 
 	[[nodiscard]] auto compile_review_submission_request(
@@ -934,6 +978,16 @@ namespace bpr::adapters::github::detail {
 			const application::review_comment_edit_request& aRequest,
 			std::stop_token                                 aStop = { })
 			-> std::expected<application::review_comment_edit_receipt, application::review_mutation_failure>;
+
+		/// \brief [[BPR-1804]]. Searches reviewers (one read), or requests a
+		/// review: observed first (bound to the pull request; nothing sent for
+		/// an open request, refused for the author), written once, held to
+		/// GitHub's answer listing the person, and an ambiguous outcome settled
+		/// by one read back.
+		[[nodiscard]] auto reviewers(
+			const application::review_reviewer_request& aRequest,
+			std::stop_token                             aStop = { })
+			-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure>;
 
 	private:
 		[[nodiscard]] auto observe_comment(
