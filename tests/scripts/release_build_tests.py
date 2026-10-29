@@ -10,10 +10,13 @@ from pathlib import Path
 import subprocess
 import shutil
 import sys
-import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
+from skip_report import SkipReportingTestRunner
+
 sys.path.insert(0, str(ROOT / "packaging"))
 import release_build as cohort
 from release_build_fixture import windows_floor
@@ -27,7 +30,7 @@ def lock_holder(common, ready, release):
 
 class ReleaseBuildTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="bpr-release-cohort-")
+        self.temporary = ContainedTemporaryDirectory(prefix="bpr-release-cohort-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "source"
         self.root.mkdir()
@@ -366,4 +369,4 @@ bpr_add_build_identity(probe)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

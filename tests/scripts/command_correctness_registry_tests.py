@@ -19,6 +19,29 @@ import workbench_case_inventory as inventory
 
 
 class RegistryTests(unittest.TestCase):
+    def current_workbench_fixture(self):
+        # Positive declaration tests need current private inputs. Updating these
+        # copies grants no production scheduling seal or native execution credit.
+        temporary = ContainedTemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        root = Path(temporary.name)
+        registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
+        family = next(item for item in registry["families"] if item["source"].endswith("/workbench_window_tests.cpp"))
+        for item in [{"path": family["source"]}, *family["inputs"]]:
+            target = root / item["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            target.write_bytes((ROOT / item["path"]).read_bytes())
+            digest = hashlib.sha256(target.read_bytes()).hexdigest()
+            if "sha256" in item:
+                item["sha256"] = digest
+            else:
+                family["sha256"] = digest
+        data = json.loads((ROOT / "tests/workbench_case_inventory.json").read_text(encoding="utf-8"))
+        data["source_sha256"] = family["sha256"]
+        (root / "tests/workbench_case_inventory.json").write_text(json.dumps(data))
+        (root / "tests/command_correctness_registry.json").write_text(json.dumps(registry))
+        return root, registry, family
+
     def test_named_occurrences_retain_original_default_and_selector_order(self):
         data = json.loads((ROOT / "tests/workbench_case_inventory.json").read_text(encoding="utf-8"))
         text = (ROOT / "tests/adapters_qt/workbench_window_tests.cpp").read_text(encoding="utf-8")
@@ -38,8 +61,9 @@ class RegistryTests(unittest.TestCase):
             self.assertEqual(name, called, "an inventory label must name the function actually called")
         self.assertEqual(actual, data["selector_cases"])
         self.assertEqual(len(actual["<default>"]), 119)
+        root, _, _ = self.current_workbench_fixture()
         for platform, count in (("Windows", 46), ("Darwin", 45), ("Linux", 45)):
-            self.assertEqual(len(inventory.expected_rows(platform)), count)
+            self.assertEqual(len(inventory.expected_rows(platform, root)), count)
 
     def test_missing_duplicate_extra_reordered_and_zero_cases_are_not_credit(self):
         expected = ["first", "second"]
@@ -51,32 +75,31 @@ class RegistryTests(unittest.TestCase):
             inventory.validate_cases(expected, 'WORKBENCH_CASE:first\nWORKBENCH_CASE:second\nworkbench:pass\n')
 
     def test_real_registry_invocations_require_exact_manifest_coverage(self):
-        registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
+        root, _, family = self.current_workbench_fixture()
         rows = []
         directory = Path("/build/tests/adapters_qt").as_posix()
-        for declaration in registry["families"][0]["rows"]:
+        for declaration in family["rows"]:
             rows.append({"name": declaration["name"],
                          "command": [directory + "/" + declaration["executable"] + ".exe", *declaration["arguments"]],
                          "properties": [{"name": "WORKING_DIRECTORY", "value": directory},
                                         {"name": "ENVIRONMENT", "value": [item.replace("{binary_dir}", directory) for item in declaration["environment"]]}]})
-        self.assertEqual(len(inventory.validate_manifest({"tests": rows}, "Windows")), 46)
+        self.assertEqual(len(inventory.validate_manifest({"tests": rows}, "Windows", root)), 46)
         for changed in (rows[:-1], rows + [rows[0]], rows + [{**rows[0], "name": "unknown"}]):
             with self.subTest(count=len(changed)), self.assertRaisesRegex(ValueError, "Missing, duplicate or unknown"):
-                inventory.validate_manifest({"tests": changed}, "Windows")
+                inventory.validate_manifest({"tests": changed}, "Windows", root)
 
     def test_registry_command_scale_output_source_and_unset_mutations_fail_closed(self):
-        registry = json.loads((ROOT / "tests/command_correctness_registry.json").read_text(encoding="utf-8"))
+        root, registry, family = self.current_workbench_fixture()
         for current in registry["families"]:
             for row in current["rows"]:
                 self.assertRegex(row["resource"], r"^[a-z0-9_]+$")
-        family = registry["families"][0]
         candidate = next(row for row in family["rows"] if row["name"] == "qt_workbench_window_scale_100")
         directory = Path("/build/tests/adapters_qt")
         props = {"WORKING_DIRECTORY": directory.as_posix(),
                  "ENVIRONMENT": [item.replace("{binary_dir}", directory.as_posix()) for item in candidate["environment"]],
                  "ENVIRONMENT_MODIFICATION": [f'{key}=unset:' for key in family["unset_environment"]]}
         row = {"name": candidate["name"], "command": ["/build/app/" + candidate["executable"]]}
-        suite.validate_command_owned_row(row, props)
+        suite.validate_command_owned_row(row, props, root)
         for kind in ("unknown", "selector", "output", "scale", "unset", "override"):
             bad_row, bad_props = copy.deepcopy(row), copy.deepcopy(props)
             if kind == "unknown": bad_row["name"] = "unknown"
@@ -86,7 +109,24 @@ class RegistryTests(unittest.TestCase):
             if kind == "unset": bad_props["ENVIRONMENT_MODIFICATION"].pop()
             if kind == "override": bad_props["ENVIRONMENT_MODIFICATION"].append(f'{family["unset_environment"][0].lower()}=set:/shared')
             with self.subTest(kind=kind), self.assertRaises(ValueError):
-                suite.validate_command_owned_row(bad_row, bad_props)
+                suite.validate_command_owned_row(bad_row, bad_props, root)
+
+        # A changed source or transitive input still invalidates the declaration.
+        # Keep the production registry/inventory untouched and restrictive.
+        for relative in [family["source"], *(item["path"] for item in family["inputs"])]:
+            path = root / relative
+            original = path.read_bytes()
+            with self.subTest(changed=relative):
+                try:
+                    path.write_bytes(original + b"\nchanged identity\n")
+                    with self.assertRaisesRegex(ValueError, "Invalid command ownership"):
+                        suite.validate_command_owned_row(row, props, root)
+                    if relative == family["source"]:
+                        with self.assertRaisesRegex(ValueError, "source identity is stale"):
+                            inventory.expected_rows("Windows", root)
+                finally:
+                    path.write_bytes(original)
+        suite.validate_command_owned_row(row, props, root)
 
     def configure_registry(self, mutation=None, features=None, configuration="Debug"):
         with ContainedTemporaryDirectory() as temporary:

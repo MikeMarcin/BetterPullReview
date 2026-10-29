@@ -14,7 +14,6 @@ import subprocess
 import sys
 import tarfile
 import unittest
-import tempfile
 from types import SimpleNamespace
 from unittest.mock import patch
 import zipfile
@@ -474,7 +473,7 @@ class ExistingReleaseTests(unittest.TestCase):
                 options[key] = old
 
     def test_append_uses_upload_without_clobber_or_tag_mutation_and_preserves_latest(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
             artifact = root / "win.msi";artifact.write_bytes(b"new")
             selected = {"win.msi": {"sha256": publisher.runtime.digest(artifact), "bytes": 3}}
@@ -521,7 +520,7 @@ class PromotionAcceptanceTests(unittest.TestCase):
             remote.assert_not_called()
 
     def test_pending_stable_qualification_refuses_before_remote_access(self):
-        with tempfile.TemporaryDirectory() as temporary:
+        with ContainedTemporaryDirectory() as temporary:
             root = Path(temporary)
             baseline = root / "baseline.json"
             baseline.write_text(json.dumps({"source": SOURCE, "version": "0.4.0", "repository": publisher.REPOSITORY, "assets": [{"name": "mac.zip", **ROW}]}))
