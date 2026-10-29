@@ -41,3 +41,37 @@ the same prerelease, with comprehensive qualification afterward. Stable
 promotion and Ubuntu artifacts retain their complete gates. The exact external
 amendment and new HarfBuzz decision packet are in the recorded runtime root;
 no passing qualification or security decision is inferred.
+
+## Post-preview qualification checkpoint, 2026-10-29 UTC
+
+The public v0.4.0 prerelease remains bound to immutable source
+`144de719a8d972162f92ec04f98ba11293ae0a8f`: eight Mac and seven Windows assets,
+all previously downloaded, hash matched and natively trust checked. No tag or
+asset is replaced. Comprehensive qualification followed the owner's preview-first
+amendment: Mac Release 865/871 pass, six fail; Debug 875/883 pass, seven fail,
+one optimized-only skip. Windows Release 825/847 pass, 22 fail; Debug 805/839
+pass, 33 fail, one optimized-only skip. The eight dedicated Debug performance
+omissions have no pass or functional coverage credit. Raw failures, skips and
+unreached checks remain in the original external request evidence.
+
+The [paired Windows containment observations](../../verification/release-v040-windows-contained-observations.md)
+supply actual Release/Debug baselines and contained refusals for ten exact
+courses. Their narrow registration/pin correction changes no functional
+assertion, deadline, capability or product permission. Its 73 contract cases
+and Mac manifest pass; new-source native Windows verification remains pending.
+The five newly failed Debug agent courses reproduce the same completion
+precondition failures under exact original commands. The bounded threaded-reply
+recovery also expires at 240 seconds while awaiting a resolution completion;
+GitHub.com's final contract and the second host remain unaccepted. Neither is
+waived as timing or converted to a pass. Ubuntu's original-source comprehensive
+run is active, serialized after the Windows follow-ups.
+
+BPR-1799 implements the separately requested numbered candidate identity. The
+existing Find-ring owner fix and guarded publisher are deliberately integrated
+with the qualification repairs on the engineering branch. The next corrected
+semantic version is still a separate pending choice before publication.
+AgentSkills source publication and its portable deployment are independently
+pending explicit source permission. M8/M9/native Intel/vault/crash/privacy,
+allocator/fuzz and final exact-artifact security dispositions remain open; the
+preview-specific HarfBuzz and v0.4.0 CBOR decisions do not automatically accept
+a future corrected version or stable/Ubuntu distribution.
