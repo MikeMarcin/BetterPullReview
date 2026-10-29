@@ -3,6 +3,7 @@
 #include "diff_publication_fixture.hpp"
 #include "product_diff.hpp"
 
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -13998,6 +13999,175 @@ namespace {
 	/// away (⌥⇧A); ⌘I and the code's menu ask about the selected lines; the
 	/// context row, the state callout, the finding cards whose actions are
 	/// the queue's own, and the question field.
+	/// [[BPR-1817]]. A send that produces no turn says why beside the
+	/// composer, in the core's vocabulary: before anything is sent (nothing
+	/// typed, a turn still running), when the host refuses it, and when the
+	/// launch path refuses it after the gesture. A run that fails after it
+	/// started is an error entry in the thread with what the agent wrote.
+	void test_a_refused_send_says_why_beside_the_composer()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U);
+		profile.Protocol    = core::agent_protocol::codex_jsonl_exec;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		auto* const chat = window.side_chat();
+
+		// No review open: Send cannot be pressed, and its tooltip says why.
+		expect(!agent->ask_button()->isEnabled() && agent->send_blocked() == core::agent_send_refusal::no_review
+				   && agent->ask_button()->toolTip() == qt::agent_tab_view::send_refusal_words(core::agent_send_refusal::no_review, QStringLiteral("Fixture agent")),
+			   "with no review open Send is disabled and its tooltip names why");
+
+		// A review's chat: Send is pressable and the tooltip is the shortcut.
+		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto       sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		agent->refresh();
+		expect(agent->ask_button()->isEnabled() && agent->send_blocked() == core::agent_send_refusal::none && agent->ask_button()->toolTip().startsWith(QStringLiteral("Send the question")),
+			   "with a review's chat Send can be pressed");
+
+		// Nothing typed: refused before anything is sent, and said.
+		chat->composer()->clear();
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::empty_message && agent->send_refusal_strip()->isVisible()
+				   && agent->send_refusal_text() == QStringLiteral("Not sent. Type a question, then send."),
+			   "an empty send sends nothing and the composer says to type a question");
+
+		// Typed and sent: the gesture leaves, and the strip goes with it.
+		chat->composer()->setPlainText(QStringLiteral("What does the retry budget do?"));
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.size() == 1U && sends.back().Text == "What does the retry budget do?" && !agent->send_refusal_strip()->isVisible(), "a typed send leaves, with no refusal shown");
+
+		// The host refuses it by the core's verdict: the composer says which.
+		agent->refuse_send(core::agent_send_refusal::agent_forbidden_on_host);
+		process_events();
+		expect(agent->send_refusal_strip()->isVisible() && agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->send_refusal_strip())
+				   && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent isn't allowed for this pull request's server. Choose an agent the server allows."),
+			   "a refusal the host names is said beside the composer, naming the agent");
+		expect(chat->composer()->toPlainText() == QStringLiteral("What does the retry budget do?") && agent->turn_count() == 0U, "the question stays in the field and no turn is shown");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-send-refused-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			auto       dark  = light;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+				dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+				dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+				dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+				dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+			}
+			QApplication::setPalette(dark);
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-send-refused-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		agent->findChild<QToolButton*>(QStringLiteral("agentSendRefusalClose"))->click();
+		process_events();
+		expect(!agent->send_refusal_strip()->isVisible() && agent->send_refusal() == core::agent_send_refusal::none, "Dismiss closes the refusal");
+
+		// The launch path refuses after the gesture, by its own stable name:
+		// said in the same words, never only on the hidden launch panel.
+		agent->ask_button()->click();
+		process_events();
+		window.agent_panel()->refuse("profile_forbidden_on_host");
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::agent_forbidden_on_host && agent->send_refusal_strip()->isVisible(), "a launch-path refusal after a send is said beside the composer");
+		window.agent_panel()->refuse("no exact accepted review context");
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::agent_forbidden_on_host, "a later refusal no send is waiting for is not this composer's");
+		agent->ask_button()->click();
+		process_events();
+		window.agent_panel()->refuse("no exact accepted review context");
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::launch_refused && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent didn't start. (no exact accepted review context)"),
+			   "a launch-path refusal the core did not name keeps the host's words");
+
+		// A run that fails after it started is an error entry in the thread.
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = 1U;
+		agent->ask_button()->click();
+		process_events();
+		window.agent_panel()->admit(identity);
+		process_events();
+		expect(!agent->send_refusal_strip()->isVisible() && agent->turn_count() == 1U, "an admitted send is a turn, and no refusal stays");
+		// While it runs, a second send from the keyboard is refused and said.
+		{
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+			QApplication::sendEvent(chat->composer(), &press);
+		}
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::request_in_flight && sends.size() == 4U, "a send while the agent works is refused before it is sent, and said");
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::nonzero_exit, .StandardError = "fixture-agent: model not configured\nexit status 2" });
+		process_events();
+		expect(agent->state() == qt::agent_tab_state::stopped && agent->turn_answer(0U).startsWith(QStringLiteral("Fixture agent exited with an error before answering."))
+				   && agent->turn_answer(0U).contains(QStringLiteral("fixture-agent: model not configured")) && agent->turn_answer(0U).contains(QStringLiteral("exit status 2")),
+			   "a failed run's turn says what happened and what the agent wrote: " + agent->turn_answer(0U).toStdString());
+		expect(!agent->send_refusal_strip()->isVisible() && agent->banner()->isVisible()
+				   && std::ranges::none_of(agent->findChildren<QLabel*>(), [](const QLabel* aLabel) { return aLabel->isVisible() && aLabel->text().contains(QStringLiteral("nonzero_exit")); }),
+			   "once the run ends the in-flight refusal goes, and the stopped banner says what happened in words");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-run-failed-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			auto       dark  = light;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+				dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+				dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+				dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+				dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+			}
+			QApplication::setPalette(dark);
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-run-failed-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		chat->set_dispatch({ });
+		window.hide();
+	}
+
 	void test_the_agent_is_a_drawer_tab()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -23299,6 +23469,7 @@ auto main(int argc, char** argv) -> int
 		QStringLiteral("--open-on-github"),
 		QStringLiteral("--open-review-from-home"),
 		QStringLiteral("--title-row"),
+		QStringLiteral("--agent-send-refusal"),
 #if defined(_WIN32)
 		QStringLiteral("--strip-menu"),
 #endif
@@ -23547,6 +23718,14 @@ auto main(int argc, char** argv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1817]]. The composer's refusals, on their own.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
+		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+		if (!listCases) {
+			std::cout << "workbench-agent-send-refusal:pass\n";
+		}
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
 		runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
 		runCase("test_compact_icon_row_preserves_exact_order_and_edges", &test_compact_icon_row_preserves_exact_order_and_edges);
@@ -23667,6 +23846,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_finish_review_is_a_sheet_beside_the_code", &test_finish_review_is_a_sheet_beside_the_code);
 	runCase("test_the_tour_is_a_route_expanding_to_its_page", &test_the_tour_is_a_route_expanding_to_its_page);
 	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
+	runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
 	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
 	runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);

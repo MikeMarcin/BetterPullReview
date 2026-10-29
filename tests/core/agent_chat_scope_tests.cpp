@@ -373,6 +373,52 @@ namespace {
 			"name rather than quietly answering in the other tool");
 	}
 
+	/// \brief [[BPR-1817]]. Every refused verdict is one named send refusal.
+	void test_a_refused_action_is_one_named_send_refusal()
+	{
+		const auto permitted = decide(core::agent_entry_point::run_ai_review, selection(), policy());
+		expect(permitted.Permitted && core::agent_send_refusal_of(permitted) == core::agent_send_refusal::none, "a permitted action refuses no send");
+
+		const auto unmapped = decide(core::agent_entry_point::run_ai_review, selection(),
+									 core::policy_for_host(std::vector<core::agent_host_policy>{ *policy() }, unmappedHost));
+		expect(core::agent_send_refusal_of(unmapped) == core::agent_send_refusal::host_not_mapped, "an unmapped server is its own reason");
+		const auto forbidden = decide(core::agent_entry_point::run_ai_review, selection(), policy(), alternative, session(alternative));
+		expect(core::agent_send_refusal_of(forbidden) == core::agent_send_refusal::agent_forbidden_on_host,
+			   "a server that forbids the chosen agent says so, apart from an agent that does not exist");
+		expect(core::agent_send_refusal_of(decide(core::agent_entry_point::run_ai_review, selection(), policy(), configured, session(alternative)))
+				   == core::agent_send_refusal::session_profile_mismatch,
+			   "a conversation with another agent is named");
+		expect(core::agent_send_refusal_of(decide(core::agent_entry_point::ask_about_selection, std::nullopt, policy())) == core::agent_send_refusal::selection_required,
+			   "a question about selected lines with none selected is named");
+		auto invented    = core::agent_action_verdict{ };
+		invented.Refusal = core::agent_action_refusal::profile_refused;
+		expect(core::agent_send_refusal_of(invented) == core::agent_send_refusal::agent_unknown, "a profile refusal with no invocation verdict is an unknown agent");
+		invented.Refusal = core::agent_action_refusal::none;
+		expect(core::agent_send_refusal_of(invented) != core::agent_send_refusal::none, "a verdict that is not permitted is never read as a send");
+
+		for (auto index = std::size_t{ 0U }; index < core::agent_send_refusal_count; ++index) {
+			expect(!core::stable_name(static_cast<core::agent_send_refusal>(index)).empty(), "every send refusal has a stable name");
+		}
+	}
+
+	/// \brief [[BPR-1817]]. Before a send is made, the first reason it may not be.
+	void test_a_send_is_refused_before_it_is_made_in_order()
+	{
+		auto facts = core::agent_send_facts{ .ReviewOpen = true, .AgentChosen = true, .MessageEmpty = false };
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::none, "a typed question to a chosen agent in an open review may be sent");
+		facts.MessageEmpty = true;
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::empty_message, "nothing typed is said");
+		facts.AgentChosen = false;
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::no_agent, "no agent chosen comes before nothing typed");
+		facts.InFlight = true;
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::request_in_flight, "a running turn comes before the agent");
+		facts.ContinuationRequired = true;
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::session_stale, "a moved pull request comes before a running turn");
+		facts.ReviewOpen = false;
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::no_review, "and no review comes first");
+		expect(core::decide_agent_send({ }) == core::agent_send_refusal::no_review, "the default facts send nothing");
+	}
+
 	/// \brief One row per declared observation, tied to the declared count.
 	constexpr auto observations = std::array{
 		core::agent_observation::refresh,
@@ -893,6 +939,8 @@ auto main() -> int
 	test_an_action_that_needs_a_selection_is_refused_without_one();
 	test_an_undeclared_entry_point_is_refused_first();
 	test_the_policy_and_the_session_keep_their_refusals();
+	test_a_refused_action_is_one_named_send_refusal();
+	test_a_send_is_refused_before_it_is_made_in_order();
 	test_no_observation_can_produce_an_invocation();
 	test_a_chat_starts_at_the_reviewers_selection();
 	test_a_turn_without_a_widening_intent_stays_where_it_is();

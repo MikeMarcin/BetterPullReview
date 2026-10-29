@@ -8,10 +8,13 @@
 #include <QStringList>
 #include <QWidget>
 
+#include "bpr/application/agent_launch.hpp"
+#include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <map>
 #include <optional>
@@ -391,7 +394,21 @@ namespace bpr::qt {
 		/// \brief The cards a turn brought, under its answer.
 		[[nodiscard]] auto turn_cards(std::size_t aTurn) const -> std::vector<QWidget*>;
 		[[nodiscard]] auto ask_button() const noexcept -> QPushButton* { return Ask; }
-		[[nodiscard]] auto head_chip() const noexcept -> QLabel* { return Head; }
+		/// \brief [[BPR-1817]]. Says beside the composer why a send produced
+		/// no turn. `aDetail` is the host's own words for a refusal the core
+		/// did not name, shown after the composer's sentence.
+		void refuse_send(core::agent_send_refusal aRefusal, const QString& aDetail = { });
+		/// The refusal shown beside the composer, or `none`.
+		[[nodiscard]] auto send_refusal() const noexcept -> core::agent_send_refusal { return ShownRefusal; }
+		[[nodiscard]] auto send_refusal_text() const -> QString;
+		[[nodiscard]] auto send_refusal_strip() const noexcept -> QWidget* { return Refusal; }
+		/// Why Send cannot be pressed now, in the core's vocabulary, or `none`.
+		[[nodiscard]] auto send_blocked() const -> core::agent_send_refusal;
+		/// \brief The composer's sentence for one refusal, naming `aAgent`.
+		[[nodiscard]] static auto send_refusal_words(core::agent_send_refusal aRefusal, const QString& aAgent) -> QString;
+		/// \brief What a run that ended without an answer amounts to, in words.
+		[[nodiscard]] static auto run_failure_words(application::agent_run_outcome aOutcome, const QString& aAgent) -> QString;
+		[[nodiscard]] auto        head_chip() const noexcept -> QLabel* { return Head; }
 
 	protected:
 		void showEvent(QShowEvent* aEvent) override;
@@ -470,9 +487,16 @@ namespace bpr::qt {
 		agent_run_settings_dispatch      RunSettingsDispatch;
 		QToolButton*                     RunSettings = nullptr;
 		QLabel*                          Notice      = nullptr;
-		[[nodiscard]] auto               current_run_settings() const -> const agent_run_settings*;
-		void                             present_run_settings_button();
-		void                             ask();
+		/// [[BPR-1817]]. The refusal beside the composer.
+		QWidget*                 Refusal      = nullptr;
+		QLabel*                  RefusalText  = nullptr;
+		core::agent_send_refusal ShownRefusal = core::agent_send_refusal::none;
+		std::uint64_t            RefusalsSeen = 0U;
+		void                     hide_send_refusal();
+		[[nodiscard]] auto       send_facts(bool aMessageEmpty) const -> core::agent_send_facts;
+		[[nodiscard]] auto       current_run_settings() const -> const agent_run_settings*;
+		void                     present_run_settings_button();
+		void                     ask();
 		/// One question and its answer.
 		struct turn
 		{
