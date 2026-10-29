@@ -257,6 +257,7 @@
         "application_conversation_read_public_path",
         "application_cpp_identifier_appearance",
         "application_description_edit_contract",
+        "application_reviewer_request_contract",
         "application_comment_edit_contract",
         "application_device_authorization_browser_address",
         "application_device_authorization_panel_absent",

@@ -1989,7 +1989,7 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 
-		constexpr std::array<std::string_view, 15> mutations{
+		constexpr std::array<std::string_view, 16> mutations{
 			"MarkFileViewed",
 			"MarkFileUnviewed",
 			"CreateReview",
@@ -2009,6 +2009,8 @@ namespace bpr::adapters::github::detail {
 			"EditReviewComment",
 			"EditIssueComment",
 			"EditReviewBody",
+			// [[BPR-1804]]. A review requested.
+			"RequestReviews",
 		};
 		if (std::ranges::find(mutations, aName) != mutations.end()) {
 			return failure(contract_failure_code::mutation_operation);
