@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1818"
 title: "Restore four native review public contracts"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1817"]
 priority: "P1"
