@@ -3,7 +3,8 @@
   "id": "release-v041",
   "scope": {
     "issues": [
-      "BPR-1811"
+      "BPR-1811",
+      "BPR-1812"
     ]
   },
   "milestones": [
@@ -18,6 +19,13 @@
             "AC2",
             "AC3",
             "AC4"
+          ]
+        },
+        {
+          "issue": "BPR-1812",
+          "criteria": [
+            "AC1",
+            "AC2"
           ]
         }
       ],
