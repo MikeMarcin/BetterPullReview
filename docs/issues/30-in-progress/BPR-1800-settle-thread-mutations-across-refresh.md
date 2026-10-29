@@ -103,3 +103,20 @@ is still running (PID 2883647, source `144de719a`); no Windows build/replay has
 started while it is active. Required repaired-source Windows acceptance and
 final release/numbering/security obligations remain pending. No shared cause
 with the five other Windows agent-course failures has been established.
+
+Strict LLVM 22 analysis completed the production and core/host test translation
+units successfully. Its only failure was the new public test's local lambda
+name `release_read`; the naming-only correction to `releaseRead` is committed
+separately and receives a focused static/build/public recheck. The earlier
+static failure remains in `lifecycle-tidy-r1.log`. No product behavior changes.
+
+The original Ubuntu N qualification is now terminal and its raw archive is
+collected and hash verified: Release 848 passed/10 failed; Debug 836 passed/13
+failed/1 skipped. The Debug cache-byte course reports optimized-only skip;
+the eight separate Debug timing omissions receive no credit. Threaded reply,
+description editing and comment editing all stopped at the same unresolved
+phase-9 resolution before edit acceptance. This is original-source failure
+evidence, not repaired-source Linux acceptance. The isolated Windows repair
+checkout is prepared from `344ab410d`; MASK preview refused its missing local
+locked content, so the approved AgentSkills tap is fetched before previewing
+again. No native repair build has started yet.
