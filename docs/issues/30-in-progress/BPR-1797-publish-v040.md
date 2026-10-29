@@ -82,3 +82,40 @@ protections released and only its own transport stopped. M8/M9/native Intel/vaul
 allocator/fuzz and final exact-artifact security dispositions remain open; the
 preview-specific HarfBuzz and v0.4.0 CBOR decisions do not automatically accept
 a future corrected version or stable/Ubuntu distribution.
+
+## Numbered candidate qualification continuation, 2026-10-29 UTC
+
+BPR-1799 completes the numbered-cohort engineering at frozen source
+`0941326aee0f51002e205784a1b220a01ecba384`, build 1/cohort `4bfd1b5a…`.
+Mac 10 and Windows 7 assets on `v0.4.0-build.1` are downloaded and natively
+verified; Linux's 13 final signed/audited assets remain unpublished. The original
+`v0.4.0` source `144de719…` and its 15 assets remain immutable.
+
+The prescribed supplemental closure completes Windows and Linux 19 Release
+and 19 Debug public paths, both configurations' source/isolation controls and
+one independent tests-off composition per platform. Verification-only warning
+and discovery-settlement corrections preserve the frozen product/configuration
+bytes. Earlier Mac 22/22 in both configurations, BPR-1800 closure and five
+bounded Windows agent recoveries are reused under their recorded bindings.
+All six original comprehensive reports remain failed. The external
+`full-N-to-repair-inventory-r1.json` maps every original failed row to its actual
+supplemental proof or matching carried waiver and retains Debug omissions,
+configured skips, original failures and unreached checks.
+
+The owner directly deferred HarfBuzz for this exact build 1, including stable
+and Ubuntu; the raw 23/21/23 scanner findings still exit 2. Matching historical
+waivers and native/M8/M9, Intel, vault/authentication, accessibility, crash/privacy,
+allocator/fuzz and independent-review limits remain explicit. No additional
+security verdict or independent review was invented or requested.
+
+The current authorization boundary permits qualification and preparation only.
+The reviewed operation is: append Linux's 13 files to the RC, anonymously
+download/native verify them, then create a distinct bare `0.4.0` tag/release at
+source `0941326a…` with the same complete 30 files and make it stable/Latest
+only after its complete asset set verifies. Existing `v0.4.0` and the RC are
+preserved. Installed source offers require the Linux source on the RC first.
+Old 0.3.4 updater code accepts the exact alias and bare tag in native staging;
+same-base 0.4.0 previews still require manual installation. The guarded tool's
+actual dry runs list the 13 missing RC assets and absent publication authority.
+Specific authorization and subsequent publication/download verification remain
+pending. This card and RFC-BPR-0038 remain open.

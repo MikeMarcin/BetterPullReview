@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1799"
 title: "Number release candidate build cohorts"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038", "RFC-BPR-0035"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "owner-release-build-number-20261028", "milestone_plan": {"id": "release-candidate-build-numbering", "path": "docs/rfcs/plans/release-candidate-build-numbering/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"Actual serializedallocation1/freeze094 consumesone durable productnumber acrossallthree producerobservations; unchanged retry/recovery/misuse14cases andactualnativecohort accepted. LocalbuildsremainN0; source/configchangecannotreuseN1.","refs":["numbering-allocation-tests-r3.log","numbered-controller-r1/cohort-r1.json","mac-numbered-native-r2/receipt.json"]}},{"criterion":"AC2","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"Actualproduction About/copy/diagnostic andnativeCFBundle0.4.0/1, PE0.4.0.1, MSI0.4.1/newProductCode/retainedupgradeidentity, DEB0.4.0+build.1 bindsource094/cohort4bfd. Nativeproduction/signature/source audits pass; nativeuserM8acceptance staysseparate.","refs":["mac-native-about-diagnostics-r2/receipt.json","mac-numbered-package-r1/receipt.json","windows-numbered-final-r1/receipt.json","linux-numbered-final-r1/audit/receipt.json"]}},{"criterion":"AC3","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"All30finalassets/source/SPDX/provenance/manifests/nativeidentities bindfrozen094/cohort1; byteidenticallegacyZIP retained. Originalv04015immutable, RC17downloaded/nativeverified; Linux13preparedunpublished. FinalnativePID/source/oldN12459+assetchecks pass.","refs":["final-local-30-assets-unchanged-r1.json","final-native-numbered-reconciliation-r1.log","stable-copy-tool-source-bridge-r1.json"]}},{"criterion":"AC4","outcome":"pass","revision":"0941326aee0f51002e205784a1b220a01ecba384","evidence":{"kind":"observation","detail":"PrescribedWindows/Linux19Release+19Debug repair closure, nativeSource/isolationbothconfigs andindependenttests-offcompositions pass viaexplicitTEST-ONLYoraclebridges26ae/ca1, unchangedproduct/configbytes. Originalsixfullreports/91failedrows, Debug8omissions/skips andmatchingwaivers retained. Old034 source-derivedparser/staging/nativeAPIreceiptcompatibilityproofpasses withGUIlaunchsuppressed. Tools58PASS1nativeWindows skip andactualappend/copydryrunsPASS. Stableauthorization/publication/BPR1797/RFC0038 remainopen; noauthinferred.","refs":["windows-repaired-public-r4-receipt.json","linux-repaired-public-r5-complete/receipt.json","linux-discovery-fixed-r1-native/receipt.json","linux-discovery-wait-diagnostic-r1/predicate-correction-control.json","full-N-to-repair-inventory-r1.json","stable-updater-proof-r1/receipt.json","stable-copy-native-release-tests-r4.log","stable-append-dryrun-r1.log","stable-copy-dryrun-r1.log"]}}]
 ---
 
 # Number release candidate build cohorts
@@ -102,3 +103,56 @@ them before emitting JSON. All 14 allocation/module cases pass. This tiny probe
 is module evidence, not the pending full numbered application/package/native
 acceptance. The publisher retry control also refuses an already-created RC
 without another remote mutation; all 27 source/publication cases pass.
+
+## Actual build 1 and completed engineering, 2026-10-29 UTC
+
+The frozen producer is `0941326aee0f51002e205784a1b220a01ecba384`,
+cohort `4bfd1b5ab2b0c07fbad0b74692ba085f2f67931c68babc1a3875571f57841249`.
+All three producers consume allocation 1. Actual native observations verify
+macOS short version 0.4.0/build 1, Windows PE 0.4.0.1 and MSI 0.4.1 with its
+new ProductCode and retained upgrade identity, and Debian 0.4.0+build.1.
+The production About/copy/diagnostic observation and source/SPDX/native audits
+bind these identities to the frozen artifacts. The full set has 30 assets:
+Mac 10 and Windows 7 are on the distinct `v0.4.0-build.1` prerelease, with
+anonymous downloads and native trust verified; Linux 13 are signed and audited
+but remain unpublished. The original `v0.4.0` source and 15 assets are unchanged.
+
+The remaining repaired public paths now have Windows Release 19 and Debug 19,
+and Linux Release 19 and Debug 19, through explicitly recorded supplemental
+proofs. Windows Release's three platform-warning density failures are retained;
+verification-only commit `26ae7e213` excludes the exact warning widget while
+preserving its complete text, the offer assertions and duplicate/missing-label
+controls. The 30 Release product images are unchanged. Linux Debug's discovery
+settlement failure is also retained. Actual snapshots admitted scheduled or
+in-flight preparation as settled; test-only commit `ca1cc054f` adds those
+existing preparation guards. The original 20-second helper/deadline is unchanged.
+Its affected Release and Debug cases pass against unchanged product images,
+configuration cache bytes and all other source inputs. Exact failed interleaving
+was not reproduced by the instrumented observation.
+
+Current native source/isolation controls pass in both configurations and each
+platform's prescribed independent tests-off composition passes. Earlier Mac
+22/22 Release and Debug repair evidence, BPR-1800's native closure and all five
+bounded Windows agent semantic recoveries retain their exact source/input
+bindings. All six original comprehensive reports remain failed; their 91 failed
+rows have separate repair or carried-waiver dispositions. The eight dedicated
+Debug timing omissions and configured skips gain no passing coverage.
+
+The source-derived 0.3.4 updater proof accepts the byte-identical base ZIP under
+bare tag `0.4.0`, rejects the metadata-tag alternative and verifies native
+transaction/startup-receipt APIs on the signed candidate. Its GUI launch effect
+was suppressed; it supplies no full installed-user or M8 acceptance. A guarded
+publisher-only extension is prepared at `6630ee394` (integrated as `63fd5ed18`):
+59 tool cases, 58 passing and one native Windows-only skip; actual append and
+stable-copy dry runs pass with no external mutation. The dry runs explicitly
+retain 13 missing source-RC assets and absent publication authority.
+
+BPR-1799's numbered-cohort scope is complete. BPR-1797 still owns publication:
+first append and anonymously/native verify Linux's 13 RC assets, then copy the
+same complete 30 files to a new bare `0.4.0` stable release after specific owner
+authorization. No source offer, existing tag or asset is rewritten. HarfBuzz's
+direct deferral covers this exact build 1 and all three platforms; raw scanner
+exits 2 (23 Mac, 21 Windows, 23 Linux), matching historical waivers and M8/M9,
+Intel, vault/authentication, accessibility, crash/privacy, allocator/fuzz and
+independent-review limits remain explicit. No whole-release or RFC closeout is
+claimed by this card.

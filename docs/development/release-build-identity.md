@@ -181,3 +181,31 @@ Initial numbered RC publication requires `--cohort /absolute/cohort.json` and
 version bump is required for another RC. The occupied
 unnumbered preview retains its separately guarded append/promote path and its
 original source and bytes; it never acquires a retroactive build number.
+
+## Prepared stable-copy operation
+
+The original `v0.4.0` preview cannot be replaced. A separately authorized
+`tools/publish-release.sh --copy-stable` operation can copy one complete numbered
+RC to a new bare marketing-version tag, such as `0.4.0`, at the exact producer
+source. It uses the existing publisher and strict three-path publisher/test
+revision bridge. This prepared route does not promote or retag the RC and does
+not itself supply publication authorization.
+
+Supply the same cohort, source, full native manifests, Mac directory and RC
+baseline as the append route. `--dry-run` verifies the selected bytes and exact
+source RC, refuses an occupied local/remote target, and reports missing RC
+assets and missing acceptance/authority without mutation. A real copy requires
+separately bound `--stable-acceptance` and `--publication-authorization` records:
+source/version/tag, source-RC tag, cohort digest, exact asset inventory, evidence
+digests, accepted status and an empty blocking list must match.
+
+Installed source offers continue to name the RC. Append and verify any missing
+source-RC files through the existing guarded append operation first; never
+rewrite those offers or repackage frozen bytes. The copy path refuses an
+incomplete source RC, creates an annotated tag at the producer commit and a
+draft prerelease outside Latest, uploads without replacement, and verifies the
+complete set before its final stable/Latest edit. Uncertain or occupied outcomes
+require inspection rather than automatic retry. Verify anonymous downloads and
+native trust afterward. Base-version precedence remains unchanged: installed
+0.3.4 can update to 0.4.0, while an existing 0.4.0 preview requires manual
+installation of another 0.4.0 cohort.
