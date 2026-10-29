@@ -67,56 +67,56 @@ Full-source and manifest pins are resealed with this recorded review, followed
 by the actual positive inventory and hostile bypass controls. This is
 self-review, not independent or native acceptance.
 
-Initial evidence: Debug core/host tests pass; the controlled public course
-passes both recorded hosts in 6.15 seconds; the original threaded/reaction
-course passes in 8.29 seconds. The first controlled driver read a cached
-phase-8 diagnostic without advancing the probe to phase 9; that failed run
-remains recorded separately, and the corrected driver observes the same held
-read and terminal conditions before accepting success. Release and Windows
-verification are not yet supplied.
-
 ## Current verification, 2026-10-29 UTC
 
-- Mac Debug: the expanded core/host tests, controlled public regression and
-  original threaded/reaction course pass (4/4, final r3). This includes
-  overlapping hosts reusing a numeric request, every scope-field retirement,
-  duplicate success/failure/refusal/cancellation/unconfirmed terminals for
-  both conversation operations, and held edit-terminal quiescence.
-- Mac Release: those four courses pass (4/4). The affected composition closure
-  also passes (5/5): source/seal hostile controls, round-trip composition,
-  description editing, comment editing and the network-isolation manifest.
-- Core-only: configure and focused build pass; conversation policy and both
-  architecture checks pass (3/3). Clang-format 22 checks all eight touched C++
-  files. Documentation structure, 67 documentation cases and two allocation
-  cases pass. Strict LLVM 22 analysis is still pending.
-- A causal negative control compiles a copied host translation unit that
-  changes only `retire_conversation_changes` from drain to hard close and
-  links it ahead of the exact candidate application library. The controlled
-  course fails at the original predicate: one resolution, zero completions
-  and pending state after refresh. Its expected-failure driver passes; this
-  is discrimination evidence, not a successful product course.
+Mac Debug and Release each pass the expanded core/host tests, the controlled
+public regression for github.com and GHES, and the original threaded/reaction
+course (4/4 each). Coverage includes full-scope retirement, reused numeric
+requests across overlapping hosts, success/failure/refusal/cancellation and
+unknown terminals for both conversation operations, duplicates, hard shutdown,
+and held description/comment terminal quiescence. Release affected composition
+closure passes 5/5, including positive inventory and hostile bypass controls,
+description/comment courses and the network-isolation manifest. Core-only
+conversation and both architecture checks pass (3/3).
 
-Raw evidence and receipts remain in the external release run under
-`lifecycle-*` and `qualification-repairs-r1/lifecycle-retirement-negative-r1/`.
-All Mac functional commands are terminal. The original Ubuntu N qualification
-is still running (PID 2883647, source `144de719a`); no Windows build/replay has
-started while it is active. Required repaired-source Windows acceptance and
-final release/numbering/security obligations remain pending. No shared cause
-with the five other Windows agent-course failures has been established.
+Strict LLVM 22 analysis passes all six changed translation units. Its original
+public-test lambda naming failure remains recorded; the naming-only correction
+passes a focused rerun. Clang-format 22 passes all eight changed C++ files after
+the separate whitespace correction. Documentation structure, 67 documentation
+cases, two allocation cases and the secret scan pass. Production source bytes
+are unchanged between product commit `344ab410d`, naming commit `02516413e`
+and whitespace commit `a74c9a875`; compiled images retain their actual source
+and build identities independently.
 
-Strict LLVM 22 analysis completed the production and core/host test translation
-units successfully. Its only failure was the new public test's local lambda
-name `release_read`; the naming-only correction to `releaseRead` is committed
-separately and receives a focused static/build/public recheck. The earlier
-static failure remains in `lifecycle-tidy-r1.log`. No product behavior changes.
+A causal negative control compiles a copied host translation unit changing only
+`retire_conversation_changes` from drain to hard close, linked ahead of the
+candidate library. The public course then fails at the original phase-9
+predicate: one resolution, zero completions and pending state after refresh.
+Its expected-failure driver passes; this is discrimination evidence.
 
-The original Ubuntu N qualification is now terminal and its raw archive is
-collected and hash verified: Release 848 passed/10 failed; Debug 836 passed/13
-failed/1 skipped. The Debug cache-byte course reports optimized-only skip;
-the eight separate Debug timing omissions receive no credit. Threaded reply,
-description editing and comment editing all stopped at the same unresolved
-phase-9 resolution before edit acceptance. This is original-source failure
-evidence, not repaired-source Linux acceptance. The isolated Windows repair
-checkout is prepared from `344ab410d`; MASK preview refused its missing local
-locked content, so the approved AgentSkills tap is fetched before previewing
-again. No native repair build has started yet.
+The original Ubuntu N qualification is terminal and its complete raw archive
+is collected and hash verified: Release 848 passed/10 failed; Debug 836
+passed/13 failed/1 skipped. The optimized-only Debug cache-byte skip and eight
+separate Debug timing omissions receive no credit. Threaded reply, description
+and comment courses fail at the same phase-9 resolution before edit acceptance.
+These original-source failures remain unchanged; repaired Linux closure is
+pending a retained-source/producer inventory and coordinator reconciliation.
+
+The isolated Windows repair checkout completed source `a74c9a875` builds in
+both configurations after the original Ubuntu task became terminal. Normal
+MASK registration/readiness and the three bootstrap checks passed. Release
+passes the core, host, original threaded/reaction, description and comment
+courses (5/6); the new controlled course initially refuses fixture startup
+inside containment. Debug functional rows were unreached by that fail-fast run.
+Paired same-image Release and Debug controls then pass directly and refuse
+contained startup at the exact `fixture application starts` predicate. Only
+the measured new registration and its verifier pin change; no Win32 cause is
+inferred. Registered new Release and complete Debug closure remain pending.
+
+Raw receipts and streams remain in the external release run under
+`lifecycle-*` and `qualification-repairs-r1/`. Original Windows 40-second and
+243.197-second failures remain failures. No shared mechanism with the five
+agent-completion failures has been demonstrated. A separate test-only bounded
+recovery proposal is handed to the coordinator without running it in this
+milestone. Final numbering, package/native trust and security obligations
+remain outside this issue. No numbered cohort is allocated here.

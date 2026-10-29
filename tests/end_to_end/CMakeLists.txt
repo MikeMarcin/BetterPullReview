@@ -957,7 +957,10 @@ target_compile_definitions(test_better_pull_review_thread_resolution_refresh PRI
 target_compile_features(test_better_pull_review_thread_resolution_refresh PRIVATE cxx_std_23)
 bpr_enable_hardening(test_better_pull_review_thread_resolution_refresh)
 bpr_enable_warnings(test_better_pull_review_thread_resolution_refresh)
-bpr_add_network_isolated_test(NAME application_thread_resolution_refresh COMMAND test_better_pull_review_thread_resolution_refresh)
+# [[BPR-1800]]. Both native Windows configurations pass this exact image
+# directly and refuse fixture startup in the container; no lower-level cause
+# was sampled. Keep the measured registration beside its verifier pin.
+bpr_add_network_isolated_test(NAME application_thread_resolution_refresh WINDOWS_UNCONTAINED COMMAND test_better_pull_review_thread_resolution_refresh)
 set_tests_properties(application_thread_resolution_refresh PROPERTIES
     ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
     PASS_REGULAR_EXPRESSION "thread-resolution-refresh-public-path:pass"

@@ -131,6 +131,10 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
 # STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    # [[BPR-1800]]. Source a74c9a875, native Release/Debug on 2026-10-29:
+    # same-image direct baselines pass; contained runs fail the exact first
+    # predicate "fixture application starts". No Win32 cause was sampled.
+    "application_thread_resolution_refresh": "fixture-startup-unavailable",
     # [[BPR-1797]]. Actual paired Release/Debug observations on JaegAW,
     # source144de719a, 2026-10-28. Every named normal baseline passes and every
     # forced zero-capability contained course exits1 before its functional
