@@ -5,6 +5,7 @@
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
+#include "bpr/core/reviewer_request.hpp"
 #include "github_capability_probe.hpp"
 #include "github_device_authorization_contract.hpp"
 #include "github_mutation_contract.hpp"
@@ -54,6 +55,7 @@
 #include <string>
 #include <string_view>
 #include <thread>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -2141,7 +2143,11 @@ namespace bpr::app::detail {
 			bool DescriptionServed = false;
 			// [[BPR-1775]]. With `--comment-edit-probe`, the provider edits the
 			// replies it published (their bodies live in `ThreadOverlays`).
-			bool                       CommentsEditable = false;
+			bool CommentsEditable = false;
+			// [[BPR-1804]]. With `--reviewer-request-probe`, the provider
+			// searches reviewers and keeps the requests it was asked for.
+			bool                       ReviewersServed = false;
+			std::vector<std::string>   RequestedReviewers;
 			std::optional<std::string> Description;
 
 			// [[BPR-0990]]. The repository's open pull requests discovery
@@ -5467,6 +5473,54 @@ namespace bpr::app::detail {
 				return application::review_comment_edit_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-27T12:00:00Z", .Written = true };
 			}
 
+			// [[BPR-1804]]. Reviewers as GitHub would answer them: a
+			// suggestion, two people who match by login, the requests kept so
+			// far. The core decides before a write; `octo-outsider` is dropped
+			// silently, as GitHub drops someone who may not review.
+			auto reviewers(
+				const application::review_reviewer_request& aRequest,
+				std::stop_token)
+				-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure> override
+			{
+				const std::scoped_lock providerLock{ Mutex };
+				if (State == nullptr || !State->ReviewersServed) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				if (aRequest.Target != Designated) {
+					return std::unexpected{ application::review_mutation_failure::undesignated_target };
+				}
+				const std::scoped_lock lock{ State->Mutex };
+				const auto             query  = aRequest.Operation == application::review_reviewer_operation::search ? aRequest.Query : aRequest.Login;
+				auto                   answer = core::reviewer_search_answer{
+					.Author    = "octo-author",
+					.Suggested = { core::reviewer_candidate{ .NodeId = "U_fixture_other", .Login = "fixture-other-reviewer", .Name = "Other Reviewer", .Commenter = true } },
+					.Requested = State->RequestedReviewers,
+				};
+				for (const auto& [node, login, name] : { std::tuple{ "U_octo_maintainer", "octo-maintainer", "Octo Maintainer" }, std::tuple{ "U_octo_outsider", "octo-outsider", "" } }) {
+					if (std::string_view{ login }.find(query) != std::string_view::npos) {
+						answer.Matches.push_back(core::reviewer_candidate{ .NodeId = node, .Login = login, .Name = name });
+					}
+				}
+				if (aRequest.Operation == application::review_reviewer_operation::search) {
+					++Evidence.ReviewerSearches;
+					return application::review_reviewer_receipt{ .Answer = std::move(answer) };
+				}
+				switch (core::decide_reviewer_write(answer, aRequest.Login)) {
+				case core::reviewer_write_decision::already_requested:
+					return application::review_reviewer_receipt{ .Answer = std::move(answer) };
+				case core::reviewer_write_decision::author:
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				case core::reviewer_write_decision::write:
+					break;
+				}
+				++Evidence.ReviewerWrites;
+				if (aRequest.Login != "octo-outsider") {
+					State->RequestedReviewers.push_back(aRequest.Login);
+				}
+				answer.Requested = State->RequestedReviewers;
+				return application::review_reviewer_receipt{ .Answer = std::move(answer), .Written = true };
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
@@ -5476,6 +5530,7 @@ namespace bpr::app::detail {
 					.Reacts             = State != nullptr && State->ReactionsServed,
 					.EditsDescription   = State != nullptr && State->DescriptionServed,
 					.EditsComments      = State != nullptr && State->CommentsEditable,
+					.RequestsReviewers  = State != nullptr && State->ReviewersServed,
 				};
 			}
 
@@ -5658,6 +5713,7 @@ namespace bpr::app::detail {
 			Recording->ReactionsServed   = aOptions.ServesReactions;
 			Recording->DescriptionServed = aOptions.EditsDescription;
 			Recording->CommentsEditable  = aOptions.EditsComments;
+			Recording->ReviewersServed   = aOptions.RequestsReviewers;
 			if (aOptions.ServesReactions) {
 				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
 					.ViewerCanReact = true,
