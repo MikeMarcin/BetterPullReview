@@ -84,3 +84,7 @@ wash and edge on the whole post, which the plate does not imitate.
 - Not changed: author labels ([[BPR-1803]]), the Tour tab, and permalink
   rendering ([[BPR-1802]]). The pinned source is hidden with the rest of the
   scaffolding; the plate does not yet show it.
+
+## Owner review
+
+Attended screenshot review session 00fef88b0f9a8d6133fc06b452010a90 (state /Users/jaeger/bpr-attended/tour-cards-v001/state, closed 2026-10-29) at efcaafa33: closed-note look accepted; open-thread plate rejected — keep tour previous/next navigation in a compact, polished form. Follow-up BPR-1810.

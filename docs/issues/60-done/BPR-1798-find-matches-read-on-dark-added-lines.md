@@ -61,3 +61,7 @@ gain 3:1 on a dark row and still leave light syntax text at 4.5:1.
   blocks.
 - Light theme: the rings are the darker amber `#AD7A00`, or a burnt orange
   where a darker ground needs one. The light washes did not move.
+
+## Owner review
+
+Attended review session 2063d344831eda3c7c7012ecd339bb77 (state /Users/jaeger/bpr-attended/bpr-1798-find-rings-v001/state, closed 2026-10-29): owner accepted both criteria at 3ff95dc21 — dark added-line matches visible with a distinct current match, and ringing every match in light theme. Frozen build removed.

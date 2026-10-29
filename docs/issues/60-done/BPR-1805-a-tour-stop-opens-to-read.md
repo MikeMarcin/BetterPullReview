@@ -99,3 +99,7 @@ rendered form exists only in the Preview tab and in the publication column.
   synthetic key events, not through the native key map.
 - `coding-tidy` ran on the changed translation units only, not the whole
   tree.
+
+## Owner review
+
+Attended screenshot review session 00fef88b0f9a8d6133fc06b452010a90 (state /Users/jaeger/bpr-attended/tour-cards-v001/state, closed 2026-10-29) at efcaafa33: edit view accepted; read view rejected as not judgeable — the renders carried no code or rich Markdown. A re-review with richer stop content is pending.
