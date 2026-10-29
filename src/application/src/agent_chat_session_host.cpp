@@ -89,12 +89,14 @@ namespace bpr::application {
 	}
 
 	auto agent_chat_session_host::refuse(
-		const core::agent_session_id aSession,
-		const agent_chat_refusal     aRefusal) -> agent_chat_outcome
+		const core::agent_session_id   aSession,
+		const agent_chat_refusal       aRefusal,
+		const core::agent_send_refusal aSend) -> agent_chat_outcome
 	{
 		return present(agent_chat_outcome{
 			.Session = aSession,
 			.Refusal = aRefusal,
+			.Send    = aSend,
 		});
 	}
 
@@ -168,6 +170,28 @@ namespace bpr::application {
 		present_state();
 	}
 
+	void agent_chat_session_host::choose_agent(const core::agent_profile_id aProfile)
+	{
+		if (!Session.has_value() || !Observed.has_value() || Session->Profile == aProfile) {
+			return;
+		}
+		// The chosen agent's own conversation, at the revision under review.
+		// The identity is kept: the launch path allocates the next one when
+		// the turn is admitted, and `admitted` adopts it then.
+		Session = core::agent_session{
+			.Id      = Session->Id,
+			.Profile = aProfile,
+			.Binding = *Observed,
+		};
+		Chosen.reset();
+		Replies.clear();
+		AwaitingReply = false;
+		Chat          = initial_chat_state();
+		OptIn         = core::agent_private_context_optin{ .Session = Session->Id };
+		++Statistics.SessionsStarted;
+		present_state();
+	}
+
 	void agent_chat_session_host::clear()
 	{
 		Replies.clear();
@@ -226,13 +250,13 @@ namespace bpr::application {
 	{
 		++Statistics.Intents;
 		if (!Session.has_value() || !Observed.has_value()) {
-			return refuse(aSend.Session, agent_chat_refusal::no_session);
+			return refuse(aSend.Session, agent_chat_refusal::no_session, core::agent_send_refusal::no_review);
 		}
 		if (aSend.Session != Session->Id) {
-			return refuse(aSend.Session, agent_chat_refusal::other_session);
+			return refuse(aSend.Session, agent_chat_refusal::other_session, core::agent_send_refusal::no_review);
 		}
 		if (aSend.Text.empty()) {
-			return refuse(aSend.Session, agent_chat_refusal::empty_message);
+			return refuse(aSend.Session, agent_chat_refusal::empty_message, core::agent_send_refusal::empty_message);
 		}
 
 		// 1. Whether a session that stopped matching may still be talked to.
@@ -244,6 +268,7 @@ namespace bpr::application {
 				.Session   = aSend.Session,
 				.Refusal   = agent_chat_refusal::session_stale,
 				.Staleness = offer.Status.Staleness,
+				.Send      = core::agent_send_refusal::session_stale,
 			};
 			return present(std::move(outcome));
 		}
@@ -264,6 +289,7 @@ namespace bpr::application {
 				.Session = aSend.Session,
 				.Refusal = agent_chat_refusal::action_refused,
 				.Action  = verdict.Refusal,
+				.Send    = core::agent_send_refusal_of(verdict),
 			};
 			return present(std::move(outcome));
 		}
@@ -277,6 +303,7 @@ namespace bpr::application {
 				.Session = aSend.Session,
 				.Refusal = agent_chat_refusal::scope_refused,
 				.Scope   = turn.Refusal,
+				.Send    = core::agent_send_refusal::scope_invalid,
 			};
 			return present(std::move(outcome));
 		}
@@ -292,7 +319,7 @@ namespace bpr::application {
 			|| (OptIn.Drafts && !prose.Drafts.empty());
 		if (asked && admitted.Notes.empty() && admitted.Drafts.empty()) {
 			return refuse(
-				aSend.Session, agent_chat_refusal::private_context_refused);
+				aSend.Session, agent_chat_refusal::private_context_refused, core::agent_send_refusal::private_context_refused);
 		}
 
 		auto request = agent_chat_turn_request{
@@ -305,7 +332,7 @@ namespace bpr::application {
 			.Message        = aSend.Text,
 		};
 		if (!Dispatcher || !Dispatcher(request)) {
-			return refuse(aSend.Session, agent_chat_refusal::launch_refused);
+			return refuse(aSend.Session, agent_chat_refusal::launch_refused, core::agent_send_refusal::launch_refused);
 		}
 		++Statistics.Turns;
 		AwaitingReply = true;

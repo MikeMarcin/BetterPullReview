@@ -1438,6 +1438,19 @@ foreach(bpr_title_row_scale IN ITEMS 100 125 200)
     )
 endforeach()
 
+# [[BPR-1817]]. A send the agent composer cannot make, or the host refuses,
+# says why beside the composer; a run that fails after it started is an error
+# entry in the thread.
+bpr_add_network_isolated_test(
+    NAME qt_workbench_agent_send_refusal
+    COMMAND test_better_pull_review_qt_workbench_window_tests --agent-send-refusal
+)
+set_tests_properties(qt_workbench_agent_send_refusal PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "workbench-agent-send-refusal:pass"
+    TIMEOUT 120
+)
+
 # [[BPR-1028]]. The strip's application menu against its window's lifetime:
 # closed, it deletes itself; open under an accessible File > Quit, it goes with
 # the window. [[BPR-1022]]: Alt alone and F10 open it with its first menu

@@ -280,7 +280,11 @@ namespace bpr::qt {
 
 	void agent_launch_panel::refuse(const std::string_view aReason)
 	{
+		++Refusals;
+		LastRefusal = QString::fromUtf8(aReason.data(), static_cast<qsizetype>(aReason.size()));
 		if (ActiveInvocation.has_value()) {
+			// The running turn's status stays; the refusal is still said.
+			progressed();
 			return;
 		}
 		Running = false;

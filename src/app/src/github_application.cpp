@@ -21589,6 +21589,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// selection observed earlier would answer for where the
 				// reviewer was, not where they are.
 				ChatHost->observe_selection(current_agent_chat_selection());
+				// [[BPR-1817]]. And to the agent the composer's menu shows,
+				// read at the gesture as well. Before this the turn went to
+				// the chat's default profile whatever was chosen, so an added
+				// agent was never asked, and a server that refused the default
+				// dropped the question.
+				if (Window != nullptr && Window->agent_panel() != nullptr) {
+					if (const auto chosen = Window->agent_panel()->selected_profile()) {
+						ChatHost->choose_agent(*chosen);
+					}
+				}
 				// [[BPR-1773]]. A note is mutable, so it is not sent: its text
 				// is first saved in Private history as one revision, and the
 				// turn runs with that revision as its only private source.
@@ -21714,7 +21724,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case application::agent_chat_refusal::launch_refused:
 				break;
 			}
+			// [[BPR-1817]]. The launch path names its own refusal before the
+			// chat's answer arrives; it is the detail of `launch_refused`.
+			const auto launchSaid = aOutcome.Send == core::agent_send_refusal::launch_refused && Window != nullptr && Window->agent_panel() != nullptr
+				? Window->agent_panel()->last_refusal()
+				: QString{ };
 			present_agent_refusal("side chat", reason);
+			// And said beside the composer, in the core's vocabulary.
+			if (aOutcome.Send != core::agent_send_refusal::none && Window != nullptr && Window->agent_tab() != nullptr) {
+				Window->agent_tab()->refuse_send(aOutcome.Send, launchSaid);
+			}
 		}
 
 		/// \brief Every private note the review holds, by identity.
