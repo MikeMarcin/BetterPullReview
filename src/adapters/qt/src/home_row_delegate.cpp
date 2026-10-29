@@ -694,7 +694,7 @@ namespace bpr::qt {
 		const auto separator = aText.indexOf(chip_host_separator);
 		const auto login     = separator < 0 ? aText : aText.left(separator);
 		paint_identity_avatar(aPainter, QRectF{ QRect{ aRect.left() + chip_inset, aRect.top() + chip_inset, tile, tile } }.adjusted(0.5, 0.5, -0.5, -0.5),
-							  { .Identity = login }, aGrounds, aFont);
+							  { .Identity = login, .Generated = true }, aGrounds, aFont);
 		const auto left = aRect.left() + chip_inset + tile + chip_gap;
 		aPainter.setFont(aFont);
 		aPainter.setPen(aInk.Label);

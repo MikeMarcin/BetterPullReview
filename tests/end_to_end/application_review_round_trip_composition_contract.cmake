@@ -1,3 +1,10 @@
+# [[BPR-1806]] tour-stop merge reseal (2026-10-28), over 27c65aa4b.
+# github_application.cpp gains BPR-1806's Open in tour beside BPR-1804's
+# Request review: a published tour stop card's dispatch starts the published
+# tour at that stop through start_published_tour, which remembers the stop
+# while an import is pending and drops it on retirement. No credential,
+# grant, provider, mutation, publication or source-inventory change; the
+# mutation-branch pin is unchanged.
 # [[BPR-1804]] reviewer-request reseal (2026-10-28), over 1ff1314c4.
 # github_application.cpp, main.cpp and the public-path fixture add Request
 # review in People: the picker's gestures reach the core's reviewer picker
@@ -2439,8 +2446,16 @@ function(bpr_verify_full_application_digest source_variable)
 	# draft path, or Overview's new pull request comment), and Go to draft
 	# opens it. No credential, grant, provider, mutation, publication or
 	# source-inventory change; the mutation-branch pin is unchanged.
+	# [[BPR-1807]] avatar-picture reseal (2026-10-28). github_application.cpp
+	# gives each window's identity_avatar_pictures the profile's avatar style
+	# (Appearance > People) and sends the logins and sizes its faces ask for to
+	# the window read host's request_identity_avatars, which fetches through the
+	# existing profile image lane. The appearance dispatch gains
+	# apply_avatar_style_intent. No credential, grant, provider, mutation,
+	# publication or source-inventory change; the mutation-branch pin is
+	# unchanged.
 	set(bpr_expected_full_application_digest
-		"a0f27d577e0a0817e9840e9a4cfe228722de6b0570f52fbaacfbb54b84c1a1ed"
+		"fc9333e67646df83bd9735efc8358cbe426f52755d7fcf71f4c75e4934fa0905"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2694,8 +2709,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # only. Draft comment on every Agent tab answer replaces Use as reply; it
 # writes private drafts through the existing reply, line-draft and new
 # pull request comment paths. No grant, mutation or publication change.
+# [[BPR-1807]] avatar-picture reseal (2026-10-28): github_application.cpp
+# only. Avatar style adoption, the avatar style appearance intent and each
+# window's picture dispatch. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "879ed47948dd8abd143421756a6b8842511863da35681f9ee06a6e373559bbe1"
+        "2dd7a335cb20c9b1607345ac4e4c97d74c86eff186cfedf37d098a985f549aea"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -568,6 +568,10 @@ namespace bpr::qt {
 		/// identity). Without it the link is not offered.
 		void               set_pull_request_link_dispatch(std::function<void(const std::string&)> aDispatch);
 		[[nodiscard]] auto pull_request_comments_shown() const noexcept -> bool;
+		/// \brief [[BPR-1808]]. The time-ordered conversation's counts, before
+		/// and after its filters, and why a filtered list is empty: the core's
+		/// summary of the last arrangement.
+		[[nodiscard]] auto timeline_summary() const noexcept -> const core::timeline_filter_summary&;
 		[[nodiscard]] auto pull_request_comments_chip() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto scope() const noexcept -> cards_scope;
 		void               set_anchor_file(std::optional<core::file_identity> aFile);
@@ -982,6 +986,7 @@ namespace bpr::qt {
 		/// [[BPR-1779]]. The rows the core arranged for the time order, and
 		/// the lines laid out between the comments.
 		std::vector<core::timeline_row> TimelineRows;
+		core::timeline_filter_summary   TimelineSummary;
 		std::vector<timeline_line>      TimelineLines;
 		/// [[BPR-1779]]. The path line under the pointer, drawn in full ink.
 		std::string HoveredPath;

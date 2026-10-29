@@ -60,6 +60,9 @@ namespace bpr::qt {
 		identity_avatar_shape Shape = identity_avatar_shape::person;
 		/// A one-pixel ring two pixels outside the disc, for mine; no ring when invalid.
 		QColor Ring;
+		/// [[BPR-1807]]. Always the initials, never a picture: an account or an
+		/// owner whose host is not the one this window's pictures come from.
+		bool Generated = false;
 	};
 
 	/// \brief [[BPR-1583]]. Draws one avatar in `aBox`: the one painter every
@@ -67,6 +70,11 @@ namespace bpr::qt {
 	///
 	/// \details The initials are bold, scaled with the box: 0.53 of its height
 	/// for one letter, 0.44 for two, never under 6 px.
+	///
+	/// [[BPR-1807]]. A person drawn on a widget whose window has
+	/// `identity_avatar_pictures` in the GitHub style shows their picture,
+	/// masked to the disc, once the host has published it; until then, and
+	/// whenever it cannot be had, the initials. The ring is drawn either way.
 	void paint_identity_avatar(
 		QPainter&                      aPainter,
 		const QRectF&                  aBox,
@@ -82,7 +90,9 @@ namespace bpr::qt {
 		explicit identity_avatar_view(int aSide, QWidget* aParent = nullptr);
 
 		/// \brief Shows this identity; an empty one is the neutral `?` face.
-		void               set_identity(const QString& aIdentity);
+		void set_identity(const QString& aIdentity);
+		/// \brief [[BPR-1807]]. Always the initials (an account's own avatar).
+		void               set_generated(bool aGenerated);
 		[[nodiscard]] auto identity() const -> const QString&;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 
@@ -91,7 +101,8 @@ namespace bpr::qt {
 
 	private:
 		QString Identity;
-		int     Side = 0;
+		int     Side      = 0;
+		bool    Generated = false;
 	};
 } // namespace bpr::qt
 

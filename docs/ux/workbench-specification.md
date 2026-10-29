@@ -2963,8 +2963,7 @@ GitHub owner is drawn by one avatar everywhere: Threads and the Comments
 drawer's notes and reply faces, the open thread's posts, the reply
 composer's own face, Discuss and the thread finder, Overview's participants
 and review requests, Home's account chips and group headers, and the
-Settings account card with its GitHub CLI accounts. No surface shows or
-fetches a GitHub avatar image.
+Settings account card with its GitHub CLI accounts.
 
 - **Colour.** An identity keeps one of ten tones on every surface. Its slot is
   FNV-1a over the login with ASCII letters folded to lower case (logins are
@@ -2994,6 +2993,33 @@ fetches a GitHub avatar image.
 - The Profiles sheet keeps its neutral letter tile: a profile is not a
   person. On Home a person's colour is the person's own; rows, bands and tags
   keep colour for state.
+- **Pictures** ([[BPR-1807]]; owner, 2026-10-28: "Is it possible to show users
+  real avatars from GitHub/GHES instead of our made up color ones? Maybe offer
+  a setting to go back to the current ones?"). With **Appearance > People >
+  Avatars** on GitHub pictures, the default, a person in a pull request's
+  window shows their own picture from that pull request's server, masked to
+  the same disc, with mine keeping its ring. The coloured initials show while
+  it loads, when it cannot be fetched, offline, signed out, and for a name
+  that is not a GitHub login; a team keeps its square. Coloured initials
+  never fetches a picture. Home's account chips and group headers and the
+  Settings account card keep their initials: they may name an account on a
+  server other than the pull request's.
+- **How a picture is fetched.** Each face asks its window for its login at
+  the device pixels it covers; the window asks once per login and size at
+  the end of the event-loop turn. The core admits the login (1 to 39 ASCII
+  letters, digits and hyphens, not starting with a hyphen, optionally
+  `[bot]`) and builds the address: GitHub.com's
+  `https://avatars.githubusercontent.com/<login>?s=<n>`, never with the
+  credential, or a GHES host's `https://<host>/<login>.png?size=<n>`, with
+  the credential only to the host itself. Every hop, redirects included, is
+  held to the host's avatar origins (`avatars.githubusercontent.com`; the
+  GHES host or `avatars.<host>`). The size is the smallest of 32, 48, 64, 96,
+  128 and 192 that covers the face. The fetch runs on the profile's image
+  lane, shares its four-fetch concurrency, decoder and caches, and is bounded
+  at 1 MiB and ten seconds; at most 64 pictures wait per window. A picture
+  is kept in memory and on disk under the host, account, login and size, so a
+  restart shows it without asking; changing account or host forgets the
+  window's pictures.
 
 ## Command placement
 

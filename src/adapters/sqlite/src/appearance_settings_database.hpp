@@ -42,7 +42,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// Version 10 adds `known_namespaces`, the C++ namespaces the reviewer names
 	/// as known, written as the settings field shows them ([[BPR-1714]]); a
 	/// version-9 record takes the default, `std`.
-	inline constexpr std::int64_t appearance_settings_schema_version = 10;
+	/// Version 11 adds `avatar_style`, what people's avatars show
+	/// ([[BPR-1807]]); a version-10 record takes the default, GitHub pictures.
+	inline constexpr std::int64_t appearance_settings_schema_version = 11;
 
 	/// \brief Owns the durable appearance settings database.
 	///

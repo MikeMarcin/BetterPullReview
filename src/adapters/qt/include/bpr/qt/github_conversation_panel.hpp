@@ -160,6 +160,25 @@ namespace bpr::qt {
 		[[nodiscard]] auto scope_whole_pull_request_button() const noexcept -> QToolButton*;
 		/// \brief Discuss: every thread in file order, with its scope and filters.
 		void set_discuss(bool aDiscuss);
+		/// \brief [[BPR-1808]]. Overview's Comments: the pull request's
+		/// conversation in time order (`conversation_cards_view::show_pull_request_comments`)
+		/// with Only new and Hide resolved as chips over it, its counts, and a
+		/// message with Clear filters when the filters leave nothing. Its
+		/// filters are its own, kept while Review's tray holds the panel and
+		/// given back when Overview takes it again; Review's are kept the same
+		/// way. Ignored while Discuss holds the panel.
+		void               set_pull_request_conversation(bool aShown);
+		[[nodiscard]] auto pull_request_conversation() const noexcept -> bool;
+		/// \brief [[BPR-1808]]. Turns off Overview's Only new and Hide resolved.
+		void clear_conversation_filters();
+		/// \brief [[BPR-1808]]. Before a link opens `aIdentity` on Overview's
+		/// Comments: when the filters hide it, turns them off and says so in
+		/// the notice. Whether it turned any off.
+		auto               reveal_in_conversation(const std::string& aIdentity) -> bool;
+		[[nodiscard]] auto conversation_empty() const noexcept -> QWidget*;
+		[[nodiscard]] auto conversation_empty_title() const noexcept -> QLabel*;
+		[[nodiscard]] auto conversation_empty_clear() const noexcept -> QPushButton*;
+		[[nodiscard]] auto clear_filters_button() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1337]]. Whether the availability line says only how many
 		/// review threads there are. Discuss's counts then say it, and the line
 		/// is shown only when it says something else. Off until told.
@@ -240,6 +259,7 @@ namespace bpr::qt {
 		void synchronize_current();
 		void show_loaded_page();
 		void refresh_summary();
+		void refresh_conversation_summary();
 		void refresh_projection();
 		void arrange_filters();
 
@@ -259,6 +279,7 @@ namespace bpr::qt {
 		bool                 AvailabilityOrdinary = false;
 		QWidget*             ReadTools            = nullptr;
 		QHBoxLayout*         ReadToolsRow         = nullptr;
+		QWidget*             ScopeBox             = nullptr;
 		QToolButton*         ScopeThisFile        = nullptr;
 		QToolButton*         ScopeWholePr         = nullptr;
 		QComboBox*           DiscussFileChoice    = nullptr;
@@ -294,6 +315,14 @@ namespace bpr::qt {
 		cards_scope                          DiscussScope = cards_scope::whole_pull_request;
 		discuss_filters                      DiscussFilters;
 		discuss_filters                      ReadFilters;
+		/// [[BPR-1808]]. Overview's Comments: shown, its filters while it does
+		/// not show, and its filtered-empty message.
+		bool            Conversation = false;
+		discuss_filters ConversationFilters;
+		QWidget*        ConversationEmpty       = nullptr;
+		QLabel*         ConversationEmptyTitle  = nullptr;
+		QLabel*         ConversationEmptyDetail = nullptr;
+		QPushButton*    ConversationEmptyClear  = nullptr;
 		/// [[BPR-0985]]. The panel made the current row current by itself;
 		/// the reviewer did not choose it.
 		bool DefaultCurrent = false;
