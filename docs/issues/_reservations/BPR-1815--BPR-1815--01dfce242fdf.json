@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1815"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Diff toolbar: one-pane/two-pane toggle with hotkey, go to HEAD source",
+  "created": "2026-10-29T18:37:39.136209+00:00",
+  "base": "851073c596ea286d0d989aa02cb29f8be1c844fc"
+}
