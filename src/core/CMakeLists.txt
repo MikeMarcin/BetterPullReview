@@ -137,6 +137,7 @@ add_library(
         src/overview_tour.cpp
         src/tour_steps.cpp
         src/description_edit.cpp
+        src/reviewer_request.cpp
     src/review_publication_policy.cpp
         src/revisioned_review_draft.cpp
         src/reply_draft_standing.cpp
