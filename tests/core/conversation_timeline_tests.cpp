@@ -148,6 +148,56 @@ namespace {
 		expect(none.Rows.empty() && none.Comments == 0U, "with nothing unread, no review line is left standing alone");
 	}
 
+	/// [[BPR-1808]]. Overview's Comments counts the whole conversation and
+	/// says why a filtered list is empty.
+	void filter_summary()
+	{
+		Scenario   = "filter summary";
+		auto items = owner_186();
+		// t-cpp new and open; t-h resolved and read.
+		items[1].Unread   = true;
+		items[2].Resolved = true;
+		items.push_back(comment("c-new", "2026-10-25T00:00:00Z"));
+		items.back().Unread = true;
+		const auto whole    = summarize_conversation_timeline(items);
+		expect(whole.Comments == 3U && whole.Unread == 2U && whole.Resolved == 1U && whole.Shown == 3U && whole.Empty == timeline_empty::none,
+			   "with no filter the summary counts every comment, its new and resolved ones, and lists them all");
+		const auto fresh = summarize_conversation_timeline(items, { .UnreadOnly = true });
+		expect(fresh.Comments == 3U && fresh.Unread == 2U && fresh.Shown == 2U && fresh.Empty == timeline_empty::none,
+			   "Only new shows the two new comments; the totals stay the whole conversation's");
+		const auto open = summarize_conversation_timeline(items, { .UnresolvedOnly = true });
+		expect(open.Shown == 2U && open.Resolved == 1U && open.Empty == timeline_empty::none, "Hide resolved leaves the two comments that are not resolved");
+
+		auto read = items;
+		for (auto& item : read) {
+			item.Unread = false;
+		}
+		expect(summarize_conversation_timeline(read, { .UnreadOnly = true }).Empty == timeline_empty::no_new, "nothing new: No new replies");
+		expect(summarize_conversation_timeline(read, { .UnreadOnly = true, .UnresolvedOnly = true }).Empty == timeline_empty::no_new,
+			   "nothing new at all with both on is still No new replies");
+		auto resolvedNew      = read;
+		resolvedNew[2].Unread = true;
+		const auto both       = summarize_conversation_timeline(resolvedNew, { .UnreadOnly = true, .UnresolvedOnly = true });
+		expect(both.Shown == 0U && both.Unread == 1U && both.Empty == timeline_empty::no_new_unresolved,
+			   "the only new reply is on a resolved thread: no new replies on unresolved comments");
+		auto allResolved        = std::vector<timeline_item>{ thread("t-1", "", "2026-10-20T00:00:00Z", "a.cpp", 1U), thread("t-2", "", "2026-10-21T00:00:00Z", "b.cpp", 2U) };
+		allResolved[0].Resolved = true;
+		allResolved[1].Resolved = true;
+		expect(summarize_conversation_timeline(allResolved, { .UnresolvedOnly = true }).Empty == timeline_empty::no_unresolved, "every comment resolved: none unresolved");
+		auto keptOpen    = allResolved;
+		keptOpen[0].Kept = true;
+		const auto kept  = summarize_conversation_timeline(keptOpen, { .UnresolvedOnly = true });
+		expect(kept.Shown == 1U && kept.Empty == timeline_empty::none, "the open thread is kept, so the list is not empty");
+		expect(summarize_conversation_timeline(items, { .Listed = std::set<std::string>{ "gone" } }).Empty == timeline_empty::no_match, "a list naming nothing held matches nothing");
+
+		const auto nothing = summarize_conversation_timeline(std::vector<timeline_item>{ }, { .UnreadOnly = true });
+		expect(nothing == timeline_filter_summary{ }, "an empty conversation is not a filter's doing");
+		const auto verdictOnly = std::vector<timeline_item>{ review("r-ok", "jiayin", "2026-10-24T00:00:00Z", timeline_verdict::approved, false) };
+		const auto approvals   = summarize_conversation_timeline(verdictOnly, { .UnreadOnly = true });
+		expect(approvals.Comments == 0U && approvals.Empty == timeline_empty::none, "an approval alone is no comment, so no filter emptied the list");
+		expect(summarize_conversation_timeline(items, { .UnreadOnly = true }) == summarize_conversation_timeline(items, { .UnreadOnly = true }), "equal inputs give equal summaries");
+	}
+
 	/// A review's body is a comment only with a visible character; one that
 	/// is not is never unread content.
 	void body_is_comment()
@@ -165,6 +215,7 @@ auto main() -> int
 	bodies();
 	lone();
 	filters();
+	filter_summary();
 	body_is_comment();
 	if (Failures != 0) {
 		std::cerr << Failures << " expectation(s) failed\n";

@@ -1570,6 +1570,52 @@ namespace {
 		}
 	}
 
+	/// \brief [[BPR-1807]]. People > Avatars shows the adopted style and offers
+	/// the chosen one; adopting a record does not offer it back. With
+	/// `BPR_AVATAR_PICTURE_RENDER_DIR` set the card is captured in Light and Dark.
+	void test_avatar_style_row_offers_and_shows()
+	{
+		auto intents = recorder{ };
+		auto panel   = qt::appearance_settings_panel{ intents.sink() };
+		auto adopted = legal_settings();
+		panel.adopt(adopted);
+		show(panel);
+		auto* const card    = panel.findChild<QWidget*>(QStringLiteral("appearancePeopleCard"));
+		auto* const chooser = panel.findChild<QComboBox*>(QStringLiteral("appearanceAvatarStyle"));
+		expect(card != nullptr && chooser != nullptr && chooser->accessibleName() == QStringLiteral("Avatars"), "the People card holds the Avatars row");
+		expect(chooser->currentText() == QStringLiteral("GitHub pictures") && chooser->count() == 2, "GitHub pictures is the default of two");
+		expect(intents.count() == 0U, "showing the adopted style offers nothing");
+		chooser->setCurrentIndex(chooser->findText(QStringLiteral("Coloured initials")));
+		const auto* const offered = intents.last<application::apply_avatar_style_intent>();
+		expect(offered != nullptr && offered->Style == core::identity_avatar_style::generated, "choosing Coloured initials offers it");
+		intents.clear();
+		adopted.Avatars = core::identity_avatar_style::generated;
+		panel.adopt(adopted);
+		expect(chooser->currentText() == QStringLiteral("Coloured initials") && intents.count() == 0U, "an adopted record is shown, not offered again");
+		panel.hide();
+
+		const auto directory = qEnvironmentVariable("BPR_AVATAR_PICTURE_RENDER_DIR");
+		if (directory.isEmpty()) {
+			return;
+		}
+		for (const auto mode : { core::appearance_mode::light, core::appearance_mode::dark }) {
+			auto shown   = qt::appearance_settings_panel{ };
+			auto profile = qt::appearance_profile{ };
+			static_cast<void>(profile.select_mode(mode));
+			auto record = legal_settings();
+			record.Mode = mode;
+			shown.adopt(record);
+			profile.apply_to(shown);
+			shown.adopt_appearance(profile);
+			show(shown);
+			auto* const people = shown.findChild<QWidget*>(QStringLiteral("appearancePeopleCard"));
+			const auto  name   = core::stable_name(mode);
+			expect(capture_2x(*people).save(QStringLiteral("%1/settings-people-%2.png").arg(directory, QString::fromUtf8(name.data(), static_cast<qsizetype>(name.size()))), "PNG"),
+				   "the People card capture is written");
+			shown.hide();
+		}
+	}
+
 	void test_the_profile_supplies_what_only_it_knows()
 	{
 		auto panel   = qt::appearance_settings_panel{ };
@@ -1633,6 +1679,7 @@ auto main(int argc, char** argv) -> int
 	test_the_profile_supplies_what_only_it_knows();
 	test_known_namespaces_field_edits_and_validates();
 	test_known_namespaces_design_captures();
+	test_avatar_style_row_offers_and_shows();
 	std::cout << "appearance-settings-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

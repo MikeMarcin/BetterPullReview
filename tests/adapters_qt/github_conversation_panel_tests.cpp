@@ -943,6 +943,199 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1808]]. The owner: "Seems like I can't show new replies only or
+	/// hide resolved threads on the overview comments tab". Overview's
+	/// Comments has Discuss's Only new and Hide resolved, the core's counts
+	/// and a message with Clear filters when nothing is left, and keeps its
+	/// filters apart from Review's.
+	[[nodiscard]] auto overview_conversation() -> std::vector<conversation>
+	{
+		using kind      = application::github_conversation_kind;
+		const auto post = [](std::string aId, std::string aParent, std::string aAuthor, std::string aBody, std::string aAt) {
+			auto node        = reply(std::move(aId), std::move(aParent));
+			node.AuthorLogin = std::move(aAuthor);
+			node.Body        = std::move(aBody);
+			node.CreatedAt   = std::move(aAt);
+			return node;
+		};
+		auto intro     = conversation{ .Id = "issue-comment:intro", .Kind = kind::issue_comment, .AuthorLogin = "reviewer-one", .Body = "Thanks, reading now.", .CreatedAt = "2026-10-01T09:00:00Z" };
+		auto open      = root("review-thread:open", "src/parser.cpp");
+		auto done      = root("review-thread:done", "src/lexer.cpp");
+		auto later     = root("review-thread:later", "src/lexer.cpp");
+		later.Line     = 30U;
+		done.Resolved  = true;
+		later.Resolved = true;
+		return {
+			intro,
+			open,
+			post("review-comment:open-first", "review-thread:open", "reviewer-two", "Can this loop end early?", "2026-10-02T09:00:00Z"),
+			post("review-comment:open-reply", "review-comment:open-first", "author-one", "Yes, once the buffer is empty.", "2026-10-02T10:00:00Z"),
+			done,
+			post("review-comment:done-first", "review-thread:done", "reviewer-one", "Rename this to token_count.", "2026-10-03T09:00:00Z"),
+			later,
+			post("review-comment:later-first", "review-thread:later", "reviewer-two", "Typo in the comment above.", "2026-10-04T09:00:00Z"),
+			post("review-comment:later-reply", "review-comment:later-first", "author-one", "Fixed in the next push.", "2026-10-04T10:00:00Z"),
+		};
+	}
+
+	[[nodiscard]] auto card_ids(const qt::github_conversation_panel& aPanel) -> std::vector<std::string>
+	{
+		auto ids = std::vector<std::string>{ };
+		for (const auto& card : aPanel.cards()->cards()) {
+			ids.push_back(card.Id);
+		}
+		return ids;
+	}
+
+	/// Space on a focused button, as the keyboard presses it.
+	void press_space(QWidget* const aWidget)
+	{
+		auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+		QApplication::sendEvent(aWidget, &press);
+		QApplication::sendEvent(aWidget, &release);
+	}
+
+	void test_overview_comments_filter_new_and_resolved()
+	{
+		const auto renderRoot = qEnvironmentVariable("BPR_OVERVIEW_FILTER_RENDER_ROOT");
+		for (const auto dark : { false, true }) {
+			auto panel = qt::github_conversation_panel{ };
+			if (dark) {
+				panel.setPalette(dark_palette());
+			}
+			panel.resize(420, 640);
+			panel.show();
+			process_events();
+			panel.adopt(overview_conversation(), QStringLiteral("3 review threads available."));
+			// The reply on the open thread and the later resolved thread are new.
+			panel.cards()->set_read_state({ qt::thread_read_state{ .Thread = "review-thread:open", .UnreadPosts = { "review-comment:open-reply" } },
+											qt::thread_read_state{ .Thread = "review-thread:later", .UnreadPosts = { "review-comment:later-reply" } } });
+			// Review's own Hide resolved is on beside the code.
+			panel.filter_unresolved_button()->setChecked(true);
+			process_events();
+			panel.set_pull_request_conversation(true);
+			panel.set_new_comment_offered(true);
+			process_events();
+			auto* const unread     = panel.filter_unread_button();
+			auto* const unresolved = panel.filter_unresolved_button();
+			auto* const summary    = panel.discuss_summary();
+			expect(panel.pull_request_conversation() && panel.cards()->pull_request_comments_shown() && panel.discuss_controls()->isVisibleTo(&panel)
+					   && panel.discuss_controls()->isAncestorOf(unread) && unread->isVisibleTo(&panel) && unresolved->isVisibleTo(&panel)
+					   && !panel.scope_whole_pull_request_button()->isVisibleTo(&panel) && !panel.scope_this_file_button()->isVisibleTo(&panel),
+				   "Overview's Comments shows Only new and Hide resolved as chips over the conversation, with no scope");
+			expect(unread->toolButtonStyle() == Qt::ToolButtonIconOnly && unread->text() == QStringLiteral("Only new") && unresolved->text() == QStringLiteral("Hide resolved")
+					   && unread->accessibleName() == QStringLiteral("Only new") && unresolved->accessibleName() == QStringLiteral("Hide resolved")
+					   && unread->focusPolicy() == Qt::StrongFocus && unresolved->focusPolicy() == Qt::StrongFocus,
+				   "the chips carry their words as names and take the keyboard");
+			expect(!unread->isChecked() && !unresolved->isChecked() && card_ids(panel).size() == 4U,
+				   "Overview's filters start off; Review's Hide resolved stays Review's");
+			expect(summary->text() == QStringLiteral("4 comments, 2 resolved, 2 with new replies") && !panel.clear_filters_button()->isVisibleTo(&panel),
+				   "the counts say the whole conversation, and Clear waits for a filter");
+
+			// Only new, by the keyboard: Space on the focused chip.
+			unread->setFocus(Qt::TabFocusReason);
+			press_space(unread);
+			process_events();
+			expect(unread->isChecked() && card_ids(panel) == std::vector<std::string>{ "review-thread:open", "review-thread:later" },
+				   "Only new lists the two comments with new replies, in time order");
+			expect(summary->text() == QStringLiteral("2 of 4 comments shown, 2 with new replies") && panel.clear_filters_button()->isVisibleTo(&panel),
+				   "filtered, the counts say how many of the whole are shown, and Clear filters is offered");
+			unresolved->click();
+			process_events();
+			expect(card_ids(panel) == std::vector<std::string>{ "review-thread:open" }, "with Hide resolved too, the resolved new thread goes");
+			if (!renderRoot.isEmpty()) {
+				expect(panel.grab().save(renderRoot + (dark ? QStringLiteral("/filtered-dark.png") : QStringLiteral("/filtered-light.png"))), "filtered render saved");
+			}
+
+			// Read everything: nothing new is left.
+			panel.cards()->set_read_state({ });
+			unresolved->click();
+			process_events();
+			expect(panel.conversation_empty()->isVisibleTo(&panel) && !panel.cards()->isVisibleTo(&panel)
+					   && panel.conversation_empty_title()->text() == QStringLiteral("No new replies")
+					   && panel.conversation_empty()->accessibleName() == QStringLiteral("No new replies")
+					   && panel.conversation_empty_clear()->isVisibleTo(&panel) && panel.conversation_empty_clear()->focusPolicy() == Qt::StrongFocus,
+				   "with nothing new, the list gives way to No new replies and its Clear filters");
+			expect(summary->text() == QStringLiteral("0 of 4 comments shown, 0 with new replies"), "the counts still say the whole conversation");
+			if (!renderRoot.isEmpty()) {
+				expect(panel.grab().save(renderRoot + (dark ? QStringLiteral("/no-new-replies-dark.png") : QStringLiteral("/no-new-replies-light.png"))), "empty render saved");
+			}
+			panel.conversation_empty_clear()->setFocus(Qt::TabFocusReason);
+			press_space(panel.conversation_empty_clear());
+			process_events();
+			expect(!unread->isChecked() && !unresolved->isChecked() && card_ids(panel).size() == 4U && !panel.conversation_empty()->isVisibleTo(&panel)
+					   && panel.cards()->isVisibleTo(&panel) && panel.cards()->hasFocus(),
+				   "Clear filters shows the whole conversation again and puts the keyboard on it");
+
+			// The only new reply on a resolved thread, under both filters.
+			panel.cards()->set_read_state({ qt::thread_read_state{ .Thread = "review-thread:later", .UnreadPosts = { "review-comment:later-reply" } } });
+			unread->click();
+			unresolved->click();
+			process_events();
+			expect(panel.conversation_empty_title()->text() == QStringLiteral("No new replies on unresolved comments"), "the only new reply is on a resolved thread: the message says so");
+			// A link to a comment the filters hide turns them off and says so.
+			expect(panel.reveal_in_conversation("review-thread:done") && !unread->isChecked() && !unresolved->isChecked()
+					   && panel.notice_label()->text() == QStringLiteral("To show this comment, Overview turned off Only new and Hide resolved."),
+				   "a link to a hidden comment widens the filters and names them");
+			expect(!panel.reveal_in_conversation("review-thread:done"), "a shown comment needs nothing turned off");
+			panel.present_notice(QString{ });
+			unread->click();
+			unresolved->click();
+			process_events();
+			panel.clear_filters_button()->click();
+			process_events();
+			expect(!unread->isChecked() && !unresolved->isChecked() && card_ids(panel).size() == 4U, "the band's Clear filters clears both");
+
+			// Each place keeps its own filters.
+			unread->click();
+			process_events();
+			panel.set_pull_request_conversation(false);
+			process_events();
+			expect(!panel.pull_request_conversation() && !panel.cards()->pull_request_comments_shown() && !unread->isChecked() && unresolved->isChecked()
+					   && panel.read_tools()->isAncestorOf(unread) && unread->toolButtonStyle() == Qt::ToolButtonIconOnly && !panel.discuss_controls()->isVisibleTo(&panel)
+					   && panel.scope_this_file_button()->isChecked(),
+				   "beside the code, Review's Hide resolved is back, as two icons, its scope unchanged");
+			panel.set_pull_request_conversation(true);
+			process_events();
+			expect(unread->isChecked() && !unresolved->isChecked() && card_ids(panel) == std::vector<std::string>{ "review-thread:later" },
+				   "back on Overview, its Only new is still on");
+			if (!renderRoot.isEmpty()) {
+				unread->click();
+				process_events();
+				expect(panel.grab().save(renderRoot + (dark ? QStringLiteral("/unfiltered-dark.png") : QStringLiteral("/unfiltered-light.png"))), "unfiltered render saved");
+				unread->click();
+				process_events();
+			}
+
+			// Discuss borrows the panel from Overview and leaves Overview's state.
+			panel.set_discuss(true);
+			process_events();
+			expect(panel.discuss() && !panel.pull_request_conversation() && !unread->isChecked() && panel.scope_whole_pull_request_button()->isVisibleTo(&panel),
+				   "Discuss takes the panel with its own filters and scope");
+			panel.set_discuss(false);
+			panel.set_pull_request_conversation(true);
+			process_events();
+			expect(unread->isChecked(), "and Overview's Only new is kept for its return");
+
+			// The drawer's first-filter preference is Review's, even when it
+			// arrives while Overview holds the panel.
+			panel.filter_unresolved_button()->click();
+			panel.apply_first_filter(application::review_comments_filter::unread);
+			expect(unread->isChecked() && unresolved->isChecked(), "the preference leaves Overview's filters alone");
+			panel.set_pull_request_conversation(false);
+			expect(unread->isChecked() && !unresolved->isChecked(), "Review's tray takes the preference");
+			panel.set_pull_request_conversation(true);
+			expect(unread->isChecked() && unresolved->isChecked(), "and Overview's are as they were");
+
+			// A new pull request starts unfiltered.
+			panel.clear(QStringLiteral("No conversation."));
+			panel.adopt(overview_conversation(), QStringLiteral("3 review threads available."));
+			process_events();
+			expect(!unread->isChecked() && !unresolved->isChecked(), "a new pull request's conversation starts unfiltered");
+			panel.close();
+		}
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -972,6 +1165,7 @@ auto main(int argc, char** argv) -> int
 	test_discuss_top_wraps_when_narrow();
 	test_discuss_top_follows_the_theme();
 	test_a_new_comment_is_written_under_the_conversation();
+	test_overview_comments_filter_new_and_resolved();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

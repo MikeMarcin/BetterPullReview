@@ -4,6 +4,7 @@
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/epoch_model.hpp"
+#include "bpr/core/identity_avatar_picture.hpp"
 #include "bpr/core/known_namespaces.hpp"
 #include "bpr/core/model.hpp"
 #include "bpr/core/syntax_classification.hpp"
@@ -175,6 +176,8 @@ namespace bpr::application {
 		core::typography_settings         Typography;
 		core::dif_preferences             Dif;
 		core::known_namespaces            Namespaces;
+		/// [[BPR-1807]]. People's pictures from their host, or generated initials.
+		core::identity_avatar_style Avatars = core::identity_avatar_style::github;
 
 		auto operator<=>(const appearance_settings&) const = default;
 	};
@@ -425,6 +428,8 @@ namespace bpr::application {
 		/// [[BPR-1714]]. Not a pixel change but a classification input: a
 		/// consumer showing C++ asks again for its spans under the new list.
 		std::optional<core::known_namespaces> Namespaces;
+		/// [[BPR-1807]]. What every window's faces are drawn from.
+		std::optional<core::identity_avatar_style> Avatars;
 
 		auto operator<=>(const appearance_presentation_invalidation&) const = default;
 	};
@@ -436,7 +441,7 @@ namespace bpr::application {
 		return !aInvalidation.Resolution.has_value()
 			&& !aInvalidation.Palettes.has_value()
 			&& !aInvalidation.Typography.has_value() && !aInvalidation.Dif.has_value()
-			&& !aInvalidation.Namespaces.has_value();
+			&& !aInvalidation.Namespaces.has_value() && !aInvalidation.Avatars.has_value();
 	}
 
 	/// \brief Describes one published classification.
@@ -678,6 +683,14 @@ namespace bpr::application {
 		auto operator<=>(const apply_known_namespaces_intent&) const = default;
 	};
 
+	/// \brief [[BPR-1807]]. Chooses what people's avatars show.
+	struct apply_avatar_style_intent
+	{
+		core::identity_avatar_style Style = core::identity_avatar_style::github;
+
+		auto operator<=>(const apply_avatar_style_intent&) const = default;
+	};
+
 	using appearance_intent = std::variant<apply_dif_preferences_intent, select_appearance_mode_intent,
 										   apply_typography_intent,
 										   step_code_zoom_intent,
@@ -685,7 +698,7 @@ namespace bpr::application {
 										   commit_appearance_palette_intent,
 										   cancel_appearance_palette_preview_intent,
 										   import_appearance_theme_intent, reset_appearance_intent, export_appearance_theme_intent,
-										   apply_known_namespaces_intent>;
+										   apply_known_namespaces_intent, apply_avatar_style_intent>;
 
 	using appearance_intent_dispatch = std::function<void(appearance_intent)>;
 } // namespace bpr::application

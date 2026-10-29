@@ -44,6 +44,7 @@
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/identity_avatar_pictures.hpp"
 #include "bpr/qt/info_glyph.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/keyboard_shortcuts_window.hpp"
@@ -1097,6 +1098,8 @@ namespace bpr::qt {
 		DifCueClock = std::make_unique<QElapsedTimer>();
 		DifCueClock->start();
 		setObjectName(QStringLiteral("workbenchWindow"));
+		// [[BPR-1807]]. Before any face is drawn, so every one finds it.
+		AvatarPictures = new qt::identity_avatar_pictures{ this };
 		setWindowTitle(QStringLiteral("BetterPullReview"));
 #if defined(__APPLE__)
 		// [[BPR-0646]]. The strip is the title row. The window's content
@@ -9928,7 +9931,7 @@ namespace bpr::qt {
 		}
 		// The conversation view's current index is what reveals the line, as a
 		// press on a card does; the cards follow it.
-		ConversationPanel->cards()->show_pull_request_comments(false);
+		ConversationPanel->set_pull_request_conversation(false);
 		const auto index = ConversationPanel->model()->index_for_id(next);
 		if (index.isValid()) {
 			ConversationPanel->view()->setCurrentIndex(index);
@@ -9960,12 +9963,11 @@ namespace bpr::qt {
 			static_cast<QBoxLayout*>(aHome->layout())->insertWidget(0, aWidget, 1);
 			aWidget->show();
 		};
-		auto* const cards = ConversationPanel->cards();
 		if (aToOverview) {
 			// Discuss's panel stays Discuss's until it leaves.
 			if (ConversationPanel->parentWidget() != DiscussPage) {
 				move(ConversationPanel, drawer->holder(overview_drawer_tab::comments));
-				cards->show_pull_request_comments(true);
+				ConversationPanel->set_pull_request_conversation(true);
 			}
 			ConversationPanel->set_new_comment_offered(ConversationPanel->parentWidget() != DiscussPage);
 			move(PrivateNotes, drawer->holder(overview_drawer_tab::notes));
@@ -9973,7 +9975,7 @@ namespace bpr::qt {
 			move(AgentBody, drawer->holder(overview_drawer_tab::agent));
 		} else {
 			if (ConversationPanel->parentWidget() == drawer->holder(overview_drawer_tab::comments)) {
-				cards->show_pull_request_comments(false);
+				ConversationPanel->set_pull_request_conversation(false);
 				move(ConversationPanel, ConversationHome);
 			}
 			ConversationPanel->set_new_comment_offered(false);
@@ -10008,6 +10010,8 @@ namespace bpr::qt {
 			return;
 		}
 		if (!aIdentity.empty()) {
+			// [[BPR-1808]]. Overview's own filters never hide what a link asked for.
+			static_cast<void>(ConversationPanel->reveal_in_conversation(aIdentity));
 			ConversationPanel->cards()->open_thread(aIdentity);
 		} else {
 			ConversationPanel->cards()->setFocus(Qt::OtherFocusReason);
@@ -10121,7 +10125,7 @@ namespace bpr::qt {
 		if (ConversationPanel != nullptr) {
 			if (discuss && ConversationPanel->parentWidget() != DiscussPage) {
 				// Leaving Overview's conversation for Discuss's feed.
-				ConversationPanel->cards()->show_pull_request_comments(false);
+				ConversationPanel->set_pull_request_conversation(false);
 				static_cast<QBoxLayout*>(DiscussPage->layout())->insertWidget(0, ConversationPanel, 1);
 				ConversationPanel->show();
 			} else if (!discuss && ConversationPanel->parentWidget() == DiscussPage) {
@@ -14119,6 +14123,20 @@ namespace bpr::qt {
 				}
 			}
 		}
+		// [[BPR-1807]]. A picture belongs to one host and account: another one, or
+		// a sign-in that changed the account, forgets them all first.
+		if (aUpdate.Session.has_value() || aUpdate.PullRequest.has_value()) {
+			const auto scope = aUpdate.PullRequest.has_value()
+				? std::to_string(aUpdate.PullRequest->Profile.value()) + ":" + std::to_string(aUpdate.PullRequest->Host.value()) + ":" + std::to_string(aUpdate.PullRequest->Account.value())
+				: std::to_string(aUpdate.Session->Profile.value()) + ":" + std::to_string(aUpdate.Session->Host.value()) + ":" + std::to_string(aUpdate.Session->Account.value());
+			if (scope != AvatarScope) {
+				AvatarPictures->reset();
+			}
+			AvatarScope = scope;
+		}
+		for (const auto& avatar : aUpdate.Avatars) {
+			AvatarPictures->apply(avatar);
+		}
 		if (aUpdate.PullRequest.has_value()) {
 			apply_github_pull_request(*aUpdate.PullRequest, aUpdate.PreserveWindowNavigation);
 		}
@@ -14460,6 +14478,21 @@ namespace bpr::qt {
 	void workbench_window::set_markdown_image_dispatch(std::function<void(const core::markdown_image_intent&)> aDispatch)
 	{
 		MarkdownImageDispatch = std::move(aDispatch);
+	}
+
+	void workbench_window::set_identity_avatar_dispatch(std::function<void(std::vector<core::identity_avatar_intent>)> aDispatch)
+	{
+		AvatarPictures->set_dispatch(std::move(aDispatch));
+	}
+
+	void workbench_window::adopt_avatar_style(const core::identity_avatar_style aStyle)
+	{
+		AvatarPictures->set_style(aStyle);
+	}
+
+	auto workbench_window::identity_avatar_pictures() const noexcept -> qt::identity_avatar_pictures*
+	{
+		return AvatarPictures;
 	}
 
 	void workbench_window::set_markdown_code_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)

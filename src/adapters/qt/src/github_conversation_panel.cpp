@@ -8,8 +8,10 @@
 #include "discuss_header.hpp"
 #include "github_presentation_text.hpp"
 
+#include <QAccessible>
 #include <QApplication>
 #include <QComboBox>
+#include <QFont>
 #include <QHBoxLayout>
 #include <QHeaderView>
 #include <QItemSelectionModel>
@@ -224,6 +226,7 @@ namespace bpr::qt {
 		// The scope: the whole pull request or one file, as one two-way choice,
 		// with the file chosen inside it while File is on.
 		auto* const scopeBox    = new QWidget{ DiscussControls };
+		ScopeBox                = scopeBox;
 		auto* const scopeLayout = new QHBoxLayout{ scopeBox };
 		scopeLayout->setContentsMargins(0, 0, 0, 0);
 		scopeLayout->setSpacing(0);
@@ -314,6 +317,11 @@ namespace bpr::qt {
 		ReadToolsRow->addWidget(FilterUnread);
 		ReadToolsRow->addWidget(FilterUnresolved);
 		connect(ClearFilters, &QToolButton::clicked, this, [this] {
+			// [[BPR-1808]]. Overview's Comments has no scope: Review's stays.
+			if (Conversation) {
+				clear_conversation_filters();
+				return;
+			}
 			ScopeWholePr->setChecked(true);
 			FilterUnread->setChecked(false);
 			FilterUnresolved->setChecked(false);
@@ -363,9 +371,43 @@ namespace bpr::qt {
 		DiscussFlow->add_trailing(trailing);
 		column->addWidget(DiscussControls);
 
+		// [[BPR-1808]]. Overview's Comments filtered to nothing: why, and the
+		// one click that shows the whole conversation again.
+		ConversationEmpty = new QWidget{ loaded };
+		ConversationEmpty->setObjectName(QStringLiteral("conversationFilteredEmpty"));
+		auto* const emptyColumn = new QVBoxLayout{ ConversationEmpty };
+		emptyColumn->setContentsMargins(16, 18, 16, 18);
+		emptyColumn->setSpacing(4);
+		ConversationEmptyTitle = new QLabel{ ConversationEmpty };
+		ConversationEmptyTitle->setObjectName(QStringLiteral("conversationFilteredEmptyTitle"));
+		auto titleFont = ConversationEmptyTitle->font();
+		titleFont.setWeight(QFont::DemiBold);
+		ConversationEmptyTitle->setFont(titleFont);
+		detail::set_plain_text_label(ConversationEmptyTitle);
+		ConversationEmptyDetail = new QLabel{ ConversationEmpty };
+		ConversationEmptyDetail->setObjectName(QStringLiteral("conversationFilteredEmptyDetail"));
+		ConversationEmptyDetail->setWordWrap(true);
+		ConversationEmptyDetail->setForegroundRole(QPalette::PlaceholderText);
+		detail::set_plain_text_label(ConversationEmptyDetail);
+		ConversationEmptyClear = new QPushButton{ QStringLiteral("Clear filters"), ConversationEmpty };
+		ConversationEmptyClear->setObjectName(QStringLiteral("conversationFilteredEmptyClear"));
+		ConversationEmptyClear->setAccessibleDescription(QStringLiteral("Turns off Only new and Hide resolved and shows the whole conversation"));
+		ConversationEmptyClear->setFocusPolicy(Qt::StrongFocus);
+		emptyColumn->addWidget(ConversationEmptyTitle);
+		emptyColumn->addWidget(ConversationEmptyDetail);
+		emptyColumn->addSpacing(6);
+		emptyColumn->addWidget(ConversationEmptyClear, 0, Qt::AlignLeft);
+		emptyColumn->addStretch(1);
+		ConversationEmpty->hide();
+		column->addWidget(ConversationEmpty, 1);
+
 		Cards = new conversation_cards_view{ loaded };
 		Cards->setMinimumHeight(fontMetrics().lineSpacing() * 6);
 		column->addWidget(Cards, 1);
+		connect(ConversationEmptyClear, &QPushButton::clicked, this, [this] {
+			clear_conversation_filters();
+			Cards->setFocus(Qt::OtherFocusReason);
+		});
 		// [[BPR-1740]]. The notice's words, and the one click a refusal
 		// can offer after them.
 		NoticeRow = new QWidget{ loaded };
@@ -531,7 +573,7 @@ namespace bpr::qt {
 		// The band's order is its reading order: scope, file, filters, the
 		// drill-down's ×, Clear, then the conversations. Moving the filters
 		// between the band and the tab row keeps it.
-		const auto order = std::array<QWidget*, 8>{ ScopeWholePr, ScopeThisFile, DiscussFileChoice, FilterUnread, FilterUnresolved, ClearListing, ClearFilters, Cards };
+		const auto order = std::array<QWidget*, 9>{ ScopeWholePr, ScopeThisFile, DiscussFileChoice, FilterUnread, FilterUnresolved, ClearListing, ClearFilters, ConversationEmptyClear, Cards };
 		for (auto index = std::size_t{ 1U }; index < order.size(); ++index) {
 			setTabOrder(order[index - 1U], order[index]);
 		}
@@ -701,7 +743,8 @@ namespace bpr::qt {
 	{
 		// Beside the code: two icons with tooltips. In Discuss: Threads'
 		// two chips, in its band ([[BPR-1337]]).
-		const auto icons = !Discuss;
+		// [[BPR-1808]]. Overview's Comments shows them as Discuss's chips.
+		const auto icons = !Discuss && !Conversation;
 		for (auto* const button : { FilterUnread, FilterUnresolved }) {
 			auto* const tool = static_cast<discuss_tool*>(button);
 			tool->set_shape(icons ? discuss_tool_shape::native : discuss_tool_shape::chip);
@@ -719,7 +762,16 @@ namespace bpr::qt {
 		FilterUnresolved->setAccessibleName(icons ? QStringLiteral("Hide resolved") : QStringLiteral("Unresolved only"));
 		FilterUnread->setAccessibleDescription(QStringLiteral("Show only threads with a post newer than what you have read"));
 		FilterUnresolved->setAccessibleDescription(QStringLiteral("Show only threads that are not resolved"));
-		if (Discuss) {
+		if (Conversation) {
+			// The pull request's conversation lists comments, so its words
+			// name comments; the names are the chips' own words.
+			FilterUnread->setToolTip(QStringLiteral("Only comments with new replies"));
+			FilterUnread->setAccessibleName(QStringLiteral("Only new"));
+			FilterUnread->setAccessibleDescription(QStringLiteral("Show only comments with a post newer than what you have read"));
+			FilterUnresolved->setAccessibleName(QStringLiteral("Hide resolved"));
+			FilterUnresolved->setAccessibleDescription(QStringLiteral("Hide resolved threads; comments and review summaries stay"));
+		}
+		if (Discuss || Conversation) {
 			DiscussFiltersRow->addWidget(FilterUnread);
 			DiscussFiltersRow->addWidget(FilterUnresolved);
 		} else {
@@ -991,10 +1043,11 @@ namespace bpr::qt {
 	{
 		Adopted = false;
 		DiscussSelection.clear();
-		DefaultCurrent     = false;
-		DiscussScope       = cards_scope::whole_pull_request;
-		DiscussFilters     = { };
-		DiscussInitialized = false;
+		DefaultCurrent      = false;
+		DiscussScope        = cards_scope::whole_pull_request;
+		DiscussFilters      = { };
+		ConversationFilters = { };
+		DiscussInitialized  = false;
 		DiscussFile.reset();
 		{
 			const QSignalBlocker blocker{ DiscussFileChoice };
@@ -1032,11 +1085,17 @@ namespace bpr::qt {
 		if (DiscussSummary == nullptr || Cards == nullptr) {
 			return;
 		}
+		if (Conversation) {
+			refresh_conversation_summary();
+			return;
+		}
 		// The availability line says what the drawer cannot show; beside a
 		// file's threads the notes say it themselves. In Discuss an ordinary
 		// count is the summary's to say ([[BPR-1337]]); anything else stays.
 		AvailabilityLabel->setVisible(Discuss ? !AvailabilityOrdinary || Retained.empty()
 											  : Retained.empty() || Cards->cards().empty());
+		ConversationEmpty->hide();
+		Cards->show();
 		const auto conversations = Cards->thread_count();
 		const auto unresolved    = Cards->unresolved_count();
 		const auto fresh         = Cards->unread_thread_count();
@@ -1071,10 +1130,181 @@ namespace bpr::qt {
 		unread->set_count(Discuss && fresh > 0U ? QString::number(fresh) : QString{ }, true);
 	}
 
+	void github_conversation_panel::set_pull_request_conversation(const bool aShown)
+	{
+		if (Conversation == aShown || (aShown && Discuss)) {
+			Cards->show_pull_request_comments(aShown);
+			return;
+		}
+		// [[BPR-1808]]. Overview's Comments keeps its own Only new and Hide
+		// resolved, as Discuss keeps its own: each place gets back what it
+		// had, and neither changes the other's.
+		const auto checked = [this] { return discuss_filters{ .UnreadOnly = FilterUnread->isChecked(), .UnresolvedOnly = FilterUnresolved->isChecked() }; };
+		const auto present = [this](const discuss_filters& aFilters) {
+			const QSignalBlocker unread{ FilterUnread };
+			const QSignalBlocker unresolved{ FilterUnresolved };
+			FilterUnread->setChecked(aFilters.UnreadOnly);
+			FilterUnresolved->setChecked(aFilters.UnresolvedOnly);
+		};
+		if (aShown) {
+			ReadFilters = checked();
+			present(ConversationFilters);
+		} else {
+			ConversationFilters = checked();
+			present(ReadFilters);
+		}
+		Conversation = aShown;
+		arrange_filters();
+		ScopeBox->setVisible(!Conversation);
+		ListingRow->setVisible(!Conversation && Listing.has_value());
+		DiscussControls->setVisible(Discuss || Conversation);
+		DiscussControls->setAccessibleName(Conversation ? QStringLiteral("Comment filters") : QStringLiteral("Discuss filters"));
+		apply_filters();
+		Cards->show_pull_request_comments(aShown);
+		show_loaded_page();
+	}
+
+	auto github_conversation_panel::pull_request_conversation() const noexcept -> bool
+	{
+		return Conversation;
+	}
+
+	void github_conversation_panel::clear_conversation_filters()
+	{
+		if (!Conversation) {
+			return;
+		}
+		FilterUnread->setChecked(false);
+		FilterUnresolved->setChecked(false);
+	}
+
+	auto github_conversation_panel::reveal_in_conversation(const std::string& aIdentity) -> bool
+	{
+		if (!Conversation || std::ranges::any_of(Cards->cards(), [&aIdentity](const thread_card& aCard) { return aCard.Id == aIdentity; })) {
+			return false;
+		}
+		const auto onlyNew      = FilterUnread->isChecked();
+		const auto hideResolved = FilterUnresolved->isChecked();
+		if (!onlyNew && !hideResolved) {
+			return false;
+		}
+		// [[BPR-1808]]. The link asked for this comment: the filters widen
+		// as Clear filters would, and the reviewer is told which went.
+		clear_conversation_filters();
+		const auto names = onlyNew && hideResolved ? QStringLiteral("Only new and Hide resolved") : onlyNew ? QStringLiteral("Only new")
+																											: QStringLiteral("Hide resolved");
+		const auto text  = QStringLiteral("To show this comment, Overview turned off %1.").arg(names);
+		present_notice(text);
+		QAccessibleAnnouncementEvent event{ this, text };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
+		return true;
+	}
+
+	auto github_conversation_panel::conversation_empty() const noexcept -> QWidget*
+	{
+		return ConversationEmpty;
+	}
+
+	auto github_conversation_panel::conversation_empty_title() const noexcept -> QLabel*
+	{
+		return ConversationEmptyTitle;
+	}
+
+	auto github_conversation_panel::conversation_empty_clear() const noexcept -> QPushButton*
+	{
+		return ConversationEmptyClear;
+	}
+
+	auto github_conversation_panel::clear_filters_button() const noexcept -> QToolButton*
+	{
+		return ClearFilters;
+	}
+
+	void github_conversation_panel::refresh_conversation_summary()
+	{
+		// [[BPR-1808]]. The core counted the whole conversation and what the
+		// filters leave, and said why nothing is left.
+		const auto& summary   = Cards->timeline_summary();
+		const auto  filtering = FilterUnread->isChecked() || FilterUnresolved->isChecked();
+		const auto  noun      = [](const std::size_t aCount) { return aCount == 1U ? QStringLiteral("comment") : QStringLiteral("comments"); };
+		auto        parts     = std::vector<discuss_count_part>{ };
+		auto        sentence  = QString{ };
+		if (filtering) {
+			parts.push_back({ .Number = QString::number(summary.Shown), .Words = QStringLiteral("of %1 %2 shown").arg(summary.Comments).arg(noun(summary.Comments)) });
+			sentence = QStringLiteral("%1 of %2 %3 shown").arg(summary.Shown).arg(summary.Comments).arg(noun(summary.Comments));
+		} else {
+			parts.push_back({ .Number = QString::number(summary.Comments), .Words = noun(summary.Comments) });
+			parts.push_back({ .Number = QString::number(summary.Resolved), .Words = QStringLiteral("resolved") });
+			sentence = QStringLiteral("%1 %2, %3 resolved").arg(summary.Comments).arg(noun(summary.Comments)).arg(summary.Resolved);
+		}
+		sentence += summary.Unread == 1U ? QStringLiteral(", 1 with new replies") : QStringLiteral(", %1 with new replies").arg(summary.Unread);
+		DiscussSummary->setText(sentence);
+		DiscussSummary->setAccessibleDescription(sentence);
+		DiscussSummary->setToolTip(QString{ });
+		static_cast<discuss_counts*>(DiscussSummary)->set_parts(std::move(parts));
+		auto* const unread = static_cast<discuss_tool*>(FilterUnread);
+		unread->set_new_ink(Cards->accent());
+		unread->set_count(summary.Unread > 0U ? QString::number(summary.Unread) : QString{ }, true);
+		ClearFilters->setVisible(filtering);
+		// The availability line speaks for an empty conversation, not for one
+		// the filters emptied.
+		AvailabilityLabel->setVisible(Retained.empty() || (Cards->cards().empty() && summary.Empty == core::timeline_empty::none));
+
+		auto title  = QString{ };
+		auto detail = QString{ };
+		switch (summary.Empty) {
+		case core::timeline_empty::no_new:
+			title  = QStringLiteral("No new replies");
+			detail = QStringLiteral("You have read every comment in this conversation.");
+			break;
+		case core::timeline_empty::no_new_unresolved:
+			title  = QStringLiteral("No new replies on unresolved comments");
+			detail = summary.Unread == 1U ? QStringLiteral("The one comment with new replies is a resolved thread.")
+										  : QStringLiteral("The %1 comments with new replies are resolved threads.").arg(summary.Unread);
+			break;
+		case core::timeline_empty::no_unresolved:
+			title  = QStringLiteral("No unresolved comments");
+			detail = QStringLiteral("Every comment in this conversation is a resolved thread.");
+			break;
+		case core::timeline_empty::no_match:
+			title  = QStringLiteral("No comments match these filters");
+			detail = QString{ };
+			break;
+		case core::timeline_empty::none: break;
+		}
+		const auto empty = summary.Empty != core::timeline_empty::none;
+		if (empty) {
+			ConversationEmptyTitle->setText(title);
+			ConversationEmptyDetail->setText(detail);
+			ConversationEmptyDetail->setVisible(!detail.isEmpty());
+			ConversationEmpty->setAccessibleName(title);
+			ConversationEmpty->setAccessibleDescription(detail);
+		}
+		const auto announce = empty && !ConversationEmpty->isVisibleTo(this);
+		// The list gives way to the message; focus on a card goes to its
+		// way out.
+		const auto focused = Cards->hasFocus();
+		ConversationEmpty->setVisible(empty);
+		Cards->setVisible(!empty);
+		if (empty && focused) {
+			ConversationEmptyClear->setFocus(Qt::OtherFocusReason);
+		}
+		if (announce && isVisible()) {
+			QAccessibleAnnouncementEvent event{ ConversationEmpty, title };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		}
+	}
+
 	void github_conversation_panel::set_discuss(const bool aDiscuss)
 	{
 		if (Discuss == aDiscuss) {
 			return;
+		}
+		// Discuss borrows the panel from wherever it is.
+		if (aDiscuss) {
+			set_pull_request_conversation(false);
 		}
 		const auto remembered = DiscussSelection;
 		if (Discuss) {
@@ -1086,7 +1316,8 @@ namespace bpr::qt {
 		Discuss     = aDiscuss;
 		PlacedStale = true;
 		arrange_filters();
-		DiscussControls->setVisible(Discuss);
+		DiscussControls->setVisible(Discuss || Conversation);
+		ClearFilters->setVisible(true);
 		if (Discuss) {
 			if (!DiscussInitialized) {
 				ScopeWholePr->setChecked(true);
@@ -1129,6 +1360,13 @@ namespace bpr::qt {
 	void github_conversation_panel::apply_first_filter(const application::review_comments_filter aFilter)
 	{
 		if (FilterUnread == nullptr || FilterUnresolved == nullptr) {
+			return;
+		}
+		// [[BPR-1808]]. The preference is Review's tray's: while Overview's
+		// Comments holds the panel, it waits in Review's kept filters.
+		if (Conversation) {
+			ReadFilters.UnreadOnly     = aFilter == application::review_comments_filter::unread;
+			ReadFilters.UnresolvedOnly = aFilter == application::review_comments_filter::unresolved;
 			return;
 		}
 		FilterUnread->setChecked(aFilter == application::review_comments_filter::unread);

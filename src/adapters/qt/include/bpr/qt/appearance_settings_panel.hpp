@@ -262,6 +262,8 @@ namespace bpr::qt {
 
 	private:
 		void dispatch_dif();
+		/// \brief [[BPR-1807]]. Offers the chosen avatar style.
+		void dispatch_avatar_style();
 		void dispatch_mode(core::appearance_mode aMode);
 		void dispatch_typography();
 		/// \brief Chooses one segment of the tab-width control and offers the record.
@@ -350,14 +352,16 @@ namespace bpr::qt {
 		QPushButton*           ExportButton   = nullptr;
 		QCheckBox*             DifVisibility  = nullptr;
 		QComboBox*             MotionSelector = nullptr;
-		QLabel*                MotionStatus   = nullptr;
-		core::dif_resolution   MotionResolution;
-		QWidget*               ColoursCard     = nullptr;
-		QWidget*               PreviewBar      = nullptr;
-		QLabel*                PreviewBarLabel = nullptr;
-		QPushButton*           KeepChanges     = nullptr;
-		QPushButton*           CancelChanges   = nullptr;
-		QLabel*                Status          = nullptr;
+		/// [[BPR-1807]]. What people's avatars show.
+		QComboBox*           AvatarStyle  = nullptr;
+		QLabel*              MotionStatus = nullptr;
+		core::dif_resolution MotionResolution;
+		QWidget*             ColoursCard     = nullptr;
+		QWidget*             PreviewBar      = nullptr;
+		QLabel*              PreviewBarLabel = nullptr;
+		QPushButton*         KeepChanges     = nullptr;
+		QPushButton*         CancelChanges   = nullptr;
+		QLabel*              Status          = nullptr;
 
 		std::optional<core::appearance_palette> PreviewPalette;
 		std::optional<core::appearance_palette> PendingPreview;

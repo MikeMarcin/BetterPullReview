@@ -1994,6 +1994,7 @@ namespace bpr::qt {
 	}
 
 	auto conversation_cards_view::pull_request_comments_shown() const noexcept -> bool { return PullRequestComments; }
+	auto conversation_cards_view::timeline_summary() const noexcept -> const core::timeline_filter_summary& { return TimelineSummary; }
 	auto conversation_cards_view::pull_request_comments_chip() const noexcept -> QAbstractButton* { return PullRequestChip; }
 	void conversation_cards_view::sync_pull_request_edge()
 	{
@@ -2092,11 +2093,12 @@ namespace bpr::qt {
 			item.Kept     = card.Id == Open;
 			items.push_back(std::move(item));
 		}
-		// The Pull request view lists everything; Discuss's filters act on
-		// the comments.
-		const auto filters  = PullRequestComments ? core::timeline_filters{ } : core::timeline_filters{ .UnreadOnly = Filters.UnreadOnly, .UnresolvedOnly = Filters.UnresolvedOnly, .Listed = Filters.Listed };
-		auto       arranged = core::arrange_conversation_timeline(items, filters);
-		auto       byId     = std::unordered_map<std::string, std::size_t>{ };
+		// The filters act on the comments. [[BPR-1808]]. Overview's Comments
+		// takes Only new and Hide resolved too; a drill-down is Discuss's.
+		const auto filters = core::timeline_filters{ .UnreadOnly = Filters.UnreadOnly, .UnresolvedOnly = Filters.UnresolvedOnly, .Listed = PullRequestComments ? std::nullopt : Filters.Listed };
+		TimelineSummary    = core::summarize_conversation_timeline(items, filters);
+		auto arranged      = core::arrange_conversation_timeline(items, filters);
+		auto byId          = std::unordered_map<std::string, std::size_t>{ };
 		for (std::size_t index = 0U; index < Cards.size(); ++index) {
 			byId.emplace(Cards[index].Id, index);
 		}
@@ -2366,6 +2368,7 @@ namespace bpr::qt {
 		++Layouts;
 		Cards.clear();
 		TimelineRows.clear();
+		TimelineSummary = { };
 		TimelineLines.clear();
 		// [[BPR-0972]]. Scoped to one file, only that file's conversations are
 		// visited: the per-forest index names them, in retained order.

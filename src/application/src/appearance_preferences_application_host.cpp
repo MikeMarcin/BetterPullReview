@@ -101,6 +101,12 @@ namespace bpr::application {
 			core::known_namespaces Namespaces;
 		};
 
+		/// [[BPR-1807]]. What people's avatars show.
+		struct deferred_avatar_style
+		{
+			core::identity_avatar_style Style = core::identity_avatar_style::github;
+		};
+
 		struct deferred_appearance_theme_import
 		{
 			std::string Path;
@@ -134,6 +140,7 @@ namespace bpr::application {
 														 deferred_appearance_typography,
 														 deferred_appearance_zoom,
 														 deferred_known_namespaces,
+														 deferred_avatar_style,
 														 deferred_appearance_theme_import,
 														 deferred_appearance_cancel,
 														 deferred_appearance_shutdown,
@@ -216,6 +223,9 @@ namespace bpr::application {
 			if (!core::validate_known_namespaces(aSettings.Namespaces).empty()) {
 				throw std::invalid_argument{ "Invalid known namespaces" };
 			}
+			if (!core::valid(aSettings.Avatars)) {
+				throw std::invalid_argument{ "Invalid avatar style" };
+			}
 			return aSettings;
 		}
 
@@ -237,6 +247,7 @@ namespace bpr::application {
 			std::optional<appearance_palette_customisations> PublishedPalettes;
 			std::optional<core::typography_settings>         PublishedTypography;
 			std::optional<core::known_namespaces>            PublishedNamespaces;
+			std::optional<core::identity_avatar_style>       PublishedAvatars;
 		};
 		[[nodiscard]] auto find_consumer(appearance_consumer_id aId) const -> std::shared_ptr<consumer_state>
 		{
@@ -392,6 +403,8 @@ namespace bpr::application {
 						apply_typography_now(std::move(typography));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_known_namespaces>) {
 						apply_known_namespaces_now(std::move(aTyped.Namespaces));
+					} else if constexpr (std::is_same_v<ingress_type, deferred_avatar_style>) {
+						apply_avatar_style_now(aTyped.Style);
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_theme_import>) {
 						import_theme_now(std::move(aTyped.Path));
 					} else if constexpr (std::is_same_v<ingress_type, deferred_appearance_cancel>) {
@@ -1020,6 +1033,21 @@ namespace bpr::application {
 			adopt(std::move(next));
 		}
 
+		/// \brief [[BPR-1807]]. Adopts an avatar style from the vocabulary.
+		void apply_avatar_style_now(const core::identity_avatar_style aStyle)
+		{
+			if (Closing) {
+				return;
+			}
+			if (!core::valid(aStyle)) {
+				publish_failure(local_context(), appearance_host_failure::host_failure);
+				return;
+			}
+			auto next    = Settings;
+			next.Avatars = aStyle;
+			adopt(std::move(next));
+		}
+
 		void cancel_now()
 		{
 			if (Closing) {
@@ -1084,6 +1112,10 @@ namespace bpr::application {
 			}
 			if (auto rejections = core::validate_known_namespaces(loaded.Namespaces); !rejections.empty()) {
 				publish_namespace_rejection(aContext, std::move(rejections));
+				return;
+			}
+			if (!core::valid(loaded.Avatars)) {
+				publish_failure(aContext, appearance_host_failure::host_failure);
 				return;
 			}
 			if (Settings == loaded) {
@@ -1193,6 +1225,9 @@ namespace bpr::application {
 			if (aConsumer->PublishedNamespaces != Settings.Namespaces) {
 				invalidation.Namespaces = Settings.Namespaces;
 			}
+			if (aConsumer->PublishedAvatars != Settings.Avatars) {
+				invalidation.Avatars = Settings.Avatars;
+			}
 			publish_persistence_failure(aConsumer, aContext);
 			if (!aConsumer->Active || Closing) {
 				return;
@@ -1209,6 +1244,7 @@ namespace bpr::application {
 				aConsumer->PublishedPalettes   = Settings.Palettes;
 				aConsumer->PublishedTypography = Settings.Typography;
 				aConsumer->PublishedNamespaces = Settings.Namespaces;
+				aConsumer->PublishedAvatars    = Settings.Avatars;
 				aConsumer->PublishedDif        = dif;
 				presentation                   = std::move(invalidation);
 			}
@@ -1471,6 +1507,11 @@ namespace bpr::application {
 	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, core::known_namespaces aNamespaces)
 	{
 		Implementation->enqueue(deferred_known_namespaces{ .Namespaces = std::move(aNamespaces) }, aConsumer);
+	}
+
+	void appearance_preferences_application_host::apply(appearance_consumer_id aConsumer, const core::identity_avatar_style aStyle)
+	{
+		Implementation->enqueue(deferred_avatar_style{ .Style = aStyle }, aConsumer);
 	}
 
 	void appearance_preferences_application_host::import_theme_file(appearance_consumer_id aConsumer, std::string aPath)

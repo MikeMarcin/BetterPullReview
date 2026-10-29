@@ -19578,6 +19578,25 @@ namespace {
 		cards->open_thread(later.Id);
 		process_events();
 		expect(cards->open_thread_id() == later.Id, "a comment opens in place on Overview");
+		// [[BPR-1808]]. Overview's Comments has Only new and Hide resolved
+		// over the conversation; nothing is new here, so Only new empties it
+		// but for the comment left open.
+		auto* const onlyNew      = panel->filter_unread_button();
+		auto* const hideResolved = panel->filter_unresolved_button();
+		expect(onlyNew->isVisible() && hideResolved->isVisible() && panel->discuss_controls()->isAncestorOf(onlyNew) && !onlyNew->isChecked() && !hideResolved->isChecked(),
+			   "Overview's Comments shows Only new and Hide resolved, off");
+		cards->close_thread();
+		onlyNew->click();
+		process_events();
+		expect(cards->cards().empty() && panel->conversation_empty()->isVisible() && panel->conversation_empty_title()->text() == QStringLiteral("No new replies"),
+			   "with nothing new, Only new shows No new replies");
+		panel->conversation_empty_clear()->click();
+		process_events();
+		expect(cards->cards().size() == 2U && !onlyNew->isChecked(), "Clear filters shows the conversation again");
+		cards->open_thread(later.Id);
+		hideResolved->click();
+		process_events();
+		expect(hideResolved->isChecked() && cards->cards().size() == 2U, "Hide resolved keeps the comments, which are never resolved");
 
 		// Notes on Overview are the pull request's; state is the panel's own.
 		notes->present({ .Scope = 7, .Available = true, .Notes = { { .Id = 3, .Revision = 1, .Attachment = std::nullopt, .Label = "Pull request", .Text = "Soak test first." } } });
@@ -19595,6 +19614,7 @@ namespace {
 		expect(!cards->pull_request_comments_shown() && !notes->pull_request_only() && notes->open_note_id() == 3U,
 			   "Review's Comments has no pull request mode; the open note is still open");
 		expect(panel->new_comment()->isHidden(), "beside the code there is no new pull request comment");
+		expect(!hideResolved->isChecked() && !onlyNew->isChecked() && !panel->discuss_controls()->isVisible(), "beside the code Review's own filters are back, off, on the tab row");
 		expect(window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest")) == nullptr || !window.findChild<QAbstractButton*>(QStringLiteral("conversationScopeWholePullRequest"))->isVisible(),
 			   "no Pull request | File switch beside the code");
 		auto* const link = cards->pull_request_comments_chip();
@@ -19604,6 +19624,9 @@ namespace {
 		expect(window.showing_overview() && drawer->current_tab() == qt::overview_drawer_tab::comments && drawer->holder(qt::overview_drawer_tab::comments)->isAncestorOf(panel)
 				   && cards->open_thread_id() == later.Id,
 			   "the link opens Overview's Comments, where the comment left open is open again");
+		expect(hideResolved->isChecked() && !onlyNew->isChecked(), "and Overview's Hide resolved is still on");
+		hideResolved->click();
+		process_events();
 
 		// Ctrl+I on Overview opens Overview's Agent tab, about the pull request.
 		window.ask_agent_action()->trigger();
@@ -19684,7 +19707,7 @@ namespace {
 		editor->present({ .Draft = std::make_shared<const core::review_tour>(core::review_tour{ }) });
 		process_events();
 		expect(!cards->tour_open_offered(), "without a published tour, Open in tour is withdrawn");
-		expect(log.Workbench.size() > 0U, "the window's gestures went to the core");
+		expect(!log.Workbench.empty(), "the window's gestures went to the core");
 	}
 
 	void test_overview_refuses_a_hand_opened_drawer_and_says_so()

@@ -122,4 +122,38 @@ namespace bpr::core {
 		}
 		return result;
 	}
+
+	auto summarize_conversation_timeline(const std::span<const timeline_item> aItems, const timeline_filters& aFilters)
+		-> timeline_filter_summary
+	{
+		const auto whole   = arrange_conversation_timeline(aItems);
+		auto       summary = timeline_filter_summary{ .Comments = whole.Comments, .Unread = whole.Unread };
+		auto       byId    = std::unordered_map<std::string_view, const timeline_item*>{ };
+		for (const auto& item : aItems) {
+			byId.try_emplace(item.Id, &item);
+		}
+		for (const auto& row : whole.Rows) {
+			if (row.Kind != timeline_row_kind::comment) {
+				continue;
+			}
+			if (const auto found = byId.find(row.Id); found != byId.end() && found->second->Resolved) {
+				++summary.Resolved;
+			}
+		}
+		const auto filtering = aFilters.UnreadOnly || aFilters.UnresolvedOnly || aFilters.Listed.has_value();
+		summary.Shown        = filtering ? arrange_conversation_timeline(aItems, aFilters).Comments : whole.Comments;
+		if (summary.Shown > 0U || summary.Comments == 0U || !filtering) {
+			return summary;
+		}
+		if (aFilters.Listed.has_value()) {
+			summary.Empty = timeline_empty::no_match;
+		} else if (aFilters.UnreadOnly && aFilters.UnresolvedOnly) {
+			summary.Empty = summary.Unread == 0U ? timeline_empty::no_new : timeline_empty::no_new_unresolved;
+		} else if (aFilters.UnreadOnly) {
+			summary.Empty = timeline_empty::no_new;
+		} else {
+			summary.Empty = timeline_empty::no_unresolved;
+		}
+		return summary;
+	}
 }

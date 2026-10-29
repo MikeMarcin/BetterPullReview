@@ -135,6 +135,10 @@ namespace bpr::adapters::sqlite::detail {
 			return core::join_known_namespaces(core::known_namespaces{ });
 		}
 
+		/// \brief [[BPR-1807]]. The one column version 11 adds, last: what
+		/// people's avatars show, as `core::identity_avatar_style`'s ordinal.
+		constexpr std::string_view AvatarStyleColumn = "avatar_style";
+
 		/// \brief Returns every column the settings table declares, in order.
 		///
 		/// \details `aVersion` names a version from 7 on: version 7's shape
@@ -160,6 +164,9 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (aVersion >= 10) {
 				names.emplace_back(KnownNamespacesColumn);
+			}
+			if (aVersion >= 11) {
+				names.emplace_back(AvatarStyleColumn);
 			}
 			return names;
 		}
@@ -227,6 +234,10 @@ namespace bpr::adapters::sqlite::detail {
 			if (aVersion >= 10) {
 				sql += "," + std::string{ KnownNamespacesColumn } + " TEXT NOT NULL CHECK(length("
 					+ std::string{ KnownNamespacesColumn } + ") <= " + std::to_string(MaximumKnownNamespacesText) + ")";
+			}
+			if (aVersion >= 11) {
+				sql += "," + std::string{ AvatarStyleColumn } + " INTEGER NOT NULL CHECK(" + std::string{ AvatarStyleColumn } + " BETWEEN 0 AND "
+					+ std::to_string(core::identity_avatar_style_count - 1U) + ")";
 			}
 			sql += ") STRICT";
 			return sql;
@@ -892,6 +903,39 @@ namespace bpr::adapters::sqlite::detail {
 			return { };
 		}
 
+		/// \brief [[BPR-1807]]. Adds what people's avatars show.
+		///
+		/// \details Carried across a fresh table as version 10 is; the new
+		/// column takes the default, the person's own GitHub picture.
+		[[nodiscard]] auto migrate_to_version_11(::sqlite3* aDatabase, std::stop_token aStop)
+			-> std::expected<void, failure>
+		{
+			const auto rows = scalar_integer(aDatabase, "SELECT count(*) FROM appearance_settings WHERE singleton != 1");
+			if (!rows || *rows != 0) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			const auto previous = joined(settings_column_names(10), ", ");
+			auto       carry    = std::string{ "INSERT INTO appearance_settings(" };
+			carry += previous;
+			carry += ", ";
+			carry += AvatarStyleColumn;
+			carry += ") SELECT ";
+			carry += previous;
+			carry += ", " + std::to_string(static_cast<int>(application::appearance_settings{ }.Avatars));
+			carry += " FROM appearance_settings_previous";
+			for (const auto& statement : std::array{
+					 std::string{ "CREATE TABLE appearance_settings_previous AS SELECT * FROM appearance_settings" },
+					 std::string{ "DROP TABLE appearance_settings" },
+					 settings_schema(11),
+					 carry,
+					 std::string{ "DROP TABLE appearance_settings_previous" } }) {
+				if (auto ran = execute(aDatabase, statement, aStop); !ran) {
+					return ran;
+				}
+			}
+			return { };
+		}
+
 		[[nodiscard]] auto establish_schema(
 			::sqlite3* aDatabase, std::stop_token aStop)
 			-> std::expected<void, failure>
@@ -981,7 +1025,15 @@ namespace bpr::adapters::sqlite::detail {
 					return migrated;
 				}
 			}
-			if (auto migrated = migrate_to_version_10(aDatabase, aStop); !migrated) {
+			// A version-10 file skips the version-10 step, which would carry the
+			// row across without its namespaces column.
+			if (*current < 10) {
+				if (auto migrated = migrate_to_version_10(aDatabase, aStop); !migrated) {
+					rollback();
+					return migrated;
+				}
+			}
+			if (auto migrated = migrate_to_version_11(aDatabase, aStop); !migrated) {
 				rollback();
 				return migrated;
 			}
@@ -1188,6 +1240,7 @@ namespace bpr::adapters::sqlite::detail {
 			columns += ", " + std::string{ WhiteSpaceColumn };
 			columns += ", " + std::string{ CodeZoomColumn };
 			columns += ", " + std::string{ KnownNamespacesColumn };
+			columns += ", " + std::string{ AvatarStyleColumn };
 			auto statement = prepare(
 				aDatabase,
 				columns + " FROM appearance_settings WHERE singleton = 1");
@@ -1294,6 +1347,14 @@ namespace bpr::adapters::sqlite::detail {
 			if (!core::validate_known_namespaces(settings.Namespaces).empty()) {
 				return std::unexpected(failure::integrity_failure);
 			}
+			// [[BPR-1807]]. The table's CHECK holds the vocabulary; a value outside
+			// it is refused here as well, for a file built without that CHECK.
+			const auto avatars = ::sqlite3_column_int64(
+				statement->Value, static_cast<int>(4U + ScalarColumnNames.size() + 2U * core::appearance_variant_count));
+			if (avatars < 0 || static_cast<std::uint64_t>(avatars) >= core::identity_avatar_style_count) {
+				return std::unexpected(failure::integrity_failure);
+			}
+			settings.Avatars = static_cast<core::identity_avatar_style>(avatars);
 
 			// A durable record can be written by another build or edited by hand.
 			// The core is the authority on typography legality, so a record it
@@ -1470,7 +1531,8 @@ namespace bpr::adapters::sqlite::detail {
 			&& integer(static_cast<std::int64_t>(aSettings.Dif.Motion))
 			&& integer(static_cast<std::int64_t>(code.WhiteSpace))
 			&& integer(static_cast<std::int64_t>(code.ZoomPercent))
-			&& text(namespaces);
+			&& text(namespaces)
+			&& integer(static_cast<std::int64_t>(aSettings.Avatars));
 		if (!bound) {
 			return std::unexpected(catalog_sql_failure(Handle));
 		}

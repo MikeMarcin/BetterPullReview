@@ -864,6 +864,35 @@ namespace bpr::qt {
 			}
 		});
 
+		// ── People. [[BPR-1807]]: a person's own picture from their host, or
+		// the coloured initials every face showed before.
+		auto people = make_card(
+			this, QStringLiteral("People"), QStringLiteral("appearancePeopleCard"));
+		auto* const peopleRows   = new QWidget{ people.Frame };
+		auto* const peopleColumn = new QVBoxLayout{ peopleRows };
+		peopleColumn->setContentsMargins(0, 0, 0, 0);
+		peopleColumn->setSpacing(0);
+		AvatarStyle = new QComboBox{ peopleRows };
+		AvatarStyle->setObjectName(QStringLiteral("appearanceAvatarStyle"));
+		AvatarStyle->setAccessibleName(QStringLiteral("Avatars"));
+		AvatarStyle->addItem(QStringLiteral("GitHub pictures"), static_cast<int>(core::identity_avatar_style::github));
+		AvatarStyle->addItem(QStringLiteral("Coloured initials"), static_cast<int>(core::identity_avatar_style::generated));
+		add_row(
+			*peopleColumn,
+			peopleRows,
+			QStringLiteral("appearanceAvatarStyleRow"),
+			QStringLiteral("Avatars"),
+			QStringLiteral(
+				"GitHub pictures shows each person's own picture from the pull "
+				"request's server, and their coloured initials while it loads or "
+				"when it cannot be fetched. Coloured initials never fetches a picture."),
+			AvatarStyle);
+		people.Body->addWidget(peopleRows);
+		page->addWidget(people.Frame);
+		QObject::connect(AvatarStyle, &QComboBox::currentIndexChanged, this, [this](int) {
+			dispatch_avatar_style();
+		});
+
 		// ── Dif. RFC-BPR-0031's B3 controls, in the new row language.
 		auto dif = make_card(
 			this, QStringLiteral("Dif"), QStringLiteral("appearanceDifCard"));
@@ -1077,6 +1106,14 @@ namespace bpr::qt {
 				.Motion     = static_cast<core::motion_mode>(
 					MotionSelector->currentData().toInt()),
 			} });
+	}
+
+	void appearance_settings_panel::dispatch_avatar_style()
+	{
+		if (Echoing || AvatarStyle->currentIndex() < 0 || !Dispatch) {
+			return;
+		}
+		Dispatch(application::apply_avatar_style_intent{ .Style = static_cast<core::identity_avatar_style>(AvatarStyle->currentData().toInt()) });
 	}
 
 	void appearance_settings_panel::adopt_motion(
@@ -1773,6 +1810,7 @@ namespace bpr::qt {
 		DifVisibility->setChecked(
 			record.Dif.Visibility == core::dif_visibility::shown);
 		MotionSelector->setCurrentIndex(static_cast<int>(record.Dif.Motion));
+		AvatarStyle->setCurrentIndex(AvatarStyle->findData(static_cast<int>(record.Avatars)));
 		adopt_motion(core::resolve_dif(record.Dif, MotionResolution.Observation));
 		UiFamily->setCurrentText(
 			QString::fromStdString(record.Typography.Ui.Font.Family));
