@@ -5,7 +5,8 @@
     "issues": [
       "BPR-1811",
       "BPR-1812",
-      "BPR-1813"
+      "BPR-1813",
+      "BPR-1814"
     ]
   },
   "milestones": [
@@ -31,6 +32,13 @@
         },
         {
           "issue": "BPR-1813",
+          "criteria": [
+            "AC1",
+            "AC2"
+          ]
+        },
+        {
+          "issue": "BPR-1814",
           "criteria": [
             "AC1",
             "AC2"
