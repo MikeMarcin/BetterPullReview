@@ -154,6 +154,14 @@ or signing. The
 source tree binds every tracked build/dependency definition; the receipt also
 records exact SHA-256 values for the preset and dependency inventory.
 
+A base stable tag, such as bare `0.4.0`, can distribute the same numbered MSI
+as its RC. The floor retains that actual stable release ID/tag and the exact
+`0.4.0-build.1` installer name and digest. A numbered installer's build must map
+to its recorded MSI version, and an RC tag's build must also match its installer.
+Historical native-version rollback or replacement of an equal-version published
+floor is still refused. This validates the observation's binding; the native
+producer must still read the real prior MSI before production.
+
 Run `tools/publish-release.sh --prepare-candidate --candidate-inputs
 /absolute/inputs.json --cohort-output /absolute/allocation.json`. Commit exactly
 the reported counter and allocation receipt over the recorded base. Then run
