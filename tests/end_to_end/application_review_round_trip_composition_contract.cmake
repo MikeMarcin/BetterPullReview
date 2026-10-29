@@ -1,3 +1,10 @@
+# [[BPR-1806]] tour-stop merge reseal (2026-10-28), over 27c65aa4b.
+# github_application.cpp gains BPR-1806's Open in tour beside BPR-1804's
+# Request review: a published tour stop card's dispatch starts the published
+# tour at that stop through start_published_tour, which remembers the stop
+# while an import is pending and drops it on retirement. No credential,
+# grant, provider, mutation, publication or source-inventory change; the
+# mutation-branch pin is unchanged.
 # [[BPR-1804]] reviewer-request reseal (2026-10-28), over 1ff1314c4.
 # github_application.cpp, main.cpp and the public-path fixture add Request
 # review in People: the picker's gestures reach the core's reviewer picker
@@ -2440,7 +2447,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# opens it. No credential, grant, provider, mutation, publication or
 	# source-inventory change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"a0f27d577e0a0817e9840e9a4cfe228722de6b0570f52fbaacfbb54b84c1a1ed"
+		"f70fc745b31448db0e77c2f1cecd9abbc879fa434ddfac2cfca42a6fa49b11df"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2695,7 +2702,7 @@ function(bpr_verify_app_source_tree app_source_root)
 # writes private drafts through the existing reply, line-draft and new
 # pull request comment paths. No grant, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "879ed47948dd8abd143421756a6b8842511863da35681f9ee06a6e373559bbe1"
+        "c70f6f34d20bcfc5bc040e88758767e8268d23dc914c9f8f720a8048d7918bea"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
