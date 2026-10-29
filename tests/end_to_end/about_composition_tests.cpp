@@ -13,6 +13,7 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QDialog>
 #include <QDir>
 #include <QFile>
@@ -20,6 +21,7 @@
 #include <QMainWindow>
 #include <QMenu>
 #include <QMenuBar>
+#include <QPushButton>
 #include <QRegularExpression>
 #include <QUrl>
 #include <QtVersion>
@@ -69,6 +71,8 @@ namespace {
 		const auto scratch = tests::scratch_guard{ root };
 		auto       facts   = app::about_facts_of_this_build(root);
 		expect(facts.Version == QStringLiteral(BPR_TEST_PROJECT_VERSION), "the version is the project's");
+		expect(facts.BuildNumber == BPR_TEST_RELEASE_BUILD_NUMBER, "the version facts carry the configured release cohort, or zero for a local build");
+		expect(facts.ConfigurationDigest == QStringLiteral(BPR_TEST_RELEASE_CONFIGURATION_DIGEST), "copied facts retain the frozen release configuration");
 		expect(facts.Configuration == QStringLiteral(BPR_TEST_CONFIGURATION), "the configuration is the build's");
 		expect(facts.QtVersion == QString::fromLatin1(qVersion()) && !facts.System.isEmpty(), "Qt is the running one and the system is named");
 		expect(facts.Copyright == QStringLiteral("© 2026 BetterPullReview contributors."), "the copyright is the licence's");
@@ -111,6 +115,15 @@ namespace {
 		auto* const page = dynamic_cast<qt::about_window*>(window.findChild<QDialog*>(QStringLiteral("aboutWindow"), Qt::FindDirectChildrenOnly));
 		expect(page != nullptr && page->isVisible(), "and the item shows the page");
 		expect(page->facts().Version == QStringLiteral(BPR_TEST_PROJECT_VERSION), "with this build's facts");
+		page->copy_button()->click();
+		const auto report = QApplication::clipboard()->text();
+		expect(report == qt::about_version_report(page->facts()), "the composed Copy version info control copies these exact build facts");
+		expect(report.contains(QStringLiteral(BPR_TEST_PROJECT_VERSION)), "the copied version report includes marketing version");
+		if (page->facts().BuildNumber != 0U) {
+			expect(page->version_label()->text().contains(QStringLiteral("(build %1)").arg(page->facts().BuildNumber))
+					   && report.contains(page->facts().ConfigurationDigest) && report.contains(page->facts().CohortDigest),
+				   "the composed About page and copied report identify the numbered cohort");
+		}
 		// A tests-enabled build tree installs no documents beside its executables.
 		expect(page->documents_absent_label()->isVisible(), "and, built from source, no installed documents");
 		page->page_button(core::reference_page::product_site)->click();

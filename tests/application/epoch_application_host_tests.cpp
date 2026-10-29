@@ -8010,7 +8010,7 @@ namespace {
 		}
 		// [[BPR-1772]], owner photograph 2026-10-26: a large sparse head was
 		// refused for its size although the linked clone could lend it.
-		const auto clone = std::filesystem::path{ "/fixture/reviewer-clone" };
+		const auto clone = workspace_parent_directory() / "reviewer-clone";
 		{
 			fixture value;
 			establish_sparse_three_files(value);

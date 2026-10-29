@@ -1,3 +1,4 @@
+#include "bpr/core/conversation_mutation_lifecycle.hpp"
 #include "bpr/core/conversation_reactions.hpp"
 
 #include <cstdlib>
@@ -161,6 +162,82 @@ namespace {
 		core::abandon_resolution_change(overlay, "review-thread:T1");
 		expect(core::project_thread_resolution(true, overlay, "review-thread:T1") == core::projected_resolution{ .Resolved = true }, "a failed reopen shows the read");
 	}
+
+	void test_exact_conversation_terminals_survive_only_the_same_context()
+	{
+		const auto scope = core::conversation_mutation_scope{
+			.Session     = core::application_session_id{ 1U },
+			.Account     = core::github_account_id{ 2U },
+			.PullRequest = core::pull_request_id{ 3U },
+			.Head        = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"),
+		};
+		const auto request = core::conversation_mutation_request{ core::request_id{ 1U }, scope.Session, core::request_generation{ 4U } };
+		const auto change  = core::pending_conversation_mutation{ .Subject = "review-thread:T1", .Add = true };
+		auto       state   = core::conversation_mutation_state{ };
+		auto       overlay = core::conversation_overlay{ };
+		expect(core::adopt_conversation_mutations(state, overlay, scope, false) == core::conversation_mutation_retirement::cancel, "a first context has no previous authority to drain");
+		expect(core::begin_resolution_change(overlay, change.Subject, change.Add) && core::retain_conversation_mutation(state, request, change), "an admitted resolution owns its exact request");
+		expect(core::adopt_conversation_mutations(state, overlay, scope, true) == core::conversation_mutation_retirement::drain && core::resolution_in_flight(overlay, change.Subject), "an accepted same-context read cannot retire an admitted request");
+		for (const auto wrong : { core::conversation_mutation_request{ core::request_id{ 2U }, request.Session, request.Generation },
+								  core::conversation_mutation_request{ request.Request, core::application_session_id{ 2U }, request.Generation },
+								  core::conversation_mutation_request{ request.Request, request.Session, core::request_generation{ 5U } } }) {
+			expect(!core::settle_conversation_mutation(state, overlay, wrong, change, true), "a different request, session or host generation cannot settle this change");
+		}
+		auto wrongChange = change;
+		wrongChange.Add  = false;
+		expect(!core::settle_conversation_mutation(state, overlay, request, wrongChange, true), "a terminal must answer the exact gesture too");
+		expect(core::settle_conversation_mutation(state, overlay, request, change, true) && !core::resolution_in_flight(overlay, change.Subject), "the original successful terminal settles after the refresh");
+		expect(!core::settle_conversation_mutation(state, overlay, request, change, false), "a duplicate terminal cannot undo success");
+
+		// A replacement host may reuse Request=1. Its generation remains part
+		// of ownership, and the old terminal can never answer its new gesture.
+		const auto next = core::conversation_mutation_request{ request.Request, request.Session, core::request_generation{ 5U } };
+		expect(core::begin_resolution_change(overlay, change.Subject, false) && core::retain_conversation_mutation(state, next, wrongChange), "the next host may admit the opposite change");
+		expect(!core::settle_conversation_mutation(state, overlay, request, change, true) && core::resolution_in_flight(overlay, change.Subject), "an old host's duplicate cannot answer a reused numeric request");
+		expect(core::settle_conversation_mutation(state, overlay, next, wrongChange, false) && !core::resolution_in_flight(overlay, change.Subject), "failure, refusal, cancellation and an unconfirmed outcome release ownership without retry");
+		const auto otherThread = core::pending_conversation_mutation{ .Subject = "review-thread:T2", .Add = true };
+		expect(core::begin_resolution_change(overlay, change.Subject, true) && core::retain_conversation_mutation(state, request, change)
+				   && core::begin_resolution_change(overlay, otherThread.Subject, true) && core::retain_conversation_mutation(state, next, otherThread),
+			   "overlapping old and replacement hosts can both own numeric request 1");
+		expect(core::settle_conversation_mutation(state, overlay, request, change, true) && core::resolution_in_flight(overlay, otherThread.Subject), "the old answer settles only its own thread");
+		expect(!core::settle_conversation_mutation(state, overlay, request, change, false) && core::settle_conversation_mutation(state, overlay, next, otherThread, true), "the replacement host keeps its own terminal despite an old duplicate");
+
+		auto       alternatives = std::vector<core::conversation_mutation_scope>{ };
+		const auto alternative  = [&](auto aChange) { auto other = scope; aChange(other); alternatives.push_back(other); };
+		alternative([](auto& aScope) { aScope.Session = core::application_session_id{ 2U }; });
+		alternative([](auto& aScope) { aScope.Profile = core::host_profile_id{ 2U }; });
+		alternative([](auto& aScope) { aScope.ProfileRevision = core::github_profile_revision{ 2U }; });
+		alternative([](auto& aScope) { aScope.Host = core::git_host_id{ 2U }; });
+		alternative([](auto& aScope) { auto bytes = std::array<std::uint8_t, 32U>{}; bytes[0] = 1U; aScope.HostAuthority = core::host_authority_fingerprint{ bytes }; });
+		alternative([](auto& aScope) { aScope.Account = core::github_account_id{ 3U }; });
+		alternative([](auto& aScope) { aScope.Viewer = core::github_viewer_actor_id{ 2U }; });
+		alternative([](auto& aScope) { aScope.IdentityGeneration = core::github_identity_generation{ 2U }; });
+		alternative([](auto& aScope) { aScope.Repository = core::repository_id{ 2U }; });
+		alternative([](auto& aScope) { aScope.PullRequest = core::pull_request_id{ 4U }; });
+		alternative([](auto& aScope) { aScope.Number = core::pull_request_number{ 2U }; });
+		alternative([](auto& aScope) { aScope.Base = aScope.Head; });
+		alternative([](auto& aScope) { aScope.Head = { }; });
+		alternative([](auto& aScope) { aScope.Mode = static_cast<core::github_access_mode>(1); });
+		for (const auto& other : alternatives) {
+			static_cast<void>(core::adopt_conversation_mutations(state, overlay, scope, false));
+			expect(core::begin_resolution_change(overlay, change.Subject, true) && core::retain_conversation_mutation(state, request, change), "prepare another pending request");
+			expect(core::adopt_conversation_mutations(state, overlay, other, true) == core::conversation_mutation_retirement::cancel && state.Pending.empty() && overlay.Resolutions.empty(), "every changed authority or source field retires old ownership");
+			expect(!core::settle_conversation_mutation(state, overlay, request, change, true), "the retired terminal cannot affect the replacement context");
+		}
+		static_cast<void>(core::adopt_conversation_mutations(state, overlay, scope, false));
+		expect(core::begin_resolution_change(overlay, change.Subject, true) && core::retain_conversation_mutation(state, request, change), "prepare a provider binding change");
+		expect(core::adopt_conversation_mutations(state, overlay, scope, false) == core::conversation_mutation_retirement::cancel && state.Pending.empty(), "changed exact provider target/actor metadata also retires ownership");
+		core::retire_conversation_mutations(state, overlay);
+		expect(!state.Scope && state.Pending.empty() && overlay.Resolutions.empty(), "real retirement drops authority and overlay together");
+		static_cast<void>(core::adopt_conversation_mutations(state, overlay, scope, false));
+		const auto reaction = core::pending_conversation_mutation{ core::conversation_mutation_kind::reaction, "comment:C1", reaction_content::heart, true };
+		expect(core::begin_reaction_change(overlay, reaction.Subject, reaction.Content, true) && core::retain_conversation_mutation(state, request, reaction), "a reaction uses the same exact request ownership");
+		expect(core::adopt_conversation_mutations(state, overlay, scope, true) == core::conversation_mutation_retirement::drain, "a refresh also preserves an admitted reaction");
+		expect(core::settle_conversation_mutation(state, overlay, request, reaction, true, core::reaction_summary{ .ViewerCanReact = true, .Groups = { group(reaction.Content, 1U, true) } })
+				   && !core::reaction_in_flight(overlay, reaction.Subject, reaction.Content),
+			   "the reaction's original answer settles it");
+		expect(!core::settle_conversation_mutation(state, overlay, request, reaction, false), "a duplicate cannot abandon a confirmed reaction");
+	}
 }
 
 auto main() -> int
@@ -172,6 +249,7 @@ auto main() -> int
 	test_a_read_that_disagrees_twice_is_believed();
 	test_a_failed_change_restores_the_read();
 	test_a_resolution_shows_at_once_and_reconciles();
+	test_exact_conversation_terminals_survive_only_the_same_context();
 	std::cout << "conversation-reactions-core-tests:pass\n";
 	return EXIT_SUCCESS;
 }

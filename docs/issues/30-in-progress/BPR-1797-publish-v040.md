@@ -41,3 +41,81 @@ the same prerelease, with comprehensive qualification afterward. Stable
 promotion and Ubuntu artifacts retain their complete gates. The exact external
 amendment and new HarfBuzz decision packet are in the recorded runtime root;
 no passing qualification or security decision is inferred.
+
+## Post-preview qualification checkpoint, 2026-10-29 UTC
+
+The public v0.4.0 prerelease remains bound to immutable source
+`144de719a8d972162f92ec04f98ba11293ae0a8f`: eight Mac and seven Windows assets,
+all previously downloaded, hash matched and natively trust checked. No tag or
+asset is replaced. Comprehensive qualification followed the owner's preview-first
+amendment: Mac Release 865/871 pass, six fail; Debug 875/883 pass, seven fail,
+one optimized-only skip. Windows Release 825/847 pass, 22 fail; Debug 805/839
+pass, 33 fail, one optimized-only skip. The eight dedicated Debug performance
+omissions have no pass or functional coverage credit. Raw failures, skips and
+unreached checks remain in the original external request evidence.
+
+The [paired Windows containment observations](../../verification/release-v040-windows-contained-observations.md)
+supply actual Release/Debug baselines and contained refusals for ten exact
+courses. Their narrow registration/pin correction changes no functional
+assertion, deadline, capability or product permission. Its 73 contract cases
+and Mac manifest pass; new-source native Windows verification remains pending.
+The five newly failed Debug agent courses reproduce the same completion
+precondition failures under exact original commands. The bounded threaded-reply
+recovery also expires at 240 seconds while awaiting a resolution completion;
+GitHub.com's final contract and the second host remain unaccepted. Neither is
+waived as timing or converted to a pass. Ubuntu's original-source comprehensive
+run is active, serialized after the Windows follow-ups.
+
+BPR-1799 implements the separately requested numbered candidate identity. The
+existing Find-ring owner fix and guarded publisher are deliberately integrated
+with the qualification repairs on the engineering branch. The owner clarified that corrected numbered RCs retain marketing version 0.4.0
+and use distinct prerelease tags. The unanswered patch-bump proposal was
+withdrawn; future stable base-version publication is a separate decision.
+The owner separately approved the prepared PR-tour source publication and
+project pin update directly. AgentSkills main now contains exact safe candidate
+`677128ae334a4cbb9d9fdee0028aec698f351d48` by normal fast-forward. This checkout’s
+PR-tour portable pin/deploy is `ae21489d0`; all seven payload files match the
+authoritative package, every other pin is unchanged, and the previously failed
+`skill_pr_tour_package` plus all three bootstrap checks pass. The actual attended
+UI had no verdict; its cursor 5 and direct approval are recorded separately,
+protections released and only its own transport stopped. M8/M9/native Intel/vault/crash/privacy,
+allocator/fuzz and final exact-artifact security dispositions remain open; the
+preview-specific HarfBuzz and v0.4.0 CBOR decisions do not automatically accept
+a future corrected version or stable/Ubuntu distribution.
+
+## Numbered candidate qualification continuation, 2026-10-29 UTC
+
+BPR-1799 completes the numbered-cohort engineering at frozen source
+`0941326aee0f51002e205784a1b220a01ecba384`, build 1/cohort `4bfd1b5a…`.
+Mac 10 and Windows 7 assets on `v0.4.0-build.1` are downloaded and natively
+verified; Linux's 13 final signed/audited assets remain unpublished. The original
+`v0.4.0` source `144de719…` and its 15 assets remain immutable.
+
+The prescribed supplemental closure completes Windows and Linux 19 Release
+and 19 Debug public paths, both configurations' source/isolation controls and
+one independent tests-off composition per platform. Verification-only warning
+and discovery-settlement corrections preserve the frozen product/configuration
+bytes. Earlier Mac 22/22 in both configurations, BPR-1800 closure and five
+bounded Windows agent recoveries are reused under their recorded bindings.
+All six original comprehensive reports remain failed. The external
+`full-N-to-repair-inventory-r1.json` maps every original failed row to its actual
+supplemental proof or matching carried waiver and retains Debug omissions,
+configured skips, original failures and unreached checks.
+
+The owner directly deferred HarfBuzz for this exact build 1, including stable
+and Ubuntu; the raw 23/21/23 scanner findings still exit 2. Matching historical
+waivers and native/M8/M9, Intel, vault/authentication, accessibility, crash/privacy,
+allocator/fuzz and independent-review limits remain explicit. No additional
+security verdict or independent review was invented or requested.
+
+The current authorization boundary permits qualification and preparation only.
+The reviewed operation is: append Linux's 13 files to the RC, anonymously
+download/native verify them, then create a distinct bare `0.4.0` tag/release at
+source `0941326a…` with the same complete 30 files and make it stable/Latest
+only after its complete asset set verifies. Existing `v0.4.0` and the RC are
+preserved. Installed source offers require the Linux source on the RC first.
+Old 0.3.4 updater code accepts the exact alias and bare tag in native staging;
+same-base 0.4.0 previews still require manual installation. The guarded tool's
+actual dry runs list the 13 missing RC assets and absent publication authority.
+Specific authorization and subsequent publication/download verification remain
+pending. This card and RFC-BPR-0038 remain open.

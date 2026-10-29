@@ -43,6 +43,11 @@ namespace bpr::qt {
 	{
 		/// The application version, "0.14.0".
 		QString Version;
+		/// The release candidate cohort, or zero for an ordinary local build.
+		unsigned BuildNumber = 0U;
+		/// Frozen cross-platform candidate configuration and cohort identities.
+		QString ConfigurationDigest;
+		QString CohortDigest;
 		/// The full commit the build was made from, or empty outside a Git checkout.
 		QString Commit;
 		/// That commit's date, ISO "2026-10-21", or empty with no commit.

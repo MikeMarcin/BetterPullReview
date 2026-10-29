@@ -1,3 +1,12 @@
+# [[BPR-1797]] release closeout merge reseal (2026-10-29): canonical main
+# 9d02a77d4 and release proof 40236a669 preserve both histories. Reviewed the
+# only added pinned-scope commits, 344ab410d (github_application.cpp's exact
+# conversation scope/request retention and draining retirement) and b7940cf2e
+# (about_desktop.cpp's immutable compiled cohort facts). Existing main's
+# reviewer, avatar and permalink compositions remain. No source inventory,
+# grant, provider-selection or production mutation-branch change. The mutation
+# pin remains 16d135419; the real baseline and hostile inventory controls run
+# after resealing. These integration bytes are not the frozen released bytes.
 # [[BPR-1802]] permalink snippet reseal (2026-10-28), over 20a3048ab.
 # github_application.cpp composes the reader's permalink snippet host: a
 # source port over the epoch host's new resolve_permalink_source (a file at a
@@ -25,6 +34,18 @@
 # --reviewer-request-probe continuation. No credential, provider selection,
 # publication or source-inventory change; the mutation-branch pin is
 # unchanged. application_reviewer_request_contract qualifies these bytes.
+# [[BPR-1800]] lifecycle reseal over matching b1dcb8ba2 through this
+# issue's repair commit. The only pinned production file changed is
+# github_application.cpp: the core adopts exact conversation scope and full
+# request/gesture ownership; unchanged refresh drains the old host's admitted
+# conversation terminals, changed scope hard-stops it, and a stale fixture
+# composition retry is refused. Resolution/reaction handlers settle each exact
+# pending request once. Self-review covers all changed pinned bytes; no new
+# provider/credential/grant/write path or app-source file is introduced. The
+# production constructor/grant branch remains byte-identical (16d135419).
+# Core/host lifecycle and the controlled public Debug course pass; native
+# Release/Windows and final release qualification remain separate obligations.
+# The original drift failure is retained; print-only mode is not verification.
 # [[BPR-1774]] description-edit reseal (2026-10-27), over ce5d19205.
 # github_application.cpp, main.cpp and the public-path fixture add the
 # author's description edit: Overview's Save reaches the core's
@@ -2464,7 +2485,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# publication or source-inventory change; the mutation-branch pin is
 	# unchanged.
 	set(bpr_expected_full_application_digest
-		"78100f639c3fb8a2767e7a2b4a3395af442fff85eed3d52ee29d939dc92b9a3a"
+		"fdb064b8364a53d69f55bc7c73f489ce558ef0dc778c50db7d374627115cc6c1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2721,8 +2742,13 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1807]] avatar-picture reseal (2026-10-28): github_application.cpp
 # only. Avatar style adoption, the avatar style appearance intent and each
 # window's picture dispatch. No grant, mutation or publication change.
+# [[BPR-1799]] release-cohort reseal (2026-10-29): about_desktop.cpp only
+# adds the compiled release build number and configuration/cohort digests to
+# its immutable About facts. It introduces no effect, provider, grant, mutation
+# or source-inventory change. Native About/copy courses cover local and numbered
+# presentation; real numbered producer/native acceptance remains pending.
 	set(bpr_expected_production_app_manifest_digest
-        "8b9cba319fb6070da38e50ee268da671ddf1ca6c9be1004f5d669ccf073a9fc2"
+        "a17d8c7d1b293e81404632f8311aa0113f001a06c48ecfab84eba1bbab8c46dc"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

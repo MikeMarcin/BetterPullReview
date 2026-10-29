@@ -12,6 +12,49 @@ only for an authorized release after the repository has separately become
 public; the publisher never changes visibility. Use local or target-native
 tools; GitHub Actions stays disabled and has no role in the release workflow.
 
+## Release candidate build identity
+
+Use the BPR-only [cohort procedure](../../../docs/development/release-build-identity.md).
+Ordinary local configure/builds allocate nothing. After committing the source,
+collect `_bpr/release-observed.json` from each selected native graph into one
+external `bpr.release-inputs.v1` configuration, with named producers, complete
+observed flags/settings/toolchains and the previous actual Windows MSI identity.
+The clean main controller fetches/reconciles authoritative main and allocates:
+
+```sh
+tools/publish-release.sh --prepare-candidate --candidate-inputs /absolute/inputs.json \
+  --cohort-output /absolute/allocation.json
+```
+
+Commit exactly its counter and numbered receipt, then freeze without another
+source change:
+
+```sh
+tools/publish-release.sh --freeze-candidate N --cohort-output /absolute/cohort.json
+```
+
+Give identical cohort bytes to every producer. Configure with
+`-DBPR_RELEASE_COHORT=/absolute/cohort.json -DBPR_RELEASE_PRODUCER=declared-name`;
+`tools/release.sh` takes `--cohort /absolute/cohort.json --producer declared-name`.
+A numbered Windows package also requires `--previous-msi /absolute/previous.msi`
+so the native producer checks real per-machine upgrade ordering and the exact
+installer digest in the committed authoritative Windows floor before building
+or signing. Unchanged retries reuse N; changed source/configuration gets another
+identity. Never remove the durable common-Git reservations to reuse a number.
+
+Initial numbered RC publication requires `--cohort /absolute/cohort.json` and
+`--prerelease`. It derives the distinct `vVERSION-build.N` tag; macOS short
+versions keep the base marketing version. Repeated 0.4.0 RCs need no patch bump.
+Default artifact directories and filenames include `VERSION-build.N`; an existing
+numbered output directory is refused without replacement. Build-tag stable
+promotion is refused; a compatible stable route is a separate owner decision.
+The macOS ZIP also has an exact byte-identical legacy base-version alias and
+checksum for installed updaters. The publisher verifies that alias and refuses
+mixed source/configuration/cohorts. Existing unnumbered published releases retain
+the separate guarded append/promote flow; they are never retroactively numbered.
+Version selection, native qualification, security and publication authority stay
+separate. In particular v0.4.0 and its preview assets remain immutable.
+
 ## Select and prepare
 
 For a coordinated release or a resumed run, read
@@ -109,7 +152,8 @@ must be equivalent after an authorized public visibility change.
 ## Publish once
 
 `tools/publish-release.sh` runs on clean `main`. With no manifest it selects the
-standard macOS eight-asset set under `build/releases/VERSION/`. Repeat
+numbered macOS set under `build/releases/VERSION-build.N/`: eight canonical
+assets plus the exact legacy ZIP alias and checksum. Repeat
 `--manifest /absolute/path/to/INSTALLER.release.json` to select signed Windows
 and Linux outputs; add `--macos` to include the standard macOS set too.
 It verifies final products, complete runtime archive/SPDX, source binding,
@@ -121,7 +165,7 @@ passed on the producers; this offline preflight is not release trust approval.
 Review notes/artifacts and preflight the selected set:
 
 ```sh
-tools/publish-release.sh --version X.Y.Z --notes-file /absolute/notes.md \
+tools/publish-release.sh --version X.Y.Z --cohort /absolute/cohort.json --notes-file /absolute/notes.md \
   --macos --manifest /absolute/windows/INSTALLER.msi.release.json \
   --manifest /absolute/ubuntu/INSTALLER.deb.release.json --dry-run
 ```
@@ -184,7 +228,7 @@ report which tag, push, release and assets actually exist.
 Verify URL, peeled tag commit, draft/prerelease/Latest state, exact selected
 assets and the selected repository visibility. Download uploaded products and compare SHA-256
 with final producer bytes; verify source binding and native trust again on the
-downloads. The standard macOS route needs all eight assets. Other routes need
+downloads. The numbered macOS route needs its eight canonical assets plus the exact legacy ZIP alias and checksum. Other routes need
 their declared package/archive/source/SPDX/checksum/provenance/signature set,
 not a fixed count borrowed from macOS.
 

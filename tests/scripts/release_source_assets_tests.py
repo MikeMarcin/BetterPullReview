@@ -23,6 +23,8 @@ sys.path.insert(0, str(ROOT / "packaging"))
 import package_runtime as runtime
 import package as native_package
 import verify_release_sources as release
+import release_build_fixture
+import plistlib
 
 
 class SourceAssetTests(unittest.TestCase):
@@ -54,10 +56,14 @@ class SourceAssetTests(unittest.TestCase):
                 relative = "Contents/Resources/ThirdParty/" + name
                 archive.writestr("BetterPullReview.app/" + relative, text)
                 entries.append({"fileName": "./" + relative, "checksums": [{"algorithm": "SHA256", "checksumValue": hashlib.sha256(text.encode()).hexdigest()}]})
+            if self.info.get("releaseCohort"):
+                receipt = self.info["releaseCohort"]["allocation"]
+                archive.writestr("BetterPullReview.app/Contents/Info.plist", plistlib.dumps({"CFBundleShortVersionString": "1.2.3", "CFBundleVersion": str(receipt["number"]),
+                    "BPRReleaseCohort": self.info["releaseCohort"]["cohortDigest"], "BPRReleaseConfiguration": receipt["configurationDigest"]}))
             if embedded:
                 archive.writestr("BetterPullReview.app/Contents/Resources/ThirdParty/corresponding-source.zip", b"unexpected")
         self.sbom.write_text(json.dumps({"packages": [{"SPDXID": "SPDXRef-BetterPullReview", "versionInfo": "1.2.3",
-            "sourceInfo": f"git:{self.revision}; clean=True; tests-disabled Release; Darwin"}], "files": entries}))
+            "sourceInfo": runtime.product_source_info(self.info, self.revision, True)}], "files": entries}))
 
     def verify(self):
         return release.verify(self.app_zip, self.sbom, self.asset, "1.2.3", self.revision)
@@ -159,23 +165,40 @@ class SourceAssetTests(unittest.TestCase):
     def publisher_fixture(self):
         # Only fixture git/gh executables can run here. This exercises the real
         # shell command, its checksum gates and Python verifier without a remote.
+        release_cohort = release_build_fixture.cohort("1.2.3", self.revision)
+        self.info["releaseCohort"] = release_cohort
+        previous = self.asset
+        self.asset = self.root / runtime.source_asset_name(self.info)
+        shutil.copyfile(previous, self.asset)
+        self.provenance = runtime.source_provenance(self.info, self.revision, runtime.digest(self.asset))
+        self.material = {"source-provenance.json": json.dumps(self.provenance),
+                         "SOURCE-OFFERS.txt": "\n".join(self.provenance["asset"].values()),
+                         "THIRD-PARTY-NOTICES.txt": "\n".join(self.provenance["asset"].values())}
+        self.write_package()
         repo = self.root / "fixture-repo"
         for path in ("tools/publish-release.sh", "packaging/package_runtime.py", "packaging/verify_release_sources.py"):
             destination = repo / path
             destination.parent.mkdir(parents=True, exist_ok=True)
             shutil.copyfile(ROOT / path, destination)
+        release_build_fixture.checker_bridge(repo)
+        cohort_path = self.root / "cohort.json"
+        runtime.write_json(cohort_path, release_cohort)
         (repo / "packaging/dependencies.json").write_text(json.dumps({"components": self.declared}))
         (repo / "CMakeLists.txt").write_text("project(\n VERSION 1.2.3\n)\n")
         notes = repo / "notes.md"
         notes.write_text("Fixture release only\n")
-        dist = repo / "build/releases/1.2.3"
+        dist = repo / "build/releases/1.2.3-build.1"
         dist.mkdir(parents=True)
-        base = "BetterPullReview-1.2.3-macos-universal"
+        base = "BetterPullReview-1.2.3-build.1-macos-universal"
         files = {base + ".dmg": b"fixture DMG", base + ".zip": self.app_zip.read_bytes(),
                  base + ".spdx.json": self.sbom.read_bytes(), self.asset.name: self.asset.read_bytes()}
         for name, payload in files.items():
             (dist / name).write_bytes(payload)
             (dist / (name + ".sha256")).write_text(f"{hashlib.sha256(payload).hexdigest()}  {name}\n")
+        alias = "BetterPullReview-1.2.3-macos-universal.zip"
+        files[alias] = self.app_zip.read_bytes()
+        (dist / alias).write_bytes(files[alias])
+        (dist / (alias + ".sha256")).write_text(f"{hashlib.sha256(files[alias]).hexdigest()}  {alias}\n")
         commands = self.root / "commands.jsonl"
         fake_bin = self.root / "bin"
         fake_bin.mkdir()
@@ -207,7 +230,7 @@ else:
             path.write_text(stub)
             path.chmod(0o755)
         environment = {**runtime.os.environ, "PATH": str(fake_bin) + runtime.os.pathsep + runtime.os.environ["PATH"]}
-        command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes)]
+        command = ["bash", str(repo / "tools/publish-release.sh"), "--version", "1.2.3", "--notes-file", str(notes), "--prerelease", "--cohort", str(cohort_path)]
         return command, environment, commands, dist, files
 
     @staticmethod
@@ -239,7 +262,47 @@ else:
         self.assertEqual(result.returncode, 0, result.stderr + result.stdout)
         uploaded = [item for item in map(json.loads, commands.read_text().splitlines()) if item[:3] == ["gh", "release", "create"]]
         self.assertEqual(len(uploaded), 1)
-        self.assertEqual(set(uploaded[0][4:12]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+        self.assertEqual(set(uploaded[0][4:uploaded[0].index("--repo")]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_numbered_publisher_refuses_missing_cohort_and_changed_legacy_alias(self):
+        command, environment, commands, dist, _ = self.publisher_fixture()
+        without = command[:-2]
+        result = subprocess.run(without + ["--dry-run"], env=environment, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires --cohort", result.stderr)
+        alias = dist / "BetterPullReview-1.2.3-macos-universal.zip"
+        for payload in (None, b"other cohort"):
+            commands.write_text("")
+            if payload is None:
+                alias.unlink()
+            else:
+                alias.write_bytes(payload)
+            result = subprocess.run(command + ["--dry-run"], env=environment, text=True, capture_output=True)
+            self.assertNotEqual(result.returncode, 0)
+            self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
+
+    @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
+    def test_numbered_rc_requires_prerelease_and_uses_its_own_tag_and_source_url(self):
+        command, environment, commands, _, _ = self.publisher_fixture()
+        unflagged = [item for item in command if item != "--prerelease"]
+        result = subprocess.run(unflagged, env=environment, text=True, capture_output=True)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("requires --prerelease", result.stderr)
+        self.assertFalse(any(item[0] == "gh" for item in map(json.loads, commands.read_text().splitlines())))
+        commands.write_text("")
+        result = subprocess.run(command, env=environment, text=True, capture_output=True)
+        self.assertEqual(result.returncode, 0, result.stderr)
+        calls = list(map(json.loads, commands.read_text().splitlines()))
+        upload = next(item for item in calls if item[:3] == ["gh", "release", "create"])
+        self.assertEqual(upload[3], "v1.2.3-build.1")
+        self.assertIn("/releases/download/v1.2.3-build.1/", runtime.source_asset_url(self.info))
+        self.assertNotIn("/releases/download/v1.2.3/", runtime.source_asset_url(self.info))
+        commands.write_text("")
+        retry = subprocess.run(command, env=environment, text=True, capture_output=True)
+        self.assertNotEqual(retry.returncode, 0)
+        self.assertIn("GitHub release already exists", retry.stderr)
+        self.assertEqual(self.publication_mutations(commands), [])
 
     @unittest.skipIf(sys.platform == "win32", "the publisher requires Bash")
     def test_publication_requires_explicit_matching_visibility_and_origin(self):
@@ -276,11 +339,49 @@ else:
                 self.assertEqual(self.publication_mutations(commands), mutations)
         calls = list(map(json.loads, commands.read_text().splitlines()))
         upload = next(call for call in calls if call[:3] == ["gh", "release", "create"])
-        self.assertEqual(set(upload[4:12]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
+        self.assertEqual(set(upload[4:upload.index("--repo")]), {str(dist / name) for name in files} | {str(dist / (name + ".sha256")) for name in files})
         for flag in ("--verify-tag", "--prerelease", "--latest=false"):
             self.assertIn(flag, upload)
         self.assertTrue(any(call[0] == "git" and "--atomic" in call for call in calls))
         self.assertFalse(any(call[:3] == ["gh", "repo", "edit"] for call in calls))
+
+
+@unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
+class NumberedOutputTests(unittest.TestCase):
+    def test_repeated_marketing_rc_paths_preserve_legacy_local_and_prior_cohort_bytes(self):
+        with ContainedTemporaryDirectory() as temporary:
+            root = Path(temporary)
+            legacy = root / "build/releases/0.4.0"
+            local = root / "build/releases/0.4.0-local"
+            for directory, count in [(legacy, 15), (local, 8)]:
+                directory.mkdir(parents=True)
+                for index in range(count):
+                    (directory / str(index)).write_bytes(f"immutable fixture {directory.name}/{index}".encode())
+            def snapshot():
+                return {str(path.relative_to(root)): runtime.digest(path) for path in root.rglob("*") if path.is_file()}
+            before = snapshot()
+            script = (ROOT / "tools/release.sh").read_text().split('[[ "$(uname -s)" == "Darwin" ]]', 1)[0]
+            prefix = "\n".join("ROOT_DIR=" + shlex.quote(str(root)) if line.startswith("ROOT_DIR=") else line for line in script.splitlines())
+            def select(number, output=""):
+                harness = prefix + "\nPRESET=macos-release\nRELEASE_COHORT=checked-cohort\nASSET_VERSION=0.4.0-build." + str(number)
+                harness += "\nOUTPUT_DIR=" + shlex.quote(output) + '\nselect_release_paths\nprintf "%s\\n%s\\n" "$BUILD_DIR" "$OUTPUT_DIR"\n'
+                return subprocess.run(["bash", "-s"], input=harness, text=True, capture_output=True)
+            first = select(1)
+            self.assertEqual(first.returncode, 0, first.stderr)
+            build, output = map(Path, first.stdout.splitlines())
+            self.assertEqual(build, root / "build/macos-release-0.4.0-build.1")
+            self.assertEqual(output, root / "build/releases/0.4.0-build.1")
+            output.mkdir()
+            (output / "sealed.zip").write_bytes(b"first cohort")
+            sealed = snapshot()
+            for result in (select(1), select(2, str(legacy)), select(2, str(local))):
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("output already exists", result.stderr)
+                self.assertEqual(snapshot(), sealed)
+            second = select(2)
+            self.assertEqual(second.returncode, 0, second.stderr)
+            self.assertIn("/build/releases/0.4.0-build.2", second.stdout)
+            self.assertEqual({name: value for name, value in snapshot().items() if name in before}, before)
 
 
 @unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")

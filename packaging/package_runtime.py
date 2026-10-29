@@ -24,6 +24,31 @@ from typing import BinaryIO
 import urllib.request
 import zipfile
 
+_cohort_spec = importlib.util.spec_from_file_location("bpr_release_build", Path(__file__).with_name("release_build.py"))
+release_build = importlib.util.module_from_spec(_cohort_spec)
+_cohort_spec.loader.exec_module(release_build)
+
+
+def release_identity(info: dict, revision: str | None = None) -> dict | None:
+    value = info.get("releaseCohort")
+    if value is None:
+        return None
+    receipt = release_build.check(value, version=info["version"])
+    if revision is not None and value["sourceCommit"] != revision:
+        raise ValueError("package release cohort producer mismatch")
+    return receipt
+
+
+def asset_version(info: dict) -> str:
+    receipt = release_identity(info)
+    return receipt["native"]["assetVersion"] if receipt else info["version"]
+
+
+def release_fields(info: dict) -> dict:
+    release_identity(info)
+    return {"releaseCohort": info["releaseCohort"]} if info.get("releaseCohort") is not None else {}
+
+
 ROOT = Path(__file__).resolve().parents[1]
 LINUX_TARGETS = {"DEB": "linux-ubuntu-26.04-x64", "RPM": "linux-rhel-10-x64"}
 # RFC-BPR-0084 Q1: Svg rasterizes SVG body images (the library, no plugin).
@@ -111,6 +136,8 @@ def inputs(build: Path, *, tour_cli: bool = False) -> dict:
         for producer in private_library_producers(value):
             if not producer.resolve().is_relative_to(build.resolve()):
                 raise ValueError("private-library producer is outside the selected build")
+    if value.get("releaseCohort") is not None:
+        release_build.check(value["releaseCohort"], ROOT, value["version"])
     return value
 
 
@@ -159,6 +186,9 @@ def product_source_info(info: dict, revision: str, clean: bool) -> str:
     """The product package's SPDX sourceInfo: its source, its graph and, when
     it omits a family, which one. A full package's text is unchanged."""
     text = f"git:{revision}; clean={clean}; tests-disabled Release; {info['platform']}"
+    receipt = release_identity(info, revision)
+    if receipt:
+        text += f"; build={receipt['number']}; configuration={receipt['configurationDigest']}; cohort={info['releaseCohort']['cohortDigest']}"
     absent = [FAMILY_WORDS[name] for name, present in families(info).items() if not present]
     return text + "".join(f"; {name} absent" for name in absent)
 
@@ -245,11 +275,13 @@ def source_asset_name(info: dict) -> str:
         if target not in LINUX_TARGETS.values():
             raise ValueError("invalid Linux release target")
     suffix = "-tour-cli" if info.get("layout") == "tour-cli" else ""
-    return f"Source-BetterPullReview-{info['version']}-{target}{suffix}-corresponding-source.zip"
+    return f"Source-BetterPullReview-{asset_version(info)}-{target}{suffix}-corresponding-source.zip"
 
 
 def source_asset_url(info: dict) -> str:
-    return f"https://github.com/MikeMarcin/BetterPullReview/releases/download/v{info['version']}/{source_asset_name(info)}"
+    receipt = release_identity(info)
+    tag = receipt["native"]["releaseTag"] if receipt else "v" + info["version"]
+    return f"https://github.com/MikeMarcin/BetterPullReview/releases/download/{tag}/{source_asset_name(info)}"
 
 
 def source_asset_path(build: Path, info: dict, revision: str) -> Path:
@@ -257,8 +289,9 @@ def source_asset_path(build: Path, info: dict, revision: str) -> Path:
 
 
 def source_provenance(info: dict, revision: str, checksum: str) -> dict:
+    release_identity(info, revision)
     return {"schema": "bpr.release-sources.v2", "components": components(info),
-            "release": {"version": info["version"], "platform": info["platform"], "sourceRevision": revision},
+            "release": {"version": info["version"], "platform": info["platform"], "sourceRevision": revision, **release_fields(info)},
             "asset": {"name": source_asset_name(info), "url": source_asset_url(info), "sha256": checksum}}
 
 

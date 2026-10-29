@@ -44,7 +44,8 @@ xcrun notarytool store-credentials BetterPullReview-notary \
 ```
 
 For an existing file Keychain, pass `--notary-profile NAME --notary-keychain
-/absolute/path/to/login.keychain-db` to `tools/release.sh`.
+/absolute/path/to/login.keychain-db` to `tools/release.sh`. Numbered producers pass `--cohort /absolute/cohort.json
+--producer declared-name`; see the skill’s candidate preparation procedure.
 `APPLE_NOTARY_KEYCHAIN` supplies the optional default. Both app and DMG use
 that selector. Verify with `xcrun notarytool history --keychain-profile NAME
 --keychain /absolute/path/to/login.keychain-db` before building.
@@ -65,7 +66,8 @@ checks to force a pass.
 
 Standard assets: DMG, app ZIP, SPDX JSON,
 `Source-BetterPullReview-X.Y.Z-macos-universal-corresponding-source.zip`,
-and one `.sha256` for each: eight assets. Preserve the `Source-` name bound
+and one `.sha256` for each: eight canonical assets. A numbered cohort also
+emits the exact legacy base-version ZIP alias and its checksum (ten total). Preserve the `Source-` name bound
 to installed notices/offers. Publisher preflight invokes
 `packaging/verify_release_sources.py` against actual app ZIP/SPDX/source before
 remote operations. Return to the shared publication procedure.

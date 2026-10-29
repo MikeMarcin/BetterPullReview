@@ -951,6 +951,21 @@ target_compile_features(
 bpr_enable_hardening(test_better_pull_review_queue_composition_public_path)
 bpr_enable_warnings(test_better_pull_review_queue_composition_public_path)
 
+bpr_add_executable(test_better_pull_review_thread_resolution_refresh thread_resolution_refresh_public_path.cpp)
+target_link_libraries(test_better_pull_review_thread_resolution_refresh PRIVATE BetterPullReview::Composition BetterPullReview::Platform)
+target_compile_definitions(test_better_pull_review_thread_resolution_refresh PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_better_pull_review_thread_resolution_refresh PRIVATE cxx_std_23)
+bpr_enable_hardening(test_better_pull_review_thread_resolution_refresh)
+bpr_enable_warnings(test_better_pull_review_thread_resolution_refresh)
+# [[BPR-1800]]. Both native Windows configurations pass this exact image
+# directly and refuse fixture startup in the container; no lower-level cause
+# was sampled. Keep the measured registration beside its verifier pin.
+bpr_add_network_isolated_test(NAME application_thread_resolution_refresh WINDOWS_UNCONTAINED COMMAND test_better_pull_review_thread_resolution_refresh)
+set_tests_properties(application_thread_resolution_refresh PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "thread-resolution-refresh-public-path:pass"
+    TIMEOUT 120)
+
 # [[BPR-1720]]. Help › About as composed: this build's facts, the
 # installed legal folder and its regular-file rule, and the links reaching the
 # tests-only browser launch with exactly their admitted addresses.
@@ -983,6 +998,8 @@ target_compile_definitions(
         BPR_BUILD_TESTING=1
         "BPR_TEST_LEGAL_NONREGULAR_ROOT=\"${bpr_about_legal_fixture}/linked\""
         "BPR_TEST_PROJECT_VERSION=\"${PROJECT_VERSION}\""
+        "BPR_TEST_RELEASE_BUILD_NUMBER=${BPR_RELEASE_BUILD_NUMBER}"
+        "BPR_TEST_RELEASE_CONFIGURATION_DIGEST=\"${BPR_RELEASE_CONFIGURATION_DIGEST}\""
         "BPR_TEST_CONFIGURATION=\"$<CONFIG>\""
 )
 target_compile_features(test_better_pull_review_about_composition PRIVATE cxx_std_23)
@@ -3289,7 +3306,7 @@ target_compile_definitions(test_device_flow_cli_choice PRIVATE BPR_BUILD_TESTING
 bpr_enable_hardening(test_device_flow_cli_choice)
 bpr_enable_warnings(test_device_flow_cli_choice)
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_device_flow_cli_choice COMMAND test_device_flow_cli_choice)
+    bpr_add_network_isolated_test(NAME application_device_flow_cli_choice WINDOWS_UNCONTAINED COMMAND test_device_flow_cli_choice)
     set_tests_properties(application_device_flow_cli_choice PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120 PASS_REGULAR_EXPRESSION "device-flow-cli-choice-tests:pass")
 endif()
 
@@ -3304,7 +3321,7 @@ target_compile_definitions(test_inline_publish_cli_consent PRIVATE BPR_BUILD_TES
 bpr_enable_hardening(test_inline_publish_cli_consent)
 bpr_enable_warnings(test_inline_publish_cli_consent)
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent COMMAND test_inline_publish_cli_consent)
+    bpr_add_network_isolated_test(NAME application_inline_publish_cli_consent WINDOWS_UNCONTAINED COMMAND test_inline_publish_cli_consent)
     set_tests_properties(application_inline_publish_cli_consent PROPERTIES ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180 PASS_REGULAR_EXPRESSION "inline-publish-cli-consent-tests:pass")
 endif()
 
@@ -3833,7 +3850,7 @@ set_tests_properties(application_home_waiting_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
+    bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
     set_tests_properties(application_home_waiting_cli_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
         PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
@@ -3843,7 +3860,7 @@ endif()
 # a fixture-qualified CLI account lease, with no native sign-in or live API.
 # The CLI sign-in path is composed on macOS, Windows and Linux ([[BPR-1791]]).
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    bpr_add_network_isolated_test(NAME application_personal_discovery_cli_public_path COMMAND test_personal_discovery_public_path --gh-cli)
+    bpr_add_network_isolated_test(NAME application_personal_discovery_cli_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --gh-cli)
     set_tests_properties(application_personal_discovery_cli_public_path PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
         PASS_REGULAR_EXPRESSION "personal-discovery-cli-public-path:pass")
@@ -4717,12 +4734,14 @@ set_tests_properties(application_source_pr_search_scope PROPERTIES ENVIRONMENT "
 # [[BPR-1791]]: on every platform that composes the CLI way in.
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_review_submission_cli_ordinary
+        WINDOWS_UNCONTAINED
         COMMAND test_better_pull_review_review_submission_composition_public_path --cli)
     set_tests_properties(application_review_submission_cli_ordinary PROPERTIES
         ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 120
         PASS_REGULAR_EXPRESSION "review-submission-composition:pass")
     foreach(course IN ITEMS native stop)
         bpr_add_network_isolated_test(NAME application_review_tour_cli_ordinary_${course}
+            WINDOWS_UNCONTAINED
             COMMAND test_review_tour_publication_public_path --cli ${course})
         set_tests_properties(application_review_tour_cli_ordinary_${course} PROPERTIES
             ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
