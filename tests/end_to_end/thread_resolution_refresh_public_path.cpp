@@ -65,7 +65,7 @@ namespace {
 				owner = std::move(*aResult);
 			}
 		});
-		const auto release_read = [&] {
+		const auto releaseRead = [&] {
 			{
 				const auto lock = std::scoped_lock{ mutex };
 				holdRead        = false;
@@ -73,7 +73,7 @@ namespace {
 			changed.notify_all();
 		};
 		const auto stop = [&] {
-			release_read();
+			releaseRead();
 			if (owner) {
 				fixture_access::hold_review_mutation_terminals(*owner, false);
 				owner->begin_shutdown();
@@ -124,7 +124,7 @@ namespace {
 				return false;
 			};
 			expect(pending(), "the public card awaits its admitted resolution");
-			release_read();
+			releaseRead();
 			wait_for([&] { return window.github_refresh_action()->isEnabled(); }, "the second refresh accepts while the mutation terminal is held");
 			expect(pending(), "accepting the read retains the admitted pending change");
 			fixture_access::hold_review_mutation_terminals(*owner, false);
