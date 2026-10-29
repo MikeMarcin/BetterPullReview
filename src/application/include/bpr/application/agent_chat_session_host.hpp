@@ -176,6 +176,10 @@ namespace bpr::application {
 		core::agent_session_staleness Staleness
 			= core::agent_session_staleness::current;
 		core::agent_scope_refusal Scope = core::agent_scope_refusal::none;
+		/// [[BPR-1817]]. For a send, the one reason the composer presents: the
+		/// core's answer, in the composer's vocabulary. `none` for a send that
+		/// produced a turn and for every gesture that is not a send.
+		core::agent_send_refusal Send = core::agent_send_refusal::none;
 		/// Engaged when exactly one turn was handed to the launch path.
 		std::optional<agent_chat_turn_request> Turn;
 		/// Engaged when exactly one session was started by this gesture.
@@ -349,6 +353,20 @@ namespace bpr::application {
 		/// keyed to.
 		void admitted(const core::agent_session& aSession);
 
+		/// \brief [[BPR-1817]]. The agent the reviewer chose in the composer's
+		/// agent menu, read at the send gesture.
+		///
+		/// \details A conversation belongs to one agent (owner decision
+		/// 2026-10-23, "separate session for each agent"). Choosing another
+		/// agent starts that agent's conversation at the revision under
+		/// review, as `start_new_session` does, rather than sending the
+		/// question to the agent the previous conversation used. Before this
+		/// a send ran the composition's default profile whatever the menu
+		/// showed, so a host that refused that default dropped the question.
+		/// The same agent changes nothing, and so does a choice made before
+		/// any revision is observed.
+		void choose_agent(core::agent_profile_id aProfile);
+
 		/// \brief Forgets the session, the observation, and the opt-in.
 		void clear();
 
@@ -394,7 +412,8 @@ namespace bpr::application {
 		[[nodiscard]] auto profile_for(core::agent_profile_id aProfile) const
 			-> std::optional<core::agent_profile>;
 		[[nodiscard]] auto refuse(
-			core::agent_session_id aSession, agent_chat_refusal aRefusal)
+			core::agent_session_id aSession, agent_chat_refusal aRefusal,
+			core::agent_send_refusal aSend = core::agent_send_refusal::none)
 			-> agent_chat_outcome;
 		[[nodiscard]] auto present(agent_chat_outcome aOutcome)
 			-> agent_chat_outcome;
