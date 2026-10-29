@@ -108,7 +108,7 @@ waivers and native/M8/M9, Intel, vault/authentication, accessibility, crash/priv
 allocator/fuzz and independent-review limits remain explicit. No additional
 security verdict or independent review was invented or requested.
 
-The current authorization boundary permits qualification and preparation only.
+At the preparation checkpoint, the authorization boundary permitted qualification and preparation only.
 The reviewed operation is: append Linux's 13 files to the RC, anonymously
 download/native verify them, then create a distinct bare `0.4.0` tag/release at
 source `0941326a…` with the same complete 30 files and make it stable/Latest
@@ -119,3 +119,32 @@ same-base 0.4.0 previews still require manual installation. The guarded tool's
 actual dry runs list the 13 missing RC assets and absent publication authority.
 Specific authorization and subsequent publication/download verification remain
 pending. This card and RFC-BPR-0038 remain open.
+
+## Authorized stable publication and remaining native audits, 2026-10-29 UTC
+
+The owner accepted candidate `BPR-1797-publish-build1-stable-r1` in short session
+`aa41ee505768731907ac3ff66223d84d`: human decision
+`15ef6885-8661-425e-aadd-6dbc5d298c07`, consumed handback cursor 6. This
+supersedes the earlier preparation-only hold. The guarded publisher appended
+Ubuntu's thirteen files, which passed anonymous hashes and a 77-command native
+audit, then created new annotated bare `0.4.0` at frozen source
+`0941326aee0f51002e205784a1b220a01ecba384`. Release `428060158` is stable/Latest
+with the complete same thirty files. An observed draft-tag API 404 was recovered
+through a tested numeric-ID lookup and exact inspected draft resume; no tag,
+release or file was replaced.
+
+[Release results](../../verification/release-v040-results.md) and the
+[asset inventory](../../verification/release-v040-assets.json) record all thirty
+anonymous hash/size matches, passing Mac stable native trust/source checks and
+unchanged original preview/RC identities. Stable Windows and Ubuntu native
+audits remain pending, so AC4 and this card remain open. Existing producer and
+RC native evidence supplies no fresh stable native acceptance.
+
+Under the owner's sequencing amendment, a fresh v0.4.1 owner starts from the
+integrated latest main now and adopts these two residual native audits before
+new PC producer work. The external runtime root retains prepared guarded
+commands, the safely refused starts, physical-host observations and the durable
+handoff. No foreign process was stopped. Close this card only after actual
+stable Windows/Ubuntu native receipts and final reconciliation pass. All
+original failures, source bridges, matching owner-carried waivers and RFC-0038
+limitations remain as recorded above.

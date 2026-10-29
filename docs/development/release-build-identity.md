@@ -182,7 +182,7 @@ version bump is required for another RC. The occupied
 unnumbered preview retains its separately guarded append/promote path and its
 original source and bytes; it never acquires a retroactive build number.
 
-## Prepared stable-copy operation
+## Stable-copy operation
 
 The original `v0.4.0` preview cannot be replaced. A separately authorized
 `tools/publish-release.sh --copy-stable` operation can copy one complete numbered
@@ -209,3 +209,14 @@ require inspection rather than automatic retry. Verify anonymous downloads and
 native trust afterward. Base-version precedence remains unchanged: installed
 0.3.4 can update to 0.4.0, while an existing 0.4.0 preview requires manual
 installation of another 0.4.0 cohort.
+
+GitHub's tag lookup does not return draft releases. The publisher discovers a
+new draft through the complete release list, then checks its numeric release
+ID. After an inspected partial result, `--resume-stable /absolute/checkpoint.json`
+requires `bpr.release-stable-copy-resume.v1`: exact source/version/tag/sourceTag,
+cohort digest, numeric releaseId, annotated tagObject and the observed existing
+asset inventory. It refuses changed draft state, notes, source, tag or assets,
+creates no new tag/release and never replaces a file. This checkpoint supplies
+no qualification or publication authority; both bound acceptance records remain
+mandatory. The [0.4.0 result](../verification/release-v040-results.md) records the
+actual recovery and remaining stable native audits.
