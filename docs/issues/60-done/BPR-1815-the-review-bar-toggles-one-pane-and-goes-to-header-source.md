@@ -125,3 +125,7 @@ both stay.
 - The width trade-off above changes facts the owner accepted earlier: the
   dates at 1280 (BPR-1700's render) and the 900 floor. It wants the owner's
   Accept or Reject on a frozen build; none was opened by this card.
+
+## Owner review
+
+On 2026-10-29 the owner accepted the look from offscreen screenshots (no frozen build was requested), including the width trade-off: comparison dates hide at 1280 px and the minimum window width is 957 px on macOS.
