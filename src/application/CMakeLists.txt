@@ -197,5 +197,10 @@ endif()
 
 bpr_enable_hardening(better_pull_review_application)
 bpr_enable_warnings(better_pull_review_application)
+if(MSVC)
+    # [[BPR-1814]]. The epoch host exceeds the COFF object's section limit in
+    # the standard windows-dev Debug graph (C1128).
+    target_compile_options(better_pull_review_application PRIVATE /bigobj)
+endif()
 
 target_include_directories(better_pull_review_application PRIVATE "${CMAKE_CURRENT_BINARY_DIR}")
