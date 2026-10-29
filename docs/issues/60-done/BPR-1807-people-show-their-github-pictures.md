@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1807"
 title: "People show their GitHub pictures, with a setting for the coloured initials"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "windows", "linux"]
 metadata: {"reservation":"docs/issues/_reservations/BPR-1807--BPR-1807--754805aaa710.json","kind":"change","found_by":"owner, 2026-10-28","related_cards":["BPR-1583","BPR-1803","BPR-1804","BPR-1806"]}
-acceptance: []
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "7b2ef2a795b7766d18b564b1737f5ec11674b925", "evidence": {"kind": "command", "detail": "qt_identity_avatar test_a_picture_replaces_the_initials: a face asks once for its device pixels, the published picture replaces the initials masked to the disc, the ring stays; test_every_person_surface_asks: Threads notes ask for tbutler, jiayin and rcaloca and draw tbutler's picture; Overview's people ask; a team never asks. The reviewer picker (BPR-1804) and tour-stop cards draw through paint_identity_avatar and pick it up."}}, {"criterion": "AC2", "outcome": "pass", "revision": "7b2ef2a795b7766d18b564b1737f5ec11674b925", "evidence": {"kind": "command", "detail": "qt_identity_avatar: initials while loading, after a failed answer (not asked again), in a window without pictures, and after reset the face asks again. application_markdown_image_host avatar_refusals_and_scope: unavailable window is failed at once with no fetch; failed and undecodable fetches publish failed/unsupported; a changed scope cancels and drops the earlier answer; past 64 waiting is over_limit; a non-login is blocked."}}, {"criterion": "AC3", "outcome": "pass", "revision": "7b2ef2a795b7766d18b564b1737f5ec11674b925", "evidence": {"kind": "command", "detail": "qt_identity_avatar: Coloured initials draws initials, switching back draws the held picture without asking. qt_appearance_settings_panel test_avatar_style_row_offers_and_shows: the row shows the adopted style and offers apply_avatar_style_intent. sqlite_appearance_settings_storage test_avatar_style_round_trips_migrates_and_refuses: both styles round-trip, version 10 and 9 files migrate to GitHub pictures, the CHECK refuses 2."}}, {"criterion": "AC4", "outcome": "pass", "revision": "7b2ef2a795b7766d18b564b1737f5ec11674b925", "evidence": {"kind": "command", "detail": "core_identity_avatar: login admission, sizes, github.com address without credential, GHES address with credential to the host only, redirects to media./elsewhere/camo blocked, distinct cache key. application_markdown_image_host avatar_flow/avatar_restart_from_disk: fetch through markdown_image_service with AvatarOrigins, 1 MiB and 10 s bounds, one fetch per login and size, memory and disk cache answers. Live, 2026-10-28: https://avatars.githubusercontent.com/mikemarcin?s=48 and /mikemarcintest?s=96 answer 200 image/png without credentials (no API rate limit spent)."}}, {"criterion": "AC5", "outcome": "pass", "revision": "7b2ef2a795b7766d18b564b1737f5ec11674b925", "evidence": {"kind": "command", "detail": "qt_identity_avatar test_every_person_surface_asks: a Home group header and a Settings server card in a window with pictures ask nothing; Home chips paint with Generated."}}, {"criterion": "AC6", "outcome": "pass", "revision": "7b2ef2a795b7766d18b564b1737f5ec11674b925", "evidence": {"kind": "artifact", "detail": "BPR_AVATAR_PICTURE_RENDER_DIR renders outside the repository (session scratchpad avatar-renders): threads-{github,generated}-{light,dark}.png, overview-{github,generated}-{light,dark}.png and settings-people-{light,dark}.png, with public avatars as fixture pictures."}}]
 ---
 
 # BPR-1807: People show their GitHub pictures, with a setting for the coloured initials
@@ -79,3 +79,21 @@ field, and the same origin serves both forms (live, 2026-10-28:
 `https://avatars.githubusercontent.com/MikeMarcin?s=64` answers 200
 `image/png`; `https://github.com/MikeMarcin.png?size=64` redirects to
 `avatars.githubusercontent.com/u/7605339?s=64&v=4`).
+
+## Evidence
+
+- Focused, on the merged tree: core_identity_avatar, core_markdown_image,
+  application_markdown_image_host, application_appearance_*,
+  application_github_window_read_host, sqlite_appearance_settings_storage,
+  qt_identity_avatar, qt_appearance_settings_panel, qt_conversation_cards_view,
+  qt_conversation_finder_scale_100, qt_reviewer_picker*, qt_pull_request_overview*,
+  qt_server_card*, qt_home*, qt_settings_window, qt_workbench_window_scale_100,
+  application_composition_contract and
+  application_review_round_trip_composition_contract (resealed) pass.
+  command_correctness_registry_contract fails on main as well: its pins for
+  github_application.cpp and github_application_fixture_access.hpp were
+  already stale there.
+- clang-format 22 and clang-tidy on the changed files, and the documentation
+  gate and its tests, pass. Design loaded `frontend-design`.
+- Not done: Home and Settings pictures for accounts (they would need the
+  account's own host), and pictures in a signed-out public preview.
