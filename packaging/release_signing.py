@@ -122,7 +122,7 @@ def windows_identity(path: Path, *, msi: bool = False) -> dict:
   $result = @{}
   while ($row = $view.Fetch()) {
     $key = $row.StringData(1)
-    if ($key -in @('ProductVersion', 'ProductName', 'UpgradeCode', 'ALLUSERS', 'BPR_MARKETING_VERSION', 'BPR_RELEASE_BUILD', 'BPR_RELEASE_COHORT', 'BPR_RELEASE_CONFIGURATION')) {
+    if ($key -in @('ProductCode', 'ProductVersion', 'ProductName', 'UpgradeCode', 'ALLUSERS', 'BPR_MARKETING_VERSION', 'BPR_RELEASE_BUILD', 'BPR_RELEASE_COHORT', 'BPR_RELEASE_CONFIGURATION')) {
       $result[$key] = $row.StringData(2)
     }
     [void][Runtime.InteropServices.Marshal]::FinalReleaseComObject($row)

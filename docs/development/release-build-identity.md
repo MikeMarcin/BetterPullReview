@@ -97,6 +97,10 @@ a fresh N=1 to MSI 0.4.1, allocation fails before reservation; no clamping or
 number reuse is allowed. Recovery requires reconciling the durable counter/history
 against authoritative observations. Global N continues across patch versions:
 0.4.0/build 1 maps to MSI 0.4.1, then 0.4.1/build 2 maps to MSI 0.4.2.
+The numbered MSI ProductCode is a deterministic UUID v5 of the product RC tag:
+unchanged cohort retries preserve it, and another cohort has another ProductCode,
+even when the marketing version is unchanged. The producer reads actual prior
+and new ProductCodes and refuses a collision; manifests retain both.
 Preserve the existing UpgradeCode and BPR-1788 per-machine scope; this change
 does not add a cross-scope migration.
 

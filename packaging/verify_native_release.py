@@ -122,7 +122,7 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
             if identity != {"debianVersion": release["native"]["debianVersion"]}:
                 raise ValueError("native Debian version mismatch")
         else:
-            expected_msi = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ALLUSERS": "1",
+            expected_msi = {"ProductName": "BetterPullReview", "ProductVersion": release["native"]["msiProductVersion"], "ProductCode": release["native"]["msiProductCode"], "ALLUSERS": "1",
                             "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": version,
                             "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": record["releaseCohort"]["cohortDigest"],
                             "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
@@ -130,8 +130,10 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
             if info["families"]["agent_integrations"]:
                 images.add("better_pull_review_mcp_context_helper.exe")
             expected_image = {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
-            if (set(identity) != {"previousMsiSHA256", "previousWindows", "msiProperties", "images"}
+            if (set(identity) != {"previousMsiSHA256", "previousProductCode", "previousWindows", "msiProperties", "images"}
                     or identity.get("previousMsiSHA256") != release["windowsUpgradeFloor"]["installerSHA256"]
+                    or re.fullmatch(r"\{[0-9A-Fa-f-]{36}\}", identity.get("previousProductCode", "")) is None
+                    or identity["previousProductCode"].upper() == release["native"]["msiProductCode"]
                     or identity.get("previousWindows") != runtime.release_build.floor_identity(release["windowsUpgradeFloor"])
                     or identity.get("msiProperties") != expected_msi
                     or identity.get("images") != {name: expected_image for name in images}):

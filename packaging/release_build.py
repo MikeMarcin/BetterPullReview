@@ -12,6 +12,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import uuid
 
 PRODUCT = "BetterPullReview"
 DIRECTORY = Path("packaging/release-builds")
@@ -99,6 +100,7 @@ def native(version: str, number: int, previous: dict | None = None) -> dict:
             raise ValueError("release would downgrade marketing version or fail MSI upgrade ordering")
     return {"displayVersion": f"{version} (build {number})", "assetVersion": f"{version}-build.{number}",
             "releaseTag": f"v{version}-build.{number}",
+            "msiProductCode": "{" + str(uuid.uuid5(uuid.NAMESPACE_URL, f"https://github.com/MikeMarcin/BetterPullReview/releases/v{version}-build.{number}")).upper() + "}",
             "macBundleVersion": str(number), "windowsImageVersion": f"{version}.{number}",
             "msiProductVersion": ".".join(map(str, msi)), "debianVersion": f"{version}+build.{number}"}
 
