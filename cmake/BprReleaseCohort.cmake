@@ -45,11 +45,35 @@ list(JOIN bpr_release_options "," bpr_release_options)
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/_bpr")
 set(BPR_RELEASE_OBSERVED "${CMAKE_BINARY_DIR}/_bpr/release-observed.json")
 string(TOUPPER "${bpr_release_type}" bpr_release_upper_type)
+file(SHA256 "${CMAKE_CXX_COMPILER}" CMAKE_BPR_RELEASE_COMPILER_SHA256)
+set(CMAKE_BPR_RELEASE_SDK_VERSION "")
+if(APPLE)
+    set(bpr_release_sdk macosx)
+    if(CMAKE_OSX_SYSROOT)
+        set(bpr_release_sdk "${CMAKE_OSX_SYSROOT}")
+    endif()
+    execute_process(COMMAND xcrun --sdk "${bpr_release_sdk}" --show-sdk-version
+        OUTPUT_VARIABLE CMAKE_BPR_RELEASE_SDK_VERSION OUTPUT_STRIP_TRAILING_WHITESPACE
+        RESULT_VARIABLE bpr_release_sdk_result)
+    if(NOT bpr_release_sdk_result EQUAL 0)
+        message(FATAL_ERROR "The selected macOS SDK version could not be observed")
+    endif()
+elseif(WIN32)
+    set(CMAKE_BPR_RELEASE_SDK_VERSION "${CMAKE_VS_WINDOWS_TARGET_PLATFORM_VERSION}")
+    if(NOT CMAKE_BPR_RELEASE_SDK_VERSION)
+        set(CMAKE_BPR_RELEASE_SDK_VERSION "$ENV{WindowsSDKVersion}")
+        string(REGEX REPLACE "[/\\\\]+$" "" CMAKE_BPR_RELEASE_SDK_VERSION "${CMAKE_BPR_RELEASE_SDK_VERSION}")
+    endif()
+    if(BPR_RELEASE_COHORT AND NOT CMAKE_BPR_RELEASE_SDK_VERSION)
+        message(FATAL_ERROR "A numbered Windows producer must expose its selected SDK version")
+    endif()
+endif()
 set(bpr_release_setting_names CMAKE_C_FLAGS CMAKE_CXX_FLAGS CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS
     CMAKE_C_FLAGS_${bpr_release_upper_type} CMAKE_CXX_FLAGS_${bpr_release_upper_type}
     CMAKE_EXE_LINKER_FLAGS_${bpr_release_upper_type} CMAKE_SHARED_LINKER_FLAGS_${bpr_release_upper_type}
     CMAKE_OSX_DEPLOYMENT_TARGET CMAKE_OSX_SYSROOT CMAKE_MSVC_RUNTIME_LIBRARY CMAKE_GENERATOR
-    CMAKE_CXX_COMPILER_TARGET CMAKE_INTERPROCEDURAL_OPTIMIZATION CMAKE_POSITION_INDEPENDENT_CODE)
+    CMAKE_CXX_COMPILER_TARGET CMAKE_INTERPROCEDURAL_OPTIMIZATION CMAKE_POSITION_INDEPENDENT_CODE
+    CMAKE_BPR_RELEASE_COMPILER_SHA256 CMAKE_BPR_RELEASE_SDK_VERSION)
 set(bpr_release_settings "")
 foreach(setting IN LISTS bpr_release_setting_names)
     set(value "${${setting}}")

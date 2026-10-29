@@ -180,6 +180,10 @@ class ReleaseBuildTests(unittest.TestCase):
         altered["options"]["BPR_BUILD_AGENT_INTEGRATIONS"] = "ON"
         with self.assertRaisesRegex(ValueError, "actual CMake"):
             cohort.configure(frozen, self.root, altered, "mac")
+        altered = copy.deepcopy(observed)
+        altered["settings"]["CMAKE_BPR_RELEASE_SDK_VERSION"] = "changed-sdk"
+        with self.assertRaisesRegex(ValueError, "actual CMake"):
+            cohort.configure(frozen, self.root, altered, "mac")
 
     @unittest.skipUnless(shutil.which("cmake"), "native CMake is unavailable")
     def test_real_cmake_module_consumes_frozen_identity_and_local_build_consumes_nothing(self):

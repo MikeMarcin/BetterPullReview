@@ -138,7 +138,8 @@ The options explicitly name `BUILD_TESTING`, `BPR_DISTRIBUTION_BUILD`,
 Include every other effective `BPR_*` Boolean and the `settings` object from
 `_bpr/release-observed.json` in each native preconfigured graph. That observation
 also supplies the actual compiler/linker flags, generator, runtime and SDK
-selection; changing those settings requires a new cohort. Observation itself
+selection, the compiler image digest and the selected Apple/Windows SDK version
+(including the compiler-default SDK); changing those settings requires a new cohort. Observation itself
 allocates nothing.
 `previousWindows` holds the previous `marketingVersion` and actual
 `msiProductVersion` when Windows is selected; otherwise it may be null. These
