@@ -113,6 +113,17 @@ namespace bpr::application {
 			const std::string&      aBody,
 			std::stop_token         aStop = { })
 			-> std::expected<review_comment_edit_receipt, review_mutation_failure>;
+		/// \brief [[BPR-1804]]. Searches reviewers, or requests one review
+		/// after confirming the target as a description edit does. A search is
+		/// a read bound to the pull request's node, so it confirms nothing
+		/// first: typing must not cost two requests a query.
+		[[nodiscard]] auto reviewers(
+			review_reviewer_operation aOperation,
+			const std::string&        aQuery,
+			const std::string&        aUser,
+			const std::string&        aLogin,
+			std::stop_token           aStop = { })
+			-> std::expected<review_reviewer_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

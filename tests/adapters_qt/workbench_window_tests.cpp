@@ -13775,8 +13775,9 @@ namespace {
 		auto* const tools   = window.findChild<QWidget*>(QStringLiteral("workbenchTourTools"));
 		expect(editor->mode() == qt::tour_editor_mode::route && outline->isVisible() && outline->count() == 2 && outline->verticalScrollBar()->maximum() == 0,
 			   "the Tour tab is the route: every stop in view, no list of its own to scroll");
-		expect(editor->stop_body()->isVisible() && outline->isAncestorOf(editor->stop_body()) && outline->itemWidget(outline->item(1)) != nullptr,
-			   "the current stop is written in place on the route");
+		// [[BPR-1805]]. A written stop opens in place to read, its pencil beside it.
+		expect(editor->stop_view().Mode == core::tour_stop_view_mode::read && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()) && outline->itemWidget(outline->item(1)) != nullptr,
+			   "the current stop opens in place on the route");
 		expect(!editor->findChild<QTabWidget*>(QStringLiteral("tourRoadmap"))->isVisible() && tools != nullptr && tools->isVisible(),
 			   "the route shows no section tabs, and the tab row has Add stop and Expand");
 		editor->show_problem();
@@ -13815,8 +13816,8 @@ namespace {
 		expect(window.tour_page_open() && page != nullptr && page->isVisible() && page->isAncestorOf(editor) && editor->mode() == qt::tour_editor_mode::page
 				   && !window.conversations_drawer()->isVisible() && !window.files_drawer()->isVisible(),
 			   "Expand opens the tour page in the main pane, with no drawers beside it");
-		expect(editor->stop_body()->isVisible() && !outline->isAncestorOf(editor->stop_body()) && editor->publication_panel()->isVisible() && outline->isVisible(),
-			   "the page has the outline, the stop's editor and what GitHub will show, together");
+		expect(editor->stop_reader()->isVisible() && !outline->isAncestorOf(editor->stop_reader()) && editor->publication_panel()->isVisible() && outline->isVisible(),
+			   "the page has the outline, the stop and what GitHub will show, together");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/tour-page.png"), "PNG"), "the page render is saved");
 		}
@@ -13825,7 +13826,7 @@ namespace {
 		process_events();
 		static_cast<void>(escape);
 		expect(!window.tour_page_open() && editor->mode() == qt::tour_editor_mode::route && window.conversations_drawer()->isVisible() && window.files_drawer()->isVisible()
-				   && window.tray_tabs()->currentIndex() == 2 && editor->stop_body()->isVisible() && outline->isAncestorOf(editor->stop_body()),
+				   && window.tray_tabs()->currentIndex() == 2 && editor->stop_reader()->isVisible() && outline->isAncestorOf(editor->stop_reader()),
 			   "Back to the code returns to the route, the drawers as they were");
 		window.hide();
 	}

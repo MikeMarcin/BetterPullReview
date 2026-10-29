@@ -6,9 +6,11 @@
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/appearance_contrast.hpp"
+#include "bpr/core/reviewer_request.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/reviewer_picker.hpp"
 
 #include <QAbstractItemModel>
 #include <QColor>
@@ -61,6 +63,7 @@ namespace bpr::qt {
 	class markdown_body_view;
 	class scoped_prose_editor;
 	class steady_columns;
+	class reviewer_picker;
 
 	/// \brief The colours the overview's marks are drawn in.
 	///
@@ -675,6 +678,20 @@ namespace bpr::qt {
 		[[nodiscard]] auto description_status() const noexcept -> QLabel*;
 		/// \brief The body editing began with.
 		[[nodiscard]] auto description_original() const noexcept -> const std::string&;
+		/// \brief [[BPR-1804]]. Offers Request review in People, or withdraws
+		/// it (and closes the picker). The composition offers it when the
+		/// connection in use can request reviewers and the read is not
+		/// anonymous.
+		void               set_reviewer_requests_offered(bool aOffered);
+		[[nodiscard]] auto reviewer_requests_offered() const noexcept -> bool;
+		/// \brief [[BPR-1804]]. Where the picker's gestures go. Nothing is
+		/// sent by the page.
+		void set_reviewer_picker_dispatch(std::function<void(const reviewer_picker_gesture&)> aDispatch);
+		/// \brief [[BPR-1804]]. Shows the core's picker state under Request
+		/// review.
+		void               present_reviewer_picker(const core::reviewer_picker_state& aState);
+		[[nodiscard]] auto request_review_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto reviewer_picker_popup() const noexcept -> reviewer_picker*;
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
@@ -842,6 +859,11 @@ namespace bpr::qt {
 		std::function<void()>      NewConversationDispatch;
 		overview_faces*            Faces         = nullptr;
 		QLabel*                    PeopleSummary = nullptr;
+		/// [[BPR-1804]]. Request review and its picker.
+		QPushButton*                                        RequestReview  = nullptr;
+		reviewer_picker*                                    ReviewerPicker = nullptr;
+		std::function<void(const reviewer_picker_gesture&)> ReviewerDispatch;
+		bool                                                ReviewersOffered = false;
 		/// Which sections are open, by pull request, for this window.
 		QHash<QString, std::uint8_t> SectionMemory;
 		QString                      SectionKey;

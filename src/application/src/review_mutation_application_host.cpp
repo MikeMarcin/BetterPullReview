@@ -3,6 +3,7 @@
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/description_edit.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
+#include "bpr/core/reviewer_request.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "review_mutation_execution_authority.hpp"
 
@@ -376,6 +377,64 @@ namespace bpr::application {
 			std::memory_order_acq_rel,
 			std::memory_order_acquire);
 	}
+	review_mutation_execution_authority::review_mutation_execution_authority(
+		review_mutation_thread_scope        aScope,
+		review_reviewer_publication_request aRequest)
+		: ReviewerRequest{ std::move(aRequest) }
+		, Scope{ .ApplicationSession  = aScope.ApplicationSession,
+				 .WorkbenchGeneration = aScope.WorkbenchGeneration,
+				 .Target              = aScope.Target,
+				 .ActingIdentity      = aScope.ActingIdentity }
+		, Target{ aScope.Target }
+		, ActingIdentity{ aScope.ActingIdentity }
+		, ExpiresAt{ std::chrono::steady_clock::now() + std::chrono::minutes{ 5 } }
+		, Kind{ kind::user_one_shot }
+		, Bound{ true }
+	{
+	}
+	auto review_mutation_execution_authority::permits_reviewer(
+		const review_mutation_thread_scope&        aScope,
+		const review_reviewer_publication_request& aRequest) noexcept -> bool
+	{
+		// [[BPR-1804]]. The scope's `Thread` is the person's own node: only a
+		// request is a write, so only a request is granted.
+		if (aScope.ApplicationSession.value() == 0U || aScope.WorkbenchGeneration.value() == 0U
+			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity)
+			|| aRequest.Operation != review_reviewer_operation::request
+			|| aScope.Thread.empty() || aScope.Thread != aRequest.User
+			|| Revoked.load(std::memory_order_acquire)) {
+			return false;
+		}
+		std::scoped_lock lock{ Mutex };
+		if (!Bound || Revoked.load(std::memory_order_relaxed)
+			|| !ActingIdentity.has_value()
+			|| Scope.ApplicationSession != aScope.ApplicationSession
+			|| Scope.WorkbenchGeneration != aScope.WorkbenchGeneration
+			|| Scope.Target != aScope.Target
+			|| *ActingIdentity != aScope.ActingIdentity) {
+			return false;
+		}
+		// A one-shot grant issued for anything else permits no review request,
+		// and one issued for a request permits only that person.
+		if (Kind == kind::user_one_shot
+			&& (Request.has_value() || ThreadRequest.has_value() || ReactionRequest.has_value() || DescriptionRequest.has_value()
+				|| CommentEditRequest.has_value() || !ReviewerRequest || *ReviewerRequest != aRequest)) {
+			return false;
+		}
+		if (Kind == kind::testing_reusable) {
+			return true;
+		}
+		if (std::chrono::steady_clock::now() >= ExpiresAt) {
+			Revoked.store(true, std::memory_order_release);
+			return false;
+		}
+		auto expected = false;
+		return Consumed.compare_exchange_strong(
+			expected,
+			true,
+			std::memory_order_acq_rel,
+			std::memory_order_acquire);
+	}
 	void review_mutation_execution_authority::revoke() noexcept
 	{
 		std::scoped_lock lock{ Mutex };
@@ -455,6 +514,34 @@ namespace bpr::application {
 			return { };
 		}
 		auto node = aRequest.Subject;
+		return review_mutation_execution_grant{ new review_mutation_execution_authority{
+			review_mutation_thread_scope{ .ApplicationSession  = aSession,
+										  .WorkbenchGeneration = aGeneration,
+										  .Target              = std::move(aTarget),
+										  .ActingIdentity      = std::move(aActor),
+										  .Thread              = std::move(node) },
+			std::move(aRequest) } };
+#endif
+	}
+	auto detail::review_mutation_user_authority_issuer::issue_reviewer(
+		core::application_session_id aSession, core::request_generation aGeneration,
+		review_mutation_target_binding aTarget, review_mutation_acting_identity aActor,
+		review_reviewer_publication_request aRequest) -> review_mutation_execution_grant
+	{
+#if defined(BPR_APPLICATION_TESTING)
+		static_cast<void>(aSession);
+		static_cast<void>(aGeneration);
+		static_cast<void>(aTarget);
+		static_cast<void>(aActor);
+		static_cast<void>(aRequest);
+		return { };
+#else
+		if (aSession.value() == 0U || aGeneration.value() == 0U
+			|| !valid(aTarget) || !valid(aActor) || aRequest.User.empty()
+			|| aRequest.Operation != review_reviewer_operation::request) {
+			return { };
+		}
+		auto node = aRequest.User;
 		return review_mutation_execution_grant{ new review_mutation_execution_authority{
 			review_mutation_thread_scope{ .ApplicationSession  = aSession,
 										  .WorkbenchGeneration = aGeneration,
@@ -618,6 +705,14 @@ namespace bpr::application {
 			review_mutation_request_context         Context;
 			review_comment_edit_publication_request Request;
 			std::stop_source                        Stop;
+		};
+
+		// [[BPR-1804]]. One reviewer search or request in flight.
+		struct reviewer_record final
+		{
+			review_mutation_request_context     Context;
+			review_reviewer_publication_request Request;
+			std::stop_source                    Stop;
 		};
 
 		implementation(
@@ -1682,6 +1777,148 @@ namespace bpr::application {
 				}
 			}
 		}
+		[[nodiscard]] auto reviewers(review_reviewer_publication_request aRequest,
+									 review_mutation_execution_grant     aRequestGrant)
+			-> review_mutation_request_context
+		{
+			auto record = std::make_shared<reviewer_record>(reviewer_record{
+				.Context = context(),
+				.Request = std::move(aRequest),
+				.Stop    = { },
+			});
+			auto grant  = review_mutation_execution_grant{ };
+			{
+				std::scoped_lock lock{ Mutex };
+				++Statistics.Attempts;
+				if (Closing) {
+					++Statistics.RefusedBeforeEffect;
+					return {
+						.Session    = Session,
+						.Generation = Generation,
+					};
+				}
+				grant = aRequestGrant ? std::move(aRequestGrant) : Grant;
+			}
+			const auto search = record->Request.Operation == review_reviewer_operation::search;
+			if ((search && (record->Request.Query.size() > core::maximum_reviewer_query_bytes || !record->Request.User.empty()))
+				|| (!search && (record->Request.User.empty() || record->Request.Login.empty()))) {
+				refuse_reviewers(record, review_mutation_failure::incompatible_body);
+				return record->Context;
+			}
+			if (!Coordinator.capabilities().RequestsReviewers) {
+				refuse_reviewers(record, review_mutation_failure::unsupported);
+				return record->Context;
+			}
+			if (!valid(TargetBinding) || !valid(ActingIdentityBinding)) {
+				refuse_reviewers(record, review_mutation_failure::undesignated_target);
+				return record->Context;
+			}
+			const auto scope = review_mutation_thread_scope{
+				.ApplicationSession  = Session,
+				.WorkbenchGeneration = Generation,
+				.Target              = TargetBinding,
+				.ActingIdentity      = ActingIdentityBinding,
+				.Thread              = search ? TargetBinding.PullRequestNodeId : record->Request.User,
+			};
+			{
+				std::scoped_lock lock{ Mutex };
+				// A search is a read and needs no grant. The latest one wins:
+				// every earlier search still queued or in flight is stopped.
+				const auto admitted = search || (grant != nullptr && grant->bind_thread(scope) && grant->permits_reviewer(scope, record->Request));
+				if (Closing || OutstandingReviewers.size() >= maximum_outstanding_review_mutations || !admitted) {
+					++Statistics.RefusedBeforeEffect;
+				} else {
+					if (search) {
+						for (auto& entry : OutstandingReviewers) {
+							if (entry.second->Request.Operation == review_reviewer_operation::search) {
+								entry.second->Stop.request_stop();
+							}
+						}
+					}
+					OutstandingReviewers.emplace(record->Context.Request.value(), record);
+					ReviewerQueue.push_back(record);
+					++Statistics.EffectsQueued;
+					auto self = shared_from_this();
+					try {
+						Effects.post([self] { self->drain_reviewers(); });
+						return record->Context;
+					} catch (...) {
+						OutstandingReviewers.erase(record->Context.Request.value());
+						ReviewerQueue.pop_back();
+					}
+				}
+			}
+			refuse_reviewers(record, review_mutation_failure::unavailable);
+			return record->Context;
+		}
+		void refuse_reviewers(const std::shared_ptr<reviewer_record>& aRecord,
+							  const review_mutation_failure           aFailure)
+		{
+			auto self = shared_from_this();
+			try {
+				DecisionLane.post([self, aRecord, aFailure] {
+					self->complete_reviewers(aRecord, std::unexpected(aFailure));
+				});
+			} catch (...) {
+				complete_reviewers(aRecord, std::unexpected(aFailure));
+			}
+		}
+		void drain_reviewers()
+		{
+			for (;;) {
+				auto record = std::shared_ptr<reviewer_record>{ };
+				{
+					std::scoped_lock lock{ Mutex };
+					if (ReviewerQueue.empty()) {
+						return;
+					}
+					record = std::move(ReviewerQueue.front());
+					ReviewerQueue.pop_front();
+				}
+				auto result = std::expected<review_reviewer_receipt, review_mutation_failure>{
+					std::unexpected(review_mutation_failure::cancelled)
+				};
+				if (!record->Stop.stop_requested()) {
+					try {
+						result = Coordinator.reviewers(record->Request.Operation, record->Request.Query, record->Request.User, record->Request.Login, record->Stop.get_token());
+					} catch (...) {
+						result = std::unexpected(review_mutation_failure::unavailable);
+					}
+				}
+				auto self = shared_from_this();
+				DecisionLane.post([self, record, answer = std::move(result)]() mutable {
+					self->complete_reviewers(record, std::move(answer));
+				});
+			}
+		}
+		void complete_reviewers(
+			const std::shared_ptr<reviewer_record>&                         aRecord,
+			std::expected<review_reviewer_receipt, review_mutation_failure> aResult)
+		{
+			auto publish = false;
+			{
+				std::scoped_lock lock{ Mutex };
+				OutstandingReviewers.erase(aRecord->Context.Request.value());
+				++Statistics.Completions;
+				publish = !Closing;
+				if (publish) {
+					++Statistics.TerminalsPublished;
+					if (aResult.has_value()) {
+						++(aRecord->Request.Operation == review_reviewer_operation::search ? Statistics.ReviewerSearches : Statistics.ReviewerRequests);
+					}
+				}
+			}
+			if (publish) {
+				try {
+					Projection.publish_reviewers(review_reviewer_terminal{
+						.Context = aRecord->Context,
+						.Request = aRecord->Request,
+						.Result  = std::move(aResult),
+					});
+				} catch (...) {
+				}
+			}
+		}
 		[[nodiscard]] auto publish(review_mutation_publication_request aRequest,
 								   review_mutation_execution_grant     aRequestGrant)
 			-> review_mutation_request_context
@@ -1776,6 +2013,11 @@ namespace bpr::application {
 					++Statistics.ShutdownRequestsStopped;
 				}
 			}
+			for (auto& entry : OutstandingReviewers) {
+				if (entry.second->Stop.request_stop()) {
+					++Statistics.ShutdownRequestsStopped;
+				}
+			}
 		}
 
 		std::unique_ptr<review_mutation_port> OwnedProvider;
@@ -1804,6 +2046,8 @@ namespace bpr::application {
 		std::map<std::uint64_t, std::shared_ptr<description_record>>  OutstandingDescriptions;
 		std::deque<std::shared_ptr<comment_edit_record>>              CommentEditQueue;
 		std::map<std::uint64_t, std::shared_ptr<comment_edit_record>> OutstandingCommentEdits;
+		std::deque<std::shared_ptr<reviewer_record>>                  ReviewerQueue;
+		std::map<std::uint64_t, std::shared_ptr<reviewer_record>>     OutstandingReviewers;
 
 		std::shared_ptr<request_record>             Active;
 		review_mutation_application_host_statistics Statistics;
@@ -1927,6 +2171,14 @@ namespace bpr::application {
 		-> review_mutation_request_context
 	{
 		return Implementation->edit_comment(std::move(aRequest), std::move(aRequestGrant));
+	}
+
+	auto review_mutation_application_host::reviewers(
+		review_reviewer_publication_request aRequest,
+		review_mutation_execution_grant     aRequestGrant)
+		-> review_mutation_request_context
+	{
+		return Implementation->reviewers(std::move(aRequest), std::move(aRequestGrant));
 	}
 
 	void review_mutation_application_host::cancel(
