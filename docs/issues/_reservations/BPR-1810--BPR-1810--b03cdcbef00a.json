@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1810"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "coordinator: tour-stop plate prev/next navigation",
+  "created": "2026-10-29T06:16:41.541449+00:00",
+  "base": "92417a61572ca121f45283ee8e5aae88e258b267"
+}
