@@ -139,7 +139,7 @@ namespace bpr::core {
 			auto result = std::vector<line>{ };
 			auto begin  = std::size_t{ 0U };
 			while (begin <= aBody.size()) {
-				const auto end = aBody.find('\n', begin);
+				const auto end  = aBody.find('\n', begin);
 				const auto stop = end == std::string_view::npos ? aBody.size() : end;
 				auto       text = aBody.substr(begin, stop - begin);
 				if (text.ends_with('\r')) {
@@ -171,9 +171,9 @@ namespace bpr::core {
 		if (aBody.find(markdown_blob_snippet_mark) != std::string_view::npos) {
 			return found;
 		}
-		const auto rows  = lines_of(aBody);
-		auto       open  = std::optional<fence>{ };
-		auto       html  = std::optional<std::string>{ };
+		const auto rows = lines_of(aBody);
+		auto       open = std::optional<fence>{ };
+		auto       html = std::optional<std::string>{ };
 		for (std::size_t index = 0U; index < rows.size() && found.size() < markdown_blob_snippets_per_body; ++index) {
 			const auto text = rows[index].Text;
 			if (open) {
@@ -218,6 +218,11 @@ namespace bpr::core {
 			});
 		}
 		return found;
+	}
+
+	auto markdown_blob_permalink_in_repository(const markdown_blob_permalink& aPermalink, const markdown_repository& aRepository) -> bool
+	{
+		return markdown_blob_permalink_in_repository(aPermalink, aRepository.Host, aRepository.Owner, aRepository.Repository);
 	}
 
 	auto markdown_blob_snippet_range_shown(const markdown_blob_permalink& aPermalink) -> bool

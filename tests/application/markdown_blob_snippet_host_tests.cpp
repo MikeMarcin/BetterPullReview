@@ -48,8 +48,8 @@ namespace {
 	public:
 		struct pending
 		{
-			application::markdown_blob_source_read                         Read;
-			std::stop_token                                                Stop;
+			application::markdown_blob_source_read                        Read;
+			std::stop_token                                               Stop;
 			std::function<void(application::markdown_blob_source_result)> Completion;
 		};
 
@@ -105,9 +105,9 @@ int main()
 	scope->Identity   = "pr-1@head-a";
 	auto published    = std::vector<application::markdown_blob_snippet_publication>{ };
 	auto host         = application::markdown_blob_snippet_host{
-        source, decisions, [&scope] { return scope; },
-        [&published](const application::markdown_blob_snippet_publication& aPublication) { published.push_back(aPublication); },
-        application::markdown_blob_snippet_limits{ .Concurrent = 1U, .Waiting = 2U, .CachedBytes = 64U }
+		source, decisions, [&scope] { return scope; },
+		[&published](const application::markdown_blob_snippet_publication& aPublication) { published.push_back(aPublication); },
+		application::markdown_blob_snippet_limits{ .Concurrent = 1U, .Waiting = 2U, .CachedBytes = 64U }
 	};
 	const auto file    = std::string{ "one\ntwo\nthree\nfour\n" };
 	const auto twoTo3  = permalink("octo-org/widgets", "src/frame.cpp", "L2-L3");
@@ -164,7 +164,7 @@ int main()
 	// Concurrency one, two waiting: the oldest waiting gives way.
 	host.request({ request(permalink("octo-org/widgets", "a.cpp", "L1")), request(permalink("octo-org/widgets", "b.cpp", "L1")), request(permalink("octo-org/widgets", "c.cpp", "L1")),
 				   request(permalink("octo-org/widgets", "d.cpp", "L1")) });
-	expect(source.Pending.size() == 1U && host.waiting() == 2U, "one read at once, the waiting bounded");
+	expect(source.Pending.size() == 1U && host.waiting() == 2U, "one read at once, the waiting bounded: " + std::to_string(source.Pending.size()) + " " + std::to_string(host.waiting()));
 
 	// A new scope cancels: the late answer is dropped, nothing waits.
 	published.clear();

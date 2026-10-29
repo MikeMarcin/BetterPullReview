@@ -254,6 +254,9 @@ namespace bpr::application {
 		}
 		Implementation->clear();
 		Implementation->Closing = true;
+		// A read still in flight answers into nothing: its completion holds
+		// only a weak reference, and finds no reading of its generation.
+		Implementation->Reading.clear();
 	}
 
 	auto markdown_blob_snippet_host::is_quiescent() const noexcept -> bool { return Implementation->Reading.empty(); }

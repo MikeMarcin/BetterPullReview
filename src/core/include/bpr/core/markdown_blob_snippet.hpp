@@ -35,6 +35,20 @@ namespace bpr::core {
 	/// The most permalinks of one body that become boxes, in document order.
 	inline constexpr std::size_t markdown_blob_snippets_per_body = 8U;
 
+	/// \brief The pull request's repository, which a reader's permalinks are
+	/// judged by: only its own become boxes and lose their owner.
+	struct markdown_repository
+	{
+		std::string Host;
+		std::string Owner;
+		std::string Repository;
+
+		auto operator==(const markdown_repository&) const -> bool = default;
+	};
+
+	/// \brief Whether `aPermalink` is in `aRepository` on its host.
+	[[nodiscard]] auto markdown_blob_permalink_in_repository(const markdown_blob_permalink& aPermalink, const markdown_repository& aRepository) -> bool;
+
 	/// \brief A permalink alone on a line of a body, where a box can stand.
 	struct markdown_standalone_permalink
 	{
@@ -102,8 +116,8 @@ namespace bpr::core {
 		std::size_t Begin = 0U;
 		std::size_t End   = 0U;
 		/// The box's place in the reader's list, written after the mark.
-		std::uint32_t                   Ordinal = 0U;
-		std::span<const std::string>    Lines;
+		std::uint32_t                Ordinal = 0U;
+		std::span<const std::string> Lines;
 	};
 
 	/// \brief `aBody` with each placement's line replaced by a fenced block

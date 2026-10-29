@@ -651,6 +651,14 @@ namespace bpr::qt {
 		/// answers come back by `apply_markdown_code_syntax`.
 		void set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
 		void apply_markdown_code_syntax(const application::markdown_code_syntax_publication& aSpans);
+		/// \brief [[BPR-1802]]. The pull request's repository: the open
+		/// thread's permalinks in it read without their owner, and standing
+		/// alone they ask through `set_permalink_dispatch` for their lines,
+		/// which `apply_markdown_permalink_snippet` shows as snippet boxes.
+		void set_permalink_repository(std::optional<core::markdown_repository> aRepository);
+		void set_permalink_dispatch(std::function<void(std::vector<application::markdown_blob_snippet_request>)> aDispatch);
+		void apply_markdown_permalink_snippet(const application::markdown_blob_snippet_publication& aSnippet);
+		void request_permalink_snippets();
 		/// \brief Adopts the read state the ledger host decided.
 		///
 		/// \details [[BPR-0656]]. Until a state arrives every post is drawn
@@ -1101,6 +1109,9 @@ namespace bpr::qt {
 		QColor                                                                      Marker{ 0xD2, 0x99, 0x22 };
 		int                                                                         ContentHeight = 0;
 		std::uint64_t                                                               Layouts       = 0U;
+		/// [[BPR-1802]]. The pull request's repository and the permalink lane.
+		std::function<void(std::vector<application::markdown_blob_snippet_request>)> PermalinkDispatch;
+		std::optional<core::markdown_repository>                                     PermalinkRepository;
 		/// [[BPR-0673]]. Two widths, because a scroll bar that comes and goes
 		/// alternates the content width; keeping one width re-measured every
 		/// note of a large review each time it did.

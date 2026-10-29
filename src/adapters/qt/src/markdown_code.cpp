@@ -163,6 +163,13 @@ namespace bpr::qt::detail {
 		const auto base = aPalette.color(QPalette::Active, QPalette::Base);
 		colours.Rule    = toward(ink, base, high ? 0.0 : 0.74);
 		colours.Muted   = toward(ink, base, high ? 0.0 : 0.32);
+		// [[BPR-1802]]. The palette's link hue, held readable on the code
+		// background the snippet header sits on.
+		auto link = aPalette.color(QPalette::Active, QPalette::Link);
+		if (base.lightness() < 128 && link.lightness() < 165) {
+			link = QColor::fromHsl(link.hslHue() < 0 ? 210 : link.hslHue(), std::min(link.hslSaturation(), 200), 175);
+		}
+		colours.Link = readable(link, ink, colours.Back, colours.Target);
 		return colours;
 	}
 
@@ -324,7 +331,43 @@ namespace bpr::qt::detail {
 		return std::ranges::any_of(Blocks, &block::Suggestion);
 	}
 
-	void markdown_code_store::place(QTextDocument& aDocument, const QString& aPrepared, const std::optional<markdown_suggestion_presentation>& aSuggestions)
+	auto markdown_code_store::snippets() const noexcept -> bool
+	{
+		return std::ranges::any_of(Blocks, [](const block& aBlock) { return aBlock.Snippet.has_value(); });
+	}
+
+	namespace {
+		/// \brief [[BPR-1802]]. A snippet header's two lines: the title, then
+		/// "Lines 3 to 5 in 0123456".
+		struct snippet_header
+		{
+			QString Title;
+			QString Range;
+			QString Commit;
+
+			[[nodiscard]] auto text() const -> QString { return Title + QChar::LineSeparator + Range + QStringLiteral(" in ") + Commit; }
+		};
+
+		[[nodiscard]] auto header_of(const markdown_code_snippet& aSnippet) -> snippet_header
+		{
+			return { .Title  = QString::fromStdString(core::markdown_blob_snippet_title(aSnippet.Permalink)),
+					 .Range  = QString::fromStdString(core::markdown_blob_snippet_range(aSnippet.Permalink)),
+					 .Commit = QString::fromStdString(core::markdown_blob_snippet_commit(aSnippet.Permalink)) };
+		}
+
+		/// \brief Where a snippet's rows start: its fence's first line.
+		[[nodiscard]] auto first_line(const QTextDocument& aDocument, const int aOrdinal) -> QTextBlock
+		{
+			auto first = aDocument.begin();
+			while (first.isValid() && !(first.blockFormat().hasProperty(markdown_code_ordinal_property) && first.blockFormat().intProperty(markdown_code_ordinal_property) == aOrdinal)) {
+				first = first.next();
+			}
+			return first;
+		}
+	} // namespace
+
+	void markdown_code_store::place(QTextDocument& aDocument, const QString& aPrepared, const std::optional<markdown_suggestion_presentation>& aSuggestions,
+									const std::span<const markdown_code_snippet> aSnippets)
 	{
 		Blocks.clear();
 		const auto utf8   = aPrepared.toUtf8();
@@ -368,6 +411,13 @@ namespace bpr::qt::detail {
 				entry.Selector = std::string{ entry.Language.Selector };
 				entry.Text     = std::make_shared<const std::string>(entry.Fence.text());
 			}
+			// [[BPR-1802]]. A permalink's lines, coloured as its file is.
+			if (const auto snippet = core::markdown_blob_snippet_ordinal(entry.Fence.Info); snippet && *snippet < aSnippets.size() && entry.Placed) {
+				entry.Snippet  = aSnippets[*snippet];
+				entry.Selector = entry.Snippet->Permalink.Path;
+				entry.Text     = std::make_shared<const std::string>(entry.Fence.text());
+				entry.Numbered = true;
+			}
 			if (entry.Placed && entry.Language.Kind == core::markdown_code_kind::suggestion && aSuggestions) {
 				entry.Suggestion = true;
 				entry.Selector   = aSuggestions->Path;
@@ -390,6 +440,40 @@ namespace bpr::qt::detail {
 					cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
 					cursor.insertText(cursor.selectedText().remove(anchor_mark));
 				}
+			}
+		}
+		// [[BPR-1802]]. Each snippet's header before its rows, and its rows
+		// numbered from the permalink's first line, from the last.
+		for (auto it = Blocks.rbegin(); it != Blocks.rend(); ++it) {
+			if (!it->Snippet) {
+				continue;
+			}
+			const auto ordinal = static_cast<int>(it->Fence.Ordinal);
+			const auto first   = first_line(aDocument, ordinal);
+			if (!first.isValid()) {
+				it->Snippet.reset();
+				continue;
+			}
+			auto cursor = QTextCursor{ &aDocument };
+			cursor.setPosition(first.position());
+			const auto rowFormat = first.blockFormat();
+			const auto rowChars  = first.begin().atEnd() ? first.charFormat() : first.begin().fragment().charFormat();
+			cursor.insertText(header_of(*it->Snippet).text(), QTextCharFormat{ });
+			cursor.insertBlock(rowFormat, rowChars);
+			auto header = aDocument.findBlock(first.position());
+			auto format = header.blockFormat();
+			format.clearProperty(QTextFormat::BlockCodeFence);
+			format.clearProperty(QTextFormat::BlockCodeLanguage);
+			format.clearProperty(markdown_code_line_property);
+			format.setNonBreakableLines(false);
+			format.setProperty(markdown_code_row_property, static_cast<int>(markdown_code_row::header));
+			set_block_format(aDocument, header, format);
+			for (auto row = header.next(); row.isValid() && row.blockFormat().hasProperty(markdown_code_ordinal_property) && row.blockFormat().intProperty(markdown_code_ordinal_property) == ordinal;
+				 row      = row.next()) {
+				auto numbered = row.blockFormat();
+				numbered.setProperty(markdown_code_row_property, static_cast<int>(markdown_code_row::snippet));
+				numbered.setProperty(markdown_code_number_property, static_cast<int>(it->Snippet->Permalink.FirstLine) + numbered.intProperty(markdown_code_line_property));
+				set_block_format(aDocument, row, numbered);
 			}
 		}
 		// Each suggestion's header and removed rows, from the last so the
@@ -474,7 +558,7 @@ namespace bpr::qt::detail {
 			}
 		};
 		for (const auto& entry : Blocks) {
-			if (entry.Placed && (entry.Language.Kind == core::markdown_code_kind::language || entry.Suggestion)) {
+			if (entry.Placed && (entry.Language.Kind == core::markdown_code_kind::language || entry.Suggestion || entry.Snippet)) {
 				add(entry.Selector, entry.Text);
 				add(entry.Selector, entry.Removed);
 			}
@@ -634,6 +718,10 @@ namespace bpr::qt::detail {
 			}
 			const auto& entry = Blocks[ordinal];
 			const auto  index = static_cast<std::uint32_t>(format.intProperty(markdown_code_line_property));
+			if (entry.Snippet) {
+				style_snippet(aDocument, current, entry, index, aRoles, aFont, digit);
+				continue;
+			}
 			if (!entry.Suggestion) {
 				if (index == 0U && current.previous().isValid() && current.previous().blockFormat().hasProperty(QTextFormat::BlockCodeFence) && format.topMargin() != block_gap) {
 					// Two fenced blocks in a row read as two, as GitHub draws them.
@@ -697,10 +785,87 @@ namespace bpr::qt::detail {
 		}
 	}
 
+	void markdown_code_store::style_snippet(QTextDocument& aDocument, const QTextBlock& aBlock, const block& aEntry, const std::uint32_t aIndex, const code_role_colors& aRoles,
+											const QFont& aFont, const qreal aDigit) const
+	{
+		auto format = aBlock.blockFormat();
+		if (row_of(aBlock) == markdown_code_row::header) {
+			format.setLeftMargin(header_indent + 4.0);
+			format.setRightMargin(header_indent);
+			format.setTopMargin(box_gap + header_pad + 2.0);
+			format.setBottomMargin(header_pad + 2.0);
+			format.setLineHeight(100.0, QTextBlockFormat::ProportionalHeight);
+			format.clearBackground();
+			set_block_format(aDocument, aBlock, format);
+			// The title in the link's ink, semibold; then the range in the
+			// muted ink, its commit a link in the code face.
+			const auto parts = header_of(*aEntry.Snippet);
+			auto       title = QTextCharFormat{ };
+			title.setFontFamilies(aFont.families());
+			title.setFontFixedPitch(false);
+			title.setFontWeight(QFont::DemiBold);
+			title.setForeground(Colours.Link);
+			title.setAnchor(true);
+			title.setAnchorHref(aEntry.Snippet->Address);
+			title.setToolTip(aEntry.Snippet->Address);
+			auto range = QTextCharFormat{ };
+			range.setFontFamilies(aFont.families());
+			range.setFontFixedPitch(false);
+			range.setForeground(Colours.Muted);
+			if (aFont.pointSizeF() > 0.0) {
+				title.setFontPointSize(aFont.pointSizeF() * 0.93);
+				range.setFontPointSize(aFont.pointSizeF() * 0.86);
+			}
+			auto commit = range;
+			commit.setFontFamilies(CodeFont.families());
+			commit.setFontFixedPitch(true);
+			commit.setForeground(Colours.Link);
+			commit.setAnchor(true);
+			commit.setAnchorHref(aEntry.Snippet->CommitAddress);
+			commit.setToolTip(aEntry.Snippet->CommitAddress);
+			const auto apply = [&](const int aFrom, const int aLength, const QTextCharFormat& aChars) {
+				auto cursor = QTextCursor{ &aDocument };
+				cursor.setPosition(aBlock.position() + aFrom);
+				cursor.setPosition(aBlock.position() + aFrom + aLength, QTextCursor::KeepAnchor);
+				if (cursor.charFormat() != aChars) {
+					cursor.setCharFormat(aChars);
+				}
+			};
+			const auto titleLength = static_cast<int>(parts.Title.size());
+			const auto rangeLength = static_cast<int>(parts.Range.size()) + 5;
+			apply(0, titleLength, title);
+			apply(titleLength, rangeLength, range);
+			apply(titleLength + rangeLength, static_cast<int>(parts.Commit.size()), commit);
+			return;
+		}
+		// The numbers' column, wide enough for the last one.
+		const auto last        = aEntry.Snippet->Permalink.LastLine;
+		const auto numberWidth = std::ceil(aDigit * static_cast<qreal>(std::max<std::size_t>(2U, std::to_string(last).size())) + 20.0);
+		const auto next        = aBlock.next();
+		const auto final       = !next.isValid() || !next.blockFormat().hasProperty(markdown_code_ordinal_property)
+			|| next.blockFormat().intProperty(markdown_code_ordinal_property) != aBlock.blockFormat().intProperty(markdown_code_ordinal_property);
+		format.setLeftMargin(numberWidth + 6.0);
+		format.setTopMargin(aIndex == 0U ? row_pad + 4.0 : row_pad - 1.0);
+		format.setBottomMargin(final ? row_pad + 4.0 + box_gap : row_pad - 1.0);
+		format.setLineHeight(100.0, QTextBlockFormat::ProportionalHeight);
+		format.clearBackground();
+		format.setProperty(markdown_code_gutter_property, numberWidth + 6.0);
+		format.setProperty(markdown_code_numbers_property, numberWidth);
+		set_block_format(aDocument, aBlock, format);
+		if (!aBlock.begin().atEnd() && aBlock.begin().fragment().charFormat().background().style() != Qt::NoBrush) {
+			auto cursor = QTextCursor{ aBlock };
+			cursor.movePosition(QTextCursor::EndOfBlock, QTextCursor::KeepAnchor);
+			auto clear = QTextCharFormat{ };
+			clear.setBackground(Qt::NoBrush);
+			cursor.mergeCharFormat(clear);
+		}
+		apply_syntax_format_ranges(aDocument, aBlock, aIndex < aEntry.Fence.Lines.size() ? line_formats(aEntry.Fence.Lines[aIndex], aEntry.Spans, aIndex, aRoles) : QList<QTextLayout::FormatRange>{ });
+	}
+
 	auto markdown_code_store::boxes(const QTextDocument& aDocument) const -> std::vector<box>
 	{
 		auto result = std::vector<box>{ };
-		if (!suggestions()) {
+		if (!suggestions() && !snippets()) {
 			return result;
 		}
 		const auto right = aDocument.size().width() - aDocument.documentMargin();
@@ -723,6 +888,14 @@ namespace bpr::qt::detail {
 				opened.Top     = rect.top() - header_pad;
 				opened.Rule    = rect.bottom() + header_pad;
 				opened.Bottom  = opened.Rule;
+				const auto at  = static_cast<std::size_t>(ordinal);
+				opened.Snippet = at < Blocks.size() && Blocks[at].Snippet.has_value();
+				if (opened.Snippet) {
+					opened.Left -= 4.0;
+					opened.Top -= 2.0;
+					opened.Rule += 2.0;
+					opened.Bottom = opened.Rule;
+				}
 				result.push_back(opened);
 				continue;
 			}
@@ -732,7 +905,7 @@ namespace bpr::qt::detail {
 			auto& open   = result.back();
 			open.Gutter  = format.doubleProperty(markdown_code_gutter_property);
 			open.Numbers = format.doubleProperty(markdown_code_numbers_property);
-			open.Bottom  = std::max(open.Bottom, rect.bottom() + row_pad);
+			open.Bottom  = std::max(open.Bottom, rect.bottom() + row_pad + (open.Snippet ? 4.0 : 0.0));
 		}
 		return result;
 	}
@@ -749,6 +922,13 @@ namespace bpr::qt::detail {
 			auto clip = QPainterPath{ };
 			clip.addRoundedRect(QRectF{ open.Left, open.Top, open.Right - open.Left, open.Bottom - open.Top }.translated(aOffset), box_radius, box_radius);
 			aPainter.setClipPath(clip);
+			if (open.Snippet) {
+				// [[BPR-1802]]. GitHub's box: the header on the code
+				// background, the lines on the page's own.
+				aPainter.fillRect(QRectF{ open.Left, open.Top, open.Right - open.Left, open.Rule - open.Top }.translated(aOffset), Colours.Back);
+				aPainter.setClipping(false);
+				continue;
+			}
 			for (auto current = aDocument.begin(); current.isValid(); current = current.next()) {
 				const auto row = row_of(current);
 				if ((row != markdown_code_row::removed && row != markdown_code_row::added) || current.blockFormat().intProperty(markdown_code_ordinal_property) != open.Ordinal) {
@@ -783,7 +963,20 @@ namespace bpr::qt::detail {
 			numberFont.setPointSizeF(numberFont.pointSizeF() * 0.92);
 		}
 		for (const auto& open : all) {
-			for (auto current = aDocument.begin(); current.isValid(); current = current.next()) {
+			for (auto current = aDocument.begin(); open.Snippet && current.isValid(); current = current.next()) {
+				if (row_of(current) != markdown_code_row::snippet || current.blockFormat().intProperty(markdown_code_ordinal_property) != open.Ordinal) {
+					continue;
+				}
+				const auto rect = text_rect(aDocument, current).translated(aOffset);
+				if (rect.isNull()) {
+					continue;
+				}
+				aPainter.setFont(numberFont);
+				aPainter.setPen(Colours.Muted);
+				aPainter.drawText(QRectF{ open.Left + aOffset.x(), rect.top(), open.Numbers - 8.0, rect.height() }, Qt::AlignRight | Qt::AlignVCenter,
+								  QString::number(current.blockFormat().intProperty(markdown_code_number_property)));
+			}
+			for (auto current = aDocument.begin(); !open.Snippet && current.isValid(); current = current.next()) {
 				const auto row = row_of(current);
 				if ((row != markdown_code_row::removed && row != markdown_code_row::added) || current.blockFormat().intProperty(markdown_code_ordinal_property) != open.Ordinal) {
 					continue;

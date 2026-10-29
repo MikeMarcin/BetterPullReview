@@ -2582,3 +2582,16 @@ set_tests_properties(qt_quiet_buttons PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment}"
     PASS_REGULAR_EXPRESSION "quiet-buttons-tests:pass"
     RUN_SERIAL TRUE TIMEOUT 120)
+
+# [[BPR-1802]]. Blob line permalinks in the pull request's repository as
+# GitHub's snippet box, through the snippet host and the composed classifier.
+bpr_add_executable(test_better_pull_review_qt_markdown_blob_snippet_view_tests markdown_blob_snippet_view_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_markdown_blob_snippet_view_tests PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)
+bpr_enable_hardening(test_better_pull_review_qt_markdown_blob_snippet_view_tests)
+bpr_enable_warnings(test_better_pull_review_qt_markdown_blob_snippet_view_tests)
+bpr_add_network_isolated_test(NAME qt_markdown_blob_snippet_view COMMAND test_better_pull_review_qt_markdown_blob_snippet_view_tests)
+set_tests_properties(qt_markdown_blob_snippet_view PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};BPR_PERMALINK_SNIPPET_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/markdown-blob-snippet"
+    PASS_REGULAR_EXPRESSION "markdown-blob-snippet-view-tests:pass"
+    TIMEOUT 120
+)
