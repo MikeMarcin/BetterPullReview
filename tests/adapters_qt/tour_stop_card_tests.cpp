@@ -306,9 +306,8 @@ namespace {
 			settle();
 			view.open_thread("stop-2");
 			settle();
-			auto  posts  = posts_of(*view.open_card());
-			auto* reader = dynamic_cast<qt::markdown_body_view*>(posts[0]->findChild<QWidget*>(QStringLiteral("threadPostReader")));
-			expect(asked.size() == 1U && asked[0].Permalink.Path == "src/frame.cpp" && asked[0].Permalink.FirstLine == 12U && asked[0].Permalink.LastLine == 18U, "the stop asks for its pinned source's lines: " + std::to_string(asked.size()));
+			auto posts = posts_of(*view.open_card());
+			expect(asked.size() == 1U && asked[0].Permalink.Path == "src/frame.cpp" && asked[0].Permalink.FirstLine == 12U && asked[0].Permalink.LastLine == 18U, "the stop asks for its pinned source's lines");
 			expect(!posts[0]->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->toPlainText().contains(QStringLiteral("frame.cpp")), "until they arrive nothing of the source shows");
 			auto lines        = std::vector<std::string>{ "void frame::layout(int aWidth)", "{", "\t// A null view never reaches the painter.", "\tif (View == nullptr) {", "\t\treturn;", "\t}", "\tWidth = std::clamp(aWidth, 0, Maximum);" };
 			auto snippet      = application::markdown_blob_snippet_publication{ };
@@ -317,7 +316,7 @@ namespace {
 			view.apply_markdown_permalink_snippet(snippet);
 			settle();
 			posts                = posts_of(*view.open_card());
-			reader               = dynamic_cast<qt::markdown_body_view*>(posts[0]->findChild<QWidget*>(QStringLiteral("threadPostReader")));
+			auto* const reader   = dynamic_cast<qt::markdown_body_view*>(posts[0]->findChild<QWidget*>(QStringLiteral("threadPostReader")));
 			auto* const plate    = posts[0]->findChild<QWidget*>(QStringLiteral("threadPostTourStop"));
 			const auto  rendered = posts[0]->findChild<QTextEdit*>(QStringLiteral("threadPostBody"))->toPlainText();
 			expect(reader->permalink_snippets_shown() == 1U && rendered.startsWith(QStringLiteral("widgets/src/frame.cpp")) && rendered.contains(QStringLiteral("Lines 12 to 18 in 1111111")),
