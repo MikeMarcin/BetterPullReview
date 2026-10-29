@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_steps.hpp"
+#include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include <QPointer>
 #include <QWidget>
@@ -20,6 +21,7 @@ class QPlainTextEdit;
 class QTabWidget;
 class QLabel;
 class QPushButton;
+class QToolButton;
 class QBoxLayout;
 class QVBoxLayout;
 namespace bpr::qt {
@@ -119,6 +121,16 @@ namespace bpr::qt {
 		void               trigger(tour_editor_action aAction);
 		[[nodiscard]] auto selected_stop() const -> const core::tour_stop*;
 		[[nodiscard]] auto selected_related() const -> std::optional<core::tour_source_range>;
+		/// \brief [[BPR-1805]]. The open stop, and whether it is read or written.
+		[[nodiscard]] auto stop_view() const noexcept -> const core::tour_stop_view& { return StopView; }
+		/// \brief [[BPR-1805]]. The pencil: opens the stop's title and source,
+		/// with the keyboard in them. Refused while the draft cannot be written.
+		void begin_stop_edit();
+		/// \brief [[BPR-1805]]. Done: reads the stop again, unless the editors
+		/// hold text the draft has not taken.
+		void finish_stop_edit();
+		/// \brief [[BPR-1805]]. The stop's rendered explanation.
+		[[nodiscard]] auto stop_reader() const -> markdown_body_view* { return StopReader; }
 		[[nodiscard]] auto outline() const -> QListWidget* { return Outline; }
 		[[nodiscard]] auto stop_title() const -> QLineEdit* { return Title; }
 		[[nodiscard]] auto stop_body() const -> QPlainTextEdit* { return Body; }
@@ -150,6 +162,8 @@ namespace bpr::qt {
 		void                                                                       build_stops();
 		void                                                                       present_stops(bool aOwnerChanged);
 		void                                                                       edit_stop();
+		void                                                                       view_stop(core::tour_stop_view_event aEvent);
+		void                                                                       present_stop_view();
 		void                                                                       structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
 		[[nodiscard]] auto                                                         selected_stops() const -> std::vector<core::tour_stop_id>;
 		void                                                                       select_stops(const std::vector<core::tour_stop_id>& aStops);
@@ -213,28 +227,37 @@ namespace bpr::qt {
 		QPushButton*        StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
-		QWidget*                                     PublicationWorking = nullptr;
-		QLabel*                                      WorkingMark        = nullptr;
-		QLabel*                                      WorkingTitle       = nullptr;
-		QLabel*                                      WorkingStages      = nullptr;
-		QLabel*                                      WorkingStatus      = nullptr;
-		QLabel*                                      PublicationLink    = nullptr;
-		QPushButton*                                 PreparePublication = nullptr;
-		QComboBox*                                   Imports            = nullptr;
-		QPushButton*                                 Import             = nullptr;
-		QListWidget*                                 SuggestedOutline   = nullptr;
-		QPushButton*                                 InsertOutline      = nullptr;
-		QListWidget*                                 Outline            = nullptr;
-		QListWidget*                                 Related            = nullptr;
-		QLineEdit*                                   Title              = nullptr;
-		scoped_prose_editor*                         Body               = nullptr;
-		QLabel*                                      Source             = nullptr;
-		QWidget*                                     StopFields         = nullptr;
-		QAction*                                     MergeStops         = nullptr;
-		QAction*                                     DuplicateStops     = nullptr;
-		QAction*                                     RemoveStops        = nullptr;
-		QAction*                                     UndoStructure      = nullptr;
-		QAction*                                     RedoStructure      = nullptr;
+		QWidget*             PublicationWorking = nullptr;
+		QLabel*              WorkingMark        = nullptr;
+		QLabel*              WorkingTitle       = nullptr;
+		QLabel*              WorkingStages      = nullptr;
+		QLabel*              WorkingStatus      = nullptr;
+		QLabel*              PublicationLink    = nullptr;
+		QPushButton*         PreparePublication = nullptr;
+		QComboBox*           Imports            = nullptr;
+		QPushButton*         Import             = nullptr;
+		QListWidget*         SuggestedOutline   = nullptr;
+		QPushButton*         InsertOutline      = nullptr;
+		QListWidget*         Outline            = nullptr;
+		QListWidget*         Related            = nullptr;
+		QLineEdit*           Title              = nullptr;
+		scoped_prose_editor* Body               = nullptr;
+		QLabel*              Source             = nullptr;
+		/// [[BPR-1805]]. The stop read: its title, its rendered explanation,
+		/// the pencil; and Done while it is written.
+		core::tour_stop_view                         StopView;
+		QLabel*                                      ReadTitle        = nullptr;
+		markdown_body_view*                          StopReader       = nullptr;
+		QToolButton*                                 EditStop         = nullptr;
+		QPushButton*                                 DoneStop         = nullptr;
+		QWidget*                                     StopMagic        = nullptr;
+		bool                                         StopPlacePending = false;
+		QWidget*                                     StopFields       = nullptr;
+		QAction*                                     MergeStops       = nullptr;
+		QAction*                                     DuplicateStops   = nullptr;
+		QAction*                                     RemoveStops      = nullptr;
+		QAction*                                     UndoStructure    = nullptr;
+		QAction*                                     RedoStructure    = nullptr;
 		core::tour_stop_id                           Selected;
 		core::tour_stop_id                           Editing;
 		std::optional<core::tour_command_kind>       EditingKind;

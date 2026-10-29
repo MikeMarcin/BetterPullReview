@@ -9232,6 +9232,9 @@ namespace bpr::qt {
 			}
 		} else if (TourEditor->stop_body()->isVisible()) {
 			TourEditor->stop_body()->setFocus(Qt::OtherFocusReason);
+		} else if (auto* const edit = TourEditor->findChild<QWidget*>(QStringLiteral("tourStopEdit")); edit != nullptr && edit->isVisible()) {
+			// [[BPR-1805]]. A read stop: its pencil.
+			edit->setFocus(Qt::OtherFocusReason);
 		}
 	}
 

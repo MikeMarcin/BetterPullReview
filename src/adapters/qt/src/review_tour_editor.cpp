@@ -38,6 +38,7 @@
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
 #include <QTabWidget>
+#include <QTextEdit>
 #include <QTextLayout>
 #include <QTextOption>
 #include <QToolButton>
@@ -1585,6 +1586,18 @@ namespace bpr::qt {
 		}
 		if (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress) {
 			auto* key = static_cast<QKeyEvent*>(aEvent);
+			// [[BPR-1805]]. As a comment's editor takes them: Return in the
+			// read stop writes it; Escape or Command/Control+Return reads it again.
+			const bool enter    = key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter;
+			const bool reading  = StopReader != nullptr && aWatched == StopReader->rendered_view() && enter && key->modifiers() == Qt::NoModifier;
+			const bool finished = (aWatched == Title || aWatched == Body) && !composing() && ((key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier) || (enter && (key->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier));
+			if (reading || finished) {
+				key->accept();
+				if (aEvent->type() == QEvent::KeyPress) {
+					reading ? begin_stop_edit() : finish_stop_edit();
+				}
+				return true;
+			}
 			if ((key->key() == Qt::Key_Tab || key->key() == Qt::Key_Backtab) && !(key->modifiers() & (Qt::ControlModifier | Qt::AltModifier | Qt::MetaModifier))) {
 				key->accept();
 				if (aEvent->type() == QEvent::KeyPress) {
@@ -1624,13 +1637,15 @@ namespace bpr::qt {
 		Roadmap->setCurrentIndex(2);
 		place_stop_card();
 		const auto* stop = selected_stop();
-		if (stop != nullptr && stop->Title.empty()) {
-			Title->setFocus();
-		} else if (stop != nullptr) {
-			Body->setFocus();
-		} else if (auto* const add = OutlineTools->findChild<QPushButton*>(QStringLiteral("tourAddStop")); add != nullptr && Mode == tour_editor_mode::route) {
+		auto* const add  = stop == nullptr && Mode == tour_editor_mode::route ? OutlineTools->findChild<QPushButton*>(QStringLiteral("tourAddStop")) : nullptr;
+		if (add != nullptr) {
 			// [[BPR-1784]]. No stop yet: the step's first control adds one.
 			add->setFocus(Qt::OtherFocusReason);
+		} else if (stop != nullptr && StopView.Mode == core::tour_stop_view_mode::read) {
+			// [[BPR-1805]]. A read stop: the pencil, so Space writes it.
+			EditStop->setFocus();
+		} else if (stop != nullptr && stop->Title.empty()) {
+			Title->setFocus();
 		} else {
 			Body->setFocus();
 		}
@@ -1747,6 +1762,9 @@ namespace bpr::qt {
 		// The stop, written in place: its title, its source, its explanation.
 		StopFields = new QWidget{ this };
 		StopFields->setObjectName(QStringLiteral("tourStopFields"));
+		// [[BPR-1805]]. On the tour page the stop keeps to its content; the
+		// column's spare height stays below it, not between its title and text.
+		StopFields->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Maximum);
 		auto* fields = new QVBoxLayout{ StopFields };
 		fields->setContentsMargins(0, 0, 0, 0);
 		fields->setSpacing(6);
@@ -1763,10 +1781,39 @@ namespace bpr::qt {
 		Title->setFont(titleFont);
 		Title->installEventFilter(this);
 		titleRow->addWidget(Title, 1);
+		// [[BPR-1805]]. Read, the title is text, as a comment's author line
+		// is; the pencil beside it opens the title and source.
+		ReadTitle = new QLabel{ StopFields };
+		ReadTitle->setObjectName(QStringLiteral("tourStopReadTitle"));
+		ReadTitle->setTextFormat(Qt::PlainText);
+		ReadTitle->setWordWrap(true);
+		ReadTitle->setFont(titleFont);
+		ReadTitle->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		ReadTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		titleRow->addWidget(ReadTitle, 1);
 		StopState = new QLabel{ StopFields };
 		StopState->setObjectName(QStringLiteral("tourStopState"));
 		StopState->setForegroundRole(QPalette::PlaceholderText);
-		titleRow->addWidget(StopState);
+		titleRow->addWidget(StopState, 0, Qt::AlignTop);
+		EditStop = new QToolButton{ StopFields };
+		EditStop->setObjectName(QStringLiteral("tourStopEdit"));
+		// The comments' pencil, as Edit comment draws it.
+		EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+		EditStop->setIconSize(QSize{ 16, 16 });
+		EditStop->setToolButtonStyle(Qt::ToolButtonIconOnly);
+		EditStop->setAutoRaise(true);
+		EditStop->setCursor(Qt::ArrowCursor);
+		EditStop->setFocusPolicy(Qt::StrongFocus);
+		EditStop->setAccessibleName(tr("Edit stop"));
+		EditStop->setToolTip(tr("Edit the stop's title and explanation (Return)"));
+		titleRow->addWidget(EditStop, 0, Qt::AlignTop);
+		connect(EditStop, &QToolButton::clicked, this, [this] { begin_stop_edit(); });
+		DoneStop = new quiet_push_button{ tr("Done"), StopFields };
+		DoneStop->setObjectName(QStringLiteral("tourStopDone"));
+		DoneStop->setAccessibleName(tr("Done editing stop"));
+		DoneStop->setToolTip(tr("Read the stop as it will be shown (%1 or Esc). Your text is saved as you type.").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		titleRow->addWidget(DoneStop, 0, Qt::AlignTop);
+		connect(DoneStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
 		fields->addLayout(titleRow);
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
@@ -1792,6 +1839,31 @@ namespace bpr::qt {
 		Body->setTabChangesFocus(true);
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
+		// [[BPR-1805]]. The explanation as the reviewer will read it, rendered
+		// as a comment is. Return in it, like the pencil, opens the source.
+		StopReader = new markdown_body_view{ StopFields };
+		StopReader->setObjectName(QStringLiteral("tourStopReader"));
+		StopReader->setAccessibleName(tr("Stop explanation"));
+		StopReader->set_in_place(true);
+		StopReader->set_context_controls(true);
+		StopReader->set_code_font(code_font_of(font()), 4.0 * QFontMetricsF{ code_font_of(font()) }.horizontalAdvance(QLatin1Char{ ' ' }));
+		StopReader->set_empty_body_text(tr("No explanation yet. Use the pencil to write one."));
+		// Placing the card reparents the reader, which reports a new height:
+		// the card is placed again once, after, never from inside itself.
+		StopReader->set_height_observer([this] {
+			if (!StopPlacePending) {
+				StopPlacePending = true;
+				QMetaObject::invokeMethod(
+					this,
+					[this] {
+						StopPlacePending = false;
+						place_stop_card();
+					},
+					Qt::QueuedConnection);
+			}
+		});
+		StopReader->rendered_view()->installEventFilter(this);
+		fields->addWidget(StopReader);
 		const auto button = [this](const QString& aText, const QString& aName, QHBoxLayout* aRow, auto aCallback) {
 			// [[BPR-1776]]. Every stop action is the shared chip, raised at
 			// rest, so it reads as something to press.
@@ -1807,6 +1879,7 @@ namespace bpr::qt {
 		StopActions         = new stop_action_row{ StopFields };
 		auto* const sources = StopActions->row();
 		add_writing_button(Body, core::writing_hook::comment, sources);
+		StopMagic            = StopFields->findChild<QPushButton*>(QStringLiteral("tourStopMagic"));
 		auto* const useLines = button(tr("Use selected lines"), QStringLiteral("tourUseSelectedLines"), sources, [retarget] { retarget->trigger(); });
 		useLines->setToolTip(retarget->toolTip());
 		auto* const addRelated = button(tr("Related source"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
@@ -2063,6 +2136,7 @@ namespace bpr::qt {
 			Source->setText(tr("Select source in the comparison, then add a tour stop. You can keep writing the brief while source is unavailable."));
 			Related->clear();
 			Editing = { };
+			view_stop(core::tour_stop_view_event::open);
 			return;
 		}
 		const auto row = static_cast<int>(stop - Shown.Draft->Stops.data());
@@ -2082,15 +2156,6 @@ namespace bpr::qt {
 			}
 			Body->bind_document(document);
 			Editing = stop->Id;
-			// [[BPR-1783]]. A stop with no title yet, a new one above all,
-			// takes the keyboard in its title; Tab goes on to the body.
-			if (stop->Title.empty()) {
-				if (RefocusStop != nullptr) {
-					RefocusStop = Title;
-				} else if (StopFields->isAncestorOf(QApplication::focusWidget())) {
-					Title->setFocus(Qt::OtherFocusReason);
-				}
-			}
 		}
 		if (changed || Shown.Refusal == core::tour_refusal::none) {
 			if (Title->text() != QString::fromStdString(stop->Title)) {
@@ -2105,6 +2170,21 @@ namespace bpr::qt {
 			auto cursor = Body->textCursor();
 			cursor.setPosition(std::min(BodyPositions[stop->Id], Body->document()->characterCount() - 1));
 			Body->setTextCursor(cursor);
+		}
+		// [[BPR-1805]]. Another stop opens to read, unless it has nothing to
+		// read yet; the open one keeps its mode, as a save presents it again.
+		ReadTitle->setText(stop->Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop->Title));
+		ReadTitle->setForegroundRole(stop->Title.empty() ? QPalette::PlaceholderText : QPalette::WindowText);
+		StopReader->set_body(stop->Body, "tour-stop-" + std::to_string(stop->Id.value()));
+		view_stop(core::tour_stop_view_event::open);
+		// [[BPR-1783]]. A stop with no title yet, a new one above all, takes
+		// the keyboard in its title; Tab goes on to the body.
+		if (changed && stop->Title.empty() && StopView.Mode == core::tour_stop_view_mode::edit) {
+			if (RefocusStop != nullptr) {
+				RefocusStop = Title;
+			} else if (StopFields->isAncestorOf(QApplication::focusWidget())) {
+				Title->setFocus(Qt::OtherFocusReason);
+			}
 		}
 		const auto label = [](const core::tour_source_range& aSource) { return QStringLiteral("%1 · %2:%3–%4 · %5").arg(QString::fromStdString(aSource.Path), aSource.First.Side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("head")).arg(aSource.First.Line + 1U).arg(aSource.Last.Line + 1U).arg(QString::fromStdString(std::string{ core::canonical_hex(aSource.Commit).view() }).left(12)); };
 		for (int index = 0; index < Outline->count(); ++index) {
@@ -2192,6 +2272,81 @@ namespace bpr::qt {
 		value.Body  = Body->raw();
 		EditingKind = core::tour_command_kind::edit_stop;
 		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
+	}
+	void review_tour_editor::view_stop(const core::tour_stop_view_event aEvent)
+	{
+		const auto* const stop  = selected_stop();
+		const auto        title = Title->text().toUtf8().toStdString();
+		auto              input = core::tour_stop_view_input{ .Stop = stop, .Event = aEvent, .Editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly, .Composing = composing() };
+		if (stop != nullptr && Editing == stop->Id) {
+			input.Held = core::tour_stop_held_text{ .Title = title, .Body = Body->raw() };
+		}
+		const auto before = StopView;
+		StopView          = core::decide_tour_stop_view(StopView, input);
+		if (before.Mode == core::tour_stop_view_mode::edit && StopView.Mode == core::tour_stop_view_mode::read && WritingCancel) {
+			// The agent writes into the editor; reading, there is none to write into.
+			WritingCancel();
+		}
+		present_stop_view();
+	}
+	void review_tour_editor::present_stop_view()
+	{
+		if (StopReader == nullptr || ReadTitle == nullptr || EditStop == nullptr || DoneStop == nullptr) {
+			return;
+		}
+		const bool writing = StopView.Mode == core::tour_stop_view_mode::edit;
+		auto*      focused = QApplication::focusWidget();
+		const bool inText  = focused != nullptr && (focused == Title || focused == Body || Body->isAncestorOf(focused));
+		const bool onRead  = focused != nullptr && (focused == EditStop || focused == StopReader->rendered_view());
+		Title->setVisible(writing);
+		Body->setVisible(writing);
+		DoneStop->setVisible(writing);
+		if (StopMagic != nullptr) {
+			StopMagic->setVisible(writing);
+		}
+		ReadTitle->setVisible(!writing);
+		StopReader->setVisible(!writing);
+		EditStop->setVisible(!writing);
+		EditStop->setEnabled(Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly);
+		// The keyboard stays with the stop as it changes between read and written.
+		if (writing && onRead) {
+			if (const auto* stop = selected_stop(); stop != nullptr && stop->Title.empty()) {
+				Title->setFocus(Qt::OtherFocusReason);
+			} else {
+				Body->setFocus(Qt::OtherFocusReason);
+			}
+		} else if (!writing && inText) {
+			EditStop->setFocus(Qt::OtherFocusReason);
+		}
+		if (RefocusStop != nullptr && (RefocusStop == Title || RefocusStop == Body) && !writing) {
+			RefocusStop = EditStop;
+		}
+	}
+	void review_tour_editor::begin_stop_edit()
+	{
+		if (selected_stop() == nullptr) {
+			return;
+		}
+		if (StopReader->rendered_view()->hasFocus()) {
+			EditStop->setFocus(Qt::OtherFocusReason);
+		}
+		const bool wasReading = StopView.Mode == core::tour_stop_view_mode::read;
+		view_stop(core::tour_stop_view_event::begin_edit);
+		place_stop_card();
+		if (wasReading && StopView.Mode == core::tour_stop_view_mode::edit && !Title->hasFocus() && !Body->hasFocus()) {
+			(selected_stop()->Title.empty() ? static_cast<QWidget*>(Title) : static_cast<QWidget*>(Body))->setFocus(Qt::OtherFocusReason);
+		}
+	}
+	void review_tour_editor::finish_stop_edit()
+	{
+		if (selected_stop() == nullptr) {
+			return;
+		}
+		view_stop(core::tour_stop_view_event::finish_edit);
+		if (StopView.Mode == core::tour_stop_view_mode::edit) {
+			show_notice(tr("This stop's text has not been saved yet, so it stays open. Your full text is retained."));
+		}
+		place_stop_card();
 	}
 	void review_tour_editor::structural(core::tour_command_kind aKind, std::size_t aPosition)
 	{
@@ -2475,6 +2630,17 @@ namespace bpr::qt {
 				Body->setFixedHeight(height);
 			}
 		}
+		// [[BPR-1805]]. The read explanation is as tall as it renders at the
+		// stop's width: it reads in place, as a comment does, and never scrolls.
+		if (StopReader->isVisibleTo(StopFields)) {
+			const auto available = Mode == tour_editor_mode::route ? std::max(200, Outline->viewport()->width()) - (text_left - 6) - 12 : StopFields->contentsRect().width();
+			if (available > 0) {
+				const auto height = StopReader->heightForWidth(available);
+				if (StopReader->height() != height || StopReader->minimumHeight() != height) {
+					StopReader->setFixedHeight(height);
+				}
+			}
+		}
 		if (Mode != tour_editor_mode::route) {
 			fit_route();
 			return;
@@ -2616,6 +2782,7 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::FontChange || aEvent->type() == QEvent::PaletteChange) {
 			Source->setFont(code_font_of(font()));
 			Related->setFont(code_font_of(font()));
+			StopReader->set_code_font(code_font_of(font()), 4.0 * QFontMetricsF{ code_font_of(font()) }.horizontalAdvance(QLatin1Char{ ' ' }));
 			place_stop_card();
 		}
 		// [[BPR-1776]]. More's glyph is drawn in the palette's ink.
@@ -2624,6 +2791,7 @@ namespace bpr::qt {
 			if (auto* const more = qobject_cast<QToolButton*>(MoreButton); more != nullptr) {
 				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
 			}
+			EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
 		}
 	}
 
