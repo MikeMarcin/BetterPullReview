@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1812"
 title: "Accept the observed stable tag and numbered MSI floor"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
