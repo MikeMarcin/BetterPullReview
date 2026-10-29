@@ -186,6 +186,22 @@ class ReleaseBuildTests(unittest.TestCase):
             cohort.configure(frozen, self.root, altered, "mac")
 
     @unittest.skipUnless(shutil.which("cmake"), "native CMake is unavailable")
+    def test_production_cold_and_warm_observations_include_the_same_core_options(self):
+        build = Path(self.temporary.name) / "production-build"
+        command = ["cmake", "-S", str(ROOT), "-B", str(build),
+                   "-DBPR_BUILD_QT=OFF", "-DBUILD_TESTING=OFF", "-DBPR_ENABLE_CODING_TARGETS=OFF",
+                   "-DBPR_DEPENDENCY_OFFLINE=ON", "-DCPM_SOURCE_CACHE=" + str(ROOT / "build/.cpm-cache")]
+        for attempt in ("cold", "warm"):
+            result = subprocess.run(command, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+            observed = cohort.read(build / "_bpr/release-observed.json")
+            self.assertEqual(observed["options"]["BPR_CORE_SHA256_PORTABLE"], "OFF", attempt)
+            if attempt == "cold":
+                cold = observed
+            else:
+                self.assertEqual(observed, cold)
+
+    @unittest.skipUnless(shutil.which("cmake"), "native CMake is unavailable")
     def test_real_cmake_module_consumes_frozen_identity_and_local_build_consumes_nothing(self):
         for name in ("BprReleaseCohort.cmake", "BprBuildIdentity.cmake"):
             destination = self.root / "cmake" / name

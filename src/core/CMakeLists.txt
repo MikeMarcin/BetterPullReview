@@ -175,7 +175,6 @@ target_compile_features(better_pull_review_core PUBLIC cxx_std_23)
 target_link_libraries(better_pull_review_core PRIVATE BetterPullReview::Xdiff BetterPullReview::RE2 BetterPullReview::ZLib BetterPullReview::UTF8Proc BetterPullReview::Sha1dc BetterPullReview::HaclSha2 BetterPullReview::RapidFuzz BetterPullReview::Dtl)
 
 # Reproducible portable builds may explicitly keep the approved HACL backend.
-option(BPR_CORE_SHA256_PORTABLE "Use portable HACL SHA-256 instead of platform crypto" OFF)
 if(BPR_CORE_SHA256_PORTABLE)
     target_sources(better_pull_review_core PRIVATE src/sha256_portable.cpp)
 elseif(APPLE)

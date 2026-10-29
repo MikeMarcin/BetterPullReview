@@ -655,6 +655,51 @@ class NotaryCommandTests(unittest.TestCase):
         self.assertEqual(argv, self.expected()[:6])
 
 
+@unittest.skipIf(sys.platform == "win32", "the macOS release command requires Bash")
+class ReleaseBuildDirectoryTests(unittest.TestCase):
+    def select(self, root, arguments):
+        prefix = (ROOT / "tools/release.sh").read_text().split('[[ "$(uname -s)" == "Darwin" ]]', 1)[0]
+        harness = prefix + "\nROOT_DIR=" + shlex.quote(str(root))
+        harness += '\nPRESET=macos-release\nASSET_VERSION=0.4.1-build.3\nRELEASE_COHORT=/fixture/cohort.json\n'
+        harness += 'select_release_paths\nprintf "%s\\n%s\\n" "$BUILD_DIR" "$OUTPUT_DIR"\n'
+        return subprocess.run(["bash", "-s", "--", *arguments], input=harness, text=True, capture_output=True)
+
+    def test_existing_graph_reuses_its_paths_and_keeps_new_artifact_directory(self):
+        with ContainedTemporaryDirectory(prefix="bpr-release-graph-") as temporary:
+            root = Path(temporary).resolve()
+            graph = root / "build" / "warm graph"
+            graph.mkdir(parents=True)
+            (graph / "CMakeCache.txt").write_text("CMAKE_HOME_DIRECTORY:INTERNAL=" + str(root) + "\n")
+            result = self.select(root, ["--build-dir", str(graph)])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines(), [str(graph.resolve()), str(root / "build/releases/0.4.1-build.3")])
+            result = self.select(root, [])
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(result.stdout.splitlines()[0], str(root / "build/macos-release-0.4.1-build.3"))
+
+    def test_foreign_missing_relative_and_escaped_graphs_are_refused(self):
+        with ContainedTemporaryDirectory(prefix="bpr-release-graph-") as temporary:
+            root = Path(temporary).resolve()
+            graph = root / "build" / "warm"
+            graph.mkdir(parents=True)
+            cache = graph / "CMakeCache.txt"
+            for content in (None, "CMAKE_HOME_DIRECTORY:INTERNAL=/another/source\n"):
+                if content is not None:
+                    cache.write_text(content)
+                result = self.select(root, ["--build-dir", str(graph)])
+                self.assertNotEqual(result.returncode, 0)
+            outside = root / "outside"
+            outside.mkdir()
+            (outside / "CMakeCache.txt").write_text("CMAKE_HOME_DIRECTORY:INTERNAL=" + str(root) + "\n")
+            alias = root / "build" / "escaped"
+            alias.symlink_to(outside, target_is_directory=True)
+            for path in ("build/warm", str(root / "absent"), str(outside), str(alias)):
+                result = self.select(root, ["--build-dir", path])
+                self.assertNotEqual(result.returncode, 0, path)
+            for arguments in (["--build-dir"], ["--build-dir", ""]):
+                self.assertNotEqual(self.select(root, arguments).returncode, 0)
+
+
 class ReleaseProfileAdmissionTests(unittest.TestCase):
     @unittest.skipUnless(sys.platform == "darwin", "native macOS release entrypoint")
     def test_missing_scope_or_patch_regressions_refuses_before_work(self):
