@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1812"
+  ],
+  "reserve_for": "release-v041-floor",
+  "purpose": "Accept the actual bare stable tag and numbered prior MSI identity in release-build floor validation without weakening rollback guards",
+  "created": "2026-10-29T16:21:44.098758+00:00",
+  "base": "c8886e46f4c6a149e8ceef4c05f099197b888fc8"
+}
