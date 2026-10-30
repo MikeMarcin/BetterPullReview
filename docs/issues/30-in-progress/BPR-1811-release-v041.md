@@ -7,7 +7,7 @@ rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"mandate": "release-v041-same-preview-waivers-r1", "baseline": "37467887a", "execution_strategy": "coordinator-implementer", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
+metadata: {"mandate": "release-v041-main-refresh-restart-r3", "baseline": "37467887a", "execution_strategy": "coordinator-implementer", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
 ---
 
 # Prepare, publish previews and qualify v0.4.1
@@ -89,7 +89,7 @@ keeps the maintained four-job schedule, locks and exclusive rows, the exact eigh
 Debug timing omissions, fixed physical reserves and honest pending/interrupted
 rows where capacity has not admitted a course.
 
-## Build 7 and the next fixture-only candidate
+## Build 7 and the superseded fixture-only candidate
 
 Build 7 source `4dd4cd72d3d716329f286592d7f8efaa873de95a` is public as
 `v0.4.1-build.7` (release 429321827). Its 30 Mac/Windows/Ubuntu assets have
@@ -115,7 +115,8 @@ Comment stay choice, preserving accepted default-Home behavior and the original
 40-second contract. Its complete chain and existing default-Home composition
 course pass on all three native Release closures with exact input seals. The
 Windows artificial-TEMP failures and restored-native-context pass remain
-distinct. No later canonical runtime is imported.
+distinct. That candidate excluded later canonical runtime under the then-current
+mandate; the next amendment supersedes that boundary.
 
 The changed Mac Debug compilation closure passes without repeating public
 courses or unrelated ALL builds. Remaining native Debug deltas, fresh producer
@@ -124,3 +125,39 @@ Full Mac preview admission still requires its complete 14.5 GiB stage allowance
 plus the fixed 12 GiB reserve and safety; no partial production stage starts to
 fit current free space. All remaining comprehensive rows and the exact eight
 Debug omissions keep their actual status until the repaired candidate is ready.
+
+## Direct owner amendment: include the other main fixes
+
+The owner then instructed: "Then take the other fixes from main and start over
+with that." This is mandate `release-v041-main-refresh-restart-r3`; the original
+request clock remains 2026-10-29T07:27:07.968Z. All owned work was reconciled at
+a terminal boundary. The prior candidate `5e52b0252`, its focused proofs, all raw
+failures and the immutable N7 release remain preserved. Changed-source prior
+qualification is historical evidence, with no current coverage inferred.
+
+Fresh canonical main is `f737404e1`; refreshed `origin/main` is N7
+`4dd4cd72d`. Normal history integration includes both and retains BPR-1833's
+fixture repair and the actual N7 MSI floor. The incoming changes are BPR-1824
+and BPR-1826 thread-resolution admission, BPR-1827 Claude transcript handling,
+BPR-1828 through BPR-1831 bounded structured diagnostics and BPR-1832 compiler
+cache policy. Runtime sources merge without conflict. The two declaration
+conflicts preserve the measured prior reviewer-request refusal, register the new
+unmeasured rows, retain both composition ownership histories and reseal the
+joint source content. The incoming production mutation pin is retained for its
+reviewed closed-thread selection and diagnostic wrapper. A pin is not native
+acceptance.
+
+The new sequence starts with changed public-path readiness and mandatory source,
+configuration, security and native trust gates, then signed/notarized Mac preview
+first and Windows append next. No fresh full Debug or ALL matrix precedes the
+preview. Reconcile genuinely changed all-platform compilation inputs before
+long qualification afterward. The merged source requires actual native compiler
+cache/launcher/settings/declaration observations and a fresh complete production
+footprint forecast; the earlier 14.5 GiB allowance and option counts are not a
+current forecast. The raw Ubuntu r88 manifest scheduling refusal remains
+unresolved historical evidence to revalidate on this source.
+
+Marketing version stays 0.4.1. No next global number has been allocated. Allocate
+once after source/configuration prerequisites, preserve N7 and stable Latest,
+carry matching waivers with fresh raw scans, and keep stable 0.4.1 as a separate
+concrete owner decision. No cleanup is implied by the source restart.

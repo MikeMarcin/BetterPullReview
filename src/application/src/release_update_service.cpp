@@ -16,6 +16,7 @@ namespace bpr::application {
 		std::shared_ptr<release_update_install_port>      Installer;
 		release_update_projection_port*                   Sink;
 		std::unique_ptr<release_update_application_host>  Host;
+		std::shared_ptr<diagnostic_log_port>              Log;
 		release_update_settings                           Settings;
 		bool                                              Started = false;
 		bool                                              Pending = false;
@@ -82,9 +83,10 @@ namespace bpr::application {
 						if (loaded) {
 							self->Settings = *loaded;
 						}
-						self->Host                 = std::make_unique<release_update_application_host>(core::application_session_id{ 1U },
-																									   self->Installed, self->Capability, self->Settings.Preferences, self->Clock, self->Decision,
-																									   self->Effects, self->Verifier, *self, self->Installer);
+						self->Host = std::make_unique<release_update_application_host>(core::application_session_id{ 1U },
+																					   self->Installed, self->Capability, self->Settings.Preferences, self->Clock, self->Decision,
+																					   self->Effects, self->Verifier, *self, self->Installer);
+						self->Host->set_diagnostic_log(self->Log);
 						self->Settings.Preferences = self->Host->projection().Preferences;
 						self->notify(self->Host->projection());
 					});
@@ -193,4 +195,14 @@ namespace bpr::application {
 	auto release_update_service::quiescent() const -> bool { return !Impl->Pending && (!Impl->Host || Impl->Host->quiescent()); }
 	auto release_update_service::account_binding() const -> std::string { return Impl->Settings.AccountBinding; }
 	auto release_update_service::projection() const -> release_update_projection { return Impl->Host ? Impl->Host->projection() : release_update_projection{ }; }
+	void release_update_service::set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog)
+	{
+		if (Impl->Log == aLog) {
+			return;
+		}
+		Impl->Log = std::move(aLog);
+		if (Impl->Host) {
+			Impl->Host->set_diagnostic_log(Impl->Log);
+		}
+	}
 }

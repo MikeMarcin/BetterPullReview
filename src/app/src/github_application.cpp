@@ -5,16 +5,20 @@
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/sqlite/storage_diagnostics.hpp"
 #include "bpr/adapters/workspace/clone_folder_scan.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/credential_vault_diagnostics.hpp"
+#include "bpr/application/host_operation_diagnostics.hpp"
 #include "bpr/application/insights_host.hpp"
 #include "bpr/application/markdown_blob_snippet_host.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
+#include "bpr/application/review_mutation_diagnostics.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/comment_edit.hpp"
@@ -28,6 +32,7 @@
 #include "bpr/core/reviewer_request.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/event_loop_metrics.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/insights_window.hpp"
@@ -153,6 +158,7 @@
 	#include "bpr/application/agent_finding_host.hpp"
 	#include "bpr/application/agent_invocation_host.hpp"
 	#include "bpr/application/agent_realignment.hpp"
+	#include "bpr/application/agent_run_diagnosis.hpp"
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
 #endif
 #include "bpr/application/appearance_application_host.hpp"
@@ -692,11 +698,19 @@ namespace bpr::app {
 		// request field by field before launch, and
 		// select_designated_review_mutation above refuses unless every identity
 		// equals a compile-time constant.
+		//
+		// [[BPR-1826]]. With `aAdmitClosed` a closed or merged pull request is
+		// selected too, its binding saying it is not open: the write
+		// connection composed for it resolves and unresolves threads and
+		// writes nothing else (`application::valid_for`). Every other caller
+		// still asks for an open pull request.
 		[[nodiscard]] auto select_observed_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff,
-			const application::github_pull_request_snapshot&  aSnapshot)
+			const application::github_pull_request_snapshot&  aSnapshot,
+			const bool                                        aAdmitClosed = false)
 			-> std::optional<designated_review_mutation_selection>
 		{
+			const auto open = aSnapshot.PullRequest.State == application::github_pull_request_state::open;
 			const auto base = core::parse_git_commit_oid(
 				aSnapshot.PullRequest.BaseOid.value());
 			const auto head = core::parse_git_commit_oid(
@@ -712,8 +726,7 @@ namespace bpr::app {
 				|| aSnapshot.PullRequest.PullRequest != aHandoff.PullRequest
 				|| aSnapshot.PullRequest.Repository != aHandoff.Repository
 				|| aSnapshot.PullRequest.Number != aHandoff.Number
-				|| aSnapshot.PullRequest.State
-					!= application::github_pull_request_state::open) {
+				|| (!open && !aAdmitClosed)) {
 				return std::nullopt;
 			}
 			auto selection = designated_review_mutation_selection{
@@ -736,7 +749,7 @@ namespace bpr::app {
 					.BaseOid                  = *base,
 					.BaseRef                  = aSnapshot.PullRequest.BaseRef,
 					.HeadRef                  = aSnapshot.PullRequest.HeadRef,
-					.Open                     = true,
+					.Open                     = open,
 					.ComparisonBaseOid        = application::distinct_comparison_base(application::recorded_base(aHandoff), aHandoff.Base),
 				},
 				.ActingIdentity = {
@@ -746,7 +759,7 @@ namespace bpr::app {
 					.Login      = aSnapshot.Viewer.Login,
 				},
 			};
-			return application::valid(selection.Target)
+			return application::valid_identity(selection.Target)
 					&& application::valid(selection.ActingIdentity)
 				? std::optional{ std::move(selection) }
 				: std::nullopt;
@@ -4344,7 +4357,12 @@ namespace bpr::app {
 		/// [[BPR-1680]]. Home's discovery lanes, one per discovery read in
 		/// flight, beside the provider's lane.
 		std::array<worker_executor, application::maximum_personal_discovery_in_flight> DiscoveryEffects;
-		std::unique_ptr<application::markdown_image_service>                           Images;
+		/// [[BPR-1831]]. Image, avatar and source search ends, aggregated per
+		/// minute, and the fetch port that records them; before the service
+		/// that holds it.
+		std::shared_ptr<application::aggregated_operation_log> OperationAggregate;
+		std::unique_ptr<application::diagnosed_image_fetch>    ImageFetchDiagnostics;
+		std::unique_ptr<application::markdown_image_service>   Images;
 #if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
@@ -5091,6 +5109,11 @@ namespace bpr::app {
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
 			DeviceBindingEffects.close_and_drain();
+			// [[BPR-1831]]. Held-back storage, image and search ends first.
+			StorageDiagnostics.reset();
+			if (OperationAggregate) {
+				OperationAggregate->flush();
+			}
 			if (DiagnosticLog) {
 				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::shutdown }));
 			}
@@ -5395,6 +5418,9 @@ namespace bpr::app {
 			DiagnosticLog              = application::observe_insights_problems(DiagnosticLog, InsightsRecorder);
 			if (DiagnosticLog) {
 				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::started }));
+				// [[BPR-1831]].
+				StorageDiagnostics = std::make_unique<adapters::sqlite::storage_diagnostics_scope>(DiagnosticLog);
+				OperationAggregate = std::make_shared<application::aggregated_operation_log>(DiagnosticLog);
 			}
 
 			// [[BPR-0660]]. The enterprise servers the reviewer kept are
@@ -5498,8 +5524,10 @@ namespace bpr::app {
 				Provider->configure_discovery_lanes(std::move(lanes));
 			}
 			ImageDisk = adapters::sqlite::make_markdown_image_disk_cache(ApplicationDataRoot);
-			Images    = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder,
-																			  core::markdown_image_memory_cache_bytes, ImageDisk.get());
+			// [[BPR-1831]]. Every image and avatar fetch leaves an aggregated record.
+			ImageFetchDiagnostics = std::make_unique<application::diagnosed_image_fetch>(*Provider, OperationAggregate);
+			Images                = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, ImageFetchDiagnostics.get(), &ImageDecoder,
+																						  core::markdown_image_memory_cache_bytes, ImageDisk.get());
 
 			// RFC-BPR-0017's credential-free read authority, over the same
 			// profiles and the same transport factory. A second provider
@@ -5568,6 +5596,9 @@ namespace bpr::app {
 					OwnedVault = std::make_unique<unavailable_credential_vault>(
 						VaultEffects);
 				}
+				// [[BPR-1829]]. Every store, load and delete of the account
+				// and refresh slots leaves a credential.vault record.
+				OwnedVault = application::with_credential_vault_diagnostics(std::move(OwnedVault), DiagnosticLog);
 			}
 
 			auto cache = adapters::git::make_installed_git_cache({
@@ -5722,8 +5753,7 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 #endif
 			}
-			Notifications = std::make_unique<application::review_queue_notifier>(*NotificationSink,
-																				 [this](application::queue_notification_target aTarget) {
+			Notifications = std::make_unique<application::review_queue_notifier>(*NotificationSink, [this](application::queue_notification_target aTarget) {
 																					 if (Closing || !Focused) {
 																						 return;
 																					 }
@@ -5740,8 +5770,8 @@ namespace bpr::app {
 																						 ++NotificationSelections;
 																					 } else {
 																						 ++NotificationSelectionFailures;
-																					 }
-																				 });
+																					 } },
+																				 DiagnosticLog); // [[BPR-1831]]
 			const auto activation = [this](
 										application::queue_notification_target aTarget) {
 				if (Notifications) {
@@ -5973,6 +6003,7 @@ namespace bpr::app {
 						  AnonymousSmartGit.get())
 					: nullptr,
 				PublicPreviewProjectionFanOut.get(), aConfig.Profile);
+			Host->set_diagnostic_log(DiagnosticLog); // [[BPR-1829]] Sign out, account changes
 			// The switch-to-sign-in gesture, end to end. The ring in the
 			// review header dispatches it, the host names the profile the
 			// signed-out session was activated for, and the device flow for
@@ -6245,6 +6276,7 @@ namespace bpr::app {
 						application::default_device_verification_authority },
 				},
 				deviceCapability);
+			DeviceHost->set_diagnostic_log(DiagnosticLog); // [[BPR-1829]] device sign-in, renewal
 			if (RememberDeviceSignIn) {
 				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot, aConfig.Profile);
 				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
@@ -6451,8 +6483,10 @@ namespace bpr::app {
 		std::shared_ptr<adapters::logging::quill_log>     OwnedDiagnosticLog;
 		std::unique_ptr<diagnostic_controls>              Diagnostics;
 		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
-		std::deque<validated_github_host_profile>         Profiles;
-		std::vector<application::github_profile_option>   ProfileOptions;
+		/// [[BPR-1831]]. The SQLite stores record to this profile's log while it lives.
+		std::unique_ptr<adapters::sqlite::storage_diagnostics_scope> StorageDiagnostics;
+		std::deque<validated_github_host_profile>                    Profiles;
+		std::vector<application::github_profile_option>              ProfileOptions;
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
 #endif
@@ -8383,6 +8417,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																  nullptr
 #endif
 			);
+			CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 			// [[BPR-1177]]. Publish as Pull Request acts as the account this
 			// profile's session accepted, through its own publication catalog.
 			CycleDesktop->set_publishing({
@@ -8983,13 +9018,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Realigner
 					= std::make_unique<application::composed_agent_realignment>(
 						*EpochHost, *EpochHost, *LineMatcher);
-				AgentHost = std::make_unique<application::agent_invocation_host>(
+				// [[BPR-1827]]. Every run the host starts leaves an
+				// `agent.run` started and ended line: enums and counts only.
+				DiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*EntryProcess, DiagnosticLog);
+				AgentHost        = std::make_unique<application::agent_invocation_host>(
 					agentProfiles,
 					agentPolicies,
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-					*EntryProcess,
+					*DiagnosedProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -9046,7 +9084,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					std::move(mcpHelper),
 					*McpProcess,
 					McpEffects,
-					DecisionLane);
+					DecisionLane,
+					DiagnosticLog.get()); // [[BPR-1830]]
 			}
 	#if defined(BPR_BUILD_TESTING)
 			if (!DisableSideChatPanelComposition)
@@ -9448,6 +9487,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				dependencies.Checks   = AgentSetupLane.get();
 				dependencies.Decision = &DecisionLane;
 				dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
+				dependencies.Log      = DiagnosticLog; // [[BPR-1828]]
 				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 			}
 			AgentSetup->load();
@@ -9461,6 +9501,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				dependencies.Reads.Read     = [](const std::string& aPath) { return adapters::workspace::read_clone(aPath); };
 				dependencies.Reads.Existing = [](const std::span<const std::string> aFolders) { return adapters::workspace::existing_folders(aFolders); };
 				dependencies.Home           = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+				dependencies.Log            = DiagnosticLog; // [[BPR-1831]]
 	#if defined(Q_OS_WIN)
 				dependencies.Windows = true;
 	#endif
@@ -9713,6 +9754,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AppearanceHost->observe_work(Profile->InsightsRecorder);
 			PaneFind->observe_work(Profile->InsightsRecorder);
 			PrFind->observe_work(Profile->InsightsRecorder);
+			PrFind->observe_diagnostics(Profile->OperationAggregate); // [[BPR-1831]]
 			// Loads the durable record. An absent record keeps the composed
 			// settings and is never written back, so a fresh installation
 			// stays a fresh installation until the reviewer chooses
@@ -11541,6 +11583,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																		   observe_tour_head();
 																				});
+			TourHost->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 			TourHost->start();
 			refresh_tour_imports();
 		}
@@ -14582,6 +14625,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			retire_reviewer_picker();
 		}
 
+		/// [[BPR-1824]]. Why this session's accepted read cannot have its
+		/// threads resolved before any write connection is asked: a public
+		/// preview, or no connection yet. [[BPR-1826]]. A closed or merged
+		/// pull request is composed a connection that resolves threads.
+		[[nodiscard]] auto thread_resolution_connection_refusal() const -> core::thread_resolution_refusal
+		{
+			if (Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(
+					Host->public_preview_legality(core::anonymous_read_intent::resolve_review_thread))) {
+				return core::thread_resolution_refusal::anonymous_read;
+			}
+			if (ReviewMutationHost == nullptr || !InlineReviewBinding) {
+				return core::thread_resolution_refusal::no_write_connection;
+			}
+			return core::thread_resolution_refusal::none;
+		}
+
 		void compose_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
@@ -14591,7 +14651,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto binding = WindowRead && WindowRead->accepted_snapshot()
-				? select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot())
+				? select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot(), true)
 				: std::nullopt;
 			const auto scope   = core::conversation_mutation_scope{
 				.Session            = aHandoff.ApplicationSession,
@@ -14644,6 +14704,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			refresh_agent_private_context_choices();
 			publish_preflight_selection();
 			ReviewProjection.clear();
+			// [[BPR-1824]]. Until a write connection is composed below the
+			// cards say why Resolve cannot go, not that it is "unavailable".
+			if (Window != nullptr) {
+				Window->set_thread_resolution_connection(thread_resolution_connection_refusal(), false);
+			}
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr || WorkbenchHost == nullptr
@@ -14661,7 +14726,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			auto selection = select_observed_review_mutation(
-				aHandoff, *WindowRead->accepted_snapshot());
+				aHandoff, *WindowRead->accepted_snapshot(), true);
 			if (!selection.has_value()) {
 				return;
 			}
@@ -14693,7 +14758,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto selection = AttendedReviewMutationMode
 				? select_designated_review_mutation(aHandoff, *WindowRead->accepted_snapshot())
-				: select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot());
+				: select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot(), true);
 			if (!selection.has_value()) {
 				LiveReviewMutationGrant.reset();
 				return;
@@ -14729,6 +14794,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				auto erased         = std::unique_ptr<application::review_mutation_port>{
 					std::move(*provider)
 				};
+				// [[BPR-1828]]. Every resolve, reaction, edit, reviewer
+				// request and publication leaves a github.review_mutation record.
+				erased             = application::with_review_mutation_diagnostics(std::move(erased), DiagnosticLog);
 				ReviewMutationHost = std::make_unique<
 					application::review_mutation_application_host>(
 					std::move(erased),
@@ -14748,6 +14816,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			if (ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
+				return;
+			}
+			// [[BPR-1826]]. A closed or merged pull request's connection
+			// resolves and unresolves threads and nothing else: its host
+			// offers no other capability, and no draft is published from it.
+			if (InlineReviewBinding && !InlineReviewBinding->Target.Open) {
+				Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+				present_reviewer_offer();
+				present_description_offer();
+				present_comment_edit_offer();
 				return;
 			}
 			if (!ensure_shared_drafts(aHandoff)) {
@@ -15472,8 +15550,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void resolve_review_thread(const qt::thread_resolution_gesture& aGesture)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
-			if (Closing || Window == nullptr || ReviewMutationHost == nullptr
-				|| !aGesture.Identity.starts_with(prefix)) {
+			if (Closing || Window == nullptr || !aGesture.Identity.starts_with(prefix)) {
 				return;
 			}
 			auto* const panel  = Window->conversation_panel();
@@ -15487,6 +15564,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
 					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
 									 : core::anonymous_read_intent::unresolve_review_thread));
+			// [[BPR-1824]]. Whether a connection writes to this pull request;
+			// a selected diff is not asked for, so Discuss resolves with no
+			// file open.
+			const auto connection = thread_resolution_connection_refusal();
 			// [[BPR-1741]]. GitHub's own word on whether this viewer may
 			// resolve (or reopen) the thread, from the accepted read.
 			const auto* const thread    = accepted_thread(aGesture.Identity);
@@ -15498,30 +15579,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Resolved        = aGesture.Resolved,
 				.Resolve         = aGesture.Resolve,
 				.ViewerPermitted = permitted,
+				.WriteConnection = connection != core::thread_resolution_refusal::no_write_connection && ReviewMutationHost != nullptr,
 			});
 
 			++ThreadResolutionGestures;
-			switch (refusal) {
-			case core::thread_resolution_refusal::anonymous_read:
+			if (refusal != core::thread_resolution_refusal::none) {
 				++ThreadResolutionRefusals;
-				notice(QStringLiteral("Sign in to resolve threads; a public preview only reads."));
+				notice(qt::thread_resolution_refusal_text(refusal, aGesture.Resolve));
 				return;
-			case core::thread_resolution_refusal::capability_absent:
-				++ThreadResolutionRefusals;
-				notice(QStringLiteral("This server has not said it resolves threads."));
-				return;
-			case core::thread_resolution_refusal::not_permitted:
-				++ThreadResolutionRefusals;
-				notice(aGesture.Resolve ? QStringLiteral("GitHub does not let you resolve this conversation.")
-										: QStringLiteral("GitHub does not let you unresolve this conversation."));
-				return;
-			case core::thread_resolution_refusal::already_in_state:
-				++ThreadResolutionRefusals;
-				notice(aGesture.Resolve ? QStringLiteral("This thread is already resolved.")
-										: QStringLiteral("This thread is already open."));
-				return;
-			case core::thread_resolution_refusal::none:
-				break;
 			}
 			if (core::resolution_in_flight(ConversationOverlay, aGesture.Identity)) {
 				++ThreadResolutionRefusals;
@@ -15555,6 +15620,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// [[BPR-1824]]. What stopped a resolution GitHub was asked for, or
+		/// that the host refused before asking, and what to do about it.
+		[[nodiscard]] static auto thread_resolution_failure_text(const application::review_mutation_failure aFailure, const bool aResolve) -> QString
+		{
+			using failure   = application::review_mutation_failure;
+			const auto verb = aResolve ? QStringLiteral("resolved") : QStringLiteral("reopened");
+			switch (aFailure) {
+			case failure::refused_by_server:
+			case failure::target_unavailable:
+				return QStringLiteral("GitHub refused, so the thread was not %1. Your account may lack write access to the repository, or the thread is gone.").arg(verb);
+			case failure::target_moved:
+			case failure::undesignated_target:
+			case failure::stale_head:
+				return QStringLiteral("The pull request changed since it was read, so the thread was not %1. Refresh, then try again.").arg(verb);
+			case failure::unsupported:
+				return QStringLiteral("This connection cannot change threads, so the thread was not %1. Use the pull request's page on GitHub.").arg(verb);
+			case failure::credential_unavailable:
+			case failure::credential_tool_failed:
+				return QStringLiteral("No GitHub sign-in was available, so the thread was not %1. Sign in again, then try again.").arg(verb);
+			case failure::cancelled:
+				return QStringLiteral("Stopped before GitHub answered; the thread was not %1.").arg(verb);
+			case failure::not_confirmed:
+				return QStringLiteral("GitHub does not show the thread %1, and the change was not sent twice. Refresh to see its state.").arg(verb);
+			case failure::malformed_response:
+				return QStringLiteral("GitHub's answer could not be read, so it is not known whether the thread was %1. Refresh to see its state.").arg(verb);
+			case failure::unavailable:
+				return QStringLiteral("GitHub could not be reached, or another change to this pull request is still being sent, so the thread was not %1. Try again.").arg(verb);
+			default:
+				return QStringLiteral("The thread was not %1 (%2).").arg(verb, QString::fromUtf8(application::name(aFailure)));
+			}
+		}
+
 		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
 		{
 			if (Closing || Window == nullptr) {
@@ -15571,10 +15668,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++ThreadResolutionFailures;
 
 				if (panel != nullptr) {
-					panel->present_notice(QStringLiteral("The thread could not be %1: %2.")
-											  .arg(aTerminal.Request.Resolve ? QStringLiteral("resolved")
-																			 : QStringLiteral("reopened"),
-												   QString::fromUtf8(application::name(aTerminal.Result.error()))));
+					panel->present_notice(thread_resolution_failure_text(aTerminal.Result.error(), aTerminal.Request.Resolve));
 				}
 				return;
 			}
@@ -15633,13 +15727,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1745]]. A reply bound to its thread is published
 			// without a selected diff; the accepted handoff names the session
 			// and pull request the grant binds to.
-			const auto threadReply = aTestingRequest && aTestingRequest->ThreadReply;
+			// [[BPR-1824]]. So is every gesture that is no inline comment: a
+			// resolution, a reaction, an edit or a reviewer request. Before,
+			// they waited on a selected diff, and from Discuss with no file
+			// open GitHub was never asked: "could not be resolved: unavailable".
+			const auto onSelectedDiff = aTestingRequest && !aTestingRequest->ThreadReply;
 			if (AttendedReviewMutationMode || !Host || !WindowRead->accepted_snapshot()
 				|| !InlineReviewBinding || WorkbenchHost == nullptr
-				|| (!SelectedDiffPublication.has_value() && !(threadReply && LastAcceptedHandoff))) {
+				|| (onSelectedDiff ? !SelectedDiffPublication.has_value() : !LastAcceptedHandoff)) {
 				return grant;
 			}
-			const auto  authority = SelectedDiffPublication.has_value() && !threadReply ? SelectedDiffPublication->Request.WorkbenchAuthority : workbench_authority(*LastAcceptedHandoff);
+			const auto  authority = onSelectedDiff ? SelectedDiffPublication->Request.WorkbenchAuthority : workbench_authority(*LastAcceptedHandoff);
 			const auto& snapshot  = *WindowRead->accepted_snapshot();
 			// Reuse the accepted handoff binding retained by the host composition.
 			if (snapshot.Account != authority.Account
@@ -24467,6 +24565,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// reviewer added, for the launches, and the process that starts them.
 		std::shared_ptr<application::agent_entry_source>  AgentEntries = std::make_shared<application::agent_entry_source>();
 		std::unique_ptr<application::agent_entry_process> EntryProcess;
+		/// [[BPR-1827]]. The entry process, recorded to diagnostics; declared
+		/// after it and before the host that runs through it.
+		std::unique_ptr<application::diagnosed_agent_process> DiagnosedProcess;
 		/// The profiles the host last offered, before the list chose among them.
 		std::vector<core::agent_profile> HostOfferedProfiles;
 		/// A test that put its own program on a built-in profile keeps it offered.
@@ -24941,6 +25042,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				profile->TourOwnerService = std::move(TourOwnerService);
 #if defined(BPR_LOCAL_AUTOMATION)
 				profile->CycleOwnerService = std::move(CycleOwnerService);
+				if (profile->CycleOwnerService) {
+					// [[BPR-1830]]. Forwarded cycle commands record their rounds in the profile's log.
+					profile->CycleOwnerService->set_diagnostics(profile->DiagnosticLog.get());
+				}
 #endif
 				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
 				step         = "profile-services-start";
@@ -25111,6 +25216,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return result;
 	}
 	auto github_application::desktop_release_account() -> std::optional<release_update_account> { return Profile->release_account(); }
+	auto github_application::desktop_diagnostic_log() const -> std::shared_ptr<application::diagnostic_log_port> { return Profile->DiagnosticLog; }
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server> { return Profile->TourOwnerServer; }
 	namespace {
@@ -26900,6 +27006,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return aApplication.Implementation->Fixture != nullptr
 			? aApplication.Implementation->Fixture->review_mutation_evidence()
 			: detail::review_mutation_fixture_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::thread_resolution_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::thread_resolution_fixture_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		auto              evidence       = detail::thread_resolution_fixture_evidence{ };
+		if (implementation == nullptr) {
+			return evidence;
+		}
+		evidence.Gestures    = implementation->ThreadResolutionGestures;
+		evidence.Refusals    = implementation->ThreadResolutionRefusals;
+		evidence.Completions = implementation->ThreadResolutionCompletions;
+		evidence.Failures    = implementation->ThreadResolutionFailures;
+		if (implementation->ReviewMutationHost == nullptr) {
+			return evidence;
+		}
+		const auto capabilities    = implementation->ReviewMutationHost->capabilities();
+		evidence.HostComposed      = true;
+		evidence.BindingOpen       = implementation->InlineReviewBinding && implementation->InlineReviewBinding->Target.Open;
+		evidence.ResolvesThreads   = capabilities.ResolvesThreads;
+		evidence.Reacts            = capabilities.Reacts;
+		evidence.EditsDescription  = capabilities.EditsDescription;
+		evidence.EditsComments     = capabilities.EditsComments;
+		evidence.RequestsReviewers = capabilities.RequestsReviewers;
+		return evidence;
 	}
 
 	auto detail::github_application_fixture_access::notification_tray(
@@ -33538,10 +33671,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.ReplyUnderThread) {
 				return fail("reply-not-under-thread parent=" + parent.toStdString());
 			}
+			// [[BPR-1824]]. Resolve in Discuss with no file open: the diff
+			// selection goes first, and GitHub is still asked. Before, the
+			// grant waited on a selected diff and the thread "could not be
+			// resolved: unavailable".
+			implementation->clear_diff_selection();
+			if (implementation->SelectedDiffPublication.has_value()) {
+				return fail("diff-selection-kept");
+			}
 			window->choose_modality(qt::review_modality::discuss);
 			QCoreApplication::processEvents();
 			if (!press(qt::card_action::resolve)) {
-				return fail("no-resolve-action offered=" + std::to_string(cards->resolution_offered() ? 1 : 0));
+				return fail("no-resolve-action refusal=" + std::to_string(static_cast<int>(cards->resolution_refusal())));
 			}
 			probe.Evidence.ResolveAsked = true;
 			probe.Phase                 = state_type::phase::awaiting_resolved;

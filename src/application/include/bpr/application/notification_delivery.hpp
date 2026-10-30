@@ -1,11 +1,13 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_NOTIFICATION_DELIVERY_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_NOTIFICATION_DELIVERY_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/review_queue_notification.hpp"
 
 #include <compare>
 #include <cstddef>
 #include <functional>
+#include <memory>
 #include <string>
 
 namespace bpr::application {
@@ -98,12 +100,19 @@ namespace bpr::application {
 	/// It selects nothing. An activation becomes a target handed to the
 	/// composition, which is what decides that a review is opened — the same
 	/// separation every other surface in this product keeps.
+	///
+	/// [[BPR-1831]]. With a log, each submission, refusal, permission answer
+	/// and activation also leaves a `notification.delivery` record of enums
+	/// and a duration. The log is given nothing else: the payload, the target
+	/// and the request never reach it. A quiet bucket records nothing; it is
+	/// decided on every queue refresh and is not a delivery.
 	class review_queue_notifier final
 	{
 	public:
 		explicit review_queue_notifier(
-			notification_sink_port&      aSink,
-			notification_activation_sink aActivations = { });
+			notification_sink_port&              aSink,
+			notification_activation_sink         aActivations = { },
+			std::shared_ptr<diagnostic_log_port> aLog         = { });
 
 		/// \brief Delivers one request, if the reviewer allows it.
 		///
@@ -117,9 +126,10 @@ namespace bpr::application {
 			-> notification_delivery_statistics;
 
 	private:
-		notification_sink_port&          Sink;
-		notification_activation_sink     Activations;
-		notification_delivery_statistics Statistics;
+		notification_sink_port&              Sink;
+		notification_activation_sink         Activations;
+		notification_delivery_statistics     Statistics;
+		std::shared_ptr<diagnostic_log_port> Log;
 	};
 } // namespace bpr::application
 

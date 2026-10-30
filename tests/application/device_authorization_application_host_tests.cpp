@@ -1,6 +1,7 @@
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/device_authorization_schedule.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <chrono>
 #include <cstddef>
@@ -1777,6 +1778,94 @@ namespace {
 			world.Browser.Addresses.empty(),
 			"a closing host opens no browser");
 	}
+
+	// [[BPR-1829]]. Keeps every sign-in line the host records.
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+
+		[[nodiscard]] auto line(const std::size_t aIndex) const -> std::string { return std::string{ Events.at(aIndex).Summary.text() }; }
+		[[nodiscard]] auto ends(const std::size_t aIndex, const application::diagnostic_outcome aOutcome, const std::string_view aPrefix) const -> bool
+		{
+			return aIndex < Events.size() && Events[aIndex].Operation == application::diagnostic_operation::sign_in && Events[aIndex].Outcome == aOutcome && line(aIndex).starts_with(aPrefix)
+				&& core::parse_operation_diagnosis(line(aIndex)).has_value();
+		}
+
+		std::vector<application::diagnostic_event> Events;
+	};
+
+	// [[BPR-1829]]. A device sign-in records its start and its terminal, and
+	// no code, token or address reaches a line.
+	void test_sign_in_diagnostics()
+	{
+		{
+			harness world;
+			auto    log = std::make_shared<recording_log>();
+			world.Host.set_diagnostic_log(log);
+			world.reach_awaiting();
+			expect(log->Events.size() == 1U && log->ends(0U, application::diagnostic_outcome::started, "action=device_sign_in failure=none process=none exit=none duration_ms=0 count=0 "), "a device-code request records the flow's start");
+			world.elapse_to_next_poll();
+			world.Transport.answer_token(application::device_token_deferred{ .Context = world.flow_context(), .Reason = application::device_token_delay_reason::authorization_pending, .SlowDownIntervalSeconds = 0U });
+			world.Lane.drain();
+			world.elapse_to_next_poll();
+			world.Transport.answer_token(world.issued());
+			world.Lane.drain();
+			expect(world.stage() == core::device_authorization_stage::authorized, "the course is authorized");
+			expect(log->Events.size() == 2U && log->ends(1U, application::diagnostic_outcome::succeeded, "action=device_sign_in failure=none process=none exit=none duration_ms=10000 count=2 "),
+				   "authorized records succeeded with the elapsed host time and two polls");
+			for (const auto& event : log->Events) {
+				const auto text = std::string{ event.Summary.text() };
+				for (const std::string_view secret : { "WDJB", "device-code", "access-token", "github.com", "login" }) {
+					expect(text.find(secret) == std::string::npos, "no user code, device code, token or address reaches a sign-in line");
+				}
+			}
+		}
+		{
+			harness world;
+			auto    log = std::make_shared<recording_log>();
+			world.Host.set_diagnostic_log(log);
+			world.reach_awaiting();
+			world.elapse_to_next_poll();
+			world.Transport.answer_token(application::device_token_refused{ .Context = world.flow_context(), .Reason = application::device_token_refusal_reason::access_denied });
+			world.Lane.drain();
+			expect(log->Events.size() == 2U && log->ends(1U, application::diagnostic_outcome::failed, "action=device_sign_in failure=authorization_denied "), "a denial records failed authorization_denied");
+		}
+		{
+			harness world;
+			auto    log = std::make_shared<recording_log>();
+			world.Host.set_diagnostic_log(log);
+			world.begin();
+			world.Transport.answer_code(application::device_code_refused{ .Context = world.Transport.last_code_context() });
+			world.Lane.drain();
+			expect(log->Events.size() == 2U && log->ends(1U, application::diagnostic_outcome::failed, "action=device_sign_in failure=device_flow_disabled ") && log->line(1U).find(" count=0 ") != std::string::npos,
+				   "a refused device code records failed device_flow_disabled before any poll");
+		}
+		{
+			harness world;
+			auto    log = std::make_shared<recording_log>();
+			world.Host.set_diagnostic_log(log);
+			world.reach_awaiting();
+			world.Host.dispatch(core::cancel_device_authorization_intent{ });
+			world.Lane.drain();
+			expect(log->Events.size() == 2U && log->ends(1U, application::diagnostic_outcome::cancelled, "action=device_sign_in failure=cancelled "), "Cancel records cancelled");
+			world.reach_awaiting();
+			expect(log->Events.size() == 3U && log->ends(2U, application::diagnostic_outcome::started, "action=device_sign_in "), "a fresh flow after a terminal records a fresh start");
+		}
+		{
+			harness world;
+			world.reach_awaiting();
+			world.elapse_to_next_poll();
+			world.Transport.answer_token(world.issued());
+			world.Lane.drain();
+			expect(world.stage() == core::device_authorization_stage::authorized, "negative control: a host with no log still signs in");
+		}
+	}
 } // namespace
 
 auto main() -> int
@@ -1830,6 +1919,7 @@ auto main() -> int
 	test_a_handoff_result_does_not_outlive_its_stage();
 	test_nothing_opens_when_there_is_nothing_to_open();
 	test_shutdown_closes_the_handoff_with_everything_else();
+	test_sign_in_diagnostics();
 
 	std::cout << "device-authorization-host-tests:pass\n";
 	return EXIT_SUCCESS;

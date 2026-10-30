@@ -28,6 +28,10 @@ Install these before configuring:
   accepts clang-format 22 and no other major release (`brew install llvm@22`
   on macOS, `apt install clang-format-22` on Debian and Ubuntu); see
   [Format with clang-format 22](#format-with-clang-format-22)
+- Optional, recommended when you keep several checkouts or worktrees: ccache
+  4.8 or newer (`brew install ccache` on macOS, `apt install ccache` on Debian
+  12 and Ubuntu 24.04 or newer). Configure finds it on `PATH`; see
+  [Shared compiler cache](#shared-compiler-cache)
 
 **Qt.** You do not need to install Qt yourself. Configure acquires a pinned
 Qt 6.12.0 into the shared dependency cache. To use a Qt you already have, pass
@@ -164,6 +168,94 @@ For clangd, configure `dev` before opening the tree in an editor: the root
 another preset, change the local `CompileFlags.CompilationDatabase` path to
 that preset's build tree (for example `build/windows-dev`) and restore
 `build/dev` before committing. Do not commit a compile database.
+
+## Shared compiler cache
+
+Every checkout and worktree used to compile the whole graph from nothing.
+With [ccache](https://ccache.dev) 4.8 or newer installed, a Debug development
+graph (`dev`, `core-only`, or any Debug Ninja or Makefile graph built by Clang
+or GCC) compiles through one cache that every checkout, worktree and preset on
+the machine shares. Install it once:
+
+```sh
+brew install ccache        # macOS
+sudo apt install ccache    # Debian 12, Ubuntu 24.04 or newer
+```
+
+Then configure as usual. Configure prints which way it went:
+
+```text
+-- Compiler cache: ccache 4.14.2 at /Users/you/Library/Caches/bpr-compiler-cache
+-- Compiler cache: off (skipped: ccache was not found on PATH)
+```
+
+Without ccache the build is exactly what it was. `BPR_COMPILER_CACHE` chooses
+the policy:
+
+| Value | Effect |
+|---|---|
+| `AUTO` (default) | Use ccache when it is installed and the graph is a Debug, non-distribution Ninja or Makefile graph built by Clang or GCC |
+| `ON` | Require it for any non-distribution graph, Release ones included (`qualification-release`, `app-release`, `tour-cli`); configure fails if it cannot be used |
+| `OFF` | Never use it: `cmake --preset dev -DBPR_COMPILER_CACHE=OFF` |
+
+Distribution graphs (`macos-release`, `windows-app-release`, `linux-package`
+and their variants) never compile through the cache, even with `ON`: ccache's
+`base_dir` rewrites paths inside the checkout to relative ones, so `__FILE__`
+and debug paths differ, and a release's bytes must not depend on what the
+building machine has installed. An explicit `CMAKE_CXX_COMPILER_LAUNCHER` is
+left alone. Windows is not covered yet: the `windows-dev` Visual Studio
+generator ignores compiler launchers, and MSVC's `/Zi` program databases cannot
+be cached.
+
+**Where the cache lives.** `~/Library/Caches/bpr-compiler-cache` on macOS,
+`${XDG_CACHE_HOME:-~/.cache}/bpr-compiler-cache` on Linux, outside every
+checkout. Override it with `-DBPR_COMPILER_CACHE_DIR=<path>`. The settings are
+in [`cmake/bpr-ccache.conf`](../../cmake/bpr-ccache.conf) (a 20 GB cap that all
+worktrees share); configure passes them to ccache on each compile command and
+also writes them to `<cache>/ccache.conf`, so maintenance commands see the same
+cap:
+
+```sh
+CCACHE_DIR=~/Library/Caches/bpr-compiler-cache ccache -s   # statistics
+CCACHE_DIR=~/Library/Caches/bpr-compiler-cache ccache -C   # empty the cache
+```
+
+On macOS a hit is an APFS clone of the cached object (`file_clone`, so entries
+are stored uncompressed): several worktrees' build trees share one copy of each
+object on disk. `du` still counts each clone in full.
+
+**Why hits survive across worktrees.** ccache's `base_dir` is the checkout's
+own source directory, so every path inside it, including the dependency cache
+in `build/.cpm-cache`, reaches the compiler relative to the build directory and
+hashes the same in every worktree. A unit whose command line or generated
+source names an absolute checkout path (a `-D…_ROOT="<checkout>/…"` fixture
+definition, or a Qt resource file, which records file modification times)
+misses across worktrees and compiles normally. Debug information names the
+compile directory, so the build directory is mapped to `.` with
+`-fdebug-prefix-map`; ccache does not hash that option.
+
+Two consequences of the relative paths:
+
+- `__FILE__` is relative to the build directory (`../../src/…`). Code that
+  needs a real path to a source or fixture takes it from a compile definition,
+  as `BPR_NATIVE_TEST_SOURCE_FILE` and the `…_FIXTURE_ROOT` definitions do.
+- A debugger finds the sources when started from the build directory. From
+  elsewhere, map the relative prefix to the checkout, for a `build/<preset>`
+  tree: `settings set target.source-map ../.. <checkout>` in LLDB, or
+  `set substitute-path ../.. <checkout>` in GDB.
+
+**The dependency cache.** Each checkout's `build/.cpm-cache` holds about
+1.9 GB, 1.7 GB of it the pinned Qt, and a fresh worktree spends roughly a
+minute and a half downloading it. Worktrees can share one with
+`-DCPM_SOURCE_CACHE=<path outside every checkout>` on a new build tree (an
+existing tree configured with another cache fails with `Unknown CMake command
+"CPMAddPackage"`); the Qt provider and CPM lock their entries, so concurrent
+configures are safe. Use the same path in
+every worktree, or none: a shared cache is the same absolute path everywhere and
+still hits, but a tree using its own `build/.cpm-cache` and a tree using a
+shared one see different Qt include paths and do not share those units. The
+presets keep `build/.cpm-cache` because the release package records its
+`CPM_SOURCE_CACHE`.
 
 ## Presets
 

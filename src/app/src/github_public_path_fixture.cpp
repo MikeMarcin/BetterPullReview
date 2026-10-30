@@ -2151,9 +2151,12 @@ namespace bpr::app::detail {
 			bool CommentsEditable = false;
 			// [[BPR-1804]]. With `--reviewer-request-probe`, the provider
 			// searches reviewers and keeps the requests it was asked for.
-			bool                       ReviewersServed = false;
-			std::vector<std::string>   RequestedReviewers;
-			std::optional<std::string> Description;
+			bool ReviewersServed = false;
+			// [[BPR-1826]]. The state every pull request read answers with;
+			// absent, the recorded open state.
+			std::optional<application::github_pull_request_state> PullRequestState;
+			std::vector<std::string>                              RequestedReviewers;
+			std::optional<std::string>                            Description;
 
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
@@ -3559,6 +3562,34 @@ namespace bpr::app::detail {
 																			   "A reply posted while you were reading (" + std::to_string(added) + ").");
 						}
 					}
+				}
+				// [[BPR-1826]]. The pull request was closed, or merged, since
+				// the recording: GitHub's REST answer says "closed" for both,
+				// with `merged` for a merged one. The read admits exactly the
+				// recorded members, so no closing time is added.
+				if (State->PullRequestState && *State->PullRequestState != application::github_pull_request_state::open
+					&& aRequest.Wire.Operation == read_operation::get_pull_request) {
+					auto       pullRequest = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					const auto merged      = *State->PullRequestState == application::github_pull_request_state::merged;
+					pullRequest.insert(QStringLiteral("state"), QStringLiteral("closed"));
+					pullRequest.insert(QStringLiteral("merged"), merged);
+					response->Body = QJsonDocument{ pullRequest }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				// [[BPR-1826]]. The read's search asks for open pull requests,
+				// so a closed one is no longer among its results.
+				if (State->PullRequestState && *State->PullRequestState != application::github_pull_request_state::open
+					&& aRequest.Wire.Operation == read_operation::search_pull_requests) {
+					auto       search = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					const auto items  = search.value(QStringLiteral("items")).toArray();
+					auto       kept   = QJsonArray{ };
+					for (const auto& item : items) {
+						if (item.toObject().value(QStringLiteral("number")).toInteger() != static_cast<qint64>(State->Descriptor.Number.value())) {
+							kept.append(item);
+						}
+					}
+					search.insert(QStringLiteral("items"), kept);
+					search.insert(QStringLiteral("total_count"), kept.size());
+					response->Body = QJsonDocument{ search }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (aRequest.Wire.Operation == read_operation::list_review_threads
 					&& (!State->ThreadOverlays.empty() || State->LargeReviewForeignPosts || !State->CreatedReviewThreads.empty())) {
@@ -5059,7 +5090,7 @@ namespace bpr::app::detail {
 				} else if (wire.Operation == operation::observe_viewer) {
 					object = user;
 				} else if (wire.Operation == operation::observe_pull_request) {
-					object = { { "id", static_cast<qint64>(target.PullRequestDatabaseId) }, { "node_id", text(target.PullRequestNodeId) }, { "number", static_cast<qint64>(target.Number.value()) }, { "state", "open" }, { "base", QJsonObject{ { "sha", text(core::canonical_hex(target.BaseOid).view()) }, { "ref", text(target.BaseRef) }, { "repo", QJsonObject{ { "id", static_cast<qint64>(target.RepositoryDatabaseId) }, { "node_id", text(target.RepositoryNodeId) }, { "full_name", text(target.Repository.Owner + "/" + target.Repository.Name) } } } } }, { "head", QJsonObject{ { "sha", text(core::canonical_hex(target.Semantic.ExpectedHead).view()) }, { "ref", text(target.HeadRef) } } } };
+					object = { { "id", static_cast<qint64>(target.PullRequestDatabaseId) }, { "node_id", text(target.PullRequestNodeId) }, { "number", static_cast<qint64>(target.Number.value()) }, { "state", target.Open ? "open" : "closed" }, { "base", QJsonObject{ { "sha", text(core::canonical_hex(target.BaseOid).view()) }, { "ref", text(target.BaseRef) }, { "repo", QJsonObject{ { "id", static_cast<qint64>(target.RepositoryDatabaseId) }, { "node_id", text(target.RepositoryNodeId) }, { "full_name", text(target.Repository.Owner + "/" + target.Repository.Name) } } } } }, { "head", QJsonObject{ { "sha", text(core::canonical_hex(target.Semantic.ExpectedHead).view()) }, { "ref", text(target.HeadRef) } } } };
 				} else if (wire.Operation == operation::observe_review_comments) {
 					if (HideReads) {
 						return github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable };
@@ -5723,6 +5754,7 @@ namespace bpr::app::detail {
 			Recording->DescriptionServed = aOptions.EditsDescription;
 			Recording->CommentsEditable  = aOptions.EditsComments;
 			Recording->ReviewersServed   = aOptions.RequestsReviewers;
+			Recording->PullRequestState  = aOptions.PullRequestState;
 			if (aOptions.ServesReactions) {
 				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
 					.ViewerCanReact = true,

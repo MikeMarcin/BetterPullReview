@@ -1682,7 +1682,13 @@ before reading either host followup; the launcher must refuse that transcript
 as a causal protocol violation. Modes also add 256 KiB of stderr pressure,
 malformed JSON, structurally wrong or oversized frames, failed/interrupted
 remote terminals, nonzero exit, indefinite execution for cancel/timeout, and a
-descendant heartbeat.
+descendant heartbeat. `--current-claude-transcript` ([[BPR-1827]]) writes at
+once what Claude Code 2.1.310 writes through a wrapper for a turn that reads
+files: a banner line, hook frames before init, an init frame with 2.1.310's
+fields, thinking, task, stream and progress frames, a string-content user
+frame, twelve tool-result frames past 64 KiB each and past 1 MiB in all, a
+post-turn summary and frames after the result; with
+`--transcript-stops-early` it stops mid-line, writes stderr and exits 3.
 `qt_agent_launch_canary` inspects the child's full argv, environment,
 stdin, partial events, terminal classification, recovery, and heartbeat
 cessation; no credential or repository-private fixture content is present.

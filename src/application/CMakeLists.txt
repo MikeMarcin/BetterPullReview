@@ -76,6 +76,9 @@ add_library(
         src/release_update_service.cpp
         src/release_maintenance_application_host.cpp
         src/release_diagnostic_snapshot.cpp
+        src/operation_diagnostics.cpp
+        src/review_mutation_diagnostics.cpp
+        src/host_operation_diagnostics.cpp
         src/diagnostic_settings.cpp
         src/release_profile_cleanup.cpp
         src/personal_discovery_host.cpp
@@ -88,6 +91,7 @@ add_library(
         src/profile_management_host.cpp
         src/agent_finding_delivery.cpp
         src/agent_launch.cpp
+        src/agent_run_diagnosis.cpp
         src/private_review_application_host.cpp
     src/review_composition_application_host.cpp
     src/private_publication_application_host.cpp
@@ -114,6 +118,7 @@ add_library(
         src/home_open_host.cpp
         src/github_read_admission.cpp
         src/github_credential_vault.cpp
+        src/credential_vault_diagnostics.cpp
         src/github_projection_mapping.cpp
         src/review_comment_placement.cpp
         src/review_preflight_observation.cpp

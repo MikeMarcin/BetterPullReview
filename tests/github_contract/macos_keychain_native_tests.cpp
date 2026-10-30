@@ -919,7 +919,7 @@ namespace {
 					  canaryA->bytes(),
 					  canaryB->bytes())
 			&& canaries_absent_from_file(
-					  __FILE__,
+					  BPR_NATIVE_TEST_SOURCE_FILE,
 					  canaryA->bytes(),
 					  canaryB->bytes())
 			&& canaries_absent_from_tree(

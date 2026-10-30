@@ -10,7 +10,7 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
 endif()
 
 if(BPR_BUILD_TOUR_CLI)
-    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp)
+    add_library(better_pull_review_tour_runtime STATIC src/tour_publication_plan.cpp src/tour_editor.cpp src/tour_feedback.cpp src/tour_cancellation.cpp src/tour_cli.cpp src/tour_text_input.cpp src/tour_runtime.cpp src/tour_owner_service.cpp src/tour_assist.cpp src/tour_remote.cpp src/github_cli_runtime.cpp src/worker_executor.cpp src/platform_credential_vault.cpp src/profile_admission.cpp src/terminal_text.cpp src/cycle_session.cpp src/cycle_commands.cpp src/cycle_cli.cpp src/terminal_diagnostic_log.cpp)
     add_library(BetterPullReview::TourRuntime ALIAS better_pull_review_tour_runtime)
     if(BUILD_TESTING)
         # [[BPR-1302]]. BPR_NATIVE_HTTPS_TESTING makes the GitHub adapter's
@@ -27,6 +27,13 @@ if(BPR_BUILD_TOUR_CLI)
     target_compile_features(better_pull_review_tour_runtime PUBLIC cxx_std_23)
     bpr_enable_hardening(better_pull_review_tour_runtime)
     bpr_enable_warnings(better_pull_review_tour_runtime)
+    # [[BPR-1830]]. A command that holds its profile's lease writes its
+    # tour.operation and cycle.round records to the profile's own diagnostic
+    # log, where the graph builds the logging adapter.
+    if(TARGET BetterPullReview::AdapterLogging)
+        target_link_libraries(better_pull_review_tour_runtime PRIVATE BetterPullReview::AdapterLogging)
+        target_compile_definitions(better_pull_review_tour_runtime PRIVATE BPR_TERMINAL_DIAGNOSTICS=1)
+    endif()
     if(WIN32)
         # [[BPR-1791]]. The gh child's environment and search locations come
         # from the shell's known folders (SHGetKnownFolderPath, CoTaskMemFree).

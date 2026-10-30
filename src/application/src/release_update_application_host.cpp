@@ -1,8 +1,10 @@
 #include "bpr/application/release_update_application_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <atomic>
 #include <deque>
+#include <limits>
 #include <utility>
 
 namespace bpr::application {
@@ -17,6 +19,9 @@ namespace bpr::application {
 			std::stop_source             Stop;
 			std::atomic<std::uint64_t>   ProgressBytes{ 0U };
 			std::atomic<bool>            ProgressPosted{ false };
+			/// [[BPR-1829]]. The log the job's start went to, and its clock.
+			std::shared_ptr<diagnostic_log_port> Log;
+			operation_stopwatch                  Watch;
 		};
 		struct delivery
 		{
@@ -35,6 +40,7 @@ namespace bpr::application {
 		release_update_projection_port*                       Projection;
 		std::shared_ptr<release_update_access_port>           Access;
 		std::shared_ptr<release_update_access_port>           PendingAccess;
+		std::shared_ptr<diagnostic_log_port>                  Log;
 		std::shared_ptr<const release_update_archive>         Archive;
 		std::shared_ptr<const release_update_verified_bundle> Bundle;
 		std::string                                           Notes;
@@ -245,6 +251,23 @@ namespace bpr::application {
 				&& aAccess->binding() == aContext.Access && aContext.Access.value() != 0U;
 		}
 
+		/// [[BPR-1829]]. A job's end: its typed reason, its duration and, for
+		/// a download, the bytes received. Nothing names a release, asset,
+		/// URL, path or account.
+		static void finish(const job& aJob, const core::release_update_event& aEvent) noexcept
+		{
+			auto diagnosis = core::operation_diagnosis{ .Action = operation_action_of(aJob.Context.Operation), .DurationMilliseconds = aJob.Watch.milliseconds() };
+			if (const auto* failed = std::get_if<core::release_update_failed>(&aEvent)) {
+				diagnosis.Failure = operation_failure_of(failed->Reason);
+				if (diagnosis.Failure == core::operation_failure::none) {
+					diagnosis.Failure = core::operation_failure::unavailable;
+				}
+			} else if (const auto* downloaded = std::get_if<core::release_update_downloaded>(&aEvent)) {
+				diagnosis.Count = static_cast<std::uint32_t>(std::min<std::uint64_t>(downloaded->Bytes, std::numeric_limits<std::uint32_t>::max()));
+			}
+			record_operation(aJob.Log.get(), diagnosis);
+		}
+
 		void execute(const core::release_update_request& aRequest)
 		{
 			if (aRequest.Cancel) {
@@ -260,6 +283,8 @@ namespace bpr::application {
 			}
 			auto current     = std::make_shared<job>();
 			current->Context = aRequest.Context;
+			current->Log     = Log;
+			record_operation(current->Log.get(), { .Action = operation_action_of(current->Context.Operation) }, true);
 			Jobs.push_back(current);
 			++RunningEffects;
 			try {
@@ -279,6 +304,7 @@ namespace bpr::application {
 						if (!std::holds_alternative<core::release_update_handed_off>(completed.Event) && !lease_matches(current->Context, lease)) {
 							completed = { core::release_update_failed{ current->Context, update_reason::access_required }, { }, { } };
 						}
+						finish(*current, completed.Event);
 						self->Ingress.push_back(std::move(completed));
 						self->drain();
 						--self->Deliveries;
@@ -288,6 +314,7 @@ namespace bpr::application {
 			} catch (...) {
 				--RunningEffects;
 				std::erase(Jobs, current);
+				record_operation(current->Log.get(), { .Action = operation_action_of(current->Context.Operation), .Failure = core::operation_failure::unavailable, .DurationMilliseconds = current->Watch.milliseconds() });
 				Ingress.push_back({ core::release_update_failed{ aRequest.Context, update_reason::unavailable }, { }, { } });
 			}
 		}
@@ -348,4 +375,5 @@ namespace bpr::application {
 			&& Impl->Deliveries.load() == 0U && Impl->RunningEffects.load() == 0U;
 	}
 	auto release_update_application_host::projection() const -> release_update_projection { return Impl->projection(); }
+	void release_update_application_host::set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog) { Impl->Log = std::move(aLog); }
 }

@@ -1,5 +1,6 @@
 #include "bpr/application/manual_executor.hpp"
 #include "bpr/application/release_update_application_host.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <cstdlib>
 #include <iostream>
@@ -429,6 +430,93 @@ namespace {
 		decision.drain();
 		expect(access->Checks == 0U && sink.Seen.size() == publications, "destroyed host leaves safe counted cancellation and no projection callback");
 	}
+
+	// [[BPR-1829]]. Keeps every updater line the host records.
+	struct recording_log final : application::diagnostic_log_port
+	{
+		auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		auto               status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		[[nodiscard]] auto line(const std::size_t aIndex) const -> std::string { return std::string{ Events.at(aIndex).Summary.text() }; }
+		/// The operation, outcome and line prefix of one record, and that the line parses.
+		[[nodiscard]] auto is(const std::size_t aIndex, const application::diagnostic_outcome aOutcome, const std::string_view aPrefix) const -> bool
+		{
+			return aIndex < Events.size() && Events[aIndex].Operation == application::diagnostic_operation::updater && Events[aIndex].Outcome == aOutcome && line(aIndex).starts_with(aPrefix)
+				&& core::parse_operation_diagnosis(line(aIndex)).has_value();
+		}
+		std::vector<application::diagnostic_event> Events;
+	};
+
+	// [[BPR-1829]]. Every effect job records its start and its typed end;
+	// nothing names the release, asset or account.
+	void test_diagnostics()
+	{
+		using outcome = application::diagnostic_outcome;
+		{
+			fixture course{ true };
+			auto    log = std::make_shared<recording_log>();
+			course.Host.set_diagnostic_log(log);
+			course.Access->Release.Tag                 = "v2.3.4";
+			course.Access->Release.Assets.front().Name = "BetterPullReview-2.3.4-macos-universal.zip";
+			course.offer();
+			expect(log->Events.size() == 2U && log->is(0U, outcome::started, "action=update_check failure=none ") && log->is(1U, outcome::succeeded, "action=update_check failure=none "), "a check records its start and success");
+			expect(course.Host.dispatch({ command::download, course.Host.projection().Candidate }), "download admitted");
+			course.settle();
+			expect(log->Events.size() == 6U && log->is(2U, outcome::started, "action=update_download ") && log->is(3U, outcome::succeeded, "action=update_download failure=none ")
+					   && log->line(3U).find(" count=100 ") != std::string::npos,
+				   "a download records its received bytes");
+			expect(log->is(4U, outcome::started, "action=update_verify ") && log->is(5U, outcome::succeeded, "action=update_verify failure=none "), "verification records its start and success");
+			expect(course.Host.dispatch({ command::install, course.Host.projection().Candidate }), "install admitted");
+			course.settle();
+			expect(log->Events.size() == 10U && log->is(6U, outcome::started, "action=update_refresh ") && log->is(7U, outcome::succeeded, "action=update_refresh ") && log->is(8U, outcome::started, "action=update_apply ")
+					   && log->is(9U, outcome::succeeded, "action=update_apply failure=none "),
+				   "install refreshes and hands off, each recorded");
+			for (const auto& event : log->Events) {
+				const auto text = std::string{ event.Summary.text() };
+				for (const std::string_view secret : { "2.3.4", "BetterPullReview", "macos", "github" }) {
+					expect(text.find(secret) == std::string::npos, "no release tag, asset name or host reaches an updater line");
+				}
+			}
+		}
+		{
+			fixture course;
+			auto    log = std::make_shared<recording_log>();
+			course.Host.set_diagnostic_log(log);
+			course.Access->Failure = reason::offline;
+			course.Host.select_access(course.Access);
+			expect(course.Host.dispatch({ command::check, { } }), "failing check admitted");
+			course.settle();
+			expect(log->Events.size() == 2U && log->is(1U, outcome::failed, "action=update_check failure=offline "), "an offline check records failed offline");
+		}
+		{
+			fixture course;
+			auto    log = std::make_shared<recording_log>();
+			course.Host.set_diagnostic_log(log);
+			course.offer();
+			course.Verifier->Failure = reason::wrong_signer;
+			expect(course.Host.dispatch({ command::download, course.Host.projection().Candidate }), "download admitted");
+			course.settle();
+			expect(log->Events.size() == 6U && log->is(5U, outcome::failed, "action=update_verify failure=wrong_signer "), "a refused signature records failed wrong_signer");
+		}
+		{
+			fixture course;
+			auto    log = std::make_shared<recording_log>();
+			course.Host.set_diagnostic_log(log);
+			course.Host.select_access(course.Access);
+			expect(course.Host.dispatch({ command::check, { } }), "check admitted");
+			course.Host.shutdown();
+			course.settle();
+			expect(log->Events.size() == 2U && log->is(1U, outcome::cancelled, "action=update_check failure=cancelled "), "a check stopped by shutdown records cancelled");
+		}
+		{
+			fixture course;
+			course.offer();
+			expect(course.Host.projection().Phase == phase::available, "negative control: a host with no log still checks");
+		}
+	}
 }
 
 auto main() -> int
@@ -440,5 +528,6 @@ auto main() -> int
 	test_shutdown_and_cancellation_in_every_phase();
 	test_resource_bounds_and_projection_reentrancy();
 	test_executor_refusal_and_destroyed_projection();
+	test_diagnostics();
 	std::cout << "release-update-host-tests:pass\n";
 }

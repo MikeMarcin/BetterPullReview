@@ -298,6 +298,68 @@ namespace {
 			   "and after the server's capability");
 	}
 
+	// [[BPR-1824]]. Every refusal names its own reason. A missing write
+	// connection and a conversation that is no review thread each say so, and
+	// none of them waits on a selected diff: the input carries none.
+	void test_a_thread_resolution_names_why_it_cannot_go()
+	{
+		using core::decide_thread_resolution;
+		using core::thread_resolution_refusal;
+		const auto allowed = core::thread_resolution_input{
+			.Capability = core::github_capability_state::supported, .Resolved = false, .Resolve = true
+		};
+		auto comment          = allowed;
+		comment.ReviewThread  = false;
+		comment.AnonymousRead = true;
+		expect(decide_thread_resolution(comment) == thread_resolution_refusal::not_a_review_thread,
+			   "a pull request comment has nothing to resolve, whoever reads it");
+		auto anonymousUnconnected            = allowed;
+		anonymousUnconnected.WriteConnection = false;
+		anonymousUnconnected.AnonymousRead   = true;
+		expect(decide_thread_resolution(anonymousUnconnected) == thread_resolution_refusal::anonymous_read,
+			   "signing in comes first");
+		auto unconnected            = allowed;
+		unconnected.WriteConnection = false;
+		unconnected.Capability      = core::github_capability_state::unknown;
+		expect(decide_thread_resolution(unconnected) == thread_resolution_refusal::no_write_connection,
+			   "no write connection is named before the server's capability");
+		auto otherAuthor = allowed;
+		expect(decide_thread_resolution(otherAuthor) == thread_resolution_refusal::none,
+			   "a thread another account wrote resolves when GitHub permits it");
+		auto unresolve     = allowed;
+		unresolve.Resolve  = false;
+		unresolve.Resolved = true;
+		expect(decide_thread_resolution(unresolve) == thread_resolution_refusal::none,
+			   "and unresolves the same way");
+	}
+
+	// [[BPR-1826]]. A closed or merged pull request takes a thread's
+	// resolution and nothing else; an open one takes every change. The
+	// resolution's own decision carries no pull request state, so a closed
+	// pull request's thread resolves, and unresolves, as an open one's does.
+	void test_a_closed_pull_request_takes_only_a_threads_resolution()
+	{
+		using core::pull_request_change;
+		using core::pull_request_change_permitted;
+		static_assert(pull_request_change_permitted(pull_request_change::thread_resolution, false));
+		for (const auto change : { pull_request_change::thread_resolution, pull_request_change::publication, pull_request_change::reaction,
+								   pull_request_change::description_edit, pull_request_change::comment_edit, pull_request_change::reviewer_request }) {
+			expect(pull_request_change_permitted(change, true), "an open pull request takes every change");
+			expect(pull_request_change_permitted(change, false) == (change == pull_request_change::thread_resolution),
+				   "a closed or merged one takes only a thread's resolution");
+		}
+		const auto resolve = core::thread_resolution_input{ .Capability = core::github_capability_state::supported, .Resolved = false, .Resolve = true };
+		expect(core::decide_thread_resolution(resolve) == core::thread_resolution_refusal::none, "the closed pull request's thread resolves");
+		auto unresolve     = resolve;
+		unresolve.Resolved = true;
+		unresolve.Resolve  = false;
+		expect(core::decide_thread_resolution(unresolve) == core::thread_resolution_refusal::none, "and unresolves");
+		auto unconnected            = resolve;
+		unconnected.WriteConnection = false;
+		expect(core::decide_thread_resolution(unconnected) == core::thread_resolution_refusal::no_write_connection,
+			   "without its connection it says so, not that it is closed");
+	}
+
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		// A sha1 oid occupies the first twenty bytes and requires the rest to
@@ -665,6 +727,8 @@ auto main() -> int
 	test_illegal_commands_carry_their_own_reason();
 	test_a_proposal_exists_only_while_publishing();
 	test_a_thread_resolution_is_refused_for_exactly_four_reasons();
+	test_a_thread_resolution_names_why_it_cannot_go();
+	test_a_closed_pull_request_takes_only_a_threads_resolution();
 	test_an_unchanged_target_publishes();
 	test_a_moved_head_stops_the_publication_until_acknowledged();
 	test_a_changed_target_can_never_be_acknowledged_away();

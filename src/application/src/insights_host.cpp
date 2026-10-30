@@ -64,7 +64,12 @@ namespace bpr::application {
 			{ }
 			auto record(const diagnostic_event& aEvent) noexcept -> diagnostic_log_status override
 			{
-				if (aEvent.Outcome == diagnostic_outcome::failed) {
+				// [[BPR-1831]]. Storage, clone scan, search, image and
+				// notification records are diagnostics only; Insights counts
+				// the problems it counted before them.
+				const auto diagnosticOnly = aEvent.Operation == diagnostic_operation::storage || aEvent.Operation == diagnostic_operation::clone_scan || aEvent.Operation == diagnostic_operation::source_search
+					|| aEvent.Operation == diagnostic_operation::image_fetch || aEvent.Operation == diagnostic_operation::notification;
+				if (aEvent.Outcome == diagnostic_outcome::failed && !diagnosticOnly) {
 					core::insights_event event;
 					event.Kind = core::insights_event_kind::problem;
 					switch (aEvent.Operation) {

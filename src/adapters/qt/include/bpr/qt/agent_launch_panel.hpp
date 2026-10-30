@@ -151,6 +151,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1738]]. Why the last run stopped and what to do,
 		/// in a reviewer's words, when there is more to say than its outcome.
 		[[nodiscard]] auto stop_reason_text() const -> QString;
+		/// \brief [[BPR-1827]]. The log of a run that ended without an
+		/// answer: what went wrong in words, how much the agent wrote, the
+		/// first line this app could not read and the last lines of standard
+		/// error, each bounded. Never says the agent wrote nothing when it
+		/// wrote something.
+		[[nodiscard]] static auto failure_log(const application::agent_run_result& aResult) -> QString;
 		/// \brief [[BPR-1753]], owner look v001. Where the running
 		/// request is: its workspace being made, or the agent running.
 		enum class phase : std::uint8_t {

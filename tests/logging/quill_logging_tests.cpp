@@ -5,10 +5,12 @@
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/discovery_diagnosis.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
@@ -391,6 +393,27 @@ try {
 			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
 			event.Summary.State = application::diagnostic_summary_state::sanitized;
 			expect(log.record(event) == status::available, "a discovery read's end reaches the real log");
+			// [[BPR-1827]]. An agent run's end: its protocol, outcome, cause,
+			// exit and byte counts, and nothing else, reach the file.
+			{
+				auto agentDiagnosis                = application::agent_run_diagnosis{ };
+				agentDiagnosis.Outcome             = application::agent_run_outcome::protocol_failure;
+				agentDiagnosis.Failure             = application::agent_protocol_failure::frame_too_large;
+				agentDiagnosis.ExitCode            = 0;
+				agentDiagnosis.StandardOutputBytes = 223211U;
+				agentDiagnosis.StandardErrorBytes  = 12U;
+				const auto agentText               = application::describe(agentDiagnosis);
+				auto       agentEvent              = application::diagnostic_event{ .Operation = application::diagnostic_operation::agent_run, .Outcome = application::diagnostic_outcome::failed };
+				std::ranges::copy(agentText, agentEvent.Summary.Text.begin());
+				agentEvent.Summary.Size  = static_cast<std::uint16_t>(agentText.size());
+				agentEvent.Summary.State = application::diagnostic_summary_state::sanitized;
+				expect(log.record(agentEvent) == status::available, "an agent run's end reaches the real log");
+				auto                       prose = agentEvent;
+				constexpr std::string_view note  = "agent wrote: private answer";
+				std::ranges::copy(note, prose.Summary.Text.begin());
+				prose.Summary.Size = static_cast<std::uint16_t>(note.size());
+				expect(log.record(prose) == status::dropped, "an agent run line whose detail is not a diagnosis is dropped");
+			}
 			for (const auto operation : { application::diagnostic_paged_operation::list_requested_reviewers, application::diagnostic_paged_operation::list_home_pull_requests, application::diagnostic_paged_operation::list_home_review_membership, application::diagnostic_paged_operation::list_review_requests }) {
 				auto observed           = event;
 				observed.PagedOperation = operation;
@@ -405,6 +428,100 @@ try {
 			bare.Summary       = { };
 			bare.GithubFailure = { };
 			expect(log.record(bare) == status::dropped, "a discovery event always carries its line");
+		}
+		{
+			// [[BPR-1828]]. Agent setup, workspace and review mutation lines:
+			// exactly an operation diagnosis on its own family's operation.
+			const auto line = [](const application::diagnostic_operation aOperation, const application::diagnostic_outcome aOutcome, const core::operation_diagnosis& aDiagnosis) {
+				auto       event = application::diagnostic_event{ .Operation = aOperation, .Outcome = aOutcome };
+				const auto text  = core::describe(aDiagnosis);
+				std::ranges::copy(text, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+				event.Summary.State = application::diagnostic_summary_state::sanitized;
+				return event;
+			};
+			using operation  = application::diagnostic_operation;
+			using outcome    = application::diagnostic_outcome;
+			const auto check = line(operation::agent_setup_check, outcome::failed, { .Action = core::operation_action::agent_status_check, .Failure = core::operation_failure::not_signed_in, .Process = core::operation_process::nonzero_exit, .ExitCode = 3, .DurationMilliseconds = 812U, .Count = 1U });
+			expect(log.record(check) == status::available, "an agent setup check's end reaches the real log");
+			expect(log.record(line(operation::agent_workspace, outcome::failed, { .Action = core::operation_action::workspace_materialize, .Failure = core::operation_failure::too_large, .DurationMilliseconds = 2400U })) == status::available,
+				   "a workspace preparation's end reaches the real log");
+			expect(log.record(line(operation::review_mutation, outcome::started, { .Action = core::operation_action::resolve_thread })) == status::available, "a resolve's start reaches the real log");
+			expect(log.record(line(operation::review_mutation, outcome::cancelled, { .Action = core::operation_action::add_reaction, .Failure = core::operation_failure::cancelled })) == status::available, "a cancelled reaction reaches the real log");
+			auto forged            = check;
+			forged.Summary.Text[0] = 'X';
+			expect(log.record(forged) == status::dropped, "an operation line that is not exactly a diagnosis never enters the log");
+			auto elsewhere      = check;
+			elsewhere.Operation = operation::review_mutation;
+			expect(log.record(elsewhere) == status::dropped, "an operation line rides only its own family's operation");
+			expect(log.record(line(operation::review_mutation, outcome::succeeded, { .Action = core::operation_action::edit_comment, .Failure = core::operation_failure::conflict })) == status::dropped,
+				   "a success never carries a failure");
+			expect(log.record(line(operation::review_mutation, outcome::failed, { .Action = core::operation_action::edit_comment })) == status::dropped, "a failure always names one");
+			auto bare    = check;
+			bare.Summary = { };
+			expect(log.record(bare) == status::dropped, "an operation event always carries its line");
+
+			// [[BPR-1831]]. Storage, clone scan, search, image and notification
+			// lines: exactly an operation diagnosis on their own operation.
+			const auto storage = line(operation::storage, outcome::failed, { .Action = core::operation_action::storage_write, .Failure = core::operation_failure::busy, .Count = 3U, .Store = core::operation_store::review_ledger, .Schema = 7U });
+			expect(log.record(storage) == status::available, "a storage failure reaches the real log");
+			expect(log.record(line(operation::clone_scan, outcome::succeeded, { .Action = core::operation_action::clone_scan, .DurationMilliseconds = 90U, .Count = 2U })) == status::available, "a clone scan's end reaches the real log");
+			expect(log.record(line(operation::source_search, outcome::failed, { .Action = core::operation_action::source_search, .Failure = core::operation_failure::unavailable, .Count = 1U })) == status::available, "a search failure reaches the real log");
+			expect(log.record(line(operation::image_fetch, outcome::succeeded, { .Action = core::operation_action::avatar_fetch, .DurationMilliseconds = 40U, .Count = 50U })) == status::available, "aggregated avatar fetches reach the real log");
+			expect(log.record(line(operation::notification, outcome::failed, { .Action = core::operation_action::notification_deliver, .Failure = core::operation_failure::permission_refused })) == status::available,
+				   "a refused notification reaches the real log");
+			auto wrongFamily      = storage;
+			wrongFamily.Operation = operation::image_fetch;
+			expect(log.record(wrongFamily) == status::dropped, "a storage line rides only the storage operation");
+			auto       forgedStorage = storage;
+			const auto tail          = std::string_view{ " path=PRIVATE" };
+			std::ranges::copy(tail, forgedStorage.Summary.Text.begin() + forgedStorage.Summary.Size);
+			forgedStorage.Summary.Size = static_cast<std::uint16_t>(forgedStorage.Summary.Size + tail.size());
+			expect(log.record(forgedStorage) == status::dropped, "a storage line with anything after its schema never enters the log");
+			expect(log.record(line(operation::image_fetch, outcome::succeeded, { .Action = core::operation_action::image_fetch, .Failure = core::operation_failure::blocked })) == status::dropped, "an image success never carries a failure");
+			auto bareStorage    = storage;
+			bareStorage.Summary = { };
+			expect(log.record(bareStorage) == status::dropped, "a storage event always carries its line");
+			// [[BPR-1830]]. The MCP helper, tour and Review Cycle round lines.
+			expect(log.record(line(operation::mcp_helper, outcome::failed, { .Action = core::operation_action::mcp_helper_request, .Failure = core::operation_failure::helper_failed, .Process = core::operation_process::nonzero_exit, .ExitCode = 2, .DurationMilliseconds = 40U })) == status::available,
+				   "an MCP helper run's end reaches the real log");
+			expect(log.record(line(operation::tour_operation, outcome::started, { .Action = core::operation_action::tour_publish })) == status::available, "a tour publication's start reaches the real log");
+			expect(log.record(line(operation::cycle_round, outcome::failed, { .Action = core::operation_action::cycle_round_read, .Failure = core::operation_failure::revoked, .DurationMilliseconds = 3U })) == status::available,
+				   "a revoked round read reaches the real log");
+			expect(log.record(line(operation::tour_operation, outcome::failed, { .Action = core::operation_action::cycle_round_read, .Failure = core::operation_failure::revoked })) == status::dropped,
+				   "a round line never rides the tour operation");
+			expect(log.record(line(operation::cycle_round, outcome::cancelled, { .Action = core::operation_action::cycle_round_grant, .Failure = core::operation_failure::not_granted })) == status::dropped,
+				   "a cancellation names only a cancellation");
+		}
+		{
+			// [[BPR-1829]]. Sign-in, credential vault and updater lines: the
+			// same operation diagnosis on their own operations.
+			const auto line = [](const application::diagnostic_operation aOperation, const application::diagnostic_outcome aOutcome, const core::operation_diagnosis& aDiagnosis) {
+				auto       event = application::diagnostic_event{ .Operation = aOperation, .Outcome = aOutcome };
+				const auto text  = core::describe(aDiagnosis);
+				std::ranges::copy(text, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+				event.Summary.State = application::diagnostic_summary_state::sanitized;
+				return event;
+			};
+			using operation   = application::diagnostic_operation;
+			using outcome     = application::diagnostic_outcome;
+			const auto denied = line(operation::sign_in, outcome::failed, { .Action = core::operation_action::device_sign_in, .Failure = core::operation_failure::authorization_denied, .DurationMilliseconds = 31000U, .Count = 6U });
+			expect(log.record(denied) == status::available, "a denied device sign-in reaches the real log");
+			expect(log.record(line(operation::credential_vault, outcome::failed, { .Action = core::operation_action::vault_load, .Failure = core::operation_failure::locked, .DurationMilliseconds = 4U })) == status::available,
+				   "a locked keychain read reaches the real log");
+			expect(log.record(line(operation::updater, outcome::succeeded, { .Action = core::operation_action::update_download, .DurationMilliseconds = 5200U, .Count = 48000000U })) == status::available,
+				   "an updater download reaches the real log");
+			auto elsewhere      = denied;
+			elsewhere.Operation = operation::updater;
+			expect(log.record(elsewhere) == status::dropped, "a sign-in line rides only the sign-in operation");
+			expect(log.record(line(operation::credential_vault, outcome::failed, { .Action = core::operation_action::vault_store, .Failure = core::operation_failure::offline })) == status::dropped,
+				   "an updater failure on a vault line is refused");
+			auto       forged = denied;
+			const auto text   = std::string{ "action=device_sign_in failure=authorization_denied process=none exit=none duration_ms=1 count=0 written=0 read_back=0 login=PRIVATE" };
+			std::ranges::copy(text, forged.Summary.Text.begin());
+			forged.Summary.Size = static_cast<std::uint16_t>(text.size());
+			expect(log.record(forged) == status::dropped, "a sign-in line carrying a login never enters the log");
 		}
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
@@ -505,10 +622,49 @@ try {
 			   && first.find("\"detail\":\"review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"review_submission\",\"failure\":\"comment_page_too_large\"") != std::string::npos,
 		   "[[BPR-1540]] the reason is kept locally as its domain, name and counts");
+	expect(first.find("\"event\":\"agent.run.failed\"") != std::string::npos && first.find("\"category\":\"agent\"") != std::string::npos
+			   && first.find("\"detail\":\"protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=12\"") != std::string::npos
+			   && first.find("private answer") == std::string::npos,
+		   "[[BPR-1827]] an agent run's end is kept locally as enums and counts only");
 	expect(first.find("\"event\":\"github.discovery.failed\"") != std::string::npos
 			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900 credential_ms=650 wire_ms=3100 decision_ms=12 http_403=1 http_429=0 http_5xx=0 timeouts=1 backoff_s=0 candidates=39 reused=9 direct=0 rejected=30 roster_recoveries=0 completeness=complete\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"permission\"") != std::string::npos,
 		   "[[BPR-1680]] a discovery read's end is kept locally with its counts, timings and failure");
+	expect(first.find("\"event\":\"agent.setup_check.failed\",\"category\":\"agent\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=agent_status_check failure=not_signed_in process=nonzero_exit exit=3 duration_ms=812 count=1 written=0 read_back=0\"") != std::string::npos
+			   && first.find("\"event\":\"agent.workspace.failed\",\"category\":\"agent\"") != std::string::npos
+			   && first.find("\"event\":\"github.review_mutation.started\",\"category\":\"github\"") != std::string::npos
+			   && first.find("\"event\":\"github.review_mutation.cancelled\"") != std::string::npos,
+		   "[[BPR-1828]] agent setup, workspace and review mutation lines are kept with their category and exact line");
+	expect(first.find("\"event\":\"github.sign_in.failed\",\"category\":\"github\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=device_sign_in failure=authorization_denied process=none exit=none duration_ms=31000 count=6 written=0 read_back=0\"") != std::string::npos
+			   && first.find("\"event\":\"credential.vault.failed\",\"category\":\"credential\"") != std::string::npos
+			   && first.find("\"event\":\"updater.release.succeeded\",\"category\":\"updater\"") != std::string::npos && first.find("login=PRIVATE") == std::string::npos,
+		   "[[BPR-1829]] sign-in, vault and updater lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=12 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=13 outcome=2 ") != std::string::npos
+			   && exported->Bytes.find("operation=14 outcome=1 ") != std::string::npos,
+		   "[[BPR-1829]] the metadata-only preview classifies the sign-in, vault and updater operations without their lines");
+	expect(exported && exported->Bytes.find("operation=9 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=10 outcome=2 ") != std::string::npos
+			   && exported->Bytes.find("operation=11 outcome=0 ") != std::string::npos && exported->Bytes.find("action=") == std::string::npos,
+		   "[[BPR-1828]] the metadata-only preview classifies the new operations without their lines");
+	expect(first.find("\"event\":\"storage.database.failed\",\"category\":\"storage\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=storage_write failure=busy process=none exit=none duration_ms=0 count=3 written=0 read_back=0 store=review_ledger schema=7\"") != std::string::npos
+			   && first.find("\"event\":\"workspace.clone_scan.succeeded\",\"category\":\"workspace\"") != std::string::npos
+			   && first.find("\"event\":\"search.source.failed\",\"category\":\"search\"") != std::string::npos
+			   && first.find("\"event\":\"image.fetch.succeeded\",\"category\":\"image\"") != std::string::npos
+			   && first.find("\"event\":\"notification.delivery.failed\",\"category\":\"notification\"") != std::string::npos && first.find("path=PRIVATE") == std::string::npos,
+		   "[[BPR-1831]] storage, clone scan, search, image and notification lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=15 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=19 outcome=2 ") != std::string::npos && exported->Bytes.find("store=") == std::string::npos,
+		   "[[BPR-1831]] the metadata-only preview classifies them without their lines");
+	expect(first.find("\"event\":\"agent.mcp_helper.failed\",\"category\":\"agent\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=mcp_helper_request failure=helper_failed process=nonzero_exit exit=2 duration_ms=40 count=0 written=0 read_back=0\"") != std::string::npos
+			   && first.find("\"event\":\"tour.operation.started\",\"category\":\"tour\"") != std::string::npos
+			   && first.find("\"event\":\"cycle.round.failed\",\"category\":\"cycle\"") != std::string::npos
+			   && first.find("\"detail\":\"action=cycle_round_read failure=revoked process=none exit=none duration_ms=3 count=0 written=0 read_back=0\"") != std::string::npos,
+		   "[[BPR-1830]] MCP helper, tour and round lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=20 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=21 outcome=0 ") != std::string::npos
+			   && exported->Bytes.find("operation=22 outcome=2 ") != std::string::npos,
+		   "[[BPR-1830]] the metadata-only preview classifies the helper, tour and round operations without their lines");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
 		   "[[BPR-1540]] and the metadata-only maintenance preview classifies its operation without its detail");
 	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");

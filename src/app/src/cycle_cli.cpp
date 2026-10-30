@@ -10,6 +10,7 @@
 #include "bpr/core/review_cycle_round_markdown.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "cycle_commands.hpp"
+#include "terminal_diagnostic_log.hpp"
 #include "terminal_text.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_editor.hpp"
@@ -343,6 +344,8 @@ namespace bpr::app {
 					if (admission->Lease) {
 						auto       held = std::optional<profile_admission>{ std::move(*admission) };
 						const auto seed = cycle_operation_seed(aInvocation.Operation, aInvocation.Step);
+						// [[BPR-1830]]. This command holds the lease, so its round lines go to the profile's log.
+						const auto log  = open_terminal_diagnostic_log(held->Root);
 						const auto host = cycle_host{
 							.Open =
 								[&]() -> result<std::unique_ptr<cycle_session>> {
@@ -350,6 +353,7 @@ namespace bpr::app {
 									return fail("operation_failed", "The command asked for a second session.");
 								}
 								auto session = std::make_unique<cycle_session>(std::move(*held), seed, [] { return tour_cancelled(); });
+								session->runtime().set_diagnostics(log.get());
 								held.reset();
 								return session;
 							},

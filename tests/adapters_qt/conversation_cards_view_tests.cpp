@@ -622,6 +622,74 @@ namespace {
 		view.hide();
 	}
 
+	// [[BPR-1824]]. A thread's Resolve says why it cannot go, never only
+	// "not available": the pull request's reason, then GitHub's word on this
+	// viewer, and a pull request comment has nothing to resolve. A thread
+	// another account wrote resolves when GitHub permits it.
+	void test_a_thread_menu_names_why_it_cannot_resolve()
+	{
+		qt::conversation_cards_view view;
+		view.resize(700, 700);
+		view.set_feed(true);
+		view.set_action_dispatch([](const qt::card_action, const std::string&) { });
+		auto general = conversation{ .Id = "general", .Kind = application::github_conversation_kind::issue_comment, .Body = "A PR-wide comment" };
+		view.adopt({ thread("other", "src/a.cpp", 9U), reply("other-first", "other", "someone-else", "Their comment"),
+					 thread("done", "src/a.cpp", 20U, true, true), reply("done-first", "done", "someone-else", "Resolved one"), general });
+		view.show();
+		QApplication::processEvents();
+		const auto resolveAction = [&view](const std::string& aId) {
+			auto* const menu   = view.thread_menu(aId);
+			auto* const action = menu != nullptr ? menu->findChild<QAction*>(QStringLiteral("threadResolveAction")) : nullptr;
+			auto        state  = std::pair{ action != nullptr && action->isEnabled(), action != nullptr ? action->toolTip() : QStringLiteral("<none>") };
+			auto        text   = action != nullptr ? action->text() : QString{ };
+			delete menu;
+			return std::tuple{ state.first, state.second, text };
+		};
+		using refusal = core::thread_resolution_refusal;
+		expect(view.resolution_refusal() == refusal::no_write_connection && !view.resolution_offered(),
+			   "before a write connection is composed the cards say there is none");
+		for (const auto reason : { refusal::anonymous_read, refusal::no_write_connection, refusal::capability_absent }) {
+			view.set_resolution_refusal(reason);
+			const auto [enabled, tip, text] = resolveAction("other");
+			expect(!enabled && tip == qt::thread_resolution_refusal_text(reason, true) && !tip.isEmpty() && !tip.contains(QStringLiteral("not available")),
+				   "a pull request's reason is the disabled Resolve's own words");
+		}
+		// [[BPR-1826]]. No refusal names a closed pull request: its threads
+		// resolve, and no reason sends the reviewer to GitHub's page for it.
+		for (const auto reason : { refusal::anonymous_read, refusal::capability_absent, refusal::not_permitted, refusal::already_in_state,
+								   refusal::no_write_connection, refusal::not_a_review_thread }) {
+			for (const auto resolve : { true, false }) {
+				expect(!qt::thread_resolution_refusal_text(reason, resolve).contains(QStringLiteral("closed")),
+					   "no resolution refusal says the pull request is closed");
+			}
+		}
+		view.set_resolution_refusal(refusal::none);
+		QApplication::processEvents();
+		{
+			const auto [enabled, tip, text] = resolveAction("other");
+			expect(enabled && text == QStringLiteral("Resolve"), "a thread another account wrote resolves when nothing refuses");
+			const auto [reopen, reopenTip, reopenText] = resolveAction("done");
+			expect(reopen && reopenText == QStringLiteral("Unresolve"), "and a resolved one unresolves");
+		}
+		view.present_thread_resolutions({ { "other", qt::thread_resolution_presentation{ .CanResolve = false } },
+										  { "done", qt::thread_resolution_presentation{ .Resolved = true, .CanUnresolve = false } } });
+		QApplication::processEvents();
+		{
+			const auto [enabled, tip, text] = resolveAction("other");
+			expect(!enabled && tip == qt::thread_resolution_refusal_text(refusal::not_permitted, true) && tip.contains(QStringLiteral("write access")),
+				   "GitHub's viewerCanResolve false names the permission");
+			const auto [reopen, reopenTip, reopenText] = resolveAction("done");
+			expect(!reopen && reopenTip == qt::thread_resolution_refusal_text(refusal::not_permitted, false),
+				   "and viewerCanUnresolve false the reopening one");
+		}
+		{
+			const auto [enabled, tip, text] = resolveAction("general");
+			expect(!enabled && tip == qt::thread_resolution_refusal_text(refusal::not_a_review_thread, true),
+				   "a pull request comment says only review threads resolve");
+		}
+		view.hide();
+	}
+
 	void test_discuss_post_menus_open_the_exact_comment_in_review()
 	{
 		qt::conversation_cards_view view;
@@ -3137,6 +3205,7 @@ auto main(int argc, char** argv) -> int
 	test_mark_all_from_an_author_is_offered_from_thread_and_post_menus();
 	test_new_boundary_is_never_the_first_thing_in_a_thread();
 	test_discuss_lists_threads_that_open_in_place();
+	test_a_thread_menu_names_why_it_cannot_resolve();
 	test_discuss_post_menus_open_the_exact_comment_in_review();
 	test_notes_hang_from_their_lines_and_one_opens_pinned();
 	test_start_a_review_in_the_composer();

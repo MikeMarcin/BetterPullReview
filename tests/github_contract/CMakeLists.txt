@@ -995,6 +995,14 @@ if(APPLE)
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
     )
+    # [[BPR-1832]]. The audit scans its own source for the canaries. Not
+    # __FILE__: under the shared ccache, base_dir makes that path relative to
+    # the build directory, which the test's working directory is not.
+    target_compile_definitions(
+        test_better_pull_review_macos_keychain_native_tests
+        PRIVATE
+            BPR_NATIVE_TEST_SOURCE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/macos_keychain_native_tests.cpp"
+    )
     bpr_enable_hardening(
         test_better_pull_review_macos_keychain_native_tests
     )
@@ -1088,6 +1096,14 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
         test_better_pull_review_linux_secret_service_native_tests
         PRIVATE
             "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    # [[BPR-1832]]. The audit scans its own source for the canaries. Not
+    # __FILE__: under the shared ccache, base_dir makes that path relative to
+    # the build directory, which the test's working directory is not.
+    target_compile_definitions(
+        test_better_pull_review_linux_secret_service_native_tests
+        PRIVATE
+            BPR_NATIVE_TEST_SOURCE_FILE="${CMAKE_CURRENT_SOURCE_DIR}/linux_secret_service_native_tests.cpp"
     )
     bpr_enable_hardening(
         test_better_pull_review_linux_secret_service_native_tests

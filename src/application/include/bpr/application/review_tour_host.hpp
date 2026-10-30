@@ -1,5 +1,6 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_TOUR_HOST_HPP
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/application/review_tour_store.hpp"
@@ -72,6 +73,11 @@ namespace bpr::application {
 		review_tour_host(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish);
 		~review_tour_host();
 		void start();
+		/// \brief [[BPR-1830]]. Where offered and imported tours write their
+		/// `tour.operation` lines: how many were offered, and each import's
+		/// end with its typed refusal and stop count. Never tour text, a
+		/// label, a path or an identity. May be null; it must outlive the host.
+		void set_diagnostics(diagnostic_log_port* aLog) noexcept;
 		void observe_imports(std::vector<core::tour_import_candidate> aCandidates);
 		void import_selected(std::size_t aIndex);
 		void resolve_remote_conflict(std::uint64_t aRevision, bool aUseRemote);

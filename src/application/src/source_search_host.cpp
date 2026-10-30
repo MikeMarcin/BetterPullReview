@@ -1,5 +1,6 @@
 #include "bpr/application/source_search_host.hpp"
 
+#include <algorithm>
 #include <atomic>
 #include <chrono>
 #include <deque>
@@ -140,6 +141,7 @@ namespace bpr::application {
 		source_search_execution_port&                                  Execution;
 		source_search_projection_port&                                 Projection;
 		std::shared_ptr<insights_observer>                             WorkObserver;
+		std::shared_ptr<aggregated_operation_log>                      Diagnostics; // [[BPR-1831]]
 		core::source_search_state                                      State;
 		std::string                                                    Query;
 		std::string                                                    Include;
@@ -417,8 +419,9 @@ namespace bpr::application {
 			const auto current = Active;
 			const auto host    = shared_from_this();
 			try {
-				const auto observer = WorkObserver;
-				Effects.post([host, current, observer] {
+				const auto observer    = WorkObserver;
+				const auto diagnostics = Diagnostics;
+				Effects.post([host, current, observer, diagnostics] {
 					const auto started  = std::chrono::steady_clock::now();
 					auto       terminal = source_search_execution{ core::source_search_terminal{ current->Work.Request, core::source_search_status::cancelled, { } } };
 					bool       executed = false;
@@ -445,6 +448,12 @@ namespace bpr::application {
 						sample.DurationMicroseconds = static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - started).count());
 						observer->record_work(sample);
 					}
+					// [[BPR-1831]]. Every execution's end, aggregated: its status
+					// only, never the query, paths or matches.
+					if (diagnostics) {
+						const auto elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now() - started).count();
+						diagnostics->record({ .Action = core::operation_action::source_search, .Failure = operation_failure_of(terminal.Terminal.Status), .DurationMilliseconds = static_cast<std::uint32_t>(std::clamp<long long>(elapsed, 0, 0xFFFFFFFFLL)) });
+					}
 
 					host->Decisions.post([host, current, completion = std::move(terminal)]() mutable { host->complete(current, std::move(completion)); });
 				});
@@ -452,6 +461,9 @@ namespace bpr::application {
 			} catch (...) {
 				// A refused post retained no closure. Its admitted job still gets
 				// one terminal through the required live decision service.
+				if (Diagnostics) {
+					Diagnostics->record({ .Action = core::operation_action::source_search, .Failure = core::operation_failure::search_failed });
+				}
 				Decisions.post([host, current] { host->complete(current, core::source_search_terminal{ current->Work.Request, core::source_search_status::failure, { } }); });
 			}
 		}
@@ -504,6 +516,7 @@ namespace bpr::application {
 	};
 
 	void source_search_host::observe_work(std::shared_ptr<insights_observer> aObserver) { Implementation->WorkObserver = std::move(aObserver); }
+	void source_search_host::observe_diagnostics(std::shared_ptr<aggregated_operation_log> aLog) { Implementation->Diagnostics = std::move(aLog); }
 
 	source_search_host::source_search_host(decision_executor& aDecisions, effect_executor& aEffects, source_search_execution_port& aExecution, source_search_projection_port& aProjection)
 		: Implementation(std::make_shared<implementation>(aDecisions, aEffects, aExecution, aProjection))

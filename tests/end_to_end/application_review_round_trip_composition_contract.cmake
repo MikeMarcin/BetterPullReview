@@ -1,3 +1,17 @@
+# [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29), over
+# 9c0286a6c (last matching: BPR-1824's 4acc4f253). github_application.cpp
+# only. compose_review_mutation selects a closed or merged pull request too
+# (select_observed_review_mutation's aAdmitClosed, in the fixture branch and
+# the production #else branch), its binding's Open taken from the accepted
+# read; for a closed one it composes the same provider and host and stops
+# before shared drafts and the editor target. application::valid stays
+# open-only, so every grant, issuer and host path but a thread's resolution
+# refuses a closed binding, and the GitHub adapter compiles nothing else for
+# one. Review submission, source observation and off-hunk facts still select
+# an open pull request only. The fixture access gains
+# thread_resolution_evidence. No credential, provider selection, publication
+# admission or source-inventory change. The production mutation-branch pin
+# changes from 16d135419 for the one added argument.
 # [[BPR-1815]] review-bar view controls reseal (2026-10-29), merged over main 826583ec3 (BPR-1816).
 # github_application.cpp changes only its navigation-row probe: the review
 # bar's exact order gains the view rule, One pane and Go to header/source
@@ -2502,6 +2516,19 @@ function(bpr_verify_full_application_digest source_variable)
 	# send's core::agent_send_refusal to the Agent tab beside the composer. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29), over
+	# 9c0286a6c, as described at the top of this file.
+	# [[BPR-1824]] Discuss resolve reseal (2026-10-29), over f0de69330.
+	# github_application.cpp's review_mutation_gesture_grant binds every
+	# gesture that is no inline comment publication (resolution, reaction,
+	# description and comment edit, reviewer request) to the accepted
+	# handoff instead of requiring a selected diff; the authority's account
+	# and pull request must still match the accepted read, and the grant is
+	# issued by the same issuer for the same InlineReviewBinding. Resolve
+	# names its refusal through core::decide_thread_resolution and words
+	# host failures; the threaded-reply course clears the diff selection
+	# before Resolve. No credential, provider, publication admission or
+	# source-inventory change.
 	# [[BPR-1823]] kept-agent reseal (2026-10-29), over fe67d8ea6.
 	# github_application.cpp passes the setup's saved agent to the picker as
 	# its first pick only (setup_saved_profile), takes the setup wizard's
@@ -2511,6 +2538,44 @@ function(bpr_verify_full_application_digest source_variable)
 	# the choice on Reset agents; core::decide_agent_pick decides. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1827]] agent run diagnostics reseal (2026-10-30).
+	# github_application.cpp hands the agent invocation host the entry process
+	# through application::diagnosed_agent_process, which records each run as
+	# an agent.run started and ended diagnostic line of enums and counts. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1828]] diagnostics coverage reseal (2026-10-30), over 4aba3fb6a.
+	# github_application.cpp hands agent setup the profile's diagnostic log
+	# (agent.setup_check lines) and, after the unchanged erasure of the live
+	# review mutation provider, wraps it in
+	# application::with_review_mutation_diagnostics, which records each
+	# call as a github.review_mutation line of enums, counts and a duration
+	# and forwards every call and answer unchanged. No credential, grant,
+	# provider selection, admission, publication or source-inventory change.
+	# [[BPR-1829]] sign-in, vault and updater diagnostics reseal (2026-10-30),
+	# over 1ec3d6359. github_application.cpp wraps the composed credential vault
+	# in application::with_credential_vault_diagnostics (each store, load and
+	# delete leaves a credential.vault line of enums, counts and a duration;
+	# calls, answers and cancellation pass through unchanged), hands the GitHub
+	# host and the device host the profile log through set_diagnostic_log
+	# (github.sign_in lines), and gives the desktop-wide updater the profile log
+	# through desktop_diagnostic_log. No credential, grant, provider selection,
+	# admission, mutation, publication or source-inventory change.
+	# [[BPR-1831]] diagnostics coverage reseal (2026-10-30), over 1ed5f00c9 (with BPR-1829).
+	# github_application.cpp opens a storage_diagnostics_scope on the profile
+	# log (storage.database lines) and an aggregated_operation_log; hands the
+	# image service its fetch port through application::diagnosed_image_fetch,
+	# which forwards every fetch and answer unchanged; and gives the clone
+	# link host, PR search and queue notifier the log. No credential, grant,
+	# provider selection, mutation, admission, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1830]] diagnostics coverage reseal (2026-10-30), over f0f241f5e (with BPR-1829 and BPR-1831).
+	# github_application.cpp hands the profile's diagnostic log, as a raw
+	# observer, to the MCP context helper supervisor (agent.mcp_helper), the
+	# window's review tour host (tour.operation imports), its Review Cycle
+	# desktop and the cycle owner service (cycle.round lines). Enums, counts
+	# and durations only; no credential, grant, provider selection, admission,
+	# mutation, publication or source-inventory change.
 	# [[BPR-1818]] critical-main merge declaration (2026-10-30).
 	# Canonical a49e72fa0 supplies BPR-1823 above; the release branch also
 	# retains the reviewed reviewer-request fixture: QListWidget access and
@@ -2524,8 +2589,11 @@ function(bpr_verify_full_application_digest source_variable)
 	# projection. The other verdict defaults, original deadlines and all later
 	# submission/recovery assertions remain. No production policy, provider,
 	# credential, grant, mutation branch or source-inventory change.
+	# [[BPR-1811]]. Owner-authorized current-main restart combines canonical
+	# f737404e1 with release 5e52b0252. Both histories above are retained; the
+	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-		"a8f6be154fad2be45454960c0d41dc401a04a8c987bbdbc79a8f12e3df1b061f"
+        "4503eda20b630c2578acd4a917ae0419e17ef5f655192471351e6c68cdf87920"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2692,6 +2760,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/startup_diagnostic.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
+        "src/terminal_diagnostic_log.cpp"
+        "src/terminal_diagnostic_log.hpp"
         "src/terminal_diagnostics.cpp"
         "src/terminal_diagnostics.hpp"
         "src/terminal_text.cpp"
@@ -2798,6 +2868,32 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1823]] kept-agent reseal (2026-10-29): github_application.cpp only,
 # as described at the full digest. No grant, mutation, publication or
 # source-inventory change.
+# [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29):
+# github_application.cpp only, as described at the top of this file.
+# [[BPR-1824]] Discuss resolve reseal (2026-10-29): github_application.cpp
+# only, as described at the full digest. The gesture grant no longer waits on
+# a selected diff for a non-publication gesture; same issuer, binding and
+# account/pull-request match. No provider, credential, publication admission
+# or source-inventory change.
+# [[BPR-1827]] agent run diagnostics reseal (2026-10-30): github_application.cpp
+# only, as described at the full digest. No grant, mutation, publication or
+# source-inventory change.
+# [[BPR-1828]] diagnostics coverage reseal (2026-10-30): github_application.cpp
+# only, as described at the full digest and the mutation-branch pin. No grant,
+# credential, admission, publication or source-inventory change.
+# [[BPR-1829]] sign-in, vault and updater diagnostics reseal (2026-10-30):
+# github_application.cpp, github_application.hpp (desktop_diagnostic_log),
+# profile_desktop.cpp and release_update_desktop.{hpp,cpp}, as described at the
+# full digest. No grant, credential, admission, publication or
+# source-inventory change.
+# [[BPR-1831]] diagnostics coverage reseal (2026-10-30): github_application.cpp
+# and pr_search_controller.hpp (one forwarder to the search host), as described
+# at the full digest. No grant, credential, mutation, admission, publication or
+# source-inventory change.
+# [[BPR-1830]] diagnostics coverage reseal (2026-10-30): github_application.cpp
+# only, as described at the full digest. The source inventory adds
+# src/terminal_diagnostic_log.{cpp,hpp}, the bpr command's profile log. No
+# grant, credential, admission, mutation or publication change.
 # [[BPR-1818]] critical-main merge declaration (2026-10-30): only the
 # reviewer-request fixture delta described at the full application digest
 # above is added to canonical a49e72fa0. The reviewed production files and
@@ -2805,8 +2901,10 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1833]]. Only the fixture setup described at the full application
 # digest changes. The production mutation branch and source inventory stay
 # exact; this content reseal supplies no native acceptance by itself.
+	# [[BPR-1811]]. The same combined-source restart preserves the incoming
+	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "82344284167cb0a10c1f88a17fff8f38e73f09f9d13757502fdbc58c9e22e0ab"
+        "2418ef2aed4c85fc2b2e6f30363f4b8d6697d506457d26eabb4932d584ed4550"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -3146,8 +3244,16 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         ${source_variable}
         bpr_mutation_production_digest
     )
+    # [[BPR-1826]]. The production branch selects a closed or merged pull
+    # request too (select_observed_review_mutation(..., true)); the same
+    # provider, recovery store, grant and host are composed, and a closed
+    # binding takes only a thread's resolution. Was 16d135419.
+    # [[BPR-1828]]. After the unchanged erasure the provider is wrapped by
+    # application::with_review_mutation_diagnostics, which forwards every
+    # call and answer and records github.review_mutation lines only; the
+    # host still receives the one erased port. Was 53d6792a1.
     set(bpr_expected_mutation_production_digest
-        "16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1"
+        "70fe8a7e4bc59291cc0dc1722899dbb8d358136cff32be545db46ecf29099d91"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_RELEASE_UPDATE_APPLICATION_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_RELEASE_UPDATE_APPLICATION_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/release_update_port.hpp"
 #include "bpr/application/release_update_projection.hpp"
@@ -37,6 +38,11 @@ namespace bpr::application {
 		void               shutdown();
 		[[nodiscard]] auto quiescent() const noexcept -> bool;
 		[[nodiscard]] auto projection() const -> release_update_projection;
+		/// \brief [[BPR-1829]]. Where each effect job (check, download, verify,
+		/// refresh before install, install handoff) records its start and its
+		/// end as an `updater.release` line. Null records nothing. Decision
+		/// lane only; a job keeps recording to the log it started with.
+		void set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog);
 
 	private:
 		struct implementation;

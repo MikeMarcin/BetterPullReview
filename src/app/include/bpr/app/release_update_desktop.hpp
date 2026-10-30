@@ -46,10 +46,12 @@ namespace bpr::app {
 		[[nodiscard]] static auto start_native(std::filesystem::path aRoot) -> std::unique_ptr<release_update_desktop>;
 		[[nodiscard]] static auto start(release_update_components aComponents) -> std::unique_ptr<release_update_desktop>;
 		~release_update_desktop();
-		void               attach(qt::workbench_window& aWindow);
-		void               attach(qt::settings_window& aSettings);
-		void               attach(QMenuBar& aMenu);
-		void               set_accounts(std::vector<release_update_account> aAccounts);
+		void attach(qt::workbench_window& aWindow);
+		void attach(qt::settings_window& aSettings);
+		void attach(QMenuBar& aMenu);
+		void set_accounts(std::vector<release_update_account> aAccounts);
+		/// \brief [[BPR-1829]]. The open profile log the updater records to.
+		void               set_diagnostic_log(std::shared_ptr<application::diagnostic_log_port> aLog);
 		void               shutdown();
 		[[nodiscard]] auto quiescent() const -> bool;
 		[[nodiscard]] auto durable() const -> bool;

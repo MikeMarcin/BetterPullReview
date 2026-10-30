@@ -50,6 +50,7 @@ namespace bpr::app {
 		std::vector<release_update_account>                      Accounts;
 		std::optional<release_update_account>                    Public;
 		std::shared_ptr<application::release_update_access_port> Access;
+		std::shared_ptr<application::diagnostic_log_port>        Log;
 		QTimer                                                   Timer;
 		bool                                                     Initializing = false;
 		bool                                                     Closing      = false;
@@ -79,6 +80,7 @@ namespace bpr::app {
 			}
 			Service = std::make_unique<application::release_update_service>(Components.Installed, Components.Capability,
 																			*Components.Clock, Decisions, Effects, Components.Settings, Components.Verifier, *this, Components.Installer);
+			Service->set_diagnostic_log(Log);
 			Service->start();
 			Timer.setInterval(1000);
 			QObject::connect(&Timer, &QTimer::timeout, this, [this] {
@@ -319,6 +321,13 @@ namespace bpr::app {
 			});
 		}
 		Impl->Menu->attach(aMenu);
+	}
+	void release_update_desktop::set_diagnostic_log(std::shared_ptr<application::diagnostic_log_port> aLog)
+	{
+		Impl->Log = aLog;
+		if (Impl->Service) {
+			Impl->Service->set_diagnostic_log(std::move(aLog));
+		}
 	}
 	void release_update_desktop::set_accounts(std::vector<release_update_account> aAccounts)
 	{

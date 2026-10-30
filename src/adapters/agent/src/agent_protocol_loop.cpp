@@ -54,6 +54,13 @@ namespace bpr::adapters::agent::detail {
 				if (ProcessExit && !has_cause()) {
 					drain_available();
 					finish_protocol();
+					// [[BPR-1827]]. A child that exits with an error before
+					// finishing its transcript is reported by its exit, which
+					// says more than the unfinished frame it left.
+					const auto exitedWithError = !ProcessExit->ExitedNormally || ProcessExit->ExitCode != 0;
+					if (exitedWithError && ProtocolFailure == application::agent_protocol_failure::incomplete_frame && !ForcedOutcome) {
+						ProtocolFailure.reset();
+					}
 					if (!has_cause()) {
 						Result.ExitCode = ProcessExit->ExitCode;
 						ClassifiedOutcome
@@ -400,7 +407,11 @@ namespace bpr::adapters::agent::detail {
 
 			void complete_result()
 			{
-				Result.AssistantItems = Decoder.assistant_items();
+				Result.AssistantItems      = Decoder.assistant_items();
+				Result.StandardOutputBytes = Decoder.pushed_bytes();
+				if (ProtocolFailure) {
+					Result.RejectedOutputLine = Decoder.rejected_line();
+				}
 				for (const auto& report : Decoder.metadata().ProtocolReported) {
 					auto appended = core::append_runtime_report(Result.Metadata, report);
 					if (!appended) {

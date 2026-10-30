@@ -3,6 +3,7 @@
 
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/device_authorization_schedule.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/port.hpp"
@@ -484,6 +485,19 @@ namespace bpr::application {
 		// a browser that will not open is not a reviewer who will not
 		// authorize.
 		void open_verification_address();
+		/// \brief [[BPR-1829]]. Where the device sign-in and token renewal
+		/// record `github.sign_in` lines. Null records nothing.
+		/// \details A flow records its start when it requests a device code
+		/// and its end when it reaches a terminal stage: `succeeded` when
+		/// authorized, `cancelled`, or `failed` with the stage or terminal
+		/// reason, counting its token polls. A renewal attempt records its
+		/// start when it reads the refresh slot and its end when the rotated
+		/// grant is enrolled, the attempt is cancelled or released, or it
+		/// fails (`refresh_absent`, `refresh_rejected`, `transport_failed`,
+		/// `storage_failed`, `vault_unavailable`); a renewal refused before
+		/// it read anything records only its end. No code, token, address,
+		/// account or profile reaches a line. Decision lane only.
+		void set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog);
 		void shutdown();
 		/// Composition may replace the connection ID of the same registered
 		/// native server between flows. It must validate that server first.
