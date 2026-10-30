@@ -12179,11 +12179,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->agent_tab()->present_thread(shown);
 			present_agent_pull_request();
-			// A pull request opens on the agent it was last asked with.
-			if (aView.Loaded && aView.Key && aView.Key->Agent != 0U && AgentSetup && aView.Key->Agent != current_conversation_agent()) {
-				const auto agents = AgentSetup->projection().Preferences.Agents;
-				if (const auto found = std::ranges::find(agents, aView.Key->Agent, &core::agent_entry::Id); found != agents.end()) {
-					static_cast<void>(Window->agent_tab()->choose_agent(core::entry_profile_id(*found).value()));
+			// [[BPR-1823]], owner ruling 2026-10-29: opening a pull request
+			// never switches the picker to the agent it was last asked with.
+			// The thread follows the picker: the chosen agent's own
+			// conversation about it is the one shown.
+			if (aView.Loaded && aView.Key && AgentConversation) {
+				if (const auto chosen = current_conversation_agent(); chosen != 0U && aView.Key->Agent != chosen) {
+					AgentConversation->switch_agent(chosen);
 				}
 			}
 		}
@@ -12384,6 +12386,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				static_cast<void>(Profile->WorkbenchPreferences->apply_claude_wrapper({ }));
 				static_cast<void>(Profile->WorkbenchPreferences->apply_claude_model({ }));
 				AgentSetup->reset();
+				// [[BPR-1823]]. No choice outlives Reset: a new agent may
+				// reuse an old one's id.
+				Window->agent_panel()->forget_choice();
 				// The fresh setup looks for agents again, as Set up did.
 				AgentSetup->restart();
 				// A new agent's id may be an old one's: no pull request opens
@@ -12446,6 +12451,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					[this](const core::setup_agent aAgent) {
 						if (!Closing && AgentSetup) {
 							AgentSetup->choose(aAgent);
+							take_setup_choice();
 						}
 					},
 				.FindAgents             = [this] { if (!Closing && AgentSetup) { AgentSetup->detect(); } },
@@ -12505,6 +12511,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							AgentSetup->add_agent(std::move(aEntry), true, [this](const std::optional<core::agent_entry_refusal> aRefusal) {
 								if (aRefusal && !Closing && Window != nullptr) {
 									Window->agent_panel()->refuse(std::string{ core::describe(*aRefusal) });
+								} else if (!aRefusal) {
+									take_setup_choice();
 								}
 							});
 						}
@@ -12809,6 +12817,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return false;
 		}
 
+		/// [[BPR-1749]]. The agent setup saved: its preferred entry, else the
+		/// agent it chose.
+		[[nodiscard]] static auto setup_saved_profile(const application::agent_setup_projection& aProjection) -> std::optional<core::agent_profile_id>
+		{
+			const auto& preferences = aProjection.Preferences;
+			const auto  preferredAt = std::ranges::find(preferences.Agents, preferences.PreferredAgent, &core::agent_entry::Id);
+			if (preferences.PreferredAgent != 0U && preferredAt != preferences.Agents.end()) {
+				return core::entry_profile_id(*preferredAt);
+			}
+			const auto chosen = aProjection.State.Chosen ? aProjection.State.Chosen : preferences.Chosen;
+			return chosen ? std::optional{ core::setup_profile(*chosen, preferences.CodexProtocol) } : std::nullopt;
+		}
+
+		/// [[BPR-1823]], owner ruling 2026-10-29. The setup wizard's choice
+		/// (an agent picked or added there) is the one the picker takes
+		/// without the reviewer choosing it in the picker itself.
+		void take_setup_choice()
+		{
+			if (Closing || Window == nullptr || !AgentSetup) {
+				return;
+			}
+			if (const auto saved = setup_saved_profile(AgentSetup->projection())) {
+				Window->agent_panel()->choose_profile_from_setup(*saved);
+			}
+		}
+
 		void present_agent_setup(const application::agent_setup_projection& aProjection)
 		{
 			if (Closing || Window == nullptr) {
@@ -12829,11 +12863,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
 			Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
-			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
-			const auto  profile     = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
-			const auto  preferredAt = std::ranges::find(aProjection.Preferences.Agents, aProjection.Preferences.PreferredAgent, &core::agent_entry::Id);
-			const auto* preferred   = aProjection.Preferences.PreferredAgent == 0U || preferredAt == aProjection.Preferences.Agents.end() ? nullptr : &*preferredAt;
-			Window->agent_panel()->prefer_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+			// [[BPR-1823]], owner ruling 2026-10-29. The saved agent is the
+			// first pick only; a setup update never moves the reviewer's
+			// choice. The wizard's own choice (take_setup_choice) does.
+			const auto saved = setup_saved_profile(aProjection);
+			Window->agent_panel()->prefer_profile(saved);
 			Window->agent_panel()->offer_profiles(offered_agent_profiles());
 			// Owner decision 2026-10-23: Send to Agent offers the same list.
 			if (CycleDesktop) {
@@ -12842,7 +12876,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_run_settings();
 			present_setup_view();
 			if (CycleDesktop) {
-				CycleDesktop->prefer_send_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+				CycleDesktop->prefer_send_profile(saved);
 			}
 			observe_conversation_agent();
 		}

@@ -1,5 +1,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 
+#include <algorithm>
+
 namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto engaged_identity_count(
@@ -371,6 +373,7 @@ namespace bpr::core {
 		case agent_send_refusal::scope_invalid:            return "scope_invalid";
 		case agent_send_refusal::private_context_refused:  return "private_context_refused";
 		case agent_send_refusal::launch_refused:           return "launch_refused";
+		case agent_send_refusal::agent_unavailable:        return "agent_unavailable";
 		}
 		return { };
 	}
@@ -416,6 +419,9 @@ namespace bpr::core {
 		if (aFacts.InFlight) {
 			return agent_send_refusal::request_in_flight;
 		}
+		if (aFacts.AgentUnavailable) {
+			return agent_send_refusal::agent_unavailable;
+		}
 		if (!aFacts.AgentChosen) {
 			return agent_send_refusal::no_agent;
 		}
@@ -423,5 +429,31 @@ namespace bpr::core {
 			return agent_send_refusal::empty_message;
 		}
 		return agent_send_refusal::none;
+	}
+
+	auto agent_pick_available(
+		const agent_pick&                       aPick,
+		const std::span<const agent_profile_id> aOffered) noexcept -> bool
+	{
+		return aPick.Agent.has_value() && std::ranges::find(aOffered, *aPick.Agent) != aOffered.end();
+	}
+
+	auto decide_agent_pick(const agent_pick_facts& aFacts) -> agent_pick
+	{
+		if (aFacts.Chose) {
+			return { .Agent = aFacts.Chose, .Kept = true };
+		}
+		if (aFacts.Current.Kept) {
+			return aFacts.Current;
+		}
+		const auto offered = [&aFacts](const agent_profile_id aId) { return std::ranges::find(aFacts.Offered, aId) != aFacts.Offered.end(); };
+		auto       pick    = agent_pick{ };
+		if (aFacts.Saved && offered(*aFacts.Saved)) {
+			pick.Agent = aFacts.Saved;
+		} else if (!aFacts.Offered.empty()) {
+			pick.Agent = aFacts.Offered.front();
+		}
+		pick.Kept = aFacts.SetupKnown && pick.Agent.has_value();
+		return pick;
 	}
 } // namespace bpr::core

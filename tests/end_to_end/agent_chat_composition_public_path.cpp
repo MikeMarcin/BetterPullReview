@@ -336,8 +336,13 @@ auto main(int argc, char** argv) -> int
 		return fail(*application, "agent-offerings", offerings.render());
 	}
 	// [[BPR-1817]]. A send asks the agent the composer's menu shows, so the
-	// course chooses the one its fixture program speaks, Codex JSONL, before
-	// each send: a refresh offers the agents again, from the first.
+	// course chooses the one its fixture program speaks, Codex JSONL, once.
+	// [[BPR-1823]], owner ruling 2026-10-29: the menu keeps that choice
+	// through every refresh, setup update and Ask agent that follows, so
+	// before each later send the course checks it is still chosen.
+	const auto jsonlKept = [panel] {
+		return panel->selected_profile() == std::optional{ core::codex_jsonl_profile_id };
+	};
 	const auto chooseJsonl = [panel] {
 		const auto jsonl = panel->profile_selector()->findData(QVariant::fromValue<qulonglong>(core::codex_jsonl_profile_id.value()));
 		if (jsonl >= 0) {
@@ -482,6 +487,11 @@ auto main(int argc, char** argv) -> int
 		if (question == nullptr || !window.agent_tab()->conversation_chip()->isVisibleTo(question) || !window.agent_tab()->conversation_chip_text().startsWith(QString::fromStdString(askedPath))) {
 			return fail(*application, "conversation-chip");
 		}
+		// [[BPR-1823]]. Ask agent, and the Agent tab's first showing it
+		// brings, leave the reviewer's agent chosen.
+		if (!jsonlKept()) {
+			return fail(*application, "conversation-ask-kept-agent", window.agent_panel()->profile_selector()->currentText().toStdString());
+		}
 	}
 
 	// The gesture. Typed into the shipped composer and sent with the shipped
@@ -493,7 +503,9 @@ auto main(int argc, char** argv) -> int
 		// The Agent tab's own Send, as the reviewer presses it.
 		window.agent_tab()->ask_button()->click();
 	} else {
-		static_cast<void>(chooseJsonl());
+		if (!jsonlKept()) {
+			return fail(*application, "agent-choice-kept", panel->profile_selector()->currentText().toStdString());
+		}
 		chat->send_action()->trigger();
 	}
 	QApplication::processEvents();
@@ -814,7 +826,9 @@ auto main(int argc, char** argv) -> int
 	// The send the panel will not let a reviewer make, put to the host that
 	// must refuse it anyway. Delivered on the panel's own composed dispatch
 	// edge, carrying exactly the value the panel would have emitted.
-	static_cast<void>(chooseJsonl());
+	if (!jsonlKept()) {
+		return fail(*application, "stale-agent-choice-kept", panel->profile_selector()->currentText().toStdString());
+	}
 	if (!app::detail::github_application_fixture_access::dispatch_side_chat_send(
 			*application, std::string{ chat_message })) {
 		return fail(*application, "stale-send");
@@ -988,7 +1002,9 @@ auto main(int argc, char** argv) -> int
 		const auto beforeContinuedSend = app::detail::
 			github_application_fixture_access::agent_finding_evidence(
 				*application);
-		static_cast<void>(chooseJsonl());
+		if (!jsonlKept()) {
+			return fail(*application, "continued-agent-choice-kept", panel->profile_selector()->currentText().toStdString());
+		}
 		chat->send_action()->trigger();
 		QApplication::processEvents();
 

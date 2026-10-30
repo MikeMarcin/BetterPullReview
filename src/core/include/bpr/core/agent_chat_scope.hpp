@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string_view>
 
 namespace bpr::core {
@@ -521,13 +522,17 @@ namespace bpr::core {
 		private_context_refused,
 		/// The launch path refused the turn before the agent started.
 		launch_refused,
+		/// [[BPR-1823]]. The agent the reviewer chose is no longer offered
+		/// (removed in Settings, or not allowed for this review), and none
+		/// was put in its place.
+		agent_unavailable,
 	};
 
 	/// \brief The number of declared send refusals.
-	inline constexpr std::size_t agent_send_refusal_count = 16U;
+	inline constexpr std::size_t agent_send_refusal_count = 17U;
 
 	static_assert(
-		static_cast<std::size_t>(agent_send_refusal::launch_refused) + 1U
+		static_cast<std::size_t>(agent_send_refusal::agent_unavailable) + 1U
 			== agent_send_refusal_count,
 		"agent_send_refusal_count must cover every declared send refusal");
 
@@ -551,6 +556,8 @@ namespace bpr::core {
 		bool ContinuationRequired = false;
 		/// An agent is chosen in the composer's agent menu.
 		bool AgentChosen = false;
+		/// [[BPR-1823]]. The agent chosen is held but not offered now.
+		bool AgentUnavailable = false;
 		/// The composer holds no words.
 		bool MessageEmpty = true;
 		/// A turn is still running.
@@ -566,6 +573,56 @@ namespace bpr::core {
 	/// running, an agent chosen, then something typed.
 	[[nodiscard]] auto decide_agent_send(const agent_send_facts& aFacts) noexcept
 		-> agent_send_refusal;
+
+	/// \brief [[BPR-1823]]. The agent the composer's agent menu holds.
+	///
+	/// \details `Kept` is the reviewer's choice: once kept, the agent stays
+	/// whatever is offered later, including when it is no longer offered at
+	/// all (it is then unavailable, and a send is refused). A pick that is not
+	/// kept is a provisional default, made while the setup's saved agent is
+	/// not yet known.
+	struct agent_pick
+	{
+		std::optional<agent_profile_id> Agent;
+		bool                            Kept = false;
+
+		auto operator<=>(const agent_pick&) const = default;
+	};
+
+	/// \brief What one decision about the agent menu knows.
+	struct agent_pick_facts
+	{
+		/// What the menu holds now.
+		agent_pick Current;
+		/// The agents offered now, in the menu's order.
+		std::span<const agent_profile_id> Offered;
+		/// The agent setup saved, once the setup is known.
+		std::optional<agent_profile_id> Saved;
+		/// Whether the setup's saved agent (possibly none) is known yet.
+		bool SetupKnown = false;
+		/// An agent chosen now: by the reviewer in the menu, or by the agent
+		/// setup wizard when the reviewer sets one up or picks one there.
+		/// Nothing else chooses.
+		std::optional<agent_profile_id> Chose;
+	};
+
+	/// \brief [[BPR-1823]], owner ruling 2026-10-29: "The picker should keep
+	/// your choice. It should never automatically switch agents for you,
+	/// outside of course of the wizard where you set it up."
+	///
+	/// \details Pure. In order: an agent chosen now is the pick, kept; a kept
+	/// pick stays, offered or not, and nothing replaces it; otherwise the
+	/// default is the saved agent when offered, else the first offered, else
+	/// none, and it becomes kept once the setup is known and an agent was
+	/// picked. Offering agents again, setup updates and opening a thread's Ask
+	/// agent therefore never move a kept pick.
+	[[nodiscard]] auto decide_agent_pick(const agent_pick_facts& aFacts)
+		-> agent_pick;
+
+	/// \brief Whether the pick names an agent that is offered now.
+	[[nodiscard]] auto agent_pick_available(
+		const agent_pick&                 aPick,
+		std::span<const agent_profile_id> aOffered) noexcept -> bool;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CHAT_SCOPE_HPP

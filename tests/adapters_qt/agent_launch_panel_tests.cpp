@@ -118,25 +118,92 @@ namespace {
 			"and nothing else left the surface");
 	}
 
-	/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved is
-	/// selected when offered, and again when the profiles are offered anew.
-	void test_the_saved_profile_is_preferred()
+	/// \brief [[BPR-1749]], RFC-BPR-0092, as [[BPR-1823]] amends it (owner
+	/// ruling 2026-10-29: "The picker should keep your choice. It should never
+	/// automatically switch agents for you, outside of course of the wizard
+	/// where you set it up."). The saved profile is the first pick; after
+	/// that the reviewer's choice is kept through re-offers and setup updates.
+	void test_the_saved_profile_is_the_first_pick_only()
+	{
+		auto       recorded = recorder{ };
+		auto       panel    = qt::agent_launch_panel{ recorded.sink() };
+		const auto shipped  = core::built_in_agent_profiles();
+		expect(shipped.size() >= 2U, "two shipped profiles to choose between");
+		const auto claude = QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value());
+		const auto first  = QVariant::fromValue<qulonglong>(shipped.front().Id.value());
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == first, "before setup is known the first offered profile is selected, as before");
+		panel.prefer_profile(core::claude_stream_json_profile_id);
+		expect(panel.profile_selector()->currentData() == claude, "the saved profile, once known, is the first pick");
+		const auto other     = panel.profile_selector()->findData(claude) == 0 ? 1 : 0;
+		const auto otherData = panel.profile_selector()->itemData(other);
+		panel.profile_selector()->setCurrentIndex(other);
+		expect(panel.profile_selector()->currentData() == otherData, "the reviewer chooses another");
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == otherData, "offered again, the reviewer's choice is kept, not the saved profile");
+		panel.prefer_profile(core::claude_stream_json_profile_id);
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == otherData, "a setup update with the same saved profile keeps it too");
+		panel.prefer_profile(std::nullopt);
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == otherData, "cleared, the choice is still kept");
+		expect(panel.unavailable_agent_name().isEmpty(), "an offered choice is available");
+		expect(recorded.Intents.empty(), "preferring or offering a profile emits no intent");
+	}
+
+	/// \brief [[BPR-1823]]. The setup wizard's choice is the one automatic
+	/// change; Reset agents keeps no choice.
+	void test_the_setup_wizard_sets_the_choice()
 	{
 		auto       recorded = recorder{ };
 		auto       panel    = qt::agent_launch_panel{ recorded.sink() };
 		const auto shipped  = core::built_in_agent_profiles();
 		const auto claude   = QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value());
-		panel.offer_profiles(shipped);
-		expect(panel.profile_selector()->currentIndex() == 0, "with none saved the first offered profile is selected, as before");
-		panel.prefer_profile(core::claude_stream_json_profile_id);
-		expect(panel.profile_selector()->currentData() == claude, "an offered saved profile is selected at once");
-		panel.profile_selector()->setCurrentIndex(0);
-		panel.offer_profiles(shipped);
-		expect(panel.profile_selector()->currentData() == claude, "offered again, the saved profile is the one selected");
 		panel.prefer_profile(std::nullopt);
 		panel.offer_profiles(shipped);
-		expect(panel.profile_selector()->currentIndex() == 0, "cleared, the first offered profile is selected again");
-		expect(recorded.Intents.empty(), "preferring a profile emits no intent");
+		const auto other = panel.profile_selector()->findData(claude) == 0 ? 1 : 0;
+		panel.profile_selector()->setCurrentIndex(other);
+		expect(panel.profile_selector()->currentData() != claude, "the reviewer chose another agent");
+		panel.choose_profile_from_setup(core::claude_stream_json_profile_id);
+		expect(panel.profile_selector()->currentData() == claude, "the wizard's choice moves the picker");
+		panel.offer_profiles(shipped);
+		expect(panel.profile_selector()->currentData() == claude, "and is kept when offered again");
+		panel.profile_selector()->setCurrentIndex(other);
+		panel.forget_choice();
+		panel.prefer_profile(core::claude_stream_json_profile_id);
+		expect(panel.profile_selector()->currentData() == claude, "after Reset agents the saved agent is the first pick again");
+		expect(recorded.Intents.empty(), "the wizard's choice emits no intent");
+	}
+
+	/// \brief [[BPR-1823]]. A chosen agent that is removed is said as
+	/// unavailable; nothing is put in its place and nothing can start.
+	void test_a_removed_choice_is_unavailable_not_replaced()
+	{
+		auto       recorded = recorder{ };
+		auto       panel    = qt::agent_launch_panel{ recorded.sink() };
+		const auto shipped  = core::built_in_agent_profiles();
+		panel.prefer_profile(std::nullopt);
+		panel.offer_profiles(shipped);
+		panel.disclose_scope(QStringLiteral("the open pull request"));
+		const auto chosenAt = 1;
+		const auto chosen   = panel.profile_selector()->itemData(chosenAt);
+		const auto name     = panel.profile_selector()->itemText(chosenAt);
+		panel.profile_selector()->setCurrentIndex(chosenAt);
+		expect(panel.start_action()->isEnabled(), "an offered choice can start");
+		auto remaining = shipped;
+		std::erase_if(remaining, [&chosen](const core::agent_profile& aProfile) { return aProfile.Id.value() == chosen.toULongLong(); });
+		panel.offer_profiles(remaining);
+		expect(!panel.selected_profile().has_value(), "a removed choice is not replaced by another agent");
+		expect(panel.unavailable_agent_name() == name, "the removed agent is named as unavailable");
+		expect(panel.profile_selector()->currentText() == QStringLiteral("%1 (unavailable)").arg(name), "the menu shows it as unavailable");
+		expect(panel.offered_count() == remaining.size(), "the unavailable entry is not an offered agent");
+		expect(!panel.start_action()->isEnabled(), "and nothing can start");
+		panel.offer_profiles(remaining);
+		expect(panel.unavailable_agent_name() == name && panel.profile_selector()->count() == static_cast<int>(remaining.size()) + 1, "offered again, still one unavailable entry");
+		panel.profile_selector()->setCurrentIndex(0);
+		expect(panel.selected_profile().has_value() && panel.unavailable_agent_name().isEmpty(), "choosing another agent ends the unavailable state");
+		expect(panel.profile_selector()->count() == static_cast<int>(remaining.size()), "and the entry goes");
+		expect(recorded.Intents.empty(), "nothing was started");
 	}
 
 	/// \brief Disclosure comes before the action, not after.
@@ -496,7 +563,9 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	test_the_panel_only_emits_intents();
-	test_the_saved_profile_is_preferred();
+	test_the_saved_profile_is_the_first_pick_only();
+	test_the_setup_wizard_sets_the_choice();
+	test_a_removed_choice_is_unavailable_not_replaced();
 	test_the_scope_is_shown_before_launch_is_possible();
 	test_cancellation_is_a_distinct_action();
 	test_existing_checkout_is_off_by_default();

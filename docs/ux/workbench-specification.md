@@ -2517,8 +2517,9 @@ the pull request (#17 and its title). With nothing asked, the conversation shows
 this pull request" with one line under it. The question field clears once a
 question is sent. The thread is
 one conversation per pull request and agent (owner decisions, 2026-10-23):
-it is kept for the pull request and shown again when it is opened again, on
-the agent it was last asked with; switching agents shows that agent's own
+it is kept for the pull request and shown again when it is opened again, as
+the chosen agent's own thread (opening a pull request never switches the
+agent, [[BPR-1823]]); switching agents shows that agent's own
 thread and switching back resumes it; each question carries its agent's
 earlier turns; and Clear session empties only the current agent's, asking
 first when turns would leave it. Notes and drafts made from the thread are
@@ -2572,8 +2573,19 @@ question kept, Ask again and Show the log; Check again when the Ask ended
 because the workspace could not be made or the agent did not start).
 A send asks the agent the pill shows, whatever agent the conversation used
 before; choosing another agent starts that agent's conversation
-([[BPR-1817]]). A send that produces no turn is never silent: a danger strip
-directly above the field says "Not sent." and why, in words (nothing typed,
+([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner
+ruling 2026-10-29: "The picker should keep your choice. It should never
+automatically switch agents for you, outside of course of the wizard where you
+set it up."): offering the agents again, a setup update, opening a pull
+request and a thread's Ask agent never move it. The saved agent is only the
+first pick (else the first agent listed), and an agent chosen or added in the
+setup wizard is the one change made for the reviewer. A chosen agent that goes
+(removed in Settings, or not allowed for the review's server) is never
+replaced: the pill reads "Unavailable: *Agent*" (the state first, so a
+narrow pill keeps it), its menu opens with "*Agent* isn't available. Choose
+an agent:" and the agents, and a send says "Not sent. *Agent* isn't
+available. Choose an agent in the agent menu, then send." A send that
+produces no turn is never silent: a danger strip directly above the field says "Not sent." and why, in words (nothing typed,
 the agent still answering, the server not allowing that agent, no lines
 selected for a question about them, the agent not starting, and the rest of
 the core's `agent_send_refusal` reasons), until the next send or its Dismiss,

@@ -410,13 +410,55 @@ namespace {
 		expect(core::decide_agent_send(facts) == core::agent_send_refusal::empty_message, "nothing typed is said");
 		facts.AgentChosen = false;
 		expect(core::decide_agent_send(facts) == core::agent_send_refusal::no_agent, "no agent chosen comes before nothing typed");
-		facts.InFlight = true;
+		facts.AgentUnavailable = true;
+		expect(core::decide_agent_send(facts) == core::agent_send_refusal::agent_unavailable, "[[BPR-1823]] a chosen agent no longer offered is said, not replaced");
+		facts.AgentUnavailable = false;
+		facts.InFlight         = true;
 		expect(core::decide_agent_send(facts) == core::agent_send_refusal::request_in_flight, "a running turn comes before the agent");
 		facts.ContinuationRequired = true;
 		expect(core::decide_agent_send(facts) == core::agent_send_refusal::session_stale, "a moved pull request comes before a running turn");
 		facts.ReviewOpen = false;
 		expect(core::decide_agent_send(facts) == core::agent_send_refusal::no_review, "and no review comes first");
 		expect(core::decide_agent_send({ }) == core::agent_send_refusal::no_review, "the default facts send nothing");
+	}
+
+	/// \brief [[BPR-1823]], owner ruling 2026-10-29. The menu keeps the
+	/// reviewer's choice; only a choice made now (the reviewer's, or the setup
+	/// wizard's) changes it.
+	void test_the_agent_menu_keeps_the_choice()
+	{
+		const auto a       = core::agent_profile_id{ 101U };
+		const auto b       = core::agent_profile_id{ 102U };
+		const auto c       = core::agent_profile_id{ 103U };
+		const auto both    = std::array{ a, b };
+		const auto reorder = std::array{ c, b, a };
+		const auto onlyA   = std::array{ a };
+
+		auto pick = core::decide_agent_pick({ .Offered = both });
+		expect(pick.Agent == a && !pick.Kept, "before setup is known the first offered is a provisional default");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = both, .Saved = b, .SetupKnown = true });
+		expect(pick.Agent == b && pick.Kept, "the saved agent, once known, is the first pick and is kept");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = reorder, .Saved = c, .SetupKnown = true });
+		expect(pick.Agent == b, "offered again, reordered, with another saved agent: the kept pick stays");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = both, .Chose = a });
+		expect(pick.Agent == a && pick.Kept, "the reviewer's choice is the pick");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = both, .Saved = b, .SetupKnown = true });
+		expect(pick.Agent == a, "a setup update does not move the reviewer's choice back to the saved agent");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = both, .Saved = b, .SetupKnown = true, .Chose = b });
+		expect(pick.Agent == b && pick.Kept, "the setup wizard's choice is a choice");
+
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = onlyA, .Saved = a, .SetupKnown = true });
+		expect(pick.Agent == b && pick.Kept, "a removed agent stays the pick; nothing is put in its place");
+		expect(!core::agent_pick_available(pick, onlyA), "and it is unavailable");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = { }, .SetupKnown = true });
+		expect(pick.Agent == b, "nothing offered keeps it too");
+		pick = core::decide_agent_pick({ .Current = pick, .Offered = both, .SetupKnown = true });
+		expect(pick.Agent == b && core::agent_pick_available(pick, both), "offered again, it is available again");
+
+		const auto none = core::decide_agent_pick({ .Offered = { }, .SetupKnown = true });
+		expect(!none.Agent && !none.Kept, "with nothing offered and nothing chosen there is no pick to keep");
+		const auto unsaved = core::decide_agent_pick({ .Current = none, .Offered = both, .Saved = c, .SetupKnown = true });
+		expect(unsaved.Agent == a && unsaved.Kept, "a saved agent not offered: the first offered, kept");
 	}
 
 	/// \brief One row per declared observation, tied to the declared count.
@@ -941,6 +983,7 @@ auto main() -> int
 	test_the_policy_and_the_session_keep_their_refusals();
 	test_a_refused_action_is_one_named_send_refusal();
 	test_a_send_is_refused_before_it_is_made_in_order();
+	test_the_agent_menu_keeps_the_choice();
 	test_no_observation_can_produce_an_invocation();
 	test_a_chat_starts_at_the_reviewers_selection();
 	test_a_turn_without_a_widening_intent_stays_where_it_is();
