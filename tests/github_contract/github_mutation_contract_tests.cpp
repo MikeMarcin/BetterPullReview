@@ -2191,6 +2191,75 @@ namespace {
 					.has_value(),
 			   "redirect response is rejected");
 	}
+	/// [[BPR-1826]]. A closed or merged pull request's binding compiles a
+	/// thread's resolution, its read of the thread and its read of the pull
+	/// request, and nothing else; its pull request read must still say
+	/// closed, and an open binding's must still say open.
+	void test_a_closed_pull_request_compiles_only_a_threads_resolution()
+	{
+		auto binding        = *request().LiveBinding;
+		binding.Target.Open = false;
+		auto resolution     = application::review_thread_resolution_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Thread         = "PRRT_fixture_1",
+			.Resolve        = true,
+			.LiveBinding    = binding,
+		};
+		const auto resolve = compile_thread_resolution_request(resolution);
+		expect(resolve.has_value() && resolve->Operation == review_mutation_operation::resolve_review_thread
+				   && validate_outbound_review_mutation_request(*resolve).has_value(),
+			   "a closed pull request's resolution compiles and revalidates");
+		resolution.Resolve   = false;
+		const auto unresolve = compile_thread_resolution_request(resolution);
+		expect(unresolve.has_value() && unresolve->Operation == review_mutation_operation::unresolve_review_thread
+				   && validate_outbound_review_mutation_request(*unresolve).has_value(),
+			   "and so does its unresolve");
+		const auto observeThread = compile_thread_target_observation_request(resolution);
+		expect(observeThread.has_value() && validate_outbound_review_mutation_request(*observeThread).has_value(), "and its read of the thread");
+		const auto observePullRequest = compile_target_observation_request(binding.Target, application::github_server_contract::github_com_2022_11_28);
+		expect(observePullRequest.has_value() && validate_outbound_review_mutation_request(*observePullRequest).has_value(), "and its read of the pull request");
+
+		auto closedBody = target_body(target().Semantic.ExpectedHead);
+		closedBody.replace(closedBody.find("\"state\":\"open\""), 14U, "\"state\":\"closed\"");
+		const auto openRead   = review_mutation_wire_response{ .Status = 200, .Body = target_body(target().Semantic.ExpectedHead) };
+		const auto closedRead = review_mutation_wire_response{ .Status = 200, .Body = closedBody };
+		const auto observed   = parse_target_observation(closedRead, binding.Target);
+		expect(observed.has_value() && observed->Target == binding.Target, "a closed binding reads its pull request closed");
+		const auto reopened = parse_target_observation(openRead, binding.Target);
+		expect(!reopened.has_value() && reopened.error() == review_mutation_contract_failure::identity_mismatch,
+			   "a pull request reopened since the read is refused, not resolved under a closed binding");
+		const auto closedSince = parse_target_observation(closedRead, target());
+		expect(!closedSince.has_value() && closedSince.error() == review_mutation_contract_failure::identity_mismatch,
+			   "an open binding still refuses a pull request closed since");
+		auto unknownState = closedBody;
+		unknownState.replace(unknownState.find("\"state\":\"closed\""), 16U, "\"state\":\"locked\"");
+		expect(!parse_target_observation({ .Status = 200, .Body = unknownState }, binding.Target).has_value(), "a state GitHub does not name is refused");
+
+		auto reply                = request();
+		reply.LiveBinding->Target = binding.Target;
+		expect(!compile_review_comment_request(reply).has_value(), "a comment on the closed pull request does not compile");
+		const auto reaction = application::review_reaction_request{
+			.Target = target().Semantic, .ActingIdentity = identity().Account, .Subject = "PRRC_fixture_1", .Content = core::reaction_content::heart, .Add = true, .LiveBinding = binding
+		};
+		expect(!compile_reaction_request(reaction).has_value() && !compile_reaction_subject_observation_request(reaction).has_value(), "nor does a reaction");
+		const auto description = application::review_description_request{
+			.Target = target().Semantic, .ActingIdentity = identity().Account, .Original = "Before.", .Body = "After.", .LiveBinding = binding
+		};
+		expect(!compile_description_request(description).has_value(), "nor a description edit");
+		const auto edit = application::review_comment_edit_request{
+			.Target = target().Semantic, .ActingIdentity = identity().Account, .Kind = core::comment_edit_kind::review_comment, .Subject = "PRRC_fixture_1", .Original = "Before.", .Body = "After.", .LiveBinding = binding
+		};
+		expect(!compile_comment_edit_request(edit).has_value(), "nor a comment edit");
+		const auto reviewer = application::review_reviewer_request{
+			.Target = target().Semantic, .ActingIdentity = identity().Account, .Operation = application::review_reviewer_operation::request, .User = "U_kgDOsam", .Login = "sam", .LiveBinding = binding
+		};
+		expect(!compile_reviewer_request(reviewer).has_value(), "nor a reviewer request");
+		expect(!compile_review_comment_collection_request(binding.Target, application::github_server_contract::github_com_2022_11_28, 1U).has_value()
+				   && !compile_merge_base_observation_request(binding.Target, application::github_server_contract::github_com_2022_11_28).has_value(),
+			   "nor a publication's own reads");
+	}
+
 	/// [[BPR-1560]]. The publication's merge-base observation: one GET of
 	/// compare on the page with no file list, whose answer must echo the
 	/// target's head and name a full merge base of its format.
@@ -2832,6 +2901,7 @@ auto main() -> int
 	test_whole_review_exact_integer_ids_and_extensions();
 	test_zero_based_semantic_lines_translate_to_one_based_rest_lines();
 	test_exact_response_identity_and_bounds();
+	test_a_closed_pull_request_compiles_only_a_threads_resolution();
 	test_historical_review_target_identity();
 	test_legacy_exact_integer_json();
 	test_legacy_json_validation_and_canonical_bytes();

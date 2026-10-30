@@ -966,6 +966,21 @@ set_tests_properties(application_thread_resolution_refresh PROPERTIES
     PASS_REGULAR_EXPRESSION "thread-resolution-refresh-public-path:pass"
     TIMEOUT 120)
 
+# [[BPR-1826]]. A closed or merged pull request's threads resolve and
+# unresolve through the composed application; its write connection offers
+# nothing else.
+bpr_add_executable(test_better_pull_review_closed_thread_resolution closed_pull_request_thread_resolution_public_path.cpp)
+target_link_libraries(test_better_pull_review_closed_thread_resolution PRIVATE BetterPullReview::Composition BetterPullReview::Platform)
+target_compile_definitions(test_better_pull_review_closed_thread_resolution PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_better_pull_review_closed_thread_resolution PRIVATE cxx_std_23)
+bpr_enable_hardening(test_better_pull_review_closed_thread_resolution)
+bpr_enable_warnings(test_better_pull_review_closed_thread_resolution)
+bpr_add_network_isolated_test(NAME application_closed_thread_resolution WINDOWS_UNCONTAINED COMMAND test_better_pull_review_closed_thread_resolution)
+set_tests_properties(application_closed_thread_resolution PROPERTIES
+    ENVIRONMENT "QT_QPA_PLATFORM=offscreen"
+    PASS_REGULAR_EXPRESSION "closed-thread-resolution-public-path:pass"
+    TIMEOUT 180)
+
 # [[BPR-1720]]. Help › About as composed: this build's facts, the
 # installed legal folder and its regular-file rule, and the links reaching the
 # tests-only browser launch with exactly their admitted addresses.

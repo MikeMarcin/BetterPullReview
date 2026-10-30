@@ -1,3 +1,17 @@
+# [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29), over
+# 9c0286a6c (last matching: BPR-1824's 4acc4f253). github_application.cpp
+# only. compose_review_mutation selects a closed or merged pull request too
+# (select_observed_review_mutation's aAdmitClosed, in the fixture branch and
+# the production #else branch), its binding's Open taken from the accepted
+# read; for a closed one it composes the same provider and host and stops
+# before shared drafts and the editor target. application::valid stays
+# open-only, so every grant, issuer and host path but a thread's resolution
+# refuses a closed binding, and the GitHub adapter compiles nothing else for
+# one. Review submission, source observation and off-hunk facts still select
+# an open pull request only. The fixture access gains
+# thread_resolution_evidence. No credential, provider selection, publication
+# admission or source-inventory change. The production mutation-branch pin
+# changes from 16d135419 for the one added argument.
 # [[BPR-1815]] review-bar view controls reseal (2026-10-29), merged over main 826583ec3 (BPR-1816).
 # github_application.cpp changes only its navigation-row probe: the review
 # bar's exact order gains the view rule, One pane and Go to header/source
@@ -2502,6 +2516,8 @@ function(bpr_verify_full_application_digest source_variable)
 	# send's core::agent_send_refusal to the Agent tab beside the composer. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29), over
+	# 9c0286a6c, as described at the top of this file.
 	# [[BPR-1824]] Discuss resolve reseal (2026-10-29), over f0de69330.
 	# github_application.cpp's review_mutation_gesture_grant binds every
 	# gesture that is no inline comment publication (resolution, reaction,
@@ -2523,7 +2539,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"cacaa91b43fa501a9f34a9268a9ad3c4ce24c157fef9e1691f4e9e753ad6c461"
+		"05d4bdbe1ca1fefa2eea981c28ffc161c36bbbd9adf57311bb0d9373c23bfa73"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2796,13 +2812,15 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1823]] kept-agent reseal (2026-10-29): github_application.cpp only,
 # as described at the full digest. No grant, mutation, publication or
 # source-inventory change.
+# [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29):
+# github_application.cpp only, as described at the top of this file.
 # [[BPR-1824]] Discuss resolve reseal (2026-10-29): github_application.cpp
 # only, as described at the full digest. The gesture grant no longer waits on
 # a selected diff for a non-publication gesture; same issuer, binding and
 # account/pull-request match. No provider, credential, publication admission
 # or source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "8ac269bf717e8663934fc9ac59a4cfc4ba780442363ad2a732632512d8b27298"
+        "ca39e0ff81824149f16adb2200eadf5ea11334a1e534109c98bfc5c2fdbc4815"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -3142,8 +3160,12 @@ function(bpr_verify_production_mutation_host_digest source_variable)
         ${source_variable}
         bpr_mutation_production_digest
     )
+    # [[BPR-1826]]. The production branch selects a closed or merged pull
+    # request too (select_observed_review_mutation(..., true)); the same
+    # provider, recovery store, grant and host are composed, and a closed
+    # binding takes only a thread's resolution. Was 16d135419.
     set(bpr_expected_mutation_production_digest
-        "16d135419d39078bc3993b4e1cb80226e190edce50cd24d9456843066043a0e1"
+        "53d6792a18661d4af3e890a4a643b42c2e7649a5783c6530e247fab20834820a"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

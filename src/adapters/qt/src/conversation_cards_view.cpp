@@ -523,8 +523,6 @@ namespace bpr::qt {
 							: QObject::tr("GitHub doesn't let your account reopen this thread. That takes write access to the repository.");
 		case refusal::already_in_state:
 			return aResolve ? QObject::tr("This thread is already resolved.") : QObject::tr("This thread is already open.");
-		case refusal::pull_request_closed:
-			return QObject::tr("This pull request is closed. BetterPullReview changes threads only on open pull requests; use the pull request's page on GitHub.");
 		case refusal::no_write_connection:
 			return QObject::tr("BetterPullReview isn't connected to change this pull request yet. Refresh the pull request, then try again.");
 		case refusal::not_a_review_thread:
@@ -665,8 +663,9 @@ namespace bpr::qt {
 			!ReadStateKnown ? tr("Read state is not available yet.") : tr("Every post in this conversation is yours."));
 		menu->actions().back()->setObjectName(QStringLiteral("threadReadAction"));
 		// [[BPR-1824]]. The core's own decision, with its reason: the pull
-		// request's (sign-in, closed, connection, server), then GitHub's word
-		// on this viewer and thread.
+		// request's (sign-in, connection, server), then GitHub's word on this
+		// viewer and thread. [[BPR-1826]]. A closed or merged pull request's
+		// threads resolve as an open one's do.
 		const auto resolutionRefusal = core::decide_thread_resolution(core::thread_resolution_input{
 			.Capability      = ResolutionRefusal == core::thread_resolution_refusal::capability_absent ? core::github_capability_state::unknown : core::github_capability_state::supported,
 			.AnonymousRead   = ResolutionRefusal == core::thread_resolution_refusal::anonymous_read,
@@ -674,7 +673,6 @@ namespace bpr::qt {
 			.Resolve         = !card.Resolved,
 			.ViewerPermitted = card.ResolutionPermitted,
 			.ReviewThread    = card.Kind == QStringLiteral("Inline thread"),
-			.PullRequestOpen = ResolutionRefusal != core::thread_resolution_refusal::pull_request_closed,
 			.WriteConnection = ResolutionRefusal != core::thread_resolution_refusal::no_write_connection,
 		});
 		add(card.Resolved ? card_action::unresolve : card_action::resolve, card.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
