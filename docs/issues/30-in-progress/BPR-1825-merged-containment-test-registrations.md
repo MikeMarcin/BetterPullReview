@@ -63,3 +63,10 @@ registration functions and actual row block, then rejects a removed marker or
 scrub. All 74 policy tests and documentation pass on the isolated candidate.
 The complete corrected native manifest remains pending; the original frozen
 N6 failures and the two operator-only replay refusals remain separate.
+
+The first Windows regression invocation correctly failed because the new
+configure-only fixture queried a Visual Studio test graph without selecting a
+configuration, yielding zero rows. That original fixture error is retained in
+`n6-isolated-registration-native-r1`. The query now explicitly selects Debug
+and requires exactly one registered row before checking its policy; no product
+profile, source guard or course deadline is changed.
