@@ -2502,8 +2502,17 @@ function(bpr_verify_full_application_digest source_variable)
 	# send's core::agent_send_refusal to the Agent tab beside the composer. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1823]] kept-agent reseal (2026-10-29), over fe67d8ea6.
+	# github_application.cpp passes the setup's saved agent to the picker as
+	# its first pick only (setup_saved_profile), takes the setup wizard's
+	# Choose and Custom agent... add into the picker (take_setup_choice),
+	# switches an opened pull request's thread to the chosen agent instead of
+	# switching the picker to the agent it was last asked with, and forgets
+	# the choice on Reset agents; core::decide_agent_pick decides. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"c5591b2bbac4ac24ed714c2b79d9483a70dfc5573bd4c57e483b46b18ecec08d"
+		"28f57f1b216f281c4f0e1910511d9bc831c543383972376fd2ca07498ce8c977"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2773,8 +2782,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1817]] chosen-agent send reseal (2026-10-29): github_application.cpp
 # only, as described at the full digest. No grant, mutation, publication or
 # source-inventory change.
+# [[BPR-1823]] kept-agent reseal (2026-10-29): github_application.cpp only,
+# as described at the full digest. No grant, mutation, publication or
+# source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "abc3dee49fb6e1fd264dddec4137aed6f88ddbd15e7fd8a47c2f8fc6af4967f1"
+        "d42f2beca0d844d2f29cd0a69df603ceb0dbbf03e0efbfa63bd852a93d08e6a4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

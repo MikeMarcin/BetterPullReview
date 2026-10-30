@@ -494,9 +494,14 @@ namespace bpr::qt {
 		std::uint64_t            RefusalsSeen = 0U;
 		void                     hide_send_refusal();
 		[[nodiscard]] auto       send_facts(bool aMessageEmpty) const -> core::agent_send_facts;
-		[[nodiscard]] auto       current_run_settings() const -> const agent_run_settings*;
-		void                     present_run_settings_button();
-		void                     ask();
+		/// [[BPR-1823]]. The agent's name as the composer says it: the menu's,
+		/// or the chosen agent's that is no longer offered.
+		[[nodiscard]] auto agent_name() const -> QString;
+		/// [[BPR-1823]]. The pill when the chosen agent is unavailable.
+		void               present_unavailable_agent();
+		[[nodiscard]] auto current_run_settings() const -> const agent_run_settings*;
+		void               present_run_settings_button();
+		void               ask();
 		/// One question and its answer.
 		struct turn
 		{

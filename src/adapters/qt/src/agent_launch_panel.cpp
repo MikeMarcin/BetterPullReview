@@ -13,10 +13,13 @@
 #include <QListWidget>
 #include <QListWidgetItem>
 #include <QPlainTextEdit>
+#include <QStandardItem>
+#include <QStandardItemModel>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <QVariant>
 
+#include <algorithm>
 #include <utility>
 
 namespace bpr::qt {
@@ -187,7 +190,17 @@ namespace bpr::qt {
 			ProfileSelector,
 			&QComboBox::currentIndexChanged,
 			this,
-			[this](int) { update_actions(); });
+			[this](const int aIndex) {
+				// [[BPR-1823]]. A change this panel did not make is a choice:
+				// the reviewer's, in this menu or one that shares its model.
+				if (!Settling && aIndex >= 0) {
+					if (const auto chosen = ProfileSelector->itemData(aIndex); chosen.isValid()) {
+						settle_pick(core::agent_profile_id{ chosen.toULongLong() });
+						return;
+					}
+				}
+				update_actions();
+			});
 
 		update_actions();
 	}
@@ -208,7 +221,9 @@ namespace bpr::qt {
 	void agent_launch_panel::offer_profiles(
 		const std::span<const core::agent_profile> aProfiles)
 	{
+		Settling = true;
 		ProfileSelector->clear();
+		OfferedIds.clear();
 		for (const auto& profile : aProfiles) {
 			// [[BPR-1753]], RFC-BPR-0092 Q4: the menu says the agent's
 			// plain name, as the setup does.
@@ -223,27 +238,79 @@ namespace bpr::qt {
 			}
 			ProfileSelector->addItem(name, QVariant::fromValue<qulonglong>(profile.Id.value()));
 			ProfileSelector->setItemData(ProfileSelector->count() - 1, QString::fromStdString(profile.DisplayName), Qt::ToolTipRole);
+			OfferedIds.push_back(profile.Id);
+			// [[BPR-1823]]. Remembered, so a chosen agent that goes is named.
+			const auto known = std::ranges::find(KnownNames, profile.Id, &std::pair<core::agent_profile_id, QString>::first);
+			if (known != KnownNames.end()) {
+				known->second = name;
+			} else {
+				KnownNames.emplace_back(profile.Id, name);
+			}
 		}
-		// A placeholder keeps QComboBox at -1; retain the offered first choice,
-		// or the profile setup saved when it is offered.
-		if (!aProfiles.empty()) {
-			const auto preferred = PreferredProfile ? ProfileSelector->findData(QVariant::fromValue<qulonglong>(PreferredProfile->value())) : -1;
-			ProfileSelector->setCurrentIndex(preferred >= 0 ? preferred : 0);
-		}
-		update_actions();
+		Settling = false;
+		// [[BPR-1823]]. Offering again never moves a kept choice.
+		settle_pick(std::nullopt);
 	}
 
 	void agent_launch_panel::prefer_profile(const std::optional<core::agent_profile_id> aProfile)
 	{
 		PreferredProfile = aProfile;
-		if (!aProfile) {
-			return;
+		SetupKnown       = true;
+		settle_pick(std::nullopt);
+	}
+
+	void agent_launch_panel::choose_profile_from_setup(const core::agent_profile_id aProfile)
+	{
+		settle_pick(aProfile);
+	}
+
+	void agent_launch_panel::forget_choice()
+	{
+		Pick = { };
+		PreferredProfile.reset();
+		SetupKnown = false;
+		settle_pick(std::nullopt);
+	}
+
+	auto agent_launch_panel::unavailable_agent_name() const -> QString
+	{
+		return UnavailableName;
+	}
+
+	void agent_launch_panel::settle_pick(const std::optional<core::agent_profile_id> aChose)
+	{
+		Pick     = core::decide_agent_pick({
+			.Current    = Pick,
+			.Offered    = OfferedIds,
+			.Saved      = PreferredProfile,
+			.SetupKnown = SetupKnown,
+			.Chose      = aChose,
+		});
+		Settling = true;
+		// The unavailable entry, when there is one, follows the offered agents.
+		while (ProfileSelector->count() > static_cast<int>(OfferedIds.size())) {
+			ProfileSelector->removeItem(ProfileSelector->count() - 1);
 		}
-		const auto index = ProfileSelector->findData(QVariant::fromValue<qulonglong>(aProfile->value()));
-		if (index >= 0 && index != ProfileSelector->currentIndex()) {
-			ProfileSelector->setCurrentIndex(index);
-			update_actions();
+		UnavailableName.clear();
+		if (core::agent_pick_available(Pick, OfferedIds)) {
+			ProfileSelector->setCurrentIndex(ProfileSelector->findData(QVariant::fromValue<qulonglong>(Pick.Agent->value())));
+		} else if (Pick.Agent) {
+			// Chosen, and gone: said as unavailable, never replaced. The
+			// entry carries no agent, so nothing can be sent to it.
+			const auto known = std::ranges::find(KnownNames, *Pick.Agent, &std::pair<core::agent_profile_id, QString>::first);
+			UnavailableName  = known != KnownNames.end() ? known->second : QStringLiteral("The chosen agent");
+			ProfileSelector->addItem(QStringLiteral("%1 (unavailable)").arg(UnavailableName));
+			const auto at = ProfileSelector->count() - 1;
+			ProfileSelector->setItemData(at, QStringLiteral("%1 isn't in your agents, or this pull request's server doesn't allow it. Choose an agent.").arg(UnavailableName), Qt::ToolTipRole);
+			if (auto* const model = qobject_cast<QStandardItemModel*>(ProfileSelector->model()); model != nullptr && model->item(at) != nullptr) {
+				model->item(at)->setEnabled(false);
+			}
+			ProfileSelector->setCurrentIndex(at);
+		} else {
+			ProfileSelector->setCurrentIndex(-1);
 		}
+		Settling = false;
+		update_actions();
 	}
 
 	void agent_launch_panel::offer(

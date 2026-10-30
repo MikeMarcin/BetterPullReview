@@ -1066,7 +1066,7 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		const auto setUp      = Launch.profile_selector()->count() > 0;
+		const auto setUp      = Launch.offered_count() > 0U;
 		const auto running    = Launch.cancel_action()->isEnabled();
 		const auto status     = Launch.status_text();
 		const auto failed     = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
@@ -1125,7 +1125,7 @@ namespace bpr::qt {
 			const auto blocked = send_blocked();
 			Ask->setToolTip(blocked == core::agent_send_refusal::none
 								? tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
-								: send_refusal_words(blocked, Launch.profile_selector()->currentText()));
+								: send_refusal_words(blocked, agent_name()));
 			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
 			Ask->setEnabled(Chat.send_action()->isEnabled());
 		}
@@ -2406,9 +2406,16 @@ namespace bpr::qt {
 			.ReviewOpen           = Chat.send_action()->isEnabled() || required,
 			.ContinuationRequired = required,
 			.AgentChosen          = Launch.selected_profile().has_value(),
+			.AgentUnavailable     = !Launch.unavailable_agent_name().isEmpty(),
 			.MessageEmpty         = aMessageEmpty,
 			.InFlight             = State == agent_tab_state::working,
 		};
+	}
+
+	auto agent_tab_view::agent_name() const -> QString
+	{
+		const auto unavailable = Launch.unavailable_agent_name();
+		return unavailable.isEmpty() ? Launch.profile_selector()->currentText() : unavailable;
 	}
 
 	auto agent_tab_view::send_blocked() const -> core::agent_send_refusal
@@ -2455,6 +2462,7 @@ namespace bpr::qt {
 		case core::agent_send_refusal::scope_invalid:            return tr("What this question is about is no longer in the review. Choose its context again.");
 		case core::agent_send_refusal::private_context_refused:  return tr("The private notes or draft chosen belong to another conversation. Choose them again.");
 		case core::agent_send_refusal::launch_refused:           return tr("%1 didn't start.").arg(agent);
+		case core::agent_send_refusal::agent_unavailable:        return tr("%1 isn't available. Choose an agent in the agent menu, then send.").arg(agent);
 		}
 		return { };
 	}
@@ -2507,7 +2515,7 @@ namespace bpr::qt {
 				detail.clear();
 			}
 		}
-		auto text = tr("Not sent. %1").arg(send_refusal_words(aRefusal, Launch.profile_selector()->currentText()));
+		auto text = tr("Not sent. %1").arg(send_refusal_words(aRefusal, agent_name()));
 		if (!detail.isEmpty()) {
 			// The host's words, with its stable names made readable.
 			detail.replace(QLatin1Char{ '_' }, QLatin1Char{ ' ' });
@@ -2567,6 +2575,10 @@ namespace bpr::qt {
 	void agent_tab_view::present_run_settings_button()
 	{
 		const auto* const settings = current_run_settings();
+		if (settings == nullptr && !Launch.unavailable_agent_name().isEmpty()) {
+			present_unavailable_agent();
+			return;
+		}
 		RunSettings->setVisible(settings != nullptr);
 		if (settings == nullptr) {
 			return;
@@ -2691,6 +2703,45 @@ namespace bpr::qt {
 		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
 		// Owner look v006 ("This model picker dropdown should have a link to
 		// open the agent settings page").
+		auto* const open = menu->addAction(tr("Agent settings…"));
+		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
+		connect(open, &QAction::triggered, this, [this] {
+			if (Setup) {
+				Setup();
+			}
+		});
+	}
+
+	void agent_tab_view::present_unavailable_agent()
+	{
+		// [[BPR-1823]], owner ruling 2026-10-29. The chosen agent went (removed
+		// in Settings, or not allowed here) and none was put in its place: the
+		// pill says so, state first so a narrow pill keeps it, and its menu is
+		// where another is chosen.
+		const auto name = Launch.unavailable_agent_name();
+		const auto full = tr("Unavailable: %1").arg(name);
+		RunSettings->setVisible(true);
+		RunSettings->setProperty("agentRunSettingsText", full);
+		RunSettings->setAccessibleName(tr("Agent: %1 is unavailable. Choose an agent.").arg(name));
+		RunSettingsTip = tr("%1 isn't in your agents, or this pull request's server doesn't allow it. Nothing is sent until you choose an agent.").arg(name);
+		fit_run_settings();
+		auto* const menu = RunSettings->menu();
+		if (menu->isVisible()) {
+			MenuStale = true;
+			return;
+		}
+		MenuStale = false;
+		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
+			submenu->deleteLater();
+		}
+		menu->clear();
+		menu->addAction(tr("%1 isn't available. Choose an agent:").arg(name))->setEnabled(false);
+		for (const auto& offered : RunSettingsShown) {
+			auto* const item = menu->addAction(offered.Agent);
+			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
+			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
+		}
+		menu->addSeparator();
 		auto* const open = menu->addAction(tr("Agent settings…"));
 		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
 		connect(open, &QAction::triggered, this, [this] {

@@ -261,12 +261,17 @@ namespace {
 		expect(start.Profile == profiles[1].Id
 				   && start.IncludedNotes == std::vector{ notes[1] } && start.IncludedDraft == draft,
 			   "the request carries exactly the profile and private identities selected in Settings");
+		const auto secondName = selector->itemText(1);
 		panel->offer_profiles(std::span{ profiles }.first(1));
 		panel->offer_private_context(std::span{ notes }.first(1), std::nullopt);
-		expect(selector->count() == 1 && noteList->model()->rowCount() == 1
+		// [[BPR-1823]], owner ruling 2026-10-29: the chosen Second, no longer
+		// offered, stays chosen as unavailable rather than becoming First.
+		expect(panel->offered_count() == 1U && selector->count() == 2 && selector->itemData(0) == QVariant::fromValue<qulonglong>(1U)
+				   && !panel->selected_profile().has_value() && panel->unavailable_agent_name() == secondName
+				   && noteList->model()->rowCount() == 1
 				   && !draftBox->isChecked() && !draftBox->isEnabled()
 				   && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
-			   "a changed offer removes old choices and clears private opt-ins");
+			   "a changed offer removes old choices, keeps the removed choice as unavailable, and clears private opt-ins");
 		panel->set_running(true);
 		expect(!noteList->isEnabled(), "private context is disabled during a request");
 		window.set_storage_location(QStringLiteral("/fixture/local-data"));
@@ -14168,6 +14173,125 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1823]], owner ruling 2026-10-29. The composer keeps the
+	/// reviewer's agent through re-offers; a chosen agent that is removed is
+	/// said as unavailable in the pill and its menu, never replaced, and a send
+	/// to it is refused with "Not sent." and why.
+	void test_a_removed_agent_is_unavailable_in_the_composer()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		const auto make = [](const std::uint32_t aId, const char* aName) {
+			auto profile        = core::agent_profile{ };
+			profile.Id          = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, aId);
+			profile.Protocol    = core::agent_protocol::codex_jsonl_exec;
+			profile.DisplayName = aName;
+			profile.Executable  = "/usr/bin/true";
+			return profile;
+		};
+		const auto first       = make(1U, "Review agent");
+		const auto second      = make(2U, "Fixture agent");
+		const auto both        = std::vector{ first, second };
+		auto*      panel       = window.agent_panel();
+		const auto settingsFor = [](const core::agent_profile& aProfile) {
+			auto settings    = qt::agent_run_settings{ };
+			settings.Profile = aProfile.Id.value();
+			settings.Agent   = QString::fromStdString(aProfile.DisplayName);
+			settings.Program = QStringLiteral("/usr/bin/true");
+			return settings;
+		};
+		panel->prefer_profile(first.Id);
+		panel->offer_profiles(both);
+		agent->present_run_settings({ settingsFor(first), settingsFor(second) });
+		process_events();
+		expect(panel->selected_profile() == std::optional{ first.Id }, "the saved agent is the first pick");
+		expect(agent->choose_agent(second.Id.value()), "the reviewer chooses the other agent from the pill's menu");
+		process_events();
+		panel->prefer_profile(first.Id);
+		panel->offer_profiles(both);
+		process_events();
+		expect(panel->selected_profile() == std::optional{ second.Id } && agent->run_settings_text().startsWith(QStringLiteral("Fixture agent")),
+			   "a setup update and a re-offer keep the reviewer's agent in the pill");
+
+		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = second.Id, .Binding = binding };
+		auto*      chat    = window.side_chat();
+		auto       sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+
+		// Removed in Settings: the host offers only the first agent now.
+		panel->offer_profiles(std::vector{ first });
+		agent->present_run_settings({ settingsFor(first) });
+		process_events();
+		agent->refresh();
+		process_events();
+		expect(!panel->selected_profile().has_value() && panel->unavailable_agent_name() == QStringLiteral("Fixture agent"), "the removed agent is not replaced by the other");
+		expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
+			   "the pill says the chosen agent isn't available: " + agent->run_settings_text().toStdString());
+		auto* const menu    = agent->run_settings_button()->menu();
+		const auto  actions = menu->actions();
+		expect(!actions.isEmpty() && actions.front()->text() == QStringLiteral("Fixture agent isn't available. Choose an agent:") && !actions.front()->isEnabled()
+				   && std::ranges::count_if(actions, [](const QAction* aAction) { return aAction->objectName() == QStringLiteral("agentRunSettingsAgent"); }) == 1,
+			   "its menu says so and offers the agents to choose from");
+		chat->composer()->setPlainText(QStringLiteral("What does the retry budget do?"));
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::agent_unavailable && agent->send_refusal_strip()->isVisible()
+				   && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent isn't available. Choose an agent in the agent menu, then send."),
+			   "a send to it is refused and says why: " + agent->send_refusal_text().toStdString());
+		expect(chat->composer()->toPlainText() == QStringLiteral("What does the retry budget do?"), "the question stays in the field");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-unavailable-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			auto       dark  = light;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+				dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+				dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+				dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+				dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+			}
+			QApplication::setPalette(dark);
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-unavailable-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+
+		// Choosing the other agent from the pill's menu ends it.
+		expect(agent->choose_agent(first.Id.value()), "another agent is chosen from the menu");
+		process_events();
+		expect(panel->selected_profile() == std::optional{ first.Id } && panel->unavailable_agent_name().isEmpty() && agent->run_settings_text().startsWith(QStringLiteral("Review agent")),
+			   "the pill names the chosen agent again");
+		chat->set_dispatch({ });
+		window.hide();
+	}
+
 	void test_the_agent_is_a_drawer_tab()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -23721,6 +23845,7 @@ auto main(int argc, char** argv) -> int
 	// [[BPR-1817]]. The composer's refusals, on their own.
 	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
 		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
 		if (!listCases) {
 			std::cout << "workbench-agent-send-refusal:pass\n";
 		}
