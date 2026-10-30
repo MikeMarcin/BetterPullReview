@@ -1,0 +1,14 @@
+{
+  "schema": "bpr.scoped-issue-id-alias.v1",
+  "oldId": "BPR-1817",
+  "newId": "BPR-1819",
+  "scope": "Only release-v041 tooling contracts authored/claimed at c3cc74b0b/cf33201e0, corrected at03ba3555d and closed0856a62f6; original evidence/commits remain immutable.",
+  "canonicalOldIdOwner": "Unrelated canonical agent-send/refusal feature; owner runtime/source preserved and not imported.",
+  "canonicalOldIdReceipt": "docs/issues/_reservations/BPR-1817--BPR-1817--87e01cb1fff1.json",
+  "collidingHistoricalReceipt": "docs/issues/_reservations/BPR-1817--BPR-1817--cf66f64b3571.json",
+  "replacementReceipt": "docs/issues/_reservations/BPR-1819--BPR-1821--98e70ae83b0a.json",
+  "canonicalAllocationCommit": "c1c3510f5",
+  "metadataIntegrationCommit": "9e169bbb2",
+  "renumberedCard": "docs/issues/60-done/BPR-1819-qualification-tooling-contracts.md",
+  "prohibitedInference": "This alias neither transfers the canonical feature nor rewrites historical producer/source/cohort results."
+}

@@ -4,7 +4,7 @@ id: "BPR-1818"
 title: "Restore four native review public contracts"
 status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
-depends_on: ["BPR-1817"]
+depends_on: ["BPR-1819"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v041-same-preview-waivers-r1", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
