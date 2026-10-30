@@ -1,4 +1,5 @@
 #include "bpr/logging/quill_log.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/epoch_catalog_port.hpp"
 #include "bpr/application/git_cache_port.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
@@ -418,7 +419,7 @@ namespace bpr::adapters::logging {
 			return identity;
 		}
 
-		constexpr std::array<std::string_view, 8>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery" };
+		constexpr std::array<std::string_view, 9>  operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery", "agent.run" };
 		constexpr std::array<std::string_view, 18> paged_operations{ "none", "GetViewerIdentity", "GetRepository", "GetPullRequest", "ListPullRequestFiles", "ListPullRequestCommits", "ListReviews", "ListReviewThreads", "ListIssueComments", "ListChecks", "SearchPullRequests", "ListReviewComments", "ListPullRequestTimeline", "GetMergeBase", "ListRequestedReviewers", "ListHomePullRequests", "ListHomeReviewMembership", "ListReviewRequests" };
 		constexpr std::array<std::string_view, 6>  outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 		constexpr std::array<std::string_view, 5>  summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
@@ -545,6 +546,14 @@ namespace bpr::adapters::logging {
 				State->drop();
 				return status_type::dropped;
 			}
+			// [[BPR-1827]]. An agent run line's detail is exactly an agent run
+			// diagnosis, so it can name no program, path, prompt or answer.
+			if (aEvent.Operation == application::diagnostic_operation::agent_run
+				&& (aEvent.ReviewSubmission || aEvent.ReviewEnding || aEvent.GithubFailure.index() != 0U || aEvent.EpochFailure.index() != 0U
+					|| aEvent.Summary.State != application::diagnostic_summary_state::sanitized || !application::parse_agent_run_diagnosis(aEvent.Summary.text()))) {
+				State->drop();
+				return status_type::dropped;
+			}
 			if ((aEvent.Detail != application::diagnostic_detail::standard && aEvent.Detail != application::diagnostic_detail::verbose) || gitStep >= gitSteps.size() || transportSource >= transportSources.size() || (aEvent.HttpStatus != 0U && (aEvent.HttpStatus < 100U || aEvent.HttpStatus > 599U)) || stage >= stages.size() || aEvent.EpochFailure.valueless_by_exception() || aEvent.GithubFailure.valueless_by_exception() || operation >= operations.size() || outcome >= outcomes.size() || paged >= paged_operations.size() || summary >= summaries.size() || aEvent.Summary.Size > aEvent.Summary.Text.size() || (aEvent.Summary.Size != 0U && aEvent.Summary.State != application::diagnostic_summary_state::sanitized)
 				|| std::ranges::any_of(aEvent.Summary.text(), [](const unsigned char aCharacter) { return aCharacter < 32U || aCharacter >= 127U; })) {
 				State->drop();
@@ -575,8 +584,9 @@ namespace bpr::adapters::logging {
 				json_record record;
 				record.number("v", 3U);
 				record.text("event", std::string{ operations[operation] } + "." + std::string{ outcomes[outcome] });
-				record.text("category", operation == 0U ? "application" : operation == 4U ? "epoch"
-																						  : "github");
+				record.text("category", operation == 0U ? "application" : operation == 4U          ? "epoch"
+								: aEvent.Operation == application::diagnostic_operation::agent_run ? "agent"
+																								   : "github");
 				record.text("severity", aEvent.Outcome == application::diagnostic_outcome::failed ? "error" : aEvent.HttpStatus >= 400U ? "warning"
 																																		: "info");
 				record.number("utc_ms", static_cast<std::uint64_t>(utc));

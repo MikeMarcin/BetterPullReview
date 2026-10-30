@@ -501,6 +501,35 @@ namespace {
 		expect_single_termination(abnormal, "abnormal exit terminates once");
 	}
 
+	/// [[BPR-1827]]. A run says how much it wrote and which line was refused,
+	/// and a child that exits with an error mid-line is reported by its exit.
+	void test_a_failed_run_keeps_its_evidence()
+	{
+		const auto init = std::string{ R"({"type":"system","subtype":"init","session_id":"s"})" } + "\n";
+		auto       cut  = fake_transport{ };
+		cut.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = init + R"({"type":"assistant","ses)" });
+		cut.Error.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = "gateway closed\n" });
+		cut.Waits            = { { .Status = agent_protocol_wait_status::exited, .ExitCode = 3 } };
+		const auto cutResult = run(core::agent_protocol::claude_stream_json, cut);
+		expect(cutResult.Outcome == application::agent_run_outcome::nonzero_exit && cutResult.ExitCode == 3 && !cutResult.ProtocolFailure
+				   && cutResult.StandardOutputBytes == init.size() + 24U && cutResult.StandardError == "gateway closed\n",
+			   "an error exit mid-line is the exit, with what it wrote counted");
+
+		auto cleanCut = fake_transport{ };
+		cleanCut.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = init + R"({"type":"assistant","ses)" });
+		const auto cleanCutResult = run(core::agent_protocol::claude_stream_json, cleanCut);
+		expect(cleanCutResult.Outcome == application::agent_run_outcome::protocol_failure && cleanCutResult.ProtocolFailure == application::agent_protocol_failure::incomplete_frame
+				   && cleanCutResult.RejectedOutputLine == R"({"type":"assistant","ses)",
+			   "a clean exit mid-line is still an incomplete transcript, naming the line");
+
+		auto broken = fake_transport{ };
+		broken.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = init + "{\"type\":\"result\",\"subtype\":7,\"session_id\":\"s\"}\n" });
+		const auto brokenResult = run(core::agent_protocol::claude_stream_json, broken);
+		expect(brokenResult.Outcome == application::agent_run_outcome::protocol_failure && brokenResult.ProtocolFailure == application::agent_protocol_failure::malformed_frame
+				   && brokenResult.RejectedOutputLine == "{\"type\":\"result\",\"subtype\":7,\"session_id\":\"s\"}" && brokenResult.Events.empty(),
+			   "a refused line is kept for the log while the run's events are cleared");
+	}
+
 	void test_teardown_failure_preserves_the_first_cause()
 	{
 		struct teardown_case
@@ -890,6 +919,7 @@ int main()
 	test_partial_and_oversized_stdout();
 	test_stderr_and_every_pipe_status();
 	test_wait_outcomes_and_exit_classification();
+	test_a_failed_run_keeps_its_evidence();
 	test_teardown_failure_preserves_the_first_cause();
 	test_finish_backpressure_first_cause_and_termination_order();
 	test_a_failed_turn_carries_no_findings();

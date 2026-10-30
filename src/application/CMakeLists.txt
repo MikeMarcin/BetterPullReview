@@ -88,6 +88,7 @@ add_library(
         src/profile_management_host.cpp
         src/agent_finding_delivery.cpp
         src/agent_launch.cpp
+        src/agent_run_diagnosis.cpp
         src/private_review_application_host.cpp
     src/review_composition_application_host.cpp
     src/private_publication_application_host.cpp

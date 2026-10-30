@@ -14,6 +14,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <ranges>
+#include <string>
 #include <string_view>
 #include <tuple>
 #include <utility>
@@ -442,7 +443,9 @@ namespace {
 			});
 		expect(
 			panel.status_text() == "Finished: protocol_failure"
-				&& panel.output_text().isEmpty(),
+				&& !panel.output_text().contains("partial result")
+				// [[BPR-1827]]. In its place, the log of why it stopped.
+				&& panel.output_text().startsWith("What went wrong: "),
 			"a typed failed terminal clears partial output instead of presenting it as an answer");
 	}
 
@@ -557,6 +560,27 @@ namespace {
 			panel.status_text() == "Finished: cancelled",
 			"post-materialization cancellation finishes the same admitted identity");
 	}
+
+	/// [[BPR-1827]]. A run that ended without an answer says why in words,
+	/// how much the agent wrote, the line refused and its last errors.
+	void test_a_failed_run_log_says_what_happened()
+	{
+		auto result                = application::agent_run_result{ };
+		result.Outcome             = application::agent_run_outcome::protocol_failure;
+		result.ProtocolFailure     = application::agent_protocol_failure::frame_too_large;
+		result.ExitCode            = 0;
+		result.StandardOutputBytes = 223211U;
+		result.RejectedOutputLine  = std::string{ R"({"type":"user","message":)" } + std::string(600U, 'x');
+		for (auto line = 0; line < 30; ++line) {
+			result.StandardError += "warning " + std::to_string(line) + "\n";
+		}
+		const auto log = qt::agent_launch_panel::failure_log(result);
+		expect(log.contains(QStringLiteral("What went wrong: One line of its output is longer than this app reads. (frame_too_large)")), "the cause is said in words and named");
+		expect(log.contains(QStringLiteral("It wrote 223211 bytes of output and ")) && log.contains(QStringLiteral("Exit code: 0")), "what it wrote is counted");
+		expect(log.contains(QStringLiteral("First line this app couldn't read:\n{\"type\":\"user\"")) && !log.contains(QString(450, QLatin1Char{ 'x' })), "the refused line is shown, bounded");
+		expect(log.contains(QStringLiteral("warning 29")) && log.contains(QStringLiteral("warning 10")) && !log.contains(QStringLiteral("warning 9\n")), "the last twenty lines of errors are shown");
+		expect(!log.contains(QStringLiteral("wrote nothing")), "a run that wrote something never says it wrote nothing");
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -573,6 +597,7 @@ auto main(int argc, char** argv) -> int
 	test_latest_session_metadata_and_staleness_are_visible_without_retargeting();
 	test_projection_uses_the_shipped_visible_controls();
 	test_prestart_terminals_keep_the_exact_admitted_identity();
+	test_a_failed_run_log_says_what_happened();
 	std::cout << "agent-launch-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

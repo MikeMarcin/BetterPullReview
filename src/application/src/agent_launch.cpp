@@ -898,11 +898,33 @@ namespace bpr::application {
 		{
 			const auto* type    = string_member(aRoot, "type");
 			const auto* session = string_member(aRoot, "session_id");
-			if (type == nullptr || session == nullptr || session->empty()) {
+			if (type == nullptr) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
 			const auto* subtype = string_member(aRoot, "subtype");
-			if (*type == "system" && aPhase == 0U && subtype != nullptr && *subtype == "init") {
+			const auto  isInit  = *type == "system" && subtype != nullptr && *subtype == "init";
+			// [[BPR-1827]]. Only these frames carry the turn. Claude Code adds
+			// event types release by release (hook_started, task_summary,
+			// thinking_tokens, post_turn_summary, stream_event, tool_progress,
+			// rate_limit_event, ...) and fields to every frame; none of them
+			// carries output, so each is read past rather than refusing a run
+			// that answered. A frame of one of them that carries a finding
+			// payload is still refused: a payload rides only in the result.
+			const auto carriesTurn = isInit || *type == "assistant" || *type == "user" || *type == "result";
+			if (!carriesTurn) {
+				if (member(aRoot, agent_finding_payload_member)) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				// Under the session once it is known; before init any.
+				if (aPhase != 0U && session != nullptr && *session != aSession) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				return no_protocol_events();
+			}
+			if (session == nullptr || session->empty()) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			if (isInit) {
 				const auto empty = [&aRoot](const std::string_view aName) {
 					const auto* value = member(aRoot, aName);
 					return value != nullptr && value->Kind == json_kind::array_value && value->Elements.empty();
@@ -917,20 +939,18 @@ namespace bpr::application {
 				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers") || (plugins != nullptr && !empty("plugins")) || (memory != nullptr && memory->Kind != json_kind::null_value))) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				aSession = *session;
-				aPhase   = 1U;
-				return no_protocol_events();
-			}
-			// [[BPR-1375]]. Claude 2.1.296 also writes system frames other than
-			// init (a `ui_invalidate` can come first) and a `rate_limit_event`
-			// after a turn. Neither carries output or a payload; they are read
-			// past, under the session once it is known.
-			if (*type == "system" && (subtype == nullptr || *subtype != "init") && (aPhase == 0U || *session == aSession)
-				&& !member(aRoot, agent_finding_payload_member)) {
-				return no_protocol_events();
-			}
-			if (*type == "rate_limit_event" && aPhase == 1U && *session == aSession && !member(aRoot, agent_finding_payload_member)) {
-				return no_protocol_events();
+				if (aPhase == 0U) {
+					aSession = *session;
+					aPhase   = 1U;
+					return no_protocol_events();
+				}
+				// [[BPR-1827]]. A wrapper that starts Claude again, or a
+				// Claude that re-initializes, repeats init under the same
+				// session; it changes nothing.
+				if (*session == aSession) {
+					return no_protocol_events();
+				}
+				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
 			if (aPhase != 1U || *session != aSession) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
@@ -947,9 +967,16 @@ namespace bpr::application {
 				const auto* message = object_member(aRoot, "message");
 				const auto* role    = message == nullptr ? nullptr : string_member(*message, "role");
 				const auto* content = message == nullptr ? nullptr : member(*message, "content");
-				if (
-					role == nullptr || *role != *type || content == nullptr
-					|| content->Kind != json_kind::array_value) {
+				if (role == nullptr || *role != *type || content == nullptr) {
+					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				// [[BPR-1827]]. A user frame Claude writes itself (a hook's
+				// or a command's note) may carry its content as one string; it
+				// is not the agent's answer.
+				if (*type == "user" && content->Kind == json_kind::string_value) {
+					return no_protocol_events();
+				}
+				if (content->Kind != json_kind::array_value) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				auto        events    = std::vector<agent_protocol_event>{ };
@@ -1439,7 +1466,9 @@ namespace bpr::application {
 				}
 			} else if (aProtocol == core::agent_protocol::claude_stream_json) {
 				const auto* type = string_member(aRoot, "type");
-				if (type && *type == "system") {
+				// [[BPR-1827]]. Only init reports these facts; Claude's other
+				// system frames name the session and nothing it ran with.
+				if (const auto* subtype = string_member(aRoot, "subtype"); type && *type == "system" && subtype && *subtype == "init") {
 					report.Basis = "claude_stream_json.system/init: session_id,model,claude_code_version";
 					read(aRoot, "session_id", report.RemoteSession);
 					read(aRoot, "model", report.Settings.Model);
@@ -1494,6 +1523,16 @@ namespace bpr::application {
 					.Kind = agent_protocol_event_kind::output,
 					.Text = std::string{ aFrame },
 				} };
+			}
+			// [[BPR-1827]]. A wrapper around Claude Code may print a banner, a
+			// warning or a blank line on standard output. A line that does not
+			// even begin as a JSON object is not a frame and is read past; a
+			// line that begins as one and does not parse is still refused.
+			if (aProtocol == core::agent_protocol::claude_stream_json) {
+				const auto start = aFrame.find_first_not_of(" \t\r");
+				if (start == std::string_view::npos || aFrame[start] != '{') {
+					return no_protocol_events();
+				}
 			}
 			auto parsed = bounded_json_parser{ aFrame }.parse();
 			if (!parsed || parsed->Kind != json_kind::object_value) {
@@ -2832,19 +2871,24 @@ namespace bpr::application {
 			Failed = true;
 			return std::unexpected(agent_protocol_failure::causal_violation);
 		}
-		if (aBytes.size() > maximum_agent_stdout_bytes - TotalBytes) {
+		if (aBytes.size() > stream_limit() - TotalBytes) {
 			Failed = true;
 			return std::unexpected(agent_protocol_failure::output_too_large);
 		}
 		TotalBytes += aBytes.size();
+		// [[BPR-1827]]. Only the bytes just appended can hold the first
+		// newline, so a line of megabytes is not rescanned on every read.
+		auto scanFrom = Pending.size();
 		Pending.append(aBytes);
 		auto messages = std::vector<agent_protocol_event>{ };
 		while (true) {
-			const auto newline = Pending.find('\n');
+			const auto newline = Pending.find('\n', scanFrom);
+			scanFrom           = 0U;
 			if (newline == std::string::npos) {
 				break;
 			}
-			if (newline > maximum_agent_frame_bytes) {
+			if (newline > frame_limit()) {
+				reject_line(Pending);
 				Failed = true;
 				return std::unexpected(agent_protocol_failure::frame_too_large);
 			}
@@ -2859,6 +2903,7 @@ namespace bpr::application {
 				RemoteThread,
 				RemoteTurn, Metadata, WritingOnly);
 			if (!decoded) {
+				reject_line(frame);
 				Failed = true;
 				return std::unexpected(decoded.error());
 			}
@@ -2872,6 +2917,7 @@ namespace bpr::application {
 				}
 			}
 			if (!retain_output(*decoded)) {
+				reject_line(frame);
 				Failed = true;
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
@@ -2907,11 +2953,29 @@ namespace bpr::application {
 				break;
 			}
 		}
-		if (Pending.size() > maximum_agent_frame_bytes) {
+		if (Pending.size() > frame_limit()) {
+			reject_line(Pending);
 			Failed = true;
 			return std::unexpected(agent_protocol_failure::frame_too_large);
 		}
 		return messages;
+	}
+
+	auto agent_protocol_decoder::frame_limit() const noexcept -> std::size_t
+	{
+		return Protocol == core::agent_protocol::claude_stream_json ? maximum_claude_frame_bytes : maximum_agent_frame_bytes;
+	}
+
+	auto agent_protocol_decoder::stream_limit() const noexcept -> std::size_t
+	{
+		return Protocol == core::agent_protocol::claude_stream_json ? maximum_claude_stdout_bytes : maximum_agent_stdout_bytes;
+	}
+
+	void agent_protocol_decoder::reject_line(const std::string_view aLine)
+	{
+		if (RejectedLine.empty()) {
+			RejectedLine = std::string{ aLine.substr(0U, std::min(aLine.size(), maximum_agent_rejected_line_bytes)) };
+		}
 	}
 
 	auto agent_protocol_decoder::retain_output(std::vector<agent_protocol_event>& aEvents) -> bool
@@ -2961,6 +3025,7 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 		if (!Pending.empty() && Protocol != core::agent_protocol::external_terminal) {
+			reject_line(Pending);
 			Failed = true;
 			return std::unexpected(agent_protocol_failure::incomplete_frame);
 		}
@@ -3030,6 +3095,28 @@ namespace bpr::application {
 			return "timeout";
 		case agent_run_outcome::stale_result:
 			return "stale_result";
+		}
+		return "unknown";
+	}
+
+	auto name(const agent_protocol_failure aFailure) noexcept -> std::string_view
+	{
+		switch (aFailure) {
+		case agent_protocol_failure::malformed_frame:               return "malformed_frame";
+		case agent_protocol_failure::incomplete_frame:              return "incomplete_frame";
+		case agent_protocol_failure::frame_too_large:               return "frame_too_large";
+		case agent_protocol_failure::output_too_large:              return "output_too_large";
+		case agent_protocol_failure::remote_failed:                 return "remote_failed";
+		case agent_protocol_failure::remote_interrupted:            return "remote_interrupted";
+		case agent_protocol_failure::causal_violation:              return "causal_violation";
+		case agent_protocol_failure::finding_payload_too_large:     return "finding_payload_too_large";
+		case agent_protocol_failure::too_many_findings:             return "too_many_findings";
+		case agent_protocol_failure::malformed_finding_payload:     return "malformed_finding_payload";
+		case agent_protocol_failure::unknown_finding_session:       return "unknown_finding_session";
+		case agent_protocol_failure::unsupported_finding_transport: return "unsupported_finding_transport";
+		case agent_protocol_failure::invalid_runtime_metadata:      return "invalid_runtime_metadata";
+		case agent_protocol_failure::input_too_large:               return "input_too_large";
+		case agent_protocol_failure::not_signed_in:                 return "not_signed_in";
 		}
 		return "unknown";
 	}

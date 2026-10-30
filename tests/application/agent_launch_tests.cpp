@@ -3,6 +3,7 @@
 
 #include "../core/private_review_fixture.hpp"
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/review_brief.hpp"
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
@@ -19,8 +20,10 @@
 #include <iostream>
 #include <iterator>
 #include <map>
+#include <optional>
 #include <string>
 #include <string_view>
+#include <utility>
 #include <vector>
 
 namespace {
@@ -1500,6 +1503,89 @@ namespace {
 		expect(review && *review == 1U, "an ordinary review run keeps its tools and plugins");
 	}
 
+	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads
+	/// files, as a wrapper prints it, and what the decoder keeps of a line it
+	/// refuses.
+	void test_claude_decoder_reads_a_current_transcript()
+	{
+		const auto file     = std::string(90U * 1024U, 'x');
+		const auto toolLine = R"({"type":"user","message":{"role":"user","content":[{"tool_use_id":"t1","type":"tool_result","content":")" + file + R"("}]},"session_id":"s","tool_use_result":{"file":{"content":")" + file + "\"}}}\n";
+		const auto preamble = std::string{ "Wrapper banner: using the configured gateway\n\n" }
+			+ R"({"type":"system","subtype":"hook_started","hook_id":"h","session_id":"s"})" + "\n"
+			+ R"({"type":"system","subtype":"init","session_id":"s","model":"claude-sonnet-5-5","claude_code_version":"2.1.310","tools":["Read"],"skills":[],"startup_timing":{"total_ms":1}})" + "\n"
+			+ R"({"type":"system","subtype":"init","session_id":"s","model":"claude-sonnet-5-5","claude_code_version":"2.1.310"})" + "\n"
+			+ R"({"type":"user","message":{"role":"user","content":"<local-command-stdout>note</local-command-stdout>"},"session_id":"s"})" + "\n"
+			+ R"({"type":"system","subtype":"thinking_tokens","tokens":3,"session_id":"s"})" + "\n"
+			+ R"({"type":"stream_event","event":{"type":"message_delta"},"session_id":"s"})" + "\n"
+			+ R"({"type":"tool_progress","tool_use_id":"t1"})" + "\n"
+			+ R"({"type":"assistant","session_id":"s","message":{"id":"m0","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"thinking","thinking":"t","signature":"x"},{"type":"tool_use","id":"t1","name":"Read","input":{}}]}})" + "\n";
+		const auto ending = std::string{ R"({"type":"assistant","session_id":"s","message":{"id":"m1","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"text","text":"answer"}]}})" } + "\n"
+			+ R"({"type":"system","subtype":"post_turn_summary","session_id":"s"})" + "\n"
+			+ R"({"type":"result","subtype":"success","is_error":false,"session_id":"s","result":"answer"})" + "\n"
+			+ R"({"type":"system","subtype":"task_summary","session_id":"s"})" + "\n"
+			+ R"({"type":"rate_limit_event","session_id":"s","rate_limit_info":{}})" + "\n";
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		auto pushed  = decoder.push(preamble);
+		// A tool-result line arrives over many reads, as it does from a pipe.
+		for (auto copy = 0; pushed && copy < 8; ++copy) {
+			for (std::size_t offset = 0U; pushed && offset < toolLine.size(); offset += 16U * 1024U) {
+				pushed = decoder.push(std::string_view{ toolLine }.substr(offset, 16U * 1024U));
+			}
+		}
+		if (pushed) {
+			pushed = decoder.push(ending);
+		}
+		const auto finished = pushed ? decoder.finish() : std::expected<std::vector<application::agent_protocol_event>, application::agent_protocol_failure>{ std::unexpect, pushed.error() };
+		expect(pushed && finished && decoder.assistant_items() == std::vector<std::string>{ "answer" } && decoder.rejected_line().empty()
+				   && decoder.pushed_bytes() > application::maximum_agent_stdout_bytes,
+			   "banner and blank lines, unknown events, string user content and tool results past 64 KiB a line and 1 MiB in all are read past");
+		expect(decoder.metadata().ProtocolReported.size() == 2U, "only init and assistant frames report runtime facts");
+
+		const auto refused = [](const std::string& aFrames) {
+			auto       refusing = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+			const auto result   = refusing.push(aFrames);
+			return std::pair{ result ? std::optional<application::agent_protocol_failure>{ } : std::optional{ result.error() }, refusing.rejected_line() };
+		};
+		const auto init           = std::string{ R"({"type":"system","subtype":"init","session_id":"s"})" } + "\n";
+		const auto [broken, line] = refused(init + R"({"type":"assistant","session_id":"s","message":)" + "\n");
+		expect(broken == application::agent_protocol_failure::malformed_frame && line == R"({"type":"assistant","session_id":"s","message":)",
+			   "a line that begins as JSON and does not parse is still refused, and kept for the log");
+		const auto [otherSession, otherLine] = refused(init + R"({"type":"system","subtype":"task_summary","session_id":"other"})" + "\n");
+		expect(otherSession == application::agent_protocol_failure::malformed_frame && !otherLine.empty(), "an event under another session is refused");
+		const auto [payload, payloadLine] = refused(init + R"({"type":"tool_progress","session_id":"s","bprFindings":{}})" + "\n");
+		expect(payload == application::agent_protocol_failure::malformed_frame, "a payload outside the result is refused whatever frame carries it");
+		const auto [secondInit, secondLine] = refused(init + R"({"type":"system","subtype":"init","session_id":"other"})" + "\n");
+		expect(secondInit == application::agent_protocol_failure::malformed_frame, "an init under another session is refused");
+
+		auto huge     = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		auto overflow = huge.push(init);
+		for (std::size_t written = 0U; overflow && written <= application::maximum_claude_frame_bytes; written += 1024U * 1024U) {
+			overflow = huge.push(std::string(1024U * 1024U, 'y'));
+		}
+		expect(!overflow && overflow.error() == application::agent_protocol_failure::frame_too_large && huge.rejected_line().size() == application::maximum_agent_rejected_line_bytes,
+			   "Claude's own line bound still holds, and keeps only the line's bounded start");
+	}
+
+	/// [[BPR-1827]]. An agent run diagnostic line names enums and counts only,
+	/// and the reader takes exactly what the writer writes.
+	void test_agent_run_diagnosis_round_trips_exactly()
+	{
+		const auto ended = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::claude_stream_json, .Outcome = application::agent_run_outcome::protocol_failure, .Failure = application::agent_protocol_failure::frame_too_large, .ExitCode = 0, .StandardOutputBytes = 223211U, .StandardErrorBytes = 0U };
+		const auto text  = application::describe(ended);
+		expect(text == "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0", "an ended line names its cause and counts");
+		expect(application::parse_agent_run_diagnosis(text) == std::optional{ ended }, "an ended line reads back exactly");
+		const auto started = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::codex_jsonl_exec };
+		expect(application::parse_agent_run_diagnosis(application::describe(started)) == std::optional{ started }, "a started line reads back exactly");
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 prompt=hello", "protocol=claude_stream_json outcome=protocol_failure failure=/Users/x stdout_bytes=1 stderr_bytes=0",
+								 "protocol=unknown stdout_bytes=1 stderr_bytes=0", "stdout_bytes=1 stderr_bytes=0 protocol=claude_stream_json", "protocol=claude_stream_json stdout_bytes=01 stderr_bytes=0" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "a line describe would not write is refused");
+		}
+		for (std::size_t index = 0U; index < application::agent_protocol_failure_count; ++index) {
+			const auto named = application::name(static_cast<application::agent_protocol_failure>(index));
+			expect(named != "unknown" && !named.empty(), "every protocol failure has a stable name");
+		}
+	}
+
 	void test_run_correlation_keeps_stale_facts_without_misattribution()
 	{
 		const auto admittedSession = session();
@@ -1564,6 +1650,8 @@ auto main() -> int
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_claude_decoder_reads_sign_in_and_benign_frames();
+	test_claude_decoder_reads_a_current_transcript();
+	test_agent_run_diagnosis_round_trips_exactly();
 	test_full_encoded_input_budget_and_private_raw_budget();
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();
 	test_the_workshop_operation_crosses_only_under_its_entry_point();
