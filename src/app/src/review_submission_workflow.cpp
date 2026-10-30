@@ -202,6 +202,17 @@ namespace bpr::app {
 
 	void review_submission_workflow::set_publication_observer(publication_observer aObserver) { PublicationObserved = std::move(aObserver); }
 	void review_submission_workflow::set_unplaceable_refusal_observer(unplaceable_refusal_observer aObserver) { UnplaceableRefusalObserved = std::move(aObserver); }
+	void review_submission_workflow::set_finish_settings(finish_settings aSettings) { FinishSettings = std::move(aSettings); }
+
+	auto review_submission_workflow::finish(const application::review_submission_request& aRequest, const core::review_finish_answer aAnswer) const -> core::review_finish_transition
+	{
+		const auto own = SubmittedKey && *SubmittedKey == aRequest.IdempotencyKey;
+		return core::decide_review_finish(FinishSettings ? FinishSettings() : core::review_finish_settings{ },
+										  { .Disposition      = aRequest.Proposal.Disposition,
+											.Answer           = aAnswer,
+											.Origin           = own ? core::review_finish_origin::submit : core::review_finish_origin::recovery,
+											.AnotherUnsettled = std::ranges::any_of(Unresolved, [&aRequest](const auto& aOther) { return aOther.IdempotencyKey != aRequest.IdempotencyKey; }) });
+	}
 
 	void review_submission_workflow::observe_review_comments(std::vector<core::review_submission_comment> aComments)
 	{
@@ -640,7 +651,8 @@ namespace bpr::app {
 		}
 		Context = Host ? Host->submit(aRequest, IssueGrant(Current->Authority.ApplicationSession, Generation, aRequest)) : std::nullopt;
 		if (Context) {
-			Status = QStringLiteral("Submitting the exact review shown…");
+			SubmittedKey = aRequest.IdempotencyKey;
+			Status       = QStringLiteral("Submitting the exact review shown…");
 			return;
 		}
 		complete(command_kind::fail_submit);
@@ -660,7 +672,8 @@ namespace bpr::app {
 
 	void review_submission_workflow::publish(const application::review_submission_host_terminal& aTerminal)
 	{
-		auto confirmed = std::optional<core::review_submission_draft>{ };
+		auto confirmed  = std::optional<core::review_submission_draft>{ };
+		auto transition = core::review_finish_transition::keep_review;
 		if (Closing || !Context || aTerminal.Context != *Context) {
 			// Retired hosts can finish, but cannot inspect or replace the current draft.
 			start_selection();
@@ -742,8 +755,18 @@ namespace bpr::app {
 				|| result->Request.Proposal.Attempt != Draft->Attempt || result->Request != *Pending) {
 				return;
 			}
-			if (result->Publication == application::review_submission_publication::published
-				&& result->Receipt && application::valid(*result->Receipt, *Pending)) {
+			// [[BPR-1816]]. Where this answer leaves the reviewer, decided by
+			// the core before anything changes; only the first answer is the
+			// Submit's own.
+			const auto published = result->Publication == application::review_submission_publication::published
+				&& result->Receipt && application::valid(*result->Receipt, *Pending);
+			const auto answered = published ? core::review_finish_answer::published
+				: result->Publication == application::review_submission_publication::definitely_not_published
+				? core::review_finish_answer::not_published
+				: core::review_finish_answer::unknown;
+			transition          = finish(*Pending, answered);
+			SubmittedKey        = std::nullopt;
+			if (published) {
 				const auto submitted = *Pending;
 				Unknown.reset();
 				complete(command_kind::complete_submit);
@@ -805,7 +828,8 @@ namespace bpr::app {
 		}
 		present();
 		if (confirmed) {
-			Editor.confirm_submitted(*confirmed);
+			// A published answer never keeps the page.
+			Editor.confirm_submitted(*confirmed, transition == core::review_finish_transition::keep_review ? core::review_finish_transition::return_to_pull_request : transition);
 		}
 	}
 }

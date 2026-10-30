@@ -10,10 +10,13 @@ from pathlib import Path
 import subprocess
 import shutil
 import sys
-import tempfile
 import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT / "scripts"))
+from contained_temporary_support import ContainedTemporaryDirectory
+from skip_report import SkipReportingTestRunner
+
 sys.path.insert(0, str(ROOT / "packaging"))
 import release_build as cohort
 from release_build_fixture import windows_floor
@@ -27,7 +30,7 @@ def lock_holder(common, ready, release):
 
 class ReleaseBuildTests(unittest.TestCase):
     def setUp(self):
-        self.temporary = tempfile.TemporaryDirectory(prefix="bpr-release-cohort-")
+        self.temporary = ContainedTemporaryDirectory(prefix="bpr-release-cohort-")
         self.addCleanup(self.temporary.cleanup)
         self.root = Path(self.temporary.name) / "source"
         self.root.mkdir()
@@ -201,8 +204,7 @@ class ReleaseBuildTests(unittest.TestCase):
             else:
                 self.assertEqual(observed, cold)
 
-    @unittest.skipUnless(shutil.which("cmake"), "native CMake is unavailable")
-    def test_real_cmake_module_consumes_frozen_identity_and_local_build_consumes_nothing(self):
+    def native_identity_fixture(self):
         for name in ("BprReleaseCohort.cmake", "BprBuildIdentity.cmake"):
             destination = self.root / "cmake" / name
             destination.parent.mkdir(exist_ok=True)
@@ -225,12 +227,16 @@ bpr_add_build_identity(probe)
 ''')
         (self.root / "probe.cpp").write_text('#include "bpr_build_identity.hpp"\n#include <iostream>\nint main(){std::cout<<BPR_RELEASE_BUILD_NUMBER;}\n')
         self.commit("native CMake identity composition fixture")
+
+    @unittest.skipUnless(shutil.which("cmake") and shutil.which("ninja"), "native CMake or Ninja is unavailable")
+    def test_real_cmake_module_consumes_frozen_identity_and_local_build_consumes_nothing(self):
+        self.native_identity_fixture()
         build = self.root / "build"
         def run(*args):
             result = subprocess.run(args, cwd=self.root, capture_output=True, text=True)
             self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             return result.stdout.strip()
-        run("cmake", "-S", str(self.root), "-B", str(build), "-DCMAKE_BUILD_TYPE=Release")
+        run("cmake", "-S", str(self.root), "-B", str(build), "-G", "Ninja", "-DCMAKE_BUILD_TYPE=Release")
         run("cmake", "--build", str(build), "--config", "Release")
         candidates = [build / "probe.exe", build / "Release/probe.exe"] if os.name == "nt" else [build / "probe"]
         executable = next(path for path in candidates if path.is_file())
@@ -251,6 +257,41 @@ bpr_add_build_identity(probe)
         self.assertNotEqual(refused.returncode, 0)
         self.assertIn("release cohort source/configuration binding mismatch", refused.stdout + refused.stderr)
         self.assertNotIn("#error changed source", refused.stdout + refused.stderr)
+
+    @unittest.skipUnless(shutil.which("cmake") and shutil.which("ninja"), "native CMake or Ninja is unavailable")
+    def test_local_multi_config_observes_qualified_flags_and_numbered_producer_selects_one(self):
+        self.native_identity_fixture()
+        build = self.root / "build" / "multi"
+        command = ["cmake", "-S", str(self.root), "-B", str(build), "-G", "Ninja Multi-Config",
+                   "-DCMAKE_CXX_FLAGS_DEBUG=-DBPR_DEBUG_OBSERVATION=1",
+                   "-DCMAKE_CXX_FLAGS_RELEASE=-DBPR_RELEASE_OBSERVATION=1"]
+        def configure(configurations, *extra):
+            return subprocess.run([*command, "-DCMAKE_CONFIGURATION_TYPES=" + configurations, *extra], capture_output=True, text=True)
+        local = configure("Debug;Release")
+        self.assertEqual(local.returncode, 0, local.stdout + local.stderr)
+        # The public reader rejects duplicate members; raw RELEASE keys must not
+        # replace the actual per-configuration compiler/linker setting names.
+        observed = cohort.read(build / "_bpr/release-observed.json")
+        self.assertEqual(observed["buildType"], "Debug;Release")
+        self.assertEqual(observed["settings"]["CMAKE_CXX_FLAGS_DEBUG"], "-DBPR_DEBUG_OBSERVATION=1")
+        self.assertEqual(observed["settings"]["CMAKE_CXX_FLAGS_RELEASE"], "-DBPR_RELEASE_OBSERVATION=1")
+        self.assertNotIn("RELEASE", observed["settings"])
+        self.assertEqual(cohort.counter_value(self.root), 0)
+        self.assertEqual(list((self.root / ".git/bpr-release-builds/reservations").glob("*.json")), [])
+        selected = configure("Release")
+        self.assertEqual(selected.returncode, 0, selected.stdout + selected.stderr)
+        observed = cohort.read(build / "_bpr/release-observed.json")
+        self.inputs["producers"] = {"native": {key: value for key, value in observed.items() if key != "version"} | {"preset": "fixture"}}
+        frozen = self.frozen()
+        external = Path(self.temporary.name) / "native-multi-cohort.json"
+        cohort.write(external, frozen)
+        arguments = ["-DBPR_RELEASE_COHORT=" + str(external), "-DBPR_RELEASE_PRODUCER=native"]
+        accepted = configure("Release", *arguments)
+        self.assertEqual(accepted.returncode, 0, accepted.stdout + accepted.stderr)
+        refused = configure("Debug;Release", *arguments)
+        self.assertNotEqual(refused.returncode, 0)
+        self.assertIn("A numbered producer selects exactly one native configuration", refused.stdout + refused.stderr)
+        self.assertEqual(cohort.counter_value(self.root), 1)
 
     def test_native_mapping_bounds_and_actual_legacy_msi_order(self):
         self.assertEqual(cohort.native("0.4.1", 1, self.inputs["previousWindows"]), {
@@ -366,4 +407,4 @@ bpr_add_build_identity(probe)
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(testRunner=SkipReportingTestRunner)

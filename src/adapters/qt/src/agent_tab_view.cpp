@@ -16,6 +16,7 @@
 #include "bpr/qt/side_chat_panel.hpp"
 
 #include <QAbstractItemModel>
+#include <QAccessible>
 #include <QAction>
 #include <QActionGroup>
 #include <QClipboard>
@@ -926,6 +927,26 @@ namespace bpr::qt {
 		});
 		askRow->addWidget(Ask);
 		fieldCol->addLayout(askRow);
+		// [[BPR-1817]]. Why the last send produced no turn, said directly
+		// above the field it came from, in the danger look the stopped
+		// banner uses, until the reviewer sends again or closes it.
+		auto* const refusal = new rounded{ rounded::look::danger, ask };
+		Refusal             = refusal;
+		refusal->setObjectName(QStringLiteral("agentSendRefusal"));
+		auto* const refusalRow = new QHBoxLayout{ refusal };
+		refusalRow->setContentsMargins(10, 6, 2, 6);
+		refusalRow->setSpacing(4);
+		RefusalText = new QLabel{ refusal };
+		RefusalText->setObjectName(QStringLiteral("agentSendRefusalText"));
+		RefusalText->setTextFormat(Qt::PlainText);
+		RefusalText->setWordWrap(true);
+		RefusalText->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		refusalRow->addWidget(RefusalText, 1);
+		auto* const refusalClose = make_drawer_tool(refusal, drawer_icon(drawer_glyph::close, palette()), tr("Dismiss"), QStringLiteral("agentSendRefusalClose"));
+		connect(refusalClose, &QToolButton::clicked, this, [this] { hide_send_refusal(); });
+		refusalRow->addWidget(refusalClose, 0, Qt::AlignTop);
+		refusal->hide();
+		askCol->addWidget(refusal);
 		askCol->addWidget(field);
 		talk->addWidget(ask);
 		Pages->addWidget(Conversation);
@@ -958,6 +979,9 @@ namespace bpr::qt {
 			connect(action, &QAction::changed, this, again);
 		}
 		connect(profiles, &QComboBox::currentIndexChanged, this, again);
+		// Another agent is another question: what refused the last one may
+		// not refuse this one.
+		connect(profiles, &QComboBox::currentIndexChanged, this, [this] { hide_send_refusal(); });
 		// [[BPR-1753]], owner look v001 ("no indication anything
 		// happened"). The working line follows the request as it moves, with
 		// the time it has taken, so a long run never looks like nothing.
@@ -1042,7 +1066,7 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		const auto setUp      = Launch.profile_selector()->count() > 0;
+		const auto setUp      = Launch.offered_count() > 0U;
 		const auto running    = Launch.cancel_action()->isEnabled();
 		const auto status     = Launch.status_text();
 		const auto failed     = status.startsWith(QStringLiteral("Finished:")) && !status.contains(QStringLiteral("success"));
@@ -1061,6 +1085,10 @@ namespace bpr::qt {
 			ReadyCard->hide();
 		} else if (State != agent_tab_state::working && wasWorking) {
 			Ticker->stop();
+			// [[BPR-1817]]. "Still answering" no longer is.
+			if (ShownRefusal == core::agent_send_refusal::request_in_flight) {
+				hide_send_refusal();
+			}
 			// A request that just ended says so, whatever it found.
 			Finished = Launch.last_outcome() == application::agent_run_outcome::success;
 		}
@@ -1093,7 +1121,12 @@ namespace bpr::qt {
 			Ask->setText({ });
 			Ask->setIcon(drawer_icon(drawer_glyph::send, palette()));
 			Ask->setAccessibleName(tr("Send"));
-			Ask->setToolTip(tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+			// [[BPR-1817]]. A Send that cannot be pressed says why.
+			const auto blocked = send_blocked();
+			Ask->setToolTip(blocked == core::agent_send_refusal::none
+								? tr("Send the question to the agent (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText))
+								: send_refusal_words(blocked, agent_name()));
+			Ask->setAccessibleDescription(blocked == core::agent_send_refusal::none ? QString{ } : Ask->toolTip());
 			Ask->setEnabled(Chat.send_action()->isEnabled());
 		}
 		present_banner();
@@ -1129,10 +1162,21 @@ namespace bpr::qt {
 		}
 		present_banner();
 		update_turn();
+		// [[BPR-1817]]. A refusal the host named after a send, before any
+		// turn began, is said beside the composer rather than only on the
+		// hidden launch panel. A refusal for some other surface's request is
+		// not this composer's.
+		if (Launch.refusal_count() != RefusalsSeen) {
+			RefusalsSeen = Launch.refusal_count();
+			if (PendingQuestion || PendingReview) {
+				refuse_send(core::agent_send_refusal::launch_refused, Launch.last_refusal());
+			}
+		}
 	}
 
 	void agent_tab_view::begin_turn()
 	{
+		hide_send_refusal();
 		auto next = turn{ };
 		if (PendingReview || !PendingQuestion) {
 			next.Review   = true;
@@ -1746,7 +1790,21 @@ namespace bpr::qt {
 		if (succeeded) {
 			set_answer(current, written.isEmpty() ? tr("%1 finished without writing an answer.").arg(agent) : written);
 		} else {
-			set_answer(current, !stopReason.isEmpty() ? stopReason : tr("%1 stopped before answering: %2.").arg(agent, Launch.status_text()));
+			// [[BPR-1817]]. A run that ended without an answer is an error
+			// entry in the thread: what happened in words, then the tail of
+			// what the agent wrote to its error stream.
+			auto answer = stopReason.isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), agent) : stopReason;
+			if (auto said = Launch.output_text().trimmed(); !said.isEmpty() && Launch.last_outcome() != application::agent_run_outcome::cancelled) {
+				// The last lines, which say why; the log keeps all of it.
+				auto lines = said.split(QLatin1Char{ '\n' });
+				if (lines.size() > 12) {
+					lines = lines.mid(lines.size() - 12);
+				}
+				said = lines.join(QLatin1Char{ '\n' }).right(1200);
+				said.replace(QStringLiteral("~~~~"), QStringLiteral("~ ~ ~ ~"));
+				answer += QStringLiteral("\n\n") + tr("It wrote:") + QStringLiteral("\n\n~~~~text\n") + said + QStringLiteral("\n~~~~");
+			}
+			set_answer(current, answer);
 		}
 		auto ran = agent;
 		if (const auto reported = Launch.last_reported_model(); succeeded && !reported.isEmpty()) {
@@ -1950,8 +2008,10 @@ namespace bpr::qt {
 			BannerTitle->setText(tr("%1 stopped before answering").arg(Launch.profile_selector()->currentText()));
 			// [[BPR-1738]]. A stop with a reason says it and what to do;
 			// the log keeps the raw text.
-			BannerText->setText(Launch.stop_reason_text().isEmpty() ? tr("%1. Your question is kept.").arg(Launch.status_text())
-																	: tr("%1 Your question is kept.").arg(Launch.stop_reason_text()));
+			// [[BPR-1817]]. Said in words, never as the outcome's stable name.
+			BannerText->setText(tr("%1 Your question is kept.")
+									.arg(Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
+																			 : Launch.stop_reason_text()));
 			BannerFirst->setText(tr("Ask again"));
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
 			// [[BPR-1753]], RFC-BPR-0092 Partly set up. An Ask that ended
@@ -2323,12 +2383,162 @@ namespace bpr::qt {
 		if (!panels_alive()) {
 			return;
 		}
-		if (run_slash_command(Chat.composer()->toPlainText().trimmed())) {
+		const auto text = Chat.composer()->toPlainText().trimmed();
+		if (run_slash_command(text)) {
 			return;
 		}
 		Notice->hide();
+		hide_send_refusal();
+		// [[BPR-1817]]. Asked of the core before anything is sent: a send
+		// it refuses here is said here, never dropped by a disabled action.
+		RefusalsSeen = Launch.refusal_count();
+		if (const auto refused = core::decide_agent_send(send_facts(text.isEmpty())); refused != core::agent_send_refusal::none) {
+			refuse_send(refused);
+			return;
+		}
 		Chat.send_action()->trigger();
 	}
+
+	auto agent_tab_view::send_facts(const bool aMessageEmpty) const -> core::agent_send_facts
+	{
+		const auto required = !Chat.offered_continuations().empty();
+		return {
+			.ReviewOpen           = Chat.send_action()->isEnabled() || required,
+			.ContinuationRequired = required,
+			.AgentChosen          = Launch.selected_profile().has_value(),
+			.AgentUnavailable     = !Launch.unavailable_agent_name().isEmpty(),
+			.MessageEmpty         = aMessageEmpty,
+			.InFlight             = State == agent_tab_state::working,
+		};
+	}
+
+	auto agent_tab_view::agent_name() const -> QString
+	{
+		const auto unavailable = Launch.unavailable_agent_name();
+		return unavailable.isEmpty() ? Launch.profile_selector()->currentText() : unavailable;
+	}
+
+	auto agent_tab_view::send_blocked() const -> core::agent_send_refusal
+	{
+		// Only what stops the button itself; an empty field is said on a press.
+		const auto refused = core::decide_agent_send(send_facts(false));
+		return refused == core::agent_send_refusal::no_review || refused == core::agent_send_refusal::session_stale ? refused : core::agent_send_refusal::none;
+	}
+
+	auto agent_tab_view::run_failure_words(const application::agent_run_outcome aOutcome, const QString& aAgent) -> QString
+	{
+		const auto agent = aAgent.isEmpty() ? tr("The agent") : aAgent;
+		switch (aOutcome) {
+		case application::agent_run_outcome::failed_to_start:         return tr("%1 didn't start.").arg(agent);
+		case application::agent_run_outcome::nonzero_exit:            return tr("%1 exited with an error before answering.").arg(agent);
+		case application::agent_run_outcome::protocol_failure:        return tr("%1 answered in a form this app can't read.").arg(agent);
+		case application::agent_run_outcome::workspace_unavailable:   return tr("%1's workspace couldn't be made, so it didn't start.").arg(agent);
+		case application::agent_run_outcome::private_storage_failure: return tr("Private history couldn't record the run, so %1 didn't start.").arg(agent);
+		case application::agent_run_outcome::cancelled:               return tr("Stopped before %1 answered.").arg(agent);
+		case application::agent_run_outcome::timeout:                 return tr("%1 ran out of time before answering.").arg(agent);
+		case application::agent_run_outcome::stale_result:            return tr("The pull request moved on while %1 worked, so its answer was set aside.").arg(agent);
+		case application::agent_run_outcome::success:                 return { };
+		}
+		return { };
+	}
+
+	auto agent_tab_view::send_refusal_words(const core::agent_send_refusal aRefusal, const QString& aAgent) -> QString
+	{
+		const auto agent = aAgent.isEmpty() ? tr("The agent") : aAgent;
+		switch (aRefusal) {
+		case core::agent_send_refusal::none:                     return { };
+		case core::agent_send_refusal::no_review:                return tr("Open a pull request's changes to ask an agent about them.");
+		case core::agent_send_refusal::no_agent:                 return tr("Choose an agent in the agent menu, then send.");
+		case core::agent_send_refusal::empty_message:            return tr("Type a question, then send.");
+		case core::agent_send_refusal::request_in_flight:        return tr("%1 is still answering. Wait for its answer, or stop it and send again.").arg(agent);
+		case core::agent_send_refusal::session_stale:            return tr("The pull request has moved on. Start a new session or continue on the old head, then send.");
+		case core::agent_send_refusal::agent_unknown:            return tr("%1 is no longer set up. Choose another agent, or add it again in Settings › Agents.").arg(agent);
+		case core::agent_send_refusal::host_not_mapped:          return tr("Agents aren't allowed for this pull request's server.");
+		case core::agent_send_refusal::agent_forbidden_on_host:  return tr("%1 isn't allowed for this pull request's server. Choose an agent the server allows.").arg(agent);
+		case core::agent_send_refusal::agent_not_required_one:   return tr("This pull request's server requires a different agent. Choose it in the agent menu.");
+		case core::agent_send_refusal::session_profile_mismatch: return tr("This conversation is with another agent. Start a new session to ask %1.").arg(agent);
+		case core::agent_send_refusal::selection_required:       return tr("Select the lines to ask about in the diff, then send.");
+		case core::agent_send_refusal::unknown_action:           return tr("This question can't be asked here.");
+		case core::agent_send_refusal::scope_invalid:            return tr("What this question is about is no longer in the review. Choose its context again.");
+		case core::agent_send_refusal::private_context_refused:  return tr("The private notes or draft chosen belong to another conversation. Choose them again.");
+		case core::agent_send_refusal::launch_refused:           return tr("%1 didn't start.").arg(agent);
+		case core::agent_send_refusal::agent_unavailable:        return tr("%1 isn't available. Choose an agent in the agent menu, then send.").arg(agent);
+		}
+		return { };
+	}
+
+	namespace {
+		/// The launch path's own refusals, which arrive as its stable names,
+		/// said as the composer says the core's.
+		[[nodiscard]] auto launch_refusal_of(const QString& aReason) -> std::optional<core::agent_send_refusal>
+		{
+			const auto has = [&aReason](const char* aName) { return aReason.contains(QLatin1String{ aName }); };
+			if (has("already_running")) {
+				return core::agent_send_refusal::request_in_flight;
+			}
+			if (has("profile_forbidden_on_host")) {
+				return core::agent_send_refusal::agent_forbidden_on_host;
+			}
+			if (has("host_not_mapped")) {
+				return core::agent_send_refusal::host_not_mapped;
+			}
+			if (has("profile_not_required_one")) {
+				return core::agent_send_refusal::agent_not_required_one;
+			}
+			if (has("profile_unknown") || has("profile_invalid")) {
+				return core::agent_send_refusal::agent_unknown;
+			}
+			if (has("selection_required")) {
+				return core::agent_send_refusal::selection_required;
+			}
+			if (has("session_profile_mismatch")) {
+				return core::agent_send_refusal::session_profile_mismatch;
+			}
+			return std::nullopt;
+		}
+	} // namespace
+
+	void agent_tab_view::refuse_send(core::agent_send_refusal aRefusal, const QString& aDetail)
+	{
+		if (!panels_alive() || aRefusal == core::agent_send_refusal::none) {
+			return;
+		}
+		// Refused: the question stays in the field, and no turn waits for it.
+		PendingQuestion.reset();
+		PendingAbout.reset();
+		PendingDraftTarget.reset();
+		PendingReview = false;
+		auto detail   = aDetail.trimmed();
+		if (aRefusal == core::agent_send_refusal::launch_refused && !detail.isEmpty()) {
+			if (const auto known = launch_refusal_of(detail)) {
+				aRefusal = *known;
+				detail.clear();
+			}
+		}
+		auto text = tr("Not sent. %1").arg(send_refusal_words(aRefusal, agent_name()));
+		if (!detail.isEmpty()) {
+			// The host's words, with its stable names made readable.
+			detail.replace(QLatin1Char{ '_' }, QLatin1Char{ ' ' });
+			text += QStringLiteral(" ") + tr("(%1)").arg(detail);
+		}
+		ShownRefusal = aRefusal;
+		RefusalText->setText(text);
+		RefusalText->setAccessibleName(text);
+		Refusal->show();
+		Refusal->update();
+		auto alert = QAccessibleEvent{ RefusalText, QAccessible::Alert };
+		QAccessible::updateAccessibility(&alert);
+	}
+
+	void agent_tab_view::hide_send_refusal()
+	{
+		ShownRefusal = core::agent_send_refusal::none;
+		if (Refusal != nullptr) {
+			Refusal->hide();
+		}
+	}
+
+	auto agent_tab_view::send_refusal_text() const -> QString { return Refusal != nullptr && !Refusal->isHidden() ? RefusalText->text() : QString{ }; }
 
 	void agent_tab_view::present_run_settings(std::vector<agent_run_settings> aSettings)
 	{
@@ -2365,6 +2575,10 @@ namespace bpr::qt {
 	void agent_tab_view::present_run_settings_button()
 	{
 		const auto* const settings = current_run_settings();
+		if (settings == nullptr && !Launch.unavailable_agent_name().isEmpty()) {
+			present_unavailable_agent();
+			return;
+		}
 		RunSettings->setVisible(settings != nullptr);
 		if (settings == nullptr) {
 			return;
@@ -2489,6 +2703,45 @@ namespace bpr::qt {
 		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
 		// Owner look v006 ("This model picker dropdown should have a link to
 		// open the agent settings page").
+		auto* const open = menu->addAction(tr("Agent settings…"));
+		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
+		connect(open, &QAction::triggered, this, [this] {
+			if (Setup) {
+				Setup();
+			}
+		});
+	}
+
+	void agent_tab_view::present_unavailable_agent()
+	{
+		// [[BPR-1823]], owner ruling 2026-10-29. The chosen agent went (removed
+		// in Settings, or not allowed here) and none was put in its place: the
+		// pill says so, state first so a narrow pill keeps it, and its menu is
+		// where another is chosen.
+		const auto name = Launch.unavailable_agent_name();
+		const auto full = tr("Unavailable: %1").arg(name);
+		RunSettings->setVisible(true);
+		RunSettings->setProperty("agentRunSettingsText", full);
+		RunSettings->setAccessibleName(tr("Agent: %1 is unavailable. Choose an agent.").arg(name));
+		RunSettingsTip = tr("%1 isn't in your agents, or this pull request's server doesn't allow it. Nothing is sent until you choose an agent.").arg(name);
+		fit_run_settings();
+		auto* const menu = RunSettings->menu();
+		if (menu->isVisible()) {
+			MenuStale = true;
+			return;
+		}
+		MenuStale = false;
+		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
+			submenu->deleteLater();
+		}
+		menu->clear();
+		menu->addAction(tr("%1 isn't available. Choose an agent:").arg(name))->setEnabled(false);
+		for (const auto& offered : RunSettingsShown) {
+			auto* const item = menu->addAction(offered.Agent);
+			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
+			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
+		}
+		menu->addSeparator();
 		auto* const open = menu->addAction(tr("Agent settings…"));
 		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
 		connect(open, &QAction::triggered, this, [this] {

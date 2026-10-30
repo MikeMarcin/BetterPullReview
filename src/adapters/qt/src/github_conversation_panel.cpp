@@ -391,7 +391,7 @@ namespace bpr::qt {
 		detail::set_plain_text_label(ConversationEmptyDetail);
 		ConversationEmptyClear = new QPushButton{ QStringLiteral("Clear filters"), ConversationEmpty };
 		ConversationEmptyClear->setObjectName(QStringLiteral("conversationFilteredEmptyClear"));
-		ConversationEmptyClear->setAccessibleDescription(QStringLiteral("Turns off Only new and Hide resolved and shows the whole conversation"));
+		ConversationEmptyClear->setAccessibleDescription(QStringLiteral("Turns off Only new and Hide resolved and shows all comments"));
 		ConversationEmptyClear->setFocusPolicy(Qt::StrongFocus);
 		emptyColumn->addWidget(ConversationEmptyTitle);
 		emptyColumn->addWidget(ConversationEmptyDetail);

@@ -52,7 +52,8 @@ namespace bpr::adapters::sqlite::detail {
 		/// [[BPR-1584]]: version twenty-two's reading width, thirty-one.
 		/// [[BPR-1588]] Version twenty-three's Status drawer makes the window
 		/// row twenty-seven columns, under the profile row's thirty-one.
-		constexpr std::size_t MaximumTableColumns = 31U;
+		/// [[BPR-1816]] Version twenty-four's finish choices, thirty-two.
+		constexpr std::size_t MaximumTableColumns = 32U;
 
 		/// \brief Writes the layout table's definition under one name.
 		///
@@ -172,7 +173,13 @@ namespace bpr::adapters::sqlite::detail {
 				  // [[BPR-1584]]. Schema version 22: how wide Threads and
 				  // Discuss grow, in `core::reading_width`'s order. Two is
 				  // Wide, the default, so a migrated row reads it.
-				  "reading_width INTEGER NOT NULL DEFAULT 2 CHECK(reading_width BETWEEN 0 AND 3)) STRICT";
+				  "reading_width INTEGER NOT NULL DEFAULT 2 CHECK(reading_width BETWEEN 0 AND 3),"
+				  // [[BPR-1816]]. Schema version 24: which finishing verdicts
+				  // stay on the pull request, one bit each (Comment 1, Approve
+				  // 2, Request changes 4; see `finish_review_bits`). Zero is
+				  // every verdict going Home, the default, so a migrated row
+				  // goes Home.
+				  "finish_review INTEGER NOT NULL DEFAULT 0 CHECK(finish_review BETWEEN 0 AND 7)) STRICT";
 		}
 
 		static_assert(core::maximum_feedback_label_columns_text == 256U);
@@ -194,6 +201,28 @@ namespace bpr::adapters::sqlite::detail {
 		static_assert(static_cast<std::int64_t>(core::default_reading_width) == 2 && static_cast<std::int64_t>(core::reading_width::full) == 3);
 		static_assert(static_cast<std::int64_t>(application::review_label_helper::on) == 1);
 		static_assert(static_cast<std::int64_t>(application::review_overview_counts::all) == 1);
+
+		/// \brief [[BPR-1816]]. The stored `finish_review` flags: a set bit is
+		/// a verdict that stays on the pull request.
+		[[nodiscard]] auto finish_review_bits(const core::review_finish_settings& aSettings) noexcept -> std::int64_t
+		{
+			const auto stays = [](const core::review_finish_return aReturn) -> std::int64_t {
+				return aReturn == core::review_finish_return::pull_request ? 1 : 0;
+			};
+			return stays(aSettings.Comment) | (stays(aSettings.Approve) << 1) | (stays(aSettings.RequestChanges) << 2);
+		}
+		/// \brief [[BPR-1816]]. The settings the flags name, or none for a
+		/// value the column's `CHECK` would refuse.
+		[[nodiscard]] auto finish_review_of(const std::int64_t aBits) noexcept -> std::optional<core::review_finish_settings>
+		{
+			if (aBits < 0 || aBits > 7) {
+				return std::nullopt;
+			}
+			const auto of = [aBits](const int aBit) {
+				return (aBits & (std::int64_t{ 1 } << aBit)) != 0 ? core::review_finish_return::pull_request : core::review_finish_return::home;
+			};
+			return core::review_finish_settings{ .Comment = of(0), .Approve = of(1), .RequestChanges = of(2) };
+		}
 
 		void remove_one_pane_column(std::string& aSql)
 		{
@@ -333,6 +362,7 @@ namespace bpr::adapters::sqlite::detail {
 				: aVersion <= 19                       ? ",center_ribbon_width"
 				: aVersion <= 20                       ? ",markdown_images"
 				: aVersion <= 21                       ? ",reading_width"
+				: aVersion <= 23                       ? ",finish_review"
 													   : "";
 			if (!cut.empty()) {
 				sql.resize(sql.find(cut));
@@ -460,6 +490,9 @@ namespace bpr::adapters::sqlite::detail {
 			}
 			if (aColumn == "reading_width") {
 				return static_cast<std::int64_t>(core::reading_width::full);
+			}
+			if (aColumn == "finish_review") {
+				return 7;
 			}
 			if (aColumn == "open_modality" || aColumn == "return_comparison" || aColumn == "drawer_filter"
 				|| aColumn == "home_quiet" || aColumn == "home_sort") {
@@ -734,11 +767,11 @@ namespace bpr::adapters::sqlite::detail {
 			// old create-only path it now issues a `DROP TABLE`; that is safe
 			// only because the whole rebuild is inside one transaction and a
 			// foreign file rolls back at the `INSERT ... FROM` step. And the
-			// migration named here carries versions one to twenty-two
+			// migration named here carries versions one to twenty-three
 			// specifically, written out rather than derived from the constant,
 			// so a version this build has no step for is refused rather than
 			// handed to the wrong one.
-			if (*current < 0 || *current > 22) {
+			if (*current < 0 || *current > 23) {
 				rollback();
 				return std::unexpected(failure::schema_mismatch);
 			}
@@ -1086,8 +1119,8 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width) "
-			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30) "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review) "
+			"VALUES(1, ?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?19, ?20, ?21, ?22, ?23, ?24, ?25, ?26, ?27, ?28, ?29, ?30, ?31) "
 			"ON CONFLICT(singleton) DO UPDATE SET "
 			"files_state = excluded.files_state,"
 			"conversations_state = excluded.conversations_state,"
@@ -1106,7 +1139,7 @@ namespace bpr::adapters::sqlite::detail {
 			"label_helper = excluded.label_helper, overview_counts = excluded.overview_counts, label_columns = excluded.label_columns,"
 			"claude_wrapper = excluded.claude_wrapper, writing_feedback = excluded.writing_feedback, line_details = excluded.line_details,"
 			"claude_model = excluded.claude_model, center_ribbon_width = excluded.center_ribbon_width, markdown_images = excluded.markdown_images,"
-			"reading_width = excluded.reading_width");
+			"reading_width = excluded.reading_width, finish_review = excluded.finish_review");
 		if (!statement) {
 			return std::unexpected(statement.error());
 		}
@@ -1133,6 +1166,7 @@ namespace bpr::adapters::sqlite::detail {
 			|| ::sqlite3_bind_int64(statement->Value, 28, static_cast<std::int64_t>(aSettings.Behaviour.CenterRibbonWidth)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 29, static_cast<std::int64_t>(aSettings.Behaviour.MarkdownImages)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 30, static_cast<std::int64_t>(aSettings.Behaviour.ReadingWidth)) != SQLITE_OK
+			|| ::sqlite3_bind_int64(statement->Value, 31, finish_review_bits(aSettings.Behaviour.FinishReview)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(statement->Value, 14, static_cast<std::int64_t>(aSettings.OnePane)) != SQLITE_OK
 			|| ::sqlite3_bind_int64(
 				   statement->Value, 1, static_cast<std::int64_t>(aSettings.Files))
@@ -1439,7 +1473,7 @@ namespace bpr::adapters::sqlite::detail {
 			"conversations_width, line_numbers, repositories_state,"
 			"repositories_width, open_modality, continue_modality, mark_read,"
 			"return_comparison, drawer_filter, drawer_controls, one_pane, writing_revision, writing_problem, writing_solution, writing_outline, writing_stop, feedback_marks,"
-			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width "
+			"label_helper, overview_counts, label_columns, claude_wrapper, writing_feedback, line_details, claude_model, center_ribbon_width, markdown_images, reading_width, finish_review "
 			"FROM workbench_preferences WHERE singleton = 1");
 		if (!statement) {
 			return std::unexpected(statement.error());
@@ -1519,11 +1553,13 @@ namespace bpr::adapters::sqlite::detail {
 			application::review_markdown_images::off);
 		// [[BPR-1584]]. Column 29, after markdown_images.
 		const auto readingWidth = preference_of(::sqlite3_column_int64(statement->Value, 29), core::reading_width::full);
+		// [[BPR-1816]]. Column 30, after reading_width.
+		const auto finishReview = finish_review_of(::sqlite3_column_int64(statement->Value, 30));
 		if (ribbonWidth < application::minimum_center_ribbon_width || ribbonWidth > application::maximum_center_ribbon_width) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		if (!onePane || !openModality || !markRead || !returnComparison
-			|| !commentsFilter || !drawerControls || !feedbackMarks || !labelHelper || !overviewCounts || !lineDetails || !markdownImages || !readingWidth) {
+			|| !commentsFilter || !drawerControls || !feedbackMarks || !labelHelper || !overviewCounts || !lineDetails || !markdownImages || !readingWidth || !finishReview) {
 			return std::unexpected(failure::integrity_failure);
 		}
 		// [[BPR-1088]]. The label columns never fail the load: every catalog
@@ -1602,6 +1638,7 @@ namespace bpr::adapters::sqlite::detail {
 				.CenterRibbonWidth    = static_cast<std::uint32_t>(ribbonWidth),
 				.MarkdownImages       = *markdownImages,
 				.ReadingWidth         = *readingWidth,
+				.FinishReview         = *finishReview,
 			},
 			.WritingHooks  = std::move(hooks),
 			.ClaudeWrapper = std::move(wrapper),

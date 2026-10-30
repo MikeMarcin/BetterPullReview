@@ -9,6 +9,7 @@
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "cli_publication_course.hpp"
 #include "private_data_root.hpp"
@@ -17,6 +18,7 @@
 #include <QAbstractButton>
 #include <QAction>
 #include <QApplication>
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialog>
 #include <QLabel>
@@ -59,12 +61,30 @@ namespace {
 			throw std::runtime_error{ aMessage };
 		}
 	}
-	void open(app::github_application& aApp, e2e::cli_publication_course& aCli)
+	/// [[BPR-1816]]. Settings › Review › Finishing a review, set through its
+	/// boxes (ticked is Home), once the host has published the choice.
+	void finish_at(qt::workbench_window& aWindow, const core::review_finish_settings& aWanted)
 	{
-		aApp.show();
+		for (const auto verdict : { core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes }) {
+			auto* const box  = aWindow.finish_review_switch(verdict);
+			const auto  home = core::finish_return(aWanted, verdict) == core::review_finish_return::home;
+			expect(box != nullptr, "Settings has a finish box for each verdict");
+			if (box->isChecked() != home) {
+				box->click();
+			}
+		}
+		wait([&] { return aWindow.behaviour().FinishReview == aWanted; }, "the finish choices are accepted and published");
+	}
+	/// Every verdict stays on the pull request: the courses below submit
+	/// several reviews on one pull request.
+	constexpr auto stay_on_pull_request = core::review_finish_settings{
+		.Comment        = core::review_finish_return::pull_request,
+		.Approve        = core::review_finish_return::pull_request,
+		.RequestChanges = core::review_finish_return::pull_request,
+	};
+	void open_pull_request(app::github_application& aApp)
+	{
 		auto& window = aApp.window();
-		aCli.connect(window);
-		wait([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "connected controls");
 		// [[BPR-0771]]. A pull request is named in the Home bar; the locator is retired.
 		window.home_open_bar()->setText(QStringLiteral("octo-org/review-repository#17"));
 		window.home_open_action()->trigger();
@@ -81,6 +101,15 @@ namespace {
 		expect(sheet != nullptr && sheet->isVisible() && window.review_sheet_open()
 				   && sheet->isAncestorOf(window.review_submission_editor_view()),
 			   "explicit Compose review opens the retained editor in the sheet beside the code");
+	}
+	void open(app::github_application& aApp, e2e::cli_publication_course& aCli)
+	{
+		aApp.show();
+		auto& window = aApp.window();
+		aCli.connect(window);
+		wait([&] { return window.github_status_text() == "GitHub account connected." && window.github_open_action()->isEnabled(); }, "connected controls");
+		open_pull_request(aApp);
+		finish_at(window, stay_on_pull_request);
 	}
 	/// Confirmations already read, by editor; cleared with each application.
 	auto confirmations_seen() -> std::map<const qt::review_submission_editor*, std::size_t>&
@@ -1210,6 +1239,72 @@ auto main(int argc, char** argv) -> int
 			expect(server->Reviews.back().Proposal.Disposition == core::review_disposition::approve
 					   && server->Reviews.back().Proposal.Target == second,
 				   "it approves the revision shown, once");
+		}
+		shutdown(*application);
+		application.reset();
+		// [[BPR-1816]]. Finishing a review closes it and goes Home, by each
+		// verdict's own choice, once GitHub confirms it; a refused review
+		// stays open with its draft.
+		// The pull request is read again when it reopens, so its read script replays.
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, true);
+		open(*application, cli);
+		{
+			auto& finishing = application->window();
+			auto& sheet     = *finishing.review_submission_editor_view();
+			finish_at(finishing, core::review_finish_settings{ });
+			const auto submissions = [&] {
+				std::scoped_lock lock{ server->Mutex };
+				return server->Submissions;
+			};
+			const auto before = submissions();
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseBeforeSend = true;
+			}
+			sheet.choose_disposition(core::review_disposition::comment);
+			sheet.body_editor()->setPlainText(QStringLiteral("Kept when GitHub refuses it."));
+			sheet.submit_action()->trigger();
+			wait([&] { return sheet.shown_draft() && sheet.shown_draft()->State == state::drafting && sheet.status_label()->text().contains(QStringLiteral("not published")); },
+				 "GitHub refuses the review; the page says so");
+			QApplication::processEvents();
+			expect(!finishing.finishing_at_home() && !finishing.showing_home() && finishing.review_sheet_open()
+					   && sheet.body_editor()->toPlainText() == QStringLiteral("Kept when GitHub refuses it.")
+					   && sheet.shown_draft()->Body == "Kept when GitHub refuses it." && sheet.shown_draft()->Disposition == core::review_disposition::comment,
+				   "a refused review stays open on its page with its summary and verdict");
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseBeforeSend = false;
+			}
+			sheet.submit_action()->trigger();
+			submitted(sheet);
+			wait([&] { return !finishing.finishing_at_home(); }, "the confirmed review's close runs on the next turn");
+			expect(finishing.showing_home() && finishing.home_landing()->state() != qt::landing_state::back_to_review && !finishing.review_sheet_open()
+					   && finishing.statusBar()->currentMessage() == QStringLiteral("Review submitted. Closed the review of octo-org/review-repository#17."),
+				   "a confirmed Comment closes the review and shows Home, and says both");
+			expect(submissions() == before + 1U, "one submission for the one confirmed gesture");
+			// Comment stays; Request changes still goes Home.
+			open_pull_request(*application);
+			finish_at(finishing, core::review_finish_settings{ .Comment = core::review_finish_return::pull_request });
+			sheet.choose_disposition(core::review_disposition::comment);
+			sheet.body_editor()->setPlainText(QStringLiteral("Comment stays on the pull request."));
+			sheet.submit_action()->trigger();
+			submitted(sheet);
+			QApplication::processEvents();
+			expect(!finishing.finishing_at_home() && !finishing.showing_home() && !finishing.review_sheet_open()
+					   && finishing.statusBar()->currentMessage() == QStringLiteral("Review submitted"),
+				   "with Comment unticked, a confirmed Comment returns to the pull request");
+			finishing.open_review_composition();
+			QApplication::processEvents();
+			sheet.choose_disposition(core::review_disposition::request_changes);
+			sheet.body_editor()->setPlainText(QStringLiteral("Request changes still goes Home."));
+			sheet.submit_action()->trigger();
+			submitted(sheet);
+			wait([&] { return !finishing.finishing_at_home(); }, "the Request changes close runs on the next turn");
+			expect(finishing.showing_home() && finishing.home_landing()->state() != qt::landing_state::back_to_review,
+				   "Request changes keeps its own choice and goes Home");
+			std::scoped_lock lock{ server->Mutex };
+			expect(server->Submissions == before + 3U && server->Reviews.back().Proposal.Disposition == core::review_disposition::request_changes,
+				   "each finish submitted exactly once");
 		}
 		shutdown(*application);
 		cli.check();

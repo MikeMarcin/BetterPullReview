@@ -181,6 +181,7 @@ namespace bpr::qt {
 		auto* const onePane = ViewMenu->addAction(QStringLiteral("&One pane"));
 		onePane->setObjectName(QStringLiteral("desktopToggleOnePaneAction"));
 		onePane->setCheckable(true);
+		onePane->setShortcuts(shortcut_keys(shortcut_command::one_pane));
 		onePane->setEnabled(false);
 		// [[BPR-1334]]. Line Details, after One pane as in the window's menu.
 		auto* const lineDetails = ViewMenu->addAction(QStringLiteral("Line &Details"));

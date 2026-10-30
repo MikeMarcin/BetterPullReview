@@ -113,6 +113,8 @@ namespace bpr::qt {
 		new_note,
 		review_details,
 		line_numbers,
+		/// [[BPR-1815]]. One pane or two: the comparison's layout.
+		one_pane,
 		hide_drawers,
 		/// [[BPR-1588]]. The Overview's Status drawer.
 		status_drawer,

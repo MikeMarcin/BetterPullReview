@@ -3,6 +3,7 @@
 #include "diff_publication_fixture.hpp"
 #include "product_diff.hpp"
 
+#include "bpr/core/agent_entry.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -260,12 +261,17 @@ namespace {
 		expect(start.Profile == profiles[1].Id
 				   && start.IncludedNotes == std::vector{ notes[1] } && start.IncludedDraft == draft,
 			   "the request carries exactly the profile and private identities selected in Settings");
+		const auto secondName = selector->itemText(1);
 		panel->offer_profiles(std::span{ profiles }.first(1));
 		panel->offer_private_context(std::span{ notes }.first(1), std::nullopt);
-		expect(selector->count() == 1 && noteList->model()->rowCount() == 1
+		// [[BPR-1823]], owner ruling 2026-10-29: the chosen Second, no longer
+		// offered, stays chosen as unavailable rather than becoming First.
+		expect(panel->offered_count() == 1U && selector->count() == 2 && selector->itemData(0) == QVariant::fromValue<qulonglong>(1U)
+				   && !panel->selected_profile().has_value() && panel->unavailable_agent_name() == secondName
+				   && noteList->model()->rowCount() == 1
 				   && !draftBox->isChecked() && !draftBox->isEnabled()
 				   && panel->note_selector()->item(0)->checkState() == Qt::Unchecked,
-			   "a changed offer removes old choices and clears private opt-ins");
+			   "a changed offer removes old choices, keeps the removed choice as unavailable, and clears private opt-ins");
 		panel->set_running(true);
 		expect(!noteList->isEnabled(), "private context is disabled during a request");
 		window.set_storage_location(QStringLiteral("/fixture/local-data"));
@@ -942,7 +948,7 @@ namespace {
 		const auto barActions         = bar->actions();
 		const auto matchesReviewOrder = [&](const QList<QAction*>& aActions) {
 			const auto& ordered = aActions;
-			return ordered.size() == 16
+			return ordered.size() == 19
 				&& named(ordered, 0, "reviewBarInsetAction")
 				&& named(ordered, 1, "reviewBarUpdatesAction")
 				&& named(ordered, 2, "reviewBarComparingAction")
@@ -955,12 +961,17 @@ namespace {
 				&& ordered[9] == navigation[3]
 				&& named(ordered, 10, "reviewBarProgressGapAction")
 				&& named(ordered, 11, "workbenchProgressTrackAction")
-				&& named(ordered, 12, "reviewBarSpacerAction")
+				// [[BPR-1815]]. A rule, the layout toggle and Go to
+				// header/source: the View menu's own actions.
+				&& named(ordered, 12, "reviewBarViewDividerAction")
+				&& ordered[13] == window.one_pane_action()
+				&& ordered[14] == window.header_source_action()
+				&& named(ordered, 15, "reviewBarSpacerAction")
 				// [[BPR-1345]]. "Review · N pending" with Finish review, before
 				// Compose review, shown only while a review is in progress.
-				&& ordered[13] == window.review_chip_action()
-				&& ordered[14] == window.compose_review_action()
-				&& ordered[15] == window.comment_action();
+				&& ordered[16] == window.review_chip_action()
+				&& ordered[17] == window.compose_review_action()
+				&& ordered[18] == window.comment_action();
 		};
 		const auto reviewRow   = matchesReviewOrder(barActions);
 		auto       labelsAfter = barActions;
@@ -1448,10 +1459,16 @@ namespace {
 		window.show();
 		QApplication::processEvents();
 		auto* const action = window.one_pane_action();
+		// [[BPR-1815]]. Its key is the catalogue's. On macOS typing lifts an
+		// Option key from the menu bar's items ([[BPR-1536]]), so while a
+		// text field has the keyboard it carries none.
+		const auto onePaneKeys = qt::shortcut_keys(qt::shortcut_command::one_pane);
 		expect(action != nullptr && action->isCheckable()
-				   && action->shortcut().isEmpty()
+				   && onePaneKeys == QList{ QKeySequence{ QStringLiteral("Alt+Shift+P") } }
+				   && (action->shortcuts() == onePaneKeys || action->shortcuts().isEmpty())
+				   && action->shortcutContext() == Qt::WindowShortcut
 				   && window.view_menu()->actions().contains(action),
-			   "One pane is a checkable View item with no shortcut");
+			   "One pane is a checkable View item on Option-Shift-P");
 		expect(!action->isEnabled() && !action->isChecked(),
 			   "One pane starts disabled and unchecked without a comparison");
 
@@ -1495,6 +1512,138 @@ namespace {
 
 	void process_events();
 	void window_key(qt::workbench_window& aWindow, int aKey, Qt::KeyboardModifiers aModifiers);
+
+	/// \brief [[BPR-1815]]. The owner, 2026-10-29: a toggle for one pane or
+	/// two, with a key, and Go to header/source, on the row with Seen, Read
+	/// and Accept. The review bar presents the View menu's own two actions
+	/// right of the progress track, after a rule: the layout toggle shows the
+	/// layout the core decided and names the other with its key, and Go to
+	/// header/source names its key. `BPR_QT_RENDER_PATH` names the bar's
+	/// renders, light and dark, in both layouts.
+	void test_the_review_bar_presents_the_layout_and_header_source()
+	{
+		intent_log           log;
+		qt::workbench_window window{ [&log](core::workbench_interaction_intent aIntent) {
+			log.Workbench.push_back(std::move(aIntent));
+		} };
+		window.resize(1'280, 820);
+		window.show();
+		auto headerSourceCalls = 0;
+		window.set_header_source_dispatch([&headerSourceCalls] { ++headerSourceCalls; });
+		window.publish(application::github_presentation_update{
+			.PullRequest = application::github_pull_request_projection{
+				.Owner          = "EpicGames",
+				.RepositoryName = "UnrealEngine",
+				.Number         = core::pull_request_number{ 14366U },
+				.Title          = "Hair strand lighting fixes for LSS",
+			},
+		});
+		auto projection = every_primary_command_offered();
+		projection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::go_to_header_source)]
+			= offered(core::workbench_command_id::go_to_header_source);
+		projection.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::disabled };
+		window.publish(projection);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+
+		auto* const bar      = window.review_bar();
+		auto* const layout   = window.findChild<QToolButton*>(QStringLiteral("workbenchOnePaneButton"));
+		auto* const header   = window.findChild<QToolButton*>(QStringLiteral("workbenchHeaderSourceButton"));
+		auto* const progress = window.findChild<QWidget*>(QStringLiteral("workbenchProgressTrack"));
+		expect(layout != nullptr && header != nullptr && progress != nullptr
+				   && bar->widgetForAction(window.one_pane_action()) == layout
+				   && bar->widgetForAction(window.header_source_action()) == header
+				   && layout->toolButtonStyle() == Qt::ToolButtonIconOnly && header->toolButtonStyle() == Qt::ToolButtonIconOnly
+				   && layout->focusPolicy() == Qt::StrongFocus && header->focusPolicy() == Qt::StrongFocus,
+			   "the review bar presents the View menu's One pane and Go to header/source as icon buttons");
+		expect(layout->geometry().left() > progress->geometry().right() && header->geometry().left() > layout->geometry().right()
+				   && layout->geometry().top() == header->geometry().top()
+				   && qAbs(layout->geometry().center().y() - progress->geometry().center().y()) <= 1,
+			   "the layout toggle and Go to header/source sit right of Seen, Read and Accept, on their row");
+		const auto order = window.focus_order();
+		expect(order.indexOf(window.review_controls_button()) >= 0
+				   && order.indexOf(layout) == order.indexOf(window.review_controls_button()) + 1
+				   && order.indexOf(header) == order.indexOf(layout) + 1,
+			   "the keyboard reaches them after private progress, as they sit");
+
+		const auto image = [](const QIcon& aIcon) {
+			return aIcon.pixmap(QSize{ 16, 16 }, 2.0).toImage().convertToFormat(QImage::Format_ARGB32);
+		};
+		const auto key     = QKeySequence{ QStringLiteral("Alt+Shift+P") }.toString(QKeySequence::NativeText);
+		const auto showing = [&](const qt::strip_glyph aGlyph) {
+			return image(layout->icon()) == image(qt::strip_icon(aGlyph, window.palette()));
+		};
+		expect(layout->isEnabled() && !layout->isChecked() && showing(qt::strip_glyph::two_panes) && !showing(qt::strip_glyph::one_pane)
+				   && layout->toolTip().startsWith(QStringLiteral("One pane (%1)\n").arg(key)),
+			   "two panes showing: the toggle shows two panes and names One pane with its key");
+		expect(header->isEnabled() && image(header->icon()) == image(qt::strip_icon(qt::strip_glyph::header_source, window.palette()))
+				   && header->toolTip().startsWith(QStringLiteral("Go to header/source (%1)\n").arg(window.header_source_action()->shortcut().toString(QKeySequence::NativeText)))
+				   && header->accessibleName() == QStringLiteral("Go to header/source"),
+			   "Go to header/source shows its glyph and names its key");
+
+		const auto save = [&window, bar](const QString& aSuffix) {
+			const auto rendered = bar->grab();
+			expect(!rendered.isNull(), "the review bar renders");
+			if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+				const QFileInfo file{ path };
+				expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG")
+						   && window.grab().save(QStringLiteral("%1/%2-%3-window.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
+					   "the review bar render is saved for inspection");
+			}
+		};
+
+		const auto toggles = [&log] {
+			return std::ranges::count_if(log.Workbench, [](const core::workbench_interaction_intent& aIntent) {
+				return std::holds_alternative<core::toggle_workbench_one_pane_intent>(aIntent);
+			});
+		};
+		expect(toggles() == 0, "nothing has asked for a layout yet");
+		layout->click();
+		process_events();
+		expect(toggles() == 1 && std::get_if<core::toggle_workbench_one_pane_intent>(&log.Workbench.back()) != nullptr
+				   && !layout->isChecked() && showing(qt::strip_glyph::two_panes),
+			   "a press sends one toggle intent and the toggle keeps the layout the core last decided");
+		// The key from a control that takes no typed text, so no text field
+		// has lifted it.
+		window.activateWindow();
+		layout->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(window.one_pane_action()->shortcuts() == qt::shortcut_keys(qt::shortcut_command::one_pane),
+			   "outside text input One pane carries its key");
+		window_key(window, Qt::Key_P, Qt::AltModifier | Qt::ShiftModifier);
+		expect(toggles() == 2, "Option-Shift-P sends the same intent");
+		header->click();
+		process_events();
+		expect(headerSourceCalls == 1, "a press on Go to header/source is the View action's dispatch");
+
+		for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+			auto profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			window.setPalette(profile.derive(QApplication::palette()));
+			projection.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::disabled };
+			window.publish(projection);
+			process_events();
+			expect(showing(qt::strip_glyph::two_panes) && !layout->isChecked(), "a theme change repaints the two-pane glyph in the new ink");
+			save(QStringLiteral("two-panes-%1").arg(name));
+			projection.OnePane = core::workbench_one_pane_delta{ .State = core::workbench_one_pane::enabled };
+			window.publish(projection);
+			process_events();
+			expect(layout->isChecked() && showing(qt::strip_glyph::one_pane) && !showing(qt::strip_glyph::two_panes)
+					   && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key))
+					   && window.comparison_surface()->one_pane_enabled(),
+				   "one pane showing: the toggle is checked, shows one pane and names Two panes with its key");
+			save(QStringLiteral("one-pane-%1").arg(name));
+		}
+
+		auto refusedProjection = every_primary_command_offered();
+		refusedProjection.Commands->Commands[static_cast<std::size_t>(core::workbench_command_id::toggle_one_pane)]
+			= refused(core::workbench_command_id::toggle_one_pane, core::workbench_reason_code::no_active_workbench);
+		window.publish(refusedProjection);
+		process_events();
+		expect(!layout->isEnabled() && !header->isEnabled() && layout->toolTip().startsWith(QStringLiteral("Two panes (%1)\n").arg(key)),
+			   "refused commands disable both buttons, and the toggle still names its key and says why");
+		window.hide();
+	}
 
 	/// \brief [[BPR-1212]]. A composition page shows: it is Discuss's composer
 	/// column, beside the conversations, on the centre's Discuss page.
@@ -1974,11 +2123,16 @@ namespace {
 			wordsGone = wordsGone || !words;
 		}
 		expect(compactFirst > 0, "the modality's shortcuts yield on the way down to the floor");
+		// [[BPR-1255]], [[BPR-1815]]. The floor follows the bar with everything
+		// yielded, or the platform's, whichever is wider. Since the review bar
+		// gained its view controls the yielded bar is the wider at the default
+		// font, so nothing on it folds.
+		const auto yieldedBar = window.review_bar()->sizeHint().width() + std::max(0, window.width() - window.review_bar()->width());
 #if defined(_WIN32)
 		// [[BPR-0653]], [[BPR-1129]]. The owner's floor on Windows is 902. With the
 		// navigation on the review bar, the title row there holds the name and
 		// the whole modality words, with the menu control and caption buttons.
-		expect(window.minimumWidth() == 902, "the Windows title row's width floor is 902");
+		expect(window.minimumWidth() == std::max(902, yieldedBar), "the Windows floor is 902 or the yielded review bar");
 		expect(!window.modality()->abbreviated() && window.identity_label()->isVisible()
 				   && !window.caption_buttons()->isHidden() && !window.strip_menu_button()->isHidden(),
 			   "at the Windows floor the name, the whole modality words and every title-row control show");
@@ -1988,7 +2142,7 @@ namespace {
 				   "at the Windows floor each segment shows its whole word");
 		}
 #else
-		expect(window.minimumWidth() == 900, "the width floor stays 900 off Windows");
+		expect(window.minimumWidth() == std::max(900, yieldedBar), "off Windows the floor is 900 or the yielded review bar");
 #endif
 		// Straight from the default width to the narrowest that keeps the
 		// shortcuts: the rows measure their items in the form this resize
@@ -6069,14 +6223,17 @@ namespace {
 		window.show();
 		publish_positioned_review_bar(window);
 		process_events();
-		expect(window.minimumWidth() == platform_floor_width(), "at the default font the window keeps the platform's floor");
+		// [[BPR-1815]]. With the view controls the yielded bar can be wider
+		// than the platform's floor at the default font; the floor is then the bar's.
+		const auto defaultFloor = window.minimumWidth();
+		expect(defaultFloor >= platform_floor_width() && !review_bar_folded(window), "at the default font the window keeps at least the platform's floor, where nothing folds");
 		const auto normal = window.review_bar()->font();
 		auto       larger = normal;
 		larger.setPointSizeF(normal.pointSizeF() * 3.0);
 		window.review_bar()->setFont(larger);
 		process_events();
 		const auto raised = window.minimumWidth();
-		expect(raised > platform_floor_width(), "a font too large for the floor raises the window's minimum");
+		expect(raised > defaultFloor, "a font too large for the floor raises the window's minimum");
 		window.resize(platform_floor_width(), 820);
 		process_events();
 		expect(window.width() == raised && !review_bar_folded(window),
@@ -6084,7 +6241,7 @@ namespace {
 		expect(window.review_bar()->sizeHint().width() <= raised, "the raised floor holds the bar with everything yielded");
 		window.review_bar()->setFont(normal);
 		process_events();
-		expect(window.minimumWidth() == platform_floor_width(), "the floor returns at the default font");
+		expect(window.minimumWidth() == defaultFloor, "the floor returns at the default font");
 		auto windowFont = window.font();
 		windowFont.setPointSizeF(windowFont.pointSizeF() * 3.0);
 		window.setFont(windowFont);
@@ -6162,13 +6319,21 @@ namespace {
 		// fits at 1280. Its words yield before the comparison's dates and
 		// position; the full wording fits at 1460 on the supported fonts.
 		auto* const composeButton = qobject_cast<QToolButton*>(window.review_bar()->widgetForAction(window.compose_review_action()));
+		// [[BPR-1815]]. The view controls take the width the dates had at 1280:
+		// there the dates yield first, as they always have, and they return by
+		// 1366, the common laptop width.
+		expect(composeButton->text() == QStringLiteral("Approve…") && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
+				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40") && window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS")),
+			   "at 1280 the review bar fits the view controls, the position and \"Approve…\", and the title row names the pull request whole");
+		window.resize(1'366, 852);
+		process_events();
 		expect(window.identity_label()->text().contains(QStringLiteral("Hair strand lighting fixes for LSS"))
 				   && window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
 				   && composeButton->toolButtonStyle() == Qt::ToolButtonTextBesideIcon
 				   && (composeButton->text() == QStringLiteral("Approve…") || composeButton->text() == QStringLiteral("Approve or comment…"))
 				   && window.review_bar()->sizeHint().width() <= window.review_bar()->width()
 				   && window.file_position_label()->text() == QStringLiteral("File 3 of 40"),
-			   "at 1280 the title row names the pull request whole and the review bar fits the comparison's dates, the position and the approve command's words");
+			   "at 1366 the title row names the pull request whole and the review bar fits the comparison's dates, the position and the approve command's words");
 		window.resize(1'460, 852);
 		process_events();
 		expect(window.epoch_selectors()->comparing_button()->text().contains(QStringLiteral(" → "))
@@ -6224,7 +6389,8 @@ namespace {
 				log.Change.push_back(aIntent);
 			}
 		};
-		window.resize(1'280, 852);
+		// [[BPR-1815]]. Wide enough for the comparison's dates beside the view controls.
+		window.resize(1'366, 852);
 		window.show();
 		window.publish(application::github_presentation_update{
 			.PullRequest = application::github_pull_request_projection{
@@ -7826,6 +7992,9 @@ namespace {
 			window.findChild<QToolButton*>(QStringLiteral("workbenchProgressReadStep")),
 			window.findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton")),
 			window.review_controls_button(),
+			// [[BPR-1815]]. The layout toggle and Go to header/source.
+			barStop(window.one_pane_action()),
+			barStop(window.header_source_action()),
 			barStop(window.compose_review_action()),
 			barStop(window.comment_action()),
 		};
@@ -13835,6 +14004,294 @@ namespace {
 	/// away (⌥⇧A); ⌘I and the code's menu ask about the selected lines; the
 	/// context row, the state callout, the finding cards whose actions are
 	/// the queue's own, and the question field.
+	/// [[BPR-1817]]. A send that produces no turn says why beside the
+	/// composer, in the core's vocabulary: before anything is sent (nothing
+	/// typed, a turn still running), when the host refuses it, and when the
+	/// launch path refuses it after the gesture. A run that fails after it
+	/// started is an error entry in the thread with what the agent wrote.
+	void test_a_refused_send_says_why_beside_the_composer()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, 1U);
+		profile.Protocol    = core::agent_protocol::codex_jsonl_exec;
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		agent->refresh();
+		process_events();
+		auto* const chat = window.side_chat();
+
+		// No review open: Send cannot be pressed, and its tooltip says why.
+		expect(!agent->ask_button()->isEnabled() && agent->send_blocked() == core::agent_send_refusal::no_review
+				   && agent->ask_button()->toolTip() == qt::agent_tab_view::send_refusal_words(core::agent_send_refusal::no_review, QStringLiteral("Fixture agent")),
+			   "with no review open Send is disabled and its tooltip names why");
+
+		// A review's chat: Send is pressable and the tooltip is the shortcut.
+		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto       sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		agent->refresh();
+		expect(agent->ask_button()->isEnabled() && agent->send_blocked() == core::agent_send_refusal::none && agent->ask_button()->toolTip().startsWith(QStringLiteral("Send the question")),
+			   "with a review's chat Send can be pressed");
+
+		// Nothing typed: refused before anything is sent, and said.
+		chat->composer()->clear();
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::empty_message && agent->send_refusal_strip()->isVisible()
+				   && agent->send_refusal_text() == QStringLiteral("Not sent. Type a question, then send."),
+			   "an empty send sends nothing and the composer says to type a question");
+
+		// Typed and sent: the gesture leaves, and the strip goes with it.
+		chat->composer()->setPlainText(QStringLiteral("What does the retry budget do?"));
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.size() == 1U && sends.back().Text == "What does the retry budget do?" && !agent->send_refusal_strip()->isVisible(), "a typed send leaves, with no refusal shown");
+
+		// The host refuses it by the core's verdict: the composer says which.
+		agent->refuse_send(core::agent_send_refusal::agent_forbidden_on_host);
+		process_events();
+		expect(agent->send_refusal_strip()->isVisible() && agent->findChild<QWidget*>(QStringLiteral("agentQuestion"))->isAncestorOf(agent->send_refusal_strip())
+				   && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent isn't allowed for this pull request's server. Choose an agent the server allows."),
+			   "a refusal the host names is said beside the composer, naming the agent");
+		expect(chat->composer()->toPlainText() == QStringLiteral("What does the retry budget do?") && agent->turn_count() == 0U, "the question stays in the field and no turn is shown");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-send-refused-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			auto       dark  = light;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+				dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+				dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+				dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+				dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+			}
+			QApplication::setPalette(dark);
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-send-refused-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		agent->findChild<QToolButton*>(QStringLiteral("agentSendRefusalClose"))->click();
+		process_events();
+		expect(!agent->send_refusal_strip()->isVisible() && agent->send_refusal() == core::agent_send_refusal::none, "Dismiss closes the refusal");
+
+		// The launch path refuses after the gesture, by its own stable name:
+		// said in the same words, never only on the hidden launch panel.
+		agent->ask_button()->click();
+		process_events();
+		window.agent_panel()->refuse("profile_forbidden_on_host");
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::agent_forbidden_on_host && agent->send_refusal_strip()->isVisible(), "a launch-path refusal after a send is said beside the composer");
+		window.agent_panel()->refuse("no exact accepted review context");
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::agent_forbidden_on_host, "a later refusal no send is waiting for is not this composer's");
+		agent->ask_button()->click();
+		process_events();
+		window.agent_panel()->refuse("no exact accepted review context");
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::launch_refused && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent didn't start. (no exact accepted review context)"),
+			   "a launch-path refusal the core did not name keeps the host's words");
+
+		// A run that fails after it started is an error entry in the thread.
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = 1U;
+		agent->ask_button()->click();
+		process_events();
+		window.agent_panel()->admit(identity);
+		process_events();
+		expect(!agent->send_refusal_strip()->isVisible() && agent->turn_count() == 1U, "an admitted send is a turn, and no refusal stays");
+		// While it runs, a second send from the keyboard is refused and said.
+		{
+			auto press = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::ControlModifier };
+			QApplication::sendEvent(chat->composer(), &press);
+		}
+		process_events();
+		expect(agent->send_refusal() == core::agent_send_refusal::request_in_flight && sends.size() == 4U, "a send while the agent works is refused before it is sent, and said");
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::nonzero_exit, .StandardError = "fixture-agent: model not configured\nexit status 2" });
+		process_events();
+		expect(agent->state() == qt::agent_tab_state::stopped && agent->turn_answer(0U).startsWith(QStringLiteral("Fixture agent exited with an error before answering."))
+				   && agent->turn_answer(0U).contains(QStringLiteral("fixture-agent: model not configured")) && agent->turn_answer(0U).contains(QStringLiteral("exit status 2")),
+			   "a failed run's turn says what happened and what the agent wrote: " + agent->turn_answer(0U).toStdString());
+		expect(!agent->send_refusal_strip()->isVisible() && agent->banner()->isVisible()
+				   && std::ranges::none_of(agent->findChildren<QLabel*>(), [](const QLabel* aLabel) { return aLabel->isVisible() && aLabel->text().contains(QStringLiteral("nonzero_exit")); }),
+			   "once the run ends the in-flight refusal goes, and the stopped banner says what happened in words");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-run-failed-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			auto       dark  = light;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+				dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+				dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+				dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+				dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+			}
+			QApplication::setPalette(dark);
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-run-failed-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		chat->set_dispatch({ });
+		window.hide();
+	}
+
+	/// \brief [[BPR-1823]], owner ruling 2026-10-29. The composer keeps the
+	/// reviewer's agent through re-offers; a chosen agent that is removed is
+	/// said as unavailable in the pill and its menu, never replaced, and a send
+	/// to it is refused with "Not sent." and why.
+	void test_a_removed_agent_is_unavailable_in_the_composer()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		const auto make = [](const std::uint32_t aId, const char* aName) {
+			auto profile        = core::agent_profile{ };
+			profile.Id          = core::entry_profile_id(core::agent_protocol::codex_jsonl_exec, aId);
+			profile.Protocol    = core::agent_protocol::codex_jsonl_exec;
+			profile.DisplayName = aName;
+			profile.Executable  = "/usr/bin/true";
+			return profile;
+		};
+		const auto first       = make(1U, "Review agent");
+		const auto second      = make(2U, "Fixture agent");
+		const auto both        = std::vector{ first, second };
+		auto*      panel       = window.agent_panel();
+		const auto settingsFor = [](const core::agent_profile& aProfile) {
+			auto settings    = qt::agent_run_settings{ };
+			settings.Profile = aProfile.Id.value();
+			settings.Agent   = QString::fromStdString(aProfile.DisplayName);
+			settings.Program = QStringLiteral("/usr/bin/true");
+			return settings;
+		};
+		panel->prefer_profile(first.Id);
+		panel->offer_profiles(both);
+		agent->present_run_settings({ settingsFor(first), settingsFor(second) });
+		process_events();
+		expect(panel->selected_profile() == std::optional{ first.Id }, "the saved agent is the first pick");
+		expect(agent->choose_agent(second.Id.value()), "the reviewer chooses the other agent from the pill's menu");
+		process_events();
+		panel->prefer_profile(first.Id);
+		panel->offer_profiles(both);
+		process_events();
+		expect(panel->selected_profile() == std::optional{ second.Id } && agent->run_settings_text().startsWith(QStringLiteral("Fixture agent")),
+			   "a setup update and a re-offer keep the reviewer's agent in the pill");
+
+		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = second.Id, .Binding = binding };
+		auto*      chat    = window.side_chat();
+		auto       sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+
+		// Removed in Settings: the host offers only the first agent now.
+		panel->offer_profiles(std::vector{ first });
+		agent->present_run_settings({ settingsFor(first) });
+		process_events();
+		agent->refresh();
+		process_events();
+		expect(!panel->selected_profile().has_value() && panel->unavailable_agent_name() == QStringLiteral("Fixture agent"), "the removed agent is not replaced by the other");
+		expect(agent->run_settings_button()->isVisible() && agent->run_settings_text() == QStringLiteral("Unavailable: Fixture agent"),
+			   "the pill says the chosen agent isn't available: " + agent->run_settings_text().toStdString());
+		auto* const menu    = agent->run_settings_button()->menu();
+		const auto  actions = menu->actions();
+		expect(!actions.isEmpty() && actions.front()->text() == QStringLiteral("Fixture agent isn't available. Choose an agent:") && !actions.front()->isEnabled()
+				   && std::ranges::count_if(actions, [](const QAction* aAction) { return aAction->objectName() == QStringLiteral("agentRunSettingsAgent"); }) == 1,
+			   "its menu says so and offers the agents to choose from");
+		chat->composer()->setPlainText(QStringLiteral("What does the retry budget do?"));
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.empty() && agent->send_refusal() == core::agent_send_refusal::agent_unavailable && agent->send_refusal_strip()->isVisible()
+				   && agent->send_refusal_text() == QStringLiteral("Not sent. Fixture agent isn't available. Choose an agent in the agent menu, then send."),
+			   "a send to it is refused and says why: " + agent->send_refusal_text().toStdString());
+		expect(chat->composer()->toPlainText() == QStringLiteral("What does the retry budget do?"), "the question stays in the field");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-unavailable-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			auto       dark  = light;
+			for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+				dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+				dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+				dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+				dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+				dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+				dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+				dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+			}
+			QApplication::setPalette(dark);
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-unavailable-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+
+		// Choosing the other agent from the pill's menu ends it.
+		expect(agent->choose_agent(first.Id.value()), "another agent is chosen from the menu");
+		process_events();
+		expect(panel->selected_profile() == std::optional{ first.Id } && panel->unavailable_agent_name().isEmpty() && agent->run_settings_text().startsWith(QStringLiteral("Review agent")),
+			   "the pill names the chosen agent again");
+		chat->set_dispatch({ });
+		window.hide();
+	}
+
 	void test_the_agent_is_a_drawer_tab()
 	{
 		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
@@ -16158,6 +16615,68 @@ namespace {
 
 	/// \brief RFC-BPR-0084 Q3. Settings' "Descriptions and comments: Images"
 	/// row is one profile preference; the window follows what the host publishes.
+	/// \brief [[BPR-1816]]. Settings › Review › Finishing a review: one box
+	/// per finishing verdict, ticked by default, each dispatching only its own
+	/// choice; the row follows what the host publishes; Reset ticks all three.
+	/// With BPR_FINISH_REVIEW_RENDER_DIR set, the section renders in light and
+	/// dark.
+	void test_finish_review_settings_follow_the_projection()
+	{
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		auto records = std::vector<application::review_behaviour_settings>{ };
+		window.set_behaviour_dispatch([&records](const application::review_behaviour_settings& aSettings) {
+			records.push_back(aSettings);
+		});
+		window.show();
+		window.publish(every_primary_command_offered());
+		process_events();
+		const auto verdicts = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+		const auto names    = std::array{ QStringLiteral("Comment"), QStringLiteral("Approve"), QStringLiteral("Request changes") };
+		for (std::size_t index = 0U; index < verdicts.size(); ++index) {
+			auto* const box = window.finish_review_switch(verdicts[index]);
+			expect(box != nullptr && box->isChecked() && box->text() == names[index]
+					   && box->accessibleName() == QStringLiteral("Close the review and go Home after %1").arg(names[index])
+					   && box->focusPolicy() == Qt::StrongFocus && window.behaviour_editor()->isAncestorOf(box),
+				   "each finishing verdict has its own box on Settings › Review, ticked by default");
+		}
+		auto* const label = window.findChild<QLabel*>(QStringLiteral("finishReviewLabel"));
+		auto* const info  = window.findChild<QToolButton*>(QStringLiteral("finishReviewInfo"));
+		auto* const reset = window.findChild<QToolButton*>(QStringLiteral("resetFinishReview"));
+		expect(label != nullptr && label->text() == QStringLiteral("Close and go Home after") && info != nullptr && reset != nullptr
+				   && window.findChild<QLabel*>(QStringLiteral("resetFinishReviewHeading"))->text() == QStringLiteral("Finishing a review"),
+			   "the group is named, its row says what the boxes do, and it has an information glyph and its own Reset");
+		if (const auto directory = qEnvironmentVariable("BPR_FINISH_REVIEW_RENDER_DIR"); !directory.isEmpty()) {
+			auto* const settings = window.settings();
+			expect(settings != nullptr, "the window has Settings to render");
+			settings->resize(980, 640);
+			settings->present(qt::settings_page::review);
+			for (const auto& [mode, name] : { std::pair{ core::appearance_mode::light, QStringLiteral("light") }, std::pair{ core::appearance_mode::dark, QStringLiteral("dark") } }) {
+				auto profile = qt::appearance_profile{ };
+				profile.select_mode(mode);
+				settings->setPalette(profile.derive(QApplication::palette()));
+				process_events();
+				expect(settings->grab().save(directory + QStringLiteral("/finish-review-settings-%1.png").arg(name)), "the Review page renders");
+			}
+			settings->close();
+		}
+		window.finish_review_switch(core::review_disposition::approve)->click();
+		expect(records.size() == 1U
+				   && records.back().FinishReview == core::review_finish_settings{ .Approve = core::review_finish_return::pull_request }
+				   && records.back().MarkdownImages == application::review_behaviour_settings{ }.MarkdownImages,
+			   "unticking Approve dispatches the whole record with only Approve staying on the pull request");
+		auto stays                        = application::review_behaviour_settings{ };
+		stays.FinishReview.RequestChanges = core::review_finish_return::pull_request;
+		window.publish(application::workbench_projection{ .Behaviour = stays });
+		process_events();
+		expect(window.finish_review_switch(core::review_disposition::comment)->isChecked() && window.finish_review_switch(core::review_disposition::approve)->isChecked()
+				   && !window.finish_review_switch(core::review_disposition::request_changes)->isChecked() && records.size() == 1U,
+			   "the boxes show what the host published, without dispatching again");
+		reset->click();
+		expect(records.size() == 2U && records.back().FinishReview == core::review_finish_settings{ }, "Reset ticks all three again, and nothing else changes");
+		window.hide();
+	}
+
 	void test_markdown_images_preference_follows_the_projection()
 	{
 		qt::workbench_window window;
@@ -23074,6 +23593,7 @@ auto main(int argc, char** argv) -> int
 		QStringLiteral("--open-on-github"),
 		QStringLiteral("--open-review-from-home"),
 		QStringLiteral("--title-row"),
+		QStringLiteral("--agent-send-refusal"),
 #if defined(_WIN32)
 		QStringLiteral("--strip-menu"),
 #endif
@@ -23148,6 +23668,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_center_ribbon_width_settings_and_rendering", &test_center_ribbon_width_settings_and_rendering);
 		runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
 		runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+		runCase("test_finish_review_settings_follow_the_projection", &test_finish_review_settings_follow_the_projection);
 		if (!listCases) {
 			std::cout << "center-ribbon-width:pass\n";
 		}
@@ -23321,6 +23842,15 @@ auto main(int argc, char** argv) -> int
 		}
 		return EXIT_SUCCESS;
 	}
+	// [[BPR-1817]]. The composer's refusals, on their own.
+	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
+		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
+		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
+		if (!listCases) {
+			std::cout << "workbench-agent-send-refusal:pass\n";
+		}
+		return EXIT_SUCCESS;
+	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
 		runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
 		runCase("test_compact_icon_row_preserves_exact_order_and_edges", &test_compact_icon_row_preserves_exact_order_and_edges);
@@ -23441,6 +23971,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_finish_review_is_a_sheet_beside_the_code", &test_finish_review_is_a_sheet_beside_the_code);
 	runCase("test_the_tour_is_a_route_expanding_to_its_page", &test_the_tour_is_a_route_expanding_to_its_page);
 	runCase("test_the_agent_is_a_drawer_tab", &test_the_agent_is_a_drawer_tab);
+	runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
 	runCase("test_pending_rows_open_their_comments_like_threads", &test_pending_rows_open_their_comments_like_threads);
 	runCase("test_tour_retarget_key_reaches_only_the_outline", &test_tour_retarget_key_reaches_only_the_outline);
 	runCase("test_compose_review_marks_a_kept_draft", &test_compose_review_marks_a_kept_draft);
@@ -23457,6 +23988,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_drawer_toggles_follow_core_command_projections", &test_drawer_toggles_follow_core_command_projections);
 	runCase("test_the_view_menu_offers_a_core_decided_line_number_toggle", &test_the_view_menu_offers_a_core_decided_line_number_toggle);
 	runCase("test_the_view_menu_projects_one_pane_without_changing_modality", &test_the_view_menu_projects_one_pane_without_changing_modality);
+	runCase("test_the_review_bar_presents_the_layout_and_header_source", &test_the_review_bar_presents_the_layout_and_header_source);
 	runCase("test_the_view_menu_reaches_the_composed_source_panes", &test_the_view_menu_reaches_the_composed_source_panes);
 	runCase("test_one_pane_places_threads_on_their_own_changed_rows", &test_one_pane_places_threads_on_their_own_changed_rows);
 	runCase("test_collapsing_a_drawer_returns_space_to_the_centre", &test_collapsing_a_drawer_returns_space_to_the_centre);
@@ -23531,6 +24063,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_hidden_drawer_controls_leave_no_column_and_no_hide_button", &test_hidden_drawer_controls_leave_no_column_and_no_hide_button);
 	runCase("test_line_details_view_menu_and_settings_follow_the_projection", &test_line_details_view_menu_and_settings_follow_the_projection);
 	runCase("test_markdown_images_preference_follows_the_projection", &test_markdown_images_preference_follows_the_projection);
+	runCase("test_finish_review_settings_follow_the_projection", &test_finish_review_settings_follow_the_projection);
 	runCase("test_continue_review_and_opening_honour_the_modality_preferences", &test_continue_review_and_opening_honour_the_modality_preferences);
 	runCase("test_comments_filter_and_return_comparison_preferences_apply_on_open", &test_comments_filter_and_return_comparison_preferences_apply_on_open);
 	runCase("test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison", &test_mark_read_when_fully_seen_dispatches_once_at_the_end_of_the_comparison);

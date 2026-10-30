@@ -1,5 +1,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 
+#include <algorithm>
+
 namespace bpr::core {
 	namespace {
 		[[nodiscard]] auto engaged_identity_count(
@@ -349,5 +351,109 @@ namespace bpr::core {
 		verdict.Permitted = true;
 		verdict.Refusal   = agent_action_refusal::none;
 		return verdict;
+	}
+
+	auto stable_name(const agent_send_refusal aRefusal) noexcept
+		-> std::string_view
+	{
+		switch (aRefusal) {
+		case agent_send_refusal::none:                     return "none";
+		case agent_send_refusal::no_review:                return "no_review";
+		case agent_send_refusal::no_agent:                 return "no_agent";
+		case agent_send_refusal::empty_message:            return "empty_message";
+		case agent_send_refusal::request_in_flight:        return "request_in_flight";
+		case agent_send_refusal::session_stale:            return "session_stale";
+		case agent_send_refusal::agent_unknown:            return "agent_unknown";
+		case agent_send_refusal::host_not_mapped:          return "host_not_mapped";
+		case agent_send_refusal::agent_forbidden_on_host:  return "agent_forbidden_on_host";
+		case agent_send_refusal::agent_not_required_one:   return "agent_not_required_one";
+		case agent_send_refusal::session_profile_mismatch: return "session_profile_mismatch";
+		case agent_send_refusal::selection_required:       return "selection_required";
+		case agent_send_refusal::unknown_action:           return "unknown_action";
+		case agent_send_refusal::scope_invalid:            return "scope_invalid";
+		case agent_send_refusal::private_context_refused:  return "private_context_refused";
+		case agent_send_refusal::launch_refused:           return "launch_refused";
+		case agent_send_refusal::agent_unavailable:        return "agent_unavailable";
+		}
+		return { };
+	}
+
+	auto agent_send_refusal_of(const agent_action_verdict& aVerdict) noexcept
+		-> agent_send_refusal
+	{
+		if (aVerdict.Permitted) {
+			return agent_send_refusal::none;
+		}
+		switch (aVerdict.Refusal) {
+		case agent_action_refusal::none:
+			// A verdict that is not permitted and names no refusal is still a
+			// refusal; it is never read as a send.
+			return agent_send_refusal::unknown_action;
+		case agent_action_refusal::profile_refused:
+			switch (aVerdict.Invocation ? aVerdict.Invocation->Refusal : agent_invocation_refusal::profile_unknown) {
+			case agent_invocation_refusal::host_not_mapped:           return agent_send_refusal::host_not_mapped;
+			case agent_invocation_refusal::profile_forbidden_on_host: return agent_send_refusal::agent_forbidden_on_host;
+			case agent_invocation_refusal::profile_not_required_one:  return agent_send_refusal::agent_not_required_one;
+			case agent_invocation_refusal::none:
+			case agent_invocation_refusal::profile_invalid:
+			case agent_invocation_refusal::profile_unknown:           return agent_send_refusal::agent_unknown;
+			}
+			return agent_send_refusal::agent_unknown;
+		case agent_action_refusal::session_invalid:          return agent_send_refusal::no_review;
+		case agent_action_refusal::session_profile_mismatch: return agent_send_refusal::session_profile_mismatch;
+		case agent_action_refusal::selection_required:       return agent_send_refusal::selection_required;
+		case agent_action_refusal::unknown_entry_point:      return agent_send_refusal::unknown_action;
+		}
+		return agent_send_refusal::unknown_action;
+	}
+
+	auto decide_agent_send(const agent_send_facts& aFacts) noexcept
+		-> agent_send_refusal
+	{
+		if (!aFacts.ReviewOpen) {
+			return agent_send_refusal::no_review;
+		}
+		if (aFacts.ContinuationRequired) {
+			return agent_send_refusal::session_stale;
+		}
+		if (aFacts.InFlight) {
+			return agent_send_refusal::request_in_flight;
+		}
+		if (aFacts.AgentUnavailable) {
+			return agent_send_refusal::agent_unavailable;
+		}
+		if (!aFacts.AgentChosen) {
+			return agent_send_refusal::no_agent;
+		}
+		if (aFacts.MessageEmpty) {
+			return agent_send_refusal::empty_message;
+		}
+		return agent_send_refusal::none;
+	}
+
+	auto agent_pick_available(
+		const agent_pick&                       aPick,
+		const std::span<const agent_profile_id> aOffered) noexcept -> bool
+	{
+		return aPick.Agent.has_value() && std::ranges::find(aOffered, *aPick.Agent) != aOffered.end();
+	}
+
+	auto decide_agent_pick(const agent_pick_facts& aFacts) -> agent_pick
+	{
+		if (aFacts.Chose) {
+			return { .Agent = aFacts.Chose, .Kept = true };
+		}
+		if (aFacts.Current.Kept) {
+			return aFacts.Current;
+		}
+		const auto offered = [&aFacts](const agent_profile_id aId) { return std::ranges::find(aFacts.Offered, aId) != aFacts.Offered.end(); };
+		auto       pick    = agent_pick{ };
+		if (aFacts.Saved && offered(*aFacts.Saved)) {
+			pick.Agent = aFacts.Saved;
+		} else if (!aFacts.Offered.empty()) {
+			pick.Agent = aFacts.Offered.front();
+		}
+		pick.Kept = aFacts.SetupKnown && pick.Agent.has_value();
+		return pick;
 	}
 } // namespace bpr::core

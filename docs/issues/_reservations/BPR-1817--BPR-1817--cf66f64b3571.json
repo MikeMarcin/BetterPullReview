@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1817"
+  ],
+  "reserve_for": "release-v041-tool-contracts",
+  "purpose": "Repair release tooling skip reporting, contained temporary fixtures and command registry source identity exposed by comprehensive qualification",
+  "created": "2026-10-29T22:30:27.332888+00:00",
+  "base": "fc0dd7bf1068e163fce1addcb6ea789a4be202d4"
+}

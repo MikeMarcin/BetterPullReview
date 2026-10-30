@@ -6,7 +6,12 @@
       "BPR-1811",
       "BPR-1812",
       "BPR-1813",
-      "BPR-1814"
+      "BPR-1814",
+      "BPR-1819",
+      "BPR-1818",
+      "BPR-1820",
+      "BPR-1821",
+      "BPR-1822"
     ]
   },
   "milestones": [
@@ -42,6 +47,45 @@
           "criteria": [
             "AC1",
             "AC2"
+          ]
+        },
+        {
+          "issue": "BPR-1819",
+          "criteria": [
+            "AC1",
+            "AC2"
+          ]
+        },
+        {
+          "issue": "BPR-1818",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4",
+            "AC5"
+          ]
+        },
+        {
+          "issue": "BPR-1820",
+          "criteria": [
+            "AC1",
+            "AC2"
+          ]
+        },
+        {
+          "issue": "BPR-1821",
+          "criteria": [
+            "AC1",
+            "AC2"
+          ]
+        },
+        {
+          "issue": "BPR-1822",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
           ]
         }
       ],
