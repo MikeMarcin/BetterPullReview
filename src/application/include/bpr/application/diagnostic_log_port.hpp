@@ -46,7 +46,9 @@ namespace bpr::application {
 													 /// [[BPR-1540]]. A submitted review left unknown.
 													 review_submission,
 													 /// [[BPR-1680]]. A Home discovery refresh or one of its reads.
-													 discovery };
+													 discovery,
+													 /// [[BPR-1827]]. One agent run, started and ended.
+													 agent_run };
 	enum class diagnostic_paged_operation : std::uint8_t {
 		none,
 		get_viewer_identity,

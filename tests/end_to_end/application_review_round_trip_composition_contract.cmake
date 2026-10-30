@@ -2538,8 +2538,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# the choice on Reset agents; core::decide_agent_pick decides. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1827]] agent run diagnostics reseal (2026-10-30).
+	# github_application.cpp hands the agent invocation host the entry process
+	# through application::diagnosed_agent_process, which records each run as
+	# an agent.run started and ended diagnostic line of enums and counts. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"05d4bdbe1ca1fefa2eea981c28ffc161c36bbbd9adf57311bb0d9373c23bfa73"
+		"b20b2ea42634ec44eb5e88f8d82eda4938cf58799d83fd4a7db748002101ff24"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2819,8 +2825,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # a selected diff for a non-publication gesture; same issuer, binding and
 # account/pull-request match. No provider, credential, publication admission
 # or source-inventory change.
+# [[BPR-1827]] agent run diagnostics reseal (2026-10-30): github_application.cpp
+# only, as described at the full digest. No grant, mutation, publication or
+# source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "ca39e0ff81824149f16adb2200eadf5ea11334a1e534109c98bfc5c2fdbc4815"
+        "0f4a5c193c4bef703090eab29e93f79baaf1d4c1b373ab586227327c24ecd0f7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

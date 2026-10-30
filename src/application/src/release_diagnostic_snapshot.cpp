@@ -128,7 +128,9 @@ namespace bpr::application {
 			if (!fields || ((*fields)[0] != "2" && (*fields)[0] != "3")) {
 				return std::nullopt;
 			}
-			constexpr std::array<std::string_view, 8> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery" };
+			// [[BPR-1827]]. `agent.run` is classified like any operation; its
+			// detail, like every detail, stays out of the preview.
+			constexpr std::array<std::string_view, 9> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery", "agent.run" };
 			constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 			constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 			const auto&                               values  = *fields;

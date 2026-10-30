@@ -5,6 +5,7 @@
 #include "bpr/adapters/sqlite/profile_runtime_lease.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
@@ -391,6 +392,27 @@ try {
 			event.Summary.Size  = static_cast<std::uint16_t>(text.size());
 			event.Summary.State = application::diagnostic_summary_state::sanitized;
 			expect(log.record(event) == status::available, "a discovery read's end reaches the real log");
+			// [[BPR-1827]]. An agent run's end: its protocol, outcome, cause,
+			// exit and byte counts, and nothing else, reach the file.
+			{
+				auto agentDiagnosis                = application::agent_run_diagnosis{ };
+				agentDiagnosis.Outcome             = application::agent_run_outcome::protocol_failure;
+				agentDiagnosis.Failure             = application::agent_protocol_failure::frame_too_large;
+				agentDiagnosis.ExitCode            = 0;
+				agentDiagnosis.StandardOutputBytes = 223211U;
+				agentDiagnosis.StandardErrorBytes  = 12U;
+				const auto agentText               = application::describe(agentDiagnosis);
+				auto       agentEvent              = application::diagnostic_event{ .Operation = application::diagnostic_operation::agent_run, .Outcome = application::diagnostic_outcome::failed };
+				std::ranges::copy(agentText, agentEvent.Summary.Text.begin());
+				agentEvent.Summary.Size  = static_cast<std::uint16_t>(agentText.size());
+				agentEvent.Summary.State = application::diagnostic_summary_state::sanitized;
+				expect(log.record(agentEvent) == status::available, "an agent run's end reaches the real log");
+				auto                       prose = agentEvent;
+				constexpr std::string_view note  = "agent wrote: private answer";
+				std::ranges::copy(note, prose.Summary.Text.begin());
+				prose.Summary.Size = static_cast<std::uint16_t>(note.size());
+				expect(log.record(prose) == status::dropped, "an agent run line whose detail is not a diagnosis is dropped");
+			}
 			for (const auto operation : { application::diagnostic_paged_operation::list_requested_reviewers, application::diagnostic_paged_operation::list_home_pull_requests, application::diagnostic_paged_operation::list_home_review_membership, application::diagnostic_paged_operation::list_review_requests }) {
 				auto observed           = event;
 				observed.PagedOperation = operation;
@@ -505,6 +527,10 @@ try {
 			   && first.find("\"detail\":\"review_submission=comment_page_too_large post=error_status post_class=5 http_class=0 expected=3 found=0 matched=0 candidates=0 pages=1\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"review_submission\",\"failure\":\"comment_page_too_large\"") != std::string::npos,
 		   "[[BPR-1540]] the reason is kept locally as its domain, name and counts");
+	expect(first.find("\"event\":\"agent.run.failed\"") != std::string::npos && first.find("\"category\":\"agent\"") != std::string::npos
+			   && first.find("\"detail\":\"protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=12\"") != std::string::npos
+			   && first.find("private answer") == std::string::npos,
+		   "[[BPR-1827]] an agent run's end is kept locally as enums and counts only");
 	expect(first.find("\"event\":\"github.discovery.failed\"") != std::string::npos
 			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900 credential_ms=650 wire_ms=3100 decision_ms=12 http_403=1 http_429=0 http_5xx=0 timeouts=1 backoff_s=0 candidates=39 reused=9 direct=0 rejected=30 roster_recoveries=0 completeness=complete\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"permission\"") != std::string::npos,

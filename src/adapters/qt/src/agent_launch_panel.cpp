@@ -46,7 +46,72 @@ namespace bpr::qt {
 			}
 			return { };
 		}
+
+		/// \brief [[BPR-1827]]. What one decoder refusal means, in words.
+		[[nodiscard]] auto protocol_failure_words(const application::agent_protocol_failure aFailure) -> QString
+		{
+			using failure = application::agent_protocol_failure;
+			switch (aFailure) {
+			case failure::malformed_frame:               return QStringLiteral("A line of its output isn't in the format its profile names, or arrived out of order.");
+			case failure::incomplete_frame:              return QStringLiteral("Its output stopped before the turn finished: the last line was cut off, or no final result came.");
+			case failure::frame_too_large:               return QStringLiteral("One line of its output is longer than this app reads.");
+			case failure::output_too_large:              return QStringLiteral("It wrote more output than this app reads in one run.");
+			case failure::remote_failed:                 return QStringLiteral("It reported that its turn failed.");
+			case failure::remote_interrupted:            return QStringLiteral("It reported that its turn was interrupted.");
+			case failure::causal_violation:              return QStringLiteral("It answered before it was asked.");
+			case failure::finding_payload_too_large:     return QStringLiteral("Its findings are larger than one turn may return.");
+			case failure::too_many_findings:             return QStringLiteral("It returned more findings than one turn may carry.");
+			case failure::malformed_finding_payload:     return QStringLiteral("Its findings aren't in the format this app reads.");
+			case failure::unknown_finding_session:       return QStringLiteral("Its findings name a different session.");
+			case failure::unsupported_finding_transport: return QStringLiteral("Its output format can't carry findings.");
+			case failure::invalid_runtime_metadata:      return QStringLiteral("What it reported about its model or session isn't readable.");
+			case failure::input_too_large:               return QStringLiteral("The question and its context are larger than an agent may be sent.");
+			case failure::not_signed_in:                 return QStringLiteral("It isn't signed in.");
+			}
+			return QStringLiteral("Its output couldn't be read.");
+		}
+
+		/// \brief At most \p aLines lines and \p aCharacters characters from
+		/// the end of \p aText.
+		[[nodiscard]] auto tail(const QString& aText, const qsizetype aLines, const qsizetype aCharacters) -> QString
+		{
+			auto lines = aText.trimmed().split(QLatin1Char{ '\n' });
+			if (lines.size() > aLines) {
+				lines = lines.mid(lines.size() - aLines);
+			}
+			auto text = lines.join(QLatin1Char{ '\n' });
+			return text.size() > aCharacters ? QStringLiteral("…") + text.right(aCharacters) : text;
+		}
 	} // namespace
+
+	auto agent_launch_panel::failure_log(const application::agent_run_result& aResult) -> QString
+	{
+		auto sections = QStringList{ };
+		if (aResult.Outcome == application::agent_run_outcome::protocol_failure) {
+			const auto cause = aResult.ProtocolFailure.value_or(application::agent_protocol_failure::malformed_frame);
+			const auto named = application::name(cause);
+			sections << QStringLiteral("What went wrong: %1 (%2)")
+							.arg(protocol_failure_words(cause), QString::fromUtf8(named.data(), static_cast<qsizetype>(named.size())));
+		}
+		if (aResult.ExitCode) {
+			sections << QStringLiteral("Exit code: %1").arg(*aResult.ExitCode);
+		}
+		sections << QStringLiteral("It wrote %1 bytes of output and %2 bytes of errors.")
+						.arg(aResult.StandardOutputBytes)
+						.arg(aResult.StandardError.size());
+		if (!aResult.RejectedOutputLine.empty()) {
+			auto line = QString::fromUtf8(aResult.RejectedOutputLine.data(), static_cast<qsizetype>(aResult.RejectedOutputLine.size()));
+			if (line.size() > 400) {
+				line = line.left(400) + QStringLiteral("…");
+			}
+			sections << QStringLiteral("First line this app couldn't read:\n%1").arg(line);
+		}
+		if (!aResult.StandardError.empty()) {
+			sections << QStringLiteral("Last lines of its errors:\n%1")
+							.arg(tail(QString::fromUtf8(aResult.StandardError.data(), static_cast<qsizetype>(aResult.StandardError.size())), 20, 4000));
+		}
+		return sections.join(QStringLiteral("\n\n"));
+	}
 
 	agent_launch_panel::agent_launch_panel(
 		agent_intent_dispatch aDispatch,
@@ -442,7 +507,11 @@ namespace bpr::qt {
 		}
 		if (aResult.Outcome != application::agent_run_outcome::success) {
 			Output->clear();
-			if (!aResult.StandardError.empty()) {
+			// [[BPR-1827]]. A run that read nothing still says what it
+			// read, and why; a protocol failure always has a log.
+			if (aResult.Outcome == application::agent_run_outcome::protocol_failure || aResult.StandardOutputBytes != 0U) {
+				Output->setPlainText(failure_log(aResult));
+			} else if (!aResult.StandardError.empty()) {
 				Output->setPlainText(
 					QString::fromStdString(aResult.StandardError));
 			}

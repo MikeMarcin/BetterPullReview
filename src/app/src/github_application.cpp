@@ -154,6 +154,7 @@
 	#include "bpr/application/agent_finding_host.hpp"
 	#include "bpr/application/agent_invocation_host.hpp"
 	#include "bpr/application/agent_realignment.hpp"
+	#include "bpr/application/agent_run_diagnosis.hpp"
 	#include "bpr/application/mcp_context_helper_supervisor.hpp"
 #endif
 #include "bpr/application/appearance_application_host.hpp"
@@ -8990,13 +8991,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				Realigner
 					= std::make_unique<application::composed_agent_realignment>(
 						*EpochHost, *EpochHost, *LineMatcher);
-				AgentHost = std::make_unique<application::agent_invocation_host>(
+				// [[BPR-1827]]. Every run the host starts leaves an
+				// `agent.run` started and ended line: enums and counts only.
+				DiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*EntryProcess, DiagnosticLog);
+				AgentHost        = std::make_unique<application::agent_invocation_host>(
 					agentProfiles,
 					agentPolicies,
 					AgentWorkspaceNeighbourhood,
 					*this,
 					*EpochHost,
-					*EntryProcess,
+					*DiagnosedProcess,
 					[](const std::string& aName) -> std::optional<std::string> {
 						if (!qEnvironmentVariableIsSet(aName.c_str())) {
 							return std::nullopt;
@@ -24524,6 +24528,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// reviewer added, for the launches, and the process that starts them.
 		std::shared_ptr<application::agent_entry_source>  AgentEntries = std::make_shared<application::agent_entry_source>();
 		std::unique_ptr<application::agent_entry_process> EntryProcess;
+		/// [[BPR-1827]]. The entry process, recorded to diagnostics; declared
+		/// after it and before the host that runs through it.
+		std::unique_ptr<application::diagnosed_agent_process> DiagnosedProcess;
 		/// The profiles the host last offered, before the list chose among them.
 		std::vector<core::agent_profile> HostOfferedProfiles;
 		/// A test that put its own program on a built-in profile keeps it offered.
