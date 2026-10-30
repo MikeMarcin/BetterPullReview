@@ -31,3 +31,22 @@ producers already require exactly one selected native configuration.
   and strict public reader. Run the affected release contracts on exact source;
   do not relabel N4 or repeat unchanged full builds. Any producer promotion needs
   the successor cohort.
+
+## Narrow repair and native evidence
+
+The observer now expands each configuration into its qualified C/C++/linker flag
+keys, preserving the previous single-config order and removing duplicate names.
+The strict JSON reader and exactly-one numbered configuration guard are unchanged.
+The numbered identity fixture explicitly uses Ninja; the new bounded real
+Ninja Multi-Config fixture observes separate Debug and Release markers, allocates
+nothing locally, accepts a frozen Release-only identity and refuses a numbered
+Debug+Release producer. Native CMake and Ninja are explicit test prerequisites.
+
+Both native fixtures pass on macOS. Running the new multi-config fixture against
+the exact frozen N4 CMake module fails with `duplicate JSON member: RELEASE`,
+proving that the regression check distinguishes the faulty observer. Existing
+source/options/toolchain/native guards remain unchanged. The earlier isolated
+checkout's missing offline CPM cache refusal is preserved separately; it is not
+reclassified as a release-builder pass. Exact raw commands and negative-control
+receipt are external under `BPR-1820-focused-r1`. The affected Windows contract
+will run after its current frozen Debug qualification vacates the serialized PC.
