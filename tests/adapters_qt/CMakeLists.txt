@@ -1447,11 +1447,15 @@ bpr_add_network_isolated_test(
 )
 set_tests_properties(qt_workbench_agent_send_refusal PROPERTIES
     ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0;BPR_EXPECTED_QT_SCALE=1.0"
-    ENVIRONMENT_MODIFICATION
-        "BPR_SHEET_RENDER_ROOT=unset:;BPR_TOUR_RENDER_ROOT=unset:;BPR_AGENT_RENDER_ROOT=unset:;BPR_OPEN_ON_GITHUB_RENDER_DIR=unset:;BPR_OPEN_REVIEW_RENDER_DIR=unset:;BPR_HOME_CAPTURE_DIR=unset:;BPR_QT_RENDER_PATH=unset:"
     RUN_SERIAL TRUE
     PASS_REGULAR_EXPRESSION "workbench-agent-send-refusal:pass"
     TIMEOUT 120
+)
+set_property(
+    TEST qt_workbench_agent_send_refusal
+    APPEND
+    PROPERTY ENVIRONMENT_MODIFICATION
+        "BPR_SHEET_RENDER_ROOT=unset:;BPR_TOUR_RENDER_ROOT=unset:;BPR_AGENT_RENDER_ROOT=unset:;BPR_OPEN_ON_GITHUB_RENDER_DIR=unset:;BPR_OPEN_REVIEW_RENDER_DIR=unset:;BPR_HOME_CAPTURE_DIR=unset:;BPR_QT_RENDER_PATH=unset:"
 )
 
 # [[BPR-1028]]. The strip's application menu against its window's lifetime:

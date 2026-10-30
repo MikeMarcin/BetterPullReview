@@ -44,3 +44,22 @@ replay failure are preserved separately, without product evidence credit.
 Reservation is canonical allocation-only commit `22380151b`; its monotone
 NEXT_ID conflict was resolved to BPR-1826. No unrelated BPR-1824 runtime or
 closeout source was imported.
+
+## Native diagnosis and narrow correction
+
+On native Windows session 3, frozen source `864f98ad9` and identical Release
+image/helper bytes pass the ordinary maintained custom-agent row and fail
+contained at `agent-chat-composition-failure:private-test-root` (exit 1).
+The cleanup warning is retained. No underlying Win32 cause was sampled. The
+new pin says only `private-test-root-refused`; no registration is newly exempted.
+Exact argv/environment/deadline, image/canary/helper/source hashes and both raw
+streams are in `n6-custom-agent-native-classification-r1`.
+
+The workbench row now APPENDs its seven output-root unsets separately, retaining
+the original wrapper boundary marker and twenty scrubs instead of replacing
+them. Scale, serial execution, timeout, command selector and family seals remain
+unchanged. A real CMake configure-only regression executes the actual shared
+registration functions and actual row block, then rejects a removed marker or
+scrub. All 74 policy tests and documentation pass on the isolated candidate.
+The complete corrected native manifest remains pending; the original frozen
+N6 failures and the two operator-only replay refusals remain separate.
