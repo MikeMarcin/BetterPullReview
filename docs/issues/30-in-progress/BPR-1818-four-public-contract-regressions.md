@@ -160,8 +160,18 @@ baseline and wait variant are under `n6-markdown-private-probe-r2`.
 The fixture now synchronizes that observation with the independent avatar lane,
 using the existing wait helper and unchanged course deadline. All body-cache,
 known-avatar, unknown-reference, total/count, positive and later functional
-assertions remain. Cache, routing and privacy policy are unchanged. This isolated
-candidate still needs its exact final-source native proof and format/documentation
-checks; Mac execution is held below the fixed storage reserve. Frozen published
-build 6 and all original failures remain unchanged. Further qualification repairs
-will be aggregated before another producer cohort.
+assertions remain. Cache, routing and privacy policy are unchanged. The exact committed fixture blob at `d2b7a5cf3` now passes the full Markdown
+course natively on Windows, using a private one-TU rebuild against unchanged
+frozen build-6 Release runtime headers and archives. The ordinary Review and
+thread-word courses also pass on those current inputs. The source format,
+73 containment-policy controls and documentation checks pass; the later
+BPR-1825 regression extends the policy checks to 74. The raw course, script and
+image hashes remain under `n6-isolated-candidate-proof-r1`.
+
+The combined live manifest still refuses two separate merged registrations,
+tracked by BPR-1825: an overwritten workbench boundary environment and the
+custom-agent row's absent pin. Its original native refusals are preserved.
+That gate is not claimed passing merely because the repaired Markdown course
+passes. Final frozen input rechecks and the complete corrected native manifest
+remain pending. Frozen published build 6 and every original failure are
+unchanged; qualification repairs are aggregated before another producer cohort.
