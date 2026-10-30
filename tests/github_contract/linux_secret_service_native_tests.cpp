@@ -1803,7 +1803,7 @@ namespace {
 			&& parentCleanup && auditOk;
 
 		std::error_code sourceError;
-		const auto      source            = std::filesystem::canonical(__FILE__, sourceError);
+		const auto      source            = std::filesystem::canonical(BPR_NATIVE_TEST_SOURCE_FILE, sourceError);
 		const auto      sourceResolved    = !sourceError;
 		const auto      executableIsClean = probes_absent_from_file(executable, probes);
 		const auto      sourceIsClean     = sourceResolved && probes_absent_from_file(source, probes);
