@@ -132,6 +132,10 @@ option(
 )
 # The publisher the Windows installer and version resources name.
 set(BPR_VENDOR_NAME "GameCoreTech")
+# [[BPR-1832]]. Before any target, dependencies included, so that every unit
+# the graph compiles goes through the shared ccache when it is enabled.
+include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprCompilerCache.cmake")
+bpr_configure_compiler_cache()
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Hardening.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/Warnings.cmake")
 include("${CMAKE_CURRENT_SOURCE_DIR}/cmake/BprWindowsImage.cmake")
