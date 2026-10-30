@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1824"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Resolve thread from Discuss tab reports unavailable though GitHub allows it",
+  "created": "2026-10-30T03:56:08.070183+00:00",
+  "base": "a49e72fa045d42094c44370641bc58a0863241c9"
+}
