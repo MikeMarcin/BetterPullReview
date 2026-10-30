@@ -24124,6 +24124,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::optional<std::uint32_t>         Old;
 			std::optional<core::review_draft_id> OldDraft;
 			bool                                 RowRevealed = false;
+			/// [[BPR-1833]]. The multi-step course chooses its finish return once.
+			bool FinishReturnChosen = false;
 			/// The drafts the review carries.
 			std::vector<core::review_draft_id> Drafts;
 			std::size_t                        NativeBefore = 0U;
@@ -37227,6 +37229,30 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		}
 		switch (probe.Phase) {
 		case state_type::phase::awaiting_file: {
+			// [[BPR-1833]]. These courses keep working on the same pull request
+			// after Comment. BPR-1816 defaults a confirmed Submit to Home, so
+			// choose the existing stay option through Settings and wait for the
+			// accepted projection. The other verdicts retain their defaults.
+			if (aCourse == course::finish || aCourse == course::again) {
+				auto* const comment = window->finish_review_switch(core::review_disposition::comment);
+				if (comment == nullptr) {
+					return fail("finish-comment-setting-missing");
+				}
+				const auto& choices = window->behaviour().FinishReview;
+				if (choices.Approve != core::review_finish_return::home || choices.RequestChanges != core::review_finish_return::home) {
+					return fail("other-finish-defaults-changed");
+				}
+				if (!probe.FinishReturnChosen) {
+					if (comment->isChecked()) {
+						comment->click();
+					}
+					probe.FinishReturnChosen = true;
+					return result::pending;
+				}
+				if (choices.Comment != core::review_finish_return::pull_request || comment->isChecked()) {
+					return result::pending;
+				}
+			}
 			const auto revealed = reveal_fixture_file(aApplication, path);
 			note("reveal=" + std::to_string(static_cast<int>(revealed)));
 			if (revealed == detail::fixture_file_reveal_result::failed) {
