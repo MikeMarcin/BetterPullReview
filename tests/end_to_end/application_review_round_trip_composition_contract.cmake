@@ -2511,8 +2511,16 @@ function(bpr_verify_full_application_digest source_variable)
 	# the choice on Reset agents; core::decide_agent_pick decides. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1818]] critical-main merge declaration (2026-10-30).
+	# Canonical a49e72fa0 supplies BPR-1823 above; the release branch also
+	# retains the reviewed reviewer-request fixture: QListWidget access and
+	# the public reopen/search/keyboard repeat gesture, exactly one request
+	# and write, and the existing already-requested refusal. This combines
+	# both committed inputs; it changes no production routing, provider,
+	# credential, grant, mutation, publication or source inventory. The
+	# production mutation-branch pin below remains unchanged.
 	set(bpr_expected_full_application_digest
-		"28f57f1b216f281c4f0e1910511d9bc831c543383972376fd2ca07498ce8c977"
+		"8035581698fc470200f84ce93a97e9cc647ee02cfb9bab33362784940a298adc"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2785,8 +2793,12 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1823]] kept-agent reseal (2026-10-29): github_application.cpp only,
 # as described at the full digest. No grant, mutation, publication or
 # source-inventory change.
+# [[BPR-1818]] critical-main merge declaration (2026-10-30): only the
+# reviewer-request fixture delta described at the full application digest
+# above is added to canonical a49e72fa0. The reviewed production files and
+# source inventory are otherwise identical to that canonical owner input.
 	set(bpr_expected_production_app_manifest_digest
-        "d42f2beca0d844d2f29cd0a69df603ceb0dbbf03e0efbfa63bd852a93d08e6a4"
+        "0b200977ba8f0fba57636413f7ef44cdf5e7c0e75b4ef96d81fd68bd2ca737f3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

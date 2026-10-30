@@ -96,11 +96,12 @@ existing approved contracts; no new design or attended judgement is introduced.
 
 ## Remaining integration obligation
 
-The current frozen Windows/Ubuntu courses continue unchanged. The reviewer
-course's Windows isolation classification is still unmeasured; measure its
-contained refusal and corrected ordinary baseline before changing that pin.
-Affected repaired contracts must run on the successor's actual native inputs,
-with precise unchanged-functional bridges. No new producer has been allocated.
+The original frozen Windows course was stopped at the direct user critical-main
+restart; Ubuntu qualification was never started. The reviewer course's Windows
+isolation classification is still unmeasured; measure its contained refusal and
+corrected ordinary baseline before changing that pin. Affected repaired contracts
+must run on the successor's actual native inputs, with precise unchanged-functional
+bridges. Frozen build 5 retains its actual source-declaration refusal below.
 
 The current oracle additionally requires Overview's initial unread/resolved
 filters both off, so a misplaced first-filter preference cannot pass merely
@@ -110,3 +111,22 @@ because global free space fell below the fixed reserve. The prior native context
 observed both flags off, and the earlier four-course PASS remains bound to its
 exact earlier source. The corrected Windows focused proof will exercise the new
 assertion at its quiet boundary; no passing claim is made for that pending run.
+
+
+## Critical-main merge declaration
+
+The direct user restart merges canonical `a49e72fa0` (including BPR-1823)
+with the reviewed repair. Build 5 retains its actual Windows pre-production
+refusal: the canonical full-application and app-manifest declarations omitted
+the merged reviewer fixture. Relative to that canonical source, the only app
+difference is the `QListWidget` include and AC2 public reopen/search/keyboard
+repeat probe. The declarations now bind that exact union. The production
+mutation-branch digest, source inventory and every refusal remain strict.
+The existing hostile-provider and app-tree controls must pass before integration;
+the frozen build-5 source, refusal and stopped Mac compile remain unchanged.
+
+The current merged source at `46543afe9` also completed all four repaired Mac
+public courses, including the added initial-Overview assertion, as part of nine
+focused native PASS before the allocation-only build-5 commit. This supersedes
+the earlier unrun status only for that exact new native proof. Windows isolation
+classification remains pending; no build-5 or historical result is relabeled.
