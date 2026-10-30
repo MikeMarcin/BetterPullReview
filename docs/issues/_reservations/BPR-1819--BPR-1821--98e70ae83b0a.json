@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1819",
+    "BPR-1820",
+    "BPR-1821"
+  ],
+  "reserve_for": "release-v041-reconciled-fixes",
+  "purpose": "Replacement ID for collided release tooling card; Windows multi-config observation fixture; optimized Windows close-budget diagnosis",
+  "created": "2026-10-30T00:07:32.835381+00:00",
+  "base": "e9a223c03d66c008e3028a9eed8cee149fc8a19f"
+}
