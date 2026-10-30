@@ -2519,8 +2519,13 @@ function(bpr_verify_full_application_digest source_variable)
 	# both committed inputs; it changes no production routing, provider,
 	# credential, grant, mutation, publication or source inventory. The
 	# production mutation-branch pin below remains unchanged.
+	# [[BPR-1833]]. Test-only Start Review finish/again now select Comment
+	# stay-on-PR through the public Settings checkbox and wait for its accepted
+	# projection. The other verdict defaults, original deadlines and all later
+	# submission/recovery assertions remain. No production policy, provider,
+	# credential, grant, mutation branch or source-inventory change.
 	set(bpr_expected_full_application_digest
-		"8035581698fc470200f84ce93a97e9cc647ee02cfb9bab33362784940a298adc"
+		"a8f6be154fad2be45454960c0d41dc401a04a8c987bbdbc79a8f12e3df1b061f"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2797,8 +2802,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # reviewer-request fixture delta described at the full application digest
 # above is added to canonical a49e72fa0. The reviewed production files and
 # source inventory are otherwise identical to that canonical owner input.
+# [[BPR-1833]]. Only the fixture setup described at the full application
+# digest changes. The production mutation branch and source inventory stay
+# exact; this content reseal supplies no native acceptance by itself.
 	set(bpr_expected_production_app_manifest_digest
-        "0b200977ba8f0fba57636413f7ef44cdf5e7c0e75b4ef96d81fd68bd2ca737f3"
+        "82344284167cb0a10c1f88a17fff8f38e73f09f9d13757502fdbc58c9e22e0ab"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
