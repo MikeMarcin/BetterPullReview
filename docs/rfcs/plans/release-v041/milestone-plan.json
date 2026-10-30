@@ -10,7 +10,8 @@
       "BPR-1819",
       "BPR-1818",
       "BPR-1820",
-      "BPR-1821"
+      "BPR-1821",
+      "BPR-1822"
     ]
   },
   "milestones": [
@@ -77,6 +78,14 @@
           "criteria": [
             "AC1",
             "AC2"
+          ]
+        },
+        {
+          "issue": "BPR-1822",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
           ]
         }
       ],
