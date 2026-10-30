@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1822"
 title: "Diagnose the Windows Debug agent crash-course marker precondition"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
@@ -46,3 +46,34 @@ still failed. That history is not a proven cause or a present-day PASS.
 Exact comparisons and receipts are external in
 `BPR-1822-historical-source-comparison-r1.json`. No current native repeat,
 source repair, product deadline or protocol/pacing edit has been made.
+
+
+## Native bounded semantic result
+
+The single controlled current-source Windows standard Debug recovery passed in
+127.7493262 seconds on 2026-10-30. It used the unchanged source864f98 product,
+canary, supervisor, library and helper inputs, with111 explicit native hash
+bindings checked before and after. The diagnostic image SHA256 is
+`093bac90d952b56bcee7ed1607116a3dadfde38e9676d69ec5acb63779e5f39a`.
+Only two local test wait constants became240000ms; the copied wrapper used a
+240-second marker readiness bound and600-second reinvocation/outer bound.
+Product deadlines, protocol, pacing, work size and all five-second post-kill
+liveness/cleanup bounds stayed unchanged.
+
+The controlled invocation reached both original reopen markers, exact owned
+workspace reclamation and the final kill-course PASS. The original identity,
+lease, journal, preserved substitute, SQLite/Git integrity and new session
+assertions all remained in the maintained wrapper. No negative marker occurred.
+The scheduled task is terminal Ready, observed owner/child identities are absent,
+the private project/copied test files were removed, and both source checkouts
+remain clean. Full receipts,111 input bindings, exact native argv/environment,
+raw output and quiescence are retained externally in
+`windows-current-native-evidence-r1` and PC `n6-agent-bounded-recovery-r1` under
+the release run root.
+
+This accepts complete bounded Debug semantics; it does not pass the original
+30-second readiness assertion, infer a proven performance cause, grant timing
+credit, change production behavior or erase the original failure and unreached
+checks. Future qualification retains its actual raw results; reuse of this
+semantic proof requires its exact unchanged input/command bridge. No tracked
+product or test timer was changed for this diagnosis.
