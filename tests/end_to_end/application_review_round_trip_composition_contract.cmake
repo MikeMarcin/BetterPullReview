@@ -2544,8 +2544,16 @@ function(bpr_verify_full_application_digest source_variable)
 	# an agent.run started and ended diagnostic line of enums and counts. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1828]] diagnostics coverage reseal (2026-10-30), over 4aba3fb6a.
+	# github_application.cpp hands agent setup the profile's diagnostic log
+	# (agent.setup_check lines) and, after the unchanged erasure of the live
+	# review mutation provider, wraps it in
+	# application::with_review_mutation_diagnostics, which records each
+	# call as a github.review_mutation line of enums, counts and a duration
+	# and forwards every call and answer unchanged. No credential, grant,
+	# provider selection, admission, publication or source-inventory change.
 	set(bpr_expected_full_application_digest
-		"b20b2ea42634ec44eb5e88f8d82eda4938cf58799d83fd4a7db748002101ff24"
+		"1af5d890db439917b215eb81f583d64dfe50b21ae29b61f6961fdc561d05dcf0"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2828,8 +2836,11 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1827]] agent run diagnostics reseal (2026-10-30): github_application.cpp
 # only, as described at the full digest. No grant, mutation, publication or
 # source-inventory change.
+# [[BPR-1828]] diagnostics coverage reseal (2026-10-30): github_application.cpp
+# only, as described at the full digest and the mutation-branch pin. No grant,
+# credential, admission, publication or source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "0f4a5c193c4bef703090eab29e93f79baaf1d4c1b373ab586227327c24ecd0f7"
+        "a2498a955f2f89355b38ee1a8d57e4d5994f1696eadf3d7efefd8cc3266cee26"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -3173,8 +3184,12 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # request too (select_observed_review_mutation(..., true)); the same
     # provider, recovery store, grant and host are composed, and a closed
     # binding takes only a thread's resolution. Was 16d135419.
+    # [[BPR-1828]]. After the unchanged erasure the provider is wrapped by
+    # application::with_review_mutation_diagnostics, which forwards every
+    # call and answer and records github.review_mutation lines only; the
+    # host still receives the one erased port. Was 53d6792a1.
     set(bpr_expected_mutation_production_digest
-        "53d6792a18661d4af3e890a4a643b42c2e7649a5783c6530e247fab20834820a"
+        "70fe8a7e4bc59291cc0dc1722899dbb8d358136cff32be545db46ecf29099d91"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest

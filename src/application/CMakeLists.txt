@@ -76,6 +76,8 @@ add_library(
         src/release_update_service.cpp
         src/release_maintenance_application_host.cpp
         src/release_diagnostic_snapshot.cpp
+        src/operation_diagnostics.cpp
+        src/review_mutation_diagnostics.cpp
         src/diagnostic_settings.cpp
         src/release_profile_cleanup.cpp
         src/personal_discovery_host.cpp

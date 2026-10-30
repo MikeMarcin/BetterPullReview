@@ -48,7 +48,27 @@ namespace bpr::application {
 													 /// [[BPR-1680]]. A Home discovery refresh or one of its reads.
 													 discovery,
 													 /// [[BPR-1827]]. One agent run, started and ended.
-													 agent_run };
+													 agent_run,
+													 /// [[BPR-1828]]. Agent setup's Check it works.
+													 agent_setup_check,
+													 /// [[BPR-1828]]. A disposable agent workspace made or removed.
+													 agent_workspace,
+													 /// [[BPR-1828]]. A review mutation (resolve, react, edit,
+													 /// reviewers, publish) and its reads.
+													 review_mutation };
+	/// \brief The logged `op` name of each diagnostic operation, in order.
+	/// \details The logger writes and the export classifier admits exactly
+	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
+	inline constexpr std::array<std::string_view, 12> diagnostic_operation_names{
+		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
+		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation"
+	};
+	/// \brief [[BPR-1828]]. A record's category: the operation name before its
+	/// first dot (`application`, `epoch`, `github` or `agent`).
+	[[nodiscard]] constexpr auto diagnostic_category(const std::string_view aOperation) noexcept -> std::string_view
+	{
+		return aOperation.substr(0U, aOperation.find('.'));
+	}
 	enum class diagnostic_paged_operation : std::uint8_t {
 		none,
 		get_viewer_identity,

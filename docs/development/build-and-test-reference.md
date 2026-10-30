@@ -3456,6 +3456,27 @@ repository, account or pull request appears, so the line is safe for a
 protected GitHub Enterprise Server; the logger refuses any other detail on the
 operation and the export keeps the line only when it parses back exactly.
 
+Agent setup checks, agent workspaces and review mutations record
+operation lines ([[BPR-1828]]). `agent.setup_check` (category `agent`) is
+Check it works: its start and its end. `agent.workspace` (category `agent`) is
+the end of "setting up a workspace" for an agent run, and of its removal.
+`github.review_mutation` records the start and end of each resolve, unresolve,
+reaction, description or comment edit, reviewer request and comment
+publication, and the end of each target read, reviewer search and
+publication repair. The outcome is `succeeded`, `failed` or `cancelled`. The
+detail is one line from `bpr/core/operation_diagnosis.hpp`:
+`action=ACTION failure=FAILURE process=PROCESS exit=none|N duration_ms=N
+count=N written=0|1 read_back=0|1`. The failure is the family's own typed
+failure: an agent setup failure, a workspace failure (for an unavailable
+workspace, its reason, such as `too_large`), or a review mutation failure, plus
+`conflict` for an edit GitHub's text overtook. A setup check also names its
+last process run's outcome and exit code, and how many runs it made. No
+program, path, thread, comment, body, login, query or repository appears. The
+logger refuses any other detail on these operations, and the export keeps the
+line only when it parses back exactly. [[BPR-1827]]'s `agent.run` lines
+(`protocol=...`) export the same way, under category `agent`. A record's
+category is its operation's first word.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts

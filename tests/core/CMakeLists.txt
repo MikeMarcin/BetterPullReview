@@ -789,6 +789,23 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_home_discovery_core_tests
 )
 
+# [[BPR-1828]]. The agent setup, agent workspace and review mutation diagnostics line.
+bpr_add_executable(
+    test_better_pull_review_operation_diagnosis_core_tests
+    operation_diagnosis_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_operation_diagnosis_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_operation_diagnosis_core_tests)
+bpr_enable_warnings(test_better_pull_review_operation_diagnosis_core_tests)
+bpr_add_network_isolated_test(
+    NAME core_operation_diagnosis
+    COMMAND test_better_pull_review_operation_diagnosis_core_tests
+)
+
 bpr_add_executable(
     test_better_pull_review_core_setup_destination_tests
     setup_destination_tests.cpp

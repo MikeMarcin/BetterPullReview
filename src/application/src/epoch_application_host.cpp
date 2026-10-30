@@ -1,6 +1,7 @@
 #include "bpr/application/epoch_application_host.hpp"
 #include "bpr/application/diff_line_matcher.hpp"
 #include "bpr/application/git_protocol_v2.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/testing.hpp"
 #include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/diff_compute.hpp"
@@ -11001,7 +11002,13 @@ namespace bpr::application {
 		const std::stop_token                          aStop)
 		-> std::expected<owned_agent_workspace, agent_workspace_error>
 	{
-		return Implementation->materialize_agent_workspace(aRequest, aStop);
+		// [[BPR-1828]]. "Setting up a workspace" leaves a start and an end.
+		auto* const log   = Implementation->DiagnosticLog.get();
+		const auto  watch = operation_stopwatch{ };
+		record_operation(log, { .Action = core::operation_action::workspace_materialize }, true);
+		auto result = Implementation->materialize_agent_workspace(aRequest, aStop);
+		record_operation(log, { .Action = core::operation_action::workspace_materialize, .Failure = result ? core::operation_failure::none : operation_failure_of(result.error()), .DurationMilliseconds = watch.milliseconds() });
+		return result;
 	}
 
 	auto epoch_application_host::cleanup_agent_workspace(
@@ -11009,7 +11016,10 @@ namespace bpr::application {
 		const std::stop_token        aStop)
 		-> std::expected<void, agent_workspace_error>
 	{
-		return Implementation->cleanup_agent_workspace(aWorkspace, aStop);
+		const auto watch  = operation_stopwatch{ };
+		auto       result = Implementation->cleanup_agent_workspace(aWorkspace, aStop);
+		record_operation(Implementation->DiagnosticLog.get(), { .Action = core::operation_action::workspace_cleanup, .Failure = result ? core::operation_failure::none : operation_failure_of(result.error()), .DurationMilliseconds = watch.milliseconds() });
+		return result;
 	}
 
 	auto epoch_application_host::context(

@@ -5,6 +5,7 @@
 #include "bpr/application/agent_program_resolution.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
 #include "bpr/application/claude_process_wrapper.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_setup.hpp"
@@ -84,6 +85,11 @@ namespace bpr::application {
 		effect_executor*   Checks   = nullptr;
 		decision_executor* Decision = nullptr;
 		agent_setup_sink   Publish;
+		/// [[BPR-1828]]. Each check's start and end, as `agent.setup_check`
+		/// records of its kind, typed failure, last run outcome, exit code,
+		/// run count and duration; never its program, output or detail.
+		/// Optional.
+		std::shared_ptr<diagnostic_log_port> Log;
 	};
 
 	/// \brief [[BPR-1749]], RFC-BPR-0092 M2. The host half of agent

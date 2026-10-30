@@ -15,6 +15,7 @@
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/markdown_image_service.hpp"
 #include "bpr/application/remembered_connection_host.hpp"
+#include "bpr/application/review_mutation_diagnostics.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/comment_edit.hpp"
@@ -9459,6 +9460,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				dependencies.Checks   = AgentSetupLane.get();
 				dependencies.Decision = &DecisionLane;
 				dependencies.Publish  = [this](const application::agent_setup_projection& aProjection) { present_agent_setup(aProjection); };
+				dependencies.Log      = DiagnosticLog; // [[BPR-1828]]
 				AgentSetup            = std::make_unique<application::agent_setup_host>(std::move(dependencies));
 			}
 			AgentSetup->load();
@@ -14762,6 +14764,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				auto erased         = std::unique_ptr<application::review_mutation_port>{
 					std::move(*provider)
 				};
+				// [[BPR-1828]]. Every resolve, reaction, edit, reviewer
+				// request and publication leaves a github.review_mutation record.
+				erased             = application::with_review_mutation_diagnostics(std::move(erased), DiagnosticLog);
 				ReviewMutationHost = std::make_unique<
 					application::review_mutation_application_host>(
 					std::move(erased),

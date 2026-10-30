@@ -1,0 +1,198 @@
+#include "bpr/core/operation_diagnosis.hpp"
+
+#include <algorithm>
+#include <array>
+#include <charconv>
+#include <cstddef>
+#include <limits>
+#include <system_error>
+
+namespace bpr::core {
+	namespace {
+		constexpr std::array<std::string_view, 17> action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer" };
+		constexpr std::array<std::string_view, 36> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "too_large_not_in_clone", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict" };
+		constexpr std::array<std::string_view, 10> process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
+
+		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::request_reviewer) + 1U);
+		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::conflict) + 1U);
+		static_assert(process_names.size() == static_cast<std::size_t>(operation_process::stale_result) + 1U);
+
+		template <typename TEnum, std::size_t N>
+		[[nodiscard]] auto named(const std::array<std::string_view, N>& aNames, const TEnum aValue) noexcept -> std::string_view
+		{
+			const auto index = static_cast<std::size_t>(aValue);
+			return index < aNames.size() ? aNames[index] : std::string_view{ };
+		}
+
+		/// One `key=value` word, ending the text or followed by one space and more.
+		[[nodiscard]] auto word(std::string_view& aText, const std::string_view aKey) -> std::optional<std::string_view>
+		{
+			if (!aText.starts_with(aKey) || aText.size() == aKey.size() || aText[aKey.size()] != '=') {
+				return std::nullopt;
+			}
+			aText.remove_prefix(aKey.size() + 1U);
+			const auto end   = aText.find(' ');
+			const auto value = aText.substr(0U, end);
+			aText.remove_prefix(end == std::string_view::npos ? aText.size() : end + 1U);
+			if (value.empty() || (end != std::string_view::npos && aText.empty())) {
+				return std::nullopt;
+			}
+			return value;
+		}
+
+		/// A decimal with no leading zero, and a minus sign only when signed.
+		template <typename TNumber>
+		[[nodiscard]] auto decimal(const std::string_view aDigits) -> std::optional<TNumber>
+		{
+			const auto unsigned_digits = aDigits.starts_with('-') ? aDigits.substr(1U) : aDigits;
+			if (unsigned_digits.empty() || (unsigned_digits.size() > 1U && unsigned_digits.front() == '0') || (aDigits.starts_with('-') && (!std::numeric_limits<TNumber>::is_signed || unsigned_digits == "0"))) {
+				return std::nullopt;
+			}
+			auto       value  = TNumber{ };
+			const auto parsed = std::from_chars(aDigits.data(), aDigits.data() + aDigits.size(), value);
+			if (parsed.ec != std::errc{ } || parsed.ptr != aDigits.data() + aDigits.size()) {
+				return std::nullopt;
+			}
+			return value;
+		}
+
+		[[nodiscard]] auto number(std::string_view& aText, const std::string_view aKey) -> std::optional<std::uint32_t>
+		{
+			const auto digits = word(aText, aKey);
+			return digits ? decimal<std::uint32_t>(*digits) : std::nullopt;
+		}
+
+		[[nodiscard]] auto flag(std::string_view& aText, const std::string_view aKey) -> std::optional<bool>
+		{
+			const auto value = word(aText, aKey);
+			if (!value || (*value != "0" && *value != "1")) {
+				return std::nullopt;
+			}
+			return *value == "1";
+		}
+
+		template <typename TEnum, std::size_t N>
+		[[nodiscard]] auto enumerated(std::string_view& aText, const std::string_view aKey, const std::array<std::string_view, N>& aNames) -> std::optional<TEnum>
+		{
+			const auto value = word(aText, aKey);
+			if (!value) {
+				return std::nullopt;
+			}
+			const auto found = std::ranges::find(aNames, *value);
+			return found == aNames.end() ? std::nullopt : std::optional{ static_cast<TEnum>(found - aNames.begin()) };
+		}
+
+		[[nodiscard]] auto within(const operation_failure aFailure, const operation_failure aFirst, const operation_failure aLast) noexcept -> bool
+		{
+			return aFailure >= aFirst && aFailure <= aLast;
+		}
+
+		/// Whether a failure is one the action's family can report.
+		[[nodiscard]] auto belongs(const operation_diagnosis_family aFamily, const operation_failure aFailure) noexcept -> bool
+		{
+			if (aFailure == operation_failure::none || aFailure == operation_failure::cancelled) {
+				return true;
+			}
+			switch (aFamily) {
+			case operation_diagnosis_family::agent_setup:     return within(aFailure, operation_failure::agent_not_found, operation_failure::workspace_unavailable);
+			case operation_diagnosis_family::agent_workspace: return within(aFailure, operation_failure::invalid_request, operation_failure::too_large_not_in_clone);
+			case operation_diagnosis_family::review_mutation: return aFailure == operation_failure::unavailable || within(aFailure, operation_failure::refused_by_server, operation_failure::conflict);
+			}
+			return false;
+		}
+	} // namespace
+
+	auto family(const operation_action aAction) noexcept -> operation_diagnosis_family
+	{
+		if (aAction <= operation_action::agent_custom_check) {
+			return operation_diagnosis_family::agent_setup;
+		}
+		if (aAction <= operation_action::workspace_cleanup) {
+			return operation_diagnosis_family::agent_workspace;
+		}
+		return operation_diagnosis_family::review_mutation;
+	}
+
+	auto name(const operation_action aAction) noexcept -> std::string_view
+	{
+		return named(action_names, aAction);
+	}
+
+	auto name(const operation_failure aFailure) noexcept -> std::string_view
+	{
+		return named(failure_names, aFailure);
+	}
+
+	auto name(const operation_process aProcess) noexcept -> std::string_view
+	{
+		return named(process_names, aProcess);
+	}
+
+	auto valid(const operation_diagnosis& aDiagnosis) noexcept -> bool
+	{
+		if (name(aDiagnosis.Action).empty() || name(aDiagnosis.Failure).empty() || name(aDiagnosis.Process).empty()) {
+			return false;
+		}
+		const auto kind = family(aDiagnosis.Action);
+		if (!belongs(kind, aDiagnosis.Failure) || (aDiagnosis.ExitCode && aDiagnosis.Process == operation_process::none)) {
+			return false;
+		}
+		if (kind != operation_diagnosis_family::agent_setup && aDiagnosis.Process != operation_process::none) {
+			return false;
+		}
+		return kind == operation_diagnosis_family::review_mutation || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
+	}
+
+	auto describe(const operation_diagnosis& aDiagnosis) -> std::string
+	{
+		if (!valid(aDiagnosis)) {
+			return { };
+		}
+		auto text = std::string{ "action=" };
+		text += name(aDiagnosis.Action);
+		text += " failure=";
+		text += name(aDiagnosis.Failure);
+		text += " process=";
+		text += name(aDiagnosis.Process);
+		text += " exit=";
+		text += aDiagnosis.ExitCode ? std::to_string(*aDiagnosis.ExitCode) : std::string{ "none" };
+		text += " duration_ms=" + std::to_string(aDiagnosis.DurationMilliseconds);
+		text += " count=" + std::to_string(aDiagnosis.Count);
+		text += aDiagnosis.Written ? " written=1" : " written=0";
+		text += aDiagnosis.ReadBack ? " read_back=1" : " read_back=0";
+		return text;
+	}
+
+	auto parse_operation_diagnosis(std::string_view aText) -> std::optional<operation_diagnosis>
+	{
+		const auto action  = enumerated<operation_action>(aText, "action", action_names);
+		const auto failure = action ? enumerated<operation_failure>(aText, "failure", failure_names) : std::nullopt;
+		const auto process = failure ? enumerated<operation_process>(aText, "process", process_names) : std::nullopt;
+		const auto exit    = process ? word(aText, "exit") : std::nullopt;
+		if (!exit) {
+			return std::nullopt;
+		}
+		auto result = operation_diagnosis{ .Action = *action, .Failure = *failure, .Process = *process };
+		if (*exit != "none") {
+			result.ExitCode = decimal<int>(*exit);
+			if (!result.ExitCode) {
+				return std::nullopt;
+			}
+		}
+		const auto duration = number(aText, "duration_ms");
+		const auto count    = duration ? number(aText, "count") : std::nullopt;
+		const auto written  = count ? flag(aText, "written") : std::nullopt;
+		const auto readBack = written ? flag(aText, "read_back") : std::nullopt;
+		if (!readBack || !aText.empty()) {
+			return std::nullopt;
+		}
+		result.DurationMilliseconds = *duration;
+		result.Count                = *count;
+		result.Written              = *written;
+		result.ReadBack             = *readBack;
+		if (!valid(result)) {
+			return std::nullopt;
+		}
+		return result;
+	}
+} // namespace bpr::core
