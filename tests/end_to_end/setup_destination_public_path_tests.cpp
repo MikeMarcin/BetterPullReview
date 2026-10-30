@@ -817,6 +817,17 @@ namespace {
 		for (const auto index : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U, 8U, 9U }) {
 			expect(state(*reread, index) == core::markdown_image_state::loaded, "a cached image shows after the restart");
 		}
+		// [[BPR-1818]]. Cached bodies and the avatar cache probe answer on
+		// independent lanes. Observe the fixture's uncached avatar request
+		// before snapshotting its evidence; neither lane may hide body work
+		// or an unattributed fetch while the other is still answering.
+		wait_for([&] {
+			const auto observed = github_application_fixture_access::evidence(*owner);
+			expect(accounted(observed), "every fetch remains attributed while the avatar probe answers");
+			expect(observed.MarkdownImageFetches == 0U && observed.MarkdownImageResolutions == 0U, "the avatar wait performs no cached-body work");
+			return observed.AvatarImageFetches > 0U;
+		},
+				 "the restart's independent avatar request is observed");
 		const auto second = github_application_fixture_access::evidence(*owner);
 		expect(accounted(second), "every restart fetch is attributed without ignoring unknown activity");
 		if (second.MarkdownImageFetches != 0U || second.MarkdownImageResolutions != 0U) {

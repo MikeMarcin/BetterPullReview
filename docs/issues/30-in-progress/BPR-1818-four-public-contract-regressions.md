@@ -130,3 +130,38 @@ public courses, including the added initial-Overview assertion, as part of nine
 focused native PASS before the allocation-only build-5 commit. This supersedes
 the earlier unrun status only for that exact new native proof. Windows isolation
 classification remains pending; no build-5 or historical result is relabeled.
+
+
+## Current-source Windows observation and fixture ordering
+
+The corrected ordinary reviewer course passes on frozen source `864f98ad9`
+in the approved Limited Interactive producer context (positive native session
+asserted). Replaying its exact command, working directory, environment and
+original deadline through the unchanged zero-capability helper exits 1 at
+`STARTUP_PROFILE_REFUSAL:registry_unavailable`. This matches the existing
+observed-refusal classification contract. Only the unmeasured pin is replaced;
+its existing Windows-uncontained registration and every containment guard remain.
+No product registry permission, network capability or waiver is added.
+
+The current-source Review behaviour course passes in 37.664 seconds and the
+thread-word course in 4.006 seconds. Markdown's native failure is retained:
+its extra restart-avatar positive assertion ran after the cached bodies had
+answered but before the independent avatar cache probe reached fetching. At that
+point the faithful private diagnostic records body fetches/resolutions 0/0,
+avatar/total 0/0, GitHub picture style, three avatar requests already asked and
+DPR 1. The unchanged assertion fails. An existing 15-second semantic wait,
+continuously requiring zero body work and full reference attribution, observes
+one controlled avatar fetch and every later original Markdown assertion passes.
+Exact inputs are hashed before and after. The first private diagnostic stopped
+earlier because a default cp1252 read corrupted UTF-8 punctuation; that tooling
+refusal is separate and supplies no avatar evidence. Its corrected byte-roundtrip
+baseline and wait variant are under `n6-markdown-private-probe-r2`.
+
+The fixture now synchronizes that observation with the independent avatar lane,
+using the existing wait helper and unchanged course deadline. All body-cache,
+known-avatar, unknown-reference, total/count, positive and later functional
+assertions remain. Cache, routing and privacy policy are unchanged. This isolated
+candidate still needs its exact final-source native proof and format/documentation
+checks; Mac execution is held below the fixed storage reserve. Frozen published
+build 6 and all original failures remain unchanged. Further qualification repairs
+will be aggregated before another producer cohort.
