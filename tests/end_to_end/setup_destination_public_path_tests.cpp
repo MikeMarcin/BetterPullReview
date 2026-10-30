@@ -2,6 +2,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
+#include "bpr/core/identity_avatar_picture.hpp"
 #include "bpr/core/pull_request_location.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -34,6 +35,7 @@
 #include <QCheckBox>
 #include <QClipboard>
 #include <QComboBox>
+#include <QCryptographicHash>
 #include <QDialog>
 #include <QDir>
 #include <QElapsedTimer>
@@ -757,8 +759,38 @@ namespace {
 		cards->open_thread("issue-comment:IC_mi_1");
 		wait_for([&] { return post("Narrow layout") != nullptr && settled(*post("Narrow layout")); }, "the reopened comment's image is answered from the cache");
 		expect(state(*post("Narrow layout"), 0U) == core::markdown_image_state::loaded, "the reopened comment's attachment shows again");
+		// [[BPR-1807]], [[BPR-1818]]. The shared performer also serves avatars.
+		// Admit only this fixture's generated avatar references, account for
+		// every fetch, and keep the body-image cache's zero-request assertion.
+		auto avatarReferences = std::vector<std::string>{ };
+		for (const auto login : { "fixture-author", "tbutler", "jiayin" }) {
+			for (const auto pixels : core::identity_avatar_picture_sizes) {
+				const auto admitted = core::admit_identity_avatar(login, pixels, { .Contract = core::markdown_image_host_contract::github_com });
+				expect(admitted.has_value(), "the controlled fixture avatar is admitted");
+				avatarReferences.push_back(QCryptographicHash::hash(QByteArray::fromStdString(admitted->First.Address), QCryptographicHash::Sha256).toHex().toStdString());
+			}
+		}
+		const auto accounted = [&avatarReferences](const app::detail::github_public_path_fixture_evidence& aEvidence) {
+			return aEvidence.ImageFetchesTotal == aEvidence.MarkdownImageFetches + aEvidence.AvatarImageFetches
+				&& aEvidence.MarkdownImageFetches == aEvidence.MarkdownImageFetchReferences.size()
+				&& aEvidence.AvatarImageFetches == aEvidence.AvatarImageFetchReferences.size()
+				&& std::ranges::all_of(aEvidence.AvatarImageFetchReferences, [&avatarReferences](const std::string& aReference) {
+					   return std::ranges::find(avatarReferences, aReference) != avatarReferences.end();
+				   });
+		};
 		const auto first = github_application_fixture_access::evidence(*owner);
+		expect(accounted(first), "every first-run body or controlled-avatar fetch is attributed");
+		auto unknown = first;
+		unknown.AvatarImageFetchReferences.push_back(std::string(64U, '0'));
+		++unknown.AvatarImageFetches;
+		++unknown.ImageFetchesTotal;
+		expect(!accounted(unknown), "an unknown fetch cannot hide among allowed avatars");
+		auto missing = first;
+		++missing.ImageFetchesTotal;
+		expect(!accounted(missing), "an unattributed fetch fails total-count consistency");
+
 		expect(first.MarkdownImageResolutions >= 1U && first.MarkdownImageFetches >= 12U, "the first run resolved and fetched its images");
+		expect(first.AvatarImageFetches > 0U, "avatar traffic is observed separately from body images");
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "markdown-images course quiescence");
 		owner.reset();
@@ -786,7 +818,18 @@ namespace {
 			expect(state(*reread, index) == core::markdown_image_state::loaded, "a cached image shows after the restart");
 		}
 		const auto second = github_application_fixture_access::evidence(*owner);
+		expect(accounted(second), "every restart fetch is attributed without ignoring unknown activity");
+		if (second.MarkdownImageFetches != 0U || second.MarkdownImageResolutions != 0U) {
+			std::cerr << "MARKDOWN_RESTART_REQUESTS:fetches=" << second.MarkdownImageFetches << ":resolutions=" << second.MarkdownImageResolutions << '\n';
+			for (const auto& node : second.MarkdownImageResolutionNodes) {
+				std::cerr << "MARKDOWN_RESTART_RESOLUTION_NODE:" << node << '\n';
+			}
+			for (const auto& reference : second.MarkdownImageFetchReferences) {
+				std::cerr << "MARKDOWN_RESTART_FETCH_ADDRESS_SHA256:" << reference << '\n';
+			}
+		}
 		expect(second.MarkdownImageFetches == 0U && second.MarkdownImageResolutions == 0U, "after the restart nothing is resolved or fetched");
+		expect(second.AvatarImageFetches > 0U, "the fixture still requests its uncached avatars without defeating the body-image cache");
 
 		// RFC-BPR-0084 Q3. Don't load, chosen in Settings, reaches the open
 		// window: every image is its placeholder and nothing is asked for.

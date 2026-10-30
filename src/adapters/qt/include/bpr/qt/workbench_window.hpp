@@ -894,6 +894,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto behaviour() const noexcept -> const application::review_behaviour_settings&;
 		/// \brief The Settings › Review preference editor ([[BPR-0661]], [[BPR-1597]]).
 		[[nodiscard]] auto behaviour_editor() const noexcept -> QWidget*;
+		/// \brief [[BPR-1816]]. Settings › Review › Finishing a review: the
+		/// box that closes the review and goes Home after that verdict.
+		[[nodiscard]] auto finish_review_switch(core::review_disposition aDisposition) const noexcept -> QCheckBox*;
 		/// \brief [[BPR-1083]]. The marks beside Comment labels › Label marks.
 		[[nodiscard]] auto feedback_marks_preview() const noexcept -> feedback_mark_preview*;
 		/// \brief [[BPR-1088]]. The label helper's switch: since [[BPR-1565]]
@@ -1472,6 +1475,10 @@ namespace bpr::qt {
 		/// nothing to return to: the status bar says what was closed and the bar
 		/// takes focus, since the button that had it is gone.
 		void close_review();
+		/// \brief [[BPR-1816]]. Whether a confirmed review's close and return
+		/// Home is still to run: it runs on the next turn of the event loop,
+		/// after the workflow that confirmed the review has returned.
+		[[nodiscard]] auto finishing_at_home() const noexcept -> bool;
 		/// \brief [[BPR-1357]]. The theme's failure ink for Home's marks.
 		/// \details [[BPR-1576]]. Every pane's failure in the loading pattern
 		/// takes it too.
@@ -3081,7 +3088,16 @@ namespace bpr::qt {
 		feedback_mark_preview*                    FeedbackMarksPreview = nullptr;
 		/// [[BPR-1088]]. The rest of Comment labels: the helper's switch, the
 		/// Overview chips, what a load left out of them, and Mark colours.
-		QCheckBox*                     LabelHelperSwitch    = nullptr;
+		QCheckBox* LabelHelperSwitch = nullptr;
+		/// [[BPR-1816]]. Comment, Approve, Request changes: close and go Home.
+		std::array<QCheckBox*, 3> FinishReviewSwitches{ };
+		/// [[BPR-1816]]. The review a confirmed finish closes, by its identity
+		/// line, while the close waits for the next turn.
+		std::optional<QString> FinishingAtHome;
+		/// [[BPR-1573]]. Releases the open review through the host, as Close
+		/// review on Home does; its short name ("" if unknown) once released.
+		[[nodiscard]] auto             release_review() -> std::optional<QString>;
+		void                           finish_review_at_home(QString aSaid);
 		QSpinBox*                      CenterRibbonWidth    = nullptr;
 		feedback_label_columns_editor* LabelColumnsEditor   = nullptr;
 		QLabel*                        LabelColumnsRecovery = nullptr;

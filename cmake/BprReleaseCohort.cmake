@@ -44,7 +44,6 @@ endforeach()
 list(JOIN bpr_release_options "," bpr_release_options)
 file(MAKE_DIRECTORY "${CMAKE_BINARY_DIR}/_bpr")
 set(BPR_RELEASE_OBSERVED "${CMAKE_BINARY_DIR}/_bpr/release-observed.json")
-string(TOUPPER "${bpr_release_type}" bpr_release_upper_type)
 file(SHA256 "${CMAKE_CXX_COMPILER}" CMAKE_BPR_RELEASE_COMPILER_SHA256)
 set(CMAKE_BPR_RELEASE_SDK_VERSION "")
 if(APPLE)
@@ -68,12 +67,20 @@ elseif(WIN32)
         message(FATAL_ERROR "A numbered Windows producer must expose its selected SDK version")
     endif()
 endif()
-set(bpr_release_setting_names CMAKE_C_FLAGS CMAKE_CXX_FLAGS CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS
-    CMAKE_C_FLAGS_${bpr_release_upper_type} CMAKE_CXX_FLAGS_${bpr_release_upper_type}
-    CMAKE_EXE_LINKER_FLAGS_${bpr_release_upper_type} CMAKE_SHARED_LINKER_FLAGS_${bpr_release_upper_type}
+set(bpr_release_setting_names CMAKE_C_FLAGS CMAKE_CXX_FLAGS CMAKE_EXE_LINKER_FLAGS CMAKE_SHARED_LINKER_FLAGS)
+# Local multi-config builds observe each qualified flag independently. Expanding
+# a configuration list inside one variable name creates bare repeated JSON keys.
+foreach(bpr_release_configuration IN LISTS bpr_release_type)
+    string(TOUPPER "${bpr_release_configuration}" bpr_release_upper_type)
+    list(APPEND bpr_release_setting_names
+        CMAKE_C_FLAGS_${bpr_release_upper_type} CMAKE_CXX_FLAGS_${bpr_release_upper_type}
+        CMAKE_EXE_LINKER_FLAGS_${bpr_release_upper_type} CMAKE_SHARED_LINKER_FLAGS_${bpr_release_upper_type})
+endforeach()
+list(APPEND bpr_release_setting_names
     CMAKE_OSX_DEPLOYMENT_TARGET CMAKE_OSX_SYSROOT CMAKE_MSVC_RUNTIME_LIBRARY CMAKE_GENERATOR
     CMAKE_CXX_COMPILER_TARGET CMAKE_INTERPROCEDURAL_OPTIMIZATION CMAKE_POSITION_INDEPENDENT_CODE
     CMAKE_BPR_RELEASE_COMPILER_SHA256 CMAKE_BPR_RELEASE_SDK_VERSION)
+list(REMOVE_DUPLICATES bpr_release_setting_names)
 set(bpr_release_settings "")
 foreach(setting IN LISTS bpr_release_setting_names)
     set(value "${${setting}}")

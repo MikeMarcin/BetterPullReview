@@ -156,7 +156,9 @@ namespace bpr::qt {
 	} // namespace
 
 	namespace {
-		using tray_tab_bar = detail::drawer_tab_bar;
+		/// [[BPR-1816]]. The finish switches' order: the finish buttons'.
+		constexpr auto finish_verdicts = std::array{ core::review_disposition::comment, core::review_disposition::approve, core::review_disposition::request_changes };
+		using tray_tab_bar             = detail::drawer_tab_bar;
 
 		[[nodiscard]] auto review_position_text_width(const QFontMetrics& aMetrics, const QString& aName, const bool aShown, const bool aCompact) -> int
 		{
@@ -1041,14 +1043,17 @@ namespace bpr::qt {
 		/// file.") or why the arrow is disabled. The status tip carries the
 		/// sentence alone.
 		void describe_navigation_action(
-			QAction* const aAction,
-			const QString& aName,
-			const bool     aEnabled,
-			const QString& aEnabledText,
-			const QString& aDetail)
+			QAction* const                aAction,
+			const QString&                aName,
+			const bool                    aEnabled,
+			const QString&                aEnabledText,
+			const QString&                aDetail,
+			const std::optional<QString>& aKey = std::nullopt)
 		{
 			aAction->setEnabled(aEnabled);
-			const auto key   = aAction->shortcut().toString(QKeySequence::NativeText);
+			// [[BPR-1815]]. A View menu key that typing lifts from the menu bar
+			// is named by the caller, which knows the lifted key.
+			const auto key   = aKey.value_or(aAction->shortcut().toString(QKeySequence::NativeText));
 			const auto title = key.isEmpty() ? aName : QStringLiteral("%1 (%2)").arg(aName, key);
 			aAction->setToolTip(aDetail.isEmpty() ? title : title + QLatin1Char{ '\n' } + aDetail);
 			aAction->setStatusTip(aDetail.isEmpty() ? aEnabledText : aDetail);
@@ -1775,7 +1780,7 @@ namespace bpr::qt {
 		ReviewBar->setAccessibleName(QStringLiteral("Review bar"));
 		ReviewBar->setAccessibleDescription(QStringLiteral(
 			"Updates and the comparison, file and change navigation, private "
-			"progress, Compose review and Comment"));
+			"progress, the layout and header/source, Compose review and Comment"));
 		auto* const barInset = new QWidget{ ReviewBar };
 		barInset->setObjectName(QStringLiteral("reviewBarInset"));
 		barInset->setFocusPolicy(Qt::NoFocus);
@@ -1853,6 +1858,23 @@ namespace bpr::qt {
 			{ .First = ChangePositionAction, .Last = Navigation[3].Action },
 			{ .First = trackAction, .Last = trackAction },
 		});
+		// [[BPR-1815]]. How the file is shown, right of what the reviewer has
+		// done with it: a rule, then the layout toggle and Go to
+		// header/source, icon buttons on no rail. They are the View menu's
+		// own actions, so the bar, the menu and the keys are one command
+		// each, and the core decides the layout.
+		rowWidget(ReviewBar, new strip_divider{ ReviewBar }, QStringLiteral("reviewBarViewDividerAction"));
+		ReviewBar->addAction(OnePaneAction);
+		ReviewBar->addAction(HeaderSourceAction);
+		for (const auto& [action, name] : { std::pair{ OnePaneAction, QStringLiteral("workbenchOnePaneButton") }, std::pair{ HeaderSourceAction, QStringLiteral("workbenchHeaderSourceButton") } }) {
+			if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(action)); button != nullptr) {
+				button->setObjectName(name);
+				button->setToolButtonStyle(Qt::ToolButtonIconOnly);
+			}
+		}
+		if (auto* const button = qobject_cast<QToolButton*>(ReviewBar->widgetForAction(HeaderSourceAction)); button != nullptr) {
+			button->setAccessibleName(QStringLiteral("Go to header/source"));
+		}
 		rowSpacer(ReviewBar, QStringLiteral("reviewBarSpacer"), QStringLiteral("reviewBarSpacerAction"));
 		// [[BPR-1129]]. The two composition commands are the window's, so their
 		// keys work from anywhere in it without a visible presenter; the bar and
@@ -3018,7 +3040,9 @@ namespace bpr::qt {
 		// returns to the view the reviewer came from, Review or Discuss,
 		// with a brief line saying so (owner, finish-page v002). A refused or
 		// unknown answer keeps the page and its recovery.
-		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments) {
+		// [[BPR-1816]]. Or, as the core decided from that verdict's setting,
+		// the review closes too and Home shows (owner, 2026-10-29).
+		ReviewSubmissionEditor->set_submitted_observer([this](const std::size_t aComments, const core::review_finish_transition aTransition) {
 			if (CompositionPage != nullptr && CompositionPage == ComposeReviewPage) {
 				close_review_composition(false);
 			}
@@ -3027,6 +3051,14 @@ namespace bpr::qt {
 				: aComments == 1U             ? tr("Review submitted with 1 comment")
 											  : tr("Review submitted with %1 comments").arg(aComments);
 			statusBar()->showMessage(said, 8000);
+			if (aTransition == core::review_finish_transition::close_review_and_go_home && CloseReviewDispatch) {
+				// The workflow that confirmed the review is still on the
+				// stack; closing the review retires its host, so the close
+				// waits for the next turn and is said there.
+				FinishingAtHome = IdentityText;
+				QTimer::singleShot(0, this, [this, said] { finish_review_at_home(said); });
+				return;
+			}
 			QAccessibleAnnouncementEvent event{ this, said };
 			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
 			QAccessible::updateAccessibility(&event);
@@ -12302,6 +12334,52 @@ namespace bpr::qt {
 				aNext.CommentsFilter = application::review_behaviour_settings{ }.CommentsFilter;
 				aNext.ReadingWidth   = core::default_reading_width;
 			});
+		// [[BPR-1816]]. The owner, 2026-10-29: "Finishing a review should take
+		// you to Home and close that review", a setting per outcome, on by
+		// default. Request changes has its own box as well: each finish
+		// button is its own gesture. One line reads as a sentence, its boxes
+		// named as the buttons are.
+		auto* const finishRow    = new QWidget{ BehaviourEditor };
+		auto* const finishLayout = new QHBoxLayout{ finishRow };
+		finishLayout->setContentsMargins(0, 0, 0, 0);
+		finishLayout->setSpacing(4);
+		auto* const finishBoxes = new QHBoxLayout{ };
+		finishBoxes->setSpacing(16);
+		finishLayout->addLayout(finishBoxes);
+		{
+			const auto verdicts = std::array{ std::pair{ QStringLiteral("Comment"), QStringLiteral("finishReviewComment") },
+											  std::pair{ QStringLiteral("Approve"), QStringLiteral("finishReviewApprove") },
+											  std::pair{ QStringLiteral("Request changes"), QStringLiteral("finishReviewRequestChanges") } };
+			for (std::size_t index = 0U; index < verdicts.size(); ++index) {
+				auto* const box = new QCheckBox{ verdicts[index].first, finishRow };
+				box->setObjectName(verdicts[index].second);
+				box->setAccessibleName(QStringLiteral("Close the review and go Home after %1").arg(verdicts[index].first));
+				box->setFocusPolicy(Qt::StrongFocus);
+				connect(box, &QCheckBox::toggled, this, [this] {
+					if (!ApplyingBehaviour) {
+						dispatch_behaviour_from_controls();
+					}
+				});
+				finishBoxes->addWidget(box);
+				FinishReviewSwitches[index] = box;
+			}
+		}
+		auto* const finishInfo = new info_glyph{ QStringLiteral("Once GitHub confirms a review you finished with a ticked verdict, the review closes and Home shows. Unticked, you stay on the pull request. A review that isn't published stays open, with its summary and comments."), finishRow };
+		finishInfo->setObjectName(QStringLiteral("finishReviewInfo"));
+		finishLayout->addWidget(finishInfo);
+		for (auto* const box : FinishReviewSwitches) {
+			box->setAccessibleDescription(finishInfo->consequence());
+		}
+		addGroup(
+			column,
+			QStringLiteral("Finishing a review"),
+			QStringLiteral("resetFinishReview"),
+			{
+				row{ .Index = 0U, .Label = QStringLiteral("Close and go Home after"), .Name = QStringLiteral("finishReview"), .Options = { }, .Control = finishRow },
+			},
+			[](application::review_behaviour_settings& aNext) {
+				aNext.FinishReview = core::review_finish_settings{ };
+			});
 		// [[BPR-0721]]. The owner found the collapsed rails and the Hide
 		// buttons took room the strip's toggles already cover, and asked for
 		// a setting rather than their removal. Off is the default.
@@ -12728,6 +12806,12 @@ namespace bpr::qt {
 		if (LabelHelperSwitch != nullptr) {
 			LabelHelperSwitch->setChecked(Behaviour.LabelHelper == application::review_label_helper::on);
 		}
+		// [[BPR-1816]]. Ticked is Home.
+		for (std::size_t index = 0U; index < FinishReviewSwitches.size(); ++index) {
+			if (FinishReviewSwitches[index] != nullptr) {
+				FinishReviewSwitches[index]->setChecked(core::finish_return(Behaviour.FinishReview, finish_verdicts[index]) == core::review_finish_return::home);
+			}
+		}
 		// [[BPR-1568]]. The Review feedback hook's line says what this
 		// window's published record says.
 		if (WritingHooks != nullptr) {
@@ -12744,8 +12828,21 @@ namespace bpr::qt {
 		ApplyingBehaviour = false;
 	}
 
+	auto workbench_window::finish_review_switch(const core::review_disposition aDisposition) const noexcept -> QCheckBox*
+	{
+		for (std::size_t index = 0U; index < finish_verdicts.size(); ++index) {
+			if (finish_verdicts[index] == aDisposition) {
+				return FinishReviewSwitches[index];
+			}
+		}
+		return nullptr;
+	}
+
 	auto workbench_window::behaviour_from_controls() const -> application::review_behaviour_settings
 	{
+		const auto finish_choice = [](const QCheckBox* const aBox) {
+			return aBox->isChecked() ? core::review_finish_return::home : core::review_finish_return::pull_request;
+		};
 		const auto chosen = [this](const std::size_t aRow) -> std::size_t {
 			const auto& buttons = BehaviourOptions[aRow];
 			for (std::size_t index = 0U; index < buttons.size(); ++index) {
@@ -12769,6 +12866,11 @@ namespace bpr::qt {
 			.CenterRibbonWidth = CenterRibbonWidth != nullptr ? static_cast<std::uint32_t>(CenterRibbonWidth->value()) : Behaviour.CenterRibbonWidth,
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
+			.FinishReview      = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
+																								   .Comment        = finish_choice(FinishReviewSwitches[0]),
+																								   .Approve        = finish_choice(FinishReviewSwitches[1]),
+																								   .RequestChanges = finish_choice(FinishReviewSwitches[2]),
+																							   },
 		};
 	}
 
@@ -13778,8 +13880,15 @@ namespace bpr::qt {
 		const auto  reason     = !inReview ? reason_text(core::workbench_reason_code::header_source_requires_review)
 			: editing                      ? tr("Keep Option/Alt text input in the editor. Focus the source comparison to navigate.")
 										   : reason_text(projection ? projection->DisabledReason : core::workbench_reason_code::header_source_no_selection);
-		describe_action(HeaderSourceAction, inReview && !editing && projection && projection->Enabled && static_cast<bool>(HeaderSourceDispatch),
-						tr("Go to the closest matching header or source file in this review"), reason);
+		// [[BPR-1815]]. The review bar presents it, so its tooltip names its
+		// key first, as the arrows beside it do.
+		const auto enabled = inReview && !editing && projection && projection->Enabled && static_cast<bool>(HeaderSourceDispatch);
+		const auto purpose = tr("Go to the closest matching header or source file in this review");
+		describe_navigation_action(HeaderSourceAction, tr("Go to header/source"), enabled, purpose, enabled ? purpose : reason, presented_key(HeaderSourceAction));
+		if (auto* const button = ReviewBar != nullptr ? qobject_cast<QToolButton*>(ReviewBar->widgetForAction(HeaderSourceAction)) : nullptr;
+			button != nullptr && button->accessibleDescription() != HeaderSourceAction->toolTip()) {
+			button->setAccessibleDescription(HeaderSourceAction->toolTip());
+		}
 	}
 
 	auto workbench_window::previous_change_action() const noexcept -> QAction*
@@ -16922,10 +17031,10 @@ namespace bpr::qt {
 		CloseReviewDispatch = std::move(aDispatch);
 	}
 
-	void workbench_window::close_review()
+	auto workbench_window::release_review() -> std::optional<QString>
 	{
 		if (HomeLanding == nullptr || HomeLanding->state() != landing_state::back_to_review || !CloseReviewDispatch) {
-			return;
+			return std::nullopt;
 		}
 		// The pull request's short name, as a link names it, not the strip's
 		// identity with its title.
@@ -16934,14 +17043,49 @@ namespace bpr::qt {
 			: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber);
 		CloseReviewDispatch();
 		if (HomeLanding->state() == landing_state::back_to_review) {
+			return std::nullopt;
+		}
+		return closing;
+	}
+
+	void workbench_window::close_review()
+	{
+		const auto closed = release_review();
+		if (!closed) {
 			return;
 		}
 		statusBar()->showMessage(
-			closing.isEmpty() ? QStringLiteral("Closed the review.") : QStringLiteral("Closed the review of %1.").arg(closing), 8000);
+			closed->isEmpty() ? QStringLiteral("Closed the review.") : QStringLiteral("Closed the review of %1.").arg(*closed), 8000);
 		if (showing_home() && HomeOpenBar != nullptr) {
 			HomeOpenBar->setFocus(Qt::OtherFocusReason);
 		}
 	}
+
+	void workbench_window::finish_review_at_home(QString aSaid)
+	{
+		// [[BPR-1816]]. Only the review that was confirmed: another opened
+		// meanwhile, or none left open, is not closed.
+		const auto expected = std::exchange(FinishingAtHome, std::nullopt);
+		auto       said     = std::move(aSaid);
+		if (expected && *expected == IdentityText) {
+			choose_home(true);
+			if (const auto closed = release_review(); closed) {
+				said = closed->isEmpty() ? tr("%1. Closed the review.").arg(said) : tr("%1. Closed the review of %2.").arg(said, *closed);
+				if (showing_home() && HomeOpenBar != nullptr) {
+					HomeOpenBar->setFocus(Qt::OtherFocusReason);
+				}
+			} else {
+				// Nothing was closed, so Home does not cover the review.
+				choose_home(false);
+			}
+		}
+		statusBar()->showMessage(said, 8000);
+		QAccessibleAnnouncementEvent event{ this, said };
+		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+		QAccessible::updateAccessibility(&event);
+	}
+
+	auto workbench_window::finishing_at_home() const noexcept -> bool { return FinishingAtHome.has_value(); }
 
 	void workbench_window::set_home_failure_ink(const QColor& aInk)
 	{
@@ -17882,6 +18026,9 @@ namespace bpr::qt {
 			append(ReadStepButton);
 			append(AcceptFileButton);
 			append(ReviewControlsButton);
+			// [[BPR-1815]]. The view controls, as they sit.
+			append(barPresenter(OnePaneAction));
+			append(barPresenter(HeaderSourceAction));
 			append(barPresenter(ComposeReviewAction));
 			append(barPresenter(CommentAction));
 		}
@@ -18735,6 +18882,9 @@ namespace bpr::qt {
 		OnePaneAction = new QAction{ QStringLiteral("&One pane"), this };
 		OnePaneAction->setObjectName(QStringLiteral("toggleWorkbenchOnePaneAction"));
 		OnePaneAction->setCheckable(true);
+		// [[BPR-1815]]. Its key, and the review bar's layout toggle.
+		OnePaneAction->setShortcuts(shortcut_keys(shortcut_command::one_pane));
+		OnePaneAction->setShortcutContext(Qt::WindowShortcut);
 		addAction(OnePaneAction);
 		ViewMenu->addAction(OnePaneAction);
 		connect(OnePaneAction, &QAction::triggered, this, [this] {
@@ -19308,15 +19458,33 @@ namespace bpr::qt {
 		const auto enabled = OnePaneState.State == core::workbench_one_pane::enabled;
 		OnePaneAction->setChecked(enabled);
 		const auto projection = command(core::workbench_command_id::toggle_one_pane);
-		describe_action(
+		const auto offered    = projection && projection->Enabled;
+		// [[BPR-1815]]. The tooltip's first line is what a press does and its
+		// key, as the file and change arrows' are; the second says what that
+		// layout is, or why the toggle is unavailable.
+		const auto purpose = enabled
+			? QStringLiteral("Show the comparison in two source panes.")
+			: QStringLiteral("Show both sides in one document.");
+		describe_navigation_action(
 			OnePaneAction,
-			projection && projection->Enabled,
-			enabled
-				? QStringLiteral("Show the comparison in two source panes.")
-				: QStringLiteral("Show both sides in one document."),
-			drawer_reason_text(projection
-								   ? projection->DisabledReason
-								   : core::workbench_reason_code::no_active_workbench));
+			enabled ? QStringLiteral("Two panes") : QStringLiteral("One pane"),
+			offered,
+			purpose,
+			offered ? purpose
+					: drawer_reason_text(projection
+											 ? projection->DisabledReason
+											 : core::workbench_reason_code::no_active_workbench),
+			presented_key(OnePaneAction));
+		// The glyph says the layout showing, as Hide drawers' says the drawers.
+		if (OnePaneAction->icon().isNull() || OnePaneAction->property("bprOnePane").toBool() != enabled) {
+			OnePaneAction->setProperty("bprOnePane", enabled);
+			OnePaneAction->setIcon(strip_icon(enabled ? strip_glyph::one_pane : strip_glyph::two_panes, palette()));
+		}
+		if (auto* const button = ReviewBar != nullptr ? qobject_cast<QToolButton*>(ReviewBar->widgetForAction(OnePaneAction)) : nullptr;
+			button != nullptr) {
+			button->setAccessibleName(QStringLiteral("One pane"));
+			button->setAccessibleDescription(OnePaneAction->toolTip());
+		}
 		if (ComparisonSurface != nullptr) {
 			ComparisonSurface->set_one_pane_enabled(enabled);
 		}
@@ -19833,6 +20001,15 @@ namespace bpr::qt {
 			}
 		}
 		Drawers[1].Toggle->setIcon(strip_icon(strip_glyph::comments_drawer, ink));
+		// [[BPR-1815]]. The review bar's view controls.
+		if (HeaderSourceAction != nullptr) {
+			HeaderSourceAction->setIcon(strip_icon(strip_glyph::header_source, ink));
+		}
+		if (OnePaneAction != nullptr) {
+			// Cleared so the layout pass paints it again in the new ink.
+			OnePaneAction->setIcon(QIcon{ });
+			apply_one_pane();
+		}
 		if (ToggleDrawersAction != nullptr) {
 			// Painted again in the new ink by the next projection's pass.
 			ToggleDrawersAction->setIcon(QIcon{ });

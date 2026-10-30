@@ -130,6 +130,9 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::new_note, .Group = comments, .Binding = bound, .Title = "A private note on the selected line", .Place = "In Notes", .Keys = "N", .Objects = "newLineNoteAction" },
 			shortcut_entry{ .Command = command::review_details, .Group = views, .Binding = bound, .Title = "Review details", .Keys = "Alt+Shift+3", .Objects = "toggleWorkbenchReviewDetailsAction" },
 			shortcut_entry{ .Command = command::line_numbers, .Group = views, .Binding = bound, .Title = "Line numbers", .Keys = "Alt+Shift+5", .Objects = "toggleWorkbenchLineNumbersAction;desktopToggleLineNumbersAction" },
+			// [[BPR-1815]]. P for pane, among the other Option-Shift views; the
+			// review bar's layout toggle presents it.
+			shortcut_entry{ .Command = command::one_pane, .Group = views, .Binding = bound, .Title = "One pane or two panes", .Keys = "Alt+Shift+P", .Objects = "toggleWorkbenchOnePaneAction;desktopToggleOnePaneAction" },
 			shortcut_entry{ .Command = command::hide_drawers, .Group = views, .Binding = bound, .Title = "Hide or show every drawer", .Keys = "Ctrl+B", .StepsAsideWhileTyping = true, .Objects = "toggleWorkbenchDrawersAction;desktopToggleDrawersAction" },
 			// [[BPR-1588]]. Alt+Shift+1 to 5 are the other drawers and views.
 			shortcut_entry{ .Command = command::status_drawer, .Group = views, .Binding = bound, .Title = "Status drawer", .Place = "On Overview", .Keys = "Alt+Shift+6", .Objects = "toggleOverviewStatusAction" },

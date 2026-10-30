@@ -401,7 +401,54 @@ namespace {
 		expect(!settle(post(answer::success, 2U), at + std::int64_t{ 365 } * 24 * 60 * 60 * 1000), "a review GitHub said it created never settles as unpublished");
 		expect(settle(review_submission_post_record{ }, review_submission_settle_delay_ms), "a migrated record, no answer since time zero, settles");
 	}
-} // namespace
+	/// [[BPR-1816]]. Finishing a review goes Home only on a published answer
+	/// to the reviewer's own Submit, by that verdict's own choice.
+	void test_finish_transition()
+	{
+		using transition    = review_finish_transition;
+		const auto verdicts = std::array{ review_disposition::comment, review_disposition::approve, review_disposition::request_changes };
+		const auto defaults = review_finish_settings{ };
+		expect(valid(defaults) && defaults.Comment == review_finish_return::home && defaults.Approve == review_finish_return::home
+				   && defaults.RequestChanges == review_finish_return::home,
+			   "every verdict goes Home by default");
+		for (const auto verdict : verdicts) {
+			const auto published = review_finish_event{ .Disposition = verdict, .Answer = review_finish_answer::published };
+			expect(decide_review_finish(defaults, published) == transition::close_review_and_go_home, "a confirmed Submit closes the review and goes Home");
+			for (const auto answer : { review_finish_answer::not_published, review_finish_answer::unknown }) {
+				auto failed   = published;
+				failed.Answer = answer;
+				expect(decide_review_finish(defaults, failed) == transition::keep_review, "a refused or unknown answer keeps the review and its draft");
+				failed.Origin = review_finish_origin::recovery;
+				expect(decide_review_finish(defaults, failed) == transition::keep_review, "so does a refused or unknown recovery");
+			}
+			auto recovered   = published;
+			recovered.Origin = review_finish_origin::recovery;
+			expect(decide_review_finish(defaults, recovered) == transition::return_to_pull_request, "a recovery's confirmation never leaves the pull request");
+			auto waiting             = published;
+			waiting.AnotherUnsettled = true;
+			expect(decide_review_finish(defaults, waiting) == transition::return_to_pull_request, "a submission still awaiting its answer keeps the pull request open");
+		}
+		// Each verdict's choice is its own.
+		for (std::size_t stays = 0U; stays < verdicts.size(); ++stays) {
+			auto settings                                                            = review_finish_settings{ };
+			(stays == 0U ? settings.Comment : stays == 1U ? settings.Approve
+														  : settings.RequestChanges) = review_finish_return::pull_request;
+			for (std::size_t index = 0U; index < verdicts.size(); ++index) {
+				const auto decided = decide_review_finish(settings, { .Disposition = verdicts[index], .Answer = review_finish_answer::published });
+				expect(decided == (index == stays ? transition::return_to_pull_request : transition::close_review_and_go_home),
+					   "turning one verdict off changes only that verdict");
+				expect(finish_return(settings, verdicts[index]) == (index == stays ? review_finish_return::pull_request : review_finish_return::home), "finish_return reads the verdict's own choice");
+			}
+		}
+		auto unknown    = review_finish_settings{ };
+		unknown.Approve = static_cast<review_finish_return>(2U);
+		expect(!valid(unknown) && decide_review_finish(unknown, { .Disposition = review_disposition::comment, .Answer = review_finish_answer::published }) == transition::return_to_pull_request,
+			   "an unknown stored choice is refused and never leaves the pull request");
+		expect(finish_return(defaults, static_cast<review_disposition>(9U)) == review_finish_return::pull_request
+				   && decide_review_finish(defaults, { .Disposition = static_cast<review_disposition>(9U), .Answer = review_finish_answer::published }) == transition::return_to_pull_request,
+			   "an unknown verdict stays on the pull request");
+	}
+}
 
 int main()
 {
@@ -429,6 +476,7 @@ int main()
 		   "an answer about a review thread is drafted as its reply, lines or not");
 	expect(answer_draft_place_for(false, true) == answer_draft_place::line_comment, "an answer asked on selected lines is drafted on them");
 	expect(answer_draft_place_for(false, false) == answer_draft_place::pull_request_comment, "an answer with no anchor is a new pull request comment, never no draft");
+	test_finish_transition();
 	test_unknown_reasons();
 	test_unknown_notices();
 	test_ending_lines();
