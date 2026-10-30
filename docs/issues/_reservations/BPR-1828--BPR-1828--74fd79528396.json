@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1828"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Audit diagnostics coverage and add events for untraced operations",
+  "created": "2026-10-30T06:01:20.368977+00:00",
+  "base": "7f398bee2ece33c3e344abd27be2053ba0d1c484"
+}
