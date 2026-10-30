@@ -60,9 +60,9 @@ class RegistryTests(unittest.TestCase):
         for name, called in re.findall(r'runCase\("([^\"]+)", &([A-Za-z0-9_]+)\)', main):
             self.assertEqual(name, called, "an inventory label must name the function actually called")
         self.assertEqual(actual, data["selector_cases"])
-        self.assertEqual(len(actual["<default>"]), 121)
+        self.assertEqual(len(actual["<default>"]), 122)
         root, _, _ = self.current_workbench_fixture()
-        for platform, count in (("Windows", 46), ("Darwin", 45), ("Linux", 45)):
+        for platform, count in (("Windows", 47), ("Darwin", 46), ("Linux", 46)):
             self.assertEqual(len(inventory.expected_rows(platform, root)), count)
 
     def test_missing_duplicate_extra_reordered_and_zero_cases_are_not_credit(self):
@@ -83,7 +83,7 @@ class RegistryTests(unittest.TestCase):
                          "command": [directory + "/" + declaration["executable"] + ".exe", *declaration["arguments"]],
                          "properties": [{"name": "WORKING_DIRECTORY", "value": directory},
                                         {"name": "ENVIRONMENT", "value": [item.replace("{binary_dir}", directory) for item in declaration["environment"]]}]})
-        self.assertEqual(len(inventory.validate_manifest({"tests": rows}, "Windows", root)), 46)
+        self.assertEqual(len(inventory.validate_manifest({"tests": rows}, "Windows", root)), 47)
         for changed in (rows[:-1], rows + [rows[0]], rows + [{**rows[0], "name": "unknown"}]):
             with self.subTest(count=len(changed)), self.assertRaisesRegex(ValueError, "Missing, duplicate or unknown"):
                 inventory.validate_manifest({"tests": changed}, "Windows", root)

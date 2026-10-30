@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "419185fb770af38d39c0fa46a44b90ff3a71c43cdad71fd879d756302be996b4",
+  "source_sha256": "0b6d31fdcc8aee840d5a4d6f2c02d78a43dbabdfd6695607316ab7bce8787e9b",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -50,6 +50,14 @@
     "--option-keys": [
       "test_option_keys_step_aside_in_text_input"
     ],
+    "--compose-review-sheet": [
+      "render_compose_review_entry_sheet"
+    ],
+    "--compose-review-entry": [
+      "test_compose_review_marks_a_kept_draft",
+      "test_compose_review_says_approve_or_comment_with_no_review",
+      "render_compose_review_entry_sheet"
+    ],
     "--review-state-icon": [
       "test_file_accept_is_one_click_and_keeps_projected_eligibility",
       "test_file_accept_shortcut_is_accept_only_and_yields_to_editors",
@@ -79,6 +87,10 @@
     ],
     "--open-review-from-home": [
       "test_open_review_from_home_rows"
+    ],
+    "--agent-send-refusal": [
+      "test_a_refused_send_says_why_beside_the_composer",
+      "test_a_removed_agent_is_unavailable_in_the_composer"
     ],
     "--title-row": [
       "test_navigation_label_spacing",
@@ -160,6 +172,7 @@
       "test_finish_review_is_a_sheet_beside_the_code",
       "test_the_tour_is_a_route_expanding_to_its_page",
       "test_the_agent_is_a_drawer_tab",
+      "test_a_refused_send_says_why_beside_the_composer",
       "test_pending_rows_open_their_comments_like_threads",
       "test_tour_retarget_key_reaches_only_the_outline",
       "test_compose_review_marks_a_kept_draft",
@@ -276,14 +289,6 @@
       "test_threads_finds_and_picks_into_review",
       "test_threads_opens_a_thread_in_discuss",
       "test_a_large_file_leaves_the_widget_count_bounded"
-    ],
-    "--compose-review-sheet": [
-      "render_compose_review_entry_sheet"
-    ],
-    "--compose-review-entry": [
-      "test_compose_review_marks_a_kept_draft",
-      "test_compose_review_says_approve_or_comment_with_no_review",
-      "render_compose_review_entry_sheet"
     ]
   }
 }
