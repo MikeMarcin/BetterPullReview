@@ -1239,6 +1239,85 @@ namespace {
 		host.shutdown();
 	}
 
+	// [[BPR-1826]]. A closed or merged pull request's binding: its identity
+	// is valid, it takes a thread's resolution and nothing else, and the host
+	// composed with it offers only that.
+	void test_a_closed_pull_request_binding_takes_only_a_threads_resolution()
+	{
+		using change = core::pull_request_change;
+		auto closed  = live_target();
+		closed.Open  = false;
+		expect(application::valid(live_target()) && application::valid_identity(live_target()), "an open binding is valid for every change");
+		expect(!application::valid(closed) && application::valid_identity(closed), "a closed one keeps a valid identity but not the open-only contract");
+		expect(application::valid_for(closed, change::thread_resolution), "and takes a thread's resolution");
+		for (const auto other : { change::publication, change::reaction, change::description_edit, change::comment_edit, change::reviewer_request }) {
+			expect(!application::valid_for(closed, other) && application::valid_for(live_target(), other), "and no other change");
+		}
+		auto unnamed              = closed;
+		unnamed.PullRequestNodeId = "";
+		expect(!application::valid_identity(unnamed) && !application::valid_for(unnamed, change::thread_resolution), "a closed binding's identity is still checked in full");
+		const auto all = application::review_provider_capabilities{ .ResolvesThreads = true, .RecordsViewedState = false, .Reacts = true, .EditsDescription = true, .EditsComments = true, .RequestsReviewers = true };
+		expect(application::capabilities_for(live_target(), all) == all, "an open binding keeps every capability");
+		const auto masked = application::capabilities_for(closed, all);
+		expect(masked.ResolvesThreads && !masked.Reacts && !masked.EditsDescription && !masked.EditsComments && !masked.RequestsReviewers,
+			   "a closed one keeps only thread resolution");
+		auto noResolution            = all;
+		noResolution.ResolvesThreads = false;
+		expect(!application::capabilities_for(closed, noResolution).ResolvesThreads, "and never adds a capability the provider lacks");
+
+		auto provider               = std::make_unique<fake_provider>();
+		provider->Resolves          = true;
+		provider->Reacts            = true;
+		provider->EditsDescription  = true;
+		provider->EditsComments     = true;
+		provider->RequestsReviewers = true;
+		auto* observed              = provider.get();
+		auto  effects               = application::manual_executor{ };
+		auto  decisions             = application::manual_executor{ };
+		auto  projection            = recording_projection{ };
+		auto  host                  = application::review_mutation_application_host{
+			std::move(provider),
+			closed,
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, closed, acting_identity()),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		expect(host.capabilities() == masked, "the host composed for a closed pull request offers only thread resolution");
+
+		static_cast<void>(host.resolve({ .Thread = "PRRT_fixture_1", .Resolve = true }));
+		expect(effects.pending() == 1U, "a resolution on the closed pull request is admitted");
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Resolved.size() == 1U && observed->Resolved.back().Resolve && observed->Resolved.back().LiveBinding.has_value()
+				   && observed->Resolved.back().LiveBinding->Target == closed && !observed->Resolved.back().LiveBinding->Target.Open,
+			   "and reaches the provider bound to the closed pull request");
+		expect(!projection.Resolutions.empty() && projection.Resolutions.back().Result.has_value() && projection.Resolutions.back().Result->Resolved,
+			   "the terminal names the thread resolved");
+		static_cast<void>(host.resolve({ .Thread = "PRRT_fixture_1", .Resolve = false }));
+		effects.run_next();
+		decisions.run_next();
+		expect(observed->Resolved.size() == 2U && !observed->Resolved.back().Resolve && projection.Resolutions.back().Result.has_value()
+				   && !projection.Resolutions.back().Result->Resolved,
+			   "an unresolve on the closed pull request reaches the provider and answers the open thread");
+
+		static_cast<void>(host.react({ .Subject = "PRRC_fixture_1", .Content = core::reaction_content::heart, .Add = true }));
+		static_cast<void>(host.edit_description({ .Original = "Before.", .Body = "After." }));
+		static_cast<void>(host.edit_comment({ .Subject = "PRRC_fixture_1", .Original = "Before.", .Body = "After." }));
+		expect(effects.pending() == 0U, "no other change on the closed pull request is admitted to an effect");
+		decisions.drain();
+		expect(observed->Reacted.empty() && observed->Described.empty() && observed->Edited.empty() && observed->Submitted.empty(),
+			   "and none reaches the provider");
+		expect(!projection.Reactions.empty() && !projection.Reactions.back().Result.has_value() && !projection.Descriptions.empty()
+				   && !projection.Descriptions.back().Result.has_value() && !projection.CommentEdits.empty() && !projection.CommentEdits.back().Result.has_value(),
+			   "each is refused with a terminal");
+		host.shutdown();
+	}
+
 	void test_conversation_retirement_drains_exact_terminals_and_shutdown_overrides_it()
 	{
 		for (const auto afterEffect : { false, true }) {
@@ -2320,6 +2399,7 @@ auto main() -> int
 	test_one_shot_authority_expiry_invalidation_and_shutdown_revoke_grants();
 	test_one_shot_authority_rejects_same_core_different_full_identity();
 	test_thread_resolution_needs_the_capability_and_a_permitting_grant();
+	test_a_closed_pull_request_binding_takes_only_a_threads_resolution();
 	test_conversation_retirement_drains_exact_terminals_and_shutdown_overrides_it();
 	test_conversation_refusal_failure_and_duplicate_terminals_settle_once();
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
