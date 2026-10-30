@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1817"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent chat send with custom agent silently does nothing; show why",
+  "created": "2026-10-29T22:18:34.516338+00:00",
+  "base": "71808128960c63d5e61dbaf1781df4feef4ef072"
+}
