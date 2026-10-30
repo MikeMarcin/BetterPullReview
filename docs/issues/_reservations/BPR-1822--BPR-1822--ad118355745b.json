@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1822"
+  ],
+  "reserve_for": "release-v041-crash-course",
+  "purpose": "Diagnose the Windows Debug crash-running marker precondition and prove preserved kill/recovery semantics without a blanket timing waiver",
+  "created": "2026-10-30T01:07:37.984484+00:00",
+  "base": "c1c3510f523fe21a136ccd05885e75cc725acafb"
+}
