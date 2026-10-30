@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1825"
 title: "Repair merged containment test registrations"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v041-critical-main-restart-r2", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Actual row APPEND preserves wrappermarker/scrubs/outputunsets/scale/seals; maintained74-enumerated adversarial registration/policy course and fresh fullnative manifests accepted with explicitplatformskips.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC2","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"OriginalnativeWindows ordinarycustom-agentPASS; exactunchangedzero-capabilityhelper refuses private-test-root, source/image/helper/argv/environment/deadline bound. Pin records only actualrefusal; no underlyingWin32cause inferred.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC3","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Mac885/Windows861/Ubuntu869 currentrows perprofile pass schedule+containment, Ubuntucurrent74enumerated73executed/1MachOskip, realWindowsregistrationfixturePASS. Original failures/skips and exactN6/N0images retained; changedfixtureprivate/installproofs are explicit, no fullqualificationcredit.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}}]
 ---
 
 # Repair merged containment test registrations
@@ -70,3 +71,26 @@ configuration, yielding zero rows. That original fixture error is retained in
 `n6-isolated-registration-native-r1`. The query now explicitly selects Debug
 and requires exactly one registered row before checking its policy; no product
 profile, source guard or course deadline is changed.
+
+
+## Corrected native manifest acceptance, 2026-10-30
+
+The complete corrected configured manifests pass the maintained schedule and
+containment guards on Mac (885 rows per profile), Windows (861) and Ubuntu
+(869). Both native Release and standard Debug profiles are covered. These
+manifest counts are registration evidence, not passing functional-suite counts.
+The 74-enumerated policy controls retain their actual platform omissions:
+Ubuntu executes 73 with its one explicit Mach-O-only skip; the earlier native
+Windows course executes 64 with ten explicit platform-only skips. The real
+registration fixture runs on Windows after the recorded zero-row query repair.
+
+External evidence is `mac-candidate-prerequisites-r2`,
+`windows-candidate-prerequisites-r3-local`,
+`successor-ubuntu-prerequisites-r2-local`, and the original native
+`n6-custom-agent-native-classification-r1` and
+`n6-isolated-registration-native-r2` records on the producer. The original
+Windows ordinary/contained observations and their strict source/image/helper
+bindings remain unchanged. No new exemption, capability or runtime policy is
+introduced. Preserved N6 images remain N6/N0, with only the separately compiled
+and proven Markdown test images installed through explicit identity bridges.
+Comprehensive qualification and successor production remain on BPR-1811.
