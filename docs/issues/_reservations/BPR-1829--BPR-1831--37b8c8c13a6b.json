@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1829",
+    "BPR-1830",
+    "BPR-1831"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Diagnostics coverage: sign-in/vault/updater; MCP/tours/Review Cycle; SQLite/clone scan/search/images/avatars/notifications",
+  "created": "2026-10-30T15:46:19.895097+00:00",
+  "base": "7868a7d30c729ea81ddbc0a6df86c5b51dbdc2f2"
+}
