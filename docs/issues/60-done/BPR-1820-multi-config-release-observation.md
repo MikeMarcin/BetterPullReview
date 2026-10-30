@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1820"
 title: "Observe local multi-config builds without malformed JSON"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v041-same-preview-waivers-r1", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Strict complete single/multi-config observations and one-configuration numbered refusal preserved; exact old module duplicate-JSON negative control retained.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC2","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Mac real native identity fixtures PASS; Windows18 enumerated17executed/1explicitBash-onlyskip including actualmulti-configPASS; Ubuntu18executedPASS at712. Actual current3producerobservations unchanged flags/toolchain. No oldproducer relabel.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}}]
 ---
 
 # Observe local multi-config builds without malformed JSON
@@ -50,3 +51,23 @@ checkout's missing offline CPM cache refusal is preserved separately; it is not
 reclassified as a release-builder pass. Exact raw commands and negative-control
 receipt are external under `BPR-1820-focused-r1`. The affected Windows contract
 will run after its current frozen Debug qualification vacates the serialized PC.
+
+
+## Native repair acceptance, 2026-10-30
+
+The exact current source passes the complete native release-build contract on
+Ubuntu: all 18 tests execute, including the real multi-configuration observation
+and numbered-producer rejection controls. Windows enumerates the same 18,
+executes 17 successfully and explicitly skips its Bash-only publisher-shell
+course; the real native multi-config fixture executes successfully. The two
+Mac native identity fixtures and their original pre-fix duplicate-member
+negative control remain valid for these unchanged module/test inputs.
+
+The receipts are external under `BPR-1820-focused-r1`,
+`windows-candidate-prerequisites-r3-local` and
+`successor-ubuntu-prerequisites-r2-local`. Actual current distribution
+observations on all three producers retain their original flags and toolchains,
+with 15 distribution options distinct from 23 tests-on options. These are
+configure observations and focused repair acceptance; full release qualification
+and a new numbered producer belong to BPR-1811. N4 and N6 identities, original
+failures and configured platform skips remain unchanged.
