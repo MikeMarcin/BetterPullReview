@@ -53,3 +53,38 @@ Keep marketing version 0.4.1 and allocate the next global build for changed
 inputs, using actual native observations and the actual N4 MSI upgrade floor.
 Restart signed/notarized Mac-first prerelease, then Windows, then qualification
 under the same carried waivers. Do not wait for the superseded N4 matrix.
+
+
+## Verified restarted preview and successor inputs
+
+N6 source `864f98ad990c5e5aa1b5b006a71501b491ad5eb1` is public at
+`v0.4.1-build.6` (release 428609949), with 17 immutable Mac/Windows assets.
+All 17 anonymous hashes, eight Mac native commands and 39 downloaded Windows
+native commands passed. Raw matching vulnerability findings remain failed scan
+results with the carried owner dispositions; comprehensive qualification and
+stable 0.4.1 authorization remain separate and pending.
+
+The next candidate's authoritative Windows upgrade floor is that actual N6
+installer, not the N4 floor used to produce N6. A read-only native MSI Property
+table observation on 2026-10-30 confirms ProductVersion `0.4.6`, ProductCode
+`{79214291-8DD6-5F0B-9FAA-7D2024552E5C}`, retained UpgradeCode
+`{18DF84A8-5883-4979-B1C6-6F226934AA68}` and `ALLUSERS=1`.
+Its 26,869,760 bytes have SHA-256
+`4c273e7640c026ef60cba832a713b7319352fca7800415f93c9981a7b6567fbc`,
+matching the sealed producer and anonymously verified installer. The native
+observation and public receipts remain in the external release state; no N6
+allocation, artifact, source archive or tag is edited.
+
+Before successor qualification, aggregate the validated BPR-1818 Markdown
+fixture and BPR-1825 registration/measurement repairs. Preserve every original
+failure and actual N6 graph/image/source identity. Their pre-floor candidate
+`2422be1239930eaf3c7c67ef54b8a2ecd5a282bf` changes nine paths and no product
+runtime, header, CMake module, preset or toolchain input. The unchanged-input
+bridge must bind those exact inputs and native library/image hashes, compile
+and link the changed fixture through actual native commands, and run corrected
+manifests and containment/policy contracts fresh. It does not label retained N6
+test images as the successor. New numbered producer images must rebuild their
+true source/cohort identity and pass every mandatory final gate. Qualification
+keeps the maintained four-job schedule, locks and exclusive rows, the exact eight
+Debug timing omissions, fixed physical reserves and honest pending/interrupted
+rows where capacity has not admitted a course.
