@@ -10,6 +10,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string_view>
 
 namespace bpr::core {
@@ -478,6 +479,150 @@ namespace bpr::core {
 		const agent_session&                    aSession,
 		const agent_action_intent&              aIntent) noexcept
 		-> agent_action_verdict;
+
+	/// \brief [[BPR-1817]]. Why one send from the agent composer produced no
+	/// turn, in the one vocabulary the composer presents.
+	///
+	/// \details A send can be stopped before it is made (nothing typed, no
+	/// review open, a turn still running), by the host's own questions, or by
+	/// the core's action verdict. Each stop has a name here so the composer
+	/// says which one it was. A send that stopped and said nothing is the
+	/// defect this enumeration exists to make impossible.
+	enum class agent_send_refusal : std::uint8_t {
+		/// Not a refusal.
+		none,
+		/// No review is open, so there is no session to ask in.
+		no_review,
+		/// No agent is chosen in the composer's agent menu.
+		no_agent,
+		/// Nothing was typed.
+		empty_message,
+		/// The agent is still answering the previous question.
+		request_in_flight,
+		/// The pull request moved on and the reviewer has not chosen how to
+		/// continue.
+		session_stale,
+		/// The chosen agent is not one this application has.
+		agent_unknown,
+		/// The review's server has no agent policy at all.
+		host_not_mapped,
+		/// The review's server does not allow the chosen agent.
+		agent_forbidden_on_host,
+		/// The review's server requires a different agent.
+		agent_not_required_one,
+		/// The conversation belongs to a different agent.
+		session_profile_mismatch,
+		/// The question acts on selected lines and none are selected.
+		selection_required,
+		/// The question names an action nobody declared.
+		unknown_action,
+		/// The question's context is no longer a valid scope.
+		scope_invalid,
+		/// The private notes or draft chosen belong to another conversation.
+		private_context_refused,
+		/// The launch path refused the turn before the agent started.
+		launch_refused,
+		/// [[BPR-1823]]. The agent the reviewer chose is no longer offered
+		/// (removed in Settings, or not allowed for this review), and none
+		/// was put in its place.
+		agent_unavailable,
+	};
+
+	/// \brief The number of declared send refusals.
+	inline constexpr std::size_t agent_send_refusal_count = 17U;
+
+	static_assert(
+		static_cast<std::size_t>(agent_send_refusal::agent_unavailable) + 1U
+			== agent_send_refusal_count,
+		"agent_send_refusal_count must cover every declared send refusal");
+
+	[[nodiscard]] auto stable_name(agent_send_refusal aRefusal) noexcept
+		-> std::string_view;
+
+	/// \brief The send refusal one action verdict amounts to.
+	///
+	/// \details A permitted verdict is `none`. A profile refusal is told apart
+	/// by the invocation verdict it carries, so "this server forbids that
+	/// agent" and "that agent does not exist" are different answers.
+	[[nodiscard]] auto agent_send_refusal_of(
+		const agent_action_verdict& aVerdict) noexcept -> agent_send_refusal;
+
+	/// \brief What the composer knows before a send is made.
+	struct agent_send_facts
+	{
+		/// A review is open and its chat has a session to ask in.
+		bool ReviewOpen = false;
+		/// The session stopped matching and the reviewer must choose first.
+		bool ContinuationRequired = false;
+		/// An agent is chosen in the composer's agent menu.
+		bool AgentChosen = false;
+		/// [[BPR-1823]]. The agent chosen is held but not offered now.
+		bool AgentUnavailable = false;
+		/// The composer holds no words.
+		bool MessageEmpty = true;
+		/// A turn is still running.
+		bool InFlight = false;
+
+		auto operator<=>(const agent_send_facts&) const = default;
+	};
+
+	/// \brief Whether a send may be made now, or the first reason it may not.
+	///
+	/// \details Pure, and decided in this order, which is the order a reviewer
+	/// can act on: a review to ask in, a continuation chosen, a turn no longer
+	/// running, an agent chosen, then something typed.
+	[[nodiscard]] auto decide_agent_send(const agent_send_facts& aFacts) noexcept
+		-> agent_send_refusal;
+
+	/// \brief [[BPR-1823]]. The agent the composer's agent menu holds.
+	///
+	/// \details `Kept` is the reviewer's choice: once kept, the agent stays
+	/// whatever is offered later, including when it is no longer offered at
+	/// all (it is then unavailable, and a send is refused). A pick that is not
+	/// kept is a provisional default, made while the setup's saved agent is
+	/// not yet known.
+	struct agent_pick
+	{
+		std::optional<agent_profile_id> Agent;
+		bool                            Kept = false;
+
+		auto operator<=>(const agent_pick&) const = default;
+	};
+
+	/// \brief What one decision about the agent menu knows.
+	struct agent_pick_facts
+	{
+		/// What the menu holds now.
+		agent_pick Current;
+		/// The agents offered now, in the menu's order.
+		std::span<const agent_profile_id> Offered;
+		/// The agent setup saved, once the setup is known.
+		std::optional<agent_profile_id> Saved;
+		/// Whether the setup's saved agent (possibly none) is known yet.
+		bool SetupKnown = false;
+		/// An agent chosen now: by the reviewer in the menu, or by the agent
+		/// setup wizard when the reviewer sets one up or picks one there.
+		/// Nothing else chooses.
+		std::optional<agent_profile_id> Chose;
+	};
+
+	/// \brief [[BPR-1823]], owner ruling 2026-10-29: "The picker should keep
+	/// your choice. It should never automatically switch agents for you,
+	/// outside of course of the wizard where you set it up."
+	///
+	/// \details Pure. In order: an agent chosen now is the pick, kept; a kept
+	/// pick stays, offered or not, and nothing replaces it; otherwise the
+	/// default is the saved agent when offered, else the first offered, else
+	/// none, and it becomes kept once the setup is known and an agent was
+	/// picked. Offering agents again, setup updates and opening a thread's Ask
+	/// agent therefore never move a kept pick.
+	[[nodiscard]] auto decide_agent_pick(const agent_pick_facts& aFacts)
+		-> agent_pick;
+
+	/// \brief Whether the pick names an agent that is offered now.
+	[[nodiscard]] auto agent_pick_available(
+		const agent_pick&                 aPick,
+		std::span<const agent_profile_id> aOffered) noexcept -> bool;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_CHAT_SCOPE_HPP

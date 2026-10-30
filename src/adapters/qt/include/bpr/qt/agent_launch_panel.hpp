@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_LAUNCH_PANEL_HPP
 
 #include "bpr/application/agent_invocation_host.hpp"
+#include "bpr/core/agent_chat_scope.hpp"
 
 #include <QString>
 #include <QWidget>
@@ -11,6 +12,7 @@
 #include <functional>
 #include <optional>
 #include <span>
+#include <utility>
 #include <variant>
 #include <vector>
 
@@ -95,10 +97,24 @@ namespace bpr::qt {
 		/// here is absent because the host refused it, and one present cannot
 		/// be refused again by presentation.
 		void offer_profiles(std::span<const core::agent_profile> aProfiles);
-		/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved:
-		/// selected now when offered, and whenever profiles are offered again.
-		/// Absent, the first offered profile is selected, as before.
+		/// \brief [[BPR-1749]], RFC-BPR-0092. The profile setup saved.
+		///
+		/// \details [[BPR-1823]], owner ruling 2026-10-29: it is the first
+		/// pick only. Once an agent is picked (the saved one when offered, else
+		/// the first offered) the menu keeps it; neither this nor offering the
+		/// profiles again moves it. `core::decide_agent_pick` decides.
 		void prefer_profile(std::optional<core::agent_profile_id> aProfile);
+		/// \brief [[BPR-1823]]. The agent setup wizard chose this agent now
+		/// (the reviewer picked or added it there): the one automatic change.
+		void choose_profile_from_setup(core::agent_profile_id aProfile);
+		/// \brief [[BPR-1823]]. Reset agents: no choice is kept, so the next
+		/// setup's agent is the first pick (a new agent may reuse an old id).
+		void forget_choice();
+		/// \brief [[BPR-1823]]. The name of the agent chosen but no longer
+		/// offered, shown in the menu as unavailable; empty otherwise.
+		[[nodiscard]] auto unavailable_agent_name() const -> QString;
+		/// \brief The number of agents offered (the unavailable entry is not one).
+		[[nodiscard]] auto offered_count() const noexcept -> std::size_t { return OfferedIds.size(); }
 		/// \brief Offers only opaque current private-context identities, unchecked.
 		void offer_private_context(
 			std::span<const application::local_note_id>    aNotes,
@@ -153,6 +169,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
+		/// [[BPR-1817]]. How many refusals the host has named here, and the
+		/// last one. Counted even while a turn runs, when the status line
+		/// keeps saying it runs, so the composer can say a send was refused.
+		[[nodiscard]] auto refusal_count() const noexcept -> std::uint64_t { return Refusals; }
+		[[nodiscard]] auto last_refusal() const -> QString { return LastRefusal; }
 		[[nodiscard]] auto output_text() const -> QString;
 		[[nodiscard]] auto session_catalog_text() const -> QString;
 		[[nodiscard]] auto start_button() const noexcept -> QToolButton*;
@@ -165,35 +186,47 @@ namespace bpr::qt {
 
 	private:
 		void update_actions();
+		/// [[BPR-1823]]. Decides the pick in core and presents it.
+		void settle_pick(std::optional<core::agent_profile_id> aChose);
 
 		std::function<void()> ConfigurationObserver;
 		std::uint32_t         RunLimitMinutes = 0U;
 		agent_intent_dispatch Dispatch;
 		QComboBox*            ProfileSelector = nullptr;
-		/// [[BPR-1749]]. Selected whenever it is offered.
-		std::optional<core::agent_profile_id>          PreferredProfile;
-		QAction*                                       StartAction            = nullptr;
-		QAction*                                       CancelAction           = nullptr;
-		QAction*                                       ExistingCheckoutAction = nullptr;
-		QLabel*                                        Disclosure             = nullptr;
-		QListWidget*                                   NoteSelector           = nullptr;
-		QCheckBox*                                     DraftSelector          = nullptr;
-		QLabel*                                        SessionCatalog         = nullptr;
-		QLabel*                                        Status                 = nullptr;
-		QPlainTextEdit*                                Output                 = nullptr;
-		QToolButton*                                   StartButton            = nullptr;
-		QToolButton*                                   CancelButton           = nullptr;
-		QToolButton*                                   ExistingCheckoutButton = nullptr;
-		bool                                           Running                = false;
-		bool                                           Disclosed              = false;
-		std::optional<application::agent_draft_choice> OfferedDraft;
-		QString                                        StopReason;
-		std::optional<application::agent_run_outcome>  LastOutcome;
-		QString                                        LastModel;
-		QString                                        LastCost;
-		phase                                          Phase = phase::idle;
-		std::vector<std::function<void()>>             ProgressObservers;
-		void                                           progressed();
+		/// [[BPR-1749]]. The first pick, when offered.
+		std::optional<core::agent_profile_id> PreferredProfile;
+		/// [[BPR-1823]]. Whether setup has said what it saved (possibly none).
+		bool SetupKnown = false;
+		/// [[BPR-1823]]. What the menu holds, as core decided it.
+		core::agent_pick                                        Pick;
+		std::vector<core::agent_profile_id>                     OfferedIds;
+		std::vector<std::pair<core::agent_profile_id, QString>> KnownNames;
+		QString                                                 UnavailableName;
+		bool                                                    Settling               = false;
+		QAction*                                                StartAction            = nullptr;
+		QAction*                                                CancelAction           = nullptr;
+		QAction*                                                ExistingCheckoutAction = nullptr;
+		QLabel*                                                 Disclosure             = nullptr;
+		QListWidget*                                            NoteSelector           = nullptr;
+		QCheckBox*                                              DraftSelector          = nullptr;
+		QLabel*                                                 SessionCatalog         = nullptr;
+		QLabel*                                                 Status                 = nullptr;
+		QPlainTextEdit*                                         Output                 = nullptr;
+		QToolButton*                                            StartButton            = nullptr;
+		QToolButton*                                            CancelButton           = nullptr;
+		QToolButton*                                            ExistingCheckoutButton = nullptr;
+		bool                                                    Running                = false;
+		bool                                                    Disclosed              = false;
+		std::optional<application::agent_draft_choice>          OfferedDraft;
+		QString                                                 StopReason;
+		std::optional<application::agent_run_outcome>           LastOutcome;
+		std::uint64_t                                           Refusals = 0U;
+		QString                                                 LastRefusal;
+		QString                                                 LastModel;
+		QString                                                 LastCost;
+		phase                                                   Phase = phase::idle;
+		std::vector<std::function<void()>>                      ProgressObservers;
+		void                                                    progressed();
 		std::optional<application::agent_invocation_projection_identity>
 			ActiveInvocation;
 

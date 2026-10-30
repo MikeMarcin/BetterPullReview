@@ -73,6 +73,11 @@ namespace bpr::app {
 		/// outside the diff, and the page then holds that comment.
 		using unplaceable_refusal_observer = std::function<void(const application::review_submission_request&)>;
 		void set_unplaceable_refusal_observer(unplaceable_refusal_observer);
+		/// \brief [[BPR-1816]]. The profile's finish choices as accepted
+		/// now, asked when GitHub answers a submission. Without one, every
+		/// verdict uses the defaults.
+		using finish_settings = std::function<core::review_finish_settings()>;
+		void set_finish_settings(finish_settings);
 
 	private:
 		/// The inputs a projected preflight was read from: the selection and
@@ -91,17 +96,19 @@ namespace bpr::app {
 		void new_draft();
 		/// [[BPR-1345]] v003. After a confirmed or discarded review: the next
 		/// unfinished one if any, else a new draft. Nothing waits for New review.
-		void                                                                          next_review();
-		void                                                                          restore(application::review_submission_request);
-		void                                                                          reconcile();
-		void                                                                          present();
-		void                                                                          complete(core::review_submission_command_kind);
-		[[nodiscard]] auto                                                            decided_controls() const -> core::review_submission_controls;
-		void                                                                          project_preflight();
-		void                                                                          apply_review_comments();
-		void                                                                          send(application::review_submission_request aRequest);
-		void                                                                          answer(const application::review_submission_request& aRequest, application::review_submission_publication aPublication);
-		void                                                                          next_lookup();
+		void               next_review();
+		void               restore(application::review_submission_request);
+		void               reconcile();
+		void               present();
+		void               complete(core::review_submission_command_kind);
+		[[nodiscard]] auto decided_controls() const -> core::review_submission_controls;
+		void               project_preflight();
+		void               apply_review_comments();
+		void               send(application::review_submission_request aRequest);
+		void               answer(const application::review_submission_request& aRequest, application::review_submission_publication aPublication);
+		void               next_lookup();
+		/// [[BPR-1816]]. The core's transition for GitHub's answer to `aRequest`.
+		[[nodiscard]] auto                                                            finish(const application::review_submission_request& aRequest, core::review_finish_answer aAnswer) const -> core::review_finish_transition;
 		application::effect_executor&                                                 Effects;
 		application::decision_executor&                                               Decisions;
 		qt::review_submission_editor&                                                 Editor;
@@ -142,6 +149,12 @@ namespace bpr::app {
 		std::optional<application::review_submission_request> Recovering;
 		publication_observer                                  PublicationObserved;
 		unplaceable_refusal_observer                          UnplaceableRefusalObserved;
+		/// [[BPR-1816]]. The finish choices, and the key of the submission
+		/// this window's Submit sent and whose first answer is still awaited.
+		/// Any other answer (Check status, a review found on opening) is a
+		/// recovery.
+		finish_settings            FinishSettings;
+		std::optional<std::string> SubmittedKey;
 		/// [[BPR-1541]]. Why the shown submission is still unknown, from its
 		/// last Check status or, after a restart, its record; and what each
 		/// discovered attempt's record kept.

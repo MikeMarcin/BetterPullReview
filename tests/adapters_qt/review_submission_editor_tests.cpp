@@ -903,12 +903,21 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1345]] v003. GitHub's confirmation is said once, with the
 		// review it confirmed, so the window can close the page.
 		auto heard = std::vector<std::size_t>{ };
-		live.set_submitted_observer([&](const std::size_t aComments) { heard.push_back(aComments); });
+		auto went  = std::vector<core::review_finish_transition>{ };
+		live.set_submitted_observer([&](const std::size_t aComments, const core::review_finish_transition aTransition) {
+			heard.push_back(aComments);
+			went.push_back(aTransition);
+		});
 		auto confirmedDraft  = finishing;
 		confirmedDraft.State = core::review_submission_state::submitted;
 		live.confirm_submitted(confirmedDraft);
 		expect(heard == std::vector<std::size_t>{ 2U } && live.confirmed_submissions() == 1U && live.last_submitted() == confirmedDraft,
 			   "a confirmed review is announced once, with its comment count");
+		// [[BPR-1816]]. The core's transition rides the confirmation.
+		live.confirm_submitted(confirmedDraft, core::review_finish_transition::close_review_and_go_home);
+		expect(went == std::vector{ core::review_finish_transition::return_to_pull_request, core::review_finish_transition::close_review_and_go_home }
+				   && live.last_finish() == core::review_finish_transition::close_review_and_go_home && live.confirmed_submissions() == 2U,
+			   "each confirmation carries where it leaves the reviewer");
 		live.hide();
 	}
 	// [[BPR-1541]]. Under "Review status is unknown", one line says why, in a

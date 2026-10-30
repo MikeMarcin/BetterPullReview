@@ -338,4 +338,39 @@ namespace bpr::core {
 			.Draft = aDraft.Id, .Attempt = aDraft.Attempt, .Target = aDraft.Target, .ActingAccount = aDraft.ActingAccount, .Body = aDraft.Body, .Disposition = aDraft.Disposition, .Comments = aDraft.Comments
 		};
 	}
+
+	auto valid(const review_finish_settings& aSettings) noexcept -> bool
+	{
+		const auto known = [](const review_finish_return aReturn) {
+			return aReturn == review_finish_return::home || aReturn == review_finish_return::pull_request;
+		};
+		return known(aSettings.Comment) && known(aSettings.Approve) && known(aSettings.RequestChanges);
+	}
+
+	auto finish_return(const review_finish_settings& aSettings, const review_disposition aDisposition) noexcept -> review_finish_return
+	{
+		switch (aDisposition) {
+		case review_disposition::comment:         return aSettings.Comment;
+		case review_disposition::approve:         return aSettings.Approve;
+		case review_disposition::request_changes: return aSettings.RequestChanges;
+		}
+		return review_finish_return::pull_request;
+	}
+
+	auto decide_review_finish(const review_finish_settings& aSettings, const review_finish_event& aEvent) noexcept -> review_finish_transition
+	{
+		if (aEvent.Answer != review_finish_answer::published) {
+			// Not published, or not known to be: the draft is the reviewer's
+			// only copy of what they meant, so it stays in front of them.
+			return review_finish_transition::keep_review;
+		}
+		// A recovery was not this gesture's finish, and a waiting submission
+		// is shown next and needs Check status on this pull request.
+		if (aEvent.Origin != review_finish_origin::submit || aEvent.AnotherUnsettled || !valid(aSettings)) {
+			return review_finish_transition::return_to_pull_request;
+		}
+		return finish_return(aSettings, aEvent.Disposition) == review_finish_return::home
+			? review_finish_transition::close_review_and_go_home
+			: review_finish_transition::return_to_pull_request;
+	}
 } // namespace bpr::core

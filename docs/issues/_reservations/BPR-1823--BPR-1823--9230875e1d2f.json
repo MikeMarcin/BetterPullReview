@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1823"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Agent picker keeps the reviewer's choice; never switches automatically outside setup wizard",
+  "created": "2026-10-30T01:13:15.419851+00:00",
+  "base": "7655a0946434a7fb093fd78a0c6a5d15992da4fb"
+}

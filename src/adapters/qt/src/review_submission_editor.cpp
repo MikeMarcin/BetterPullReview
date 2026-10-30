@@ -1886,18 +1886,20 @@ namespace bpr::qt {
 	auto review_submission_editor::details_toggle() const noexcept -> QToolButton* { return Details; }
 	auto review_submission_editor::discard_confirmation() const noexcept -> destructive_question* { return DiscardQuestion.data(); }
 	auto review_submission_editor::discard_button() const noexcept -> danger_tool_button* { return DiscardButton; }
-	void review_submission_editor::confirm_submitted(const core::review_submission_draft& aSubmitted)
+	void review_submission_editor::confirm_submitted(const core::review_submission_draft& aSubmitted, const core::review_finish_transition aTransition)
 	{
 		LastSubmitted = aSubmitted;
+		LastFinish    = aTransition;
 		++Confirmed;
 		if (SubmittedObserver) {
-			SubmittedObserver(aSubmitted.Comments.size());
+			SubmittedObserver(aSubmitted.Comments.size(), aTransition);
 		}
 	}
-	void review_submission_editor::set_submitted_observer(std::function<void(std::size_t)> aObserver)
+	void review_submission_editor::set_submitted_observer(submitted_observer aObserver)
 	{
 		SubmittedObserver = std::move(aObserver);
 	}
+	auto review_submission_editor::last_finish() const noexcept -> core::review_finish_transition { return LastFinish; }
 	auto review_submission_editor::last_submitted() const noexcept -> const std::optional<core::review_submission_draft>& { return LastSubmitted; }
 	auto review_submission_editor::confirmed_submissions() const noexcept -> std::size_t { return Confirmed; }
 	auto review_submission_editor::delete_confirmation() const noexcept -> destructive_question* { return DeleteQuestion.data(); }

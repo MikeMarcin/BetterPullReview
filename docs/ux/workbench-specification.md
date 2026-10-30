@@ -32,7 +32,7 @@ authored and directly requested pull requests of the saved repositories
 
 ```text
 ┌ Title row: Home | Repositories | Files | name ↗ ······ Overview Review Discuss Threads | Refresh | Comments (n) | Hide drawers | Account | Settings ┐
-├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ ···· (● Review · 2 pending │ Finish review) Compose review | Comment ┤
+├ Review bar: ▸ Updates  Comparing …, dates ▾ | File 3 of 40 « » | Changes 3 of 11 ‹ › | progress ▾ │ ◫ ⇄ ···· (● Review · 2 pending │ Finish review) Compose review | Comment ┤
 ├ Updates line, while open: the timeline, full width ┤
 ├──────── file drawer ────────┬──────── comparison workbench ────────┬──── conversation drawer ────┤
 │ filters and review map       │ natural-layout panes + DiffLinkMap      │ tabs: Comments | Notes      │
@@ -334,6 +334,22 @@ always uses the whole window." The core holds the vocabulary and the rule
 schema 22, a migrated profile reads Wide). It never applies to the code
 comparison, the Comments drawer's own bounds, the search field or the
 composer's list.
+**Finishing a review** ([[BPR-1816]], the owner, 2026-10-29: "Finishing a
+review should take you to Home and close that review"). Once GitHub confirms a
+review the reviewer submitted with Comment, Approve or Request changes, the
+Finish your review sheet closes, the review closes as Close review closes it
+(its drafts kept), Home shows with the Open bar focused, and the status bar
+says "Review submitted. Closed the review of owner/name#N." Settings › Review
+› Finishing a review has one line, **Close and go Home after**, with a box per
+verdict, each ticked by default and each its own preference; an unticked
+verdict returns to the pull request as before ([[BPR-1345]] v003). Request
+changes has its own box rather than sharing Comment's: the three finish
+buttons are three gestures, and a reviewer who asks for changes may want to
+stay where one who approves does not. Nothing leaves the pull request on a
+refused or unknown answer (the page keeps its summary, verdict and comments),
+on a confirmation found by Check status or on reopening, or while another of
+the pull request's submissions still awaits its answer.
+
 The **review bar** is full width under it and always shown with a review: from
 its left the Updates disclosure, the comparison's menu naming the comparison and its
 dates, File and its position before the file arrows, Changes and its position
@@ -383,7 +399,18 @@ Cycle suggestion editor) the key is the editor's, so Option-A still types
 `å` there. On macOS the key is the one labelled A in the current layout; a
 non-Latin layout whose A key types another letter does not offer it.
 Opening or seeing
-a file does not accept it. At the bar's right
+a file does not accept it. Right of the track, after a rule, are the
+**layout toggle** and **Go to header/source** ([[BPR-1815]], the owner,
+2026-10-29: a toggle for one pane or two with a key, and Go to header/source,
+on the row with Seen, Read and Accept). They are icon buttons on no rail,
+presenting the View menu's One pane and Go to header/source, so the bar, the
+menu and the keys are one command each and the core decides the layout. The
+toggle's glyph is the layout showing, two panes parted down the middle or one
+whole pane, as Hide drawers' glyph is the drawers showing; it is checked in one
+pane. Its tooltip names the other layout and its key ("One pane (⌥⇧P)" or "Two
+panes (⌥⇧P)") and Go to header/source's names its key ("Go to header/source
+(⌥O)"); a second line says what the layout is or why the command is
+unavailable. At the bar's right
 are **Compose review** (Option-R, Alt+R) and **Comment**
 (Option-C, Alt+C), whose tooltips name the command and its key. Comment is an
 icon. With no review in progress Compose review says what it is for:
@@ -395,9 +422,10 @@ there's not a active review"). Its accessible name is "Compose review: approve
 or comment", and its tooltip names Approve, Request changes and Comment. It
 only opens the review: the verdict is chosen there. While a review is in
 progress the chip below leads and Compose review is its plain icon. As the
-window narrows its words shorten first, to "Approve…" (it shows at 1280 beside
-the comparison's dates and the positions). "Approve…" is the review bar's last
-yield, and the pencil and its edge stay after it, so the floor is unchanged.
+window narrows its words shorten first, to "Approve…". It shows at 1280
+beside the positions; since the view controls came ([[BPR-1815]]) the
+comparison's dates yield to them at 1280 and show again from 1366. "Approve…"
+is the review bar's last yield, and the pencil and its edge stay after it.
 Compose review carries an amber mark while a review draft is kept. Review details is
 reached from the comparison's menu. Both composition commands are also in the
 Pull Request menu. Compose review opens the whole-review summary in Discuss,
@@ -1420,10 +1448,13 @@ owner and then the modality's shortcuts, keeping the name's number. Open on
 GitHub goes with the name and is counted in its room, so the title elides
 around it; it stays beside the number down to the floor ([[BPR-1338]]). No control
 folds into an overflow menu at any width down to the platform's floor. The
-floor follows the bar ([[BPR-1255]], the owner's choice of 2026-10-06). When a
-larger font makes the fully yielded review bar wider than the platform's 900
-pixels (902 on Windows), the window's minimum width rises to the bar's width.
-It returns to the platform's floor at the default font, and it is measured
+floor follows the bar ([[BPR-1255]], the owner's choice of 2026-10-06). When the
+fully yielded review bar is wider than the platform's 900 pixels (902 on
+Windows), the window's minimum width rises to the bar's width. Since the
+bar gained its view controls ([[BPR-1815]]) it is the wider at the default
+font too: 957 pixels on macOS with the test fixtures' summary, pending the
+owner's judgement. A larger font raises it further; it returns to the
+default floor at the default font, and it is measured
 again on a font, style, theme or scale change. A restored geometry narrower
 than the floor opens at the floor.
 
@@ -1628,6 +1659,7 @@ never invents enabled state.
 | Toggle review details | `Alt+Shift+3` |
 | Open private review progress | `Alt+Shift+4` |
 | Toggle source line numbers | `Alt+Shift+5` |
+| One pane or two panes; the review bar's layout toggle ([[BPR-1815]]) | `Alt+Shift+P` (⌥⇧P) |
 | Compose review | `Alt+R` (Option-R) |
 | Comment, or Reply to the selected thread | `Alt+C` (Option-C) |
 | Move the selected line; with Shift, extend the selection ([[BPR-1212]]) | `Up`, `Down`; `Shift+Up`, `Shift+Down`, in a code pane |
@@ -2485,8 +2517,9 @@ the pull request (#17 and its title). With nothing asked, the conversation shows
 this pull request" with one line under it. The question field clears once a
 question is sent. The thread is
 one conversation per pull request and agent (owner decisions, 2026-10-23):
-it is kept for the pull request and shown again when it is opened again, on
-the agent it was last asked with; switching agents shows that agent's own
+it is kept for the pull request and shown again when it is opened again, as
+the chosen agent's own thread (opening a pull request never switches the
+agent, [[BPR-1823]]); switching agents shows that agent's own
 thread and switching back resumes it; each question carries its agent's
 earlier turns; and Clear session empties only the current agent's, asking
 first when turns would leave it. Notes and drafts made from the thread are
@@ -2538,6 +2571,29 @@ head moved (Start
 a new session or Continue on the old head) and stopped (what happened, the
 question kept, Ask again and Show the log; Check again when the Ask ended
 because the workspace could not be made or the agent did not start).
+A send asks the agent the pill shows, whatever agent the conversation used
+before; choosing another agent starts that agent's conversation
+([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner
+ruling 2026-10-29: "The picker should keep your choice. It should never
+automatically switch agents for you, outside of course of the wizard where you
+set it up."): offering the agents again, a setup update, opening a pull
+request and a thread's Ask agent never move it. The saved agent is only the
+first pick (else the first agent listed), and an agent chosen or added in the
+setup wizard is the one change made for the reviewer. A chosen agent that goes
+(removed in Settings, or not allowed for the review's server) is never
+replaced: the pill reads "Unavailable: *Agent*" (the state first, so a
+narrow pill keeps it), its menu opens with "*Agent* isn't available. Choose
+an agent:" and the agents, and a send says "Not sent. *Agent* isn't
+available. Choose an agent in the agent menu, then send." A send that
+produces no turn is never silent: a danger strip directly above the field says "Not sent." and why, in words (nothing typed,
+the agent still answering, the server not allowing that agent, no lines
+selected for a question about them, the agent not starting, and the rest of
+the core's `agent_send_refusal` reasons), until the next send or its Dismiss,
+and keeps the question in the field. A Send that cannot be pressed says why in
+its tooltip. A run that ends without an answer is the turn's answer in words
+(it did not start, exited with an error, ran out of time) followed by the last
+lines it wrote to its error stream; the stopped banner says the same words,
+never an outcome's stable name.
 [RFC-BPR-0092](../rfcs/RFC-BPR-0092-agent-first-run-setup.md): setting up replaces the conversation the first time it is
 needed: once the agents have been looked for and the repository's link has
 been checked, and a step is missing. Its four numbered steps are Agent
