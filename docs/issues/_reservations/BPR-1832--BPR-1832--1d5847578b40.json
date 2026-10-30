@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1832"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Shared compiler cache (ccache) across worktrees and presets",
+  "created": "2026-10-30T15:54:49.257954+00:00",
+  "base": "594e8e84255150d989946e7f8ad8d8554bd577f7"
+}
