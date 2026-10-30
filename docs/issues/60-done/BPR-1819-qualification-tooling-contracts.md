@@ -1,6 +1,6 @@
 ---
 schema: "implement-rfc.card.v1"
-id: "BPR-1817"
+id: "BPR-1819"
 title: "Keep release tooling tests within their declared contracts"
 status: "Done"
 rfcs: ["RFC-BPR-0038"]
@@ -65,3 +65,14 @@ manifest occurrence credit. Production registries, inventory, validators and
 scheduling CMake remain byte-for-byte unchanged. External evidence is in
 `qualification-contract-repairs-r1` under the recorded run root. Frozen build-4
 raw failures and its independently running native suites remain unchanged.
+
+## Identifier reconciliation
+
+This release tooling card was originally allocated BPR-1817 in a separate
+controller after the canonical owner had already reserved that ID for an
+unrelated agent-send/refusal feature. The canonical owner keeps BPR-1817. This
+card is now BPR-1819 under the canonical allocator. Both original receipts and
+all commits remain intact. The scoped alias record is
+`docs/issues/_checkpoints/release-v041/tooling-issue-id-alias.json`; historical
+release evidence naming our tooling work as BPR-1817 refers to this card, not
+the canonical owner's feature. No owner runtime changes were imported.
