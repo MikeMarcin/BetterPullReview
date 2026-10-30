@@ -389,6 +389,26 @@ bpr_add_network_isolated_test(
         "${PROJECT_SOURCE_DIR}/tests/scripts/verify_documentation_tests.py"
 )
 
+# [[BPR-1832]]. The optional ccache launcher: every AUTO, ON and OFF branch in
+# script mode, then this graph's own launchers against the decision configure
+# recorded (applied when present, absent when skipped or opted out). The
+# launcher lists travel `|`-joined, because the test wrapper splits on `;`.
+string(REPLACE ";" "|" bpr_cache_launcher "${BPR_COMPILER_CACHE_LAUNCHER}")
+string(REPLACE ";" "|" bpr_cache_c_launcher "${CMAKE_C_COMPILER_LAUNCHER}")
+string(REPLACE ";" "|" bpr_cache_cxx_launcher "${CMAKE_CXX_COMPILER_LAUNCHER}")
+bpr_add_network_isolated_test(
+    NAME compiler_cache_contract
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_SOURCE_DIR=${PROJECT_SOURCE_DIR}"
+        "-DBPR_CONFIGURED_STATE=${BPR_COMPILER_CACHE_STATE}"
+        "-DBPR_CONFIGURED_LAUNCHER=${bpr_cache_launcher}"
+        "-DBPR_CONFIGURED_C_LAUNCHER=${bpr_cache_c_launcher}"
+        "-DBPR_CONFIGURED_CXX_LAUNCHER=${bpr_cache_cxx_launcher}"
+        -P "${PROJECT_SOURCE_DIR}/tests/cmake/compiler_cache_tests.cmake"
+)
+set_tests_properties(compiler_cache_contract PROPERTIES TIMEOUT 60)
+
 bpr_add_network_isolated_test(
     NAME package_runtime_contract
     WINDOWS_UNCONTAINED
