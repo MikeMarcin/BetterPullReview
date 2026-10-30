@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1822"
 title: "Diagnose the Windows Debug agent crash-course marker precondition"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
