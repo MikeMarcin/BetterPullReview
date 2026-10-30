@@ -6,14 +6,17 @@
 #include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/github_credential_vault.hpp"
+#include "bpr/application/review_cycle_store.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/core/agent_setup.hpp"
 #include "bpr/core/device_authorization_model.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/release_update.hpp"
+#include "bpr/core/review_cycle_policy.hpp"
 
 #include <chrono>
 #include <cstdint>
+#include <string_view>
 
 namespace bpr::application {
 	/// \brief [[BPR-1828]]. The diagnostic operation an operation line's
@@ -55,6 +58,15 @@ namespace bpr::application {
 	[[nodiscard]] auto operation_failure_of(core::release_update_reason aReason) noexcept -> core::operation_failure;
 	/// \brief [[BPR-1829]]. The action an updater effect job is recorded as.
 	[[nodiscard]] auto operation_action_of(core::release_update_operation aOperation) noexcept -> core::operation_action;
+
+	/// \brief [[BPR-1830]]. A Review Cycle store failure, and a round grant's
+	/// refused authorization (`none` when allowed), as a round line names them.
+	[[nodiscard]] auto operation_failure_of(cycle_store_failure aFailure) noexcept -> core::operation_failure;
+	[[nodiscard]] auto operation_failure_of(core::cycle_authorization aDecision) noexcept -> core::operation_failure;
+	/// \brief [[BPR-1830]]. A `bpr tour` error as a tour line names it: from
+	/// its stable code where that names a class, otherwise from its exit
+	/// status. Neither the message nor any other text is read.
+	[[nodiscard]] auto tour_cli_failure(std::string_view aCode, int aExit) noexcept -> core::operation_failure;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_OPERATION_DIAGNOSTICS_HPP

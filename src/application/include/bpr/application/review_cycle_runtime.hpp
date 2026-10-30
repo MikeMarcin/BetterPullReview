@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_RUNTIME_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_REVIEW_CYCLE_RUNTIME_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/review_cycle_capture.hpp"
 #include "bpr/application/review_cycle_comparison.hpp"
@@ -83,6 +84,13 @@ namespace bpr::application {
 		auto operator=(const review_cycle_runtime&) -> review_cycle_runtime& = delete;
 		review_cycle_runtime(review_cycle_runtime&&)                         = delete;
 		auto operator=(review_cycle_runtime&&) -> review_cycle_runtime&      = delete;
+
+		/// \brief [[BPR-1830]]. Where round freezes, grants, revocations,
+		/// granted reads, responses, exports, bundle imports and recorded sends
+		/// write their `cycle.round` lines: enums, a duration and a typed
+		/// failure, never a cycle, round, path or response. May be null; it
+		/// must outlive the runtime. Set before the first call.
+		void set_diagnostics(diagnostic_log_port* aLog) noexcept;
 
 		/// \brief Makes a subject current and supersedes work for the previous one.
 		/// \returns The new selection generation.

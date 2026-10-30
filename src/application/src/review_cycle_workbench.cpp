@@ -2965,6 +2965,11 @@ namespace bpr::application {
 		self.Runtime.shutdown();
 	}
 
+	void review_cycle_workbench::set_diagnostics(diagnostic_log_port* const aLog) noexcept
+	{
+		Implementation->Runtime.set_diagnostics(aLog);
+	}
+
 	auto review_cycle_workbench::is_quiescent() const noexcept -> bool
 	{
 		return Implementation->Runtime.is_quiescent() && !Implementation->SendRunning;

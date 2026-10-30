@@ -1,5 +1,8 @@
 #include "bpr/application/mcp_context_helper_supervisor.hpp"
 
+#include "bpr/application/operation_diagnostics.hpp"
+
+#include <algorithm>
 #include <mutex>
 #include <utility>
 
@@ -13,6 +16,43 @@ namespace bpr::application {
 			= "BPR_MCP_SNAPSHOT_ROOT";
 		inline constexpr std::string_view pinned_binding_name
 			= "BPR_MCP_PINNED_BINDING";
+
+		/// [[BPR-1830]]. A refusal as an `agent.mcp_helper` line names it.
+		[[nodiscard]] auto failure_of(const mcp_helper_refusal aRefusal) noexcept
+			-> core::operation_failure
+		{
+			switch (aRefusal) {
+			case mcp_helper_refusal::none:
+				return core::operation_failure::none;
+			case mcp_helper_refusal::no_helper:
+				return core::operation_failure::no_helper;
+			case mcp_helper_refusal::not_pinned:
+				return core::operation_failure::not_pinned;
+			case mcp_helper_refusal::network_location:
+				return core::operation_failure::network_location;
+			case mcp_helper_refusal::already_running:
+				return core::operation_failure::already_running;
+			}
+			return core::operation_failure::no_helper;
+		}
+
+		/// [[BPR-1830]]. How a helper run ended, as its line names it.
+		[[nodiscard]] auto failure_of(const agent_run_outcome aOutcome) noexcept
+			-> core::operation_failure
+		{
+			switch (aOutcome) {
+			case agent_run_outcome::success:
+				return core::operation_failure::none;
+			case agent_run_outcome::cancelled:
+				return core::operation_failure::cancelled;
+			case agent_run_outcome::timeout:
+				return core::operation_failure::timed_out;
+			case agent_run_outcome::failed_to_start:
+				return core::operation_failure::failed_to_start;
+			default:
+				return core::operation_failure::helper_failed;
+			}
+		}
 	} // namespace
 
 	struct mcp_context_helper_supervisor::implementation
@@ -21,11 +61,13 @@ namespace bpr::application {
 			std::filesystem::path aHelper,
 			agent_process_port&   aProcesses,
 			effect_executor&      aEffects,
-			decision_executor&    aDecisionLane)
+			decision_executor&    aDecisionLane,
+			diagnostic_log_port*  aLog)
 			: Helper{ std::move(aHelper) }
 			, Processes{ aProcesses }
 			, Effects{ aEffects }
 			, DecisionLane{ aDecisionLane }
+			, Log{ aLog }
 		{
 		}
 
@@ -33,6 +75,8 @@ namespace bpr::application {
 		agent_process_port&   Processes;
 		effect_executor&      Effects;
 		decision_executor&    DecisionLane;
+		/// [[BPR-1830]]. May be null.
+		diagnostic_log_port* Log = nullptr;
 
 		mutable std::mutex               Mutex;
 		std::optional<mcp_helper_launch> Launch;
@@ -63,12 +107,14 @@ namespace bpr::application {
 		std::filesystem::path aHelperExecutable,
 		agent_process_port&   aProcesses,
 		effect_executor&      aEffects,
-		decision_executor&    aDecisionLane)
+		decision_executor&    aDecisionLane,
+		diagnostic_log_port*  aLog)
 		: Implementation{ std::make_shared<implementation>(
 			  std::move(aHelperExecutable),
 			  aProcesses,
 			  aEffects,
-			  aDecisionLane) }
+			  aDecisionLane,
+			  aLog) }
 	{
 	}
 
@@ -147,6 +193,7 @@ namespace bpr::application {
 										  : mcp_helper_refusal::none;
 			if (refusal != mcp_helper_refusal::none) {
 				++Implementation->Statistics.Refusals;
+				record_operation(Implementation->Log, { .Action = core::operation_action::mcp_helper_request, .Failure = failure_of(refusal) });
 				return refusal;
 			}
 			Implementation->Running = true;
@@ -163,11 +210,21 @@ namespace bpr::application {
 			.Environment      = launch.Environment,
 			.Input            = std::move(aRequest),
 		};
+		record_operation(Implementation->Log, { .Action = core::operation_action::mcp_helper_request }, true);
 		Implementation->Effects.post(
-			[implementation = Implementation, launchRequest = std::move(request)]() {
+			[implementation = Implementation, launchRequest = std::move(request), stopwatch = operation_stopwatch{ }]() {
 				auto result = implementation->Processes.run(launchRequest, 15000);
 				implementation->DecisionLane.post(
-					[implementation, runResult = std::move(result)]() {
+					[implementation, runResult = std::move(result), stopwatch]() {
+						// [[BPR-1830]]. How the run ended: enums, the exit
+						// code, the duration and how many lines it answered.
+						record_operation(implementation->Log,
+										 { .Action               = core::operation_action::mcp_helper_request,
+										   .Failure              = failure_of(runResult.Outcome),
+										   .Process              = operation_process_of(runResult.Outcome),
+										   .ExitCode             = runResult.ExitCode,
+										   .DurationMilliseconds = stopwatch.milliseconds(),
+										   .Count                = static_cast<std::uint32_t>(std::min<std::size_t>(runResult.Events.size(), 0xffffffffU)) });
 						const auto lock
 							= std::scoped_lock{ implementation->Mutex };
 						implementation->Running = false;

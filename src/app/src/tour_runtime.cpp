@@ -4,10 +4,12 @@
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/app/worker_executor.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/review_tour_import.hpp"
 #include "bpr/core/sha256.hpp"
 #include "profile_admission.hpp"
 #include "review_submission_execution_authority.hpp"
+#include "terminal_diagnostic_log.hpp"
 #include "tour_cancellation.hpp"
 #include "tour_decisions.hpp"
 #include "tour_observation.hpp"
@@ -40,6 +42,50 @@ namespace bpr::app {
 				return { std::move(aError.Code), "The owning desktop reads source only for a pull request it has open. Open this pull request there, then retry; nothing was changed.", 3 };
 			}
 			return aError;
+		}
+
+		/// \brief [[BPR-1830]]. Runs one remote tour step and writes its
+		/// `tour.operation` line: a write's start, then its end with the typed
+		/// failure (from the error's code and exit status, or from `aJudge` for
+		/// an answer that did not complete) and a stop count. No message, draft
+		/// text, target or identity is read into it.
+		template <typename TRun, typename TJudge>
+		auto observe_tour(application::diagnostic_log_port* const aLog, const core::operation_action aAction, const bool aWrite, TRun aRun, TJudge aJudge) -> decltype(aRun())
+		{
+			if (aWrite) {
+				application::record_operation(aLog, { .Action = aAction }, true);
+			}
+			const auto stopwatch = application::operation_stopwatch{ };
+			auto       result    = aRun();
+			auto       diagnosis = core::operation_diagnosis{ .Action = aAction };
+			if (result) {
+				const auto [failure, count] = aJudge(*result);
+				diagnosis.Failure           = failure;
+				diagnosis.Count             = static_cast<std::uint32_t>(std::min<std::size_t>(count, 0xffffffffU));
+			} else {
+				diagnosis.Failure = application::tour_cli_failure(result.error().Code, result.error().Exit);
+			}
+			diagnosis.DurationMilliseconds = stopwatch.milliseconds();
+			application::record_operation(aLog, diagnosis);
+			return result;
+		}
+		/// [[BPR-1830]]. A completed step with this many stops.
+		auto completed(const std::size_t aStops) -> std::pair<core::operation_failure, std::size_t> { return { core::operation_failure::none, aStops }; }
+		/// [[BPR-1830]]. How a publication answer ended, as its line names it.
+		auto publication_failure(const application::staged_publication_state aState) -> core::operation_failure
+		{
+			using state = application::staged_publication_state;
+			switch (aState) {
+			case state::published:             return core::operation_failure::none;
+			case state::ready:
+			case state::staged:                return core::operation_failure::interaction_required;
+			case state::outcome_unknown:       return core::operation_failure::outcome_unknown;
+			case state::conflict:              return core::operation_failure::conflict;
+			case state::partial:
+			case state::description_attention: return core::operation_failure::remote_incomplete;
+			case state::unavailable:           return core::operation_failure::unavailable;
+			}
+			return core::operation_failure::unavailable;
 		}
 	}
 	namespace {
@@ -139,6 +185,8 @@ namespace bpr::app {
 		tour_reader_factory                                 Readers;
 		std::optional<tour_cli_error>                       Failure;
 		bool                                                Forward = false;
+		/// [[BPR-1830]]. The profile's log, for a command that holds its lease.
+		std::unique_ptr<application::diagnostic_log_port> Log;
 		template <typename TFunction>
 		auto effect(TFunction aFunction)
 		{
@@ -167,6 +215,7 @@ namespace bpr::app {
 			}
 			Lease = std::move(admitted->Lease);
 			Store = adapters::sqlite::make_review_tour_store(Root, Profile);
+			Log   = open_terminal_diagnostic_log(Root);
 		}
 		static auto owner_exit(std::string_view aCode) -> int
 		{
@@ -312,6 +361,7 @@ namespace bpr::app {
 	}
 	auto tour_runtime::open(std::string aHostname, core::repository_locator aRepository, core::pull_request_number aNumber, bool aGh, std::string aRoot, bool aOffline) -> tour_cli_result<tour_local_snapshot>
 	{
+		return observe_tour(Implementation->Log.get(), core::operation_action::tour_open, false, [&]() -> tour_cli_result<tour_local_snapshot> {
 		if (Implementation->Forward) {
 			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
 		}
@@ -373,6 +423,7 @@ namespace bpr::app {
 		// This bounded synchronous transaction uses the same host/importer as the desktop.
 		application::manual_executor  effects, decisions;
 		application::review_tour_host host{ seed, adapters::sqlite::make_review_tour_store(self.Root, self.Profile), effects, decisions, { } };
+		host.set_diagnostics(self.Log.get());
 		host.start();
 		self.effect([&] { effects.drain(); });
 		decisions.drain();
@@ -408,10 +459,11 @@ namespace bpr::app {
 		const auto observation = !application::review_tour_observation_complete(read->Snapshot) ? "partial" : result.RemoteStale ? "stale"
 			: result.Remote                                                                                                      ? "complete"
 																																 : "no_published_root";
-		return tour_local_snapshot{ read->Target, std::move(result), state.UndoLabel, state.RedoLabel, observation, pending };
+		return tour_local_snapshot{ read->Target, std::move(result), state.UndoLabel, state.RedoLabel, observation, pending }; }, [](const tour_local_snapshot& aValue) { return completed(aValue.Draft.Stops.size()); });
 	}
 	auto tour_runtime::source(std::string_view aDraft, const core::tour_code_destination& aDestination, bool aGh) -> tour_cli_result<tour_source_material>
 	{
+		return observe_tour(Implementation->Log.get(), core::operation_action::tour_source, false, [&]() -> tour_cli_result<tour_source_material> {
 		if (!core::valid(aDestination)) {
 			return failure("invalid_source", "The source destination is invalid.", 2);
 		}
@@ -444,7 +496,7 @@ namespace bpr::app {
 		if (read->Target.Owner != target.Owner || read->Target.Draft != target.Draft) {
 			return failure("identity_changed", "The source read belongs to a different account or target.", 4);
 		}
-		return reader->source(aDestination);
+		return reader->source(aDestination); }, [](const tour_source_material&) { return completed(0U); });
 	}
 
 	auto tour_runtime::mutate(std::string_view aDraft, application::tour_service_request aRequest) -> tour_cli_result<tour_local_snapshot>
@@ -550,6 +602,7 @@ namespace bpr::app {
 	}
 	auto tour_runtime::feedback_counts(std::string_view aDraft, bool aGh, const tour_counts_options& aOptions) -> tour_cli_result<tour_counted>
 	{
+		return observe_tour(Implementation->Log.get(), core::operation_action::tour_counts, false, [&]() -> tour_cli_result<tour_counted> {
 		if (Implementation->Forward) {
 			return failure("interaction_required", "A running desktop owns this profile and its provider. Read the counts in its Overview, or close it and retry; nothing was read.", 3);
 		}
@@ -596,10 +649,11 @@ namespace bpr::app {
 		}
 		counts->ColumnsFromOption = aOptions.Columns.has_value();
 		counts->ModeFromOption    = aOptions.Mode.has_value();
-		return tour_counted{ std::move(*loaded), std::move(*counts) };
+		return tour_counted{ std::move(*loaded), std::move(*counts) }; }, [](const tour_counted& aValue) { return completed(aValue.Snapshot.Draft.Stops.size()); });
 	}
 	auto tour_runtime::prepare_publication(std::string_view aDraft, bool aGh, tour_publication_options aOptions, std::string_view aAttempt, bool aRecover) -> tour_cli_result<tour_publication_preview>
 	{
+		return observe_tour(Implementation->Log.get(), core::operation_action::tour_preview, false, [&]() -> tour_cli_result<tour_publication_preview> {
 		if (Implementation->Forward) {
 			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
 		}
@@ -702,11 +756,12 @@ namespace bpr::app {
 				preview.Status += " Newer local text is retained; reopen to reconcile website changes.";
 			}
 		}
-		return preview;
+		return preview; }, [](const tour_publication_preview& aValue) { return std::pair{ aValue.Plan || aValue.Result.State == application::staged_publication_state::published ? core::operation_failure::none : publication_failure(aValue.Result.State), aValue.Snapshot.Draft.Stops.size() }; });
 	}
 
 	auto tour_runtime::publish(const tour_publication_preview& aPreview, bool aGh) -> tour_cli_result<tour_publication_preview>
 	{
+		return observe_tour(Implementation->Log.get(), core::operation_action::tour_publish, true, [&]() -> tour_cli_result<tour_publication_preview> {
 		if (Implementation->Forward) {
 			return failure("interaction_required", "Use the owning desktop for provider observation or publication. Local draft commands remain available through its tour channel.", 3);
 		}
@@ -766,7 +821,7 @@ namespace bpr::app {
 			}
 			current->Snapshot = *refreshed;
 		}
-		return current;
+		return current; }, [](const tour_publication_preview& aValue) { return std::pair{ publication_failure(aValue.Result.State), aValue.Snapshot.Draft.Stops.size() }; });
 	}
 
 }

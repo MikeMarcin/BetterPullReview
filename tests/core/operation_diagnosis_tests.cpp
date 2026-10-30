@@ -93,6 +93,45 @@ namespace {
 			expect(!parse_operation_diagnosis(forged).has_value(), std::string{ "a line that is not exactly what describe writes is refused: " } + std::string{ forged });
 		}
 	}
+	/// [[BPR-1830]]. The MCP helper, tour and Review Cycle round families.
+	void test_helper_tour_and_round_lines()
+	{
+		const auto helper = operation_diagnosis{ .Action = operation_action::mcp_helper_request, .Failure = operation_failure::helper_failed, .Process = operation_process::nonzero_exit, .ExitCode = 2, .DurationMilliseconds = 40U, .Count = 1U };
+		expect(describe(helper) == "action=mcp_helper_request failure=helper_failed process=nonzero_exit exit=2 duration_ms=40 count=1 written=0 read_back=0", "a helper run names its process and exit code");
+		expect(parse_operation_diagnosis(describe(helper)) == helper, "and reads back as itself");
+		expect(!describe({ .Action = operation_action::mcp_helper_request, .Failure = operation_failure::not_pinned }).empty(), "a helper refusal is a line");
+
+		const auto tour = operation_diagnosis{ .Action = operation_action::tour_publish, .Failure = operation_failure::outcome_unknown, .DurationMilliseconds = 1200U, .Count = 3U };
+		expect(parse_operation_diagnosis(describe(tour)) == tour, "a tour line reads back");
+		const auto import = operation_diagnosis{ .Action = operation_action::tour_import, .Failure = operation_failure::draft_exists, .Count = 2U };
+		expect(parse_operation_diagnosis(describe(import)) == import, "an import line reads back");
+
+		const auto round = operation_diagnosis{ .Action = operation_action::cycle_round_read, .Failure = operation_failure::revoked, .DurationMilliseconds = 3U };
+		expect(describe(round) == "action=cycle_round_read failure=revoked process=none exit=none duration_ms=3 count=0 written=0 read_back=0", "a round line is enums and a duration");
+		expect(parse_operation_diagnosis(describe(round)) == round, "and reads back as itself");
+		const auto respond = operation_diagnosis{ .Action = operation_action::cycle_round_respond, .Failure = operation_failure::malformed_response };
+		expect(parse_operation_diagnosis(describe(respond)) == respond, "a malformed response is a round failure");
+
+		expect(family(operation_action::mcp_helper_request) == operation_diagnosis_family::mcp_helper && family(operation_action::tour_observe_imports) == operation_diagnosis_family::tour
+				   && family(operation_action::tour_publish) == operation_diagnosis_family::tour && family(operation_action::cycle_round_freeze) == operation_diagnosis_family::cycle_round
+				   && family(operation_action::cycle_round_send) == operation_diagnosis_family::cycle_round && family(operation_action::request_reviewer) == operation_diagnosis_family::review_mutation,
+			   "each new action belongs to its family, and the earlier ones keep theirs");
+
+		// Each family keeps to its own failures, process and flags.
+		expect(describe({ .Action = operation_action::cycle_round_grant, .Failure = operation_failure::not_signed_in }).empty(), "an agent setup failure on a round is no line");
+		expect(describe({ .Action = operation_action::tour_open, .Failure = operation_failure::revoked }).empty(), "a round failure on a tour is no line");
+		expect(describe({ .Action = operation_action::mcp_helper_request, .Failure = operation_failure::draft_exists }).empty(), "a tour failure on the helper is no line");
+		expect(describe({ .Action = operation_action::resolve_thread, .Failure = operation_failure::no_helper }).empty(), "a helper failure on a mutation is no line");
+		expect(describe({ .Action = operation_action::tour_open, .Process = operation_process::success }).empty(), "a tour names no process");
+		expect(describe({ .Action = operation_action::cycle_round_read, .Written = true }).empty(), "a round says nothing of writes");
+		for (const std::string_view forged : {
+				 "action=cycle_round_read failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 cycle=PRIVATE",
+				 "action=tour_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 repository=PRIVATE",
+				 "action=mcp_helper_request failure=none process=success exit=0 duration_ms=1 count=0 written=0 read_back=0 root=/PRIVATE",
+				 "action=tour_open failure=none process=success exit=0 duration_ms=1 count=0 written=0 read_back=0" }) {
+			expect(!parse_operation_diagnosis(forged).has_value(), std::string{ "a forged helper, tour or round line is refused: " } + std::string{ forged });
+		}
+	}
 } // namespace
 
 namespace {
@@ -151,6 +190,7 @@ int main()
 	test_refusals();
 	test_account_and_update_lines();
 	test_storage_and_host_lines();
+	test_helper_tour_and_round_lines();
 	std::cout << "operation-diagnosis-tests:pass\n";
 	return EXIT_SUCCESS;
 }

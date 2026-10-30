@@ -312,7 +312,14 @@ namespace {
 														row{ "updater.release", "updater", "action=update_verify failure=wrong_signer process=none exit=none duration_ms=7000 count=0 written=0 read_back=0" },
 														row{ "github.sign_in", "github", "action=account_change failure=transport_failed process=none exit=none duration_ms=0 count=1 written=0 read_back=0 login=PRIVATE_LOGIN" },
 														row{ "credential.vault", "credential", "action=vault_store failure=PRIVATE_TOKEN process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
-														row{ "updater.release", "updater", "action=update_download failure=offline process=none exit=none duration_ms=7000 count=0 written=0 read_back=0 url=PRIVATE_URL" } }) {
+														row{ "updater.release", "updater", "action=update_download failure=offline process=none exit=none duration_ms=7000 count=0 written=0 read_back=0 url=PRIVATE_URL" },
+														// [[BPR-1830]]. The MCP helper, tour and Review Cycle round lines.
+														row{ "agent.mcp_helper", "agent", "action=mcp_helper_request failure=helper_failed process=nonzero_exit exit=2 duration_ms=40 count=1 written=0 read_back=0" },
+														row{ "agent.mcp_helper", "agent", "action=mcp_helper_request failure=not_pinned process=none exit=none duration_ms=0 count=0 written=0 read_back=0 root=/PRIVATE_ROOT" },
+														row{ "tour.operation", "tour", "action=tour_publish failure=outcome_unknown process=none exit=none duration_ms=1200 count=3 written=0 read_back=0" },
+														row{ "tour.operation", "tour", "action=tour_import failure=draft_exists process=none exit=none duration_ms=0 count=2 written=0 read_back=0 label=PRIVATE_LABEL" },
+														row{ "cycle.round", "cycle", "action=cycle_round_read failure=revoked process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														row{ "cycle.round", "cycle", "action=cycle_round_respond failure=PRIVATE_RESPONSE process=none exit=none duration_ms=3 count=0 written=0 read_back=0" } }) {
 				auto       line    = structured_line(1U, true);
 				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
 					const auto at = line.find(aFrom);

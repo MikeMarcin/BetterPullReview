@@ -482,6 +482,16 @@ try {
 			auto bareStorage    = storage;
 			bareStorage.Summary = { };
 			expect(log.record(bareStorage) == status::dropped, "a storage event always carries its line");
+			// [[BPR-1830]]. The MCP helper, tour and Review Cycle round lines.
+			expect(log.record(line(operation::mcp_helper, outcome::failed, { .Action = core::operation_action::mcp_helper_request, .Failure = core::operation_failure::helper_failed, .Process = core::operation_process::nonzero_exit, .ExitCode = 2, .DurationMilliseconds = 40U })) == status::available,
+				   "an MCP helper run's end reaches the real log");
+			expect(log.record(line(operation::tour_operation, outcome::started, { .Action = core::operation_action::tour_publish })) == status::available, "a tour publication's start reaches the real log");
+			expect(log.record(line(operation::cycle_round, outcome::failed, { .Action = core::operation_action::cycle_round_read, .Failure = core::operation_failure::revoked, .DurationMilliseconds = 3U })) == status::available,
+				   "a revoked round read reaches the real log");
+			expect(log.record(line(operation::tour_operation, outcome::failed, { .Action = core::operation_action::cycle_round_read, .Failure = core::operation_failure::revoked })) == status::dropped,
+				   "a round line never rides the tour operation");
+			expect(log.record(line(operation::cycle_round, outcome::cancelled, { .Action = core::operation_action::cycle_round_grant, .Failure = core::operation_failure::not_granted })) == status::dropped,
+				   "a cancellation names only a cancellation");
 		}
 		{
 			// [[BPR-1829]]. Sign-in, credential vault and updater lines: the
@@ -646,6 +656,15 @@ try {
 		   "[[BPR-1831]] storage, clone scan, search, image and notification lines are kept with their category and exact line");
 	expect(exported && exported->Bytes.find("operation=15 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=19 outcome=2 ") != std::string::npos && exported->Bytes.find("store=") == std::string::npos,
 		   "[[BPR-1831]] the metadata-only preview classifies them without their lines");
+	expect(first.find("\"event\":\"agent.mcp_helper.failed\",\"category\":\"agent\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=mcp_helper_request failure=helper_failed process=nonzero_exit exit=2 duration_ms=40 count=0 written=0 read_back=0\"") != std::string::npos
+			   && first.find("\"event\":\"tour.operation.started\",\"category\":\"tour\"") != std::string::npos
+			   && first.find("\"event\":\"cycle.round.failed\",\"category\":\"cycle\"") != std::string::npos
+			   && first.find("\"detail\":\"action=cycle_round_read failure=revoked process=none exit=none duration_ms=3 count=0 written=0 read_back=0\"") != std::string::npos,
+		   "[[BPR-1830]] MCP helper, tour and round lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=20 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=21 outcome=0 ") != std::string::npos
+			   && exported->Bytes.find("operation=22 outcome=2 ") != std::string::npos,
+		   "[[BPR-1830]] the metadata-only preview classifies the helper, tour and round operations without their lines");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
 		   "[[BPR-1540]] and the metadata-only maintenance preview classifies its operation without its detail");
 	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");

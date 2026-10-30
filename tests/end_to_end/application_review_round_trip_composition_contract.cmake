@@ -2569,8 +2569,15 @@ function(bpr_verify_full_application_digest source_variable)
 	# link host, PR search and queue notifier the log. No credential, grant,
 	# provider selection, mutation, admission, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1830]] diagnostics coverage reseal (2026-10-30), over f0f241f5e (with BPR-1829 and BPR-1831).
+	# github_application.cpp hands the profile's diagnostic log, as a raw
+	# observer, to the MCP context helper supervisor (agent.mcp_helper), the
+	# window's review tour host (tour.operation imports), its Review Cycle
+	# desktop and the cycle owner service (cycle.round lines). Enums, counts
+	# and durations only; no credential, grant, provider selection, admission,
+	# mutation, publication or source-inventory change.
 	set(bpr_expected_full_application_digest
-		"ed9214b8b74356be10c0c48f4cbee573990f9a8dffc70ed0d9b1bae28b6ce417"
+		"af058919f460b9f6e87d214095abda92982197076d74c871fa0cccf49c862b44"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2737,6 +2744,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/startup_diagnostic.hpp"
         "src/system_browser_opener.cpp"
         "src/system_browser_opener.hpp"
+        "src/terminal_diagnostic_log.cpp"
+        "src/terminal_diagnostic_log.hpp"
         "src/terminal_diagnostics.cpp"
         "src/terminal_diagnostics.hpp"
         "src/terminal_text.cpp"
@@ -2865,8 +2874,12 @@ function(bpr_verify_app_source_tree app_source_root)
 # and pr_search_controller.hpp (one forwarder to the search host), as described
 # at the full digest. No grant, credential, mutation, admission, publication or
 # source-inventory change.
+# [[BPR-1830]] diagnostics coverage reseal (2026-10-30): github_application.cpp
+# only, as described at the full digest. The source inventory adds
+# src/terminal_diagnostic_log.{cpp,hpp}, the bpr command's profile log. No
+# grant, credential, admission, mutation or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "92e37b21e0248344c81f2eebfb0892dba2ae49debb1058a8084c85dc6f120876"
+        "300cff2092dc94376e0d45d1fa369d8dab5772de6ca977dab3313e830d8cbb26"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
