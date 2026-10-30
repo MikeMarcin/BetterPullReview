@@ -2097,8 +2097,11 @@ namespace bpr::app::detail {
 			/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
 			std::atomic<std::size_t>                    MarkdownImageResolutions{ 0U };
 			std::atomic<std::size_t>                    MarkdownImageFetches{ 0U };
+			std::atomic<std::size_t>                    AvatarImageFetches{ 0U };
+			std::atomic<std::size_t>                    ImageFetchesTotal{ 0U };
 			std::vector<std::string>                    MarkdownImageResolutionNodes;
 			std::vector<std::string>                    MarkdownImageFetchReferences;
+			std::vector<std::string>                    AvatarImageFetchReferences;
 			std::size_t                                 SmartAcquireCalls    = 0U;
 			std::size_t                                 SmartAcquireRefusals = 0U;
 			std::size_t                                 SmartDiscoveryCalls  = 0U;
@@ -5840,8 +5843,14 @@ namespace bpr::app::detail {
 				{
 					const auto             reference = QCryptographicHash::hash(QByteArray::fromStdString(aRequest.First.Address), QCryptographicHash::Sha256).toHex().toStdString();
 					const std::scoped_lock lock{ recording->Mutex };
-					++recording->MarkdownImageFetches;
-					recording->MarkdownImageFetchReferences.push_back(reference);
+					++recording->ImageFetchesTotal;
+					if (aRequest.Policy.AvatarOrigins) {
+						++recording->AvatarImageFetches;
+						recording->AvatarImageFetchReferences.push_back(reference);
+					} else {
+						++recording->MarkdownImageFetches;
+						recording->MarkdownImageFetchReferences.push_back(reference);
+					}
 				}
 				if (aStop.stop_requested() || !core::admit_markdown_image_fetch(aRequest.First.Address, aRequest.Policy)) {
 					return std::unexpected{ core::markdown_image_state::failed };
@@ -5926,6 +5935,9 @@ namespace bpr::app::detail {
 				Implementation->Recording->AccountReadCalls);
 			result.MarkdownImageResolutions     = Implementation->Recording->MarkdownImageResolutions.load();
 			result.MarkdownImageFetches         = Implementation->Recording->MarkdownImageFetches.load();
+			result.AvatarImageFetches           = Implementation->Recording->AvatarImageFetches.load();
+			result.ImageFetchesTotal            = Implementation->Recording->ImageFetchesTotal.load();
+			result.AvatarImageFetchReferences   = Implementation->Recording->AvatarImageFetchReferences;
 			result.MarkdownImageResolutionNodes = Implementation->Recording->MarkdownImageResolutionNodes;
 			result.MarkdownImageFetchReferences = Implementation->Recording->MarkdownImageFetchReferences;
 			result.LastReadOperation            = Implementation->Recording->LastReadOperation;

@@ -8573,8 +8573,24 @@ namespace {
 										  << ":conversation=" << panel->pull_request_conversation() << ":discuss=" << panel->discuss()
 										  << ":unread=" << panel->filter_unread_button()->isChecked()
 										  << ":unresolved=" << panel->filter_unresolved_button()->isChecked() << '\n';
-					passed = window.conversation_panel()->filter_unread_button()->isChecked()
-						&& !window.conversation_panel()->filter_unresolved_button()->isChecked();
+					// [[BPR-1808]], [[BPR-1818]]. Overview owns separate filters.
+					// Restore the first-filter preference in Review, where it applies,
+					// and prove that the round trip leaves Overview's filters alone.
+					const auto overviewUnread     = panel->filter_unread_button()->isChecked();
+					const auto overviewUnresolved = panel->filter_unresolved_button()->isChecked();
+					const auto overviewOwnsPanel  = panel->pull_request_conversation() && !panel->discuss();
+					window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
+					QApplication::processEvents();
+					passed = overviewOwnsPanel && window.current_modality() == bpr::qt::review_modality::review
+						&& !panel->pull_request_conversation() && !panel->discuss()
+						&& panel->filter_unread_button()->isChecked() && !panel->filter_unresolved_button()->isChecked();
+					window.choose_modality(bpr::qt::review_modality::overview);
+					QApplication::processEvents();
+					passed = passed && panel->pull_request_conversation() && !panel->discuss()
+						&& panel->filter_unread_button()->isChecked() == overviewUnread
+						&& panel->filter_unresolved_button()->isChecked() == overviewUnresolved;
+					window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
+					QApplication::processEvents();
 				}
 				QTextStream{ stdout } << (seed ? "REVIEW_BEHAVIOUR_SEEDED" : "REVIEW_BEHAVIOUR")
 									  << ":continue=review:filter=unread:honoured="
