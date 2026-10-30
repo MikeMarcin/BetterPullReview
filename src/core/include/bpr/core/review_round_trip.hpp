@@ -340,7 +340,40 @@ namespace bpr::core {
 		auto operator<=>(const review_publication_proposal&) const = default;
 	};
 
+	/// \brief [[BPR-1826]]. A change BetterPullReview writes to a pull request.
+	enum class pull_request_change : std::uint8_t {
+		/// Resolve or unresolve a review thread.
+		thread_resolution,
+		/// A comment, a reply or a review.
+		publication,
+		/// Add or remove a reaction.
+		reaction,
+		/// Replace the pull request's description.
+		description_edit,
+		/// Replace the body of one of the viewer's comments.
+		comment_edit,
+		/// Request a review from someone.
+		reviewer_request,
+	};
+
+	/// \brief [[BPR-1826]]. Whether a change is written to a pull request in
+	/// this state.
+	///
+	/// \details An open pull request takes every change. A closed or merged
+	/// one takes only a thread's resolution: GitHub resolves and unresolves
+	/// its threads (checked live, [[BPR-1824]]), and the resolution is
+	/// bookkeeping on review already given. Comments, replies, reviews,
+	/// reactions, edits and reviewer requests keep their open-only rule.
+	[[nodiscard]] constexpr auto pull_request_change_permitted(
+		const pull_request_change aChange, const bool aOpen) noexcept -> bool
+	{
+		return aOpen || aChange == pull_request_change::thread_resolution;
+	}
+
 	/// \brief Why a thread resolution is refused before any provider is asked ([[BPR-0657]]).
+	///
+	/// \details [[BPR-1826]]. A closed or merged pull request is no reason:
+	/// its threads resolve as an open one's do.
 	enum class thread_resolution_refusal : std::uint8_t {
 		none,
 		/// The session reads anonymously; a mutation has no account to act as.
@@ -352,10 +385,6 @@ namespace bpr::core {
 		not_permitted,
 		/// The thread is already in the state asked for.
 		already_in_state,
-		/// [[BPR-1824]]. The pull request is closed or merged. GitHub still
-		/// resolves its threads, but the write connection is composed only
-		/// for an open pull request.
-		pull_request_closed,
 		/// [[BPR-1824]]. No connection that writes to this pull request is
 		/// composed for the session (the read is not yet accepted, or its
 		/// pull request moved since it was read).
@@ -378,8 +407,6 @@ namespace bpr::core {
 		bool ViewerPermitted = true;
 		/// [[BPR-1824]]. Whether the conversation is a review thread.
 		bool ReviewThread = true;
-		/// [[BPR-1824]]. Whether the accepted read says the pull request is open.
-		bool PullRequestOpen = true;
 		/// [[BPR-1824]]. Whether a connection that writes to this pull
 		/// request is composed. A selected diff is not required: a thread
 		/// resolves from Discuss with no file open.
@@ -397,9 +424,6 @@ namespace bpr::core {
 		}
 		if (aInput.AnonymousRead) {
 			return thread_resolution_refusal::anonymous_read;
-		}
-		if (!aInput.PullRequestOpen) {
-			return thread_resolution_refusal::pull_request_closed;
 		}
 		if (!aInput.WriteConnection) {
 			return thread_resolution_refusal::no_write_connection;

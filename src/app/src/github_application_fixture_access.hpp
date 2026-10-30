@@ -498,9 +498,13 @@ namespace bpr::app::detail {
 		bool EditsComments = false;
 		/// [[BPR-1804]]. The fixture's mutation provider searches reviewers
 		/// and requests reviews; off, no course offers Request review.
-		bool                                        RequestsReviewers       = false;
-		std::int64_t                                DeviceWallOffsetSeconds = 0;
-		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
+		bool RequestsReviewers = false;
+		/// [[BPR-1826]]. The state the fixture's pull request is read in:
+		/// closed or merged, as GitHub's REST answer says it (`state`
+		/// "closed", with `merged` for a merged one). Absent, it is open.
+		std::optional<application::github_pull_request_state> PullRequestState;
+		std::int64_t                                          DeviceWallOffsetSeconds = 0;
+		std::shared_ptr<github_fixture_vault_state>           SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability bound at all, which is what every build was
 		// before [[BPR-0516]]. Removes exactly one construction: the flow
@@ -598,6 +602,24 @@ namespace bpr::app::detail {
 		application::personal_discovery_statistics Statistics;
 		application::queue_discovery_status        Status;
 		bool                                       Quiescent = false;
+	};
+
+	/// \brief [[BPR-1826]]. The composed write connection as a thread's
+	/// resolution sees it: whether one is composed, whether its pull request
+	/// was read open, what its host offers, and the gestures' counts.
+	struct thread_resolution_fixture_evidence
+	{
+		bool        HostComposed      = false;
+		bool        BindingOpen       = false;
+		bool        ResolvesThreads   = false;
+		bool        Reacts            = false;
+		bool        EditsDescription  = false;
+		bool        EditsComments     = false;
+		bool        RequestsReviewers = false;
+		std::size_t Gestures          = 0U;
+		std::size_t Refusals          = 0U;
+		std::size_t Completions       = 0U;
+		std::size_t Failures          = 0U;
 	};
 
 	struct review_mutation_fixture_evidence
@@ -1781,6 +1803,10 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
 			-> review_mutation_fixture_evidence;
+		/// \brief [[BPR-1826]]. The composed write connection's thread facts.
+		[[nodiscard]] static auto thread_resolution_evidence(
+			const github_application& aApplication) noexcept
+			-> thread_resolution_fixture_evidence;
 		/// \brief [[BPR-0990]]. The profile's discovery counters and status.
 		[[nodiscard]] static auto personal_discovery_evidence(
 			const github_application& aApplication) noexcept

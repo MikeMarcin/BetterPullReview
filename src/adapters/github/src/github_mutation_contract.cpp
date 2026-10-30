@@ -3152,7 +3152,9 @@ namespace bpr::adapters::github::detail {
 		const application::github_server_contract          aServer)
 		-> review_mutation_request_result
 	{
-		if (!application::valid(aTarget) || !valid_server(aServer)) {
+		// [[BPR-1826]]. A read of the pull request's identity and state; a
+		// closed or merged binding reads it before resolving a thread.
+		if (!application::valid_identity(aTarget) || !valid_server(aServer)) {
 			return failed(review_mutation_contract_failure::invalid_request);
 		}
 		auto request = review_mutation_wire_request{
@@ -3401,8 +3403,9 @@ namespace bpr::adapters::github::detail {
 		-> review_mutation_request_result
 	{
 		// A resolution binds the target and the actor; it has no source line.
+		// [[BPR-1826]]. Its pull request may be closed or merged.
 		if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
-			|| !application::valid(aRequest.LiveBinding->Target)
+			|| !application::valid_for(aRequest.LiveBinding->Target, core::pull_request_change::thread_resolution)
 			|| !application::valid(aRequest.LiveBinding->ActingIdentity)
 			|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
 			|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
@@ -3926,7 +3929,11 @@ namespace bpr::adapters::github::detail {
 		}
 		const auto& repository = response->Base.Repository;
 		if (response->Id != aExpected.PullRequestDatabaseId || response->NodeId != aExpected.PullRequestNodeId
-			|| response->Number != aExpected.Number.value() || response->State != "open"
+			// [[BPR-1826]]. The state the binding was read in: an open
+			// binding refuses a pull request closed since, and a closed one a
+			// pull request reopened since (REST says "closed" when merged).
+			|| response->Number != aExpected.Number.value() || (response->State == "open") != aExpected.Open
+			|| (response->State != "open" && response->State != "closed")
 			|| repository.Id != aExpected.RepositoryDatabaseId || repository.Id != aExpected.BaseRepositoryDatabaseId
 			|| repository.NodeId != aExpected.RepositoryNodeId
 			|| repository.FullName != aExpected.Repository.Owner + "/" + aExpected.Repository.Name
@@ -4804,8 +4811,13 @@ namespace bpr::adapters::github::detail {
 
 	auto valid(const live_review_mutation_configuration& aConfiguration) noexcept -> bool
 	{
+		return valid_identity(aConfiguration) && application::valid(aConfiguration.Target);
+	}
+
+	auto valid_identity(const live_review_mutation_configuration& aConfiguration) noexcept -> bool
+	{
 		return application::valid(aConfiguration.CredentialContext)
-			&& application::valid(aConfiguration.Target)
+			&& application::valid_identity(aConfiguration.Target)
 			&& application::valid(aConfiguration.ActingIdentity)
 			&& aConfiguration.CredentialContext.Authority.Host
 			== aConfiguration.Target.Semantic.Host
@@ -4888,8 +4900,11 @@ namespace bpr::adapters::github::detail {
 		if (aStop.stop_requested()) {
 			return std::unexpected(application::review_mutation_failure::cancelled);
 		}
+		// [[BPR-1826]]. A closed or merged pull request's connection performs
+		// too: every request was compiled by its own compiler, and only a
+		// thread's resolution and the reads it needs compile for one.
 		if (Transport == nullptr || Lease == nullptr || !Lease->active()
-			|| !valid(Configuration)) {
+			|| !valid_identity(Configuration)) {
 			return std::unexpected(application::review_mutation_failure::unavailable);
 		}
 		const auto operation         = aRequest.Operation;
@@ -5158,7 +5173,9 @@ namespace bpr::adapters::github::detail {
 			if (Lease == nullptr || !Lease->active()) {
 				return std::unexpected(application::review_mutation_failure::unavailable);
 			}
-			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+			// [[BPR-1826]]. On a closed or merged pull request too.
+			if (!valid_identity(Configuration) || !application::valid_for(Configuration.Target, core::pull_request_change::thread_resolution)
+				|| !aRequest.LiveBinding.has_value()
 				|| aRequest.LiveBinding->Target != Configuration.Target
 				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
 				return std::unexpected(application::review_mutation_failure::undesignated_target);

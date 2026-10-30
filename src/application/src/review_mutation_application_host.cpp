@@ -86,7 +86,9 @@ namespace bpr::application {
 		if (Revoked.load(std::memory_order_acquire)
 			|| aScope.ApplicationSession.value() == 0U
 			|| aScope.WorkbenchGeneration.value() == 0U
-			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity)
+			// [[BPR-1826]]. A closed or merged pull request's binding binds
+			// too; what it then permits is each change's own check.
+			|| !valid_identity(aScope.Target) || !valid(aScope.ActingIdentity)
 			|| aScope.Target != Target) {
 			return false;
 		}
@@ -179,8 +181,10 @@ namespace bpr::application {
 		const review_mutation_thread_scope&                 aScope,
 		const review_thread_resolution_publication_request& aRequest) noexcept -> bool
 	{
+		// [[BPR-1826]]. A resolution is the one change a closed or merged
+		// pull request takes.
 		if (aScope.ApplicationSession.value() == 0U || aScope.WorkbenchGeneration.value() == 0U
-			|| !valid(aScope.Target) || !valid(aScope.ActingIdentity) || aScope.Thread.empty()
+			|| !valid_for(aScope.Target, core::pull_request_change::thread_resolution) || !valid(aScope.ActingIdentity) || aScope.Thread.empty()
 			|| aRequest.Thread != aScope.Thread || Revoked.load(std::memory_order_acquire)) {
 			return false;
 		}
@@ -457,7 +461,7 @@ namespace bpr::application {
 		return { };
 #else
 		if (aSession.value() == 0U || aGeneration.value() == 0U
-			|| !valid(aTarget) || !valid(aActor) || aRequest.Thread.empty()) {
+			|| !valid_for(aTarget, core::pull_request_change::thread_resolution) || !valid(aActor) || aRequest.Thread.empty()) {
 			return { };
 		}
 		return review_mutation_execution_grant{ new review_mutation_execution_authority{
@@ -740,7 +744,7 @@ namespace bpr::application {
 			, Projection{ aProjection }
 			, Sources{ aSources }
 			, Insights{ std::move(aInsights) }
-			, Capabilities{ Coordinator.capabilities() }
+			, Capabilities{ capabilities_for(TargetBinding, Coordinator.capabilities()) }
 			, CompleteLiveBinding{ true }
 		{
 			bind_grant();
@@ -769,7 +773,7 @@ namespace bpr::application {
 			, Projection{ aProjection }
 			, Sources{ aSources }
 			, Insights{ std::move(aInsights) }
-			, Capabilities{ Coordinator.capabilities() }
+			, Capabilities{ capabilities_for(TargetBinding, Coordinator.capabilities()) }
 			, CompleteLiveBinding{ true }
 		{
 			bind_grant();
@@ -1267,7 +1271,8 @@ namespace bpr::application {
 				refuse_resolution(record, review_mutation_failure::unsupported);
 				return record->Context;
 			}
-			if (!valid(TargetBinding) || !valid(ActingIdentityBinding)) {
+			// [[BPR-1826]]. On a closed or merged pull request too.
+			if (!valid_for(TargetBinding, core::pull_request_change::thread_resolution) || !valid(ActingIdentityBinding)) {
 				refuse_resolution(record, review_mutation_failure::undesignated_target);
 				return record->Context;
 			}
