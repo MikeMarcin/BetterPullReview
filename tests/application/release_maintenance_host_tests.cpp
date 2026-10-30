@@ -304,7 +304,15 @@ namespace {
 														row{ "agent.workspace", "agent", "action=workspace_materialize failure=refused_by_server process=none exit=none duration_ms=2400 count=0 written=0 read_back=0 PRIVATE" },
 														// [[BPR-1827]]'s agent run line exports under `agent` too.
 														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0" },
-														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0 prompt=PRIVATE_PROMPT" } }) {
+														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0 prompt=PRIVATE_PROMPT" },
+														// [[BPR-1829]]. Sign-in, credential vault and updater lines.
+														row{ "github.sign_in", "github", "action=device_sign_in failure=authorization_expired process=none exit=none duration_ms=900000 count=12 written=0 read_back=0" },
+														row{ "github.sign_in", "github", "action=token_renewal failure=refresh_rejected process=none exit=none duration_ms=410 count=0 written=0 read_back=0" },
+														row{ "credential.vault", "credential", "action=vault_load failure=locked process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														row{ "updater.release", "updater", "action=update_verify failure=wrong_signer process=none exit=none duration_ms=7000 count=0 written=0 read_back=0" },
+														row{ "github.sign_in", "github", "action=account_change failure=transport_failed process=none exit=none duration_ms=0 count=1 written=0 read_back=0 login=PRIVATE_LOGIN" },
+														row{ "credential.vault", "credential", "action=vault_store failure=PRIVATE_TOKEN process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														row{ "updater.release", "updater", "action=update_download failure=offline process=none exit=none duration_ms=7000 count=0 written=0 read_back=0 url=PRIVATE_URL" } }) {
 				auto       line    = structured_line(1U, true);
 				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
 					const auto at = line.find(aFrom);
@@ -333,6 +341,12 @@ namespace {
 		const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
 		const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
 		expect(document && document->Descriptor.Records == 0U, "an agent record filed under another category is omitted");
+		// [[BPR-1829]]. So is a vault record filed under github.
+		auto vault = structured_line(1U, true);
+		vault.replace(vault.find(R"("event":"github.capability.failed","category":"github")"), std::string_view{ R"("event":"github.capability.failed","category":"github")" }.size(), R"("event":"credential.vault.failed","category":"github")");
+		vault.replace(vault.find(R"("op":"github.capability")"), std::string_view{ R"("op":"github.capability")" }.size(), R"("op":"credential.vault")");
+		const auto misfiled = application::prepare_diagnostic_export(vault, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(misfiled && misfiled->Descriptor.Records == 0U, "a vault record filed under another category is omitted");
 	}
 
 	/// [[BPR-1722]]. A record of `aOp`.`aOutcome` at `aUtc`, with the

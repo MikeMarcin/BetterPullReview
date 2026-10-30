@@ -200,6 +200,15 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_application_github_credential_vault_tests
 )
 
+# [[BPR-1829]]. Credential vault diagnostics records and every sign-in,
+# vault and updater failure's line.
+bpr_add_executable(test_credential_vault_diagnostics credential_vault_diagnostics_tests.cpp)
+target_link_libraries(test_credential_vault_diagnostics PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_credential_vault_diagnostics)
+bpr_enable_warnings(test_credential_vault_diagnostics)
+bpr_add_network_isolated_test(NAME application_credential_vault_diagnostics COMMAND test_credential_vault_diagnostics)
+set_tests_properties(application_credential_vault_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "credential-vault-diagnostics-tests:pass" TIMEOUT 30)
+
 bpr_add_executable(
     test_better_pull_review_application_git_protocol_v2_tests
     git_protocol_v2_tests.cpp

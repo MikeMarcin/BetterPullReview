@@ -39,6 +39,31 @@ namespace {
 			   "each action belongs to its family");
 	}
 
+	// [[BPR-1829]]. Sign-in, credential vault and updater lines.
+	void test_account_and_update_lines()
+	{
+		const auto signIn = operation_diagnosis{ .Action = operation_action::device_sign_in, .Failure = operation_failure::authorization_expired, .DurationMilliseconds = 900000U, .Count = 12U };
+		expect(describe(signIn) == "action=device_sign_in failure=authorization_expired process=none exit=none duration_ms=900000 count=12 written=0 read_back=0", "a device sign-in's line holds its fields in order");
+		expect(parse_operation_diagnosis(describe(signIn)) == signIn, "and reads back as itself");
+		const auto vault = operation_diagnosis{ .Action = operation_action::refresh_load, .Failure = operation_failure::locked, .DurationMilliseconds = 3U };
+		expect(parse_operation_diagnosis(describe(vault)) == vault, "a vault line reads back");
+		const auto update = operation_diagnosis{ .Action = operation_action::update_apply, .Failure = operation_failure::quit_refused, .DurationMilliseconds = 40U };
+		expect(parse_operation_diagnosis(describe(update)) == update, "an updater line reads back");
+		expect(family(operation_action::account_change) == operation_diagnosis_family::sign_in && family(operation_action::vault_delete) == operation_diagnosis_family::credential_vault
+				   && family(operation_action::update_check) == operation_diagnosis_family::updater && family(operation_action::request_reviewer) == operation_diagnosis_family::review_mutation,
+			   "each new action belongs to its family, and the last mutation action still to its own");
+		expect(!describe({ .Action = operation_action::sign_out, .Failure = operation_failure::no_session }).empty() && !describe({ .Action = operation_action::update_download, .Failure = operation_failure::certificate_rejected }).empty()
+				   && !describe({ .Action = operation_action::device_sign_in, .Failure = operation_failure::certificate_rejected }).empty()
+				   && !describe({ .Action = operation_action::vault_store, .Failure = operation_failure::invalid_request }).empty(),
+			   "shared failure words are admitted by each family that can report them");
+		expect(describe({ .Action = operation_action::vault_store, .Failure = operation_failure::authorization_denied }).empty(), "a sign-in failure on a vault line is no line");
+		expect(describe({ .Action = operation_action::update_check, .Failure = operation_failure::refresh_absent }).empty(), "a sign-in failure on an updater line is no line");
+		expect(describe({ .Action = operation_action::device_sign_in, .Failure = operation_failure::wrong_signer }).empty(), "an updater failure on a sign-in line is no line");
+		expect(describe({ .Action = operation_action::resolve_thread, .Failure = operation_failure::locked }).empty(), "a vault failure on a mutation is no line");
+		expect(describe({ .Action = operation_action::update_check, .Process = operation_process::success }).empty(), "an updater line names no process");
+		expect(describe({ .Action = operation_action::vault_delete, .Written = true }).empty(), "a vault line has no write flag");
+	}
+
 	void test_refusals()
 	{
 		expect(describe({ .Action = operation_action::resolve_thread, .Failure = operation_failure::not_signed_in }).empty(), "a failure from another family is no line");
@@ -74,6 +99,7 @@ int main()
 {
 	test_line();
 	test_refusals();
+	test_account_and_update_lines();
 	std::cout << "operation-diagnosis-tests:pass\n";
 	return EXIT_SUCCESS;
 }

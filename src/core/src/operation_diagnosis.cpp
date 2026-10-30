@@ -9,12 +9,12 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr std::array<std::string_view, 17> action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer" };
-		constexpr std::array<std::string_view, 36> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "too_large_not_in_clone", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict" };
+		constexpr std::array<std::string_view, 32> action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply" };
+		constexpr std::array<std::string_view, 84> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "too_large_not_in_clone", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown" };
 		constexpr std::array<std::string_view, 10> process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
 
-		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::request_reviewer) + 1U);
-		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::conflict) + 1U);
+		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::update_apply) + 1U);
+		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::shutdown) + 1U);
 		static_assert(process_names.size() == static_cast<std::size_t>(operation_process::stale_result) + 1U);
 
 		template <typename TEnum, std::size_t N>
@@ -97,6 +97,13 @@ namespace bpr::core {
 			case operation_diagnosis_family::agent_setup:     return within(aFailure, operation_failure::agent_not_found, operation_failure::workspace_unavailable);
 			case operation_diagnosis_family::agent_workspace: return within(aFailure, operation_failure::invalid_request, operation_failure::too_large_not_in_clone);
 			case operation_diagnosis_family::review_mutation: return aFailure == operation_failure::unavailable || within(aFailure, operation_failure::refused_by_server, operation_failure::conflict);
+			// [[BPR-1829]].
+			case operation_diagnosis_family::sign_in: return aFailure == operation_failure::timed_out || aFailure == operation_failure::malformed_response || within(aFailure, operation_failure::authorization_denied, operation_failure::no_session);
+			case operation_diagnosis_family::credential_vault:
+				return aFailure == operation_failure::invalid_request || aFailure == operation_failure::unavailable || within(aFailure, operation_failure::locked, operation_failure::allocation_failure);
+			case operation_diagnosis_family::updater:
+				return aFailure == operation_failure::timed_out || aFailure == operation_failure::unavailable || aFailure == operation_failure::certificate_rejected || aFailure == operation_failure::redirect_rejected
+					|| within(aFailure, operation_failure::policy_refused, operation_failure::shutdown);
 			}
 			return false;
 		}
@@ -109,6 +116,16 @@ namespace bpr::core {
 		}
 		if (aAction <= operation_action::workspace_cleanup) {
 			return operation_diagnosis_family::agent_workspace;
+		}
+		// [[BPR-1829]].
+		if (aAction >= operation_action::update_check && aAction <= operation_action::update_apply) {
+			return operation_diagnosis_family::updater;
+		}
+		if (aAction >= operation_action::vault_store && aAction <= operation_action::refresh_delete) {
+			return operation_diagnosis_family::credential_vault;
+		}
+		if (aAction >= operation_action::device_sign_in && aAction <= operation_action::account_change) {
+			return operation_diagnosis_family::sign_in;
 		}
 		return operation_diagnosis_family::review_mutation;
 	}

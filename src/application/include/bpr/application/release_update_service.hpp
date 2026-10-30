@@ -30,6 +30,9 @@ namespace bpr::application {
 		[[nodiscard]] auto quiescent() const -> bool;
 		[[nodiscard]] auto account_binding() const -> std::string;
 		[[nodiscard]] auto projection() const -> release_update_projection;
+		/// \brief [[BPR-1829]]. The log the updater's effect jobs record to,
+		/// kept for a host made later. Decision lane only.
+		void set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog);
 
 	private:
 		struct implementation;

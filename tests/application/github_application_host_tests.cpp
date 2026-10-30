@@ -1,6 +1,7 @@
 #include "../support/qualification_build.hpp"
 #include "bpr/application/github_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <algorithm>
 #include <array>
@@ -7486,6 +7487,65 @@ namespace {
 		}
 	}
 
+	// [[BPR-1829]]. Keeps every sign-in line the host records.
+	class sign_in_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		[[nodiscard]] auto line(const std::size_t aIndex) const -> std::string { return std::string{ Events.at(aIndex).Summary.text() }; }
+		[[nodiscard]] auto is(const std::size_t aIndex, const application::diagnostic_outcome aOutcome, const std::string_view aPrefix) const -> bool
+		{
+			return aIndex < Events.size() && Events[aIndex].Operation == application::diagnostic_operation::sign_in && Events[aIndex].Outcome == aOutcome && line(aIndex).starts_with(aPrefix)
+				&& core::parse_operation_diagnosis(line(aIndex)).has_value();
+		}
+		std::vector<application::diagnostic_event> Events;
+	};
+
+	// [[BPR-1829]]. Sign out records its start and end, and each change of
+	// the accepted account records one line; no login or account reaches one.
+	void test_sign_out_and_account_change_diagnostics()
+	{
+		using outcome = application::diagnostic_outcome;
+		{
+			host_fixture fixture;
+			auto         log = std::make_shared<sign_in_log>();
+			fixture.Host.set_diagnostic_log(log);
+			static_cast<void>(establish_native_session(fixture));
+			expect(log->Events.size() == 1U && log->is(0U, outcome::succeeded, "action=account_change failure=none process=none exit=none duration_ms=0 count=1 "), "an accepted account records one account change to an account");
+			fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+			fixture.Lane.drain();
+			expect(log->Events.size() == 4U && log->is(1U, outcome::started, "action=sign_out failure=none ") && log->is(2U, outcome::succeeded, "action=account_change failure=none ")
+					   && log->line(2U).find(" count=0 ") != std::string::npos && log->is(3U, outcome::succeeded, "action=sign_out failure=none "),
+				   "Sign out records its start, the account lost and its end");
+			for (const auto& event : log->Events) {
+				const auto text = std::string{ event.Summary.text() };
+				for (const std::string_view secret : { "reviewer", "Review Engineer", "viewer-node", "51", "github.com" }) {
+					expect(text.find(secret) == std::string::npos, "no login, name, node, account or host reaches a sign-in line");
+				}
+			}
+		}
+		{
+			host_fixture fixture;
+			auto         log = std::make_shared<sign_in_log>();
+			fixture.Host.set_diagnostic_log(log);
+			fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+			fixture.Lane.drain();
+			expect(log->Events.size() == 2U && log->is(0U, outcome::started, "action=sign_out ") && log->is(1U, outcome::failed, "action=sign_out failure=no_session "), "Sign out with nothing signed in records failed no_session");
+		}
+		{
+			host_fixture fixture;
+			static_cast<void>(establish_native_session(fixture));
+			fixture.Host.dispatch(core::deactivate_github_identity_intent{ });
+			fixture.Lane.drain();
+			expect(!fixture.Host.state().Account.has_value(), "negative control: a host with no log still signs out");
+		}
+	}
+
 }
 
 auto main() -> int
@@ -7568,6 +7628,7 @@ auto main() -> int
 	bpr::tests::run_qualification_case("test_a_retained_slot_leaves_when_another_account_arrives", &test_a_retained_slot_leaves_when_another_account_arrives);
 	bpr::tests::run_qualification_case("test_a_retained_slot_stays_when_the_same_account_arrives", &test_a_retained_slot_stays_when_the_same_account_arrives);
 	bpr::tests::run_qualification_case("test_a_retained_slot_does_not_survive_a_failure_or_a_shutdown", &test_a_retained_slot_does_not_survive_a_failure_or_a_shutdown);
+	bpr::tests::run_qualification_case("test_sign_out_and_account_change_diagnostics", &test_sign_out_and_account_change_diagnostics);
 	std::cout << "application github host tests passed\n";
 	return EXIT_SUCCESS;
 }

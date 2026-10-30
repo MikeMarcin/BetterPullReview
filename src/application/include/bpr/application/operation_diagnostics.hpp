@@ -3,10 +3,14 @@
 
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_workspace.hpp"
+#include "bpr/application/device_authorization_projection.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
+#include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 #include "bpr/core/agent_setup.hpp"
+#include "bpr/core/device_authorization_model.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
+#include "bpr/core/release_update.hpp"
 
 #include <chrono>
 #include <cstdint>
@@ -39,6 +43,18 @@ namespace bpr::application {
 	[[nodiscard]] auto operation_failure_of(const agent_workspace_error& aError) noexcept -> core::operation_failure;
 	[[nodiscard]] auto operation_failure_of(review_mutation_failure aFailure) noexcept -> core::operation_failure;
 	[[nodiscard]] auto operation_process_of(agent_run_outcome aOutcome) noexcept -> core::operation_process;
+
+	/// \brief [[BPR-1829]]. A device sign-in that reached a terminal stage,
+	/// as an operation line names it: `none` for `authorized`, `cancelled`
+	/// for `cancelled`, and otherwise the stage or its terminal reason.
+	[[nodiscard]] auto operation_failure_of(core::device_authorization_stage aStage, core::device_authorization_reason_code aReason) noexcept -> core::operation_failure;
+	[[nodiscard]] auto operation_failure_of(device_authorization_refresh_failure aFailure) noexcept -> core::operation_failure;
+	[[nodiscard]] auto operation_failure_of(github_credential_vault_failure aFailure) noexcept -> core::operation_failure;
+	/// \brief [[BPR-1829]]. An updater job's ending reason. A policy reason
+	/// is `policy_refused`; `none` stays `none`.
+	[[nodiscard]] auto operation_failure_of(core::release_update_reason aReason) noexcept -> core::operation_failure;
+	/// \brief [[BPR-1829]]. The action an updater effect job is recorded as.
+	[[nodiscard]] auto operation_action_of(core::release_update_operation aOperation) noexcept -> core::operation_action;
 } // namespace bpr::application
 
 #endif // BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_OPERATION_DIAGNOSTICS_HPP
