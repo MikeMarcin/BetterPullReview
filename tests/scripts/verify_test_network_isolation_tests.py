@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import hashlib
+import json
 import pathlib
 import os
 import shutil
@@ -1592,6 +1593,66 @@ class ConfiguredManifestTests(unittest.TestCase):
                 f"{AUTOMATED_TEST_BOUNDARY_ERASURE}"
             ],
         )
+
+    def test_agent_send_refusal_keeps_real_registration_boundary(self) -> None:
+        cmake = shutil.which("cmake")
+        ctest = shutil.which("ctest")
+        if not cmake or not ctest:
+            self.skipTest("CMake and CTest are required for the registration proof")
+        root = pathlib.Path(__file__).resolve().parents[2]
+        module = (root / "cmake/BprTestIsolation.cmake").read_text(encoding="utf-8")
+        functions = []
+        for name in (
+            "bpr_apply_automated_test_environment",
+            "bpr_add_network_isolated_test",
+        ):
+            start = module.index(f"function({name}")
+            end = module.index("endfunction()", start) + len("endfunction()")
+            functions.append(module[start:end])
+        source = (root / "tests/adapters_qt/CMakeLists.txt").read_text(encoding="utf-8")
+        start = source.index("bpr_add_network_isolated_test(\n    NAME qt_workbench_agent_send_refusal\n")
+        end = source.index("\n\n# [[BPR-1028]]", start)
+        registration = source[start:end]
+        # Exercise the actual registration functions and source block without
+        # configuring dependencies or compiling a second product graph.
+        with contained_temporary_directory() as directory:
+            fixture = pathlib.Path(directory)
+            write(
+                fixture,
+                "CMakeLists.txt",
+                "cmake_minimum_required(VERSION 3.25)\n"
+                "project(registration_boundary NONE)\nenable_testing()\n"
+                "add_executable(Python3::Interpreter IMPORTED GLOBAL)\n"
+                f'set_property(TARGET Python3::Interpreter PROPERTY IMPORTED_LOCATION "{pathlib.Path(sys.executable).as_posix()}")\n'
+                "add_executable(test_better_pull_review_qt_workbench_window_tests IMPORTED GLOBAL)\n"
+                f'set_property(TARGET test_better_pull_review_qt_workbench_window_tests PROPERTY IMPORTED_LOCATION "{pathlib.Path(cmake).as_posix()}")\n'
+                'set(bpr_qt_github_common_environment "QT_QPA_PLATFORM=offscreen")\n'
+                + "\n".join(functions) + "\n" + registration + "\n",
+            )
+            subprocess.run(
+                [cmake, "-S", str(fixture), "-B", str(fixture / "build")],
+                check=True, capture_output=True, text=True,
+            )
+            manifest = json.loads(subprocess.check_output(
+                [ctest, "--test-dir", str(fixture / "build"), "--show-only=json-v1"],
+                text=True,
+            ))
+        row = manifest["tests"][0]
+        name = row["name"]
+        self.assertEqual(name, "qt_workbench_agent_send_refusal")
+        self.assertEqual(boundary_marker_failures(row, name), [])
+        self.assertEqual(environment_injection_failures(row, name), [])
+        properties = {item["name"]: item["value"] for item in row["properties"]}
+        self.assertTrue(properties["RUN_SERIAL"])
+        self.assertIn("BPR_QT_RENDER_PATH=unset:", properties["ENVIRONMENT_MODIFICATION"])
+        for removed, verifier in (
+            (AUTOMATED_TEST_BOUNDARY_MODIFICATION, boundary_marker_failures),
+            ("PYTHONPATH=unset:", environment_injection_failures),
+        ):
+            changed = json.loads(json.dumps(row))
+            modifications = next(p["value"] for p in changed["properties"] if p["name"] == "ENVIRONMENT_MODIFICATION")
+            modifications.remove(removed)
+            self.assertTrue(verifier(changed, name), removed)
 
     # The live lane is the one row that must not carry the marker. It drives
     # the shipped application against real GitHub on purpose, from an image

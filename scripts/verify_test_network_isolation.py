@@ -131,6 +131,11 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
 # STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
+    # [[BPR-1825]]. Source864f98ad9, native Release, 2026-10-30:
+    # same-image ordinary custom-agent passes; the unchanged zero-capability
+    # helper reaches agent-chat-composition-failure:private-test-root.
+    # This names the first predicate, without inferring an unsampled cause.
+    "application_agent_chat_custom_agent_contract": "private-test-root-refused",
     # [[BPR-1800]]. Source a74c9a875, native Release/Debug on 2026-10-29:
     # same-image direct baselines pass; contained runs fail the exact first
     # predicate "fixture application starts". No Win32 cause was sampled.
