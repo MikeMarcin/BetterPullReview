@@ -992,6 +992,17 @@ bpr_enable_warnings(test_host_operation_diagnostics)
 bpr_add_network_isolated_test(NAME application_host_operation_diagnostics COMMAND test_host_operation_diagnostics)
 set_tests_properties(application_host_operation_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "host-operation-diagnostics-tests:pass" TIMEOUT 30)
 
+# [[BPR-1830]]. MCP helper, tour import and typed tour and round failure records.
+bpr_add_executable(test_helper_tour_round_diagnostics helper_tour_round_diagnostics_tests.cpp)
+target_link_libraries(test_helper_tour_round_diagnostics PRIVATE BetterPullReview::Application)
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    target_compile_definitions(test_helper_tour_round_diagnostics PRIVATE BPR_TEST_MCP_SUPERVISOR=1)
+endif()
+bpr_enable_hardening(test_helper_tour_round_diagnostics)
+bpr_enable_warnings(test_helper_tour_round_diagnostics)
+bpr_add_network_isolated_test(NAME application_helper_tour_round_diagnostics COMMAND test_helper_tour_round_diagnostics)
+set_tests_properties(application_helper_tour_round_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "helper-tour-round-diagnostics-tests:pass" TIMEOUT 30)
+
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_better_pull_review_agent_chat_reply_tests agent_chat_reply_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_chat_reply_tests PRIVATE BetterPullReview::Application)

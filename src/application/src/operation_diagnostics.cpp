@@ -21,6 +21,9 @@ namespace bpr::application {
 		case core::operation_diagnosis_family::source_search: return diagnostic_operation::source_search;
 		case core::operation_diagnosis_family::image_fetch:   return diagnostic_operation::image_fetch;
 		case core::operation_diagnosis_family::notification:  return diagnostic_operation::notification;
+		case core::operation_diagnosis_family::mcp_helper:    return diagnostic_operation::mcp_helper;
+		case core::operation_diagnosis_family::tour:          return diagnostic_operation::tour_operation;
+		case core::operation_diagnosis_family::cycle_round:   return diagnostic_operation::cycle_round;
 		}
 		return diagnostic_operation::review_mutation;
 	}
@@ -270,5 +273,67 @@ namespace bpr::application {
 		case core::release_update_operation::install:         return action::update_apply;
 		}
 		return action::update_check;
+	}
+
+	auto operation_failure_of(const cycle_store_failure aFailure) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		switch (aFailure) {
+		case cycle_store_failure::unavailable:        return failure::unavailable;
+		case cycle_store_failure::corrupt:            return failure::corrupt;
+		case cycle_store_failure::schema_mismatch:    return failure::schema_mismatch;
+		case cycle_store_failure::wrong_profile:      return failure::wrong_profile;
+		case cycle_store_failure::not_found:          return failure::not_found;
+		case cycle_store_failure::conflict:           return failure::conflict;
+		case cycle_store_failure::refused:            return failure::refused;
+		case cycle_store_failure::operation_reused:   return failure::operation_reused;
+		case cycle_store_failure::bounds:             return failure::bounds;
+		case cycle_store_failure::object_unavailable: return failure::object_unavailable;
+		case cycle_store_failure::quota:              return failure::quota;
+		case cycle_store_failure::preview_stale:      return failure::preview_stale;
+		case cycle_store_failure::cancelled:          return failure::cancelled;
+		case cycle_store_failure::store_damaged:      return failure::store_damaged;
+		}
+		return failure::unavailable;
+	}
+
+	auto operation_failure_of(const core::cycle_authorization aDecision) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		switch (aDecision) {
+		case core::cycle_authorization::allowed:      return failure::none;
+		case core::cycle_authorization::not_granted:  return failure::not_granted;
+		case core::cycle_authorization::revoked:      return failure::revoked;
+		case core::cycle_authorization::wrong_target: return failure::wrong_target;
+		default:                                      return failure::not_authorized;
+		}
+	}
+
+	auto tour_cli_failure(const std::string_view aCode, const int aExit) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		if (aCode == "cancelled" || aExit == 130) {
+			return failure::cancelled;
+		}
+		if (aCode == "authentication_unavailable" || aCode == "authentication_required" || aCode == "vault_unavailable") {
+			return failure::authentication_unavailable;
+		}
+		if (aCode == "transport_unavailable") {
+			return failure::transport_unavailable;
+		}
+		if (aCode == "remote_incomplete") {
+			return failure::remote_incomplete;
+		}
+		if (aCode == "storage_unavailable") {
+			return failure::storage_unavailable;
+		}
+		switch (aExit) {
+		case 2:  return failure::invalid_input;
+		case 3:  return failure::interaction_required;
+		case 4:  return failure::conflict;
+		case 5:  return failure::unavailable;
+		case 6:  return failure::outcome_unknown;
+		default: return failure::local_failure;
+		}
 	}
 } // namespace bpr::application

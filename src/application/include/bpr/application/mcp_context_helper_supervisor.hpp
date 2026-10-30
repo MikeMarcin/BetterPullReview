@@ -2,6 +2,7 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_MCP_CONTEXT_HELPER_SUPERVISOR_HPP
 
 #include "bpr/application/agent_launch.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 
 #include <array>
@@ -104,11 +105,17 @@ namespace bpr::application {
 	class mcp_context_helper_supervisor final
 	{
 	public:
+		/// \param aLog [[BPR-1830]]. Where each request's `agent.mcp_helper`
+		/// line goes: a refusal, or a start and how the run ended (its process
+		/// outcome, exit code, duration and answer line count). Never the
+		/// request, the answer, the snapshot root or the binding. May be null;
+		/// it must outlive the supervisor.
 		mcp_context_helper_supervisor(
 			std::filesystem::path aHelperExecutable,
 			agent_process_port&   aProcesses,
 			effect_executor&      aEffects,
-			decision_executor&    aDecisionLane);
+			decision_executor&    aDecisionLane,
+			diagnostic_log_port*  aLog = nullptr);
 		~mcp_context_helper_supervisor();
 
 		mcp_context_helper_supervisor(const mcp_context_helper_supervisor&)

@@ -1,5 +1,6 @@
 #ifndef BPR_APP_CYCLE_OWNER_SERVICE_HPP
 #define BPR_APP_CYCLE_OWNER_SERVICE_HPP
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/tour_owner_channel.hpp"
 #include "cycle_commands.hpp"
 #include <array>
@@ -33,6 +34,10 @@ namespace bpr::app {
 		};
 
 		cycle_owner_service(std::filesystem::path aRoot, core::bpr_profile_id aProfile);
+		/// \brief [[BPR-1830]]. The owner's diagnostic log, where each
+		/// forwarded command's `cycle.round` lines go. Set before the first
+		/// request is served; may be null, and must outlive the service.
+		void set_diagnostics(application::diagnostic_log_port* aLog) noexcept { Log = aLog; }
 		/// \brief Runs one admitted request. `aPayload` is the exact request
 		/// bytes, whose digest identifies the request; blocking.
 		[[nodiscard]] auto serve(std::span<const std::uint8_t> aPayload, const application::cycle_owner_request& aRequest, const draft_guard& aGuard, const std::function<bool()>& aCancelled) -> answer;
@@ -48,10 +53,12 @@ namespace bpr::app {
 		/// Answers kept for repeats, oldest first.
 		static constexpr std::size_t remembered_answers = 64U;
 
-		std::filesystem::path  Root;
-		core::bpr_profile_id   Profile;
-		std::mutex             Mutex;
-		std::deque<remembered> Answers;
+		std::filesystem::path Root;
+		core::bpr_profile_id  Profile;
+		std::mutex            Mutex;
+		/// [[BPR-1830]]. May be null.
+		application::diagnostic_log_port* Log = nullptr;
+		std::deque<remembered>            Answers;
 	};
 }
 #endif

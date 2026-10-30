@@ -475,6 +475,17 @@ def never_signed_in(course: Course, root: Path) -> None:
     step = course.run("never-signed-in-open", ["open", PULL_REQUEST, "--json", "--data-root", str(root / "fresh")])
     course.check(step, 5, error_code(step) == "authentication_required" and not step.requests,
                  f"code={error_code(step)}")
+    # [[BPR-1830]]. The refused open is in the profile's diagnostic log as a
+    # typed tour.operation failure, and nothing of the pull request is.
+    files = sorted((root / "fresh").rglob("session-*.jsonl"))
+    text = "".join(path.read_text(encoding="utf-8") for path in files)
+    records = [json.loads(line) for line in text.splitlines() if line.strip()]
+    opened = [record for record in records if record.get("event") == "tour.operation.failed" and record.get("category") == "tour"
+              and record.get("detail", "").startswith("action=tour_open failure=authentication_unavailable ")]
+    leaked = [word for word in ("octo-org", "review-repository", "github.com/") if word in text]
+    if len(opened) != 1 or leaked:
+        course.failures.append("never-signed-in-diagnostics")
+        say(f"{PREFIX}:never-signed-in-diagnostics:FAILED:records={len(opened)} leaked={leaked}")
 
 
 READ = "GET /repos/octo-org/review-repository/pulls/17"

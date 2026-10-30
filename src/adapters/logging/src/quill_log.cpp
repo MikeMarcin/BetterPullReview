@@ -438,6 +438,9 @@ namespace bpr::adapters::logging {
 			case core::operation_diagnosis_family::source_search: return application::diagnostic_operation::source_search;
 			case core::operation_diagnosis_family::image_fetch:   return application::diagnostic_operation::image_fetch;
 			case core::operation_diagnosis_family::notification:  return application::diagnostic_operation::notification;
+			case core::operation_diagnosis_family::mcp_helper:    return application::diagnostic_operation::mcp_helper;
+			case core::operation_diagnosis_family::tour:          return application::diagnostic_operation::tour_operation;
+			case core::operation_diagnosis_family::cycle_round:   return application::diagnostic_operation::cycle_round;
 			}
 			return application::diagnostic_operation::application;
 		}
@@ -609,7 +612,10 @@ namespace bpr::adapters::logging {
 				 // [[BPR-1831]]. Storage, clone scan, search, image and notification lines too.
 				 || aEvent.Operation == application::diagnostic_operation::storage || aEvent.Operation == application::diagnostic_operation::clone_scan
 				 || aEvent.Operation == application::diagnostic_operation::source_search || aEvent.Operation == application::diagnostic_operation::image_fetch
-				 || aEvent.Operation == application::diagnostic_operation::notification)
+				 || aEvent.Operation == application::diagnostic_operation::notification
+				 // [[BPR-1830]].
+				 || aEvent.Operation == application::diagnostic_operation::mcp_helper || aEvent.Operation == application::diagnostic_operation::tour_operation
+				 || aEvent.Operation == application::diagnostic_operation::cycle_round)
 				&& !operation_line_admitted(aEvent)) {
 				State->drop();
 				return status_type::dropped;

@@ -40,6 +40,15 @@ namespace bpr::core {
 		/// [[BPR-1831]]. A queue notification handed to the platform
 		/// (`notification.delivery`).
 		notification,
+		/// [[BPR-1830]]. The read-only MCP context helper run for one request
+		/// (`agent.mcp_helper`).
+		mcp_helper,
+		/// [[BPR-1830]]. A review tour imported, or read from or published to
+		/// the pull request by `bpr tour` (`tour.operation`).
+		tour,
+		/// [[BPR-1830]]. A Review Cycle round frozen, granted, read, answered,
+		/// exported, imported or sent (`cycle.round`).
+		cycle_round,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -127,6 +136,41 @@ namespace bpr::core {
 		notification_permission,
 		/// [[BPR-1831]]. The reviewer chose a delivered notification.
 		notification_activate,
+		/// [[BPR-1830]]. The MCP context helper started for one request and
+		/// its answer.
+		mcp_helper_request,
+		/// [[BPR-1830]]. Tours offered for import, as read from the pull request.
+		tour_observe_imports,
+		/// [[BPR-1830]]. One offered tour imported into the private draft.
+		tour_import,
+		/// [[BPR-1830]]. `bpr tour open`: the pull request read for a draft.
+		tour_open,
+		/// [[BPR-1830]]. `bpr tour source`: one pinned source read.
+		tour_source,
+		/// [[BPR-1830]]. `bpr tour counts`: the conversations read and counted.
+		tour_counts,
+		/// [[BPR-1830]]. `bpr tour preview`/`publish`: the plan prepared.
+		tour_preview,
+		/// [[BPR-1830]]. `bpr tour publish`: the confirmed plan published.
+		tour_publish,
+		/// [[BPR-1830]]. A round draft frozen into a round.
+		cycle_round_freeze,
+		/// [[BPR-1830]]. A frozen round granted to a harness.
+		cycle_round_grant,
+		/// [[BPR-1830]]. A round's grant withdrawn.
+		cycle_round_revoke,
+		/// [[BPR-1830]]. A granted round read by its harness.
+		cycle_round_read,
+		/// [[BPR-1830]]. A granted harness's response appended (acting on it).
+		cycle_round_respond,
+		/// [[BPR-1830]]. A response file imported into a round by the reviewer.
+		cycle_response_import,
+		/// [[BPR-1830]]. A frozen round exported (rendered, or to a file).
+		cycle_round_export,
+		/// [[BPR-1830]]. A portable round bundle opened into quarantine.
+		cycle_bundle_import,
+		/// [[BPR-1830]]. What one Send to Agent of a round observed, recorded.
+		cycle_round_send,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -267,6 +311,43 @@ namespace bpr::core {
 		// [[BPR-1831]]. Notification.
 		permission_refused,
 		unattributable_activation,
+		// [[BPR-1830]]. MCP helper (application::mcp_helper_refusal, and how
+		// its run ended).
+		no_helper,
+		not_pinned,
+		network_location,
+		already_running,
+		helper_failed,
+		// [[BPR-1830]]. Tour: the CLI's error classes, and an import's refusals.
+		invalid_input,
+		interaction_required,
+		authentication_unavailable,
+		transport_unavailable,
+		remote_incomplete,
+		outcome_unknown,
+		storage_unavailable,
+		local_failure,
+		not_offered,
+		draft_exists,
+		target_mismatch,
+		refused,
+		// [[BPR-1830]]. Review Cycle round (application::cycle_store_failure,
+		// a grant's authorization and a response's or bundle's refusal);
+		// `corrupt`, `busy`, `invalid_bundle` ([[BPR-1829]]) and
+		// `schema_mismatch` ([[BPR-1831]]) are shared.
+		wrong_profile,
+		not_found,
+		operation_reused,
+		bounds,
+		object_unavailable,
+		quota,
+		preview_stale,
+		store_damaged,
+		not_granted,
+		revoked,
+		wrong_target,
+		not_authorized,
+		read_failed,
 	};
 
 	/// \brief [[BPR-1831]]. Which SQLite store a storage line is about, by its
@@ -298,6 +379,7 @@ namespace bpr::core {
 
 	/// \brief [[BPR-1828]]. How an agent setup check's process run ended,
 	/// as the host's run outcome names it; `none` when no process ran.
+	/// [[BPR-1830]]. Also how an MCP helper run ended.
 	enum class operation_process : std::uint8_t {
 		none,
 		success,
@@ -354,7 +436,8 @@ namespace bpr::core {
 
 	/// \brief Whether a line is one the host writes: known enums, a failure
 	/// of the action's own family, a process and exit code only on an agent
-	/// setup check (an exit code only with a process), and the write flags
+	/// setup check or ([[BPR-1830]]) an MCP helper run (an exit code only
+	/// with a process), and the write flags
 	/// only on a review mutation; a store exactly on a storage line, and a
 	/// schema version only there ([[BPR-1831]]).
 	[[nodiscard]] auto valid(const operation_diagnosis& aDiagnosis) noexcept -> bool;

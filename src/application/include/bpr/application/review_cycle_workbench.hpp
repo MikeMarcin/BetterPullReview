@@ -216,6 +216,10 @@ namespace bpr::application {
 		[[nodiscard]] auto selected() const noexcept -> std::optional<core::local_cycle_subject>;
 		void               shutdown();
 		[[nodiscard]] auto is_quiescent() const noexcept -> bool;
+		/// \brief [[BPR-1830]]. Where the runtime's round calls write their
+		/// `cycle.round` lines; calls made before it is set are not recorded.
+		/// May be null; it must outlive the workbench.
+		void set_diagnostics(diagnostic_log_port* aLog) noexcept;
 
 	private:
 		struct implementation;

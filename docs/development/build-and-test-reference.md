@@ -3517,6 +3517,28 @@ how many ends it stands for and whose duration is the longest; the rest flushes
 at shutdown. No path, statement, key, query, address, login, title or body
 appears, and these failures are not counted as Insights problems.
 
+The MCP context helper, tours and Review Cycle rounds record the same line
+([[BPR-1830]]). `agent.mcp_helper` (category `agent`) is one helper request the
+application's supervisor starts: a refusal (`no_helper`, `not_pinned`,
+`network_location`, `already_running`), or a start and an end naming the
+child's process outcome, exit code and how many lines it answered. The helper
+executable itself writes no log: it links only the core and its JSON decoder,
+and a file sink would give it a filesystem root beyond its frozen snapshot.
+`tour.operation` (category `tour`) is the count of tours a pull request offers
+for import, each import's end (`not_offered`, `draft_exists`,
+`target_mismatch`, `refused`, `busy`) with the offered stop count, and the end
+of `bpr tour` `open`, `source`, `counts` and `preview`, and the start and end
+of `publish`, each failure named from the command's error code and exit status.
+`cycle.round` (category `cycle`) is a round frozen, granted, revoked, read by a
+granted harness, answered, its response imported, exported, a round bundle
+imported, and a Send to Agent recorded, with the store's typed failure or the
+grant's refused decision (`not_granted`, `revoked`, `wrong_target`,
+`not_authorized`). The desktop records into the profile's log, as do forwarded
+`bpr cycle` commands; a `bpr` command that holds the profile's lease opens the
+profile's log on its first record as one more cooperating session, so the
+desktop's export carries it. No tour text, label, cycle, round content, path,
+repository or login appears.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts

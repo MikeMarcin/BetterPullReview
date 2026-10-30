@@ -8416,6 +8416,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																  nullptr
 #endif
 			);
+			CycleDesktop->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 			// [[BPR-1177]]. Publish as Pull Request acts as the account this
 			// profile's session accepted, through its own publication catalog.
 			CycleDesktop->set_publishing({
@@ -9082,7 +9083,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					std::move(mcpHelper),
 					*McpProcess,
 					McpEffects,
-					DecisionLane);
+					DecisionLane,
+					DiagnosticLog.get()); // [[BPR-1830]]
 			}
 	#if defined(BPR_BUILD_TESTING)
 			if (!DisableSideChatPanelComposition)
@@ -11580,6 +11582,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 																		   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																		   observe_tour_head();
 																				});
+			TourHost->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 			TourHost->start();
 			refresh_tour_imports();
 		}
@@ -25036,6 +25039,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				profile->TourOwnerService = std::move(TourOwnerService);
 #if defined(BPR_LOCAL_AUTOMATION)
 				profile->CycleOwnerService = std::move(CycleOwnerService);
+				if (profile->CycleOwnerService) {
+					// [[BPR-1830]]. Forwarded cycle commands record their rounds in the profile's log.
+					profile->CycleOwnerService->set_diagnostics(profile->DiagnosticLog.get());
+				}
 #endif
 				auto runtime = std::unique_ptr<github_application>{ new github_application{ std::move(profile) } };
 				step         = "profile-services-start";

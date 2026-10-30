@@ -421,6 +421,11 @@ namespace bpr::app {
 		shutdown();
 	}
 
+	void review_cycle_desktop::set_diagnostics(application::diagnostic_log_port* const aLog) noexcept
+	{
+		Host->set_diagnostics(aLog);
+	}
+
 	auto review_cycle_desktop::draft_editor(const core::review_cycle_id aCycle) const -> core::cycle_draft_editor
 	{
 		const auto selected = Host->selected();
