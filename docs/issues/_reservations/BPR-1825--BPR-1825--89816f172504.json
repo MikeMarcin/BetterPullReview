@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1825"
+  ],
+  "reserve_for": "release-v041",
+  "purpose": "Repair merged Windows test containment registration and measurement declarations",
+  "created": "2026-10-30T04:52:27.712967+00:00",
+  "base": "558cb5d0855fd8ee47b203a50c1b5e33a9f86adc"
+}
