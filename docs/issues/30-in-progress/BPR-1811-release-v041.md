@@ -88,3 +88,39 @@ true source/cohort identity and pass every mandatory final gate. Qualification
 keeps the maintained four-job schedule, locks and exclusive rows, the exact eight
 Debug timing omissions, fixed physical reserves and honest pending/interrupted
 rows where capacity has not admitted a course.
+
+## Build 7 and the next fixture-only candidate
+
+Build 7 source `4dd4cd72d3d716329f286592d7f8efaa873de95a` is public as
+`v0.4.1-build.7` (release 429321827). Its 30 Mac/Windows/Ubuntu assets have
+matching anonymous hashes and downloaded native audits of 8, 39 and 77 commands.
+Stable Latest remains 0.4.0. Raw Grype results retain 23/21/23 matching findings
+and their carried dispositions; no clean scan or new stable authorization is
+claimed. Earlier releases and build-7 source/assets remain immutable.
+
+The next Windows floor binds the published build-7 MSI's actual native
+ProductVersion `0.4.7`, ProductCode
+`{CCDCF34A-4D98-5363-A8F6-0EFBB490D5DE}`, unchanged UpgradeCode and `ALLUSERS=1`.
+Its 26,861,568 bytes have SHA-256
+`cc192d59586d5b7bf45606d29efa47117fda30ca0085c1f491b1a49c4a346121`.
+The signed producer manifest, anonymous manifest/installer hashes and downloaded
+native audit bind those facts in `n7-native-msi-floor-r1.json` outside source.
+
+Build-7 Windows Release finishes all 861 rows with 859 passed and two failed.
+The optimized benchmark passes its unchanged quiet focused replay; both results
+remain without a cause or waiver claim. Mac retains 877 unique passes, the
+original Start Review failure and seven unrun resource rows, including the
+earlier resource-aborted packet. BPR-1833 restores that fixture's omitted public
+Comment stay choice, preserving accepted default-Home behavior and the original
+40-second contract. Its complete chain and existing default-Home composition
+course pass on all three native Release closures with exact input seals. The
+Windows artificial-TEMP failures and restored-native-context pass remain
+distinct. No later canonical runtime is imported.
+
+The changed Mac Debug compilation closure passes without repeating public
+courses or unrelated ALL builds. Remaining native Debug deltas, fresh producer
+observations, allocation and actual next-cohort production remain pending.
+Full Mac preview admission still requires its complete 14.5 GiB stage allowance
+plus the fixed 12 GiB reserve and safety; no partial production stage starts to
+fit current free space. All remaining comprehensive rows and the exact eight
+Debug omissions keep their actual status until the repaired candidate is ready.

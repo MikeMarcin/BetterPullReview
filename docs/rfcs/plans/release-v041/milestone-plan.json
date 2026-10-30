@@ -12,7 +12,8 @@
       "BPR-1820",
       "BPR-1821",
       "BPR-1822",
-      "BPR-1825"
+      "BPR-1825",
+      "BPR-1833"
     ]
   },
   "milestones": [
@@ -96,6 +97,15 @@
             "AC2",
             "AC3"
           ]
+        },
+        {
+          "issue": "BPR-1833",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
         }
       ],
       "depends_on": [],
@@ -109,5 +119,11 @@
     }
   ],
   "coverage": "complete",
-  "unplanned_work": []
+  "unplanned_work": [],
+  "amendments": [
+    {
+      "revision": "release-v041-critical-main-restart-r2/BPR-1833",
+      "scope": "Reproducible build-7 Start Review qualification fixture contract restoration; no product policy or later-main runtime import. Original release exits and separate stable decision preserved."
+    }
+  ]
 }
