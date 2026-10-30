@@ -101,3 +101,12 @@ course's Windows isolation classification is still unmeasured; measure its
 contained refusal and corrected ordinary baseline before changing that pin.
 Affected repaired contracts must run on the successor's actual native inputs,
 with precise unchanged-functional bridges. No new producer has been allocated.
+
+The current oracle additionally requires Overview's initial unread/resolved
+filters both off, so a misplaced first-filter preference cannot pass merely
+because it was already shared before the round trip. This added assertion has
+not run natively: its Mac one-TU follow-up was refused before output creation
+because global free space fell below the fixed reserve. The prior native context
+observed both flags off, and the earlier four-course PASS remains bound to its
+exact earlier source. The corrected Windows focused proof will exercise the new
+assertion at its quiet boundary; no passing claim is made for that pending run.

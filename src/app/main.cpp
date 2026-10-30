@@ -8581,7 +8581,8 @@ namespace {
 					const auto overviewOwnsPanel  = panel->pull_request_conversation() && !panel->discuss();
 					window.choose_modality(bpr::qt::review_modality::review, bpr::core::workbench_modality_entry::choose);
 					QApplication::processEvents();
-					passed = overviewOwnsPanel && window.current_modality() == bpr::qt::review_modality::review
+					passed = overviewOwnsPanel && !overviewUnread && !overviewUnresolved
+						&& window.current_modality() == bpr::qt::review_modality::review
 						&& !panel->pull_request_conversation() && !panel->discuss()
 						&& panel->filter_unread_button()->isChecked() && !panel->filter_unresolved_button()->isChecked();
 					window.choose_modality(bpr::qt::review_modality::overview);
