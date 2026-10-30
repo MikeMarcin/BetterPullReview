@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1833"
+  ],
+  "reserve_for": "release-v041",
+  "purpose": "Diagnose and repair reproducible frozen-source Start Review finish-transition failure",
+  "created": "2026-10-30T20:35:46.736601+00:00",
+  "base": "905713e0af449b49b11a66d034e08c9f25602a3c"
+}
