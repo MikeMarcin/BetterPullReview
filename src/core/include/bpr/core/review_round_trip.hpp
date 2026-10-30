@@ -352,6 +352,17 @@ namespace bpr::core {
 		not_permitted,
 		/// The thread is already in the state asked for.
 		already_in_state,
+		/// [[BPR-1824]]. The pull request is closed or merged. GitHub still
+		/// resolves its threads, but the write connection is composed only
+		/// for an open pull request.
+		pull_request_closed,
+		/// [[BPR-1824]]. No connection that writes to this pull request is
+		/// composed for the session (the read is not yet accepted, or its
+		/// pull request moved since it was read).
+		no_write_connection,
+		/// [[BPR-1824]]. The conversation is not a review thread: a pull
+		/// request comment or a review summary has nothing to resolve.
+		not_a_review_thread,
 	};
 
 	/// \brief What decides whether a thread may be resolved or unresolved.
@@ -365,6 +376,14 @@ namespace bpr::core {
 		/// GitHub did not say (an older read), so only a positive denial
 		/// refuses.
 		bool ViewerPermitted = true;
+		/// [[BPR-1824]]. Whether the conversation is a review thread.
+		bool ReviewThread = true;
+		/// [[BPR-1824]]. Whether the accepted read says the pull request is open.
+		bool PullRequestOpen = true;
+		/// [[BPR-1824]]. Whether a connection that writes to this pull
+		/// request is composed. A selected diff is not required: a thread
+		/// resolves from Discuss with no file open.
+		bool WriteConnection = true;
 
 		auto operator<=>(const thread_resolution_input&) const = default;
 	};
@@ -373,8 +392,17 @@ namespace bpr::core {
 	[[nodiscard]] constexpr auto decide_thread_resolution(
 		const thread_resolution_input& aInput) noexcept -> thread_resolution_refusal
 	{
+		if (!aInput.ReviewThread) {
+			return thread_resolution_refusal::not_a_review_thread;
+		}
 		if (aInput.AnonymousRead) {
 			return thread_resolution_refusal::anonymous_read;
+		}
+		if (!aInput.PullRequestOpen) {
+			return thread_resolution_refusal::pull_request_closed;
+		}
+		if (!aInput.WriteConnection) {
+			return thread_resolution_refusal::no_write_connection;
 		}
 		if (aInput.Capability != github_capability_state::supported) {
 			return thread_resolution_refusal::capability_absent;

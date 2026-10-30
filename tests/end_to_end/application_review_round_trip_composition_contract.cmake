@@ -2502,6 +2502,17 @@ function(bpr_verify_full_application_digest source_variable)
 	# send's core::agent_send_refusal to the Agent tab beside the composer. No
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1824]] Discuss resolve reseal (2026-10-29), over f0de69330.
+	# github_application.cpp's review_mutation_gesture_grant binds every
+	# gesture that is no inline comment publication (resolution, reaction,
+	# description and comment edit, reviewer request) to the accepted
+	# handoff instead of requiring a selected diff; the authority's account
+	# and pull request must still match the accepted read, and the grant is
+	# issued by the same issuer for the same InlineReviewBinding. Resolve
+	# names its refusal through core::decide_thread_resolution and words
+	# host failures; the threaded-reply course clears the diff selection
+	# before Resolve. No credential, provider, publication admission or
+	# source-inventory change.
 	# [[BPR-1823]] kept-agent reseal (2026-10-29), over fe67d8ea6.
 	# github_application.cpp passes the setup's saved agent to the picker as
 	# its first pick only (setup_saved_profile), takes the setup wizard's
@@ -2512,7 +2523,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# credential, grant, provider, mutation, publication or source-inventory
 	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"28f57f1b216f281c4f0e1910511d9bc831c543383972376fd2ca07498ce8c977"
+		"cacaa91b43fa501a9f34a9268a9ad3c4ce24c157fef9e1691f4e9e753ad6c461"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2785,8 +2796,13 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1823]] kept-agent reseal (2026-10-29): github_application.cpp only,
 # as described at the full digest. No grant, mutation, publication or
 # source-inventory change.
+# [[BPR-1824]] Discuss resolve reseal (2026-10-29): github_application.cpp
+# only, as described at the full digest. The gesture grant no longer waits on
+# a selected diff for a non-publication gesture; same issuer, binding and
+# account/pull-request match. No provider, credential, publication admission
+# or source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "d42f2beca0d844d2f29cd0a69df603ceb0dbbf03e0efbfa63bd852a93d08e6a4"
+        "8ac269bf717e8663934fc9ac59a4cfc4ba780442363ad2a732632512d8b27298"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
