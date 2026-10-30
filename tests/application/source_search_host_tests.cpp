@@ -293,11 +293,54 @@ namespace {
 		search_expect(f.Host.state().Status == core::source_search_status::failure && observer->work().size() == 1 && observer->work().front().Path.empty(), "failed acquisition remains a failure and records actual search work without query content");
 	}
 
+	/// [[BPR-1831]]. Every execution's end reaches the diagnostics as its
+	/// status alone, aggregated so a search per keystroke cannot flood the log.
+	void test_diagnostics_record_status_only()
+	{
+		struct recording_log final : diagnostic_log_port
+		{
+			auto record(const diagnostic_event& aEvent) noexcept -> diagnostic_log_status override
+			{
+				Events.push_back(aEvent);
+				return diagnostic_log_status::available;
+			}
+			auto                          status() const noexcept -> diagnostic_log_status override { return diagnostic_log_status::available; }
+			std::vector<diagnostic_event> Events;
+		};
+		fixture    f;
+		const auto log       = std::make_shared<recording_log>();
+		const auto aggregate = std::make_shared<aggregated_operation_log>(log);
+		f.Host.observe_diagnostics(aggregate);
+		search_expect(f.Host.set_query("PRIVATE_QUERY_ONE"), "query admitted");
+		f.drain();
+		search_expect(log->Events.size() == 1U && log->Events[0].Operation == diagnostic_operation::source_search && log->Events[0].Outcome == diagnostic_outcome::succeeded, "a completed search records its end at once");
+		for (unsigned index = 0U; index < 20U; ++index) {
+			search_expect(f.Host.set_query("PRIVATE_QUERY_" + std::to_string(index)), "keystroke admitted");
+			f.drain();
+		}
+		search_expect(log->Events.size() == 1U, "twenty more keystrokes inside the window record nothing yet");
+		f.Execution.Answer = [](const source_search_work& aWork, auto) { return source_search_execution{ core::source_search_terminal{ aWork.Request, core::source_search_status::unavailable, { } } }; };
+		search_expect(f.Host.set_query("PRIVATE_QUERY_FAILED"), "failing query admitted");
+		f.drain();
+		search_expect(log->Events.size() == 2U && log->Events[1].Outcome == diagnostic_outcome::failed && std::string_view{ log->Events[1].Summary.text() }.starts_with("action=source_search failure=unavailable "), "an unavailable search records its failure at once");
+		f.Execution.Answer = [](const auto&, auto) -> source_search_execution { throw std::runtime_error{ "PRIVATE_QUERY" }; };
+		search_expect(f.Host.set_query("PRIVATE_QUERY_THROWN"), "throwing query admitted");
+		f.drain();
+		search_expect(std::string_view{ log->Events.back().Summary.text() }.starts_with("action=source_search failure=search_failed "), "a search that threw is a failure");
+		aggregate->flush();
+		const auto held = core::parse_operation_diagnosis(log->Events.at(log->Events.size() - 1U).Summary.text());
+		search_expect(held && held->Action == core::operation_action::source_search && held->Failure == core::operation_failure::none && held->Count == 20U, "the held searches are counted in one line");
+		for (const auto& event : log->Events) {
+			search_expect(core::parse_operation_diagnosis(event.Summary.text()).has_value() && std::string_view{ event.Summary.text() }.find("PRIVATE") == std::string_view::npos, "no query reaches a record");
+		}
+	}
+
 }
 
 int main()
 {
 	test_failed_execution_still_records_work();
+	test_diagnostics_record_status_only();
 	test_public_query_and_decision_path();
 	test_coalescing_retires_every_admitted_request();
 	test_invalid_queries_and_qualified_empty();

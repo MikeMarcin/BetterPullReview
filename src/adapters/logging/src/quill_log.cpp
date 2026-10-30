@@ -432,6 +432,12 @@ namespace bpr::adapters::logging {
 			case core::operation_diagnosis_family::sign_in:          return application::diagnostic_operation::sign_in;
 			case core::operation_diagnosis_family::credential_vault: return application::diagnostic_operation::credential_vault;
 			case core::operation_diagnosis_family::updater:          return application::diagnostic_operation::updater;
+			// [[BPR-1831]].
+			case core::operation_diagnosis_family::storage:       return application::diagnostic_operation::storage;
+			case core::operation_diagnosis_family::clone_scan:    return application::diagnostic_operation::clone_scan;
+			case core::operation_diagnosis_family::source_search: return application::diagnostic_operation::source_search;
+			case core::operation_diagnosis_family::image_fetch:   return application::diagnostic_operation::image_fetch;
+			case core::operation_diagnosis_family::notification:  return application::diagnostic_operation::notification;
 			}
 			return application::diagnostic_operation::application;
 		}
@@ -599,7 +605,11 @@ namespace bpr::adapters::logging {
 				 || aEvent.Operation == application::diagnostic_operation::review_mutation
 				 // [[BPR-1829]]. Sign-in, credential vault and updater lines too.
 				 || aEvent.Operation == application::diagnostic_operation::sign_in || aEvent.Operation == application::diagnostic_operation::credential_vault
-				 || aEvent.Operation == application::diagnostic_operation::updater)
+				 || aEvent.Operation == application::diagnostic_operation::updater
+				 // [[BPR-1831]]. Storage, clone scan, search, image and notification lines too.
+				 || aEvent.Operation == application::diagnostic_operation::storage || aEvent.Operation == application::diagnostic_operation::clone_scan
+				 || aEvent.Operation == application::diagnostic_operation::source_search || aEvent.Operation == application::diagnostic_operation::image_fetch
+				 || aEvent.Operation == application::diagnostic_operation::notification)
 				&& !operation_line_admitted(aEvent)) {
 				State->drop();
 				return status_type::dropped;

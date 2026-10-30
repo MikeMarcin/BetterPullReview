@@ -1,13 +1,16 @@
 #include "bpr/application/notification_delivery.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <utility>
 
 namespace bpr::application {
 	review_queue_notifier::review_queue_notifier(
-		notification_sink_port&      aSink,
-		notification_activation_sink aActivations)
+		notification_sink_port&              aSink,
+		notification_activation_sink         aActivations,
+		std::shared_ptr<diagnostic_log_port> aLog)
 		: Sink{ aSink }
 		, Activations{ std::move(aActivations) }
+		, Log{ std::move(aLog) }
 	{
 	}
 
@@ -25,7 +28,10 @@ namespace bpr::application {
 		auto allowed = Sink.permission();
 		if (allowed == notification_permission::not_determined) {
 			++Statistics.PermissionRequests;
-			allowed = Sink.request_permission();
+			const auto asked = operation_stopwatch{ };
+			allowed          = Sink.request_permission();
+			// [[BPR-1831]]. The reviewer's answer, as a grant or a refusal.
+			record_operation(Log.get(), { .Action = core::operation_action::notification_permission, .Failure = allowed == notification_permission::granted || allowed == notification_permission::platform_managed ? core::operation_failure::none : core::operation_failure::permission_refused, .DurationMilliseconds = asked.milliseconds() });
 		}
 		if (allowed != notification_permission::granted
 			&& allowed != notification_permission::platform_managed) {
@@ -34,12 +40,14 @@ namespace bpr::application {
 			// again — the state stays whatever the platform says it is, so a
 			// later call reaches `permission()` and finds `refused` still.
 			++Statistics.SuppressedByRefusal;
+			record_operation(Log.get(), { .Action = core::operation_action::notification_deliver, .Failure = core::operation_failure::permission_refused });
 			return false;
 		}
 
 		// Composed from the request alone. Every word comes from a fixed table
 		// the core owns; nothing here can reach the pull request, the ledger,
 		// or the diff, because this class holds none of them.
+		const auto handed     = operation_stopwatch{ };
 		const auto submission = Sink.deliver(delivered_notification{
 			.Title  = notification_title(aRequest),
 			.Body   = notification_body(aRequest),
@@ -48,9 +56,11 @@ namespace bpr::application {
 		if (submission
 			== notification_submission_result::suppressed_unattributable_activation) {
 			++Statistics.SuppressedUnattributableActivation;
+			record_operation(Log.get(), { .Action = core::operation_action::notification_deliver, .Failure = core::operation_failure::unattributable_activation, .DurationMilliseconds = handed.milliseconds() });
 			return false;
 		}
 		++Statistics.Submitted;
+		record_operation(Log.get(), { .Action = core::operation_action::notification_deliver, .DurationMilliseconds = handed.milliseconds() });
 		return true;
 	}
 
@@ -58,6 +68,7 @@ namespace bpr::application {
 		const queue_notification_target& aTarget)
 	{
 		++Statistics.Activations;
+		record_operation(Log.get(), { .Action = core::operation_action::notification_activate });
 		if (Activations) {
 			Activations(aTarget);
 		}

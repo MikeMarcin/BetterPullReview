@@ -61,17 +61,30 @@ namespace bpr::application {
 													 /// [[BPR-1829]]. A credential vault slot stored, loaded or deleted.
 													 credential_vault,
 													 /// [[BPR-1829]]. An updater check, download, verification or handoff.
-													 updater };
+													 updater,
+													 /// [[BPR-1831]]. A SQLite store opened, migrated, read or written.
+													 storage,
+													 /// [[BPR-1831]]. The linked clone scan and its checks.
+													 clone_scan,
+													 /// [[BPR-1831]]. Source search executions, aggregated.
+													 source_search,
+													 /// [[BPR-1831]]. Body image and avatar fetches, aggregated.
+													 image_fetch,
+													 /// [[BPR-1831]]. Queue notifications handed to the platform.
+													 notification };
 	/// \brief The logged `op` name of each diagnostic operation, in order.
 	/// \details The logger writes and the export classifier admits exactly
 	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
-	inline constexpr std::array<std::string_view, 15> diagnostic_operation_names{
+	inline constexpr std::array<std::string_view, 20> diagnostic_operation_names{
 		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
 		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation",
-		"github.sign_in", "credential.vault", "updater.release"
+		"github.sign_in", "credential.vault", "updater.release",
+		// [[BPR-1831]].
+		"storage.database", "workspace.clone_scan", "search.source", "image.fetch", "notification.delivery"
 	};
 	/// \brief [[BPR-1828]]. A record's category: the operation name before its
-	/// first dot (`application`, `epoch`, `github` or `agent`).
+	/// first dot (`application`, `epoch`, `github`, `agent`, and since
+	/// [[BPR-1831]] `storage`, `workspace`, `search`, `image`, `notification`).
 	[[nodiscard]] constexpr auto diagnostic_category(const std::string_view aOperation) noexcept -> std::string_view
 	{
 		return aOperation.substr(0U, aOperation.find('.'));

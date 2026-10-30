@@ -13,6 +13,7 @@ add_library(
         src/markdown_image_disk_cache.cpp
         src/catalog_database.cpp
         src/sqlite_connection.cpp
+        src/storage_diagnostics.cpp
         src/review_ledger_database.cpp
         src/private_review_store.cpp
         src/queue_enrollment_database.cpp

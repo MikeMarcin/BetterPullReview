@@ -9,12 +9,20 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr std::array<std::string_view, 32> action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply" };
-		constexpr std::array<std::string_view, 84> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "too_large_not_in_clone", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown" };
-		constexpr std::array<std::string_view, 10> process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
+		constexpr std::array<std::string_view, 46>  action_names{ "agent_status_check", "agent_program_check", "agent_custom_check", "workspace_materialize", "workspace_cleanup", "observe_target", "publish_comment", "reconcile_publication", "repair_publications", "resolve_thread", "unresolve_thread", "add_reaction", "remove_reaction", "edit_description", "edit_comment", "search_reviewers", "request_reviewer", "device_sign_in", "token_renewal", "sign_out", "account_change", "vault_store", "vault_load", "vault_delete", "refresh_store", "refresh_load", "refresh_delete", "update_check", "update_download", "update_verify", "update_refresh", "update_apply",
+																  // [[BPR-1831]].
+																  "storage_open", "storage_migrate", "storage_read", "storage_write", "storage_statement", "clone_scan", "clone_verify", "clone_load", "source_search", "image_fetch", "avatar_fetch", "notification_deliver", "notification_permission", "notification_activate" };
+		constexpr std::array<std::string_view, 107> failure_names{ "none", "cancelled", "unavailable", "agent_not_found", "program_refused", "no_program_chosen", "not_signed_in", "failed_to_start", "status_unreadable", "timed_out", "workspace_unavailable", "invalid_request", "stale", "cleanup_failed", "copy_failed", "download_failed", "connection_failed", "sign_in_refused", "too_large", "too_large_not_in_clone", "refused_by_server", "undesignated_target", "target_moved", "stale_head", "unsupported", "target_unavailable", "malformed_response", "incompatible_body", "credential_unavailable", "credential_tool_failed", "unplaceable_line", "refused_not_published", "settled_not_published", "off_hunk_refused", "not_confirmed", "conflict", "authorization_denied", "authorization_expired", "device_flow_disabled", "device_flow_unavailable", "network_unavailable", "certificate_rejected", "redirect_rejected", "response_too_large", "vault_unavailable", "refresh_absent", "refresh_rejected", "transport_failed", "storage_failed", "no_session", "locked", "access_denied", "corrupt", "operation_failed", "allocation_failure", "policy_refused", "access_required", "unauthenticated", "forbidden", "inaccessible", "offline", "rate_limited", "malformed_release", "invalid_version", "unstable_release", "no_compatible_asset", "ambiguous_asset", "invalid_digest", "size_limit", "unsafe_archive", "invalid_bundle", "wrong_architecture", "wrong_signer", "digest_mismatch", "changed_candidate", "busy", "stale_completion", "invalid_progress", "identity_exhausted", "installer_unavailable", "flush_failed", "quit_refused", "recovery_required", "shutdown",
+																   // [[BPR-1831]].
+																   "invalid_path", "invalid_permissions", "schema_mismatch", "integrity_failure", "quota_exceeded", "platform_unsupported", "io_error", "read_only", "constraint", "not_a_database", "cannot_open", "sql_error", "not_a_clone", "no_matching_remote", "scan_failed", "store_unreadable", "search_failed", "resource_limit", "fetch_failed", "blocked", "over_limit", "permission_refused", "unattributable_activation" };
+		constexpr std::array<std::string_view, 10>  process_names{ "none", "success", "private_storage_failure", "failed_to_start", "workspace_unavailable", "nonzero_exit", "protocol_failure", "cancelled", "timeout", "stale_result" };
 
-		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::update_apply) + 1U);
-		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::shutdown) + 1U);
+		static_assert(action_names.size() == static_cast<std::size_t>(operation_action::notification_activate) + 1U);
+		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::unattributable_activation) + 1U);
+
+		// [[BPR-1831]]. The store names, by each store file's fixed name.
+		constexpr std::array<std::string_view, 22> store_names{ "unknown", "other", "agent_setup", "appearance_settings", "diagnostic_preferences", "workbench_settings", "review_queue", "review_ledger", "review_tours", "review_cycles", "review_overviews", "window_restoration", "remembered_connections", "device_bindings", "review_mutation_recovery", "epoch_catalog", "markdown_images", "insights", "profile_registry", "release_update", "update_draft_recovery", "clone_ledger" };
+		static_assert(store_names.size() == static_cast<std::size_t>(operation_store::clone_ledger) + 1U);
 		static_assert(process_names.size() == static_cast<std::size_t>(operation_process::stale_result) + 1U);
 
 		template <typename TEnum, std::size_t N>
@@ -104,6 +112,15 @@ namespace bpr::core {
 			case operation_diagnosis_family::updater:
 				return aFailure == operation_failure::timed_out || aFailure == operation_failure::unavailable || aFailure == operation_failure::certificate_rejected || aFailure == operation_failure::redirect_rejected
 					|| within(aFailure, operation_failure::policy_refused, operation_failure::shutdown);
+			// [[BPR-1831]].
+			case operation_diagnosis_family::storage:
+				return aFailure == operation_failure::unavailable || aFailure == operation_failure::busy || aFailure == operation_failure::locked || within(aFailure, operation_failure::invalid_path, operation_failure::sql_error);
+			case operation_diagnosis_family::clone_scan: return within(aFailure, operation_failure::not_a_clone, operation_failure::store_unreadable);
+			case operation_diagnosis_family::source_search:
+				return aFailure == operation_failure::unavailable || aFailure == operation_failure::identity_exhausted || within(aFailure, operation_failure::search_failed, operation_failure::resource_limit);
+			case operation_diagnosis_family::image_fetch:
+				return aFailure == operation_failure::too_large || aFailure == operation_failure::unsupported || within(aFailure, operation_failure::fetch_failed, operation_failure::over_limit);
+			case operation_diagnosis_family::notification: return within(aFailure, operation_failure::permission_refused, operation_failure::unattributable_activation);
 			}
 			return false;
 		}
@@ -117,6 +134,9 @@ namespace bpr::core {
 		if (aAction <= operation_action::workspace_cleanup) {
 			return operation_diagnosis_family::agent_workspace;
 		}
+		if (aAction <= operation_action::request_reviewer) {
+			return operation_diagnosis_family::review_mutation;
+		}
 		// [[BPR-1829]].
 		if (aAction >= operation_action::update_check && aAction <= operation_action::update_apply) {
 			return operation_diagnosis_family::updater;
@@ -127,7 +147,20 @@ namespace bpr::core {
 		if (aAction >= operation_action::device_sign_in && aAction <= operation_action::account_change) {
 			return operation_diagnosis_family::sign_in;
 		}
-		return operation_diagnosis_family::review_mutation;
+		// [[BPR-1831]].
+		if (aAction <= operation_action::storage_statement) {
+			return operation_diagnosis_family::storage;
+		}
+		if (aAction <= operation_action::clone_load) {
+			return operation_diagnosis_family::clone_scan;
+		}
+		if (aAction == operation_action::source_search) {
+			return operation_diagnosis_family::source_search;
+		}
+		if (aAction <= operation_action::avatar_fetch) {
+			return operation_diagnosis_family::image_fetch;
+		}
+		return operation_diagnosis_family::notification;
 	}
 
 	auto name(const operation_action aAction) noexcept -> std::string_view
@@ -145,6 +178,11 @@ namespace bpr::core {
 		return named(process_names, aProcess);
 	}
 
+	auto name(const operation_store aStore) noexcept -> std::string_view
+	{
+		return named(store_names, aStore);
+	}
+
 	auto valid(const operation_diagnosis& aDiagnosis) noexcept -> bool
 	{
 		if (name(aDiagnosis.Action).empty() || name(aDiagnosis.Failure).empty() || name(aDiagnosis.Process).empty()) {
@@ -155,6 +193,12 @@ namespace bpr::core {
 			return false;
 		}
 		if (kind != operation_diagnosis_family::agent_setup && aDiagnosis.Process != operation_process::none) {
+			return false;
+		}
+		// [[BPR-1831]]. A store exactly on a storage line, a schema version
+		// only there.
+		const auto storage = kind == operation_diagnosis_family::storage;
+		if (storage != aDiagnosis.Store.has_value() || (aDiagnosis.Store && name(*aDiagnosis.Store).empty()) || (!storage && aDiagnosis.Schema != 0U)) {
 			return false;
 		}
 		return kind == operation_diagnosis_family::review_mutation || (!aDiagnosis.Written && !aDiagnosis.ReadBack);
@@ -177,6 +221,11 @@ namespace bpr::core {
 		text += " count=" + std::to_string(aDiagnosis.Count);
 		text += aDiagnosis.Written ? " written=1" : " written=0";
 		text += aDiagnosis.ReadBack ? " read_back=1" : " read_back=0";
+		if (aDiagnosis.Store) {
+			text += " store=";
+			text += name(*aDiagnosis.Store);
+			text += " schema=" + std::to_string(aDiagnosis.Schema);
+		}
 		return text;
 	}
 
@@ -200,8 +249,17 @@ namespace bpr::core {
 		const auto count    = duration ? number(aText, "count") : std::nullopt;
 		const auto written  = count ? flag(aText, "written") : std::nullopt;
 		const auto readBack = written ? flag(aText, "read_back") : std::nullopt;
-		if (!readBack || !aText.empty()) {
+		if (!readBack) {
 			return std::nullopt;
+		}
+		// [[BPR-1831]]. A storage line's store and schema version.
+		if (!aText.empty()) {
+			result.Store      = enumerated<operation_store>(aText, "store", store_names);
+			const auto schema = result.Store ? number(aText, "schema") : std::nullopt;
+			if (!schema || !aText.empty()) {
+				return std::nullopt;
+			}
+			result.Schema = *schema;
 		}
 		result.DurationMilliseconds = *duration;
 		result.Count                = *count;

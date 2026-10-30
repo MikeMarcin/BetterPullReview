@@ -162,6 +162,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1826]]. The same composed fixture startup as
     # application_thread_resolution_refresh; registered on macOS.
     "application_closed_thread_resolution": "unmeasured (registered on macOS)",
+    # [[BPR-1831]]. Opens owner-private SQLite stores like every sqlite_* row.
+    "sqlite_storage_diagnostics": "unmeasured (registered on macOS)",
     "mimalloc_app_bpr": "qt-dll-initialization",
     "mimalloc_app_better_pull_review": "qt-dll-initialization",
     "mimalloc_disabled_redirect": "qt-dll-initialization",

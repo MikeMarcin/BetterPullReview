@@ -3493,6 +3493,30 @@ appears. A vault record says what the composed vault port answered, not which
 platform store answered or that an entry outlives a restart; an `update_apply`
 success is the installer's handoff, not a completed installation.
 
+The SQLite stores, the clone scan, source search, image and avatar fetches and
+queue notifications use the same line too ([[BPR-1831]]). `storage.database`
+(category `storage`) lines end with `store=STORE schema=N`, the store named by
+its file's fixed name and never by its path. While the profile's
+`adapters::sqlite::storage_diagnostics_scope` lives, every store records each
+connection opened (`storage_open`, with the schema version found), each schema
+version written (`storage_migrate`; creating a store is a migration from 0),
+and each statement SQLite's error log reports failing (`storage_read`,
+`storage_write`, or `storage_statement` when it failed to prepare), classified
+by result code (`busy`, `locked`, `io_error`, `not_a_database`, ...). The store
+and read/write direction of a failing statement are those of the last statement
+the thread prepared. `workspace.clone_scan` records each clone scan's start and
+end (counting the clones found), each remembered link's check and the store
+read. `search.source` records each PR search execution's end, `image.fetch`
+each body image (`image_fetch`) and avatar (`avatar_fetch`) fetch's end, and
+`notification.delivery` each submission, refusal, permission answer and
+activation. Opens, statement failures, searches and fetches happen many times a
+second, so they go through `application::aggregated_operation_log`: the first
+line of each action, failure and store records at once, then at most one line
+per window (ten minutes for storage, one minute otherwise) whose `count` says
+how many ends it stands for and whose duration is the longest; the rest flushes
+at shutdown. No path, statement, key, query, address, login, title or body
+appears, and these failures are not counted as Insights problems.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts

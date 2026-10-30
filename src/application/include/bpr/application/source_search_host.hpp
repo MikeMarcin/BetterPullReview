@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SOURCE_SEARCH_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_SOURCE_SEARCH_HOST_HPP
 
+#include "bpr/application/host_operation_diagnostics.hpp"
 #include "bpr/application/insights_observer.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/source_search_projection.hpp"
@@ -117,6 +118,9 @@ namespace bpr::application {
 
 		/// \brief Attaches a passive profile observer; existing work and admission are unchanged.
 		void observe_work(std::shared_ptr<insights_observer> aObserver);
+		/// \brief [[BPR-1831]]. Records each execution's end, aggregated so a
+		/// search per keystroke cannot flood the log; no query, path or match.
+		void observe_diagnostics(std::shared_ptr<aggregated_operation_log> aLog);
 
 	private:
 		struct implementation;
