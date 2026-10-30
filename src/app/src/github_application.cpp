@@ -33997,9 +33997,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (implementation->ReviewerRequestCompletions < 1U) {
 				return result::pending;
 			}
-			probe.Evidence.ReviewerRequestedOnce = evidence.ReviewerWrites == 1U && picker->status()->text() == QStringLiteral("Requested a review from octo-maintainer.");
 			if (!probe.Evidence.ReviewerRequestedOnce) {
-				return fail("not-requested-once");
+				probe.Evidence.ReviewerRequestedOnce = evidence.ReviewerWrites == 1U
+					&& picker->status()->text() == QStringLiteral("Requested a review from octo-maintainer.");
+				if (!probe.Evidence.ReviewerRequestedOnce) {
+					return fail("not-requested-once");
+				}
+			}
+			// [[BPR-1818]]. A native popup may have been dismissed while the
+			// first request and its refresh completed. A closed picker correctly
+			// refuses a choice. Reopen through People and narrow the public list
+			// before exercising the already-requested row again.
+			if (!implementation->ReviewerPicker.Open || !picker->isVisible()) {
+				window->overview_page()->request_review_button()->click();
+				QCoreApplication::processEvents();
+				return result::pending;
+			}
+			if (implementation->ReviewerPicker.Searching) {
+				return result::pending;
+			}
+			if (implementation->ReviewerPicker.Query != "maint") {
+				for (const auto character : QStringLiteral("maint")) {
+					auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_unknown, Qt::NoModifier, QString{ character } };
+					QCoreApplication::sendEvent(picker->search_field(), &down);
+				}
+				return result::pending;
+			}
+			if (picker->listed_logins() != QStringList{ "octo-maintainer" }) {
+				return fail("repeat-reviewer-not-listed");
 			}
 			const auto asked   = implementation->ReviewerRequestsAsked;
 			const auto context = [&] {
@@ -34012,10 +34037,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					+ " status=" + picker->status()->text().toStdString();
 			};
 			note("repeat-before " + context());
-			picker->choose_highlighted();
+			for (const auto key : { Qt::Key_Down, Qt::Key_Return }) {
+				auto down = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
+				QCoreApplication::sendEvent(picker->search_field(), &down);
+			}
 			QCoreApplication::processEvents();
 			note("repeat-after " + context());
-			probe.Evidence.ReviewerNotRepeated = implementation->ReviewerRequestsAsked == asked && implementation->Fixture->review_mutation_evidence().ReviewerWrites == 1U
+			probe.Evidence.ReviewerNotRepeated = asked == 1U && implementation->ReviewerRequestsAsked == asked && implementation->Fixture->review_mutation_evidence().ReviewerWrites == 1U
 				&& picker->status()->text() == QStringLiteral("octo-maintainer already has a review request.");
 			if (!probe.Evidence.ReviewerNotRepeated) {
 				return fail("request-repeated");

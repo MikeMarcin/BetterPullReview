@@ -680,9 +680,13 @@ namespace bpr::app::detail {
 		/// RFC-BPR-0084. Body image resolutions and fetches the fixture served.
 		std::size_t MarkdownImageResolutions = 0U;
 		std::size_t MarkdownImageFetches     = 0U;
+		/// [[BPR-1807]], [[BPR-1818]]. Avatar traffic shares the performer, not the body-image oracle.
+		std::size_t AvatarImageFetches = 0U;
+		std::size_t ImageFetchesTotal  = 0U;
 		/// Fixture-only attribution: body node names and address digests, never URLs.
 		std::vector<std::string> MarkdownImageResolutionNodes;
 		std::vector<std::string> MarkdownImageFetchReferences;
+		std::vector<std::string> AvatarImageFetchReferences;
 		/// [[BPR-1560]]. Compare reads and pull request confirmations served.
 		std::size_t MergeBaseReads           = 0U;
 		std::size_t MergeBaseConfirmations   = 0U;
