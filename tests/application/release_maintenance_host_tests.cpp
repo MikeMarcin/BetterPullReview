@@ -281,6 +281,130 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1828]]. Agent setup, workspace and review mutation lines export
+	/// as their enums, counts, duration and exit code under the `agent` or
+	/// `github` category; one with anything else in it is omitted.
+	void test_operation_export()
+	{
+		struct row
+		{
+			std::string_view Op;
+			std::string_view Category;
+			std::string_view Detail;
+		};
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const auto& [op, category, detail] : { row{ "agent.setup_check", "agent", "action=agent_status_check failure=not_signed_in process=nonzero_exit exit=1 duration_ms=812 count=1 written=0 read_back=0" },
+														row{ "agent.setup_check", "agent", "action=agent_custom_check failure=timed_out process=timeout exit=-9 duration_ms=15000 count=1 written=0 read_back=0" },
+														row{ "agent.workspace", "agent", "action=workspace_materialize failure=too_large_not_in_clone process=none exit=none duration_ms=2400 count=0 written=0 read_back=0" },
+														row{ "github.review_mutation", "github", "action=resolve_thread failure=refused_by_server process=none exit=none duration_ms=640 count=0 written=0 read_back=0" },
+														row{ "github.review_mutation", "github", "action=request_reviewer failure=not_confirmed process=none exit=none duration_ms=900 count=2 written=1 read_back=1" },
+														row{ "github.review_mutation", "github", "action=resolve_thread failure=refused_by_server process=none exit=none duration_ms=640 count=0 written=0 read_back=0 thread=PRIVATE_THREAD" },
+														row{ "github.review_mutation", "github", "action=edit_comment failure=PRIVATE_BODY process=none exit=none duration_ms=640 count=0 written=0 read_back=0" },
+														row{ "agent.setup_check", "agent", "action=agent_status_check failure=not_signed_in process=nonzero_exit exit=1 duration_ms=812 count=1 written=0 read_back=0 path=PRIVATE_PATH" },
+														row{ "agent.workspace", "agent", "action=workspace_materialize failure=refused_by_server process=none exit=none duration_ms=2400 count=0 written=0 read_back=0 PRIVATE" },
+														// [[BPR-1827]]'s agent run line exports under `agent` too.
+														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0" },
+														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0 prompt=PRIVATE_PROMPT" },
+														// [[BPR-1829]]. Sign-in, credential vault and updater lines.
+														row{ "github.sign_in", "github", "action=device_sign_in failure=authorization_expired process=none exit=none duration_ms=900000 count=12 written=0 read_back=0" },
+														row{ "github.sign_in", "github", "action=token_renewal failure=refresh_rejected process=none exit=none duration_ms=410 count=0 written=0 read_back=0" },
+														row{ "credential.vault", "credential", "action=vault_load failure=locked process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														row{ "updater.release", "updater", "action=update_verify failure=wrong_signer process=none exit=none duration_ms=7000 count=0 written=0 read_back=0" },
+														row{ "github.sign_in", "github", "action=account_change failure=transport_failed process=none exit=none duration_ms=0 count=1 written=0 read_back=0 login=PRIVATE_LOGIN" },
+														row{ "credential.vault", "credential", "action=vault_store failure=PRIVATE_TOKEN process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														row{ "updater.release", "updater", "action=update_download failure=offline process=none exit=none duration_ms=7000 count=0 written=0 read_back=0 url=PRIVATE_URL" },
+														// [[BPR-1830]]. The MCP helper, tour and Review Cycle round lines.
+														row{ "agent.mcp_helper", "agent", "action=mcp_helper_request failure=helper_failed process=nonzero_exit exit=2 duration_ms=40 count=1 written=0 read_back=0" },
+														row{ "agent.mcp_helper", "agent", "action=mcp_helper_request failure=not_pinned process=none exit=none duration_ms=0 count=0 written=0 read_back=0 root=/PRIVATE_ROOT" },
+														row{ "tour.operation", "tour", "action=tour_publish failure=outcome_unknown process=none exit=none duration_ms=1200 count=3 written=0 read_back=0" },
+														row{ "tour.operation", "tour", "action=tour_import failure=draft_exists process=none exit=none duration_ms=0 count=2 written=0 read_back=0 label=PRIVATE_LABEL" },
+														row{ "cycle.round", "cycle", "action=cycle_round_read failure=revoked process=none exit=none duration_ms=3 count=0 written=0 read_back=0" },
+														row{ "cycle.round", "cycle", "action=cycle_round_respond failure=PRIVATE_RESPONSE process=none exit=none duration_ms=3 count=0 written=0 read_back=0" } }) {
+				auto       line    = structured_line(1U, true);
+				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+					const auto at = line.find(aFrom);
+					expect(at != std::string::npos, "operation fixture field exists");
+					line.replace(at, aFrom.size(), aTo);
+				};
+				replace(R"("event":"github.capability.failed","category":"github")", "\"event\":\"" + std::string{ op } + ".failed\",\"category\":\"" + std::string{ category } + "\"");
+				replace(R"("op":"github.capability")", "\"op\":\"" + std::string{ op } + "\"");
+				replace(R"("http_status":403)", R"("http_status":0)");
+				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+				line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   exact    = !detail.contains("PRIVATE");
+				expect(document && document->Descriptor.Records == 1U, "an operation record exports under either policy");
+				expect((document->Bytes.find(detail) != std::string::npos) == exact && document->Bytes.contains("\"op\":\"" + std::string{ op } + "\"")
+						   && document->Bytes.contains("\"category\":\"" + std::string{ category } + "\""),
+					   "and keeps exactly its counts-only line under its category");
+				expect(document->Bytes.find("PRIVATE") == std::string::npos, "and nothing private");
+			}
+		}
+		// A record whose category disagrees with its operation is not one the logger wrote.
+		auto line = structured_line(1U, true);
+		line.replace(line.find(R"("event":"github.capability.failed","category":"github")"), std::string_view{ R"("event":"github.capability.failed","category":"github")" }.size(), R"("event":"agent.workspace.failed","category":"github")");
+		line.replace(line.find(R"("op":"github.capability")"), std::string_view{ R"("op":"github.capability")" }.size(), R"("op":"agent.workspace")");
+		const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+		const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document && document->Descriptor.Records == 0U, "an agent record filed under another category is omitted");
+		// [[BPR-1829]]. So is a vault record filed under github.
+		auto vault = structured_line(1U, true);
+		vault.replace(vault.find(R"("event":"github.capability.failed","category":"github")"), std::string_view{ R"("event":"github.capability.failed","category":"github")" }.size(), R"("event":"credential.vault.failed","category":"github")");
+		vault.replace(vault.find(R"("op":"github.capability")"), std::string_view{ R"("op":"github.capability")" }.size(), R"("op":"credential.vault")");
+		const auto misfiled = application::prepare_diagnostic_export(vault, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(misfiled && misfiled->Descriptor.Records == 0U, "a vault record filed under another category is omitted");
+	}
+
+	/// [[BPR-1831]]. Storage, clone scan, search, image and notification lines
+	/// export exactly under their own category; one with anything private in
+	/// it keeps the record and omits its detail.
+	void test_host_operation_export()
+	{
+		struct row
+		{
+			std::string_view Op;
+			std::string_view Category;
+			std::string_view Detail;
+		};
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const auto& [op, category, detail] : { row{ "storage.database", "storage", "action=storage_open failure=not_a_database process=none exit=none duration_ms=3 count=2 written=0 read_back=0 store=review_ledger schema=0" },
+														row{ "storage.database", "storage", "action=storage_migrate failure=none process=none exit=none duration_ms=0 count=0 written=0 read_back=0 store=markdown_images schema=1" },
+														row{ "workspace.clone_scan", "workspace", "action=clone_scan failure=scan_failed process=none exit=none duration_ms=900 count=0 written=0 read_back=0" },
+														row{ "search.source", "search", "action=source_search failure=unavailable process=none exit=none duration_ms=12 count=4 written=0 read_back=0" },
+														row{ "image.fetch", "image", "action=avatar_fetch failure=blocked process=none exit=none duration_ms=40 count=50 written=0 read_back=0" },
+														row{ "notification.delivery", "notification", "action=notification_deliver failure=permission_refused process=none exit=none duration_ms=0 count=0 written=0 read_back=0" },
+														row{ "storage.database", "storage", "action=storage_open failure=not_a_database process=none exit=none duration_ms=3 count=2 written=0 read_back=0 store=review_ledger schema=0 path=PRIVATE_PATH" },
+														row{ "storage.database", "storage", "action=storage_open failure=not_a_database process=none exit=none duration_ms=3 count=2 written=0 read_back=0 store=PRIVATE_STORE schema=0" },
+														row{ "search.source", "search", "action=source_search failure=unavailable process=none exit=none duration_ms=12 count=4 written=0 read_back=0 query=PRIVATE_QUERY" },
+														row{ "image.fetch", "image", "action=image_fetch failure=PRIVATE_URL process=none exit=none duration_ms=40 count=1 written=0 read_back=0" } }) {
+				auto       line    = structured_line(1U, true);
+				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+					const auto at = line.find(aFrom);
+					expect(at != std::string::npos, "operation fixture field exists");
+					line.replace(at, aFrom.size(), aTo);
+				};
+				replace(R"("event":"github.capability.failed","category":"github")", "\"event\":\"" + std::string{ op } + ".failed\",\"category\":\"" + std::string{ category } + "\"");
+				replace(R"("op":"github.capability")", "\"op\":\"" + std::string{ op } + "\"");
+				replace(R"("http_status":403)", R"("http_status":0)");
+				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+				line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   exact    = !detail.contains("PRIVATE");
+				expect(document && document->Descriptor.Records == 1U, "a host operation record exports under either policy");
+				expect((document->Bytes.find(detail) != std::string::npos) == exact && document->Bytes.contains("\"category\":\"" + std::string{ category } + "\""), "and keeps exactly its line under its category");
+				expect(document->Bytes.find("PRIVATE") == std::string::npos, "and nothing private");
+			}
+		}
+		auto line = structured_line(1U, true);
+		line.replace(line.find(R"("event":"github.capability.failed","category":"github")"), std::string_view{ R"("event":"github.capability.failed","category":"github")" }.size(), R"("event":"storage.database.failed","category":"github")");
+		line.replace(line.find(R"("op":"github.capability")"), std::string_view{ R"("op":"github.capability")" }.size(), R"("op":"storage.database")");
+		const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+		const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document && document->Descriptor.Records == 0U, "a storage record filed under another category is omitted");
+	}
+
 	/// [[BPR-1722]]. A record of `aOp`.`aOutcome` at `aUtc`, with the
 	/// given status, failure and detail, as the logger writes it.
 	auto event_line(unsigned aSequence, std::uint64_t aUtc, std::string_view aOp, std::string_view aOutcome, unsigned aHttp, std::string_view aDomain, std::string_view aFailure, std::string_view aDetail)
@@ -840,6 +964,8 @@ auto main() -> int
 	test_actor_conflict_export();
 	test_review_submission_reason_export();
 	test_discovery_export();
+	test_operation_export();
+	test_host_operation_export();
 	test_git_capability_step_export();
 	test_git_tool_failure_export();
 	test_rich_export();

@@ -591,6 +591,74 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// \brief [[BPR-1827]]. One tool result as Claude Code echoes it: the
+	/// `tool_result` content and the `tool_use_result` both carry what the
+	/// tool read, so a line is about twice the file.
+	[[nodiscard]] auto claude_tool_result(const int aIndex, const std::size_t aFileBytes) -> std::string
+	{
+		auto file = std::string{ };
+		for (auto line = 0; file.size() < aFileBytes; ++line) {
+			file += "int fixture_function_" + std::to_string(line) + "(int value) { return value * 2; } // \"quoted\" \\ tab\t\n";
+		}
+		const auto escaped = json_escape(file);
+		const auto index   = std::to_string(aIndex);
+		return R"({"type":"user","message":{"role":"user","content":[{"tool_use_id":"toolu_fixture_)" + index + R"(","type":"tool_result","content":")" + escaped
+			+ R"("}]},"parent_tool_use_id":null,"session_id":"canary-session","uuid":"u-)" + index
+			+ R"(","timestamp":"2026-10-29T00:00:00.000Z","tool_use_result":{"type":"text","file":{"filePath":"/fixture/workspace/source_)" + index
+			+ R"(.cpp","content":")" + escaped + R"(","numLines":1200,"startLine":1,"totalLines":1200}}})" + "\n";
+	}
+
+	void current_claude_transcript(const bool aStopsEarly)
+	{
+		auto out = std::string{ };
+		out += "Fixture wrapper 4.2: routing through the configured gateway\n";
+		out += R"({"type":"system","subtype":"hook_started","hook_id":"h1","hook_name":"SessionStart:startup","hook_event":"SessionStart","uuid":"a1","session_id":"canary-session"})"
+			   "\n";
+		out += R"({"type":"system","subtype":"hook_response","hook_id":"h1","hook_name":"SessionStart:startup","hook_event":"SessionStart","output":"","stdout":"","stderr":"","exit_code":0,"outcome":"success","uuid":"a2","session_id":"canary-session"})"
+			   "\n";
+		out += R"({"type":"system","subtype":"init","cwd":"/fixture/workspace","session_id":"canary-session","tools":["Read","Grep","Glob"],"mcp_servers":[{"name":"fixture","status":"connected"}],"model":"claude-sonnet-5-5","permissionMode":"default","slash_commands":["review"],"apiKeySource":"none","claude_code_version":"2.1.310","output_style":"default","agents":["general-purpose"],"skills":[],"plugins":[{"name":"fixture-plugin","path":"/fixture/plugin"}],"analytics_disabled":true,"product_feedback_disabled":true,"capabilities":{"interrupt":true},"startup_timing":{"total_ms":812},"fast_mode_state":"off","per_turn_effort_active":true,"view_mode":"default","uuid":"a3"})"
+			   "\n";
+		out += R"({"type":"user","message":{"role":"user","content":"<local-command-stdout>fixture note</local-command-stdout>"},"session_id":"canary-session","uuid":"a4"})"
+			   "\n";
+		out += R"({"type":"system","subtype":"thinking_tokens","tokens":120,"session_id":"canary-session","uuid":"a5"})"
+			   "\n";
+		out += R"({"type":"assistant","message":{"id":"msg_1","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"thinking","thinking":"Reading the files.","signature":"c2ln"}],"stop_reason":null,"usage":{"input_tokens":3}},"parent_tool_use_id":null,"session_id":"canary-session","uuid":"a6","request_id":"r1","timestamp":"2026-10-29T00:00:00.000Z"})"
+			   "\n";
+		out += R"({"type":"rate_limit_event","rate_limit_info":{"status":"allowed","resetsAt":1798761600},"uuid":"a7","session_id":"canary-session"})"
+			   "\n";
+		out += R"({"type":"stream_event","event":{"type":"message_delta"},"session_id":"canary-session","uuid":"a8"})"
+			   "\n";
+		out += R"({"type":"tool_progress","tool_use_id":"toolu_fixture_0","elapsed_time_seconds":1,"session_id":"canary-session","uuid":"a9"})"
+			   "\n";
+		for (auto index = 0; index < 12; ++index) {
+			const auto number = std::to_string(index);
+			out += R"({"type":"assistant","message":{"id":"msg_t)" + number + R"(","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"tool_use","id":"toolu_fixture_)" + number
+				+ R"(","name":"Read","input":{"file_path":"/fixture/workspace/source.cpp"}}]},"parent_tool_use_id":null,"session_id":"canary-session","uuid":"t)" + number + "\"}\n";
+			out += R"({"type":"system","subtype":"task_summary","summary":"Reading","session_id":"canary-session","uuid":"s)" + number + "\"}\n";
+			out += claude_tool_result(index, 48U * 1024U);
+		}
+		if (aStopsEarly) {
+			std::cout << out << R"({"type":"assistant","message":{"id":"msg_cut")";
+			std::cout.flush();
+			std::cerr << "fixture wrapper: gateway closed the connection\n";
+			return;
+		}
+		out += R"({"type":"assistant","message":{"id":"msg_2","type":"message","role":"assistant","model":"claude-sonnet-5-5","content":[{"type":"text","text":"canary-complete"}]},"parent_tool_use_id":null,"session_id":"canary-session","uuid":"b1"})"
+			   "\n";
+		out += R"({"type":"system","subtype":"post_turn_summary","summarizes_uuid":"b1","status_category":"done","status_detail":"","needs_action":false,"session_id":"canary-session","uuid":"b2"})"
+			   "\n";
+		out += R"({"type":"result","subtype":"success","is_error":false,"duration_ms":1000,"num_turns":13,"result":"canary-complete","stop_reason":"end_turn","session_id":"canary-session","total_cost_usd":0.25,"usage":{"input_tokens":3},"modelUsage":{"claude-sonnet-5-5":{"inputTokens":3}},"permission_denials":[],"terminal_reason":"completed","uuid":"b3"})"
+			   "\n";
+		out += R"({"type":"system","subtype":"task_summary","summary":"Done","session_id":"canary-session","uuid":"b4"})"
+			   "\n";
+		out += R"({"type":"rate_limit_event","rate_limit_info":{"status":"allowed"},"uuid":"b5","session_id":"canary-session"})"
+			   "\n";
+		std::cout << out;
+		std::cout.flush();
+	}
+} // namespace
+
 auto main(int argc, char** argv) -> int
 {
 #if defined(_WIN32)
@@ -724,6 +792,19 @@ auto main(int argc, char** argv) -> int
 					 "{\"type\":\"turn.failed\",\"error\":{}}\n";
 		std::cout.flush();
 		return EXIT_SUCCESS;
+	}
+	// [[BPR-1827]]. What a current Claude Code (2.1.310) writes for one
+	// review turn that reads files, as a wrapper around it prints it: a
+	// banner line, hook frames before init, an init frame with the fields
+	// 2.1.310 adds, thinking and task frames, a user frame of string content,
+	// tool-result frames larger than the generic 64 KiB line bound and, in
+	// all, more than the generic 1 MiB stream bound, a post-turn summary,
+	// and frames after the result. Written at once, not paced, because it
+	// is megabytes.
+	if (has_argument(argc, argv, "--current-claude-transcript")) {
+		const auto stopsEarly = has_argument(argc, argv, "--transcript-stops-early");
+		current_claude_transcript(stopsEarly);
+		return stopsEarly ? 3 : EXIT_SUCCESS;
 	}
 	begin_output(protocol);
 	// [[BPR-0886]]. This switch's request is larger than a pipe holds, and the

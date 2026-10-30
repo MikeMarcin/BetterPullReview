@@ -5,6 +5,7 @@
 #include "bpr/core/setup_destination.hpp"
 
 #include "bpr/application/device_binding_store.hpp"
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_capability_cache.hpp"
 #include "bpr/application/github_credential_vault.hpp"
@@ -288,6 +289,17 @@ namespace bpr::application {
 		// the host, the mode, and the identity generation; it carries no
 		// account, not even a zero one.
 		void activate_public_preview(core::host_profile_id aProfile);
+		/// \brief [[BPR-1829]]. Where Sign out and account changes record
+		/// `github.sign_in` lines. Null records nothing.
+		/// \details Sign out records its start and its end: `succeeded` when
+		/// it ended a profile session or a pending sign-in, `failed`
+		/// `no_session` when there was none. Its credential erasure is the
+		/// vault's own `vault_delete` record. Each change of the accepted
+		/// account (gained, lost or replaced) records one `account_change`,
+		/// counting 1 when an account is selected afterwards and 0 when none
+		/// is. No account, login, profile or host reaches a line. Decision
+		/// lane only.
+		void set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog);
 		void shutdown();
 
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;

@@ -905,6 +905,12 @@ namespace bpr::adapters::github::detail {
 
 	[[nodiscard]] auto valid(
 		const live_review_mutation_configuration& aConfiguration) noexcept -> bool;
+	/// \brief [[BPR-1826]]. The configuration's identity alone, whatever the
+	/// pull request's state: a closed or merged pull request's connection is
+	/// admitted and performs, and each request's own compiler decides what
+	/// it takes (only a thread's resolution and the reads it needs).
+	[[nodiscard]] auto valid_identity(
+		const live_review_mutation_configuration& aConfiguration) noexcept -> bool;
 
 	/// \brief Selects the RFC-0022 r3 recorded contract only for its exact live identity.
 	/// Each classification additionally revalidates the recorded immutable patch

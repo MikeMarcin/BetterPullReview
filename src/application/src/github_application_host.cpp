@@ -1,4 +1,5 @@
 #include "bpr/application/github_application_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include "github_projection_mapping.hpp"
 
@@ -649,6 +650,15 @@ namespace bpr::application {
 				read(*refresh);
 				return;
 			}
+			// [[BPR-1829]]. Sign out leaves a start and an end.
+			if (std::holds_alternative<core::deactivate_github_identity_intent>(aEvent)) {
+				const auto watch      = operation_stopwatch{ };
+				const auto hadSession = State.ActiveProfile.has_value() || State.PendingSession.has_value();
+				record_operation(DiagnosticLog.get(), { .Action = core::operation_action::sign_out }, true);
+				dispatch_core(aEvent);
+				record_operation(DiagnosticLog.get(), { .Action = core::operation_action::sign_out, .Failure = hadSession ? core::operation_failure::none : core::operation_failure::no_session, .DurationMilliseconds = watch.milliseconds() });
+				return;
+			}
 			dispatch_core(aEvent);
 		}
 
@@ -1264,6 +1274,16 @@ namespace bpr::application {
 			}
 		}
 
+		/// [[BPR-1829]]. One record each time the accepted account changes.
+		void observe_account() noexcept
+		{
+			if (State.Account == RecordedAccount) {
+				return;
+			}
+			RecordedAccount = State.Account;
+			record_operation(DiagnosticLog.get(), { .Action = core::operation_action::account_change, .Count = State.Account ? 1U : 0U });
+		}
+
 		void dispatch_core(const core::github_event& aEvent, std::optional<github_host_diagnostic_projection> aFailureDiagnostic = std::nullopt)
 		{
 			auto output = core::transition(State, aEvent);
@@ -1303,6 +1323,7 @@ namespace bpr::application {
 			const github_pull_request_snapshot* const        aPullRequest       = nullptr,
 			std::optional<github_host_diagnostic_projection> aFailureDiagnostic = std::nullopt) noexcept
 		{
+			observe_account();
 			try {
 				std::optional<github_session_projection> sessionProjection;
 				if (aSession != nullptr) {
@@ -4423,6 +4444,10 @@ namespace bpr::application {
 		std::optional<github_viewer_success>                    AcceptedSetupBootstrap;
 		std::size_t                                             OutstandingSetup = 0U;
 
+		// [[BPR-1829]]. Sign-in lines, and the account the last one saw
+		// (compared only, never logged).
+		std::shared_ptr<diagnostic_log_port>     DiagnosticLog;
+		std::optional<core::github_account_id>   RecordedAccount;
 		std::size_t                              OutstandingBindings           = 0;
 		std::size_t                              OutstandingRestoreCompletions = 0;
 		bool                                     RestoreIngressClosing         = false;
@@ -4837,6 +4862,11 @@ namespace bpr::application {
 		const core::host_profile_id aProfile)
 	{
 		Implementation->activate_public_preview(aProfile);
+	}
+
+	void github_application_host::set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog)
+	{
+		Implementation->DiagnosticLog = std::move(aLog);
 	}
 
 	void github_application_host::shutdown()

@@ -3456,6 +3456,89 @@ repository, account or pull request appears, so the line is safe for a
 protected GitHub Enterprise Server; the logger refuses any other detail on the
 operation and the export keeps the line only when it parses back exactly.
 
+Agent setup checks, agent workspaces and review mutations record
+operation lines ([[BPR-1828]]). `agent.setup_check` (category `agent`) is
+Check it works: its start and its end. `agent.workspace` (category `agent`) is
+the end of "setting up a workspace" for an agent run, and of its removal.
+`github.review_mutation` records the start and end of each resolve, unresolve,
+reaction, description or comment edit, reviewer request and comment
+publication, and the end of each target read, reviewer search and
+publication repair. The outcome is `succeeded`, `failed` or `cancelled`. The
+detail is one line from `bpr/core/operation_diagnosis.hpp`:
+`action=ACTION failure=FAILURE process=PROCESS exit=none|N duration_ms=N
+count=N written=0|1 read_back=0|1`. The failure is the family's own typed
+failure: an agent setup failure, a workspace failure (for an unavailable
+workspace, its reason, such as `too_large`), or a review mutation failure, plus
+`conflict` for an edit GitHub's text overtook. A setup check also names its
+last process run's outcome and exit code, and how many runs it made. No
+program, path, thread, comment, body, login, query or repository appears. The
+logger refuses any other detail on these operations, and the export keeps the
+line only when it parses back exactly. [[BPR-1827]]'s `agent.run` lines
+(`protocol=...`) export the same way, under category `agent`. A record's
+category is its operation's first word.
+
+Sign-in, the credential vault and the updater use the same line
+([[BPR-1829]]). `github.sign_in` (category `github`) records a device sign-in
+from its device-code request to its terminal stage (counting token polls), each
+token renewal attempt, Sign out, and each change of the accepted account
+(counting 1 when an account is selected afterwards). `credential.vault`
+(category `credential`) records the start and terminal of each store, load and
+delete of the account slot and its refresh slot, with the vault's typed failure
+(`locked`, `access_denied`, `corrupt`, ...); a load or delete counts 1 when the
+slot held an entry. `updater.release` (category `updater`) records each
+updater job: check, download (counting received bytes), verify, the refresh
+before installing, and the installer handoff, with the release update reason.
+No token, code, login, account, hostname, URL, path, release tag or asset name
+appears. A vault record says what the composed vault port answered, not which
+platform store answered or that an entry outlives a restart; an `update_apply`
+success is the installer's handoff, not a completed installation.
+
+The SQLite stores, the clone scan, source search, image and avatar fetches and
+queue notifications use the same line too ([[BPR-1831]]). `storage.database`
+(category `storage`) lines end with `store=STORE schema=N`, the store named by
+its file's fixed name and never by its path. While the profile's
+`adapters::sqlite::storage_diagnostics_scope` lives, every store records each
+connection opened (`storage_open`, with the schema version found), each schema
+version written (`storage_migrate`; creating a store is a migration from 0),
+and each statement SQLite's error log reports failing (`storage_read`,
+`storage_write`, or `storage_statement` when it failed to prepare), classified
+by result code (`busy`, `locked`, `io_error`, `not_a_database`, ...). The store
+and read/write direction of a failing statement are those of the last statement
+the thread prepared. `workspace.clone_scan` records each clone scan's start and
+end (counting the clones found), each remembered link's check and the store
+read. `search.source` records each PR search execution's end, `image.fetch`
+each body image (`image_fetch`) and avatar (`avatar_fetch`) fetch's end, and
+`notification.delivery` each submission, refusal, permission answer and
+activation. Opens, statement failures, searches and fetches happen many times a
+second, so they go through `application::aggregated_operation_log`: the first
+line of each action, failure and store records at once, then at most one line
+per window (ten minutes for storage, one minute otherwise) whose `count` says
+how many ends it stands for and whose duration is the longest; the rest flushes
+at shutdown. No path, statement, key, query, address, login, title or body
+appears, and these failures are not counted as Insights problems.
+
+The MCP context helper, tours and Review Cycle rounds record the same line
+([[BPR-1830]]). `agent.mcp_helper` (category `agent`) is one helper request the
+application's supervisor starts: a refusal (`no_helper`, `not_pinned`,
+`network_location`, `already_running`), or a start and an end naming the
+child's process outcome, exit code and how many lines it answered. The helper
+executable itself writes no log: it links only the core and its JSON decoder,
+and a file sink would give it a filesystem root beyond its frozen snapshot.
+`tour.operation` (category `tour`) is the count of tours a pull request offers
+for import, each import's end (`not_offered`, `draft_exists`,
+`target_mismatch`, `refused`, `busy`) with the offered stop count, and the end
+of `bpr tour` `open`, `source`, `counts` and `preview`, and the start and end
+of `publish`, each failure named from the command's error code and exit status.
+`cycle.round` (category `cycle`) is a round frozen, granted, revoked, read by a
+granted harness, answered, its response imported, exported, a round bundle
+imported, and a Send to Agent recorded, with the store's typed failure or the
+grant's refused decision (`not_granted`, `revoked`, `wrong_target`,
+`not_authorized`). The desktop records into the profile's log, as do forwarded
+`bpr cycle` commands; a `bpr` command that holds the profile's lease opens the
+profile's log on its first record as one more cooperating session, so the
+desktop's export carries it. No tour text, label, cycle, round content, path,
+repository or login appears.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts

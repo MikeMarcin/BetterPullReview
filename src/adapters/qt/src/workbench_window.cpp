@@ -12099,13 +12099,29 @@ namespace bpr::qt {
 
 	void workbench_window::set_thread_resolution_provider(const bool aResolves)
 	{
-		ProviderResolvesThreads = aResolves;
-		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			ConversationPanel->cards()->set_resolution_offered(
-				ProviderResolvesThreads
-				&& (Capabilities.ResolveThread == core::github_capability_state::supported
-					|| Capabilities.UnresolveThread == core::github_capability_state::supported));
+		set_thread_resolution_connection(core::thread_resolution_refusal::none, aResolves);
+	}
+
+	void workbench_window::set_thread_resolution_connection(const core::thread_resolution_refusal aRefusal, const bool aResolves)
+	{
+		ThreadResolutionConnection = aRefusal;
+		ProviderResolvesThreads    = aRefusal == core::thread_resolution_refusal::none && aResolves;
+		present_thread_resolution_offer();
+	}
+
+	// [[BPR-1824]]. The cards are told why Resolve cannot go, not only that
+	// it cannot: the composition's reason first, then the server's.
+	void workbench_window::present_thread_resolution_offer()
+	{
+		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
+			return;
 		}
+		const auto serverResolves = Capabilities.ResolveThread == core::github_capability_state::supported
+			|| Capabilities.UnresolveThread == core::github_capability_state::supported;
+		const auto refusal = ThreadResolutionConnection != core::thread_resolution_refusal::none ? ThreadResolutionConnection
+			: !ProviderResolvesThreads || !serverResolves                                        ? core::thread_resolution_refusal::capability_absent
+																								 : core::thread_resolution_refusal::none;
+		ConversationPanel->cards()->set_resolution_refusal(refusal);
 	}
 
 	void workbench_window::set_behaviour_dispatch(review_behaviour_dispatch aDispatch)
@@ -14560,11 +14576,8 @@ namespace bpr::qt {
 		// [[BPR-0657]]. Resolve is offered once the provider and the server
 		// both resolve threads; a notice from an earlier gesture is stale.
 		Capabilities = aPullRequest.Capabilities;
+		present_thread_resolution_offer();
 		if (ConversationPanel != nullptr && ConversationPanel->cards() != nullptr) {
-			ConversationPanel->cards()->set_resolution_offered(
-				ProviderResolvesThreads
-				&& (Capabilities.ResolveThread == core::github_capability_state::supported
-					|| Capabilities.UnresolveThread == core::github_capability_state::supported));
 			ConversationPanel->present_notice(QString{ });
 		}
 		update_github_presentation_state();

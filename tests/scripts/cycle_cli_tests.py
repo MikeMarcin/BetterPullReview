@@ -384,6 +384,35 @@ def retrieval(course, project, other):
     assert course.json("round", "read", "RC-1", "--round", "F2")["data"]["payload_sha256"] == f2
 
 
+def round_diagnostics(course, project):
+    """[[BPR-1830]]. A command that holds the profile's lease writes its round
+    operations to the profile's own diagnostic log as `cycle.round` records:
+    enums, a duration and a typed failure, and nothing of the cycle."""
+    files = sorted(Path(course.data).rglob("session-*.jsonl"))
+    assert files, "the commands wrote the profile's diagnostic log"
+    text = "".join(path.read_text(encoding="utf-8") for path in files)
+    records = [json.loads(line) for line in text.splitlines() if line.strip()]
+    rounds = [record for record in records if record.get("op") == "cycle.round"]
+    assert rounds and all(record["category"] == "cycle" for record in rounds), rounds[:3]
+    assert {record["op"] for record in records} == {"cycle.round"}, "a terminal command records only its rounds"
+    seen = {(record["event"], " ".join(record["detail"].split(" ")[:2])) for record in rounds}
+    for expected in (("cycle.round.started", "action=cycle_round_freeze failure=none"),
+                     ("cycle.round.succeeded", "action=cycle_round_freeze failure=none"),
+                     ("cycle.round.started", "action=cycle_round_grant failure=none"),
+                     ("cycle.round.failed", "action=cycle_round_grant failure=not_authorized"),
+                     ("cycle.round.succeeded", "action=cycle_round_grant failure=none"),
+                     ("cycle.round.failed", "action=cycle_round_read failure=not_granted"),
+                     ("cycle.round.failed", "action=cycle_round_read failure=revoked"),
+                     ("cycle.round.succeeded", "action=cycle_round_read failure=none"),
+                     ("cycle.round.succeeded", "action=cycle_round_respond failure=none"),
+                     ("cycle.round.failed", "action=cycle_round_respond failure=not_granted"),
+                     ("cycle.round.succeeded", "action=cycle_round_revoke failure=none")):
+        assert expected in seen, f"{expected} not among {sorted(seen)}"
+    # Negative controls: none of the cycle's paths, words or response reach a record.
+    for private in (str(project), project.name, "README.md", "Cache this lookup", "private note", "nobody shared", "RESP-H1", "a.txt"):
+        assert private not in text, f"{private!r} reached the diagnostic log"
+
+
 @contextlib.contextmanager
 def hold_lease(profile_root):
     """Holds the default profile's runtime lease as another process would: a lock
@@ -584,6 +613,7 @@ def main():
         other.mkdir()
         (other / "notes.txt").write_bytes(b"another project\n")
         retrieval(course, project, other)
+        round_diagnostics(course, project)
         rebound = rebinding(course, temporary, other)
         one_writer(course)
         interactive(course, project, temporary, rebound)

@@ -45,6 +45,7 @@ add_library(
         src/github_window_read.cpp
         src/home_open.cpp
         src/discovery_diagnosis.cpp
+        src/operation_diagnosis.cpp
         src/home_discovery_plan.cpp
         src/pending_presentation.cpp
         src/refresh_feedback.cpp

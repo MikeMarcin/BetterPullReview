@@ -507,6 +507,30 @@ namespace bpr::qt {
 		return { };
 	}
 
+	auto thread_resolution_refusal_text(const core::thread_resolution_refusal aRefusal, const bool aResolve) -> QString
+	{
+		// [[BPR-1824]]. Each refusal says what stops it and what to do.
+		using refusal = core::thread_resolution_refusal;
+		switch (aRefusal) {
+		case refusal::none: return { };
+		case refusal::anonymous_read:
+			return aResolve ? QObject::tr("Sign in to resolve threads. A public preview only reads.")
+							: QObject::tr("Sign in to reopen threads. A public preview only reads.");
+		case refusal::capability_absent:
+			return QObject::tr("This GitHub server's API doesn't say it can resolve threads. Use the pull request's page on GitHub instead.");
+		case refusal::not_permitted:
+			return aResolve ? QObject::tr("GitHub doesn't let your account resolve this thread. That takes write access to the repository.")
+							: QObject::tr("GitHub doesn't let your account reopen this thread. That takes write access to the repository.");
+		case refusal::already_in_state:
+			return aResolve ? QObject::tr("This thread is already resolved.") : QObject::tr("This thread is already open.");
+		case refusal::no_write_connection:
+			return QObject::tr("BetterPullReview isn't connected to change this pull request yet. Refresh the pull request, then try again.");
+		case refusal::not_a_review_thread:
+			return QObject::tr("Only review threads can be resolved. Pull request comments and review summaries can't.");
+		}
+		return { };
+	}
+
 	auto suggestion_placement_of(const application::github_conversation_projection& aNode) -> core::suggestion_placement_observation
 	{
 		using subject = core::suggestion_subject;
@@ -638,8 +662,22 @@ namespace bpr::qt {
 			ReadStateKnown && readAction != core::conversation_read_action::none,
 			!ReadStateKnown ? tr("Read state is not available yet.") : tr("Every post in this conversation is yours."));
 		menu->actions().back()->setObjectName(QStringLiteral("threadReadAction"));
+		// [[BPR-1824]]. The core's own decision, with its reason: the pull
+		// request's (sign-in, connection, server), then GitHub's word on this
+		// viewer and thread. [[BPR-1826]]. A closed or merged pull request's
+		// threads resolve as an open one's do.
+		const auto resolutionRefusal = core::decide_thread_resolution(core::thread_resolution_input{
+			.Capability      = ResolutionRefusal == core::thread_resolution_refusal::capability_absent ? core::github_capability_state::unknown : core::github_capability_state::supported,
+			.AnonymousRead   = ResolutionRefusal == core::thread_resolution_refusal::anonymous_read,
+			.Resolved        = card.Resolved,
+			.Resolve         = !card.Resolved,
+			.ViewerPermitted = card.ResolutionPermitted,
+			.ReviewThread    = card.Kind == QStringLiteral("Inline thread"),
+			.WriteConnection = ResolutionRefusal != core::thread_resolution_refusal::no_write_connection,
+		});
 		add(card.Resolved ? card_action::unresolve : card_action::resolve, card.Resolved ? QStringLiteral("Unresolve") : QStringLiteral("Resolve"),
-			ResolutionOffered && card.Kind == QStringLiteral("Inline thread"), tr("Resolution is not available for this thread."));
+			resolutionRefusal == core::thread_resolution_refusal::none, thread_resolution_refusal_text(resolutionRefusal, !card.Resolved));
+		menu->actions().back()->setObjectName(QStringLiteral("threadResolveAction"));
 		if (Feed) {
 			// [[BPR-1581]]. The core's route decides where Open in Review
 			// can go: any thread on a file, an outdated one among its file's
@@ -1386,17 +1424,27 @@ namespace bpr::qt {
 
 	void conversation_cards_view::set_resolution_offered(const bool aOffered)
 	{
-
-		if (ResolutionOffered == aOffered) {
-			return;
-		}
-		ResolutionOffered = aOffered;
-		relayout();
+		set_resolution_refusal(aOffered ? core::thread_resolution_refusal::none : core::thread_resolution_refusal::no_write_connection);
 	}
 
 	auto conversation_cards_view::resolution_offered() const noexcept -> bool
 	{
 		return ResolutionOffered;
+	}
+
+	void conversation_cards_view::set_resolution_refusal(const core::thread_resolution_refusal aRefusal)
+	{
+		if (ResolutionRefusal == aRefusal) {
+			return;
+		}
+		ResolutionRefusal = aRefusal;
+		ResolutionOffered = aRefusal == core::thread_resolution_refusal::none;
+		relayout();
+	}
+
+	auto conversation_cards_view::resolution_refusal() const noexcept -> core::thread_resolution_refusal
+	{
+		return ResolutionRefusal;
 	}
 
 	void conversation_cards_view::set_pull_request_author(const QString& aLogin)

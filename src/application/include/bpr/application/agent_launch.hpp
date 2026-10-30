@@ -293,6 +293,22 @@ namespace bpr::application {
 	inline constexpr std::size_t maximum_agent_stdout_bytes = 1U * 1024U * 1024U;
 	inline constexpr std::size_t maximum_agent_stderr_bytes = 1U * 1024U * 1024U;
 	inline constexpr std::size_t maximum_agent_frame_bytes  = 64U * 1024U;
+	/// \brief [[BPR-1827]]. Claude Code's frame and stream ceilings.
+	///
+	/// \details Claude Code echoes every tool result into its transcript: a
+	/// `user` frame whose `tool_result` content and `tool_use_result` both
+	/// carry what the tool read, so one read of a 90 KB source file is a
+	/// 110 KB line and a review that reads a dozen files writes several
+	/// megabytes. The generic 64 KiB frame and 1 MiB stream ceilings refused
+	/// every such run as `frame_too_large` before it could answer. A frame is
+	/// parsed and dropped, never retained, so these bound one line's working
+	/// memory and the run's total, not what the result keeps; retained
+	/// assistant text keeps its own `maximum_agent_stdout_bytes` ceiling.
+	inline constexpr std::size_t maximum_claude_frame_bytes  = 16U * 1024U * 1024U;
+	inline constexpr std::size_t maximum_claude_stdout_bytes = 256U * 1024U * 1024U;
+	/// \brief [[BPR-1827]]. How much of the first line the decoder refused it
+	/// keeps, for the reviewer's log; never written to diagnostics.
+	inline constexpr std::size_t maximum_agent_rejected_line_bytes = 512U;
 
 	/// \brief The longest structured-finding payload one turn may return.
 	///
@@ -519,8 +535,20 @@ namespace bpr::application {
 		/// \brief Ordered full assistant items; only a successful terminal makes them complete.
 		[[nodiscard]] auto assistant_items() const noexcept -> const std::vector<std::string>& { return AssistantItems; }
 
+		/// \brief [[BPR-1827]]. The start of the line the decoder refused,
+		/// at most `maximum_agent_rejected_line_bytes`; empty when it refused
+		/// none or refused a total rather than a line.
+		[[nodiscard]] auto rejected_line() const noexcept -> const std::string& { return RejectedLine; }
+
+		/// \brief [[BPR-1827]]. Every standard-output byte pushed so far.
+		[[nodiscard]] auto pushed_bytes() const noexcept -> std::size_t { return TotalBytes; }
+
 	private:
 		[[nodiscard]] auto           retain_output(std::vector<agent_protocol_event>&) -> bool;
+		[[nodiscard]] auto           frame_limit() const noexcept -> std::size_t;
+		[[nodiscard]] auto           stream_limit() const noexcept -> std::size_t;
+		void                         reject_line(std::string_view aLine);
+		std::string                  RejectedLine;
 		std::vector<std::string>     AssistantIds;
 		std::vector<std::string>     AssistantItems;
 		std::vector<bool>            AssistantComplete;
@@ -560,6 +588,8 @@ namespace bpr::application {
 	};
 
 	[[nodiscard]] auto name(agent_run_outcome aOutcome) noexcept -> std::string_view;
+	/// \brief [[BPR-1827]]. The failure's stable name, for logs and diagnostics.
+	[[nodiscard]] auto name(agent_protocol_failure aFailure) noexcept -> std::string_view;
 
 	struct agent_stream_event
 	{
@@ -597,6 +627,13 @@ namespace bpr::application {
 		std::optional<std::string> ReportedCostUsd;
 		/// Owner look v006. A catalog run's `model/list` result, as written.
 		std::optional<std::string> ModelCatalog;
+		/// [[BPR-1827]]. Every byte the agent wrote to standard output,
+		/// counted whether or not it decoded.
+		std::size_t StandardOutputBytes = 0U;
+		/// [[BPR-1827]]. The start of the first standard-output line this app
+		/// could not read, bounded by `maximum_agent_rejected_line_bytes`, for
+		/// the reviewer's own log only.
+		std::string RejectedOutputLine;
 
 		auto operator<=>(const agent_run_result&) const = default;
 	};

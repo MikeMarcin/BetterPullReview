@@ -1,4 +1,5 @@
 #include "bpr/application/review_tour_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
 #include <algorithm>
 #include <chrono>
@@ -28,6 +29,8 @@ namespace bpr::application {
 		bool                                     Active        = false;
 		bool                                     Started       = false;
 		bool                                     Closing       = false;
+		/// [[BPR-1830]]. May be null.
+		diagnostic_log_port* Log = nullptr;
 		implementation(core::review_tour aSeed, std::unique_ptr<review_tour_store> aStore, effect_executor& aEffects, decision_executor& aDecision, publication aPublish)
 			: Seed{ std::move(aSeed) }
 			, Store{ std::move(aStore) }
@@ -131,9 +134,14 @@ namespace bpr::application {
 		}
 		void observe_imports(std::vector<core::tour_import_candidate> aCandidates)
 		{
-			if (Closing || aCandidates.size() > 64) {
+			if (Closing) {
 				return;
 			}
+			if (aCandidates.size() > 64) {
+				record_operation(Log, { .Action = core::operation_action::tour_observe_imports, .Failure = core::operation_failure::invalid_input, .Count = static_cast<std::uint32_t>(std::min<std::size_t>(aCandidates.size(), 0xffffffffU)) });
+				return;
+			}
+			record_operation(Log, { .Action = core::operation_action::tour_observe_imports, .Count = static_cast<std::uint32_t>(aCandidates.size()) });
 			Imports = std::move(aCandidates);
 			State.ImportChoices.clear();
 			for (const auto& item : Imports) {
@@ -174,27 +182,43 @@ namespace bpr::application {
 				adopt_observation(std::move(retained));
 			}
 		}
+		/// [[BPR-1830]]. One import's end: its refusal and the offered tour's stop count.
+		void record_import(const core::operation_failure aFailure, const operation_stopwatch& aStopwatch, const std::size_t aStops) const noexcept
+		{
+			record_operation(Log, { .Action = core::operation_action::tour_import, .Failure = aFailure, .DurationMilliseconds = aStopwatch.milliseconds(), .Count = static_cast<std::uint32_t>(std::min<std::size_t>(aStops, 0xffffffffU)) });
+		}
 		void import_selected(std::size_t aIndex)
 		{
-			if (Closing || State.Loading || !State.Draft || aIndex >= Imports.size()) {
+			const auto stopwatch = operation_stopwatch{ };
+			if (Closing || State.Loading || !State.Draft) {
+				record_import(core::operation_failure::busy, stopwatch, 0U);
+				return;
+			}
+			if (aIndex >= Imports.size()) {
+				record_import(core::operation_failure::not_offered, stopwatch, 0U);
 				return;
 			}
 			const auto& draft = *State.Draft;
+			const auto  stops = Imports[aIndex].Draft.Stops.size();
 			if (draft.Remote && Imports[aIndex].Draft.Remote && draft.Remote->Entity == Imports[aIndex].Draft.Remote->Entity) {
 				adopt_observation(core::reconcile_tour(draft, Imports[aIndex].Draft));
 				notify();
+				record_import(core::operation_failure::none, stopwatch, stops);
 				return;
 			}
 			if (!draft.Problem.empty() || !draft.Solution.empty() || !draft.Stops.empty() || draft.Remote) {
 				State.ImportNotice = "A private draft already exists. Its text is preserved; importing cannot replace it.";
 				notify();
+				record_import(core::operation_failure::draft_exists, stopwatch, stops);
 				return;
 			}
 			const auto& candidate = Imports[aIndex].Draft;
 			if (candidate.Owner != Seed.Owner || candidate.Head != Seed.Head || candidate.Base != Seed.Base) {
+				record_import(core::operation_failure::target_mismatch, stopwatch, stops);
 				return;
 			}
 			dispatch({ .Draft = draft.Id, .Owner = draft.Owner, .ExpectedRevision = draft.Revision, .Kind = core::tour_command_kind::restore, .Restore = candidate });
+			record_import(State.Refusal != core::tour_refusal::none ? core::operation_failure::refused : core::operation_failure::none, stopwatch, stops);
 		}
 
 		void pump()
@@ -558,6 +582,7 @@ namespace bpr::application {
 	}
 
 	void review_tour_host::start() { Implementation->start(); }
+	void review_tour_host::set_diagnostics(diagnostic_log_port* const aLog) noexcept { Implementation->Log = aLog; }
 	auto review_tour_host::execute(const tour_service_request& aRequest) -> tour_service_result
 	{
 		auto&       self  = *Implementation;
@@ -601,6 +626,7 @@ namespace bpr::application {
 		case tour_service_operation::redo: self.restore(true); break;
 		case tour_service_operation::import_selected:
 			if (aRequest.ImportIndex >= self.Imports.size()) {
+				self.record_import(core::operation_failure::not_offered, operation_stopwatch{ }, 0U);
 				self.DeferringSave = false;
 				return { tour_service_status::refused, core::tour_refusal::invalid_command, revision };
 			}

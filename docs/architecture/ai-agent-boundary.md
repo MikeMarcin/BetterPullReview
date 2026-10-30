@@ -397,7 +397,17 @@ phase is unlocked only after the launcher has written the complete
 later response, delta, or completion before that write is a causal protocol
 failure, even if the preloaded frames would otherwise form a valid transcript.
 Individual frames are limited to 64 KiB, total stdout and retained stderr to
-1 MiB each. The synchronous output sink completes before the launcher reads
+1 MiB each. Claude stream JSON has its own frame and stdout bounds, 16 MiB and
+256 MiB ([[BPR-1827]]): Claude Code echoes every tool result into its
+transcript twice, once as the `tool_result` content and once as
+`tool_use_result`, so one read of a 90 KB source file is a 110 KB line and a
+review that reads a dozen files writes megabytes. A frame is parsed and
+dropped, never retained, and retained assistant text keeps its 1 MiB bound.
+A refused run keeps how many bytes the agent wrote and the first 512 bytes of
+the line refused, for the reviewer's own log; the log names the failure in
+words and shows the last twenty lines of stderr. A child that exits with an
+error mid-line is reported as `nonzero_exit`, not as an unfinished frame.
+The synchronous output sink completes before the launcher reads
 more child output, which makes consumer backpressure part of the contract;
 stderr is drained on every polling pass so a full error pipe cannot deadlock
 stdout. Provisional events carry the exact session ID and an ordered sequence.
@@ -1508,7 +1518,17 @@ where Claude starts and nothing left there outlives the request. The decoder
 refuses, before any text is read, an init frame that reports a tool, an MCP
 server, a plugin or an auto-memory folder, so a plugin a later Claude builds
 in stops the request rather than riding along. It reads past `system` frames
-other than init and `rate_limit_event`, which 2.1.296 writes around a turn. The
+other than init and `rate_limit_event`, which 2.1.296 writes around a turn.
+For every Claude run ([[BPR-1827]], Claude Code 2.1.310) only init,
+`assistant`, `user` and `result` frames carry the turn; any other frame type
+(`hook_started`, `task_summary`, `thinking_tokens`, `post_turn_summary`,
+`stream_event`, `tool_progress`, and those later releases add) is read past
+under the run's session, a `user` frame whose content is one string is read
+past, an init repeated under the same session is read past, and a line that
+does not begin as a JSON object (a wrapper's banner, a blank line) is read
+past. A frame that carries `bprFindings` outside the result, a frame under
+another session, and a line that begins as JSON and does not parse still
+refuse the run. The
 child environment is the profile allowlist, `USER` included (above). Claude
 writes its own state under `HOME` as it does for any run (`~/.claude.json`, an
 empty `~/.claude/sessions`), and in print mode it opens a same-user socket

@@ -1,4 +1,5 @@
 #include "bpr/application/agent_setup_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -40,6 +41,20 @@ namespace bpr::application {
 			}
 			const auto available = maximum_agent_check_detail_bytes - outcome.size();
 			return outcome + output.substr(output.size() > available ? output.size() - available : 0U);
+		}
+
+		/// [[BPR-1828]]. What a check's last process run said, for its
+		/// diagnostic line: counts and an exit code, never its output.
+		struct check_run
+		{
+			core::operation_process Process = core::operation_process::none;
+			std::optional<int>      ExitCode;
+			std::uint32_t           Runs = 0U;
+		};
+
+		[[nodiscard]] auto run_of(const agent_run_result& aResult, const std::uint32_t aRuns) -> check_run
+		{
+			return { .Process = operation_process_of(aResult.Outcome), .ExitCode = aResult.ExitCode, .Runs = aRuns };
 		}
 
 		/// What a check run that did not answer means for the agent row.
@@ -180,6 +195,10 @@ namespace bpr::application {
 
 		void reset_checks()
 		{
+			// [[BPR-1828]]. A check still running is cancelled here.
+			if (Projection.Checking) {
+				record_operation(Dependencies.Log.get(), { .Action = CheckAction, .Failure = core::operation_failure::cancelled, .DurationMilliseconds = CheckWatch.milliseconds() });
+			}
 			++CheckGeneration;
 			Projection.State.AgentCheck = { };
 			Projection.Checking         = false;
@@ -196,11 +215,22 @@ namespace bpr::application {
 			return row == state.Rows.end() || !row->Verdict.Permitted ? nullptr : &*row;
 		}
 
-		void settle_check(const std::uint64_t aGeneration, const core::setup_agent aAgent, core::setup_check aCheck, std::string aDetail)
+		/// [[BPR-1828]]. A check's start: its kind and its stopwatch.
+		void begin_check(const core::operation_action aAction)
+		{
+			CheckAction = aAction;
+			CheckWatch  = operation_stopwatch{ };
+			record_operation(Dependencies.Log.get(), { .Action = aAction }, true);
+		}
+
+		void settle_check(const std::uint64_t aGeneration, const core::setup_agent aAgent, core::setup_check aCheck, std::string aDetail, const check_run aRun = { })
 		{
 			if (aGeneration != CheckGeneration) {
 				return;
 			}
+			const auto failure = aCheck.State == core::setup_check_state::passed ? core::operation_failure::none
+																				 : operation_failure_of(aCheck.Failure.value_or(core::agent_setup_failure::failed_to_start));
+			record_operation(Dependencies.Log.get(), { .Action = CheckAction, .Failure = failure, .Process = aRun.Process, .ExitCode = aRun.Process == core::operation_process::none ? std::nullopt : aRun.ExitCode, .DurationMilliseconds = CheckWatch.milliseconds(), .Count = aRun.Runs });
 			Projection.Checking         = false;
 			Projection.State.AgentCheck = std::move(aCheck);
 			Projection.CheckDetail      = Projection.State.AgentCheck.State == core::setup_check_state::passed ? std::string{ } : std::move(aDetail);
@@ -310,8 +340,11 @@ namespace bpr::application {
 		std::uint64_t                    CheckGeneration   = 0U;
 		std::uint64_t                    ProgramGeneration = 0U;
 		std::stop_source                 CheckStop;
-		std::atomic_bool                 Closing{ false };
-		std::atomic_size_t               Outstanding{ 0U };
+		/// [[BPR-1828]]. The running check's kind and when it started.
+		core::operation_action CheckAction = core::operation_action::agent_status_check;
+		operation_stopwatch    CheckWatch;
+		std::atomic_bool       Closing{ false };
+		std::atomic_size_t     Outstanding{ 0U };
 	};
 
 	agent_setup_host::agent_setup_host(agent_setup_dependencies aDependencies)
@@ -624,7 +657,9 @@ namespace bpr::application {
 			{
 				core::setup_check Check;
 				std::string       Detail;
+				check_run         Run;
 			};
+			host.begin_check(core::operation_action::agent_custom_check);
 			host.off_lane(
 				host.Dependencies.Checks,
 				[inspect = host.Dependencies.Inspect, process = host.Dependencies.Process, path, check = std::move(own), stop = host.CheckStop.get_token()]() mutable {
@@ -637,15 +672,16 @@ namespace bpr::application {
 					}
 					const auto ran = process->run(*check, agent_status_timeout_milliseconds, { }, stop);
 					if (ran.Outcome == agent_run_outcome::success) {
-						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed } };
+						return custom{ .Check = core::setup_check{ .State = core::setup_check_state::passed }, .Run = run_of(ran, 1U) };
 					}
-					return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran) };
+					return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = run_of(ran, 1U) };
 				},
-				[self = Implementation, generation, agent](custom aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail)); });
+				[self = Implementation, generation, agent](custom aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
 			return;
 		}
 		if (agent == core::setup_agent::plain_text_harness) {
 			// No status command: the check is that its program can run now.
+			host.begin_check(core::operation_action::agent_program_check);
 			host.off_lane(
 				host.Dependencies.Effects, [inspect = host.Dependencies.Inspect, path] { return inspect ? inspect(path) : std::optional{ core::agent_wrapper_refusal::missing }; },
 				[self = Implementation, generation, agent](std::optional<core::agent_wrapper_refusal> aRefusal) {
@@ -662,6 +698,7 @@ namespace bpr::application {
 			built->Status.Arguments.insert(built->Status.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());
 			built->Version.Arguments.insert(built->Version.Arguments.begin(), entry->Arguments.begin(), entry->Arguments.end());
 		}
+		host.begin_check(core::operation_action::agent_status_check);
 		if (!built || host.Dependencies.Process == nullptr) {
 			host.settle_check(generation, agent, core::fail_check(core::agent_setup_failure::failed_to_start), std::string{ "status_launch_unavailable" });
 			return;
@@ -670,22 +707,26 @@ namespace bpr::application {
 		{
 			core::setup_check Check;
 			std::string       Detail;
+			check_run         Run;
 		};
 		host.off_lane(
 			host.Dependencies.Checks,
 			[process = host.Dependencies.Process, launches = std::move(*built), agent, stop = host.CheckStop.get_token()]() mutable {
 				const auto status = process->run(launches.Status, agent_status_timeout_milliseconds, { }, stop);
 				if (const auto failure = unanswered(status.Outcome)) {
-					return answer{ .Check = core::fail_check(*failure), .Detail = detail_of(status) };
+					return answer{ .Check = core::fail_check(*failure), .Detail = detail_of(status), .Run = run_of(status, 1U) };
 				}
 				// The version is asked only of a signed-in agent.
 				auto decoded = decode_agent_status(agent, status, agent_run_result{ });
+				auto run     = run_of(status, 1U);
 				if (decoded.Status == core::agent_status::signed_in && !stop.stop_requested()) {
-					decoded = decode_agent_status(agent, status, process->run(launches.Version, agent_status_timeout_milliseconds, { }, stop));
+					const auto version = process->run(launches.Version, agent_status_timeout_milliseconds, { }, stop);
+					decoded            = decode_agent_status(agent, status, version);
+					run                = run_of(version, 2U);
 				}
-				return answer{ .Check = core::apply_status_check(decoded), .Detail = detail_of(status) };
+				return answer{ .Check = core::apply_status_check(decoded), .Detail = detail_of(status), .Run = run };
 			},
-			[self = Implementation, generation, agent](answer aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail)); });
+			[self = Implementation, generation, agent](answer aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
 	}
 
 	void agent_setup_host::stop()

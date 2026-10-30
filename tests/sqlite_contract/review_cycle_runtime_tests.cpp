@@ -3,6 +3,7 @@
 #include "bpr/adapters/sqlite/review_cycle_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/review_cycle_runtime.hpp"
 #include "scratch_root.hpp"
 
@@ -206,11 +207,80 @@ namespace {
 	}
 }
 
+namespace {
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		[[nodiscard]] auto last() const -> std::optional<core::operation_diagnosis> { return core::parse_operation_diagnosis(Events.back().Summary.text()); }
+
+		std::vector<application::diagnostic_event> Events;
+	};
+
+	/// The failure a round line names for a result, as the runtime decides it.
+	template <typename T, typename TRefusal>
+	auto expected_failure(const application::cycle_store_result<T>& aResult, TRefusal aRefusal) -> core::operation_failure
+	{
+		return aResult ? aRefusal(*aResult) : application::operation_failure_of(aResult.error().Failure);
+	}
+
+	/// [[BPR-1830]]. Round grants, granted reads, bundle imports and a call
+	/// refused at shutdown each leave a `cycle.round` line through the real
+	/// store: a write's start, then its end with the typed failure the result
+	/// carries, and never the cycle, its title or the profile's path.
+	void records_round_operations()
+	{
+		tests::sqlite_contract::scratch_root scratch{ "cycle-diagnostics" };
+		auto                                 log     = recording_log{ };
+		auto                                 local   = local_runtime{ scratch.path() };
+		const auto                           subject = local.create(1);
+		local.Runtime.set_diagnostics(&log);
+		local.Runtime.select(subject);
+		expect(local.capture(2, 1, { }, 0).has_value() && log.Events.empty(), "a capture is not a round operation");
+
+		const auto granted = run<application::cycle_grant_result>(local.Lanes, [&](auto aDone) { return local.Runtime.grant_round_selected(operation(3), core::cycle_round_id{ 1 }, true, { }, std::move(aDone)); });
+		expect(log.Events.size() == 2U && log.Events[0].Outcome == application::diagnostic_outcome::started && log.Events[0].Operation == application::diagnostic_operation::cycle_round,
+			   "a grant records its start on the cycle round operation");
+		const auto grantFailure = expected_failure(granted, [](const application::cycle_grant_result& aValue) { return application::operation_failure_of(aValue.Decision); });
+		expect(grantFailure != core::operation_failure::none && log.last() && log.last()->Action == core::operation_action::cycle_round_grant && log.last()->Failure == grantFailure
+				   && log.Events.back().Outcome == application::diagnostic_outcome::failed,
+			   "a grant of a round never frozen ends failed, naming the store's typed failure");
+
+		const auto read = run<application::cycle_granted_round>(local.Lanes, [&](auto aDone) { return local.Runtime.read_granted_round_selected(core::cycle_round_id{ 1 }, { }, std::move(aDone)); });
+		expect(log.Events.size() == 3U && log.last() && log.last()->Action == core::operation_action::cycle_round_read
+				   && log.last()->Failure == expected_failure(read, [](const application::cycle_granted_round& aValue) { return application::operation_failure_of(aValue.Decision); })
+				   && log.last()->Failure != core::operation_failure::none,
+			   "a read records only its end, here refused");
+
+		const auto bundle = run<application::cycle_import_result>(local.Lanes, [&](auto aDone) { return local.Runtime.import_bundle(operation(4), { 'n', 'o', 't' }, std::move(aDone)); });
+		expect(log.Events.size() == 5U && log.last() && log.last()->Action == core::operation_action::cycle_bundle_import
+				   && log.last()->Failure == expected_failure(bundle, [](const application::cycle_import_result& aValue) { return aValue.Refusal ? core::operation_failure::invalid_bundle : core::operation_failure::none; })
+				   && log.last()->Failure != core::operation_failure::none,
+			   "a bundle that is not one is refused with its typed failure");
+
+		local.Runtime.shutdown();
+		expect(!local.Runtime.revoke_round_selected(operation(5), core::cycle_round_id{ 1 }, [](auto) { }), "a closed runtime admits nothing");
+		expect(log.Events.size() == 7U && log.Events.back().Outcome == application::diagnostic_outcome::cancelled && log.last()->Action == core::operation_action::cycle_round_revoke,
+			   "a write refused at shutdown records its start and its cancellation");
+		for (const auto& event : log.Events) {
+			const auto text = event.Summary.text();
+			expect(core::parse_operation_diagnosis(text).has_value() && text.find('/') == std::string_view::npos && text.find("Local module") == std::string_view::npos, "every record is exactly a round line, with no path or title");
+		}
+		local.Lanes.drain();
+	}
+}
+
 int main()
 {
 	initializes_and_operates_without_account_or_agent();
 	switches_subjects_without_crossing_authority();
 	leaves_existing_pull_request_state_untouched();
 	routes_material_by_authority();
+	records_round_operations();
 	return EXIT_SUCCESS;
 }

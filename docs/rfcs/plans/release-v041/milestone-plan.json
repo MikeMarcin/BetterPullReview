@@ -115,7 +115,7 @@
         "Run comprehensive fresh native Release and Debug functional qualification on selected Mac, Windows and Ubuntu26.04 WSL producers after the compilation barrier. Preserve exact failures, skips, Debug performance omissions and matching carried waivers.",
         "Bind all final platform artifacts, corresponding source, SPDX, provenance, fresh security scans and native trust; prepare complete stable publication with exact pending owner decision, upkeep and command quiescence."
       ],
-      "boundary": "User v0.4.1 same prerelease pattern/waivers mandate, revision release-v041-same-preview-waivers-r1. No stable 0.4.1 publication without separate authorization; no extra agents, owner desktop control, old release mutation, credentials changes or unrelated source changes."
+      "boundary": "User v0.4.1 same prerelease pattern/waivers mandate, amended by release-v041-main-refresh-restart-r3 to normally merge actual current canonical and refreshed origin main and restart Mac-first preview. No full Debug/ALL matrix before preview; reconcile changed compilation barrier before long qualification. No stable 0.4.1 publication without separate authorization; no extra agents, owner desktop control, old release mutation or credentials changes."
     }
   ],
   "coverage": "complete",
@@ -124,6 +124,10 @@
     {
       "revision": "release-v041-critical-main-restart-r2/BPR-1833",
       "scope": "Reproducible build-7 Start Review qualification fixture contract restoration; no product policy or later-main runtime import. Original release exits and separate stable decision preserved."
+    },
+    {
+      "revision": "release-v041-main-refresh-restart-r3",
+      "scope": "Direct owner: Then take the other fixes from main and start over with that. Supersedes no-later-main-runtime boundary. Preserve 1833 fixture/pins, N7 MSI0.4.7 floor, original request clock, immutable releases and matching waivers; fresh changed-path readiness/native observations/security/trust and complete forecast before Mac-first preview, Windows next, compilation barrier before long qualification. Changed-source prior qualification is historical."
     }
   ]
 }

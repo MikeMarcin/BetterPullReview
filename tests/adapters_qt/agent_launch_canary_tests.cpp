@@ -714,7 +714,9 @@ namespace {
 				&& fastFailureResult.Events.empty(),
 			"a refusal read in the terminal drain keeps its exact cause");
 
-		auto oversized = request(core::agent_protocol::claude_stream_json);
+		// [[BPR-1827]]. Claude Code's lines carry whole tool results, so its
+		// bound is its own; the generic 64 KiB bound is held on Codex JSONL.
+		auto oversized = request(core::agent_protocol::codex_jsonl_exec);
 		oversized.Arguments.emplace_back("--oversize-frame");
 		const auto oversizedResult = launcher.run(oversized, 20'000);
 		expect(
@@ -722,8 +724,38 @@ namespace {
 					== application::agent_run_outcome::protocol_failure
 				&& oversizedResult.Events.empty()
 				&& oversizedResult.ProtocolFailure
-					== application::agent_protocol_failure::frame_too_large,
-			"an output frame beyond the bound fails without unbounded retention");
+					== application::agent_protocol_failure::frame_too_large
+				&& oversizedResult.StandardOutputBytes > application::maximum_agent_frame_bytes
+				&& oversizedResult.RejectedOutputLine.size() == application::maximum_agent_rejected_line_bytes
+				&& oversizedResult.RejectedOutputLine.starts_with("{\"type\":\"assistant\""),
+			"an output frame beyond the bound fails without unbounded retention, keeping only its bounded start");
+
+		// [[BPR-1827]]. What a current Claude Code writes through a wrapper on
+		// a review that reads files: a banner, hook, task, thinking and
+		// progress frames, tool results past 64 KiB a line and 1 MiB in all.
+		auto transcript = request(core::agent_protocol::claude_stream_json);
+		transcript.Arguments.emplace_back("--current-claude-transcript");
+		const auto transcriptResult = launcher.run(transcript, 60'000);
+		expect(
+			transcriptResult.Outcome == application::agent_run_outcome::success
+				&& !transcriptResult.ProtocolFailure
+				&& transcriptResult.Events.size() == 1U
+				&& transcriptResult.Events.front().Text == "canary-complete"
+				&& transcriptResult.StandardOutputBytes > application::maximum_agent_stdout_bytes
+				&& transcriptResult.RejectedOutputLine.empty()
+				&& transcriptResult.ReportedCostUsd == std::optional<std::string>{ "0.25" },
+			"a current Claude Code transcript with large tool results answers");
+
+		auto cutOff = request(core::agent_protocol::claude_stream_json);
+		cutOff.Arguments.emplace_back("--current-claude-transcript");
+		cutOff.Arguments.emplace_back("--transcript-stops-early");
+		const auto cutOffResult = launcher.run(cutOff, 60'000);
+		expect(
+			cutOffResult.Outcome == application::agent_run_outcome::nonzero_exit
+				&& cutOffResult.ExitCode == std::optional<int>{ 3 }
+				&& cutOffResult.StandardError.find("gateway closed") != std::string::npos
+				&& cutOffResult.StandardOutputBytes > application::maximum_agent_stdout_bytes,
+			"a Claude wrapper that exits with an error mid-line is reported by its exit, not as unreadable");
 
 		// Both byte ceilings report the same cause, so each case is pinned to
 		// the channel it flooded: the stdout course retains no standard error,

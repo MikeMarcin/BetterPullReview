@@ -47,7 +47,9 @@ namespace bpr::adapters::github::detail {
 			.Target            = std::move(aTarget),
 			.ActingIdentity    = std::move(aActingIdentity),
 		};
-		if (!valid(configuration)) {
+		// [[BPR-1826]]. A closed or merged pull request's connection is
+		// admitted; only a thread's resolution compiles under it.
+		if (!valid_identity(configuration)) {
 			return std::unexpected(
 				application::review_mutation_failure::undesignated_target);
 		}

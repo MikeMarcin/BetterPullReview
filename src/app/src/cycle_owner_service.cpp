@@ -40,7 +40,11 @@ namespace bpr::app {
 		try {
 			const auto seed = cycle_operation_seed(run.Operation, run.Step);
 			const auto host = cycle_host{
-				.Open = [&]() -> cycle_result<std::unique_ptr<cycle_session>> { return std::make_unique<cycle_session>(Root, Profile, seed, aCancelled); },
+				.Open = [&]() -> cycle_result<std::unique_ptr<cycle_session>> {
+					auto session = std::make_unique<cycle_session>(Root, Profile, seed, aCancelled);
+					session->runtime().set_diagnostics(Log);
+					return session;
+				},
 				.Draft = aGuard,
 			};
 			result = execute_cycle_command(run, host);

@@ -83,6 +83,10 @@ namespace bpr::app {
 							 std::shared_ptr<const application::claude_process_wrapper_source> aClaudeWrapper = nullptr, application::claude_locator aLocateClaude = { },
 							 std::shared_ptr<const application::agent_program_source> aPrograms = nullptr, application::agent_program_locator aLocatePrograms = { });
 		~review_cycle_desktop() override;
+		/// \brief [[BPR-1830]]. The profile's diagnostic log, for this
+		/// window's Review Cycle round lines; may be null, and must outlive
+		/// the desktop.
+		void set_diagnostics(application::diagnostic_log_port* aLog) noexcept;
 		review_cycle_desktop(const review_cycle_desktop&)                    = delete;
 		auto operator=(const review_cycle_desktop&) -> review_cycle_desktop& = delete;
 		review_cycle_desktop(review_cycle_desktop&&)                         = delete;

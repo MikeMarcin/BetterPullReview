@@ -717,6 +717,8 @@ namespace bpr::app {
 		[[nodiscard]] auto desktop_update_ready() const noexcept -> bool;
 		void               desktop_update_freeze(bool aFreeze);
 		[[nodiscard]] auto desktop_release_account() -> std::optional<release_update_account>;
+		/// \brief [[BPR-1829]]. The profile's diagnostic log, for the desktop-wide updater.
+		[[nodiscard]] auto desktop_diagnostic_log() const -> std::shared_ptr<application::diagnostic_log_port>;
 		/// \brief Borrow the admitted runtime's bounded local activation endpoint.
 		[[nodiscard]] auto desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server>;
 		/// \brief Borrow the admitted runtime's separate versioned tour command endpoint and its owner-lane handler.

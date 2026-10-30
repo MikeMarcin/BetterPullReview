@@ -163,11 +163,16 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
-    # [[BPR-1818]]. Current-source Release passes in the approved Limited
-    # Interactive producer context. Its exact zero-capability replay reports
-    # STARTUP_PROFILE_REFUSAL:registry_unavailable. This is the first observed
-    # refusal, not an inferred Win32 cause or a new containment exception.
+    # [[BPR-1818]]. Prior release-source Release passed in the approved Limited
+    # Interactive producer context. Its exact zero-capability replay reported
+    # STARTUP_PROFILE_REFUSAL:registry_unavailable. Preserve that measurement;
+    # the merged-source candidate still requires its fresh native replay.
     "application_reviewer_request_contract": "startup-registry-unavailable",
+    # [[BPR-1826]]. The same composed fixture startup as
+    # application_thread_resolution_refresh; registered on macOS.
+    "application_closed_thread_resolution": "unmeasured (registered on macOS)",
+    # [[BPR-1831]]. Opens owner-private SQLite stores like every sqlite_* row.
+    "sqlite_storage_diagnostics": "unmeasured (registered on macOS)",
     "mimalloc_app_bpr": "qt-dll-initialization",
     "mimalloc_app_better_pull_review": "qt-dll-initialization",
     "mimalloc_disabled_redirect": "qt-dll-initialization",

@@ -3,6 +3,7 @@
 #include "../../native/windows_private_storage.hpp"
 #include "sqlite_connection.hpp"
 #include "state_directory.hpp"
+#include "storage_diagnostics_internal.hpp"
 #include "storage_internal.hpp"
 
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -3873,103 +3874,116 @@ namespace bpr::adapters::sqlite::detail {
 #endif
 	}
 
+	namespace {
+		auto open_admitted_private_store_database(state_directory& aDirectory, const std::string_view aName, const int aFlags)
+			-> std::expected<::sqlite3*, state_directory_failure>
+		{
+			if (auto admitted = admit_private_store_file(aDirectory, aName); !admitted) {
+				return std::unexpected(admitted.error());
+			}
+			try {
+				const auto path = aDirectory.path() / std::filesystem::path{ std::u8string{ aName.begin(), aName.end() } };
+#if defined(BPR_SQLITE_TESTING)
+				if (const auto checkpoint = PrivateStoreOpenCheckpoint.load(std::memory_order_acquire); checkpoint != nullptr) {
+					checkpoint(testing::private_store_open_stage::admitted, path);
+				}
+#endif
+				// UTF-8 on every platform: SQLite's Windows VFS converts it to UTF-16,
+				// while a narrow `path.string()` is the ANSI code page there and cannot
+				// name a root outside it.
+				const auto encoded = path.u8string();
+				const auto native  = std::string{ reinterpret_cast<const char*>(encoded.data()), encoded.size() };
+				// [[BPR-0841]]. The connection is owned from the moment SQLite hands
+				// it back, so every failure path closes it, an exception included; on
+				// Windows an unclosed connection keeps the store file held.
+				struct connection_owner final
+				{
+					::sqlite3* Value                                     = nullptr;
+					connection_owner()                                   = default;
+					connection_owner(const connection_owner&)            = delete;
+					connection_owner& operator=(const connection_owner&) = delete;
+					~connection_owner()
+					{
+						if (Value != nullptr) {
+							(void)::sqlite3_close_v2(Value);
+						}
+					}
+				};
+				auto       owned    = connection_owner{ };
+				auto&      database = owned.Value;
+				const auto close    = [&database] {
+					if (database != nullptr) {
+						(void)::sqlite3_close_v2(database);
+						database = nullptr;
+					}
+				};
+#if defined(_WIN32)
+				const auto* vfs = "win32-longpath";
+#else
+				const auto* vfs = static_cast<const char*>(nullptr);
+#endif
+				if (::sqlite3_open_v2(native.c_str(), &database, aFlags, vfs) != SQLITE_OK || database == nullptr) {
+					close();
+					return std::unexpected(state_directory_failure::unavailable);
+				}
+#if defined(BPR_SQLITE_TESTING)
+				if (const auto checkpoint = PrivateStoreOpenCheckpoint.load(std::memory_order_acquire); checkpoint != nullptr) {
+					checkpoint(testing::private_store_open_stage::opened, path);
+				}
+#endif
+				if (auto restricted = restrict_private_store_file(aDirectory, aName); !restricted) {
+					close();
+					return std::unexpected(restricted.error());
+				}
+#if defined(_WIN32)
+				// SQLite's default VFS opens by path and follows a reparse point
+				// (SQLITE_OPEN_NOFOLLOW has no effect there), so admission and the
+				// path-based restriction above describe the name, not necessarily the
+				// file SQLite holds. Bind the held handle to the name.
+				auto&      opened = aDirectory.handles();
+				HANDLE     held   = INVALID_HANDLE_VALUE;
+				const auto name   = opened.Path / std::filesystem::path{ std::wstring{ aName.begin(), aName.end() } };
+				if (::sqlite3_file_control(database, "main", SQLITE_FCNTL_WIN32_GET_HANDLE, &held) != SQLITE_OK
+					|| held == nullptr || held == INVALID_HANDLE_VALUE) {
+					close();
+					return std::unexpected(state_directory_failure::invalid_path);
+				}
+				const auto heldIdentity = identity_of(held, windows_object_kind::regular_file);
+				const auto heldPrivate  = heldIdentity
+					? validate_private_security(held, opened.Security, windows_object_kind::regular_file)
+					: std::expected<void, failure>{ std::unexpected(heldIdentity.error()) };
+				const auto heldNamed    = heldPrivate
+					? path_matches_handle(held, name)
+					: std::expected<void, failure>{ std::unexpected(heldPrivate.error()) };
+				const auto current      = heldNamed
+					? open_private_object(name, windows_object_kind::regular_file, opened.Security)
+					: std::expected<private_windows_object, failure>{ std::unexpected(heldNamed.error()) };
+				if (!current || current->Identity != *heldIdentity) {
+					close();
+					return std::unexpected(current ? state_directory_failure::invalid_path : as_state_directory_failure(current.error()));
+				}
+#endif
+				return std::exchange(database, nullptr);
+			} catch (const std::bad_alloc&) {
+				return std::unexpected(state_directory_failure::unavailable);
+			} catch (const std::system_error&) {
+				// [[BPR-0841]]. `path::u8string()` throws for a Windows name that is
+				// not valid UTF-16, such as a lone surrogate. Such a root cannot be
+				// named to SQLite, which is an ordinary refusal, not a crash.
+				return std::unexpected(state_directory_failure::invalid_path);
+			}
+		}
+	} // namespace
+
 	auto open_private_store_database(state_directory& aDirectory, const std::string_view aName, const int aFlags)
 		-> std::expected<::sqlite3*, state_directory_failure>
 	{
-		if (auto admitted = admit_private_store_file(aDirectory, aName); !admitted) {
-			return std::unexpected(admitted.error());
+		// [[BPR-1831]]. A store refused before its connection is a failed open.
+		auto opened = open_admitted_private_store_database(aDirectory, aName, aFlags);
+		if (!opened) {
+			note_storage_refused(aName, as_catalog_failure(opened.error()));
 		}
-		try {
-			const auto path = aDirectory.path() / std::filesystem::path{ std::u8string{ aName.begin(), aName.end() } };
-#if defined(BPR_SQLITE_TESTING)
-			if (const auto checkpoint = PrivateStoreOpenCheckpoint.load(std::memory_order_acquire); checkpoint != nullptr) {
-				checkpoint(testing::private_store_open_stage::admitted, path);
-			}
-#endif
-			// UTF-8 on every platform: SQLite's Windows VFS converts it to UTF-16,
-			// while a narrow `path.string()` is the ANSI code page there and cannot
-			// name a root outside it.
-			const auto encoded = path.u8string();
-			const auto native  = std::string{ reinterpret_cast<const char*>(encoded.data()), encoded.size() };
-			// [[BPR-0841]]. The connection is owned from the moment SQLite hands
-			// it back, so every failure path closes it, an exception included; on
-			// Windows an unclosed connection keeps the store file held.
-			struct connection_owner final
-			{
-				::sqlite3* Value                                     = nullptr;
-				connection_owner()                                   = default;
-				connection_owner(const connection_owner&)            = delete;
-				connection_owner& operator=(const connection_owner&) = delete;
-				~connection_owner()
-				{
-					if (Value != nullptr) {
-						(void)::sqlite3_close_v2(Value);
-					}
-				}
-			};
-			auto       owned    = connection_owner{ };
-			auto&      database = owned.Value;
-			const auto close    = [&database] {
-				if (database != nullptr) {
-					(void)::sqlite3_close_v2(database);
-					database = nullptr;
-				}
-			};
-#if defined(_WIN32)
-			const auto* vfs = "win32-longpath";
-#else
-			const auto* vfs = static_cast<const char*>(nullptr);
-#endif
-			if (::sqlite3_open_v2(native.c_str(), &database, aFlags, vfs) != SQLITE_OK || database == nullptr) {
-				close();
-				return std::unexpected(state_directory_failure::unavailable);
-			}
-#if defined(BPR_SQLITE_TESTING)
-			if (const auto checkpoint = PrivateStoreOpenCheckpoint.load(std::memory_order_acquire); checkpoint != nullptr) {
-				checkpoint(testing::private_store_open_stage::opened, path);
-			}
-#endif
-			if (auto restricted = restrict_private_store_file(aDirectory, aName); !restricted) {
-				close();
-				return std::unexpected(restricted.error());
-			}
-#if defined(_WIN32)
-			// SQLite's default VFS opens by path and follows a reparse point
-			// (SQLITE_OPEN_NOFOLLOW has no effect there), so admission and the
-			// path-based restriction above describe the name, not necessarily the
-			// file SQLite holds. Bind the held handle to the name.
-			auto&      opened = aDirectory.handles();
-			HANDLE     held   = INVALID_HANDLE_VALUE;
-			const auto name   = opened.Path / std::filesystem::path{ std::wstring{ aName.begin(), aName.end() } };
-			if (::sqlite3_file_control(database, "main", SQLITE_FCNTL_WIN32_GET_HANDLE, &held) != SQLITE_OK
-				|| held == nullptr || held == INVALID_HANDLE_VALUE) {
-				close();
-				return std::unexpected(state_directory_failure::invalid_path);
-			}
-			const auto heldIdentity = identity_of(held, windows_object_kind::regular_file);
-			const auto heldPrivate  = heldIdentity
-				? validate_private_security(held, opened.Security, windows_object_kind::regular_file)
-				: std::expected<void, failure>{ std::unexpected(heldIdentity.error()) };
-			const auto heldNamed    = heldPrivate
-				? path_matches_handle(held, name)
-				: std::expected<void, failure>{ std::unexpected(heldPrivate.error()) };
-			const auto current      = heldNamed
-				? open_private_object(name, windows_object_kind::regular_file, opened.Security)
-				: std::expected<private_windows_object, failure>{ std::unexpected(heldNamed.error()) };
-			if (!current || current->Identity != *heldIdentity) {
-				close();
-				return std::unexpected(current ? state_directory_failure::invalid_path : as_state_directory_failure(current.error()));
-			}
-#endif
-			return std::exchange(database, nullptr);
-		} catch (const std::bad_alloc&) {
-			return std::unexpected(state_directory_failure::unavailable);
-		} catch (const std::system_error&) {
-			// [[BPR-0841]]. `path::u8string()` throws for a Windows name that is
-			// not valid UTF-16, such as a lone surrogate. Such a root cannot be
-			// named to SQLite, which is an ordinary refusal, not a crash.
-			return std::unexpected(state_directory_failure::invalid_path);
-		}
+		return opened;
 	}
 
 	auto private_store_database_failure(const state_directory_failure aFailure) noexcept -> failure

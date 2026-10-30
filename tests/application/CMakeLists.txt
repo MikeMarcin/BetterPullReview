@@ -200,6 +200,15 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_application_github_credential_vault_tests
 )
 
+# [[BPR-1829]]. Credential vault diagnostics records and every sign-in,
+# vault and updater failure's line.
+bpr_add_executable(test_credential_vault_diagnostics credential_vault_diagnostics_tests.cpp)
+target_link_libraries(test_credential_vault_diagnostics PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_credential_vault_diagnostics)
+bpr_enable_warnings(test_credential_vault_diagnostics)
+bpr_add_network_isolated_test(NAME application_credential_vault_diagnostics COMMAND test_credential_vault_diagnostics)
+set_tests_properties(application_credential_vault_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "credential-vault-diagnostics-tests:pass" TIMEOUT 30)
+
 bpr_add_executable(
     test_better_pull_review_application_git_protocol_v2_tests
     git_protocol_v2_tests.cpp
@@ -966,6 +975,33 @@ bpr_enable_hardening(test_release_maintenance_host)
 bpr_enable_warnings(test_release_maintenance_host)
 bpr_add_network_isolated_test(NAME application_release_maintenance COMMAND test_release_maintenance_host)
 set_tests_properties(application_release_maintenance PROPERTIES TIMEOUT 30)
+
+# [[BPR-1828]]. Review mutation and agent workspace diagnostics records.
+bpr_add_executable(test_operation_diagnostics operation_diagnostics_tests.cpp)
+target_link_libraries(test_operation_diagnostics PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_operation_diagnostics)
+bpr_enable_warnings(test_operation_diagnostics)
+bpr_add_network_isolated_test(NAME application_operation_diagnostics COMMAND test_operation_diagnostics)
+set_tests_properties(application_operation_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "operation-diagnostics-tests:pass" TIMEOUT 30)
+
+# [[BPR-1831]]. Clone scan, image and avatar fetch and notification diagnostics records.
+bpr_add_executable(test_host_operation_diagnostics host_operation_diagnostics_tests.cpp)
+target_link_libraries(test_host_operation_diagnostics PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_host_operation_diagnostics)
+bpr_enable_warnings(test_host_operation_diagnostics)
+bpr_add_network_isolated_test(NAME application_host_operation_diagnostics COMMAND test_host_operation_diagnostics)
+set_tests_properties(application_host_operation_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "host-operation-diagnostics-tests:pass" TIMEOUT 30)
+
+# [[BPR-1830]]. MCP helper, tour import and typed tour and round failure records.
+bpr_add_executable(test_helper_tour_round_diagnostics helper_tour_round_diagnostics_tests.cpp)
+target_link_libraries(test_helper_tour_round_diagnostics PRIVATE BetterPullReview::Application)
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    target_compile_definitions(test_helper_tour_round_diagnostics PRIVATE BPR_TEST_MCP_SUPERVISOR=1)
+endif()
+bpr_enable_hardening(test_helper_tour_round_diagnostics)
+bpr_enable_warnings(test_helper_tour_round_diagnostics)
+bpr_add_network_isolated_test(NAME application_helper_tour_round_diagnostics COMMAND test_helper_tour_round_diagnostics)
+set_tests_properties(application_helper_tour_round_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "helper-tour-round-diagnostics-tests:pass" TIMEOUT 30)
 
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_better_pull_review_agent_chat_reply_tests agent_chat_reply_tests.cpp)

@@ -1,4 +1,5 @@
 #include "bpr/application/device_authorization_application_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <limits>
@@ -322,12 +323,58 @@ namespace bpr::application {
 
 		void apply(const core::device_authorization_event& aEvent)
 		{
-			auto output = core::transition(State, aEvent);
+			const auto before = State.Stage;
+			auto       output = core::transition(State, aEvent);
+			observe_flow(before);
 			execute(output);
 			publish(output);
 			if (output.Status.has_value()) {
 				release_flow_deadline();
 			}
+		}
+
+		// -- diagnostics ([[BPR-1829]]) --------------------------------------
+
+		[[nodiscard]] auto since(const std::chrono::milliseconds aStart) noexcept -> std::uint32_t
+		{
+			const auto elapsed = (now() - aStart).count();
+			return elapsed <= 0 ? 0U : static_cast<std::uint32_t>(std::min<long long>(elapsed, std::numeric_limits<std::uint32_t>::max()));
+		}
+
+		// A flow starts when the core asks for a device code and ends at its
+		// first terminal stage.
+		void observe_flow(const core::device_authorization_stage aBefore) noexcept
+		{
+			if (State.Stage == aBefore) {
+				return;
+			}
+			if (State.Stage == core::device_authorization_stage::requested) {
+				FlowStarted = now();
+				FlowPolls   = 0U;
+				record_operation(Log.get(), { .Action = core::operation_action::device_sign_in }, true);
+				return;
+			}
+			if (core::terminal(State.Stage)) {
+				record_operation(Log.get(), { .Action = core::operation_action::device_sign_in, .Failure = operation_failure_of(State.Stage, State.TerminalReason), .DurationMilliseconds = FlowStarted ? since(*FlowStarted) : 0U, .Count = FlowPolls });
+				FlowStarted.reset();
+			}
+		}
+
+		void begin_renewal() noexcept
+		{
+			RenewalStarted = now();
+			record_operation(Log.get(), { .Action = core::operation_action::token_renewal }, true);
+		}
+
+		// `aOnlyStarted` ends nothing when no attempt is running: a cancelled
+		// or released renewal that never began is not an operation.
+		void end_renewal(const core::operation_failure aFailure, const bool aOnlyStarted = false) noexcept
+		{
+			if (aOnlyStarted && !RenewalStarted) {
+				return;
+			}
+			record_operation(Log.get(), { .Action = core::operation_action::token_renewal, .Failure = aFailure, .DurationMilliseconds = RenewalStarted ? since(*RenewalStarted) : 0U });
+			RenewalStarted.reset();
 		}
 
 		void execute(const core::device_authorization_transition_output& aOutput)
@@ -684,6 +731,7 @@ namespace bpr::application {
 			}
 
 			Schedule->record_poll(aElapsedSeconds);
+			++FlowPolls;
 			++Outstanding;
 			Transport->exchange_device_token(
 				device_token_exchange{
@@ -967,6 +1015,7 @@ namespace bpr::application {
 				PendingAccess.reset();
 				Enrollment->enroll_grant(RefreshAuthority->Profile, std::move(access), Lifetime, true);
 				++Refresh.Rotations;
+				end_renewal(core::operation_failure::none, true);
 			}
 			schedule_refresh();
 		}
@@ -1084,6 +1133,7 @@ namespace bpr::application {
 			}
 			Refresh.State   = device_authorization_refresh_state::refreshing;
 			Refresh.Failure = device_authorization_refresh_failure::none;
+			begin_renewal();
 
 			const auto context     = mint_vault_context();
 			RefreshRetrieveContext = context;
@@ -1129,6 +1179,7 @@ namespace bpr::application {
 			if (std::holds_alternative<github_credential_retrieve_cancelled>(
 					aCompletion)) {
 				Refresh.State = device_authorization_refresh_state::idle;
+				end_renewal(core::operation_failure::cancelled, true);
 				return;
 			}
 			auto* success = std::get_if<github_credential_retrieve_success>(
@@ -1186,6 +1237,7 @@ namespace bpr::application {
 			if (std::holds_alternative<device_authorization_transport_cancelled>(
 					aCompletion)) {
 				Refresh.State = device_authorization_refresh_state::idle;
+				end_renewal(core::operation_failure::cancelled, true);
 				return;
 			}
 			if (const auto* error = std::get_if<device_authorization_transport_error>(&aCompletion); error != nullptr && retryable(error->Failure)) {
@@ -1195,6 +1247,7 @@ namespace bpr::application {
 					if (schedule_timer(timer_purpose::refresh, wait)) {
 						Refresh.State   = device_authorization_refresh_state::scheduled;
 						Refresh.Failure = device_authorization_refresh_failure::transport_failed;
+						end_renewal(core::operation_failure::transport_failed, true);
 						return;
 					}
 				}
@@ -1226,6 +1279,7 @@ namespace bpr::application {
 			PendingAccess.reset();
 			Enrollment->enroll_grant(RefreshAuthority->Profile, std::move(access), Lifetime, true);
 			++Refresh.Rotations;
+			end_renewal(core::operation_failure::none, true);
 			schedule_refresh();
 		}
 
@@ -1256,6 +1310,7 @@ namespace bpr::application {
 			Refresh.State  = device_authorization_refresh_state::
 				reenrollment_required;
 			Refresh.Failure = aFailure;
+			end_renewal(operation_failure_of(aFailure));
 		}
 
 		// -- timer ---------------------------------------------------------
@@ -1485,6 +1540,7 @@ namespace bpr::application {
 			RefreshBindingPrecedesFlow = false;
 			Refresh.State              = device_authorization_refresh_state::idle;
 			Refresh.Failure            = device_authorization_refresh_failure::none;
+			end_renewal(core::operation_failure::cancelled, true);
 		}
 
 		void erase_flow_transients() noexcept
@@ -1557,11 +1613,16 @@ namespace bpr::application {
 
 		std::optional<core::device_authorization_request_context> Flow;
 		std::optional<device_authorization_schedule>              Schedule;
-		std::chrono::milliseconds                                 GrantedAt{ 0 };
-		std::optional<github_credential_material>                 DeviceCode;
-		std::string                                               UserCode;
-		std::string                                               VerificationUri;
-		std::uint32_t                                             ConsecutiveFailures = 0U;
+		// [[BPR-1829]]. Where sign-in lines go, and what they time and count.
+		std::shared_ptr<diagnostic_log_port>      Log;
+		std::optional<std::chrono::milliseconds>  FlowStarted;
+		std::uint32_t                             FlowPolls = 0U;
+		std::optional<std::chrono::milliseconds>  RenewalStarted;
+		std::chrono::milliseconds                 GrantedAt{ 0 };
+		std::optional<github_credential_material> DeviceCode;
+		std::string                               UserCode;
+		std::string                               VerificationUri;
+		std::uint32_t                             ConsecutiveFailures = 0U;
 
 		std::optional<github_credential_authority_key>            RefreshAuthority;
 		core::github_identity_generation                          RefreshIdentityGeneration;
@@ -1843,6 +1904,11 @@ namespace bpr::application {
 		-> bool
 	{
 		return Implementation->Outstanding == 0U && !Implementation->TimerArmed;
+	}
+
+	void device_authorization_application_host::set_diagnostic_log(std::shared_ptr<diagnostic_log_port> aLog)
+	{
+		Implementation->Log = std::move(aLog);
 	}
 
 	auto device_authorization_application_host::projection_delivery_failed()

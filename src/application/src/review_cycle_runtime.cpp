@@ -1,5 +1,7 @@
 #include "bpr/application/review_cycle_runtime.hpp"
 
+#include "bpr/application/operation_diagnostics.hpp"
+
 #include <algorithm>
 #include <array>
 #include <deque>
@@ -15,6 +17,24 @@ namespace bpr::application {
 		auto refused_selection() -> cycle_store_error
 		{
 			return cycle_store_error{ .Failure = cycle_store_failure::refused, .Refusal = core::cycle_refusal::invalid_identity };
+		}
+
+		/// [[BPR-1830]]. Why an answered response was not appended.
+		auto response_failure(const cycle_response_result& aResult) noexcept -> core::operation_failure
+		{
+			return aResult.Read   ? core::operation_failure::read_failed
+				: aResult.Decode  ? core::operation_failure::malformed_response
+				: aResult.Refusal ? core::operation_failure::refused
+								  : core::operation_failure::none;
+		}
+
+		/// [[BPR-1830]]. Why an answered export was not given.
+		auto export_failure(const cycle_share_output& aOutput) noexcept -> core::operation_failure
+		{
+			if (aOutput.Decision != core::cycle_authorization::allowed) {
+				return operation_failure_of(aOutput.Decision);
+			}
+			return aOutput.Refusal ? core::operation_failure::refused : core::operation_failure::none;
 		}
 	}
 
@@ -50,6 +70,8 @@ namespace bpr::application {
 		};
 
 		std::unique_ptr<review_cycle_store> Store;
+		/// [[BPR-1830]]. Where round lines go; may be null.
+		diagnostic_log_port* Log = nullptr;
 		/// Created on first use; used only by work on the effect lane, which
 		/// runs one call at a time.
 		std::shared_ptr<review_cycle_comparison_host> Comparisons;
@@ -126,6 +148,31 @@ namespace bpr::application {
 			return true;
 		}
 
+		/// \brief [[BPR-1830]]. `submit`, with the call's `cycle.round` line:
+		/// a write's start, then its end, its failure from the store's error
+		/// or, for an answer that refuses, from `aRefusal`.
+		template <typename T, typename TWork, typename TRefusal>
+		auto submit_observed(const core::operation_action aAction, const bool aWrite, TWork aWork, completion<T> aDone, TRefusal aRefusal, const review_cycle_call aKind = review_cycle_call::write,
+							 const bool aLasting = false) -> bool
+		{
+			if (Log == nullptr) {
+				return submit<T>(std::move(aWork), std::move(aDone), aKind, aLasting);
+			}
+			if (aWrite) {
+				record_operation(Log, { .Action = aAction }, true);
+			}
+			auto observed = [log = Log, aAction, stopwatch = operation_stopwatch{ }, done = std::move(aDone), refusal = std::move(aRefusal)](cycle_store_result<T> aResult) mutable {
+				const auto failure = aResult ? refusal(*aResult) : operation_failure_of(aResult.error().Failure);
+				record_operation(log, { .Action = aAction, .Failure = failure, .DurationMilliseconds = stopwatch.milliseconds() });
+				done(std::move(aResult));
+			};
+			const auto accepted = submit<T>(std::move(aWork), std::move(observed), aKind, aLasting);
+			if (!accepted && aWrite) {
+				record_operation(Log, { .Action = aAction, .Failure = core::operation_failure::cancelled });
+			}
+			return accepted;
+		}
+
 		/// Runs the call on `aLane`.
 		template <typename T, typename TWork>
 		void dispatch(TWork aWork, completion<T> aDone, const std::optional<std::uint64_t> aGeneration, std::stop_token aToken, effect_executor& aLane, const bool aLaned)
@@ -190,6 +237,11 @@ namespace bpr::application {
 	review_cycle_runtime::~review_cycle_runtime()
 	{
 		shutdown();
+	}
+
+	void review_cycle_runtime::set_diagnostics(diagnostic_log_port* const aLog) noexcept
+	{
+		Implementation->Log = aLog;
 	}
 
 	auto review_cycle_runtime::select(core::review_subject aSubject) -> std::uint64_t
@@ -530,13 +582,11 @@ namespace bpr::application {
 	{
 		const auto subject = Implementation->selected_cycle();
 		auto       host    = subject ? Implementation->comparisons(subject->Authority) : nullptr;
-		return Implementation->submit<cycle_round_freeze_result>([subject, host, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result> {
+		return Implementation->submit_observed<cycle_round_freeze_result>(core::operation_action::cycle_round_freeze, true, [subject, host, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_round_freeze_result> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return freeze_cycle_round(aStore, *host, *subject, request, aStop);
-		},
-																 std::move(aDone));
+			return freeze_cycle_round(aStore, *host, *subject, request, aStop); }, std::move(aDone), [](const cycle_round_freeze_result& aResult) { return aResult.Refusal ? core::operation_failure::refused : core::operation_failure::none; });
 	}
 
 	auto review_cycle_runtime::read_round_selected(const core::cycle_round_id aRound, completion<cycle_frozen_round> aDone) -> bool
@@ -591,7 +641,7 @@ namespace bpr::application {
 	auto review_cycle_runtime::import_response_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, cycle_response_file_reader aRead, completion<cycle_response_result> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_response_result>([subject, aOperation, aRound, read = std::move(aRead)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_response_result> {
+		return Implementation->submit_observed<cycle_response_result>(core::operation_action::cycle_response_import, true, [subject, aOperation, aRound, read = std::move(aRead)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_response_result> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
@@ -602,9 +652,7 @@ namespace bpr::application {
 			if (!bytes) {
 				return cycle_response_result{ .Read = bytes.error() };
 			}
-			return import_cycle_response(aStore, *subject, aRound, *bytes, aOperation, aStop);
-		},
-															 std::move(aDone));
+			return import_cycle_response(aStore, *subject, aRound, *bytes, aOperation, aStop); }, std::move(aDone), response_failure);
 	}
 
 	auto review_cycle_runtime::attach_reply_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, core::cycle_manual_reply aReply, completion<cycle_response_result> aDone) -> bool
@@ -728,26 +776,22 @@ namespace bpr::application {
 	auto review_cycle_runtime::export_round_selected(cycle_round_export_request aRequest, completion<cycle_share_output> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_share_output>([subject, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_share_output> {
+		return Implementation->submit_observed<cycle_share_output>(core::operation_action::cycle_round_export, false, [subject, request = std::move(aRequest)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_share_output> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return export_frozen_round(aStore, *subject, request, aStop);
-		},
-														  std::move(aDone));
+			return export_frozen_round(aStore, *subject, request, aStop); }, std::move(aDone), export_failure);
 	}
 
 	auto review_cycle_runtime::export_round_to_file_selected(cycle_round_export_request aRequest, std::shared_ptr<cycle_export_destination> aDestination, std::string aName,
 															 std::optional<core::cycle_material_digest> aConfirmed, cycle_operation_id aRecord, completion<cycle_file_share> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_file_share>([subject, request = std::move(aRequest), destination = std::move(aDestination), name = std::move(aName), aConfirmed, aRecord](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_file_share> {
+		return Implementation->submit_observed<cycle_file_share>(core::operation_action::cycle_round_export, true, [subject, request = std::move(aRequest), destination = std::move(aDestination), name = std::move(aName), aConfirmed, aRecord](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_file_share> {
 			if (!subject || !destination) {
 				return std::unexpected(refused_selection());
 			}
-			return export_frozen_round_to_file(aStore, *subject, request, *destination, name, aConfirmed, aRecord, aStop);
-		},
-														std::move(aDone));
+			return export_frozen_round_to_file(aStore, *subject, request, *destination, name, aConfirmed, aRecord, aStop); }, std::move(aDone), [](const cycle_file_share& aShare) { const auto refused = export_failure(aShare.Output); return refused != core::operation_failure::none ? refused : aShare.Failure ? core::operation_failure::unavailable : core::operation_failure::none; });
 	}
 
 	auto review_cycle_runtime::record_delivery_selected(cycle_operation_id aOperation, core::cycle_delivery_observation aObservation, completion<cycle_write_receipt> aDone) -> bool
@@ -764,10 +808,7 @@ namespace bpr::application {
 
 	auto review_cycle_runtime::record_send(core::local_cycle_subject aSubject, cycle_send_record aRecord, completion<cycle_send_recorded> aDone) -> bool
 	{
-		return Implementation->submit<cycle_send_recorded>([aSubject, record = std::move(aRecord)](review_cycle_store& aStore, std::stop_token aStop) {
-			return application::record_send(aStore, aSubject, record, aStop);
-		},
-														   std::move(aDone), review_cycle_call::write, true);
+		return Implementation->submit_observed<cycle_send_recorded>(core::operation_action::cycle_round_send, true, [aSubject, record = std::move(aRecord)](review_cycle_store& aStore, std::stop_token aStop) { return application::record_send(aStore, aSubject, record, aStop); }, std::move(aDone), [](const cycle_send_recorded& aRecorded) { return aRecorded.Response ? response_failure(*aRecorded.Response) : core::operation_failure::none; }, review_cycle_call::write, true);
 	}
 
 	auto review_cycle_runtime::note_context_selected(const core::cycle_feedback_item_id aItem, const std::size_t aContext, const std::size_t aRows, completion<review_cycle_note_context> aDone)
@@ -819,25 +860,21 @@ namespace bpr::application {
 													completion<cycle_grant_result> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_grant_result>([subject, aOperation, aRound, aReadOnly, imposed = std::move(aImposed)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_grant_result> {
+		return Implementation->submit_observed<cycle_grant_result>(core::operation_action::cycle_round_grant, true, [subject, aOperation, aRound, aReadOnly, imposed = std::move(aImposed)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_grant_result> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return grant_cycle_round(aStore, *subject, aRound, aReadOnly, imposed, aOperation, aStop);
-		},
-														  std::move(aDone));
+			return grant_cycle_round(aStore, *subject, aRound, aReadOnly, imposed, aOperation, aStop); }, std::move(aDone), [](const cycle_grant_result& aResult) { return operation_failure_of(aResult.Decision); });
 	}
 
 	auto review_cycle_runtime::revoke_round_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, completion<cycle_grant_result> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_grant_result>([subject, aOperation, aRound](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_grant_result> {
+		return Implementation->submit_observed<cycle_grant_result>(core::operation_action::cycle_round_revoke, true, [subject, aOperation, aRound](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_grant_result> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return revoke_cycle_round(aStore, *subject, aRound, aOperation, aStop);
-		},
-														  std::move(aDone));
+			return revoke_cycle_round(aStore, *subject, aRound, aOperation, aStop); }, std::move(aDone), [](const cycle_grant_result& aResult) { return operation_failure_of(aResult.Decision); });
 	}
 
 	auto review_cycle_runtime::grants_selected(completion<std::vector<core::cycle_round_grant>> aDone) -> bool
@@ -855,26 +892,23 @@ namespace bpr::application {
 	auto review_cycle_runtime::read_granted_round_selected(const core::cycle_round_id aRound, core::cycle_disclosure_policy aImposed, completion<cycle_granted_round> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_granted_round>([subject, aRound, imposed = std::move(aImposed)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_granted_round> {
+		return Implementation->submit_observed<cycle_granted_round>(core::operation_action::cycle_round_read, false, [subject, aRound, imposed = std::move(aImposed)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_granted_round> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return read_granted_round(aStore, *subject, aRound, imposed, aStop);
-		},
-														   std::move(aDone));
+			return read_granted_round(aStore, *subject, aRound, imposed, aStop); }, std::move(aDone), [](const cycle_granted_round& aResult) { return operation_failure_of(aResult.Decision); });
 	}
 
 	auto review_cycle_runtime::append_granted_response_selected(cycle_operation_id aOperation, const core::cycle_round_id aRound, cycle_response_file_reader aRead,
 																completion<cycle_granted_response> aDone) -> bool
 	{
 		const auto subject = Implementation->selected_cycle();
-		return Implementation->submit<cycle_granted_response>([subject, aOperation, aRound, read = std::move(aRead)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_granted_response> {
+		return Implementation->submit_observed<cycle_granted_response>(core::operation_action::cycle_round_respond, true, [subject, aOperation, aRound, read = std::move(aRead)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_granted_response> {
 			if (!subject) {
 				return std::unexpected(refused_selection());
 			}
-			return append_granted_response(aStore, *subject, aRound, read, aOperation, aStop);
-		},
-															  std::move(aDone));
+			return append_granted_response(aStore, *subject, aRound, read, aOperation, aStop); }, std::move(aDone), [](const cycle_granted_response& aResult) { return aResult.Decision != core::cycle_authorization::allowed ? operation_failure_of(aResult.Decision) : aResult.Result ? response_failure(*aResult.Result)
+																																																																																																																			 : core::operation_failure::none; });
 	}
 
 	auto review_cycle_runtime::disclosure_policy(completion<core::cycle_disclosure_policy> aDone) -> bool
@@ -905,10 +939,7 @@ namespace bpr::application {
 
 	auto review_cycle_runtime::import_bundle(cycle_operation_id aOperation, std::vector<std::uint8_t> aBundle, completion<cycle_import_result> aDone) -> bool
 	{
-		return Implementation->submit<cycle_import_result>([aOperation, bundle = std::move(aBundle)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_import_result> {
-			return import_round_bundle(aStore, aOperation, bundle, aStop);
-		},
-														   std::move(aDone));
+		return Implementation->submit_observed<cycle_import_result>(core::operation_action::cycle_bundle_import, true, [aOperation, bundle = std::move(aBundle)](review_cycle_store& aStore, std::stop_token aStop) -> cycle_store_result<cycle_import_result> { return import_round_bundle(aStore, aOperation, bundle, aStop); }, std::move(aDone), [](const cycle_import_result& aResult) { return aResult.Refusal ? core::operation_failure::invalid_bundle : core::operation_failure::none; });
 	}
 
 	auto review_cycle_runtime::imports(const std::optional<core::cycle_import_id> aAfter, completion<cycle_import_page> aDone) -> bool
