@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1818"
 title: "Restore four native review public contracts"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1819"]
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v041-same-preview-waivers-r1", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Corrected public Review gesture preserves unread preference and independent Overview snapshot; initialOverview off/off negative assertion retained. MacfocusedPASS and freshcurrentWindows+Ubuntu publicReview contractsPASS.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC2","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Corrected public People/search/keyboard reopen path preserves exactlyone write/request and alreadyrequested refusal. Mac/UbuntufreshpubliccoursePASS; nativeWindowsordinaryPASS and exactcontainedrefusal retained, separateapp/helper bytes unchanged acrosscurrentfixtureproof.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC3","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Exacte508Markdownfixture nativecompile/link/private+installedRelease/standardDebug publicPASS all3platforms; everybody-cache/privacy/reference/negative/later assertion preserved, originaldeadlineunchanged.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC4","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Narrow allcomments accessiblewording correction includedN6product; exactcurrentWindows+Ubuntuthreadword publiccoursePASS and MacfocusedPASS; preservedvocabularynegativecontrols and exemptions.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}},{"criterion":"AC5","outcome":"pass","revision":"712460774c52dad86eb7ed5f8ef62c3b4fea1963","evidence":{"kind":"observation","detail":"Exacthistoricalcomparisons, currentnativefocusedproofs, image/header/library/source bridges retained; Mac994otherimages, Windows974otherPE, Ubuntu975otherimages unchanged at their actualN6/N0 identities, onlyprovenfixtureoutputsinstalled. Correctedfullmanifests/containmentPASS; no fullsuitecredit or oldfailureerasure.","externalState":"/Users/jaeger/.codex/release-runs/v0.4.1-20261029"}}]
 ---
 
 # Restore four native review public contracts
@@ -175,3 +176,36 @@ That gate is not claimed passing merely because the repaired Markdown course
 passes. Final frozen input rechecks and the complete corrected native manifest
 remain pending. Frozen published build 6 and every original failure are
 unchanged; qualification repairs are aggregated before another producer cohort.
+
+
+## Native repair acceptance, 2026-10-30
+
+The final committed Markdown fixture passes actual native Release and standard
+Debug one-TU compilation, private linking, the complete public course and the
+course after installation on Mac, Windows and Ubuntu. Its existing semantic
+wait, original course deadline, zero body work, full reference attribution,
+unknown-reference controls and later assertions remain intact. Windows and
+Ubuntu compile the exact current fixture blob; Mac's earlier proven fixture
+blob is byte-identical. Every bridge binds the unchanged N6 product inputs and
+retains the original test images. No retained image is relabeled as a new
+numbered build.
+
+The two other modes hosted by the newly installed Windows Release fixture
+image, review behaviour and thread wording, now pass fresh. The separate
+reviewer-request application's prior ordinary native PASS and exact contained
+refusal remain bound to unchanged app/helper bytes. Ubuntu's remaining three
+public contracts also pass fresh. Mac's nine focused critical-picker and
+repaired-public courses remain accepted for the exact unchanged runtime inputs.
+The corrected complete native manifests and containment guards now pass under
+BPR-1825, with the original source, invocation failures, platform skips,
+interrupted N4 work and every raw failing result retained separately.
+
+Current external receipts are `successor-windows-markdown-proofs-r1-local`,
+`successor-windows-public-contracts-r1-local`,
+`successor-ubuntu-prerequisites-r2-local`,
+`successor-ubuntu-public-contracts-r1-local`,
+`mac-functional-source-bridge-r1.json`, and
+`critical-main-mac-readiness-r1`. Windows's original reviewer classification and
+all earlier raw results remain in the producer's retained run state. These
+complete this repair's focused native obligations. Comprehensive qualification,
+true successor production and publication remain BPR-1811 obligations.
