@@ -89,6 +89,27 @@ namespace bpr::application {
 
 	auto valid(const review_mutation_target_binding& aBinding) noexcept -> bool
 	{
+		return valid_identity(aBinding) && aBinding.Open;
+	}
+
+	auto valid_for(const review_mutation_target_binding& aBinding, const core::pull_request_change aChange) noexcept -> bool
+	{
+		return valid_identity(aBinding) && core::pull_request_change_permitted(aChange, aBinding.Open);
+	}
+
+	auto capabilities_for(const review_mutation_target_binding& aBinding, review_provider_capabilities aCapabilities) noexcept -> review_provider_capabilities
+	{
+		using change                    = core::pull_request_change;
+		aCapabilities.ResolvesThreads   = aCapabilities.ResolvesThreads && core::pull_request_change_permitted(change::thread_resolution, aBinding.Open);
+		aCapabilities.Reacts            = aCapabilities.Reacts && core::pull_request_change_permitted(change::reaction, aBinding.Open);
+		aCapabilities.EditsDescription  = aCapabilities.EditsDescription && core::pull_request_change_permitted(change::description_edit, aBinding.Open);
+		aCapabilities.EditsComments     = aCapabilities.EditsComments && core::pull_request_change_permitted(change::comment_edit, aBinding.Open);
+		aCapabilities.RequestsReviewers = aCapabilities.RequestsReviewers && core::pull_request_change_permitted(change::reviewer_request, aBinding.Open);
+		return aCapabilities;
+	}
+
+	auto valid_identity(const review_mutation_target_binding& aBinding) noexcept -> bool
+	{
 		return aBinding.Semantic.Host.value() != 0U
 			&& aBinding.Semantic.Repository.value() != 0U
 			&& aBinding.Semantic.PullRequest.value() != 0U
@@ -107,7 +128,7 @@ namespace bpr::application {
 			&& (!aBinding.ComparisonBaseOid.valid()
 				|| (aBinding.ComparisonBaseOid.algorithm() == aBinding.BaseOid.algorithm() && aBinding.ComparisonBaseOid != aBinding.BaseOid))
 			&& bounded_text(aBinding.BaseRef, 256U)
-			&& bounded_text(aBinding.HeadRef, 256U) && aBinding.Open;
+			&& bounded_text(aBinding.HeadRef, 256U);
 	}
 
 	auto valid(const review_mutation_acting_identity& aIdentity) noexcept -> bool

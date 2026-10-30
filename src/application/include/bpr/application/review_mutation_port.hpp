@@ -284,9 +284,26 @@ namespace bpr::application {
 		auto operator<=>(const review_mutation_live_binding&) const = default;
 	};
 
-	/// \brief Checks the complete target binding contract.
+	/// \brief Checks the complete target binding contract, an open pull
+	/// request included: what a comment, a reply, a review, a reaction, an
+	/// edit or a reviewer request is written under.
 	[[nodiscard]] auto valid(
 		const review_mutation_target_binding& aBinding) noexcept -> bool;
+	/// \brief [[BPR-1826]]. Checks the binding's identity alone, whatever the
+	/// pull request's state: the connection a closed or merged pull request
+	/// is composed with.
+	[[nodiscard]] auto valid_identity(
+		const review_mutation_target_binding& aBinding) noexcept -> bool;
+	/// \brief [[BPR-1826]]. Whether the binding takes this change: its
+	/// identity is valid and the core permits the change in the pull
+	/// request's state (`core::pull_request_change_permitted`).
+	[[nodiscard]] auto valid_for(
+		const review_mutation_target_binding& aBinding, core::pull_request_change aChange) noexcept -> bool;
+	/// \brief [[BPR-1826]]. What a provider's capabilities become for this
+	/// binding: on a closed or merged pull request only a thread's resolution
+	/// remains.
+	[[nodiscard]] auto capabilities_for(
+		const review_mutation_target_binding& aBinding, review_provider_capabilities aCapabilities) noexcept -> review_provider_capabilities;
 	/// \brief Checks the complete acting-identity binding contract.
 	[[nodiscard]] auto valid(
 		const review_mutation_acting_identity& aIdentity) noexcept -> bool;

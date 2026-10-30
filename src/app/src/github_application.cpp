@@ -692,11 +692,19 @@ namespace bpr::app {
 		// request field by field before launch, and
 		// select_designated_review_mutation above refuses unless every identity
 		// equals a compile-time constant.
+		//
+		// [[BPR-1826]]. With `aAdmitClosed` a closed or merged pull request is
+		// selected too, its binding saying it is not open: the write
+		// connection composed for it resolves and unresolves threads and
+		// writes nothing else (`application::valid_for`). Every other caller
+		// still asks for an open pull request.
 		[[nodiscard]] auto select_observed_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff,
-			const application::github_pull_request_snapshot&  aSnapshot)
+			const application::github_pull_request_snapshot&  aSnapshot,
+			const bool                                        aAdmitClosed = false)
 			-> std::optional<designated_review_mutation_selection>
 		{
+			const auto open = aSnapshot.PullRequest.State == application::github_pull_request_state::open;
 			const auto base = core::parse_git_commit_oid(
 				aSnapshot.PullRequest.BaseOid.value());
 			const auto head = core::parse_git_commit_oid(
@@ -712,8 +720,7 @@ namespace bpr::app {
 				|| aSnapshot.PullRequest.PullRequest != aHandoff.PullRequest
 				|| aSnapshot.PullRequest.Repository != aHandoff.Repository
 				|| aSnapshot.PullRequest.Number != aHandoff.Number
-				|| aSnapshot.PullRequest.State
-					!= application::github_pull_request_state::open) {
+				|| (!open && !aAdmitClosed)) {
 				return std::nullopt;
 			}
 			auto selection = designated_review_mutation_selection{
@@ -736,7 +743,7 @@ namespace bpr::app {
 					.BaseOid                  = *base,
 					.BaseRef                  = aSnapshot.PullRequest.BaseRef,
 					.HeadRef                  = aSnapshot.PullRequest.HeadRef,
-					.Open                     = true,
+					.Open                     = open,
 					.ComparisonBaseOid        = application::distinct_comparison_base(application::recorded_base(aHandoff), aHandoff.Base),
 				},
 				.ActingIdentity = {
@@ -746,7 +753,7 @@ namespace bpr::app {
 					.Login      = aSnapshot.Viewer.Login,
 				},
 			};
-			return application::valid(selection.Target)
+			return application::valid_identity(selection.Target)
 					&& application::valid(selection.ActingIdentity)
 				? std::optional{ std::move(selection) }
 				: std::nullopt;
@@ -14584,17 +14591,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 
 		/// [[BPR-1824]]. Why this session's accepted read cannot have its
 		/// threads resolved before any write connection is asked: a public
-		/// preview, a closed or merged pull request, or no connection yet.
+		/// preview, or no connection yet. [[BPR-1826]]. A closed or merged
+		/// pull request is composed a connection that resolves threads.
 		[[nodiscard]] auto thread_resolution_connection_refusal() const -> core::thread_resolution_refusal
 		{
 			if (Host != nullptr
 				&& std::holds_alternative<core::anonymous_intent_refused>(
 					Host->public_preview_legality(core::anonymous_read_intent::resolve_review_thread))) {
 				return core::thread_resolution_refusal::anonymous_read;
-			}
-			if (WindowRead && WindowRead->accepted_snapshot()
-				&& WindowRead->accepted_snapshot()->PullRequest.State != application::github_pull_request_state::open) {
-				return core::thread_resolution_refusal::pull_request_closed;
 			}
 			if (ReviewMutationHost == nullptr || !InlineReviewBinding) {
 				return core::thread_resolution_refusal::no_write_connection;
@@ -14611,7 +14615,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			const auto binding = WindowRead && WindowRead->accepted_snapshot()
-				? select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot())
+				? select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot(), true)
 				: std::nullopt;
 			const auto scope   = core::conversation_mutation_scope{
 				.Session            = aHandoff.ApplicationSession,
@@ -14686,7 +14690,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return;
 			}
 			auto selection = select_observed_review_mutation(
-				aHandoff, *WindowRead->accepted_snapshot());
+				aHandoff, *WindowRead->accepted_snapshot(), true);
 			if (!selection.has_value()) {
 				return;
 			}
@@ -14718,7 +14722,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			auto selection = AttendedReviewMutationMode
 				? select_designated_review_mutation(aHandoff, *WindowRead->accepted_snapshot())
-				: select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot());
+				: select_observed_review_mutation(aHandoff, *WindowRead->accepted_snapshot(), true);
 			if (!selection.has_value()) {
 				LiveReviewMutationGrant.reset();
 				return;
@@ -14773,6 +14777,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 #endif
 			if (ReviewMutationHost == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr) {
+				return;
+			}
+			// [[BPR-1826]]. A closed or merged pull request's connection
+			// resolves and unresolves threads and nothing else: its host
+			// offers no other capability, and no draft is published from it.
+			if (InlineReviewBinding && !InlineReviewBinding->Target.Open) {
+				Window->set_thread_resolution_provider(ReviewMutationHost->capabilities().ResolvesThreads);
+				present_reviewer_offer();
+				present_description_offer();
+				present_comment_edit_offer();
 				return;
 			}
 			if (!ensure_shared_drafts(aHandoff)) {
@@ -15526,7 +15540,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Resolved        = aGesture.Resolved,
 				.Resolve         = aGesture.Resolve,
 				.ViewerPermitted = permitted,
-				.PullRequestOpen = connection != core::thread_resolution_refusal::pull_request_closed,
 				.WriteConnection = connection != core::thread_resolution_refusal::no_write_connection && ReviewMutationHost != nullptr,
 			});
 
@@ -26944,6 +26957,33 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return aApplication.Implementation->Fixture != nullptr
 			? aApplication.Implementation->Fixture->review_mutation_evidence()
 			: detail::review_mutation_fixture_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::thread_resolution_evidence(
+		const github_application& aApplication) noexcept
+		-> detail::thread_resolution_fixture_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		auto              evidence       = detail::thread_resolution_fixture_evidence{ };
+		if (implementation == nullptr) {
+			return evidence;
+		}
+		evidence.Gestures    = implementation->ThreadResolutionGestures;
+		evidence.Refusals    = implementation->ThreadResolutionRefusals;
+		evidence.Completions = implementation->ThreadResolutionCompletions;
+		evidence.Failures    = implementation->ThreadResolutionFailures;
+		if (implementation->ReviewMutationHost == nullptr) {
+			return evidence;
+		}
+		const auto capabilities    = implementation->ReviewMutationHost->capabilities();
+		evidence.HostComposed      = true;
+		evidence.BindingOpen       = implementation->InlineReviewBinding && implementation->InlineReviewBinding->Target.Open;
+		evidence.ResolvesThreads   = capabilities.ResolvesThreads;
+		evidence.Reacts            = capabilities.Reacts;
+		evidence.EditsDescription  = capabilities.EditsDescription;
+		evidence.EditsComments     = capabilities.EditsComments;
+		evidence.RequestsReviewers = capabilities.RequestsReviewers;
+		return evidence;
 	}
 
 	auto detail::github_application_fixture_access::notification_tray(

@@ -648,14 +648,21 @@ namespace {
 		using refusal = core::thread_resolution_refusal;
 		expect(view.resolution_refusal() == refusal::no_write_connection && !view.resolution_offered(),
 			   "before a write connection is composed the cards say there is none");
-		for (const auto reason : { refusal::anonymous_read, refusal::pull_request_closed, refusal::no_write_connection, refusal::capability_absent }) {
+		for (const auto reason : { refusal::anonymous_read, refusal::no_write_connection, refusal::capability_absent }) {
 			view.set_resolution_refusal(reason);
 			const auto [enabled, tip, text] = resolveAction("other");
 			expect(!enabled && tip == qt::thread_resolution_refusal_text(reason, true) && !tip.isEmpty() && !tip.contains(QStringLiteral("not available")),
 				   "a pull request's reason is the disabled Resolve's own words");
 		}
-		expect(qt::thread_resolution_refusal_text(refusal::pull_request_closed, true).contains(QStringLiteral("closed")),
-			   "a closed pull request says it is closed");
+		// [[BPR-1826]]. No refusal names a closed pull request: its threads
+		// resolve, and no reason sends the reviewer to GitHub's page for it.
+		for (const auto reason : { refusal::anonymous_read, refusal::capability_absent, refusal::not_permitted, refusal::already_in_state,
+								   refusal::no_write_connection, refusal::not_a_review_thread }) {
+			for (const auto resolve : { true, false }) {
+				expect(!qt::thread_resolution_refusal_text(reason, resolve).contains(QStringLiteral("closed")),
+					   "no resolution refusal says the pull request is closed");
+			}
+		}
 		view.set_resolution_refusal(refusal::none);
 		QApplication::processEvents();
 		{

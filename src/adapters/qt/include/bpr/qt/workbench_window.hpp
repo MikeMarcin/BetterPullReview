@@ -774,7 +774,7 @@ namespace bpr::qt {
 		/// the server's capability this is what offers Resolve on the cards.
 		void set_thread_resolution_provider(bool aResolves);
 		/// \brief [[BPR-1824]]. Why the composition cannot resolve this pull
-		/// request's threads (sign-in, closed, no write connection), or `none`
+		/// request's threads (sign-in, no write connection), or `none`
 		/// with `aResolves` naming whether its provider resolves threads.
 		void set_thread_resolution_connection(core::thread_resolution_refusal aRefusal, bool aResolves);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
