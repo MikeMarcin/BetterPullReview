@@ -57,6 +57,10 @@ namespace bpr::qt {
 	/// \brief [[BPR-1746]]. Why a thread takes no reply, in the words
 	/// the card and the drawer show; empty for a refusal GitHub did not make.
 	[[nodiscard]] auto thread_reply_refusal_text(core::thread_reply_refusal aRefusal) -> QString;
+	/// \brief [[BPR-1824]]. Why a thread cannot be resolved (or, with
+	/// `aResolve` false, reopened), in the words the menu and the panel show;
+	/// empty for `none`.
+	[[nodiscard]] auto thread_resolution_refusal_text(core::thread_resolution_refusal aRefusal, bool aResolve) -> QString;
 	class feedback_label_controls;
 
 	/// \brief Which threads the notes show.
@@ -752,6 +756,10 @@ namespace bpr::qt {
 		/// provider and the server both resolve threads.
 		void               set_resolution_offered(bool aOffered);
 		[[nodiscard]] auto resolution_offered() const noexcept -> bool;
+		/// \brief [[BPR-1824]]. Why the whole pull request's threads cannot be
+		/// resolved, or `none`; the menu says it rather than "unavailable".
+		void               set_resolution_refusal(core::thread_resolution_refusal aRefusal);
+		[[nodiscard]] auto resolution_refusal() const noexcept -> core::thread_resolution_refusal;
 		/// \brief The unread threads of the whole pull request, in file order.
 		///
 		/// \details [[BPR-0972]]. Decided once per adopted forest or read
@@ -1102,6 +1110,7 @@ namespace bpr::qt {
 		bool                                                            ReadStateKnown    = false;
 		bool                                                            Feed              = false;
 		bool                                                            ResolutionOffered = false;
+		core::thread_resolution_refusal                                 ResolutionRefusal = core::thread_resolution_refusal::no_write_connection;
 		std::map<std::string, core::reaction_summary>                   ReactionsBySubject;
 		std::map<std::string, thread_resolution_presentation>           ResolutionsByThread;
 		std::function<void(const std::string&, core::reaction_content)> ReactionDispatch;

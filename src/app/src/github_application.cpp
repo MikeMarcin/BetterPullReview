@@ -28,6 +28,7 @@
 #include "bpr/core/reviewer_request.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/event_loop_metrics.hpp"
 #include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/insights_window.hpp"
@@ -14581,6 +14582,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			retire_reviewer_picker();
 		}
 
+		/// [[BPR-1824]]. Why this session's accepted read cannot have its
+		/// threads resolved before any write connection is asked: a public
+		/// preview, a closed or merged pull request, or no connection yet.
+		[[nodiscard]] auto thread_resolution_connection_refusal() const -> core::thread_resolution_refusal
+		{
+			if (Host != nullptr
+				&& std::holds_alternative<core::anonymous_intent_refused>(
+					Host->public_preview_legality(core::anonymous_read_intent::resolve_review_thread))) {
+				return core::thread_resolution_refusal::anonymous_read;
+			}
+			if (WindowRead && WindowRead->accepted_snapshot()
+				&& WindowRead->accepted_snapshot()->PullRequest.State != application::github_pull_request_state::open) {
+				return core::thread_resolution_refusal::pull_request_closed;
+			}
+			if (ReviewMutationHost == nullptr || !InlineReviewBinding) {
+				return core::thread_resolution_refusal::no_write_connection;
+			}
+			return core::thread_resolution_refusal::none;
+		}
+
 		void compose_review_mutation(
 			const application::accepted_pull_request_handoff& aHandoff)
 		{
@@ -14643,6 +14664,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			refresh_agent_private_context_choices();
 			publish_preflight_selection();
 			ReviewProjection.clear();
+			// [[BPR-1824]]. Until a write connection is composed below the
+			// cards say why Resolve cannot go, not that it is "unavailable".
+			if (Window != nullptr) {
+				Window->set_thread_resolution_connection(thread_resolution_connection_refusal(), false);
+			}
 #if defined(BPR_BUILD_TESTING)
 			if (Fixture == nullptr || Window == nullptr
 				|| Window->review_editor() == nullptr || WorkbenchHost == nullptr
@@ -15471,8 +15497,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		void resolve_review_thread(const qt::thread_resolution_gesture& aGesture)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
-			if (Closing || Window == nullptr || ReviewMutationHost == nullptr
-				|| !aGesture.Identity.starts_with(prefix)) {
+			if (Closing || Window == nullptr || !aGesture.Identity.starts_with(prefix)) {
 				return;
 			}
 			auto* const panel  = Window->conversation_panel();
@@ -15486,6 +15511,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				&& std::holds_alternative<core::anonymous_intent_refused>(Host->public_preview_legality(
 					aGesture.Resolve ? core::anonymous_read_intent::resolve_review_thread
 									 : core::anonymous_read_intent::unresolve_review_thread));
+			// [[BPR-1824]]. Whether a connection writes to this pull request;
+			// a selected diff is not asked for, so Discuss resolves with no
+			// file open.
+			const auto connection = thread_resolution_connection_refusal();
 			// [[BPR-1741]]. GitHub's own word on whether this viewer may
 			// resolve (or reopen) the thread, from the accepted read.
 			const auto* const thread    = accepted_thread(aGesture.Identity);
@@ -15497,30 +15526,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				.Resolved        = aGesture.Resolved,
 				.Resolve         = aGesture.Resolve,
 				.ViewerPermitted = permitted,
+				.PullRequestOpen = connection != core::thread_resolution_refusal::pull_request_closed,
+				.WriteConnection = connection != core::thread_resolution_refusal::no_write_connection && ReviewMutationHost != nullptr,
 			});
 
 			++ThreadResolutionGestures;
-			switch (refusal) {
-			case core::thread_resolution_refusal::anonymous_read:
+			if (refusal != core::thread_resolution_refusal::none) {
 				++ThreadResolutionRefusals;
-				notice(QStringLiteral("Sign in to resolve threads; a public preview only reads."));
+				notice(qt::thread_resolution_refusal_text(refusal, aGesture.Resolve));
 				return;
-			case core::thread_resolution_refusal::capability_absent:
-				++ThreadResolutionRefusals;
-				notice(QStringLiteral("This server has not said it resolves threads."));
-				return;
-			case core::thread_resolution_refusal::not_permitted:
-				++ThreadResolutionRefusals;
-				notice(aGesture.Resolve ? QStringLiteral("GitHub does not let you resolve this conversation.")
-										: QStringLiteral("GitHub does not let you unresolve this conversation."));
-				return;
-			case core::thread_resolution_refusal::already_in_state:
-				++ThreadResolutionRefusals;
-				notice(aGesture.Resolve ? QStringLiteral("This thread is already resolved.")
-										: QStringLiteral("This thread is already open."));
-				return;
-			case core::thread_resolution_refusal::none:
-				break;
 			}
 			if (core::resolution_in_flight(ConversationOverlay, aGesture.Identity)) {
 				++ThreadResolutionRefusals;
@@ -15554,6 +15568,38 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 		}
 
+		/// [[BPR-1824]]. What stopped a resolution GitHub was asked for, or
+		/// that the host refused before asking, and what to do about it.
+		[[nodiscard]] static auto thread_resolution_failure_text(const application::review_mutation_failure aFailure, const bool aResolve) -> QString
+		{
+			using failure   = application::review_mutation_failure;
+			const auto verb = aResolve ? QStringLiteral("resolved") : QStringLiteral("reopened");
+			switch (aFailure) {
+			case failure::refused_by_server:
+			case failure::target_unavailable:
+				return QStringLiteral("GitHub refused, so the thread was not %1. Your account may lack write access to the repository, or the thread is gone.").arg(verb);
+			case failure::target_moved:
+			case failure::undesignated_target:
+			case failure::stale_head:
+				return QStringLiteral("The pull request changed since it was read, so the thread was not %1. Refresh, then try again.").arg(verb);
+			case failure::unsupported:
+				return QStringLiteral("This connection cannot change threads, so the thread was not %1. Use the pull request's page on GitHub.").arg(verb);
+			case failure::credential_unavailable:
+			case failure::credential_tool_failed:
+				return QStringLiteral("No GitHub sign-in was available, so the thread was not %1. Sign in again, then try again.").arg(verb);
+			case failure::cancelled:
+				return QStringLiteral("Stopped before GitHub answered; the thread was not %1.").arg(verb);
+			case failure::not_confirmed:
+				return QStringLiteral("GitHub does not show the thread %1, and the change was not sent twice. Refresh to see its state.").arg(verb);
+			case failure::malformed_response:
+				return QStringLiteral("GitHub's answer could not be read, so it is not known whether the thread was %1. Refresh to see its state.").arg(verb);
+			case failure::unavailable:
+				return QStringLiteral("GitHub could not be reached, or another change to this pull request is still being sent, so the thread was not %1. Try again.").arg(verb);
+			default:
+				return QStringLiteral("The thread was not %1 (%2).").arg(verb, QString::fromUtf8(application::name(aFailure)));
+			}
+		}
+
 		void publish_resolution(const application::review_thread_resolution_terminal& aTerminal) override
 		{
 			if (Closing || Window == nullptr) {
@@ -15570,10 +15616,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				++ThreadResolutionFailures;
 
 				if (panel != nullptr) {
-					panel->present_notice(QStringLiteral("The thread could not be %1: %2.")
-											  .arg(aTerminal.Request.Resolve ? QStringLiteral("resolved")
-																			 : QStringLiteral("reopened"),
-												   QString::fromUtf8(application::name(aTerminal.Result.error()))));
+					panel->present_notice(thread_resolution_failure_text(aTerminal.Result.error(), aTerminal.Request.Resolve));
 				}
 				return;
 			}
@@ -15632,13 +15675,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			// [[BPR-1745]]. A reply bound to its thread is published
 			// without a selected diff; the accepted handoff names the session
 			// and pull request the grant binds to.
-			const auto threadReply = aTestingRequest && aTestingRequest->ThreadReply;
+			// [[BPR-1824]]. So is every gesture that is no inline comment: a
+			// resolution, a reaction, an edit or a reviewer request. Before,
+			// they waited on a selected diff, and from Discuss with no file
+			// open GitHub was never asked: "could not be resolved: unavailable".
+			const auto onSelectedDiff = aTestingRequest && !aTestingRequest->ThreadReply;
 			if (AttendedReviewMutationMode || !Host || !WindowRead->accepted_snapshot()
 				|| !InlineReviewBinding || WorkbenchHost == nullptr
-				|| (!SelectedDiffPublication.has_value() && !(threadReply && LastAcceptedHandoff))) {
+				|| (onSelectedDiff ? !SelectedDiffPublication.has_value() : !LastAcceptedHandoff)) {
 				return grant;
 			}
-			const auto  authority = SelectedDiffPublication.has_value() && !threadReply ? SelectedDiffPublication->Request.WorkbenchAuthority : workbench_authority(*LastAcceptedHandoff);
+			const auto  authority = onSelectedDiff ? SelectedDiffPublication->Request.WorkbenchAuthority : workbench_authority(*LastAcceptedHandoff);
 			const auto& snapshot  = *WindowRead->accepted_snapshot();
 			// Reuse the accepted handoff binding retained by the host composition.
 			if (snapshot.Account != authority.Account
@@ -33535,10 +33582,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.ReplyUnderThread) {
 				return fail("reply-not-under-thread parent=" + parent.toStdString());
 			}
+			// [[BPR-1824]]. Resolve in Discuss with no file open: the diff
+			// selection goes first, and GitHub is still asked. Before, the
+			// grant waited on a selected diff and the thread "could not be
+			// resolved: unavailable".
+			implementation->clear_diff_selection();
+			if (implementation->SelectedDiffPublication.has_value()) {
+				return fail("diff-selection-kept");
+			}
 			window->choose_modality(qt::review_modality::discuss);
 			QCoreApplication::processEvents();
 			if (!press(qt::card_action::resolve)) {
-				return fail("no-resolve-action offered=" + std::to_string(cards->resolution_offered() ? 1 : 0));
+				return fail("no-resolve-action refusal=" + std::to_string(static_cast<int>(cards->resolution_refusal())));
 			}
 			probe.Evidence.ResolveAsked = true;
 			probe.Phase                 = state_type::phase::awaiting_resolved;

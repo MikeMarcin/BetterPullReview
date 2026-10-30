@@ -298,6 +298,46 @@ namespace {
 			   "and after the server's capability");
 	}
 
+	// [[BPR-1824]]. Every refusal names its own reason. A closed or merged
+	// pull request, a missing write connection and a conversation that is no
+	// review thread each say so, and none of them waits on a selected diff:
+	// the input carries none.
+	void test_a_thread_resolution_names_why_it_cannot_go()
+	{
+		using core::decide_thread_resolution;
+		using core::thread_resolution_refusal;
+		const auto allowed = core::thread_resolution_input{
+			.Capability = core::github_capability_state::supported, .Resolved = false, .Resolve = true
+		};
+		auto comment          = allowed;
+		comment.ReviewThread  = false;
+		comment.AnonymousRead = true;
+		expect(decide_thread_resolution(comment) == thread_resolution_refusal::not_a_review_thread,
+			   "a pull request comment has nothing to resolve, whoever reads it");
+		auto closed            = allowed;
+		closed.PullRequestOpen = false;
+		closed.WriteConnection = false;
+		expect(decide_thread_resolution(closed) == thread_resolution_refusal::pull_request_closed,
+			   "a closed or merged pull request says so before the missing connection");
+		auto anonymousClosed          = closed;
+		anonymousClosed.AnonymousRead = true;
+		expect(decide_thread_resolution(anonymousClosed) == thread_resolution_refusal::anonymous_read,
+			   "signing in comes first");
+		auto unconnected            = allowed;
+		unconnected.WriteConnection = false;
+		unconnected.Capability      = core::github_capability_state::unknown;
+		expect(decide_thread_resolution(unconnected) == thread_resolution_refusal::no_write_connection,
+			   "no write connection is named before the server's capability");
+		auto otherAuthor = allowed;
+		expect(decide_thread_resolution(otherAuthor) == thread_resolution_refusal::none,
+			   "a thread another account wrote resolves when GitHub permits it");
+		auto unresolve     = allowed;
+		unresolve.Resolve  = false;
+		unresolve.Resolved = true;
+		expect(decide_thread_resolution(unresolve) == thread_resolution_refusal::none,
+			   "and unresolves the same way");
+	}
+
 	[[nodiscard]] auto commit(const std::uint8_t aSeed) -> core::git_commit_oid
 	{
 		// A sha1 oid occupies the first twenty bytes and requires the rest to
@@ -665,6 +705,7 @@ auto main() -> int
 	test_illegal_commands_carry_their_own_reason();
 	test_a_proposal_exists_only_while_publishing();
 	test_a_thread_resolution_is_refused_for_exactly_four_reasons();
+	test_a_thread_resolution_names_why_it_cannot_go();
 	test_an_unchanged_target_publishes();
 	test_a_moved_head_stops_the_publication_until_acknowledged();
 	test_a_changed_target_can_never_be_acknowledged_away();

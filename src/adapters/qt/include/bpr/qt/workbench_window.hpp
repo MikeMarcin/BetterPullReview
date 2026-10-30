@@ -24,6 +24,7 @@
 #include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
+#include "bpr/core/review_round_trip.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -772,6 +773,10 @@ namespace bpr::qt {
 		/// \brief [[BPR-0657]]. Whether the composed provider resolves threads; with
 		/// the server's capability this is what offers Resolve on the cards.
 		void set_thread_resolution_provider(bool aResolves);
+		/// \brief [[BPR-1824]]. Why the composition cannot resolve this pull
+		/// request's threads (sign-in, closed, no write connection), or `none`
+		/// with `aResolves` naming whether its provider resolves threads.
+		void set_thread_resolution_connection(core::thread_resolution_refusal aRefusal, bool aResolves);
 		void set_defect_dispatch(workbench_defect_dispatch aDefectDispatch);
 		void set_agent_dispatch(agent_intent_dispatch aAgentDispatch);
 		/// \brief [[BPR-1179]]. Takes every agent control off this window for its life.
@@ -3077,7 +3082,9 @@ namespace bpr::qt {
 		int                                            PendingReplyTries = 0;
 		void                                           write_pending_reply();
 		workbench_reaction_dispatch                    ReactionDispatch;
-		bool                                           ProviderResolvesThreads = false;
+		bool                                           ProviderResolvesThreads    = false;
+		core::thread_resolution_refusal                ThreadResolutionConnection = core::thread_resolution_refusal::no_write_connection;
+		void                                           present_thread_resolution_offer();
 		core::github_capabilities                      Capabilities;
 		// [[BPR-0661]].
 		review_behaviour_dispatch                 BehaviourDispatch;
