@@ -1,5 +1,7 @@
 #include "bpr/application/release_diagnostic_snapshot.hpp"
+#include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/core/discovery_diagnosis.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/core/review_submission_unknown.hpp"
 #include "bpr/core/sha256.hpp"
 
@@ -128,9 +130,9 @@ namespace bpr::application {
 			if (!fields || ((*fields)[0] != "2" && (*fields)[0] != "3")) {
 				return std::nullopt;
 			}
-			// [[BPR-1827]]. `agent.run` is classified like any operation; its
-			// detail, like every detail, stays out of the preview.
-			constexpr std::array<std::string_view, 9> operations{ "application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment", "github.review_submission", "github.discovery", "agent.run" };
+			// [[BPR-1827]], [[BPR-1828]]. Every logged operation, `agent.*` included;
+			// its detail, like every detail, stays out of the preview.
+			const auto&                               operations = diagnostic_operation_names;
 			constexpr std::array<std::string_view, 6> outcomes{ "started", "succeeded", "failed", "cancelled", "response_received", "shutdown" };
 			constexpr std::array<std::string_view, 5> summaries{ "absent", "sanitized", "omitted_invalid", "omitted_limit", "omitted_failure" };
 			const auto&                               values  = *fields;
@@ -297,8 +299,10 @@ namespace bpr::application {
 				|| !member(aValues[22], validationFailures) || !member(aValues[23], transportSources) || !member(aValues[24], gitSteps)) {
 				return false;
 			}
-			const auto category = aValues[9] == "application" ? "application" : aValues[9] == "epoch" ? "epoch"
-																									  : "github";
+			if (std::ranges::find(diagnostic_operation_names, aValues[9]) == diagnostic_operation_names.end()) {
+				return false;
+			}
+			const auto category = diagnostic_category(aValues[9]);
 			const auto severity = aValues[10] == "failed" ? "error" : *number(aValues[12]) >= 400U ? "warning"
 																								   : "info";
 			if (aValues[1] != std::string{ aValues[9] } + "." + std::string{ aValues[10] } || aValues[2] != category || aValues[3] != severity) {
@@ -377,6 +381,16 @@ namespace bpr::application {
 			// [[BPR-1680]]. Exactly a Home discovery line of enums and counts.
 			if (aDetail.starts_with("discovery=")) {
 				return core::parse_discovery_diagnosis(aDetail).has_value();
+			}
+			// [[BPR-1828]]. Exactly an agent setup, workspace or review
+			// mutation line of enums, counts, a duration and an exit code.
+			if (aDetail.starts_with("action=")) {
+				return core::parse_operation_diagnosis(aDetail).has_value();
+			}
+			// [[BPR-1827]]. Exactly an agent run line (protocol, outcome,
+			// failure, exit and byte counts).
+			if (aDetail.starts_with("protocol=")) {
+				return parse_agent_run_diagnosis(aDetail).has_value();
 			}
 			constexpr std::array<std::string_view, 19> codes{ "FORBIDDEN", "UNAUTHORIZED", "NOT_FOUND", "MAX_NODE_LIMIT_EXCEEDED", "INTERNAL", "SERVICE_UNAVAILABLE", "GRAPHQL_PARSE_FAILED", "GRAPHQL_VALIDATION_FAILED", "undefinedField", "argumentNotAccepted", "undefinedType", "selectionMismatch", "variableMismatch", "variableNotUsed", "variableRequiresValidType", "variableNotDefined", "RATE_LIMITED", "[omitted:unclassified-code]", "[omitted:unclassified-content]" };
 			if (aDetail.size() > 4096U) {

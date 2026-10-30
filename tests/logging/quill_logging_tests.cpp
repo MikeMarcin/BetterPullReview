@@ -10,6 +10,7 @@
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/release_diagnostic_snapshot.hpp"
 #include "bpr/core/discovery_diagnosis.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QFileInfo>
@@ -428,6 +429,38 @@ try {
 			bare.GithubFailure = { };
 			expect(log.record(bare) == status::dropped, "a discovery event always carries its line");
 		}
+		{
+			// [[BPR-1828]]. Agent setup, workspace and review mutation lines:
+			// exactly an operation diagnosis on its own family's operation.
+			const auto line = [](const application::diagnostic_operation aOperation, const application::diagnostic_outcome aOutcome, const core::operation_diagnosis& aDiagnosis) {
+				auto       event = application::diagnostic_event{ .Operation = aOperation, .Outcome = aOutcome };
+				const auto text  = core::describe(aDiagnosis);
+				std::ranges::copy(text, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+				event.Summary.State = application::diagnostic_summary_state::sanitized;
+				return event;
+			};
+			using operation  = application::diagnostic_operation;
+			using outcome    = application::diagnostic_outcome;
+			const auto check = line(operation::agent_setup_check, outcome::failed, { .Action = core::operation_action::agent_status_check, .Failure = core::operation_failure::not_signed_in, .Process = core::operation_process::nonzero_exit, .ExitCode = 3, .DurationMilliseconds = 812U, .Count = 1U });
+			expect(log.record(check) == status::available, "an agent setup check's end reaches the real log");
+			expect(log.record(line(operation::agent_workspace, outcome::failed, { .Action = core::operation_action::workspace_materialize, .Failure = core::operation_failure::too_large, .DurationMilliseconds = 2400U })) == status::available,
+				   "a workspace preparation's end reaches the real log");
+			expect(log.record(line(operation::review_mutation, outcome::started, { .Action = core::operation_action::resolve_thread })) == status::available, "a resolve's start reaches the real log");
+			expect(log.record(line(operation::review_mutation, outcome::cancelled, { .Action = core::operation_action::add_reaction, .Failure = core::operation_failure::cancelled })) == status::available, "a cancelled reaction reaches the real log");
+			auto forged            = check;
+			forged.Summary.Text[0] = 'X';
+			expect(log.record(forged) == status::dropped, "an operation line that is not exactly a diagnosis never enters the log");
+			auto elsewhere      = check;
+			elsewhere.Operation = operation::review_mutation;
+			expect(log.record(elsewhere) == status::dropped, "an operation line rides only its own family's operation");
+			expect(log.record(line(operation::review_mutation, outcome::succeeded, { .Action = core::operation_action::edit_comment, .Failure = core::operation_failure::conflict })) == status::dropped,
+				   "a success never carries a failure");
+			expect(log.record(line(operation::review_mutation, outcome::failed, { .Action = core::operation_action::edit_comment })) == status::dropped, "a failure always names one");
+			auto bare    = check;
+			bare.Summary = { };
+			expect(log.record(bare) == status::dropped, "an operation event always carries its line");
+		}
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -535,6 +568,15 @@ try {
 			   && first.find("\"detail\":\"discovery=read refresh=2 read=5 reason=requested state=none repositories=1 pull_requests=0 reads=0 failed=0 requests=6 wait_ms=40 run_ms=3900 credential_ms=650 wire_ms=3100 decision_ms=12 http_403=1 http_429=0 http_5xx=0 timeouts=1 backoff_s=0 candidates=39 reused=9 direct=0 rejected=30 roster_recoveries=0 completeness=complete\"") != std::string::npos
 			   && first.find("\"failure_domain\":\"github\",\"failure\":\"permission\"") != std::string::npos,
 		   "[[BPR-1680]] a discovery read's end is kept locally with its counts, timings and failure");
+	expect(first.find("\"event\":\"agent.setup_check.failed\",\"category\":\"agent\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=agent_status_check failure=not_signed_in process=nonzero_exit exit=3 duration_ms=812 count=1 written=0 read_back=0\"") != std::string::npos
+			   && first.find("\"event\":\"agent.workspace.failed\",\"category\":\"agent\"") != std::string::npos
+			   && first.find("\"event\":\"github.review_mutation.started\",\"category\":\"github\"") != std::string::npos
+			   && first.find("\"event\":\"github.review_mutation.cancelled\"") != std::string::npos,
+		   "[[BPR-1828]] agent setup, workspace and review mutation lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=9 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=10 outcome=2 ") != std::string::npos
+			   && exported->Bytes.find("operation=11 outcome=0 ") != std::string::npos && exported->Bytes.find("action=") == std::string::npos,
+		   "[[BPR-1828]] the metadata-only preview classifies the new operations without their lines");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
 		   "[[BPR-1540]] and the metadata-only maintenance preview classifies its operation without its detail");
 	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");

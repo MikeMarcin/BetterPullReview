@@ -6,6 +6,7 @@
 
 #include "bpr/application/agent_setup_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <algorithm>
 #include <cstdlib>
@@ -87,8 +88,23 @@ namespace {
 		int                                                 Stores = 0;
 	};
 
+	/// [[BPR-1828]]. Keeps every diagnostic event a check records.
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			Events.push_back(aEvent);
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+
+		std::vector<application::diagnostic_event> Events;
+	};
+
 	struct fixture
 	{
+		std::shared_ptr<recording_log>                              Log = std::make_shared<recording_log>();
 		application::manual_executor                                Effects;
 		application::manual_executor                                Checks;
 		application::manual_executor                                Decision;
@@ -124,6 +140,7 @@ namespace {
 				.Checks   = &Checks,
 				.Decision = &Decision,
 				.Publish  = [this](const application::agent_setup_projection& aProjection) { Published.push_back(aProjection); },
+				.Log      = Log,
 			});
 			Host->observe_policy(core::built_in_agent_policy(core::git_host_id{ 1U }, core::built_in_agent_host_kind::github_com));
 		}
@@ -367,6 +384,53 @@ namespace {
 		expect(f.Process.Requests.size() >= runs, "stop never runs anything new");
 	}
 
+	/// [[BPR-1828]]. Each check records its start and its end as
+	/// `agent.setup_check` lines: the typed failure, the last run's outcome
+	/// and exit code, the run count and the duration; never the program path
+	/// or what the agent printed. Stop records a cancellation.
+	void test_check_diagnostics()
+	{
+		auto f = fixture{ };
+		f.Host->load();
+		f.Host->detect();
+		f.settle();
+		const auto lines = [&f] {
+			auto result = std::vector<std::string>{ };
+			for (const auto& event : f.Log->Events) {
+				expect(event.Operation == application::diagnostic_operation::agent_setup_check, "every record is an agent setup check");
+				const auto text = std::string{ event.Summary.text() };
+				expect(text.find("/opt/homebrew") == std::string::npos && text.find("claude.ai") == std::string::npos && text.find("2.1.296") == std::string::npos, "no path or output reaches a record");
+				expect(core::parse_operation_diagnosis(text).has_value(), "every record is exactly an operation line");
+				result.push_back(text);
+			}
+			return result;
+		};
+		f.Process.Answers = { said(application::agent_run_outcome::success, R"({"loggedIn": true, "authMethod": "claude.ai"})"),
+							  said(application::agent_run_outcome::success, "2.1.296 (Claude Code)") };
+		f.Host->check();
+		expect(f.Log->Events.size() == 1U && f.Log->Events[0].Outcome == application::diagnostic_outcome::started, "a check records its start when it begins");
+		f.settle();
+		auto seen = lines();
+		expect(seen.size() == 2U && f.Log->Events[1].Outcome == application::diagnostic_outcome::succeeded, "and its success when it passes");
+		const auto passed = core::parse_operation_diagnosis(seen[1]);
+		expect(passed && passed->Action == core::operation_action::agent_status_check && passed->Process == core::operation_process::success && passed->ExitCode == 0 && passed->Count == 2U,
+			   "a passed check names its status and version runs and the last exit code");
+
+		f.Process.Answers = { said(application::agent_run_outcome::nonzero_exit, R"({"loggedIn": false})", 1) };
+		f.Host->check();
+		f.settle();
+		seen = lines();
+		expect(seen.size() == 4U && f.Log->Events[3].Outcome == application::diagnostic_outcome::failed, "a failed check records a failure");
+		expect(seen[3].starts_with("action=agent_status_check failure=not_signed_in process=nonzero_exit exit=1 "), "with its typed failure, run outcome and exit code");
+
+		f.Host->check();
+		f.Host->stop();
+		f.settle();
+		seen = lines();
+		expect(seen.size() == 6U && f.Log->Events[5].Outcome == application::diagnostic_outcome::cancelled && seen[5].starts_with("action=agent_status_check failure=cancelled "),
+			   "Stop records a cancellation, and the late answer records nothing more");
+	}
+
 	void test_choice_and_steps()
 	{
 		auto f  = fixture{ };
@@ -546,6 +610,7 @@ auto main() -> int
 	test_reset_does_not_resurrect_legacy_wrapper();
 	test_setup_details_are_bounded_and_separate();
 	test_codex_and_stop();
+	test_check_diagnostics();
 	test_choice_and_steps();
 	test_the_agent_list();
 	std::cout << "agent-setup-host-tests:pass\n";

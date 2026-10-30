@@ -967,6 +967,14 @@ bpr_enable_warnings(test_release_maintenance_host)
 bpr_add_network_isolated_test(NAME application_release_maintenance COMMAND test_release_maintenance_host)
 set_tests_properties(application_release_maintenance PROPERTIES TIMEOUT 30)
 
+# [[BPR-1828]]. Review mutation and agent workspace diagnostics records.
+bpr_add_executable(test_operation_diagnostics operation_diagnostics_tests.cpp)
+target_link_libraries(test_operation_diagnostics PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_operation_diagnostics)
+bpr_enable_warnings(test_operation_diagnostics)
+bpr_add_network_isolated_test(NAME application_operation_diagnostics COMMAND test_operation_diagnostics)
+set_tests_properties(application_operation_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "operation-diagnostics-tests:pass" TIMEOUT 30)
+
 if(BPR_BUILD_AGENT_INTEGRATIONS) # [[BPR-1179]]
 bpr_add_executable(test_better_pull_review_agent_chat_reply_tests agent_chat_reply_tests.cpp)
 target_link_libraries(test_better_pull_review_agent_chat_reply_tests PRIVATE BetterPullReview::Application)

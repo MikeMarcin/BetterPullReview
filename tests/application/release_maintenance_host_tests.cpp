@@ -281,6 +281,60 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1828]]. Agent setup, workspace and review mutation lines export
+	/// as their enums, counts, duration and exit code under the `agent` or
+	/// `github` category; one with anything else in it is omitted.
+	void test_operation_export()
+	{
+		struct row
+		{
+			std::string_view Op;
+			std::string_view Category;
+			std::string_view Detail;
+		};
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const auto& [op, category, detail] : { row{ "agent.setup_check", "agent", "action=agent_status_check failure=not_signed_in process=nonzero_exit exit=1 duration_ms=812 count=1 written=0 read_back=0" },
+														row{ "agent.setup_check", "agent", "action=agent_custom_check failure=timed_out process=timeout exit=-9 duration_ms=15000 count=1 written=0 read_back=0" },
+														row{ "agent.workspace", "agent", "action=workspace_materialize failure=too_large_not_in_clone process=none exit=none duration_ms=2400 count=0 written=0 read_back=0" },
+														row{ "github.review_mutation", "github", "action=resolve_thread failure=refused_by_server process=none exit=none duration_ms=640 count=0 written=0 read_back=0" },
+														row{ "github.review_mutation", "github", "action=request_reviewer failure=not_confirmed process=none exit=none duration_ms=900 count=2 written=1 read_back=1" },
+														row{ "github.review_mutation", "github", "action=resolve_thread failure=refused_by_server process=none exit=none duration_ms=640 count=0 written=0 read_back=0 thread=PRIVATE_THREAD" },
+														row{ "github.review_mutation", "github", "action=edit_comment failure=PRIVATE_BODY process=none exit=none duration_ms=640 count=0 written=0 read_back=0" },
+														row{ "agent.setup_check", "agent", "action=agent_status_check failure=not_signed_in process=nonzero_exit exit=1 duration_ms=812 count=1 written=0 read_back=0 path=PRIVATE_PATH" },
+														row{ "agent.workspace", "agent", "action=workspace_materialize failure=refused_by_server process=none exit=none duration_ms=2400 count=0 written=0 read_back=0 PRIVATE" },
+														// [[BPR-1827]]'s agent run line exports under `agent` too.
+														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0" },
+														row{ "agent.run", "agent", "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0 prompt=PRIVATE_PROMPT" } }) {
+				auto       line    = structured_line(1U, true);
+				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+					const auto at = line.find(aFrom);
+					expect(at != std::string::npos, "operation fixture field exists");
+					line.replace(at, aFrom.size(), aTo);
+				};
+				replace(R"("event":"github.capability.failed","category":"github")", "\"event\":\"" + std::string{ op } + ".failed\",\"category\":\"" + std::string{ category } + "\"");
+				replace(R"("op":"github.capability")", "\"op\":\"" + std::string{ op } + "\"");
+				replace(R"("http_status":403)", R"("http_status":0)");
+				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+				line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   exact    = !detail.contains("PRIVATE");
+				expect(document && document->Descriptor.Records == 1U, "an operation record exports under either policy");
+				expect((document->Bytes.find(detail) != std::string::npos) == exact && document->Bytes.contains("\"op\":\"" + std::string{ op } + "\"")
+						   && document->Bytes.contains("\"category\":\"" + std::string{ category } + "\""),
+					   "and keeps exactly its counts-only line under its category");
+				expect(document->Bytes.find("PRIVATE") == std::string::npos, "and nothing private");
+			}
+		}
+		// A record whose category disagrees with its operation is not one the logger wrote.
+		auto line = structured_line(1U, true);
+		line.replace(line.find(R"("event":"github.capability.failed","category":"github")"), std::string_view{ R"("event":"github.capability.failed","category":"github")" }.size(), R"("event":"agent.workspace.failed","category":"github")");
+		line.replace(line.find(R"("op":"github.capability")"), std::string_view{ R"("op":"github.capability")" }.size(), R"("op":"agent.workspace")");
+		const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+		const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { core::diagnostic_export_policy::anonymized }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+		expect(document && document->Descriptor.Records == 0U, "an agent record filed under another category is omitted");
+	}
+
 	/// [[BPR-1722]]. A record of `aOp`.`aOutcome` at `aUtc`, with the
 	/// given status, failure and detail, as the logger writes it.
 	auto event_line(unsigned aSequence, std::uint64_t aUtc, std::string_view aOp, std::string_view aOutcome, unsigned aHttp, std::string_view aDomain, std::string_view aFailure, std::string_view aDetail)
@@ -840,6 +894,7 @@ auto main() -> int
 	test_actor_conflict_export();
 	test_review_submission_reason_export();
 	test_discovery_export();
+	test_operation_export();
 	test_git_capability_step_export();
 	test_git_tool_failure_export();
 	test_rich_export();
