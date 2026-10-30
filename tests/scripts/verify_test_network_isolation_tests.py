@@ -1634,9 +1634,10 @@ class ConfiguredManifestTests(unittest.TestCase):
                 check=True, capture_output=True, text=True,
             )
             manifest = json.loads(subprocess.check_output(
-                [ctest, "--test-dir", str(fixture / "build"), "--show-only=json-v1"],
+                [ctest, "--test-dir", str(fixture / "build"), "-C", "Debug", "--show-only=json-v1"],
                 text=True,
             ))
+        self.assertEqual(len(manifest["tests"]), 1, manifest)
         row = manifest["tests"][0]
         name = row["name"]
         self.assertEqual(name, "qt_workbench_agent_send_refusal")
