@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_CLONE_LINK_HOST_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_CLONE_LINK_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/clone_discovery.hpp"
 
@@ -146,6 +147,9 @@ namespace bpr::application {
 		effect_executor*                                  Effects  = nullptr;
 		decision_executor*                                Decision = nullptr;
 		std::function<void(const clone_link_projection&)> Publish;
+		/// [[BPR-1831]]. Where each scan, link check and store read records
+		/// its outcome and counts; never a folder, remote or repository.
+		std::shared_ptr<diagnostic_log_port> Log;
 	};
 
 	/// \brief [[BPR-1750]], RFC-BPR-0092 M3. Finds the reviewer's clone

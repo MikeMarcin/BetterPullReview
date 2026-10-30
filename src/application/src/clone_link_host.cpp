@@ -1,4 +1,5 @@
 #include "bpr/application/clone_link_host.hpp"
+#include "bpr/application/operation_diagnostics.hpp"
 
 #include <algorithm>
 #include <atomic>
@@ -129,10 +130,17 @@ namespace bpr::application {
 			auto clonePath = remembered->Path;
 			off_lane(
 				[read = Dependencies.Reads.Read, path = std::move(clonePath)] { return read ? read(path) : std::optional<core::clone_candidate>{ }; },
-				[self = shared_from_this(), generation, link = std::move(*remembered)](std::optional<core::clone_candidate> aRead) mutable {
+				[self = shared_from_this(), generation, link = std::move(*remembered), watch = operation_stopwatch{ }](std::optional<core::clone_candidate> aRead) mutable {
 					if (generation != self->VerifyGeneration || !self->Projection.Repository) {
 						return;
 					}
+					// [[BPR-1831]]. The check's end, as the problem it found.
+					const auto recordCheck = [&self, &watch] {
+						const auto problem = self->Projection.Problem;
+						record_operation(self->Dependencies.Log.get(), { .Action = core::operation_action::clone_verify, .Failure = problem == clone_link_problem::not_a_clone ? core::operation_failure::not_a_clone : problem == clone_link_problem::no_matching_remote ? core::operation_failure::no_matching_remote
+																																																																		  : core::operation_failure::none,
+																		 .DurationMilliseconds = watch.milliseconds() });
+					};
 					self->Projection.Verifying = false;
 					if (!aRead) {
 						self->Projection.Problem = clone_link_problem::not_a_clone;
@@ -151,6 +159,7 @@ namespace bpr::application {
 							self->Projection.Linked = std::move(link);
 						}
 					}
+					recordCheck();
 					self->publish();
 				});
 		}
@@ -184,8 +193,21 @@ namespace bpr::application {
 			}
 			Projection.Discovering = true;
 			publish();
+			// [[BPR-1831]]. A scan records its start and its end, counting the
+			// clones it found; a scan that threw is a failure.
+			record_operation(Dependencies.Log.get(), { .Action = core::operation_action::clone_scan }, true);
 			off_lane(
-				[scan = Dependencies.Reads.Scan, folders = Projection.Folders] { return scan ? scan(folders, { }) : std::vector<core::clone_candidate>{ }; },
+				[scan = Dependencies.Reads.Scan, folders = Projection.Folders, log = Dependencies.Log] {
+					const auto watch = operation_stopwatch{ };
+					try {
+						auto found = scan ? scan(folders, { }) : std::vector<core::clone_candidate>{ };
+						record_operation(log.get(), { .Action = core::operation_action::clone_scan, .DurationMilliseconds = watch.milliseconds(), .Count = static_cast<std::uint32_t>(std::min<std::size_t>(found.size(), 0xFFFFFFFFU)) });
+						return found;
+					} catch (...) {
+						record_operation(log.get(), { .Action = core::operation_action::clone_scan, .Failure = core::operation_failure::scan_failed, .DurationMilliseconds = watch.milliseconds() });
+						throw;
+					}
+				},
 				[self = shared_from_this(), generation](std::vector<core::clone_candidate> aFound) {
 					if (generation != self->DiscoverGeneration || !self->Projection.Repository) {
 						return;
@@ -224,11 +246,14 @@ namespace bpr::application {
 			std::vector<std::string>                    Existing;
 		};
 		host.off_lane(
-			[store = host.Dependencies.Store, existing = host.Dependencies.Reads.Existing, home = host.Dependencies.Home, windows = host.Dependencies.Windows] {
+			[store = host.Dependencies.Store, existing = host.Dependencies.Reads.Existing, home = host.Dependencies.Home, windows = host.Dependencies.Windows, log = host.Dependencies.Log] {
 				auto answer = loaded{ };
 				if (store != nullptr) {
-					answer.Folders = store->load_clone_folders();
-					answer.Links   = store->load_links();
+					const auto watch = operation_stopwatch{ };
+					answer.Folders   = store->load_clone_folders();
+					answer.Links     = store->load_links();
+					// [[BPR-1831]]. The store read's end, counting the links.
+					record_operation(log.get(), { .Action = core::operation_action::clone_load, .Failure = answer.Folders && answer.Links ? core::operation_failure::none : core::operation_failure::store_unreadable, .DurationMilliseconds = watch.milliseconds(), .Count = answer.Links ? static_cast<std::uint32_t>(std::min<std::size_t>(answer.Links->size(), 0xFFFFFFFFU)) : 0U });
 				}
 				if (existing) {
 					const auto usual = core::usual_clone_folders(home, windows);

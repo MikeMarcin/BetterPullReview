@@ -35,6 +35,8 @@ namespace bpr::app {
 		void               publish(const application::source_search_projection& aProjection) override;
 
 		void observe_work(std::shared_ptr<application::insights_observer> aObserver) { Host.observe_work(std::move(aObserver)); }
+		/// [[BPR-1831]]. Each search execution's aggregated end.
+		void observe_diagnostics(std::shared_ptr<application::aggregated_operation_log> aLog) { Host.observe_diagnostics(std::move(aLog)); }
 
 	private:
 		qt::source_search_panel&                Panel;

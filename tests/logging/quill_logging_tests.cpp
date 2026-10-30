@@ -460,6 +460,28 @@ try {
 			auto bare    = check;
 			bare.Summary = { };
 			expect(log.record(bare) == status::dropped, "an operation event always carries its line");
+
+			// [[BPR-1831]]. Storage, clone scan, search, image and notification
+			// lines: exactly an operation diagnosis on their own operation.
+			const auto storage = line(operation::storage, outcome::failed, { .Action = core::operation_action::storage_write, .Failure = core::operation_failure::busy, .Count = 3U, .Store = core::operation_store::review_ledger, .Schema = 7U });
+			expect(log.record(storage) == status::available, "a storage failure reaches the real log");
+			expect(log.record(line(operation::clone_scan, outcome::succeeded, { .Action = core::operation_action::clone_scan, .DurationMilliseconds = 90U, .Count = 2U })) == status::available, "a clone scan's end reaches the real log");
+			expect(log.record(line(operation::source_search, outcome::failed, { .Action = core::operation_action::source_search, .Failure = core::operation_failure::unavailable, .Count = 1U })) == status::available, "a search failure reaches the real log");
+			expect(log.record(line(operation::image_fetch, outcome::succeeded, { .Action = core::operation_action::avatar_fetch, .DurationMilliseconds = 40U, .Count = 50U })) == status::available, "aggregated avatar fetches reach the real log");
+			expect(log.record(line(operation::notification, outcome::failed, { .Action = core::operation_action::notification_deliver, .Failure = core::operation_failure::permission_refused })) == status::available,
+				   "a refused notification reaches the real log");
+			auto wrongFamily      = storage;
+			wrongFamily.Operation = operation::image_fetch;
+			expect(log.record(wrongFamily) == status::dropped, "a storage line rides only the storage operation");
+			auto       forgedStorage = storage;
+			const auto tail          = std::string_view{ " path=PRIVATE" };
+			std::ranges::copy(tail, forgedStorage.Summary.Text.begin() + forgedStorage.Summary.Size);
+			forgedStorage.Summary.Size = static_cast<std::uint16_t>(forgedStorage.Summary.Size + tail.size());
+			expect(log.record(forgedStorage) == status::dropped, "a storage line with anything after its schema never enters the log");
+			expect(log.record(line(operation::image_fetch, outcome::succeeded, { .Action = core::operation_action::image_fetch, .Failure = core::operation_failure::blocked })) == status::dropped, "an image success never carries a failure");
+			auto bareStorage    = storage;
+			bareStorage.Summary = { };
+			expect(log.record(bareStorage) == status::dropped, "a storage event always carries its line");
 		}
 		{
 			// [[BPR-1829]]. Sign-in, credential vault and updater lines: the
@@ -615,6 +637,15 @@ try {
 	expect(exported && exported->Bytes.find("operation=9 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=10 outcome=2 ") != std::string::npos
 			   && exported->Bytes.find("operation=11 outcome=0 ") != std::string::npos && exported->Bytes.find("action=") == std::string::npos,
 		   "[[BPR-1828]] the metadata-only preview classifies the new operations without their lines");
+	expect(first.find("\"event\":\"storage.database.failed\",\"category\":\"storage\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=storage_write failure=busy process=none exit=none duration_ms=0 count=3 written=0 read_back=0 store=review_ledger schema=7\"") != std::string::npos
+			   && first.find("\"event\":\"workspace.clone_scan.succeeded\",\"category\":\"workspace\"") != std::string::npos
+			   && first.find("\"event\":\"search.source.failed\",\"category\":\"search\"") != std::string::npos
+			   && first.find("\"event\":\"image.fetch.succeeded\",\"category\":\"image\"") != std::string::npos
+			   && first.find("\"event\":\"notification.delivery.failed\",\"category\":\"notification\"") != std::string::npos && first.find("path=PRIVATE") == std::string::npos,
+		   "[[BPR-1831]] storage, clone scan, search, image and notification lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=15 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=19 outcome=2 ") != std::string::npos && exported->Bytes.find("store=") == std::string::npos,
+		   "[[BPR-1831]] the metadata-only preview classifies them without their lines");
 	expect(exported && exported->Bytes.find("operation=6 outcome=2 ") != std::string::npos && exported->Bytes.find("review_submission=") == std::string::npos,
 		   "[[BPR-1540]] and the metadata-only maintenance preview classifies its operation without its detail");
 	expect(exported && exported->Bytes.find("http_status=422") != std::string::npos, "bounded review status remains exportable");

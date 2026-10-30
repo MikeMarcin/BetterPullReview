@@ -2561,8 +2561,16 @@ function(bpr_verify_full_application_digest source_variable)
 	# (github.sign_in lines), and gives the desktop-wide updater the profile log
 	# through desktop_diagnostic_log. No credential, grant, provider selection,
 	# admission, mutation, publication or source-inventory change.
+	# [[BPR-1831]] diagnostics coverage reseal (2026-10-30), over 1ed5f00c9 (with BPR-1829).
+	# github_application.cpp opens a storage_diagnostics_scope on the profile
+	# log (storage.database lines) and an aggregated_operation_log; hands the
+	# image service its fetch port through application::diagnosed_image_fetch,
+	# which forwards every fetch and answer unchanged; and gives the clone
+	# link host, PR search and queue notifier the log. No credential, grant,
+	# provider selection, mutation, admission, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"1853b951319febec01e4eafaf4896a30cbfa61a9ecd1ccbe5aaa195246ec19ce"
+		"ed9214b8b74356be10c0c48f4cbee573990f9a8dffc70ed0d9b1bae28b6ce417"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2853,8 +2861,12 @@ function(bpr_verify_app_source_tree app_source_root)
 # profile_desktop.cpp and release_update_desktop.{hpp,cpp}, as described at the
 # full digest. No grant, credential, admission, publication or
 # source-inventory change.
+# [[BPR-1831]] diagnostics coverage reseal (2026-10-30): github_application.cpp
+# and pr_search_controller.hpp (one forwarder to the search host), as described
+# at the full digest. No grant, credential, mutation, admission, publication or
+# source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "1c052a7bb6d0407900262c1d47ead2365e7d1e61ba215c924d92db0ae18bbc0f"
+        "92e37b21e0248344c81f2eebfb0892dba2ae49debb1058a8084c85dc6f120876"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

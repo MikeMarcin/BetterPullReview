@@ -95,11 +95,62 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-1831]]. Storage lines carry their store and schema version;
+	/// every other family's line stays exactly as it was.
+	void test_storage_and_host_lines()
+	{
+		const auto open = operation_diagnosis{ .Action = operation_action::storage_open, .DurationMilliseconds = 3U, .Count = 4U, .Store = operation_store::review_ledger, .Schema = 7U };
+		expect(describe(open) == "action=storage_open failure=none process=none exit=none duration_ms=3 count=4 written=0 read_back=0 store=review_ledger schema=7", "a storage line ends with its store and schema");
+		expect(parse_operation_diagnosis(describe(open)) == open, "and reads back as itself");
+		const auto refused = operation_diagnosis{ .Action = operation_action::storage_write, .Failure = operation_failure::busy, .Count = 1U, .Store = operation_store::unknown };
+		expect(parse_operation_diagnosis(describe(refused)) == refused, "a statement failure of an unknown store reads back");
+		expect(describe({ .Action = operation_action::storage_open }).empty(), "a storage line names its store");
+		expect(describe({ .Action = operation_action::image_fetch, .Store = operation_store::insights }).empty(), "only a storage line names a store");
+		expect(describe({ .Action = operation_action::image_fetch, .Schema = 2U }).empty(), "only a storage line names a schema");
+		expect(describe({ .Action = operation_action::image_fetch, .Failure = operation_failure::busy }).empty(), "a storage failure is no image failure");
+		expect(describe({ .Action = operation_action::notification_deliver, .Failure = operation_failure::too_large }).empty(), "an image failure is no notification failure");
+		expect(describe({ .Action = operation_action::storage_open, .Store = static_cast<operation_store>(200) }).empty(), "an unknown store is no line");
+
+		for (const auto& line : { operation_diagnosis{ .Action = operation_action::clone_scan, .DurationMilliseconds = 90U, .Count = 2U },
+								  operation_diagnosis{ .Action = operation_action::clone_verify, .Failure = operation_failure::no_matching_remote },
+								  operation_diagnosis{ .Action = operation_action::clone_load, .Failure = operation_failure::store_unreadable },
+								  operation_diagnosis{ .Action = operation_action::source_search, .Failure = operation_failure::resource_limit, .Count = 12U },
+								  operation_diagnosis{ .Action = operation_action::source_search, .Failure = operation_failure::unavailable },
+								  operation_diagnosis{ .Action = operation_action::avatar_fetch, .Failure = operation_failure::blocked },
+								  operation_diagnosis{ .Action = operation_action::image_fetch, .Failure = operation_failure::too_large },
+								  operation_diagnosis{ .Action = operation_action::notification_permission, .Failure = operation_failure::permission_refused },
+								  operation_diagnosis{ .Action = operation_action::notification_activate },
+								  operation_diagnosis{ .Action = operation_action::storage_migrate, .Failure = operation_failure::cancelled, .Store = operation_store::clone_ledger, .Schema = 3U } }) {
+			expect(!describe(line).empty() && parse_operation_diagnosis(describe(line)) == line, "each new family's line reads back as itself");
+		}
+		expect(family(operation_action::storage_statement) == operation_diagnosis_family::storage && family(operation_action::clone_load) == operation_diagnosis_family::clone_scan
+				   && family(operation_action::source_search) == operation_diagnosis_family::source_search && family(operation_action::avatar_fetch) == operation_diagnosis_family::image_fetch
+				   && family(operation_action::notification_activate) == operation_diagnosis_family::notification && family(operation_action::request_reviewer) == operation_diagnosis_family::review_mutation,
+			   "each new action belongs to its family, and the old ones keep theirs");
+
+		for (const std::string_view forged : {
+				 "action=resolve_thread failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 store=insights schema=1",
+				 "action=storage_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0",
+				 "action=storage_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 store=insights",
+				 "action=storage_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 store=PRIVATE schema=1",
+				 "action=storage_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 store=insights schema=1 path=PRIVATE",
+				 "action=storage_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 schema=1 store=insights",
+				 "action=storage_open failure=none process=none exit=none duration_ms=1 count=0 written=0 read_back=0 store=insights schema=01",
+				 "action=storage_read failure=none process=none exit=none duration_ms=1 count=0 written=1 read_back=0 store=insights schema=1",
+				 "action=image_fetch failure=none process=success exit=0 duration_ms=1 count=1 written=0 read_back=0",
+			 }) {
+			expect(!parse_operation_diagnosis(forged).has_value(), std::string{ "a host line that is not exactly what describe writes is refused: " } + std::string{ forged });
+		}
+	}
+} // namespace
+
 int main()
 {
 	test_line();
 	test_refusals();
 	test_account_and_update_lines();
+	test_storage_and_host_lines();
 	std::cout << "operation-diagnosis-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -15,6 +15,12 @@ namespace bpr::application {
 		case core::operation_diagnosis_family::sign_in:          return diagnostic_operation::sign_in;
 		case core::operation_diagnosis_family::credential_vault: return diagnostic_operation::credential_vault;
 		case core::operation_diagnosis_family::updater:          return diagnostic_operation::updater;
+		// [[BPR-1831]].
+		case core::operation_diagnosis_family::storage:       return diagnostic_operation::storage;
+		case core::operation_diagnosis_family::clone_scan:    return diagnostic_operation::clone_scan;
+		case core::operation_diagnosis_family::source_search: return diagnostic_operation::source_search;
+		case core::operation_diagnosis_family::image_fetch:   return diagnostic_operation::image_fetch;
+		case core::operation_diagnosis_family::notification:  return diagnostic_operation::notification;
 		}
 		return diagnostic_operation::review_mutation;
 	}

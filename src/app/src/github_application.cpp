@@ -5,12 +5,14 @@
 #include "bpr/adapters/sqlite/insights_storage.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/adapters/sqlite/review_tour_store.hpp"
+#include "bpr/adapters/sqlite/storage_diagnostics.hpp"
 #include "bpr/adapters/workspace/clone_folder_scan.hpp"
 #include "bpr/app/diagnostic_controls.hpp"
 #include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
 #include "bpr/application/credential_vault_diagnostics.hpp"
+#include "bpr/application/host_operation_diagnostics.hpp"
 #include "bpr/application/insights_host.hpp"
 #include "bpr/application/markdown_blob_snippet_host.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
@@ -4354,7 +4356,12 @@ namespace bpr::app {
 		/// [[BPR-1680]]. Home's discovery lanes, one per discovery read in
 		/// flight, beside the provider's lane.
 		std::array<worker_executor, application::maximum_personal_discovery_in_flight> DiscoveryEffects;
-		std::unique_ptr<application::markdown_image_service>                           Images;
+		/// [[BPR-1831]]. Image, avatar and source search ends, aggregated per
+		/// minute, and the fetch port that records them; before the service
+		/// that holds it.
+		std::shared_ptr<application::aggregated_operation_log> OperationAggregate;
+		std::unique_ptr<application::diagnosed_image_fetch>    ImageFetchDiagnostics;
+		std::unique_ptr<application::markdown_image_service>   Images;
 #if defined(BPR_LOCAL_AUTOMATION)
 		/// [[BPR-1168]]. Forwarded cycle commands: a command blocks on its own
 		/// session, never on a lane a window's work runs on.
@@ -5101,6 +5108,11 @@ namespace bpr::app {
 			VaultEffects.close_and_drain();
 			DeviceTransportEffects.close_and_drain();
 			DeviceBindingEffects.close_and_drain();
+			// [[BPR-1831]]. Held-back storage, image and search ends first.
+			StorageDiagnostics.reset();
+			if (OperationAggregate) {
+				OperationAggregate->flush();
+			}
 			if (DiagnosticLog) {
 				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::shutdown }));
 			}
@@ -5405,6 +5417,9 @@ namespace bpr::app {
 			DiagnosticLog              = application::observe_insights_problems(DiagnosticLog, InsightsRecorder);
 			if (DiagnosticLog) {
 				static_cast<void>(DiagnosticLog->record({ .Operation = application::diagnostic_operation::application, .Outcome = application::diagnostic_outcome::started }));
+				// [[BPR-1831]].
+				StorageDiagnostics = std::make_unique<adapters::sqlite::storage_diagnostics_scope>(DiagnosticLog);
+				OperationAggregate = std::make_shared<application::aggregated_operation_log>(DiagnosticLog);
 			}
 
 			// [[BPR-0660]]. The enterprise servers the reviewer kept are
@@ -5508,8 +5523,10 @@ namespace bpr::app {
 				Provider->configure_discovery_lanes(std::move(lanes));
 			}
 			ImageDisk = adapters::sqlite::make_markdown_image_disk_cache(ApplicationDataRoot);
-			Images    = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, Provider.get(), &ImageDecoder,
-																			  core::markdown_image_memory_cache_bytes, ImageDisk.get());
+			// [[BPR-1831]]. Every image and avatar fetch leaves an aggregated record.
+			ImageFetchDiagnostics = std::make_unique<application::diagnosed_image_fetch>(*Provider, OperationAggregate);
+			Images                = std::make_unique<application::markdown_image_service>(DecisionLane, ImageDecodeEffects, ImageFetchDiagnostics.get(), &ImageDecoder,
+																						  core::markdown_image_memory_cache_bytes, ImageDisk.get());
 
 			// RFC-BPR-0017's credential-free read authority, over the same
 			// profiles and the same transport factory. A second provider
@@ -5735,8 +5752,7 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 #endif
 			}
-			Notifications = std::make_unique<application::review_queue_notifier>(*NotificationSink,
-																				 [this](application::queue_notification_target aTarget) {
+			Notifications = std::make_unique<application::review_queue_notifier>(*NotificationSink, [this](application::queue_notification_target aTarget) {
 																					 if (Closing || !Focused) {
 																						 return;
 																					 }
@@ -5753,8 +5769,8 @@ namespace bpr::app {
 																						 ++NotificationSelections;
 																					 } else {
 																						 ++NotificationSelectionFailures;
-																					 }
-																				 });
+																					 } },
+																				 DiagnosticLog); // [[BPR-1831]]
 			const auto activation = [this](
 										application::queue_notification_target aTarget) {
 				if (Notifications) {
@@ -6466,8 +6482,10 @@ namespace bpr::app {
 		std::shared_ptr<adapters::logging::quill_log>     OwnedDiagnosticLog;
 		std::unique_ptr<diagnostic_controls>              Diagnostics;
 		std::shared_ptr<application::diagnostic_log_port> DiagnosticLog;
-		std::deque<validated_github_host_profile>         Profiles;
-		std::vector<application::github_profile_option>   ProfileOptions;
+		/// [[BPR-1831]]. The SQLite stores record to this profile's log while it lives.
+		std::unique_ptr<adapters::sqlite::storage_diagnostics_scope> StorageDiagnostics;
+		std::deque<validated_github_host_profile>                    Profiles;
+		std::vector<application::github_profile_option>              ProfileOptions;
 #if defined(BPR_BUILD_TESTING)
 		std::unique_ptr<detail::github_public_path_fixture_components> Fixture;
 #endif
@@ -9480,6 +9498,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				dependencies.Reads.Read     = [](const std::string& aPath) { return adapters::workspace::read_clone(aPath); };
 				dependencies.Reads.Existing = [](const std::span<const std::string> aFolders) { return adapters::workspace::existing_folders(aFolders); };
 				dependencies.Home           = QDir::toNativeSeparators(QDir::homePath()).toStdString();
+				dependencies.Log            = DiagnosticLog; // [[BPR-1831]]
 	#if defined(Q_OS_WIN)
 				dependencies.Windows = true;
 	#endif
@@ -9732,6 +9751,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			AppearanceHost->observe_work(Profile->InsightsRecorder);
 			PaneFind->observe_work(Profile->InsightsRecorder);
 			PrFind->observe_work(Profile->InsightsRecorder);
+			PrFind->observe_diagnostics(Profile->OperationAggregate); // [[BPR-1831]]
 			// Loads the durable record. An absent record keeps the composed
 			// settings and is never written back, so a fresh installation
 			// stays a fresh installation until the reviewer chooses

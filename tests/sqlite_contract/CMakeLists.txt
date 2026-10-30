@@ -726,6 +726,17 @@ bpr_enable_warnings(test_markdown_image_disk_cache)
 bpr_add_network_isolated_test(NAME sqlite_markdown_image_disk_cache WINDOWS_UNCONTAINED COMMAND test_markdown_image_disk_cache)
 set_tests_properties(sqlite_markdown_image_disk_cache PROPERTIES TIMEOUT 120)
 
+# [[BPR-1831]]. The SQLite stores' open, migration and statement diagnostics.
+bpr_add_executable(test_storage_diagnostics storage_diagnostics_tests.cpp)
+target_link_libraries(test_storage_diagnostics PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::SQLite3)
+bpr_enable_hardening(test_storage_diagnostics)
+if(WIN32)
+    target_link_libraries(test_storage_diagnostics PRIVATE advapi32 BetterPullReview::Platform)
+endif()
+bpr_enable_warnings(test_storage_diagnostics)
+bpr_add_network_isolated_test(NAME sqlite_storage_diagnostics WINDOWS_UNCONTAINED COMMAND test_storage_diagnostics)
+set_tests_properties(sqlite_storage_diagnostics PROPERTIES PASS_REGULAR_EXPRESSION "storage-diagnostics:pass" TIMEOUT 120)
+
 bpr_add_executable(test_insights_storage insights_storage_tests.cpp)
 target_link_libraries(test_insights_storage PRIVATE BetterPullReview::AdapterSQLite)
 if(WIN32)

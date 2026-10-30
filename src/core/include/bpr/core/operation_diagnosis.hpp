@@ -27,6 +27,19 @@ namespace bpr::core {
 		/// [[BPR-1829]]. An updater check, download, verification or
 		/// installation handoff (`updater.release`).
 		updater,
+		/// [[BPR-1831]]. A SQLite store opened, migrated, read or written
+		/// (`storage.database`).
+		storage,
+		/// [[BPR-1831]]. The linked clone scan and its checks
+		/// (`workspace.clone_scan`).
+		clone_scan,
+		/// [[BPR-1831]]. One source search execution (`search.source`).
+		source_search,
+		/// [[BPR-1831]]. A body image or avatar fetch (`image.fetch`).
+		image_fetch,
+		/// [[BPR-1831]]. A queue notification handed to the platform
+		/// (`notification.delivery`).
+		notification,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -82,6 +95,38 @@ namespace bpr::core {
 		update_refresh,
 		/// Installation handed to the platform installer.
 		update_apply,
+		/// [[BPR-1831]]. A store's connection opened and its policy applied;
+		/// `Schema` is the version found.
+		storage_open,
+		/// [[BPR-1831]]. A store's schema version written (a fresh store's
+		/// creation is a migration from 0); `Schema` is the new version.
+		storage_migrate,
+		/// [[BPR-1831]]. A read-only statement failed.
+		storage_read,
+		/// [[BPR-1831]]. A writing statement failed.
+		storage_write,
+		/// [[BPR-1831]]. A statement failed before it could be classified
+		/// as a read or a write (it did not prepare).
+		storage_statement,
+		/// [[BPR-1831]]. The listed clone folders scanned for a repository's
+		/// clones; `Count` is the clones found.
+		clone_scan,
+		/// [[BPR-1831]]. A remembered clone link checked again.
+		clone_verify,
+		/// [[BPR-1831]]. The clone folders and links read from their store.
+		clone_load,
+		/// [[BPR-1831]]. One source search execution.
+		source_search,
+		/// [[BPR-1831]]. One body image fetch.
+		image_fetch,
+		/// [[BPR-1831]]. One avatar fetch.
+		avatar_fetch,
+		/// [[BPR-1831]]. One queue notification handed to the platform.
+		notification_deliver,
+		/// [[BPR-1831]]. The reviewer asked once for notification permission.
+		notification_permission,
+		/// [[BPR-1831]]. The reviewer chose a delivered notification.
+		notification_activate,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -190,6 +235,65 @@ namespace bpr::core {
 		quit_refused,
 		recovery_required,
 		shutdown,
+		// [[BPR-1831]]. Storage: a refused open (native_storage::failure) or
+		// a statement's SQLite result class (and the shared `busy` and
+		// `locked`).
+		invalid_path,
+		invalid_permissions,
+		schema_mismatch,
+		integrity_failure,
+		quota_exceeded,
+		platform_unsupported,
+		io_error,
+		read_only,
+		constraint,
+		not_a_database,
+		cannot_open,
+		sql_error,
+		// [[BPR-1831]]. Clone scan.
+		not_a_clone,
+		no_matching_remote,
+		scan_failed,
+		store_unreadable,
+		// [[BPR-1831]]. Source search (and the shared `unavailable` and
+		// `identity_exhausted`).
+		search_failed,
+		resource_limit,
+		// [[BPR-1831]]. Image and avatar fetch (and the shared `too_large`
+		// and `unsupported`).
+		fetch_failed,
+		blocked,
+		over_limit,
+		// [[BPR-1831]]. Notification.
+		permission_refused,
+		unattributable_activation,
+	};
+
+	/// \brief [[BPR-1831]]. Which SQLite store a storage line is about, by its
+	/// file's fixed name; `unknown` when a statement's store could not be told.
+	enum class operation_store : std::uint8_t {
+		unknown,
+		other,
+		agent_setup,
+		appearance_settings,
+		diagnostic_preferences,
+		workbench_settings,
+		review_queue,
+		review_ledger,
+		review_tours,
+		review_cycles,
+		review_overviews,
+		window_restoration,
+		remembered_connections,
+		device_bindings,
+		review_mutation_recovery,
+		epoch_catalog,
+		markdown_images,
+		insights,
+		profile_registry,
+		release_update,
+		update_draft_recovery,
+		clone_ledger,
 	};
 
 	/// \brief [[BPR-1828]]. How an agent setup check's process run ended,
@@ -231,6 +335,11 @@ namespace bpr::core {
 		std::uint32_t      Count                = 0U;
 		bool               Written              = false;
 		bool               ReadBack             = false;
+		/// [[BPR-1831]]. A storage line's store and schema version, written
+		/// after the fixed keys as `store=STORE schema=N`; absent on every
+		/// other family's line.
+		std::optional<operation_store> Store;
+		std::uint32_t                  Schema = 0U;
 
 		auto operator<=>(const operation_diagnosis&) const = default;
 	};
@@ -241,17 +350,20 @@ namespace bpr::core {
 	[[nodiscard]] auto name(operation_action aAction) noexcept -> std::string_view;
 	[[nodiscard]] auto name(operation_failure aFailure) noexcept -> std::string_view;
 	[[nodiscard]] auto name(operation_process aProcess) noexcept -> std::string_view;
+	[[nodiscard]] auto name(operation_store aStore) noexcept -> std::string_view;
 
 	/// \brief Whether a line is one the host writes: known enums, a failure
 	/// of the action's own family, a process and exit code only on an agent
 	/// setup check (an exit code only with a process), and the write flags
-	/// only on a review mutation.
+	/// only on a review mutation; a store exactly on a storage line, and a
+	/// schema version only there ([[BPR-1831]]).
 	[[nodiscard]] auto valid(const operation_diagnosis& aDiagnosis) noexcept -> bool;
 
 	/// \brief The line for the diagnostics log, in fixed key order:
 	/// `action=ACTION failure=FAILURE process=PROCESS exit=none|N
-	/// duration_ms=N count=N written=0|1 read_back=0|1`. Empty when the line
-	/// is not valid.
+	/// duration_ms=N count=N written=0|1 read_back=0|1`, and on a storage
+	/// line ` store=STORE schema=N` ([[BPR-1831]]). Empty when the line is
+	/// not valid.
 	[[nodiscard]] auto describe(const operation_diagnosis& aDiagnosis) -> std::string;
 
 	/// \brief Reads exactly what `describe` writes; anything else is none.
