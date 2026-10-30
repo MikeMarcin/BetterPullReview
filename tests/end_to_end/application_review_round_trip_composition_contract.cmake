@@ -1,3 +1,9 @@
+# [[BPR-1815]] review-bar view controls reseal (2026-10-29), merged over main 826583ec3 (BPR-1816).
+# github_application.cpp changes only its navigation-row probe: the review
+# bar's exact order gains the view rule, One pane and Go to header/source
+# between the progress track and the spacer (19 actions, was 16). No
+# composition, credential, grant, provider, mutation, publication or
+# source-inventory change; the mutation-branch pin is unchanged.
 # [[BPR-1797]] release closeout merge reseal (2026-10-29): canonical main
 # 9d02a77d4 and release proof 40236a669 preserve both histories. Reviewed the
 # only added pinned-scope commits, 344ab410d (github_application.cpp's exact
@@ -2484,8 +2490,29 @@ function(bpr_verify_full_application_digest source_variable)
 	# apply_avatar_style_intent. No credential, grant, provider, mutation,
 	# publication or source-inventory change; the mutation-branch pin is
 	# unchanged.
+	# [[BPR-1816]] finish-home reseal (2026-10-29), over f95914215.
+	# github_application.cpp gives the review submission workflow the
+	# profile's accepted finish choices (set_finish_settings), read when GitHub
+	# answers a submission; core::decide_review_finish decides. No credential,
+	# grant, provider, mutation, publication or source-inventory change; the
+	# mutation-branch pin is unchanged.
+	# [[BPR-1817]] chosen-agent send reseal (2026-10-29). github_application.cpp
+	# tells the chat session host the agent the composer's menu shows at the
+	# send gesture (agent_chat_session_host::choose_agent) and hands a refused
+	# send's core::agent_send_refusal to the Agent tab beside the composer. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
+	# [[BPR-1823]] kept-agent reseal (2026-10-29), over fe67d8ea6.
+	# github_application.cpp passes the setup's saved agent to the picker as
+	# its first pick only (setup_saved_profile), takes the setup wizard's
+	# Choose and Custom agent... add into the picker (take_setup_choice),
+	# switches an opened pull request's thread to the chosen agent instead of
+	# switching the picker to the agent it was last asked with, and forgets
+	# the choice on Reset agents; core::decide_agent_pick decides. No
+	# credential, grant, provider, mutation, publication or source-inventory
+	# change; the mutation-branch pin is unchanged.
 	set(bpr_expected_full_application_digest
-		"fdb064b8364a53d69f55bc7c73f489ce558ef0dc778c50db7d374627115cc6c1"
+		"28f57f1b216f281c4f0e1910511d9bc831c543383972376fd2ca07498ce8c977"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2747,8 +2774,19 @@ function(bpr_verify_app_source_tree app_source_root)
 # its immutable About facts. It introduces no effect, provider, grant, mutation
 # or source-inventory change. Native About/copy courses cover local and numbered
 # presentation; real numbered producer/native acceptance remains pending.
+# [[BPR-1816]] finish-home reseal (2026-10-29): github_application.cpp and
+# review_submission_workflow.cpp/.hpp. The workflow remembers the key its own
+# Submit sent and passes core::decide_review_finish's transition with the
+# confirmation; the composition supplies the profile's accepted finish
+# choices. No grant, mutation, publication or source-inventory change.
+# [[BPR-1817]] chosen-agent send reseal (2026-10-29): github_application.cpp
+# only, as described at the full digest. No grant, mutation, publication or
+# source-inventory change.
+# [[BPR-1823]] kept-agent reseal (2026-10-29): github_application.cpp only,
+# as described at the full digest. No grant, mutation, publication or
+# source-inventory change.
 	set(bpr_expected_production_app_manifest_digest
-        "a17d8c7d1b293e81404632f8311aa0113f001a06c48ecfab84eba1bbab8c46dc"
+        "d42f2beca0d844d2f29cd0a69df603ceb0dbbf03e0efbfa63bd852a93d08e6a4"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

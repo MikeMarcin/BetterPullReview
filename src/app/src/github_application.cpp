@@ -8452,6 +8452,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const std::vector<core::review_submission_comment>& aCarried, const core::git_commit_oid& aHead) { discard_review_comments(aCarried, aHead); });
 			ReviewSubmission->set_publication_observer([this] { reread_after_publication(); });
 			ReviewSubmission->set_unplaceable_refusal_observer([this](const application::review_submission_request& aRefused) { demote_off_hunk_fact(aRefused); });
+			// [[BPR-1816]]. Where a finished review goes is the profile's
+			// accepted choice when GitHub answers, not the window's.
+			ReviewSubmission->set_finish_settings([this] {
+				const auto* const preferences = Profile->WorkbenchPreferences.get();
+				const auto&       accepted    = preferences != nullptr ? preferences->accepted() : std::optional<application::workbench_profile_preferences>{ };
+				return accepted ? accepted->Behaviour.FinishReview : core::review_finish_settings{ };
+			});
 			Window->set_start_review_dispatch([this] { return start_review_on_shown_draft(); });
 			Window->set_unsent_reply_dispatch([this](const core::review_draft_id aDraft, const qt::workbench_window::unsent_reply_action aAction) { act_on_unsent_reply(aDraft, aAction); });
 			Window->set_pending_comment_delete_dispatch([this](const core::review_draft_id aDraft, const std::uint64_t aRevision) { delete_pending_comment(aDraft, aRevision); });
@@ -12173,11 +12180,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->agent_tab()->present_thread(shown);
 			present_agent_pull_request();
-			// A pull request opens on the agent it was last asked with.
-			if (aView.Loaded && aView.Key && aView.Key->Agent != 0U && AgentSetup && aView.Key->Agent != current_conversation_agent()) {
-				const auto agents = AgentSetup->projection().Preferences.Agents;
-				if (const auto found = std::ranges::find(agents, aView.Key->Agent, &core::agent_entry::Id); found != agents.end()) {
-					static_cast<void>(Window->agent_tab()->choose_agent(core::entry_profile_id(*found).value()));
+			// [[BPR-1823]], owner ruling 2026-10-29: opening a pull request
+			// never switches the picker to the agent it was last asked with.
+			// The thread follows the picker: the chosen agent's own
+			// conversation about it is the one shown.
+			if (aView.Loaded && aView.Key && AgentConversation) {
+				if (const auto chosen = current_conversation_agent(); chosen != 0U && aView.Key->Agent != chosen) {
+					AgentConversation->switch_agent(chosen);
 				}
 			}
 		}
@@ -12378,6 +12387,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				static_cast<void>(Profile->WorkbenchPreferences->apply_claude_wrapper({ }));
 				static_cast<void>(Profile->WorkbenchPreferences->apply_claude_model({ }));
 				AgentSetup->reset();
+				// [[BPR-1823]]. No choice outlives Reset: a new agent may
+				// reuse an old one's id.
+				Window->agent_panel()->forget_choice();
 				// The fresh setup looks for agents again, as Set up did.
 				AgentSetup->restart();
 				// A new agent's id may be an old one's: no pull request opens
@@ -12440,6 +12452,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					[this](const core::setup_agent aAgent) {
 						if (!Closing && AgentSetup) {
 							AgentSetup->choose(aAgent);
+							take_setup_choice();
 						}
 					},
 				.FindAgents             = [this] { if (!Closing && AgentSetup) { AgentSetup->detect(); } },
@@ -12499,6 +12512,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 							AgentSetup->add_agent(std::move(aEntry), true, [this](const std::optional<core::agent_entry_refusal> aRefusal) {
 								if (aRefusal && !Closing && Window != nullptr) {
 									Window->agent_panel()->refuse(std::string{ core::describe(*aRefusal) });
+								} else if (!aRefusal) {
+									take_setup_choice();
 								}
 							});
 						}
@@ -12803,6 +12818,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			return false;
 		}
 
+		/// [[BPR-1749]]. The agent setup saved: its preferred entry, else the
+		/// agent it chose.
+		[[nodiscard]] static auto setup_saved_profile(const application::agent_setup_projection& aProjection) -> std::optional<core::agent_profile_id>
+		{
+			const auto& preferences = aProjection.Preferences;
+			const auto  preferredAt = std::ranges::find(preferences.Agents, preferences.PreferredAgent, &core::agent_entry::Id);
+			if (preferences.PreferredAgent != 0U && preferredAt != preferences.Agents.end()) {
+				return core::entry_profile_id(*preferredAt);
+			}
+			const auto chosen = aProjection.State.Chosen ? aProjection.State.Chosen : preferences.Chosen;
+			return chosen ? std::optional{ core::setup_profile(*chosen, preferences.CodexProtocol) } : std::nullopt;
+		}
+
+		/// [[BPR-1823]], owner ruling 2026-10-29. The setup wizard's choice
+		/// (an agent picked or added there) is the one the picker takes
+		/// without the reviewer choosing it in the picker itself.
+		void take_setup_choice()
+		{
+			if (Closing || Window == nullptr || !AgentSetup) {
+				return;
+			}
+			if (const auto saved = setup_saved_profile(AgentSetup->projection())) {
+				Window->agent_panel()->choose_profile_from_setup(*saved);
+			}
+		}
+
 		void present_agent_setup(const application::agent_setup_projection& aProjection)
 		{
 			if (Closing || Window == nullptr) {
@@ -12823,11 +12864,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			Window->agent_panel()->set_run_limit_minutes(aProjection.Preferences.RunLimitMinutes);
 			Window->agent_tab()->set_suggestions_shown(!aProjection.Preferences.SuggestionsHidden);
-			const auto  chosen      = aProjection.State.Chosen ? aProjection.State.Chosen : aProjection.Preferences.Chosen;
-			const auto  profile     = chosen ? std::optional{ core::setup_profile(*chosen, aProjection.Preferences.CodexProtocol) } : std::nullopt;
-			const auto  preferredAt = std::ranges::find(aProjection.Preferences.Agents, aProjection.Preferences.PreferredAgent, &core::agent_entry::Id);
-			const auto* preferred   = aProjection.Preferences.PreferredAgent == 0U || preferredAt == aProjection.Preferences.Agents.end() ? nullptr : &*preferredAt;
-			Window->agent_panel()->prefer_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+			// [[BPR-1823]], owner ruling 2026-10-29. The saved agent is the
+			// first pick only; a setup update never moves the reviewer's
+			// choice. The wizard's own choice (take_setup_choice) does.
+			const auto saved = setup_saved_profile(aProjection);
+			Window->agent_panel()->prefer_profile(saved);
 			Window->agent_panel()->offer_profiles(offered_agent_profiles());
 			// Owner decision 2026-10-23: Send to Agent offers the same list.
 			if (CycleDesktop) {
@@ -12836,7 +12877,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_run_settings();
 			present_setup_view();
 			if (CycleDesktop) {
-				CycleDesktop->prefer_send_profile(preferred != nullptr ? std::optional{ core::entry_profile_id(*preferred) } : profile);
+				CycleDesktop->prefer_send_profile(saved);
 			}
 			observe_conversation_agent();
 		}
@@ -21583,6 +21624,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				// selection observed earlier would answer for where the
 				// reviewer was, not where they are.
 				ChatHost->observe_selection(current_agent_chat_selection());
+				// [[BPR-1817]]. And to the agent the composer's menu shows,
+				// read at the gesture as well. Before this the turn went to
+				// the chat's default profile whatever was chosen, so an added
+				// agent was never asked, and a server that refused the default
+				// dropped the question.
+				if (Window != nullptr && Window->agent_panel() != nullptr) {
+					if (const auto chosen = Window->agent_panel()->selected_profile()) {
+						ChatHost->choose_agent(*chosen);
+					}
+				}
 				// [[BPR-1773]]. A note is mutable, so it is not sent: its text
 				// is first saved in Private history as one revision, and the
 				// turn runs with that revision as its only private source.
@@ -21708,7 +21759,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			case application::agent_chat_refusal::launch_refused:
 				break;
 			}
+			// [[BPR-1817]]. The launch path names its own refusal before the
+			// chat's answer arrives; it is the detail of `launch_refused`.
+			const auto launchSaid = aOutcome.Send == core::agent_send_refusal::launch_refused && Window != nullptr && Window->agent_panel() != nullptr
+				? Window->agent_panel()->last_refusal()
+				: QString{ };
 			present_agent_refusal("side chat", reason);
+			// And said beside the composer, in the core's vocabulary.
+			if (aOutcome.Send != core::agent_send_refusal::none && Window != nullptr && Window->agent_tab() != nullptr) {
+				Window->agent_tab()->refuse_send(aOutcome.Send, launchSaid);
+			}
 		}
 
 		/// \brief Every private note the review holds, by identity.
@@ -31335,7 +31395,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// Compose review and Comment. Review details is the comparison's
 		// menu's.
 		const auto* const acceptFile          = window->findChild<QToolButton*>(QStringLiteral("workbenchAcceptFileButton"));
-		const auto        exactReviewBarOrder = reviewBarActions.size() == 16
+		const auto        exactReviewBarOrder = reviewBarActions.size() == 19
 			&& widgetActionNamed(reviewBarActions, 0, "reviewBarInsetAction")
 			&& widgetActionNamed(reviewBarActions, 1, "reviewBarUpdatesAction")
 			&& widgetActionNamed(reviewBarActions, 2, "reviewBarComparingAction")
@@ -31351,10 +31411,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			&& acceptFile != nullptr && acceptFile->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
 			&& acceptFile->defaultAction() == window->accept_action()
 			&& reviewControls->parentWidget() == reviewBar->widgetForAction(reviewBarActions[11])
-			&& widgetActionNamed(reviewBarActions, 12, "reviewBarSpacerAction")
-			&& reviewBarActions[13] == window->review_chip_action()
-			&& reviewBarActions[14] == window->compose_review_action()
-			&& reviewBarActions[15] == window->comment_action()
+			// [[BPR-1815]]. A rule, the layout toggle and Go to header/source.
+			&& widgetActionNamed(reviewBarActions, 12, "reviewBarViewDividerAction")
+			&& reviewBarActions[13] == window->one_pane_action()
+			&& reviewBarActions[14] == window->header_source_action()
+			&& widgetActionNamed(reviewBarActions, 15, "reviewBarSpacerAction")
+			&& reviewBarActions[16] == window->review_chip_action()
+			&& reviewBarActions[17] == window->compose_review_action()
+			&& reviewBarActions[18] == window->comment_action()
 			&& window->epoch_selectors()->comparing_button()->menu()->actions().contains(reviewDetails);
 		if (!exactRowOrder || !exactReviewBarOrder) {
 			// [[BPR-0859]]. An exact row order that no longer holds names the

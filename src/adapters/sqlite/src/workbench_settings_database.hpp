@@ -91,7 +91,9 @@ namespace bpr::adapters::sqlite::detail {
 	/// migrated row.
 	/// Twenty-three since [[BPR-1588]]: the window's Status drawer on the
 	/// Overview, expanded at the default width for a migrated row.
-	inline constexpr std::int64_t workbench_settings_schema_version = 23;
+	/// Twenty-four since [[BPR-1816]]: which finishing verdicts stay on the
+	/// pull request; a migrated row has every verdict go Home.
+	inline constexpr std::int64_t workbench_settings_schema_version = 24;
 
 	/// \brief Owns the durable workbench layout database.
 	///
