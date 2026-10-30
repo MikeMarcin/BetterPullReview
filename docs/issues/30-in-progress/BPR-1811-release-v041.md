@@ -24,3 +24,32 @@ The owner requested: “As soon as v0.4.0 is live start working on v0.4.1 from t
 ## Authority and evidence limits
 
 The same prerelease strategy explicitly permits deferring comprehensive qualification until after mandatory Mac preview package/sign/notarization/integrity/source gates, then Windows preview. It authorizes public prerelease publication once those gates pass. It does not automatically authorize a new stable marketing-version publication. Historical native M8/M9, Intel, vault/authentication, accessibility, crash/privacy, allocator/fuzz and independent-review limits remain explicit. Raw vulnerability scans retain their actual failing status; matching deferrals are separate owner decisions, and any new unique unwaived finding needs concrete disposition. No new UX work is planned.
+
+## Direct owner amendment: restart from current main
+
+The owner instructed: "If the release is still hours away then take the current
+main into the release branch and redo the current build version from that it has
+a critical fix. Start with the pre-release again." The original request clock
+remains 2026-10-29T07:27:07.968Z; this is a source/sequence amendment, not a reset.
+
+The owned N4 Windows qualification was stopped on that instruction. Completed,
+interrupted and unreached results remain distinct; Linux N4 qualification will
+not start. Mac N4 producer images/config/source and immutable final asset hashes
+were preserved before the warm source advance. No published N4 bytes or tags
+are overwritten or relabeled.
+
+Canonical main a49e72fa0 contains critical agent-picker fix 29068c3fa (BPR-1823)
+and the preceding owner runtime changes. It was normally merged with remote main
+dab1e919f; the release branch merge is 50659d68c. Both histories and our fixes are
+retained, with NEXT_ID 1824 and exact receipts. The old exclusion of owner runtime
+changes is superseded. The new declared workbench selection has 122 ordered
+default cases and two explicit agent-send-refusal cases. Its source/selector
+binding is updated without changing old transitive seals; the new selection stays
+exclusive with explicit scale and optional-output scrubs. Native list inspection
+supplies no functional test credit; focused critical-picker/public proofs remain
+mandatory before the next actual cohort.
+
+Keep marketing version 0.4.1 and allocate the next global build for changed
+inputs, using actual native observations and the actual N4 MSI upgrade floor.
+Restart signed/notarized Mac-first prerelease, then Windows, then qualification
+under the same carried waivers. Do not wait for the superseded N4 matrix.

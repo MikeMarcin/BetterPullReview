@@ -4,7 +4,7 @@
   "families": [
     {
       "source": "tests/adapters_qt/workbench_window_tests.cpp",
-      "sha256": "419185fb770af38d39c0fa46a44b90ff3a71c43cdad71fd879d756302be996b4",
+      "sha256": "0b6d31fdcc8aee840d5a4d6f2c02d78a43dbabdfd6695607316ab7bce8787e9b",
       "directory": "tests/adapters_qt",
       "configurations": [
         "Debug",
@@ -943,6 +943,26 @@
             "QT_SCALE_FACTOR=1.0",
             "BPR_EXPECTED_QT_SCALE=1.0",
             "BPR_QT_RENDER_PATH={binary_dir}/current-file-unread-badge.png"
+          ]
+        },
+        {
+          "name": "qt_workbench_agent_send_refusal",
+          "command": "test_better_pull_review_qt_workbench_window_tests;--agent-send-refusal",
+          "executable": "better_pull_review_qt_workbench_window_tests",
+          "arguments": [
+            "--agent-send-refusal"
+          ],
+          "platforms": [
+            "Windows",
+            "Darwin",
+            "Linux"
+          ],
+          "scheduling": "exclusive",
+          "resource": "qt_workbench_agent_send_refusal",
+          "selector": "--agent-send-refusal",
+          "environment": [
+            "QT_SCALE_FACTOR=1.0",
+            "BPR_EXPECTED_QT_SCALE=1.0"
           ]
         }
       ],
