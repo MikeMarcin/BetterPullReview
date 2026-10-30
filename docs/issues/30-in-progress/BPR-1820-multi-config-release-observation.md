@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1820"
 title: "Observe local multi-config builds without malformed JSON"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
