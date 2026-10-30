@@ -18,6 +18,15 @@ namespace bpr::core {
 		/// A write to, or read for a write to, the pull request on GitHub
 		/// (`github.review_mutation`).
 		review_mutation,
+		/// [[BPR-1829]]. Device sign-in, token renewal, Sign out and the
+		/// selected account changing (`github.sign_in`).
+		sign_in,
+		/// [[BPR-1829]]. A credential vault slot stored, loaded or deleted
+		/// (`credential.vault`).
+		credential_vault,
+		/// [[BPR-1829]]. An updater check, download, verification or
+		/// installation handoff (`updater.release`).
+		updater,
 	};
 
 	/// \brief [[BPR-1828]]. What one operation line is about.
@@ -48,6 +57,31 @@ namespace bpr::core {
 		edit_comment,
 		search_reviewers,
 		request_reviewer,
+		/// [[BPR-1829]]. One device sign-in flow, from its device-code request
+		/// to its terminal stage.
+		device_sign_in,
+		/// [[BPR-1829]]. One renewal of a device grant's access token.
+		token_renewal,
+		/// [[BPR-1829]]. Sign out of the selected account.
+		sign_out,
+		/// [[BPR-1829]]. The selected account replaced, gained or lost.
+		account_change,
+		/// [[BPR-1829]]. The account credential's vault slot.
+		vault_store,
+		vault_load,
+		vault_delete,
+		/// [[BPR-1829]]. The refresh material's vault slot beside it.
+		refresh_store,
+		refresh_load,
+		refresh_delete,
+		/// [[BPR-1829]]. The updater's effect jobs.
+		update_check,
+		update_download,
+		update_verify,
+		/// The release read again immediately before installing.
+		update_refresh,
+		/// Installation handed to the platform installer.
+		update_apply,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -97,6 +131,65 @@ namespace bpr::core {
 		/// An edit found GitHub's text changed since editing began; nothing
 		/// was written.
 		conflict,
+		// [[BPR-1829]]. Sign-in (core::device_authorization_reason_code and
+		// application::device_authorization_refresh_failure); `timed_out`,
+		// `malformed_response` and `cancelled` are shared.
+		authorization_denied,
+		authorization_expired,
+		device_flow_disabled,
+		device_flow_unavailable,
+		network_unavailable,
+		certificate_rejected,
+		redirect_rejected,
+		response_too_large,
+		vault_unavailable,
+		refresh_absent,
+		refresh_rejected,
+		transport_failed,
+		storage_failed,
+		/// Sign out found no account or flow to end.
+		no_session,
+		// [[BPR-1829]]. Credential vault (the application vault port's typed failure);
+		// `invalid_request`, `unavailable` and `cancelled` are shared.
+		locked,
+		access_denied,
+		corrupt,
+		operation_failed,
+		allocation_failure,
+		// [[BPR-1829]]. Updater (core::release_update_reason); `timed_out`,
+		// `unavailable`, `cancelled`, `certificate_rejected` and
+		// `redirect_rejected` are shared.
+		/// A policy reason (current, skipped, disabled, an ineligible
+		/// installation, not due, no candidate) ended an effect job.
+		policy_refused,
+		access_required,
+		unauthenticated,
+		forbidden,
+		inaccessible,
+		offline,
+		rate_limited,
+		malformed_release,
+		invalid_version,
+		unstable_release,
+		no_compatible_asset,
+		ambiguous_asset,
+		invalid_digest,
+		size_limit,
+		unsafe_archive,
+		invalid_bundle,
+		wrong_architecture,
+		wrong_signer,
+		digest_mismatch,
+		changed_candidate,
+		busy,
+		stale_completion,
+		invalid_progress,
+		identity_exhausted,
+		installer_unavailable,
+		flush_failed,
+		quit_refused,
+		recovery_required,
+		shutdown,
 	};
 
 	/// \brief [[BPR-1828]]. How an agent setup check's process run ended,
@@ -121,7 +214,10 @@ namespace bpr::core {
 	/// path, workspace path, repository, account, thread, comment or body.
 	/// `Count` is the family's one useful count: the process runs a check
 	/// made, the reviewers a reviewer answer lists, or the comments a
-	/// reconciliation read back. `Written` and `ReadBack` say, for a
+	/// reconciliation read back. [[BPR-1829]]: a device sign-in's token
+	/// polls, 1 when a vault load found or a delete removed its slot (0
+	/// when absent), 1 when an account change leaves an account selected,
+	/// and a download's received bytes. `Written` and `ReadBack` say, for a
 	/// mutation, whether a write was sent and whether its outcome was
 	/// learned by reading GitHub back. `Process` and `ExitCode` are an agent
 	/// setup check's last process run.

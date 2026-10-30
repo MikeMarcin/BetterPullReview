@@ -428,6 +428,10 @@ namespace bpr::adapters::logging {
 			case core::operation_diagnosis_family::agent_setup:     return application::diagnostic_operation::agent_setup_check;
 			case core::operation_diagnosis_family::agent_workspace: return application::diagnostic_operation::agent_workspace;
 			case core::operation_diagnosis_family::review_mutation: return application::diagnostic_operation::review_mutation;
+			// [[BPR-1829]].
+			case core::operation_diagnosis_family::sign_in:          return application::diagnostic_operation::sign_in;
+			case core::operation_diagnosis_family::credential_vault: return application::diagnostic_operation::credential_vault;
+			case core::operation_diagnosis_family::updater:          return application::diagnostic_operation::updater;
 			}
 			return application::diagnostic_operation::application;
 		}
@@ -592,7 +596,10 @@ namespace bpr::adapters::logging {
 			// lines are exactly an operation diagnosis: enums, counts, a
 			// duration and an exit code, never a path, body or identity.
 			if ((aEvent.Operation == application::diagnostic_operation::agent_setup_check || aEvent.Operation == application::diagnostic_operation::agent_workspace
-				 || aEvent.Operation == application::diagnostic_operation::review_mutation)
+				 || aEvent.Operation == application::diagnostic_operation::review_mutation
+				 // [[BPR-1829]]. Sign-in, credential vault and updater lines too.
+				 || aEvent.Operation == application::diagnostic_operation::sign_in || aEvent.Operation == application::diagnostic_operation::credential_vault
+				 || aEvent.Operation == application::diagnostic_operation::updater)
 				&& !operation_line_admitted(aEvent)) {
 				State->drop();
 				return status_type::dropped;

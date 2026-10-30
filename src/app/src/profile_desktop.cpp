@@ -1446,14 +1446,20 @@ namespace bpr::app {
 			if (Updater && !Quitting && ++UpdateAccountPoll >= 100U) {
 				UpdateAccountPoll = 0U;
 				std::vector<release_update_account> accounts;
+				// [[BPR-1829]]. The updater records to the first open profile's log.
+				std::shared_ptr<application::diagnostic_log_port> log;
 				for (auto& [id, entry] : Runtimes) {
 					static_cast<void>(id);
 					if (entry.Runtime && !entry.Closing) {
 						if (auto account = entry.Runtime->desktop_release_account()) {
 							accounts.push_back(std::move(*account));
 						}
+						if (!log) {
+							log = entry.Runtime->desktop_diagnostic_log();
+						}
 					}
 				}
+				Updater->set_diagnostic_log(std::move(log));
 				Updater->set_accounts(std::move(accounts));
 			}
 			for (auto position = Runtimes.begin(); position != Runtimes.end();) {

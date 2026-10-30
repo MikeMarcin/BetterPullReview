@@ -1,5 +1,6 @@
 #include "bpr/application/device_authorization_application_host.hpp"
 #include "bpr/application/manual_executor.hpp"
+#include "bpr/core/operation_diagnosis.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -1737,6 +1738,93 @@ namespace {
 		}
 	}
 
+	// [[BPR-1829]]. Keeps the renewal lines the host records.
+	class renewal_log final : public application::diagnostic_log_port
+	{
+	public:
+		[[nodiscard]] auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			const auto text = std::string{ aEvent.Summary.text() };
+			if (text.starts_with("action=token_renewal ")) {
+				expect(aEvent.Operation == application::diagnostic_operation::sign_in && core::parse_operation_diagnosis(text).has_value(), "a renewal line is a sign-in operation line");
+				Lines.push_back(text);
+				Outcomes.push_back(aEvent.Outcome);
+			}
+			All.push_back(text);
+			return application::diagnostic_log_status::available;
+		}
+		[[nodiscard]] auto status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+
+		std::vector<std::string>                     Lines;
+		std::vector<application::diagnostic_outcome> Outcomes;
+		std::vector<std::string>                     All;
+	};
+
+	// [[BPR-1829]]. A renewal records its start and its end; a rotation is a
+	// success, a refused one a typed failure; no token reaches a line.
+	void test_renewal_diagnostics()
+	{
+		using outcome = application::diagnostic_outcome;
+		{
+			harness world;
+			auto    log = std::make_shared<renewal_log>();
+			world.Host.set_diagnostic_log(log);
+			world.authorize_with_bound_authority();
+			expect(log->Lines.empty(), "authorizing is not a renewal");
+			world.Clock.advance(world.Timer.last_delay());
+			world.Timer.fire();
+			world.Lane.drain();
+			world.Clock.advance(2U);
+			world.Transport.answer_refresh(application::device_token_issued{
+				.Context = world.Transport.last_refresh_context(),
+				.Grant   = application::device_token_material{ .AccessToken = material("access-2"), .RefreshToken = material("refresh-2"), .ExpiresInSeconds = 3'600U, .RefreshTokenExpiresInSeconds = 15'552'000U },
+			});
+			world.Lane.drain();
+			expect(world.Host.refresh_observation().Rotations == 1U, "the course rotates");
+			expect(log->Lines.size() == 2U && log->Outcomes[0] == outcome::started && log->Lines[0] == "action=token_renewal failure=none process=none exit=none duration_ms=0 count=0 written=0 read_back=0"
+					   && log->Outcomes[1] == outcome::succeeded && log->Lines[1] == "action=token_renewal failure=none process=none exit=none duration_ms=2000 count=0 written=0 read_back=0",
+				   "a rotation records its start and its success with the host's elapsed time");
+			for (const auto& line : log->All) {
+				expect(line.find("access-") == std::string::npos && line.find("refresh-") == std::string::npos && line.find("device-code") == std::string::npos, "no token reaches any line");
+			}
+		}
+		{
+			harness world;
+			auto    log = std::make_shared<renewal_log>();
+			world.Host.set_diagnostic_log(log);
+			world.authorize_with_bound_authority();
+			world.Clock.advance(world.Timer.last_delay());
+			world.Timer.fire();
+			world.Lane.drain();
+			world.Transport.answer_refresh(application::device_token_refused{ .Context = world.Transport.last_refresh_context(), .Reason = application::device_token_refusal_reason::access_denied });
+			world.Lane.drain();
+			expect(log->Lines.size() == 2U && log->Outcomes[1] == outcome::failed && log->Lines[1].starts_with("action=token_renewal failure=refresh_rejected "), "a refused renewal records failed refresh_rejected");
+		}
+		{
+			harness world;
+			auto    log = std::make_shared<renewal_log>();
+			world.Host.set_diagnostic_log(log);
+			world.authorize_with_bound_authority();
+			world.Vault.Stored.reset();
+			world.Clock.advance(world.Timer.last_delay());
+			world.Timer.fire();
+			world.Lane.drain();
+			expect(log->Lines.size() == 2U && log->Outcomes[1] == outcome::failed && log->Lines[1].starts_with("action=token_renewal failure=refresh_absent "), "an empty slot records failed refresh_absent");
+		}
+		{
+			harness world;
+			auto    log = std::make_shared<renewal_log>();
+			world.Host.set_diagnostic_log(log);
+			world.authorize_with_bound_authority();
+			world.Clock.advance(world.Timer.last_delay());
+			world.Timer.fire();
+			world.Lane.drain();
+			world.Host.release_refresh_authority();
+			world.Lane.drain();
+			expect(log->Lines.size() == 2U && log->Outcomes[1] == outcome::cancelled && log->Lines[1].starts_with("action=token_renewal failure=cancelled "), "a renewal released by Sign out records cancelled");
+		}
+	}
+
 } // namespace
 
 auto main() -> int
@@ -1768,6 +1856,7 @@ auto main() -> int
 	test_a_denied_second_flow_gets_the_first_renewal_back_on_the_timer();
 	test_a_renewal_due_during_a_second_flow_fires_on_time();
 	test_the_observation_never_says_scheduled_with_nothing_armed();
+	test_renewal_diagnostics();
 
 	std::cout << "device-authorization-refresh-tests:pass\n";
 	return EXIT_SUCCESS;

@@ -10,6 +10,7 @@
 #include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 #include "bpr/app/release_maintenance_controls.hpp"
+#include "bpr/application/credential_vault_diagnostics.hpp"
 #include "bpr/application/insights_host.hpp"
 #include "bpr/application/markdown_blob_snippet_host.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
@@ -5577,6 +5578,9 @@ namespace bpr::app {
 					OwnedVault = std::make_unique<unavailable_credential_vault>(
 						VaultEffects);
 				}
+				// [[BPR-1829]]. Every store, load and delete of the account
+				// and refresh slots leaves a credential.vault record.
+				OwnedVault = application::with_credential_vault_diagnostics(std::move(OwnedVault), DiagnosticLog);
 			}
 
 			auto cache = adapters::git::make_installed_git_cache({
@@ -5982,6 +5986,7 @@ namespace bpr::app {
 						  AnonymousSmartGit.get())
 					: nullptr,
 				PublicPreviewProjectionFanOut.get(), aConfig.Profile);
+			Host->set_diagnostic_log(DiagnosticLog); // [[BPR-1829]] Sign out, account changes
 			// The switch-to-sign-in gesture, end to end. The ring in the
 			// review header dispatches it, the host names the profile the
 			// signed-out session was activated for, and the device flow for
@@ -6254,6 +6259,7 @@ namespace bpr::app {
 						application::default_device_verification_authority },
 				},
 				deviceCapability);
+			DeviceHost->set_diagnostic_log(DiagnosticLog); // [[BPR-1829]] device sign-in, renewal
 			if (RememberDeviceSignIn) {
 				DeviceBindingStore = adapters::sqlite::make_device_binding_store(applicationDataRoot, aConfig.Profile);
 				DevicePersistence  = std::make_unique<application::device_binding_persistence>(*DeviceBindingStore, DeviceBindingEffects, DecisionLane);
@@ -25180,6 +25186,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		return result;
 	}
 	auto github_application::desktop_release_account() -> std::optional<release_update_account> { return Profile->release_account(); }
+	auto github_application::desktop_diagnostic_log() const -> std::shared_ptr<application::diagnostic_log_port> { return Profile->DiagnosticLog; }
 	auto github_application::desktop_activation_server() const -> std::shared_ptr<application::profile_activation_server> { return Profile->ActivationServer; }
 	auto github_application::desktop_tour_owner_server() const -> std::shared_ptr<application::tour_owner_server> { return Profile->TourOwnerServer; }
 	namespace {

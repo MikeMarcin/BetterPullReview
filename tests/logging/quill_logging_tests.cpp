@@ -461,6 +461,36 @@ try {
 			bare.Summary = { };
 			expect(log.record(bare) == status::dropped, "an operation event always carries its line");
 		}
+		{
+			// [[BPR-1829]]. Sign-in, credential vault and updater lines: the
+			// same operation diagnosis on their own operations.
+			const auto line = [](const application::diagnostic_operation aOperation, const application::diagnostic_outcome aOutcome, const core::operation_diagnosis& aDiagnosis) {
+				auto       event = application::diagnostic_event{ .Operation = aOperation, .Outcome = aOutcome };
+				const auto text  = core::describe(aDiagnosis);
+				std::ranges::copy(text, event.Summary.Text.begin());
+				event.Summary.Size  = static_cast<std::uint16_t>(text.size());
+				event.Summary.State = application::diagnostic_summary_state::sanitized;
+				return event;
+			};
+			using operation   = application::diagnostic_operation;
+			using outcome     = application::diagnostic_outcome;
+			const auto denied = line(operation::sign_in, outcome::failed, { .Action = core::operation_action::device_sign_in, .Failure = core::operation_failure::authorization_denied, .DurationMilliseconds = 31000U, .Count = 6U });
+			expect(log.record(denied) == status::available, "a denied device sign-in reaches the real log");
+			expect(log.record(line(operation::credential_vault, outcome::failed, { .Action = core::operation_action::vault_load, .Failure = core::operation_failure::locked, .DurationMilliseconds = 4U })) == status::available,
+				   "a locked keychain read reaches the real log");
+			expect(log.record(line(operation::updater, outcome::succeeded, { .Action = core::operation_action::update_download, .DurationMilliseconds = 5200U, .Count = 48000000U })) == status::available,
+				   "an updater download reaches the real log");
+			auto elsewhere      = denied;
+			elsewhere.Operation = operation::updater;
+			expect(log.record(elsewhere) == status::dropped, "a sign-in line rides only the sign-in operation");
+			expect(log.record(line(operation::credential_vault, outcome::failed, { .Action = core::operation_action::vault_store, .Failure = core::operation_failure::offline })) == status::dropped,
+				   "an updater failure on a vault line is refused");
+			auto       forged = denied;
+			const auto text   = std::string{ "action=device_sign_in failure=authorization_denied process=none exit=none duration_ms=1 count=0 written=0 read_back=0 login=PRIVATE" };
+			std::ranges::copy(text, forged.Summary.Text.begin());
+			forged.Summary.Size = static_cast<std::uint16_t>(text.size());
+			expect(log.record(forged) == status::dropped, "a sign-in line carrying a login never enters the log");
+		}
 		log.close();
 		expect(log.record({ }) == status::closed, "closed ingress");
 	}
@@ -574,6 +604,14 @@ try {
 			   && first.find("\"event\":\"github.review_mutation.started\",\"category\":\"github\"") != std::string::npos
 			   && first.find("\"event\":\"github.review_mutation.cancelled\"") != std::string::npos,
 		   "[[BPR-1828]] agent setup, workspace and review mutation lines are kept with their category and exact line");
+	expect(first.find("\"event\":\"github.sign_in.failed\",\"category\":\"github\",\"severity\":\"error\"") != std::string::npos
+			   && first.find("\"detail\":\"action=device_sign_in failure=authorization_denied process=none exit=none duration_ms=31000 count=6 written=0 read_back=0\"") != std::string::npos
+			   && first.find("\"event\":\"credential.vault.failed\",\"category\":\"credential\"") != std::string::npos
+			   && first.find("\"event\":\"updater.release.succeeded\",\"category\":\"updater\"") != std::string::npos && first.find("login=PRIVATE") == std::string::npos,
+		   "[[BPR-1829]] sign-in, vault and updater lines are kept with their category and exact line");
+	expect(exported && exported->Bytes.find("operation=12 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=13 outcome=2 ") != std::string::npos
+			   && exported->Bytes.find("operation=14 outcome=1 ") != std::string::npos,
+		   "[[BPR-1829]] the metadata-only preview classifies the sign-in, vault and updater operations without their lines");
 	expect(exported && exported->Bytes.find("operation=9 outcome=2 ") != std::string::npos && exported->Bytes.find("operation=10 outcome=2 ") != std::string::npos
 			   && exported->Bytes.find("operation=11 outcome=0 ") != std::string::npos && exported->Bytes.find("action=") == std::string::npos,
 		   "[[BPR-1828]] the metadata-only preview classifies the new operations without their lines");

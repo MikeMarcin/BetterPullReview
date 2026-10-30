@@ -3477,6 +3477,22 @@ line only when it parses back exactly. [[BPR-1827]]'s `agent.run` lines
 (`protocol=...`) export the same way, under category `agent`. A record's
 category is its operation's first word.
 
+Sign-in, the credential vault and the updater use the same line
+([[BPR-1829]]). `github.sign_in` (category `github`) records a device sign-in
+from its device-code request to its terminal stage (counting token polls), each
+token renewal attempt, Sign out, and each change of the accepted account
+(counting 1 when an account is selected afterwards). `credential.vault`
+(category `credential`) records the start and terminal of each store, load and
+delete of the account slot and its refresh slot, with the vault's typed failure
+(`locked`, `access_denied`, `corrupt`, ...); a load or delete counts 1 when the
+slot held an entry. `updater.release` (category `updater`) records each
+updater job: check, download (counting received bytes), verify, the refresh
+before installing, and the installer handoff, with the release update reason.
+No token, code, login, account, hostname, URL, path, release tag or asset name
+appears. A vault record says what the composed vault port answered, not which
+platform store answered or that an entry outlives a restart; an `update_apply`
+success is the installer's handoff, not a completed installation.
+
 The application explicitly owns its terminal diagnostics before Qt startup.
 Records have at most 1,968 content bytes plus a bounded loss prefix in each
 2 KiB slot; the queue has 64 slots and uses nonblocking admission. Loss counts

@@ -55,13 +55,20 @@ namespace bpr::application {
 													 agent_workspace,
 													 /// [[BPR-1828]]. A review mutation (resolve, react, edit,
 													 /// reviewers, publish) and its reads.
-													 review_mutation };
+													 review_mutation,
+													 /// [[BPR-1829]]. Device sign-in, renewal, Sign out, account change.
+													 sign_in,
+													 /// [[BPR-1829]]. A credential vault slot stored, loaded or deleted.
+													 credential_vault,
+													 /// [[BPR-1829]]. An updater check, download, verification or handoff.
+													 updater };
 	/// \brief The logged `op` name of each diagnostic operation, in order.
 	/// \details The logger writes and the export classifier admits exactly
 	/// these, so the two never disagree about the vocabulary ([[BPR-1828]]).
-	inline constexpr std::array<std::string_view, 12> diagnostic_operation_names{
+	inline constexpr std::array<std::string_view, 15> diagnostic_operation_names{
 		"application", "github.viewer", "github.capability", "github.pull_request", "epoch", "github.review_comment",
-		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation"
+		"github.review_submission", "github.discovery", "agent.run", "agent.setup_check", "agent.workspace", "github.review_mutation",
+		"github.sign_in", "credential.vault", "updater.release"
 	};
 	/// \brief [[BPR-1828]]. A record's category: the operation name before its
 	/// first dot (`application`, `epoch`, `github` or `agent`).

@@ -117,6 +117,7 @@ add_library(
         src/home_open_host.cpp
         src/github_read_admission.cpp
         src/github_credential_vault.cpp
+        src/credential_vault_diagnostics.cpp
         src/github_projection_mapping.cpp
         src/review_comment_placement.cpp
         src/review_preflight_observation.cpp

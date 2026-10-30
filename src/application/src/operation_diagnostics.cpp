@@ -11,6 +11,10 @@ namespace bpr::application {
 		case core::operation_diagnosis_family::agent_setup:     return diagnostic_operation::agent_setup_check;
 		case core::operation_diagnosis_family::agent_workspace: return diagnostic_operation::agent_workspace;
 		case core::operation_diagnosis_family::review_mutation: return diagnostic_operation::review_mutation;
+		// [[BPR-1829]].
+		case core::operation_diagnosis_family::sign_in:          return diagnostic_operation::sign_in;
+		case core::operation_diagnosis_family::credential_vault: return diagnostic_operation::credential_vault;
+		case core::operation_diagnosis_family::updater:          return diagnostic_operation::updater;
 		}
 		return diagnostic_operation::review_mutation;
 	}
@@ -123,5 +127,142 @@ namespace bpr::application {
 		case agent_run_outcome::stale_result:            return process::stale_result;
 		}
 		return process::failed_to_start;
+	}
+
+	auto operation_failure_of(const core::device_authorization_stage aStage, const core::device_authorization_reason_code aReason) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		using stage   = core::device_authorization_stage;
+		switch (aStage) {
+		case stage::authorized:             return failure::none;
+		case stage::cancelled:              return failure::cancelled;
+		case stage::denied:                 return failure::authorization_denied;
+		case stage::expired:                return failure::authorization_expired;
+		case stage::disabled:               return failure::device_flow_disabled;
+		case stage::unavailable:
+		case stage::failed:
+		case stage::idle:
+		case stage::requested:
+		case stage::awaiting_authorization:
+		case stage::cancelling:             break;
+		}
+		using reason = core::device_authorization_reason_code;
+		switch (aReason) {
+		case reason::authorization_denied:     return failure::authorization_denied;
+		case reason::authorization_expired:    return failure::authorization_expired;
+		case reason::device_flow_disabled:     return failure::device_flow_disabled;
+		case reason::cancelled:                return failure::cancelled;
+		case reason::network_unavailable:      return failure::network_unavailable;
+		case reason::certificate_rejected:     return failure::certificate_rejected;
+		case reason::redirect_rejected:        return failure::redirect_rejected;
+		case reason::timed_out:                return failure::timed_out;
+		case reason::malformed_response:       return failure::malformed_response;
+		case reason::response_too_large:       return failure::response_too_large;
+		case reason::vault_unavailable:        return failure::vault_unavailable;
+		case reason::device_flow_unavailable:
+		case reason::none:
+		case reason::flow_in_progress:
+		case reason::no_active_flow:
+		case reason::cancellation_in_progress:
+		case reason::stale_completion:         break;
+		}
+		return aStage == stage::failed ? failure::transport_failed : failure::device_flow_unavailable;
+	}
+
+	auto operation_failure_of(const device_authorization_refresh_failure aFailure) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		switch (aFailure) {
+		case device_authorization_refresh_failure::none:              return failure::none;
+		case device_authorization_refresh_failure::vault_unavailable: return failure::vault_unavailable;
+		case device_authorization_refresh_failure::refresh_absent:    return failure::refresh_absent;
+		case device_authorization_refresh_failure::refresh_rejected:  return failure::refresh_rejected;
+		case device_authorization_refresh_failure::transport_failed:  return failure::transport_failed;
+		case device_authorization_refresh_failure::storage_failed:    return failure::storage_failed;
+		}
+		return failure::transport_failed;
+	}
+
+	auto operation_failure_of(const github_credential_vault_failure aFailure) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		switch (aFailure) {
+		case github_credential_vault_failure::none:               return failure::none;
+		case github_credential_vault_failure::invalid_request:    return failure::invalid_request;
+		case github_credential_vault_failure::unavailable:        return failure::unavailable;
+		case github_credential_vault_failure::locked:             return failure::locked;
+		case github_credential_vault_failure::access_denied:      return failure::access_denied;
+		case github_credential_vault_failure::corrupt:            return failure::corrupt;
+		case github_credential_vault_failure::operation_failed:   return failure::operation_failed;
+		case github_credential_vault_failure::allocation_failure: return failure::allocation_failure;
+		}
+		return failure::operation_failed;
+	}
+
+	auto operation_failure_of(const core::release_update_reason aReason) noexcept -> core::operation_failure
+	{
+		using failure = core::operation_failure;
+		using reason  = core::release_update_reason;
+		switch (aReason) {
+		case reason::none:                   return failure::none;
+		case reason::current:
+		case reason::skipped:
+		case reason::disabled:
+		case reason::managed:
+		case reason::unsupported_platform:
+		case reason::untrusted_installation:
+		case reason::read_only:
+		case reason::translocated:
+		case reason::mounted_image:
+		case reason::not_due:
+		case reason::no_candidate:           return failure::policy_refused;
+		case reason::access_required:        return failure::access_required;
+		case reason::unauthenticated:        return failure::unauthenticated;
+		case reason::forbidden:              return failure::forbidden;
+		case reason::inaccessible:           return failure::inaccessible;
+		case reason::offline:                return failure::offline;
+		case reason::rate_limited:           return failure::rate_limited;
+		case reason::malformed_release:      return failure::malformed_release;
+		case reason::invalid_version:        return failure::invalid_version;
+		case reason::unstable_release:       return failure::unstable_release;
+		case reason::no_compatible_asset:    return failure::no_compatible_asset;
+		case reason::ambiguous_asset:        return failure::ambiguous_asset;
+		case reason::invalid_digest:         return failure::invalid_digest;
+		case reason::size_limit:             return failure::size_limit;
+		case reason::certificate:            return failure::certificate_rejected;
+		case reason::redirect:               return failure::redirect_rejected;
+		case reason::timed_out:              return failure::timed_out;
+		case reason::cancelled:              return failure::cancelled;
+		case reason::unavailable:            return failure::unavailable;
+		case reason::unsafe_archive:         return failure::unsafe_archive;
+		case reason::invalid_bundle:         return failure::invalid_bundle;
+		case reason::wrong_architecture:     return failure::wrong_architecture;
+		case reason::wrong_signer:           return failure::wrong_signer;
+		case reason::digest_mismatch:        return failure::digest_mismatch;
+		case reason::changed_candidate:      return failure::changed_candidate;
+		case reason::busy:                   return failure::busy;
+		case reason::stale_completion:       return failure::stale_completion;
+		case reason::invalid_progress:       return failure::invalid_progress;
+		case reason::identity_exhausted:     return failure::identity_exhausted;
+		case reason::installer_unavailable:  return failure::installer_unavailable;
+		case reason::flush_failed:           return failure::flush_failed;
+		case reason::quit_refused:           return failure::quit_refused;
+		case reason::recovery_required:      return failure::recovery_required;
+		case reason::shutdown:               return failure::shutdown;
+		}
+		return failure::unavailable;
+	}
+
+	auto operation_action_of(const core::release_update_operation aOperation) noexcept -> core::operation_action
+	{
+		using action = core::operation_action;
+		switch (aOperation) {
+		case core::release_update_operation::check:           return action::update_check;
+		case core::release_update_operation::download:        return action::update_download;
+		case core::release_update_operation::verify:          return action::update_verify;
+		case core::release_update_operation::refresh_install: return action::update_refresh;
+		case core::release_update_operation::install:         return action::update_apply;
+		}
+		return action::update_check;
 	}
 } // namespace bpr::application
