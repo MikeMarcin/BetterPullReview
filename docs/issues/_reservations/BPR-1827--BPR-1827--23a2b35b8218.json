@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1827"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Custom agent run ends 'answered in a form this app can't read' with empty log",
+  "created": "2026-10-30T05:56:58.382321+00:00",
+  "base": "9c0286a6cffbc22747c8b215566229c337f25fd0"
+}

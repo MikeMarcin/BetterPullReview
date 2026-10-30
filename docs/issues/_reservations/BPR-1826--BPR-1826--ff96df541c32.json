@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1826"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "Resolve and unresolve threads on closed or merged pull requests",
+  "created": "2026-10-30T05:54:57.709381+00:00",
+  "base": "22380151b6e5e01bd0d0b940b0604dbb13056840"
+}
