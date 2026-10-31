@@ -178,8 +178,8 @@ try {
 	expect(std::ranges::all_of(records, [&](const auto& aRecord) { return aRecord.value("session") == records.front().value("session"); }), "the profile owns one logger session from startup through shutdown");
 	// [[BPR-0891]]. The native spelling above is not the only one a log could
 	// use: a Windows path can also be written with forward slashes or in
-	// another case. The root's random leaf is unique to this run, so finding it
-	// in any case finds the root however it was spelled. The repository is
+	// another case. The temporary parent's random leaf is unique to this run;
+	// the application root's own leaf is the fixed word "data". The repository is
 	// looked for by its own name as well as its owner's.
 	const auto folded = [](std::string aText) {
 		std::ranges::transform(aText, aText.begin(), [](const unsigned char aCharacter) {
@@ -187,8 +187,22 @@ try {
 		});
 		return aText;
 	};
-	const auto leaf = folded(root.filename().string());
-	expect(!leaf.empty() && folded(text).find(leaf) == std::string::npos, "logs exclude the data root however it is spelled");
+	constexpr std::string_view privatePrefix = "bpr_diagnostic_private_canary-";
+	const auto                 privateLeaf   = folded(root.parent_path().filename().string());
+	expect(root.filename() == "data" && privateLeaf.starts_with(privatePrefix) && privateLeaf.size() > privatePrefix.size(), "privacy sentinel belongs to this course's unique temporary parent");
+	const auto omitsRoot = [&root, &privateLeaf, &folded](const std::string& aText) {
+		const auto lower = folded(aText);
+		return lower.find(folded(root.string())) == std::string::npos
+			&& lower.find(privateLeaf) == std::string::npos;
+	};
+	expect(omitsRoot(R"({"op":"storage.database","category":"storage"})"), "a path-free typed database event is not a private-root disclosure");
+	expect(!omitsRoot(root.string()), "the full native root is private");
+	expect(!omitsRoot(folded(root.generic_string())), "a case-folded generic root is private");
+	auto backslashRoot = root.generic_string();
+	std::ranges::replace(backslashRoot, '/', '\\');
+	expect(!omitsRoot(backslashRoot), "a differently separated root is private");
+	expect(!omitsRoot(privateLeaf), "the unique temporary-parent leaf is private without a path");
+	expect(omitsRoot(text), "logs exclude the data root however it is spelled");
 	expect(text.find("review-repository") == std::string::npos, "logs exclude the repository's own name");
 	std::cout << "application-logging-tests:pass\n";
 	return EXIT_SUCCESS;

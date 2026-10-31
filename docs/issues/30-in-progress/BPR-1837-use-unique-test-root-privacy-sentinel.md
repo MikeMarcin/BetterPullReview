@@ -32,3 +32,20 @@ log byte for the fixed word data rejects path-free storage.database events.
   Retain valid unrelated images/objects, complete focused format/documentation
   checks and leave the future-main commit unpushed until stable compatibility
   is reconciled.
+
+## Prepared correction and current proof frontier
+
+The oracle keeps the earlier exact native-root and repository checks. Its
+additional case-insensitive check now binds the full root and the randomized
+temporary-parent leaf, after asserting that this sentinel belongs to the
+course's explicit temporary-directory pattern. One path-free storage.database
+record is admitted; native-root, case-folded generic-root, alternate-slash and
+unique-parent-only disclosures are all rejected.
+
+The old private Release application-logging image is preserved under
+main-refresh-r3-mac-private-oracles-build-r1 with its exact source/image seals.
+Its normal and terminal-recovery courses reach this privacy failure after the
+category correction. The original D9 terminal control separately repeats with
+captured child exit 1 and category-failure stderr; its earlier historical
+stderr gap remains unchanged. New private compilation and full affected
+courses remain pending, so no privacy/terminal acceptance is claimed.
