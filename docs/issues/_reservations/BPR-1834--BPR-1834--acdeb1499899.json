@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1834"
+  ],
+  "reserve_for": "v041-mutation-guard-followup",
+  "purpose": "Repair exact live mutation inventory paths for injected diagnostics decorator and scripted fake; future-main follow-up, frozen v0.4.1 build8 unchanged",
+  "created": "2026-10-31T16:57:18.554830+00:00",
+  "base": "f737404e1c42c5ff532064bfdabfeeb0c97c5e15"
+}
