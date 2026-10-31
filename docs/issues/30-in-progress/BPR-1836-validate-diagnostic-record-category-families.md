@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1836"
 title: "Validate diagnostic record categories by their operation family"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1828"]
 priority: "P1"
