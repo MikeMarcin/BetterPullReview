@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1834"
 title: "Inventory the injected review-mutation diagnostic implementations"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1828"]
 priority: "P1"
