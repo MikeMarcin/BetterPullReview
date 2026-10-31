@@ -25,6 +25,26 @@ The owner requested: “As soon as v0.4.0 is live start working on v0.4.1 from t
 
 The same prerelease strategy explicitly permits deferring comprehensive qualification until after mandatory Mac preview package/sign/notarization/integrity/source gates, then Windows preview. It authorizes public prerelease publication once those gates pass. It does not automatically authorize a new stable marketing-version publication. Historical native M8/M9, Intel, vault/authentication, accessibility, crash/privacy, allocator/fuzz and independent-review limits remain explicit. Raw vulnerability scans retain their actual failing status; matching deferrals are separate owner decisions, and any new unique unwaived finding needs concrete disposition. No new UX work is planned.
 
+## Fresh-main Windows containment measurements
+
+At actual merged source `3272aeb3a`, all 32 selected native Release functional
+courses passed. The configured manifest then refused two newly registered
+unmeasured Windows pins. On 2026-10-31 UTC, each exact same-image course was
+replayed once through the current zero-capability AppContainer launcher, with
+its configured arguments, working directory, environment and deadline retained.
+`sqlite_storage_diagnostics` exited 3 at `FAILED: an image is stored`;
+`application_closed_thread_resolution` exited 1 at
+`FAILED: fixture application starts`. The measured pins name only those first
+predicates. No OS cause, new exception, network capability, functional coverage
+or waiver is inferred from the contained failures.
+
+The original manifest refusal, paired direct results, executable/launcher
+digests, exact commands, streams and complete owned-process drain remain in
+external `main-refresh-r3-windows-selected-courses-r1` and
+`main-refresh-r3-windows-contained-measure-r1` receipts. The corrected manifest
+and focused policy gate must pass before the next source freeze. These selected
+checks do not replace the post-preview compilation barrier or qualification.
+
 ## Direct owner amendment: restart from current main
 
 The owner instructed: "If the release is still hours away then take the current
