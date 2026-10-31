@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1836"
+  ],
+  "reserve_for": "v041-category-oracle-followup",
+  "purpose": "Repair independent diagnostic JSON test-helper agent-family category oracle after accepted BPR-1828; retain schema time ordering severity build and privacy predicates; frozen build8 unchanged",
+  "created": "2026-10-31T17:23:26.472640+00:00",
+  "base": "f737404e1c42c5ff532064bfdabfeeb0c97c5e15"
+}
