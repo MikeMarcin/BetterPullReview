@@ -9,12 +9,49 @@
 #include "bpr/logging/quill_log.hpp"
 #include "github_capability_probe.hpp"
 #include <QTemporaryDir>
+#include <array>
 #include <atomic>
 #include <filesystem>
 #include <thread>
+#include <utility>
 using namespace bpr;
 using tests::expect;
 namespace {
+	void category_families()
+	{
+		const auto cases = std::array{
+			std::pair{ QStringLiteral("application"), QStringLiteral("application") },
+			std::pair{ QStringLiteral("github.viewer"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("github.capability"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("github.pull_request"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("epoch"), QStringLiteral("epoch") },
+			std::pair{ QStringLiteral("github.review_comment"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("github.review_submission"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("github.discovery"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("agent.run"), QStringLiteral("agent") },
+			std::pair{ QStringLiteral("agent.setup_check"), QStringLiteral("agent") },
+			std::pair{ QStringLiteral("agent.workspace"), QStringLiteral("agent") },
+			std::pair{ QStringLiteral("github.review_mutation"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("github.sign_in"), QStringLiteral("github") },
+			std::pair{ QStringLiteral("credential.vault"), QStringLiteral("credential") },
+			std::pair{ QStringLiteral("updater.release"), QStringLiteral("updater") },
+			std::pair{ QStringLiteral("storage.database"), QStringLiteral("storage") },
+			std::pair{ QStringLiteral("workspace.clone_scan"), QStringLiteral("workspace") },
+			std::pair{ QStringLiteral("search.source"), QStringLiteral("search") },
+			std::pair{ QStringLiteral("image.fetch"), QStringLiteral("image") },
+			std::pair{ QStringLiteral("notification.delivery"), QStringLiteral("notification") },
+			std::pair{ QStringLiteral("agent.mcp_helper"), QStringLiteral("agent") },
+			std::pair{ QStringLiteral("tour.operation"), QStringLiteral("tour") },
+			std::pair{ QStringLiteral("cycle.round"), QStringLiteral("cycle") },
+		};
+		for (const auto& [operation, category] : cases) {
+			expect(tests::diagnostic_record_category_matches(operation, category), "each recorded operation belongs to its named family");
+			expect(!tests::diagnostic_record_category_matches(operation, category + QStringLiteral("-wrong")), "a wrong category cannot pass the independent JSON oracle");
+			if (operation != category) {
+				expect(!tests::diagnostic_record_category_matches(operation, operation), "a dotted operation is not its own category");
+			}
+		}
+	}
 	auto root(const std::filesystem::path& aParent, std::string aName) -> std::filesystem::path
 	{
 		auto path = aParent / aName;
@@ -170,6 +207,7 @@ try {
 		expect(log.recent_context().empty() && log.capture_state().RecentBytes == 0, "real three-minute age expires context without new records");
 		return 0;
 	}
+	category_families();
 	combinations(parent);
 	controls(parent);
 	const auto a = root(parent, "profile-a"), b = root(parent, "profile-b");

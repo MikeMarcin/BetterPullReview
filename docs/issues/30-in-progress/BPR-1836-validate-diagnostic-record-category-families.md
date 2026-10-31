@@ -38,3 +38,16 @@ remains ungrouped until a complete replay proves the cause.
   format/documentation checks and commit this separate future-main fix without
   pushing or changing the frozen publisher before stable compatibility is
   reconciled.
+
+## Prepared correction
+
+The test helper now independently compares category with the first operation
+component. The production vocabulary's 23 operation names are listed explicitly
+in focused controls with their expected families, including the newer agent,
+credential, updater, storage, workspace, search, image, notification, tour and
+cycle families. Every case rejects a wrong category, and each dotted operation
+also rejects its entire operation name as category. This does not call the
+production category helper or change any other JSON record predicate.
+
+Native builds and affected full public courses remain pending. Historical
+failures are not classified as recovered by this source change alone.
