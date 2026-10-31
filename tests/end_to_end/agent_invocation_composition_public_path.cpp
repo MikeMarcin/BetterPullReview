@@ -30,6 +30,7 @@
 #include <QMessageBox>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QRegularExpression>
 #include <QSpinBox>
 #include <QTabWidget>
 #include <QTemporaryDir>
@@ -38,6 +39,7 @@
 #include <QToolButton>
 #include <QTreeView>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -531,6 +533,34 @@ namespace {
 		});
 	}
 
+	/// \brief A stopped canary keeps BPR-1827's summary, never its raw output.
+	[[nodiscard]] auto is_cancellation_diagnostic_log(const QString& aText) -> bool
+	{
+		static const auto summary = QRegularExpression{
+			QStringLiteral(R"(\A(?:Exit code: -?[0-9]{1,10}\n\n)?It wrote [1-9][0-9]{0,19} bytes of output and 0 bytes of errors\.\z)")
+		};
+		return summary.match(aText).hasMatch();
+	}
+
+	[[nodiscard]] auto cancellation_diagnostic_controls_pass() -> bool
+	{
+		const auto accepted = std::array{
+			QStringLiteral("It wrote 123 bytes of output and 0 bytes of errors."),
+			QStringLiteral("Exit code: -15\n\nIt wrote 123 bytes of output and 0 bytes of errors."),
+		};
+		const auto refused = std::array{
+			QString{ },
+			QStringLiteral("canary-complete"),
+			QStringLiteral("It wrote 0 bytes of output and 0 bytes of errors."),
+			QStringLiteral("It wrote 123 bytes of output and 1 bytes of errors."),
+			QStringLiteral("It wrote 123 bytes of output and 0 bytes of errors.\nBPR_CREDENTIAL_CANARY_0250"),
+			QStringLiteral("BPR_SELECTED_NOTE_0250\nIt wrote 123 bytes of output and 0 bytes of errors."),
+			QStringLiteral("It wrote 123456789012345678901 bytes of output and 0 bytes of errors."),
+		};
+		return std::ranges::all_of(accepted, is_cancellation_diagnostic_log)
+			&& std::ranges::none_of(refused, is_cancellation_diagnostic_log);
+	}
+
 	[[nodiscard]] auto exact_agent_process_launcher_path(
 		const app::detail::agent_invocation_composition_evidence& aEvidence,
 		const bool                                                aStartGestureObserved) noexcept -> bool
@@ -567,6 +597,10 @@ auto main(int argc, char** argv) -> int
 		&& course != "gesture-cut" && course != "cancellation"
 		&& course != "staleness" && course != "cleanup-retry"
 		&& !workspaceDiagnostic && !crashMaterializing) {
+		return EXIT_FAILURE;
+	}
+	if (course == "cancellation" && !cancellation_diagnostic_controls_pass()) {
+		std::cerr << "agent-invocation-composition-failed:cancelled-output-controls\n";
 		return EXIT_FAILURE;
 	}
 	constexpr std::string_view selectedNote
@@ -1736,7 +1770,11 @@ auto main(int argc, char** argv) -> int
 						panel->status_text() == expectedTerminal);
 				},
 				extended_agent_budget)
-			|| !panel->output_text().isEmpty()
+			// BPR-1835: cancellation reports BPR-1827's bounded stopped-run
+			// summary. Stale output remains absent, and cleanup is still awaited.
+			|| (course == "cancellation"
+					? !is_cancellation_diagnostic_log(panel->output_text())
+					: !panel->output_text().isEmpty())
 			|| !wait_until_reporting(
 				terminalCleaned,
 				[&application](wait_terms& aTerms) {
@@ -1768,6 +1806,7 @@ auto main(int argc, char** argv) -> int
 				static_cast<std::uint64_t>(
 					failureEvidence.Statistics.WorkspaceCleanups));
 			terminal.note("agent-terminal-quiescent", failureEvidence.Quiescent);
+			terminal.note("agent-terminal-output-accepted", course == "cancellation" ? is_cancellation_diagnostic_log(panel->output_text()) : panel->output_text().isEmpty());
 			terminal.note_identifier("reached", terminalReached.failing_term());
 			terminal.note_identifier("cleaned", terminalCleaned.failing_term());
 			return fail(
