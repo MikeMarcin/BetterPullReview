@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1837"
 title: "Use the unique temporary parent as the log privacy sentinel"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1831"]
 priority: "P1"
