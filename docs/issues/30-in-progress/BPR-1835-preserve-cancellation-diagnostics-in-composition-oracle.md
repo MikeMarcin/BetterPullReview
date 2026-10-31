@@ -37,3 +37,17 @@ remain preserved; the immediate cleanups=0 snapshot is not a cleanup timeout.
   stable publication compatibility is reconciled.
 
 Terminal diagnostics is a separate unresolved failure, outside this card.
+
+## Prepared correction
+
+The cancellation predicate accepts only the bounded stopped-run summary with a
+positive stdout count, zero stderr bytes and an optional integer exit code.
+It rejects empty output, zero-byte claims, nonzero stderr, raw canary output,
+private text before or after the summary and an overlong count. Two valid and
+seven hostile cases execute in the cancellation course. Staleness still requires
+empty output. All existing cleanup, descendant-stop and shutdown waits remain
+unchanged, including their original budgets.
+
+This is prepared test source, not yet native acceptance. Private compilation
+and complete public replay remain pending; no original failed or unreached
+check is marked passed.
