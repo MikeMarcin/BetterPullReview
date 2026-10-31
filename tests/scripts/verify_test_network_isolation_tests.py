@@ -754,6 +754,10 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # [[BPR-1800]]. Both native configurations refuse the first
                 # fixture-startup predicate; no lower-level cause was sampled.
                 "fixture-startup-unavailable",
+                # [[BPR-1811]]. The same-image storage diagnostics course
+                # passes directly; contained, its first image-store assertion
+                # fails. The pin does not claim an unobserved Windows cause.
+                "image-store-unavailable",
                 # RFC-BPR-0093 measured native loader refusals.
                 "cmake-dll-initialization",
                 "qt-dll-initialization",

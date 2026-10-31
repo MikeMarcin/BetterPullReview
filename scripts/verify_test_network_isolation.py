@@ -168,11 +168,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # STARTUP_PROFILE_REFUSAL:registry_unavailable. Preserve that measurement;
     # the merged-source candidate still requires its fresh native replay.
     "application_reviewer_request_contract": "startup-registry-unavailable",
-    # [[BPR-1826]]. The same composed fixture startup as
-    # application_thread_resolution_refresh; registered on macOS.
-    "application_closed_thread_resolution": "unmeasured (registered on macOS)",
-    # [[BPR-1831]]. Opens owner-private SQLite stores like every sqlite_* row.
-    "sqlite_storage_diagnostics": "unmeasured (registered on macOS)",
+    # [[BPR-1811]]. Source3272aeb3a, native Release, 2026-10-31:
+    # both same-image direct courses pass. Their unchanged zero-capability
+    # replays fail first at "fixture application starts" (exit1) and
+    # "an image is stored" (exit3), respectively. These are measured
+    # predicates; no lower-level Windows cause was observed.
+    "application_closed_thread_resolution": "fixture-startup-unavailable",
+    "sqlite_storage_diagnostics": "image-store-unavailable",
     "mimalloc_app_bpr": "qt-dll-initialization",
     "mimalloc_app_better_pull_review": "qt-dll-initialization",
     "mimalloc_disabled_redirect": "qt-dll-initialization",
