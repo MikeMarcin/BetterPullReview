@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1837"
+  ],
+  "reserve_for": "v041-privacy-oracle-followup",
+  "purpose": "Use actual randomized temporary-root token in application logging privacy oracle; reject full/root disclosures while accepting path-free storage.database; frozen build8 unchanged",
+  "created": "2026-10-31T17:51:16.952884+00:00",
+  "base": "f737404e1c42c5ff532064bfdabfeeb0c97c5e15"
+}
