@@ -11,6 +11,11 @@
 #include <string_view>
 #include <vector>
 namespace bpr::tests {
+	/// \brief Independent category oracle: the operation's first component.
+	inline auto diagnostic_record_category_matches(const QString& aOperation, const QString& aCategory) -> bool
+	{
+		return aCategory == aOperation.section(QLatin1Char{ '.' }, 0, 0);
+	}
 	/// \brief Independently parses real JSONL and checks record identity, time and ordering.
 	inline auto diagnostic_json_records(std::string_view aBytes) -> std::vector<QJsonObject>
 	{
@@ -38,7 +43,7 @@ namespace bpr::tests {
 			const auto operation = record.value("op").toString();
 			const auto outcome   = record.value("outcome").toString();
 			expect(record.value("event").toString() == operation + '.' + outcome, "event identity is closed operation plus outcome");
-			expect(record.value("category").toString() == (operation.startsWith("github.") ? "github" : operation), "category binds the event family");
+			expect(diagnostic_record_category_matches(operation, record.value("category").toString()), "category binds the event family");
 			expect(record.value("severity").toString() == (outcome == "failed" ? "error" : record.value("http_status").toInteger() >= 400 ? "warning"
 																																		  : "info"),
 				   "severity preserves failure and HTTP warning facts");
