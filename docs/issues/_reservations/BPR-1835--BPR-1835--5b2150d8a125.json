@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1835"
+  ],
+  "reserve_for": "v041-cancellation-oracle-followup",
+  "purpose": "Repair cancellation fixture diagnostic-summary oracle after BPR-1827; retain full typed cancellation, descendant cleanup, quiescence and private-history assertions; frozen build8 unchanged",
+  "created": "2026-10-31T17:15:11.890763+00:00",
+  "base": "f737404e1c42c5ff532064bfdabfeeb0c97c5e15"
+}
