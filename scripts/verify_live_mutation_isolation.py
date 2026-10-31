@@ -57,6 +57,9 @@ PORT_IMPLEMENTATION_ALLOWLIST = frozenset(
         "tests/github_contract/gh_cli_transport_tests.cpp",
         "tests/github_contract/outdated_reply_live_course.cpp",
         "tests/github_contract/cli_reply_live_course.cpp",
+        # Exact injected diagnostic decorator and its scripted test double.
+        "src/application/src/review_mutation_diagnostics.cpp",
+        "tests/application/operation_diagnostics_tests.cpp",
         # Test-build-only provider owned by the recorded public-path fixture.
         # Its protocol session uses a credential-free synthetic wire only;
         # it has no live transport or production build path.
