@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 
 from scripts.verify_live_mutation_isolation import (  # noqa: E402
+    CONSTRUCTION_SITE_EXPECTED_COUNTS,
     FORBIDDEN_SYMBOL,
     POSITIVE_CONTROL_SYMBOL,
     REQUIRED_PORT_IMPLEMENTATION,
@@ -78,6 +79,65 @@ def tree_with_only_the_fake(root: Path) -> None:
         "src/application/src/review_mutation_coordinator.cpp",
         "// uses application::review_mutation_port& but implements nothing\n",
     )
+
+
+DIAGNOSTIC_IMPLEMENTATIONS = (
+    "src/application/src/review_mutation_diagnostics.cpp",
+    "tests/application/operation_diagnostics_tests.cpp",
+)
+
+
+def tree_with_expected_factory_sites(root: Path) -> None:
+    tree_with_only_the_fake(root)
+    for relative, count in CONSTRUCTION_SITE_EXPECTED_COUNTS.items():
+        write(root, relative, "void make_live_review_mutation_provider();\n" * count)
+
+
+class DiagnosticInventoryTests(unittest.TestCase):
+    def test_injected_decorator_and_scripted_provider_are_admitted(self) -> None:
+        with contained_temporary_directory() as directory:
+            root = Path(directory)
+            tree_with_expected_factory_sites(root)
+            for relative in DIAGNOSTIC_IMPLEMENTATIONS:
+                write(
+                    root, relative,
+                    "class diagnostic_provider : public application::review_mutation_port {};\n",
+                )
+            self.assertEqual(
+                port_implementations(root),
+                {REQUIRED_PORT_IMPLEMENTATION, *DIAGNOSTIC_IMPLEMENTATIONS},
+            )
+            self.assertEqual(_check_sources(root), [])
+
+    def test_each_diagnostic_path_still_cannot_construct_the_live_provider(self) -> None:
+        for relative in DIAGNOSTIC_IMPLEMENTATIONS:
+            with self.subTest(path=relative), contained_temporary_directory() as directory:
+                root = Path(directory)
+                tree_with_expected_factory_sites(root)
+                write(
+                    root, relative,
+                    "class diagnostic_provider : public application::review_mutation_port {};\n"
+                    "auto provider = make_live_review_mutation_provider(effects);\n",
+                )
+                failures = _check_sources(root)
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(relative + " calls make_live_review_mutation_provider", failures[0])
+
+    def test_neighboring_diagnostic_implementations_are_not_admitted(self) -> None:
+        for relative in (
+            "src/application/src/review_mutation_diagnostics_other.cpp",
+            "tests/application/operation_diagnostics_other_tests.cpp",
+        ):
+            with self.subTest(path=relative), contained_temporary_directory() as directory:
+                root = Path(directory)
+                tree_with_expected_factory_sites(root)
+                write(
+                    root, relative,
+                    "class diagnostic_provider : public application::review_mutation_port {};\n",
+                )
+                failures = _check_sources(root)
+                self.assertEqual(len(failures), 1, failures)
+                self.assertIn(relative + " implements review_mutation_port", failures[0])
 
 
 class NativeSymbolTests(unittest.TestCase):

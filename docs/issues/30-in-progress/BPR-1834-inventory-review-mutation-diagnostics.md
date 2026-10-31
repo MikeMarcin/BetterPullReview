@@ -31,3 +31,32 @@ results are separate evidence against unchanged frozen release inputs.
 - AC3: Run focused guard contracts and documentation checks, commit the allocated
   counter and receipt with this follow-up, and leave the commit reviewable for
   later main integration without advancing the frozen publisher or producers.
+
+## Current evidence and integration boundary
+
+The original N8 macOS and Windows registered rows both fail clause A on exactly
+these two paths. Source inspection confirms the application decorator owns an
+injected provider and the test implementation returns scripted results; neither
+adds a live factory site. The frozen candidate remains D9, and all 30 published
+producer asset hashes remain unchanged.
+
+A corrected external full oracle passes on the actual macOS Release manifest:
+498 non-production images, all three predicates, 11 permitted implementation
+paths and the unchanged three factory sites. Its original network wrapper,
+environment projection, working directory and 300-second budget are retained.
+The original 29 hostile/positive contracts also pass in that context. The new
+future-main guard has the same complete AST as that external oracle.
+
+The expanded contract suite passes 32 tests. It admits both exact diagnostic
+paths, refuses adjacent unlisted paths, and refuses live-factory construction
+from either added path. Two in-memory removal controls each make the new
+positive test fail on the removed entry. The documentation structure gate
+passes. Additional native build contexts remain pending and will be recorded
+separately; this card is not closed by the macOS Release result.
+
+External receipts: `main-refresh-r3-live-mutation-oracle-validation-r1/receipt.json`
+and `bpr1834-missing-inventory-hostile-controls-r1.json` under the declared
+external state. Original registered failures remain failed; no new waiver,
+producer change or cohort is implied. This follow-up must not advance main or
+the frozen publisher until the stable operation's compatibility guard is
+reconciled.

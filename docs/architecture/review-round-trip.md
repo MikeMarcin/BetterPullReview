@@ -364,9 +364,16 @@ against them, and a live implementation that uses any other name or path fails
 the first one rather than quietly becoming reachable:
 
 1. **Inventory.** The set of files implementing `application::review_mutation_port`
-   is a subset of `{the test fake, the live provider's two files}` — and the
-   fake must be found, because an inventory that reads nothing satisfies a
-   subset check perfectly.
+   is a subset of the exact `PORT_IMPLEMENTATION_ALLOWLIST` paths in
+   `scripts/verify_live_mutation_isolation.py`. Besides the live provider's two
+   files, it inventories credential-free test/fixture providers and the
+   application-layer `review_mutation_diagnostics.cpp` decorator added by
+   BPR-1828. That decorator owns an injected port, forwards its operations and
+   records their typed diagnostics; it creates no live transport or provider.
+   `operation_diagnostics_tests.cpp` supplies its scripted test provider. These
+   two exact implementation paths grant no factory-construction permission;
+   clauses 2 and 3 still apply. The required test fake must be found, because
+   an inventory that reads nothing satisfies a subset check perfectly.
 2. **Unreachability.** No first-party non-production executable contains a
    `live_review_mutation_provider` symbol. The binaries are enumerated by the
    build itself: every `bpr_add_executable` target not prefixed `app_` is
