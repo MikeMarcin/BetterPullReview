@@ -51,3 +51,9 @@ production category helper or change any other JSON record predicate.
 
 Native builds and affected full public courses remain pending. Historical
 failures are not classified as recovered by this source change alone.
+
+The original failed category assertion prints no operation/category values, so
+the specific first offending family is unknown. The earlier terminal wrapper
+also discarded its child's stderr and exact exit value. Neither historical gap
+is reconstructed or attributed to agent events; the complete documented
+first-component rule and all 23 operation controls bind the correction.
