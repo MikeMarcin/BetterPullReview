@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1835"
 title: "Keep cancellation diagnostics in the composed agent oracle"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: ["BPR-1827"]
 priority: "P1"
