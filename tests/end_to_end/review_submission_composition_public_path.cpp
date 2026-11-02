@@ -61,6 +61,14 @@ namespace {
 			throw std::runtime_error{ aMessage };
 		}
 	}
+	/// Match the submitted record's exact count-aware acknowledgement.
+	auto submitted_notice_matches(const QString& aNotice, const std::size_t aComments) -> bool
+	{
+		const auto expected = aComments == 0U ? QStringLiteral("Review submitted")
+			: aComments == 1U                 ? QStringLiteral("Review submitted with 1 comment")
+											  : QStringLiteral("Review submitted with %1 comments").arg(static_cast<qulonglong>(aComments));
+		return aNotice == expected;
+	}
 	/// [[BPR-1816]]. Settings › Review › Finishing a review, set through its
 	/// boxes (ticked is Home), once the host has published the choice.
 	void finish_at(qt::workbench_window& aWindow, const core::review_finish_settings& aWanted)
@@ -248,6 +256,19 @@ auto main(int argc, char** argv) -> int
 	};
 	auto application = make();
 	try {
+		expect(submitted_notice_matches(QStringLiteral("Review submitted"), 0U)
+				   && submitted_notice_matches(QStringLiteral("Review submitted with 1 comment"), 1U)
+				   && submitted_notice_matches(QStringLiteral("Review submitted with 2 comments"), 2U)
+				   && submitted_notice_matches(QStringLiteral("Review submitted with 17 comments"), 17U),
+			   "submission notice accepts independent zero, singular and plural count controls");
+		expect(!submitted_notice_matches(QStringLiteral("Review submitted"), 1U)
+				   && !submitted_notice_matches(QStringLiteral("Review submitted with 1 comment"), 0U)
+				   && !submitted_notice_matches(QStringLiteral("Review submitted with 2 comments"), 1U)
+				   && !submitted_notice_matches(QStringLiteral("Review submitted with 1 comments"), 1U)
+				   && !submitted_notice_matches(QStringLiteral("Review submitted. Closed the review."), 0U)
+				   && !submitted_notice_matches(QStringLiteral("Review not published"), 0U)
+				   && !submitted_notice_matches(QString{ }, 0U),
+			   "submission notice refuses wrong counts, malformed text and unrelated terminal states");
 		application->show();
 		application->window().open_review_composition();
 		QApplication::processEvents();
@@ -1291,7 +1312,8 @@ auto main(int argc, char** argv) -> int
 			submitted(sheet);
 			QApplication::processEvents();
 			expect(!finishing.finishing_at_home() && !finishing.showing_home() && !finishing.review_sheet_open()
-					   && finishing.statusBar()->currentMessage() == QStringLiteral("Review submitted"),
+					   && sheet.last_submitted().has_value()
+					   && submitted_notice_matches(finishing.statusBar()->currentMessage(), sheet.last_submitted()->Comments.size()),
 				   "with Comment unticked, a confirmed Comment returns to the pull request");
 			finishing.open_review_composition();
 			QApplication::processEvents();
