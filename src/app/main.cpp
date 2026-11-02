@@ -4313,6 +4313,11 @@ namespace {
 				   << '\n';
 		}
 		if (aRun.PublicPreview.Enabled) {
+#if defined(BPR_BUILD_TESTING)
+			if (aRun.BudgetExpired && aRun.PublicPreview.Course && !aRun.PublicPreview.Opened) {
+				stream << "PUBLIC_PATH_WAIT:home-open-action-enabled\n";
+			}
+#endif
 			// Separate facts again, and for the same reason: "the authority
 			// was composed", "which answer the activation produced", and
 			// "nothing was sent, no header was built, no vault was touched"
@@ -6887,12 +6892,15 @@ namespace {
 								&& !aApplication.status().PublicPreviewSignedOut) {
 								break;
 							}
-							aRun->PublicPreview.Opened = true;
 							// [[BPR-0771]]. Reading without an account is the Home bar's; the button is retired.
 							const auto previewLink = aRun->PublicPreview.Enterprise
 								? QStringLiteral("%1/%2#%3")
 								: QStringLiteral("https://github.com/%1/%2/pull/%3");
 							window.home_open_bar()->setText(previewLink.arg(QString::fromStdString(aRun->Expectations.Owner), QString::fromStdString(aRun->Expectations.Repository), QString::number(aRun->Expectations.Number)));
+							if (!window.home_open_action()->isEnabled()) {
+								break;
+							}
+							aRun->PublicPreview.Opened = true;
 							window.home_open_action()->trigger();
 							break;
 						}
