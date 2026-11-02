@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1811"
 title: "Prepare, publish previews and qualify v0.4.1"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"mandate": "release-v041-main-refresh-restart-r3", "baseline": "37467887a", "execution_strategy": "coordinator-implementer", "external_state": "/Users/jaeger/.codex/release-runs/v0.4.1-20261029", "milestone_plan": {"id": "release-v041", "path": "docs/rfcs/plans/release-v041/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"edeb26562858ec707c0415133fe0fb52fb02db2c","evidence":{"kind":"artifact","detail":"Inherited0.4.0 audit and source/cohort/MSI prerequisites bound by original handoff; all9 graph receipts accepted for frozen D9/N8."}},{"criterion":"AC2","outcome":"pass","revision":"edeb26562858ec707c0415133fe0fb52fb02db2c","evidence":{"kind":"artifact","detail":"All30 preview assets preserved; stable exactbyte copy public Latest; all30 anonymous hashes and downloaded native8/39/77 PASS."}},{"criterion":"AC3","outcome":"pass","revision":"edeb26562858ec707c0415133fe0fb52fb02db2c","evidence":{"kind":"artifact","detail":"Allsix comprehensive selected inventories reached5254 rows; retained5207pass/44nonpass/3skip and exact8Debugomissions; all44 separate proof hashes verified, three remaining scopes adopted as BPR1838–1840."}},{"criterion":"AC4","outcome":"pass","revision":"edeb26562858ec707c0415133fe0fb52fb02db2c","evidence":{"kind":"artifact","detail":"Fresh sameartifact scans/raw2 with exactcarriedwaivers; all source/SPDX/provenance/nativeaudit bindings pass. User separately authorized final publication; stable and website live; broader RFC0038 gaps preserved."}}]
 ---
 
 # Prepare, publish previews and qualify v0.4.1
@@ -181,3 +182,20 @@ Marketing version stays 0.4.1. No next global number has been allocated. Allocat
 once after source/configuration prerequisites, preserve N7 and stable Latest,
 carry matching waivers with fresh raw scans, and keep stable 0.4.1 as a separate
 concrete owner decision. No cleanup is implied by the source restart.
+
+## Final release closeout, 2026-11-02
+
+The fresh-session user mandate authorizes continuing until stable 0.4.1 is out.
+The release is public and Latest at `0.4.1`, source
+`d9d4a822dbf603c7bb22c83574f5a64d2bee5645`, cohort 8, release ID 431649515.
+All 30 anonymous stable hashes and repeated Mac8/Windows39/Ubuntu77 native
+trust/source audits pass. The website deployment passed its guarded Hugo build
+and live three-link verification. The full six-profile evidence, raw44 failures,
+three configured skips, eight omissions per Debug profile, exact matching
+security waivers and known native/legal limits remain explicit in the release
+notes and RFC ledger. BPR-1838–1840 complete the remaining test-only adoption;
+all producer/tag/package bytes are unchanged. No processes were stopped, no stash
+was used, no credentials/security settings changed, and unrelated canonical
+allocation work was preserved. Final source/tracker push follows this closeout.
+
+Evidence: `/Users/jaeger/Documents/Codex/2026-11-02/task/release-closeout`.
