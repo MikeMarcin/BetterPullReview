@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1838"
 title: "Minimal CPack runtime fixture supplies release cohort JSON default"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
