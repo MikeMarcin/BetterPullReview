@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1838",
+    "BPR-1839",
+    "BPR-1840"
+  ],
+  "reserve_for": "release-v041-final-closeout-20261102",
+  "purpose": "Adopt three already-proven v0.4.1 qualification fixture corrections",
+  "created": "2026-11-02T15:44:07.624620+00:00",
+  "base": "f737404e1c42c5ff532064bfdabfeeb0c97c5e15"
+}
