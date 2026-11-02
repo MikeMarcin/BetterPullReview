@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1839"
 title: "Comment opt-out status oracle checks specific confirmed submission count"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0038"]
 depends_on: []
 priority: "P1"
