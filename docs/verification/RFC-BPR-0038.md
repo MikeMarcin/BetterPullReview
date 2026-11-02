@@ -1,5 +1,44 @@
 # RFC-BPR-0038 qualification ledger
 
+## 0.4.1 build 8 stable publication, 2026-11-02
+
+[Stable 0.4.1](https://github.com/MikeMarcin/BetterPullReview/releases/tag/0.4.1)
+is public and Latest at immutable producer source
+`d9d4a822dbf603c7bb22c83574f5a64d2bee5645`, cohort 8 (MSI `0.4.8`).
+The numbered `v0.4.1-build.8` preview remains unchanged. All 30 stable assets
+match the producer bytes and anonymous downloads. Repeated native downloaded
+trust, extraction, source/SPDX and cohort checks passed: macOS 8, Windows 39,
+Ubuntu 77. The website's three installer links now point to these stable assets.
+
+All nine build graphs and six comprehensive native inventories completed.
+The original 5,254 selected rows retain 5,207 passes, 44 nonpasses and three
+configured optimized-only Debug skips. Every nonpass has a separately completed
+corrective/semantic proof; original failures are not relabelled. Eight dedicated
+timing courses per Debug profile remain omitted without passing or functional
+credit. BPR-1834 through BPR-1840 retain the test-oracle/fixture corrections and
+native proof bindings on future main, separate from the frozen release source.
+The BPR-1840 named expiry diagnostic has source controls and formatting proof;
+its native semantic proofs exercised the unchanged readiness guard before that
+reporting-only addition. No native compilation of that addition is claimed.
+
+The fresh same-artifact security scans retain raw exit 2 and 23/21/23 matching
+Mac/Windows/Ubuntu rows, with no new unwaived finding. Exact standing waivers
+and all existing source/legal, ordinary-user installation/authentication/vault,
+accessibility, native Intel, crash/privacy, allocator/fuzz and independent-review
+limitations remain explicit in the release notes. This publication closes the
+release task, not RFC-BPR-0038 or those broader qualification gaps. Source,
+tags and assets retain their existing access, redistribution and retention duties.
+
+The user authorized finishing publication on 2026-11-02. Durable evidence is in
+`/Users/jaeger/Documents/Codex/2026-11-02/task/release-closeout`, including bound
+acceptance/authorization, publisher/resume receipts, all30 anonymous hashes,
+native final receipts and live website verification. The publisher's initial
+draft-discovery refusal was reconciled against the exact empty draft ID
+431649515 before its supported resume; no duplicate tag/release was created.
+The observational milestone helper refused the existing plan's `amendments`
+field with its pinned parser; plan bytes were preserved and the actual criteria
+were reconciled directly through the guarded issue-board finish procedure.
+
 ## 0.4.0 build 1 stable publication; native follow-up pending, 2026-10-29
 
 [Release results](release-v040-results.md) record new stable/Latest bare tag
