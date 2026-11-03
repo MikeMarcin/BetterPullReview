@@ -3261,10 +3261,12 @@ namespace bpr::qt {
 			AskedFeedback.reset();
 			Model->apply_feedback(std::nullopt);
 		}
-		Projection = aProjection;
+		Projection    = aProjection;
+		ObservedFiles = false;
 		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
 			Files->setColumnHidden(column, false);
 		}
+		PendingOpen.clear();
 		Files->setAccessibleDescription(QStringLiteral("Current file catalogue; activate a file to read it; %1.").arg(files_ends_help()));
 		Summary->setToolTip({ });
 		Summary->setAccessibleDescription({ });
@@ -3592,6 +3594,8 @@ namespace bpr::qt {
 		AskedFeedback.reset();
 		Model->apply_feedback(std::nullopt);
 		Model->apply({ });
+		ObservedFiles = false;
+		PendingOpen.clear();
 		update_folder_controls();
 		present_feedback_controls();
 		rebuild_participants({ });
@@ -3674,6 +3678,16 @@ namespace bpr::qt {
 		section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
 		// As many placeholder rows as GitHub reported files, once it has.
 		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
+		if (Loading && ObservedFiles) {
+			// [[BPR-1842]]. The rows are there to read; what is still coming is
+			// said on the plate, not dimmed over them.
+			const auto coming = PendingOpen.isEmpty()
+				? QStringLiteral("Loading comments, reviews and checks…")
+				: QStringLiteral("Opening %1 when the review has loaded…").arg(PendingOpen.section(QLatin1Char('/'), -1));
+			Veils.Files->present(core::pending_activity::loading, true, true,
+								 { .Waiting = waiting, .Coming = coming, .Done = QStringLiteral("Overview ready: files, reviewers and checks are shown.") });
+			return;
+		}
 		if (Loading) {
 			section(*Veils.Files, true,
 					Observed ? QStringLiteral("Loading the file list: %1 reported…").arg(ReportedFiles == 1U ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count_text(ReportedFiles)))
@@ -3727,6 +3741,30 @@ namespace bpr::qt {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
 		apply_pending();
+	}
+
+	void pull_request_overview_page::present_observed_files(const std::vector<core::cached_review_file>& aFiles)
+	{
+		if (!Loading || !Observed || Cached || Projection) {
+			return;
+		}
+		ObservedFiles = true;
+		present_heading(*FilesHeading,
+						QStringLiteral("Files — %1; comment counts and progress loading…").arg(aFiles.size() == 1U ? QStringLiteral("1 file") : QStringLiteral("%1 files").arg(count_text(aFiles.size()))),
+						QStringLiteral("Change kinds and line counts as GitHub reported them. A file you open now opens when the review has loaded."));
+		Model->apply(cached_file_rows(aFiles));
+		update_folder_controls();
+		for (int column = overview_file_model::changed_column; column < overview_file_model::column_count; ++column) {
+			Files->setColumnHidden(column, true);
+		}
+		FileColumns->apply();
+		Files->setAccessibleDescription(QStringLiteral("Changed files as GitHub reported them while the review loads; a file activated now opens once it has loaded; %1.").arg(files_ends_help()));
+		apply_pending();
+	}
+
+	auto pull_request_overview_page::pending_open() const -> const QString&
+	{
+		return PendingOpen;
 	}
 
 	void pull_request_overview_page::present_cached(const application::github_cached_overview_projection& aOverview)
@@ -4303,6 +4341,11 @@ namespace bpr::qt {
 			FileDispatch(path);
 		} else if (Cached && !path.isEmpty() && CachedSourceDispatch) {
 			CachedSourceDispatch(path);
+		} else if (ObservedFiles && Loading && !path.isEmpty()) {
+			// [[BPR-1842]]. The file opens as soon as the review it belongs
+			// to is accepted; the plate says so meanwhile.
+			PendingOpen = path;
+			apply_pending();
 		}
 	}
 

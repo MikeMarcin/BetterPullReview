@@ -413,6 +413,10 @@ namespace bpr::application {
 		github_repository_record           Repository;
 		github_pull_request_record         PullRequest;
 		std::size_t                        ReportedFiles = 0U;
+		/// [[BPR-1842]]. The complete changed-file list once its pages have
+		/// arrived, in a second observation; absent from the first. Like the
+		/// metadata, it grants no snapshot authority.
+		std::optional<std::vector<github_file_record>> Files;
 	};
 	using github_pull_request_overview_handler = std::function<void(github_pull_request_overview_observation)>;
 

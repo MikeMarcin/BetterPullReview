@@ -8,6 +8,11 @@ namespace bpr::application {
 	struct github_pull_request_overview_observation;
 	[[nodiscard]] auto project_github_loading_overview(const github_pull_request_overview_observation& aObservation)
 		-> std::optional<github_loading_overview_projection>;
+	/// \brief [[BPR-1842]]. GitHub's changed-file records as file rows: path,
+	/// previous path, change kind and line counts; none when a record names no
+	/// known change kind.
+	[[nodiscard]] auto project_github_file_rows(const std::vector<github_file_record>& aFiles)
+		-> std::optional<std::vector<core::cached_review_file>>;
 	struct github_host_diagnostic
 	{
 		core::github_reason_code                Reason = core::github_reason_code::none;

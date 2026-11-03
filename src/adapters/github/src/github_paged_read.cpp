@@ -5955,7 +5955,7 @@ namespace bpr::adapters::github::detail {
 			if (aObserver != nullptr && !aStop.stop_requested()
 				&& application::detail::validate_repository(*repository, overviewBudget, aLimits.Records) == application::github_read_validation_error::none
 				&& application::detail::validate_pull_request(pullRequest->Record, overviewBudget, aLimits.Records) == application::github_read_validation_error::none) {
-				aObserver->overview_observed({ aRequest.Context, *repository, pullRequest->Record, expectedFiles });
+				aObserver->overview_observed({ aRequest.Context, *repository, pullRequest->Record, expectedFiles, std::nullopt });
 			}
 			application::github_pull_request_snapshot result{
 				.Profile = aRequest.ProfileAuthority.Profile,
@@ -6003,6 +6003,11 @@ namespace bpr::adapters::github::detail {
 			if (result.Files.size() != expectedFiles) {
 				return execution.terminal_failure(
 					application::github_provider_failure::malformed_response);
+			}
+			// [[BPR-1842]]. The file list is the first part a reviewer reads, so
+			// it is observed as soon as it is complete, again without authority.
+			if (aObserver != nullptr && !aStop.stop_requested()) {
+				aObserver->overview_observed({ aRequest.Context, result.Repository, result.PullRequest, expectedFiles, result.Files });
 			}
 
 			if (const auto commits = read_rest_array_collection(

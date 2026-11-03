@@ -46,6 +46,11 @@ namespace bpr::core {
 		/// pending request, without changing command or snapshot authority.
 		[[nodiscard]] auto accept_overview_observation(bpr_window_context                  aWindow,
 													   const pull_request_request_context& aRequest) noexcept -> bool;
+		/// \brief [[BPR-1842]]. Accept at most one provisional file list for this
+		/// exact pending request, once its metadata observation was accepted,
+		/// without changing command or snapshot authority.
+		[[nodiscard]] auto accept_files_observation(bpr_window_context                  aWindow,
+													const pull_request_request_context& aRequest) noexcept -> bool;
 		/// \brief What this lane presents for its adopted session, while nothing has moved it since.
 		/// \details [[BPR-1017]]. The session-ready projection adoption decided, for a
 		/// window attached after the profile accepted the session and so never shown
@@ -62,6 +67,7 @@ namespace bpr::core {
 		std::optional<github_transition_output> Adoption;
 		github_identity_generation              RetiredGeneration{ };
 		bool                                    OverviewObserved       = false;
+		bool                                    FilesObserved          = false;
 		std::uint64_t                           SharedSnapshotSequence = 0U;
 	};
 }

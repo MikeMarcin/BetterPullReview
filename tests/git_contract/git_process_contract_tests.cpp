@@ -3184,6 +3184,49 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1842]]. A second process over the same Git and isolation root
+	/// reuses the first one's admission and launches nothing to admit it; a
+	/// Git whose file changed is admitted again from nothing.
+	auto run_admission_reuse_contract() -> void
+	{
+		temporary_root root{ "git-admission-reuse" };
+		const auto     fakeGitPath = make_fake_git_executable(root.Path);
+		const auto     admissions  = git_adapter::make_installed_git_admissions();
+		const auto     launches    = [&root] {
+			const auto log = root.Path / "invocations.log";
+			if (!std::filesystem::exists(log)) {
+				return std::size_t{ 0U };
+			}
+			const auto text  = read_text(log);
+			auto       count = std::size_t{ 0U };
+			for (auto at = text.find("BEGIN\n"); at != std::string::npos; at = text.find("BEGIN\n", at + 1U)) {
+				++count;
+			}
+			return count;
+		};
+		const auto make = [&] {
+			return git_adapter::make_installed_git_process({
+				.GitExecutable     = fakeGitPath,
+				.IsolationRoot     = root.Path,
+				.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
+				.Admissions        = admissions,
+			});
+		};
+		auto first = make();
+		require(first.has_value(), "the first process is admitted by launching Git");
+		const auto installation = (*first)->installation();
+		const auto admitted     = launches();
+		require(admitted > 0U, "admission launches Git");
+		first->reset();
+		auto second = make();
+		require(second.has_value() && launches() == admitted && (*second)->installation() == installation,
+				"a second process over the same Git and root launches nothing to admit it");
+		second->reset();
+		std::filesystem::last_write_time(fakeGitPath, std::filesystem::last_write_time(fakeGitPath) + std::chrono::hours{ 1 });
+		auto third = make();
+		require(third.has_value() && launches() > admitted, "a Git whose file changed is admitted again from nothing");
+	}
+
 	auto run_factory_cancellation_contract() -> void
 	{
 		{
@@ -4747,6 +4790,7 @@ try {
 	run_hostile_process_contract();
 	run_capability_probe_cleanup_contract();
 	run_factory_cancellation_contract();
+	run_admission_reuse_contract();
 	run_input_validation_contract();
 	run_isolation_symlink_contract();
 	run_isolation_policy_file_contract();
