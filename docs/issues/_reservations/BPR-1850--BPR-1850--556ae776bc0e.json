@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1850"
+  ],
+  "reserve_for": "pr-activity-notifications",
+  "purpose": "Desktop notifications for activity on my PRs via conditional notifications polling",
+  "created": "2026-11-03T23:38:03.887061+00:00",
+  "base": "65abb9f81f2b688456a855fed263981571d139f6"
+}
