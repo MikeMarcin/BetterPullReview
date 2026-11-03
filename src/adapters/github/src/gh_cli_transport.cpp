@@ -177,11 +177,11 @@ namespace bpr::adapters::github::detail {
 		{
 			using failure = application::github_provider_failure;
 			switch (aFailure) {
-			case github_cli_process_failure::start_failure:        return failure::process_startup;
-			case github_cli_process_failure::timeout:              return failure::timeout;
+			case github_cli_process_failure::start_failure:         return failure::process_startup;
+			case github_cli_process_failure::timeout:               return failure::timeout;
 			case github_cli_process_failure::standard_output_limit:
-			case github_cli_process_failure::standard_error_limit: return failure::response_limit;
-			default:                                               return failure::unavailable;
+			case github_cli_process_failure::standard_error_limit:  return failure::response_limit;
+			default:                                                return failure::unavailable;
 			}
 		}
 
