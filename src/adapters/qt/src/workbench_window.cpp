@@ -7072,6 +7072,9 @@ namespace bpr::qt {
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
+		if (!PendingReviewPath.isEmpty()) {
+			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
+		}
 	}
 
 	void workbench_window::apply_file_rows(
@@ -7093,6 +7096,9 @@ namespace bpr::qt {
 		ApplyingFileSelection = false;
 		++Statistics.FileRowUpdates;
 		apply_file_selection();
+		if (!PendingReviewPath.isEmpty()) {
+			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
+		}
 	}
 
 	auto workbench_window::conversation_anchor_file() const
@@ -11852,8 +11858,22 @@ namespace bpr::qt {
 		// ([[BPR-1132]]), so a file chosen before it lost to the tab's file:
 		// a double-click on main.cpp opened renderer.cpp.
 		choose_modality(review_modality::review);
+		PendingReviewPath.clear();
 		if (const auto file = file_for_path(aPath); file.has_value() && Dispatch) {
 			Dispatch(core::select_workbench_file_intent{ .File = *file });
+		}
+	}
+
+	void workbench_window::open_pending_review_path()
+	{
+		// The reviewer may have gone elsewhere since: only an Overview still
+		// shown for the review opens the file it was asked for.
+		if (PendingReviewPath.isEmpty() || !HasGithubPullRequest || !showing_overview()) {
+			return;
+		}
+		if (file_for_path(PendingReviewPath).has_value()) {
+			const auto path = std::exchange(PendingReviewPath, QString{ });
+			enter_review_at(path);
 		}
 	}
 
@@ -13720,16 +13740,23 @@ namespace bpr::qt {
 			IdentityLabel->setToolTip(LocalCycleTitle + badge);
 			return;
 		}
-		if (!IdentityText.isEmpty()) {
+		// [[BPR-1842]]. While nothing is accepted, the name GitHub's first
+		// answer gave stands in, in the same forms.
+		const auto  loading     = IdentityText.isEmpty() && LoadingIdentity.has_value();
+		const auto& shownText   = loading ? LoadingIdentity->Text : IdentityText;
+		const auto& shownOwner  = loading ? LoadingIdentity->Owner : IdentityOwner;
+		const auto& shownRepo   = loading ? LoadingIdentity->Repository : IdentityRepository;
+		const auto& shownNumber = loading ? LoadingIdentity->Number : IdentityNumber;
+		if (!shownText.isEmpty()) {
 			// [[BPR-1129]]. The name has the room the navigation took, so the
 			// forms follow the room rather than fixed widths: the whole name
 			// with its title elided at the right, then owner/repository with
 			// the number, then the repository, then a fragment of it; the
 			// number stays in every form.
-			const auto number = QStringLiteral("  #%1").arg(IdentityNumber);
-			const auto owned  = QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository) + number;
+			const auto number = QStringLiteral("  #%1").arg(shownNumber);
+			const auto owned  = QStringLiteral("%1/%2").arg(shownOwner, shownRepo) + number;
 			const auto titled = metrics.horizontalAdvance(owned) + identity_title_minimum;
-			const auto bare   = IdentityRepository + number;
+			const auto bare   = shownRepo + number;
 			// [[BPR-1251]]. The title also needs the room it would have beside
 			// the whole modality (apply_strip_width), or it could yield and
 			// then return when the shortcuts go. [[BPR-1324]]. So does the
@@ -13738,18 +13765,18 @@ namespace bpr::qt {
 			const auto wholeRoom  = IdentityTitleBudget - margins.left() - margins.right();
 			const auto ownedWidth = metrics.horizontalAdvance(owned);
 			if (room >= titled && wholeRoom >= titled) {
-				text = metrics.elidedText(IdentityText, Qt::ElideRight, room);
+				text = metrics.elidedText(shownText, Qt::ElideRight, room);
 			} else if (room >= ownedWidth && wholeRoom >= ownedWidth) {
 				text = owned;
 			} else if (room >= metrics.horizontalAdvance(bare)) {
 				text = bare;
 			} else {
 				const auto budget = room - metrics.horizontalAdvance(number);
-				text              = metrics.elidedText(IdentityRepository, Qt::ElideMiddle, std::max(budget, identity_fragment_width)) + number;
+				text              = metrics.elidedText(shownRepo, Qt::ElideMiddle, std::max(budget, identity_fragment_width)) + number;
 			}
 		}
 		IdentityLabel->setText(text);
-		IdentityLabel->setToolTip(IdentityText);
+		IdentityLabel->setToolTip(shownText);
 	}
 
 	auto workbench_window::strip_identity_budget() const -> int
@@ -13773,8 +13800,9 @@ namespace bpr::qt {
 			return 0;
 		}
 		// The number, a short repository fragment and the label's margins.
-		const auto margins = IdentityLabel->contentsMargins();
-		return IdentityLabel->fontMetrics().horizontalAdvance(QStringLiteral("  #%1").arg(IdentityNumber))
+		const auto  margins = IdentityLabel->contentsMargins();
+		const auto& number  = IdentityText.isEmpty() && LoadingIdentity.has_value() ? LoadingIdentity->Number : IdentityNumber;
+		return IdentityLabel->fontMetrics().horizontalAdvance(QStringLiteral("  #%1").arg(number))
 			+ identity_fragment_width + margins.left() + margins.right();
 	}
 
@@ -14225,11 +14253,31 @@ namespace bpr::qt {
 		}
 		if (aUpdate.LoadingOverview && !HasGithubPullRequest
 			&& SessionPanel->status() == core::github_status::loading_pull_request) {
-			OverviewPage->present_observation(*aUpdate.LoadingOverview);
-			// [[BPR-1200]]. The read has shown what it names, so the connection
-			// can read it: Overview now has something to be about.
-			LoadingOverviewShown = true;
-			update_home_landing();
+			if (aUpdate.LoadingOverview->Files) {
+				// [[BPR-1842]]. The file list, once its pages have arrived, to
+				// read while the rest of the review still loads.
+				if (LoadingOverviewShown) {
+					OverviewPage->present_observed_files(*aUpdate.LoadingOverview->Files);
+				}
+			} else {
+				OverviewPage->present_observation(*aUpdate.LoadingOverview);
+				// [[BPR-1200]]. The read has shown what it names, so the connection
+				// can read it: Overview now has something to be about.
+				LoadingOverviewShown = true;
+				// [[BPR-1842]]. The title row names the pull request as soon as
+				// GitHub does, not when the whole review has arrived.
+				const auto& overview = *aUpdate.LoadingOverview;
+				if (!overview.Owner.empty() && !overview.RepositoryName.empty() && overview.Number != 0U) {
+					auto name       = loading_identity{ };
+					name.Owner      = QString::fromStdString(overview.Owner);
+					name.Repository = QString::fromStdString(overview.RepositoryName);
+					name.Number     = QString::number(overview.Number);
+					name.Text       = QStringLiteral("%1/%2  #%3 %4").arg(name.Owner, name.Repository, name.Number, QString::fromStdString(overview.Title));
+					LoadingIdentity = std::move(name);
+					apply_strip_width();
+				}
+				update_home_landing();
+			}
 		}
 		if (aUpdate.CachedOverview && !HasGithubPullRequest) {
 			HasCachedOverview = true;
@@ -14417,6 +14465,14 @@ namespace bpr::qt {
 				enter_opening_modality(review_modality::overview);
 			}
 			if (aTransition.Status->Status != core::github_status::loading_pull_request && !HasGithubPullRequest) {
+				// [[BPR-1842]]. A file chosen from the provisional list goes on
+				// waiting for the accepted review's rows; any other end drops it.
+				PendingReviewPath = aTransition.Status->Status == core::github_status::pull_request_ready ? OverviewPage->pending_open() : QString{ };
+				// [[BPR-1842]]. A read that ended without a review names nothing.
+				if (LoadingIdentity.has_value()) {
+					LoadingIdentity.reset();
+					apply_strip_width();
+				}
 				OverviewPage->clear();
 			}
 			// [[BPR-1599]]. A load that ends without its pull request leaves
@@ -14519,6 +14575,7 @@ namespace bpr::qt {
 										  IdentityRepository,
 										  IdentityNumber,
 										  QString::fromStdString(aPullRequest.Title));
+		LoadingIdentity.reset();
 		// [[BPR-0981]]. The repositories tree keeps the open pull request's
 		// row current, however it was opened, so a stale row cannot hold the
 		// current index and swallow the gesture that would open it.
@@ -14560,6 +14617,9 @@ namespace bpr::qt {
 		HasGithubPullRequest = true;
 		HasCachedOverview    = false;
 		update_pull_request_queue_actions();
+		if (!PendingReviewPath.isEmpty()) {
+			QTimer::singleShot(0, this, [this] { open_pending_review_path(); });
+		}
 		// [[BPR-0651]]. A pull request chosen from the repositories tree
 		// opens on its overview, as the design says it does.
 		if (OpenOnOverview && !aPreserveWindowNavigation) {
@@ -14999,6 +15059,8 @@ namespace bpr::qt {
 		IdentityOwner.clear();
 		IdentityRepository.clear();
 		IdentityNumber.clear();
+		LoadingIdentity.reset();
+		PendingReviewPath.clear();
 		OpenQueueRepository.clear();
 		OpenQueueNumber = 0;
 		OpenQueueTitle.clear();
@@ -18372,7 +18434,7 @@ namespace bpr::qt {
 		// as far down as its number fits, taking whatever the title row's other
 		// items leave (see update_strip_identity). With nothing open there is
 		// nothing to identify, and the label takes no width.
-		IdentityAction->setVisible((!StripHome && !IdentityText.isEmpty()) || (LocalCycleShown && !showing_home()));
+		IdentityAction->setVisible((!StripHome && (!IdentityText.isEmpty() || LoadingIdentity.has_value())) || (LocalCycleShown && !showing_home()));
 		// [[BPR-1338]]. Open on GitHub goes with an accepted GitHub pull
 		// request's name, never a local cycle's, and is measured with it below.
 		// It is shown only where it acts: nothing in the title row reads as

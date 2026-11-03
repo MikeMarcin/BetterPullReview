@@ -3299,8 +3299,17 @@ namespace {
 		std::size_t                                                          Count = 0U;
 		std::optional<application::github_pull_request_overview_observation> Overview;
 		std::size_t                                                          OverviewPageCount = 0U;
+		/// [[BPR-1842]]. The second observation: the complete file list.
+		std::optional<application::github_pull_request_overview_observation> FileList;
+		std::size_t                                                          FileListPageCount = 0U;
 		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 		{
+			if (aObservation.Files) {
+				expect(Overview && !FileList, "the file list is observed once, after the metadata");
+				FileList          = std::move(aObservation);
+				FileListPageCount = Count;
+				return;
+			}
 			expect(!Overview, "metadata is observed once");
 			Overview          = std::move(aObservation);
 			OverviewPageCount = Count;
@@ -3460,6 +3469,10 @@ namespace {
 					   && observer.Overview->Context == provider_request().Context
 					   && !observer.Overview->PullRequest.Title.empty(),
 				   "validated useful metadata arrives after two responses, before any catalogue or ancillary page");
+			expect(observer.FileList && observer.FileListPageCount > observer.OverviewPageCount && observer.FileList->Context == provider_request().Context
+					   && observer.Responses[observer.FileListPageCount - 1U].first == read_operation::list_pull_request_files
+					   && observer.FileList->Files->size() == observer.FileList->ReportedFiles,
+				   "[[BPR-1842]] the complete file list arrives after its last page, before commits, reviews or any ancillary page");
 			expect(observer.Count + (status == 200 ? 5U : 0U) == transport.Requests.size() && observer.Count == (status == 200 ? 12U : 10U), "every page produces exactly one observation; failed mandatory search precedes optional results");
 			for (std::size_t index = 0U; index < observer.Count; ++index) {
 				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;

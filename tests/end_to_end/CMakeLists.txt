@@ -4801,6 +4801,20 @@ set_tests_properties(application_pending_states_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 400
     PASS_REGULAR_EXPRESSION "pending-states-public-path:pass")
 
+# [[BPR-1842]]. Opening a pull request becomes usable as its parts arrive: the
+# title row and the Overview's file table before the accepted review, on a
+# fixture network that holds every read as long as gh takes for one.
+bpr_add_executable(test_progressive_open_public_path progressive_open_public_path_tests.cpp)
+target_link_libraries(test_progressive_open_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_progressive_open_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_progressive_open_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_progressive_open_public_path)
+bpr_enable_warnings(test_progressive_open_public_path)
+bpr_add_network_isolated_test(NAME application_progressive_open_public_path WINDOWS_UNCONTAINED COMMAND test_progressive_open_public_path)
+set_tests_properties(application_progressive_open_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "progressive-open-public-path:pass")
+
 # [[BPR-1575]]. Refresh made visible on the pull request and on Home, through
 # the composed application with slow, changed, unchanged, offline and
 # rate-limited refreshes on the fixture network.

@@ -3061,6 +3061,22 @@ namespace bpr::app::detail {
 						}
 					}
 				} active{ *State, Role == fixture_transport_role::account };
+				// [[BPR-1842]]. What a pull request's load reads, in order, and a
+				// round trip's cost for each read.
+				if (State->ReadDelay && std::holds_alternative<core::pull_request_request_context>(aRequest.Correlation.Parent)) {
+					auto& delay = *State->ReadDelay;
+					{
+						const std::scoped_lock lock{ delay.ReadLogMutex };
+						delay.ReadLog.push_back({ std::string{ adapters::github::detail::operation_name(aRequest.Wire.Operation) }, std::chrono::steady_clock::now() });
+					}
+					const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ delay.EveryReadMilliseconds.load() };
+					while (std::chrono::steady_clock::now() < until && !aStop.stop_requested()) {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 5 });
+					}
+					if (aStop.stop_requested()) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
+				}
 				auto result = perform_impl(aRequest, aStop);
 				if (State->InsightsBudget) {
 					if (auto* success = std::get_if<github_wire_success>(&result)) {

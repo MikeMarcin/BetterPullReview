@@ -6142,6 +6142,7 @@ namespace bpr::adapters::git {
 						.WindowsSystemRoot          = Configuration.WindowsSystemRoot,
 						.WorkspaceOwnershipRegistry = Configuration.WorkspaceOwnershipRegistry,
 						.Insights                   = Configuration.Insights,
+						.Admissions                 = Admissions,
 					},
 					aStop);
 				if (!process.has_value()) {
@@ -6767,6 +6768,9 @@ namespace bpr::adapters::git {
 
 		private:
 			installed_git_cache_configuration Configuration;
+			/// [[BPR-1842]]. Every review this cache opens shares one admission
+			/// of its Git, rather than admitting it again for each.
+			std::shared_ptr<installed_git_admissions> Admissions = make_installed_git_admissions();
 		};
 	} // namespace
 

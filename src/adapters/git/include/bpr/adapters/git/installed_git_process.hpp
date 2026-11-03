@@ -32,6 +32,21 @@ namespace bpr::adapters::git {
 	[[nodiscard]] auto remove_installed_agent_workspace_parent(
 		installed_agent_workspace_parent& aParent) noexcept -> bool;
 
+	/// \brief [[BPR-1842]]. The installed Git executables this process has
+	/// already admitted: resolved through their own exec path, version checked
+	/// and capability probed, each against one isolation root.
+	///
+	/// \details Admission launches about a dozen Git processes and took about
+	/// a second on the owner's Mac, on every pull request opened. An owner that
+	/// opens many processes over one configuration (the review cache) holds one
+	/// of these, so the second and later processes skip the launches while the
+	/// executable, the Git it resolved and the isolation root are the exact
+	/// files they were: same canonical path, size and modification time. Any
+	/// difference admits again from nothing. Nothing is remembered across runs.
+	class installed_git_admissions;
+	[[nodiscard]] auto make_installed_git_admissions()
+		-> std::shared_ptr<installed_git_admissions>;
+
 	/// \brief Describes the installed git process configuration record.
 	struct installed_git_process_configuration
 	{
@@ -41,6 +56,9 @@ namespace bpr::adapters::git {
 		/// Opt-in durable workspace ownership; absent for legacy/native callers.
 		std::optional<std::filesystem::path>            WorkspaceOwnershipRegistry;
 		std::shared_ptr<application::insights_observer> Insights;
+		/// [[BPR-1842]]. Admissions to reuse and record; none admits every
+		/// process from nothing.
+		std::shared_ptr<installed_git_admissions> Admissions;
 	};
 
 	/// \brief Creates the installed git process.

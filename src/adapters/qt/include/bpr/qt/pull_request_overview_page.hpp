@@ -523,6 +523,15 @@ namespace bpr::qt {
 		/// \brief Presents a pending overview without manufacturing accepted rows.
 		void present_loading();
 		void present_observation(const application::github_loading_overview_projection& aObservation);
+		/// \brief [[BPR-1842]]. Lists the changed files GitHub reported while
+		/// the rest of the review still loads: rows to read and sort, with
+		/// the columns only the accepted review fills hidden. A file activated
+		/// meanwhile is remembered (`pending_open`) for the window to open once
+		/// the review is accepted.
+		void present_observed_files(const std::vector<core::cached_review_file>& aFiles);
+		/// \brief [[BPR-1842]]. The file a reviewer chose before the review was
+		/// accepted; empty when none waits.
+		[[nodiscard]] auto pending_open() const -> const QString&;
 		/// \brief Shows bounded historical metadata with explicit unavailable review content.
 		void               present_cached(const application::github_cached_overview_projection& aOverview);
 		void               present_cached_source(const application::cached_review_source_projection& aSource);
@@ -888,9 +897,13 @@ namespace bpr::qt {
 		/// [[BPR-1576]]. A first read is under way: nothing accepted yet.
 		bool Loading = false;
 		/// [[BPR-1576]]. The read's provisional metadata is shown.
-		bool                   Observed      = false;
-		bool                   Observing     = false;
-		std::size_t            ReportedFiles = 0U;
+		bool        Observed      = false;
+		bool        Observing     = false;
+		std::size_t ReportedFiles = 0U;
+		/// [[BPR-1842]]. The provisional file list is shown.
+		bool ObservedFiles = false;
+		/// [[BPR-1842]]. The file to open once the review is accepted.
+		QString                PendingOpen;
 		QString                ReadWaiting;
 		overview_pending_veils Veils;
 
