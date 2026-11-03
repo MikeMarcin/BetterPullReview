@@ -1320,6 +1320,7 @@ namespace bpr::qt {
 				button->setObjectName(aName + QStringLiteral("Reset"));
 				QObject::connect(button, &QPushButton::clicked, this, [this] {
 					set_filters({ });
+					tell_filter_choice();
 					Search->setFocus(Qt::OtherFocusReason);
 				});
 				layout->addWidget(button, 0, Qt::AlignLeft);
@@ -1354,6 +1355,10 @@ namespace bpr::qt {
 				apply_filters();
 			}
 		});
+		// [[BPR-1844]]. A press or a key, never `set_filters`: only the
+		// reviewer's own change is told, and so remembered.
+		QObject::connect(OnlyNew, &QAbstractButton::clicked, this, [this] { tell_filter_choice(); });
+		QObject::connect(HideResolved, &QAbstractButton::clicked, this, [this] { tell_filter_choice(); });
 		QObject::connect(LabelChip, &QAbstractButton::clicked, this, [this] { open_label_menu(); });
 		QObject::connect(List->selectionModel(), &QItemSelectionModel::currentChanged, this, [this](const QModelIndex& aCurrent) {
 			const auto key = aCurrent.isValid() ? item_key(Model->Shown[static_cast<std::size_t>(aCurrent.row())]) : std::string{ };
@@ -1642,6 +1647,18 @@ namespace bpr::qt {
 			HideResolved->setChecked(Filters.HideResolved);
 		}
 		apply_filters();
+	}
+
+	void conversation_finder::set_filter_choice_dispatch(std::function<void(core::view_filter_choice)> aDispatch)
+	{
+		FilterChoiceDispatch = std::move(aDispatch);
+	}
+
+	void conversation_finder::tell_filter_choice() const
+	{
+		if (FilterChoiceDispatch) {
+			FilterChoiceDispatch(core::view_filter_choice{ .OnlyNew = Filters.OnlyNew, .HideResolved = Filters.HideResolved });
+		}
 	}
 
 	auto conversation_finder::conversations() const -> const std::vector<finder_conversation>&

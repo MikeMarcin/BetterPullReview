@@ -80,6 +80,7 @@ add_library(
         src/review_mutation_diagnostics.cpp
         src/host_operation_diagnostics.cpp
         src/diagnostic_settings.cpp
+        src/view_filter_memory_host.cpp
         src/release_profile_cleanup.cpp
         src/personal_discovery_host.cpp
         src/review_queue_facts.cpp

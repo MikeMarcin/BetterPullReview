@@ -1496,3 +1496,20 @@ bpr_enable_hardening(test_conversation_timeline)
 bpr_enable_warnings(test_conversation_timeline)
 bpr_add_network_isolated_test(NAME core_conversation_timeline COMMAND test_conversation_timeline)
 set_tests_properties(core_conversation_timeline PROPERTIES PASS_REGULAR_EXPRESSION "CONVERSATION_TIMELINE_OK")
+
+# [[BPR-1844]]. Remembered Discuss, Threads and Review Comments filters.
+bpr_add_executable(
+    test_better_pull_review_view_filter_memory_core_tests
+    view_filter_memory_tests.cpp
+)
+target_link_libraries(
+    test_better_pull_review_view_filter_memory_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_view_filter_memory_core_tests)
+bpr_enable_warnings(test_better_pull_review_view_filter_memory_core_tests)
+bpr_add_network_isolated_test(
+    NAME core_view_filter_memory
+    COMMAND test_better_pull_review_view_filter_memory_core_tests
+)

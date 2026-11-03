@@ -375,6 +375,8 @@ namespace bpr::core {
 		release_update,
 		update_draft_recovery,
 		clone_ledger,
+		/// [[BPR-1844]]. The remembered view filters.
+		view_filters,
 	};
 
 	/// \brief [[BPR-1828]]. How an agent setup check's process run ended,

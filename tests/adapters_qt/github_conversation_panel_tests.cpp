@@ -1170,6 +1170,67 @@ namespace {
 			panel.close();
 		}
 	}
+
+	/// \brief [[BPR-1844]]. A pull request opens with Discuss's and Review's
+	/// remembered filters, each in its own place, and only the reviewer's own
+	/// change is told.
+	void test_remembered_filters_open_and_only_a_reviewers_change_is_told()
+	{
+		auto panel = qt::github_conversation_panel{ };
+		panel.resize(420, 640);
+		panel.show();
+		process_events();
+		panel.adopt(overview_conversation(), QStringLiteral("3 review threads available."));
+		auto told = std::vector<std::pair<core::filter_view, core::view_filter_choice>>{ };
+		panel.set_filter_choice_dispatch([&told](const core::filter_view aView, const core::view_filter_choice aChoice) { told.emplace_back(aView, aChoice); });
+		auto* const unread     = panel.filter_unread_button();
+		auto* const unresolved = panel.filter_unresolved_button();
+
+		panel.open_with_filters({ .OnlyNew = false, .HideResolved = true }, { .OnlyNew = true, .HideResolved = false });
+		process_events();
+		expect(unread->isChecked() && !unresolved->isChecked() && told.empty(), "beside the code, Review's Comments opens with its own remembered filters, and nothing is told");
+
+		panel.set_discuss(true);
+		process_events();
+		expect(!unread->isChecked() && unresolved->isChecked() && panel.scope_whole_pull_request_button()->isChecked(),
+			   "Discuss opens with its own remembered filters, the whole pull request in scope");
+		unread->click();
+		process_events();
+		expect(told.size() == 1U && told.back().first == core::filter_view::discuss && told.back().second == core::view_filter_choice{ .OnlyNew = true, .HideResolved = true },
+			   "a press in Discuss is told as Discuss's choice");
+		panel.clear_filters_button()->click();
+		process_events();
+		expect(told.size() == 2U && told.back() == std::pair{ core::filter_view::discuss, core::view_filter_choice{ } }, "Clear filters is a choice too");
+		panel.clear_discuss_filters(true, true, true, true);
+		unread->setChecked(true);
+		expect(told.size() == 2U, "a change the window makes is not told");
+		unread->setChecked(false);
+
+		panel.set_discuss(false);
+		process_events();
+		expect(unread->isChecked() && !unresolved->isChecked(), "Review's Comments is as it was");
+		unresolved->click();
+		process_events();
+		expect(told.size() == 3U && told.back().first == core::filter_view::review_comments && told.back().second == core::view_filter_choice{ .OnlyNew = true, .HideResolved = true },
+			   "a press beside the code is told as Review's Comments' choice");
+
+		// Overview's Comments keeps its filters for itself.
+		panel.set_pull_request_conversation(true);
+		process_events();
+		unread->click();
+		process_events();
+		expect(told.size() == 3U, "a press on Overview's Comments is not remembered");
+
+		// The next pull request, opened while Overview holds the panel.
+		panel.open_with_filters({ .OnlyNew = true, .HideResolved = false }, { .OnlyNew = false, .HideResolved = true });
+		panel.set_pull_request_conversation(false);
+		process_events();
+		expect(!unread->isChecked() && unresolved->isChecked(), "Review's Comments waits in its kept filters and takes them when it returns");
+		panel.set_discuss(true);
+		process_events();
+		expect(unread->isChecked() && !unresolved->isChecked(), "and Discuss shows its own");
+		panel.close();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -1201,6 +1262,7 @@ auto main(int argc, char** argv) -> int
 	test_discuss_top_follows_the_theme();
 	test_a_new_comment_is_written_under_the_conversation();
 	test_overview_comments_filter_new_and_resolved();
+	test_remembered_filters_open_and_only_a_reviewers_change_is_told();
 	std::cout << "conversation-panel-tests:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -152,6 +152,8 @@
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
 #include "bpr/adapters/sqlite/markdown_image_disk_cache.hpp"
+#include "bpr/adapters/sqlite/view_filter_memory_store.hpp"
+#include "bpr/application/view_filter_memory_host.hpp"
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/agent_chat_session_host.hpp"
 	#include "bpr/application/agent_comment_workshop_host.hpp"
@@ -2537,6 +2539,21 @@ namespace bpr::app {
 				.AcceptedSnapshot      = std::nullopt,
 			};
 		}
+
+		/// \brief [[BPR-1844]]. The remembered view filters' store under the
+		/// profile's data root.
+		class view_filter_memory_store final : public application::view_filter_memory_port
+		{
+		public:
+			explicit view_filter_memory_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+			[[nodiscard]] auto load() const -> core::view_filter_memory_read { return adapters::sqlite::load_view_filter_memory(Root); }
+			[[nodiscard]] auto store(const core::view_filter_defaults& aDefaults) -> bool override { return adapters::sqlite::store_view_filter_memory(Root, aDefaults); }
+
+		private:
+			std::filesystem::path Root;
+		};
 
 		/// \brief Keeps the appearance host usable without claiming persistence.
 		///
@@ -4982,6 +4999,9 @@ namespace bpr::app {
 			if (WorkbenchPreferences) {
 				WorkbenchPreferences->shutdown();
 			}
+			if (ViewFilterMemory) {
+				ViewFilterMemory->shutdown();
+			}
 			if (EpochActors) {
 				EpochActors->shutdown();
 			}
@@ -5013,6 +5033,7 @@ namespace bpr::app {
 			if ((Connections && !Connections->quiescent()) || ReleaseAccessPending != 0U || (ReviewRestoration && !ReviewRestoration->is_quiescent()) || (Host && !Host->is_quiescent()) || (DeviceHost && !DeviceHost->is_quiescent())
 				|| (DevicePersistence && !DevicePersistence->is_quiescent()) || (QueueHost && !QueueHost->is_quiescent()) || (Discovery && !Discovery->is_quiescent())
 				|| (AppearancePreferences && !AppearancePreferences->is_quiescent()) || (WorkbenchPreferences && !WorkbenchPreferences->is_quiescent())
+				|| (ViewFilterMemory && !ViewFilterMemory->quiescent())
 				|| (EpochActors && !EpochActors->is_quiescent()) || AgentWorkspaceRecoveryPending.load(std::memory_order_acquire)
 				|| (Images && !Images->quiescent())) {
 				return;
@@ -5690,6 +5711,10 @@ namespace bpr::app {
 			WorkbenchPreferences = std::make_unique<application::workbench_preferences_host>(*WorkbenchSettings, WorkbenchEffects, DecisionLane, Config.Profile);
 			// The shared owner also serves defaults-only windows, which have no window-record restore.
 			WorkbenchPreferences->restore();
+			// [[BPR-1844]]. Read once, before any window opens a pull request,
+			// so a relaunch opens with the filters last chosen.
+			ViewFilterStore       = std::make_unique<view_filter_memory_store>(applicationDataRoot);
+			ViewFilterMemory      = std::make_unique<application::view_filter_memory_host>(*ViewFilterStore, WorkbenchEffects, DecisionLane, ViewFilterStore->load());
 			AppearancePreferences = std::make_shared<application::appearance_preferences_application_host>(qt::default_appearance_settings(), qt::builtin_appearance_palettes(), *AppearanceSettings, ThemeDocuments, AppearanceEffects, DecisionLane, core::application_session_id{ 1U });
 			SyntaxDefinitions     = std::make_unique<adapters::syntax::packaged_definition_catalog>();
 			QueueStore            = adapters::sqlite::make_queue_enrollment_store({
@@ -6749,6 +6774,9 @@ namespace bpr::app {
 		std::shared_ptr<application::appearance_preferences_application_host> AppearancePreferences;
 		std::unique_ptr<application::review_queue_application_host>           QueueHost;
 		std::unique_ptr<application::personal_discovery_host>                 Discovery;
+		// [[BPR-1844]]. The store outlives the host that writes through it.
+		std::unique_ptr<view_filter_memory_store>             ViewFilterStore;
+		std::unique_ptr<application::view_filter_memory_host> ViewFilterMemory;
 	};
 
 	void github_profile_runtime::publish(const application::github_presentation_update& aUpdate)
@@ -8630,6 +8658,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				[this](const application::review_behaviour_settings& aSettings) {
 					if (!Closing && WorkbenchHost != nullptr) {
 						WorkbenchHost->apply_behaviour(aSettings);
+					}
+				});
+			// [[BPR-1844]]. One memory for the profile's windows: read when a
+			// pull request opens, told each reviewer's own choice.
+			Window->set_view_filter_memory(
+				[this] { return Profile->ViewFilterMemory ? Profile->ViewFilterMemory->defaults() : core::view_filter_defaults{ }; },
+				[this](const core::view_filter_remember& aChoice) {
+					if (!Closing && Profile->ViewFilterMemory) {
+						Profile->ViewFilterMemory->remember(aChoice);
 					}
 				});
 			// [[BPR-1089]]. The Overview's chips: its request is counted from the

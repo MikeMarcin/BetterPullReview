@@ -1186,3 +1186,10 @@ if(TARGET BetterPullReview::ProcessSupport)
     bpr_enable_warnings(test_insights_native_metrics)
     bpr_add_network_isolated_test(NAME application_insights_native_metrics COMMAND test_insights_native_metrics)
 endif()
+
+# [[BPR-1844]]. The profile's remembered Discuss, Threads and Review Comments filters.
+bpr_add_executable(test_view_filter_memory_host view_filter_memory_host_tests.cpp)
+target_link_libraries(test_view_filter_memory_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_view_filter_memory_host)
+bpr_enable_warnings(test_view_filter_memory_host)
+bpr_add_network_isolated_test(NAME application_view_filter_memory_host COMMAND test_view_filter_memory_host)

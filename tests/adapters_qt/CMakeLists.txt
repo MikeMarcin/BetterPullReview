@@ -2615,3 +2615,15 @@ set_tests_properties(qt_markdown_blob_snippet_view PROPERTIES
     PASS_REGULAR_EXPRESSION "markdown-blob-snippet-view-tests:pass"
     TIMEOUT 120
 )
+
+# [[BPR-1844]]. Two windows over one remembered view-filter memory.
+bpr_add_executable(test_view_filter_memory_window view_filter_memory_window_tests.cpp)
+target_link_libraries(test_view_filter_memory_window PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_view_filter_memory_window)
+bpr_enable_warnings(test_view_filter_memory_window)
+bpr_add_network_isolated_test(NAME qt_view_filter_memory_window COMMAND test_view_filter_memory_window)
+set_tests_properties(qt_view_filter_memory_window PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+    PASS_REGULAR_EXPRESSION "view-filter-memory-window:pass"
+    TIMEOUT 60
+)

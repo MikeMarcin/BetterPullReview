@@ -238,6 +238,25 @@ whenever they change, and a Resume or startup restoration hands them to the
 commit filter when the review is adopted. A restored hidden commit the pull
 request no longer has is shown as after a force push. Versions one to six
 migrate transactionally with no filters.
+
+BPR-1844 remembers the Only new and Hide resolved filters of Discuss, Threads
+and Review's Comments for the profile, in its own
+`state/v1/view-filters.sqlite3` (one versioned row, a nullable value per view;
+Reset settings removes it). `core/view_filter_memory.hpp` owns the window's
+filter state, the open and choice transitions, the per-view last-writer-wins
+merge and the reading of a stored row: an unknown value leaves only its view
+unremembered, an older version reads as nothing remembered, and a newer
+build's row reads as nothing and is never overwritten. The application's
+`view_filter_memory_host` holds the profile's memory for every window, loaded
+once at profile start, and writes it on the workbench effect lane, one write at
+a time carrying the latest memory and flushing a waiting one at shutdown. A
+window reads the memory when it opens a pull request and reports only a
+reviewer's own press; the memory is never pushed into an open window, so
+windows diverge. Until Review's Comments has a remembered choice it opens with
+the Settings first-filter preference, and choosing that preference is
+remembered as Review's Comments' choice. Searches, the Threads label filter,
+Discuss's scope and file, count listings and Overview's Comments are not
+remembered.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 

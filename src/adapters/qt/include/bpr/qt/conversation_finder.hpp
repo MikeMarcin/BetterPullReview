@@ -4,6 +4,7 @@
 #include "bpr/application/github_projection.hpp"
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/view_filter_memory.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
@@ -244,6 +245,10 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto filters() const noexcept -> const finder_filters&;
 		void               set_filters(finder_filters aFilters);
+		/// \brief [[BPR-1844]]. Told when the reviewer, by hand, changes Only
+		/// new or Hide resolved, or shows all threads again: what they are
+		/// now. `set_filters` is the window's change and is not told.
+		void               set_filter_choice_dispatch(std::function<void(core::view_filter_choice)> aDispatch);
 		[[nodiscard]] auto conversations() const -> const std::vector<finder_conversation>&;
 		/// \brief The shown rows' keys, in order: `file:<path>` for a file's
 		/// header, `row:<thread>/<first post>` for a conversation's row.
@@ -327,6 +332,7 @@ namespace bpr::qt {
 		void               refresh_bar();
 		void               refresh_colours();
 		void               open_label_menu();
+		void               tell_filter_choice() const;
 		void               pick(std::size_t aItem, std::optional<std::size_t> aBead, core::workbench_thread_destination aDestination);
 		[[nodiscard]] auto discuss_shown(std::size_t aItem) const -> bool;
 		[[nodiscard]] auto review_shown(std::size_t aItem) const -> bool;
@@ -345,6 +351,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto open_conversation() const -> std::optional<std::size_t>;
 		void               paint_item(QPainter& aPainter, std::size_t aItem, const QRect& aRect, bool aHovered, bool aFocused) const;
 		void               paint_header(QPainter& aPainter, const QString& aPath, const QRect& aRect, bool aHovered, bool aFocused) const;
+
+		/// [[BPR-1844]].
+		std::function<void(core::view_filter_choice)> FilterChoiceDispatch;
 
 		std::vector<application::github_conversation_projection>   Forest;
 		std::vector<thread_read_state>                             ReadState;
