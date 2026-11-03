@@ -10,6 +10,7 @@
 #include "bpr/core/diff_semantics.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
+#include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -585,6 +586,24 @@ namespace {
 			expect(rendered.save(QStringLiteral("%1/%2-%3.png").arg(file.path(), file.completeBaseName(), aSuffix), "PNG"),
 				   "the render is saved for inspection");
 		}
+	}
+
+	/// \brief [[BPR-1847]]. The dark palette the agent renders use.
+	[[nodiscard]] auto dark_palette(const QPalette& aLight) -> QPalette
+	{
+		auto dark = aLight;
+		for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
+			dark.setColor(group, QPalette::Window, QColor{ 0x1E, 0x1F, 0x22 });
+			dark.setColor(group, QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+			dark.setColor(group, QPalette::AlternateBase, QColor{ 0x23, 0x24, 0x28 });
+			dark.setColor(group, QPalette::Button, QColor{ 0x2A, 0x2B, 0x2F });
+			dark.setColor(group, QPalette::WindowText, QColor{ 0xE6, 0xE6, 0xE6 });
+			dark.setColor(group, QPalette::Text, QColor{ 0xE6, 0xE6, 0xE6 });
+			dark.setColor(group, QPalette::ButtonText, QColor{ 0xE6, 0xE6, 0xE6 });
+			dark.setColor(group, QPalette::PlaceholderText, QColor{ 0x9A, 0x9B, 0xA0 });
+			dark.setColor(group, QPalette::Mid, QColor{ 0x44, 0x45, 0x4A });
+		}
+		return dark;
 	}
 
 	/// \brief [[BPR-1212]]. A popup menu's own render, beside the window's.
@@ -14173,6 +14192,175 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1847]]. Owner, 2026-11-03, with a photograph of two
+	/// "my-agent answered in a form this app can't read" turns: "Agent wizard
+	/// errors shouldn't get the save as note and draft comment treatment.
+	/// Also doesn't make sense to show suggested prompts before the wizard
+	/// completes." An error turn, live or read back from the kept thread, is
+	/// drawn as an error, keeps Copy and offers its one way back instead of
+	/// Save as note and Draft comment; the suggestions wait for the setup.
+	void test_an_agent_error_is_an_error_and_suggestions_wait_for_setup()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+		profile.Protocol    = core::agent_protocol::claude_stream_json;
+		profile.DisplayName = "my-agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto*      chat    = window.side_chat();
+		chat->set_dispatch([](qt::side_chat_intent) { });
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		agent->refresh();
+		process_events();
+		auto settingsOpened = 0;
+		agent->set_setup_dispatch([&settingsOpened] { ++settingsOpened; });
+		const auto shown = [agent](const QWidget* aWidget) { return aWidget != nullptr && aWidget->isVisibleTo(agent); };
+
+		// A live run whose answer cannot be read: an error, with Copy and
+		// Agent settings…, never Save as note or Draft comment.
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = 1U;
+		window.agent_panel()->admit(identity);
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::protocol_failure });
+		process_events();
+		expect(agent->turn_count() == 1U && agent->turn_outcome(0U) == std::optional{ core::agent_turn_outcome::unreadable }
+				   && agent->turn_answer(0U).startsWith(QStringLiteral("my-agent answered in a form this app can't read.")),
+			   "an unreadable answer is a turn that ended as one: " + agent->turn_answer(0U).toStdString());
+		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)), "an error turn offers neither Save as note nor Draft comment");
+		expect(shown(agent->turn_copy_button(0U)) && agent->turn_copy_button(0U)->toolTip() == QStringLiteral("Copy the error and what the agent wrote"), "it keeps Copy, which copies the error's words");
+		expect(agent->turn_reply(0U) != nullptr && agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error"), "and is drawn and named as an error");
+		expect(shown(agent->turn_recovery_button(0U)) && agent->turn_recovery_button(0U)->text() == QStringLiteral("Agent settings…"), "its way back is the agent's settings");
+		agent->turn_recovery_button(0U)->click();
+		process_events();
+		expect(settingsOpened == 1, "Agent settings… opens them");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-error-turn-light.png"), "PNG"), "render saved");
+		}
+
+		// The kept thread read back, as the owner's photograph had it: each
+		// turn is presented as it ended; only the latest offers a way back.
+		agent->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("my-agent answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
+								{ .Question = QStringLiteral("Does this work?"), .Answer = QStringLiteral("Yes: the loop ends."), .Footer = QStringLiteral("my-agent answered in 0:12."), .Outcome = core::agent_turn_outcome::answered },
+								{ .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("my-agent answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:13."), .Outcome = core::agent_turn_outcome::ended_without_answer } });
+		process_events();
+		expect(!shown(agent->turn_note_button(0U)) && !shown(agent->turn_draft_button(0U)) && shown(agent->turn_copy_button(0U)) && !shown(agent->turn_recovery_button(0U)),
+			   "a kept error offers Copy alone; the way back is the latest turn's");
+		expect(shown(agent->turn_note_button(1U)) && shown(agent->turn_draft_button(1U)) && shown(agent->turn_copy_button(1U)) && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
+			   "a kept answer keeps Save as note and Draft comment");
+		expect(!shown(agent->turn_note_button(2U)) && !shown(agent->turn_draft_button(2U)) && shown(agent->turn_recovery_button(2U))
+				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Ask again"),
+			   "the latest, an old stopped turn, offers Ask again");
+		{
+			auto kept = std::vector<qt::agent_thread_turn>{ };
+			agent->set_thread_observer([&kept](std::vector<qt::agent_thread_turn> aTurns) { kept = std::move(aTurns); });
+			identity.InvocationGeneration = 2U;
+			window.agent_panel()->admit(identity);
+			process_events();
+			expect(!shown(agent->turn_recovery_button(2U)), "while a turn runs no error offers a way back");
+			window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::failed_to_start });
+			process_events();
+			expect(kept.size() == 4U && kept[0].Outcome == core::agent_turn_outcome::unreadable && kept[1].Outcome == core::agent_turn_outcome::answered
+					   && kept[3].Outcome == core::agent_turn_outcome::failed_to_start,
+				   "the thread is kept with how each turn ended");
+			expect(shown(agent->turn_recovery_button(3U)) && agent->turn_recovery_button(3U)->text() == QStringLiteral("Check again") && !shown(agent->turn_recovery_button(2U)),
+				   "a start failure offers Check again, and the earlier error no longer offers anything");
+			agent->set_thread_observer({ });
+		}
+		agent->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("my-agent answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
+								{ .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("my-agent answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:13."), .Outcome = core::agent_turn_outcome::unreadable } });
+		process_events();
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-error-turns-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			QApplication::setPalette(dark_palette(light));
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-error-turns-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+
+		// The suggestions wait for the setup. With no setup adopted there is
+		// nothing to wait on and they show, as before.
+		auto* const suggestions = agent->suggestions_widget();
+		expect(shown(suggestions) && !shown(agent->setup_prompt()), "with nothing to wait on, the suggestions show");
+		auto checks = 0;
+		agent->adopt_setup(*window.agent_setup(), [&checks] { ++checks; });
+		auto setup                       = application::agent_setup_projection{ };
+		setup.Detected                   = true;
+		setup.Step                       = core::setup_step::check;
+		setup.State.AgentCheck.State     = core::setup_check_state::passed;
+		setup.State.WorkspaceCheck.State = core::setup_check_state::failed;
+		auto clones                      = application::clone_link_projection{ };
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(agent->state() != qt::agent_tab_state::setting_up && !shown(suggestions) && !shown(agent->suggestions_toggle()) && shown(agent->setup_prompt()),
+			   "a setup whose check failed shows no suggested prompts, and its way in stands in their place");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-pre-setup-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			QApplication::setPalette(dark_palette(light));
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-pre-setup-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		agent->setup_prompt()->findChild<QPushButton*>(QStringLiteral("agentSuggestionsSetupFinish"))->click();
+		process_events();
+		expect(agent->state() == qt::agent_tab_state::setting_up && window.agent_setup()->open_step() == core::setup_step::check && !shown(suggestions),
+			   "Finish setup opens the setup at Check it works, with no suggestions");
+		// The check passes: the setup finishes on its Ready line, and the
+		// suggestions follow once that is read.
+		setup.State.WorkspaceCheck.State = core::setup_check_state::passed;
+		setup.Step                       = core::setup_step::ready;
+		window.agent_setup()->present(setup, clones, { });
+		static_cast<void>(window.agent_setup()->take_ready());
+		agent->present_ready(QStringLiteral("my-agent is ready"), QStringLiteral("Program check passed."), QString{ });
+		process_events();
+		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && !shown(suggestions) && !shown(agent->setup_prompt()),
+			   "while the setup's Ready line is up, it stands alone");
+		agent->ready_card()->findChild<QToolButton*>(QStringLiteral("agentReadyDismiss"))->click();
+		process_events();
+		expect(shown(suggestions) && shown(agent->suggestions_toggle()) && !shown(agent->setup_prompt()), "read, the suggestions show");
+		// A reopened application set up before stands at Check it works with
+		// neither check run, and is finished.
+		setup.Step                       = core::setup_step::check;
+		setup.State.AgentCheck.State     = core::setup_check_state::not_run;
+		setup.State.WorkspaceCheck.State = core::setup_check_state::not_run;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(shown(suggestions), "a setup finished before, whose checks have not run this session, shows them");
+		static_cast<void>(checks);
+		agent->set_setup_dispatch({ });
+		agent->present_thread({ });
+		chat->set_dispatch({ });
+		window.hide();
+	}
+
 	/// \brief [[BPR-1823]], owner ruling 2026-10-29. The composer keeps the
 	/// reviewer's agent through re-offers; a chosen agent that is removed is
 	/// said as unavailable in the pill and its menu, never replaced, and a send
@@ -23846,6 +24034,7 @@ auto main(int argc, char** argv) -> int
 	if (QCoreApplication::arguments().contains(QStringLiteral("--agent-send-refusal"))) {
 		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
 		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
+		runCase("test_an_agent_error_is_an_error_and_suggestions_wait_for_setup", &test_an_agent_error_is_an_error_and_suggestions_wait_for_setup);
 		if (!listCases) {
 			std::cout << "workbench-agent-send-refusal:pass\n";
 		}

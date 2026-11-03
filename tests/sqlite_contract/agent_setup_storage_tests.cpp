@@ -130,6 +130,29 @@ try {
 	expect(talks->forget_agents() && !talks->load_agent(other) && talks->load(workCodex) == std::optional{ thread }, "forgetting the agents' choices keeps every conversation");
 	expect(talks->store_agent(workCodex), "a choice is kept again afterwards");
 	expect(store->load() == none && links->load_links()->size() == 1U, "the preferences and links are untouched by conversations");
+	// [[BPR-1847]]. How each turn ended is kept with it, and a turn stored
+	// before outcomes were kept reads back from the ending this app wrote.
+	auto failed      = pull;
+	failed.Number    = 9U;
+	const auto ended = turns{ { .Asked = "Review this pull request", .Answered = "my-agent answered in a form this app can't read.", .Ending = "Stopped after 0:15.", .Outcome = bpr::core::agent_turn_outcome::unreadable },
+							  { .Asked = "Why?", .Answered = "Because.", .Ending = "my-agent answered in 0:08.", .Outcome = bpr::core::agent_turn_outcome::answered },
+							  { .Asked = "Again", .Answered = "Stopped before my-agent answered.", .Ending = "Stopped after 0:02.", .Outcome = bpr::core::agent_turn_outcome::stopped } };
+	expect(talks->store(failed, ended), "a thread with its turns' outcomes is stored");
+	talks.reset();
+	talks = adapters::sqlite::make_agent_conversation_store(scratch.path());
+	expect(talks->load(failed) == std::optional{ ended }, "each turn reads back with how it ended");
+	{
+		sqlite3* database = nullptr;
+		expect(sqlite3_open_v2(path.string().c_str(), &database, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK, "the file opens directly");
+		expect(sqlite3_exec(database, "UPDATE agent_conversation_outcomes SET outcome=10", nullptr, nullptr, nullptr) != SQLITE_OK, "an undeclared outcome is refused by the schema");
+		expect(sqlite3_exec(database, "DELETE FROM agent_conversation_outcomes WHERE number=9", nullptr, nullptr, nullptr) == SQLITE_OK, "a thread stored before outcomes were kept");
+		sqlite3_close_v2(database);
+	}
+	auto legacy       = ended;
+	legacy[0].Outcome = bpr::core::agent_turn_outcome::ended_without_answer;
+	legacy[2].Outcome = bpr::core::agent_turn_outcome::ended_without_answer;
+	expect(talks->load(failed) == std::optional{ legacy }, "an old stopped turn reads back as one that ended without an answer, an old answer as an answer");
+	expect(talks->store(failed, { }) && talks->load(failed) == std::optional{ turns{ } }, "Clear session removes the outcomes with the turns");
 
 	// [[BPR-1753]], owner amendment 2026-10-23. The agent list.
 	auto listed            = *store->load();

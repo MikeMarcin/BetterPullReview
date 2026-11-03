@@ -2517,7 +2517,16 @@ model it reported, the cost when the harness said, and the findings that turn
 brought; in italics when it stopped), and a footer of Copy (the whole reply
 as Markdown), Save as note and the reply's time (near words, the whole time
 on hover). Once a reply is saved as a note, its Save as note is **Go to
-note**, which opens that note in Notes (owner look v004). A file and line a
+note**, which opens that note in Notes (owner look v004). A turn that ended
+without an answer (unreadable, exited, did not start, no workspace, stopped,
+out of time, set aside) is an error ([[BPR-1847]], owner 2026-11-03): its
+card is drawn in the danger look the stopped banner uses, it keeps Copy (the
+error's words and what the agent wrote to its error stream) and never offers
+Save as note or Draft comment. The thread's latest error, while nothing runs,
+offers one way back: **Agent settings…** for an answer this app cannot read,
+**Check again** for a start or workspace failure, and **Ask again** for any
+other ending. How each turn ended is kept with the thread, so a thread opened
+again presents its errors the same way. A file and line a
 question or an answer names (`path:34`, `path line 34`, `path lines 34–36`,
 "before the change" for the base, and in an answer a bare "line 34" when the
 question named one file) is a link when the path is one of the pull
@@ -2545,7 +2554,12 @@ selected, Explain *path* line N for one line or Explain the selected block
 stay once the thread has turns, and the field's Suggestions toggle shows or
 hides them, kept for the profile (owner look v004); while the agent works
 they are hidden, and they return when its turn has finished (the owner's
-accept of look v007). A turn's findings are cards under its answer (owner decision,
+accept of look v007). They wait for the setup too ([[BPR-1847]]): none while
+an agent or repository is still to be chosen, a check failed or runs, the
+setup is on screen, or its Ready line is still shown; in their place "Suggested
+prompts appear once the agent is set up." with **Finish setup**, which opens
+the setup at its first unfinished step. A setup finished before, whose checks
+have not run since the application started, counts as finished. A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the

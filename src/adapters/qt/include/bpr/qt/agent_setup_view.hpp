@@ -98,6 +98,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto ready_title() const -> QString;
 		[[nodiscard]] auto ready_text() const -> QString;
 		[[nodiscard]] auto open_step() const noexcept -> core::setup_step { return Open; }
+		/// \brief [[BPR-1847]]. The setup as last presented: its step and
+		/// checks, which the Agent tab's suggestions wait on.
+		[[nodiscard]] auto projection() const noexcept -> const application::agent_setup_projection& { return Setup; }
 		[[nodiscard]] auto step_text() const -> QString;
 
 	private:

@@ -610,6 +610,14 @@ bpr_enable_warnings(test_better_pull_review_agent_setup_core_tests)
 bpr_add_network_isolated_test(NAME core_agent_setup COMMAND test_better_pull_review_agent_setup_core_tests)
 set_tests_properties(core_agent_setup PROPERTIES PASS_REGULAR_EXPRESSION "agent-setup-tests:pass")
 
+# [[BPR-1847]]. An ended agent turn's actions, and the suggestions' setup gate.
+bpr_add_executable(test_better_pull_review_agent_turn_core_tests agent_turn_tests.cpp)
+target_link_libraries(test_better_pull_review_agent_turn_core_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_agent_turn_core_tests)
+bpr_enable_warnings(test_better_pull_review_agent_turn_core_tests)
+bpr_add_network_isolated_test(NAME core_agent_turn COMMAND test_better_pull_review_agent_turn_core_tests)
+set_tests_properties(core_agent_turn PROPERTIES PASS_REGULAR_EXPRESSION "agent-turn-tests:pass")
+
 bpr_add_executable(
     test_better_pull_review_agent_session_core_tests
     agent_session_tests.cpp

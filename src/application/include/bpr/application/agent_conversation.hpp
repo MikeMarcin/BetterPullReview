@@ -1,6 +1,8 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONVERSATION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONVERSATION_HPP
 
+#include "bpr/core/agent_turn.hpp"
+
 #include <cstddef>
 #include <cstdint>
 #include <optional>
@@ -34,6 +36,10 @@ namespace bpr::application {
 		std::string Asked;
 		std::string Answered;
 		std::string Ending;
+		/// [[BPR-1847]]. How it ended: an answer, or a way a run ends
+		/// without one. A turn stored before this was kept reads back from its
+		/// ending (`core::legacy_agent_turn_outcome`).
+		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 
 		auto operator<=>(const agent_conversation_turn&) const = default;
 	};
