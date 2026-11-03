@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1849"
+  ],
+  "reserve_for": "reviewer-request-minimal",
+  "purpose": "Requesting a review updates People immediately without a full refresh",
+  "created": "2026-11-03T23:34:15.039786+00:00",
+  "base": "e44bcc5ec92e2bd2f1ce186fb7bc88373ea83de7"
+}
