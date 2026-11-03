@@ -5078,14 +5078,21 @@ namespace {
 				gestures.push_back(aIntent);
 			});
 		// [[BPR-0776]]. Recently viewed is the last panel of Home's list, and
-		// Resume is a row action: on hover, on focus and in the row's menu. The
-		// button beside a heading is gone.
+		// Resume is in the row's menu. The button beside a heading is gone.
+		// [[BPR-1843]]: the row's chip is the queue row's Open on GitHub, on
+		// hover and on focus; there is no Resume chip.
+		std::vector<application::pull_request_page_intent> pages;
+		window.set_pull_request_page_dispatch([&pages](const application::pull_request_page_intent& aIntent) {
+			pages.push_back(aIntent);
+			return core::markdown_link_result::opened;
+		});
 		auto* const panel        = window.home_recent_panel();
 		auto* const list         = window.home_recent_list();
 		auto* const resume       = window.home_recent_resume_action();
 		auto* const resumeButton = window.home_recent_row_action();
 		expect(panel != nullptr && list != nullptr && resume != nullptr
-				   && resumeButton != nullptr
+				   && resumeButton != nullptr && resumeButton->objectName() == QStringLiteral("homeRowOpenOnGithubButton")
+				   && window.findChild<QToolButton*>(QStringLiteral("homeRecentResumeRowButton")) == nullptr
 				   && window.findChild<QToolButton*>(QStringLiteral("homeRecentResumeButton")) == nullptr
 				   && window.findChild<QLabel*>(QStringLiteral("workbenchHomeRecentHeading")) == nullptr
 				   && panel->objectName() == QStringLiteral("homeRecentPanel")
@@ -5147,10 +5154,13 @@ namespace {
 		QApplication::processEvents();
 		expect(gestures.size() == 2U && gestures.back().Index == 1U && gestures.back().Resume,
 			   "Shift and Return resume the current row rather than opening it");
-		// With the list focused, Resume is the current row's button.
+		// [[BPR-1843]]. With the list focused, Open on GitHub is the current
+		// row's chip, the queue row's own, and Resume is no chip at all.
 		expect(list->hasFocus() && resumeButton->isVisible()
-				   && list->visualItemRect(list->item(1)).contains(resumeButton->geometry()),
-			   "with the list focused, Resume sits on the current row that kept a reading");
+				   && list->visualItemRect(list->item(1)).contains(resumeButton->geometry())
+				   && resumeButton->text() == QStringLiteral("Open on GitHub") && resumeButton->toolButtonStyle() == Qt::ToolButtonIconOnly
+				   && list->item(1)->data(qt::home_row_role::row_action).toString().isEmpty(),
+			   "with the list focused, Open on GitHub sits on the current row, and no Resume chip does");
 		{
 			const auto at      = QPointF{ resumeButton->rect().center() };
 			const auto global  = resumeButton->mapToGlobal(at);
@@ -5160,22 +5170,24 @@ namespace {
 			QApplication::sendEvent(resumeButton, &release);
 			QApplication::processEvents();
 		}
-		expect(gestures.size() == 3U && gestures.back().Index == 1U && gestures.back().Resume,
-			   "the row's Resume button resumes that row");
+		expect(gestures.size() == 2U && pages.size() == 1U && std::holds_alternative<application::recent_review_row>(pages.back())
+				   && std::get<application::recent_review_row>(pages.back()).Index == 1U,
+			   "the row's Open on GitHub opens that row's page and resumes nothing");
 		list->setCurrentRow(2);
 		QApplication::processEvents();
-		expect(!resume->isEnabled() && !resumeButton->isVisible(),
-			   "a row that kept no reading offers no resume");
+		expect(!resume->isEnabled() && resumeButton->isVisible()
+				   && list->visualItemRect(list->item(2)).contains(resumeButton->geometry()),
+			   "a row that kept no reading offers no resume, and still offers Open on GitHub");
 		auto activate = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 		QApplication::sendEvent(list, &activate);
 		QApplication::processEvents();
-		expect(gestures.size() == 4U && gestures.back().Index == 2U
+		expect(gestures.size() == 3U && gestures.back().Index == 2U
 				   && !gestures.back().Resume,
 			   "Return opens the current row, on every platform");
 		// [[BPR-1364]]. A single click on a row only selects it.
 		const auto row = list->visualItemRect(list->item(0));
 		tests::window_system_clicks(*list->viewport(), QPointF{ row.center() }, 1);
-		expect(gestures.size() == 4U && list->currentRow() == 0 && list->item(0)->isSelected() && list->hasFocus(),
+		expect(gestures.size() == 3U && list->currentRow() == 0 && list->item(0)->isSelected() && list->hasFocus(),
 			   "a single click on a Recently viewed row makes it current and highlighted, and opens nothing");
 		expect(list->accessibleDescription().startsWith(QStringLiteral("Double-click or press Return to open")),
 			   "Recently viewed says how its rows open");
@@ -5189,7 +5201,7 @@ namespace {
 		QApplication::sendEvent(list->viewport(), &press);
 		QApplication::sendEvent(list->viewport(), &doubled);
 		QApplication::processEvents();
-		expect(gestures.size() == 5U && gestures.back().Index == 0U
+		expect(gestures.size() == 4U && gestures.back().Index == 0U
 				   && !gestures.back().Resume,
 			   "a double-click opens the row it was made on");
 
@@ -5396,10 +5408,12 @@ namespace {
 		expect(queue->isVisible() && recent->isVisible() && recent->count() == 2 && cycle->isVisible(), "Home shows the queue, Recently viewed and Review Cycles");
 		expect(selected_rows(*recent) == 0 && recent->currentRow() == 0,
 			   "publishing Recently viewed makes its first row current without selecting it");
-		expect(recent->item(0)->data(qt::home_row_role::reviewing).toBool() && !recent->item(1)->data(qt::home_row_role::reviewing).toBool(),
-			   "only the open review's row is the one this window is reviewing");
-		expect(recent->item(0)->data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
-			   "the open review's row says so to assistive technology");
+		// [[BPR-1843]]. The Active review card says what is open; no
+		// Recently viewed row carries the Reviewing tag or its words.
+		expect(!recent->item(0)->data(qt::home_row_role::reviewing).toBool() && !recent->item(1)->data(qt::home_row_role::reviewing).toBool(),
+			   "no Recently viewed row is tagged as the one this window is reviewing");
+		expect(!recent->item(0)->data(Qt::AccessibleDescriptionRole).toString().startsWith(qt::home_reviewing_description()),
+			   "and none says so to assistive technology");
 
 		// The owner's capture: the queue's #73 selected, and the open #73 in
 		// Recently viewed beside it.
@@ -5412,8 +5426,8 @@ namespace {
 		const auto highlight      = palette.color(QPalette::Active, QPalette::Highlight);
 		expect(near_colour(selectedGround, highlight, 24), "the selected row keeps the native selection colour");
 		expect(!near_colour(openGround, highlight, 24), "the open review is not painted with the selection colour");
-		expect(near_colour(openGround, recent->palette().color(QPalette::Active, QPalette::AlternateBase)),
-			   "the open review's ground is the theme's quiet current-line tint");
+		expect(near_colour(openGround, recent->palette().color(QPalette::Active, QPalette::Base)),
+			   "the open review's Recently viewed row keeps the list's ground ([[BPR-1843]])");
 		const auto restingGround = row_ground(window, *recent, recent->visualItemRect(recent->item(1)));
 		expect(near_colour(restingGround, recent->palette().color(QPalette::Active, QPalette::Base)), "a row that is neither keeps the list's ground");
 
@@ -6568,17 +6582,24 @@ namespace {
 				   + (reviewFocus == nullptr ? std::string{ "nothing" } : reviewFocus->objectName().toStdString())
 				   + (reviewControl->isEnabled() ? " (control enabled)" : " (control disabled)")
 				   + (reviewControl->isVisible() ? " (control visible)" : " (control hidden)"));
+		// [[BPR-1843]]. Over a review the Active review card stands under the
+		// bar, which keeps its whole width, and above every list.
 		{
 			const auto frame = QRect{ window.home_open_frame()->mapTo(window.home_page(), QPoint{ }), window.home_open_frame()->size() };
-			const auto back  = QRect{ landing->mapTo(window.home_page(), QPoint{ }), landing->size() };
-			expect(back.left() > frame.right() && back.center().y() >= frame.top() && back.center().y() <= frame.bottom(),
-				   "over a review the way back stands at the bar's right, on the bar's line");
+			const auto card  = QRect{ landing->mapTo(window.home_page(), QPoint{ }), landing->size() };
+			const auto list  = QRect{ window.home_list()->mapTo(window.home_page(), QPoint{ }), window.home_list()->size() };
+			expect(card.top() >= frame.bottom() && card.left() <= frame.left() && card.right() >= frame.right()
+					   && (!window.home_list()->isVisible() || card.bottom() <= list.top()),
+				   "over a review the Active review card follows the bar, as wide as it, and precedes Home's lists");
 		}
-		expect(!landing->secondary_button()->isVisible() && !landing->body_label()->isVisible()
-				   && !landing->title_label()->isVisible()
-				   && landing->primary_button()->accessibleDescription().startsWith(QStringLiteral("Reviewing "))
-				   && std::ranges::none_of(landing->findChildren<QLabel*>(), [](const QLabel* const aLabel) { return aLabel->isVisible(); }),
-			   "the return row is the way back and no second way in, body or key text");
+		expect(!landing->secondary_button()->isVisible() && !landing->tertiary_button()->isVisible()
+				   && landing->caption_label()->isVisible() && landing->caption_label()->text() == QStringLiteral("Active review")
+				   && landing->title_label()->isVisible() && landing->title_label()->text().contains(QStringLiteral("#"))
+				   && !landing->title_label()->text().startsWith(QStringLiteral("Reviewing "))
+				   && landing->accessibleName() == QStringLiteral("Active review")
+				   && landing->accessibleDescription().startsWith(QStringLiteral("Reviewing "))
+				   && landing->primary_button()->accessibleDescription().startsWith(QStringLiteral("Reviewing ")),
+			   "the Active review card names the open review under its caption, with no second way in");
 		// [[BPR-1573]]. The way back's key is in its tooltip and description,
 		// not beside it (the owner, 2026-10-17: "Move this hotkey into the tooltip").
 		{
@@ -6587,18 +6608,19 @@ namespace {
 					   && landing->primary_button()->toolTip().endsWith(QStringLiteral("(%1).").arg(homeKey)),
 				   "the way back's tooltip and description end with Home's key: " + landing->primary_button()->toolTip().toStdString());
 		}
-		// [[BPR-1573]]. Close review follows the way back, bordered, named and
-		// described, reachable by Tab, and with no key of its own.
+		// [[BPR-1573]] [[BPR-1843]]. Close review is the card's ×, after the
+		// way back: named and described, reachable by Tab, no key of its own.
 		{
 			auto* const close = landing->close_button();
 			const auto  key   = QRect{ landing->primary_button()->mapTo(window.home_page(), QPoint{ }), landing->primary_button()->size() };
 			const auto  shut  = QRect{ close->mapTo(window.home_page(), QPoint{ }), close->size() };
-			expect(close->isVisible() && close->text() == QStringLiteral("Close review") && close->accessibleName() == QStringLiteral("Close review")
+			expect(close->isVisible() && close->text().isEmpty() && close->accessibleName() == QStringLiteral("Close review")
+					   && close->width() >= 24 && close->width() == close->height()
 					   && close->accessibleDescription().startsWith(landing->primary_button()->accessibleDescription().section(QStringLiteral(". Returns"), 0, 0))
 					   && close->accessibleDescription().endsWith(QStringLiteral("Closes it in this window; its drafts are kept for when you open it again."))
 					   && !close->isDefault() && landing->primary_button()->isDefault() && close->shortcut().isEmpty()
 					   && shut.left() > key.right() && std::abs(shut.center().y() - key.center().y()) <= 2,
-				   "Close review follows the way back on the bar's line, named, described and bordered");
+				   "the × follows the way back on its line, named and described");
 			landing->primary_button()->setFocus(Qt::TabFocusReason);
 			QApplication::processEvents();
 			expect(window.focusWidget() == landing->primary_button() && landing->primary_button()->nextInFocusChain() != nullptr,
@@ -6621,8 +6643,8 @@ namespace {
 			window.home_open_bar()->setFocus(Qt::OtherFocusReason);
 			QApplication::processEvents();
 		}
-		expect(landing->height() < 80,
-			   "the return row is one row high; it is " + std::to_string(landing->height()));
+		expect(landing->height() < 140,
+			   "the Active review card is compact; it is " + std::to_string(landing->height()));
 		expect(window.focusWidget() == window.home_open_bar(),
 			   "the bar has focus when Home appears over the review");
 		expect(window.status_text().startsWith(QStringLiteral("Signed in as "))
@@ -6636,8 +6658,7 @@ namespace {
 						->isVisible()
 				&& landing->isVisible()
 				&& landing->state() == qt::landing_state::back_to_review
-				&& landing->title_label()->text().startsWith(
-					QStringLiteral("Reviewing "))
+				&& landing->caption_label()->text() == QStringLiteral("Active review")
 				&& landing->title_label()->text().contains(QStringLiteral("#"))
 				&& landing->primary_button()->text()
 					== QStringLiteral("Back to the review"),

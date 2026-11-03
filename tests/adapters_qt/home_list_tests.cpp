@@ -5,6 +5,7 @@
 #include "bpr/qt/home_panel.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/review_landing_model.hpp"
+#include "bpr/qt/workbench_landing.hpp"
 
 #include <QAccessible>
 #include <QApplication>
@@ -12,6 +13,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QHelpEvent>
+#include <QIcon>
 #include <QImage>
 #include <QKeyEvent>
 #include <QLabel>
@@ -21,11 +23,13 @@
 #include <QPalette>
 #include <QPixmap>
 #include <QProxyStyle>
+#include <QPushButton>
 #include <QScreen>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QStyleOptionViewItem>
 #include <QThread>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <QWheelEvent>
 
@@ -166,7 +170,9 @@ namespace {
 		row->setData(qt::home_row_role::why, aResumable ? QStringLiteral("My reading is saved.") : QStringLiteral("Viewed."));
 		row->setData(qt::home_row_role::state, -1);
 		row->setData(qt::home_row_role::time, aTime);
-		row->setData(qt::home_row_role::row_action, aResumable ? QStringLiteral("Resume") : QString{ });
+		// [[BPR-1843]]. As the window gives it: no Resume chip, and the queue
+		// row's Open on GitHub.
+		row->setData(qt::home_row_role::icon_action, QStringLiteral("Open on GitHub"));
 		return row;
 	}
 
@@ -844,49 +850,65 @@ namespace {
 		expect(noState() && !sentence->isVisible(), "a filter that hides every row draws no sentence and no box");
 	}
 
-	// Resume is a row action on hover and on focus.
-	void test_resume_is_a_row_action_on_hover_and_focus()
+	// [[BPR-1843]]. A Recently viewed row carries no Resume chip and no
+	// Reviewing tag; its one chip is the queue row's Open on GitHub, on hover
+	// and on focus, which reports the row it is on.
+	void test_recent_rows_offer_open_on_github_and_no_resume()
 	{
 		home_fixture home;
-		auto* const  recent = new qt::home_recent_view{ };
+		auto*        recent = new qt::home_recent_view{ };
 		recent->addItem(recent_item(QStringLiteral("microsoft/terminal#42"), QStringLiteral("Fix the conpty resize race"), false, QStringLiteral("Tue")));
 		recent->addItem(recent_item(QStringLiteral("microsoft/terminal#77"), QStringLiteral("Teach the pane splitter about tabs"), true, QStringLiteral("Mon")));
+		auto icon = QPixmap{ 16, 16 };
+		icon.fill(Qt::red);
+		home.List.set_page_action(QIcon{ icon }, QStringLiteral("Open on GitHub (⇧⌘O)"));
 		home.List.adopt_recent(*recent);
 		home.List.set_recent(2, QStringLiteral("2 viewed; 1 saved reading"));
-		auto resumed = std::vector<int>{ };
-		home.List.set_recent_action_dispatch([&resumed](const int aRow) { resumed.push_back(aRow); });
+		auto opened = std::vector<int>{ };
+		home.List.set_recent_page_dispatch([&opened](const int aRow) { opened.push_back(aRow); });
 		home.List.show();
 		home.List.activateWindow();
 		settle();
 
-		auto* const action = home.List.recent_action();
-		expect(action != nullptr && !action->isVisible() && action->focusPolicy() == Qt::NoFocus,
-			   "Resume is not shown until a row is hovered or focused, and takes no focus");
+		auto* const action = home.List.recent_page_action();
+		expect(action != nullptr && !action->isVisible() && action->focusPolicy() == Qt::NoFocus
+				   && action->objectName() == QStringLiteral("homeRowOpenOnGithubButton")
+				   && action->toolButtonStyle() == Qt::ToolButtonIconOnly && !action->icon().isNull()
+				   && action->toolTip() == QStringLiteral("Open on GitHub (⇧⌘O)"),
+			   "Recently viewed's chip is the queue row's Open on GitHub button, hidden until a row is hovered or focused");
+		expect(recent->findChildren<QToolButton*>().size() == 1,
+			   "a Recently viewed row has one chip, and it is not Resume");
+		auto* const delegate = home.List.row_delegate();
+		for (auto row = 0; row < recent->count(); ++row) {
+			const auto index = recent->model()->index(row, 0);
+			expect(index.data(qt::home_row_role::row_action).toString().isEmpty() && !index.data(qt::home_row_role::reviewing).toBool()
+					   && delegate->reviewing_rect(option_for(*recent, index), index).isEmpty(),
+				   "no Recently viewed row draws a Resume chip or a Reviewing tag");
+		}
 		const auto hover = [recent](const int aRow) {
 			const auto at     = QPointF{ recent->visualRect(recent->model()->index(aRow, 0)).center() };
 			auto       motion = QMouseEvent{ QEvent::MouseMove, at, recent->viewport()->mapToGlobal(at), Qt::NoButton, Qt::NoButton, Qt::NoModifier };
 			QApplication::sendEvent(recent->viewport(), &motion);
 			QApplication::processEvents();
 		};
-		hover(1);
-		const auto saved = recent->visualRect(recent->model()->index(1, 0));
-		expect(action->isVisible() && action->row() == 1 && saved.contains(action->geometry()) && action->text() == QStringLiteral("Resume"),
-			   "hovering a row with a saved reading shows Resume inside that row");
+		for (const auto row : { 0, 1 }) {
+			hover(row);
+			const auto rect = recent->visualRect(recent->model()->index(row, 0));
+			expect(action->isVisible() && action->row() == row && rect.contains(action->geometry())
+					   && action->accessibleName() == QStringLiteral("Open on GitHub %1").arg(recent->model()->index(row, 0).data(qt::home_row_role::identity).toString()),
+				   "every Recently viewed row, saved reading or not, offers Open on GitHub inside it, named for assistive technology");
+		}
 		click(*action, action->rect().center());
-		expect(resumed == std::vector{ 1 }, "Resume resumes the row it is on");
-		hover(0);
-		expect(!action->isVisible(), "a row that kept no reading offers no Resume");
+		expect(opened == std::vector{ 1 }, "Open on GitHub reports the row it is on");
 		auto leave = QEvent{ QEvent::Leave };
 		QApplication::sendEvent(recent->viewport(), &leave);
 		QApplication::processEvents();
+		expect(!action->isVisible(), "leaving the rows hides it");
 
-		recent->setCurrentRow(1);
+		recent->setCurrentRow(0);
 		recent->setFocus(Qt::OtherFocusReason);
 		settle(50);
-		expect(recent->hasFocus() && action->isVisible() && action->row() == 1, "with the list focused, Resume sits on the current row");
-		recent->setCurrentRow(0);
-		QApplication::processEvents();
-		expect(!action->isVisible(), "and leaves with a row that has no reading");
+		expect(recent->hasFocus() && action->isVisible() && action->row() == 0, "with the list focused, Open on GitHub sits on the current row");
 	}
 
 	// [[BPR-1683]]. Ignored is the last panel in every arrangement, starts
@@ -1662,7 +1684,8 @@ namespace {
 			home.List.set_queue_status(true, true);
 			auto* const recent = new qt::home_recent_view{ };
 			auto* const open   = recent_item(QStringLiteral("octo-org/app#101"), QStringLiteral("A title"), true, QStringLiteral("6:59 AM"));
-			open->setData(qt::home_row_role::reviewing, true);
+			// [[BPR-1843]]. The open review's Recently viewed row is an
+			// ordinary row: the Active review card says what is open.
 			open->setData(qt::home_row_role::draft, true);
 			recent->addItem(open);
 			recent->addItem(recent_item(QStringLiteral("microsoft/terminal#42"), QStringLiteral("Fix the conpty resize race"), false, QStringLiteral("Tue")));
@@ -1708,8 +1731,8 @@ namespace {
 			const auto alternate = palette.color(QPalette::Active, QPalette::AlternateBase);
 			const auto highlight = palette.color(QPalette::Active, QPalette::Highlight);
 			expect(close_to(ground(*view, first), alternate, 6), "the open review's queue row is on the quiet tint" + where);
-			expect(close_to(ground(*recent, recent->model()->index(0, 0)), alternate, 6), "the open review's Recently viewed row is on the quiet tint" + where);
-			expect(!close_to(ground(*recent, recent->model()->index(1, 0)), alternate, 2), "a row that is not open is not tinted" + where);
+			expect(!close_to(ground(*recent, recent->model()->index(0, 0)), alternate, 2) && !close_to(ground(*recent, recent->model()->index(1, 0)), alternate, 2),
+				   "no Recently viewed row is tinted as the one being reviewed" + where);
 
 			// The tag's word is drawn in the row's ink: some of its pixels are
 			// far from the tint it sits on.
@@ -1746,6 +1769,151 @@ namespace {
 			expect(home.List.current_queue_item().has_value() && home.List.current_queue_item()->Ref == queue[1].Ref
 					   && home.List.current_view()->selectionModel()->isSelected(home.List.current_view()->currentIndex()),
 				   "shown again, the current row is selected" + where);
+		}
+	}
+
+	[[nodiscard]] auto relative_luminance(const QColor& aColour) -> double
+	{
+		const auto channel = [](const double aValue) {
+			return aValue <= 0.03928 ? aValue / 12.92 : std::pow((aValue + 0.055) / 1.055, 2.4);
+		};
+		const auto rgb = aColour.toRgb();
+		return (0.2126 * channel(rgb.redF())) + (0.7152 * channel(rgb.greenF())) + (0.0722 * channel(rgb.blueF()));
+	}
+
+	[[nodiscard]] auto contrast_of(const QColor& aOne, const QColor& aOther) -> double
+	{
+		const auto one   = relative_luminance(aOne);
+		const auto other = relative_luminance(aOther);
+		return (std::max(one, other) + 0.05) / (std::min(one, other) + 0.05);
+	}
+
+	/// \brief [[BPR-1843]]. The Active review card in every theme: what it
+	/// says, its names for assistive technology, its keyboard order, its ink
+	/// against its own ground, its accent rail, one height whatever the title,
+	/// and a render per theme.
+	void test_active_review_card_reads_in_every_theme(const QString& aRenderPath)
+	{
+		const auto modes = std::array{
+			std::pair{ core::appearance_mode::light, "light" },
+			std::pair{ core::appearance_mode::dark, "dark" },
+			std::pair{ core::appearance_mode::high_contrast_light, "high-contrast-light" },
+			std::pair{ core::appearance_mode::high_contrast_dark, "high-contrast-dark" },
+		};
+		for (const auto& [mode, name] : modes) {
+			const auto where   = std::string{ " (" } + name + ")";
+			auto       profile = qt::appearance_profile{ };
+			profile.select_mode(mode);
+			const auto palette = profile.derive(QApplication::palette());
+
+			auto host = QWidget{ };
+			host.setPalette(palette);
+			host.setAutoFillBackground(true);
+			auto* const column  = new QVBoxLayout{ &host };
+			auto* const landing = new qt::workbench_landing{ &host };
+			column->setContentsMargins(0, 0, 0, 0);
+			column->addWidget(landing);
+			column->addStretch(1);
+			auto closes = 0;
+			auto backs  = 0;
+			landing->set_close_dispatch([&closes] { ++closes; });
+			landing->set_primary_dispatch([&backs] { ++backs; });
+			landing->set_review_identity(QStringLiteral("octo-org/review-repository#17"));
+			landing->set_review_title(QStringLiteral("Teach the pane splitter about tabs"));
+			landing->set_review_position(QStringLiteral("file 3 of 12"));
+			landing->set_state(qt::landing_state::back_to_review);
+			host.resize(960, 220);
+			host.show();
+			host.activateWindow();
+			settle(60);
+
+			auto* const close = landing->close_button();
+			auto* const back  = landing->primary_button();
+			expect(landing->caption_label()->isVisible() && landing->caption_label()->text() == QStringLiteral("Active review")
+					   && landing->title_label()->text() == QStringLiteral("octo-org/review-repository#17")
+					   && landing->review_title_label()->isVisible() && landing->review_title_label()->text() == QStringLiteral("Teach the pane splitter about tabs")
+					   && landing->body_label()->isVisible() && landing->body_label()->text() == QStringLiteral("Left off at file 3 of 12"),
+				   "the card says Active review over the identity, its literal title and where the reading was left" + where);
+			expect(landing->accessibleName() == QStringLiteral("Active review")
+					   && landing->accessibleDescription() == QStringLiteral("Reviewing octo-org/review-repository#17, Teach the pane splitter about tabs, left off at file 3 of 12")
+					   && close->text().isEmpty() && close->accessibleName() == QStringLiteral("Close review")
+					   && close->accessibleDescription().startsWith(QStringLiteral("Reviewing octo-org/review-repository#17. Closes it in this window"))
+					   && close->toolTip() == close->accessibleDescription() && close->focusPolicy() == Qt::StrongFocus && close->shortcut().isEmpty()
+					   && !close->isDefault() && back->isDefault() && back->text() == QStringLiteral("Back to the review"),
+				   "the card, its way back and its × are named and described; the way back is the default" + where);
+			const auto backRect  = QRect{ back->mapTo(&host, QPoint{ }), back->size() };
+			const auto closeRect = QRect{ close->mapTo(&host, QPoint{ }), close->size() };
+			const auto cardRect  = QRect{ landing->mapTo(&host, QPoint{ }), landing->size() };
+			expect(closeRect.left() > backRect.right() && std::abs(closeRect.center().y() - backRect.center().y()) <= 2
+					   && cardRect.contains(closeRect) && closeRect.right() > cardRect.center().x() && close->width() == close->height() && close->width() >= 24,
+				   "the × is a square target after the way back, at the card's right" + where);
+
+			// Tab goes from the way back to the ×; Space on the × asks once.
+			back->setFocus(Qt::TabFocusReason);
+			QApplication::processEvents();
+			for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+				auto key = QKeyEvent{ type, Qt::Key_Tab, Qt::NoModifier };
+				QApplication::sendEvent(back, &key);
+			}
+			QApplication::processEvents();
+			expect(close->hasFocus(), "Tab from the way back reaches the ×" + where);
+			for (const auto type : { QEvent::KeyPress, QEvent::KeyRelease }) {
+				auto key = QKeyEvent{ type, Qt::Key_Space, Qt::NoModifier, QStringLiteral(" ") };
+				QApplication::sendEvent(close, &key);
+			}
+			QApplication::processEvents();
+			expect(closes == 1 && backs == 0, "Space on the × asks to close once, and nothing else" + where);
+			click(*back, back->rect().center());
+			expect(backs == 1 && closes == 1, "the way back asks to go back" + where);
+
+			// The ink reads on the card's own ground.
+			const auto ink = qt::workbench_landing::review_card_ink_for(landing->palette());
+			expect(contrast_of(ink.Caption, ink.Ground) >= 4.5 && contrast_of(ink.Muted, ink.Ground) >= 4.5
+					   && contrast_of(palette.color(QPalette::Active, QPalette::WindowText), ink.Ground) >= 7.0,
+				   "the caption, the position and the identity read on the card's ground: caption " + std::to_string(contrast_of(ink.Caption, ink.Ground))
+					   + ", position " + std::to_string(contrast_of(ink.Muted, ink.Ground)) + where);
+			expect(landing->caption_label()->palette().color(QPalette::WindowText) == ink.Caption
+					   && landing->body_label()->palette().color(QPalette::WindowText) == ink.Muted,
+				   "the caption and the position take the card's ink" + where);
+
+			// Drawn: the accent's rail at the left, the washed ground inside.
+			const auto image = host.grab().toImage();
+			const auto ratio = image.devicePixelRatio();
+			const auto pixel = [&](const QPoint& aAt) {
+				return image.pixelColor(static_cast<int>(aAt.x() * ratio), static_cast<int>(aAt.y() * ratio));
+			};
+			const auto mid = cardRect.center().y();
+			expect(close_to(pixel(QPoint{ cardRect.left() + 26, mid }), ink.Rail, 24), "the accent's rail runs down the card's left" + where);
+			expect(close_to(pixel(QPoint{ cardRect.left() + 34, cardRect.top() + 12 }), ink.Ground, 6), "the card's ground is the accent washed into Base" + where);
+			if (!aRenderPath.isEmpty()) {
+				auto path = QString{ aRenderPath }.replace(QStringLiteral(".png"), QStringLiteral("-active-review-%1.png").arg(QString::fromLatin1(name)));
+				expect(host.grab().save(path), "the Active review render is saved" + where);
+			}
+
+			// One height whatever the title: a long one ends in an ellipsis,
+			// keeps the whole title in its tooltip, and moves nothing.
+			const auto height = landing->height();
+			const auto whole  = QStringLiteral("A complete literal title long enough that it cannot fit on the card's one line at this width, however wide the reviewer's window is made");
+			landing->set_review_title(whole);
+			settle(30);
+			expect(landing->height() == height && landing->review_title_label()->text() != whole && landing->review_title_label()->text().endsWith(QChar{ 0x2026 })
+					   && landing->review_title_label()->toolTip() == whole && landing->accessibleDescription().contains(whole),
+				   "a long title keeps the card's height, ends in an ellipsis and is whole in its tooltip and description" + where);
+			landing->set_review_position(QString{ });
+			settle(30);
+			expect(landing->height() == height && landing->body_label()->isVisible() && landing->body_label()->text() == QStringLiteral("Open in this window"),
+				   "with no reading position the card keeps its height and says the review is open here" + where);
+
+			// Held: nothing offered, the card's place kept; released, none.
+			landing->set_held_height(height);
+			landing->set_state(qt::landing_state::choose_pull_request);
+			settle(30);
+			expect(landing->height() >= height && !close->isVisible() && !back->isVisible() && !landing->caption_label()->isVisible()
+					   && landing->accessibleName() == QStringLiteral("Home"),
+				   "held, the card's place stays empty while another pull request opens" + where);
+			landing->set_held_height(0);
+			settle(30);
+			expect(landing->minimumHeight() == 0, "released, it holds nothing" + where);
 		}
 	}
 
@@ -2070,7 +2238,7 @@ auto main(int argc, char** argv) -> int
 	test_headers_stick_while_their_panel_is_in_view(scrolledPath);
 	test_bands_stick_under_their_group_header();
 	test_empty_states_and_the_all_empty_sentence();
-	test_resume_is_a_row_action_on_hover_and_focus();
+	test_recent_rows_offer_open_on_github_and_no_resume();
 	test_ignored_is_last_collapsed_and_offers_unignore(renderPath);
 	test_a_row_that_changes_state_moves_panels_and_keeps_its_place();
 	test_a_wheel_over_rows_scrolls_the_page();
@@ -2092,6 +2260,8 @@ auto main(int argc, char** argv) -> int
 	test_change_facts_keep_their_own_column();
 	test_the_open_review_is_quiet_and_never_the_selection(renderPath);
 	test_my_review_verdict_on_rows(renderPath);
+	// [[BPR-1843]]. The Active review card.
+	test_active_review_card_reads_in_every_theme(renderPath);
 
 	std::cout << "home-list-tests:pass\n";
 	return EXIT_SUCCESS;

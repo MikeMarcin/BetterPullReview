@@ -121,17 +121,24 @@ namespace {
 		expect(landing != nullptr && landing->state() == qt::landing_state::back_to_review, "Home over the review offers the way back");
 		auto* const back  = landing->primary_button();
 		auto* const close = landing->close_button();
-		expect(close->isVisible() && close->text() == QStringLiteral("Close review") && close->accessibleName() == QStringLiteral("Close review")
+		expect(close->isVisible() && close->text().isEmpty() && close->accessibleName() == QStringLiteral("Close review")
 				   && close->accessibleDescription().startsWith(back->accessibleDescription().section(QStringLiteral(". Returns"), 0, 0))
 				   && close->accessibleDescription().startsWith(QStringLiteral("Reviewing octo-org/review-repository")) && close->accessibleDescription().contains(QStringLiteral("#17"))
 				   && close->accessibleDescription().contains(QStringLiteral("drafts are kept")) && close->toolTip() == close->accessibleDescription()
 				   && !close->isDefault() && back->isDefault() && close->focusPolicy() == Qt::StrongFocus,
-			   "Close review is named, described and bordered beside the filled way back");
+			   "Close review is the Active review card's ×, named and described beside the filled way back");
 		const auto at = [&](QWidget* aWidget) { return aWidget->mapTo(&window, QPoint{ }); };
 		expect(at(back).x() < at(close).x()
 				   && std::abs((at(close).y() + close->height() / 2) - (at(back).y() + back->height() / 2)) <= 2
 				   && at(close).x() - (at(back).x() + back->width()) <= 16,
 			   "Close review follows the way back on the same line");
+		// [[BPR-1843]]. The Active review card says what is open, above Home's lists.
+		expect(landing->caption_label()->isVisible() && landing->caption_label()->text() == QStringLiteral("Active review")
+				   && landing->title_label()->text() == QStringLiteral("octo-org/review-repository#17")
+				   && landing->accessibleName() == QStringLiteral("Active review")
+				   && landing->accessibleDescription().startsWith(QStringLiteral("Reviewing octo-org/review-repository#17"))
+				   && at(landing).y() > at(window.home_open_frame()).y(),
+			   "the Active review card names the open review under the bar");
 		expect(back->toolTip() == back->accessibleDescription()
 				   && back->toolTip().endsWith(QStringLiteral("(%1).").arg(window.home_action()->shortcut().toString(QKeySequence::NativeText))),
 			   "the way back's key is in its tooltip and description");

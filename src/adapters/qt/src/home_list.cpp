@@ -759,6 +759,10 @@ namespace bpr::qt {
 			button->setIcon(PageIcon);
 			button->setToolTip(PageToolTip);
 		}
+		if (RecentAction != nullptr) {
+			RecentAction->setIcon(PageIcon);
+			RecentAction->setToolTip(PageToolTip);
+		}
 	}
 
 	void home_list::set_row_menu_dispatch(std::function<void(const QPoint& aGlobal)> aDispatch)
@@ -788,12 +792,16 @@ namespace bpr::qt {
 		aRecent.setItemDelegate(Delegate);
 		aRecent.installEventFilter(this);
 		aRecent.viewport()->installEventFilter(this);
-		RecentAction = new home_row_action{ aRecent, QStringLiteral("Resume") };
-		RecentAction->setObjectName(QStringLiteral("homeRecentResumeRowButton"));
-		RecentAction->setToolTip(QStringLiteral("Opens this pull request where its reading was left"));
+		// [[BPR-1843]]. A Recently viewed row's one chip is the queue row's
+		// Open on GitHub: the same icon button, in the place the delegate
+		// keeps for it, with the window action's icon and tooltip.
+		RecentAction = new home_row_action{ aRecent, QStringLiteral("Open on GitHub"), home_row_role::icon_action };
+		RecentAction->setObjectName(QStringLiteral("homeRowOpenOnGithubButton"));
+		RecentAction->setIcon(PageIcon);
+		RecentAction->setToolTip(PageToolTip);
 		RecentAction->set_trigger([this](const int aRow) {
-			if (RecentActionDispatch) {
-				RecentActionDispatch(aRow);
+			if (RecentPageDispatch) {
+				RecentPageDispatch(aRow);
 			}
 		});
 		refresh();
@@ -814,9 +822,9 @@ namespace bpr::qt {
 		ClearFiltersDispatch = std::move(aDispatch);
 	}
 
-	void home_list::set_recent_action_dispatch(std::function<void(int aRow)> aDispatch)
+	void home_list::set_recent_page_dispatch(std::function<void(int aRow)> aDispatch)
 	{
-		RecentActionDispatch = std::move(aDispatch);
+		RecentPageDispatch = std::move(aDispatch);
 	}
 
 	void home_list::set_ignore_dispatch(std::function<void(const core::queue_item&)> aDispatch)
@@ -1768,7 +1776,7 @@ namespace bpr::qt {
 		return RecentPanel;
 	}
 
-	auto home_list::recent_action() const noexcept -> home_row_action*
+	auto home_list::recent_page_action() const noexcept -> home_row_action*
 	{
 		return RecentAction;
 	}

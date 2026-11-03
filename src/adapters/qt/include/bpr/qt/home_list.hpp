@@ -246,7 +246,9 @@ namespace bpr::qt {
 		void set_settings_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1580]]. The filtered sentence's Clear filters.
 		void set_clear_filters_dispatch(std::function<void()> aDispatch);
-		void set_recent_action_dispatch(std::function<void(int aRow)> aDispatch);
+		/// \brief [[BPR-1843]]. A Recently viewed row's Open on GitHub, from its
+		/// icon button: the row it is on.
+		void set_recent_page_dispatch(std::function<void(int aRow)> aDispatch);
 		/// \brief [[BPR-1683]]. A queue row asked to be ignored, or an
 		/// ignored row to be unignored: Delete or Backspace on it, or an
 		/// ignored row's Unignore. The item says which it is.
@@ -345,7 +347,8 @@ namespace bpr::qt {
 		/// its rows carry a chip somewhere.
 		[[nodiscard]] auto account_chips() const -> bool;
 		[[nodiscard]] auto recent_panel() const noexcept -> home_panel*;
-		[[nodiscard]] auto recent_action() const noexcept -> home_row_action*;
+		/// \brief [[BPR-1843]]. Recently viewed rows' Open on GitHub button.
+		[[nodiscard]] auto recent_page_action() const noexcept -> home_row_action*;
 		/// \brief [[BPR-1683]]. Ignored, the last panel, starting collapsed.
 		[[nodiscard]] auto ignored_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto ignored_view() const noexcept -> QListView*;
@@ -472,7 +475,7 @@ namespace bpr::qt {
 		QAbstractItemView*                           CurrentRows = nullptr;
 		std::function<void(const core::queue_item&)> OpenDispatch;
 		std::function<void()>                        SettingsDispatch;
-		std::function<void(int aRow)>                RecentActionDispatch;
+		std::function<void(int aRow)>                RecentPageDispatch;
 		std::function<void()>                        ViewObserver;
 		std::function<void(const core::queue_item&)> PageDispatch;
 		std::function<void(const QPoint&)>           RowMenuDispatch;

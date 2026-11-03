@@ -373,10 +373,21 @@ try {
 			}
 			return -1;
 		};
-		wait_for([&] { return recentRow() >= 0 && recent->item(recentRow())->data(qt::home_row_role::reviewing).toBool(); },
-				 "Recently viewed says which of its entries is the open review");
+		// [[BPR-1843]]. The open review is Home's Active review card, above
+		// the lists; its Recently viewed row is an ordinary row, with no
+		// Reviewing tag and no Resume chip.
+		wait_for([&] { return recentRow() >= 0; }, "Recently viewed lists the open review");
 		for (auto row = 0; row < recent->count(); ++row) {
-			expect(recent->item(row)->data(qt::home_row_role::reviewing).toBool() == (row == recentRow()), "only the open review is marked in Recently viewed");
+			expect(!recent->item(row)->data(qt::home_row_role::reviewing).toBool() && recent->item(row)->data(qt::home_row_role::row_action).toString().isEmpty()
+					   && recent->item(row)->data(qt::home_row_role::icon_action).toString() == QStringLiteral("Open on GitHub"),
+				   "no Recently viewed row is tagged Reviewing or offers Resume; each offers Open on GitHub");
+		}
+		{
+			auto* const landing = window->home_landing();
+			expect(landing->state() == qt::landing_state::back_to_review && landing->isVisible() && landing->caption_label()->isVisible()
+					   && landing->title_label()->text() == QString::fromUtf8(served_name)
+					   && landing->accessibleName() == QStringLiteral("Active review"),
+				   "the Active review card names the open review");
 		}
 		// The owner's capture: the queue's #17 selected beside the open #17. A
 		// click is made in the active window, as a hand's is, on the rows Home
@@ -419,8 +430,8 @@ try {
 		expect(near_colour(selectedGround, queuedHighlight, 24),
 			   "the selected row keeps the native selection colour");
 		expect(!near_colour(ground(*window, recentEntry), highlight, 24), "the open review is not painted in the selection colour");
-		expect(near_colour(ground(*window, recentEntry), recent->palette().color(QPalette::Active, QPalette::AlternateBase), 6),
-			   "the open review sits on the theme's quiet tint");
+		expect(near_colour(ground(*window, recentEntry), recent->palette().color(QPalette::Active, QPalette::Base), 6),
+			   "the open review's Recently viewed row keeps the list's ground");
 		renders(aName);
 
 		// The selection follows the keyboard to Recently viewed and back.
@@ -494,7 +505,7 @@ try {
 		expect(window->showing_home() && window->home_status_line()->isHidden(), "the row says it, so the band adds nothing");
 		wait_for([&] { return delay->Delayed.load() > delayedFirst; }, "the read reaches the slow transport");
 		QApplication::processEvents();
-		expect(listTop() == quietList && barTop() == quietBar, "a row opening moves neither the bar nor the list");
+		expect(listTop() == quietList && barTop() == quietBar, "a row opening moves neither the bar nor the list; list " + std::to_string(quietList) + " -> " + std::to_string(listTop()) + " landing state " + std::to_string(static_cast<int>(window->home_landing()->state())) + " visible " + std::to_string(window->home_landing()->isVisible()));
 		expect(factsAligned(), "opening keeps the Home row's facts aligned");
 		renders(QStringLiteral("row-opening"));
 
@@ -609,9 +620,17 @@ try {
 		expect(!window->home_open().has_value(), "a loaded read leaves nothing for Home to say");
 		window->home_action()->trigger();
 		QApplication::processEvents();
-		expect(window->home_landing()->state() == qt::landing_state::back_to_review && window->home_landing()->isVisible()
-				   && listTop() == quietList && barTop() == quietBar,
-			   "Home over the open review offers the way back and keeps the bar and the list where they were");
+		// [[BPR-1843]]. The bar stays where it was. The lists stay too while a
+		// review was already open; the first review opened brings the Active
+		// review card above them, and they follow it.
+		{
+			auto* const landing    = window->home_landing();
+			const auto  cardBottom = landing->mapTo(window->home_page(), QPoint{ }).y() + landing->height();
+			expect(landing->state() == qt::landing_state::back_to_review && landing->isVisible() && barTop() == quietBar
+					   && (listTop() == quietList || (listTop() > quietList && listTop() >= cardBottom)),
+				   "Home over the open review offers the Active review card under the bar, which stays where it was; list "
+					   + std::to_string(quietList) + " -> " + std::to_string(listTop()) + ", card bottom " + std::to_string(cardBottom));
+		}
 		reviewingCourse(QStringLiteral("reviewing"));
 	}
 	// [[BPR-1365]]. The high-contrast themes, over the same open review.
