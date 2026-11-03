@@ -387,7 +387,7 @@ namespace {
 		const auto observation = [](const reads::call& aCall) {
 			auto data                            = snapshot(aCall.Request);
 			data.PullRequest.ReportedCommitCount = 5U;
-			return application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 1523U };
+			return application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 1523U, std::nullopt };
 		};
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
 		const auto first           = provider.Calls.back();
@@ -406,6 +406,27 @@ namespace {
 				   && updates.back().Presentation.LoadingOverview->ReportedFiles == 1523U
 				   && !updates.back().Presentation.PullRequest && !host.accepted_snapshot() && epochs.AcceptCount == 0U,
 			   "validated useful metadata is visible without snapshot, epoch or file authority");
+		expect(updates.back().Presentation.LoadingOverview->Owner == "owner" && updates.back().Presentation.LoadingOverview->RepositoryName == "repo"
+				   && updates.back().Presentation.LoadingOverview->Number == 1U && !updates.back().Presentation.LoadingOverview->Files,
+			   "[[BPR-1842]] the metadata names its pull request for the title row, without files");
+		{
+			// [[BPR-1842]]. The complete file list follows once, as rows to read.
+			auto       files  = observation(first);
+			const auto listed = std::vector<application::github_file_record>{
+				{ .Path = "src/a.cpp", .Change = application::github_file_change::modified, .Additions = 3U, .Deletions = 1U },
+				{ .Path = "src/b.cpp", .PreviousPath = "src/old_b.cpp", .Change = application::github_file_change::renamed },
+			};
+			files.ReportedFiles = listed.size();
+			files.Files         = listed;
+			first.Overview(files);
+			first.Overview(files);
+			lane.drain();
+			expect(updates.size() == before + 2U && updates.back().Presentation.LoadingOverview && updates.back().Presentation.LoadingOverview->Files
+					   && updates.back().Presentation.LoadingOverview->Files->size() == listed.size()
+					   && updates.back().Presentation.LoadingOverview->Files->front().Path == listed.front().Path
+					   && !updates.back().Presentation.PullRequest && !host.accepted_snapshot() && epochs.AcceptCount == 0U,
+				   "the file list is shown once, still without snapshot, epoch or file authority");
+		}
 		first.Complete(application::github_pull_request_error{ first.Request, { .Failure = application::github_provider_failure::unavailable } });
 		lane.drain();
 		first.Overview(observation(first));

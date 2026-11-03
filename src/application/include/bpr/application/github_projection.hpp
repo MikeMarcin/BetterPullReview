@@ -164,11 +164,19 @@ namespace bpr::application {
 		std::string                          AuthorLogin;
 		std::string                          BaseRef;
 		std::string                          HeadRef;
-		std::size_t                          ReportedFiles                                                = 0U;
-		std::size_t                          ReportedCommits                                              = 0U;
-		github_pull_request_state_projection State                                                        = github_pull_request_state_projection::open;
-		bool                                 Draft                                                        = false;
-		auto                                 operator<=>(const github_loading_overview_projection&) const = default;
+		std::size_t                          ReportedFiles   = 0U;
+		std::size_t                          ReportedCommits = 0U;
+		github_pull_request_state_projection State           = github_pull_request_state_projection::open;
+		bool                                 Draft           = false;
+		/// [[BPR-1842]]. Which pull request the read names, so the title row
+		/// can say so before the review is accepted.
+		std::string   Owner;
+		std::string   RepositoryName;
+		std::uint64_t Number = 0U;
+		/// [[BPR-1842]]. The changed files as GitHub listed them, once their
+		/// pages have arrived; absent before. Rows to read, not files to open.
+		std::optional<std::vector<core::cached_review_file>> Files;
+		auto                                                 operator<=>(const github_loading_overview_projection&) const = default;
 	};
 
 	enum class cached_source_status : std::uint8_t { loading,

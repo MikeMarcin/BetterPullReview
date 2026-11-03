@@ -934,11 +934,20 @@ namespace bpr::application {
 											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
 			-> github_pull_request_overview_handler
 		{
-			auto posted = std::make_shared<std::atomic_bool>(false);
+			// [[BPR-1842]]. Two observations at most, in order: the metadata,
+			// then the complete file list.
+			auto posted = std::make_shared<std::atomic<std::uint8_t>>(std::uint8_t{ 0U });
 			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted](github_pull_request_overview_observation aObservation) {
-				if (aObservation.Context != aContext || aTerminal->load() || posted->exchange(true)) {
+				if (aObservation.Context != aContext || aTerminal->load()) {
 					return;
 				}
+				const auto stage = aObservation.Files ? std::uint8_t{ 2U } : std::uint8_t{ 1U };
+				auto       prior = posted->load();
+				do {
+					if (prior + 1U != stage) {
+						return;
+					}
+				} while (!posted->compare_exchange_weak(prior, stage));
 				auto host = weak.lock();
 				if (!host) {
 					return;
@@ -966,7 +975,9 @@ namespace bpr::application {
 			}
 			try {
 				auto projection = project_github_loading_overview(aObservation);
-				if (!projection || !Policy.accept_overview_observation(Policy.window(), aObservation.Context)) {
+				if (!projection
+					|| !(aObservation.Files ? Policy.accept_files_observation(Policy.window(), aObservation.Context)
+											: Policy.accept_overview_observation(Policy.window(), aObservation.Context))) {
 					return;
 				}
 				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, github_presentation_update{ .LoadingOverview = std::move(projection) } });
@@ -1058,24 +1069,8 @@ namespace bpr::application {
 			if (aSnapshot.Files.size() > core::maximum_cached_files) {
 				return std::nullopt;
 			}
-			std::vector<core::cached_review_file> files;
-			files.reserve(aSnapshot.Files.size());
-			for (const auto& file : aSnapshot.Files) {
-				core::cached_file_change change;
-				switch (file.Change) {
-				case github_file_change::added:         change = core::cached_file_change::added; break;
-				case github_file_change::modified:      change = core::cached_file_change::modified; break;
-				case github_file_change::removed:       change = core::cached_file_change::removed; break;
-				case github_file_change::renamed:       change = core::cached_file_change::renamed; break;
-				case github_file_change::copied:        change = core::cached_file_change::copied; break;
-				case github_file_change::type_changed:  change = core::cached_file_change::type_changed; break;
-				case github_file_change::unchanged:     change = core::cached_file_change::unchanged; break;
-				case github_file_change::uninitialized:
-				default:                                return std::nullopt;
-				}
-				files.push_back({ file.Path, file.PreviousPath, change, file.Additions, file.Deletions });
-			}
-			return core::valid_cached_catalogue(files) ? std::optional{ std::move(files) } : std::nullopt;
+			auto files = project_github_file_rows(aSnapshot.Files);
+			return files && core::valid_cached_catalogue(*files) ? std::move(files) : std::nullopt;
 		}
 		static auto retained_thread_side(github_diff_side aSide) -> core::cached_thread_side
 		{
@@ -1215,7 +1210,7 @@ namespace bpr::application {
 							self->CachedOverview = *cached;
 							self->CachedRequest  = error.Request.Context;
 							projection           = github_cached_overview_projection{
-								.Overview        = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft },
+								.Overview        = { .Title = cached->Title, .Body = cached->Body, .AuthorLogin = cached->AuthorLogin, .BaseRef = cached->BaseRef, .HeadRef = cached->HeadRef, .ReportedFiles = cached->Files, .ReportedCommits = cached->Commits, .State = static_cast<github_pull_request_state_projection>(cached->State), .Draft = cached->Draft, .Owner = error.Request.Context.Repository.Owner, .RepositoryName = error.Request.Context.Repository.Name, .Number = error.Request.Context.Number.value() },
 								.BaseOid         = cached->BaseOid,
 								.HeadOid         = cached->HeadOid,
 								.FileCatalogue   = std::move(cached->FileCatalogue),
