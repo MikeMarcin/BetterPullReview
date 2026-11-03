@@ -11,6 +11,11 @@ cmake_minimum_required(VERSION 4.4.2)
 # answer settles it; the recorded thumbs up is read; pressing its chip shows
 # mine at once, the write confirms it and a second press removes it; Heart is
 # chosen in the picker by keyboard alone; and a refresh agrees with all of it.
+#
+# [[BPR-1841]]. From the Resolve press until the reopen settles, the provider
+# is asked for exactly the two resolutions and the pull request is not read
+# again: no refresh runs, the conversation model is not reset, and the thread
+# list shows each answer in place.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -56,6 +61,8 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
         THREADED_REPLY_EVIDENCE:11111
         REACTION_OK
         REACTION_EVIDENCE:11111111
+        THREAD_RESOLUTION_MINIMAL_OK
+        "THREAD_RESOLUTION_COST:reads=0 resolutions=2 modelResets=0 "
     )
         string(FIND "${probe_output}" "${marker}" found)
         if(found EQUAL -1)

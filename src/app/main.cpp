@@ -5015,6 +5015,16 @@ namespace {
 				   << "THREADED_REPLY_EVIDENCE:" << evidence.ReplyDrafted << evidence.ReplyPublished
 				   << evidence.ReplyUnderThread << evidence.ResolveAsked << evidence.ThreadResolved << '\n';
 			stream << "THREADED_REPLY_DIAGNOSTIC:" << QString::fromStdString(aRun.ThreadedReplyDiagnostic) << '\n';
+			// [[BPR-1841]]. Resolve and reopen ask GitHub for the two changes
+			// and nothing else, and reset nothing.
+			if (evidence.ResolveCostMeasured) {
+				stream << (evidence.ResolveMinimal ? "THREAD_RESOLUTION_MINIMAL_OK\n" : "THREAD_RESOLUTION_MINIMAL_FAILED\n")
+					   << "THREAD_RESOLUTION_COST:reads=" << evidence.ResolveReads << " resolutions=" << evidence.ResolveProviderCalls
+					   << " modelResets=" << evidence.ResolveModelResets << " rowsChanged=" << evidence.ResolveRowsChanged
+					   << " finderRebuilds=" << evidence.ResolveFinderRebuilds << " cardLayouts=" << evidence.ResolveCardLayouts
+					   << " refreshInFlight=" << (evidence.ResolveRefreshInFlight ? 1 : 0) << " overviewBuilds=" << evidence.ResolveOverviewBuilds
+					   << " overviewUpdates=" << evidence.ResolveOverviewUpdates << " overviewCounted=" << (evidence.ResolveOverviewCounted ? 1 : 0) << '\n';
+			}
 			if (evidence.ReactionsRead || evidence.Reopened || evidence.ReopenShownAtOnce) {
 				stream << (evidence.ReactionReconciled ? "REACTION_OK\n" : "REACTION_FAILED\n")
 					   << "REACTION_EVIDENCE:" << evidence.ReopenShownAtOnce << evidence.Reopened << evidence.ReactionsRead << evidence.ReactionShown

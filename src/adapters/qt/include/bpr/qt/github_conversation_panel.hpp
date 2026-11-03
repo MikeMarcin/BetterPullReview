@@ -83,6 +83,12 @@ namespace bpr::qt {
 					aConversations,
 			QString aAvailabilityText);
 
+		/// \brief [[BPR-1841]]. Each thread's resolution as the core projects it
+		/// now (the accepted read with the viewer's own changes), by thread
+		/// identity. A thread named here shows that state over the read's; the
+		/// rows that change are updated in place, no read and no reset.
+		void present_thread_resolutions(std::map<std::string, bool> aResolved);
+
 		/// \brief Returns to the empty state, keeping the availability wording.
 		void clear(QString aAvailabilityText);
 
@@ -342,6 +348,9 @@ namespace bpr::qt {
 		/// for index. Derived once per adopted forest.
 		std::vector<core::file_identity>                         RetainedFiles;
 		std::vector<application::github_conversation_projection> Shown;
+		/// [[BPR-1841]]. The core's projected resolution per thread, laid over
+		/// the retained read whenever the shown forest is made.
+		std::map<std::string, bool> ProjectedResolutions;
 		/// [[BPR-0972]]. Per adopted forest: every node that has a root, by its
 		/// root's file, so anchoring to a file visits that file's nodes only.
 		std::vector<std::pair<core::file_identity, std::size_t>> RetainedByRootFile;

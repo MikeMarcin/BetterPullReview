@@ -206,6 +206,10 @@ namespace bpr::qt {
 		/// \brief The ledger's read state, as the drawer adopts it.
 		void set_read_state(std::vector<thread_read_state> aState);
 		void set_thread_read_state(const std::string& aThread, std::vector<std::string> aUnreadPosts);
+		/// \brief [[BPR-1841]]. Each thread's resolution as the core projects
+		/// it now, by thread identity. A built list changes the named rows in
+		/// place and filters again; it is not rebuilt.
+		void present_thread_resolutions(std::map<std::string, bool> aResolved);
 		void set_viewer_login(const QString& aLogin);
 		/// \brief [[BPR-1087]]'s conversations per label; none before counts.
 		void set_labels(std::optional<application::conversation_labels_projection> aLabels);
@@ -344,6 +348,7 @@ namespace bpr::qt {
 
 		std::vector<application::github_conversation_projection>   Forest;
 		std::vector<thread_read_state>                             ReadState;
+		std::map<std::string, bool>                                ProjectedResolutions;
 		bool                                                       ReadStateKnown = false;
 		QString                                                    Viewer;
 		std::optional<application::conversation_labels_projection> Labels;

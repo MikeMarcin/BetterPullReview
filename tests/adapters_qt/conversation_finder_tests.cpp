@@ -921,6 +921,39 @@ namespace {
 		QApplication::processEvents();
 		expect(finder.rebuilds() == before + 1U && finder.conversations().size() == 8U, "and rebuilds once when shown");
 	}
+	/// [[BPR-1841]]. A resolve in Threads: the row says it at once, Hide
+	/// resolved drops it, and the list is not rebuilt.
+	void test_a_projected_resolution_changes_the_row_without_a_rebuild()
+	{
+		auto finder = qt::conversation_finder{ };
+		finder.adopt(forest());
+		finder.show();
+		QApplication::processEvents();
+		const auto resolved = [&finder](const std::string& aId) {
+			const auto found = std::ranges::find(finder.conversations(), aId, &qt::finder_conversation::Id);
+			return found != finder.conversations().end() && found->Resolved;
+		};
+		auto filters         = finder.filters();
+		filters.HideResolved = true;
+		finder.set_filters(filters);
+		const auto hidden = [&finder] {
+			const auto keys = finder.shown_keys();
+			return std::ranges::none_of(keys, [](const std::string& aKey) { return aKey.find("t656") != std::string::npos; });
+		};
+		expect(!resolved("review-thread:t656") && !hidden(), "an open thread is listed under Hide resolved");
+		const auto before = finder.rebuilds();
+		finder.present_thread_resolutions({ { "review-thread:t656", true } });
+		expect(resolved("review-thread:t656") && hidden() && finder.rebuilds() == before, "resolved in place: Hide resolved drops it, nothing rebuilt");
+		finder.present_thread_resolutions({ { "review-thread:t656", false } });
+		expect(!resolved("review-thread:t656") && !hidden() && finder.rebuilds() == before, "reopened in place");
+		finder.hide();
+		finder.present_thread_resolutions({ { "review-thread:t656", true } });
+		finder.adopt(forest());
+		finder.show();
+		QApplication::processEvents();
+		expect(resolved("review-thread:t656"), "a rebuild lays the projection over the read");
+	}
+
 	/// [[BPR-1779]]. #186's shape in Threads: the file comments are rows on
 	/// their files; under Not on a file the body-less Commented reviews add
 	/// nothing, and the approvals stay as their verdicts, in time order.
@@ -991,6 +1024,7 @@ int main(int aArgc, char** aArgv)
 	test_rows_fill_the_reading_width();
 	test_renders();
 	test_nothing_on_a_file();
+	test_a_projected_resolution_changes_the_row_without_a_rebuild();
 	std::cout << "conversation-finder-tests:pass\n";
 	return EXIT_SUCCESS;
 }

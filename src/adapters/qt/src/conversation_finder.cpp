@@ -1385,6 +1385,7 @@ namespace bpr::qt {
 	{
 		Forest.clear();
 		ReadState.clear();
+		ProjectedResolutions.clear();
 		ReadStateKnown = false;
 		Labels.reset();
 		LabelMembers.clear();
@@ -1434,6 +1435,30 @@ namespace bpr::qt {
 		Dirty = true;
 		if (isVisible()) {
 			refresh();
+		}
+	}
+
+	void conversation_finder::present_thread_resolutions(std::map<std::string, bool> aResolved)
+	{
+		if (ProjectedResolutions == aResolved) {
+			return;
+		}
+		ProjectedResolutions = std::move(aResolved);
+		if (Dirty) {
+			// The next rebuild lays them over the forest.
+			return;
+		}
+		auto changed = false;
+		for (auto& conversation : Conversations) {
+			const auto projected = ProjectedResolutions.find(conversation.Id);
+			if (projected != ProjectedResolutions.end() && conversation.Resolved != projected->second) {
+				conversation.Resolved = projected->second;
+				changed               = true;
+			}
+		}
+		if (changed) {
+			apply_filters();
+			List->viewport()->update();
 		}
 	}
 
@@ -1826,6 +1851,12 @@ namespace bpr::qt {
 		Dirty = false;
 		++Rebuilds;
 		Conversations = finder_conversations_of(Forest, ReadState, ReadStateKnown, Viewer);
+		// [[BPR-1841]]. The core's projected resolution over the read's.
+		for (auto& conversation : Conversations) {
+			if (const auto projected = ProjectedResolutions.find(conversation.Id); projected != ProjectedResolutions.end()) {
+				conversation.Resolved = projected->second;
+			}
+		}
 		if (Draft.has_value()) {
 			// My draft sits in its file's group, which a conversation names.
 			const auto file = std::ranges::find_if(Conversations, [this](const finder_conversation& aConversation) {

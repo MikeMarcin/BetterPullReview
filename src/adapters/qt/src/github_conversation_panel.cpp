@@ -998,6 +998,18 @@ namespace bpr::qt {
 			std::move(shown),
 			LeftHasCurrentDiffRevision,
 			RightHasCurrentDiffRevision);
+		// [[BPR-1841]]. A thread shows the resolution the core projects, so a
+		// resolve changes its one row here and asks GitHub for nothing more.
+		if (!ProjectedResolutions.empty()) {
+			for (auto& node : shown) {
+				if (node.Kind != application::github_conversation_kind::review_thread) {
+					continue;
+				}
+				if (const auto projected = ProjectedResolutions.find(node.Id); projected != ProjectedResolutions.end()) {
+					node.Resolved = projected->second;
+				}
+			}
+		}
 		// [[BPR-0972]]. The notes take the whole placed forest only when it
 		// changed; a new anchor alone is a new anchor file.
 		if (PlacedStale) {
@@ -1039,6 +1051,17 @@ namespace bpr::qt {
 		show_loaded_page();
 	}
 
+	void github_conversation_panel::present_thread_resolutions(std::map<std::string, bool> aResolved)
+	{
+		if (ProjectedResolutions == aResolved) {
+			return;
+		}
+		ProjectedResolutions = std::move(aResolved);
+		if (Adopted) {
+			refresh_projection();
+		}
+	}
+
 	void github_conversation_panel::clear(QString aAvailabilityText)
 	{
 		Adopted = false;
@@ -1060,6 +1083,7 @@ namespace bpr::qt {
 		SemanticAnchors.clear();
 		index_retained();
 		Shown.clear();
+		ProjectedResolutions.clear();
 		AvailabilityLabel->setText(std::move(aAvailabilityText));
 		Model->clear();
 		Cards->clear();
