@@ -141,6 +141,11 @@ int main()
 	wrong.Window                 = bpr_window_id{ 99U };
 	auto stale                   = read.Fetch->Context;
 	stale.Request                = request_id{ 99U };
+	// [[BPR-1842]]. The file list is observed only after the metadata it
+	// belongs to, once, for the exact pending read.
+	if (lane.accept_files_observation(first, read.Fetch->Context)) {
+		return EXIT_FAILURE;
+	}
 	if (lane.accept_overview_observation(wrong, read.Fetch->Context)
 		|| lane.accept_overview_observation(first, stale)
 		|| !lane.accept_overview_observation(first, read.Fetch->Context)
@@ -148,13 +153,24 @@ int main()
 		|| lane.state() != beforeObservation) {
 		return EXIT_FAILURE;
 	}
+	if (lane.accept_files_observation(wrong, read.Fetch->Context)
+		|| lane.accept_files_observation(first, stale)
+		|| !lane.accept_files_observation(first, read.Fetch->Context)
+		|| lane.accept_files_observation(first, read.Fetch->Context)
+		|| lane.state() != beforeObservation) {
+		return EXIT_FAILURE;
+	}
 	static_cast<void>(lane.apply(first, pull_request_load_cancelled_event{ read.Fetch->Context }));
-	if (lane.accept_overview_observation(first, read.Fetch->Context)) {
+	if (lane.accept_overview_observation(first, read.Fetch->Context)
+		|| lane.accept_files_observation(first, read.Fetch->Context)) {
 		return EXIT_FAILURE;
 	}
 	const auto next = lane.apply(first, open_pull_request_intent{ { "owner", "other" }, pull_request_number{ 2U } });
-	if (!next.Fetch || !lane.accept_overview_observation(first, next.Fetch->Context)
-		|| lane.accept_overview_observation(first, read.Fetch->Context)) {
+	if (!next.Fetch || lane.accept_files_observation(first, next.Fetch->Context)
+		|| !lane.accept_overview_observation(first, next.Fetch->Context)
+		|| lane.accept_overview_observation(first, read.Fetch->Context)
+		|| lane.accept_files_observation(first, read.Fetch->Context)
+		|| !lane.accept_files_observation(first, next.Fetch->Context)) {
 		return EXIT_FAILURE;
 	}
 	if (!lane.retire(session) || lane.adopt(session)) {

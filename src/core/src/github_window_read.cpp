@@ -57,6 +57,7 @@ namespace bpr::core {
 		State            = github_state{ .ApplicationSession = State.ApplicationSession,
 										 .NextRequest        = State.NextRequest };
 		OverviewObserved = false;
+		FilesObserved    = false;
 		return true;
 	}
 
@@ -76,6 +77,7 @@ namespace bpr::core {
 										 aEvent);
 		if (State.PendingPullRequest != previous) {
 			OverviewObserved = false;
+			FilesObserved    = false;
 		}
 		if (State != before) {
 			Adoption.reset();
@@ -121,6 +123,16 @@ namespace bpr::core {
 			return false;
 		}
 		OverviewObserved = true;
+		return true;
+	}
+	auto github_window_read::accept_files_observation(const bpr_window_context            aWindow,
+													  const pull_request_request_context& aRequest) noexcept -> bool
+	{
+		if (aWindow != Window || !Session
+			|| State.PendingPullRequest != aRequest || !OverviewObserved || FilesObserved) {
+			return false;
+		}
+		FilesObserved = true;
 		return true;
 	}
 	auto github_window_read::adoption() const noexcept -> const std::optional<github_transition_output>& { return Adoption; }

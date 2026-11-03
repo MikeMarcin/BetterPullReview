@@ -221,6 +221,13 @@ namespace bpr::application {
 			|| aObservation.ReportedFiles > limits.MaximumFiles) {
 			return std::nullopt;
 		}
+		auto files = std::optional<std::vector<core::cached_review_file>>{ };
+		if (aObservation.Files) {
+			files = project_github_file_rows(*aObservation.Files);
+			if (!files || files->size() != aObservation.ReportedFiles) {
+				return std::nullopt;
+			}
+		}
 		return github_loading_overview_projection{
 			.Title           = pr.Title,
 			.Body            = pr.Body,
@@ -231,7 +238,34 @@ namespace bpr::application {
 			.ReportedCommits = *pr.ReportedCommitCount,
 			.State           = project(pr.State),
 			.Draft           = pr.Draft,
+			.Owner           = repository.Owner,
+			.RepositoryName  = repository.Name,
+			.Number          = pr.Number.value(),
+			.Files           = std::move(files),
 		};
+	}
+
+	auto project_github_file_rows(const std::vector<github_file_record>& aFiles)
+		-> std::optional<std::vector<core::cached_review_file>>
+	{
+		auto files = std::vector<core::cached_review_file>{ };
+		files.reserve(aFiles.size());
+		for (const auto& file : aFiles) {
+			auto change = core::cached_file_change::modified;
+			switch (file.Change) {
+			case github_file_change::added:         change = core::cached_file_change::added; break;
+			case github_file_change::modified:      change = core::cached_file_change::modified; break;
+			case github_file_change::removed:       change = core::cached_file_change::removed; break;
+			case github_file_change::renamed:       change = core::cached_file_change::renamed; break;
+			case github_file_change::copied:        change = core::cached_file_change::copied; break;
+			case github_file_change::type_changed:  change = core::cached_file_change::type_changed; break;
+			case github_file_change::unchanged:     change = core::cached_file_change::unchanged; break;
+			case github_file_change::uninitialized:
+			default:                                return std::nullopt;
+			}
+			files.push_back({ file.Path, file.PreviousPath, change, file.Additions, file.Deletions });
+		}
+		return files;
 	}
 
 	auto project_github_transition(const core::github_transition_output& aOutput)

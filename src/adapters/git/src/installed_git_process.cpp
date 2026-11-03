@@ -7131,6 +7131,10 @@ namespace bpr::adapters::git {
 			application::git_installation   Installation;
 			std::filesystem::path           Isolation;
 			std::unique_ptr<process_worker> Worker;
+			/// [[BPR-1842]]. What the worker was configured from.
+			std::filesystem::path                ResolvedGit;
+			std::optional<std::filesystem::path> ExecPath;
+			std::optional<std::filesystem::path> SystemRoot;
 		};
 
 		/// Prepares the isolation root, resolves the installed Git through its
@@ -7277,8 +7281,11 @@ namespace bpr::adapters::git {
 					.VersionMinor = (*version)[1],
 					.VersionPatch = (*version)[2],
 				},
-				.Isolation = *isolation,
-				.Worker    = std::move(worker),
+				.Isolation   = *isolation,
+				.Worker      = std::move(worker),
+				.ResolvedGit = *resolvedGit,
+				.ExecPath    = execPath,
+				.SystemRoot  = systemRoot,
 			};
 		}
 	}
@@ -7457,6 +7464,98 @@ namespace bpr::adapters::git {
 		}
 	}
 
+	/// [[BPR-1842]]. One admitted executable, by the exact files it was.
+	class installed_git_admissions
+	{
+	public:
+		/// A file as admission saw it: canonical path, size and modification time.
+		struct file_fact
+		{
+			std::filesystem::path           Path;
+			std::uintmax_t                  Size = 0U;
+			std::filesystem::file_time_type Modified;
+
+			auto operator==(const file_fact&) const -> bool = default;
+		};
+		struct admitted
+		{
+			file_fact                            Candidate;
+			file_fact                            ResolvedGit;
+			std::filesystem::path                Isolation;
+			std::optional<std::filesystem::path> ExecPath;
+			std::optional<std::filesystem::path> SystemRoot;
+			application::git_installation        Installation;
+		};
+
+		[[nodiscard]] static auto fact(const std::filesystem::path& aPath) -> std::optional<file_fact>
+		{
+			const auto canonical = canonical_existing(aPath);
+			if (!canonical || !regular_executable(*canonical)) {
+				return std::nullopt;
+			}
+			std::error_code sizeError;
+			std::error_code timeError;
+			const auto      size     = std::filesystem::file_size(*canonical, sizeError);
+			const auto      modified = std::filesystem::last_write_time(*canonical, timeError);
+			if (sizeError || timeError) {
+				return std::nullopt;
+			}
+			return file_fact{ .Path = *canonical, .Size = size, .Modified = modified };
+		}
+
+		/// The admission recorded for this executable and isolation root, while
+		/// both executables are still the files admission saw.
+		[[nodiscard]] auto find(const std::filesystem::path& aExecutable, const std::filesystem::path& aIsolation) const
+			-> std::optional<admitted>
+		{
+			const auto candidate = fact(aExecutable);
+			const auto isolation = canonical_existing(aIsolation);
+			if (!candidate || !isolation) {
+				return std::nullopt;
+			}
+			auto found = std::optional<admitted>{ };
+			{
+				const std::scoped_lock lock{ Mutex };
+				for (const auto& entry : Entries) {
+					if (entry.Candidate == *candidate && entry.Isolation == *isolation) {
+						found = entry;
+						break;
+					}
+				}
+			}
+			if (!found || fact(found->ResolvedGit.Path) != std::optional{ found->ResolvedGit }) {
+				return std::nullopt;
+			}
+			return found;
+		}
+
+		void record(const std::filesystem::path& aExecutable, const bootstrapped_git& aBootstrapped)
+		{
+			const auto candidate = fact(aExecutable);
+			const auto resolved  = fact(aBootstrapped.ResolvedGit);
+			if (!candidate || !resolved) {
+				return;
+			}
+			auto                   entry = admitted{ .Candidate = *candidate, .ResolvedGit = *resolved, .Isolation = aBootstrapped.Isolation, .ExecPath = aBootstrapped.ExecPath, .SystemRoot = aBootstrapped.SystemRoot, .Installation = aBootstrapped.Installation };
+			const std::scoped_lock lock{ Mutex };
+			std::erase_if(Entries, [&entry](const admitted& aEntry) { return aEntry.Candidate.Path == entry.Candidate.Path && aEntry.Isolation == entry.Isolation; });
+			constexpr auto most = std::size_t{ 8U };
+			if (Entries.size() == most) {
+				Entries.erase(Entries.begin());
+			}
+			Entries.push_back(std::move(entry));
+		}
+
+	private:
+		mutable std::mutex    Mutex;
+		std::vector<admitted> Entries;
+	};
+
+	auto make_installed_git_admissions() -> std::shared_ptr<installed_git_admissions>
+	{
+		return std::make_shared<installed_git_admissions>();
+	}
+
 	auto make_installed_git_process(
 		const installed_git_process_configuration& aConfiguration,
 		const std::stop_token                      aStop)
@@ -7470,9 +7569,27 @@ namespace bpr::adapters::git {
 					application::git_process_failure::cancelled
 				};
 			}
+			// [[BPR-1842]]. An executable already admitted against this
+			// isolation root, still the exact files it was, needs no launches
+			// to admit it again: the worker is configured as admission left it.
+			if (aConfiguration.Admissions) {
+				if (const auto admitted = aConfiguration.Admissions->find(aConfiguration.GitExecutable, aConfiguration.IsolationRoot);
+					admitted && private_directory(admitted->Isolation) && prepare_isolation(admitted->Isolation)) {
+					auto configuration     = runner_config(admitted->ResolvedGit.Path, admitted->Isolation, admitted->ExecPath, admitted->SystemRoot);
+					configuration.Insights = aConfiguration.Insights;
+					return std::unique_ptr<application::git_process_port>{
+						std::make_unique<installed_git_process>(admitted->Installation, admitted->Isolation,
+																std::make_unique<process_worker>(std::move(configuration)), aConfiguration.WorkspaceOwnershipRegistry)
+					};
+				}
+			}
 			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop, aConfiguration.Insights);
 			if (!bootstrapped) {
 				return std::unexpected{ std::move(bootstrapped.error()) };
+			}
+			auto admission = std::optional<bootstrapped_git>{ };
+			if (aConfiguration.Admissions) {
+				admission = bootstrapped_git{ .Installation = bootstrapped->Installation, .Isolation = bootstrapped->Isolation, .Worker = nullptr, .ResolvedGit = bootstrapped->ResolvedGit, .ExecPath = bootstrapped->ExecPath, .SystemRoot = bootstrapped->SystemRoot };
 			}
 			auto implementation = std::make_unique<installed_git_process>(
 				bootstrapped->Installation,
@@ -7497,6 +7614,9 @@ namespace bpr::adapters::git {
 				return std::unexpected{ application::git_process_error{
 					application::git_process_failure::unsupported_git,
 					std::move(probe.error().Detail) } };
+			}
+			if (admission) {
+				aConfiguration.Admissions->record(aConfiguration.GitExecutable, *admission);
 			}
 			return std::unique_ptr<application::git_process_port>{
 				std::move(implementation)

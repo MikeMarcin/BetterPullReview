@@ -2645,22 +2645,38 @@ namespace bpr::qt {
 		void     resume_private_note_open();
 		QWidget* TrayCommentsCount = nullptr;
 		/// [[BPR-0775]]. Where focus was in the review when Home covered it.
-		QPointer<QWidget>                        FocusBeforeHome;
-		QAction*                                 HomeAction           = nullptr;
-		QVBoxLayout*                             HomeColumn           = nullptr;
-		QHBoxLayout*                             HomeSetupRow         = nullptr;
-		QWidget*                                 QueueSurface         = nullptr;
-		QVBoxLayout*                             DrawerTopColumn      = nullptr;
-		QStackedWidget*                          CentralStack         = nullptr;
-		bool                                     ModalityChosen       = false;
-		std::size_t                              ReviewThreadTotal    = 0U;
-		QAction*                                 IdentityAction       = nullptr;
-		QAction*                                 ChangePositionAction = nullptr;
-		QAction*                                 FilePositionAction   = nullptr;
-		QString                                  IdentityText;
-		QString                                  IdentityOwner;
-		QString                                  IdentityRepository;
-		QString                                  IdentityNumber;
+		QPointer<QWidget> FocusBeforeHome;
+		QAction*          HomeAction           = nullptr;
+		QVBoxLayout*      HomeColumn           = nullptr;
+		QHBoxLayout*      HomeSetupRow         = nullptr;
+		QWidget*          QueueSurface         = nullptr;
+		QVBoxLayout*      DrawerTopColumn      = nullptr;
+		QStackedWidget*   CentralStack         = nullptr;
+		bool              ModalityChosen       = false;
+		std::size_t       ReviewThreadTotal    = 0U;
+		QAction*          IdentityAction       = nullptr;
+		QAction*          ChangePositionAction = nullptr;
+		QAction*          FilePositionAction   = nullptr;
+		QString           IdentityText;
+		QString           IdentityOwner;
+		QString           IdentityRepository;
+		QString           IdentityNumber;
+		/// \brief [[BPR-1842]]. The title row's name for a pull request still
+		/// loading, from GitHub's first answer: shown until the review is
+		/// accepted or the read ends, never compared as the open one.
+		struct loading_identity
+		{
+			QString Text;
+			QString Owner;
+			QString Repository;
+			QString Number;
+		};
+		std::optional<loading_identity> LoadingIdentity;
+		/// \brief [[BPR-1842]]. A file chosen from the Overview's provisional
+		/// list while the review loaded: opened in Review once the accepted
+		/// review's Files drawer lists it.
+		QString                                  PendingReviewPath;
+		void                                     open_pending_review_path();
 		int                                      IdentityTitleBudget  = std::numeric_limits<int>::max();
 		QMenuBar*                                PrimaryMenuBar       = nullptr;
 		QMenu*                                   ViewMenu             = nullptr;

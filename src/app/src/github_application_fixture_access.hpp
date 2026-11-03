@@ -276,6 +276,20 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t>   RepliesOwed{ 0U };
 		std::atomic<std::uint32_t>   RepliesAdded{ 0U };
 		std::atomic<std::uint32_t>   RefreshesSeen{ 0U };
+		/// [[BPR-1842]]. Holds every read a pull request's load makes this
+		/// long, before anything else answers it, as `gh`'s own launch and
+		/// round trip do (about 330 ms each on the owner's Mac), so a course
+		/// measures what the load's reads cost one after another.
+		std::atomic<std::uint32_t> EveryReadMilliseconds{ 0U };
+		/// [[BPR-1842]]. One read a pull request's load made: its operation's
+		/// contract name and when the fixture began to answer it.
+		struct logged_read
+		{
+			std::string                           Operation;
+			std::chrono::steady_clock::time_point Began;
+		};
+		std::mutex               ReadLogMutex;
+		std::vector<logged_read> ReadLog;
 	};
 
 	/// \brief [[BPR-1477]]. The shown pull request's accepted snapshot, and
