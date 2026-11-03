@@ -1,0 +1,12 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1842",
+    "BPR-1843",
+    "BPR-1844"
+  ],
+  "reserve_for": "coordinator-owner-requests-20261103",
+  "purpose": "Owner requests: progressive PR load, home active-review card, persistent view filters",
+  "created": "2026-11-03T20:00:14.400037+00:00",
+  "base": "be47fdf8e754b3bee148fd41127796d8399d8981"
+}
