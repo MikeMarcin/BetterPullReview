@@ -8,6 +8,7 @@
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
 #include "bpr/core/agent_setup.hpp"
+#include "bpr/core/agent_turn.hpp"
 #include "bpr/core/review_composition.hpp"
 #include "bpr/core/review_round_trip.hpp"
 
@@ -588,6 +589,9 @@ namespace bpr::application {
 	};
 
 	[[nodiscard]] auto name(agent_run_outcome aOutcome) noexcept -> std::string_view;
+	/// \brief [[BPR-1847]]. How a turn that ran to this outcome ended, in the
+	/// thread's own vocabulary.
+	[[nodiscard]] auto turn_outcome(agent_run_outcome aOutcome) noexcept -> core::agent_turn_outcome;
 	/// \brief [[BPR-1827]]. The failure's stable name, for logs and diagnostics.
 	[[nodiscard]] auto name(agent_protocol_failure aFailure) noexcept -> std::string_view;
 

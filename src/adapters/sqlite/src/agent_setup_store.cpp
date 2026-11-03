@@ -5,6 +5,8 @@
 
 #include <sqlite3.h>
 
+#include "bpr/core/agent_turn.hpp"
+
 #include <algorithm>
 #include <cstdint>
 #include <limits>
@@ -16,6 +18,9 @@
 #include <vector>
 
 namespace bpr::adapters::sqlite {
+	// [[BPR-1847]]. The outcome column's check names every declared outcome.
+	static_assert(core::agent_turn_outcome_count == 10U, "agent_conversation_outcomes' CHECK must cover every turn outcome");
+
 	namespace {
 		/// "BPRY": distinct from every other store's identity, so pointing this
 		/// store at another's file fails at the identity check.
@@ -155,6 +160,18 @@ namespace bpr::adapters::sqlite {
 									"asked TEXT NOT NULL CHECK(length(CAST(asked AS BLOB)) <= 65536),"
 									"answered TEXT NOT NULL CHECK(length(CAST(answered AS BLOB)) <= 65536),"
 									"ending TEXT NOT NULL CHECK(length(CAST(ending AS BLOB)) <= 65536),"
+									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")
+				// [[BPR-1847]]. How each turn ended, beside it: a turn stored
+				// before this table has no row and reads back from its ending.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_conversation_outcomes("
+									"host TEXT NOT NULL,"
+									"owner TEXT NOT NULL,"
+									"name TEXT NOT NULL,"
+									"number INTEGER NOT NULL,"
+									"agent INTEGER NOT NULL,"
+									"position INTEGER NOT NULL CHECK(position BETWEEN 0 AND 49),"
+									"outcome INTEGER NOT NULL CHECK(outcome BETWEEN 0 AND 9),"
 									"PRIMARY KEY(host, owner, name, number, agent, position)) STRICT")) {
 				return { };
 			}
@@ -656,7 +673,8 @@ namespace bpr::adapters::sqlite {
 					if (!store) {
 						return std::nullopt;
 					}
-					auto row = detail::prepare(store->Database.get(), "SELECT asked,answered,ending FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5 ORDER BY position");
+					auto row = detail::prepare(store->Database.get(), "SELECT t.asked,t.answered,t.ending,o.outcome FROM agent_conversation_turns t LEFT JOIN agent_conversation_outcomes o "
+																	  "USING(host,owner,name,number,agent,position) WHERE t.host=?1 AND t.owner=?2 AND t.name=?3 AND t.number=?4 AND t.agent=?5 ORDER BY t.position");
 					if (!row) {
 						return std::nullopt;
 					}
@@ -669,7 +687,16 @@ namespace bpr::adapters::sqlite {
 						if (!asked || !answered || !ending) {
 							return std::vector<application::agent_conversation_turn>{ };
 						}
-						turns.push_back({ .Asked = std::move(*asked), .Answered = std::move(*answered), .Ending = std::move(*ending) });
+						// [[BPR-1847]]. A kept outcome, else the ending's.
+						auto outcome = core::legacy_agent_turn_outcome(*ending);
+						if (sqlite3_column_type(row->Value, 3) == SQLITE_INTEGER) {
+							const auto kept = core::agent_turn_outcome_of(static_cast<std::uint8_t>(std::clamp<std::int64_t>(sqlite3_column_int64(row->Value, 3), 0, 255)));
+							if (!kept) {
+								return std::vector<application::agent_conversation_turn>{ };
+							}
+							outcome = *kept;
+						}
+						turns.push_back({ .Asked = std::move(*asked), .Answered = std::move(*answered), .Ending = std::move(*ending), .Outcome = outcome });
 					}
 					// A conversation that does not read back whole is none.
 					return application::valid(turns) ? turns : std::vector<application::agent_conversation_turn>{ };
@@ -702,20 +729,31 @@ namespace bpr::adapters::sqlite {
 					};
 					const auto key       = [&](sqlite3_stmt* aRow) { bind_key(aRow, aKey); };
 					auto       committed = run("DELETE FROM agent_conversation_turns WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key)
+						&& run("DELETE FROM agent_conversation_outcomes WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key)
 						&& run("DELETE FROM agent_conversations WHERE host=?1 AND owner=?2 AND name=?3 AND number=?4 AND agent=?5", key);
 					if (committed && !aTurns.empty()) {
 						committed = run("INSERT INTO agent_conversations SELECT ?1,?2,?3,?4,?5,coalesce(max(written)+1,0) FROM agent_conversations", key);
 						for (std::size_t index = 0U; committed && index < aTurns.size(); ++index) {
 							committed = run("INSERT INTO agent_conversation_turns VALUES(?1,?2,?3,?4,?5,?6,?7,?8,?9)", [&](sqlite3_stmt* aRow) {
-								bind_key(aRow, aKey);
-								sqlite3_bind_int64(aRow, 6, static_cast<std::int64_t>(index));
-								bind(aRow, 7, aTurns[index].Asked);
-								bind(aRow, 8, aTurns[index].Answered);
-								bind(aRow, 9, aTurns[index].Ending);
-							});
+											bind_key(aRow, aKey);
+											sqlite3_bind_int64(aRow, 6, static_cast<std::int64_t>(index));
+											bind(aRow, 7, aTurns[index].Asked);
+											bind(aRow, 8, aTurns[index].Answered);
+											bind(aRow, 9, aTurns[index].Ending);
+										})
+								&& run("INSERT INTO agent_conversation_outcomes VALUES(?1,?2,?3,?4,?5,?6,?7)", [&](sqlite3_stmt* aRow) {
+											bind_key(aRow, aKey);
+											sqlite3_bind_int64(aRow, 6, static_cast<std::int64_t>(index));
+											sqlite3_bind_int64(aRow, 7, static_cast<std::int64_t>(aTurns[index].Outcome));
+										});
 						}
 						// The least recently written go past the bound.
 						committed = committed
+							&& detail::execute(db,
+											   "DELETE FROM agent_conversation_outcomes WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
+											   "ORDER BY written DESC LIMIT -1 OFFSET "
+												   + std::to_string(application::maximum_conversations) + ")")
+								   .has_value()
 							&& detail::execute(db,
 											   "DELETE FROM agent_conversation_turns WHERE (host,owner,name,number,agent) IN (SELECT host,owner,name,number,agent FROM agent_conversations "
 											   "ORDER BY written DESC LIMIT -1 OFFSET "

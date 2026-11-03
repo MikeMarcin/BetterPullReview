@@ -3099,6 +3099,22 @@ namespace bpr::application {
 		return "unknown";
 	}
 
+	auto turn_outcome(const agent_run_outcome aOutcome) noexcept -> core::agent_turn_outcome
+	{
+		switch (aOutcome) {
+		case agent_run_outcome::success:                 return core::agent_turn_outcome::answered;
+		case agent_run_outcome::private_storage_failure: return core::agent_turn_outcome::history_unavailable;
+		case agent_run_outcome::failed_to_start:         return core::agent_turn_outcome::failed_to_start;
+		case agent_run_outcome::workspace_unavailable:   return core::agent_turn_outcome::workspace_unavailable;
+		case agent_run_outcome::nonzero_exit:            return core::agent_turn_outcome::exited_with_error;
+		case agent_run_outcome::protocol_failure:        return core::agent_turn_outcome::unreadable;
+		case agent_run_outcome::cancelled:               return core::agent_turn_outcome::stopped;
+		case agent_run_outcome::timeout:                 return core::agent_turn_outcome::timed_out;
+		case agent_run_outcome::stale_result:            return core::agent_turn_outcome::set_aside;
+		}
+		return core::agent_turn_outcome::ended_without_answer;
+	}
+
 	auto name(const agent_protocol_failure aFailure) noexcept -> std::string_view
 	{
 		switch (aFailure) {

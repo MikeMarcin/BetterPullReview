@@ -12269,7 +12269,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			auto shown = std::vector<qt::agent_thread_turn>{ };
 			shown.reserve(aView.Turns.size());
 			for (const auto& turn : aView.Turns) {
-				shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending) });
+				shown.push_back({ .Question = QString::fromStdString(turn.Asked), .Answer = QString::fromStdString(turn.Answered), .Footer = QString::fromStdString(turn.Ending), .Outcome = turn.Outcome });
 			}
 			Window->agent_tab()->present_thread(shown);
 			present_agent_pull_request();
@@ -12422,7 +12422,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				auto kept = std::vector<application::agent_conversation_turn>{ };
 				kept.reserve(aTurns.size());
 				for (const auto& turn : aTurns) {
-					kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString() });
+					kept.push_back({ .Asked = turn.Question.toStdString(), .Answered = turn.Answer.toStdString(), .Ending = turn.Footer.toStdString(), .Outcome = turn.Outcome });
 				}
 				AgentConversation->record(std::move(kept));
 			});

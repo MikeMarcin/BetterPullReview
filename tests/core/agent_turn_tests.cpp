@@ -1,0 +1,136 @@
+/// \file
+/// \brief [[BPR-1847]]. An ended agent turn's actions from its outcome,
+/// and the suggested prompts' gate on the setup having finished.
+
+#include "bpr/core/agent_turn.hpp"
+
+#include <cstdint>
+#include <cstdlib>
+#include <iostream>
+#include <set>
+#include <string_view>
+
+namespace {
+	using namespace bpr;
+	using core::agent_suggestion_facts;
+	using core::agent_suggestions_verdict;
+	using core::agent_turn_facts;
+	using core::agent_turn_outcome;
+	using core::agent_turn_recovery;
+	using core::setup_check_state;
+	using core::setup_step;
+
+	void expect(const bool aCondition, const std::string_view aMessage)
+	{
+		if (!aCondition) {
+			std::cerr << "FAILED: " << aMessage << '\n';
+			std::exit(EXIT_FAILURE);
+		}
+	}
+
+	void test_names_and_ordinals()
+	{
+		auto names = std::set<std::string_view>{ };
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome = core::agent_turn_outcome_of(ordinal);
+			expect(outcome.has_value() && static_cast<std::uint8_t>(*outcome) == ordinal, "every declared ordinal reads back as itself");
+			names.insert(core::stable_name(*outcome));
+		}
+		expect(names.size() == core::agent_turn_outcome_count && !names.contains(std::string_view{ }), "every outcome has its own stable name");
+		expect(!core::agent_turn_outcome_of(static_cast<std::uint8_t>(core::agent_turn_outcome_count)).has_value(), "an undeclared ordinal is none");
+		expect(core::legacy_agent_turn_outcome("Stopped after 0:15.") == agent_turn_outcome::ended_without_answer, "a kept stopped ending is not an answer");
+		expect(core::legacy_agent_turn_outcome("Claude Code answered in 0:12.") == agent_turn_outcome::answered, "a kept answered ending is an answer");
+		expect(core::legacy_agent_turn_outcome("") == agent_turn_outcome::answered, "an empty kept ending is taken as an answer, as before");
+	}
+
+	void test_answer_actions()
+	{
+		const auto answered = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = true, .Latest = true });
+		expect(!answered.Error && answered.Copy && answered.SaveNote && answered.DraftComment && answered.Recovery == agent_turn_recovery::none,
+			   "an answer offers Copy, Save as note and Draft comment");
+		const auto empty = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = false, .Latest = true });
+		expect(!empty.Error && !empty.Copy && !empty.SaveNote && !empty.DraftComment, "an answer with no words offers nothing");
+	}
+
+	void test_error_actions()
+	{
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome = *core::agent_turn_outcome_of(ordinal);
+			if (outcome == agent_turn_outcome::answered) {
+				continue;
+			}
+			for (const auto latest : { false, true }) {
+				for (const auto working : { false, true }) {
+					const auto actions = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
+					expect(actions.Error, "every non-answer is an error");
+					expect(!actions.SaveNote && !actions.DraftComment, "an error never offers Save as note or Draft comment");
+					expect(actions.Copy, "an error with words keeps Copy, for a report");
+					expect((actions.Recovery != agent_turn_recovery::none) == (latest && !working), "only the latest error, while nothing runs, offers a recovery");
+				}
+			}
+			expect(!core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = false, .Latest = true }).Copy, "an error with no words has nothing to copy");
+		}
+		const auto recovery = [](const agent_turn_outcome aOutcome) {
+			return core::decide_agent_turn_actions({ .Outcome = aOutcome, .HasText = true, .Latest = true }).Recovery;
+		};
+		expect(recovery(agent_turn_outcome::unreadable) == agent_turn_recovery::agent_settings, "an unreadable answer opens the agent's settings");
+		expect(recovery(agent_turn_outcome::failed_to_start) == agent_turn_recovery::check_setup, "a start failure checks the setup again");
+		expect(recovery(agent_turn_outcome::workspace_unavailable) == agent_turn_recovery::check_setup, "a workspace failure checks the setup again");
+		for (const auto outcome : { agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable, agent_turn_outcome::stopped, agent_turn_outcome::timed_out,
+									agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
+			expect(recovery(outcome) == agent_turn_recovery::ask_again, "any other ending asks again");
+		}
+	}
+
+	void test_suggestions()
+	{
+		const auto ready = agent_suggestion_facts{ .AgentOffered = true, .SetupStep = setup_step::ready, .AgentCheck = setup_check_state::passed, .WorkspaceCheck = setup_check_state::passed };
+		expect(core::decide_agent_suggestions(ready) == agent_suggestions_verdict::shown, "a finished setup shows the suggestions");
+		auto facts         = ready;
+		facts.AgentOffered = false;
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::no_agent, "no agent: none");
+		for (const auto step : { setup_step::agent, setup_step::repository }) {
+			facts           = ready;
+			facts.SetupStep = step;
+			expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "an agent or repository still to choose: none");
+		}
+		facts              = ready;
+		facts.SetupShowing = true;
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "the setup on screen: none");
+		facts              = ready;
+		facts.ReadyShowing = true;
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "the setup's Ready line still up: none");
+		// A reopened application that was set up before stands at Check it
+		// works with both checks not run, and is finished.
+		facts = { .AgentOffered = true, .SetupStep = setup_step::check };
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::shown, "checks not run this session: shown");
+		for (const auto state : { setup_check_state::failed, setup_check_state::running }) {
+			facts = { .AgentOffered = true, .SetupStep = setup_step::check, .AgentCheck = state };
+			expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "an agent check failed or running: none");
+			facts = { .AgentOffered = true, .SetupStep = setup_step::check, .WorkspaceCheck = state };
+			expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "a workspace check failed or running: none");
+		}
+		facts         = ready;
+		facts.Working = true;
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::working, "a turn running: none");
+		facts         = ready;
+		facts.Toggled = false;
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::hidden, "hidden by the reviewer: none");
+		facts              = ready;
+		facts.SetupShowing = true;
+		facts.Toggled      = false;
+		facts.Working      = true;
+		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "an unfinished setup is said before the rest");
+		expect(core::stable_name(agent_suggestions_verdict::setup_unfinished) == "setup_unfinished", "the verdict's stable name");
+	}
+} // namespace
+
+auto main() -> int
+{
+	test_names_and_ordinals();
+	test_answer_actions();
+	test_error_actions();
+	test_suggestions();
+	std::cout << "agent-turn-tests:pass\n";
+	return EXIT_SUCCESS;
+}

@@ -692,6 +692,8 @@ namespace bpr::qt {
 		dismiss->setText(QString{ QChar{ 0x2715 } });
 		dismiss->setAccessibleName(tr("Dismiss"));
 		connect(dismiss, &QToolButton::clicked, ReadyCard, &QWidget::hide);
+		// [[BPR-1847]]. The setup's Ready line read, the suggestions follow.
+		connect(dismiss, &QToolButton::clicked, this, [this] { refresh_suggestions(); });
 		readyTop->addWidget(dismiss, 0, Qt::AlignTop);
 		readyCol->addLayout(readyTop);
 		// Owner look v001: the ready line alone; the check's details and what
@@ -781,6 +783,34 @@ namespace bpr::qt {
 		suggestLine->setWordWrap(true);
 		SuggestionColumn->addWidget(suggestLine);
 		contentCol->addWidget(Suggestions);
+		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
+		// suggested prompts before the wizard completes." While the setup
+		// is unfinished and not on screen, its way in stands where they would.
+		SetupPrompt = new QWidget{ content };
+		SetupPrompt->setObjectName(QStringLiteral("agentSuggestionsSetup"));
+		auto* const setupRow = new QHBoxLayout{ SetupPrompt };
+		setupRow->setContentsMargins(0, 2, 0, 0);
+		setupRow->setSpacing(6);
+		auto* const setupLine = new QLabel{ tr("Suggested prompts appear once the agent is set up."), SetupPrompt };
+		setupLine->setObjectName(QStringLiteral("agentSuggestionsSetupLine"));
+		setupLine->setForegroundRole(QPalette::PlaceholderText);
+		setupLine->setWordWrap(true);
+		setupRow->addWidget(setupLine, 1);
+		auto* const finish = new quiet_push_button{ tr("Finish setup"), SetupPrompt };
+		finish->setObjectName(QStringLiteral("agentSuggestionsSetupFinish"));
+		finish->setFlat(true);
+		connect(finish, &QPushButton::clicked, this, [this] {
+			// At the setup's first unfinished step, not pinned to it, so the
+			// setup closes on its Ready line once that step is done.
+			if (SetupView != nullptr) {
+				SetupView->begin(core::setup_step::ready);
+			} else if (Setup) {
+				Setup();
+			}
+		});
+		setupRow->addWidget(finish, 0, Qt::AlignTop);
+		SetupPrompt->hide();
+		contentCol->addWidget(SetupPrompt);
 		contentCol->addStretch(1);
 		scroll->setWidget(content);
 		talk->addWidget(scroll, 1);
@@ -1059,6 +1089,7 @@ namespace bpr::qt {
 		ReadyText->setText(aText);
 		ReadyGets->setText(aGets);
 		ReadyCard->setVisible(!aTitle.isEmpty());
+		refresh_suggestions();
 	}
 
 	void agent_tab_view::refresh()
@@ -1144,6 +1175,7 @@ namespace bpr::qt {
 		}
 		refresh_suggestions();
 		update_turn();
+		present_turn_actions();
 	}
 
 	void agent_tab_view::progress()
@@ -1306,6 +1338,13 @@ namespace bpr::qt {
 																				 : tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
 		draft->hide();
 		footerRow->addWidget(draft);
+		// [[BPR-1847]]. An error's one way back, in place of Save as note
+		// and Draft comment, which an error never offers.
+		auto* const recovery = new quiet_push_button{ reply };
+		recovery->setObjectName(QStringLiteral("agentTurnRecovery"));
+		recovery->setFlat(true);
+		recovery->hide();
+		footerRow->addWidget(recovery);
 		footerRow->addStretch(1);
 		auto* const answeredTime = new QLabel{ reply };
 		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
@@ -1325,6 +1364,16 @@ namespace bpr::qt {
 		aTurn.AnsweredTime = answeredTime;
 		aTurn.Draft        = draft;
 		aTurn.Asked        = asked;
+		aTurn.Reply        = reply;
+		aTurn.Recovery     = recovery;
+		connect(recovery, &QPushButton::clicked, this, [this, recovery] {
+			for (const auto& kept : Turns) {
+				if (kept.Recovery == recovery) {
+					recover(kept);
+					return;
+				}
+			}
+		});
 		connect(draft, &QPushButton::clicked, this, [this, draft] {
 			for (auto& kept : Turns) {
 				if (kept.Draft != draft) {
@@ -1582,11 +1631,12 @@ namespace bpr::qt {
 			next.Done       = true;
 			next.AskedAt    = shown.AskedAt;
 			next.AnsweredAt = shown.AnsweredAt;
+			next.Outcome    = shown.Outcome;
 			add_turn_widgets(next);
 			set_answer(next, shown.Answer);
 			next.Footer->setText(shown.Footer);
-			settle_reply_footer(next, true);
 			Turns.push_back(std::move(next));
+			settle_reply_footer(Turns.back());
 		}
 		Finished = false;
 		refresh();
@@ -1603,7 +1653,8 @@ namespace bpr::qt {
 								   .Answer     = kept.AnswerText,
 								   .Footer     = kept.Footer != nullptr ? kept.Footer->text() : QString{ },
 								   .AskedAt    = kept.AskedAt,
-								   .AnsweredAt = kept.AnsweredAt });
+								   .AnsweredAt = kept.AnsweredAt,
+								   .Outcome    = kept.Outcome });
 			}
 		}
 		return result;
@@ -1737,9 +1788,32 @@ namespace bpr::qt {
 		SuggestionsLine->setVisible(Turns.empty());
 		// [[BPR-1755]], the owner's accept of look v007 ("Hide
 		// suggestions until the the agent is done thinking"): none while a
-		// turn runs; they return when it has finished.
-		Suggestions->setVisible(conversing && SuggestionsMenu->isChecked() && State != agent_tab_state::working);
-		SuggestionsMenu->setVisible(conversing);
+		// turn runs; they return when it has finished. [[BPR-1847]]: none
+		// before the setup has finished either; the core decides.
+		const auto verdict = suggestions_verdict();
+		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
+		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
+		// The setup's way in, unless the setup or its Ready line is on screen.
+		// Only once the setup knows what is missing: not while agents are
+		// still being looked for.
+		const auto known = SetupView == nullptr || SetupView->projection().Detected;
+		SetupPrompt->setVisible(conversing && known && verdict == core::agent_suggestions_verdict::setup_unfinished && ReadyCard->isHidden());
+	}
+
+	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict
+	{
+		// No setup adopted: nothing to wait on, as before it was composed.
+		const auto* const setup = SetupView != nullptr ? &SetupView->projection() : nullptr;
+		return core::decide_agent_suggestions({
+			.AgentOffered   = State != agent_tab_state::not_set_up,
+			.SetupShowing   = State == agent_tab_state::setting_up,
+			.SetupStep      = setup != nullptr ? setup->Step : core::setup_step::ready,
+			.AgentCheck     = setup != nullptr ? setup->State.AgentCheck.State : core::setup_check_state::passed,
+			.WorkspaceCheck = setup != nullptr ? setup->State.WorkspaceCheck.State : core::setup_check_state::passed,
+			.ReadyShowing   = !ReadyCard->isHidden(),
+			.Working        = State == agent_tab_state::working,
+			.Toggled        = SuggestionsMenu->isChecked(),
+		});
 	}
 
 	void agent_tab_view::set_suggestions_shown(const bool aShown)
@@ -1786,6 +1860,7 @@ namespace bpr::qt {
 		current.Done          = true;
 		const auto findings   = Findings.finding_count();
 		const auto succeeded  = Launch.last_outcome() == application::agent_run_outcome::success;
+		current.Outcome       = application::turn_outcome(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start));
 		const auto stopReason = Launch.stop_reason_text();
 		if (succeeded) {
 			set_answer(current, written.isEmpty() ? tr("%1 finished without writing an answer.").arg(agent) : written);
@@ -1821,15 +1896,9 @@ namespace bpr::qt {
 		}
 		current.Footer->setText(footer);
 		current.AnsweredAt = QDateTime::currentDateTime();
-		settle_reply_footer(current, succeeded);
+		settle_reply_footer(current);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
 			claim_findings(Turns.size() - 1U);
-		}
-		if (current.SaveNote != nullptr) {
-			current.SaveNote->setVisible(succeeded && !current.AnswerText.isEmpty());
-		}
-		if (current.Draft != nullptr) {
-			current.Draft->setVisible(succeeded && !current.AnswerText.isEmpty());
 		}
 		ClearSession->setVisible(true);
 		if (ThreadObserver) {
@@ -1837,25 +1906,104 @@ namespace bpr::qt {
 		}
 	}
 
-	void agent_tab_view::settle_reply_footer(turn& aTurn, const bool aSucceeded)
+	void agent_tab_view::settle_reply_footer(turn& aTurn)
 	{
 		// Stopped reads as the agent drawers' Interrupted: in italics.
 		if (aTurn.Footer != nullptr) {
 			auto font = aTurn.Footer->font();
-			font.setItalic(!aSucceeded);
+			font.setItalic(aTurn.Outcome != core::agent_turn_outcome::answered);
 			aTurn.Footer->setFont(font);
-		}
-		if (aTurn.Copy != nullptr) {
-			aTurn.Copy->setVisible(!aTurn.AnswerText.isEmpty());
-		}
-		if (aTurn.SaveNote != nullptr) {
-			aTurn.SaveNote->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty());
-		}
-		if (aTurn.Draft != nullptr) {
-			aTurn.Draft->setVisible(aSucceeded && !aTurn.AnswerText.isEmpty());
 		}
 		if (aTurn.AnsweredTime != nullptr) {
 			show_time(*aTurn.AnsweredTime, aTurn.AnsweredAt);
+		}
+		present_turn_actions();
+	}
+
+	void agent_tab_view::present_turn_actions()
+	{
+		const auto working = State == agent_tab_state::working;
+		for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
+			auto& kept = Turns[index];
+			if (!kept.Done) {
+				continue;
+			}
+			// [[BPR-1847]], owner 2026-11-03: "Agent wizard errors shouldn't
+			// get the save as note and draft comment treatment." The core
+			// decides from how the turn ended; this presents it.
+			const auto actions = core::decide_agent_turn_actions({
+				.Outcome = kept.Outcome,
+				.HasText = !kept.AnswerText.isEmpty(),
+				.Latest  = index + 1U == Turns.size(),
+				.Working = working,
+			});
+			if (auto* const card = static_cast<rounded*>(kept.Reply.data()); card != nullptr) {
+				const auto look = actions.Error ? rounded::look::danger : rounded::look::card;
+				if (card->Look != look) {
+					card->Look = look;
+					card->setAccessibleDescription(actions.Error ? tr("Error") : QString{ });
+					card->update();
+				}
+			}
+			if (kept.Copy != nullptr) {
+				kept.Copy->setVisible(actions.Copy);
+				kept.Copy->setToolTip(actions.Error ? tr("Copy the error and what the agent wrote") : tr("Copy the response as Markdown"));
+			}
+			if (kept.SaveNote != nullptr) {
+				kept.SaveNote->setVisible(actions.SaveNote);
+			}
+			if (kept.Draft != nullptr) {
+				kept.Draft->setVisible(actions.DraftComment);
+			}
+			kept.RecoveryKind = actions.Recovery;
+			if (kept.Recovery != nullptr) {
+				switch (actions.Recovery) {
+				case core::agent_turn_recovery::none: break;
+				case core::agent_turn_recovery::ask_again:
+					kept.Recovery->setText(tr("Ask again"));
+					kept.Recovery->setToolTip(tr("Send this question again"));
+					break;
+				case core::agent_turn_recovery::check_setup:
+					kept.Recovery->setText(tr("Check again"));
+					kept.Recovery->setToolTip(tr("Check the agent and its workspace again"));
+					break;
+				case core::agent_turn_recovery::agent_settings:
+					kept.Recovery->setText(tr("Agent settings…"));
+					kept.Recovery->setToolTip(tr("Check the agent's program and the form it answers in"));
+					break;
+				}
+				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
+			}
+		}
+	}
+
+	void agent_tab_view::recover(const turn& aTurn)
+	{
+		if (!panels_alive() || State == agent_tab_state::working) {
+			return;
+		}
+		switch (aTurn.RecoveryKind) {
+		case core::agent_turn_recovery::none: return;
+		case core::agent_turn_recovery::ask_again:
+			if (aTurn.Review) {
+				Launch.start_action()->trigger();
+			} else {
+				send_prompt(aTurn.Question);
+			}
+			return;
+		case core::agent_turn_recovery::check_setup:
+			if (SetupView != nullptr && CheckAgain) {
+				SetupView->begin(core::setup_step::ready);
+				CheckAgain();
+			} else if (Setup) {
+				Setup();
+			}
+			return;
+		case core::agent_turn_recovery::agent_settings:
+			if (Setup) {
+				Setup();
+			}
+			return;
 		}
 	}
 
@@ -2114,6 +2262,15 @@ namespace bpr::qt {
 	}
 
 	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
+
+	auto agent_tab_view::turn_recovery_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Recovery.data() : nullptr; }
+
+	auto agent_tab_view::turn_reply(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].Reply.data() : nullptr; }
+
+	auto agent_tab_view::turn_outcome(const std::size_t aTurn) const -> std::optional<core::agent_turn_outcome>
+	{
+		return aTurn < Turns.size() && Turns[aTurn].Done ? std::optional{ Turns[aTurn].Outcome } : std::nullopt;
+	}
 
 	void agent_tab_view::present_finding_card_state(const std::uint64_t aSession, const std::size_t aOrdinal, const agent_finding_card_state aState, const QString& aWhy, const std::uint64_t aNote)
 	{

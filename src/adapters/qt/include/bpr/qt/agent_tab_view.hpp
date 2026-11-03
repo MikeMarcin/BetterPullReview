@@ -11,6 +11,7 @@
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
+#include "bpr/core/agent_turn.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <cstddef>
@@ -76,6 +77,9 @@ namespace bpr::qt {
 		/// When it was asked and answered; invalid when not known.
 		QDateTime AskedAt;
 		QDateTime AnsweredAt;
+		/// [[BPR-1847]]. How it ended: an answer, or an error that offers
+		/// neither Save as note nor Draft comment.
+		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
@@ -391,6 +395,15 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_question_label(std::size_t aTurn) const -> QLabel*;
 		[[nodiscard]] auto turn_answer_view(std::size_t aTurn) const -> markdown_body_view*;
 		[[nodiscard]] auto turn_note_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief [[BPR-1847]]. An error turn's one way back (Ask again,
+		/// Check again or Agent settings…), its reply card, and how it ended.
+		[[nodiscard]] auto turn_recovery_button(std::size_t aTurn) const -> QPushButton*;
+		[[nodiscard]] auto turn_reply(std::size_t aTurn) const -> QWidget*;
+		[[nodiscard]] auto turn_outcome(std::size_t aTurn) const -> std::optional<core::agent_turn_outcome>;
+		/// \brief [[BPR-1847]]. What stands in for the suggestions while the
+		/// setup is unfinished, and whether the suggestions show.
+		[[nodiscard]] auto setup_prompt() const noexcept -> QWidget* { return SetupPrompt; }
+		[[nodiscard]] auto suggestions_widget() const noexcept -> QWidget* { return Suggestions; }
 		/// \brief The cards a turn brought, under its answer.
 		[[nodiscard]] auto turn_cards(std::size_t aTurn) const -> std::vector<QWidget*>;
 		[[nodiscard]] auto ask_button() const noexcept -> QPushButton* { return Ask; }
@@ -535,6 +548,12 @@ namespace bpr::qt {
 			QPointer<QPushButton>                    Draft;
 			bool                                     Drafted = false;
 			QPointer<QWidget>                        Asked;
+			/// [[BPR-1847]]. How it ended, its reply card, and the one way
+			/// back an error offers.
+			core::agent_turn_outcome  Outcome = core::agent_turn_outcome::answered;
+			QPointer<QWidget>         Reply;
+			QPointer<QPushButton>     Recovery;
+			core::agent_turn_recovery RecoveryKind = core::agent_turn_recovery::none;
 		};
 		std::vector<turn> Turns;
 		/// The question and the answer as shown, their references links.
@@ -543,9 +562,14 @@ namespace bpr::qt {
 		QWidget*     Thread       = nullptr;
 		QVBoxLayout* ThreadColumn = nullptr;
 		/// Each turn's widgets, made for a new or restored turn.
-		auto                                                                        add_turn_widgets(turn& aTurn) -> void;
-		void                                                                        set_answer(turn& aTurn, const QString& aText);
-		void                                                                        settle_reply_footer(turn& aTurn, bool aSucceeded);
+		auto add_turn_widgets(turn& aTurn) -> void;
+		void set_answer(turn& aTurn, const QString& aText);
+		void settle_reply_footer(turn& aTurn);
+		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
+		void present_turn_actions();
+		void recover(const turn& aTurn);
+		/// [[BPR-1847]]. Why the suggestions are not shown now, if not.
+		[[nodiscard]] auto                                                          suggestions_verdict() const -> core::agent_suggestions_verdict;
 		void                                                                        refresh_times();
 		void                                                                        dress_answer(markdown_body_view& aAnswer) const;
 		void                                                                        fit_run_settings();
@@ -568,9 +592,11 @@ namespace bpr::qt {
 		QVBoxLayout*                                        SuggestionColumn = nullptr;
 		QToolButton*                                        SuggestionsMenu  = nullptr;
 		QLabel*                                             SuggestionsLine  = nullptr;
-		std::function<void(bool)>                           SuggestionsObserver;
-		QStringList                                         Prompts;
-		std::vector<QPointer<QPushButton>>                  PromptButtons;
+		/// [[BPR-1847]]. In place of the suggestions while setup is unfinished.
+		QWidget*                           SetupPrompt = nullptr;
+		std::function<void(bool)>          SuggestionsObserver;
+		QStringList                        Prompts;
+		std::vector<QPointer<QPushButton>> PromptButtons;
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
