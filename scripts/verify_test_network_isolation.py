@@ -256,6 +256,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_pending_states_public_path": "owner-private-acl-denied",
     # [[BPR-1842]]. A pull request usable as its parts arrive, same fixture.
     "application_progressive_open_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.
+    "sqlite_view_filter_memory_store": "unmeasured (registered on macOS)",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
     "application_refresh_feedback_public_path": "owner-private-acl-denied",
     # [[BPR-1589]]. Status attention for the signed-in reviewer.
