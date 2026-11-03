@@ -9,6 +9,7 @@
 #include "bpr/core/profile_window.hpp"
 #include "bpr/core/review_preparation.hpp"
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/view_filter_memory.hpp"
 #include "bpr/core/workbench_interaction.hpp"
 
 #include <compare>
@@ -893,6 +894,13 @@ namespace bpr::application {
 		unread,
 		unresolved,
 	};
+
+	/// \brief [[BPR-1844]]. The first filter as the choice it stands for,
+	/// what Review's Comments opens with until a choice is remembered.
+	[[nodiscard]] constexpr auto first_filter_choice(const review_comments_filter aFilter) noexcept -> core::view_filter_choice
+	{
+		return { .OnlyNew = aFilter == review_comments_filter::unread, .HideResolved = aFilter == review_comments_filter::unresolved };
+	}
 
 	/// \brief Whether a drawer carries its own controls ([[BPR-0721]]).
 	///

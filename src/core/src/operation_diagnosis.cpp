@@ -25,8 +25,8 @@ namespace bpr::core {
 		static_assert(failure_names.size() == static_cast<std::size_t>(operation_failure::read_failed) + 1U);
 
 		// [[BPR-1831]]. The store names, by each store file's fixed name.
-		constexpr std::array<std::string_view, 22> store_names{ "unknown", "other", "agent_setup", "appearance_settings", "diagnostic_preferences", "workbench_settings", "review_queue", "review_ledger", "review_tours", "review_cycles", "review_overviews", "window_restoration", "remembered_connections", "device_bindings", "review_mutation_recovery", "epoch_catalog", "markdown_images", "insights", "profile_registry", "release_update", "update_draft_recovery", "clone_ledger" };
-		static_assert(store_names.size() == static_cast<std::size_t>(operation_store::clone_ledger) + 1U);
+		constexpr std::array<std::string_view, 23> store_names{ "unknown", "other", "agent_setup", "appearance_settings", "diagnostic_preferences", "workbench_settings", "review_queue", "review_ledger", "review_tours", "review_cycles", "review_overviews", "window_restoration", "remembered_connections", "device_bindings", "review_mutation_recovery", "epoch_catalog", "markdown_images", "insights", "profile_registry", "release_update", "update_draft_recovery", "clone_ledger", "view_filters" };
+		static_assert(store_names.size() == static_cast<std::size_t>(operation_store::view_filters) + 1U);
 		static_assert(process_names.size() == static_cast<std::size_t>(operation_process::stale_result) + 1U);
 
 		template <typename TEnum, std::size_t N>

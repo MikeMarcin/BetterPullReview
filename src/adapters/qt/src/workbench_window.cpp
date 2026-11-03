@@ -2861,6 +2861,10 @@ namespace bpr::qt {
 				ConversationPanel->present_notice(QString{ });
 			}
 		});
+		// [[BPR-1844]]. A reviewer's own filter choice: this window's, and
+		// remembered for the next pull request any window opens.
+		ConversationPanel->set_filter_choice_dispatch([this](const core::filter_view aView, const core::view_filter_choice aChoice) { choose_view_filter(aView, aChoice); });
+		Finder->set_filter_choice_dispatch([this](const core::view_filter_choice aChoice) { choose_view_filter(core::filter_view::threads, aChoice); });
 		const auto makeCompositionPage = [this](QWidget* aEditor, const QString& aName, const QString& aBack, QWidget* aExcerpt) {
 			// [[BPR-1212]]. A composition page is a column of Discuss, beside
 			// the conversations, not a page of its own.
@@ -12907,6 +12911,11 @@ namespace bpr::qt {
 		}
 		const auto next = behaviour_from_controls();
 		if (next != AskedBehaviour.value_or(Behaviour)) {
+			// [[BPR-1844]]. Choosing the first filter in Settings is a choice of
+			// Review's Comments' filters: the next pull request opens with it.
+			if (next.CommentsFilter != AskedBehaviour.value_or(Behaviour).CommentsFilter && ViewFilterRemember) {
+				ViewFilterRemember({ .View = core::filter_view::review_comments, .Choice = application::first_filter_choice(next.CommentsFilter) });
+			}
 			AskedBehaviour = next;
 			BehaviourDispatch(next);
 		}
@@ -12931,7 +12940,37 @@ namespace bpr::qt {
 			return;
 		}
 		FirstFilterApplied = true;
-		ConversationPanel->apply_first_filter(Behaviour.CommentsFilter);
+		// [[BPR-1844]]. Each view opens with the profile's last choice; Review's
+		// Comments, until one is made, with the first-filter preference.
+		ViewFilters = core::open_view_filters(ViewFilterDefaults ? ViewFilterDefaults() : core::view_filter_defaults{ },
+											  application::first_filter_choice(Behaviour.CommentsFilter));
+		ConversationPanel->open_with_filters(ViewFilters.Discuss, ViewFilters.ReviewComments);
+		if (Finder != nullptr) {
+			auto filters         = Finder->filters();
+			filters.OnlyNew      = ViewFilters.Threads.OnlyNew;
+			filters.HideResolved = ViewFilters.Threads.HideResolved;
+			Finder->set_filters(std::move(filters));
+		}
+	}
+
+	void workbench_window::choose_view_filter(const core::filter_view aView, const core::view_filter_choice aChoice)
+	{
+		auto step   = core::choose_view_filter(ViewFilters, aView, aChoice);
+		ViewFilters = step.State;
+		if (step.Remember && ViewFilterRemember) {
+			ViewFilterRemember(*step.Remember);
+		}
+	}
+
+	void workbench_window::set_view_filter_memory(std::function<core::view_filter_defaults()> aDefaults, std::function<void(const core::view_filter_remember&)> aRemember)
+	{
+		ViewFilterDefaults = std::move(aDefaults);
+		ViewFilterRemember = std::move(aRemember);
+	}
+
+	auto workbench_window::view_filters() const noexcept -> const core::view_filter_state&
+	{
+		return ViewFilters;
 	}
 
 	// The named comparison is dispatched through the control's own action,

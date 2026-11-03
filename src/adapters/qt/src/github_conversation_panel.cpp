@@ -326,6 +326,7 @@ namespace bpr::qt {
 			FilterUnread->setChecked(false);
 			FilterUnresolved->setChecked(false);
 			clear_listing();
+			tell_filter_choice();
 		});
 		// [[BPR-1089]]. An Overview count's drill-down: a pill with the count's
 		// own mark, its caption and a × that shows every conversation again.
@@ -511,6 +512,10 @@ namespace bpr::qt {
 			apply_filters();
 			filtersChanged();
 		});
+		// [[BPR-1844]]. `clicked` is a press or a key, never a `setChecked`:
+		// only the reviewer's own change is told, and so remembered.
+		connect(FilterUnread, &QToolButton::clicked, this, [this] { tell_filter_choice(); });
+		connect(FilterUnresolved, &QToolButton::clicked, this, [this] { tell_filter_choice(); });
 		// The notes laid out anew may hold my draft where the snapshot has
 		// nothing: the page follows them once the pull request is adopted.
 		Cards->set_layout_observer([this] {
@@ -1345,8 +1350,8 @@ namespace bpr::qt {
 		if (Discuss) {
 			if (!DiscussInitialized) {
 				ScopeWholePr->setChecked(true);
-				FilterUnread->setChecked(false);
-				FilterUnresolved->setChecked(false);
+				FilterUnread->setChecked(DiscussOpening.OnlyNew);
+				FilterUnresolved->setChecked(DiscussOpening.HideResolved);
 				DiscussInitialized = true;
 			} else {
 				(DiscussScope == cards_scope::whole_pull_request ? ScopeWholePr : ScopeThisFile)->setChecked(true);
@@ -1395,6 +1400,51 @@ namespace bpr::qt {
 		}
 		FilterUnread->setChecked(aFilter == application::review_comments_filter::unread);
 		FilterUnresolved->setChecked(aFilter == application::review_comments_filter::unresolved);
+	}
+
+	void github_conversation_panel::open_with_filters(const core::view_filter_choice aDiscuss, const core::view_filter_choice aReviewComments)
+	{
+		if (FilterUnread == nullptr || FilterUnresolved == nullptr) {
+			return;
+		}
+		DiscussOpening = aDiscuss;
+		// The window's change, not the reviewer's: Discuss's notices are not told.
+		auto       changed = std::exchange(DiscussFiltersChanged, { });
+		const auto present = [this](const core::view_filter_choice aChoice) {
+			FilterUnread->setChecked(aChoice.OnlyNew);
+			FilterUnresolved->setChecked(aChoice.HideResolved);
+		};
+		if (Discuss) {
+			present(aDiscuss);
+			DiscussInitialized = true;
+		} else if (DiscussInitialized) {
+			DiscussFilters.UnreadOnly     = aDiscuss.OnlyNew;
+			DiscussFilters.UnresolvedOnly = aDiscuss.HideResolved;
+		}
+		// Review's Comments waits in its kept filters while another place
+		// holds the panel, as the first-filter preference does.
+		if (Discuss || Conversation) {
+			ReadFilters.UnreadOnly     = aReviewComments.OnlyNew;
+			ReadFilters.UnresolvedOnly = aReviewComments.HideResolved;
+		} else {
+			present(aReviewComments);
+		}
+		DiscussFiltersChanged = std::move(changed);
+	}
+
+	void github_conversation_panel::set_filter_choice_dispatch(std::function<void(core::filter_view, core::view_filter_choice)> aDispatch)
+	{
+		FilterChoiceDispatch = std::move(aDispatch);
+	}
+
+	void github_conversation_panel::tell_filter_choice() const
+	{
+		// Overview's Comments keeps its filters for itself ([[BPR-1808]]).
+		if (!FilterChoiceDispatch || Conversation) {
+			return;
+		}
+		FilterChoiceDispatch(Discuss ? core::filter_view::discuss : core::filter_view::review_comments,
+							 core::view_filter_choice{ .OnlyNew = FilterUnread->isChecked(), .HideResolved = FilterUnresolved->isChecked() });
 	}
 
 	auto github_conversation_panel::filter_unread_button() const noexcept -> QToolButton*

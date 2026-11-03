@@ -25,6 +25,7 @@
 #include "bpr/core/release_maintenance.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/review_round_trip.hpp"
+#include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
@@ -897,6 +898,16 @@ namespace bpr::qt {
 		void set_behaviour_dispatch(review_behaviour_dispatch aDispatch);
 		/// \brief The review-behaviour preferences the host last published.
 		[[nodiscard]] auto behaviour() const noexcept -> const application::review_behaviour_settings&;
+		/// \brief [[BPR-1844]]. Where this window reads the profile's
+		/// remembered Discuss, Threads and Review Comments filters when it
+		/// opens a pull request, and tells a reviewer's own choice. The
+		/// memory is never pushed into a window: each keeps its own filters.
+		void set_view_filter_memory(std::function<core::view_filter_defaults()> aDefaults, std::function<void(const core::view_filter_remember&)> aRemember);
+		/// \brief [[BPR-1844]]. This window's filters, view by view, as the
+		/// pull request opened with them and the reviewer then chose; a
+		/// filter the window cleared by itself (a reveal, a count's listing)
+		/// is the widgets' alone.
+		[[nodiscard]] auto view_filters() const noexcept -> const core::view_filter_state&;
 		/// \brief The Settings › Review preference editor ([[BPR-0661]], [[BPR-1597]]).
 		[[nodiscard]] auto behaviour_editor() const noexcept -> QWidget*;
 		/// \brief [[BPR-1816]]. Settings › Review › Finishing a review: the
@@ -2201,6 +2212,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto behaviour_from_controls() const -> application::review_behaviour_settings;
 		[[nodiscard]] auto opening_modality() const -> review_modality;
 		void               apply_first_comments_filter();
+		void               choose_view_filter(core::filter_view aView, core::view_filter_choice aChoice);
 		void               honour_return_comparison();
 		void               consider_mark_read_when_fully_seen();
 		[[nodiscard]] auto file_for_path(const QString& aPath) const
@@ -3131,6 +3143,11 @@ namespace bpr::qt {
 		bool                                 ApplyingBehaviour = false;
 		std::optional<review_modality>       LastUsedModality;
 		bool                                 ReturnComparisonPending = false;
+		/// [[BPR-1844]]. This window's Discuss, Threads and Review Comments
+		/// filters, and the profile's memory it opens with and tells.
+		core::view_filter_state                                ViewFilters;
+		std::function<core::view_filter_defaults()>            ViewFilterDefaults;
+		std::function<void(const core::view_filter_remember&)> ViewFilterRemember;
 		/// Set once the host has published the preferences; until then a pull
 		/// request that opens takes the defaults and is revisited when they land.
 		bool                                                                     BehaviourPublished    = false;

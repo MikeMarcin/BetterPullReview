@@ -5,6 +5,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/diff_model.hpp"
+#include "bpr/core/view_filter_memory.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 
@@ -192,6 +193,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto discuss() const noexcept -> bool;
 		/// \brief [[BPR-0661]]. Sets the drawer's first filter as the preference names it.
 		void apply_first_filter(application::review_comments_filter aFilter);
+		/// \brief [[BPR-1844]]. The filters a pull request opens with: Discuss's
+		/// Only new and Hide resolved, shown when Discuss is next entered (or
+		/// now, while it shows), and Review's Comments'. Each place keeps its
+		/// own, as it does for a reviewer's change; Overview's Comments is
+		/// untouched.
+		void open_with_filters(core::view_filter_choice aDiscuss, core::view_filter_choice aReviewComments);
+		/// \brief [[BPR-1844]]. Told when the reviewer, by hand, changes Only
+		/// new or Hide resolved in Discuss or Review's Comments, or clears
+		/// them: the view and what it shows now. A change the window makes is
+		/// not told.
+		void set_filter_choice_dispatch(std::function<void(core::filter_view, core::view_filter_choice)> aDispatch);
 		/// \brief Only new.
 		[[nodiscard]] auto filter_unread_button() const noexcept -> QToolButton*;
 		/// \brief Hide resolved.
@@ -321,6 +333,11 @@ namespace bpr::qt {
 		cards_scope                          DiscussScope = cards_scope::whole_pull_request;
 		discuss_filters                      DiscussFilters;
 		discuss_filters                      ReadFilters;
+		/// [[BPR-1844]]. Where a reviewer's own filter change is told, and
+		/// the Discuss filters a pull request opens with.
+		std::function<void(core::filter_view, core::view_filter_choice)> FilterChoiceDispatch;
+		core::view_filter_choice                                         DiscussOpening;
+		void                                                             tell_filter_choice() const;
 		/// [[BPR-1808]]. Overview's Comments: shown, its filters while it does
 		/// not show, and its filtered-empty message.
 		bool            Conversation = false;
