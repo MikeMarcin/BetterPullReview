@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1847"
+  ],
+  "reserve_for": "agent-panel-error-answers",
+  "purpose": "Agent error answers drop note/draft actions; no suggested prompts before agent setup completes",
+  "created": "2026-11-03T21:45:34.397375+00:00",
+  "base": "f5f709ce1f7403a43ea00a899e4e0057b30a141c"
+}
