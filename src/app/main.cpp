@@ -5044,6 +5044,15 @@ namespace {
 				stream << (evidence.ReviewerNotRepeated ? "REVIEWER_REQUEST_OK\n" : "REVIEWER_REQUEST_FAILED\n")
 					   << "REVIEWER_REQUEST_EVIDENCE:" << evidence.ReviewerOffered << evidence.ReviewerSearched << evidence.ReviewerRequestedOnce
 					   << evidence.ReviewerNotRepeated << '\n';
+				// [[BPR-1849]]. A request shows in People at once and reads nothing.
+				if (evidence.ReviewerCostMeasured) {
+					stream << (evidence.ReviewerMinimal ? "REVIEWER_REQUEST_MINIMAL_OK\n" : "REVIEWER_REQUEST_MINIMAL_FAILED\n")
+						   << "REVIEWER_REQUEST_COST:reads=" << evidence.ReviewerReads << " overviewBuilds=" << evidence.ReviewerOverviewBuilds
+						   << " peopleUpdates=" << evidence.ReviewerOverviewUpdates << " refreshInFlight=" << (evidence.ReviewerRefreshInFlight ? 1 : 0)
+						   << " shownAtOnce=" << (evidence.ReviewerShownAtOnce ? 1 : 0) << " confirmed=" << (evidence.ReviewerConfirmed ? 1 : 0)
+						   << " rolledBack=" << (evidence.ReviewerRolledBack ? 1 : 0) << " shownMicros=" << evidence.ReviewerShownMicros
+						   << " answeredMicros=" << evidence.ReviewerAnsweredMicros << '\n';
+				}
 			}
 		}
 		if (aRun.LabelAuthoringProbe) {

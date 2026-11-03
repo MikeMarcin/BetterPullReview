@@ -494,6 +494,11 @@ namespace bpr::qt {
 		/// modalities keep the comparison. Start enters Review, Continue follows
 		/// its preference, and file rows enter Read at the core-selected file.
 		void publish(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-1849]]. Adopts a change to the presented overview's
+		/// review requests, their note and the status alone: People and Needs
+		/// attention redraw, and no file row, tree or check is visited. An
+		/// overview not yet presented is published whole.
+		void publish_review_requests(const application::pull_request_overview_projection& aProjection);
 		/// \brief [[BPR-0972]]. Adopts receipt changes to the presented overview.
 		///
 		/// \details Only the changed file rows, the progress and the one action

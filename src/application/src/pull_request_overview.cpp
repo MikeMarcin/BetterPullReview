@@ -306,6 +306,29 @@ namespace bpr::application {
 			return result;
 		}
 
+		/// \brief The roster of open review requests and its note: the read's,
+		/// then [[BPR-1849]] the ones the viewer asked for that it does not list.
+		void project_review_requests(const github_pull_request_snapshot&                  aSnapshot,
+									 pull_request_overview_projection&                    aProjection,
+									 const std::vector<core::projected_reviewer_request>& aProjected)
+		{
+			aProjection.ReviewRequests.clear();
+			aProjection.ReviewRequestsNote.clear();
+			for (const auto& request : aSnapshot.ReviewRequests) {
+				aProjection.ReviewRequests.push_back(requested(request));
+			}
+			for (const auto& projected : aProjected) {
+				aProjection.ReviewRequests.push_back(overview_review_request{ .Name = projected.Login, .Pending = projected.Pending });
+			}
+			// Code owners first; the provider's order otherwise.
+			std::ranges::stable_partition(aProjection.ReviewRequests, &overview_review_request::CodeOwner);
+			if (aSnapshot.ReviewRequestsStale) {
+				aProjection.ReviewRequestsNote = "Last known; refresh to update";
+			} else if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available) {
+				aProjection.ReviewRequestsNote = aProjection.ReviewRequests.empty() ? "Review requests unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability) : "Code owners and the complete list unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability);
+			}
+		}
+
 		/// \brief Indexes required contexts and observed producers once per accepted snapshot.
 		class overview_check_policy_index
 		{
@@ -422,17 +445,6 @@ namespace bpr::application {
 			case github_review_decision::unknown:
 				details += "\nReview assessment unavailable.";
 				break;
-			}
-
-			for (const auto& request : aSnapshot.ReviewRequests) {
-				aProjection.ReviewRequests.push_back(requested(request));
-			}
-			// Code owners first; the provider's order otherwise.
-			std::ranges::stable_partition(aProjection.ReviewRequests, &overview_review_request::CodeOwner);
-			if (aSnapshot.ReviewRequestsStale) {
-				aProjection.ReviewRequestsNote = "Last known; refresh to update";
-			} else if (aSnapshot.ReviewRequestsAvailability != github_observation_availability::available) {
-				aProjection.ReviewRequestsNote = aProjection.ReviewRequests.empty() ? "Review requests unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability) : "Code owners and the complete list unavailable: " + availability_note(aSnapshot.ReviewRequestsAvailability);
 			}
 
 			details += "\nTarget " + aSnapshot.PullRequest.BaseRef + ", head " + std::string{ aSnapshot.PullRequest.HeadOid.value().substr(0, 12) } + ".";
@@ -669,6 +681,27 @@ namespace bpr::application {
 		return changed;
 	}
 
+	auto requested_reviewer_logins(const github_pull_request_snapshot& aSnapshot) -> std::vector<std::string>
+	{
+		auto logins = std::vector<std::string>{ };
+		for (const auto& request : aSnapshot.ReviewRequests) {
+			if (request.Kind == github_requested_actor_kind::user && !request.Login.empty()) {
+				logins.push_back(request.Login);
+			}
+		}
+		return logins;
+	}
+
+	auto apply_review_requests(pull_request_overview_projection&                    aProjection,
+							   const github_pull_request_snapshot&                  aSnapshot,
+							   const std::vector<core::projected_reviewer_request>& aProjected) -> bool
+	{
+		const auto before = std::tuple{ aProjection.ReviewRequests, aProjection.ReviewRequestsNote, aProjection.Status };
+		project_review_requests(aSnapshot, aProjection, aProjected);
+		project_status(aSnapshot, aProjection);
+		return before != std::tie(aProjection.ReviewRequests, aProjection.ReviewRequestsNote, aProjection.Status);
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
@@ -787,6 +820,7 @@ namespace bpr::application {
 		projection.Participants = roster.take();
 
 		const auto checkPolicy = overview_check_policy_index{ aSnapshot };
+		project_review_requests(aSnapshot, projection, aContext.ProjectedReviewRequests);
 		project_checks(aSnapshot, projection, checkPolicy);
 		project_merge_requirements(aSnapshot, projection, checkPolicy);
 		sort_check_rows(projection);

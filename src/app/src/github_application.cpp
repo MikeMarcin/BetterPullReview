@@ -14506,6 +14506,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			if (aUpdate.PullRequest) {
 				observe_conversation_state();
+				observe_reviewer_request_state();
 			}
 			Window->publish(placed ? *placed : aUpdate);
 			if (aUpdate.PullRequest) {
@@ -15534,9 +15535,77 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 					return application::detail::review_mutation_user_authority_issuer::issue_reviewer(
 						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
 				});
+			// [[BPR-1849]]. People shows the person at once, pending, as the
+			// core projects the request; GitHub's answer settles it.
+			if (WindowRead && WindowRead->accepted_snapshot()) {
+				const auto key = reviewer_overlay_key(*WindowRead->accepted_snapshot());
+				if (ReviewerOverlayPullRequest != key) {
+					ReviewerOverlay            = { };
+					ReviewerOverlayPullRequest = key;
+				}
+				core::begin_reviewer_request_change(ReviewerOverlay, aRequest);
+				present_overview_review_requests();
+			}
 			++ReviewerRequestsAsked;
 			const auto context                               = ReviewMutationHost->reviewers(std::move(request), std::move(grant));
 			PendingReviewerRequests[context.Request.value()] = aRequest.Request;
+		}
+
+		/// \brief [[BPR-1849]]. Which pull request a snapshot reads, for the
+		/// review requests asked on it.
+		[[nodiscard]] static auto reviewer_overlay_key(const application::github_pull_request_snapshot& aSnapshot) -> std::string
+		{
+			return aSnapshot.Repository.Owner + "/" + aSnapshot.Repository.Name + "#" + std::to_string(aSnapshot.PullRequest.Number.value());
+		}
+
+		/// \brief [[BPR-1849]]. A new accepted read reconciles the requests
+		/// the viewer asked for with the ones GitHub lists; another pull
+		/// request drops them.
+		void observe_reviewer_request_state()
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot() || !ReviewerOverlayPullRequest) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			if (reviewer_overlay_key(snapshot) != *ReviewerOverlayPullRequest) {
+				ReviewerOverlay = { };
+				ReviewerOverlayPullRequest.reset();
+				return;
+			}
+			core::observe_reviewer_requests(ReviewerOverlay, application::requested_reviewer_logins(snapshot));
+		}
+
+		/// \brief [[BPR-1849]]. The requests People adds to the read's.
+		[[nodiscard]] auto projected_overview_review_requests(const application::github_pull_request_snapshot& aSnapshot) const
+			-> std::vector<core::projected_reviewer_request>
+		{
+			if (ReviewerOverlay.Changes.empty() || ReviewerOverlayPullRequest != std::optional{ reviewer_overlay_key(aSnapshot) }) {
+				return { };
+			}
+			return core::project_reviewer_requests(application::requested_reviewer_logins(aSnapshot), ReviewerOverlay);
+		}
+
+		/// \brief [[BPR-1849]]. A request asked, answered or withdrawn moves
+		/// People and the status in place; nothing is read and no other part
+		/// of the Overview is visited. A read the Overview has not been
+		/// projected from yet is left to that projection.
+		void present_overview_review_requests()
+		{
+			if (Closing || Window == nullptr || !PublishedOverview || !WindowRead || !WindowRead->accepted_snapshot()
+				|| OverviewResolutionsSnapshot != std::optional{ WindowRead->accepted_snapshot()->Snapshot }) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			auto        now      = projected_overview_review_requests(snapshot);
+			if (now == OverviewReviewRequests) {
+				return;
+			}
+			const auto changed     = application::apply_review_requests(*PublishedOverview, snapshot, now);
+			OverviewReviewRequests = std::move(now);
+			if (changed) {
+				++OverviewReviewRequestUpdates;
+				Window->publish_review_requests(*PublishedOverview);
+			}
 		}
 
 		void publish_reviewers(const application::review_reviewer_terminal& aTerminal) override
@@ -15569,19 +15638,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!aTerminal.Result.has_value()) {
 				++ReviewerRequestFailures;
 				ReviewerPicker = core::fail_reviewer_request(std::move(ReviewerPicker), request, reviewer_failure(aTerminal.Result.error()));
+				// [[BPR-1849]]. People shows the read again; the picker says why.
+				core::abandon_reviewer_request_change(ReviewerOverlay, request);
 				present_reviewer_picker();
+				present_overview_review_requests();
 				return;
 			}
 			++ReviewerRequestCompletions;
-			ReviewerPicker = core::finish_reviewer_request(std::move(ReviewerPicker), request, { .Requested = aTerminal.Result->Answer.Requested, .Written = aTerminal.Result->Written });
+			const auto answer = core::reviewer_request_answer{ .Requested = aTerminal.Result->Answer.Requested, .Written = aTerminal.Result->Written };
+			ReviewerPicker    = core::finish_reviewer_request(std::move(ReviewerPicker), request, answer);
+			// [[BPR-1849]]. GitHub's answer confirms the person People already
+			// shows, or withdraws them; nothing re-reads the pull request, and
+			// the next read reconciles.
+			core::settle_reviewer_request_change(ReviewerOverlay, request, answer);
 			present_reviewer_picker();
-			// People shows GitHub's answer the way every other fact comes back:
-			// the next read.
-			if (aTerminal.Result->Written) {
-				if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-					Window->run_automatic_refresh([refresh] { refresh->trigger(); });
-				}
-			}
+			present_overview_review_requests();
 		}
 
 		/// [[BPR-1804]]. A retired host answers nothing more: searches are
@@ -15593,8 +15664,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (const auto& [context, request] : PendingReviewerRequests) {
 				static_cast<void>(context);
 				ReviewerPicker = core::fail_reviewer_request(std::move(ReviewerPicker), request, core::reviewer_request_failure::connection);
+				core::abandon_reviewer_request_change(ReviewerOverlay, request);
 			}
+			const auto withdrawn = !PendingReviewerRequests.empty();
 			PendingReviewerRequests.clear();
+			if (withdrawn) {
+				present_overview_review_requests();
+			}
 			DebouncedReviewerSearch.reset();
 			if (ReviewerSearchDebounce) {
 				ReviewerSearchDebounce->stop();
@@ -18745,10 +18821,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				context.ChangedSinceReviewPaths = changed_since_review(
 					*context.Private->LastReviewedHead, *context.Head, std::move(paths));
 			}
-			context.ProjectedResolutions = projected_overview_resolutions(*snapshot);
-			PublishedOverview            = application::project_pull_request_overview(*snapshot, context);
-			OverviewResolutions          = std::move(context.ProjectedResolutions);
-			OverviewResolutionsSnapshot  = snapshot->Snapshot;
+			context.ProjectedResolutions    = projected_overview_resolutions(*snapshot);
+			context.ProjectedReviewRequests = projected_overview_review_requests(*snapshot);
+			OverviewReviewRequests          = context.ProjectedReviewRequests;
+			PublishedOverview               = application::project_pull_request_overview(*snapshot, context);
+			OverviewResolutions             = std::move(context.ProjectedResolutions);
+			OverviewResolutionsSnapshot     = snapshot->Snapshot;
 			if (filtered.has_value()) {
 				PublishedOverview->CommitFilterComparisonFiles = accepted->Files.size();
 				PublishedOverview->FilteredByCommits           = filtered->CommitFiltered;
@@ -24081,6 +24159,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				awaiting_reviewer_listed,
 				awaiting_reviewer_filtered,
 				awaiting_reviewer_requested,
+				// [[BPR-1849]].
+				awaiting_reviewer_refusal_listed,
+				awaiting_reviewer_refused,
 				passed,
 				failed,
 			};
@@ -24104,6 +24185,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			};
 			std::optional<std::size_t>      UnresolvedWhenResolved;
 			std::optional<resolve_baseline> ResolveBaseline;
+			/// [[BPR-1849]]. The counters and the time as the reviewer choice
+			/// found them.
+			struct reviewer_baseline
+			{
+				int                                   Reads          = 0;
+				std::uint64_t                         OverviewBuilds = 0U;
+				std::size_t                           OverviewMoves  = 0U;
+				std::chrono::steady_clock::time_point Chosen;
+			};
+			std::optional<reviewer_baseline> ReviewerBaseline;
 			/// [[BPR-1775]]. The thread's first post was given to another
 			/// account, so the course has someone else's comment to refuse.
 			bool CommentRootRestaged = false;
@@ -24571,6 +24662,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t                                 ReviewerRequestsAsked      = 0U;
 		std::size_t                                 ReviewerRequestCompletions = 0U;
 		std::size_t                                 ReviewerRequestFailures    = 0U;
+		/// [[BPR-1849]]. The review requests the viewer asked for that reads
+		/// have not caught up with, the pull request they were asked on, what
+		/// the Overview shows of them, and how often People moved in place.
+		core::reviewer_request_overlay                ReviewerOverlay;
+		std::optional<std::string>                    ReviewerOverlayPullRequest;
+		std::vector<core::projected_reviewer_request> OverviewReviewRequests;
+		std::size_t                                   OverviewReviewRequestUpdates = 0U;
 		/// [[BPR-1775]]. The comment save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingCommentEdit;
 		std::size_t                                                 CommentEditGestures    = 0U;
@@ -33630,6 +33728,32 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			evidence.ResolveOverviewBuilds  = static_cast<std::size_t>(implementation->OverviewBuilds - base.OverviewBuilds);
 			evidence.ResolveOverviewUpdates = implementation->OverviewResolutionUpdates - base.OverviewMoves;
 		};
+		// [[BPR-1849]]. Whether People's Waiting on lists a login, and if so
+		// whether as pending; and the time since the reviewer choice.
+		const auto reviewerRow = [window](const std::string_view aLogin) -> std::optional<bool> {
+			for (const auto* const row : window->overview_page()->request_rows()) {
+				if (row->request().Name == aLogin) {
+					return row->request().Pending;
+				}
+			}
+			return std::nullopt;
+		};
+		const auto microsSinceChoice = [&probe]() -> std::int64_t {
+			return probe.ReviewerBaseline
+				? std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - probe.ReviewerBaseline->Chosen).count()
+				: -1;
+		};
+		const auto measureReviewerCost = [&probe, implementation, window]() {
+			if (!probe.ReviewerBaseline) {
+				return;
+			}
+			auto* const refresh                    = window->github_refresh_action();
+			probe.Evidence.ReviewerCostMeasured    = true;
+			probe.Evidence.ReviewerReads           = implementation->Fixture->evidence().AccountReadCount - probe.ReviewerBaseline->Reads;
+			probe.Evidence.ReviewerOverviewBuilds  = static_cast<std::size_t>(implementation->OverviewBuilds - probe.ReviewerBaseline->OverviewBuilds);
+			probe.Evidence.ReviewerOverviewUpdates = implementation->OverviewReviewRequestUpdates - probe.ReviewerBaseline->OverviewMoves;
+			probe.Evidence.ReviewerRefreshInFlight = probe.Evidence.ReviewerRefreshInFlight || (refresh != nullptr && !refresh->isEnabled());
+		};
 		constexpr auto threadIdentity = std::string_view{ "review-thread:PRRT_fixture_1" };
 		constexpr auto replyBody      = std::string_view{ "Agreed, will do." };
 		constexpr auto discardedBody  = std::string_view{ "Local text that is discarded." };
@@ -34387,9 +34511,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.ReviewerSearched) {
 				return fail("search-not-narrowed");
 			}
+			// [[BPR-1849]]. What requesting costs is counted from the choice.
+			probe.ReviewerBaseline = state_type::reviewer_baseline{
+				.Reads          = implementation->Fixture->evidence().AccountReadCount,
+				.OverviewBuilds = implementation->OverviewBuilds,
+				.OverviewMoves  = implementation->OverviewReviewRequestUpdates,
+				.Chosen         = std::chrono::steady_clock::now(),
+			};
 			for (const auto key : { Qt::Key_Down, Qt::Key_Return }) {
 				auto down = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
 				QCoreApplication::sendEvent(picker->search_field(), &down);
+			}
+			// The choice dispatched synchronously: People lists them now, pending.
+			if (reviewerRow("octo-maintainer") == std::optional{ true }) {
+				probe.Evidence.ReviewerShownAtOnce = true;
+				probe.Evidence.ReviewerShownMicros = microsSinceChoice();
 			}
 			probe.Phase = state_type::phase::awaiting_reviewer_requested;
 			return result::pending;
@@ -34411,6 +34547,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				if (!probe.Evidence.ReviewerRequestedOnce) {
 					return fail("not-requested-once");
 				}
+				// [[BPR-1849]]. GitHub's answer confirms the row People shows.
+				probe.Evidence.ReviewerAnsweredMicros = microsSinceChoice();
+				probe.Evidence.ReviewerConfirmed      = reviewerRow("octo-maintainer") == std::optional{ false };
+				if (probe.Evidence.ReviewerShownMicros < 0 && reviewerRow("octo-maintainer").has_value()) {
+					probe.Evidence.ReviewerShownMicros = probe.Evidence.ReviewerAnsweredMicros;
+				}
+				measureReviewerCost();
+			}
+			measureReviewerCost();
+			// Whatever the answer began settles before the course goes on.
+			if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && !refresh->isEnabled()) {
+				return result::pending;
+			}
+			if (probe.Evidence.ReviewerShownMicros < 0 && reviewerRow("octo-maintainer").has_value()) {
+				probe.Evidence.ReviewerShownMicros = microsSinceChoice();
 			}
 			// [[BPR-1818]]. A native popup may have been dismissed while the
 			// first request and its refresh completed. A closed picker correctly
@@ -34456,6 +34607,54 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			if (!probe.Evidence.ReviewerNotRepeated) {
 				return fail("request-repeated");
 			}
+			measureReviewerCost();
+			// [[BPR-1849]]. GitHub refuses the next request: People shows the
+			// person at once, then withdraws them, and the picker says why.
+			implementation->Fixture->stage_reviewer_request_refusal();
+			for (int erase = 0; erase < 5; ++erase) {
+				auto back = QKeyEvent{ QEvent::KeyPress, Qt::Key_Backspace, Qt::NoModifier };
+				QCoreApplication::sendEvent(picker->search_field(), &back);
+			}
+			for (const auto character : QStringLiteral("other")) {
+				auto down = QKeyEvent{ QEvent::KeyPress, Qt::Key_unknown, Qt::NoModifier, QString{ character } };
+				QCoreApplication::sendEvent(picker->search_field(), &down);
+			}
+			probe.Phase = state_type::phase::awaiting_reviewer_refusal_listed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reviewer_refusal_listed: {
+			auto* const picker = window->overview_page()->reviewer_picker_popup();
+			note("query=" + implementation->ReviewerPicker.Query + " listed=" + picker->listed_logins().join(QLatin1Char{ ',' }).toStdString());
+			if (implementation->ReviewerPicker.Searching || implementation->ReviewerPicker.Query != "other") {
+				return result::pending;
+			}
+			if (picker->listed_logins() != QStringList{ "fixture-other-reviewer" }) {
+				return fail("refusal-reviewer-not-listed");
+			}
+			for (const auto key : { Qt::Key_Down, Qt::Key_Return }) {
+				auto down = QKeyEvent{ QEvent::KeyPress, key, Qt::NoModifier };
+				QCoreApplication::sendEvent(picker->search_field(), &down);
+			}
+			probe.Evidence.ReviewerRolledBack = reviewerRow("fixture-other-reviewer") == std::optional{ true };
+			probe.Phase                       = state_type::phase::awaiting_reviewer_refused;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_reviewer_refused: {
+			auto* const picker = window->overview_page()->reviewer_picker_popup();
+			note("failures=" + std::to_string(implementation->ReviewerRequestFailures) + " status=" + picker->status()->text().toStdString());
+			if (implementation->ReviewerRequestFailures < 1U) {
+				return result::pending;
+			}
+			if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && !refresh->isEnabled()) {
+				return result::pending;
+			}
+			probe.Evidence.ReviewerRolledBack = probe.Evidence.ReviewerRolledBack && !reviewerRow("fixture-other-reviewer").has_value()
+				&& reviewerRow("octo-maintainer") == std::optional{ false } && implementation->Fixture->review_mutation_evidence().ReviewerWrites == 1U
+				&& picker->status()->text() == QStringLiteral("GitHub did not let you request a review from fixture-other-reviewer.");
+			measureReviewerCost();
+			const auto& evidence           = probe.Evidence;
+			probe.Evidence.ReviewerMinimal = evidence.ReviewerReads == 0 && evidence.ReviewerOverviewBuilds == 0U && !evidence.ReviewerRefreshInFlight
+				&& evidence.ReviewerShownAtOnce && evidence.ReviewerConfirmed && evidence.ReviewerRolledBack;
 			picker->hide();
 			QCoreApplication::processEvents();
 			probe.Phase = state_type::phase::passed;

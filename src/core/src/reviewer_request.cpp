@@ -300,4 +300,55 @@ namespace bpr::core {
 		}
 		return listed(aObserved.Requested, aLogin) ? reviewer_write_decision::already_requested : reviewer_write_decision::write;
 	}
+
+	void begin_reviewer_request_change(reviewer_request_overlay& aOverlay, const reviewer_request_effect& aEffect)
+	{
+		std::erase_if(aOverlay.Changes, [&](const reviewer_request_change& aChange) { return same_login(aChange.Login, aEffect.Login); });
+		aOverlay.Changes.push_back({ .Request = aEffect.Request, .Login = aEffect.Login });
+	}
+
+	void settle_reviewer_request_change(reviewer_request_overlay& aOverlay, const std::uint64_t aRequest, const reviewer_request_answer& aAnswer)
+	{
+		const auto change = std::ranges::find(aOverlay.Changes, aRequest, &reviewer_request_change::Request);
+		if (change == aOverlay.Changes.end()) {
+			return;
+		}
+		if (!listed(aAnswer.Requested, change->Login)) {
+			aOverlay.Changes.erase(change);
+			return;
+		}
+		change->Confirmed     = true;
+		change->Disagreements = 0U;
+	}
+
+	void abandon_reviewer_request_change(reviewer_request_overlay& aOverlay, const std::uint64_t aRequest)
+	{
+		std::erase_if(aOverlay.Changes, [aRequest](const reviewer_request_change& aChange) { return aChange.Request == aRequest; });
+	}
+
+	void observe_reviewer_requests(reviewer_request_overlay& aOverlay, const std::vector<std::string>& aRequested)
+	{
+		std::erase_if(aOverlay.Changes, [&](reviewer_request_change& aChange) {
+			if (!aChange.Confirmed) {
+				return false;
+			}
+			if (listed(aRequested, aChange.Login)) {
+				return true;
+			}
+			++aChange.Disagreements;
+			return aChange.Disagreements >= 2U;
+		});
+	}
+
+	auto project_reviewer_requests(const std::vector<std::string>& aRequested, const reviewer_request_overlay& aOverlay)
+		-> std::vector<projected_reviewer_request>
+	{
+		auto shown = std::vector<projected_reviewer_request>{ };
+		for (const auto& change : aOverlay.Changes) {
+			if (!listed(aRequested, change.Login)) {
+				shown.push_back({ .Login = change.Login, .Pending = !change.Confirmed });
+			}
+		}
+		return shown;
+	}
 } // namespace bpr::core

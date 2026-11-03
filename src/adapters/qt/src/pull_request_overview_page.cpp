@@ -2397,7 +2397,9 @@ namespace bpr::qt {
 		if (!Request.DisplayName.empty()) {
 			label += QStringLiteral(" (%1)").arg(text(Request.DisplayName));
 		}
-		setAccessibleName(QStringLiteral("%1, %2").arg(label, Request.CodeOwner ? QStringLiteral("code-owner review requested") : QStringLiteral("review requested")));
+		// [[BPR-1849]]. A request just asked for says so until GitHub answers.
+		setAccessibleName(QStringLiteral("%1, %2").arg(label, Request.Pending ? QStringLiteral("asking GitHub for a review") : Request.CodeOwner ? QStringLiteral("code-owner review requested")
+																																				 : QStringLiteral("review requested")));
 		setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
 		setToolTip(accessibleName());
 	}
@@ -2435,7 +2437,9 @@ namespace bpr::qt {
 		const auto face     = identity_avatar_face{ .Identity     = identity,
 													.InitialsFrom = Request.Team ? identity.mid(identity.indexOf(QLatin1Char{ '/' }) + 1) : QString{ },
 													.Shape        = Request.Team ? identity_avatar_shape::group : identity_avatar_shape::person };
-		paint_roster_line(*this, { .Name = name, .Face = face, .Detail = Request.CodeOwner ? QStringLiteral("code owner") : QStringLiteral("requested"), .DetailInk = Request.CodeOwner ? Colours.Waiting : faint, .Elide = Qt::ElideMiddle });
+		const auto detail   = Request.Pending ? QStringLiteral("asking…") : Request.CodeOwner ? QStringLiteral("code owner")
+																							  : QStringLiteral("requested");
+		paint_roster_line(*this, { .Name = name, .Face = face, .Detail = detail, .DetailInk = Request.CodeOwner && !Request.Pending ? Colours.Waiting : faint, .Elide = Qt::ElideMiddle });
 	}
 
 	// ---- pull_request_overview_page -----------------------------------------
@@ -5049,22 +5053,7 @@ namespace bpr::qt {
 		MergeConditions->setAccessibleName(conditions.join(QStringLiteral(". ")));
 		MergeConditions->setVisible(!conditions.isEmpty());
 
-		// Rows are rebuilt only when the roster changed, so a refresh that
-		// settles the same requests leaves them, and their focus, alone.
-		const auto current = request_rows();
-		if (!std::ranges::equal(current, aProjection.ReviewRequests, { }, [](const overview_request_row* aRow) -> const auto& { return aRow->request(); })) {
-			while (Requests->count() != 0) {
-				auto* const item = Requests->takeAt(0);
-				delete item->widget();
-				delete item;
-			}
-			for (const auto& request : aProjection.ReviewRequests) {
-				Requests->addWidget(new overview_request_row{ request, Colours });
-			}
-		}
-		RequestsNote->setText(text(aProjection.ReviewRequestsNote));
-		RequestsNote->setAccessibleName(RequestsNote->text());
-		RequestsNote->setVisible(!aProjection.ReviewRequestsNote.empty());
+		present_request_rows();
 
 		RequirementDetails->setText(text(aProjection.RequirementDetails));
 		RequirementDetails->setAccessibleName(RequirementDetails->text());
@@ -5738,6 +5727,54 @@ namespace bpr::qt {
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::my_review)].Header;
 		// The files-read row under it says the count; the header does not repeat it.
 		header->setAccessibleName(QStringLiteral("My review: %1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+	}
+
+	void pull_request_overview_page::present_request_rows()
+	{
+		const auto& shown = *Projection;
+		// Rows are rebuilt only when the roster changed, so a refresh that
+		// settles the same requests leaves them, and their focus, alone.
+		const auto current = request_rows();
+		if (!std::ranges::equal(current, shown.ReviewRequests, { }, [](const overview_request_row* aRow) -> const auto& { return aRow->request(); })) {
+			while (Requests->count() != 0) {
+				auto* const item = Requests->takeAt(0);
+				delete item->widget();
+				delete item;
+			}
+			for (const auto& request : shown.ReviewRequests) {
+				Requests->addWidget(new overview_request_row{ request, Colours });
+			}
+			++RequestRowBuilds;
+		}
+		RequestsNote->setText(text(shown.ReviewRequestsNote));
+		RequestsNote->setAccessibleName(RequestsNote->text());
+		RequestsNote->setVisible(!shown.ReviewRequestsNote.empty());
+	}
+
+	auto pull_request_overview_page::present_review_requests(const application::pull_request_overview_projection& aProjection) -> bool
+	{
+		const auto samePullRequest = Projection.has_value() && !Cached && Projection->Owner == aProjection.Owner && Projection->RepositoryName == aProjection.RepositoryName
+			&& Projection->Number == aProjection.Number;
+		if (!samePullRequest) {
+			return false;
+		}
+		Projection->ReviewRequests     = aProjection.ReviewRequests;
+		Projection->ReviewRequestsNote = aProjection.ReviewRequestsNote;
+		Projection->Status             = aProjection.Status;
+		present_request_rows();
+		present_status(true);
+		++ReviewRequestUpdates;
+		return true;
+	}
+
+	auto pull_request_overview_page::request_row_builds() const noexcept -> std::size_t
+	{
+		return RequestRowBuilds;
+	}
+
+	auto pull_request_overview_page::review_request_updates() const noexcept -> std::size_t
+	{
+		return ReviewRequestUpdates;
 	}
 
 	void pull_request_overview_page::present_people()

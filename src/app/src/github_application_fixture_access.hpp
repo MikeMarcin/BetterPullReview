@@ -945,8 +945,28 @@ namespace bpr::app::detail {
 		bool ReviewerSearched      = false;
 		bool ReviewerRequestedOnce = false;
 		bool ReviewerNotRepeated   = false;
-		bool PickerReacted         = false;
-		bool ReactionReconciled    = false;
+		/// [[BPR-1849]]. What a review request cost, from the choice until
+		/// GitHub's answer and any work it began had settled: pull request
+		/// reads, whole Overview projections, People moved in place, and
+		/// whether a refresh was in flight after the answer. People listed
+		/// the person, pending, before the event loop turned again
+		/// (`ReviewerShownAtOnce`), and confirmed after the answer. The time
+		/// from the choice until People listed them and until the answer, in
+		/// microseconds. A refused request was shown at once, then withdrawn,
+		/// with the picker saying GitHub refused.
+		bool         ReviewerCostMeasured    = false;
+		int          ReviewerReads           = 0;
+		std::size_t  ReviewerOverviewBuilds  = 0U;
+		std::size_t  ReviewerOverviewUpdates = 0U;
+		bool         ReviewerRefreshInFlight = false;
+		bool         ReviewerShownAtOnce     = false;
+		bool         ReviewerConfirmed       = false;
+		std::int64_t ReviewerShownMicros     = -1;
+		std::int64_t ReviewerAnsweredMicros  = -1;
+		bool         ReviewerRolledBack      = false;
+		bool         ReviewerMinimal         = false;
+		bool         PickerReacted           = false;
+		bool         ReactionReconciled      = false;
 
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};

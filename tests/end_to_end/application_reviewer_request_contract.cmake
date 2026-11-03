@@ -6,6 +6,10 @@ cmake_minimum_required(VERSION 4.4.2)
 # GitHub's suggestion and the people who can review, a typed query narrows it
 # to one person, choosing them by keyboard writes exactly once, and choosing
 # them again sends nothing. Run on github.com and GHES 3.18 fixtures.
+# [[BPR-1849]]. From the choice until GitHub's answers settle, nothing reads
+# the pull request or projects the whole Overview: People lists the person at
+# once, pending, GitHub's answer confirms them, and a refused request is
+# withdrawn with the picker saying why.
 
 foreach(required IN ITEMS BPR_APPLICATION BPR_RUN_BUDGET_MS)
     if(NOT DEFINED ${required} OR "${${required}}" STREQUAL "")
@@ -50,6 +54,9 @@ foreach(fixture_spec IN ITEMS "github-com|github.com" "ghes-3.18|ghes-3.18")
         THREADED_REPLY_OK
         REVIEWER_REQUEST_OK
         REVIEWER_REQUEST_EVIDENCE:1111
+        REVIEWER_REQUEST_MINIMAL_OK
+        "REVIEWER_REQUEST_COST:reads=0 overviewBuilds=0 "
+        "refreshInFlight=0 shownAtOnce=1 confirmed=1 rolledBack=1 "
     )
         string(FIND "${probe_output}" "${marker}" found)
         if(found EQUAL -1)

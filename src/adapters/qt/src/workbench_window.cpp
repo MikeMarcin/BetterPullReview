@@ -8148,6 +8148,22 @@ namespace bpr::qt {
 		update_pending_panes();
 	}
 
+	void workbench_window::publish_review_requests(const application::pull_request_overview_projection& aProjection)
+	{
+		if (OverviewPage == nullptr || (PresentedOverview.has_value() && *PresentedOverview == aProjection)) {
+			return;
+		}
+		// [[BPR-1849]]. Only People and the status change; anything else is
+		// presented whole.
+		if (!PresentedOverview.has_value() || !OverviewPage->present_review_requests(aProjection)) {
+			publish(aProjection);
+			return;
+		}
+		PresentedOverview->ReviewRequests     = aProjection.ReviewRequests;
+		PresentedOverview->ReviewRequestsNote = aProjection.ReviewRequestsNote;
+		PresentedOverview->Status             = aProjection.Status;
+	}
+
 	void workbench_window::publish(const application::overview_feedback_projection& aFeedback)
 	{
 		if (OverviewPage != nullptr) {
