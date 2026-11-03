@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <optional>
 #include <string>
 #include <string_view>
 
@@ -81,14 +82,22 @@ namespace bpr::core {
 		/// with `AvatarOrigins` set.
 		markdown_image_hop          First;
 		markdown_image_fetch_policy Policy;
+		/// [[BPR-1845]]. The one hop asked instead when `First` ends in
+		/// anything but a picture, under the same policy; absent on GitHub.com.
+		std::optional<markdown_image_hop> Fallback;
 	};
 
 	/// \brief Admits one avatar picture on the profile `aPolicy` describes.
 	///
 	/// \details GitHub.com: `https://avatars.githubusercontent.com/<login>?s=<n>`,
-	/// never a credential. GHES: `https://<host>/<login>.png?size=<n>`, which
-	/// the host redirects to its avatar origin; the credential rides only a hop
-	/// to the host itself, as for a body image. Every redirect is judged by the
+	/// never a credential. GHES with the profile's credential ([[BPR-1845]]):
+	/// first the server's own avatars API,
+	/// `https://<host>/api/v3/enterprise/avatars/<login>?s=<n>`, which accepts
+	/// the API token and so answers under private mode; then, as `Fallback`,
+	/// the web route `https://<host>/<login>.png?size=<n>`, which a server
+	/// without private mode redirects to its avatar origin. GHES without the
+	/// credential asks only the web route. The credential rides only a hop to
+	/// the host itself, as for a body image. Every redirect is judged by the
 	/// same policy, so no hop leaves the host's avatar origins. A login that is
 	/// not a GitHub account's is `blocked`.
 	[[nodiscard]] auto admit_identity_avatar(std::string_view aLogin, std::uint32_t aDevicePixels, markdown_image_fetch_policy aPolicy)

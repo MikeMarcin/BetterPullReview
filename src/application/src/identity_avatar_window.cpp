@@ -14,6 +14,8 @@ namespace bpr::application {
 			std::uint32_t                Pixels = 0U;
 			markdown_image_fetch_request Fetch;
 			std::optional<std::uint64_t> Ticket;
+			/// [[BPR-1845]]. The hop asked once when the first ends without a picture.
+			std::optional<core::markdown_image_hop> Fallback;
 		};
 
 		state(decision_executor& aDecision, markdown_image_service* aService, facts_source aFacts, publication aPublish)
@@ -105,8 +107,8 @@ namespace bpr::application {
 				fetch.Policy       = std::move(admitted->Policy);
 				fetch.MaximumBytes = core::identity_avatar_encoded_bytes;
 				fetch.DeadlineMs   = core::identity_avatar_fetch_deadline_ms;
-				auto& item         = Entries.emplace(key, entry{ .Login = admitted->Login, .Pixels = admitted->Pixels, .Fetch = std::move(fetch), .Ticket = std::nullopt })
-										 .first->second;
+				auto  added        = entry{ .Login = admitted->Login, .Pixels = admitted->Pixels, .Fetch = std::move(fetch), .Ticket = std::nullopt, .Fallback = std::move(admitted->Fallback) };
+				auto& item         = Entries.emplace(key, std::move(added)).first->second;
 				// The profile's disk cache answers first: a restarted application
 				// shows the pictures it already holds without asking the host.
 				auto weak = weak_from_this();
@@ -152,6 +154,18 @@ namespace bpr::application {
 		{
 			const auto found = Entries.find(aKey);
 			if (found == Entries.end() || Closed) {
+				return;
+			}
+			// [[BPR-1845]]. A GHES picture the avatars API did not give is asked
+			// once more of the web route, under the same key, policy and scope.
+			const auto retry = aState == core::markdown_image_state::failed || aState == core::markdown_image_state::unsupported
+				|| aState == core::markdown_image_state::blocked || (aState == core::markdown_image_state::loaded && (aImage == nullptr || aImage->Frames.empty()));
+			if (retry && found->second.Fallback && current_facts().Scope == Scope) {
+				auto& item       = found->second;
+				item.Fetch.First = std::move(*item.Fallback);
+				item.Fallback.reset();
+				item.Ticket.reset();
+				load(aKey, item);
 				return;
 			}
 			auto item = std::move(found->second);

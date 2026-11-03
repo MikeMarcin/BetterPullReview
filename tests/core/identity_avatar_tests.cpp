@@ -181,8 +181,8 @@ namespace {
 	{
 		const auto policy = markdown_image_fetch_policy{ .Contract = markdown_image_host_contract::ghes, .Hostname = "GHE.Example.com", .CredentialAvailable = true };
 		const auto fetch  = admit_identity_avatar("Octo", 64U, policy);
-		expect(fetch && fetch->First.Address == "https://ghe.example.com/octo.png?size=64", "the host's own login picture");
-		expect(fetch->First.Credential, "the credential rides the hop to the host itself");
+		expect(fetch && fetch->Fallback && fetch->Fallback->Address == "https://ghe.example.com/octo.png?size=64", "the host's own login picture is the fallback");
+		expect(fetch->First.Credential && fetch->Fallback->Credential, "the credential rides the hops to the host itself");
 		const auto onHost = admit_markdown_image_redirect(fetch->First, "/avatars/u/7?s=64", fetch->Policy);
 		expect(onHost && onHost->Credential && onHost->Address == "https://ghe.example.com/avatars/u/7?s=64", "a redirect on the host keeps the credential");
 		const auto subdomain = admit_markdown_image_redirect(fetch->First, "https://avatars.ghe.example.com/u/7?s=64", fetch->Policy);
@@ -196,6 +196,32 @@ namespace {
 			   "on GitHub.com only the avatar host is an avatar origin");
 		expect(admit_identity_avatar("octo", 64U, { .Contract = markdown_image_host_contract::ghes }).error() == markdown_image_state::blocked,
 			   "a GHES profile with no host asks nothing");
+	}
+
+	/// \brief [[BPR-1845]]. GHES private mode guards the web route and the
+	/// avatars subdomain and takes no API token there, so a profile holding the
+	/// credential asks the server's avatars API first, with the credential, and
+	/// keeps the web route as its one fallback. GitHub.com is unchanged.
+	void test_ghes_asks_its_avatars_api_first()
+	{
+		const auto policy = markdown_image_fetch_policy{ .Contract = markdown_image_host_contract::ghes, .Hostname = "GHE.Example.com", .CredentialAvailable = true };
+		const auto fetch  = admit_identity_avatar("Octo", 40U, policy);
+		expect(fetch.has_value(), "a GHES login is admitted");
+		expect(fetch->First.Address == "https://ghe.example.com/api/v3/enterprise/avatars/octo?s=48" && fetch->First.Credential && fetch->First.Hop == 0U,
+			   "the avatars API on the host, by folded login, at the covering size, with the credential");
+		expect(fetch->Fallback && fetch->Fallback->Address == "https://ghe.example.com/octo.png?size=48" && fetch->Fallback->Credential && fetch->Fallback->Hop == 0U,
+			   "the web route is the one fallback");
+		expect(fetch->Policy.AvatarOrigins && fetch->Policy.Hostname == "GHE.Example.com", "both are held to the avatar origins");
+		const auto bot = admit_identity_avatar("dependabot[bot]", 20U, policy);
+		expect(bot && bot->First.Address == "https://ghe.example.com/api/v3/enterprise/avatars/dependabot%5Bbot%5D?s=32", "a bot's brackets are encoded");
+		const auto onApi = admit_markdown_image_redirect(fetch->First, "/api/v3/enterprise/avatars/u/7?s=48", fetch->Policy);
+		expect(onApi && onApi->Credential, "a redirect on the host keeps the credential");
+		const auto cli = admit_identity_avatar("Octo", 40U, { .Contract = markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = false });
+		expect(cli && cli->First.Address == "https://ghe.example.com/octo.png?size=48" && !cli->First.Credential && !cli->Fallback,
+			   "without the credential only the web route is asked, as before");
+		const auto com = admit_identity_avatar("Octo", 40U, { .Contract = markdown_image_host_contract::github_com, .Hostname = "github.com", .CredentialAvailable = true });
+		expect(com && com->First.Address == "https://avatars.githubusercontent.com/octo?s=48" && !com->First.Credential && !com->Fallback,
+			   "GitHub.com asks its avatar host once, without credential");
 	}
 
 	/// \brief [[BPR-1807]]. A picture's cache identity is its own.
@@ -223,6 +249,7 @@ auto main() -> int
 	test_only_a_login_is_admitted();
 	test_github_com_asks_the_avatar_host();
 	test_ghes_stays_on_its_avatar_origins();
+	test_ghes_asks_its_avatars_api_first();
 	test_a_picture_has_its_own_cache_identity();
 	std::cout << "identity-avatar-core-tests:pass\n";
 	return 0;
