@@ -14849,6 +14849,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			present_comment_edit_offer();
 		}
 
+		/// [[BPR-1741]]. GitHub's word on what the viewer may do to a
+		/// thread, from the read; unknown is not a refusal.
+		[[nodiscard]] static auto thread_permission(const application::github_review_thread_record& aThread) noexcept -> core::thread_resolution_permission
+		{
+			return {
+				.MayResolve   = aThread.ViewerResolvePermission != application::github_permission_state::denied,
+				.MayUnresolve = aThread.ViewerUnresolvePermission != application::github_permission_state::denied,
+			};
+		}
+
 		/// [[BPR-1741]]. The posts' reactions and the threads'
 		/// resolutions as the viewer should see them: the accepted read, with
 		/// the viewer's own changes the core keeps until GitHub and a later
@@ -14881,14 +14891,18 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			for (const auto& thread : snapshot.ReviewThreads) {
 				const auto identity  = thread_identity(thread);
 				const auto projected = core::project_thread_resolution(thread.Resolved, ConversationOverlay, identity);
+				// [[BPR-1841]]. No re-read follows a resolve, so the read's
+				// permission is projected with its state.
+				const auto permitted = core::project_thread_resolution_permission(thread.Resolved, projected.Resolved, thread_permission(thread));
 				resolutions.insert_or_assign(identity, qt::thread_resolution_presentation{
 														   .Resolved     = projected.Resolved,
 														   .Pending      = projected.Pending,
-														   .CanResolve   = thread.ViewerResolvePermission != application::github_permission_state::denied,
-														   .CanUnresolve = thread.ViewerUnresolvePermission != application::github_permission_state::denied,
+														   .CanResolve   = permitted.MayResolve,
+														   .CanUnresolve = permitted.MayUnresolve,
 													   });
 			}
 			Window->present_conversation_state(std::move(reactions), std::move(resolutions));
+			present_overview_resolutions();
 		}
 
 		/// [[BPR-1741]]. A new accepted read reconciles the viewer's
@@ -15545,8 +15559,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		// the session's anonymity, the server's capability and the thread's
 		// state, before any provider is asked; a refusal is named on the
 		// panel. An allowed gesture goes to the mutation host under the same
-		// grant a publication gets, and its terminal re-reads the pull request
-		// so the thread's new state comes back the way every other fact does.
+		// grant a publication gets. [[BPR-1841]]: its terminal settles the
+		// core's overlay and the window projects that one thread's change;
+		// nothing re-reads the pull request, and the next read reconciles.
 		void resolve_review_thread(const qt::thread_resolution_gesture& aGesture)
 		{
 			constexpr auto prefix = std::string_view{ "review-thread:" };
@@ -15570,9 +15585,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto connection = thread_resolution_connection_refusal();
 			// [[BPR-1741]]. GitHub's own word on whether this viewer may
 			// resolve (or reopen) the thread, from the accepted read.
+			// [[BPR-1841]]. As projected: a thread I resolved since the read
+			// may be reopened without reading it again.
 			const auto* const thread    = accepted_thread(aGesture.Identity);
-			const auto        permitted = thread == nullptr
-				|| (aGesture.Resolve ? thread->ViewerResolvePermission : thread->ViewerUnresolvePermission) != application::github_permission_state::denied;
+			auto              permitted = true;
+			if (thread != nullptr) {
+				const auto projected = core::project_thread_resolution(thread->Resolved, ConversationOverlay, aGesture.Identity);
+				const auto may       = core::project_thread_resolution_permission(thread->Resolved, projected.Resolved, thread_permission(*thread));
+				permitted            = aGesture.Resolve ? may.MayResolve : may.MayUnresolve;
+			}
 			const auto refusal = core::decide_thread_resolution(core::thread_resolution_input{
 				.Capability      = aGesture.Capability,
 				.AnonymousRead   = anonymous,
@@ -15677,12 +15698,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				panel->present_notice(aTerminal.Result->Resolved ? QStringLiteral("Conversation resolved.")
 																 : QStringLiteral("Conversation reopened."));
 			}
-			// The thread's new state comes back from the server the way every
-			// other fact does.
-			if (auto* const refresh = Window->github_refresh_action(); refresh != nullptr && refresh->isEnabled()) {
-				// [[BPR-1575]]. A read the window makes by itself, said as such.
-				Window->run_automatic_refresh([refresh] { refresh->trigger(); });
-			}
+			// [[BPR-1841]]. GitHub's answer is the thread's new state: the core
+			// keeps the confirmed change until a later read agrees, and the
+			// window has already shown it. Re-reading the whole pull request
+			// here made every resolve wait on a full refresh.
 		}
 
 		void refresh_review_projection(
@@ -17071,7 +17090,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		/// [[BPR-0972]]. The overview as last published, and its receipt index,
 		/// so a receipt change moves only its own rows.
 		std::optional<application::pull_request_overview_projection> PublishedOverview;
-		application::overview_receipt_index                          OverviewReceipts;
+		/// [[BPR-1841]]. The viewer's resolutions `PublishedOverview` counts
+		/// over the read's, by GitHub thread id, and the read it was made from.
+		std::map<std::string, bool, std::less<>>  OverviewResolutions;
+		std::optional<core::provider_snapshot_id> OverviewResolutionsSnapshot;
+		application::overview_receipt_index       OverviewReceipts;
 		/// [[BPR-1089]]. The accepted snapshot's label buckets ([[BPR-1087]]),
 		/// the snapshot they hold, the Overview's request for them, and the
 		/// count Discuss lists with the request it was counted under.
@@ -18672,7 +18695,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				context.ChangedSinceReviewPaths = changed_since_review(
 					*context.Private->LastReviewedHead, *context.Head, std::move(paths));
 			}
-			PublishedOverview = application::project_pull_request_overview(*snapshot, context);
+			context.ProjectedResolutions = projected_overview_resolutions(*snapshot);
+			PublishedOverview            = application::project_pull_request_overview(*snapshot, context);
+			OverviewResolutions          = std::move(context.ProjectedResolutions);
+			OverviewResolutionsSnapshot  = snapshot->Snapshot;
 			if (filtered.has_value()) {
 				PublishedOverview->CommitFilterComparisonFiles = accepted->Files.size();
 				PublishedOverview->FilteredByCommits           = filtered->CommitFiltered;
@@ -18689,6 +18715,58 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 									   !context.Receipts.empty());
 			}
 			Window->publish(*PublishedOverview);
+		}
+
+		/// \brief [[BPR-1841]]. The threads the viewer resolved or reopened
+		/// since the read, by GitHub thread id, as the core projects them.
+		[[nodiscard]] auto projected_overview_resolutions(const application::github_pull_request_snapshot& aSnapshot) const
+			-> std::map<std::string, bool, std::less<>>
+		{
+			auto projected = std::map<std::string, bool, std::less<>>{ };
+			if (ConversationOverlay.Resolutions.empty()) {
+				return projected;
+			}
+			for (const auto& thread : aSnapshot.ReviewThreads) {
+				const auto shown = core::project_thread_resolution(thread.Resolved, ConversationOverlay, thread_identity(thread));
+				if (shown.Resolved != thread.Resolved) {
+					projected.emplace(std::string{ thread.Thread.value() }, shown.Resolved);
+				}
+			}
+			return projected;
+		}
+
+		/// \brief [[BPR-1841]]. A resolve moves the Overview's counts for its
+		/// one thread, in place: the file's unresolved count and mine. A read
+		/// the overview has not been projected from yet is left to that
+		/// projection.
+		void present_overview_resolutions()
+		{
+			if (Closing || Window == nullptr || !PublishedOverview || !WindowRead || !WindowRead->accepted_snapshot()
+				|| OverviewResolutionsSnapshot != std::optional{ WindowRead->accepted_snapshot()->Snapshot }) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			auto        now      = projected_overview_resolutions(snapshot);
+			if (now == OverviewResolutions) {
+				return;
+			}
+			auto changed = false;
+			for (const auto& thread : snapshot.ReviewThreads) {
+				const auto id     = thread.Thread.value();
+				const auto before = OverviewResolutions.find(id);
+				const auto after  = now.find(id);
+				if (before == OverviewResolutions.end() && after == now.end()) {
+					continue;
+				}
+				const auto shown    = before != OverviewResolutions.end() ? before->second : thread.Resolved;
+				const auto resolved = after != now.end() ? after->second : thread.Resolved;
+				changed             = application::apply_thread_resolution(*PublishedOverview, snapshot, thread, shown, resolved) || changed;
+			}
+			OverviewResolutions = std::move(now);
+			if (changed) {
+				++OverviewResolutionUpdates;
+				Window->publish(*PublishedOverview);
+			}
 		}
 
 		/// \brief [[BPR-1089]]. Adopts a newly accepted snapshot into the label
@@ -23961,6 +24039,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			std::string                           Diagnostic;
 			std::optional<std::uint32_t>          ThreadlessLine;
 			int                                   ReadsBeforeRefresh = 0;
+			/// [[BPR-1841]]. The counters as the Resolve press found them.
+			struct resolve_baseline
+			{
+				int           Reads          = 0;
+				std::size_t   Resolutions    = 0U;
+				std::size_t   ModelResets    = 0U;
+				std::size_t   RowsChanged    = 0U;
+				std::uint64_t FinderRebuilds = 0U;
+				std::uint64_t CardLayouts    = 0U;
+				std::uint64_t OverviewBuilds = 0U;
+				std::size_t   OverviewMoves  = 0U;
+				std::size_t   Unresolved     = 0U;
+			};
+			std::optional<std::size_t>      UnresolvedWhenResolved;
+			std::optional<resolve_baseline> ResolveBaseline;
 			/// [[BPR-1775]]. The thread's first post was given to another
 			/// account, so the course has someone else's comment to refuse.
 			bool CommentRootRestaged = false;
@@ -24396,6 +24489,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 		std::size_t ThreadResolutionRefusals    = 0U;
 		std::size_t ThreadResolutionCompletions = 0U;
 		std::size_t ThreadResolutionFailures    = 0U;
+		/// [[BPR-1841]]. Overview counts moved in place by a resolution.
+		std::size_t OverviewResolutionUpdates = 0U;
 		/// [[BPR-1741]]. The viewer's reaction and resolution changes
 		/// reads have not caught up with, the pull request they are on, and
 		/// each unanswered request's subject.
@@ -33455,6 +33550,36 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			const auto end = probe.Diagnostic.find(" | ", start);
 			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
 		};
+		// [[BPR-1841]]. The Overview's unresolved threads, over its files.
+		const auto overviewUnresolved = [implementation]() {
+			auto total = std::size_t{ 0U };
+			if (implementation->PublishedOverview) {
+				for (const auto& file : implementation->PublishedOverview->Files) {
+					total += file.UnresolvedThreadCount;
+				}
+			}
+			return total;
+		};
+		// [[BPR-1841]]. What resolving has cost since the Resolve press; a
+		// refresh still running when GitHub's answer arrived counts against it.
+		const auto measureResolveCost = [&probe, implementation, window, model, cards]() {
+			if (!probe.ResolveBaseline.has_value()) {
+				return;
+			}
+			const auto& base                = *probe.ResolveBaseline;
+			auto&       evidence            = probe.Evidence;
+			auto* const refresh             = window->github_refresh_action();
+			evidence.ResolveCostMeasured    = true;
+			evidence.ResolveReads           = implementation->Fixture->evidence().AccountReadCount - base.Reads;
+			evidence.ResolveProviderCalls   = implementation->Fixture->review_mutation_evidence().Resolutions - base.Resolutions;
+			evidence.ResolveModelResets     = model->statistics().ModelResets - base.ModelResets;
+			evidence.ResolveRowsChanged     = model->statistics().RowsChanged - base.RowsChanged;
+			evidence.ResolveFinderRebuilds  = static_cast<std::size_t>((window->finder() != nullptr ? window->finder()->rebuilds() : 0U) - base.FinderRebuilds);
+			evidence.ResolveCardLayouts     = static_cast<std::size_t>(cards->layouts() - base.CardLayouts);
+			evidence.ResolveRefreshInFlight = evidence.ResolveRefreshInFlight || (refresh != nullptr && !refresh->isEnabled());
+			evidence.ResolveOverviewBuilds  = static_cast<std::size_t>(implementation->OverviewBuilds - base.OverviewBuilds);
+			evidence.ResolveOverviewUpdates = implementation->OverviewResolutionUpdates - base.OverviewMoves;
+		};
 		constexpr auto threadIdentity = std::string_view{ "review-thread:PRRT_fixture_1" };
 		constexpr auto replyBody      = std::string_view{ "Agreed, will do." };
 		constexpr auto discardedBody  = std::string_view{ "Local text that is discarded." };
@@ -33681,6 +33806,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 			}
 			window->choose_modality(qt::review_modality::discuss);
 			QCoreApplication::processEvents();
+			// The thread opens before the counters are taken: opening marks it
+			// read, and the receipt that writes may project the Overview again.
+			cards->open_thread(std::string{ threadIdentity });
+			QCoreApplication::processEvents();
+			probe.ResolveBaseline = state_type::resolve_baseline{
+				.Reads          = implementation->Fixture->evidence().AccountReadCount,
+				.Resolutions    = implementation->Fixture->review_mutation_evidence().Resolutions,
+				.ModelResets    = model->statistics().ModelResets,
+				.RowsChanged    = model->statistics().RowsChanged,
+				.FinderRebuilds = window->finder() != nullptr ? window->finder()->rebuilds() : 0U,
+				.CardLayouts    = cards->layouts(),
+				.OverviewBuilds = implementation->OverviewBuilds,
+				.OverviewMoves  = implementation->OverviewResolutionUpdates,
+				.Unresolved     = overviewUnresolved(),
+			};
 			if (!press(qt::card_action::resolve)) {
 				return fail("no-resolve-action refusal=" + std::to_string(static_cast<int>(cards->resolution_refusal())));
 			}
@@ -33704,6 +33844,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.ThreadResolved = true;
+			measureResolveCost();
+			probe.UnresolvedWhenResolved = overviewUnresolved();
 			// [[BPR-1741]]. With reactions served, the course goes on:
 			// Unresolve conversation at the thread's end, then reactions.
 			if (!implementation->ReviewMutationHost->capabilities().Reacts) {
@@ -33754,7 +33896,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 				return result::pending;
 			}
 			probe.Evidence.Reopened = true;
-			probe.Phase             = state_type::phase::awaiting_reactions_read;
+			measureResolveCost();
+			if (probe.ResolveBaseline && probe.UnresolvedWhenResolved) {
+				const auto before                     = probe.ResolveBaseline->Unresolved;
+				probe.Evidence.ResolveOverviewCounted = before > 0U && *probe.UnresolvedWhenResolved == before - 1U && overviewUnresolved() == before;
+			}
+			note("overviewUnresolved=" + std::to_string(probe.ResolveBaseline ? probe.ResolveBaseline->Unresolved : 0U) + "/"
+				 + std::to_string(probe.UnresolvedWhenResolved.value_or(0U)) + "/" + std::to_string(overviewUnresolved()));
+			probe.Evidence.ResolveMinimal = probe.Evidence.ResolveReads == 0 && probe.Evidence.ResolveProviderCalls == 2U
+				&& probe.Evidence.ResolveModelResets == 0U && !probe.Evidence.ResolveRefreshInFlight && probe.Evidence.ResolveOverviewCounted;
+			probe.Phase = state_type::phase::awaiting_reactions_read;
 			return result::pending;
 		}
 		case state_type::phase::awaiting_reactions_read: {

@@ -411,6 +411,40 @@ namespace {
 	// [[BPR-0972]]. Receipt changes applied one file at a time decide exactly
 	// what projecting the whole overview again decides, touch only their own
 	// rows, and refuse a file the projection does not hold.
+	// [[BPR-1841]]. A resolve moves its thread's counts in place exactly as
+	// projecting again with the viewer's change would.
+	void test_a_resolution_moves_the_counts_as_a_projection_would()
+	{
+		auto snap = snapshot();
+		for (std::size_t index = 0U; index < snap.ReviewThreads.size(); ++index) {
+			snap.ReviewThreads[index].Thread = application::github_thread_id{ "T" + std::to_string(index) };
+		}
+		const auto read    = application::project_pull_request_overview(snap, application::overview_context{ });
+		auto       context = application::overview_context{ };
+		context.ProjectedResolutions.emplace("T0", true);
+		const auto projected = application::project_pull_request_overview(snap, context);
+		expect(row_named(projected, "Engine/Renderer/HairStrandsVoxelization.cpp").UnresolvedThreadCount == 0U
+				   && projected.SinceLastReview.MyUnresolvedThreads == 0U,
+			   "a projected resolution counts as resolved, in the file and in mine");
+		auto moved = read;
+		expect(application::apply_thread_resolution(moved, snap, snap.ReviewThreads[0], false, true) && moved == projected,
+			   "resolving in place equals projecting again");
+		expect(!application::apply_thread_resolution(moved, snap, snap.ReviewThreads[0], true, true) && moved == projected,
+			   "an unchanged state moves nothing");
+		expect(application::apply_thread_resolution(moved, snap, snap.ReviewThreads[0], true, false) && moved == read,
+			   "reopening in place restores the read's counts");
+		auto other = read;
+		expect(application::apply_thread_resolution(other, snap, snap.ReviewThreads[2], false, true)
+				   && row_named(other, "Engine/Renderer/HairStrandsLighting.cpp").UnresolvedThreadCount == 0U
+				   && other.SinceLastReview.MyUnresolvedThreads == read.SinceLastReview.MyUnresolvedThreads,
+			   "someone else's thread moves only its file");
+		auto groups                      = snap;
+		groups.ReviewThreadsAvailability = application::github_collection_availability::unavailable;
+		auto untouched                   = read;
+		expect(!application::apply_thread_resolution(untouched, groups, snap.ReviewThreads[0], false, true) && untouched == read,
+			   "without threads read there is no resolution to count");
+	}
+
 	void test_receipt_readoption_keeps_exact_current_paths()
 	{
 		auto index = application::overview_receipt_index{ };
@@ -728,6 +762,7 @@ auto main() -> int
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_history_header_matches_complete_projection();
 	test_receipt_readoption_keeps_exact_current_paths();
+	test_a_resolution_moves_the_counts_as_a_projection_would();
 	test_receipt_updates_match_a_complete_projection();
 	test_an_accepted_file_shows_accepted_and_counts_as_done();
 	test_first_visit_starts_at_the_first_file();

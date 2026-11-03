@@ -217,6 +217,30 @@ namespace bpr::core {
 
 	[[nodiscard]] auto project_thread_resolution(bool aObserved, const conversation_overlay& aOverlay, std::string_view aThread) noexcept -> projected_resolution;
 
+	/// \brief What a read said the viewer may do to one thread: GitHub's
+	/// `viewerCanResolve` and `viewerCanUnresolve`.
+	struct thread_resolution_permission
+	{
+		bool MayResolve   = false;
+		bool MayUnresolve = false;
+
+		auto operator<=>(const thread_resolution_permission&) const = default;
+	};
+
+	/// \brief [[BPR-1841]]. The permission for the thread as projected. GitHub
+	/// grants resolving only an open thread and unresolving only a resolved
+	/// one, so a read's permission describes the read's state. A projected
+	/// state the read has not caught up with swaps them: the viewer may undo
+	/// the change they just made, and not make it twice.
+	[[nodiscard]] constexpr auto project_thread_resolution_permission(const bool aObservedResolved, const bool aProjectedResolved,
+																	  const thread_resolution_permission aObserved) noexcept -> thread_resolution_permission
+	{
+		if (aObservedResolved == aProjectedResolved) {
+			return aObserved;
+		}
+		return thread_resolution_permission{ .MayResolve = aObserved.MayUnresolve, .MayUnresolve = aObserved.MayResolve };
+	}
+
 	/// \brief The change a click on a reaction asks for: add it when the
 	/// viewer has not reacted with it, remove it when they have.
 	[[nodiscard]] auto reaction_toggle(const std::optional<reaction_summary>& aShown, reaction_content aContent) noexcept -> bool;

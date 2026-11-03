@@ -163,6 +163,21 @@ namespace {
 		expect(core::project_thread_resolution(true, overlay, "review-thread:T1") == core::projected_resolution{ .Resolved = true }, "a failed reopen shows the read");
 	}
 
+	// [[BPR-1841]]. With no re-read after a resolve, the permission the
+	// read gave describes the old state; the projected state swaps it.
+	void test_a_projected_resolution_swaps_the_read_permission()
+	{
+		constexpr auto open = core::thread_resolution_permission{ .MayResolve = true, .MayUnresolve = false };
+		static_assert(core::project_thread_resolution_permission(false, false, open) == open, "an agreeing projection keeps the read's permission");
+		static_assert(core::project_thread_resolution_permission(false, true, open) == core::thread_resolution_permission{ .MayResolve = false, .MayUnresolve = true },
+					  "a thread I resolved may be reopened, and not resolved again");
+		constexpr auto resolved = core::thread_resolution_permission{ .MayResolve = false, .MayUnresolve = true };
+		static_assert(core::project_thread_resolution_permission(true, false, resolved) == open, "a thread I reopened may be resolved again");
+		constexpr auto none = core::thread_resolution_permission{ };
+		static_assert(core::project_thread_resolution_permission(false, true, none) == none, "a viewer without permission gains none");
+		expect(core::project_thread_resolution_permission(false, true, open).MayUnresolve, "the swap holds at run time too");
+	}
+
 	void test_exact_conversation_terminals_survive_only_the_same_context()
 	{
 		const auto scope = core::conversation_mutation_scope{
@@ -249,6 +264,7 @@ auto main() -> int
 	test_a_read_that_disagrees_twice_is_believed();
 	test_a_failed_change_restores_the_read();
 	test_a_resolution_shows_at_once_and_reconciles();
+	test_a_projected_resolution_swaps_the_read_permission();
 	test_exact_conversation_terminals_survive_only_the_same_context();
 	std::cout << "conversation-reactions-core-tests:pass\n";
 	return EXIT_SUCCESS;

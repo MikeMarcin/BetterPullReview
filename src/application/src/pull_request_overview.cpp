@@ -639,6 +639,36 @@ namespace bpr::application {
 		return result;
 	}
 
+	auto apply_thread_resolution(pull_request_overview_projection&   aProjection,
+								 const github_pull_request_snapshot& aSnapshot,
+								 const github_review_thread_record&  aThread,
+								 const bool                          aShownResolved,
+								 const bool                          aResolved) -> bool
+	{
+		// Only a read with its threads counted them; review comments alone carry no resolution.
+		if (aShownResolved == aResolved || aSnapshot.ReviewThreadsAvailability != github_collection_availability::available) {
+			return false;
+		}
+		const auto move = [aResolved](std::size_t& aCount) {
+			if (aResolved) {
+				aCount = aCount > 0U ? aCount - 1U : 0U;
+			} else {
+				++aCount;
+			}
+		};
+		auto changed = false;
+		if (const auto row = std::ranges::find(aProjection.Files, aThread.Path, &overview_file_row::Path); row != aProjection.Files.end()) {
+			move(row->UnresolvedThreadCount);
+			changed = true;
+		}
+		const auto viewer = aSnapshot.Viewer.Login;
+		if (!viewer.empty() && !aThread.Comments.empty() && login_of(aThread.Comments.front().Author) == viewer) {
+			move(aProjection.SinceLastReview.MyUnresolvedThreads);
+			changed = true;
+		}
+		return changed;
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
@@ -695,13 +725,16 @@ namespace bpr::application {
 			for (const auto& thread : aSnapshot.ReviewThreads) {
 				auto& facts = factsFor(thread.Path);
 				++facts.Threads;
-				if (!thread.Resolved) {
+				// [[BPR-1841]]. The viewer's own change counts until a read agrees.
+				const auto projected = aContext.ProjectedResolutions.find(thread.Thread.value());
+				const auto resolved  = projected != aContext.ProjectedResolutions.end() ? projected->second : thread.Resolved;
+				if (!resolved) {
 					++facts.Unresolved;
 				}
 				const auto rootLogin = thread.Comments.empty()
 					? std::string{ }
 					: login_of(thread.Comments.front().Author);
-				if (!thread.Resolved && !viewer.empty() && rootLogin == viewer) {
+				if (!resolved && !viewer.empty() && rootLogin == viewer) {
 					++since.MyUnresolvedThreads;
 				}
 				// [[BPR-0972]]. A reply finds its parent by binary search over

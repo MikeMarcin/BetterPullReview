@@ -12,6 +12,8 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
+#include <map>
 #include <optional>
 #include <set>
 #include <span>
@@ -300,6 +302,10 @@ namespace bpr::application {
 		/// Paths changed between my last review and the head, when resolved.
 		std::optional<std::vector<std::string>> ChangedSinceReviewPaths;
 		std::optional<std::size_t>              DraftedComments;
+		/// [[BPR-1841]]. Threads whose resolution the viewer changed since the
+		/// read, by GitHub thread id, with the state the core projects. The
+		/// overview counts them so; the read's value stands for the rest.
+		std::map<std::string, bool, std::less<>> ProjectedResolutions;
 	};
 
 	/// \brief Decides the overview from the snapshot and the context.
@@ -307,6 +313,17 @@ namespace bpr::application {
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
 		-> pull_request_overview_projection;
+
+	/// \brief [[BPR-1841]]. One thread shown resolved as `aResolved` after
+	/// the overview counted it as `aShownResolved`: its file's unresolved
+	/// count and my unresolved threads move as projecting again with that
+	/// state would move them, and nothing else is visited.
+	/// \returns Whether the overview changed.
+	[[nodiscard]] auto apply_thread_resolution(pull_request_overview_projection&   aProjection,
+											   const github_pull_request_snapshot& aSnapshot,
+											   const github_review_thread_record&  aThread,
+											   bool                                aShownResolved,
+											   bool                                aResolved) -> bool;
 
 	/// \brief What one or more durable receipt changes did to a published overview.
 	///

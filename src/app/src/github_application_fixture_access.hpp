@@ -871,6 +871,30 @@ namespace bpr::app::detail {
 		bool ReplyUnderThread = false;
 		bool ResolveAsked     = false;
 		bool ThreadResolved   = false;
+		/// [[BPR-1841]]. What a resolve and the following reopen cost, from
+		/// the Resolve press until the reopen settled: pull request reads,
+		/// provider resolutions, conversation-model resets and changed rows,
+		/// Threads-view rebuilds and card layouts; and whether a refresh was in
+		/// flight when each answer arrived. Minimal is no read, no refresh, no
+		/// reset, exactly the two resolutions asked, and the Overview's
+		/// unresolved count moved in place.
+		bool        ResolveMinimal         = false;
+		bool        ResolveCostMeasured    = false;
+		int         ResolveReads           = 0;
+		std::size_t ResolveProviderCalls   = 0U;
+		std::size_t ResolveModelResets     = 0U;
+		std::size_t ResolveRowsChanged     = 0U;
+		std::size_t ResolveFinderRebuilds  = 0U;
+		std::size_t ResolveCardLayouts     = 0U;
+		bool        ResolveRefreshInFlight = false;
+		/// Whole Overview projections, and Overview counts moved in place. A
+		/// projection may follow the receipt that opening the thread writes;
+		/// none follows a resolution.
+		std::size_t ResolveOverviewBuilds  = 0U;
+		std::size_t ResolveOverviewUpdates = 0U;
+		/// The Overview's unresolved count fell by one with the resolve and
+		/// rose back with the reopen.
+		bool ResolveOverviewCounted = false;
 		/// [[BPR-1741]]. With reactions served: Unresolve conversation
 		/// shown at once and settled by GitHub, the recorded reactions read, a
 		/// chip's reaction shown at once, confirmed and removed, a reaction

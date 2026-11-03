@@ -12093,8 +12093,18 @@ namespace bpr::qt {
 		if (ConversationPanel == nullptr || ConversationPanel->cards() == nullptr) {
 			return;
 		}
+		// [[BPR-1841]]. The thread list's row and the Threads view show the
+		// same projected resolution as the cards, changed in place.
+		auto resolved = std::map<std::string, bool>{ };
+		for (const auto& [thread, presentation] : aResolutions) {
+			resolved.emplace_hint(resolved.end(), thread, presentation.Resolved);
+		}
 		ConversationPanel->cards()->present_reactions(std::move(aReactions));
 		ConversationPanel->cards()->present_thread_resolutions(std::move(aResolutions));
+		if (Finder != nullptr) {
+			Finder->present_thread_resolutions(resolved);
+		}
+		ConversationPanel->present_thread_resolutions(std::move(resolved));
 	}
 
 	void workbench_window::set_thread_resolution_provider(const bool aResolves)

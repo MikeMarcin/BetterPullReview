@@ -586,6 +586,40 @@ namespace {
 		expect(!panel.listing() && ids().size() == 5U && cleared == 2, "Clear filters clears the list too");
 	}
 
+	// [[BPR-1841]]. A resolve changes the thread's one row in place: no
+	// reset, no other row, and the projection outlives a re-adopted read.
+	void test_a_projected_resolution_changes_one_row_in_place()
+	{
+		qt::github_conversation_panel panel;
+		panel.set_discuss(true);
+		panel.adopt(two_files(), QStringLiteral("available"));
+		auto changed = std::vector<std::string>{ };
+		QObject::connect(panel.model(), &QAbstractItemModel::dataChanged, [&](const QModelIndex& aFirst, const QModelIndex& aLast) {
+			for (auto row = aFirst.row(); row <= aLast.row(); ++row) {
+				changed.push_back(panel.model()->id_for_index(aFirst.siblingAtRow(row)));
+			}
+		});
+		const auto resolved = [&panel](const std::string_view aId) {
+			return panel.model()->index_for_id(aId).data(qt::github_conversation_model::resolved_role).toBool();
+		};
+		const auto before = panel.model()->statistics();
+		panel.present_thread_resolutions({ { "left-root", true }, { "right-root", false } });
+		auto after = panel.model()->statistics();
+		expect(resolved("left-root") && !resolved("right-root"), "the projected resolution is the row's");
+		expect(after.ModelResets == before.ModelResets && after.RowsInserted == before.RowsInserted && after.RowsRemoved == before.RowsRemoved
+				   && after.RowsChanged == before.RowsChanged + 1U && changed == std::vector<std::string>{ "left-root" },
+			   "exactly the resolved thread's row changes, and nothing is reset");
+		changed.clear();
+		panel.present_thread_resolutions({ { "left-root", true }, { "right-root", false } });
+		expect(changed.empty() && panel.model()->statistics().RowsChanged == after.RowsChanged, "the same projection changes nothing");
+		panel.adopt(two_files(), QStringLiteral("refreshed"));
+		expect(resolved("left-root"), "a read that has not caught up keeps showing the projection");
+		after = panel.model()->statistics();
+		panel.present_thread_resolutions({ { "left-root", false }, { "right-root", false } });
+		expect(!resolved("left-root") && panel.model()->statistics().RowsChanged == after.RowsChanged + 1U && panel.model()->statistics().ModelResets == before.ModelResets,
+			   "a reopen changes the one row back");
+	}
+
 	void test_contextual_scope_survives_clear_and_refresh()
 	{
 		qt::github_conversation_panel panel;
@@ -1161,6 +1195,7 @@ auto main(int argc, char** argv) -> int
 	test_pr_wide_index_and_selected_detail();
 	test_an_overview_count_lists_exactly_its_conversations();
 	test_contextual_scope_survives_clear_and_refresh();
+	test_a_projected_resolution_changes_one_row_in_place();
 	test_discuss_top_is_one_named_band();
 	test_discuss_top_wraps_when_narrow();
 	test_discuss_top_follows_the_theme();
