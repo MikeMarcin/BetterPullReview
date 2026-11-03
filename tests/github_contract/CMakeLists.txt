@@ -1545,3 +1545,47 @@ set_tests_properties(
         PASS_REGULAR_EXPRESSION "query ResolveBodyImages"
         TIMEOUT 30
 )
+
+# [[BPR-1846]]. The GitHub CLI avatar helper over real processes: a pinned gh
+# configuration, the shipped gh runner and the fixture helper against a fake
+# private-mode GHES on loopback. The token never reaches this side.
+if(BPR_BUILD_QT AND (APPLE OR CMAKE_SYSTEM_NAME STREQUAL "Linux"))
+    bpr_add_executable(
+        test_better_pull_review_gh_cli_avatar_helper_tests
+        gh_cli_avatar_helper_tests.cpp
+    )
+    target_link_libraries(
+        test_better_pull_review_gh_cli_avatar_helper_tests
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::Application
+    )
+    target_include_directories(
+        test_better_pull_review_gh_cli_avatar_helper_tests
+        PRIVATE
+            "${PROJECT_SOURCE_DIR}/src/adapters/github/src"
+    )
+    bpr_enable_hardening(test_better_pull_review_gh_cli_avatar_helper_tests)
+    bpr_enable_warnings(test_better_pull_review_gh_cli_avatar_helper_tests)
+    find_program(BPR_TEST_GH_AVATAR_OPENSSL NAMES openssl REQUIRED)
+    bpr_add_network_isolated_test(
+        NAME gh_cli_avatar_helper_fixture
+        LOOPBACK_PORT_COUNT 1
+        COMMAND
+            Python3::Interpreter
+            "${PROJECT_SOURCE_DIR}/tests/scripts/verify_gh_cli_avatar_helper.py"
+            --driver
+            "$<TARGET_FILE:test_better_pull_review_gh_cli_avatar_helper_tests>"
+            --helper
+            "$<TARGET_FILE:test_better_pull_review_gh_avatar_helper>"
+            --openssl
+            "${BPR_TEST_GH_AVATAR_OPENSSL}"
+    )
+    set_tests_properties(
+        gh_cli_avatar_helper_fixture
+        PROPERTIES
+            RESOURCE_LOCK native_https_loopback
+            TIMEOUT 180
+            PASS_REGULAR_EXPRESSION "gh-cli-avatar-helper:pass"
+    )
+endif()

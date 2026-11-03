@@ -7,11 +7,16 @@
 
 #include "bpr/application/github_host_authority.hpp"
 #include "bpr/application/github_provider_port.hpp"
+#include "bpr/core/gh_cli_avatar.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include <cstdint>
+#include <expected>
+#include <filesystem>
 #include <stop_token>
+#include <string>
 #include <variant>
+#include <vector>
 
 namespace bpr::adapters::github::detail {
 	/// \brief The request a wire exchange belongs to.
@@ -127,6 +132,21 @@ namespace bpr::adapters::github::detail {
 																 github_capability_probe_wire_error,
 																 github_capability_probe_wire_cancelled>;
 
+	/// \brief [[BPR-1846]]. Why a GitHub CLI avatar helper batch has no answers.
+	enum class gh_cli_avatar_failure : std::uint8_t {
+		/// The transport is not a gh CLI account's, or no helper is shipped.
+		unsupported,
+		/// The pinned account or its `gh` changed since the profile was chosen.
+		configuration_changed,
+		/// The helper could not be launched, or did not finish within its bounds.
+		launch_failed,
+		/// The helper's output is not a batch the core admits.
+		malformed_output,
+		cancelled,
+	};
+
+	using gh_cli_avatar_result = std::expected<core::gh_cli_avatar_batch, gh_cli_avatar_failure>;
+
 	class github_wire_transport_port;
 	using github_wire_operation = std::expected<std::shared_ptr<github_wire_transport_port>, application::github_provider_error>;
 
@@ -164,6 +184,14 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected{ application::github_provider_error{ .Failure = application::github_provider_failure::unavailable } };
 		}
 		[[nodiscard]] virtual auto strict_cli() const noexcept -> bool { return false; }
+		/// \brief [[BPR-1846]]. Fetches avatars API addresses through the
+		/// GitHub CLI avatar helper \p aHelper, pinned to this transport's gh
+		/// account, so `gh`'s token stays in the helper. Only a gh CLI
+		/// account's transport can; every other is `unsupported`.
+		[[nodiscard]] virtual auto perform_cli_avatars(const std::filesystem::path&, const std::vector<std::string>&, std::stop_token) -> gh_cli_avatar_result
+		{
+			return std::unexpected{ gh_cli_avatar_failure::unsupported };
+		}
 
 		[[nodiscard]] virtual auto perform(const github_wire_request& aRequest,
 										   std::stop_token            aStop)

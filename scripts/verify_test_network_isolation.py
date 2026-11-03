@@ -163,6 +163,9 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
+    # [[BPR-1846]]. The GitHub CLI avatar helper's allocator probe, as its
+    # siblings above; not yet measured on the Windows station.
+    "mimalloc_tool_better_pull_review_gh_avatar_helper": "unmeasured (registered on macOS)",
     # [[BPR-1818]]. Prior release-source Release passed in the approved Limited
     # Interactive producer context. Its exact zero-capability replay reported
     # STARTUP_PROFILE_REFUSAL:registry_unavailable. Preserve that measurement;
@@ -1163,6 +1166,12 @@ MACOS_LOOPBACK_AUTHORITIES = {
     # outbound request; the camo, github.com and S3 hosts are names inside the
     # tunnel only.
     "native_https_image_fixture": 1,
+    # [[BPR-1846]]. verify_gh_cli_avatar_helper.py binds its one configured
+    # port at 127.0.0.1 as the CONNECT proxy and TLS origin for its fake
+    # private-mode GHES authorities, refuses any other authority at CONNECT,
+    # and issues no outbound request; the fixture avatar helper is pointed at
+    # that port by a file beside it and connects nowhere else.
+    "gh_cli_avatar_helper_fixture": 1,
     # BPR-0947, recorded by [[BPR-0854]]. verify_release_update_transport.py
     # binds its one configured port at 127.0.0.1 and is both the CONNECT proxy
     # and the TLS origin, under a fixture authority it generates. The executable

@@ -443,8 +443,8 @@ The [maintenance contract](release-maintenance.md) owns the detailed typed
 intents, prepared/commit/terminal events, deltas, limits and direct tests.
 
 The tests-disabled package binds the actual application, agent supervisor,
-stdio MCP helper and macOS updater helper to its file inventory and selected
-build graph. [[BPR-1179]] makes two component families removable at build
+GitHub CLI avatar helper ([[BPR-1846]], every package), stdio MCP helper and
+macOS updater helper to its file inventory and selected build graph. [[BPR-1179]] makes two component families removable at build
 time: `BPR_BUILD_AGENT_INTEGRATIONS=OFF` compiles out the agent launch adapter,
 the application's agent hosts, the provider protocol decoders, the MCP
 helper and its supervisor and the cycle's Send to Agent adapter
@@ -2178,6 +2178,56 @@ recorded rendering and images and never the network. Whether images load at all 
 preference `review_markdown_images` (schema 21, Load by default): the Qt window
 applies a published change to its readers, and Don't load sends no image
 intent, so the host resolves and fetches nothing.
+
+### People's pictures on GHES ([[BPR-1845]], [[BPR-1846]])
+
+GHES private mode guards a person's web picture and its avatar origins and
+takes no API token there, so a GHES picture is asked of the server's
+enterprise avatars API first, which takes the token, and the web route
+`https://<host>/<login>.png?size=<n>` is the one fallback. The core writes
+that API address once, in `identity_avatar_api_prefix`
+(`src/core/src/identity_avatar_picture.cpp`): an image address on the
+server's own avatars service, not a REST read, and the one `/api/v3` literal
+`architecture_boundaries` lets the core hold.
+
+A profile that holds its own credential (native HTTPS) fetches it in process,
+through its account transport. A profile signed in through the GitHub CLI holds
+no token in the application, and [[BPR-1846]] keeps it that way: the core
+marks the API hop `markdown_image_hop::CliHelper` (policy
+`markdown_image_fetch_policy::CliCredential`), and the GitHub provider queues
+such hops per account transport and serves up to
+`core::gh_cli_avatar_batch_limit` of them with one launch of the shipped
+**GitHub CLI avatar helper** on an image lane. The account's transport makes
+that launch on a gh runner of its own (`owned_cli_read_transport`), through
+the gh process runner's supervision and Windows launch restriction, with the
+gh child environment, private pinned account configuration (`GH_CONFIG_DIR`)
+and macOS write constraint every gh launch gets, and the arguments
+`--gh <gh> --hostname <host> --user <login>`: no credential.
+
+The helper (`tool_better_pull_review_gh_avatar_helper`,
+`src/adapters/github/src/gh_avatar_helper.cpp`) is its own program and links
+the core, Qt Core and Qt Network only. It reads the request batch on standard
+input, admits each address with `core::admit_gh_cli_avatar_address` (only the
+avatars API on the pinned host; anything else, another host included, is
+`blocked` before gh is asked), runs `gh auth token --hostname <host> --user
+<login>` once under the same launch restriction, fetches with
+`Authorization: token <token>` only on hops the core marks, follows only
+redirects `core::admit_markdown_image_redirect` admits under the avatar
+origins, and bounds each picture to `identity_avatar_encoded_bytes` and
+`identity_avatar_fetch_deadline_ms`. It writes only
+`core::encode_gh_cli_avatar_batch` (state, HTTP status, content type and
+bytes per address) and nothing on standard error; the token is in no argument,
+environment, file or output. `architecture_boundaries` names it as the one
+QProcess and Qt Network owner outside the runners and the native transport,
+and lets it, beside `gh_cli_transport.cpp`, write gh's `--hostname`.
+
+A launch that finds gh missing, signed out or unusable, or no helper, ends
+its fetches `failed`, records one content-free `image.fetch` line
+(`action=avatar_fetch` with `no_helper`, `credential_unavailable`,
+`credential_tool_failed` or `malformed_response`), and holds the account's
+later helper hops off for a minute; the avatar window then asks the web
+route once, and a private-mode server's faces keep their initials.
+GitHub.com and credential-holding profiles never use the helper.
 
 ## Insights allocation (RFC-BPR-0086)
 

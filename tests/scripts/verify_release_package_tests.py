@@ -148,7 +148,7 @@ class ReleasePackageTests(unittest.TestCase):
                 binaries.mkdir(parents=True, exist_ok=True)
                 suffix = ".exe" if system == "Windows" else ""
                 app = binaries / ("BetterPullReview" if system == "Darwin" else "better_pull_review" + suffix)
-                helpers = [binaries / (name + suffix) for name in ("better_pull_review_agent_supervisor", "better_pull_review_mcp_context_helper")]
+                helpers = [binaries / (name + suffix) for name in ("better_pull_review_agent_supervisor", "better_pull_review_gh_avatar_helper", "better_pull_review_mcp_context_helper")]
                 if system == "Darwin":
                     helpers.extend([binaries / "bpr_update_helper", binaries / "bpr"])
                     identity = root / "Contents/Info.plist"
@@ -200,7 +200,7 @@ class ReleasePackageTests(unittest.TestCase):
                 binaries.mkdir(parents=True, exist_ok=True)
                 suffix = ".exe" if system == "Windows" else ""
                 app = binaries / ("BetterPullReview" if system == "Darwin" else "better_pull_review" + suffix)
-                helpers = [binaries / ("better_pull_review_agent_supervisor" + suffix)]
+                helpers = [binaries / (name + suffix) for name in ("better_pull_review_agent_supervisor", "better_pull_review_gh_avatar_helper")]
                 if system == "Darwin":
                     helpers.extend([binaries / "bpr_update_helper", binaries / "bpr"])
                     (root / "Contents/Info.plist").write_bytes(plistlib.dumps({"CFBundleIdentifier": "com.gamecoretech.betterpullreview", "CFBundleExecutable": app.name, "CFBundleShortVersionString": "1.2.3"}))

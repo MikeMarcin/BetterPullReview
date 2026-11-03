@@ -189,6 +189,35 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
 
     bpr_enable_hardening(better_pull_review_adapter_github)
     bpr_enable_warnings(better_pull_review_adapter_github)
+
+    # [[BPR-1846]]. The GitHub CLI avatar helper: its own program, so the token
+    # `gh auth token` gives it never enters the application. It links the core
+    # (admission and framing), Qt Core (its gh launch) and Qt Network (its
+    # HTTPS), and nothing else: no application host, no adapter.
+    if(BPR_BUILD_QT)
+        function(bpr_add_gh_avatar_helper target)
+            bpr_add_executable(${target} src/gh_avatar_helper.cpp)
+            target_link_libraries(
+                ${target}
+                PRIVATE
+                    BetterPullReview::Core
+                    BetterPullReview::Platform
+                    Qt6::Core
+                    Qt6::Network
+            )
+            bpr_enable_hardening(${target})
+            bpr_enable_warnings(${target})
+        endfunction()
+        bpr_add_gh_avatar_helper(tool_better_pull_review_gh_avatar_helper)
+        bpr_add_windows_version_resource(tool_better_pull_review_gh_avatar_helper "BetterPullReview GitHub CLI avatar helper")
+        if(BUILD_TESTING)
+            # The same source, with its loopback proxy and disposable
+            # authority read from a file beside it; never shipped.
+            bpr_add_gh_avatar_helper(test_better_pull_review_gh_avatar_helper)
+            target_compile_definitions(test_better_pull_review_gh_avatar_helper PRIVATE BPR_GH_AVATAR_HELPER_TESTING=1)
+            set_target_properties(test_better_pull_review_gh_avatar_helper PROPERTIES OUTPUT_NAME better_pull_review_gh_avatar_helper_fixture)
+        endif()
+    endif()
 else()
     add_library(better_pull_review_adapter_github INTERFACE)
     add_library(

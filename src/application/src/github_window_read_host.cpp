@@ -1614,6 +1614,9 @@ namespace bpr::application {
 				.Contract            = authority.ServerContract == github_server_contract::github_com_2022_11_28 ? core::markdown_image_host_contract::github_com : core::markdown_image_host_contract::ghes,
 				.Hostname            = std::string{ authority.Hostname.value() },
 				.CredentialAvailable = authority.Authentication == github_authentication_transport::native_https,
+				.AvatarOrigins       = false,
+				// [[BPR-1846]]. The host's avatar helper asks `gh` itself.
+				.CliCredential = authority.Authentication == github_authentication_transport::github_cli,
 			};
 			facts.Account = snapshot.Account.value();
 			if (authenticated) {

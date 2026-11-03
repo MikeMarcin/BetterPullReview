@@ -79,14 +79,25 @@ namespace bpr::core {
 		if (!web) {
 			return std::unexpected{ web.error() };
 		}
-		if (!aPolicy.CredentialAvailable) {
+		// [[BPR-1846]]. A gh CLI profile has no credential here; its avatar
+		// helper asks `gh` for one and performs the API hop in its own process.
+		const auto helper = !aPolicy.CredentialAvailable && aPolicy.CliCredential;
+		if (!aPolicy.CredentialAvailable && !helper) {
 			return identity_avatar_fetch{ .Login = login, .Pixels = pixels, .First = std::move(*web), .Policy = std::move(aPolicy), .Fallback = std::nullopt };
 		}
-		auto api = admit_markdown_image_fetch(origin + "/api/v3/enterprise/avatars/" + path_segment(login) + "?s=" + size, aPolicy);
+		auto api = admit_markdown_image_fetch(identity_avatar_api_prefix(aPolicy.Hostname) + path_segment(login) + "?s=" + size, aPolicy);
 		if (!api) {
 			return std::unexpected{ api.error() };
 		}
+		api->CliHelper = helper;
 		return identity_avatar_fetch{ .Login = login, .Pixels = pixels, .First = std::move(*api), .Policy = std::move(aPolicy), .Fallback = std::move(*web) };
+	}
+
+	auto identity_avatar_api_prefix(const std::string_view aHostname) -> std::string
+	{
+		// An image address on the server's own avatars service, not a REST read:
+		// architecture_boundaries admits this one literal here and nowhere else.
+		return "https://" + ascii_lower(std::string{ aHostname }) + "/api/v3/enterprise/avatars/";
 	}
 
 	auto identity_avatar_cache_key(const std::string_view aHostname, const std::uint64_t aAccount, const std::string_view aLogin,

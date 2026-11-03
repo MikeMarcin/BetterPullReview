@@ -59,7 +59,9 @@ class NativeReleaseTests(unittest.TestCase):
             info["releaseCohort"] = release_cohort
         image_suffix = ".exe" if system == "Windows" else ""
         app, helper = build / ("better_pull_review" + image_suffix), build / ("better_pull_review_agent_supervisor" + image_suffix)
-        info.update(app=str(app), helpers=[str(helper)])
+        # [[BPR-1846]]. Every package carries the GitHub CLI avatar helper.
+        avatar = build / ("better_pull_review_gh_avatar_helper" + image_suffix)
+        info.update(app=str(app), helpers=[str(helper), str(avatar)])
         library = build / ("bpr_xdiff.dll" if system == "Windows" else "libbpr_xdiff.so")
         libraries = [build / name for name in runtime.PRIVATE_LIBRARIES[system]]
         info["private_libraries"] = {path.name: str(path) for path in libraries}
@@ -83,6 +85,7 @@ class NativeReleaseTests(unittest.TestCase):
                 self.events.append("build")
                 app.write_bytes(b"app")
                 helper.write_bytes(b"helper")
+                avatar.write_bytes(b"avatar helper")
                 for path in libraries:
                     path.write_bytes(b"library")
                 return
@@ -90,7 +93,7 @@ class NativeReleaseTests(unittest.TestCase):
             installed = output / "_CPack_Packages/runtime"
             legal = installed / "ThirdParty"
             legal.mkdir(parents=True)
-            for image in (app, helper, *libraries):
+            for image in (app, helper, avatar, *libraries):
                 shutil.copyfile(image, installed / image.name)
             if tamper_library:
                 (installed / library.name).write_bytes(b"substituted library")
@@ -156,7 +159,7 @@ class NativeReleaseTests(unittest.TestCase):
                 paths = release.verify(manifest, "1.2.3", self.revision)
                 self.assertIn(manifest, paths)
                 if generator == "WIX":
-                    self.assertEqual(self.events, ["build", "sign:better_pull_review.exe", "sign:better_pull_review_agent_supervisor.exe", "sign:bpr_xdiff.dll", "sign:mimalloc.dll",
+                    self.assertEqual(self.events, ["build", "sign:better_pull_review.exe", "sign:better_pull_review_agent_supervisor.exe", "sign:better_pull_review_gh_avatar_helper.exe", "sign:bpr_xdiff.dll", "sign:mimalloc.dll",
                                                    "cpack", "sign:" + manifest.name.removesuffix(".release.json")])
                 if generator == "RPM":
                     record = json.loads(manifest.read_text())

@@ -3,6 +3,9 @@
 #include "github_paged_read.hpp"
 #include "github_wire_request_validation.hpp"
 
+#include "bpr/core/gh_cli_avatar.hpp"
+#include "bpr/core/identity_avatar_picture.hpp"
+
 #include <glaze/json.hpp>
 
 #include <algorithm>
@@ -174,11 +177,11 @@ namespace bpr::adapters::github::detail {
 		{
 			using failure = application::github_provider_failure;
 			switch (aFailure) {
-			case github_cli_process_failure::start_failure:         return failure::process_startup;
-			case github_cli_process_failure::timeout:               return failure::timeout;
+			case github_cli_process_failure::start_failure:        return failure::process_startup;
+			case github_cli_process_failure::timeout:              return failure::timeout;
 			case github_cli_process_failure::standard_output_limit:
-			case github_cli_process_failure::standard_error_limit:  return failure::response_limit;
-			default:                                                return failure::unavailable;
+			case github_cli_process_failure::standard_error_limit: return failure::response_limit;
+			default:                                               return failure::unavailable;
 			}
 		}
 
@@ -1321,6 +1324,34 @@ namespace bpr::adapters::github::detail {
 		});
 	}
 
+	auto compile_gh_cli_avatar_helper_request(
+		const validated_gh_cli_configuration& aConfiguration, const std::filesystem::path& aHelper,
+		std::string aStandardInput) -> std::optional<github_cli_process_request>
+	{
+		// The longest batch the core writes: its protocol line and every address line.
+		constexpr auto inputLimit = core::gh_cli_avatar_protocol.size() + 1U + core::gh_cli_avatar_batch_limit * (core::gh_cli_avatar_address_bytes + 1U);
+		// Every answer's bytes, plus each answer's line and the batch's.
+		constexpr auto outputLimit = core::gh_cli_avatar_batch_limit * (core::identity_avatar_encoded_bytes + 256U) + 256U;
+		static_assert(outputLimit <= github_cli_process_max_standard_output_bytes);
+		if (!aConfiguration.Pin || aHelper.empty() || !aHelper.is_absolute() || aStandardInput.empty() || aStandardInput.size() > inputLimit) {
+			return std::nullopt;
+		}
+		return constrain_gh_writes(github_cli_process_request{
+			.Executable          = path_bytes(aHelper),
+			.Arguments           = { "--gh", path_bytes(aConfiguration.Executable), "--hostname", aConfiguration.Pin->Hostname, "--user", aConfiguration.Pin->Login },
+			.Environment         = aConfiguration.Environment,
+			.WorkingDirectory    = path_bytes(aConfiguration.NeutralWorkingDirectory),
+			.StandardInput       = std::move(aStandardInput),
+			.StandardInputLimit  = inputLimit,
+			.StandardOutputLimit = outputLimit,
+			.StandardErrorLimit  = 1024U,
+			// The helper bounds itself to its launch deadline; this one only
+			// catches a helper that does not.
+			.Timeout     = std::chrono::milliseconds{ core::gh_cli_avatar_launch_deadline_ms + 10'000U },
+			.ReapTimeout = process_reap_timeout,
+		});
+	}
+
 	auto supported_gh_cli_version(const std::string_view aOutput) -> bool
 	{
 		constexpr auto prefix = std::string_view{ "gh version " };
@@ -1904,6 +1935,32 @@ namespace bpr::adapters::github::detail {
 			}
 		}
 		return observations;
+	}
+
+	auto gh_cli_transport::perform_cli_avatars(const std::filesystem::path& aHelper, const std::vector<std::string>& aAddresses, const std::stop_token aStop)
+		-> gh_cli_avatar_result
+	{
+		if (aStop.stop_requested()) {
+			return std::unexpected{ gh_cli_avatar_failure::cancelled };
+		}
+		if (!Configuration.pin() || Configuration.pin()->Hostname != Profile.hostname() || Configuration.pin()->Login != Profile.cli_account_login()
+			|| !configuration_unchanged()) {
+			return std::unexpected{ gh_cli_avatar_failure::configuration_changed };
+		}
+		auto input   = core::encode_gh_cli_avatar_requests(aAddresses);
+		auto request = input ? compile_gh_cli_avatar_helper_request(Configuration, aHelper, std::move(*input)) : std::nullopt;
+		if (!request) {
+			return std::unexpected{ gh_cli_avatar_failure::unsupported };
+		}
+		const auto result = run_gh_cli(Process, Configuration, std::move(*request), aStop);
+		if (!result) {
+			return std::unexpected{ result.error() == github_cli_process_failure::cancelled ? gh_cli_avatar_failure::cancelled : gh_cli_avatar_failure::launch_failed };
+		}
+		auto batch = core::decode_gh_cli_avatar_batch(result->StandardOutput, aAddresses.size());
+		if (!batch) {
+			return std::unexpected{ gh_cli_avatar_failure::malformed_output };
+		}
+		return std::move(*batch);
 	}
 
 	auto gh_cli_transport::configuration_unchanged() const -> bool

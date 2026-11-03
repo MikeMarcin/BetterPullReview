@@ -56,8 +56,8 @@ namespace bpr::core {
 		template <typename TNumber>
 		[[nodiscard]] auto decimal(const std::string_view aDigits) -> std::optional<TNumber>
 		{
-			const auto unsigned_digits = aDigits.starts_with('-') ? aDigits.substr(1U) : aDigits;
-			if (unsigned_digits.empty() || (unsigned_digits.size() > 1U && unsigned_digits.front() == '0') || (aDigits.starts_with('-') && (!std::numeric_limits<TNumber>::is_signed || unsigned_digits == "0"))) {
+			const auto unsignedDigits = aDigits.starts_with('-') ? aDigits.substr(1U) : aDigits;
+			if (unsignedDigits.empty() || (unsignedDigits.size() > 1U && unsignedDigits.front() == '0') || (aDigits.starts_with('-') && (!std::numeric_limits<TNumber>::is_signed || unsignedDigits == "0"))) {
 				return std::nullopt;
 			}
 			auto       value  = TNumber{ };
@@ -123,7 +123,11 @@ namespace bpr::core {
 			case operation_diagnosis_family::source_search:
 				return aFailure == operation_failure::unavailable || aFailure == operation_failure::identity_exhausted || within(aFailure, operation_failure::search_failed, operation_failure::resource_limit);
 			case operation_diagnosis_family::image_fetch:
-				return aFailure == operation_failure::too_large || aFailure == operation_failure::unsupported || within(aFailure, operation_failure::fetch_failed, operation_failure::over_limit);
+				return aFailure == operation_failure::too_large || aFailure == operation_failure::unsupported || within(aFailure, operation_failure::fetch_failed, operation_failure::over_limit)
+					// [[BPR-1846]]. The GitHub CLI avatar helper: missing or not
+					// launched, gh unusable or signed out, or an unreadable answer.
+					|| aFailure == operation_failure::no_helper || aFailure == operation_failure::credential_unavailable
+					|| aFailure == operation_failure::credential_tool_failed || aFailure == operation_failure::malformed_response;
 			case operation_diagnosis_family::notification: return within(aFailure, operation_failure::permission_refused, operation_failure::unattributable_activation);
 			// [[BPR-1830]].
 			case operation_diagnosis_family::mcp_helper: return within(aFailure, operation_failure::no_helper, operation_failure::helper_failed) || aFailure == operation_failure::failed_to_start || aFailure == operation_failure::timed_out;

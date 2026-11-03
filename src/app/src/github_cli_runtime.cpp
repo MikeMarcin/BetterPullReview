@@ -205,6 +205,17 @@ namespace bpr::app {
 			return std::shared_ptr<adapters::github::detail::github_wire_transport_port>{ shared_from_this(), transport };
 		}
 		[[nodiscard]] auto begin_mutation_operation(std::stop_token aStop) -> adapters::github::detail::github_mutation_operation override { return Transport.begin_mutation_operation(aStop); }
+		/// [[BPR-1846]]. Avatar helper launches run on a gh runner of their
+		/// own, made on first use, so no pull request read waits behind one.
+		[[nodiscard]] auto perform_cli_avatars(const std::filesystem::path& aHelper, const std::vector<std::string>& aAddresses, std::stop_token aStop)
+			-> adapters::github::detail::gh_cli_avatar_result override
+		{
+			auto* const transport = avatar_transport();
+			if (transport == nullptr) {
+				return std::unexpected{ adapters::github::detail::gh_cli_avatar_failure::launch_failed };
+			}
+			return transport->perform_cli_avatars(aHelper, aAddresses, aStop);
+		}
 
 		auto acquire(const application::git_smart_request_context& aContext)
 			-> application::git_smart_transport_result<application::git_smart_transport> override
@@ -272,6 +283,24 @@ namespace bpr::app {
 			return lane.Transport.get();
 		}
 
+		[[nodiscard]] auto avatar_transport() -> adapters::github::detail::gh_cli_transport*
+		{
+			const std::scoped_lock lock{ BackgroundMutex };
+			if (!Avatars.Process) {
+				try {
+					auto process = adapters::github::detail::make_github_cli_process_runner();
+					if (!process) {
+						return nullptr;
+					}
+					Avatars.Transport = std::make_unique<adapters::github::detail::gh_cli_transport>(Profile, Configuration, *process);
+					Avatars.Process   = std::move(process);
+				} catch (...) {
+					return nullptr;
+				}
+			}
+			return Avatars.Transport.get();
+		}
+
 		struct background_lane
 		{
 			std::unique_ptr<adapters::github::detail::github_cli_process_port> Process;
@@ -287,6 +316,7 @@ namespace bpr::app {
 		std::mutex                                                         BackgroundMutex;
 		// Destroyed first: no background runner outlives this transport.
 		std::array<background_lane, background_lane_count> Background;
+		background_lane                                    Avatars;
 	};
 
 	class opted_in_cli_transport_factory final

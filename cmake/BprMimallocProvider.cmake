@@ -126,7 +126,7 @@ endfunction()
 function(bpr_attach_product_allocator target)
     # All shipped programs, including the Qt-free MCP helper and supervisor.
     # Other programs keep toolchain allocation unless explicitly attached for measurement.
-    if(NOT target MATCHES "^(app_better_pull_review|app_bpr|tool_better_pull_review_mcp_context_helper|tool_better_pull_review_agent_supervisor|tool_bpr_update_helper)$")
+    if(NOT target MATCHES "^(app_better_pull_review|app_bpr|tool_better_pull_review_mcp_context_helper|tool_better_pull_review_agent_supervisor|tool_bpr_update_helper|tool_better_pull_review_gh_avatar_helper)$")
         return()
     endif()
     set_property(GLOBAL APPEND PROPERTY BPR_PRODUCT_EXECUTABLES "${target}")

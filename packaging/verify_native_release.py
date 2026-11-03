@@ -126,7 +126,8 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
                             "UpgradeCode": "{18DF84A8-5883-4979-B1C6-6F226934AA68}", "BPR_MARKETING_VERSION": version,
                             "BPR_RELEASE_BUILD": str(release["number"]), "BPR_RELEASE_COHORT": record["releaseCohort"]["cohortDigest"],
                             "BPR_RELEASE_CONFIGURATION": release["configurationDigest"]}
-            images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe"}
+            # [[BPR-1846]]. Every package carries the GitHub CLI avatar helper.
+            images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe", "better_pull_review_gh_avatar_helper.exe"}
             if info["families"]["agent_integrations"]:
                 images.add("better_pull_review_mcp_context_helper.exe")
             expected_image = {"fileVersion": release["native"]["windowsImageVersion"], "productVersion": release["native"]["windowsImageVersion"]}
@@ -174,7 +175,7 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
     if provenance.get("firstPartyImages") != record["firstPartyImages"] or provenance.get("signatures") != producer_signatures:
         raise ValueError("native signing receipts differ from provenance")
     if platform == "Windows":
-        images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe",
+        images = {"better_pull_review.exe", "better_pull_review_agent_supervisor.exe", "better_pull_review_gh_avatar_helper.exe",
                   *(name for name in runtime.PRIVATE_LIBRARIES["Windows"] if name not in runtime.PREBUILT_PRIVATE_LIBRARIES["Windows"])}
         if info["families"]["agent_integrations"]:
             images.add("better_pull_review_mcp_context_helper.exe")
@@ -191,7 +192,7 @@ def verify(manifest: Path, version: str, revision: str, expected_cohort: dict | 
             if any(not re.fullmatch(r"[0-9A-Fa-f]{40}", receipt.get(key, "")) for key in ("certificateSHA1", "timestampCertificateSHA1")):
                 raise ValueError("missing certificate or timestamp receipt")
     else:
-        images = {"better_pull_review", "better_pull_review_agent_supervisor"}
+        images = {"better_pull_review", "better_pull_review_agent_supervisor", "better_pull_review_gh_avatar_helper"}
         if info["families"]["agent_integrations"]:
             images.add("better_pull_review_mcp_context_helper")
         if not images <= set(hashes):

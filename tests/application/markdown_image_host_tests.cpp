@@ -553,6 +553,46 @@ namespace {
 		expect(fixture.Fetch.Calls.size() == 2U && fixture.Window->pending() == 0U, "and asks the host nothing");
 	}
 
+	/// [[BPR-1846]]. A GHES profile signed in through the gh CLI: the
+	/// avatars API is asked as a helper hop, which the host's helper performs
+	/// with `gh`'s token in its own process; the window never holds a
+	/// credential, and a helper that gives no picture falls back to the web
+	/// route once, as [[BPR-1845]]'s credentialed path does.
+	void avatar_ghes_cli_helper()
+	{
+		const auto cli = core::markdown_image_fetch_policy{ .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = false, .AvatarOrigins = false, .CliCredential = true };
+		{
+			avatar_fixture fixture;
+			fixture.Policy = cli;
+			fixture.request({ { "Octo", 40U } });
+			fixture.settle();
+			expect(fixture.Fetch.Calls.size() == 1U && fixture.Fetch.Calls[0].Request.First.Address == "https://ghe.example.com/api/v3/enterprise/avatars/octo?s=48"
+					   && fixture.Fetch.Calls[0].Request.First.CliHelper && !fixture.Fetch.Calls[0].Request.First.Credential && !fixture.Fetch.Calls[0].Request.Policy.CredentialAvailable,
+				   "a CLI profile asks the avatars API through the helper, with no credential in the request");
+			fixture.Fetch.ok(0);
+			fixture.settle();
+			const auto* const octo = fixture.published("octo", 48U);
+			expect(octo != nullptr && octo->State == core::markdown_image_state::loaded && fixture.Fetch.Calls.size() == 1U, "the helper's picture is published and the web route is not asked");
+		}
+		{
+			// gh missing or signed out: the helper route fails, the web route is
+			// asked once, and a private-mode server's sign-in page keeps the initials.
+			avatar_fixture fixture;
+			fixture.Policy = cli;
+			fixture.request({ { "octo", 40U } });
+			fixture.settle();
+			fixture.Fetch.Calls[0].Complete(std::unexpected{ core::markdown_image_state::failed });
+			fixture.settle();
+			expect(fixture.Fetch.Calls.size() == 2U && fixture.Fetch.Calls[1].Request.First.Address == "https://ghe.example.com/octo.png?size=48" && !fixture.Fetch.Calls[1].Request.First.CliHelper,
+				   "a failed helper falls back to the in-process web route");
+			fixture.Fetch.ok(1, "<!DOCTYPE html><title>Sign in</title>", "text/html; charset=utf-8");
+			fixture.settle();
+			const auto* const octo = fixture.published("octo", 48U);
+			expect(octo != nullptr && octo->State != core::markdown_image_state::loaded && octo->Image == nullptr && fixture.Fetch.Calls.size() == 2U,
+				   "and the face keeps its initials, asked no more");
+		}
+	}
+
 	void avatar_refusals_and_scope()
 	{
 		{
@@ -711,6 +751,7 @@ int main()
 	window_restart_from_disk();
 	avatar_flow();
 	avatar_ghes_private_mode();
+	avatar_ghes_cli_helper();
 	avatar_refusals_and_scope();
 	avatar_restart_from_disk();
 	return EXIT_SUCCESS;

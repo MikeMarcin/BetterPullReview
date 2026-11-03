@@ -84,6 +84,7 @@ namespace bpr::core {
 		markdown_image_fetch_policy Policy;
 		/// [[BPR-1845]]. The one hop asked instead when `First` ends in
 		/// anything but a picture, under the same policy; absent on GitHub.com.
+		/// Never a `CliHelper` hop.
 		std::optional<markdown_image_hop> Fallback;
 	};
 
@@ -92,16 +93,25 @@ namespace bpr::core {
 	/// \details GitHub.com: `https://avatars.githubusercontent.com/<login>?s=<n>`,
 	/// never a credential. GHES with the profile's credential ([[BPR-1845]]):
 	/// first the server's own avatars API,
-	/// `https://<host>/api/v3/enterprise/avatars/<login>?s=<n>`, which accepts
+	/// `identity_avatar_api_prefix(<host>)` followed by `<login>?s=<n>`, which accepts
 	/// the API token and so answers under private mode; then, as `Fallback`,
 	/// the web route `https://<host>/<login>.png?size=<n>`, which a server
-	/// without private mode redirects to its avatar origin. GHES without the
-	/// credential asks only the web route. The credential rides only a hop to
+	/// without private mode redirects to its avatar origin. GHES signed in
+	/// through the GitHub CLI ([[BPR-1846]]) asks the same API address first,
+	/// as a `CliHelper` hop without the credential, which the host's avatar
+	/// helper performs with `gh`'s token in its own process, and the web route
+	/// as `Fallback`. GHES without either asks only the web route. The credential rides only a hop to
 	/// the host itself, as for a body image. Every redirect is judged by the
 	/// same policy, so no hop leaves the host's avatar origins. A login that is
 	/// not a GitHub account's is `blocked`.
 	[[nodiscard]] auto admit_identity_avatar(std::string_view aLogin, std::uint32_t aDevicePixels, markdown_image_fetch_policy aPolicy)
 		-> std::expected<identity_avatar_fetch, markdown_image_state>;
+
+	/// \brief [[BPR-1845]]. The GHES avatars API address up to the login:
+	/// `https://<host>` (lower-cased) and the server's enterprise avatars API
+	/// path. The one place the core writes it; [[BPR-1846]]'s helper admission
+	/// asks here too.
+	[[nodiscard]] auto identity_avatar_api_prefix(std::string_view aHostname) -> std::string;
 
 	/// \brief The cache identity of one picture: host, account (zero for none),
 	/// folded login and size; a body image's key can never equal it.
