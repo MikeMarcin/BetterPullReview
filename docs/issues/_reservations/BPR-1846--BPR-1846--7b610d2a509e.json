@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1846"
+  ],
+  "reserve_for": "ghes-gh-cli-avatars",
+  "purpose": "GHES gh-CLI profiles fetch avatars through a token-holding helper",
+  "created": "2026-11-03T21:34:40.505452+00:00",
+  "base": "7cedc140cf9866c767cab8e2a3a4a33e83859ab0"
+}
