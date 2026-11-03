@@ -1,6 +1,7 @@
 #include "bpr/core/identity_avatar_picture.hpp"
 
 #include <algorithm>
+#include <optional>
 #include <utility>
 
 namespace bpr::core {
@@ -61,20 +62,31 @@ namespace bpr::core {
 		const auto login      = identity_avatar_folded_login(aLogin);
 		const auto pixels     = identity_avatar_picture_pixels(aDevicePixels);
 		const auto size       = std::to_string(pixels);
-		auto       address    = std::string{ };
 		if (aPolicy.Contract == markdown_image_host_contract::github_com) {
-			address = "https://avatars.githubusercontent.com/" + path_segment(login) + "?s=" + size;
-		} else {
-			if (aPolicy.Hostname.empty()) {
-				return std::unexpected{ markdown_image_state::blocked };
+			auto first = admit_markdown_image_fetch("https://avatars.githubusercontent.com/" + path_segment(login) + "?s=" + size, aPolicy);
+			if (!first) {
+				return std::unexpected{ first.error() };
 			}
-			address = "https://" + ascii_lower(aPolicy.Hostname) + "/" + path_segment(login) + ".png?size=" + size;
+			return identity_avatar_fetch{ .Login = login, .Pixels = pixels, .First = std::move(*first), .Policy = std::move(aPolicy), .Fallback = std::nullopt };
 		}
-		auto first = admit_markdown_image_fetch(address, aPolicy);
-		if (!first) {
-			return std::unexpected{ first.error() };
+		if (aPolicy.Hostname.empty()) {
+			return std::unexpected{ markdown_image_state::blocked };
 		}
-		return identity_avatar_fetch{ .Login = login, .Pixels = pixels, .First = std::move(*first), .Policy = std::move(aPolicy) };
+		const auto origin = "https://" + ascii_lower(aPolicy.Hostname);
+		// [[BPR-1845]]. The web route sits behind GHES private mode, which does
+		// not take the API token; the avatars API does, from GHES 3.0.
+		auto web = admit_markdown_image_fetch(origin + "/" + path_segment(login) + ".png?size=" + size, aPolicy);
+		if (!web) {
+			return std::unexpected{ web.error() };
+		}
+		if (!aPolicy.CredentialAvailable) {
+			return identity_avatar_fetch{ .Login = login, .Pixels = pixels, .First = std::move(*web), .Policy = std::move(aPolicy), .Fallback = std::nullopt };
+		}
+		auto api = admit_markdown_image_fetch(origin + "/api/v3/enterprise/avatars/" + path_segment(login) + "?s=" + size, aPolicy);
+		if (!api) {
+			return std::unexpected{ api.error() };
+		}
+		return identity_avatar_fetch{ .Login = login, .Pixels = pixels, .First = std::move(*api), .Policy = std::move(aPolicy), .Fallback = std::move(*web) };
 	}
 
 	auto identity_avatar_cache_key(const std::string_view aHostname, const std::uint64_t aAccount, const std::string_view aLogin,

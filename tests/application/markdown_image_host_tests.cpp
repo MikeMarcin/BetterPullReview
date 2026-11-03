@@ -600,13 +600,80 @@ namespace {
 			fixture.Policy = { .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = true };
 			fixture.request({ { "octo", 40U } });
 			fixture.settle();
-			expect(fixture.Fetch.Calls.size() == 1U && fixture.Fetch.Calls[0].Request.First.Address == "https://ghe.example.com/octo.png?size=48"
+			expect(fixture.Fetch.Calls.size() == 1U && fixture.Fetch.Calls[0].Request.First.Address == "https://ghe.example.com/api/v3/enterprise/avatars/octo?s=48"
 					   && fixture.Fetch.Calls[0].Request.First.Credential,
 				   "a GHES picture is asked of the host itself, with its credential");
 			fixture.Fetch.ok(0, "bad");
 			fixture.settle();
-			expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::unsupported && fixture.Published[0].Image == nullptr,
-				   "a picture that does not decode keeps the initials");
+			expect(fixture.Published.empty() && fixture.Fetch.Calls.size() == 2U && fixture.Fetch.Calls[1].Request.First.Address == "https://ghe.example.com/octo.png?size=48",
+				   "an undecodable answer asks the web route once");
+			fixture.Fetch.ok(1, "bad");
+			fixture.settle();
+			expect(fixture.Published.size() == 1U && fixture.Published[0].State == core::markdown_image_state::unsupported && fixture.Published[0].Image == nullptr
+					   && fixture.Fetch.Calls.size() == 2U,
+				   "a picture that does not decode on either route keeps the initials and is not asked again");
+		}
+	}
+
+	/// [[BPR-1845]]. GHES in private mode: the web route `/<login>.png` and the
+	/// avatars subdomain answer a sign-in page whatever the API token, while
+	/// the avatars API at `/api/v3/enterprise/avatars/` takes the token. The
+	/// fake answers each address as such a server does.
+	void avatar_ghes_private_mode()
+	{
+		const auto answer = [](avatar_fixture& aFixture, const std::size_t aIndex) {
+			const auto& first = aFixture.Fetch.Calls[aIndex].Request.First;
+			if (first.Address.starts_with("https://ghe.example.com/api/v3/enterprise/avatars/") && first.Credential) {
+				aFixture.Fetch.ok(aIndex);
+			} else {
+				aFixture.Fetch.ok(aIndex, "<!DOCTYPE html><title>Sign in</title>", "text/html; charset=utf-8");
+			}
+		};
+		{
+			avatar_fixture fixture;
+			fixture.Policy = { .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = true };
+			fixture.request({ { "Octo", 40U } });
+			fixture.settle();
+			expect(!fixture.Fetch.Calls.empty(), "a GHES picture is asked");
+			answer(fixture, 0U);
+			fixture.settle();
+			for (std::size_t index = 1U; index < fixture.Fetch.Calls.size(); ++index) {
+				answer(fixture, index);
+				fixture.settle();
+			}
+			const auto* const octo = fixture.published("octo", 48U);
+			expect(octo != nullptr && octo->State == core::markdown_image_state::loaded && octo->Image != nullptr,
+				   "a private-mode GHES picture loads through the avatars API with the credential");
+			expect(fixture.Fetch.Calls.size() == 1U, "and the web route is not asked");
+		}
+		{
+			// A server whose avatars API does not know the login still has
+			// the web route, which a server without private mode answers.
+			avatar_fixture fixture;
+			fixture.Policy = { .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = true };
+			fixture.request({ { "octo", 40U } });
+			fixture.settle();
+			fixture.Fetch.Calls[0].Complete(std::unexpected{ core::markdown_image_state::failed });
+			fixture.settle();
+			expect(fixture.Fetch.Calls.size() == 2U && fixture.Fetch.Calls[1].Request.First.Address == "https://ghe.example.com/octo.png?size=48"
+					   && fixture.Fetch.Calls[1].Request.Policy.AvatarOrigins,
+				   "a failed API answer falls back to the web route under the avatar origins");
+			fixture.Fetch.ok(1);
+			fixture.settle();
+			const auto* const octo = fixture.published("octo", 48U);
+			expect(octo != nullptr && octo->State == core::markdown_image_state::loaded && fixture.Published.size() == 1U, "the web route's picture is published once");
+		}
+		{
+			// A changed scope while the first answer is out drops the fallback too.
+			avatar_fixture fixture;
+			fixture.Policy = { .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.com", .CredentialAvailable = true };
+			fixture.request({ { "octo", 40U } });
+			fixture.settle();
+			fixture.Scope = "scope-2";
+			fixture.request({ });
+			fixture.Fetch.Calls[0].Complete(std::unexpected{ core::markdown_image_state::failed });
+			fixture.settle();
+			expect(fixture.Fetch.Calls.size() == 1U && fixture.Published.empty(), "a superseded picture asks no fallback");
 		}
 	}
 
@@ -643,6 +710,7 @@ int main()
 	window_bounds();
 	window_restart_from_disk();
 	avatar_flow();
+	avatar_ghes_private_mode();
 	avatar_refusals_and_scope();
 	avatar_restart_from_disk();
 	return EXIT_SUCCESS;

@@ -3078,8 +3078,12 @@ Settings account card with its GitHub CLI accounts.
   letters, digits and hyphens, not starting with a hyphen, optionally
   `[bot]`) and builds the address: GitHub.com's
   `https://avatars.githubusercontent.com/<login>?s=<n>`, never with the
-  credential, or a GHES host's `https://<host>/<login>.png?size=<n>`, with
-  the credential only to the host itself. Every hop, redirects included, is
+  credential. On GHES with the profile's credential the window first asks
+  the server's avatars API, `https://<host>/api/v3/enterprise/avatars/<login>?s=<n>`,
+  which takes the API token and so answers under private mode, and asks
+  `https://<host>/<login>.png?size=<n>` once if that gives no picture
+  ([[BPR-1845]]); a GHES profile without the credential asks only the
+  latter. The credential goes only to the host itself. Every hop, redirects included, is
   held to the host's avatar origins (`avatars.githubusercontent.com`; the
   GHES host or `avatars.<host>`). The size is the smallest of 32, 48, 64, 96,
   128 and 192 that covers the face. The fetch runs on the profile's image
