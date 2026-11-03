@@ -303,9 +303,16 @@ namespace bpr::qt {
 				SideLineHeight              = sideMetrics.height();
 				const auto actionExtent     = row_action_size(aOption, aIndex);
 				const auto openActionExtent = Opening ? action_size(aOption, OpenAction) : QSize{ };
-				SideWidth                   = std::max({ sideMetrics.horizontalAdvance(Time),
-														 sideMetrics.horizontalAdvance(Progress),
-														 actionExtent.width() });
+				// [[BPR-1843]]. An icon action on a row that also says a time or
+				// its progress (Recently viewed's Open on GitHub) keeps a place
+				// of its own at the right, so it never covers those words; a
+				// labelled action still takes the side column's place.
+				const auto iconBeside = aIndex.data(home_row_role::row_action).toString().isEmpty()
+					&& !aIndex.data(home_row_role::icon_action).toString().isEmpty() && (!Time.isEmpty() || !Progress.isEmpty());
+				ActionWidth = iconBeside ? actionExtent.width() : 0;
+				SideWidth   = std::max({ sideMetrics.horizontalAdvance(Time),
+										 sideMetrics.horizontalAdvance(Progress),
+										 iconBeside ? 0 : actionExtent.width() });
 				// [[BPR-0783]]. The account chip: a round initial tile and the
 				// login, at the row's right before the time.
 				const auto chipExtent = home_chip_size(SideFont, Chip);
@@ -333,7 +340,7 @@ namespace bpr::qt {
 				Width            = row_width(aOption);
 				TextLeft         = home_row_delegate::inset + (aMarks ? home_row_delegate::mark_width : 0);
 				const auto right = Width - home_row_delegate::inset;
-				SideLeft         = right - SideWidth;
+				SideLeft         = right - (ActionWidth > 0 ? ActionWidth + home_row_delegate::column_gap : 0) - SideWidth;
 				// [[BPR-1407]]. The facts sit beside the side column, which keeps
 				// the hover action's place, so the action never covers a figure
 				// and the column's right edge is the same on every row.
@@ -499,6 +506,7 @@ namespace bpr::qt {
 			int         ReasonLength   = 0;
 			int         SideLineHeight = 0;
 			int         SideWidth      = 0;
+			int         ActionWidth    = 0;
 			int         ChipWidth      = 0;
 			int         ChipHeight     = 0;
 			int         Width          = 0;

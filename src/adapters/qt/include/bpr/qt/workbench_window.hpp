@@ -1527,12 +1527,13 @@ namespace bpr::qt {
 		/// empty text withdraws it.
 		void present_home_restoration_notice(const QString& aText);
 		/// \brief [[BPR-0733]] [[BPR-0776]]. Home's Recently viewed panel, its
-		/// list, its Resume action and the row button that shows it.
+		/// list, its Resume and Remove actions and its rows' Open on GitHub button.
 		///
 		/// \details The panel is shown only while entries were published; an
-		/// empty list is no panel at all. Resume is a row action: on the hovered
-		/// row, on the current row while the list has focus, and in the row's
-		/// menu.
+		/// empty list is no panel at all. Resume is in the row's menu and on
+		/// Shift and Return. [[BPR-1843]]: the row button is Open on GitHub, the
+		/// queue row's chip, on the hovered row and on the current row while
+		/// the list has focus.
 		[[nodiscard]] auto home_recent_panel() const noexcept -> home_panel*;
 		[[nodiscard]] auto home_recent_list() const noexcept -> QListWidget*;
 		[[nodiscard]] auto home_recent_resume_action() const noexcept -> QAction*;
@@ -3066,8 +3067,15 @@ namespace bpr::qt {
 		QPushButton*                                     HomeOpenCancel     = nullptr;
 		QPushButton*                                     HomeOpenRetry      = nullptr;
 		std::optional<application::home_open_projection> HomeOpen;
-		application::home_open_dispatch                  HomeOpenDispatch;
-		std::function<void()>                            CloseReviewDispatch;
+		/// [[BPR-1843]]. The Active review card's height, held empty on Home
+		/// while a pull request asked for there is being opened, so the rows
+		/// under the pointer do not move when the review it named is let go.
+		int HomeLandingHold = 0;
+		/// [[BPR-1843]]. Set while Close review lets the review go: the card
+		/// then leaves at once, since nothing is being opened in its place.
+		bool                            ReleasingReview = false;
+		application::home_open_dispatch HomeOpenDispatch;
+		std::function<void()>           CloseReviewDispatch;
 		/// Whether a shown Home row carries the opening, so the band does not.
 		bool                                                         HomeOpenOnRow = false;
 		QString                                                      LastHomeOpenAnnouncement;

@@ -663,21 +663,21 @@ namespace bpr::qt {
 			item->setData(home_row_role::draft, aEntry.Draft.value_or(false));
 			item->setData(Qt::AccessibleTextRole, aEntry.Draft.value_or(false) ? QStringLiteral("Draft pull request; %1").arg(text) : text);
 			item->setToolTip(detail);
-			// [[BPR-1365]]. The review this window has open is said in words, as
-			// its tag says it on the row.
-			item->setData(Qt::AccessibleDescriptionRole,
-						  aEntry.Open ? QStringLiteral("%1; %2").arg(home_reviewing_description(), detail) : detail);
-			item->setData(home_row_role::reviewing, aEntry.Open);
+			// [[BPR-1843]]. The review this window has open is Home's Active
+			// review card; its Recently viewed row carries no Reviewing tag
+			// (the owner found it confusing), so it is an ordinary row.
+			item->setData(Qt::AccessibleDescriptionRole, detail);
 			// [[BPR-0776]]. The queue row's anatomy. A recent row has no state, so
 			// no reason word and no colour; its time is the host's reading of
-			// when it was viewed, and it offers Resume only where a reading was
-			// kept.
+			// when it was viewed. [[BPR-1843]]: its one chip is the queue row's
+			// Open on GitHub; Resume stays in the row's menu and on Shift and
+			// Return, since the row itself opens the pull request.
 			item->setData(home_row_role::identity, identity);
 			item->setData(home_row_role::title, QString::fromStdString(aEntry.Title));
 			item->setData(home_row_role::why, aEntry.Resumable ? QStringLiteral("My reading is saved.") : QStringLiteral("Viewed."));
 			item->setData(home_row_role::state, -1);
 			item->setData(home_row_role::time, viewed);
-			item->setData(home_row_role::row_action, aEntry.Resumable ? QStringLiteral("Resume") : QString{ });
+			item->setData(home_row_role::icon_action, QStringLiteral("Open on GitHub"));
 			return item;
 		}
 
@@ -3479,12 +3479,13 @@ namespace bpr::qt {
 			// bordered, so its height is the box: it keeps the height it asks
 			// for in every session state.
 			openFrame->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-			// [[BPR-1381]]. Over an open review the way back stands at the
-			// bar's right (see place_home_landing). The owner, 2026-10-10: the
-			// row it had above the bar "causes all the layout of the page to
-			// shift and that section goes away when you open a new pr which
-			// shifts the screen under your cursor". Beside the bar it changes
-			// the bar's width only, and nothing below the bar moves.
+			// [[BPR-1381]]. The owner, 2026-10-10: a row above the bar "causes
+			// all the layout of the page to shift and that section goes away
+			// when you open a new pr which shifts the screen under your
+			// cursor". [[BPR-1843]]: the owner, 2026-11-03, asked for the open
+			// review as a card of its own above the lists. It stands under the
+			// bar (see place_home_landing), so the bar never moves, and its
+			// place is held while another pull request opens from Home.
 			auto* const openRow = new QHBoxLayout{ };
 			openRow->setContentsMargins(24, 16, 24, 0);
 			openRow->setSpacing(12);
@@ -3760,7 +3761,13 @@ namespace bpr::qt {
 			homeColumn->addLayout(noticeRow);
 			if (HomeList != nullptr) {
 				HomeList->adopt_recent(*recentList);
-				HomeList->set_recent_action_dispatch([this](const int aRow) { dispatch_recent_review(aRow, true); });
+				// [[BPR-1843]]. A Recently viewed row's Open on GitHub, from its
+				// icon button: the queue row's chip, naming this row's page.
+				HomeList->set_recent_page_dispatch([this](const int aRow) {
+					if (aRow >= 0 && static_cast<std::size_t>(aRow) < RecentReviews.Entries.size()) {
+						open_pull_request_page(application::recent_review_row{ static_cast<std::size_t>(aRow) });
+					}
+				});
 				// [[BPR-1342]]. ⌘-click or middle-click on a Recently viewed row.
 				HomeList->set_recent_new_window_dispatch([this](const int aRow) {
 					if (aRow >= 0 && static_cast<std::size_t>(aRow) < RecentReviews.Entries.size()) {
@@ -13083,16 +13090,45 @@ namespace bpr::qt {
 		const auto comparing = ComparisonSurface != nullptr
 			&& ComparisonSurface->current_result() != nullptr;
 		const auto loading = status == core::github_status::loading_pull_request;
-		HomeLanding->set_review_identity(IdentityText);
+		// [[BPR-1843]]. The Active review card names the pull request as a
+		// link does, with its literal title beside it.
+		HomeLanding->set_review_identity(
+			IdentityOwner.isEmpty() || IdentityRepository.isEmpty() || IdentityNumber.isEmpty()
+				? IdentityText
+				: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber));
+		HomeLanding->set_review_title(
+			IdentityOwner.isEmpty() ? QString{ } : QString::fromStdString(OpenQueueTitle));
 		HomeLanding->set_review_position(
 			Cursor && Cursor->Ordinal > 0U
 				? QStringLiteral("file %1 of %2").arg(Cursor->Ordinal).arg(Cursor->ActionableCount)
 				: QString{ });
-		HomeLanding->set_state(
-			status == core::github_status::establishing_session ? landing_state::connecting
-				: (HasGithubPullRequest || HasCachedOverview)   ? landing_state::back_to_review
-				: account                                       ? landing_state::choose_pull_request
-																: landing_state::sign_in);
+		const auto landing = status == core::github_status::establishing_session ? landing_state::connecting
+			: (HasGithubPullRequest || HasCachedOverview)                        ? landing_state::back_to_review
+			: account                                                            ? landing_state::choose_pull_request
+																				 : landing_state::sign_in;
+		// [[BPR-1843]]. Opening another pull request from Home lets the open
+		// review go before the new one arrives. Its card's place is held,
+		// empty, until that open is over, so nothing under the pointer moves.
+		// The open's projection may reach the window just after the review is
+		// let go, in the same turn, so the hold is checked once that turn is
+		// over. Close review holds nothing.
+		const auto opening = HomeOpen.has_value() && HomeOpen->State.has_value();
+		if (HomeLanding->state() == landing_state::back_to_review && landing == landing_state::choose_pull_request && !ReleasingReview
+			&& showing_home() && HomeLanding->isVisible()) {
+			HomeLandingHold = HomeLanding->height();
+			if (!opening) {
+				QTimer::singleShot(0, this, [this] {
+					if (HomeLandingHold > 0 && !(HomeOpen.has_value() && HomeOpen->State.has_value())) {
+						HomeLandingHold = 0;
+						update_home_landing();
+					}
+				});
+			}
+		} else if (landing != landing_state::choose_pull_request) {
+			HomeLandingHold = 0;
+		}
+		HomeLanding->set_held_height(HomeLandingHold);
+		HomeLanding->set_state(landing);
 		place_home_landing();
 		if (HomeOpenAction != nullptr && HomeOpenBar != nullptr) {
 			HomeOpenAction->setEnabled(status != core::github_status::establishing_session && !HomeOpenBar->text().trimmed().isEmpty());
@@ -13480,18 +13516,10 @@ namespace bpr::qt {
 			return;
 		}
 		const auto state = HomeLanding->state();
-		HomeLanding->setVisible(state != landing_state::choose_pull_request);
-		// [[BPR-1381]]. Over a review the way back stands at the bar's right,
-		// in the bar's own row; signed out the card follows the bar and what
-		// is said under it.
-		if (state == landing_state::back_to_review && HomeOpenRow != nullptr) {
-			if (HomeOpenRow->indexOf(HomeLanding) >= 0) {
-				return;
-			}
-			HomeColumn->removeWidget(HomeLanding);
-			HomeOpenRow->addWidget(HomeLanding, 0, Qt::AlignVCenter);
-			return;
-		}
+		HomeLanding->setVisible(state != landing_state::choose_pull_request || HomeLandingHold > 0);
+		// [[BPR-1843]]. Over a review the Active review card follows the bar
+		// and stands above every list, as the first-launch card does signed
+		// out. The bar keeps its whole width and never moves ([[BPR-1381]]).
 		const auto wanted = HomeColumn->indexOf(HomeSetupRow) + 1;
 		if (HomeColumn->indexOf(HomeLanding) == wanted) {
 			return;
@@ -16125,7 +16153,7 @@ namespace bpr::qt {
 
 	auto workbench_window::home_recent_row_action() const noexcept -> QToolButton*
 	{
-		return HomeList != nullptr ? HomeList->recent_action() : nullptr;
+		return HomeList != nullptr ? HomeList->recent_page_action() : nullptr;
 	}
 
 	auto workbench_window::home_recent_list() const noexcept -> QListWidget*
@@ -17162,10 +17190,12 @@ namespace bpr::qt {
 		}
 		// The pull request's short name, as a link names it, not the strip's
 		// identity with its title.
-		const auto closing = IdentityOwner.isEmpty() || IdentityRepository.isEmpty() || IdentityNumber.isEmpty()
+		auto closing    = IdentityOwner.isEmpty() || IdentityRepository.isEmpty() || IdentityNumber.isEmpty()
 			? QString{ }
 			: QStringLiteral("%1/%2#%3").arg(IdentityOwner, IdentityRepository, IdentityNumber);
+		ReleasingReview = true;
 		CloseReviewDispatch();
+		ReleasingReview = false;
 		if (HomeLanding->state() == landing_state::back_to_review) {
 			return std::nullopt;
 		}
@@ -17822,6 +17852,10 @@ namespace bpr::qt {
 	{
 		HomeOpen = aProjection.State.has_value() ? std::optional{ aProjection } : std::nullopt;
 		refresh_home_open();
+		// [[BPR-1843]]. The open is over: the held place goes.
+		if (!HomeOpen.has_value() && HomeLandingHold > 0) {
+			update_home_landing();
+		}
 	}
 
 	void workbench_window::dispatch_home_open_action()

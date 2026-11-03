@@ -995,14 +995,15 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   row menu mean, but select nothing, and a publication of Recently viewed or
   Review Cycles never selects a row in a list that does not have the
   keyboard. The selection is the style's own, in the theme's selection
-  colour. The review this window has open (the composition marks its
-  Recently viewed entry; the queue row with the same exact identity follows)
-  is drawn quietly, never with the selection's fill. Unselected, its ground
+  colour. The queue row of the review this window has open is drawn
+  quietly, never with the selection's fill. Unselected, its ground
   is the theme's current-line tint (AlternateBase) and it carries a
-  **Reviewing** tag, the word Home's title uses for it, in neutral ink in a
-  thin outline beside the time. Selected, it is the style's selection like
-  any other row, and the tag takes the selected ink. Its accessible
-  description begins "Reviewing in this window". With a review cycle
+  **Reviewing** tag in neutral ink in a thin outline beside the time.
+  Selected, it is the style's selection like any other row, and the tag
+  takes the selected ink. Its accessible description begins "Reviewing in
+  this window". [[BPR-1843]]: a Recently viewed row carries no tag and no
+  tint (the owner, 2026-11-03, found it confusing); the Active review card
+  above the lists says what is open. With a review cycle
   selected, Home's pull-request actions (Open Review, Open on GitHub) name no
   row.
 - **Panels.** With State headers on — the default — each state is a bordered
@@ -1095,8 +1096,11 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   **Clear filters** link (Tab, Return or Space) puts My role, Added by and
   Quiet items back to their defaults and leaves the arrangement alone; the
   line under the bar does not repeat it.
-- **Recently viewed** is the last panel in every arrangement, and Resume is
-  its rows' action: on hover, on focus and in the row's menu. It is governed
+- **Recently viewed** is the last panel in every arrangement. Its rows'
+  chip, on hover and on focus, is the queue row's **Open on GitHub**, the same
+  icon button and action ([[BPR-1843]]); Resume is no chip, since the row
+  itself opens the pull request, and stays in the row's menu and on ⇧Return.
+  It is governed
   by the entries the composition gave the window rather than by the account,
   so a signed-out window still lists its public reading.
   It retains at most ten destinations per profile, with no time expiry.
@@ -1208,22 +1212,30 @@ one — the two ways in RFC-BPR-0018 requires, without opening Settings; and
 the status bar line "Not signed in. Public pull requests open read-only."
 No list, no panels, no filters.
 
-Home over an open review keeps the way back: **Back to the review** (⌘⇧H),
-the filled button at the bar's right on the bar's own line, its description
-naming what is being reviewed and how far through it. Its key is said in its
-tooltip and description, not beside it ([[BPR-1573]], the owner, 2026-10-17:
-"Move this hotkey into the tooltip"). Home beneath it is
-unchanged, and whatever had focus in the review has it again when the review
-returns. [[BPR-1381]]: it was a row of its own above the bar, and it came
-and went with the review, so the bar and the list moved under the pointer
-when a new pull request was opened (the owner, 2026-10-10). Beside the bar
-only the bar's width changes.
+Home over an open review shows the **Active review** card ([[BPR-1843]], the
+owner, 2026-11-03): under the bar, as wide as it, and before every list. It
+is the one place on Home tinted by the accent: the theme's Highlight washed
+into Base, an accent edge and an accent rail down its left. It reads
+"Active review" in a small caption, then the identity (owner/name#123)
+beside the literal title on one line (ellipsised where it must be, whole in
+its tooltip and accessible description), then where the reading was left
+("Left off at file 3 of 12", or "Open in this window"). The caption and
+position inks keep 4.5:1 on the card's ground in every theme. At its right
+stand **Back to the review** (⌘⇧H), the page's one filled button and
+Return's default, its description naming what is being reviewed, its key in
+its tooltip and description ([[BPR-1573]], the owner, 2026-10-17: "Move this
+hotkey into the tooltip"), and the card's ×. Whatever had focus in the
+review has it again when the review returns. The card has one height
+whichever review is open, and the bar never moves. [[BPR-1381]]: a row
+above the bar once came and went with the review and moved the page under
+the pointer (the owner, 2026-10-10); so when another pull request is opened
+from Home, the card's place is held, empty, until that open is over.
 
-**Close review** follows the way back on the same line
+**Close review** is the card's ×, after the way back
 ([[BPR-1573]], the owner, 2026-10-17: "Home should have a close review next
-to back to review"). It is bordered, so Back to the review stays the page's
-one filled control and Return's default, and it has no key of its own; Tab
-reaches it after Back to the review. Its description names the review and
+to back to review"; [[BPR-1843]]). It is named "Close review" for assistive
+technology and has no key of its own; Tab reaches it after Back to the
+review. Its description names the review and
 says that its drafts are kept. Closing lets go of the review in this window
 only: the window's read forgets the pull request (a read in flight is
 cancelled), and the review is released exactly as opening another pull
