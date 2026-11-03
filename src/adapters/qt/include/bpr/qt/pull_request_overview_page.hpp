@@ -723,6 +723,17 @@ namespace bpr::qt {
 		[[nodiscard]] auto participant_rows() const -> std::vector<overview_participant_row*>;
 		/// \brief [[BPR-1405]]. The Waiting on roster, in projection order.
 		[[nodiscard]] auto request_rows() const -> std::vector<overview_request_row*>;
+		/// \brief [[BPR-1849]]. Takes a change to the review requests, their
+		/// note and the status of the overview already presented, and redraws
+		/// only People, the role and Needs attention: no file row, check or
+		/// participant is visited. Another pull request, or none, is refused,
+		/// for the caller to present whole.
+		/// \returns Whether the change was taken.
+		[[nodiscard]] auto present_review_requests(const application::pull_request_overview_projection& aProjection) -> bool;
+		/// \brief How often the Waiting on rows were made again, and how often
+		/// a review-request change was taken in place.
+		[[nodiscard]] auto request_row_builds() const noexcept -> std::size_t;
+		[[nodiscard]] auto review_request_updates() const noexcept -> std::size_t;
 		[[nodiscard]] auto since_heading() const noexcept -> QLabel*;
 		[[nodiscard]] auto value_label(overview_value aValue) const noexcept -> QLabel*;
 		/// \brief No minimum: a hidden page must not widen the centre's stack.
@@ -749,6 +760,7 @@ namespace bpr::qt {
 		void present_attention();
 		void present_my_review();
 		void present_people();
+		void present_request_rows();
 		void show_value(overview_value aValue, bool aShown);
 		void remember_sections();
 		void hide_status();
@@ -799,7 +811,9 @@ namespace bpr::qt {
 		overview_colours                                             Colours;
 		overview_path_dispatch                                       FileDispatch;
 		overview_path_dispatch                                       CachedSourceDispatch;
-		bool                                                         Cached = false;
+		bool                                                         Cached               = false;
+		std::size_t                                                  RequestRowBuilds     = 0U;
+		std::size_t                                                  ReviewRequestUpdates = 0U;
 		std::string                                                  CachedBase, CachedHead;
 		QPlainTextEdit*                                              CachedSource     = nullptr;
 		QPushButton*                                                 CachedSourceBack = nullptr;

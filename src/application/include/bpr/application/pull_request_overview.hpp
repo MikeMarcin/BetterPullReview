@@ -9,6 +9,7 @@
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
 #include "bpr/core/review_role.hpp"
+#include "bpr/core/reviewer_request.hpp"
 
 #include <cstddef>
 #include <cstdint>
@@ -150,6 +151,9 @@ namespace bpr::application {
 		std::string DisplayName;
 		bool        Team      = false;
 		bool        CodeOwner = false;
+		/// [[BPR-1849]]. The viewer just asked for it and GitHub has not
+		/// answered; the row is the core's projection, not the read's.
+		bool Pending = false;
 
 		auto operator<=>(const overview_review_request&) const = default;
 	};
@@ -306,6 +310,10 @@ namespace bpr::application {
 		/// read, by GitHub thread id, with the state the core projects. The
 		/// overview counts them so; the read's value stands for the rest.
 		std::map<std::string, bool, std::less<>> ProjectedResolutions;
+		/// [[BPR-1849]]. Review requests the viewer asked for that the read
+		/// does not list (`core::project_reviewer_requests`). People and the
+		/// status count them with the read's.
+		std::vector<core::projected_reviewer_request> ProjectedReviewRequests;
 	};
 
 	/// \brief Decides the overview from the snapshot and the context.
@@ -324,6 +332,19 @@ namespace bpr::application {
 											   const github_review_thread_record&  aThread,
 											   bool                                aShownResolved,
 											   bool                                aResolved) -> bool;
+
+	/// \brief [[BPR-1849]]. The logins the read lists with an open review
+	/// request, as `core::observe_reviewer_requests` and
+	/// `core::project_reviewer_requests` take them.
+	[[nodiscard]] auto requested_reviewer_logins(const github_pull_request_snapshot& aSnapshot) -> std::vector<std::string>;
+
+	/// \brief [[BPR-1849]]. The review requests, their note and the status
+	/// decided again for `aProjected` over the read, as projecting the whole
+	/// overview with them would decide; nothing else is visited.
+	/// \returns Whether the overview changed.
+	[[nodiscard]] auto apply_review_requests(pull_request_overview_projection&                    aProjection,
+											 const github_pull_request_snapshot&                  aSnapshot,
+											 const std::vector<core::projected_reviewer_request>& aProjected) -> bool;
 
 	/// \brief What one or more durable receipt changes did to a published overview.
 	///

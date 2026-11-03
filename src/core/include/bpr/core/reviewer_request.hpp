@@ -248,6 +248,69 @@ namespace bpr::core {
 	};
 
 	[[nodiscard]] auto decide_reviewer_write(const reviewer_search_answer& aObserved, std::string_view aLogin) noexcept -> reviewer_write_decision;
+
+	/// \brief [[BPR-1849]]. One review request the viewer asked for: shown
+	/// pending until GitHub answers, then kept until a read lists it.
+	///
+	/// \details The owner, 2026-11-03: "Request a review should immediately
+	/// update people." People shows the person at once instead of waiting on
+	/// a whole re-read of the pull request; GitHub's answer confirms or
+	/// withdraws them, and the next read reconciles, as
+	/// `conversation_overlay` does for a resolve.
+	struct reviewer_request_change
+	{
+		/// The picker's request identity (`reviewer_request_effect::Request`).
+		std::uint64_t Request = 0U;
+		std::string   Login;
+		/// GitHub answered that the request is open.
+		bool Confirmed = false;
+		/// How many reads since GitHub's answer did not list the person. A
+		/// read begun before the request can arrive after it; the second one
+		/// that disagrees is believed.
+		std::uint8_t Disagreements = 0U;
+
+		auto operator<=>(const reviewer_request_change&) const = default;
+	};
+
+	/// \brief The viewer's review requests that reads have not caught up with.
+	struct reviewer_request_overlay
+	{
+		std::vector<reviewer_request_change> Changes;
+
+		auto operator<=>(const reviewer_request_overlay&) const = default;
+	};
+
+	/// \brief Records the request a choice asked for, pending. A person
+	/// already in the overlay is asked again under the new identity.
+	void begin_reviewer_request_change(reviewer_request_overlay& aOverlay, const reviewer_request_effect& aEffect);
+
+	/// \brief GitHub answered request `aRequest`: confirmed when the answer
+	/// lists the person, withdrawn otherwise (GitHub did not add them). An
+	/// answer to a request the overlay does not hold changes nothing.
+	void settle_reviewer_request_change(reviewer_request_overlay& aOverlay, std::uint64_t aRequest, const reviewer_request_answer& aAnswer);
+
+	/// \brief The request failed or went unanswered: People shows the read again.
+	void abandon_reviewer_request_change(reviewer_request_overlay& aOverlay, std::uint64_t aRequest);
+
+	/// \brief A new read arrived listing `aRequested`, the logins with an
+	/// open review request. A confirmed change it lists is done; one it does
+	/// not list a second time is given up. Pending changes stay.
+	void observe_reviewer_requests(reviewer_request_overlay& aOverlay, const std::vector<std::string>& aRequested);
+
+	/// \brief One person People shows as requested that the read does not list.
+	struct projected_reviewer_request
+	{
+		std::string Login;
+		/// GitHub has not answered yet.
+		bool Pending = false;
+
+		auto operator<=>(const projected_reviewer_request&) const = default;
+	};
+
+	/// \brief The requests People adds to the read's `aRequested`: each
+	/// change whose person the read does not list, in the order asked.
+	[[nodiscard]] auto project_reviewer_requests(const std::vector<std::string>& aRequested, const reviewer_request_overlay& aOverlay)
+		-> std::vector<projected_reviewer_request>;
 } // namespace bpr::core
 
 #endif

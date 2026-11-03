@@ -7,6 +7,7 @@
 #include <string>
 #include <string_view>
 #include <variant>
+#include <vector>
 
 namespace {
 	using namespace bpr;
@@ -157,6 +158,56 @@ namespace {
 		expect(core::decide_reviewer_write(observed, "bea") == core::reviewer_write_decision::write, "a reviewer is asked again");
 		expect(core::name(core::reviewer_notice::not_added) == "not_added" && core::name(reviewer_standing::reviewed) == "reviewed", "names are stable");
 	}
+
+	// [[BPR-1849]]. People shows a request at once, pending; GitHub's answer
+	// confirms or withdraws it, and reads reconcile it.
+	void test_the_overlay_shows_a_request_until_a_read_lists_it()
+	{
+		auto overlay = core::reviewer_request_overlay{ };
+		core::begin_reviewer_request_change(overlay, { .Request = 1U, .NodeId = "U_ana", .Login = "ana" });
+		auto shown = core::project_reviewer_requests({ "rui" }, overlay);
+		expect(shown == std::vector<core::projected_reviewer_request>{ { .Login = "ana", .Pending = true } }, "a choice is shown at once, pending");
+
+		// A read begun before the request does not withdraw a pending one.
+		core::observe_reviewer_requests(overlay, { "rui" });
+		expect(core::project_reviewer_requests({ "rui" }, overlay).size() == 1U, "a pending request survives a read");
+
+		core::settle_reviewer_request_change(overlay, 7U, { .Requested = { }, .Written = true });
+		expect(overlay.Changes.size() == 1U && !overlay.Changes.front().Confirmed, "an answer to another request changes nothing");
+		core::settle_reviewer_request_change(overlay, 1U, { .Requested = { "rui", "ANA" }, .Written = true });
+		shown = core::project_reviewer_requests({ "rui" }, overlay);
+		expect(shown == std::vector<core::projected_reviewer_request>{ { .Login = "ana", .Pending = false } }, "GitHub's answer confirms it");
+		expect(core::project_reviewer_requests({ "Ana" }, overlay).empty(), "a read listing them shows the read's row only");
+
+		// One read that has not caught up keeps it; the second is believed.
+		core::observe_reviewer_requests(overlay, { "rui" });
+		expect(overlay.Changes.size() == 1U && overlay.Changes.front().Disagreements == 1U, "one disagreeing read is not believed");
+		core::observe_reviewer_requests(overlay, { "rui" });
+		expect(overlay.Changes.empty(), "the second disagreeing read is");
+
+		core::begin_reviewer_request_change(overlay, { .Request = 2U, .Login = "bea", .Rerequest = true });
+		core::settle_reviewer_request_change(overlay, 2U, { .Requested = { "bea" }, .Written = true });
+		core::observe_reviewer_requests(overlay, { "bea" });
+		expect(overlay.Changes.empty(), "a read that agrees ends the change");
+	}
+
+	void test_the_overlay_rolls_back_a_request_that_did_not_take()
+	{
+		auto overlay = core::reviewer_request_overlay{ };
+		core::begin_reviewer_request_change(overlay, { .Request = 1U, .Login = "ana" });
+		core::abandon_reviewer_request_change(overlay, 1U);
+		expect(overlay.Changes.empty() && core::project_reviewer_requests({ }, overlay).empty(), "a failed request is withdrawn");
+
+		core::begin_reviewer_request_change(overlay, { .Request = 2U, .Login = "octo-outsider" });
+		core::settle_reviewer_request_change(overlay, 2U, { .Requested = { "rui" }, .Written = true });
+		expect(overlay.Changes.empty(), "GitHub answering without them withdraws them");
+
+		core::begin_reviewer_request_change(overlay, { .Request = 3U, .Login = "ana" });
+		core::begin_reviewer_request_change(overlay, { .Request = 4U, .Login = "ANA" });
+		expect(overlay.Changes.size() == 1U && overlay.Changes.front().Request == 4U, "asking again replaces the earlier change");
+		core::abandon_reviewer_request_change(overlay, 3U);
+		expect(overlay.Changes.size() == 1U, "the earlier request's failure leaves the later one");
+	}
 } // namespace
 
 auto main() -> int
@@ -166,6 +217,8 @@ auto main() -> int
 	test_searches_keep_only_the_latest_answer();
 	test_choosing_asks_once_and_says_what_came_of_it();
 	test_the_provider_decides_before_writing();
+	test_the_overlay_shows_a_request_until_a_read_lists_it();
+	test_the_overlay_rolls_back_a_request_that_did_not_take();
 	std::cout << "reviewer request core tests passed\n";
 	return EXIT_SUCCESS;
 }

@@ -754,12 +754,54 @@ namespace {
 		expect(!application::project_pull_request_overview(review, { }).Status.Roles.ViewerKnown, "an unknown viewer is told nothing");
 	}
 
+	// [[BPR-1849]]. A review request the viewer asked for is in People and
+	// the status at once; moving it in place decides what projecting the
+	// whole overview with it would.
+	void test_a_requested_reviewer_moves_people_as_a_projection_would()
+	{
+		auto review                       = snapshot();
+		review.ReviewRequestsAvailability = application::github_observation_availability::available;
+		auto known                        = application::github_review_request_record{ };
+		known.Login                       = "rui";
+		known.Kind                        = application::github_requested_actor_kind::user;
+		review.ReviewRequests             = { known };
+		expect(application::requested_reviewer_logins(review) == std::vector<std::string>{ "rui" }, "the read's user requests are its logins");
+
+		const auto read                 = application::project_pull_request_overview(review, { });
+		const auto pending              = std::vector<core::projected_reviewer_request>{ { .Login = "ana", .Pending = true } };
+		auto       context              = application::overview_context{ };
+		context.ProjectedReviewRequests = pending;
+		const auto projected            = application::project_pull_request_overview(review, context);
+		expect(projected.ReviewRequests.size() == 2U && projected.ReviewRequests.back().Name == "ana" && projected.ReviewRequests.back().Pending
+				   && !projected.ReviewRequests.front().Pending,
+			   "the asked request follows the read's, pending");
+		const auto waiting = std::ranges::find(projected.Status.Attention, core::status_attention_kind::waiting_on, &core::status_attention::Kind);
+		expect(waiting != projected.Status.Attention.end() && waiting->Names == std::vector<std::string>{ "rui", "ana" }, "the status waits on them too");
+
+		auto moved = read;
+		expect(application::apply_review_requests(moved, review, pending) && moved == projected, "moved in place, it is the projection");
+		expect(!application::apply_review_requests(moved, review, pending) && moved == projected, "the same requests change nothing");
+		const auto confirmed = std::vector<core::projected_reviewer_request>{ { .Login = "ana", .Pending = false } };
+		expect(application::apply_review_requests(moved, review, confirmed) && !moved.ReviewRequests.back().Pending, "GitHub's answer confirms the row");
+		expect(application::apply_review_requests(moved, review, { }) && moved == read, "a withdrawn request leaves the read's roster");
+
+		// A read without the roster says the list is partial, not empty.
+		review.ReviewRequests.clear();
+		review.ReviewRequestsAvailability = application::github_observation_availability::failed;
+		auto partial                      = application::project_pull_request_overview(review, { });
+		expect(partial.ReviewRequests.empty() && partial.ReviewRequestsNote.starts_with("Review requests unavailable"), "an unread roster is unavailable");
+		expect(application::apply_review_requests(partial, review, pending) && partial.ReviewRequests.size() == 1U
+				   && partial.ReviewRequestsNote.starts_with("Code owners and the complete list unavailable"),
+			   "the asked request is shown and the list still says it is partial");
+	}
+
 } // namespace
 
 auto main() -> int
 {
 	test_merge_evidence_boundaries();
 	test_status_leads_with_my_role_and_what_needs_attention();
+	test_a_requested_reviewer_moves_people_as_a_projection_would();
 	test_history_header_matches_complete_projection();
 	test_receipt_readoption_keeps_exact_current_paths();
 	test_a_resolution_moves_the_counts_as_a_projection_would();

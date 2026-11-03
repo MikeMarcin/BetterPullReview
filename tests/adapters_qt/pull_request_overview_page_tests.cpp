@@ -3545,6 +3545,59 @@ namespace {
 		return std::ranges::count_if(aRows, [&aWords](const QString& aRow) { return aRow.contains(aWords); });
 	}
 
+	/// \brief [[BPR-1849]]. A review request just asked for is drawn in
+	/// People at once, pending, then confirmed or withdrawn, in place: the
+	/// file model sends nothing, participants are not rebuilt, and another
+	/// pull request is refused for a whole presentation.
+	void test_a_requested_reviewer_moves_people_in_place()
+	{
+		auto page = qt::pull_request_overview_page{ };
+		page.resize(1100, 760);
+		page.show();
+		const auto read = status_projection();
+		page.present(read);
+		page.status_section_header(qt::overview_status_section::people)->setChecked(true);
+		settle();
+		auto fileSignals = 0;
+		QObject::connect(page.file_model(), &QAbstractItemModel::modelReset, &page, [&] { ++fileSignals; });
+		QObject::connect(page.file_model(), &QAbstractItemModel::layoutChanged, &page, [&] { ++fileSignals; });
+		QObject::connect(page.file_model(), &QAbstractItemModel::dataChanged, &page, [&] { ++fileSignals; });
+		const auto participants = page.participant_rows();
+		const auto builds       = page.request_row_builds();
+
+		auto asked = read;
+		asked.ReviewRequests.push_back({ .Name = "ana", .Pending = true });
+		asked.Status.Attention[2].Names.emplace_back("ana");
+		asked.Status.Attention[2].Count = 3U;
+		expect(page.present_review_requests(asked), "the same pull request takes the change in place");
+		settle();
+		auto rows = page.request_rows();
+		expect(rows.size() == 3U && rows.back()->request().Name == "ana" && rows.back()->request().Pending
+				   && rows.back()->accessibleName() == QStringLiteral("ana, asking GitHub for a review"),
+			   "the person is listed at once and says GitHub is being asked");
+		expect(page.people_summary()->text().contains(QStringLiteral("3 requested")), "People's summary counts them");
+		const auto attention = page.findChildren<QLabel*>(QStringLiteral("overviewAttentionRow"));
+		expect(std::ranges::any_of(attention, [](const QLabel* aRow) { return aRow->property("statusText").toString().contains(QStringLiteral("and 1 more")); }),
+			   "Needs attention waits on them too");
+		expect(fileSignals == 0 && page.participant_rows() == participants && page.request_row_builds() == builds + 1U && page.review_request_updates() == 1U,
+			   "no file row, participant or other section is touched");
+
+		auto confirmed                          = asked;
+		confirmed.ReviewRequests.back().Pending = false;
+		expect(page.present_review_requests(confirmed), "GitHub's answer is taken in place");
+		rows = page.request_rows();
+		expect(rows.back()->accessibleName() == QStringLiteral("ana, review requested"), "the answer confirms the row");
+		expect(page.present_review_requests(read) && page.request_rows().size() == 2U && fileSignals == 0, "a withdrawn request leaves the read's roster");
+		expect(page.present_review_requests(read) && page.request_row_builds() == builds + 3U, "an unchanged roster is not made again");
+
+		auto other   = read;
+		other.Number = core::pull_request_number{ read.Number.value() + 1U };
+		expect(!page.present_review_requests(other), "another pull request is presented whole");
+		expect(page.present_review_requests(asked), "the pending row is drawn again for its render");
+		settle();
+		render_reviewer_picker(page, "people-review-request-pending-light.png");
+	}
+
 	void test_conversation_count_is_cleared_with_the_pull_request()
 	{
 		auto page = qt::pull_request_overview_page{ };
@@ -3858,6 +3911,7 @@ auto main(int argc, char** argv) -> int
 	test_page_presents_the_projection_and_reports_its_gestures();
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_conversation_count_is_cleared_with_the_pull_request();
+	test_a_requested_reviewer_moves_people_in_place();
 	test_role_line_is_one_short_label();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();

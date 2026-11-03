@@ -2156,7 +2156,9 @@ namespace bpr::app::detail {
 			// absent, the recorded open state.
 			std::optional<application::github_pull_request_state> PullRequestState;
 			std::vector<std::string>                              RequestedReviewers;
-			std::optional<std::string>                            Description;
+			/// [[BPR-1849]]. GitHub refuses the next review request, writing nothing.
+			bool                       RefuseNextReviewerRequest = false;
+			std::optional<std::string> Description;
 
 			// [[BPR-0990]]. The repository's open pull requests discovery
 			// searches, and what it asked.
@@ -5569,6 +5571,9 @@ namespace bpr::app::detail {
 				case core::reviewer_write_decision::write:
 					break;
 				}
+				if (std::exchange(State->RefuseNextReviewerRequest, false)) {
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				}
 				++Evidence.ReviewerWrites;
 				if (aRequest.Login != "octo-outsider") {
 					State->RequestedReviewers.push_back(aRequest.Login);
@@ -6141,6 +6146,12 @@ namespace bpr::app::detail {
 				}
 			}
 		}
+	}
+
+	void github_public_path_fixture_components::stage_reviewer_request_refusal()
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		Implementation->Recording->RefuseNextReviewerRequest = true;
 	}
 
 	void github_public_path_fixture_components::stage_server_description(std::string aBody)
