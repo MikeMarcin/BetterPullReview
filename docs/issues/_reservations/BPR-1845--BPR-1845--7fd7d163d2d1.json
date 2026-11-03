@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1845"
+  ],
+  "reserve_for": "ghes-avatars-041",
+  "purpose": "GHES avatars not loading in 0.4.1",
+  "created": "2026-11-03T21:07:08.944039+00:00",
+  "base": "a9c9b3ff964c6e6a3e20a839db521e14ea7b33b9"
+}
