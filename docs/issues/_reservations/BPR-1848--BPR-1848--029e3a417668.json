@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1848"
+  ],
+  "reserve_for": "home-return-refresh",
+  "purpose": "Returning to Home after a PR refreshes slowly",
+  "created": "2026-11-03T23:26:02.241494+00:00",
+  "base": "96652b833768f97ea7df3be8af9e7ab34079328d"
+}
