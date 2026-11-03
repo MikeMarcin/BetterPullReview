@@ -199,6 +199,10 @@ namespace bpr::core {
 		/// avatar origins: `avatars.githubusercontent.com` on GitHub.com; the
 		/// host itself or `avatars.<host>` on GHES.
 		bool AvatarOrigins = false;
+		/// [[BPR-1846]]. The profile is signed in through the GitHub CLI: the
+		/// application holds no credential, but the host's avatar helper can
+		/// ask `gh` for one in its own process.
+		bool CliCredential = false;
 	};
 
 	/// \brief One admitted request: its exact address and whether the credential rides it.
@@ -207,6 +211,10 @@ namespace bpr::core {
 		std::string   Address;
 		bool          Credential = false;
 		std::uint32_t Hop        = 0U;
+		/// [[BPR-1846]]. Performed by the GitHub CLI avatar helper, which
+		/// supplies `gh`'s credential for the host in its own process; the
+		/// application never holds it. Only `admit_identity_avatar` sets it.
+		bool CliHelper = false;
 
 		auto operator==(const markdown_image_hop&) const -> bool = default;
 	};

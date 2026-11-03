@@ -240,6 +240,14 @@ namespace bpr::adapters::github::detail {
 		/// \brief RFC-BPR-0084. Gives image fetches their serial lanes, one media
 		/// transport per lane and profile. Call once, before any fetch.
 		void configure_markdown_images(std::vector<application::effect_executor*> aLanes, media_transport_factory aFactory);
+		/// \brief [[BPR-1846]]. The shipped GitHub CLI avatar helper. A gh CLI
+		/// GHES profile's avatars API hop (`core::markdown_image_hop::CliHelper`)
+		/// is queued per account transport, and one helper launch on an image
+		/// lane serves up to `core::gh_cli_avatar_batch_limit` of them; the
+		/// helper asks `gh` for the token, so it never enters this process.
+		/// Without a helper, or after a launch that found no usable gh, such a
+		/// hop fails and the window falls back to the web route.
+		void configure_gh_cli_avatar_helper(std::filesystem::path aHelper);
 
 		/// \brief [[BPR-1680]]. Gives Home's discovery reads their own lanes.
 		///

@@ -5,6 +5,9 @@
 #include "github_viewer_named_blob_read.hpp"
 #include "native_https_transport.hpp"
 
+#include "bpr/application/operation_diagnostics.hpp"
+#include "bpr/core/gh_cli_avatar.hpp"
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -13,6 +16,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <expected>
+#include <filesystem>
 #include <functional>
 #include <limits>
 #include <map>
@@ -301,6 +305,27 @@ namespace bpr::adapters::github::detail {
 			std::vector<application::effect_executor*> DiscoveryLanes;
 			std::vector<std::size_t>                   DiscoveryLoad;
 			github_provider::media_transport_factory   MediaFactory;
+			/// [[BPR-1846]]. Avatars a gh CLI account's helper fetches, under
+			/// `Mutex`: one queue per account transport, whose waiting fetches
+			/// one helper launch serves together on an image lane.
+			struct cli_avatar_waiting
+			{
+				std::string                                                   Address;
+				std::stop_token                                               Stop;
+				std::function<void(application::markdown_image_fetch_result)> Deliver;
+			};
+			struct cli_avatar_queue
+			{
+				std::weak_ptr<github_wire_transport_port> Transport;
+				std::vector<cli_avatar_waiting>           Waiting;
+				bool                                      Scheduled = false;
+				/// A launch that found no usable gh or helper holds the queue's
+				/// later fetches off until then, so each face does not relaunch it.
+				std::chrono::steady_clock::time_point HeldUntil{ };
+			};
+			std::filesystem::path                                         CliAvatarHelper;
+			std::map<const github_wire_transport_port*, cli_avatar_queue> CliAvatarQueues;
+			std::stop_source                                              CliAvatarStop;
 		};
 
 		enum class make_job_failure : std::uint8_t {
@@ -1122,6 +1147,17 @@ namespace bpr::adapters::github::detail {
 				return std::shared_ptr<github_wire_transport_port>{ std::move(scope) };
 			}
 			[[nodiscard]] auto background_lanes() const noexcept -> std::size_t override { return Mismatch.load() ? 0U : Transport->background_lanes(); }
+			/// [[BPR-1846]]. Avatars go to the gh transport's avatar helper,
+			/// pinned to this lease's host and account; a lease whose account
+			/// was seen to change launches none.
+			[[nodiscard]] auto perform_cli_avatars(const std::filesystem::path& aHelper, const std::vector<std::string>& aAddresses, std::stop_token aStop)
+				-> gh_cli_avatar_result override
+			{
+				if (Mismatch.load()) {
+					return std::unexpected{ gh_cli_avatar_failure::configuration_changed };
+				}
+				return Transport->perform_cli_avatars(aHelper, aAddresses, std::move(aStop));
+			}
 			/// [[BPR-1680]]. A background operation is observed exactly as a
 			/// foreground one: its account is read before it begins and around
 			/// each of its requests, on the background lane itself.
@@ -3290,6 +3326,189 @@ namespace bpr::adapters::github::detail {
 		state->MediaFactory = std::move(aFactory);
 	}
 
+	void github_provider::configure_gh_cli_avatar_helper(std::filesystem::path aHelper)
+	{
+		if (Implementation == nullptr) {
+			return;
+		}
+		const auto             state = Implementation->State;
+		const std::scoped_lock lock{ state->Mutex };
+		state->CliAvatarHelper = std::move(aHelper);
+	}
+
+	namespace {
+		/// [[BPR-1846]]. How long a launch that found no usable gh or helper
+		/// holds off the account's later avatars, which go to the web route.
+		constexpr auto cli_avatar_hold = std::chrono::seconds{ 60 };
+
+		[[nodiscard]] auto cli_avatar_answer(const core::gh_cli_avatar_answer& aAnswer) -> application::markdown_image_fetch_result
+		{
+			if (aAnswer.State == core::markdown_image_state::loaded && !aAnswer.Bytes.empty()) {
+				return application::markdown_image_fetched{ .Bytes = aAnswer.Bytes, .ContentType = aAnswer.ContentType };
+			}
+			return std::unexpected{ aAnswer.State == core::markdown_image_state::loaded ? core::markdown_image_state::failed : aAnswer.State };
+		}
+
+		/// The operation line a launch with no answers is logged as; none for a cancellation.
+		[[nodiscard]] auto cli_avatar_diagnosis(const gh_cli_avatar_result& aResult) -> std::optional<core::operation_failure>
+		{
+			if (aResult) {
+				switch (aResult->State) {
+				case core::gh_cli_avatar_batch_state::answered:        return std::nullopt;
+				case core::gh_cli_avatar_batch_state::cli_signed_out:  return core::operation_failure::credential_unavailable;
+				case core::gh_cli_avatar_batch_state::cli_unavailable: return core::operation_failure::credential_tool_failed;
+				case core::gh_cli_avatar_batch_state::refused:         return core::operation_failure::malformed_response;
+				}
+				return core::operation_failure::malformed_response;
+			}
+			switch (aResult.error()) {
+			case gh_cli_avatar_failure::cancelled:             return std::nullopt;
+			case gh_cli_avatar_failure::unsupported:
+			case gh_cli_avatar_failure::launch_failed:         return core::operation_failure::no_helper;
+			case gh_cli_avatar_failure::configuration_changed: return core::operation_failure::credential_tool_failed;
+			case gh_cli_avatar_failure::malformed_output:      return core::operation_failure::malformed_response;
+			}
+			return core::operation_failure::no_helper;
+		}
+
+		void post_cli_avatar_batch(const std::shared_ptr<provider_state>& aState, const std::shared_ptr<github_wire_transport_port>& aTransport);
+
+		/// One helper launch for up to `core::gh_cli_avatar_batch_limit` of the
+		/// queue's waiting fetches, on an image lane.
+		void run_cli_avatar_batch(const std::shared_ptr<provider_state>& aState, const std::shared_ptr<github_wire_transport_port>& aTransport)
+		{
+			std::vector<provider_state::cli_avatar_waiting> batch;
+			std::vector<provider_state::cli_avatar_waiting> dropped;
+			std::filesystem::path                           helper;
+			auto                                            held   = false;
+			auto                                            repost = false;
+			{
+				const std::scoped_lock lock{ aState->Mutex };
+				const auto             found = aState->CliAvatarQueues.find(aTransport.get());
+				if (found == aState->CliAvatarQueues.end()) {
+					return;
+				}
+				auto& queue = found->second;
+				held        = aState->Closing || std::chrono::steady_clock::now() < queue.HeldUntil;
+				auto taken  = std::size_t{ 0 };
+				while (taken < queue.Waiting.size() && batch.size() < core::gh_cli_avatar_batch_limit) {
+					auto& waiting = queue.Waiting[taken++];
+					(waiting.Stop.stop_requested() ? dropped : batch).push_back(std::move(waiting));
+				}
+				queue.Waiting.erase(queue.Waiting.begin(), queue.Waiting.begin() + static_cast<std::ptrdiff_t>(taken));
+				repost          = !queue.Waiting.empty() && !held;
+				queue.Scheduled = repost;
+				if (!repost) {
+					for (auto& waiting : queue.Waiting) {
+						dropped.push_back(std::move(waiting));
+					}
+					queue.Waiting.clear();
+				}
+				helper = aState->CliAvatarHelper;
+			}
+			if (repost) {
+				post_cli_avatar_batch(aState, aTransport);
+			}
+			const auto fail = [](std::vector<provider_state::cli_avatar_waiting>& aWaiting) {
+				for (auto& waiting : aWaiting) {
+					waiting.Deliver(std::unexpected{ core::markdown_image_state::failed });
+				}
+			};
+			fail(dropped);
+			if (held || batch.empty()) {
+				fail(batch);
+				return;
+			}
+			std::vector<std::string> addresses;
+			addresses.reserve(batch.size());
+			for (const auto& waiting : batch) {
+				addresses.push_back(waiting.Address);
+			}
+			auto       watch  = application::operation_stopwatch{ };
+			const auto result = helper.empty() ? gh_cli_avatar_result{ std::unexpected{ gh_cli_avatar_failure::unsupported } }
+											   : aTransport->perform_cli_avatars(helper, addresses, aState->CliAvatarStop.get_token());
+			if (result && result->State == core::gh_cli_avatar_batch_state::answered && result->Answers.size() == batch.size()) {
+				for (std::size_t index = 0U; index < batch.size(); ++index) {
+					batch[index].Deliver(cli_avatar_answer(result->Answers[index]));
+				}
+				return;
+			}
+			if (const auto failure = cli_avatar_diagnosis(result)) {
+				{
+					const std::scoped_lock lock{ aState->Mutex };
+					const auto             found = aState->CliAvatarQueues.find(aTransport.get());
+					if (found != aState->CliAvatarQueues.end()) {
+						found->second.HeldUntil = std::chrono::steady_clock::now() + cli_avatar_hold;
+					}
+				}
+				// Content-free: an enum and a count, never an address or output.
+				application::record_operation(aState->Log.get(), { .Action = core::operation_action::avatar_fetch, .Failure = *failure, .DurationMilliseconds = watch.milliseconds(), .Count = static_cast<std::uint32_t>(batch.size()) });
+			}
+			fail(batch);
+		}
+
+		void post_cli_avatar_batch(const std::shared_ptr<provider_state>& aState, const std::shared_ptr<github_wire_transport_port>& aTransport)
+		{
+			provider_state::media_lane* lane = nullptr;
+			{
+				const std::scoped_lock lock{ aState->Mutex };
+				for (const auto& candidate : aState->MediaLanes) {
+					if (lane == nullptr || candidate->Queued.load() < lane->Queued.load()) {
+						lane = candidate.get();
+					}
+				}
+			}
+			if (lane != nullptr) {
+				try {
+					lane->Executor->post([aState, aTransport] { run_cli_avatar_batch(aState, aTransport); });
+					return;
+				} catch (...) {
+				}
+			}
+			// No lane runs it: hold the queue so its fetches fail now and later
+			// ones go to the web route.
+			{
+				const std::scoped_lock lock{ aState->Mutex };
+				const auto             found = aState->CliAvatarQueues.find(aTransport.get());
+				if (found != aState->CliAvatarQueues.end()) {
+					found->second.HeldUntil = std::chrono::steady_clock::now() + cli_avatar_hold;
+				}
+			}
+			run_cli_avatar_batch(aState, aTransport);
+		}
+
+		/// Queues one helper fetch on the account transport's queue.
+		void enqueue_cli_avatar(const std::shared_ptr<provider_state>& aState, const std::shared_ptr<github_wire_transport_port>& aTransport,
+								provider_state::cli_avatar_waiting aWaiting)
+		{
+			auto post    = false;
+			auto refused = false;
+			// Kept apart: a refused fetch is answered after the lock, unqueued.
+			const auto deliver = aWaiting.Deliver;
+			{
+				const std::scoped_lock lock{ aState->Mutex };
+				auto&                  queue = aState->CliAvatarQueues[aTransport.get()];
+				if (queue.Transport.lock() != aTransport) {
+					queue           = { };
+					queue.Transport = aTransport;
+				}
+				refused = aState->Closing || std::chrono::steady_clock::now() < queue.HeldUntil;
+				if (!refused) {
+					queue.Waiting.push_back(std::move(aWaiting));
+					post            = !queue.Scheduled;
+					queue.Scheduled = true;
+				}
+			}
+			if (refused) {
+				deliver(std::unexpected{ core::markdown_image_state::failed });
+				return;
+			}
+			if (post) {
+				post_cli_avatar_batch(aState, aTransport);
+			}
+		}
+	} // namespace
+
 	void github_provider::fetch(application::markdown_image_fetch_request                     aRequest,
 								std::stop_token                                               aStop,
 								std::function<void(application::markdown_image_fetch_result)> aCompletion)
@@ -3312,6 +3531,24 @@ namespace bpr::adapters::github::detail {
 			return;
 		}
 		try {
+			if (aRequest.First.CliHelper) {
+				// [[BPR-1846]]. Only the exact accepted gh CLI account's transport
+				// launches the avatar helper, pinned to its host and account; any
+				// other ends the hop, and the window asks the web route instead.
+				const auto account = exact_account_transport(aRequest.AccountTransport, aRequest.ProfileAuthority,
+															 aRequest.AuthenticationSession.value_or(core::application_session_id{ }),
+															 aRequest.IdentityGeneration, aRequest.Account);
+				if (account == nullptr || profile->authentication_transport() != application::github_authentication_transport::github_cli
+					|| aRequest.First.Credential || aRequest.Policy.CredentialAvailable) {
+					failed();
+					return;
+				}
+				enqueue_cli_avatar(state, account->Transport,
+								   { .Address = aRequest.First.Address,
+									 .Stop    = aStop,
+									 .Deliver = [delivery](application::markdown_image_fetch_result aResult) { delivery->deliver(std::move(aResult)); } });
+				return;
+			}
 			if (aRequest.First.Credential) {
 				// Only the exact accepted account's own native transport holds
 				// the credential; a CLI profile's does not, so its hop goes out
@@ -3402,6 +3639,7 @@ namespace bpr::adapters::github::detail {
 		for (const auto& job : state->Jobs) {
 			job->Stop.request_stop();
 		}
+		state->CliAvatarStop.request_stop();
 	}
 
 	auto github_profile_catalog::register_profile(const validated_github_host_profile& aProfile) noexcept

@@ -241,6 +241,12 @@ if(BPR_BUILD_QT)
         target_compile_definitions(better_pull_review_composition PRIVATE
             "BPR_MCP_HELPER_FILE_NAME=\"$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>\"")
     endif()
+    # [[BPR-1846]]. The GitHub CLI avatar helper, beside the application in
+    # every graph; the tests-enabled one runs it from the build tree.
+    target_compile_definitions(better_pull_review_composition PRIVATE
+        "BPR_GH_AVATAR_HELPER_FILE_NAME=\"$<TARGET_FILE_NAME:tool_better_pull_review_gh_avatar_helper>\""
+        "$<$<BOOL:${BUILD_TESTING}>:BPR_GH_AVATAR_HELPER_EXECUTABLE=\"$<TARGET_FILE:tool_better_pull_review_gh_avatar_helper>\">")
+    add_dependencies(better_pull_review_composition tool_better_pull_review_gh_avatar_helper)
     bpr_enable_hardening(better_pull_review_composition)
     bpr_enable_warnings(better_pull_review_composition)
     if(WIN32)
@@ -378,6 +384,16 @@ if(BPR_BUILD_QT)
                 "$<TARGET_FILE_DIR:app_better_pull_review>/$<TARGET_FILE_NAME:tool_better_pull_review_mcp_context_helper>"
             VERBATIM)
     endif()
+    # [[BPR-1846]]. Every package carries the GitHub CLI avatar helper beside
+    # the application, as it does the supervisor.
+    add_dependencies(app_better_pull_review tool_better_pull_review_gh_avatar_helper)
+    set_property(TARGET app_better_pull_review APPEND PROPERTY LINK_DEPENDS
+        "$<TARGET_FILE:tool_better_pull_review_gh_avatar_helper>")
+    add_custom_command(TARGET app_better_pull_review POST_BUILD
+        COMMAND "${CMAKE_COMMAND}" -E copy_if_different
+            "$<TARGET_FILE:tool_better_pull_review_gh_avatar_helper>"
+            "$<TARGET_FILE_DIR:app_better_pull_review>/$<TARGET_FILE_NAME:tool_better_pull_review_gh_avatar_helper>"
+        VERBATIM)
     if(APPLE)
         bpr_add_executable(tool_bpr_update_helper update_helper_main.cpp)
         set_target_properties(tool_bpr_update_helper PROPERTIES OUTPUT_NAME bpr_update_helper)

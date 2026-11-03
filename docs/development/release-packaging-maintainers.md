@@ -812,8 +812,10 @@ auditors and redistributors who need it.
 
 ### Installed package contents
 
-- **Helpers.** The MCP context helper and `better_pull_review_agent_supervisor`
-  sit beside the main executable. On macOS the bundle also has
+- **Helpers.** The MCP context helper, `better_pull_review_agent_supervisor`
+  and, in every package, the GitHub CLI avatar helper
+  `better_pull_review_gh_avatar_helper` ([[BPR-1846]]) sit beside the main
+  executable. On macOS the bundle also has
   `bpr_update_helper`. The supervisor ships in every package, including the
   agent-free variants, because guarded Git launches run inside it. It contains
   no agent protocol, provider knowledge or credentials.

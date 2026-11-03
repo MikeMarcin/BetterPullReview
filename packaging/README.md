@@ -22,6 +22,17 @@ tour command channel are the only declared listener exceptions, bounded by the [
 RFC-BPR-0035
 adds only its user-confirmed, qualified macOS updater to the earlier manual policy.
 
+[[BPR-1846]]. Every package also carries the GitHub CLI avatar helper,
+`better_pull_review_gh_avatar_helper` (`.exe` on Windows), beside the
+application: in `Contents/MacOS` (copied there at build, signed with the other
+nested Mach-O files by `tools/release.sh`), in the MSI's program directory
+(Authenticode-signed with the application's other first-party images from
+`package-inputs.json`'s `helpers`) and in `lib/betterpullreview` on Linux.
+It links the core, Qt Core and Qt Network, makes HTTPS requests only to the
+signed-in GHES host's avatars API, and takes `gh`'s token for that host so the
+application never holds it; `scripts/verify_release_package.py` and
+`packaging/verify_native_release.py` require it.
+
 RFC-BPR-0035 development now bundles `Contents/MacOS/bpr_update_helper` on macOS.
 The existing release tool signs nested Mach-O files and normalizes their rpaths,
 including this helper. [[BPR-0948]] qualifies disposable signed/notarized native

@@ -17,6 +17,7 @@ add_library(
         src/appearance_contrast.cpp
         src/identity_avatar.cpp
         src/identity_avatar_picture.cpp
+        src/gh_cli_avatar.cpp
         src/appearance_model.cpp
         src/defect_workflow.cpp
         src/device_authorization_model.cpp

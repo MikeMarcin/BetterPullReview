@@ -158,6 +158,11 @@ namespace {
 								  operation_diagnosis{ .Action = operation_action::source_search, .Failure = operation_failure::unavailable },
 								  operation_diagnosis{ .Action = operation_action::avatar_fetch, .Failure = operation_failure::blocked },
 								  operation_diagnosis{ .Action = operation_action::image_fetch, .Failure = operation_failure::too_large },
+								  // [[BPR-1846]]. The GitHub CLI avatar helper's own failures.
+								  operation_diagnosis{ .Action = operation_action::avatar_fetch, .Failure = operation_failure::no_helper },
+								  operation_diagnosis{ .Action = operation_action::avatar_fetch, .Failure = operation_failure::credential_unavailable },
+								  operation_diagnosis{ .Action = operation_action::avatar_fetch, .Failure = operation_failure::credential_tool_failed },
+								  operation_diagnosis{ .Action = operation_action::avatar_fetch, .Failure = operation_failure::malformed_response },
 								  operation_diagnosis{ .Action = operation_action::notification_permission, .Failure = operation_failure::permission_refused },
 								  operation_diagnosis{ .Action = operation_action::notification_activate },
 								  operation_diagnosis{ .Action = operation_action::storage_migrate, .Failure = operation_failure::cancelled, .Store = operation_store::clone_ledger, .Schema = 3U } }) {

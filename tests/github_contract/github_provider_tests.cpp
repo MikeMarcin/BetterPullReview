@@ -1,5 +1,6 @@
 #include "../support/capability_error_content_canaries.hpp"
 #include "bpr/application/git_smart_transport_port.hpp"
+#include "bpr/core/identity_avatar_picture.hpp"
 #include "github_mutation_contract.hpp"
 #include "github_provider.hpp"
 #include "github_publication_contract.hpp"
@@ -273,6 +274,22 @@ namespace {
 		std::function<void()> MutationHook;
 		/// [[BPR-1572]]. Answers a mutation-transport exchange, when set.
 		std::function<github_mutation_wire_completion(const github_mutation_wire_request&)> MutationHandler;
+
+		/// [[BPR-1846]]. The avatar helper launches the provider asks of this
+		/// transport, and their answers.
+		[[nodiscard]] auto perform_cli_avatars(const std::filesystem::path& aHelper, const std::vector<std::string>& aAddresses, std::stop_token)
+			-> gh_cli_avatar_result override
+		{
+			CliAvatarHelpers.push_back(aHelper);
+			CliAvatarBatches.push_back(aAddresses);
+			if (CliAvatarHandler) {
+				return CliAvatarHandler(aAddresses);
+			}
+			return std::unexpected{ gh_cli_avatar_failure::unsupported };
+		}
+		std::function<gh_cli_avatar_result(const std::vector<std::string>&)> CliAvatarHandler;
+		std::vector<std::filesystem::path>                                   CliAvatarHelpers;
+		std::vector<std::vector<std::string>>                                CliAvatarBatches;
 
 		read_handler                                      ReadHandler;
 		capability_handler                                CapabilityHandler;
@@ -613,8 +630,9 @@ namespace {
 	struct provider_fixture
 	{
 		explicit provider_fixture(
-			const application::github_authentication_transport aAuthentication, std::shared_ptr<application::diagnostic_log_port> aLog = { })
-			: Profile{ test_profile(aAuthentication) }
+			const application::github_authentication_transport aAuthentication, std::shared_ptr<application::diagnostic_log_port> aLog = { },
+			const validated_github_host_profile* aProfile = nullptr)
+			: Profile{ aProfile != nullptr ? *aProfile : test_profile(aAuthentication) }
 			, Transport{ std::make_shared<fake_wire_transport>() }
 			, Factory{ std::make_shared<fake_transport_factory>() }
 		{
@@ -2404,6 +2422,102 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1846]]. A gh CLI GHES account's avatars API hops go to the avatar
+	/// helper through the account's own transport, batched on an image lane;
+	/// a helper that finds gh signed out ends them, logs why once, and holds
+	/// off the account's later avatars, which then take the web route.
+	void test_cli_avatars_go_through_the_helper()
+	{
+		const auto       log        = std::make_shared<recording_log>();
+		const auto       enterprise = test_enterprise_profile(application::github_authentication_transport::github_cli);
+		provider_fixture fixture{ application::github_authentication_transport::github_cli, log, &enterprise };
+		fixture.Factory->CliEnabled    = true;
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_success{ .Correlation = aWire.Correlation, .Response = viewer_response() };
+		};
+		auto        viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+		const auto* success = std::get_if<application::github_viewer_success>(&viewer);
+		expect(success != nullptr && success->AccountTransport != nullptr, "the gh CLI GHES account signs in");
+		controlled_executor lane;
+		fixture.Provider->configure_markdown_images({ &lane }, { });
+		const auto helper = std::filesystem::path{ "/opt/bpr/better_pull_review_gh_avatar_helper" };
+		fixture.Provider->configure_gh_cli_avatar_helper(helper);
+
+		const auto context = session_context(fixture.Profile);
+		const auto policy  = core::markdown_image_fetch_policy{ .Contract = core::markdown_image_host_contract::ghes, .Hostname = "ghe.example.invalid", .CredentialAvailable = false, .AvatarOrigins = false, .CliCredential = true };
+		const auto request = [&](const std::string_view aLogin) {
+			const auto admitted = core::admit_identity_avatar(aLogin, 40U, policy);
+			expect(admitted && admitted->First.CliHelper, "a gh CLI GHES avatar is a helper hop");
+			auto value                  = application::markdown_image_fetch_request{ };
+			value.First                 = admitted->First;
+			value.Policy                = admitted->Policy;
+			value.ProfileAuthority      = profile_authority_for(fixture.Profile);
+			value.AccountTransport      = success->AccountTransport;
+			value.AuthenticationSession = context.ApplicationSession;
+			value.IdentityGeneration    = context.IdentityGeneration;
+			value.Account               = viewer_record().Account;
+			return value;
+		};
+		std::vector<application::markdown_image_fetch_result> results;
+		const auto                                            fetch = [&](application::markdown_image_fetch_request aRequest) {
+			fixture.Provider->fetch(std::move(aRequest), { }, [&results](application::markdown_image_fetch_result aResult) { results.push_back(std::move(aResult)); });
+		};
+
+		fixture.Transport->CliAvatarHandler = [](const std::vector<std::string>& aAddresses) -> gh_cli_avatar_result {
+			auto batch  = core::gh_cli_avatar_batch{ };
+			batch.State = core::gh_cli_avatar_batch_state::answered;
+			for (const auto& address : aAddresses) {
+				auto answer = core::gh_cli_avatar_answer{ };
+				if (address.find("/octo?") != std::string::npos) {
+					answer.State       = core::markdown_image_state::loaded;
+					answer.HttpStatus  = 200U;
+					answer.ContentType = "image/png";
+					answer.Bytes       = "\x89PNG fixture";
+				} else {
+					answer.HttpStatus = 404U;
+				}
+				batch.Answers.push_back(std::move(answer));
+			}
+			return batch;
+		};
+		fetch(request("octo"));
+		fetch(request("hubot"));
+		expect(results.empty() && lane.pending() == 1U && fixture.Effects.pending() == 0U, "two avatars wait for one helper launch on an image lane");
+		lane.run_next();
+		expect(fixture.Transport->CliAvatarBatches.size() == 1U
+				   && fixture.Transport->CliAvatarBatches[0] == std::vector<std::string>{ "https://ghe.example.invalid/api/v3/enterprise/avatars/octo?s=48", "https://ghe.example.invalid/api/v3/enterprise/avatars/hubot?s=48" }
+				   && fixture.Transport->CliAvatarHelpers[0] == helper,
+			   "one launch of the configured helper serves both, in order");
+		expect(results.size() == 2U && results[0] && results[0]->Bytes == "\x89PNG fixture" && results[0]->ContentType == "image/png" && !results[1]
+				   && results[1].error() == core::markdown_image_state::failed,
+			   "each fetch gets its own answer");
+
+		// A hop that claims the credential is never a helper hop.
+		results.clear();
+		auto forged                       = request("octo");
+		forged.Policy.CredentialAvailable = true;
+		fetch(forged);
+		expect(results.size() == 1U && !results[0] && lane.pending() == 0U && fixture.Transport->CliAvatarBatches.size() == 1U, "a credentialed policy is refused before any launch");
+
+		// gh signed out: the batch fails, one content-free line is logged, and
+		// the account's next avatar fails at once without a launch.
+		results.clear();
+		fixture.Transport->CliAvatarHandler = [](const std::vector<std::string>&) -> gh_cli_avatar_result {
+			return core::gh_cli_avatar_batch{ .State = core::gh_cli_avatar_batch_state::cli_signed_out, .Answers = { } };
+		};
+		fetch(request("octo"));
+		lane.run_next();
+		expect(results.size() == 1U && !results[0] && results[0].error() == core::markdown_image_state::failed, "a signed-out gh fails the avatar, so the window asks the web route");
+		const auto logged = std::ranges::count_if(log->Events, [](const application::diagnostic_event& aEvent) {
+			return aEvent.Operation == application::diagnostic_operation::image_fetch && aEvent.Outcome == application::diagnostic_outcome::failed
+				&& aEvent.Summary.text().find("action=avatar_fetch failure=credential_unavailable") != std::string_view::npos;
+		});
+		expect(logged == 1, "the signed-out gh is logged once, as an avatar fetch whose credential is unavailable");
+		fetch(request("hubot"));
+		expect(results.size() == 2U && !results[1] && lane.pending() == 0U && fixture.Transport->CliAvatarBatches.size() == 2U, "the account's next avatar is held off without a launch");
+		fixture.Provider->shutdown();
+	}
+
 	void test_cli_observed_account_lease()
 	{
 		for (const bool postflight : { false, true }) {
@@ -3138,6 +3252,7 @@ int main(int aArgc, char** aArgv)
 	test_cli_is_categorically_unavailable();
 	test_account_lease_mints_publication_catalog();
 	test_cli_observed_account_lease();
+	test_cli_avatars_go_through_the_helper();
 	test_cli_text_blob_reads_name_their_account();
 	test_cli_git_lease_forwarding();
 	test_cli_exact_blob_cancellation();

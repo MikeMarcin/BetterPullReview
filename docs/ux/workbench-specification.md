@@ -3082,8 +3082,12 @@ Settings account card with its GitHub CLI accounts.
   the server's avatars API, `https://<host>/api/v3/enterprise/avatars/<login>?s=<n>`,
   which takes the API token and so answers under private mode, and asks
   `https://<host>/<login>.png?size=<n>` once if that gives no picture
-  ([[BPR-1845]]); a GHES profile without the credential asks only the
-  latter. The credential goes only to the host itself. Every hop, redirects included, is
+  ([[BPR-1845]]). A GHES profile signed in through the GitHub CLI asks the
+  same two addresses in the same order, the first through the shipped avatar
+  helper, which takes `gh`'s token for the host in its own process, so the
+  application never holds it ([[BPR-1846]]); gh missing or signed out sends
+  it straight to the second. Any other GHES profile without the credential
+  asks only the latter. The credential goes only to the host itself. Every hop, redirects included, is
   held to the host's avatar origins (`avatars.githubusercontent.com`; the
   GHES host or `avatars.<host>`). The size is the smallest of 32, 48, 64, 96,
   128 and 192 that covers the face. The fetch runs on the profile's image

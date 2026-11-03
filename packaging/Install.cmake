@@ -9,7 +9,7 @@ set(bpr_package_qt_version "${BPR_PRODUCT_QT_VERSION}")
 # supervisor in every package (Git's guarded launches run inside it), the MCP
 # context helper only with agent integrations. The record names both families,
 # so a release check reads which package it holds rather than inferring it.
-set(bpr_package_helpers tool_better_pull_review_agent_supervisor)
+set(bpr_package_helpers tool_better_pull_review_agent_supervisor tool_better_pull_review_gh_avatar_helper)
 set(bpr_package_agent_integrations false)
 if(BPR_BUILD_AGENT_INTEGRATIONS)
     list(APPEND bpr_package_helpers tool_better_pull_review_mcp_context_helper)

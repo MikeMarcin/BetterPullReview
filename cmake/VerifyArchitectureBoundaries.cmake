@@ -23,6 +23,15 @@ set(
     github_native_https_relative
     "src/adapters/github/src/native_https_transport.cpp"
 )
+# [[BPR-1846]]. The GitHub CLI avatar helper: its own shipped program, so the
+# token `gh auth token` gives it never enters the application. It launches
+# that one gh (QProcess, with the platform launch restriction) and fetches the
+# admitted avatars over HTTPS (Qt Network), and is the only owner of either
+# outside the runners and the native transport.
+set(
+    github_gh_avatar_helper_relative
+    "src/adapters/github/src/gh_avatar_helper.cpp"
+)
 set(
     github_native_https_interface_relative
     "src/adapters/github/src/native_https_transport.hpp"
@@ -979,8 +988,24 @@ set(
     "Bearer[ \t]+"
     "node_id[^\r\n]*:"
 )
+# [[BPR-1845]] [[BPR-1846]]. One image address, not a REST read: the GHES
+# avatars API a person's picture is fetched from. The core writes it once, in
+# `identity_avatar_api_prefix`; that exact literal in that one file is the
+# only `/api/v3` the core may hold (docs/architecture/system-architecture.md,
+# "People's pictures on GHES").
+set(standard_cpp_avatar_api_owner "${BPR_ROOT}/src/core/src/identity_avatar_picture.cpp")
+set(standard_cpp_avatar_api_literal "\"/api/v3/enterprise/avatars/\";")
 foreach(standard_cpp_file IN LISTS standard_cpp_region_files)
     file(READ "${standard_cpp_file}" contents)
+    get_filename_component(standard_cpp_normalized "${standard_cpp_file}" ABSOLUTE)
+    if(standard_cpp_normalized STREQUAL standard_cpp_avatar_api_owner)
+        string(FIND "${contents}" "${standard_cpp_avatar_api_literal}" standard_cpp_avatar_api_first)
+        string(FIND "${contents}" "${standard_cpp_avatar_api_literal}" standard_cpp_avatar_api_last REVERSE)
+        if(standard_cpp_avatar_api_first EQUAL -1 OR NOT standard_cpp_avatar_api_first EQUAL standard_cpp_avatar_api_last)
+            message(FATAL_ERROR "The core writes the GHES avatars API address exactly once, in identity_avatar_api_prefix")
+        endif()
+        string(REPLACE "${standard_cpp_avatar_api_literal}" "" contents "${contents}")
+    endif()
     foreach(pattern IN LISTS standard_cpp_region_patterns)
         if(contents MATCHES "${pattern}")
             file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${standard_cpp_file}")
@@ -1816,6 +1841,7 @@ verify_effect_owner(
     "QProcess"
     "src/app/src/tour_editor.cpp"
     "${github_process_runner_relative}"
+    "${github_gh_avatar_helper_relative}"
     "${git_process_runner_relative}"
     "${process_support_source_relative}"
     "${process_support_header_relative}"
@@ -1979,12 +2005,33 @@ verify_effect_owner(
     "QNetworkAccessManager"
     "QNetworkAccessManager"
     "${github_native_https_relative}"
+    "${github_gh_avatar_helper_relative}"
 )
 verify_effect_owner(
     "(QNetwork[A-Za-z0-9_]*|QSsl[A-Za-z0-9_]*)"
     "Qt network/TLS type"
     "${github_native_https_relative}"
+    "${github_gh_avatar_helper_relative}"
 )
+# [[BPR-1846]]. The avatar helper's shape: its gh launch keeps the platform
+# launch restriction and the bounded descriptor sweep, sends nothing to its
+# standard error, admits every address and redirect through the core, and its
+# test proxy and authority exist only in the fixture build.
+if(EXISTS "${BPR_ROOT}/${github_gh_avatar_helper_relative}")
+    file(READ "${BPR_ROOT}/${github_gh_avatar_helper_relative}" gh_avatar_helper_contents)
+    foreach(required_avatar_helper_fragment
+        "windows_standard_handles::launch_restriction" "inheritance.apply" "unix_descriptor_sweep::bound()"
+        "qInstallMessageHandler(silent)" "core::admit_gh_cli_avatar_address" "core::admit_markdown_image_redirect"
+        "QNetworkRequest::ManualRedirectPolicy" "#if defined(BPR_GH_AVATAR_HELPER_TESTING)")
+        string(FIND "${gh_avatar_helper_contents}" "${required_avatar_helper_fragment}" avatar_helper_fragment_found)
+        if(avatar_helper_fragment_found LESS 0)
+            message(FATAL_ERROR "GitHub CLI avatar helper lost its ${required_avatar_helper_fragment} boundary")
+        endif()
+    endforeach()
+    if(gh_avatar_helper_contents MATCHES "(startDetached|QProcess::execute|QProcessEnvironment|qEnvironmentVariable|getenv|std::cerr|stderr)")
+        message(FATAL_ERROR "GitHub CLI avatar helper must launch only its one gh, read no environment and write nothing to standard error")
+    endif()
+endif()
 verify_effect_owner(
     "GH_TELEMETRY=0"
     "GitHub CLI telemetry hardening"
@@ -5796,6 +5843,16 @@ foreach(
             "process environment construction"
             "${github_cli_transport_relative}"
             "${git_process_runner_relative}"
+        )
+    elseif(cli_construction_pattern STREQUAL "\"--hostname\"")
+        # [[BPR-1846]]. The avatar helper builds one gh invocation of its own,
+        # `gh auth token --hostname <host> --user <login>`, in the environment
+        # gh_cli_transport.cpp constructed for it.
+        verify_effect_owner(
+            "${cli_construction_pattern}"
+            "GitHub CLI invocation/environment construction"
+            "${github_cli_transport_relative}"
+            "${github_gh_avatar_helper_relative}"
         )
     elseif(NOT platform_directory_variable STREQUAL "")
         verify_environment_construction_owner(

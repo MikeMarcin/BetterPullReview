@@ -257,6 +257,9 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_version_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
+		friend auto compile_gh_cli_avatar_helper_request(
+			const validated_gh_cli_configuration&, const std::filesystem::path&, std::string)
+			-> std::optional<github_cli_process_request>;
 		friend auto compile_gh_cli_auth_status_request(
 			const validated_gh_cli_configuration& aConfiguration)
 			-> github_cli_process_request;
@@ -346,6 +349,19 @@ namespace bpr::adapters::github::detail {
 		const validated_gh_cli_configuration&, const validated_github_host_profile&,
 		const application::git_smart_exact_blobs_request&)
 		-> std::optional<github_cli_process_request>;
+
+	/// \brief [[BPR-1846]]. Compiles one launch of the GitHub CLI avatar helper
+	/// for a pinned configuration.
+	///
+	/// \details The helper \p aHelper (absolute) runs with the configuration's
+	/// gh child environment, working directory and write constraint, and the
+	/// arguments `--gh <gh> --hostname <host> --user <login>`, none of them a
+	/// credential; `run_gh_cli` adds the private account configuration. Its
+	/// standard input is the request batch \p aStandardInput. Nothing for an
+	/// unpinned configuration, a relative helper or an oversized batch.
+	[[nodiscard]] auto compile_gh_cli_avatar_helper_request(
+		const validated_gh_cli_configuration& aConfiguration, const std::filesystem::path& aHelper,
+		std::string aStandardInput) -> std::optional<github_cli_process_request>;
 
 	/// Local noncredential probe, using the same executable and child environment.
 	[[nodiscard]] auto compile_gh_cli_version_request(
@@ -506,6 +522,11 @@ namespace bpr::adapters::github::detail {
 			const github_mutation_wire_request& aRequest, std::stop_token aStop,
 			github_mutation_transmission_witness aWitness)
 			-> github_mutation_wire_completion override;
+
+		/// \brief [[BPR-1846]]. One avatar helper launch on this transport's
+		/// own gh runner, pinned to its account; the token stays in the helper.
+		[[nodiscard]] auto perform_cli_avatars(const std::filesystem::path& aHelper, const std::vector<std::string>& aAddresses, std::stop_token aStop)
+			-> gh_cli_avatar_result override;
 
 		[[nodiscard]] auto configuration_unchanged() const -> bool;
 

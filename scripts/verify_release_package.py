@@ -53,7 +53,8 @@ def package_paths(root: Path, info: dict) -> tuple[Path, list[Path]]:
     # run inside; only a package built with agent integrations carries the MCP
     # context helper, and one built without them must not.
     families = runtime.families(info)
-    helpers = [directory / ("better_pull_review_agent_supervisor" + suffix)]
+    # [[BPR-1846]]. Every package carries the GitHub CLI avatar helper too.
+    helpers = [directory / ("better_pull_review_agent_supervisor" + suffix), directory / ("better_pull_review_gh_avatar_helper" + suffix)]
     mcp_helper = directory / ("better_pull_review_mcp_context_helper" + suffix)
     if families["agent_integrations"]:
         helpers.append(mcp_helper)

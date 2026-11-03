@@ -5533,6 +5533,19 @@ namespace bpr::app {
 				}
 				Provider->configure_markdown_images(std::move(lanes), markdown_image_media_factory(adapters::github::detail::make_native_markdown_image_media_factory()));
 			}
+			// [[BPR-1846]]. A gh CLI GHES profile's avatars come through the
+			// shipped avatar helper beside the application, which asks gh for
+			// the token itself. A missing helper leaves no path, and those
+			// avatars take the web route.
+			{
+#if defined(BPR_BUILD_TESTING)
+				const auto helper = QString::fromUtf8(BPR_GH_AVATAR_HELPER_EXECUTABLE);
+#else
+				const auto helper = QCoreApplication::applicationDirPath() + QStringLiteral("/" BPR_GH_AVATAR_HELPER_FILE_NAME);
+#endif
+				const auto canonical = QFileInfo{ helper }.canonicalFilePath();
+				Provider->configure_gh_cli_avatar_helper(canonical.isEmpty() ? std::filesystem::path{ } : native_filesystem_path(canonical));
+			}
 			// [[BPR-1680]]. Discovery's own lanes: a CLI account's discovery
 			// reads run there, on its background gh lanes, beside every pull
 			// request read on the provider's lane.
