@@ -163,9 +163,6 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
-    # [[BPR-1846]]. The GitHub CLI avatar helper's allocator probe, as its
-    # siblings above; not yet measured on the Windows station.
-    "mimalloc_tool_better_pull_review_gh_avatar_helper": "unmeasured (registered on macOS)",
     # [[BPR-1818]]. Prior release-source Release passed in the approved Limited
     # Interactive producer context. Its exact zero-capability replay reported
     # STARTUP_PROFILE_REFUSAL:registry_unavailable. Preserve that measurement;
@@ -257,16 +254,24 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_commit_filter_public_path": "owner-private-acl-denied",
     # [[BPR-1576]]. Panes waiting on a slow fixture network.
     "application_pending_states_public_path": "owner-private-acl-denied",
+    # [[BPR-1854]]. Native Windows Release, source 5a86e28ed, 2026-11-04:
+    # all six same-image direct courses pass. The zero-capability replays
+    # below name only their first observed refusal, without a guessed ACL
+    # cause. The draft-state process reports registry_unavailable. The three
+    # public paths refuse their private desktop root; the two stores fail
+    # their first fresh-profile predicate. See the exact commands and hashes
+    # in docs/verification/release-v042-windows-containment.md.
+    "application_draft_state_contract": "startup-registry-unavailable",
     # [[BPR-1842]]. A pull request usable as its parts arrive, same fixture.
-    "application_progressive_open_public_path": "unmeasured (registered on macOS)",
+    "application_progressive_open_public_path": "private-desktop-root-refused",
     # [[BPR-1848]]. Coming back to Home on the same slow fixture network.
-    "application_home_return_public_path": "unmeasured (registered on macOS)",
+    "application_home_return_public_path": "private-desktop-root-refused",
     # [[BPR-1851]]. The file on screen refreshed first, same slow fixture network.
-    "application_refresh_current_file_public_path": "unmeasured (registered on macOS)",
+    "application_refresh_current_file_public_path": "private-desktop-root-refused",
     # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.
-    "sqlite_view_filter_memory_store": "unmeasured (registered on macOS)",
+    "sqlite_view_filter_memory_store": "fresh-view-filter-store-predicate-failed",
     # [[BPR-1850]]. Activity notifications' store, same SQLite profile root.
-    "sqlite_pull_request_activity_store": "unmeasured (registered on macOS)",
+    "sqlite_pull_request_activity_store": "fresh-activity-store-predicate-failed",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.
     "application_refresh_feedback_public_path": "owner-private-acl-denied",
     # [[BPR-1589]]. Status attention for the signed-in reviewer.
