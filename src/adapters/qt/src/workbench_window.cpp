@@ -14442,6 +14442,9 @@ namespace bpr::qt {
 		}
 		if (aUpdate.PullRequest.has_value()) {
 			apply_github_pull_request(*aUpdate.PullRequest, aUpdate.PreserveWindowNavigation);
+			if (aUpdate.ConversationRefreshed && SessionPanel != nullptr && SessionPanel->status() == core::github_status::loading_pull_request) {
+				RefreshConversationCurrent = true;
+			}
 		}
 		for (const auto& diagnostic : aUpdate.HostDiagnostics) {
 			apply_github_host_diagnostic(diagnostic);
@@ -17396,9 +17399,12 @@ namespace bpr::qt {
 		const auto reading    = SessionPanel->status() == core::github_status::loading_pull_request;
 		const auto first      = reading && !HasGithubPullRequest && !HasCachedOverview;
 		const auto refreshing = reading && HasGithubPullRequest;
-		const auto stage      = read_stage_words();
-		const auto waiting    = stage.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(stage);
-		const auto apply      = [](pending_veil* const aVeil, const bool aPending, const bool aContent, const pending_words& aWords) {
+		if (!reading) {
+			RefreshConversationCurrent = false;
+		}
+		const auto stage   = read_stage_words();
+		const auto waiting = stage.isEmpty() ? QString{ } : QStringLiteral("Still waiting for GitHub: %1.").arg(stage);
+		const auto apply   = [](pending_veil* const aVeil, const bool aPending, const bool aContent, const pending_words& aWords) {
 			if (aVeil == nullptr) {
 				return;
 			}
@@ -17410,7 +17416,15 @@ namespace bpr::qt {
 		};
 		// The review's own words are its Refresh control's; the veil only
 		// speaks once the read is slow.
-		apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
+		if (refreshing && RefreshConversationCurrent && PendingPanes.Content != nullptr) {
+			// [[BPR-1851]]. The file on screen and its threads are this
+			// refresh's already: they are not washed over while the rest comes,
+			// which the partial plate says at the review's foot.
+			PendingPanes.Content->present(core::pending_activity::loading, true, true,
+										  { .Waiting = waiting, .Coming = QStringLiteral("Refreshing comments and checks…") });
+		} else {
+			apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
+		}
 		apply(PendingPanes.Files, first, false, { .Loading = QStringLiteral("Loading the file list…"), .Waiting = waiting });
 		apply(PendingPanes.Conversations, first, false, { .Loading = QStringLiteral("Loading comments…"), .Waiting = waiting });
 		apply(PendingPanes.Threads, first, false, { .Loading = QStringLiteral("Loading threads…"), .Waiting = waiting });
@@ -17632,7 +17646,8 @@ namespace bpr::qt {
 		RefreshReadSeen = true;
 		if (aRead.Stage == core::pull_request_read_stage::pending) {
 			RefreshEnded.reset();
-			RefreshBaseline = RefreshLatest;
+			RefreshConversationCurrent = false;
+			RefreshBaseline            = RefreshLatest;
 			apply_refresh_event(false, core::refresh_started{ .Trigger = AutomaticRefreshNoted ? core::refresh_trigger::automatic : core::refresh_trigger::reviewer });
 			return;
 		}

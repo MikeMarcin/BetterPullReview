@@ -4815,6 +4815,20 @@ set_tests_properties(application_progressive_open_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "progressive-open-public-path:pass")
 
+# [[BPR-1851]]. A pull request's refresh brings the file on screen up to date
+# first: the reply on its thread arrives before the refresh's remaining reads,
+# its comparison stays on screen, and it is not washed over once fresh.
+bpr_add_executable(test_refresh_current_file_public_path refresh_current_file_public_path_tests.cpp)
+target_link_libraries(test_refresh_current_file_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_refresh_current_file_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_refresh_current_file_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_refresh_current_file_public_path)
+bpr_enable_warnings(test_refresh_current_file_public_path)
+bpr_add_network_isolated_test(NAME application_refresh_current_file_public_path WINDOWS_UNCONTAINED COMMAND test_refresh_current_file_public_path)
+set_tests_properties(application_refresh_current_file_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "refresh-current-file-public-path:pass")
+
 # [[BPR-1848]]. Coming back to Home from a pull request shows a usable Home at
 # once and keeps it usable while any refresh runs, on a fixture network that
 # holds every account read as long as gh takes for one.

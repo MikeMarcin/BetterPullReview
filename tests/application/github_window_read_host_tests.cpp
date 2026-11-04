@@ -387,7 +387,7 @@ namespace {
 		const auto observation = [](const reads::call& aCall) {
 			auto data                            = snapshot(aCall.Request);
 			data.PullRequest.ReportedCommitCount = 5U;
-			return application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 1523U, std::nullopt };
+			return application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 1523U, std::nullopt, std::nullopt };
 		};
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
 		const auto first           = provider.Calls.back();
@@ -464,6 +464,140 @@ namespace {
 		fourth.Complete(application::github_pull_request_cancelled{ fourth.Request });
 		lane.drain();
 		expect(host.is_quiescent(), "progressive publication accounts for all queued work");
+	}
+
+	/// [[BPR-1851]]. A refresh of the accepted pull request at the same head
+	/// lays its conversation over the accepted snapshot as soon as the threads
+	/// arrive and publishes it at once, without a new snapshot, an epoch
+	/// handoff or command authority; a moved head, a first open or a
+	/// conversation before its file list shows nothing early.
+	void test_refreshed_conversation_is_shown_before_the_refresh_ends()
+	{
+		reads                                               provider;
+		application::manual_executor                        lane;
+		epoch_handoffs                                      epochs;
+		std::vector<application::github_window_read_update> updates;
+		application::github_window_read_host                host{
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 3U }, core::bpr_window_generation{ 1U } },
+			core::application_session_id{ 3U },
+			provider,
+			lane,
+			[&](const auto& aUpdate) { updates.push_back(aUpdate); },
+			&epochs
+		};
+		auto threaded                                          = session();
+		threaded.CapabilityEvidence.ReadShape.ReviewThreads    = true;
+		threaded.CapabilityEvidence.Capabilities.ReviewThreads = core::github_capability_state::supported;
+		threaded.Session.CapabilityEvidence.ReadShape          = threaded.CapabilityEvidence.ReadShape;
+		threaded.Session.CapabilityEvidence.Capabilities       = threaded.CapabilityEvidence.Capabilities;
+		expect(host.adopt(threaded), "a session that reads review threads is adopted");
+		const auto thread = [](std::vector<std::string> aBodies) {
+			auto record     = application::github_review_thread_record{ };
+			record.Thread   = application::github_thread_id{ "PRRT_1" };
+			record.Path     = "src/a.cpp";
+			record.Line     = 1U;
+			record.DiffSide = application::github_diff_side::right;
+			for (std::size_t index = 0U; index < aBodies.size(); ++index) {
+				auto comment    = application::github_review_comment_record{ };
+				comment.Comment = application::github_comment_id{ "PRRC_" + std::to_string(index + 1U) };
+				if (index != 0U) {
+					comment.ReplyTo = application::github_comment_id{ "PRRC_1" };
+				}
+				comment.Body = aBodies[index];
+				comment.Path = "src/a.cpp";
+				comment.Line = 1U;
+				record.Comments.push_back(std::move(comment));
+			}
+			return record;
+		};
+		const auto accepted = [&](const reads::call& aCall) {
+			auto data                      = snapshot(aCall.Request);
+			data.ReviewThreadsAvailability = application::github_collection_availability::available;
+			data.ReviewThreads             = { thread({ "Root" }) };
+			data.RateLimits.Graphql        = application::github_rate_limit_record{ application::github_rate_limit_resource::graphql, 5000U, 4999U, 100U };
+			return data;
+		};
+		const auto observe = [&](const reads::call& aCall, const std::optional<std::vector<std::string>>& aBodies, const std::string& aHead) {
+			auto data                            = accepted(aCall);
+			data.PullRequest.HeadOid             = application::commit_oid{ aHead };
+			data.PullRequest.ReportedCommitCount = 5U;
+			auto observation                     = application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 0U, std::nullopt, std::nullopt };
+			if (aBodies) {
+				observation.Files                      = std::vector<application::github_file_record>{ };
+				auto conversation                      = application::github_pull_request_overview_observation::conversation{ };
+				conversation.ReviewThreadsAvailability = application::github_collection_availability::available;
+				conversation.ReviewThreads             = { thread(*aBodies) };
+				observation.Conversation               = std::move(conversation);
+			}
+			return observation;
+		};
+		const auto head = std::string(40U, '2');
+		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
+		const auto opening = provider.Calls.back();
+		// A first open has nothing to lay a conversation over.
+		opening.Overview(observe(opening, std::nullopt, head));
+		auto openingFiles  = observe(opening, std::nullopt, head);
+		openingFiles.Files = std::vector<application::github_file_record>{ };
+		opening.Overview(openingFiles);
+		opening.Overview(observe(opening, std::vector<std::string>{ "Root", "Early" }, head));
+		lane.drain();
+		expect(std::ranges::none_of(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }), "a first open shows no early conversation");
+		opening.Complete(application::github_pull_request_success{ opening.Request, accepted(opening) });
+		lane.drain();
+		expect(host.accepted_snapshot() && epochs.AcceptCount == 1U, "the open is accepted");
+		const auto snapshotId = host.accepted_snapshot()->Snapshot;
+
+		host.dispatch(core::refresh_pull_request_intent{ });
+		const auto refresh = provider.Calls.back();
+		expect(refresh.Request.Context.ExpectedPullRequest.has_value(), "the refresh names the accepted pull request");
+		// Before its file list, a conversation is not admitted.
+		refresh.Overview(observe(refresh, std::nullopt, head));
+		refresh.Overview(observe(refresh, std::vector<std::string>{ "Root", "Reply" }, head));
+		lane.drain();
+		expect(std::ranges::none_of(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }), "no conversation before its file list");
+		host.dispatch(core::refresh_pull_request_intent{ });
+		const auto second = provider.Calls.back();
+		second.Overview(observe(second, std::nullopt, head));
+		auto files  = observe(second, std::nullopt, head);
+		files.Files = std::vector<application::github_file_record>{ };
+		second.Overview(files);
+		const auto before = updates.size();
+		second.Overview(observe(second, std::vector<std::string>{ "Root", "Reply" }, head));
+		second.Overview(observe(second, std::vector<std::string>{ "Root", "Reply", "Again" }, head));
+		lane.drain();
+		const auto refreshed = std::ranges::find_if(updates.begin() + static_cast<std::ptrdiff_t>(before), updates.end(), [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; });
+		expect(refreshed != updates.end() && refreshed->Presentation.PullRequest && refreshed->Presentation.PreserveWindowNavigation
+				   && !refreshed->Transition.AcceptedSnapshot && refreshed->Presentation.PullRequest->Snapshot == snapshotId,
+			   "the refresh's conversation is published once, over the accepted snapshot, before the refresh ends");
+		expect(host.accepted_snapshot() && host.accepted_snapshot()->Snapshot == snapshotId && host.accepted_snapshot()->ReviewThreads.size() == 1U
+				   && host.accepted_snapshot()->ReviewThreads.front().Comments.size() == 2U && epochs.AcceptCount == 1U
+				   && host.state().PendingPullRequest == second.Request.Context,
+			   "the accepted snapshot holds the new reply, keeps its identity, hands nothing to the epoch, and the refresh is still pending");
+		expect(std::ranges::count_if(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }) == 1, "at most one conversation per refresh");
+		auto completed          = accepted(second);
+		completed.Snapshot      = core::provider_snapshot_id{ 92U };
+		completed.ReviewThreads = { thread({ "Root", "Reply" }) };
+		second.Complete(application::github_pull_request_success{ second.Request, completed });
+		lane.drain();
+		expect(host.accepted_snapshot() && host.accepted_snapshot()->Snapshot == core::provider_snapshot_id{ 92U }, "the refresh's own acceptance follows as before");
+
+		// A head that moved shows nothing early: the diff on screen is the old head's.
+		host.dispatch(core::refresh_pull_request_intent{ });
+		const auto moved = provider.Calls.back();
+		moved.Overview(observe(moved, std::nullopt, std::string(40U, '3')));
+		auto movedFiles  = observe(moved, std::nullopt, std::string(40U, '3'));
+		movedFiles.Files = std::vector<application::github_file_record>{ };
+		moved.Overview(movedFiles);
+		const auto beforeMoved = updates.size();
+		moved.Overview(observe(moved, std::vector<std::string>{ "Root", "Reply", "Moved" }, std::string(40U, '3')));
+		lane.drain();
+		expect(std::none_of(updates.begin() + static_cast<std::ptrdiff_t>(beforeMoved), updates.end(), [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; })
+				   && host.accepted_snapshot()->ReviewThreads.front().Comments.size() == 2U,
+			   "a refresh whose head moved lays nothing over the accepted snapshot");
+		host.shutdown();
+		moved.Complete(application::github_pull_request_cancelled{ moved.Request });
+		lane.drain();
+		expect(host.is_quiescent(), "the refreshed conversation accounts for all queued work");
 	}
 
 	void test_safe_read_presentation_matches_accepted_state()
@@ -1280,6 +1414,7 @@ int main()
 	test_pull_request_page_admission();
 	test_reference_page_opening();
 	test_provisional_overview_is_bounded_and_never_authority();
+	test_refreshed_conversation_is_shown_before_the_refresh_ends();
 	test_loading_budget_shape();
 	test_shared_backoff_lifecycle();
 	test_resource_and_account_admission();

@@ -8234,7 +8234,9 @@ if (DraftReadRequest != WindowRead->state().PendingPullRequest) {
 if (QueueHost && WindowRead->state().PendingPullRequest && QueueFactRequest != WindowRead->state().PendingPullRequest) {
     QueueFactRequest = WindowRead->state().PendingPullRequest; QueueFactRevision = QueueHost->begin_observation();
 }
-if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
+// [[BPR-1851]]. A refresh's conversation laid over the accepted snapshot
+// changes the bodies and threads these were taken from, under the same snapshot.
+if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.ConversationRefreshed) {
 	ReadStateCache.reset();
 	NotePaths.reset();
 	DefectThreadNames.reset();

@@ -8,6 +8,7 @@
 #include <array>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -71,6 +72,17 @@ namespace bpr::application {
 	/// reaches the decision lane. `observe_feedback_sources` then gives each
 	/// post its digest. Throws whatever \p aDigests throws.
 	[[nodiscard]] auto digest_feedback_bodies(const github_pull_request_snapshot& aSnapshot, const body_digest_port& aDigests) -> github_feedback_body_digests;
+
+	/// \brief [[BPR-1851]]. The digests of \p aSnapshot's feedback bodies in its
+	/// own post order, taken from \p aKnown: digest sets each taken from the
+	/// very bodies \p aSnapshot now holds, for whichever posts each covers.
+	/// \details For a snapshot assembled from parts digested separately (a
+	/// refreshed conversation over an accepted snapshot's comments) without
+	/// hashing again. A post no set covers at its length is left without a
+	/// digest, so the core hashes that body itself. A post an earlier set
+	/// covers is taken from it.
+	[[nodiscard]] auto assemble_feedback_body_digests(const github_pull_request_snapshot& aSnapshot, std::span<const github_feedback_body_digests* const> aKnown)
+		-> github_feedback_body_digests;
 
 	/// \brief The posts as the core's annotation refresh takes them; they view
 	/// \p aSources, which must outlive the result.

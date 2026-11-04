@@ -3269,6 +3269,9 @@ namespace bpr::qt {
 		/// [[BPR-1200]]. The read in progress has shown its overview, so this
 		/// connection can read what it names.
 		bool LoadingOverviewShown = false;
+		/// [[BPR-1851]]. The refresh under way has already brought the review's
+		/// conversation: the file on screen is up to date, the rest is coming.
+		bool RefreshConversationCurrent = false;
 		/// [[BPR-1200]]. The first read the core last refused; cleared by the next read.
 		std::optional<core::pull_request_refusal> PullRequestRefusal;
 
