@@ -1,3 +1,17 @@
+# [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
+# The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
+# profile activity store/timer/notification host and accepted-session adoption,
+# BPR-1846's fixed sibling avatar helper and dedicated CLI transport, and
+# BPR-1848's Home return dispatch. BPR-1841 and BPR-1849 project confirmed
+# resolution/reviewer overlays without a whole PR reread. BPR-1852 adds an
+# author/open-state core decision and one-shot issue_draft_state grant, exact
+# terminal-context matching, rollback and retirement, with fixed host/provider
+# operations; it does not bypass the mutation host. BPR-1853 passes the observed
+# author into core verdict controls. Agent turns retain outcome. Fixture-only
+# additions measure reads/updates, control refusal and expose public gestures;
+# main.cpp's preview waits for the enabled Open action. No app source inventory
+# or production compose_review_mutation branch change: the latter stays
+# 70fe8a7e. Full and manifest pins bind reviewed bytes, not native acceptance.
 # [[BPR-1826]] closed-pull-request resolution reseal (2026-10-29), over
 # 9c0286a6c (last matching: BPR-1824's 4acc4f253). github_application.cpp
 # only. compose_review_mutation selects a closed or merged pull request too
@@ -2593,7 +2607,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-        "4503eda20b630c2578acd4a917ae0419e17ef5f655192471351e6c68cdf87920"
+        "e2976513d180c1ee228a298cc9778ec2b8f92a915265662b4e443cea03d23085"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2904,7 +2918,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "2418ef2aed4c85fc2b2e6f30363f4b8d6697d506457d26eabb4932d584ed4550"
+        "515641c19facc173a2b01649215cc3b0265af7ec59038ec4e8606a536fabb7c8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
