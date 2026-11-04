@@ -280,7 +280,11 @@ try {
 		expect(note->text() == QStringLiteral("Finding my pull requests…"), "Home's note says it");
 		renders(QStringLiteral("home-refresh-started"));
 		pause(800);
-		expect(window->pending_veils().HomeList->look() == core::pending_look::refreshing, "Home's list is veiled while it is refreshed");
+		// [[BPR-1848]]. Its rows are not washed over: the refresh is said on
+		// the partial plate at the list's foot.
+		expect(window->pending_veils().HomeList->look() == core::pending_look::partial
+				   && window->pending_veils().HomeList->shown_text().startsWith(QStringLiteral("Refreshing my pull requests")),
+			   "Home's list says it is refreshed, at its foot, without veiling its rows");
 		renders(QStringLiteral("home-refresh-under-way"));
 		wait_for([&] { return window->home_refresh().Phase != core::refresh_phase::refreshing; }, "Home's refresh settles");
 		expect(note->text() == QStringLiteral("Up to date: no new pull requests."), "Home's note says what it found");

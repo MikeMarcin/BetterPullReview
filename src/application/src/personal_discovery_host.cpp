@@ -2,6 +2,7 @@
 #include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/git_objects.hpp"
 #include "bpr/core/home_discovery_plan.hpp"
+#include "bpr/core/home_open.hpp"
 
 #include <algorithm>
 #include <chrono>
@@ -363,6 +364,8 @@ namespace bpr::application {
 			}
 			Queued.clear();
 			CycleRunning = false;
+			Focused      = false;
+			OwedRefresh  = false;
 			for (const auto& active : Active) {
 				Provider.cancel_discovery(active.Request);
 				++Statistics.CancelledRequests;
@@ -397,9 +400,20 @@ namespace bpr::application {
 			return BackoffUntil.has_value() && aNow < *BackoffUntil;
 		}
 
+		[[nodiscard]] auto fresh(const std::int64_t aNow) const noexcept -> bool
+		{
+			return LastEnded.has_value() && aNow - *LastEnded < personal_discovery_freshness_seconds;
+		}
+
 		void activate()
 		{
-			if (Closing || !Session || CycleRunning) {
+			// [[BPR-1848]]. An activation while one row is read is answered once
+			// that read ends, if the list is stale then.
+			if (Closing || !Session || (CycleRunning && !Focused)) {
+				return;
+			}
+			if (Focused) {
+				OwedActivation = true;
 				return;
 			}
 			// [[BPR-1681]]. Freshness is measured from the last refresh
@@ -409,7 +423,7 @@ namespace bpr::application {
 			// diagnostic export's dialog, say) re-ran the whole refresh. A
 			// refresh a session-wide failure stopped is still retried.
 			const auto now = Clock.now_seconds();
-			if (backing_off(now) || (LastEnded.has_value() && now - *LastEnded < personal_discovery_freshness_seconds)) {
+			if (backing_off(now) || fresh(now)) {
 				return;
 			}
 			start_cycle();
@@ -417,7 +431,13 @@ namespace bpr::application {
 
 		void refresh()
 		{
-			if (Closing || CycleRunning) {
+			// [[BPR-1848]]. Refresh while one row is read runs the whole
+			// refresh as soon as that read ends.
+			if (Closing || (CycleRunning && !Focused)) {
+				return;
+			}
+			if (Focused) {
+				OwedRefresh = true;
 				return;
 			}
 			const auto now = Clock.now_seconds();
@@ -431,6 +451,112 @@ namespace bpr::application {
 				return;
 			}
 			start_cycle();
+		}
+
+		/// [[BPR-1848]]. The reviewer came back to Home from \p aRef; the core
+		/// decides what that reads.
+		void returned(const core::pull_request_ref& aRef)
+		{
+			if (Closing) {
+				return;
+			}
+			const auto now     = Clock.now_seconds();
+			const auto locator = Session ? locator_of(aRef.Repository) : std::nullopt;
+			const auto listed  = Session && locator && aRef.Host == Session->Queue.Host && aRef.Account == Session->Queue.Account && aRef.Number > 0
+				&& aRef.Number <= core::maximum_pull_request_number && still_enrolled(aRef.Repository, core::pull_request_number{ static_cast<std::uint32_t>(aRef.Number) });
+			const auto decided = core::decide_home_return({
+				.Session          = Session.has_value(),
+				.Running          = CycleRunning,
+				.BackingOff       = backing_off(now),
+				.SinceLastEnded   = LastEnded ? std::optional{ now - *LastEnded } : std::nullopt,
+				.FreshnessSeconds = personal_discovery_freshness_seconds,
+				.LeftListed       = listed,
+			});
+			switch (decided) {
+			case core::home_return_read::nothing:
+				return;
+			case core::home_return_read::left:
+				start_focused(aRef);
+				return;
+			case core::home_return_read::everything:
+				start_cycle(listed ? std::optional{ aRef } : std::nullopt);
+				return;
+			case core::home_return_read::left_next:
+				read_next(aRef);
+				return;
+			}
+		}
+
+		/// [[BPR-1848]]. One row's retained read, alone: no search, and the
+		/// list's status, freshness and Refresh are left as they are.
+		void start_focused(const core::pull_request_ref& aRef)
+		{
+			++Cycle;
+			++Statistics.ReturnReads;
+			CycleRunning     = true;
+			Focused          = true;
+			OwedRefresh      = false;
+			OwedActivation   = false;
+			CycleFailed      = false;
+			CycleStopped     = false;
+			MetadataFailed   = false;
+			Searching        = false;
+			CycleStarted     = Clock.elapsed_milliseconds();
+			CycleRetained    = 1U;
+			CycleReads       = 0U;
+			CycleFailedReads = 0U;
+			CycleRequests    = 0U;
+			CycleWait        = 0U;
+			CycleCost        = { };
+			CycleDecision    = 0U;
+			ClosedThisCycle.clear();
+			CycleRetainedRows.clear();
+			CycleRetainedReads.clear();
+			CycleProblem = queue_discovery_problem::none;
+			MetadataConsidered.insert(aRef);
+			enqueue(aRef.Repository, personal_discovery_reason::retained, core::pull_request_number{ static_cast<std::uint32_t>(aRef.Number) });
+			record(diagnostic_outcome::started, refresh_diagnosis(core::discovery_diagnosis_state::none));
+			pump();
+		}
+
+		void finish_focused()
+		{
+			CycleRunning = false;
+			Focused      = false;
+			record(CycleStopped ? diagnostic_outcome::failed : diagnostic_outcome::succeeded, refresh_diagnosis(ended_state()));
+			const auto now = Clock.now_seconds();
+			if (backing_off(now)) {
+				OwedRefresh              = false;
+				OwedActivation           = false;
+				Status.RetryAfterSeconds = static_cast<std::uint32_t>(*BackoffUntil - now);
+				publish();
+				return;
+			}
+			const auto owed  = std::exchange(OwedRefresh, false);
+			const auto asked = std::exchange(OwedActivation, false);
+			if (owed || (asked && !fresh(now))) {
+				start_cycle();
+				return;
+			}
+			reconcile();
+		}
+
+		/// [[BPR-1848]]. The running refresh reads \p aRef next, if it has
+		/// yet to: its retained read goes to the front of what is queued.
+		void read_next(const core::pull_request_ref& aRef)
+		{
+			const auto number = core::pull_request_number{ static_cast<std::uint32_t>(aRef.Number) };
+			const auto found  = std::ranges::find_if(Queued, [&](const job& aJob) {
+				const auto numbers = numbers_of(aJob);
+				return aJob.Request.Reason == personal_discovery_reason::retained && aJob.Repository == aRef.Repository && std::ranges::find(numbers, number) != numbers.end();
+			});
+			if (found == Queued.end() || found == Queued.begin()) {
+				return;
+			}
+			auto moved = std::move(*found);
+			Queued.erase(found);
+			Queued.push_front(std::move(moved));
+			++Statistics.ReturnPromotions;
 		}
 
 		/// Whether the account now saves a repository the last refresh did
@@ -693,7 +819,7 @@ namespace bpr::application {
 			};
 		}
 
-		void start_cycle()
+		void start_cycle(const std::optional<core::pull_request_ref>& aFirst = std::nullopt)
 		{
 			const auto repositories = partition();
 			auto       items        = Queue.queue();
@@ -706,6 +832,10 @@ namespace bpr::application {
 			std::stable_sort(items.begin(), items.end(), [](const core::queue_item& aLeft, const core::queue_item& aRight) {
 				return aLeft.Facts.Title.empty() && !aRight.Facts.Title.empty();
 			});
+			// [[BPR-1848]]. The row the reviewer has just come back from first.
+			if (aFirst) {
+				std::ranges::stable_partition(items, [&aFirst](const core::queue_item& aItem) { return aItem.Ref == *aFirst; });
+			}
 			Searched           = repositories;
 			Status.Host        = Session->Queue.Host;
 			Status.Account     = Session->Queue.Account;
@@ -836,7 +966,9 @@ namespace bpr::application {
 			// A refresh stopped by a session-wide failure is decided at once:
 			// what it cancelled only has its terminal still to come.
 			if (CycleRunning && Queued.empty() && (CycleStopped || std::ranges::none_of(Active, [this](const job& aJob) { return current(aJob); }))) {
-				if (!CycleStopped && !Searching) {
+				if (Focused) {
+					finish_focused();
+				} else if (!CycleStopped && !Searching) {
 					enqueue_searches();
 					pump();
 				} else {
@@ -1169,14 +1301,19 @@ namespace bpr::application {
 		std::uint32_t CycleWait        = 0U;
 		/// [[BPR-1744]]. Its reads' summed timing split and answer counts.
 		personal_discovery_cost CycleCost;
-		std::uint32_t           CycleDecision  = 0U;
-		bool                    CycleRunning   = false;
-		bool                    CycleFailed    = false;
-		bool                    CycleStopped   = false;
-		bool                    Searching      = false;
-		bool                    MetadataFailed = false;
-		bool                    Closing        = false;
-		bool                    Yielding       = false;
+		std::uint32_t           CycleDecision = 0U;
+		bool                    CycleRunning  = false;
+		/// [[BPR-1848]]. The running read is one row's, on a return to Home,
+		/// and a Refresh or a stale activation is owed once it ends.
+		bool Focused        = false;
+		bool OwedRefresh    = false;
+		bool OwedActivation = false;
+		bool CycleFailed    = false;
+		bool CycleStopped   = false;
+		bool Searching      = false;
+		bool MetadataFailed = false;
+		bool Closing        = false;
+		bool Yielding       = false;
 	};
 
 	personal_discovery_host::personal_discovery_host(personal_discovery_port&             aProvider,
@@ -1206,6 +1343,11 @@ namespace bpr::application {
 	void personal_discovery_host::refresh()
 	{
 		Implementation->refresh();
+	}
+
+	void personal_discovery_host::returned(const core::pull_request_ref& aRef)
+	{
+		Implementation->returned(aRef);
 	}
 
 	void personal_discovery_host::reconcile()

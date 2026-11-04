@@ -833,6 +833,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-0990]]. Where Home's refresh glyph and Home's
 		/// activation go: the profile's discovery, never a provider.
 		void set_queue_discovery_dispatch(workbench_queue_discovery_dispatch aDispatch);
+		/// \brief [[BPR-1848]]. Where coming back to Home from a pull request
+		/// goes, naming that pull request as the queue does: the profile's
+		/// discovery decides what it reads. Arriving at Home from anything else
+		/// is the discovery dispatch's activation.
+		void set_home_return_dispatch(std::function<void(const core::pull_request_ref&)> aDispatch);
 		/// \brief [[BPR-1407]]. The host's clock, read when the queue is
 		/// projected, that a Home row's age is measured to. The window reads no
 		/// clock of its own; without one no age is drawn.
@@ -3048,7 +3053,11 @@ namespace bpr::qt {
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
 		QAction*                                           HomeIgnoreAction = nullptr;
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
-		std::function<std::optional<std::int64_t>()>       HomeClock;
+		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;
+		/// [[BPR-1848]]. The pull request the review surface last showed, as the
+		/// queue names it, for the return to Home that leaves it.
+		std::optional<core::pull_request_ref>        ReviewShownRef;
+		std::function<std::optional<std::int64_t>()> HomeClock;
 		// The open pull request as the queue names it: owner/name, number and
 		// title, and whether it was read signed out.
 		std::string  OpenQueueRepository;

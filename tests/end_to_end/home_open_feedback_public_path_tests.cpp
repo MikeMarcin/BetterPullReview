@@ -657,7 +657,9 @@ try {
 		delay->FailNumber    = 0U;
 		window->choose_home(true);
 		QApplication::processEvents();
-		wait_for([&] { return window->queue_refresh_action()->isEnabled() && discovery().Status.State == application::queue_discovery_state::current; },
+		// [[BPR-1848]]. Coming back to Home reads the row left first; the
+		// course starts once that read has ended.
+		wait_for([&] { return window->queue_refresh_action()->isEnabled() && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
 				 "Home's refresh is available and Home is current");
 		const auto before            = discovery().Statistics;
 		delay->DiscoveryMilliseconds = discovery_hold_ms;
@@ -669,11 +671,13 @@ try {
 		pause(300);
 		expect(discovery().Status.State == application::queue_discovery_state::refreshing && discovery().Statistics.Answered == before.Answered + 1U,
 			   "Home is still loading, its searches held on the wire");
-		wait_for([&] { return window->pending_veils().HomeList->look() == core::pending_look::refreshing; }, "and its list is greyed while it loads", { }, 3000);
+		// [[BPR-1848]]. Its rows are no longer greyed while it loads: the
+		// plate at the list's foot says so.
+		wait_for([&] { return window->pending_veils().HomeList->look() == core::pending_look::partial; }, "and its list says it is refreshing, at its foot", { }, 3000);
 		QElapsedTimer opening;
 		opening.start();
 		double_click(row_of(*window, failing_name));
-		expect(phase(*window) == core::home_open_phase::opening, "the greyed row opens at once");
+		expect(phase(*window) == core::home_open_phase::opening, "a row opens at once while Home loads");
 		expect(app::detail::github_application_fixture_access::personal_discovery_evidence(*owner).Statistics.Preempted == before.Preempted + 2U,
 			   "in the same turn, Home's two reads in flight give way");
 		wait_for([&] { return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; },

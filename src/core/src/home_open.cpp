@@ -107,4 +107,19 @@ namespace bpr::core {
 	{
 		return !aDiscoveryBeside && std::ranges::any_of(aLanes, [](const github_state& aLane) { return aLane.PendingPullRequest.has_value(); });
 	}
+
+	auto decide_home_return(const home_return_facts& aFacts) noexcept -> home_return_read
+	{
+		if (!aFacts.Session || aFacts.BackingOff) {
+			return home_return_read::nothing;
+		}
+		if (aFacts.Running) {
+			return aFacts.LeftListed ? home_return_read::left_next : home_return_read::nothing;
+		}
+		const auto fresh = aFacts.SinceLastEnded.has_value() && *aFacts.SinceLastEnded < aFacts.FreshnessSeconds;
+		if (!fresh) {
+			return home_return_read::everything;
+		}
+		return aFacts.LeftListed ? home_return_read::left : home_return_read::nothing;
+	}
 } // namespace bpr::core
