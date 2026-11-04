@@ -6951,10 +6951,10 @@ namespace bpr::app {
 		auto status = QString{ };
 		switch (Activity->state()) {
 		case application::pull_request_activity_state::off:         status = QStringLiteral("Off."); break;
-		case application::pull_request_activity_state::signed_out:  status = QStringLiteral("Sign in to GitHub to receive activity notifications."); break;
-		case application::pull_request_activity_state::unsupported: status = QStringLiteral("GitHub does not let this sign-in read notifications. Sign in with GitHub CLI to receive them."); break;
-		case application::pull_request_activity_state::watching:    status = QStringLiteral("On. Checking GitHub about once a minute."); break;
-		case application::pull_request_activity_state::waiting:     status = QStringLiteral("On. GitHub did not answer the last check, so checks are spaced out until it does."); break;
+		case application::pull_request_activity_state::signed_out:  status = QStringLiteral("Waiting for a GitHub sign-in."); break;
+		case application::pull_request_activity_state::unsupported: status = QStringLiteral("Needs a GitHub CLI sign-in."); break;
+		case application::pull_request_activity_state::watching:    status = QStringLiteral("Checking GitHub every minute."); break;
+		case application::pull_request_activity_state::waiting:     status = QStringLiteral("GitHub is not answering; checking less often."); break;
 		}
 		const auto enabled = Activity->enabled();
 		for_each_window([&](const window_observer& aObserver) {
