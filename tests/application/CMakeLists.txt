@@ -1193,3 +1193,10 @@ target_link_libraries(test_view_filter_memory_host PRIVATE BetterPullReview::App
 bpr_enable_hardening(test_view_filter_memory_host)
 bpr_enable_warnings(test_view_filter_memory_host)
 bpr_add_network_isolated_test(NAME application_view_filter_memory_host COMMAND test_view_filter_memory_host)
+
+# [[BPR-1850]]. Activity notifications' poll host over a fixture transport.
+bpr_add_executable(test_pull_request_activity_host pull_request_activity_host_tests.cpp)
+target_link_libraries(test_pull_request_activity_host PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_pull_request_activity_host)
+bpr_enable_warnings(test_pull_request_activity_host)
+bpr_add_network_isolated_test(NAME application_pull_request_activity_host COMMAND test_pull_request_activity_host)

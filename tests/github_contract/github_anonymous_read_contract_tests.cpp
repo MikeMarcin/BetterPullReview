@@ -357,7 +357,8 @@ namespace {
 				   "every operation is refused on a GHES contract");
 			if (operation == read_operation::get_viewer_identity
 				|| operation == read_operation::search_personal_pull_requests
-				|| operation == read_operation::list_requested_reviewers) {
+				|| operation == read_operation::list_requested_reviewers
+				|| operation == read_operation::list_notifications) {
 				expect(!onGithub.has_value()
 						   && onGithub.error()
 							   == anonymous_read_refusal::
@@ -383,8 +384,8 @@ namespace {
 			expect(onGithub.has_value(), "an eligible REST read is admitted");
 			++eligible;
 		}
-		expect(eligible == 12U && all_read_operations.size() == 25U,
-			   "twelve of twenty-five operations admit anonymous REST reads");
+		expect(eligible == 12U && all_read_operations.size() == 26U,
+			   "twelve of twenty-six operations admit anonymous REST reads");
 		expect(anonymous_read_operations.size() + 3U == eligible
 				   && std::ranges::all_of(anonymous_read_operations,
 										  anonymous_read_eligible),
@@ -469,6 +470,10 @@ namespace {
 			case read_operation::get_viewer_identity:
 			case read_operation::get_repository:
 			case read_operation::list_review_threads:
+				break;
+			case read_operation::list_notifications:
+				semantic.Owner      = { };
+				semantic.Repository = { };
 				break;
 			}
 			if (operation == read_operation::list_review_comments) {

@@ -190,6 +190,7 @@ namespace {
 		};
 		switch (aOperation) {
 		case read_operation::get_viewer_identity:
+		case read_operation::list_notifications:
 			semantic.Owner      = { };
 			semantic.Repository = { };
 			break;
@@ -345,8 +346,8 @@ namespace {
 			}
 		}
 		// Every compiled operation has an explicit anonymous admission verdict.
-		expect(admitted == 12U && refused == 13U
-				   && all_read_operations.size() == 25U
+		expect(admitted == 12U && refused == 14U
+				   && all_read_operations.size() == 26U
 				   && read_operation_catalog.size() == 10U,
 			   "eligible-set-size");
 	}

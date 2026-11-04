@@ -1573,6 +1573,20 @@ namespace bpr::qt {
 		void               refuse_profile_data_reset(const QString& aReason);
 		[[nodiscard]] auto profile_reset_panel_widget() const noexcept -> profile_reset_panel*;
 		void               set_notification_preview_dispatch(std::function<bool(const core::pull_request_ref&)> aDispatch);
+		/// \brief [[BPR-1850]]. Where Settings › Notifications' activity switch
+		/// goes; without one the switch is disabled.
+		void set_activity_notifications_dispatch(std::function<void(bool)> aDispatch);
+		/// \brief [[BPR-1850]]. Shows the activity setting and what it is doing.
+		void               present_activity_notifications(bool aEnabled, const QString& aStatus);
+		[[nodiscard]] auto activity_notifications_switch() const noexcept -> QCheckBox*;
+		[[nodiscard]] auto activity_notifications_status() const noexcept -> QLabel*;
+		/// \brief [[BPR-1850]]. The pull request this window shows while it is
+		/// the active window; none otherwise.
+		[[nodiscard]] auto focused_pull_request() const -> std::optional<core::pull_request_ref>;
+		/// \brief [[BPR-1850]]. Brings the window forward on \p aRef: shown
+		/// already, it stays; otherwise it is opened on Overview. Never on
+		/// GitHub. None only brings the window forward on what it shows.
+		auto               open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool;
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto queue_rule_exclusion() const noexcept -> QCheckBox*;
@@ -3034,6 +3048,10 @@ namespace bpr::qt {
 		QLineEdit*                                         StorageLocation       = nullptr;
 		profile_reset_panel*                               ProfileReset          = nullptr;
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
+		QCheckBox*                                         ActivityNotifications = nullptr;
+		QLabel*                                            ActivityStatus        = nullptr;
+		std::function<void(bool)>                          ActivityDispatch;
+		bool                                               PresentingActivity        = false;
 		QComboBox*                                         QueueRuleSelector         = nullptr;
 		QComboBox*                                         QueueRuleKind             = nullptr;
 		QLineEdit*                                         QueueRulePattern          = nullptr;

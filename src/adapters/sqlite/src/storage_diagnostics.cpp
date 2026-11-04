@@ -291,6 +291,7 @@ namespace bpr::adapters::sqlite {
 			std::pair{ std::string_view{ "update-draft-recovery.sqlite3" }, operation_store::update_draft_recovery },
 			std::pair{ std::string_view{ "ledger.db" }, operation_store::clone_ledger },
 			std::pair{ std::string_view{ "view-filters.sqlite3" }, operation_store::view_filters },
+			std::pair{ std::string_view{ "pull-request-activity.sqlite3" }, operation_store::pull_request_activity },
 		};
 		const auto found = std::ranges::find(names, aFileName, &std::pair<std::string_view, operation_store>::first);
 		return found == names.end() ? operation_store::other : found->second;

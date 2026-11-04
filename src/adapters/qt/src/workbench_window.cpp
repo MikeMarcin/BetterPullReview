@@ -4959,6 +4959,26 @@ namespace bpr::qt {
 		NotificationStatus->setWordWrap(true);
 		NotificationStatus->setAccessibleName(QStringLiteral("Notification status"));
 		column->addWidget(NotificationStatus);
+		// [[BPR-1850]]. Activity on my pull requests, from GitHub's notifications.
+		ActivityNotifications = new QCheckBox{ QStringLiteral("Notify me about activity on my pull requests"), notifications };
+		ActivityNotifications->setObjectName(QStringLiteral("activityNotifications"));
+		ActivityNotifications->setChecked(true);
+		ActivityNotifications->setEnabled(false);
+		column->addSpacing(12);
+		column->addWidget(ActivityNotifications);
+		auto* const activityExplanation = new QLabel{ QStringLiteral("New comments, reviews and mentions on pull requests you take part in, checked about once a minute. Nothing is announced for a pull request you have open in the window you are using. Notifications name the repository and number only, and nothing is marked read on GitHub."), notifications };
+		activityExplanation->setWordWrap(true);
+		column->addWidget(activityExplanation);
+		ActivityStatus = new QLabel{ notifications };
+		ActivityStatus->setObjectName(QStringLiteral("activityNotificationsStatus"));
+		ActivityStatus->setAccessibleName(QStringLiteral("Activity notification status"));
+		ActivityStatus->setWordWrap(true);
+		column->addWidget(ActivityStatus);
+		connect(ActivityNotifications, &QCheckBox::toggled, this, [this](const bool aChecked) {
+			if (!PresentingActivity && ActivityDispatch) {
+				ActivityDispatch(aChecked);
+			}
+		});
 		const auto change = [this](const application::queue_preference_field aField) {
 			if (ApplyingQueuePreferences || !QueueReady || !QueuePreferencesDispatch) {
 				return;
@@ -4989,6 +5009,59 @@ namespace bpr::qt {
 		});
 		SettingsWindow->adopt_panel(settings_page::notifications, notifications);
 		update_notification_controls();
+	}
+
+	void workbench_window::set_activity_notifications_dispatch(std::function<void(bool)> aDispatch)
+	{
+		ActivityDispatch = std::move(aDispatch);
+		if (ActivityNotifications != nullptr) {
+			ActivityNotifications->setEnabled(static_cast<bool>(ActivityDispatch));
+		}
+	}
+
+	void workbench_window::present_activity_notifications(const bool aEnabled, const QString& aStatus)
+	{
+		if (ActivityNotifications == nullptr) {
+			return;
+		}
+		PresentingActivity = true;
+		ActivityNotifications->setChecked(aEnabled);
+		PresentingActivity = false;
+		ActivityStatus->setText(aStatus);
+	}
+
+	auto workbench_window::activity_notifications_switch() const noexcept -> QCheckBox*
+	{
+		return ActivityNotifications;
+	}
+
+	auto workbench_window::activity_notifications_status() const noexcept -> QLabel*
+	{
+		return ActivityStatus;
+	}
+
+	auto workbench_window::focused_pull_request() const -> std::optional<core::pull_request_ref>
+	{
+		if (!isActiveWindow()) {
+			return std::nullopt;
+		}
+		return open_queue_ref();
+	}
+
+	auto workbench_window::open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool
+	{
+		if (aRef && open_queue_ref() != aRef) {
+			if (!GithubDispatch || !QueueReady || QueueProjection.Session.Host != aRef->Host || QueueProjection.Session.Account != aRef->Account) {
+				return false;
+			}
+			open_pull_request_item(core::queue_item{ .Ref = *aRef });
+		}
+		if (isMinimized()) {
+			showNormal();
+		}
+		raise();
+		activateWindow();
+		return true;
 	}
 
 	void workbench_window::set_notification_preview_dispatch(std::function<bool(const core::pull_request_ref&)> aDispatch)

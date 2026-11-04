@@ -34,10 +34,12 @@ namespace bpr::adapters::github::detail {
 						std::same_as<
 							parent_type,
 							core::github_session_request_context>) {
+						// [[BPR-1850]]. The account's own reads: who I am, and
+						// my notification threads.
 						return application::detail::valid_context(aParent)
 							&& aParent.Profile == aProfile.profile()
-							&& aRequest.Correlation.Operation
-							== read_operation::get_viewer_identity;
+							&& (aRequest.Correlation.Operation == read_operation::get_viewer_identity
+								|| aRequest.Correlation.Operation == read_operation::list_notifications);
 					} else if constexpr (
 						std::same_as<
 							parent_type,
@@ -64,6 +66,7 @@ namespace bpr::adapters::github::detail {
 							|| aRequest.Correlation.Operation
 								== read_operation::list_home_pull_requests
 							|| aRequest.Correlation.Operation == read_operation::list_home_review_membership
+							|| aRequest.Correlation.Operation == read_operation::list_notifications
 							|| !application::detail::valid_context(aParent)
 							|| aParent.Profile != aProfile.profile()
 							|| aParent.Host != aProfile.host()) {

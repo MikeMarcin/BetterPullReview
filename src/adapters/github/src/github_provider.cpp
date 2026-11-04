@@ -1,5 +1,6 @@
 #include "github_provider.hpp"
 #include "github_anonymous_read_admission.hpp"
+#include "github_notifications_read.hpp"
 #include "github_paged_read.hpp"
 #include "github_publication_contract.hpp"
 #include "github_viewer_named_blob_read.hpp"
@@ -81,6 +82,8 @@ namespace bpr::adapters::github::detail {
 				return application::diagnostic_paged_operation::list_home_pull_requests;
 			case read_operation::get_team_membership:
 			case read_operation::list_reactions:
+			// [[BPR-1850]]. Nor are notifications.
+			case read_operation::list_notifications:
 				// [[BPR-0988]]. Discovery is not part of a pull request read.
 				return application::diagnostic_paged_operation::none;
 			}
@@ -1307,6 +1310,19 @@ namespace bpr::adapters::github::detail {
 					}
 				}
 				return result;
+			}
+
+			/// [[BPR-1850]]. One notification poll in an operation whose account
+			/// `begin_operation` has just read. The operation holds one pinned
+			/// credential, which cannot answer as another account, so the poll is
+			/// not bracketed by two more account reads: each is a `/user` request
+			/// that spends the rate limit, and the poll runs every minute.
+			auto perform_in_checked_operation(const github_wire_request& aRequest, std::stop_token aStop) -> github_wire_completion
+			{
+				if (Mismatch.load()) {
+					return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
+				}
+				return Transport->perform(aRequest, aStop);
 			}
 
 		private:
@@ -3165,6 +3181,98 @@ namespace bpr::adapters::github::detail {
 			} else {
 				delivery->deliver(application::personal_discovery_error{ .Request = std::move(aRequest), .Error = provider_error(application::github_provider_failure::response_limit) });
 			}
+		}
+	}
+
+	void github_provider::poll_activity(application::pull_request_activity_request aRequest, application::pull_request_activity_completion aCompletion)
+	{
+		using outcome     = core::activity_poll_outcome;
+		const auto answer = [](const outcome aOutcome, const std::uint32_t aRequests = 0U) {
+			auto result         = application::pull_request_activity_answer{ };
+			result.Poll.Outcome = aOutcome;
+			result.Requests     = aRequests;
+			return result;
+		};
+		if (Implementation == nullptr || Implementation->State->ReadAuthority != github_provider_read_authority::authenticated) {
+			aCompletion(answer(outcome::failed));
+			return;
+		}
+		const auto& session = aRequest.Session;
+		// [[BPR-1850]]. GitHub refuses a GitHub App user token its notification
+		// list; nothing is sent for one.
+		if (session.ProfileAuthority.Authentication != application::github_authentication_transport::github_cli) {
+			aCompletion(answer(outcome::unsupported));
+			return;
+		}
+		const auto state   = Implementation->State;
+		const auto profile = find_exact_profile(*state, session.ProfileAuthority);
+		if (profile == nullptr) {
+			aCompletion(answer(outcome::failed));
+			return;
+		}
+		const auto accountTransport = exact_account_transport(session.AccountTransport, session.ProfileAuthority,
+															  session.AuthenticationSession.value_or(session.Context.ApplicationSession),
+															  session.Context.IdentityGeneration, session.Context.Account);
+		if (accountTransport == nullptr) {
+			aCompletion(answer(outcome::failed));
+			return;
+		}
+		const auto server = profile->server_contract() == application::github_server_contract::github_com_2022_11_28 ? server_contract::github_com : server_contract::ghes_3_18;
+		auto       wire   = compile_read_request(semantic_read_request{ .Server = server, .Operation = read_operation::list_notifications, .Page = 1U, .IfModifiedSince = aRequest.IfModifiedSince });
+		if (!wire) {
+			aCompletion(answer(outcome::failed));
+			return;
+		}
+		const auto jobResult = make_job(state, provider_phase::discovery, aRequest.Context, application::github_provider_attempt{ 1U });
+		if (!jobResult.has_value()) {
+			aCompletion(answer(outcome::failed));
+			return;
+		}
+		const auto& job     = *jobResult;
+		auto        request = github_wire_request{
+			.Correlation = github_wire_correlation{ .Parent = aRequest.Context, .ProfileRevision = profile->revision(), .Host = profile->host(), .Operation = read_operation::list_notifications, .Page = 1U, .AuthenticationSession = session.AuthenticationSession },
+			.Wire        = std::move(*wire),
+		};
+		auto completion = std::make_shared<application::pull_request_activity_completion>(std::move(aCompletion));
+		try {
+			state->Effects->post([state, job, accountTransport, wireRequest = std::move(request), completion, answer]() mutable {
+				auto delivered = answer(outcome::failed);
+				try {
+					auto operation = job->Stop.stop_requested() ? github_wire_operation{ std::unexpected{ application::github_provider_error{ .Failure = application::github_provider_failure::unavailable } } }
+																: accountTransport->Transport->begin_operation(job->Stop.get_token());
+					if (operation) {
+						// A begun operation's account was read as it began: one more
+						// request. Without one, the lease brackets the poll itself.
+						const auto checked   = *operation ? std::dynamic_pointer_cast<cli_observed_account_transport>(*operation) : nullptr;
+						const auto transport = *operation ? *operation : accountTransport->Transport;
+						auto       performed = checked ? checked->perform_in_checked_operation(wireRequest, job->Stop.get_token())
+													   : transport->perform(wireRequest, job->Stop.get_token());
+						if (auto* success = std::get_if<github_wire_success>(&performed)) {
+							auto read              = read_notifications_response(success->Response);
+							delivered.Poll         = read.Poll;
+							delivered.LastModified = std::move(read.LastModified);
+							delivered.Threads      = std::move(read.Threads);
+							delivered.Complete     = read.Complete;
+						} else if (auto* error = std::get_if<github_wire_error>(&performed)) {
+							const auto limited        = error->Error.Failure == application::github_provider_failure::rate_limit;
+							delivered.Poll.Outcome    = limited ? outcome::rate_limited : outcome::failed;
+							delivered.Poll.RetryAfter = error->Error.RetryAfterSeconds;
+						}
+						// The poll, and the account reads around it: one as the operation
+						// began, or the lease's own two.
+						const auto bracketed = !checked && std::dynamic_pointer_cast<cli_observed_account_transport>(transport) != nullptr;
+						delivered.Requests   = std::holds_alternative<github_wire_cancelled>(performed) ? 0U : (checked ? 2U : bracketed ? 3U
+																																		 : 1U);
+					}
+				} catch (...) {
+					delivered = answer(outcome::failed);
+				}
+				static_cast<void>(finish_job(state, job));
+				(*completion)(std::move(delivered));
+			});
+		} catch (...) {
+			static_cast<void>(finish_job(state, job));
+			(*completion)(answer(outcome::failed));
 		}
 	}
 

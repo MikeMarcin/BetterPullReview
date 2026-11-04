@@ -10,6 +10,7 @@
 #include "bpr/application/markdown_image_ports.hpp"
 #include "bpr/application/personal_discovery_port.hpp"
 #include "bpr/application/port.hpp"
+#include "bpr/application/pull_request_activity_host.hpp"
 #include "bpr/application/review_mutation_port.hpp"
 
 #include <cstddef>
@@ -169,7 +170,8 @@ namespace bpr::adapters::github::detail {
 	class github_provider final : public application::github_provider_port,
 								  public application::personal_discovery_port,
 								  public application::markdown_image_resolution_port,
-								  public application::markdown_image_fetch_port
+								  public application::markdown_image_fetch_port,
+								  public application::pull_request_activity_port
 	{
 	public:
 		class implementation;
@@ -220,6 +222,12 @@ namespace bpr::adapters::github::detail {
 		void discover(application::personal_discovery_request            aRequest,
 					  application::personal_discovery_completion_handler aCompletion) override;
 		void cancel_discovery(const application::personal_discovery_request& aRequest) override;
+		/// \brief [[BPR-1850]]. One conditional read of the account's
+		/// participating notification threads, on the exact account transport.
+		/// \details Only a GitHub CLI account polls: GitHub refuses GitHub App
+		/// user tokens, which native sign-in holds, its notification list, so
+		/// such a profile is answered `unsupported` without a request.
+		void poll_activity(application::pull_request_activity_request aRequest, application::pull_request_activity_completion aCompletion) override;
 		/// \brief RFC-BPR-0084. Reads GitHub's rendering of the accepted bodies
 		/// through the request's exact account transport; authenticated only.
 		void resolve(application::markdown_image_resolution_request                         aRequest,

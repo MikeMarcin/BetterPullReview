@@ -377,6 +377,8 @@ namespace bpr::core {
 		clone_ledger,
 		/// [[BPR-1844]]. The remembered view filters.
 		view_filters,
+		/// [[BPR-1850]]. Activity notifications' setting and seen threads.
+		pull_request_activity,
 	};
 
 	/// \brief [[BPR-1828]]. How an agent setup check's process run ended,
