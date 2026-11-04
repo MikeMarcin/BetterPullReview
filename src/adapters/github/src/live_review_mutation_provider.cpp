@@ -93,6 +93,14 @@ namespace bpr::adapters::github {
 		return Session.reviewers(aRequest, aStop);
 	}
 
+	auto live_review_mutation_provider::change_draft_state(
+		const application::review_draft_state_request& aRequest,
+		const std::stop_token                          aStop)
+		-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure>
+	{
+		return Session.change_draft_state(aRequest, aStop);
+	}
+
 	auto live_review_mutation_provider::reconcile_publication(const application::review_mutation_request& aRequest, std::stop_token aStop) -> application::review_mutation_submission
 	{
 		return Session.reconcile_publication(aRequest, aStop);
@@ -109,6 +117,7 @@ namespace bpr::adapters::github {
 		// [[BPR-1741]]. Reactions are added and removed the same way.
 		// [[BPR-1774]]. And the pull request's description is replaced.
 		// [[BPR-1775]]. And the viewer's published comments.
+		// [[BPR-1852]]. And the pull request's draft state.
 		return {
 			.ResolvesThreads    = true,
 			.RecordsViewedState = false,
@@ -116,6 +125,7 @@ namespace bpr::adapters::github {
 			.EditsDescription   = true,
 			.EditsComments      = true,
 			.RequestsReviewers  = true,
+			.ChangesDraftState  = true,
 		};
 	}
 

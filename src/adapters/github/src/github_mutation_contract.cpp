@@ -182,6 +182,23 @@ namespace bpr::adapters::github::detail {
 			"reviewRequests(first:100){nodes{requestedReviewer{__typename ... on User{id login}}}} "
 			"latestReviews(first:100){nodes{author{login}}}}}}"
 		};
+		/// [[BPR-1852]]. The pull request a draft-state change reaches, named
+		/// by its node as the accepted read gave it, with the identities that
+		/// bind it to the designated pull request, its draft state, whether it
+		/// is open, and GitHub's word on whether this viewer may update it.
+		/// The two writes answer with the same selection.
+		constexpr auto observe_draft_state_document = std::string_view{
+			"query ObserveDraftState($pullRequest:ID!){node(id:$pullRequest){... on PullRequest{"
+			"id databaseId number isDraft state viewerCanUpdate repository{id databaseId nameWithOwner}}}}"
+		};
+		constexpr auto mark_ready_for_review_document = std::string_view{
+			"mutation MarkReadyForReview($pullRequest:ID!){markPullRequestReadyForReview(input:{pullRequestId:$pullRequest}){"
+			"pullRequest{id databaseId number isDraft state viewerCanUpdate repository{id databaseId nameWithOwner}}}}"
+		};
+		constexpr auto convert_to_draft_document = std::string_view{
+			"mutation ConvertToDraft($pullRequest:ID!){convertPullRequestToDraft(input:{pullRequestId:$pullRequest}){"
+			"pullRequest{id databaseId number isDraft state viewerCanUpdate repository{id databaseId nameWithOwner}}}}"
+		};
 		/// [[BPR-1775]]. One of the viewer's published comments, named by its
 		/// node, of one of the three kinds that can be edited, with its body,
 		/// GitHub's word on whether this viewer may update it, and the pull
@@ -1226,6 +1243,125 @@ namespace bpr::adapters::github::detail {
 				static constexpr auto value = glz::object("data", &reviewer_write_response_json::Data);
 			};
 		};
+		// [[BPR-1852]]. A draft-state change's envelope, outbound; the read
+		// and both writes take the pull request's node alone.
+		struct draft_state_variables_json
+		{
+			std::string_view PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &draft_state_variables_json::PullRequest);
+			};
+		};
+		struct draft_state_query_json
+		{
+			std::string_view           Query;
+			draft_state_variables_json Variables;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("query", &draft_state_query_json::Query, "variables", &draft_state_query_json::Variables);
+			};
+		};
+		// [[BPR-1852]]. The pull request as a draft-state answer names it.
+		struct draft_state_pull_request_json
+		{
+			std::string            Id;
+			std::uint64_t          DatabaseId = 0U;
+			std::uint64_t          Number     = 0U;
+			bool                   IsDraft    = false;
+			std::string            State;
+			bool                   ViewerCanUpdate = false;
+			thread_repository_json Repository;
+			struct glaze
+			{
+				static constexpr auto value = glz::object(
+					"id", &draft_state_pull_request_json::Id,
+					"databaseId", &draft_state_pull_request_json::DatabaseId,
+					"number", &draft_state_pull_request_json::Number,
+					"isDraft", &draft_state_pull_request_json::IsDraft,
+					"state", &draft_state_pull_request_json::State,
+					"viewerCanUpdate", &draft_state_pull_request_json::ViewerCanUpdate,
+					"repository", &draft_state_pull_request_json::Repository);
+			};
+		};
+		struct draft_state_node_data_json
+		{
+			std::variant<draft_state_pull_request_json, std::nullptr_t> Node;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("node", &draft_state_node_data_json::Node);
+			};
+		};
+		struct draft_state_node_response_json
+		{
+			draft_state_node_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &draft_state_node_response_json::Data);
+			};
+		};
+		struct draft_state_payload_json
+		{
+			draft_state_pull_request_json PullRequest;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("pullRequest", &draft_state_payload_json::PullRequest);
+			};
+		};
+		struct ready_for_review_data_json
+		{
+			std::variant<draft_state_payload_json, std::nullptr_t> Change;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("markPullRequestReadyForReview", &ready_for_review_data_json::Change);
+			};
+		};
+		struct ready_for_review_response_json
+		{
+			ready_for_review_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &ready_for_review_response_json::Data);
+			};
+		};
+		struct convert_to_draft_data_json
+		{
+			std::variant<draft_state_payload_json, std::nullptr_t> Change;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("convertPullRequestToDraft", &convert_to_draft_data_json::Change);
+			};
+		};
+		struct convert_to_draft_response_json
+		{
+			convert_to_draft_data_json Data;
+			struct glaze
+			{
+				static constexpr auto value = glz::object("data", &convert_to_draft_response_json::Data);
+			};
+		};
+		/// [[BPR-1852]]. The draft state, held to the designated pull request
+		/// by every identity the target binds; a state GitHub does not name is
+		/// malformed.
+		[[nodiscard]] auto draft_state_observation(
+			const draft_state_pull_request_json&           aPullRequest,
+			const application::review_draft_state_request& aExpected)
+			-> review_mutation_parse_result<review_draft_state_observation>
+		{
+			const auto bound = thread_pull_request_json{
+				.Id         = aPullRequest.Id,
+				.DatabaseId = aPullRequest.DatabaseId,
+				.Number     = aPullRequest.Number,
+				.Repository = aPullRequest.Repository,
+			};
+			if (!aExpected.LiveBinding.has_value() || !binds_designated_pull_request(bound, aExpected.LiveBinding->Target)) {
+				return failed(review_mutation_contract_failure::identity_mismatch);
+			}
+			if (aPullRequest.State != "OPEN" && aPullRequest.State != "CLOSED" && aPullRequest.State != "MERGED") {
+				return failed(review_mutation_contract_failure::malformed_response);
+			}
+			return review_draft_state_observation{ .Draft = aPullRequest.IsDraft, .Open = aPullRequest.State == "OPEN", .ViewerCanUpdate = aPullRequest.ViewerCanUpdate };
+		}
 		/// \brief [[BPR-1804]]. A login as GitHub makes them: at most 39
 		/// characters; a name is bounded text.
 		[[nodiscard]] auto reviewer_login(const std::string_view aLogin) -> bool
@@ -3138,6 +3274,11 @@ namespace bpr::adapters::github::detail {
 		// requests is the record, read back after an ambiguous write.
 		case operation::observe_reviewers:
 		case operation::request_reviews:
+		// [[BPR-1852]]. Nor does a draft-state change: the state is the
+		// record, read back after an ambiguous write.
+		case operation::observe_pull_request_draft_state:
+		case operation::mark_pull_request_ready_for_review:
+		case operation::convert_pull_request_to_draft:
 			return review_mutation_exchange{
 
 				.Method  = http_method::post,
@@ -3636,6 +3777,66 @@ namespace bpr::adapters::github::detail {
 		return compile_reviewer_request(observation, aServer);
 	}
 
+	namespace {
+		/// \brief [[BPR-1852]]. One draft-state document for the designated
+		/// pull request, bound as a description edit is.
+		[[nodiscard]] auto compile_draft_state_document(
+			const application::review_draft_state_request& aRequest,
+			const application::github_server_contract      aServer,
+			const review_mutation_operation                aOperation,
+			const std::string_view                         aDocument)
+			-> review_mutation_request_result
+		{
+			if (!valid_server(aServer) || !aRequest.LiveBinding.has_value()
+				|| !application::valid(aRequest.LiveBinding->Target)
+				|| !application::valid(aRequest.LiveBinding->ActingIdentity)
+				|| aRequest.LiveBinding->Target.ServerContract != aServer
+				|| aRequest.Target != aRequest.LiveBinding->Target.Semantic
+				|| aRequest.ActingIdentity != aRequest.LiveBinding->ActingIdentity.Account
+				|| !graphql_token(aRequest.LiveBinding->Target.PullRequestNodeId)
+				|| (aRequest.Change != core::draft_state_change::ready_for_review && aRequest.Change != core::draft_state_change::convert_to_draft)) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			auto headers = common_headers();
+			headers.push_back({ .Name = "Content-Type", .Value = "application/json" });
+			auto body = glz::write<review_json_options{ }>(draft_state_query_json{
+				.Query     = aDocument,
+				.Variables = { .PullRequest = aRequest.LiveBinding->Target.PullRequestNodeId },
+			});
+			if (!body.has_value() || body->empty() || body->size() > maximum_review_mutation_body_bytes) {
+				return failed(review_mutation_contract_failure::invalid_request);
+			}
+			return review_mutation_wire_request{
+				.Semantic  = aRequest,
+				.Server    = aServer,
+				.Operation = aOperation,
+				.Method    = http_method::post,
+				.Path      = std::string{ graphql_path(aServer) },
+				.Headers   = std::move(headers),
+				.Body      = std::move(*body),
+			};
+		}
+	} // namespace
+
+	auto compile_draft_state_request(
+		const application::review_draft_state_request& aRequest,
+		const application::github_server_contract      aServer)
+		-> review_mutation_request_result
+	{
+		// [[BPR-1852]]. The change asked names its own mutation.
+		return aRequest.Change == core::draft_state_change::convert_to_draft
+			? compile_draft_state_document(aRequest, aServer, review_mutation_operation::convert_pull_request_to_draft, convert_to_draft_document)
+			: compile_draft_state_document(aRequest, aServer, review_mutation_operation::mark_pull_request_ready_for_review, mark_ready_for_review_document);
+	}
+
+	auto compile_draft_state_observation_request(
+		const application::review_draft_state_request& aRequest,
+		const application::github_server_contract      aServer)
+		-> review_mutation_request_result
+	{
+		return compile_draft_state_document(aRequest, aServer, review_mutation_operation::observe_pull_request_draft_state, observe_draft_state_document);
+	}
+
 	auto compile_comment_edit_request(
 		const application::review_comment_edit_request& aRequest,
 		const application::github_server_contract       aServer)
@@ -3849,6 +4050,10 @@ namespace bpr::adapters::github::detail {
 							: compile_description_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_reviewer_request>) {
 						canonical = compile_reviewer_request(aSemantic, aRequest.Server);
+					} else if constexpr (std::same_as<semantic_type, application::review_draft_state_request>) {
+						canonical = aRequest.Operation == review_mutation_operation::observe_pull_request_draft_state
+							? compile_draft_state_observation_request(aSemantic, aRequest.Server)
+							: compile_draft_state_request(aSemantic, aRequest.Server);
 					} else if constexpr (std::same_as<semantic_type, application::review_comment_edit_request>) {
 						canonical = aRequest.Operation == review_mutation_operation::observe_comment_for_edit
 							? compile_comment_observation_request(aSemantic, aRequest.Server)
@@ -4508,6 +4713,58 @@ namespace bpr::adapters::github::detail {
 			return failed(review_mutation_contract_failure::identity_mismatch);
 		}
 		return reviewer_standing_facts(pull.Author, pull.ReviewRequests, pull.LatestReviews);
+	}
+
+	auto parse_draft_state_observation(
+		const review_mutation_wire_response&           aResponse,
+		const application::review_draft_state_request& aExpected)
+		-> review_mutation_parse_result<review_draft_state_observation>
+	{
+		if (!aExpected.LiveBinding.has_value()
+			|| !compile_draft_state_observation_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		const auto response = document<draft_state_node_response_json>(aResponse);
+		if (!response.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		if (std::holds_alternative<std::nullptr_t>(response->Data.Node)) {
+			return failed(review_mutation_contract_failure::target_unavailable);
+		}
+		return draft_state_observation(std::get<draft_state_pull_request_json>(response->Data.Node), aExpected);
+	}
+
+	auto parse_draft_state_response(
+		const review_mutation_wire_response&           aResponse,
+		const application::review_draft_state_request& aExpected)
+		-> review_mutation_parse_result<review_draft_state_observation>
+	{
+		if (!aExpected.LiveBinding.has_value() || !compile_draft_state_request(aExpected, aExpected.LiveBinding->Target.ServerContract).has_value()) {
+			return failed(review_mutation_contract_failure::invalid_request);
+		}
+		if (aResponse.Status != 200 || !response_headers_valid(aResponse)) {
+			return failed(review_mutation_contract_failure::invalid_status);
+		}
+		// Each change is answered under its own mutation's name.
+		auto payload = std::optional<std::variant<draft_state_payload_json, std::nullptr_t>>{ };
+		if (aExpected.Change == core::draft_state_change::convert_to_draft) {
+			if (auto response = document<convert_to_draft_response_json>(aResponse); response.has_value()) {
+				payload = std::move(response->Data.Change);
+			}
+		} else if (auto response = document<ready_for_review_response_json>(aResponse); response.has_value()) {
+			payload = std::move(response->Data.Change);
+		}
+		if (!payload.has_value()) {
+			return failed(review_mutation_contract_failure::malformed_response);
+		}
+		// A null payload is GraphQL's refusal of the mutation: nothing written.
+		if (std::holds_alternative<std::nullptr_t>(*payload)) {
+			return failed(review_mutation_contract_failure::unexpected_body);
+		}
+		return draft_state_observation(std::get<draft_state_payload_json>(*payload).PullRequest, aExpected);
 	}
 
 	auto parse_comment_observation(
@@ -5550,6 +5807,106 @@ namespace bpr::adapters::github::detail {
 			const auto after = observe();
 			if (after.has_value() && std::ranges::any_of(after->Requested, [&](const std::string& aLogin) { return core::same_login(aLogin, aRequest.Login); })) {
 				return application::review_reviewer_receipt{ .Answer = *after, .Written = true, .ConfirmedByReadBack = true };
+			}
+			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
+		} catch (const std::bad_alloc&) {
+			return std::unexpected(application::review_mutation_failure::unavailable);
+		}
+	}
+
+	auto review_mutation_session::observe_draft_state(
+		const application::review_draft_state_request& aRequest,
+		const std::stop_token                          aStop)
+		-> std::expected<review_draft_state_observation, application::review_mutation_failure>
+	{
+		const auto wire = compile_draft_state_observation_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+		if (!wire.has_value()) {
+			return std::unexpected(map_contract_failure(wire.error()));
+		}
+		auto response = perform(*wire, aStop, { });
+		if (!response.has_value()) {
+			return std::unexpected(response.error());
+		}
+		auto observed = parse_draft_state_observation(*response, aRequest);
+		if (!observed.has_value()) {
+			return std::unexpected(map_contract_failure(observed.error()));
+		}
+		return *observed;
+	}
+
+	auto review_mutation_session::change_draft_state(
+		const application::review_draft_state_request& aRequest,
+		const std::stop_token                          aStop)
+		-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure>
+	{
+		try {
+			std::scoped_lock                lock{ Mutex };
+			github_mutation_operation_scope operation{ Transport, aStop };
+			if (!operation.valid()) {
+				return std::unexpected(operation.failure());
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			if (Lease == nullptr || !Lease->active()) {
+				return std::unexpected(application::review_mutation_failure::unavailable);
+			}
+			if (!valid(Configuration) || !aRequest.LiveBinding.has_value()
+				|| aRequest.LiveBinding->Target != Configuration.Target
+				|| aRequest.LiveBinding->ActingIdentity != Configuration.ActingIdentity) {
+				return std::unexpected(application::review_mutation_failure::undesignated_target);
+			}
+			// [[BPR-1852]]. Bound to the pull request before anything is
+			// written, with the state GitHub has now and its word on whether
+			// this viewer may update it; the core decides from that.
+			const auto before = observe_draft_state(aRequest, aStop);
+			if (!before.has_value()) {
+				return std::unexpected(before.error());
+			}
+			switch (core::decide_draft_state_write({ .Draft = before->Draft, .Open = before->Open, .ViewerCanUpdate = before->ViewerCanUpdate }, aRequest.Change)) {
+			case core::draft_state_outcome::already:
+				return application::review_draft_state_receipt{ .Draft = before->Draft };
+			case core::draft_state_outcome::not_open:
+				return std::unexpected(application::review_mutation_failure::target_unavailable);
+			case core::draft_state_outcome::not_permitted:
+				return std::unexpected(application::review_mutation_failure::refused_by_server);
+			case core::draft_state_outcome::write:
+				break;
+			}
+			const auto wire = compile_draft_state_request(aRequest, Configuration.CredentialContext.Authority.ServerContract);
+			if (!wire.has_value()) {
+				return std::unexpected(map_contract_failure(wire.error()));
+			}
+			const auto wanted   = core::draft_after(aRequest.Change);
+			auto       failure  = application::review_mutation_failure::unavailable;
+			const auto response = perform(*wire, aStop, { });
+			if (response.has_value()) {
+				const auto observed = parse_draft_state_response(*response, aRequest);
+				if (observed.has_value()) {
+					// GitHub's answer is what is believed: a state other than the
+					// one asked is said, not claimed.
+					return application::review_draft_state_receipt{ .Draft = observed->Draft, .Written = true };
+				}
+				// GraphQL refused the mutation, or the answer names another pull
+				// request: neither is ambiguous.
+				if (observed.error() == review_mutation_contract_failure::unexpected_body) {
+					return std::unexpected(application::review_mutation_failure::refused_by_server);
+				}
+				if (observed.error() == review_mutation_contract_failure::identity_mismatch) {
+					return std::unexpected(map_contract_failure(observed.error()));
+				}
+				failure = map_contract_failure(observed.error());
+			} else {
+				failure = response.error();
+			}
+			if (failure == application::review_mutation_failure::cancelled || aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			// The outcome is ambiguous: ask once what GitHub has. Success only
+			// when it is the state asked; the write is never sent again.
+			const auto after = observe_draft_state(aRequest, aStop);
+			if (after.has_value() && after->Draft == wanted) {
+				return application::review_draft_state_receipt{ .Draft = after->Draft, .Written = true, .ConfirmedByReadBack = true };
 			}
 			return std::unexpected(after.has_value() ? application::review_mutation_failure::not_confirmed : failure);
 		} catch (const std::bad_alloc&) {
