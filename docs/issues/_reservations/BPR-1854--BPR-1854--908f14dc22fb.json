@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1854"
+  ],
+  "reserve_for": "release-v042",
+  "purpose": "Publish 0.4.2 Mac Windows preview then full release",
+  "created": "2026-11-04T15:55:32.042723+00:00",
+  "base": "9d279d1fc736cd214a3dc03a4c5d240636522643"
+}
