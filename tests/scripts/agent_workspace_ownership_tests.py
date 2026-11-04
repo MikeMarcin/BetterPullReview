@@ -207,18 +207,29 @@ def main() -> None:
             # [[BPR-1857]]. An inherit-only entry grants nothing on the parent
             # itself, so it does not refuse the neighbourhood; the same grant
             # applying to the parent still does, and names the account.
+            #
+            # The split phases keep the registry in a private `data` folder, as
+            # the product does, so the holding folder is judged only as the
+            # neighbourhood's parent. In the plain layout that folder is also
+            # the registry's data folder, whose exact descriptor the extra
+            # entry rightly breaks, and the refusal says so.
             root = parent / "inherit-only-parent"
             root.mkdir()
             make_private(root)
             subprocess.run(["icacls", str(root), "/grant", "*S-1-1-0:(OI)(CI)(IO)(M)"], check=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            check(exe, "recover", root, "recovered=0 live=0")
+            check(exe, "recover-check", root, "failure=1 check=data-folder-not-private folder=.")
+            (root / "data").mkdir()
+            make_private(root / "data")
+            check(exe, "recover-split", root, "recovered=0 live=0")
             root = parent / "shared-parent-named"
             root.mkdir()
             make_private(root)
             subprocess.run(["icacls", str(root), "/grant", "*S-1-1-0:(OI)(CI)(M)"], check=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            check(exe, "recover-check", root, "failure=1 check=neighbourhood-parent-shared folder=.")
+            (root / "data").mkdir()
+            make_private(root / "data")
+            check(exe, "recover-check-split", root, "failure=1 check=neighbourhood-parent-shared folder=.")
         # Real forced death (SIGKILL, TerminateProcess) between committed native
         # phases, including both renames.
         for point in [*(f"journal-{i}" for i in range(7)), "child-quarantined", "parent-quarantined"]:

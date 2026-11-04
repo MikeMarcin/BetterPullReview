@@ -112,6 +112,13 @@ auto main(int argc, char** argv) -> int
 			registry = data / "agent-workspace-ownership-v1";
 		}
 #endif
+		if (phase == "recover-split" || phase == "recover-check-split") {
+			// [[BPR-1857]]. The product's layout: the registry sits in a private
+			// data folder of its own, beside the neighbourhood, so the folder
+			// that holds both is judged only as the neighbourhood's parent.
+			registry = root / "data" / "registry";
+			phase    = phase == "recover-split" ? "recover" : "recover-check";
+		}
 		if (phase == "recover-check") {
 			// [[BPR-1857]]. A refusal names the check and the folder it refused.
 			auto       refusal = git::workspace_recovery_refusal{ };

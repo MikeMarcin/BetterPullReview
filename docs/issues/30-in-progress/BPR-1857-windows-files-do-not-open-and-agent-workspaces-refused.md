@@ -197,6 +197,30 @@ startup-repair course sees the named `record-unreadable` sentence. The Windows
 ownership cases (an inherit-only Everyone entry admitted, an applying one
 refused and named) run only on Windows.
 
+### bpr-main-win, bbaeba9ac (Debug, MSVC 14.51)
+
+The whole tree compiles, including every Windows-only line of this card.
+`core_epoch_policy`, `application_epoch_host`, `qt_epoch_comparison_scale_100`,
+`qt_workbench_window_scale_100`, `gh_cli_transport` and
+`application_review_round_trip_composition_contract` pass.
+`gh_cli_git_smart_transport` and `application_terminal_diagnostics` are not
+registered on Windows.
+
+- `agent_workspace_ownership` failed on the card's own inherit-only course.
+  The production check was right. The course's error was its layout: in the
+  driver's plain layout the folder holding the neighbourhood is also the
+  registry's data folder. The inherit-only entry was correctly skipped as the
+  neighbourhood's parent, but it broke the data folder's exact descriptor, so
+  `data-folder-not-private` refused. In the product the data folder is a
+  private child of its own. The course now asserts that named refusal, then
+  the product's layout (`recover-split`, registry in a private `data` child),
+  which recovers.
+- `application_agent_crash_recovery` timed out at `crash-running` after 60 s.
+  This card changes nothing on that path: no refusal is stricter, and the
+  account lookup runs only on a refusal. Whether main also fails there is
+  pending. `process_kill_support.py` now prints the fixture's output when a
+  checkpoint is missed.
+
 ## Pending
 
 - The owner: is the work machine's account **GitHub CLI** (Accounts shows the
