@@ -114,8 +114,8 @@ namespace bpr::qt {
 				};
 				const auto ink   = palette().color(QPalette::Active, QPalette::PlaceholderText);
 				const auto paper = palette().color(QPalette::Active, QPalette::Window);
-				painter.setPen(QPen{ blend(ink, paper, 0.35), 1.0 });
-				painter.setBrush(blend(ink, paper, 0.09));
+				painter.setPen(QPen{ blend(ink, paper, 0.28), 1.0 });
+				painter.setBrush(blend(ink, paper, 0.06));
 				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
 			}
 		};
