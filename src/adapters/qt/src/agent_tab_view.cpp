@@ -1633,10 +1633,14 @@ namespace bpr::qt {
 			next.AnsweredAt = shown.AnsweredAt;
 			next.Outcome    = shown.Outcome;
 			add_turn_widgets(next);
-			set_answer(next, shown.Answer);
-			next.Footer->setText(shown.Footer);
+			// [[BPR-1860]]. Kept before its answer is shown: the code host
+			// answers a text it has seen from its cache inside the ask, and
+			// `apply_code_syntax` hands spans only to the turns kept here.
 			Turns.push_back(std::move(next));
-			settle_reply_footer(Turns.back());
+			auto& kept = Turns.back();
+			set_answer(kept, shown.Answer);
+			kept.Footer->setText(shown.Footer);
+			settle_reply_footer(kept);
 		}
 		Finished = false;
 		refresh();
