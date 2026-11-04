@@ -29,3 +29,14 @@ draft-state pin, without guessing a filesystem or OS cause. See the
 The registration correction needs a successor frozen source; comprehensive
 qualification and publication remain in progress. Preserve the earlier source,
 signed artifacts and actual interrupted-build receipts.
+
+## Optimized Linux fixture initialization
+
+Build 10's Ubuntu Release compilation stopped in `github_provider_tests.cpp`:
+GCC 15 reported the activity-poll session's nested repository strings as
+possibly uninitialized under `-O3 -Werror`. Construct the named session with
+its defaults and assign its populated fields individually, following the test
+guide's existing GCC initialization rule. Keep the repository context empty and
+preserve the poll's authority and assertions. Native compilation and the
+provider course must verify the correction before the successor freezes;
+build 10's signed artifacts and failed compilation receipt remain immutable.

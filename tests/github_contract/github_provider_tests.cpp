@@ -3223,24 +3223,23 @@ namespace {
 		auto        viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
 		const auto* success = std::get_if<application::github_viewer_success>(&viewer);
 		expect(success != nullptr && success->AccountTransport != nullptr, "a CLI viewer lease for the poll");
-		const auto base    = pull_request_for(fixture, success->AccountTransport);
-		auto       session = application::personal_discovery_session{
-			.Queue   = { .Host = "github.com", .Account = success->Viewer.Login, .Generation = base.Context.IdentityGeneration.value(), .ViewerAccount = success->Viewer.Account },
-			.Context = {
-				.ApplicationSession = base.Context.ApplicationSession,
-				.Profile            = base.Context.Profile,
-				.Host               = base.Context.Host,
-				.Account            = base.Context.Account,
-				.Repository         = { },
-				.Capabilities       = base.Context.Capabilities,
-				.IdentityGeneration = base.Context.IdentityGeneration,
-			},
-			.ProfileAuthority   = base.ProfileAuthority,
-			.Viewer             = base.Viewer,
-			.CapabilityEvidence = base.CapabilityEvidence,
-			.AccountTransport   = success->AccountTransport,
-		};
-		const auto context = core::github_session_request_context{
+		const auto base                    = pull_request_for(fixture, success->AccountTransport);
+		auto       session                 = application::personal_discovery_session{ };
+		session.Queue.Host                 = "github.com";
+		session.Queue.Account              = success->Viewer.Login;
+		session.Queue.Generation           = base.Context.IdentityGeneration.value();
+		session.Queue.ViewerAccount        = success->Viewer.Account;
+		session.Context.ApplicationSession = base.Context.ApplicationSession;
+		session.Context.Profile            = base.Context.Profile;
+		session.Context.Host               = base.Context.Host;
+		session.Context.Account            = base.Context.Account;
+		session.Context.Capabilities       = base.Context.Capabilities;
+		session.Context.IdentityGeneration = base.Context.IdentityGeneration;
+		session.ProfileAuthority           = base.ProfileAuthority;
+		session.Viewer                     = base.Viewer;
+		session.CapabilityEvidence         = base.CapabilityEvidence;
+		session.AccountTransport           = success->AccountTransport;
+		const auto context                 = core::github_session_request_context{
 			.Request            = core::request_id{ 777U },
 			.ApplicationSession = base.Context.ApplicationSession,
 			.Profile            = base.Context.Profile,
