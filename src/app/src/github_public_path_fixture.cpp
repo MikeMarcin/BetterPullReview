@@ -6017,6 +6017,22 @@ namespace bpr::app::detail {
 		return *Implementation->Vault;
 	}
 
+	auto make_github_fixture_reset_vault(application::effect_executor& aEffects, const github_public_path_fixture_options& aOptions)
+		-> std::unique_ptr<application::github_credential_vault_port>
+	{
+		return std::make_unique<fixture_credential_vault>(aEffects, aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault(), true,
+														  aOptions.RegisteredDeviceCourse, aOptions.Profile, aOptions.LockedDeviceVault);
+	}
+
+	auto github_fixture_vault_holds_entry(const std::shared_ptr<github_fixture_vault_state>& aState) -> bool
+	{
+		if (!aState) {
+			return false;
+		}
+		const std::scoped_lock lock{ aState->Mutex };
+		return aState->Credential.has_value() || aState->Refresh.has_value();
+	}
+
 	auto github_public_path_fixture_components::take_enrollment_credential()
 		-> application::github_credential_material
 	{

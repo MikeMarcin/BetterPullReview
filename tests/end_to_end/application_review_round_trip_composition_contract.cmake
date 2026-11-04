@@ -2606,8 +2606,14 @@ function(bpr_verify_full_application_digest source_variable)
 	# [[BPR-1811]]. Owner-authorized current-main restart combines canonical
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
+	# [[BPR-1858]] sign-out reset reseal (2026-11-04): the startup data reset
+	# step owns a vault worker and this profile's platform vault (a course's
+	# fixture vault under testing) only for Reset connections and Reset
+	# everything, passes it to run_profile_data_reset and drains it. No grant,
+	# provider, admission, mutation branch, publication or source-inventory
+	# change; the vault deletion is the purge's release_profile_credentials.
 	set(bpr_expected_full_application_digest
-        "e2976513d180c1ee228a298cc9778ec2b8f92a915265662b4e443cea03d23085"
+        "722bf01ab34a36e72cab18e7d45f83cbf432a94853bbd5ae2ca03eb20acc7187"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2920,10 +2926,17 @@ function(bpr_verify_app_source_tree app_source_root)
 # the reset's files go, and github_application_fixture_access.hpp hands a
 # course the startup reset report. No grant, credential, vault, gh process,
 # admission, mutation, publication or source-inventory change.
+# [[BPR-1858]] sign-out reset reseal (2026-11-04), owner decision 04ebe7a6:
+# Reset connections and Reset everything delete this profile's own vault
+# entries through the purge's release_profile_credentials and forget every
+# remembered connection (profile_data_reset.{hpp,cpp}, github_application.cpp,
+# main.cpp's option comment); the fixture accessor and fixture gain the
+# course's reset vault. No grant, provider, gh process, admission, mutation
+# branch, publication or source-inventory change.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "cafc22c6a6b1f8c7063d61e23271d67d3e6f141e2986aa3a608dcaf22405f3c7"
+        "ede5334819848fc4ee218978ec18c2de3911e13cbbd8f1b2dbff3657ce5380fc"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

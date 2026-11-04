@@ -24,8 +24,10 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "review-mutation-recovery" }, area::review_data },
 			std::pair{ std::string_view{ "review-queue" }, area::saved_sources },
 			std::pair{ std::string_view{ "insights" }, area::statistics },
+			std::pair{ std::string_view{ "device-bindings" }, area::connections },
 			// Named to make the boundary explicit; an unnamed store is kept too.
-			std::pair{ std::string_view{ "device-bindings" }, area::kept },
+			// Remembered connections are edited by the resets that sign out,
+			// never removed, so their identity high-water marks survive.
 			std::pair{ std::string_view{ "remembered-connections" }, area::kept },
 			std::pair{ std::string_view{ "profile-registry" }, area::kept },
 			std::pair{ std::string_view{ "release-update" }, area::kept },
@@ -45,6 +47,7 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "caches" }, profile_data_reset::caches },
 			std::pair{ std::string_view{ "settings" }, profile_data_reset::settings },
 			std::pair{ std::string_view{ "review-data" }, profile_data_reset::review_data },
+			std::pair{ std::string_view{ "connections" }, profile_data_reset::connections },
 			std::pair{ std::string_view{ "everything" }, profile_data_reset::everything },
 		};
 
@@ -62,7 +65,8 @@ namespace bpr::core {
 		[[nodiscard]] constexpr auto known(const profile_data_reset aReset) noexcept -> bool
 		{
 			return aReset == profile_data_reset::caches || aReset == profile_data_reset::settings
-				|| aReset == profile_data_reset::review_data || aReset == profile_data_reset::everything;
+				|| aReset == profile_data_reset::review_data || aReset == profile_data_reset::everything
+				|| aReset == profile_data_reset::connections;
 		}
 	}
 
@@ -88,6 +92,8 @@ namespace bpr::core {
 		case area::saved_sources:
 		case area::statistics:
 			return aReset == profile_data_reset::everything;
+		case area::connections:
+			return profile_data_reset_signs_out(aReset);
 		case area::kept:
 			return false;
 		}
@@ -104,9 +110,9 @@ namespace bpr::core {
 		return aReset == profile_data_reset::settings;
 	}
 
-	auto profile_data_reset_forgets_github_cli(const profile_data_reset aReset) noexcept -> bool
+	auto profile_data_reset_signs_out(const profile_data_reset aReset) noexcept -> bool
 	{
-		return aReset == profile_data_reset::everything;
+		return aReset == profile_data_reset::everything || aReset == profile_data_reset::connections;
 	}
 
 	auto admit_profile_data_reset(const profile_data_reset_request& aRequest) noexcept -> release_maintenance_reason

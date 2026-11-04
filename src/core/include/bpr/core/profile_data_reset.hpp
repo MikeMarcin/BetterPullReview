@@ -12,21 +12,29 @@
 /// Storage & privacy removes from one profile, and what it never touches.
 /// \details The policy is closed: a store or folder this file does not name
 /// belongs to no reset, so a new store is kept until a change names it here.
-/// Credentials, their device bindings and remembered connections, diagnostic
-/// logs, the shared registry and updater state, agent workspaces and every
-/// other profile are never removed by a reset; signing out of a sign-in made
-/// in the application stays in Accounts & hosts and the full purge stays
-/// under Profile maintenance. [[BPR-1858]] One edit is made to remembered
-/// connections instead: Reset everything forgets every GitHub CLI connection,
-/// so the next launch is not connected through gh until the person chooses
-/// Use GitHub CLI again. gh's own sign-in belongs to gh and is never touched.
+/// Diagnostic logs, the shared registry and updater state, agent workspaces
+/// and every other profile are never removed by a reset, and the full purge
+/// stays under Profile maintenance.
+///
+/// [[BPR-1858]] amends [[BPR-1602]]'s rule that no reset reads or deletes
+/// credentials, by the owner's decision 04ebe7a6 in attended-review session
+/// bbad2aaf (2026-11-04: "Reset everything, add a separate reset connections
+/// option on that page too."). Reset connections and Reset everything sign
+/// the profile out: this profile's own vault entries named by its device
+/// bindings are deleted through the purge's credential cleanup, its
+/// device-bindings store goes, and every remembered connection, native or
+/// GitHub CLI, is forgotten while the identity high-water marks stay. The
+/// next launch opens at Sign in to GitHub. gh's own sign-in belongs to gh and
+/// the other tools that use it, and no reset touches it.
 namespace bpr::core {
-	/// \brief The four resets a person can ask for.
+	/// \brief The resets a person can ask for.
 	enum class profile_data_reset : std::uint8_t {
 		caches      = 1U,
 		settings    = 2U,
 		review_data = 3U,
 		everything  = 4U,
+		/// [[BPR-1858]] Signs out and forgets connections; keeps all other data.
+		connections = 5U,
 	};
 
 	/// \brief Which part of a profile a store or folder holds.
@@ -43,7 +51,12 @@ namespace bpr::core {
 		saved_sources,
 		/// Lifetime Insights statistics and history, removed only by Reset everything.
 		statistics,
-		/// Never removed by a reset: sign-in, logs, shared and unknown data.
+		/// [[BPR-1858]] The device bindings that name this profile's vault
+		/// entries, removed with those entries by Reset connections and
+		/// Reset everything.
+		connections,
+		/// Never removed by a reset: remembered connections (edited instead),
+		/// logs, shared and unknown data.
 		kept,
 	};
 
@@ -73,11 +86,12 @@ namespace bpr::core {
 		/// Reset settings restored Home's queue display choices too. False
 		/// when that store could not be written; its other settings reset.
 		bool QueueDisplayRestored = true;
-		/// [[BPR-1858]] Reset everything forgot a GitHub CLI connection.
-		bool GithubCliDisconnected = false;
-		/// [[BPR-1858]] Reset everything found a GitHub CLI connection it could
-		/// not forget; its other data was reset.
-		bool GithubCliRetained                                           = false;
+		/// [[BPR-1858]] The reset signed out: it forgot a remembered
+		/// connection (native or GitHub CLI) or deleted a stored sign-in.
+		bool SignedOut = false;
+		/// [[BPR-1858]] The reset could not forget the remembered connections;
+		/// its stored sign-ins and other data were removed.
+		bool ConnectionsRetained                                         = false;
 		auto operator==(const profile_data_reset_outcome&) const -> bool = default;
 	};
 
@@ -100,9 +114,11 @@ namespace bpr::core {
 	/// store it keeps (Reset settings), rather than removing that store.
 	[[nodiscard]] auto profile_data_reset_restores_queue_display(profile_data_reset aReset) noexcept -> bool;
 
-	/// \brief [[BPR-1858]]. Whether the reset forgets the profile's GitHub CLI
-	/// connections in the remembered-connections store it keeps (Reset everything).
-	[[nodiscard]] auto profile_data_reset_forgets_github_cli(profile_data_reset aReset) noexcept -> bool;
+	/// \brief [[BPR-1858]]. Whether the reset signs the profile out (Reset
+	/// connections and Reset everything): it deletes this profile's stored
+	/// sign-ins through the credential cleanup and forgets every remembered
+	/// connection in the store it keeps.
+	[[nodiscard]] auto profile_data_reset_signs_out(profile_data_reset aReset) noexcept -> bool;
 
 	/// \brief Admits a confirmed request: `none`, or `invalid_selection` for
 	/// an unknown reset, a destructive one without its acknowledgement, or a
@@ -110,7 +126,7 @@ namespace bpr::core {
 	[[nodiscard]] auto admit_profile_data_reset(const profile_data_reset_request& aRequest) noexcept -> release_maintenance_reason;
 
 	/// \brief The reset's name on the command line: "caches", "settings",
-	/// "review-data" or "everything".
+	/// "review-data", "connections" or "everything".
 	[[nodiscard]] auto profile_data_reset_name(profile_data_reset aReset) noexcept -> std::string_view;
 
 	/// \brief The reset a command-line name selects, or none.
