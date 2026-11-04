@@ -481,6 +481,26 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_description_edit_core_tests
 )
 
+# [[BPR-1852]]. Who may change the draft state, whether a change is written,
+# and what the window shows while reads catch up.
+bpr_add_executable(
+    test_better_pull_review_draft_state_core_tests
+    draft_state_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_draft_state_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_draft_state_core_tests)
+bpr_enable_warnings(test_better_pull_review_draft_state_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_draft_state
+    COMMAND test_better_pull_review_draft_state_core_tests
+)
+
 # [[BPR-1804]]. The reviewer picker's transitions and decisions.
 bpr_add_executable(
     test_better_pull_review_reviewer_request_core_tests

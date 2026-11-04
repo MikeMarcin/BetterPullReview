@@ -2506,6 +2506,34 @@ bpr_bound_automated_run(
     RESERVE_MS 4000
 )
 
+# [[BPR-1852]]. The author of a draft marks it ready for review over the
+# public-path fixture: the draft is said in the title row and Overview, Ready
+# for review writes exactly once and reads nothing, and a refused Convert to
+# draft is withdrawn.
+bpr_add_network_isolated_test(
+    NAME application_draft_state_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_draft_state_contract.cmake"
+)
+set_tests_properties(
+    application_draft_state_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "DRAFT_STATE_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_draft_state_contract
+    TIMEOUT 120
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 2
+    RESERVE_MS 4000
+)
+
 # [[BPR-1083]]. Labels written, chosen and shown in the composed application.
 bpr_add_network_isolated_test(
     NAME application_label_authoring_contract

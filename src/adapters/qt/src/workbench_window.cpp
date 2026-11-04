@@ -1,5 +1,6 @@
 #include "bpr/qt/review_tour_editor.hpp"
 
+#include "bpr/qt/draft_state_chip.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include "bpr/qt/compose_review_sheet.hpp"
@@ -1676,6 +1677,15 @@ namespace bpr::qt {
 		IdentityLabel->setContentsMargins(4, 0, 4, 0);
 		IdentityAction = rowWidget(
 			PrimaryToolbar, IdentityLabel, QStringLiteral("workbenchStripIdentityAction"));
+		// [[BPR-1852]]. A draft says so right after its name, before Open on
+		// GitHub, in every modality: the owner could barely tell their pull
+		// request was a draft. It is measured with the row's other items, so
+		// the title elides around it.
+		StripDraftChip = new draft_state_chip{ PrimaryToolbar };
+		StripDraftChip->setObjectName(QStringLiteral("workbenchStripDraftChip"));
+		StripDraftChipAction = rowWidget(
+			PrimaryToolbar, StripDraftChip, QStringLiteral("workbenchStripDraftChipAction"));
+		StripDraftChipAction->setVisible(false);
 		// [[BPR-1338]]. Open on GitHub, the owner's "open in browser button next
 		// to the pr title". The window's action names a pull request and the
 		// host admits it and builds the address; Qt never holds one. Its button
@@ -1699,6 +1709,20 @@ namespace bpr::qt {
 			}
 		});
 		PullRequestMenu->insertAction(FollowPullRequest, OpenOnGithubAction);
+		// [[BPR-1852]]. The author's draft-state change, where the menu bar
+		// keeps what acts on the pull request: Mark Ready for Review on a
+		// draft, Convert to Draft otherwise. Shown only while it is offered.
+		DraftStateAction = new QAction{ tr("Mark &Ready for Review"), this };
+		DraftStateAction->setObjectName(QStringLiteral("draftStateAction"));
+		DraftStateAction->setStatusTip(QStringLiteral("Mark this draft ready for review on GitHub"));
+		DraftStateAction->setVisible(false);
+		DraftStateAction->setEnabled(false);
+		connect(DraftStateAction, &QAction::triggered, this, [this] {
+			if (DraftStateOffer.has_value() && DraftStateDispatch) {
+				DraftStateDispatch(*DraftStateOffer);
+			}
+		});
+		PullRequestMenu->insertAction(FollowPullRequest, DraftStateAction);
 		PullRequestMenu->insertSeparator(FollowPullRequest);
 		OpenOnGithubButton = new QToolButton{ PrimaryToolbar };
 		OpenOnGithubButton->setObjectName(QStringLiteral("workbenchOpenOnGithubButton"));
@@ -8164,6 +8188,71 @@ namespace bpr::qt {
 		PresentedOverview->Status             = aProjection.Status;
 	}
 
+	void workbench_window::publish_draft_state(const application::pull_request_overview_projection& aProjection)
+	{
+		if (OverviewPage == nullptr || (PresentedOverview.has_value() && *PresentedOverview == aProjection)) {
+			return;
+		}
+		// [[BPR-1852]]. Only the draft state and Merge change; anything else is
+		// presented whole.
+		if (!PresentedOverview.has_value() || !OverviewPage->present_draft_state(aProjection)) {
+			publish(aProjection);
+			return;
+		}
+		PresentedOverview->Draft              = aProjection.Draft;
+		PresentedOverview->DraftPending       = aProjection.DraftPending;
+		PresentedOverview->MergeState         = aProjection.MergeState;
+		PresentedOverview->MergeTone          = aProjection.MergeTone;
+		PresentedOverview->RequirementDetails = aProjection.RequirementDetails;
+	}
+
+	void workbench_window::present_strip_draft(const bool aDraft)
+	{
+		if (IdentityDraft == aDraft) {
+			return;
+		}
+		IdentityDraft = aDraft;
+		apply_strip_width();
+	}
+
+	auto workbench_window::strip_draft_chip() const noexcept -> QWidget*
+	{
+		return StripDraftChip;
+	}
+
+	auto workbench_window::strip_draft_shown() const noexcept -> bool
+	{
+		return StripDraftChipAction != nullptr && StripDraftChipAction->isVisible();
+	}
+
+	void workbench_window::set_draft_state_offer(const std::optional<core::draft_state_change> aOffered)
+	{
+		DraftStateOffer = aOffered;
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_draft_state_offer(aOffered);
+		}
+		if (DraftStateAction != nullptr) {
+			const auto ready = aOffered == core::draft_state_change::ready_for_review;
+			DraftStateAction->setText(ready ? tr("Mark &Ready for Review") : tr("Convert to &Draft"));
+			DraftStateAction->setStatusTip(ready ? QStringLiteral("Mark this draft ready for review on GitHub") : QStringLiteral("Make this pull request a draft again on GitHub"));
+			DraftStateAction->setVisible(aOffered.has_value());
+			DraftStateAction->setEnabled(aOffered.has_value());
+		}
+	}
+
+	void workbench_window::set_draft_state_dispatch(std::function<void(core::draft_state_change)> aDispatch)
+	{
+		DraftStateDispatch = aDispatch;
+		if (OverviewPage != nullptr) {
+			OverviewPage->set_draft_state_dispatch(std::move(aDispatch));
+		}
+	}
+
+	auto workbench_window::draft_state_action() const noexcept -> QAction*
+	{
+		return DraftStateAction;
+	}
+
 	void workbench_window::publish(const application::overview_feedback_projection& aFeedback)
 	{
 		if (OverviewPage != nullptr) {
@@ -14382,6 +14471,7 @@ namespace bpr::qt {
 					name.Repository = QString::fromStdString(overview.RepositoryName);
 					name.Number     = QString::number(overview.Number);
 					name.Text       = QStringLiteral("%1/%2  #%3 %4").arg(name.Owner, name.Repository, name.Number, QString::fromStdString(overview.Title));
+					name.Draft      = overview.Draft && overview.State == application::github_pull_request_state_projection::open;
 					LoadingIdentity = std::move(name);
 					apply_strip_width();
 				}
@@ -14687,6 +14777,9 @@ namespace bpr::qt {
 										  IdentityRepository,
 										  IdentityNumber,
 										  QString::fromStdString(aPullRequest.Title));
+		// [[BPR-1852]]. The chip follows the read; the composition puts the
+		// viewer's own change over it (present_strip_draft).
+		IdentityDraft = aPullRequest.Draft && aPullRequest.State == application::github_pull_request_state_projection::open;
 		LoadingIdentity.reset();
 		// [[BPR-0981]]. The repositories tree keeps the open pull request's
 		// row current, however it was opened, so a stale row cannot hold the
@@ -18585,6 +18678,12 @@ namespace bpr::qt {
 			}
 		};
 		showPage();
+		// [[BPR-1852]]. The draft chip goes with a GitHub pull request's name.
+		if (StripDraftChipAction != nullptr) {
+			const auto loadingName = IdentityText.isEmpty() && LoadingIdentity.has_value();
+			const auto draft       = loadingName ? LoadingIdentity->Draft : (!IdentityText.isEmpty() && IdentityDraft);
+			StripDraftChipAction->setVisible(IdentityAction->isVisible() && !(LocalCycleShown && !showing_home()) && draft);
+		}
 		const auto identityShort = [this] {
 			return IdentityAction->isVisible() && strip_identity_budget() < strip_identity_minimum();
 		};

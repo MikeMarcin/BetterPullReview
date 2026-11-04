@@ -45,6 +45,11 @@ namespace bpr::application::detail {
 												 core::request_generation aGeneration, review_mutation_target_binding aTarget,
 												 review_mutation_acting_identity aActor, review_reviewer_publication_request aRequest)
 			-> review_mutation_execution_grant;
+		/// \brief [[BPR-1852]]. The one-shot grant for one exact draft-state change.
+		[[nodiscard]] static auto issue_draft_state(core::application_session_id aSession,
+													core::request_generation aGeneration, review_mutation_target_binding aTarget,
+													review_mutation_acting_identity aActor, review_draft_state_publication_request aRequest)
+			-> review_mutation_execution_grant;
 		/// \brief [[BPR-1775]]. The one-shot grant for one exact comment edit.
 		[[nodiscard]] static auto issue_comment_edit(core::application_session_id aSession,
 													 core::request_generation aGeneration, review_mutation_target_binding aTarget,
@@ -276,6 +281,15 @@ namespace bpr::application {
 		[[nodiscard]] auto permits_reviewer(
 			const review_mutation_thread_scope&        aScope,
 			const review_reviewer_publication_request& aRequest) noexcept -> bool;
+		// [[BPR-1852]]. A draft-state change binds and is permitted like a
+		// description edit, the pull request's node in the scope's `Thread`; a
+		// user one-shot grant permits only the exact change it was issued for.
+		explicit review_mutation_execution_authority(
+			review_mutation_thread_scope           aScope,
+			review_draft_state_publication_request aRequest);
+		[[nodiscard]] auto permits_draft_state(
+			const review_mutation_thread_scope&           aScope,
+			const review_draft_state_publication_request& aRequest) noexcept -> bool;
 		void revoke() noexcept;
 
 		friend class review_mutation_application_host;
@@ -301,6 +315,7 @@ namespace bpr::application {
 		std::optional<review_description_publication_request>       DescriptionRequest;
 		std::optional<review_comment_edit_publication_request>      CommentEditRequest;
 		std::optional<review_reviewer_publication_request>          ReviewerRequest;
+		std::optional<review_draft_state_publication_request>       DraftStateRequest;
 		mutable std::mutex                                          Mutex;
 		review_mutation_execution_scope                             Scope;
 		review_mutation_target_binding                              Target;

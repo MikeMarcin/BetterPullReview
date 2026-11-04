@@ -240,6 +240,27 @@ namespace bpr::application {
 		auto operator==(const review_reviewer_terminal&) const -> bool = default;
 	};
 
+	/// \brief [[BPR-1852]]. Asks the host to change the pull request's draft
+	/// state: Ready for review, or Convert to draft.
+	struct review_draft_state_publication_request
+	{
+		core::draft_state_change Change = core::draft_state_change::ready_for_review;
+
+		auto operator<=>(const review_draft_state_publication_request&) const = default;
+	};
+
+	/// \brief [[BPR-1852]]. One draft-state change's terminal.
+	struct review_draft_state_terminal
+	{
+		review_mutation_request_context                                    Context;
+		review_draft_state_publication_request                             Request;
+		std::expected<review_draft_state_receipt, review_mutation_failure> Result{
+			std::unexpected(review_mutation_failure::unavailable)
+		};
+
+		auto operator==(const review_draft_state_terminal&) const -> bool = default;
+	};
+
 	class review_mutation_projection_port
 	{
 	public:
@@ -273,6 +294,12 @@ namespace bpr::application {
 		/// \brief [[BPR-1804]]. A sink without a reviewer picker ignores its
 		/// terminals.
 		virtual void publish_reviewers(const review_reviewer_terminal& aTerminal)
+		{
+			static_cast<void>(aTerminal);
+		}
+		/// \brief [[BPR-1852]]. A sink that does not change the draft state
+		/// ignores its terminals.
+		virtual void publish_draft_state(const review_draft_state_terminal& aTerminal)
 		{
 			static_cast<void>(aTerminal);
 		}
@@ -356,6 +383,8 @@ namespace bpr::application {
 		/// [[BPR-1804]]. Reviewer searches and requests GitHub answered.
 		std::uint64_t ReviewerSearches = 0U;
 		std::uint64_t ReviewerRequests = 0U;
+		/// [[BPR-1852]]. Draft-state changes GitHub answered.
+		std::uint64_t DraftStateChanges = 0U;
 
 		auto operator<=>(const review_mutation_application_host_statistics&) const
 			= default;
@@ -443,6 +472,14 @@ namespace bpr::application {
 		[[nodiscard]] auto reviewers(
 			review_reviewer_publication_request aRequest,
 			review_mutation_execution_grant     aRequestGrant = { })
+			-> review_mutation_request_context;
+		/// \brief [[BPR-1852]]. Changes the pull request's draft state under a
+		/// one-shot grant bound to the accepted target, actor and that change,
+		/// as a description edit is; refused before any effect when the
+		/// provider does not change draft states.
+		[[nodiscard]] auto change_draft_state(
+			review_draft_state_publication_request aRequest,
+			review_mutation_execution_grant        aRequestGrant = { })
 			-> review_mutation_request_context;
 		/// \brief [[BPR-1345]]. Where a new comment on this selection would go,
 

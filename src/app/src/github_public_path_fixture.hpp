@@ -97,7 +97,9 @@ namespace bpr::app::detail {
 		/// the fake server's next read and its next edit see `aBody`.
 		void stage_server_comment(const std::string& aComment, std::string aBody);
 		/// [[BPR-1849]]. GitHub refuses the next review request; nothing is written.
-		void               stage_reviewer_request_refusal();
+		void stage_reviewer_request_refusal();
+		/// [[BPR-1852]]. GitHub refuses the next draft-state change, writing nothing.
+		void               stage_draft_state_refusal();
 		void               report_review_mutation_target(core::review_mutation_target aTarget);
 		void               set_private_lineage(std::shared_ptr<application::review_publication_lineage_port>);
 		[[nodiscard]] auto review_mutation_provider() noexcept

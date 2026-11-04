@@ -2155,6 +2155,13 @@ namespace bpr::app::detail {
 			// [[BPR-1804]]. With `--reviewer-request-probe`, the provider
 			// searches reviewers and keeps the requests it was asked for.
 			bool ReviewersServed = false;
+			// [[BPR-1852]]. With `--draft-state-probe`, the viewer is the pull
+			// request's author, it is read as a draft until the provider marks
+			// it ready, and GitHub refuses the next change when staged.
+			bool    DraftStateServed           = false;
+			bool    Draft                      = true;
+			bool    RefuseNextDraftStateChange = false;
+			QString DraftNode;
 			// [[BPR-1826]]. The state every pull request read answers with;
 			// absent, the recorded open state.
 			std::optional<application::github_pull_request_state> PullRequestState;
@@ -3525,6 +3532,28 @@ namespace bpr::app::detail {
 					object.insert(QStringLiteral("body"), QString::fromStdString(*State->Description));
 					object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (State->DraftStateServed && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+					auto object = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					object.insert(QStringLiteral("draft"), State->Draft);
+					object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
+					State->DraftNode = object.value(QStringLiteral("node_id")).toString();
+					response->Body   = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				// The read holds the repository search's row for the pull request
+				// to its metadata, so the row says the same.
+				if (State->DraftStateServed && aRequest.Wire.Operation == read_operation::search_pull_requests && response->Status == 200 && !State->DraftNode.isEmpty()) {
+					auto search = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					auto items  = search.value(QStringLiteral("items")).toArray();
+					for (qsizetype index = 0; index < items.size(); ++index) {
+						auto item = items[index].toObject();
+						if (item.value(QStringLiteral("node_id")).toString() == State->DraftNode) {
+							item.insert(QStringLiteral("draft"), State->Draft);
+							items[index] = item;
+						}
+					}
+					search.insert(QStringLiteral("items"), items);
+					response->Body = QJsonDocument{ search }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (State->ReviewTourCourse) {
 					overlay_review_tour(response->Body, aRequest.Wire.Operation, State->Descriptor);
@@ -5593,6 +5622,41 @@ namespace bpr::app::detail {
 				return application::review_reviewer_receipt{ .Answer = std::move(answer), .Written = true };
 			}
 
+			// [[BPR-1852]]. The draft state as GitHub would keep it: observed
+			// first, the core decides, written once; a staged refusal writes
+			// nothing, as GitHub's GraphQL refusal does.
+			auto change_draft_state(
+				const application::review_draft_state_request& aRequest,
+				std::stop_token)
+				-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure> override
+			{
+				const std::scoped_lock providerLock{ Mutex };
+				++Evidence.DraftStateChanges;
+				if (State == nullptr || !State->DraftStateServed) {
+					return std::unexpected{ application::review_mutation_failure::unsupported };
+				}
+				if (aRequest.Target != Designated) {
+					return std::unexpected{ application::review_mutation_failure::undesignated_target };
+				}
+				const std::scoped_lock lock{ State->Mutex };
+				switch (core::decide_draft_state_write({ .Draft = State->Draft, .Open = true, .ViewerCanUpdate = true }, aRequest.Change)) {
+				case core::draft_state_outcome::already:
+					return application::review_draft_state_receipt{ .Draft = State->Draft };
+				case core::draft_state_outcome::not_open:
+					return std::unexpected{ application::review_mutation_failure::target_unavailable };
+				case core::draft_state_outcome::not_permitted:
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				case core::draft_state_outcome::write:
+					break;
+				}
+				if (std::exchange(State->RefuseNextDraftStateChange, false)) {
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				}
+				State->Draft = core::draft_after(aRequest.Change);
+				++Evidence.DraftStateWrites;
+				return application::review_draft_state_receipt{ .Draft = State->Draft, .Written = true };
+			}
+
 			[[nodiscard]] auto capabilities() const
 				-> application::review_provider_capabilities override
 			{
@@ -5603,6 +5667,7 @@ namespace bpr::app::detail {
 					.EditsDescription   = State != nullptr && State->DescriptionServed,
 					.EditsComments      = State != nullptr && State->CommentsEditable,
 					.RequestsReviewers  = State != nullptr && State->ReviewersServed,
+					.ChangesDraftState  = State != nullptr && State->DraftStateServed,
 				};
 			}
 
@@ -5787,6 +5852,7 @@ namespace bpr::app::detail {
 			Recording->ViewerAuthors     = aOptions.ViewerAuthors;
 			Recording->CommentsEditable  = aOptions.EditsComments;
 			Recording->ReviewersServed   = aOptions.RequestsReviewers;
+			Recording->DraftStateServed  = aOptions.ChangesDraftState;
 			Recording->PullRequestState  = aOptions.PullRequestState;
 			if (aOptions.ServesReactions) {
 				Recording->Reactions["PRRC_fixture_1"] = core::reaction_summary{
@@ -6158,6 +6224,12 @@ namespace bpr::app::detail {
 				}
 			}
 		}
+	}
+
+	void github_public_path_fixture_components::stage_draft_state_refusal()
+	{
+		const std::scoped_lock lock{ Implementation->Recording->Mutex };
+		Implementation->Recording->RefuseNextDraftStateChange = true;
 	}
 
 	void github_public_path_fixture_components::stage_reviewer_request_refusal()

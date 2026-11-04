@@ -188,6 +188,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "description-edit-probe" },
 		bpr::app::command_line_option{ .Name = "comment-edit-probe" },
 		bpr::app::command_line_option{ .Name = "reviewer-request-probe" },
+		bpr::app::command_line_option{ .Name = "draft-state-probe" },
 		bpr::app::command_line_option{ .Name = "attended-launch" },
 		bpr::app::command_line_option{ .Name = "public-preview-enabled-course" },
 		bpr::app::command_line_option{ .Name = "public-preview-ghes-course" },
@@ -5055,6 +5056,16 @@ namespace {
 				}
 			}
 		}
+		if (aRun.ThreadedReplyProbe && aRun.ThreadedReplyEvidence.DraftOffered) {
+			// [[BPR-1852]]. Ready for review shows at once, writes once and
+			// reads nothing; a refused Convert to draft is withdrawn.
+			const auto& evidence = aRun.ThreadedReplyEvidence;
+			stream << (evidence.DraftRolledBack ? "DRAFT_STATE_OK\n" : "DRAFT_STATE_FAILED\n")
+				   << "DRAFT_STATE_EVIDENCE:" << evidence.DraftOffered << evidence.DraftShownAtOnce << evidence.DraftReadyOnce << evidence.DraftRolledBack << '\n'
+				   << (evidence.DraftMinimal ? "DRAFT_STATE_MINIMAL_OK\n" : "DRAFT_STATE_MINIMAL_FAILED\n")
+				   << "DRAFT_STATE_COST:reads=" << evidence.DraftReads << " overviewBuilds=" << evidence.DraftOverviewBuilds << " inPlace=" << evidence.DraftOverviewUpdates
+				   << " refreshInFlight=" << (evidence.DraftRefreshInFlight ? 1 : 0) << " answeredMicros=" << evidence.DraftAnsweredMicros << '\n';
+		}
 		if (aRun.LabelAuthoringProbe) {
 			const auto& evidence = aRun.LabelAuthoringEvidence;
 			stream << (aRun.LabelAuthoringPassed ? "LABEL_AUTHORING_OK\n" : "LABEL_AUTHORING_FAILED\n")
@@ -9535,6 +9546,10 @@ auto main(int argc, char** argv) -> int
 		// reviewers and requests reviews; with the threaded-reply course too,
 		// the course goes on to request one from People.
 		fixtureOptions.RequestsReviewers = launch.has("--reviewer-request-probe");
+		// [[BPR-1852]]. With `--draft-state-probe` the viewer is the author of
+		// a draft and the fixture changes its draft state; with the
+		// threaded-reply course too, the course goes on to Ready for review.
+		fixtureOptions.ChangesDraftState = launch.has("--draft-state-probe");
 		fixtureOptions.ResolvesThreads   = launch.has("--threaded-reply-probe") || fixtureOptions.ServesReactions;
 		// [[BPR-0932]]. Attended Home/Recent navigation reopens the same
 		// recording through either public preview or the fixture account.

@@ -2193,6 +2193,33 @@ namespace {
 					expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a reviewer body naming another pull request never launches");
 				}
 			}
+			// [[BPR-1852]]. The draft-state read and both writes go the same
+			// way: fixed documents, exact bodies on stdin, no witness.
+			{
+				auto ready = application::review_draft_state_request{
+					.Target         = binding.Target.Semantic,
+					.ActingIdentity = binding.ActingIdentity.Account,
+					.Change         = core::draft_state_change::ready_for_review,
+					.LiveBinding    = binding,
+				};
+				auto convert   = ready;
+				convert.Change = core::draft_state_change::convert_to_draft;
+				for (const auto& graphql : { compile_draft_state_observation_request(ready, profile->server_contract()), compile_draft_state_request(ready, profile->server_contract()),
+											 compile_draft_state_request(convert, profile->server_contract()) }) {
+					expect(graphql.has_value() && graphql->Path.ends_with("graphql"), "a draft-state operation compiles at the GraphQL root");
+					const auto launches = process.Calls;
+					const auto answered = transport.perform_review_mutation({ .Context = request.Context, .Wire = *graphql }, { }, { });
+					const auto args     = gh_arguments(*process.LastRequest);
+					expect(std::holds_alternative<github_mutation_wire_success>(answered) && process.Calls == launches + 1U && args[0] == "api" && args[1] == "graphql"
+							   && args[6] == "POST" && args.back() == "-" && process.LastRequest->StandardInput == graphql->Body,
+						   "a draft-state read and write go by gh api graphql with the exact body on stdin");
+					auto changed = *graphql;
+					changed.Body.replace(changed.Body.find("PR_kwDO"), 7U, "PR_xxDO");
+					const auto before  = process.Calls;
+					const auto refused = transport.perform_review_mutation({ .Context = request.Context, .Wire = changed }, { }, { });
+					expect(std::holds_alternative<github_mutation_wire_error>(refused) && process.Calls == before, "a draft-state body naming another pull request never launches");
+				}
+			}
 			{
 				process.Result   = std::unexpected{ github_cli_process_failure::timeout };
 				const auto write = compile_description_request(description, profile->server_contract());

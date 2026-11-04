@@ -7,6 +7,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_reactions.hpp"
+#include "bpr/core/draft_state.hpp"
 #include "bpr/core/github_model.hpp"
 
 #include "bpr/core/review_publication_policy.hpp"
@@ -99,6 +100,9 @@ namespace bpr::application {
 		/// [[BPR-1804]]. Searches the people who may review and requests a
 		/// review from one of them.
 		bool RequestsReviewers = false;
+		/// [[BPR-1852]]. Marks the pull request ready for review and converts
+		/// it back to a draft.
+		bool ChangesDraftState = false;
 
 		auto operator<=>(const review_provider_capabilities&) const = default;
 	};
@@ -576,6 +580,38 @@ namespace bpr::application {
 		auto operator<=>(const review_reviewer_receipt&) const = default;
 	};
 
+	/// \brief [[BPR-1852]]. Asks the provider to change the pull request's
+	/// draft state: Ready for review, or Convert to draft.
+	///
+	/// \details Bound to the accepted target and the acting identity like a
+	/// description edit, so a provider serving another pull request or
+	/// another account refuses it.
+	struct review_draft_state_request
+	{
+		core::review_mutation_target                Target;
+		core::github_account_id                     ActingIdentity;
+		core::draft_state_change                    Change = core::draft_state_change::ready_for_review;
+		std::optional<review_mutation_live_binding> LiveBinding;
+
+		auto operator<=>(const review_draft_state_request&) const = default;
+	};
+
+	/// \brief [[BPR-1852]]. The provider's answer: the draft state GitHub has
+	/// now, and how that was learned.
+	struct review_draft_state_receipt
+	{
+		/// GitHub's `isDraft` now: the write's answer, the read back, or the
+		/// read before when nothing was sent.
+		bool Draft = false;
+		/// A write was sent; false when GitHub already had the state asked.
+		bool Written = false;
+		/// The write's own answer was lost or unreadable, and the state read
+		/// back afterwards is the one asked.
+		bool ConfirmedByReadBack = false;
+
+		auto operator<=>(const review_draft_state_receipt&) const = default;
+	};
+
 	class review_mutation_port
 	{
 	public:
@@ -690,6 +726,17 @@ namespace bpr::application {
 			const review_reviewer_request& aRequest,
 			std::stop_token                aStop)
 			-> std::expected<review_reviewer_receipt, review_mutation_failure>
+		{
+			static_cast<void>(aRequest);
+			static_cast<void>(aStop);
+			return std::unexpected(review_mutation_failure::unsupported);
+		}
+		/// \brief [[BPR-1852]]. Changes the pull request's draft state; a
+		/// provider without the capability answers `unsupported`.
+		[[nodiscard]] virtual auto change_draft_state(
+			const review_draft_state_request& aRequest,
+			std::stop_token                   aStop)
+			-> std::expected<review_draft_state_receipt, review_mutation_failure>
 		{
 			static_cast<void>(aRequest);
 			static_cast<void>(aStop);

@@ -6,6 +6,7 @@
 #include "bpr/application/overview_feedback.hpp"
 #include "bpr/application/pull_request_overview.hpp"
 #include "bpr/core/appearance_contrast.hpp"
+#include "bpr/core/draft_state.hpp"
 #include "bpr/core/reviewer_request.hpp"
 #include "bpr/qt/feedback_label_marks.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
@@ -64,6 +65,7 @@ namespace bpr::qt {
 	class scoped_prose_editor;
 	class steady_columns;
 	class reviewer_picker;
+	class draft_state_chip;
 
 	/// \brief The colours the overview's marks are drawn in.
 	///
@@ -701,6 +703,30 @@ namespace bpr::qt {
 		void               present_reviewer_picker(const core::reviewer_picker_state& aState);
 		[[nodiscard]] auto request_review_button() const noexcept -> QPushButton*;
 		[[nodiscard]] auto reviewer_picker_popup() const noexcept -> reviewer_picker*;
+		/// \brief [[BPR-1852]]. Offers the change the core decided for the
+		/// pull request's author (Ready for review on a draft, Convert to draft
+		/// otherwise), or none. Ready for review stands in the draft banner
+		/// under the title; Convert to draft in People.
+		void               set_draft_state_offer(std::optional<core::draft_state_change> aOffered);
+		[[nodiscard]] auto draft_state_offer() const noexcept -> std::optional<core::draft_state_change>;
+		/// \brief [[BPR-1852]]. Where Ready for review and Convert to draft go.
+		/// Nothing is sent by the page.
+		void set_draft_state_dispatch(std::function<void(core::draft_state_change)> aDispatch);
+		/// \brief [[BPR-1852]]. Says how a change is going beside its button;
+		/// `aBusy` keeps the button from being pressed again until GitHub
+		/// answers. An empty text clears the line.
+		void present_draft_state_status(core::draft_state_change aChange, const QString& aText, bool aBusy = false);
+		/// \brief [[BPR-1852]]. Takes a change to the draft state and the merge
+		/// assessment of the overview already presented, and redraws only the
+		/// draft chip, the draft banner and Merge. Another pull request, or
+		/// none, is refused, for the caller to present whole.
+		/// \returns Whether the change was taken.
+		[[nodiscard]] auto present_draft_state(const application::pull_request_overview_projection& aProjection) -> bool;
+		[[nodiscard]] auto draft_chip() const noexcept -> QWidget*;
+		[[nodiscard]] auto ready_for_review_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto convert_to_draft_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto draft_state_status(core::draft_state_change aChange) const noexcept -> QLabel*;
+		[[nodiscard]] auto draft_state_updates() const noexcept -> std::size_t;
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto summary_label() const noexcept -> QLabel*;
 		[[nodiscard]] auto body_view() const noexcept -> markdown_body_view*;
@@ -745,6 +771,10 @@ namespace bpr::qt {
 		/// [[BPR-1774]]. Shows Edit, Add a description, the reader and the
 		/// editor as the body, the offer and the editing state say.
 		void present_description_controls();
+		/// [[BPR-1852]]. Shows the draft chip, the draft banner and its
+		/// words, Ready for review and Convert to draft as the shown draft
+		/// state, the pull request's state and the offer say.
+		void present_draft_controls();
 		void set_description_expanded(bool aExpanded);
 		void show_cached_source(bool aShow);
 		void set_value(overview_value aValue, const QString& aText, bool aHighlight);
@@ -887,6 +917,24 @@ namespace bpr::qt {
 		reviewer_picker*                                    ReviewerPicker = nullptr;
 		std::function<void(const reviewer_picker_gesture&)> ReviewerDispatch;
 		bool                                                ReviewersOffered = false;
+		/// [[BPR-1852]]. The draft chip before the title and, for its author,
+		/// Ready for review at the title line's end; Convert to draft in People.
+		draft_state_chip*                             DraftChip      = nullptr;
+		QPushButton*                                  ReadyForReview = nullptr;
+		QLabel*                                       ReadyStatus    = nullptr;
+		QToolButton*                                  ConvertToDraft = nullptr;
+		QLabel*                                       ConvertStatus  = nullptr;
+		std::function<void(core::draft_state_change)> DraftStateDispatch;
+		std::optional<core::draft_state_change>       DraftStateOffer;
+		bool                                          ReadyBusy         = false;
+		bool                                          ConvertBusy       = false;
+		std::size_t                                   DraftStateUpdates = 0U;
+		/// What the chip and the banner show: the presented pull request's
+		/// draft state (the read's, or the viewer's change), whether it is open,
+		/// and whether GitHub has yet to answer that change.
+		bool ShownDraft        = false;
+		bool ShownOpen         = false;
+		bool ShownDraftPending = false;
 		/// Which sections are open, by pull request, for this window.
 		QHash<QString, std::uint8_t> SectionMemory;
 		QString                      SectionKey;
