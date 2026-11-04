@@ -422,6 +422,84 @@ namespace {
 		consent.stop();
 	}
 
+	// [[BPR-1858]]. Reset everything leaves the composed app at the first-run
+	// sign-in, not connected through gh, and the next launch does not reconnect
+	// through gh until Use GitHub CLI is chosen and trusted again. gh itself is
+	// never asked anything by the reset.
+	void reset_everything_disconnects_github_cli()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.PublicPreviewEnabledCourse = true;
+		options.IndependentWindowReads     = true;
+		options.RepeatReadSessions         = true;
+		expect(options.ApplicationDataRoot.has_value(), "private root");
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
+		unsigned prompts                   = 0;
+		QTimer   consent;
+		QObject::connect(&consent, &QTimer::timeout, [&] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				++prompts;
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		consent.start(1);
+		// Use GitHub CLI from the first-run Home: the first press discovers
+		// gh's accounts, the second chooses the one offered.
+		const auto chooseCli = [&](app::github_application& aApplication) {
+			auto& window = aApplication.window();
+			window.show();
+			window.home_action()->trigger();
+			QApplication::processEvents();
+			expect(window.home_landing()->state() == qt::landing_state::sign_in && window.home_landing()->secondary_button()->text() == QStringLiteral("Use GitHub CLI"), "Home is the first-run sign-in with Use GitHub CLI");
+			window.home_landing()->secondary_button()->click();
+			expect(window.sign_in_dialog() && window.sign_in_dialog()->isVisible(), "CLI discovery opens the public sign-in surface");
+			window.sign_in_dialog()->reject();
+			window.home_landing()->secondary_button()->click();
+		};
+		auto application = start(options);
+		chooseCli(*application);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection accepts authenticated viewer");
+		expect(prompts == 1, "the first CLI selection asks read trust");
+		auto store = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
+		wait_for([&] { auto saved=store->load({}); return saved && core::holds_github_cli_connection(*saved); }, "the CLI selection is remembered");
+		const auto before = *store->load({ });
+		stop(application);
+
+		const auto checksBeforeReset = options.GithubCliInventoryChecks->load();
+		auto       reset             = options;
+		reset.DataReset              = core::profile_data_reset_request{ core::profile_data_reset::everything, true, false };
+		application                  = start(reset);
+		const auto report            = github_application_fixture_access::take_profile_data_reset_report(*application);
+		expect(report && report->Outcome.Reason == core::release_maintenance_reason::none && report->Outcome.GithubCliDisconnected && !report->Outcome.GithubCliRetained,
+			   "Reset everything reports the GitHub CLI connection forgotten");
+		auto& window = application->window();
+		window.show();
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		expect(window.session_panel()->status() == core::github_status::no_profile, "after Reset everything the app is not connected");
+		expect(window.home_landing()->state() == qt::landing_state::sign_in, "after Reset everything Home is the first-run Sign in to GitHub");
+		const auto after = store->load({ });
+		expect(after && !core::holds_github_cli_connection(*after) && !core::select_remembered_connection(*after), "no GitHub CLI choice is remembered");
+		expect(after->LastProfileId == before.LastProfileId && after->LastHostId == before.LastHostId, "identity high-water marks are kept");
+		expect(prompts == 1 && options.GithubCliInventoryChecks->load() == checksBeforeReset, "the reset asks gh nothing and trusts nothing");
+		stop(application);
+
+		application = start(options);
+		application->window().show();
+		QApplication::processEvents();
+		expect(application->window().session_panel()->status() == core::github_status::no_profile && prompts == 1
+				   && options.GithubCliInventoryChecks->load() == checksBeforeReset,
+			   "the next launch does not reconnect through gh");
+		// Forget's fresh host identity is outside this fixture's one recorded
+		// host, so the course stops at the trust question the choice asks again.
+		chooseCli(*application);
+		wait_for([&] { return prompts == 2; }, "choosing Use GitHub CLI again asks read trust again");
+		stop(application);
+		consent.stop();
+	}
 }
 int main(int aArgc, char** aArgv)
 try {
@@ -430,6 +508,7 @@ try {
 	failed_cli_connect();
 	forget_server();
 	native_replacement_and_legacy();
+	reset_everything_disconnects_github_cli();
 	std::cout << "remembered-connection-public-path-tests:pass\n";
 } catch (const std::exception& aError) {
 	std::cerr << aError.what() << '\n';

@@ -1856,6 +1856,11 @@ namespace bpr::app::detail {
 		static void               stale_base_numbering_question(github_application& aApplication);
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
+		/// \brief [[BPR-1858]]. The startup reset's report, for a course started without the desktop.
+		[[nodiscard]] static auto take_profile_data_reset_report(github_application& aApplication) -> std::optional<profile_data_reset_report>
+		{
+			return aApplication.take_profile_data_reset_report();
+		}
 		/// \brief [[BPR-1338]]. The last address the recording browser was handed; empty before any.
 		[[nodiscard]] static auto browser_last_address(const github_application& aApplication) -> std::string;
 		/// \brief [[BPR-1338]]. How many addresses the recording browser was handed.

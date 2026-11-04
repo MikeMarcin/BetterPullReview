@@ -104,6 +104,11 @@ namespace bpr::core {
 		return aReset == profile_data_reset::settings;
 	}
 
+	auto profile_data_reset_forgets_github_cli(const profile_data_reset aReset) noexcept -> bool
+	{
+		return aReset == profile_data_reset::everything;
+	}
+
 	auto admit_profile_data_reset(const profile_data_reset_request& aRequest) noexcept -> release_maintenance_reason
 	{
 		if (!known(aRequest.Reset)) {

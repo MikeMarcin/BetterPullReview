@@ -3035,7 +3035,10 @@ settings, Reset review data and Reset everything, each a name, one short line an
 a button. Its confirmation lists Removes and Keeps side by side, gates the two
 destructive resets on an acknowledgement, and offers a copy of the removed data
 first. A confirmed reset closes and reopens the profile's windows; the reopened
-status bar says what was reset. A profile that cannot open offers the same
+status bar says what was reset. Reset everything also disconnects GitHub CLI
+([[BPR-1858]]): its Removes list names "This profile’s GitHub CLI
+connection", its Keeps list names GitHub CLI's own sign-in and sign-ins made in
+the app, and the profile reopens at Sign in to GitHub. A profile that cannot open offers the same
 resets in a start-up dialog.
 
 The terminal distinguishes local export, cleared diagnostics, purged/stopped

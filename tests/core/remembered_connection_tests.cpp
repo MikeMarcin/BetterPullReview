@@ -135,6 +135,30 @@ namespace {
 		independent.BprProfile = bpr_profile_id{ 9U };
 		expect(independent.Connections.empty() && !valid_remembered_connection_update(independent, *disabled), "another BPR profile remains independent");
 	}
+	// [[BPR-1858]]. Reset everything forgets every GitHub CLI connection and
+	// nothing else, keeping identity high-water marks.
+	void reset_forgets_github_cli()
+	{
+		auto native      = connection(3U, 2U, "ghe.example");
+		native.Transport = remembered_connection_transport::native_device;
+		auto state       = *remember_connection(remembered_connection_state{ }, 1U, connection(2U, 1U));
+		state            = *remember_connection(state, state.Revision, native);
+		state            = *remember_connection(state, state.Revision, connection(4U, 3U, "ghe2.example"));
+		state            = *disable_connection_reuse(state, state.Revision, "ghe2.example");
+		expect(holds_github_cli_connection(state), "an enabled or signed-out CLI row is a CLI connection");
+		const auto stale = forget_github_cli_connections(state, state.Revision - 1U);
+		expect(!stale && stale.error() == remembered_connection_failure::stale, "a stale reset edit is refused");
+		const auto reset = forget_github_cli_connections(state, state.Revision);
+		expect(reset && reset->Revision == state.Revision + 1U && !holds_github_cli_connection(*reset), "every CLI row is forgotten in one revision");
+		expect(reset->Connections.size() == 1U && reset->Connections.front().Hostname == "ghe.example" && select_remembered_connection(*reset)->Profile == host_profile_id{ 3U },
+			   "a native connection on another server is kept");
+		expect(!select_remembered_connection(*reset, "github.com") && !select_remembered_connection(*reset, "ghe2.example"), "no CLI server is offered for reuse");
+		expect(reset->LastProfileId == state.LastProfileId && reset->LastHostId == state.LastHostId && reset->LastSelectedOrder == state.LastSelectedOrder,
+			   "identity high-water marks survive the reset");
+		expect(!remember_connection(*reset, reset->Revision, connection(2U, 1U)), "a forgotten CLI identity cannot return as a new authority");
+		const auto none = forget_github_cli_connections(*reset, reset->Revision);
+		expect(none && none->Connections == reset->Connections && none->Revision == reset->Revision + 1U, "a state with no CLI row keeps its rows");
+	}
 	void malformed_and_limits()
 	{
 		const auto first = *remember_connection(remembered_connection_state{ }, 1U, connection(2U, 1U));
@@ -171,6 +195,7 @@ int main()
 	selection_and_replacement();
 	returning_native_account_rebinds();
 	disabling_and_stale_work();
+	reset_forgets_github_cli();
 	malformed_and_limits();
 	std::cout << "remembered-connection-policy-tests:pass\n";
 }

@@ -32,7 +32,10 @@ namespace bpr::app {
 	/// the maintenance adapter removes exactly that scope under its journal.
 	/// A requested copy goes to a new folder in Downloads (else Documents or
 	/// home); when none is available nothing is removed. Reset settings then
-	/// restores Home's queue display choices in the store it keeps.
+	/// restores Home's queue display choices in the store it keeps, and Reset
+	/// everything forgets the profile's GitHub CLI connections in the
+	/// remembered-connections store it keeps ([[BPR-1858]]), never gh's own
+	/// sign-in.
 	[[nodiscard]] auto run_profile_data_reset(const std::filesystem::path& aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
 											  core::bpr_profile_id aProfile, const core::profile_data_reset_request& aRequest,
 											  std::stop_token aStop) -> profile_data_reset_report;

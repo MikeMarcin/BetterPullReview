@@ -14,8 +14,12 @@
 /// belongs to no reset, so a new store is kept until a change names it here.
 /// Credentials, their device bindings and remembered connections, diagnostic
 /// logs, the shared registry and updater state, agent workspaces and every
-/// other profile are never part of a reset; signing out stays in Accounts &
-/// hosts and the full purge stays under Profile maintenance.
+/// other profile are never removed by a reset; signing out of a sign-in made
+/// in the application stays in Accounts & hosts and the full purge stays
+/// under Profile maintenance. [[BPR-1858]] One edit is made to remembered
+/// connections instead: Reset everything forgets every GitHub CLI connection,
+/// so the next launch is not connected through gh until the person chooses
+/// Use GitHub CLI again. gh's own sign-in belongs to gh and is never touched.
 namespace bpr::core {
 	/// \brief The four resets a person can ask for.
 	enum class profile_data_reset : std::uint8_t {
@@ -68,7 +72,12 @@ namespace bpr::core {
 		bool Copied = false;
 		/// Reset settings restored Home's queue display choices too. False
 		/// when that store could not be written; its other settings reset.
-		bool QueueDisplayRestored                                        = true;
+		bool QueueDisplayRestored = true;
+		/// [[BPR-1858]] Reset everything forgot a GitHub CLI connection.
+		bool GithubCliDisconnected = false;
+		/// [[BPR-1858]] Reset everything found a GitHub CLI connection it could
+		/// not forget; its other data was reset.
+		bool GithubCliRetained                                           = false;
 		auto operator==(const profile_data_reset_outcome&) const -> bool = default;
 	};
 
@@ -90,6 +99,10 @@ namespace bpr::core {
 	/// \brief Whether the reset restores Home's queue display choices in the
 	/// store it keeps (Reset settings), rather than removing that store.
 	[[nodiscard]] auto profile_data_reset_restores_queue_display(profile_data_reset aReset) noexcept -> bool;
+
+	/// \brief [[BPR-1858]]. Whether the reset forgets the profile's GitHub CLI
+	/// connections in the remembered-connections store it keeps (Reset everything).
+	[[nodiscard]] auto profile_data_reset_forgets_github_cli(profile_data_reset aReset) noexcept -> bool;
 
 	/// \brief Admits a confirmed request: `none`, or `invalid_selection` for
 	/// an unknown reset, a destructive one without its acknowledgement, or a
