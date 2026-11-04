@@ -1,0 +1,46 @@
+{
+  "assignment": "BPR-1859",
+  "milestone": "settings-check-agent",
+  "mandate_revision": "owner-2026-11-04",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/agent-aff01ebfd137260d3",
+  "branch": "worktree-agent-aff01ebfd137260d3",
+  "baseline": "4605d6461",
+  "source_candidate": "6668516c0c80f50a626443301b1565c1c097c876",
+  "changed_product_paths": [
+    "src/core/include/bpr/core/agent_setup.hpp",
+    "src/core/src/agent_setup.cpp",
+    "src/application/include/bpr/application/agent_setup_host.hpp",
+    "src/application/src/agent_setup_host.cpp",
+    "src/adapters/qt/include/bpr/qt/agent_setup_view.hpp",
+    "src/adapters/qt/src/agent_setup_view.cpp",
+    "src/adapters/qt/include/bpr/qt/agent_setup_settings.hpp",
+    "src/adapters/qt/src/agent_setup_settings.cpp",
+    "src/app/src/github_application.cpp",
+    "tests/core/agent_setup_tests.cpp",
+    "tests/application/agent_setup_host_tests.cpp",
+    "tests/adapters_qt/agent_setup_view_tests.cpp",
+    "tests/end_to_end/agent_invocation_composition_public_path.cpp",
+    "docs/ux/workbench-specification.md"
+  ],
+  "verification": {
+    "focused": "ctest --preset dev: core_agent_setup, core_agent_turn, application_agent_setup_host, sqlite_agent_setup_storage, qt_agent_setup_view, qt_settings_window (1.0/1.25/1.5/2.0), qt_workbench_agent_send_refusal, application_agent_invocation_composition_contract, architecture_boundary_contract: pass",
+    "preexisting_failures": "architecture_boundaries (QToolTip::showText in workbench_window.cpp from 8d448697b) and command_correctness_registry_contract (BPR-1856 selector) fail on base 4605d6461; untouched here",
+    "format": "coding-format-check: pass, clang-format 22.1.8",
+    "tidy": "tidy.py --warnings-as-errors on 9 TUs: clean except pre-existing go_on_to_reviewers in github_application.cpp",
+    "documentation": "verify_documentation.py: DOCUMENTATION_OK",
+    "renders": "build/dev/bpr1859-renders/settings-check-*.png (offscreen, light and dark)",
+    "frozen_launcher": "freeze_attended_build.py freeze BPR-1859-v001 at 6668516c0: exit 0; CHECK_OK ATTENDED_FILE_SHOWN; root /Users/jaeger/BPR-attended/BPR-1859-v001.fpj7_d0e"
+  },
+  "review": {
+    "session": "ee11f630d0bdb0f2e3a34e289413d051",
+    "state": "/Users/jaeger/.codex/attended-review/bpr1859-v001-jPKCNC/state",
+    "candidate": "BPR-1859-check-agent-look",
+    "cursor": 3,
+    "transport": "serve --tailscale, host left running for the owner",
+    "status": "prepared, awaiting owner"
+  },
+  "pending": [
+    "AC6 owner Accept/Reject of look and placement"
+  ],
+  "next_action": "Read status --after 3 on the session; on Accept record AC6 pass and move the card to 60-done; on Reject apply the note, freeze v002 in a new short session."
+}
