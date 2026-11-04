@@ -333,7 +333,7 @@ namespace {
 			.Page              = 1U,
 			.GraphqlPage       = std::nullopt,
 		};
-		if (aOperation != read_operation::get_viewer_identity) {
+		if (aOperation != read_operation::get_viewer_identity && aOperation != read_operation::list_notifications) {
 			request.Owner      = "octo-org";
 			request.Repository = "review-repository";
 		}
@@ -352,6 +352,7 @@ namespace {
 			request.PullRequestNumber = 17U;
 			break;
 		case read_operation::get_viewer_identity:
+		case read_operation::list_notifications:
 		case read_operation::get_repository:
 		case read_operation::list_checks:
 		case read_operation::list_commit_statuses:

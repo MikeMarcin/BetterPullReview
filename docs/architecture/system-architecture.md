@@ -257,6 +257,34 @@ the Settings first-filter preference, and choosing that preference is
 remembered as Review's Comments' choice. Searches, the Threads label filter,
 Discuss's scope and file, count listings and Overview's Comments are not
 remembered.
+
+BPR-1850 posts a desktop notification for new comments, reviews and mentions
+on pull requests the viewer takes part in. The profile's
+`pull_request_activity_host` (application) has one single-shot Qt timer for
+every window and polls GitHub's notification list (`list_notifications`,
+`GET /notifications?participating=true&per_page=50`) under the accepted account
+session, conditional on the last `Last-Modified`; a 304 costs nothing against
+the rate limit. `core/pull_request_activity.hpp` decides everything: the
+wait (never under 60 seconds or `X-Poll-Interval`, backoff to ten minutes on
+failure, `Retry-After` or the reset on a rate limit, and stopping for a
+sign-in GitHub refuses), which threads are new by identity and `updated_at`,
+which are suppressed (read, which is what GitHub makes the viewer's own
+action; review requests, which the queue's notification covers; another
+reason; a pull request open and focused in the active window), the folding of a
+pull request's activity into one notification with a 120-second hold, a
+summary beyond three pull requests, the fixed wording (repository and number,
+never a title or comment) and where a click goes (the pull request when only
+one notification is outstanding, otherwise the window only comes forward). The
+memory (setting, account, `Last-Modified`, at most 512 seen threads) is its own
+`state/v1/pull-request-activity.sqlite3`; Reset settings removes it, and the
+first answer after a reset, a new account or turning the setting on only takes
+a baseline. Only a GitHub CLI account polls: GitHub refuses GitHub App user
+tokens, which native sign-in holds, its notification list, so a native profile
+sends nothing and Settings says so. A poll begins one account operation, whose
+account read is the only bracket around it (the operation's one pinned
+credential cannot answer as another account). Nothing is ever marked read on
+GitHub. Notifications go through the desktop's tray (the macOS status item
+where there is one), so the system's Do Not Disturb applies.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 

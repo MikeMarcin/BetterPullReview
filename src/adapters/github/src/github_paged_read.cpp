@@ -1123,6 +1123,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_team_membership:
 			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
+			case read_operation::list_notifications:
 				break;
 			}
 			return result;
@@ -1247,6 +1248,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
 			case read_operation::list_reactions:
+			case read_operation::list_notifications:
 				return std::nullopt;
 			}
 			const auto namedRepository = std::string{ "/repos/" }

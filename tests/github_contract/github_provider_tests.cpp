@@ -3210,6 +3210,87 @@ namespace {
 		fixture.Provider->configure_discovery_lanes({ });
 	}
 
+	/// [[BPR-1850]]. The notification poll: a GitHub CLI account's exact lease,
+	/// one posted job, the conditional request validated as the session's own,
+	/// a 200 then a 304, and no request at all for a native sign-in.
+	void test_pull_request_activity_poll()
+	{
+		provider_fixture fixture{ application::github_authentication_transport::github_cli };
+		fixture.Factory->CliEnabled    = true;
+		fixture.Transport->ReadHandler = [](const github_wire_request& aWire, std::stop_token) -> github_wire_completion {
+			return github_wire_success{ .Correlation = aWire.Correlation, .Response = viewer_response() };
+		};
+		auto        viewer  = run_viewer(fixture, { .Request = viewer_request_for(fixture.Profile), .Authentication = std::monostate{ } });
+		const auto* success = std::get_if<application::github_viewer_success>(&viewer);
+		expect(success != nullptr && success->AccountTransport != nullptr, "a CLI viewer lease for the poll");
+		const auto base    = pull_request_for(fixture, success->AccountTransport);
+		auto       session = application::personal_discovery_session{
+			.Queue   = { .Host = "github.com", .Account = success->Viewer.Login, .Generation = base.Context.IdentityGeneration.value(), .ViewerAccount = success->Viewer.Account },
+			.Context = {
+				.ApplicationSession = base.Context.ApplicationSession,
+				.Profile            = base.Context.Profile,
+				.Host               = base.Context.Host,
+				.Account            = base.Context.Account,
+				.Repository         = { },
+				.Capabilities       = base.Context.Capabilities,
+				.IdentityGeneration = base.Context.IdentityGeneration,
+			},
+			.ProfileAuthority   = base.ProfileAuthority,
+			.Viewer             = base.Viewer,
+			.CapabilityEvidence = base.CapabilityEvidence,
+			.AccountTransport   = success->AccountTransport,
+		};
+		const auto context = core::github_session_request_context{
+			.Request            = core::request_id{ 777U },
+			.ApplicationSession = base.Context.ApplicationSession,
+			.Profile            = base.Context.Profile,
+			.IdentityGeneration = base.Context.IdentityGeneration,
+		};
+		const auto viewerHandler       = fixture.Transport->ReadHandler;
+		auto       seen                = std::vector<github_wire_request>{ };
+		fixture.Transport->ReadHandler = [&](const github_wire_request& aWire, std::stop_token aStop) -> github_wire_completion {
+			if (aWire.Correlation.Operation == read_operation::get_viewer_identity) {
+				return viewerHandler(aWire, aStop);
+			}
+			expect(aWire.Correlation.Operation == read_operation::list_notifications && std::holds_alternative<core::github_session_request_context>(aWire.Correlation.Parent)
+					   && std::get<core::github_session_request_context>(aWire.Correlation.Parent) == context,
+				   "the poll is the session's own read");
+			expect(validate_github_wire_request(fixture.Profile, aWire).has_value(), "and passes production wire validation");
+			seen.push_back(aWire);
+			if (aWire.Wire.Semantic.IfModifiedSince.empty()) {
+				return github_wire_success{ .Correlation = aWire.Correlation,
+											.Response    = { .Status = 200, .Headers = { { .Name = "Last-Modified", .Value = "Fri, 30 Oct 2026 04:02:16 GMT" }, { .Name = "X-Poll-Interval", .Value = "60" } }, .Body = R"([{"id":"9","unread":true,"reason":"author","updated_at":"2026-11-03T12:00:00Z","subject":{"url":"https://api.github.com/repos/octo-org/review-repository/pulls/42","type":"PullRequest"},"repository":{"full_name":"octo-org/review-repository"}}])", .Completeness = page_completeness::complete } };
+			}
+			return github_wire_success{ .Correlation = aWire.Correlation, .Response = { .Status = 304, .Headers = { { .Name = "X-Poll-Interval", .Value = "90" } }, .Body = { }, .Completeness = page_completeness::complete } };
+		};
+		auto answers = std::vector<application::pull_request_activity_answer>{ };
+		fixture.Provider->poll_activity({ .Session = session, .Context = context, .IfModifiedSince = { } }, [&](auto aAnswer) { answers.push_back(std::move(aAnswer)); });
+		expect(fixture.Effects.pending() == 1U && answers.empty(), "a poll is one posted job");
+		fixture.Effects.run_next();
+		expect(answers.size() == 1U && answers[0].Poll.Outcome == core::activity_poll_outcome::changed && answers[0].Threads.size() == 1U
+				   && answers[0].Threads[0].Number == 42 && answers[0].LastModified == "Fri, 30 Oct 2026 04:02:16 GMT" && answers[0].Requests >= 1U,
+			   "a 200 lists its thread and date");
+		expect(seen.size() == 1U && std::ranges::none_of(seen[0].Wire.Headers, [](const http_header& aHeader) { return aHeader.Name == "If-Modified-Since"; }), "the first poll is unconditional");
+
+		fixture.Provider->poll_activity({ .Session = session, .Context = context, .IfModifiedSince = answers[0].LastModified }, [&](auto aAnswer) { answers.push_back(std::move(aAnswer)); });
+		fixture.Effects.run_next();
+		expect(answers.size() == 2U && answers[1].Poll.Outcome == core::activity_poll_outcome::unchanged && answers[1].Poll.PollInterval == 90U && answers[1].Threads.empty(), "a 304 is unchanged");
+		expect(seen.size() == 2U && std::ranges::count(seen[1].Wire.Headers, http_header{ .Name = "If-Modified-Since", .Value = "Fri, 30 Oct 2026 04:02:16 GMT" }) == 1, "the second is conditional");
+
+		provider_fixture native{ application::github_authentication_transport::native_https };
+		const auto       lease    = account_lease(native);
+		const auto       nbase    = pull_request_for(native, lease);
+		auto             nsession = session;
+		nsession.ProfileAuthority = nbase.ProfileAuthority;
+		nsession.AccountTransport = lease;
+		const auto before         = native.Transport->ReadRequests.size();
+		answers.clear();
+		native.Provider->poll_activity({ .Session = nsession, .Context = context, .IfModifiedSince = { } }, [&](auto aAnswer) { answers.push_back(std::move(aAnswer)); });
+		expect(answers.size() == 1U && answers[0].Poll.Outcome == core::activity_poll_outcome::unsupported && answers[0].Requests == 0U
+				   && native.Effects.pending() == 0U && native.Transport->ReadRequests.size() == before,
+			   "a native sign-in, which GitHub refuses the list, sends nothing");
+	}
+
 }
 
 int main(int aArgc, char** aArgv)
@@ -3227,6 +3308,7 @@ int main(int aArgc, char** aArgv)
 	}
 	test_window_read_authentication_provenance();
 	test_personal_discovery_entry();
+	test_pull_request_activity_poll();
 	static_cast<void>(test_sanitized_provider_logging());
 	test_actor_conflict_diagnostic_propagation();
 	test_pull_request_attempt_diagnostic_propagation();

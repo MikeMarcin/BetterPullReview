@@ -2627,3 +2627,15 @@ set_tests_properties(qt_view_filter_memory_window PROPERTIES
     PASS_REGULAR_EXPRESSION "view-filter-memory-window:pass"
     TIMEOUT 60
 )
+
+# [[BPR-1850]]. Activity notifications: posted through the tray, a click opens the pull request.
+bpr_add_executable(test_pull_request_activity_notifications pull_request_activity_notifications_tests.cpp)
+target_link_libraries(test_pull_request_activity_notifications PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_pull_request_activity_notifications)
+bpr_enable_warnings(test_pull_request_activity_notifications)
+bpr_add_network_isolated_test(NAME qt_pull_request_activity_notifications COMMAND test_pull_request_activity_notifications)
+set_tests_properties(qt_pull_request_activity_notifications PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=1.0"
+    PASS_REGULAR_EXPRESSION "pull-request-activity-notifications:pass"
+    TIMEOUT 60
+)

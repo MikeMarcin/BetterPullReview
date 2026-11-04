@@ -47,6 +47,7 @@ add_library(
         src/github_cli_consent.cpp
         src/github_session_panel.cpp
         src/system_tray_notification_sink.cpp
+        src/pull_request_activity_notifications.cpp
         src/review_queue_model.cpp
         src/review_landing_model.cpp
         src/home_row_delegate.cpp

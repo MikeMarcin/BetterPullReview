@@ -62,6 +62,9 @@ namespace bpr::adapters::github::detail {
 		list_reactions,
 		/// [[BPR-1770]]. Identity and paginated direct-user review membership only.
 		list_home_review_membership,
+		/// [[BPR-1850]]. The viewer's participating notification threads
+		/// (REST `GET /notifications`), conditional on `IfModifiedSince`.
+		list_notifications,
 	};
 
 	/// \brief How many comments one `list_reactions` page asks about.
@@ -100,7 +103,7 @@ namespace bpr::adapters::github::detail {
 	/// to them. The merge-base read ([[BPR-1560]]) is outside the manifest
 	/// like the timeline: it is an independent read after the snapshot, bound
 	/// to the snapshot's own head.
-	inline constexpr std::array<read_operation, 25> all_read_operations{
+	inline constexpr std::array<read_operation, 26> all_read_operations{
 		read_operation::get_viewer_identity,
 		read_operation::get_repository,
 		read_operation::get_pull_request,
@@ -126,6 +129,7 @@ namespace bpr::adapters::github::detail {
 		read_operation::list_home_pull_requests,
 		read_operation::list_reactions,
 		read_operation::list_home_review_membership,
+		read_operation::list_notifications,
 	};
 
 	/// \brief Names the baseline snapshot operations a signed-out public read issues.
@@ -230,6 +234,10 @@ namespace bpr::adapters::github::detail {
 		/// `Owner`/`Repository` one query reads, ascending, at most the core's
 		/// batch bound; empty for every other operation.
 		std::vector<std::uint32_t> PullRequestNumbers;
+		/// [[BPR-1850]]. `list_notifications` only: the `Last-Modified` of the
+		/// previous answer, sent as `If-Modified-Since`; empty for none and for
+		/// every other operation.
+		std::string IfModifiedSince;
 
 		auto operator==(const semantic_read_request&) const -> bool = default;
 	};
