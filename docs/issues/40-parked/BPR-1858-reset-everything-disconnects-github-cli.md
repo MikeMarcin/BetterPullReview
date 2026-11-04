@@ -143,16 +143,25 @@ expected Reset everything to start again as on first launch.
   documentation gate pass. `architecture_boundaries` fails on main already
   (BPR-1850's `QToolTip::showText`), untouched here.
 
-## Owner review (prepared, not asked)
+## Owner review (asked)
 
 Frozen build `/Users/jaeger/BPR-attended/BPR-1858-reset-v001.vw6i9430` from
 `12c2d137a` (executable sha256 `e7757e4302ae…`), launched with
 `python3 /Users/jaeger/BPR-attended/BPR-1858-reset-v001.vw6i9430/launch.py`;
-its `--check` passed at freeze. No attended-review session or host was
-started. One Accept or Reject question, candidate `BPR-1858-reset-wording-v001`,
+its `--check` passed at freeze. One Accept or Reject question, candidate `BPR-1858-reset-wording-v001`,
 revision `frozen-12c2d137a-v001`: in Settings › Storage & privacy ›
 Troubleshooting, open **Reset everything…** — does its confirmation say
 accurately what it does, that it disconnects this profile from GitHub CLI
 without signing you out of GitHub CLI itself? On Accept: record it, move the
 card to `60-done`, remove the frozen root with
 `scripts/freeze_attended_build.py remove`.
+
+Second question, candidate `BPR-1858-native-sign-in-kept-v001`, revision
+`12c2d137a`, no build: keep that Reset everything keeps a sign-in made in the
+app itself (browser device sign-in), signed out in Accounts & hosts; Reject
+with a note if Reset everything should sign that out too.
+
+Session `bbad2aafbd0e0e5c7487e5df46e870fe` (fresh, short), state
+`/Users/jaeger/.codex/attended-review/bpr1858-v001-Bi416D/state`, opened
+2026-11-04 with both candidates ready and protected at cursor 6, hosted over
+Tailscale Serve. Status: awaiting the owner.
