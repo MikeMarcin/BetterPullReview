@@ -3302,8 +3302,17 @@ namespace {
 		/// [[BPR-1842]]. The second observation: the complete file list.
 		std::optional<application::github_pull_request_overview_observation> FileList;
 		std::size_t                                                          FileListPageCount = 0U;
+		/// [[BPR-1851]]. The third observation, a refresh's conversation.
+		std::optional<application::github_pull_request_overview_observation> Conversation;
+		std::size_t                                                          ConversationPageCount = 0U;
 		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 		{
+			if (aObservation.Conversation) {
+				expect(Overview && FileList && !Conversation, "the conversation is observed once, after the file list");
+				Conversation          = std::move(aObservation);
+				ConversationPageCount = Count;
+				return;
+			}
 			if (aObservation.Files) {
 				expect(Overview && !FileList, "the file list is observed once, after the metadata");
 				FileList          = std::move(aObservation);
@@ -3320,6 +3329,29 @@ namespace {
 			Responses[Count++] = { aOperation, aStatus };
 		}
 	};
+
+	/// \brief [[BPR-1851]]. A refresh observes its reviews and review threads
+	/// right after the threads' last page, before the comments, checks and the
+	/// rest, exactly as the snapshot it completes holds them.
+	auto test_refresh_observes_conversation_after_threads() -> void
+	{
+		auto transport                      = paged_fixture_transport{ fixture_scenario::success };
+		auto request                        = provider_request();
+		request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+		request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+		recording_response_observer observer;
+		const auto                  result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 56U }, { }, { }, github_provider_read_authority::authenticated, &observer);
+		expect(result.has_value() && result->ReviewThreadsAvailability == application::github_collection_availability::available, "the refresh reads its threads");
+		expect(observer.Conversation && observer.Conversation->Context == request.Context && observer.ConversationPageCount > observer.FileListPageCount
+				   && observer.Responses[observer.ConversationPageCount - 1U].first == read_operation::list_review_threads
+				   && observer.ConversationPageCount < observer.Count,
+			   "the conversation is observed after the threads' last page, before the reads that follow");
+		const auto& conversation = observer.Conversation->Conversation;
+		expect(conversation && conversation->ReviewThreadsAvailability == application::github_collection_availability::available
+				   && conversation->ReviewThreads == result->ReviewThreads && conversation->Reviews == result->Reviews
+				   && conversation->ConversationLock == result->ConversationLock && observer.Conversation->PullRequest.HeadOid == result->PullRequest.HeadOid,
+			   "it holds exactly the reviews, threads and head the completed snapshot holds");
+	}
 
 	auto test_ghes_actor_conflict_recreated_read() -> void
 	{
@@ -3473,6 +3505,7 @@ namespace {
 					   && observer.Responses[observer.FileListPageCount - 1U].first == read_operation::list_pull_request_files
 					   && observer.FileList->Files->size() == observer.FileList->ReportedFiles,
 				   "[[BPR-1842]] the complete file list arrives after its last page, before commits, reviews or any ancillary page");
+			expect(!observer.Conversation, "[[BPR-1851]] a first open observes no conversation early");
 			expect(observer.Count + (status == 200 ? 5U : 0U) == transport.Requests.size() && observer.Count == (status == 200 ? 12U : 10U), "every page produces exactly one observation; failed mandatory search precedes optional results");
 			for (std::size_t index = 0U; index < observer.Count; ++index) {
 				const auto expectedStatus = status == 503 && index + 1U == observer.Count ? 503 : 200;
@@ -5337,6 +5370,7 @@ auto main() -> int
 	test_optional_checks_cannot_spend_mandatory_read_budget();
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();
+	test_refresh_observes_conversation_after_threads();
 	test_ghes_bot_actor_representation();
 	test_paged_response_observation();
 	test_timeline_read();

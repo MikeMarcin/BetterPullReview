@@ -417,6 +417,20 @@ namespace bpr::application {
 		/// arrived, in a second observation; absent from the first. Like the
 		/// metadata, it grants no snapshot authority.
 		std::optional<std::vector<github_file_record>> Files;
+		/// [[BPR-1851]]. The reviews and review threads once their pages have
+		/// arrived, in a third observation after the file list; absent from the
+		/// first two. Like the rest, it grants no snapshot authority: a refresh
+		/// of the accepted pull request at the same head may show it early.
+		struct conversation
+		{
+			std::vector<github_review_record>        Reviews;
+			github_collection_availability           ReviewThreadsAvailability = github_collection_availability::unavailable;
+			std::vector<github_review_thread_record> ReviewThreads;
+			github_conversation_lock                 ConversationLock = github_conversation_lock::unavailable;
+			/// The bodies' digests, taken by the host off the window thread.
+			github_feedback_body_digests FeedbackBodyDigests;
+		};
+		std::optional<conversation> Conversation;
 	};
 	using github_pull_request_overview_handler = std::function<void(github_pull_request_overview_observation)>;
 

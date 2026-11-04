@@ -3198,7 +3198,11 @@ Where it applies:
   discovery runs with nothing listed yet, refreshing over the rows already
   listed, and a failure with Retry when it failed with nothing listed.
 - **The review under a refresh**: one veil and one rule across the drawers and
-  the centre, under the review bar.
+  the centre, under the review bar. [[BPR-1851]]: once a refresh at the same
+  head has brought the review threads (the file on screen and its
+  conversation are then up to date), the veil and rule give way to the partial
+  plate at the review's foot, "Refreshing comments and checks…", until the
+  refresh ends. A refresh whose head moved keeps the veil to the end.
 - **The Updates line**: the turning mark before its loading and preparation
   words.
 - **Markdown images**: the reserved plate holds the still turning mark before

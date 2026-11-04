@@ -5,6 +5,7 @@
 
 #include <set>
 #include <string_view>
+#include <unordered_map>
 #include <utility>
 
 namespace bpr::application {
@@ -181,6 +182,33 @@ namespace bpr::application {
 		entries.reserve(bodies.size());
 		for (std::size_t index = 0U; index < sources.Posts.size(); ++index) {
 			entries.push_back({ .Post = sources.Posts[index].Id, .Bytes = bodies[index].size(), .Digest = digests[index] });
+		}
+		return { .Entries = std::make_shared<const std::vector<github_feedback_body_digest>>(std::move(entries)) };
+	}
+
+	auto assemble_feedback_body_digests(const github_pull_request_snapshot& aSnapshot, const std::span<const github_feedback_body_digests* const> aKnown)
+		-> github_feedback_body_digests
+	{
+		auto known = std::unordered_map<std::string_view, const github_feedback_body_digest*>{ };
+		for (const auto* const set : aKnown) {
+			if (set == nullptr || !set->Entries) {
+				continue;
+			}
+			for (const auto& entry : *set->Entries) {
+				known.try_emplace(entry.Post, &entry);
+			}
+		}
+		const auto sources = collect_feedback_sources(aSnapshot, false);
+		auto       entries = std::vector<github_feedback_body_digest>{ };
+		entries.reserve(sources.Posts.size());
+		for (const auto& post : sources.Posts) {
+			const auto at = known.find(post.Id);
+			if (at != known.end() && at->second->Bytes == post.Body.size()) {
+				entries.push_back(*at->second);
+			} else {
+				// No digest: an empty post name matches no post.
+				entries.push_back({ .Post = { }, .Bytes = post.Body.size(), .Digest = { } });
+			}
 		}
 		return { .Entries = std::make_shared<const std::vector<github_feedback_body_digest>>(std::move(entries)) };
 	}
