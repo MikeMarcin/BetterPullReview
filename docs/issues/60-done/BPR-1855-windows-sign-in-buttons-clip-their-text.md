@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1855"
 title: "Windows sign-in buttons clip their text"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","found_by":"Owner, 2026-11-04: \"Windows startup screen is clipping text\" (phone photo of the signed-out Home card: \"Ise GitHub Cl\", \"ıdd enterprise serve\", and the sentence past the right edge); later photos: Profiles \"lew profil\" and \"ɛnam\", review page \"how file\"","related_cards":["BPR-0646","BPR-0775","BPR-1577","BPR-1659","BPR-1660"],"related_rfcs":["RFC-BPR-0087"],"id_allocation":"Reserved on main (docs/issues/_reservations/BPR-1855--BPR-1855--21fff515b084.json).","frontend_design":"frontend-design loaded. No new look: the accepted chip keeps its padding, surface and type; only who owns the content geometry changes."}
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_home_card_fit_scale_(100|125|150|200)$'","detail":"macOS offscreen, Qt 6.12.0, Fusion behind a probe keeping windows11's six-pixel push label margin (and its matching CT_PushButton widening), Verdana (Segoe UI is not installed). Sign in, Use GitHub CLI, Add enterprise server and a long quiet push and tool chip: sizeHint >= words + 12, laid out at that width, words drawn unelided in a rectangle at least their width and inside the button, wide (960) and at the card's minimum width, at each scale. With the previous quiet_push_button restored the 100% and 150% runs fail: \"Use GitHub CLI: the words' rectangle is as wide as the words\"."}},{"criterion":"AC2","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_home_card_fit_scale_(100|125|150|200)$'","detail":"Body is word-wrapped, ends inside the card, has its heightForWidth; at the narrowest it is more than one and a half lines tall at every scale."}},{"criterion":"AC3","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"artifact","command":"ctest --preset dev -R '^qt_home_card_fit_scale_(100|125|150|200)$'","detail":"build/dev/tests/adapters_qt/home-card-fit/home-card-{100,125,150,200}-{wide,narrow}.png (build tree, not tracked): all three buttons show their words whole; the narrow card wraps the sentence onto three lines."}},{"criterion":"AC4","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_|test_network_isolation_manifest$|architecture_boundaries$)' -j6; _coding-standard/scripts/format.py; _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <4 changed translation units>; python3 scripts/verify_documentation.py --root .","detail":"216 of 217 pass, including qt_quiet_buttons and the sweep (34 buttons per scale across the window, three Settings pages, Profiles and the idle review direction; New profile, Rename and Show files checked by name). architecture_boundaries fails on base 8a1f897e4 as well: QToolTip::showText in workbench_window.cpp:5014 from BPR-1850 (8d448697b), a file this card does not touch. clang-format 22 and clang-tidy 22 clean. The documentation gate reports only NEXT_ID BPR-1856 rewinding the shared allocator high water BPR-1859, which main reserved after this branch's base (BPR-1856 to 1858); the card itself validates."}},{"criterion":"AC5","outcome":"pending","revision":"d9fb4ec86","evidence":{"kind":"observation","detail":"Needs the Windows station: windows-dev build, qt_home_card_fit_scale_* with Qt's windows11 style and Segoe UI, and its renders."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_home_card_fit_scale_(100|125|150|200)$'","detail":"macOS offscreen, Qt 6.12.0, Fusion behind a probe keeping windows11's six-pixel push label margin (and its matching CT_PushButton widening), Verdana (Segoe UI is not installed). Sign in, Use GitHub CLI, Add enterprise server and a long quiet push and tool chip: sizeHint >= words + 12, laid out at that width, words drawn unelided in a rectangle at least their width and inside the button, wide (960) and at the card's minimum width, at each scale. With the previous quiet_push_button restored the 100% and 150% runs fail: \"Use GitHub CLI: the words' rectangle is as wide as the words\"."}},{"criterion":"AC2","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"command","command":"ctest --preset dev -R '^qt_home_card_fit_scale_(100|125|150|200)$'","detail":"Body is word-wrapped, ends inside the card, has its heightForWidth; at the narrowest it is more than one and a half lines tall at every scale."}},{"criterion":"AC3","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"artifact","command":"ctest --preset dev -R '^qt_home_card_fit_scale_(100|125|150|200)$'","detail":"build/dev/tests/adapters_qt/home-card-fit/home-card-{100,125,150,200}-{wide,narrow}.png (build tree, not tracked): all three buttons show their words whole; the narrow card wraps the sentence onto three lines."}},{"criterion":"AC4","outcome":"pass","revision":"d9fb4ec86","evidence":{"kind":"command","command":"ctest --preset dev -R '^(qt_|test_network_isolation_manifest$|architecture_boundaries$)' -j6; _coding-standard/scripts/format.py; _coding-standard/scripts/tidy.py --build-dir build/dev --warnings-as-errors --paths <4 changed translation units>; python3 scripts/verify_documentation.py --root .","detail":"216 of 217 pass, including qt_quiet_buttons and the sweep (34 buttons per scale across the window, three Settings pages, Profiles and the idle review direction; New profile, Rename and Show files checked by name). architecture_boundaries fails on base 8a1f897e4 as well: QToolTip::showText in workbench_window.cpp:5014 from BPR-1850 (8d448697b), a file this card does not touch. clang-format 22 and clang-tidy 22 clean. The documentation gate reports only NEXT_ID BPR-1856 rewinding the shared allocator high water BPR-1859, which main reserved after this branch's base (BPR-1856 to 1858); the card itself validates."}},{"criterion":"AC5","outcome":"pass","revision":"edc0e4c1c","evidence":{"kind":"command","command":"On bpr-main-win, in a vcvars64 shell with Git for Windows' usr\\bin appended to PATH: cmake --preset windows-dev; cmake --build --preset windows-dev --target test_better_pull_review_qt_home_card_fit_tests tool_better_pull_review_network_sandbox; ctest --preset windows-dev -C Debug -R \"^qt_home_card_fit_scale_(100|125|150|200)$\" -V","detail":"All four pass, each ending home-card-fit-tests:pass swept=34 qt=6.12.0 platform=offscreen style=windows11 font=Segoe UI scale=<100|125|150|200>; no fusion fallback and no FAILED line. The station's renders (build/windows-dev/tests/adapters_qt/home-card-fit, not tracked) show Use GitHub CLI and Add enterprise server whole inside their borders with padding at every scale; the narrow description wraps to three lines (after \"once;\", \"link to\" and \"start a review.\") and the wide one stays on one line."}}]
 ---
 
 # BPR-1855: Windows sign-in buttons clip their text
@@ -77,12 +77,19 @@ covered by the same test so a regression would be seen.
 
 ## Windows run
 
-On the Windows station, from the checkout at this card's branch:
+bpr-main-win ran AC5 at `edc0e4c1c` and all four scales passed under
+`style=windows11 font=Segoe UI`. The commands first handed over lacked four
+things the station had to add, now recorded in
+[remote stations](../../development/remote-stations.md#one-test-target-on-windows-dev):
+`vcvars64.bat` loaded first; Git for Windows' `usr\bin` appended to `PATH`
+for the KSyntaxHighlighting configure's `perl`; the
+`tool_better_pull_review_network_sandbox` target built with the test; and
+`-C Debug` on `ctest`, since the tree is multi-config.
 
 ```powershell
 cmake --preset windows-dev
-cmake --build --preset windows-dev --target test_better_pull_review_qt_home_card_fit_tests
-ctest --preset windows-dev -R "^qt_home_card_fit_scale_(100|125|150|200)$" -V
+cmake --build --preset windows-dev --target test_better_pull_review_qt_home_card_fit_tests tool_better_pull_review_network_sandbox
+ctest --preset windows-dev -C Debug -R "^qt_home_card_fit_scale_(100|125|150|200)$" -V
 ```
 
 Each run ends `home-card-fit-tests:pass swept=<n> ... style=windows11
@@ -93,7 +100,8 @@ loaded, and the run is not Windows evidence.
 
 ## Not covered
 
-- Windows itself (AC5) until the station runs it; this Mac has no Segoe UI.
+- The Windows run is offscreen with Qt's windows11 style; the owner has not
+  looked at a visible window on their machine.
 - `architecture_boundaries` fails on the base for BPR-1850's tooltip in
   `workbench_window.cpp`; left for its owner.
 - `epoch_comparison_control`'s Comparing button sets a fixed width, but from
