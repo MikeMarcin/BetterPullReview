@@ -5,8 +5,6 @@
 #include <QEvent>
 #include <QFocusEvent>
 #include <QPainter>
-#include <QStyle>
-#include <QStyleOptionButton>
 
 #include <algorithm>
 
@@ -34,9 +32,10 @@ namespace bpr::qt {
 		if (!uses_chip()) {
 			return native;
 		}
-		const auto words  = fontMetrics().size(Qt::TextShowMnemonic, text());
-		const auto beside = !icon().isNull();
-		return QSize{ 12 + words.width() + (beside ? iconSize().width() + 4 : 0), std::max(native.height(), words.height() + 6) };
+		// [[BPR-1855]]. The words in the button's own font, rounded up, inside the
+		// chip's padding: the same geometry paint_button_label draws in.
+		const auto content = chip_content_size(*this, iconSize(), !icon().isNull());
+		return QSize{ (2 * chip_padding) + content.width(), std::max(native.height(), content.height() + 6) };
 	}
 
 	auto quiet_push_button::minimumSizeHint() const -> QSize
@@ -67,12 +66,6 @@ namespace bpr::qt {
 		}
 		auto painter = QPainter{ this };
 		paint_button_surface(painter, *this, isChecked() || (!isCheckable() && !isFlat()), KeyboardFocus);
-		auto option = QStyleOptionButton{ };
-		initStyleOption(&option);
-		option.rect.adjust(6, 0, -6, 0);
-		for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
-			option.palette.setColor(group, QPalette::ButtonText, option.palette.color(group, QPalette::WindowText));
-		}
-		style()->drawControl(QStyle::CE_PushButtonLabel, &option, &painter, this);
+		paint_button_label(painter, *this, iconSize(), !icon().isNull());
 	}
 } // namespace bpr::qt
