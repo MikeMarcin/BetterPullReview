@@ -905,7 +905,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   draft; returning requires a new Add after checking the destination. Cancel
   or Escape discards the draft. Long identities wrap; progress and refusal are
   announced politely. The open-PR shortcut saves its known repository directly
-  through the same host and durable store.
+  through the same host and durable store. On the page, the account's
+  repository card and Add repository come first and Clone folders and Linked
+  clones follow ([[BPR-1856]], the owner, 2026-11-04); Tab and the
+  accessibility tree reach them in that order.
 - **The bar**, alone in the first row: one bordered field labelled Open,
   with the placeholder "Paste a link, or write owner/name#123", its shortcut
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
