@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1853"
+  ],
+  "reserve_for": "own-pr-approve",
+  "purpose": "Author cannot approve or request changes on own PR",
+  "created": "2026-11-04T02:54:19.115970+00:00",
+  "base": "8b6b1a5756a0cf37c9d30dbe621ef4112cace8c0"
+}
