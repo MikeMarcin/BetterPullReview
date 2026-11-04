@@ -596,6 +596,12 @@ namespace {
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveReviewers" };
 		case operation::request_reviews:
 			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation RequestReviews" };
+		case operation::observe_pull_request_draft_state:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "query ObserveDraftState" };
+		case operation::mark_pull_request_ready_for_review:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation MarkReadyForReview" };
+		case operation::convert_pull_request_to_draft:
+			return request_shape{ http_method::post, "/graphql", "/api/graphql", "mutation ConvertToDraft" };
 		}
 		return std::nullopt;
 	}
@@ -725,6 +731,15 @@ namespace {
 		reviewerRequest.Query.clear();
 		reviewerRequest.User  = "U_kgDOsam";
 		reviewerRequest.Login = "sam";
+		// [[BPR-1852]].
+		const auto draftReady = application::review_draft_state_request{
+			.Target         = serverTarget.Semantic,
+			.ActingIdentity = identity().Account,
+			.Change         = core::draft_state_change::ready_for_review,
+			.LiveBinding    = reply.LiveBinding,
+		};
+		auto draftConvert   = draftReady;
+		draftConvert.Change = core::draft_state_change::convert_to_draft;
 		return std::array{
 
 			compile_target_observation_request(serverTarget, aServer),
@@ -766,6 +781,9 @@ namespace {
 			compile_comment_edit_request(reviewBodyEdit, aServer),
 			compile_reviewer_request(reviewerSearch, aServer),
 			compile_reviewer_request(reviewerRequest, aServer),
+			compile_draft_state_observation_request(draftReady, aServer),
+			compile_draft_state_request(draftReady, aServer),
+			compile_draft_state_request(draftConvert, aServer),
 		};
 	}
 
@@ -823,6 +841,9 @@ namespace {
 			row{ operation::edit_review_body, http_method::post, true, 200, false },
 			row{ operation::observe_reviewers, http_method::post, true, 200, false },
 			row{ operation::request_reviews, http_method::post, true, 200, false },
+			row{ operation::observe_pull_request_draft_state, http_method::post, true, 200, false },
+			row{ operation::mark_pull_request_ready_for_review, http_method::post, true, 200, false },
+			row{ operation::convert_pull_request_to_draft, http_method::post, true, 200, false },
 		};
 
 		for (const auto& [op, method, graphql, status, witnessed] : rows) {
@@ -1255,6 +1276,104 @@ namespace {
 		const auto refusal = parse_reviewer_response({ .Status = 200, .Body = R"({"data":{"requestReviews":null},"errors":[{"type":"FORBIDDEN"}]})" }, ask);
 		expect(!refusal && refusal.error() == review_mutation_contract_failure::unexpected_body, "a GraphQL refusal is not a success, and is told apart");
 		expect(parse_reviewer_response({ .Status = 502, .Body = "{}" }, ask).error() == review_mutation_contract_failure::invalid_status, "a non-200 answer is an invalid status");
+	}
+
+	/// [[BPR-1852]]. The pull request as a draft-state answer spells it.
+	[[nodiscard]] auto draft_state_json(const bool aDraft, const std::string_view aState = "OPEN", const bool aCan = true, const std::string_view aId = "PR_kwDOTyvof879G6NV") -> std::string
+	{
+		return "{\"id\":\"" + std::string{ aId } + "\",\"databaseId\":4246446933,\"number\":1,\"isDraft\":" + (aDraft ? "true" : "false") + ",\"state\":\"" + std::string{ aState }
+		+ "\",\"viewerCanUpdate\":" + (aCan ? "true" : "false") + ",\"repository\":{\"id\":\"R_kgDOTyvofw\",\"databaseId\":1328277631,\"nameWithOwner\":\"MikeMarcin/BPR-Test\"}}";
+	}
+
+	// [[BPR-1852]]. The draft state goes by one read and one of two writes:
+	// each names the pull request by its node, revalidates canonically, and is
+	// held to the designated pull request.
+	void test_the_draft_state_goes_by_graphql_exactly()
+	{
+		const auto ready = application::review_draft_state_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Change         = core::draft_state_change::ready_for_review,
+			.LiveBinding    = request().LiveBinding,
+		};
+		const auto selection = std::string{ "pullRequest{id databaseId number isDraft state viewerCanUpdate repository{id databaseId nameWithOwner}}" };
+		const auto variables = std::string{ "\",\"variables\":{\"pullRequest\":\"PR_kwDOTyvof879G6NV\"}}" };
+		const auto write     = compile_draft_state_request(ready);
+		expect(write.has_value() && write->Operation == review_mutation_operation::mark_pull_request_ready_for_review && write->Method == http_method::post && write->Path == "/graphql"
+				   && write->Body
+					   == "{\"query\":\"mutation MarkReadyForReview($pullRequest:ID!){markPullRequestReadyForReview(input:{pullRequestId:$pullRequest}){" + selection + "}}" + variables,
+			   "Ready for review is the reserved write naming the designated pull request alone");
+		auto convert    = ready;
+		convert.Change  = core::draft_state_change::convert_to_draft;
+		const auto back = compile_draft_state_request(convert);
+		expect(back.has_value() && back->Operation == review_mutation_operation::convert_pull_request_to_draft
+				   && back->Body == "{\"query\":\"mutation ConvertToDraft($pullRequest:ID!){convertPullRequestToDraft(input:{pullRequestId:$pullRequest}){" + selection + "}}" + variables,
+			   "Convert to draft is its own reserved write");
+		const auto read = compile_draft_state_observation_request(ready);
+		expect(read.has_value() && read->Operation == review_mutation_operation::observe_pull_request_draft_state
+				   && read->Body
+					   == "{\"query\":\"query ObserveDraftState($pullRequest:ID!){node(id:$pullRequest){... on PullRequest{"
+						  "id databaseId number isDraft state viewerCanUpdate repository{id databaseId nameWithOwner}}}}"
+						   + variables,
+			   "the read names the pull request by its node");
+		for (const auto& wire : { *write, *back, *read }) {
+			expect(validate_outbound_review_mutation_request(wire).has_value(), "each draft-state request revalidates canonically");
+		}
+		auto spoofed      = *read;
+		spoofed.Operation = review_mutation_operation::mark_pull_request_ready_for_review;
+		auto swapped      = *write;
+		swapped.Semantic  = convert;
+		auto retargeted   = *write;
+		retargeted.Body.replace(retargeted.Body.find("PR_kwDOTyvof879G6NV"), 19U, "PR_kwDOTyvof879Gzzz");
+		expect(!validate_outbound_review_mutation_request(spoofed).has_value() && !validate_outbound_review_mutation_request(swapped).has_value()
+				   && !validate_outbound_review_mutation_request(retargeted).has_value(),
+			   "a read passed off as the write, the other change and another pull request are refused");
+
+		auto unbound               = ready;
+		unbound.LiveBinding        = std::nullopt;
+		auto foreign               = ready;
+		foreign.Target.PullRequest = core::pull_request_id{ 99U };
+		auto actor                 = ready;
+		actor.ActingIdentity       = core::github_account_id{ 99U };
+		auto unknown               = ready;
+		unknown.Change             = static_cast<core::draft_state_change>(7);
+		for (const auto& refused : { unbound, foreign, actor, unknown }) {
+			expect(!compile_draft_state_request(refused).has_value() && !compile_draft_state_observation_request(refused).has_value(),
+				   "an unbound, foreign, other-actor or unknown change is refused before the wire");
+		}
+		auto enterprise                               = ready;
+		enterprise.LiveBinding->Target.ServerContract = application::github_server_contract::ghes_3_18_2022_11_28;
+		enterprise.LiveBinding->Target.Hostname       = application::github_canonical_hostname{ "ghe.example.com" };
+		expect(compile_draft_state_request(enterprise, application::github_server_contract::ghes_3_18_2022_11_28)->Path == "/api/graphql"
+				   && !compile_draft_state_request(ready, application::github_server_contract::ghes_3_18_2022_11_28).has_value(),
+			   "GHES 3.18 asks at its GraphQL root, and a binding for another server is refused");
+
+		// The read's answer.
+		const auto node = [](const std::string& aPull) { return review_mutation_wire_response{ .Status = 200, .Body = "{\"data\":{\"node\":" + aPull + "}}" }; };
+		const auto seen = parse_draft_state_observation(node(draft_state_json(true)), ready);
+		expect(seen.has_value() && seen->Draft && seen->Open && seen->ViewerCanUpdate, "the draft state, openness and permission are read");
+		const auto merged = parse_draft_state_observation(node(draft_state_json(false, "MERGED", false)), ready);
+		expect(merged.has_value() && !merged->Draft && !merged->Open && !merged->ViewerCanUpdate, "a merged pull request is not open");
+		expect(parse_draft_state_observation(node(draft_state_json(true, "OPEN", true, "PR_kwDOTyvof879Gzzz")), ready).error() == review_mutation_contract_failure::identity_mismatch,
+			   "another pull request is an identity mismatch");
+		expect(parse_draft_state_observation(node(draft_state_json(true, "LOCKED")), ready).error() == review_mutation_contract_failure::malformed_response,
+			   "a state GitHub does not name is malformed");
+		expect(parse_draft_state_observation(node("null"), ready).error() == review_mutation_contract_failure::target_unavailable, "a pull request GitHub no longer shows is unavailable");
+
+		// The writes' answers.
+		const auto readied = parse_draft_state_response({ .Status = 200, .Body = "{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":" + draft_state_json(false) + "}}}" }, ready);
+		expect(readied.has_value() && !readied->Draft, "Ready for review's answer says the pull request is ready");
+		const auto drafted = parse_draft_state_response({ .Status = 200, .Body = "{\"data\":{\"convertPullRequestToDraft\":{\"pullRequest\":" + draft_state_json(true) + "}}}" }, convert);
+		expect(drafted.has_value() && drafted->Draft, "Convert to draft's answer says it is a draft");
+		expect(parse_draft_state_response({ .Status = 200, .Body = "{\"data\":{\"convertPullRequestToDraft\":{\"pullRequest\":" + draft_state_json(true) + "}}}" }, ready).error()
+				   == review_mutation_contract_failure::malformed_response,
+			   "an answer under the other mutation's name is not this change's");
+		const auto refusal = parse_draft_state_response({ .Status = 200, .Body = R"({"data":{"markPullRequestReadyForReview":null},"errors":[{"type":"FORBIDDEN"}]})" }, ready);
+		expect(!refusal && refusal.error() == review_mutation_contract_failure::unexpected_body, "a GraphQL refusal is told apart: nothing was written");
+		expect(parse_draft_state_response({ .Status = 200, .Body = "{\"data\":{\"markPullRequestReadyForReview\":{\"pullRequest\":" + draft_state_json(false, "OPEN", true, "PR_kwDOTyvof879Gzzz") + "}}}" }, ready).error()
+				   == review_mutation_contract_failure::identity_mismatch,
+			   "an answer for another pull request is a mismatch");
+		expect(parse_draft_state_response({ .Status = 502, .Body = "{}" }, ready).error() == review_mutation_contract_failure::invalid_status, "a non-200 answer is an invalid status");
 	}
 
 	/// [[BPR-1775]]. A comment of one kind as an edit answer spells it.
@@ -2891,6 +3010,7 @@ auto main() -> int
 	test_the_description_goes_by_graphql_exactly();
 	test_a_published_comment_goes_by_graphql_exactly();
 	test_reviewers_go_by_graphql_exactly();
+	test_the_draft_state_goes_by_graphql_exactly();
 	test_recorded_reaction_and_resolution_answers();
 
 	test_a_reply_is_reconciled_through_its_thread();

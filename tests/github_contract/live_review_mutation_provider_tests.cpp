@@ -562,34 +562,37 @@ namespace {
 		-> std::string_view
 	{
 		switch (aOperation) {
-		case review_mutation_operation::staged_list_reviews:              return "staged_list_reviews";
-		case review_mutation_operation::staged_read_review:               return "staged_read_review";
-		case review_mutation_operation::staged_list_comments:             return "staged_list_comments";
-		case review_mutation_operation::staged_create_pending:            return "staged_create_pending";
-		case review_mutation_operation::staged_update_comment:            return "staged_update_comment";
-		case review_mutation_operation::staged_update_summary:            return "staged_update_summary";
-		case review_mutation_operation::staged_submit_comment:            return "staged_submit_comment";
-		case review_mutation_operation::staged_discard_pending:           return "staged_discard_pending";
-		case review_mutation_operation::staged_update_description:        return "staged_update_description";
-		case review_mutation_operation::staged_list_issue_comments:       return "staged_list_issue_comments";
-		case review_mutation_operation::staged_create_issue_comment:      return "staged_create_issue_comment";
-		case review_mutation_operation::staged_update_issue_comment:      return "staged_update_issue_comment";
-		case review_mutation_operation::staged_update_pending_comment:    return "staged_update_pending_comment";
-		case review_mutation_operation::observe_merge_base:               return "observe_merge_base";
-		case review_mutation_operation::observe_recorded_merge_base:      return "observe_recorded_merge_base";
-		case review_mutation_operation::observe_base_ancestry:            return "observe_base_ancestry";
-		case review_mutation_operation::observe_server_meta:              return "observe_server_meta";
-		case review_mutation_operation::observe_reaction_subject:         return "observe_reaction_subject";
-		case review_mutation_operation::add_reaction:                     return "add_reaction";
-		case review_mutation_operation::remove_reaction:                  return "remove_reaction";
-		case review_mutation_operation::observe_pull_request_description: return "observe_pull_request_description";
-		case review_mutation_operation::update_pull_request_description:  return "update_pull_request_description";
-		case review_mutation_operation::observe_comment_for_edit:         return "observe_comment_for_edit";
-		case review_mutation_operation::edit_review_comment:              return "edit_review_comment";
-		case review_mutation_operation::edit_issue_comment:               return "edit_issue_comment";
-		case review_mutation_operation::edit_review_body:                 return "edit_review_body";
-		case review_mutation_operation::observe_reviewers:                return "observe_reviewers";
-		case review_mutation_operation::request_reviews:                  return "request_reviews";
+		case review_mutation_operation::staged_list_reviews:                return "staged_list_reviews";
+		case review_mutation_operation::staged_read_review:                 return "staged_read_review";
+		case review_mutation_operation::staged_list_comments:               return "staged_list_comments";
+		case review_mutation_operation::staged_create_pending:              return "staged_create_pending";
+		case review_mutation_operation::staged_update_comment:              return "staged_update_comment";
+		case review_mutation_operation::staged_update_summary:              return "staged_update_summary";
+		case review_mutation_operation::staged_submit_comment:              return "staged_submit_comment";
+		case review_mutation_operation::staged_discard_pending:             return "staged_discard_pending";
+		case review_mutation_operation::staged_update_description:          return "staged_update_description";
+		case review_mutation_operation::staged_list_issue_comments:         return "staged_list_issue_comments";
+		case review_mutation_operation::staged_create_issue_comment:        return "staged_create_issue_comment";
+		case review_mutation_operation::staged_update_issue_comment:        return "staged_update_issue_comment";
+		case review_mutation_operation::staged_update_pending_comment:      return "staged_update_pending_comment";
+		case review_mutation_operation::observe_merge_base:                 return "observe_merge_base";
+		case review_mutation_operation::observe_recorded_merge_base:        return "observe_recorded_merge_base";
+		case review_mutation_operation::observe_base_ancestry:              return "observe_base_ancestry";
+		case review_mutation_operation::observe_server_meta:                return "observe_server_meta";
+		case review_mutation_operation::observe_reaction_subject:           return "observe_reaction_subject";
+		case review_mutation_operation::add_reaction:                       return "add_reaction";
+		case review_mutation_operation::remove_reaction:                    return "remove_reaction";
+		case review_mutation_operation::observe_pull_request_description:   return "observe_pull_request_description";
+		case review_mutation_operation::update_pull_request_description:    return "update_pull_request_description";
+		case review_mutation_operation::observe_comment_for_edit:           return "observe_comment_for_edit";
+		case review_mutation_operation::edit_review_comment:                return "edit_review_comment";
+		case review_mutation_operation::edit_issue_comment:                 return "edit_issue_comment";
+		case review_mutation_operation::edit_review_body:                   return "edit_review_body";
+		case review_mutation_operation::observe_reviewers:                  return "observe_reviewers";
+		case review_mutation_operation::request_reviews:                    return "request_reviews";
+		case review_mutation_operation::observe_pull_request_draft_state:   return "observe_pull_request_draft_state";
+		case review_mutation_operation::mark_pull_request_ready_for_review: return "mark_pull_request_ready_for_review";
+		case review_mutation_operation::convert_pull_request_to_draft:      return "convert_pull_request_to_draft";
 
 		case review_mutation_operation::observe_pull_request:
 			return "observe_pull_request";
@@ -2006,6 +2009,16 @@ namespace {
 			return Session->edit_comment(aRequest, aStop);
 		}
 
+		auto change_draft_state(
+			const application::review_draft_state_request& aRequest,
+			const std::stop_token                          aStop)
+			-> std::expected<
+				application::review_draft_state_receipt,
+				application::review_mutation_failure> override
+		{
+			return Session->change_draft_state(aRequest, aStop);
+		}
+
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
@@ -2574,6 +2587,125 @@ namespace {
 			   "a search confirms no target first: typing costs one read a query");
 	}
 
+	/// [[BPR-1852]]. The pull request as a draft-state answer gives it.
+	[[nodiscard]] auto draft_state_pull(const bool aDraft, const std::string_view aState = "OPEN", const bool aCan = true, const bool aDesignated = true) -> std::string
+	{
+		return std::string{ R"({"id":")" } + (aDesignated ? "PR_kwDOTyvof879G6NV" : "PR_kwDOTyvof879Gzzz") + R"(","databaseId":4246446933,"number":1,"isDraft":)" + (aDraft ? "true" : "false")
+			+ R"(,"state":")" + std::string{ aState } + R"(","viewerCanUpdate":)" + (aCan ? "true" : "false")
+			+ R"(,"repository":{"id":"R_kgDOTyvofw","databaseId":1328277631,"nameWithOwner":"MikeMarcin/BPR-Test"}})";
+	}
+	[[nodiscard]] auto draft_state_observation_response(const bool aDraft, const std::string_view aState = "OPEN", const bool aCan = true, const bool aDesignated = true) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"node":)" + draft_state_pull(aDraft, aState, aCan, aDesignated) + "}}" } };
+	}
+	[[nodiscard]] auto ready_for_review_response(const bool aDraft) -> github_mutation_wire_completion
+	{
+		return github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"markPullRequestReadyForReview":{"pullRequest":)" + draft_state_pull(aDraft) + "}}}" } };
+	}
+	[[nodiscard]] auto draft_state_request(const core::draft_state_change aChange = core::draft_state_change::ready_for_review) -> application::review_draft_state_request
+	{
+		return application::review_draft_state_request{
+			.Target         = target().Semantic,
+			.ActingIdentity = identity().Account,
+			.Change         = aChange,
+			.LiveBinding    = application::review_mutation_live_binding{
+				.Target         = target(),
+				.ActingIdentity = identity(),
+			},
+		};
+	}
+
+	// [[BPR-1852]]. A draft-state change is observed, then written once:
+	// nothing is sent when GitHub already has the state asked, the pull
+	// request is closed, or GitHub does not let the viewer update it; a
+	// GraphQL refusal is not read back; a lost answer is read back once and
+	// never sent twice; the coordinator confirms the target first.
+	void test_the_draft_state_is_observed_then_written_once()
+	{
+		auto transport = fake_transport{ };
+		transport.answer(graphql("ObserveDraftState"), draft_state_observation_response(true));
+		transport.answer(graphql("MarkReadyForReview"), ready_for_review_response(false));
+		auto       session = review_mutation_session{ transport, configuration(), mutation_lease(), make_recovery() };
+		const auto receipt = session.change_draft_state(draft_state_request());
+		expect(receipt.has_value() && receipt->Written && !receipt->Draft && !receipt->ConfirmedByReadBack && transport.Requests.size() == 2U
+				   && transport.Requests[0].Wire.Operation == review_mutation_operation::observe_pull_request_draft_state
+				   && count_operation(transport, review_mutation_operation::mark_pull_request_ready_for_review) == 1U,
+			   "the pull request is observed, then marked ready once");
+
+		auto already = fake_transport{ };
+		already.answer(graphql("ObserveDraftState"), draft_state_observation_response(false));
+		auto       alreadySession = review_mutation_session{ already, configuration(), mutation_lease(), make_recovery() };
+		const auto kept           = alreadySession.change_draft_state(draft_state_request());
+		expect(kept.has_value() && !kept->Written && !kept->Draft && already.Requests.size() == 1U, "a pull request already ready is not written");
+
+		auto closed = fake_transport{ };
+		closed.answer(graphql("ObserveDraftState"), draft_state_observation_response(true, "CLOSED"));
+		auto       closedSession = review_mutation_session{ closed, configuration(), mutation_lease(), make_recovery() };
+		const auto shut          = closedSession.change_draft_state(draft_state_request());
+		expect(!shut && shut.error() == application::review_mutation_failure::target_unavailable && closed.Requests.size() == 1U, "a closed draft is not written");
+
+		auto denied = fake_transport{ };
+		denied.answer(graphql("ObserveDraftState"), draft_state_observation_response(true, "OPEN", false));
+		auto       deniedSession = review_mutation_session{ denied, configuration(), mutation_lease(), make_recovery() };
+		const auto refused       = deniedSession.change_draft_state(draft_state_request());
+		expect(!refused && refused.error() == application::review_mutation_failure::refused_by_server && denied.Requests.size() == 1U,
+			   "a viewer GitHub does not let update the pull request is refused before any write");
+
+		auto forbidden = fake_transport{ };
+		forbidden.answer(graphql("ObserveDraftState"), draft_state_observation_response(true));
+		forbidden.answer(graphql("MarkReadyForReview"), github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"markPullRequestReadyForReview":null},"errors":[{"type":"FORBIDDEN"}]})" } });
+		auto       forbiddenSession = review_mutation_session{ forbidden, configuration(), mutation_lease(), make_recovery() };
+		const auto refusal          = forbiddenSession.change_draft_state(draft_state_request());
+		expect(!refusal && refusal.error() == application::review_mutation_failure::refused_by_server && forbidden.Requests.size() == 2U,
+			   "a GraphQL refusal is refused by the server, not read back");
+
+		auto foreign = fake_transport{ };
+		foreign.answer(graphql("ObserveDraftState"), draft_state_observation_response(true, "OPEN", true, false));
+		auto       foreignSession = review_mutation_session{ foreign, configuration(), mutation_lease(), make_recovery() };
+		const auto elsewhere      = foreignSession.change_draft_state(draft_state_request());
+		expect(!elsewhere && elsewhere.error() == application::review_mutation_failure::undesignated_target && foreign.Requests.size() == 1U,
+			   "an answer naming another pull request is refused before any write");
+
+		auto converting = fake_transport{ };
+		converting.answer(graphql("ObserveDraftState"), draft_state_observation_response(false));
+		converting.answer(graphql("ConvertToDraft"),
+						  github_mutation_wire_success{ .Response = { .Status = 200, .Body = R"({"data":{"convertPullRequestToDraft":{"pullRequest":)" + draft_state_pull(true) + "}}}" } });
+		auto       convertingSession = review_mutation_session{ converting, configuration(), mutation_lease(), make_recovery() };
+		const auto converted         = convertingSession.change_draft_state(draft_state_request(core::draft_state_change::convert_to_draft));
+		expect(converted.has_value() && converted->Written && converted->Draft && count_operation(converting, review_mutation_operation::convert_pull_request_to_draft) == 1U,
+			   "Convert to draft is its own write");
+
+		for (const auto took : { true, false }) {
+			const auto lost = github_mutation_wire_error{
+				.Failure      = application::review_mutation_failure::unavailable,
+				.Transmission = github_mutation_transmission::indeterminate,
+			};
+			auto ambiguous = fake_transport{ };
+			ambiguous.answer(graphql("ObserveDraftState"), draft_state_observation_response(true));
+			ambiguous.answer(graphql("MarkReadyForReview"), lost);
+			ambiguous.answer(graphql("ObserveDraftState"), draft_state_observation_response(!took));
+			auto       ambiguousSession = review_mutation_session{ ambiguous, configuration(), mutation_lease(), make_recovery() };
+			const auto result           = ambiguousSession.change_draft_state(draft_state_request());
+			expect(ambiguous.Requests.size() == 3U && count_operation(ambiguous, review_mutation_operation::mark_pull_request_ready_for_review) == 1U,
+				   "an ambiguous change is observed once more and never sent twice");
+			expect(took ? (result.has_value() && result->Written && result->ConfirmedByReadBack && !result->Draft)
+						: (!result && result.error() == application::review_mutation_failure::not_confirmed),
+				   took ? "the state read back after a lost answer confirms it" : "a state GitHub does not show is named not_confirmed");
+		}
+
+		auto coordinated = fake_transport{ };
+		coordinated.answer(pull_request_get(), target_response());
+		coordinated.answer(viewer_get(), viewer_response());
+		coordinated.answer(graphql("ObserveDraftState"), draft_state_observation_response(true));
+		coordinated.answer(graphql("MarkReadyForReview"), ready_for_review_response(false));
+		auto       coordinatedSession = review_mutation_session{ coordinated, configuration(), mutation_lease(), make_recovery() };
+		auto       port               = session_port{ coordinatedSession };
+		auto       coordinator        = application::review_mutation_coordinator{ port, target(), identity() };
+		const auto viaCoordinator     = coordinator.change_draft_state(core::draft_state_change::ready_for_review);
+		expect(viaCoordinator.has_value() && viaCoordinator->Written && coordinator.statistics().TargetObservations == 1U && coordinated.Requests.size() == 4U,
+			   "the coordinator confirms the target before a change");
+	}
+
 	/// [[BPR-1775]]. One of the viewer's comments (or another's) as an edit
 	/// answer gives it.
 	[[nodiscard]] auto comment_json(const std::string_view aTypename, const std::string_view aBody, const bool aCan = true, const bool aDesignated = true, const std::string_view aId = "IC_kwDOcomment1", const bool aMine = true) -> std::string
@@ -2977,6 +3109,7 @@ namespace {
 		row{ "a_description_is_observed_then_written_once", &test_a_description_is_observed_then_written_once },
 		row{ "a_published_comment_is_observed_then_written_once", &test_a_published_comment_is_observed_then_written_once },
 		row{ "a_review_request_is_observed_then_written_once", &test_a_review_request_is_observed_then_written_once },
+		row{ "the_draft_state_is_observed_then_written_once", &test_the_draft_state_is_observed_then_written_once },
 
 		row{ "a_left_comment_on_a_stacked_pull_request", &test_a_left_comment_on_a_stacked_pull_request },
 	};

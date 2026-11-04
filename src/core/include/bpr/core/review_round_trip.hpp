@@ -354,6 +354,9 @@ namespace bpr::core {
 		comment_edit,
 		/// Request a review from someone.
 		reviewer_request,
+		/// [[BPR-1852]]. Mark the pull request ready for review, or convert
+		/// it to a draft.
+		draft_state,
 	};
 
 	/// \brief [[BPR-1826]]. Whether a change is written to a pull request in

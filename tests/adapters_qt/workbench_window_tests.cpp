@@ -927,23 +927,26 @@ namespace {
 		const auto lead  = qsizetype{ 0 };
 		const auto trail = qsizetype{ 0 };
 #endif
-		const auto titleRow = actions.size() == 16 + lead + trail
+		// [[BPR-1852]]. A draft's chip right after the name, before Open on
+		// GitHub, shown only while the pull request is an open draft.
+		const auto titleRow = actions.size() == 17 + lead + trail
 			&& named(actions, 0, "workbenchStripInsetAction")
 			&& actions[1 + lead] == window.home_action()
 			&& actions[2 + lead] == window.repositories_drawer_toggle_action()
 			&& actions[3 + lead] == files
 			&& named(actions, 4 + lead, "workbenchStripIdentityAction")
-			&& named(actions, 5 + lead, "workbenchOpenOnGithubAction")
-			&& named(actions, 6 + lead, "workbenchNavigationSpacerAction")
-			&& named(actions, 7 + lead, "workbenchModalityAction")
-			&& named(actions, 8 + lead, "homeViewAction")
-			&& actions[9 + lead] == window.github_refresh_action()
-			&& actions[10 + lead] == window.queue_refresh_action()
-			&& actions[11 + lead] == conversations
-			&& actions[12 + lead] == window.toggle_drawers_action()
-			&& named(actions, 13 + lead, "workbenchStripRightDividerAction")
-			&& actions[14 + lead] == window.account_action()
-			&& actions[15 + lead] == window.settings_action();
+			&& named(actions, 5 + lead, "workbenchStripDraftChipAction")
+			&& named(actions, 6 + lead, "workbenchOpenOnGithubAction")
+			&& named(actions, 7 + lead, "workbenchNavigationSpacerAction")
+			&& named(actions, 8 + lead, "workbenchModalityAction")
+			&& named(actions, 9 + lead, "homeViewAction")
+			&& actions[10 + lead] == window.github_refresh_action()
+			&& actions[11 + lead] == window.queue_refresh_action()
+			&& actions[12 + lead] == conversations
+			&& actions[13 + lead] == window.toggle_drawers_action()
+			&& named(actions, 14 + lead, "workbenchStripRightDividerAction")
+			&& actions[15 + lead] == window.account_action()
+			&& actions[16 + lead] == window.settings_action();
 		if (!titleRow) {
 			for (auto index = qsizetype{ 0 }; index < actions.size(); ++index) {
 				std::cerr << "title row " << index << ": " << actions[index]->objectName().toStdString() << '\n';

@@ -2114,12 +2114,14 @@ namespace bpr::adapters::github::detail {
 								 || std::same_as<semantic_type, application::review_reaction_request>
 								 || std::same_as<semantic_type, application::review_description_request>
 								 || std::same_as<semantic_type, application::review_comment_edit_request>
-								 || std::same_as<semantic_type, application::review_reviewer_request>) {
+								 || std::same_as<semantic_type, application::review_reviewer_request>
+								 || std::same_as<semantic_type, application::review_draft_state_request>) {
 				// [[BPR-1741]]. A resolution or a reaction is bound to
 				// the target and the actor exactly as a comment is.
 				// [[BPR-1774]]. So is a description edit.
 				// [[BPR-1775]]. And a comment edit.
 				// [[BPR-1804]]. And a reviewer search or request.
+				// [[BPR-1852]]. And a draft-state change.
 				return aSemantic.LiveBinding && targetMatches(aSemantic.LiveBinding->Target)
 					&& aSemantic.LiveBinding->ActingIdentity.Account == authority.Account && aSemantic.ActingIdentity == authority.Account;
 			} else {
@@ -2152,6 +2154,8 @@ namespace bpr::adapters::github::detail {
 		// witness and is never sent twice.
 		// [[BPR-1775]]. So is a comment edit (`EditReviewComment`,
 		// `EditIssueComment`, `EditReviewBody`, read by `ObserveComment`).
+		// [[BPR-1852]]. So is a draft-state change (`MarkReadyForReview`,
+		// `ConvertToDraft`, read by `ObserveDraftState`).
 		const auto reply      = aRequest.Wire.Operation == review_mutation_operation::reply_review_thread;
 		const auto stateWrite = aRequest.Wire.Operation == review_mutation_operation::resolve_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::unresolve_review_thread
@@ -2161,14 +2165,17 @@ namespace bpr::adapters::github::detail {
 			|| aRequest.Wire.Operation == review_mutation_operation::edit_review_comment
 			|| aRequest.Wire.Operation == review_mutation_operation::edit_issue_comment
 			|| aRequest.Wire.Operation == review_mutation_operation::edit_review_body
-			|| aRequest.Wire.Operation == review_mutation_operation::request_reviews;
+			|| aRequest.Wire.Operation == review_mutation_operation::request_reviews
+			|| aRequest.Wire.Operation == review_mutation_operation::mark_pull_request_ready_for_review
+			|| aRequest.Wire.Operation == review_mutation_operation::convert_pull_request_to_draft;
 		const auto graphql = aRequest.Wire.Operation == review_mutation_operation::staged_update_pending_comment || stateWrite || reply
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_review_thread_comments
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_reaction_subject
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_description
 			|| aRequest.Wire.Operation == review_mutation_operation::observe_comment_for_edit
-			|| aRequest.Wire.Operation == review_mutation_operation::observe_reviewers;
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_reviewers
+			|| aRequest.Wire.Operation == review_mutation_operation::observe_pull_request_draft_state;
 
 		const auto exchange = review_mutation_exchange_for(aRequest.Wire.Operation);
 		if (!exchange || exchange->Graphql != graphql

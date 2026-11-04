@@ -85,6 +85,12 @@ namespace bpr::qt {
 		openOnGithub->setShortcuts(shortcut_keys(shortcut_command::open_on_github));
 		openOnGithub->setStatusTip(QStringLiteral("Open the pull request's page on GitHub, unavailable while no window is open"));
 		openOnGithub->setEnabled(false);
+		// [[BPR-1852]]. The window's draft-state command, kept in its place and
+		// hidden as the window keeps it while nothing is offered.
+		auto* const draftState = PullRequestMenu->addAction(tr("Mark &Ready for Review"));
+		draftState->setObjectName(QStringLiteral("desktopDraftStateAction"));
+		draftState->setVisible(false);
+		draftState->setEnabled(false);
 		PullRequestMenu->addSeparator();
 		auto* const follow = PullRequestMenu->addAction(QStringLiteral("&Follow"));
 		follow->setObjectName(QStringLiteral("desktopFollowPullRequestAction"));
