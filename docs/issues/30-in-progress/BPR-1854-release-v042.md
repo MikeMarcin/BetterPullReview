@@ -40,3 +40,16 @@ guide's existing GCC initialization rule. Keep the repository context empty and
 preserve the poll's authority and assertions. Native compilation and the
 provider course must verify the correction before the successor freezes;
 build 10's signed artifacts and failed compilation receipt remain immutable.
+
+The corrected provider target compiles with native GCC 15, and both provider
+courses pass on Ubuntu and macOS. Ubuntu's full Release graph also compiles;
+Debug and distribution compilation remain in progress.
+
+## Published Windows preview
+
+The Windows build 9 prerelease is public at tag `v0.4.2-build.9`, release
+434387749. Its seven anonymous downloads match the native producer bytes and
+retain passing native publisher/timestamp checks. Latest remains 0.4.1.
+Advance the authoritative Windows floor to that observed per-machine MSI's
+`0.4.9` identity before allocating the successor. Mac publication still needs
+the existing notarization credential recovery; no Mac asset is published yet.
