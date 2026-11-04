@@ -3598,6 +3598,89 @@ namespace {
 		render_reviewer_picker(page, "people-review-request-pending-light.png");
 	}
 
+	/// \brief [[BPR-1852]]. Renders the page for an attended look when
+	/// `BPR_DRAFT_STATE_RENDER_DIR` names a directory; otherwise nothing.
+	void render_draft_state(qt::pull_request_overview_page& aPage, const char* const aName)
+	{
+		const auto directory = qEnvironmentVariable("BPR_DRAFT_STATE_RENDER_DIR");
+		if (!directory.isEmpty()) {
+			aPage.grab().save(directory + QLatin1Char{ '/' } + QString::fromUtf8(aName));
+		}
+	}
+
+	/// \brief [[BPR-1852]]. A draft is said beside its title and in a banner
+	/// under the summary; its author is offered Ready for review there and,
+	/// once it is ready, Convert to draft in People. Pressing either only
+	/// dispatches; a change moves the chip, the banner and Merge in place, and
+	/// another pull request is refused for a whole presentation.
+	void test_a_draft_is_said_and_its_author_can_publish_it()
+	{
+		auto page = qt::pull_request_overview_page{ };
+		page.resize(1100, 760);
+		page.show();
+		auto draft       = status_projection();
+		draft.Draft      = true;
+		draft.MergeState = "Draft";
+		page.present(draft);
+		page.status_section_header(qt::overview_status_section::people)->setChecked(true);
+		settle();
+		expect(page.draft_chip()->isVisible() && page.draft_banner()->isVisible() && !page.ready_for_review_button()->isVisible() && !page.convert_to_draft_button()->isVisible(),
+			   "a draft is said beside its title and in the banner, with no action until one is offered");
+		expect(page.draft_banner_text()->text() == QStringLiteral("This pull request is still a draft. Its author has not asked for review yet."), "a reader who is not the author is told what it means");
+		expect(!page.summary_label()->text().contains(QStringLiteral("Draft")), "the summary no longer hides it at its end");
+
+		auto dispatched = std::vector<core::draft_state_change>{ };
+		page.set_draft_state_dispatch([&dispatched](const core::draft_state_change aChange) { dispatched.push_back(aChange); });
+		page.set_draft_state_offer(core::draft_state_change::ready_for_review);
+		settle();
+		expect(page.ready_for_review_button()->isVisible() && page.ready_for_review_button()->isEnabled() && page.ready_for_review_button()->text() == QStringLiteral("Ready for review")
+				   && page.draft_banner_text()->text().startsWith(QStringLiteral("This pull request is still a draft, so no one is asked to review it")),
+			   "its author is offered Ready for review in the banner");
+		render_draft_state(page, "overview-draft-author-light.png");
+		page.ready_for_review_button()->click();
+		expect(dispatched == std::vector{ core::draft_state_change::ready_for_review }, "pressing it only dispatches the change");
+
+		auto fileSignals = 0;
+		QObject::connect(page.file_model(), &QAbstractItemModel::modelReset, &page, [&] { ++fileSignals; });
+		QObject::connect(page.file_model(), &QAbstractItemModel::dataChanged, &page, [&] { ++fileSignals; });
+		const auto participants = page.participant_rows();
+		page.present_draft_state_status(core::draft_state_change::ready_for_review, QString{ }, true);
+		auto readying         = draft;
+		readying.Draft        = false;
+		readying.DraftPending = true;
+		readying.MergeState   = "Merge state unknown";
+		expect(page.present_draft_state(readying), "the same pull request takes the change in place");
+		settle();
+		expect(!page.draft_chip()->isVisible() && page.draft_banner()->isVisible() && page.draft_banner_text()->text().startsWith(QStringLiteral("Asking GitHub"))
+				   && !page.ready_for_review_button()->isEnabled() && page.ready_for_review_button()->text() == QStringLiteral("Marking ready…"),
+			   "the chip goes at once and the banner says GitHub is being asked");
+		render_draft_state(page, "overview-draft-readying-light.png");
+		page.present_draft_state_status(core::draft_state_change::ready_for_review, QString{ }, false);
+		page.set_draft_state_offer(core::draft_state_change::convert_to_draft);
+		auto ready         = readying;
+		ready.DraftPending = false;
+		expect(page.present_draft_state(ready), "GitHub's answer is taken in place");
+		settle();
+		expect(!page.draft_chip()->isVisible() && !page.draft_banner()->isVisible() && page.convert_to_draft_button()->isVisible(),
+			   "ready, it is no longer said to be a draft, and Convert to draft is in People");
+		expect(fileSignals == 0 && page.participant_rows() == participants && page.draft_state_updates() == 2U, "no file row or participant is touched");
+		page.convert_to_draft_button()->click();
+		expect(dispatched.back() == core::draft_state_change::convert_to_draft, "Convert to draft only dispatches");
+		page.present_draft_state_status(core::draft_state_change::convert_to_draft, QStringLiteral("GitHub did not let you change whether this pull request is a draft. Nothing changed."));
+		settle();
+		expect(page.draft_state_status(core::draft_state_change::convert_to_draft)->isVisible() && page.convert_to_draft_button()->isEnabled(), "a refusal is said beside the button");
+		render_draft_state(page, "overview-ready-author-light.png");
+
+		auto closed  = draft;
+		closed.State = application::github_pull_request_state::closed;
+		page.present(closed);
+		settle();
+		expect(!page.draft_chip()->isVisible() && !page.draft_banner()->isVisible(), "a closed draft is said closed, not draft");
+		auto other   = draft;
+		other.Number = core::pull_request_number{ draft.Number.value() + 1U };
+		expect(!page.present_draft_state(other), "another pull request is presented whole");
+	}
+
 	void test_conversation_count_is_cleared_with_the_pull_request()
 	{
 		auto page = qt::pull_request_overview_page{ };
@@ -3912,6 +3995,7 @@ auto main(int argc, char** argv) -> int
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_conversation_count_is_cleared_with_the_pull_request();
 	test_a_requested_reviewer_moves_people_in_place();
+	test_a_draft_is_said_and_its_author_can_publish_it();
 	test_role_line_is_one_short_label();
 	test_folder_controls_preserve_identity_and_refresh_state();
 	test_collapse_all_and_expand_all_folders();

@@ -26,6 +26,7 @@
 #include "bpr/core/conversation_reply.hpp"
 #include "bpr/core/conversation_timeline.hpp"
 #include "bpr/core/description_edit.hpp"
+#include "bpr/core/draft_state.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/review_role.hpp"
@@ -8577,6 +8578,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// [[BPR-1774]]. Save in Overview's description editor.
 			Window->overview_page()->set_description_save_dispatch(
 				[this](const qt::overview_description_save& aSave) { save_description(aSave); });
+			// [[BPR-1852]]. Ready for review and Convert to draft, from Overview
+			// and the Pull Request menu.
+			Window->set_draft_state_dispatch(
+				[this](const core::draft_state_change aChange) { change_draft_state(aChange); });
 			// [[BPR-1804]]. Request review in People and its picker.
 			Window->overview_page()->set_reviewer_picker_dispatch(
 				[this](const qt::reviewer_picker_gesture& aGesture) { reviewer_gesture(aGesture); });
@@ -14541,6 +14546,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (aUpdate.PullRequest) {
 				observe_conversation_state();
 				observe_reviewer_request_state();
+				observe_draft_state_change();
 			}
 			Window->publish(placed ? *placed : aUpdate);
 			if (aUpdate.PullRequest) {
@@ -14548,6 +14554,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				present_reviewer_offer();
 				present_description_offer();
 				present_comment_edit_offer();
+				// [[BPR-1852]]. The title row's chip shows the viewer's change
+				// over the read until a read agrees; the author's action follows.
+				present_overview_draft_state();
 			}
 			select_published_conversation();
 
@@ -14708,6 +14717,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// [[BPR-1804]]. Nor any reviewer search or request: the picker
 			// closes, and a request waiting is said to have gone unanswered.
 			retire_reviewer_picker();
+			// [[BPR-1852]]. Nor a draft-state change.
+			retire_draft_state_change();
 		}
 
 		/// [[BPR-1824]]. Why this session's accepted read cannot have its
@@ -14911,6 +14922,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				present_reviewer_offer();
 				present_description_offer();
 				present_comment_edit_offer();
+				present_draft_state_offer();
 				return;
 			}
 			if (!ensure_shared_drafts(aHandoff)) {
@@ -14932,6 +14944,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			present_reviewer_offer();
 			present_description_offer();
 			present_comment_edit_offer();
+			present_draft_state_offer();
 		}
 
 		/// [[BPR-1741]]. GitHub's word on what the viewer may do to a
@@ -15640,6 +15653,232 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				++OverviewReviewRequestUpdates;
 				Window->publish_review_requests(*PublishedOverview);
 			}
+		}
+
+		/// \brief [[BPR-1852]]. The draft state the window shows over a read:
+		/// the viewer's own change while the overlay holds one for this pull
+		/// request, the read's otherwise.
+		[[nodiscard]] auto projected_draft_state(const application::github_pull_request_snapshot& aSnapshot) const -> std::optional<core::projected_draft_state>
+		{
+			if (!DraftOverlay.held() || DraftOverlayPullRequest != std::optional{ reviewer_overlay_key(aSnapshot) }) {
+				return std::nullopt;
+			}
+			return core::project_draft_state(aSnapshot.PullRequest.Draft, DraftOverlay);
+		}
+
+		/// \brief [[BPR-1852]]. What the core decides draft-state changes
+		/// from: the accepted read's author and viewer (none in an anonymous
+		/// read), whether it is open, and the draft state shown.
+		struct draft_state_reading
+		{
+			std::string Author;
+			std::string Viewer;
+			bool        Open  = false;
+			bool        Draft = false;
+
+			[[nodiscard]] auto facts() const noexcept -> core::draft_state_facts
+			{
+				return { .Author = Author, .Viewer = Viewer, .Open = Open, .Draft = Draft };
+			}
+		};
+		[[nodiscard]] auto draft_state_reading_now() const -> std::optional<draft_state_reading>
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot()) {
+				return std::nullopt;
+			}
+			const auto& snapshot  = *WindowRead->accepted_snapshot();
+			const auto  shown     = projected_draft_state(snapshot).value_or(core::projected_draft_state{ .Draft = snapshot.PullRequest.Draft });
+			auto [author, viewer] = description_edit_logins();
+			return draft_state_reading{ .Author = std::move(author), .Viewer = std::move(viewer), .Open = snapshot.PullRequest.State == application::github_pull_request_state::open, .Draft = shown.Draft };
+		}
+
+		/// \brief [[BPR-1852]]. Ready for review or Convert to draft is
+		/// offered to the pull request's author, the core decides, when the
+		/// connection in use can change the draft state; everyone else sees the
+		/// chip and the banner alone.
+		void present_draft_state_offer()
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto reading = draft_state_reading_now();
+			auto       offered = std::optional<core::draft_state_change>{ };
+			if (reading.has_value() && ReviewMutationHost != nullptr && ReviewMutationHost->capabilities().ChangesDraftState) {
+				offered = core::draft_state_offered(reading->facts());
+			}
+			Window->set_draft_state_offer(offered);
+		}
+
+		/// \brief [[BPR-1852]]. A new accepted read reconciles the viewer's
+		/// change with GitHub's draft state; another pull request drops it.
+		void observe_draft_state_change()
+		{
+			if (!WindowRead || !WindowRead->accepted_snapshot() || !DraftOverlayPullRequest) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			if (reviewer_overlay_key(snapshot) != *DraftOverlayPullRequest) {
+				DraftOverlay = { };
+				DraftOverlayPullRequest.reset();
+				return;
+			}
+			core::observe_draft_state(DraftOverlay, snapshot.PullRequest.Draft);
+		}
+
+		/// \brief [[BPR-1852]]. A change asked, answered or withdrawn moves the
+		/// title row's chip, Overview's chip and banner, and Merge in place;
+		/// nothing is read and no other part of the window is visited. A read
+		/// the Overview has not been projected from yet is left to that
+		/// projection.
+		void present_overview_draft_state()
+		{
+			if (Closing || Window == nullptr || !WindowRead || !WindowRead->accepted_snapshot()) {
+				return;
+			}
+			const auto& snapshot = *WindowRead->accepted_snapshot();
+			const auto  now      = projected_draft_state(snapshot);
+			Window->present_strip_draft(now.value_or(core::projected_draft_state{ .Draft = snapshot.PullRequest.Draft }).Draft
+										&& snapshot.PullRequest.State == application::github_pull_request_state::open);
+			present_draft_state_offer();
+			if (!PublishedOverview || OverviewResolutionsSnapshot != std::optional{ snapshot.Snapshot }) {
+				return;
+			}
+			if (application::apply_draft_state(*PublishedOverview, snapshot, now)) {
+				++OverviewDraftStateUpdates;
+				Window->publish_draft_state(*PublishedOverview);
+			}
+		}
+
+		/// \brief [[BPR-1852]]. Ready for review, or Convert to draft, from
+		/// Overview or the Pull Request menu: the core decides on the gesture
+		/// (the author, an open pull request, not already in that state), the
+		/// window shows the change at once, and the host writes it once under a
+		/// one-shot grant after GitHub, asked first, says it still applies.
+		void change_draft_state(const core::draft_state_change aChange)
+		{
+			auto* const page = Window != nullptr ? Window->overview_page() : nullptr;
+			if (Closing || page == nullptr) {
+				return;
+			}
+			++DraftStateGestures;
+			const auto reading = draft_state_reading_now();
+			if (!reading.has_value()) {
+				++DraftStateRefusals;
+				page->present_draft_state_status(aChange, QStringLiteral("The pull request is still loading. Try again when it has."));
+				return;
+			}
+			switch (core::decide_draft_state_change(reading->facts(), aChange)) {
+			case core::draft_state_refusal::not_author:
+				++DraftStateRefusals;
+				page->present_draft_state_status(aChange, QStringLiteral("Only the pull request's author can change whether it is a draft here."));
+				return;
+			case core::draft_state_refusal::not_open:
+				++DraftStateRefusals;
+				page->present_draft_state_status(aChange, QStringLiteral("This pull request is closed, so its draft state cannot change."));
+				return;
+			case core::draft_state_refusal::already:
+				++DraftStateRefusals;
+				page->present_draft_state_status(aChange, aChange == core::draft_state_change::ready_for_review ? QStringLiteral("This pull request is already ready for review.") : QStringLiteral("This pull request is already a draft."));
+				return;
+			case core::draft_state_refusal::not_permitted:
+			case core::draft_state_refusal::none:
+				break;
+			}
+			if (ReviewMutationHost == nullptr || !ReviewMutationHost->capabilities().ChangesDraftState) {
+				++DraftStateRefusals;
+				page->present_draft_state_status(aChange, QStringLiteral("This connection cannot change whether the pull request is a draft."));
+				return;
+			}
+			if (PendingDraftState.has_value()) {
+				page->present_draft_state_status(aChange, QStringLiteral("Waiting for GitHub to answer the last change."), true);
+				return;
+			}
+			auto request = application::review_draft_state_publication_request{ .Change = aChange };
+			auto grant   = review_mutation_gesture_grant(
+				std::nullopt,
+				[&request](const core::application_session_id           aSession,
+						   const core::request_generation               aGeneration,
+						   application::review_mutation_target_binding  aTarget,
+						   application::review_mutation_acting_identity aActor) {
+					return application::detail::review_mutation_user_authority_issuer::issue_draft_state(
+						aSession, aGeneration, std::move(aTarget), std::move(aActor), request);
+				});
+			// The window shows the change at once, pending, as the core
+			// projects it; GitHub's answer settles it.
+			const auto& snapshot    = *WindowRead->accepted_snapshot();
+			DraftOverlayPullRequest = reviewer_overlay_key(snapshot);
+			core::begin_draft_state_change(DraftOverlay, ++DraftStateRequests, aChange);
+			PendingDraftState = pending_draft_state{ .Request = DraftStateRequests, .Change = aChange };
+			page->present_draft_state_status(aChange, QString{ }, true);
+			present_overview_draft_state();
+			PendingDraftState->Context = ReviewMutationHost->change_draft_state(request, std::move(grant));
+		}
+
+		void publish_draft_state(const application::review_draft_state_terminal& aTerminal) override
+		{
+			if (Closing || Window == nullptr || !PendingDraftState.has_value() || PendingDraftState->Context != aTerminal.Context) {
+				return;
+			}
+			const auto request = PendingDraftState->Request;
+			PendingDraftState.reset();
+			auto* const page   = Window->overview_page();
+			const auto  change = aTerminal.Request.Change;
+			if (!aTerminal.Result.has_value()) {
+				++DraftStateFailures;
+				// The window shows the read again; the words say why.
+				core::abandon_draft_state_change(DraftOverlay, request);
+				auto words = QString{ };
+				switch (aTerminal.Result.error()) {
+				case application::review_mutation_failure::refused_by_server:
+					words = QStringLiteral("GitHub did not let you change whether this pull request is a draft. Nothing changed.");
+					break;
+				case application::review_mutation_failure::not_confirmed:
+					words = QStringLiteral("GitHub does not show the change; it was not sent twice. Check the pull request, then try again.");
+					break;
+				case application::review_mutation_failure::target_moved:
+				case application::review_mutation_failure::undesignated_target:
+				case application::review_mutation_failure::target_unavailable:
+					words = QStringLiteral("The pull request changed on GitHub, so nothing was sent. Refresh and try again.");
+					break;
+				case application::review_mutation_failure::cancelled:
+					words = QStringLiteral("The change was stopped. Nothing more is sent.");
+					break;
+				default:
+					words = QStringLiteral("The connection could not change the draft state (%1). Try again.").arg(QString::fromUtf8(application::name(aTerminal.Result.error())));
+					break;
+				}
+				if (page != nullptr) {
+					page->present_draft_state_status(change, words);
+				}
+				present_overview_draft_state();
+				return;
+			}
+			++DraftStateCompletions;
+			// GitHub's answer confirms what the window already shows, or
+			// withdraws it; nothing re-reads the pull request, and the next
+			// read reconciles.
+			core::settle_draft_state_change(DraftOverlay, request, aTerminal.Result->Draft);
+			if (page != nullptr) {
+				page->present_draft_state_status(change, aTerminal.Result->Draft == core::draft_after(change) ? QString{ } : QStringLiteral("GitHub still shows the pull request as it was. Nothing changed."));
+			}
+			present_overview_draft_state();
+		}
+
+		/// \brief [[BPR-1852]]. A retired host answers nothing more: a change
+		/// still waiting is withdrawn and said to have gone unanswered (it is
+		/// never sent again).
+		void retire_draft_state_change()
+		{
+			if (!PendingDraftState.has_value()) {
+				return;
+			}
+			const auto change = PendingDraftState->Change;
+			core::abandon_draft_state_change(DraftOverlay, PendingDraftState->Request);
+			PendingDraftState.reset();
+			if (Window != nullptr && Window->overview_page() != nullptr) {
+				Window->overview_page()->present_draft_state_status(change, QStringLiteral("The connection closed before GitHub answered. Check the pull request, then try again."));
+			}
+			present_overview_draft_state();
 		}
 
 		void publish_reviewers(const application::review_reviewer_terminal& aTerminal) override
@@ -18857,10 +19096,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			context.ProjectedResolutions    = projected_overview_resolutions(*snapshot);
 			context.ProjectedReviewRequests = projected_overview_review_requests(*snapshot);
-			OverviewReviewRequests          = context.ProjectedReviewRequests;
-			PublishedOverview               = application::project_pull_request_overview(*snapshot, context);
-			OverviewResolutions             = std::move(context.ProjectedResolutions);
-			OverviewResolutionsSnapshot     = snapshot->Snapshot;
+			// [[BPR-1852]]. The viewer's draft-state change counts until a read agrees.
+			context.ProjectedDraft      = projected_draft_state(*snapshot);
+			OverviewReviewRequests      = context.ProjectedReviewRequests;
+			PublishedOverview           = application::project_pull_request_overview(*snapshot, context);
+			OverviewResolutions         = std::move(context.ProjectedResolutions);
+			OverviewResolutionsSnapshot = snapshot->Snapshot;
 			if (filtered.has_value()) {
 				PublishedOverview->CommitFilterComparisonFiles = accepted->Files.size();
 				PublishedOverview->FilteredByCommits           = filtered->CommitFiltered;
@@ -24196,6 +24437,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				// [[BPR-1849]].
 				awaiting_reviewer_refusal_listed,
 				awaiting_reviewer_refused,
+				// [[BPR-1852]].
+				awaiting_draft_offered,
+				awaiting_draft_ready,
+				awaiting_draft_refused,
 				passed,
 				failed,
 			};
@@ -24229,6 +24474,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				std::chrono::steady_clock::time_point Chosen;
 			};
 			std::optional<reviewer_baseline> ReviewerBaseline;
+			/// [[BPR-1852]]. The counters and the time as Ready for review
+			/// found them.
+			std::optional<reviewer_baseline> DraftBaseline;
+			std::optional<std::uint64_t>     DraftQuietBuilds;
+			std::size_t                      DraftQuietTicks = 0U;
 			/// [[BPR-1775]]. The thread's first post was given to another
 			/// account, so the course has someone else's comment to refuse.
 			bool CommentRootRestaged = false;
@@ -24703,6 +24953,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		std::optional<std::string>                    ReviewerOverlayPullRequest;
 		std::vector<core::projected_reviewer_request> OverviewReviewRequests;
 		std::size_t                                   OverviewReviewRequestUpdates = 0U;
+		/// [[BPR-1852]]. The viewer's draft-state change that reads have not
+		/// caught up with, the pull request it was asked on, the change in
+		/// flight, and what came of changes.
+		struct pending_draft_state
+		{
+			application::review_mutation_request_context Context;
+			std::uint64_t                                Request = 0U;
+			core::draft_state_change                     Change  = core::draft_state_change::ready_for_review;
+		};
+		core::draft_state_overlay          DraftOverlay;
+		std::optional<std::string>         DraftOverlayPullRequest;
+		std::optional<pending_draft_state> PendingDraftState;
+		std::uint64_t                      DraftStateRequests        = 0U;
+		std::size_t                        DraftStateGestures        = 0U;
+		std::size_t                        DraftStateRefusals        = 0U;
+		std::size_t                        DraftStateCompletions     = 0U;
+		std::size_t                        DraftStateFailures        = 0U;
+		std::size_t                        OverviewDraftStateUpdates = 0U;
 		/// [[BPR-1775]]. The comment save in flight, and what came of saves.
 		std::optional<application::review_mutation_request_context> PendingCommentEdit;
 		std::size_t                                                 CommentEditGestures    = 0U;
@@ -33707,13 +33975,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		}
 		// [[BPR-1804]]. Where each course ends: with reviewers served, it goes
 		// on to request one from People.
-		const auto go_on_to_reviewers = [&probe, implementation] {
-			if (implementation->ReviewMutationHost->capabilities().RequestsReviewers) {
-				probe.Phase = state_type::phase::awaiting_reviewer_offered;
+		// [[BPR-1852]]. With the draft state served, every course ends there.
+		const auto go_on_to_draft_state = [&probe, implementation] {
+			if (implementation->ReviewMutationHost->capabilities().ChangesDraftState) {
+				probe.Phase = state_type::phase::awaiting_draft_offered;
 				return result::pending;
 			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
+		};
+		const auto go_on_to_reviewers = [&probe, implementation, &go_on_to_draft_state] {
+			if (implementation->ReviewMutationHost->capabilities().RequestsReviewers) {
+				probe.Phase = state_type::phase::awaiting_reviewer_offered;
+				return result::pending;
+			}
+			return go_on_to_draft_state();
 		};
 		const auto fail = [&probe](const std::string_view aWhy) {
 			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
@@ -34691,6 +34967,122 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				&& evidence.ReviewerShownAtOnce && evidence.ReviewerConfirmed && evidence.ReviewerRolledBack;
 			picker->hide();
 			QCoreApplication::processEvents();
+			return go_on_to_draft_state();
+		}
+		// [[BPR-1852]]. The author of a draft sees it said in the title row and
+		// in Overview, with Ready for review in the banner and the Pull
+		// Request menu. Ready for review takes the chips away at once, writes
+		// exactly once and reads nothing; GitHub's answer offers Convert to
+		// draft. A refused Convert to draft is shown at once, then withdrawn,
+		// with words beside the button.
+		case state_type::phase::awaiting_draft_offered: {
+			auto* const page = window->overview_page();
+			window->choose_modality(qt::review_modality::overview);
+			QCoreApplication::processEvents();
+			note("offer=" + std::to_string(page->draft_state_offer().has_value() ? static_cast<int>(*page->draft_state_offer()) : -1) + " chip=" + std::to_string(page->draft_chip()->isVisible() ? 1 : 0));
+			if (page->draft_state_offer() != core::draft_state_change::ready_for_review || !page->projection().has_value()) {
+				return result::pending;
+			}
+			if (auto* const refresh = window->github_refresh_action(); refresh != nullptr && !refresh->isEnabled()) {
+				return result::pending;
+			}
+			// What the courses before began settles first: the Overview is
+			// projected from the accepted read and has not been projected
+			// again for a few turns of the event loop, so what follows is
+			// counted from the gesture alone.
+			if (!implementation->WindowRead || !implementation->WindowRead->accepted_snapshot()
+				|| implementation->OverviewResolutionsSnapshot != std::optional{ implementation->WindowRead->accepted_snapshot()->Snapshot }) {
+				return result::pending;
+			}
+			if (probe.DraftQuietBuilds != std::optional{ implementation->OverviewBuilds }) {
+				probe.DraftQuietBuilds = implementation->OverviewBuilds;
+				probe.DraftQuietTicks  = 0U;
+				return result::pending;
+			}
+			if (++probe.DraftQuietTicks < 5U) {
+				return result::pending;
+			}
+			auto* const action          = window->draft_state_action();
+			probe.Evidence.DraftOffered = window->strip_draft_shown() && page->draft_chip()->isVisible() && page->draft_banner()->isVisible()
+				&& page->ready_for_review_button()->isVisible() && page->ready_for_review_button()->isEnabled() && action != nullptr && action->isVisible()
+				&& action->text().remove(QLatin1Char{ '&' }) == QStringLiteral("Mark Ready for Review") && !page->convert_to_draft_button()->isVisible();
+			if (!probe.Evidence.DraftOffered) {
+				return fail("draft-not-offered strip=" + std::to_string(window->strip_draft_shown() ? 1 : 0) + " banner=" + std::to_string(page->draft_banner()->isVisible() ? 1 : 0)
+							+ " ready=" + std::to_string(page->ready_for_review_button()->isVisible() ? 1 : 0));
+			}
+			probe.DraftBaseline = state_type::reviewer_baseline{
+				.Reads          = implementation->Fixture->evidence().AccountReadCount,
+				.OverviewBuilds = implementation->OverviewBuilds,
+				.OverviewMoves  = implementation->OverviewDraftStateUpdates,
+				.Chosen         = std::chrono::steady_clock::now(),
+			};
+			page->ready_for_review_button()->click();
+			// The gesture dispatched synchronously: the chips are gone now, and
+			// the banner says GitHub is being asked.
+			probe.Evidence.DraftShownAtOnce = !window->strip_draft_shown() && !page->draft_chip()->isVisible() && page->draft_banner()->isVisible()
+				&& page->draft_banner_text()->text().startsWith(QStringLiteral("Asking GitHub")) && !page->ready_for_review_button()->isEnabled()
+				&& page->projection().has_value() && !page->projection()->Draft && page->projection()->DraftPending;
+			note("shown strip=" + std::to_string(window->strip_draft_shown() ? 1 : 0) + " chip=" + std::to_string(page->draft_chip()->isVisible() ? 1 : 0)
+				 + " banner=" + std::to_string(page->draft_banner()->isVisible() ? 1 : 0) + " text=" + page->draft_banner_text()->text().toStdString()
+				 + " enabled=" + std::to_string(page->ready_for_review_button()->isEnabled() ? 1 : 0)
+				 + " draft=" + std::to_string(page->projection().has_value() && page->projection()->Draft ? 1 : 0)
+				 + " pending=" + std::to_string(page->projection().has_value() && page->projection()->DraftPending ? 1 : 0));
+			probe.Phase = state_type::phase::awaiting_draft_ready;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_draft_ready: {
+			auto* const page     = window->overview_page();
+			const auto  evidence = implementation->Fixture->review_mutation_evidence();
+			note("completions=" + std::to_string(implementation->DraftStateCompletions) + " failures=" + std::to_string(implementation->DraftStateFailures)
+				 + " writes=" + std::to_string(evidence.DraftStateWrites) + " status=" + page->draft_state_status(core::draft_state_change::ready_for_review)->text().toStdString());
+			if (implementation->DraftStateFailures != 0U || implementation->DraftStateRefusals != 0U) {
+				return fail("ready-refused-or-failed");
+			}
+			if (implementation->DraftStateCompletions < 1U) {
+				return result::pending;
+			}
+			auto* const refresh = window->github_refresh_action();
+			if (probe.Evidence.DraftAnsweredMicros < 0) {
+				probe.Evidence.DraftAnsweredMicros  = std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - probe.DraftBaseline->Chosen).count();
+				probe.Evidence.DraftRefreshInFlight = refresh != nullptr && !refresh->isEnabled();
+			}
+			probe.Evidence.DraftReads           = implementation->Fixture->evidence().AccountReadCount - probe.DraftBaseline->Reads;
+			probe.Evidence.DraftOverviewBuilds  = static_cast<std::size_t>(implementation->OverviewBuilds - probe.DraftBaseline->OverviewBuilds);
+			probe.Evidence.DraftOverviewUpdates = implementation->OverviewDraftStateUpdates - probe.DraftBaseline->OverviewMoves;
+			probe.Evidence.DraftReadyOnce       = evidence.DraftStateChanges == 1U && evidence.DraftStateWrites == 1U && !page->draft_banner()->isVisible()
+				&& !page->draft_chip()->isVisible() && !window->strip_draft_shown() && page->projection().has_value() && !page->projection()->Draft
+				&& !page->projection()->DraftPending && page->draft_state_offer() == core::draft_state_change::convert_to_draft && page->convert_to_draft_button()->isVisible()
+				&& window->draft_state_action()->text().remove(QLatin1Char{ '&' }) == QStringLiteral("Convert to Draft");
+			if (!probe.Evidence.DraftReadyOnce) {
+				return fail("ready-not-confirmed");
+			}
+			// GitHub refuses the next change, asked from the menu: the chips
+			// come back at once, then go, and the words say why.
+			implementation->Fixture->stage_draft_state_refusal();
+			window->draft_state_action()->trigger();
+			probe.Evidence.DraftRolledBack = window->strip_draft_shown() && page->draft_chip()->isVisible() && page->projection()->DraftPending;
+			note("converting strip=" + std::to_string(window->strip_draft_shown() ? 1 : 0) + " chip=" + std::to_string(page->draft_chip()->isVisible() ? 1 : 0)
+				 + " pending=" + std::to_string(page->projection()->DraftPending ? 1 : 0) + " draft=" + std::to_string(page->projection()->Draft ? 1 : 0));
+			probe.Phase = state_type::phase::awaiting_draft_refused;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_draft_refused: {
+			auto* const page   = window->overview_page();
+			auto* const status = page->draft_state_status(core::draft_state_change::convert_to_draft);
+			note("failures=" + std::to_string(implementation->DraftStateFailures) + " status=" + status->text().toStdString());
+			if (implementation->DraftStateFailures < 1U) {
+				return result::pending;
+			}
+			probe.Evidence.DraftRolledBack = probe.Evidence.DraftRolledBack && !window->strip_draft_shown() && !page->draft_chip()->isVisible()
+				&& !page->projection()->Draft && implementation->Fixture->review_mutation_evidence().DraftStateWrites == 1U && status->isVisible()
+				&& status->text() == QStringLiteral("GitHub did not let you change whether this pull request is a draft. Nothing changed.")
+				&& page->convert_to_draft_button()->isVisible() && page->convert_to_draft_button()->isEnabled();
+			const auto& evidence        = probe.Evidence;
+			probe.Evidence.DraftMinimal = evidence.DraftReads == 0 && evidence.DraftOverviewBuilds == 0U && !evidence.DraftRefreshInFlight && evidence.DraftShownAtOnce
+				&& evidence.DraftReadyOnce && evidence.DraftRolledBack;
+			if (!probe.Evidence.DraftRolledBack) {
+				return fail("refusal-not-withdrawn");
+			}
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		}

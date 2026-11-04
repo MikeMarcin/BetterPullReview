@@ -523,6 +523,10 @@ namespace bpr::app::detail {
 		/// [[BPR-1804]]. The fixture's mutation provider searches reviewers
 		/// and requests reviews; off, no course offers Request review.
 		bool RequestsReviewers = false;
+		/// [[BPR-1852]]. The fixture names the viewer the pull request's
+		/// author, reads it as a draft, and its mutation provider changes the
+		/// draft state; off, no course offers Ready for review.
+		bool ChangesDraftState = false;
 		/// [[BPR-1826]]. The state the fixture's pull request is read in:
 		/// closed or merged, as GitHub's REST answer says it (`state`
 		/// "closed", with `merged` for a merged one). Absent, it is open.
@@ -679,6 +683,10 @@ namespace bpr::app::detail {
 		/// written: an open request is never written again.
 		std::size_t ReviewerSearches = 0U;
 		std::size_t ReviewerWrites   = 0U;
+		/// [[BPR-1852]]. Draft-state changes asked of the provider, and the
+		/// writes it made: a refused change writes none.
+		std::size_t DraftStateChanges = 0U;
+		std::size_t DraftStateWrites  = 0U;
 		/// [[BPR-1084]]. The last created comment's decoded body, path, side
 		/// and line exactly as the fixture server received them, and whether
 		/// it was a file comment.
@@ -979,8 +987,27 @@ namespace bpr::app::detail {
 		std::int64_t ReviewerAnsweredMicros  = -1;
 		bool         ReviewerRolledBack      = false;
 		bool         ReviewerMinimal         = false;
-		bool         PickerReacted           = false;
-		bool         ReactionReconciled      = false;
+		/// [[BPR-1852]]. With the draft state served: the title row's chip,
+		/// Overview's chip and banner and Ready for review offered to the
+		/// author of a draft; the chips gone at once on Ready for review, and
+		/// the banner asking GitHub; GitHub's answer confirming it with exactly
+		/// one write, Convert to draft offered; a refused Convert to draft
+		/// shown at once and withdrawn with words. What it cost from the
+		/// gesture: pull request reads, whole Overview projections, in-place
+		/// moves, whether a refresh was in flight, and the microseconds to the
+		/// answer.
+		bool         DraftOffered         = false;
+		bool         DraftShownAtOnce     = false;
+		bool         DraftReadyOnce       = false;
+		bool         DraftRolledBack      = false;
+		bool         DraftMinimal         = false;
+		int          DraftReads           = 0;
+		std::size_t  DraftOverviewBuilds  = 0U;
+		std::size_t  DraftOverviewUpdates = 0U;
+		bool         DraftRefreshInFlight = false;
+		std::int64_t DraftAnsweredMicros  = -1;
+		bool         PickerReacted        = false;
+		bool         ReactionReconciled   = false;
 
 		auto operator<=>(const threaded_reply_probe_evidence&) const = default;
 	};

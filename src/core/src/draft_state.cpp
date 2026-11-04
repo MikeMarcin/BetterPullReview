@@ -83,49 +83,49 @@ namespace bpr::core {
 		if (aRequest == 0U) {
 			return;
 		}
-		aOverlay = draft_state_overlay{ .Request = aRequest, .Draft = draft_after(aChange) };
+		aOverlay.Request      = aRequest;
+		aOverlay.PendingDraft = draft_after(aChange);
 	}
 
 	void settle_draft_state_change(draft_state_overlay& aOverlay, const std::uint64_t aRequest, const bool aDraft) noexcept
 	{
-		if (!aOverlay.held() || aOverlay.Request != aRequest) {
+		if (!aOverlay.pending() || aOverlay.Request != aRequest) {
 			return;
 		}
-		if (aDraft != aOverlay.Draft) {
-			aOverlay = { };
-			return;
-		}
-		aOverlay.Confirmed     = true;
+		aOverlay.Request       = 0U;
+		aOverlay.Answered      = aDraft;
 		aOverlay.Disagreements = 0U;
 	}
 
 	void abandon_draft_state_change(draft_state_overlay& aOverlay, const std::uint64_t aRequest) noexcept
 	{
-		if (aOverlay.held() && aOverlay.Request == aRequest) {
-			aOverlay = { };
+		if (aOverlay.pending() && aOverlay.Request == aRequest) {
+			aOverlay.Request = 0U;
 		}
 	}
 
 	void observe_draft_state(draft_state_overlay& aOverlay, const bool aDraft) noexcept
 	{
-		if (!aOverlay.held() || !aOverlay.Confirmed) {
+		if (!aOverlay.Answered.has_value()) {
 			return;
 		}
-		if (aDraft == aOverlay.Draft) {
-			aOverlay = { };
+		if (aDraft == *aOverlay.Answered) {
+			aOverlay.Answered.reset();
+			aOverlay.Disagreements = 0U;
 			return;
 		}
 		++aOverlay.Disagreements;
 		if (aOverlay.Disagreements >= 2U) {
-			aOverlay = { };
+			aOverlay.Answered.reset();
+			aOverlay.Disagreements = 0U;
 		}
 	}
 
 	auto project_draft_state(const bool aReadDraft, const draft_state_overlay& aOverlay) noexcept -> projected_draft_state
 	{
-		if (!aOverlay.held()) {
-			return { .Draft = aReadDraft };
+		if (aOverlay.pending()) {
+			return { .Draft = aOverlay.PendingDraft, .Pending = true };
 		}
-		return { .Draft = aOverlay.Draft, .Pending = !aOverlay.Confirmed };
+		return { .Draft = aOverlay.Answered.value_or(aReadDraft) };
 	}
 } // namespace bpr::core

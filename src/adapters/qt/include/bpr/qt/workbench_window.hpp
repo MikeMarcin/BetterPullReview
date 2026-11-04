@@ -18,6 +18,7 @@
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
 #include "bpr/core/diff_interaction.hpp"
+#include "bpr/core/draft_state.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
 #include "bpr/core/pull_request_suggestion.hpp"
 #include "bpr/core/reference_page.hpp"
@@ -499,6 +500,26 @@ namespace bpr::qt {
 		/// attention redraw, and no file row, tree or check is visited. An
 		/// overview not yet presented is published whole.
 		void publish_review_requests(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-1852]]. Adopts a change to the presented overview's
+		/// draft state and merge assessment alone: the title row's chip,
+		/// Overview's chip, banner and Merge redraw, and nothing else is
+		/// visited. An overview not yet presented is published whole.
+		void publish_draft_state(const application::pull_request_overview_projection& aProjection);
+		/// \brief [[BPR-1852]]. The draft chip beside the pull request's name
+		/// in the title row: shown while the pull request is an open draft
+		/// (the read's state, or the viewer's change it has not caught up with).
+		void               present_strip_draft(bool aDraft);
+		[[nodiscard]] auto strip_draft_chip() const noexcept -> QWidget*;
+		/// \brief Whether the title row shows the chip, as its action says it:
+		/// the toolbar lays the widget out on its next pass.
+		[[nodiscard]] auto strip_draft_shown() const noexcept -> bool;
+		/// \brief [[BPR-1852]]. Offers the author's draft-state change: in
+		/// Overview and as Pull Request > Mark Ready for Review or Convert to
+		/// Draft. None withdraws both.
+		void set_draft_state_offer(std::optional<core::draft_state_change> aOffered);
+		/// \brief [[BPR-1852]]. Where the change goes, from Overview or the menu.
+		void               set_draft_state_dispatch(std::function<void(core::draft_state_change)> aDispatch);
+		[[nodiscard]] auto draft_state_action() const noexcept -> QAction*;
 		/// \brief [[BPR-0972]]. Adopts receipt changes to the presented overview.
 		///
 		/// \details Only the changed file rows, the progress and the one action
@@ -2684,8 +2705,18 @@ namespace bpr::qt {
 			QString Owner;
 			QString Repository;
 			QString Number;
+			/// [[BPR-1852]]. GitHub's first answer named an open draft.
+			bool Draft = false;
 		};
 		std::optional<loading_identity> LoadingIdentity;
+		/// [[BPR-1852]]. The accepted pull request is an open draft, as the
+		/// title row's chip shows it; its chip and the menu's draft-state action.
+		bool                                          IdentityDraft        = false;
+		QWidget*                                      StripDraftChip       = nullptr;
+		QAction*                                      StripDraftChipAction = nullptr;
+		QAction*                                      DraftStateAction     = nullptr;
+		std::optional<core::draft_state_change>       DraftStateOffer;
+		std::function<void(core::draft_state_change)> DraftStateDispatch;
 		/// \brief [[BPR-1842]]. A file chosen from the Overview's provisional
 		/// list while the review loaded: opened in Review once the accepted
 		/// review's Files drawer lists it.

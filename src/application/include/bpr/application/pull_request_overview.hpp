@@ -5,6 +5,7 @@
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/review_ledger_port.hpp"
+#include "bpr/core/draft_state.hpp"
 #include "bpr/core/epoch_model.hpp"
 #include "bpr/core/file_progress_mark.hpp"
 #include "bpr/core/review_ledger.hpp"
@@ -247,10 +248,13 @@ namespace bpr::application {
 		std::string               AuthorLogin;
 		std::string               BaseRef;
 		std::string               HeadRef;
-		github_pull_request_state State               = github_pull_request_state::open;
-		bool                      Draft               = false;
-		std::size_t               CommitCount         = 0U;
-		std::size_t               ReturnedCommitCount = 0U;
+		github_pull_request_state State = github_pull_request_state::open;
+		bool                      Draft = false;
+		/// [[BPR-1852]]. `Draft` is the viewer's own change, shown before GitHub
+		/// has answered it.
+		bool        DraftPending        = false;
+		std::size_t CommitCount         = 0U;
+		std::size_t ReturnedCommitCount = 0U;
 		/// Rows in folder order, ready to be grouped by `Folder`.
 		std::vector<overview_file_row>    Files;
 		std::vector<overview_participant> Participants;
@@ -314,6 +318,10 @@ namespace bpr::application {
 		/// does not list (`core::project_reviewer_requests`). People and the
 		/// status count them with the read's.
 		std::vector<core::projected_reviewer_request> ProjectedReviewRequests;
+		/// [[BPR-1852]]. The draft state the core projects over the read while
+		/// the viewer's own change is held (`core::project_draft_state`); none
+		/// leaves the read's.
+		std::optional<core::projected_draft_state> ProjectedDraft;
 	};
 
 	/// \brief Decides the overview from the snapshot and the context.
@@ -345,6 +353,15 @@ namespace bpr::application {
 	[[nodiscard]] auto apply_review_requests(pull_request_overview_projection&                    aProjection,
 											 const github_pull_request_snapshot&                  aSnapshot,
 											 const std::vector<core::projected_reviewer_request>& aProjected) -> bool;
+
+	/// \brief [[BPR-1852]]. The draft state and the merge assessment that
+	/// follows from it decided again for `aProjected` over the read, as
+	/// projecting the whole overview with it would decide; nothing else is
+	/// visited.
+	/// \returns Whether the overview changed.
+	[[nodiscard]] auto apply_draft_state(pull_request_overview_projection&          aProjection,
+										 const github_pull_request_snapshot&        aSnapshot,
+										 std::optional<core::projected_draft_state> aProjected) -> bool;
 
 	/// \brief What one or more durable receipt changes did to a published overview.
 	///
