@@ -18,10 +18,10 @@
 # top-level windows and every better_pull_review.exe. The record is bound to
 # the executable's SHA-256 and every PID.
 #
-#   course       first launch; a second ordinary launch; Profiles > New Window;
+#   course       first launch; a second ordinary launch; File > New Window;
 #                an ordinary launch with the new window most recently used;
 #                --new-window; then each window's own close.
-#   close-probe  first launch, Profiles > New Window, close the new window.
+#   close-probe  first launch, File > New Window, close the new window.
 param(
     [Parameter(Mandatory)] [string]$Executable,
     [Parameter(Mandatory)] [string]$DataRoot,
@@ -249,8 +249,8 @@ try {
         $record.checks.second_launch_first_window_in_front_with_focus = (Is-Front $w1 $s)
     }
 
-    Menu-Command $w1 'Profiles' 'New Window'
-    Require (Wait-Until 60000 { (OwnerWindows).Count -eq 2 }) 'Profiles > New Window opened no second window'
+    Menu-Command $w1 'File' 'New Window'
+    Require (Wait-Until 60000 { (OwnerWindows).Count -eq 2 }) 'File > New Window opened no second window'
     Pump 2000
     $w2 = @(OwnerWindows | Where-Object { $_ -ne $w1 })[0]; $record.w2 = Hex $w2
     $s = State 'profiles-new-window'

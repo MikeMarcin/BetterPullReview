@@ -19131,17 +19131,22 @@ namespace bpr::qt {
 
 		auto* fileMenu = PrimaryMenuBar->addMenu(QStringLiteral("&File"));
 		fileMenu->setAccessibleName(QStringLiteral("File"));
-		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
-		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
-		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
-		NewBprWindowAction = ProfilesMenu->addAction(QStringLiteral("New Window"));
+		// [[BPR-1863]]. New Window opens another window of this window's profile,
+		// first in File as on every desktop; Profiles keeps the profiles and their
+		// management. Its key is the catalogue's, the one the windowless bar binds.
+		NewBprWindowAction = fileMenu->addAction(QStringLiteral("New Window"));
 		NewBprWindowAction->setObjectName(QStringLiteral("newBprWindowAction"));
+		NewBprWindowAction->setShortcuts(shortcut_keys(shortcut_command::new_window));
 		NewBprWindowAction->setEnabled(false);
 		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
 			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
 				ProfileManagementDispatch(application::new_bpr_window_intent{ CurrentBprProfile });
 			}
 		});
+		fileMenu->addSeparator();
+		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
+		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
+		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
 		ManageProfilesAction = ProfilesMenu->addAction(QStringLiteral("Manage Profiles…"));
 		ManageProfilesAction->setObjectName(QStringLiteral("manageProfilesAction"));
 		ManageProfilesAction->setEnabled(false);
@@ -19584,7 +19589,7 @@ namespace bpr::qt {
 				++iterator;
 			}
 		}
-		auto* before = NewBprWindowAction;
+		auto* before = ManageProfilesAction;
 		for (auto iterator = aProjection.Profiles.rbegin(); iterator != aProjection.Profiles.rend(); ++iterator) {
 			const auto& profile    = *iterator;
 			auto [entry, inserted] = ProfileActions.try_emplace(profile.Profile, nullptr);
