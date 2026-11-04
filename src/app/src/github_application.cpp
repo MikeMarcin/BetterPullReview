@@ -32042,7 +32042,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 							   const qsizetype aIndex, const char* const aName) {
 			return widgetActionNamed(toolbarActions, aIndex + lead, aName);
 		};
-		const auto exactRowOrder = toolbarActions.size() == 16 + lead + trailing
+		const auto exactRowOrder = toolbarActions.size() == 17 + lead + trailing
 			&& widgetActionNamed(toolbarActions, 0, "workbenchStripInsetAction")
 	#if defined(_WIN32)
 			&& widgetActionNamed(toolbarActions, 1, "workbenchStripMenuAction")
@@ -32051,19 +32051,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			&& toolbarActions[at(2)] == repositoriesAction
 			&& toolbarActions[at(3)] == filesAction
 			&& named(4, "workbenchStripIdentityAction")
-			&& named(5, "workbenchOpenOnGithubAction")
-			&& named(6, "workbenchNavigationSpacerAction")
-			&& named(7, "workbenchModalityAction")
-			&& named(8, "homeViewAction")
-			&& toolbarActions[at(9)] == window->github_refresh_action()
-			&& toolbarActions[at(10)] == window->queue_refresh_action()
-			&& toolbarActions[at(11)] == conversationsAction
-			&& toolbarActions[at(12)] == window->toggle_drawers_action()
-			&& named(13, "workbenchStripRightDividerAction")
-			&& toolbarActions[at(14)] == window->account_action()
-			&& toolbarActions[at(15)] == window->settings_action()
+			// [[BPR-1852]]. A draft's chip, hidden unless the pull request is one.
+			&& named(5, "workbenchStripDraftChipAction")
+			&& named(6, "workbenchOpenOnGithubAction")
+			&& named(7, "workbenchNavigationSpacerAction")
+			&& named(8, "workbenchModalityAction")
+			&& named(9, "homeViewAction")
+			&& toolbarActions[at(10)] == window->github_refresh_action()
+			&& toolbarActions[at(11)] == window->queue_refresh_action()
+			&& toolbarActions[at(12)] == conversationsAction
+			&& toolbarActions[at(13)] == window->toggle_drawers_action()
+			&& named(14, "workbenchStripRightDividerAction")
+			&& toolbarActions[at(15)] == window->account_action()
+			&& toolbarActions[at(16)] == window->settings_action()
 	#if defined(_WIN32)
-			&& named(16, "workbenchCaptionButtonsAction")
+			&& named(17, "workbenchCaptionButtonsAction")
 	#endif
 			;
 		// [[BPR-1129]]. The review bar, left to right: an inset, Updates, the
@@ -33976,7 +33978,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		// [[BPR-1804]]. Where each course ends: with reviewers served, it goes
 		// on to request one from People.
 		// [[BPR-1852]]. With the draft state served, every course ends there.
-		const auto go_on_to_draft_state = [&probe, implementation] {
+		const auto goOnToDraftState = [&probe, implementation] {
 			if (implementation->ReviewMutationHost->capabilities().ChangesDraftState) {
 				probe.Phase = state_type::phase::awaiting_draft_offered;
 				return result::pending;
@@ -33984,12 +33986,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		};
-		const auto go_on_to_reviewers = [&probe, implementation, &go_on_to_draft_state] {
+		const auto go_on_to_reviewers = [&probe, implementation, &goOnToDraftState] {
 			if (implementation->ReviewMutationHost->capabilities().RequestsReviewers) {
 				probe.Phase = state_type::phase::awaiting_reviewer_offered;
 				return result::pending;
 			}
-			return go_on_to_draft_state();
+			return goOnToDraftState();
 		};
 		const auto fail = [&probe](const std::string_view aWhy) {
 			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
@@ -34967,7 +34969,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				&& evidence.ReviewerShownAtOnce && evidence.ReviewerConfirmed && evidence.ReviewerRolledBack;
 			picker->hide();
 			QCoreApplication::processEvents();
-			return go_on_to_draft_state();
+			return goOnToDraftState();
 		}
 		// [[BPR-1852]]. The author of a draft sees it said in the title row and
 		// in Overview, with Ready for review in the banner and the Pull
