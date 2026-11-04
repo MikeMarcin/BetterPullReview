@@ -1,4 +1,5 @@
 #include "bpr/core/review_submission.hpp"
+#include "bpr/core/review_role.hpp"
 #include "bpr/core/utf8.hpp"
 
 #include <limits>
@@ -251,6 +252,28 @@ namespace bpr::core {
 			.NewReview = aDraft.State == state::submitted || aDraft.State == state::discarded,
 			.SubmitAs  = { submitsAs(review_disposition::comment), submitsAs(review_disposition::approve), submitsAs(review_disposition::request_changes) }
 		};
+	}
+
+	auto own_pull_request(const std::string_view aAuthor, const std::string_view aViewer) noexcept -> bool
+	{
+		return !aAuthor.empty() && !aViewer.empty() && same_login(aAuthor, aViewer);
+	}
+
+	auto verdict_open(const review_disposition aDisposition, const std::string_view aAuthor, const std::string_view aViewer) noexcept -> bool
+	{
+		return aDisposition == review_disposition::comment || !own_pull_request(aAuthor, aViewer);
+	}
+
+	auto controls(const review_submission_draft& aDraft, const std::string_view aAuthor, const std::string_view aViewer) noexcept -> review_submission_controls
+	{
+		auto result = controls(aDraft);
+		if (!own_pull_request(aAuthor, aViewer)) {
+			return result;
+		}
+		result.Authored = true;
+		result.Submit   = result.Submit && verdict_open(aDraft.Disposition, aAuthor, aViewer);
+		result.SubmitAs = { result.SubmitAs[0], false, false };
+		return result;
 	}
 
 	auto submits_as(const review_submission_controls& aControls, const review_disposition aDisposition) noexcept -> bool

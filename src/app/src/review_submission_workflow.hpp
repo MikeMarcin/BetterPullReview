@@ -32,6 +32,10 @@ namespace bpr::app {
 		/// context only: it never changes the draft, its disposition or its
 		/// attempt, and never submits.
 		void observe_preflight(application::review_preflight_observation);
+		/// [[BPR-1853]]. The pull request's author as the accepted read gave
+		/// it; empty when the read named none. The core compares it with the
+		/// draft's acting login: its author may only Comment.
+		void observe_author(std::string aAuthor);
 		/// [[BPR-1085]]. My unsent comment drafts and where each is. Selected
 		/// drafts bind a prepared decision.
 		void observe_selection(std::vector<core::review_preflight_draft>, std::map<std::string, qt::review_submission_preflight_reference>);
@@ -133,8 +137,10 @@ namespace bpr::app {
 		core::request_generation                                                      Generation;
 		std::uint64_t                                                                 NextDraft = 1U;
 		QString                                                                       Status;
-		bool                                                                          Ready   = false;
-		bool                                                                          Closing = false;
+		/// [[BPR-1853]]. The pull request's author, or empty when unknown.
+		std::string Author;
+		bool        Ready   = false;
+		bool        Closing = false;
 		/// [[BPR-1345]]. Start a review.
 		comment_lock                                          LockComments;
 		review_answer                                         Answer;

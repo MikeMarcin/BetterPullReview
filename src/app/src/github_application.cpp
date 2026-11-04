@@ -13646,6 +13646,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				TourPublication->adopt(binding, workbench_authority(aHandoff), factory, WindowRead->accepted_snapshot()->PullRequest.Body, true, insights_capture(aHandoff));
 #endif
 			}
+			// [[BPR-1853]]. Its author may only Comment; the core compares
+			// this with the account the review submits as.
+			const auto& author = WindowRead->accepted_snapshot()->PullRequest.Author;
+			ReviewSubmission->observe_author(author.has_value() ? author->Login : std::string{ });
 			ReviewSubmission->adopt(std::move(binding), workbench_authority(aHandoff), std::move(factory), insights_capture(aHandoff));
 			observe_review_preflight();
 		}

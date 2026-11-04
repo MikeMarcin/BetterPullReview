@@ -328,7 +328,9 @@ namespace bpr::app {
 		if (!Draft || !Ready || !Host || Context || Closing || Locking) {
 			return { };
 		}
-		auto result = core::controls(*Draft);
+		// [[BPR-1853]]. The signed-in account the draft submits as, against
+		// the pull request's author: GitHub takes only Comment from its author.
+		auto result = core::controls(*Draft, Author, DraftBinding ? std::string_view{ DraftBinding->ActingIdentity.Login } : std::string_view{ });
 		if (!Current || DraftBinding != std::optional{ Current->Binding }) {
 			result.Edit     = false;
 			result.Submit   = false;
@@ -341,6 +343,15 @@ namespace bpr::app {
 			result.SubmitAs = { };
 		}
 		return result;
+	}
+
+	void review_submission_workflow::observe_author(std::string aAuthor)
+	{
+		if (Closing || aAuthor == Author) {
+			return;
+		}
+		Author = std::move(aAuthor);
+		present();
 	}
 
 	void review_submission_workflow::observe_preflight(application::review_preflight_observation aObservation)
@@ -806,6 +817,11 @@ namespace bpr::app {
 				// says. It names no comment, so neither does the page.
 				if (result->Refusal == application::review_submission_refusal::unplaceable_line) {
 					Status = QStringLiteral("Not published: GitHub refused this review because one of its comments is on a line GitHub can't place in the pull request's diff, such as a line outside the changes. GitHub doesn't say which. Your summary and comments are kept: delete or edit that comment, then submit again.");
+				} else if (result->Refusal == application::review_submission_refusal::own_pull_request) {
+					// [[BPR-1853]]. The author was not known when it was sent,
+					// or GitHub knew better: say so, and what still works.
+					const auto verdict = refused.Proposal.Disposition == core::review_disposition::request_changes ? QStringLiteral("request changes on") : QStringLiteral("approve");
+					Status             = QStringLiteral("Not published: GitHub doesn't let you %1 your own pull request. %2").arg(verdict, refused.Proposal.Comments.empty() ? QStringLiteral("Your summary is kept; submit it as a comment instead.") : QStringLiteral("Your summary and comments are kept; submit them as a comment instead."));
 				} else if (result->Refusal == application::review_submission_refusal::review) {
 					Status = QStringLiteral("Not published: GitHub refused this review. Your summary and comments are kept; check them and submit again.");
 				}

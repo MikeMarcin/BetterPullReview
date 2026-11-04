@@ -193,6 +193,30 @@ auto main(int argc, char** argv) -> int
 			   && editor.disposition_button(core::review_disposition::comment)->isEnabled() && editor.disposition_button(core::review_disposition::approve)->isEnabled()
 			   && editor.disposition_button(core::review_disposition::request_changes)->isEnabled(),
 		   "the verdicts are buttons that submit, and with a summary each is offered");
+	{
+		// [[BPR-1853]]. On my own pull request the core offers Comment only:
+		// Approve and Request changes are shown, off, and say why.
+		qt::review_submission_editor own{ [](auto) { } };
+		auto                         authored = projection;
+		authored.Controls                     = core::controls(draft, "Reviewer", "reviewer");
+		own.present(authored);
+		auto* const comment = own.disposition_button(core::review_disposition::comment);
+		auto* const approve = own.disposition_button(core::review_disposition::approve);
+		auto* const changes = own.disposition_button(core::review_disposition::request_changes);
+		expect(comment->isEnabled() && !approve->isEnabled() && !changes->isEnabled() && !approve->isHidden() && !changes->isHidden(),
+			   "my own pull request offers Comment, with Approve and Request changes off");
+		expect(approve->toolTip() == QStringLiteral("You can't approve your own pull request. GitHub lets its author leave only a comment.")
+				   && changes->toolTip() == QStringLiteral("You can't request changes on your own pull request. GitHub lets its author leave only a comment.")
+				   && approve->accessibleDescription() == approve->toolTip() && changes->accessibleDescription() == changes->toolTip(),
+			   "each says why, to the eye and to assistive technology");
+		auto holding        = draft;
+		holding.Disposition = core::review_disposition::approve;
+		authored.Draft      = holding;
+		authored.Controls   = core::controls(holding, "reviewer", "reviewer");
+		own.present(authored);
+		expect(!own.submit_action()->isEnabled() && own.submit_action()->toolTip() == approve->toolTip() && comment->isEnabled(),
+			   "a draft holding Approve is not submitted on my own pull request, and Submit says why");
+	}
 	expect(editor.preflight_button()->isVisible() && editor.preflight_button()->toolTip() == QStringLiteral("Your feedback on this revision has not been read: unknown, not none."),
 		   "an unread preflight says unknown, never none");
 	expect(editor.status_label()->textFormat() == Qt::PlainText && editor.status_label()->textInteractionFlags().testFlag(Qt::TextSelectableByKeyboard), "outcomes are literal and keyboard copyable");

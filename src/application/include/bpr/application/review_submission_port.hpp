@@ -16,9 +16,12 @@ namespace bpr::application {
 	/// far as it is read: nothing (not refused, or not known), the review
 	/// refused, or a comment on a line GitHub cannot place in the diff.
 	/// GitHub's answer names no comment, so none is named here.
+	/// [[BPR-1853]]. `own_pull_request`: the author approved or requested
+	/// changes on their own pull request, which GitHub takes only as Comment.
 	enum class review_submission_refusal : std::uint8_t { none,
 														  review,
-														  unplaceable_line };
+														  unplaceable_line,
+														  own_pull_request };
 
 	/// \brief Retains complete request correlation even when no receipt is available.
 	struct review_submission_result
