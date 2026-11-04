@@ -645,18 +645,35 @@ that stops part-way refuses that start and the next start replays its journal.
 Reset settings then restores Home's queue display choices through the queue
 store, keeping saved repositories, servers and observer rules.
 
-[[BPR-1858]] Reset everything then forgets the profile's GitHub CLI
-connections. It keeps `remembered-connections.sqlite3` as a file and saves
-`core::forget_github_cli_connections` through the remembered-connection store:
-every server whose row is a CLI connection loses that row and its retired
-identities, as Forget would, while native rows and the identity high-water
-marks stay. The next start therefore has no CLI choice to restore, the absent
-row suppresses an older device grant on that server, and the person must choose
-**Use GitHub CLI** and answer its read consent again. The reset never runs or
+[[BPR-1858]] amends one BPR-1602 rule by the owner's decision `04ebe7a6` in
+attended-review session `bbad2aaf` (2026-11-04: "Reset everything, add a
+separate reset connections option on that page too."). BPR-1602 kept every
+credential out of the resets. Now **Reset connections** (scope 15) and **Reset
+everything** sign the profile out:
+
+- Core names `device-bindings` as the `connections` area, and
+  `profile_data_reset_signs_out` names the two resets.
+- The maintenance adapter treats them as it treats the purge's credential
+  step. Capture inspects the profile's credential inventory, the journal
+  records it, and replay deletes both slots of exactly the vault entries this
+  profile's device bindings name, through `release_profile_credentials`, before
+  the binding store's files go. Startup recovery finishes an interrupted one
+  the same way.
+- Without a vault, a sign-out reset over existing bindings refuses with
+  `unavailable` and removes nothing, so no entry is orphaned.
+- The startup reset reaches the profile's own platform vault on a worker it
+  owns and drains. A course reaches its fixture vault, never the keychain.
+- `remembered-connections.sqlite3` stays a file. The application saves
+  `core::forget_remembered_connections` into it: every row, native or GitHub
+  CLI, and every retired identity goes; the identity high-water marks stay, so
+  a forgotten identity cannot return as a new authority over review data that
+  Reset connections keeps.
+
+The next start has nothing to restore and opens at **Sign in to GitHub**. Using
+gh again needs **Use GitHub CLI** and its read consent. No reset runs or
 reconfigures gh: gh's own sign-in belongs to gh and to the other tools that use
-it. A sign-in made in the application (device grant, vault item, device
-binding) is still kept; Accounts & hosts signs it out. The outcome says whether
-a CLI connection was forgotten or could not be saved, and the notice says so.
+it. Reset connections keeps every other store. The outcome records whether the
+reset signed out or could not forget the connections, and the notice says so.
 
 ## Remembered connection metadata (RFC-BPR-0071)
 

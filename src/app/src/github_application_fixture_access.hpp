@@ -612,6 +612,15 @@ namespace bpr::app::detail {
 		std::shared_ptr<github_read_delay_fixture> ReadDelay;
 	};
 
+	/// \brief [[BPR-1858]]. The fixture vault a course's startup reset signs out
+	/// through: `SharedDeviceVault` (or an empty one) with the fixture
+	/// runtime's own refusals, on the caller's executor. Never a platform vault.
+	[[nodiscard]] auto make_github_fixture_reset_vault(application::effect_executor& aEffects, const github_public_path_fixture_options& aOptions)
+		-> std::unique_ptr<application::github_credential_vault_port>;
+	/// \brief [[BPR-1858]]. Whether the shared fixture vault still holds a
+	/// sign-in or refresh entry.
+	[[nodiscard]] auto github_fixture_vault_holds_entry(const std::shared_ptr<github_fixture_vault_state>& aState) -> bool;
+
 	struct queue_notification_fixture_evidence
 	{
 		std::size_t                                        RequestsAttempted                  = 0U;

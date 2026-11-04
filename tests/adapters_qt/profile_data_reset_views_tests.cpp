@@ -91,7 +91,8 @@ namespace {
 		auto* const page = window.settings()->page_widget(qt::settings_page::storage_and_privacy);
 		expect(page != nullptr && page->isAncestorOf(panel), "the group is on the Storage & privacy page");
 		for (const auto& [each, text] : { std::pair{ reset::caches, "Clear caches…" }, std::pair{ reset::settings, "Reset settings…" },
-										  std::pair{ reset::review_data, "Reset review data…" }, std::pair{ reset::everything, "Reset everything…" } }) {
+										  std::pair{ reset::review_data, "Reset review data…" }, std::pair{ reset::connections, "Reset connections…" },
+										  std::pair{ reset::everything, "Reset everything…" } }) {
 			auto* const button = panel->button(each);
 			expect(button != nullptr && button->text() == QString::fromUtf8(text), "each row's button names its reset");
 			expect(!button->accessibleDescription().isEmpty() && button->accessibleDescription().size() < 60, "each row says one short line");
@@ -158,16 +159,33 @@ namespace {
 		// Reset everything names the saved repositories and rules it clears.
 		auto* everything = open_question(*panel, reset::everything);
 		expect(everything->wording().Removes.join(QLatin1Char{ ' ' }).contains(QStringLiteral("saved repositories and servers, observer rules")), "Reset everything says it clears saved repositories, servers and observer rules");
-		// [[BPR-1858]]. It says it disconnects GitHub CLI but never signs gh out.
-		expect(everything->wording().Removes.contains(QStringLiteral("This profile’s GitHub CLI connection")), "Reset everything says it removes the GitHub CLI connection");
-		expect(everything->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")), "Reset everything says gh itself stays signed in");
+		// [[BPR-1858]]. It signs out of the app and GitHub CLI but never signs gh out.
+		expect(everything->wording().Removes.contains(QStringLiteral("Connections: sign-ins made in this app and their saved tokens, this profile’s GitHub CLI connection")),
+			   "Reset everything says it removes sign-ins made in the app and the GitHub CLI connection");
+		expect(everything->wording().Lead.contains(QStringLiteral("it signs out")) && everything->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")),
+			   "Reset everything says it signs out, and that gh itself stays signed in");
 		expect(everything->wording().Keeps.contains(QStringLiteral("GitHub CLI’s own sign-in, which other tools use")), "Reset everything keeps gh's own sign-in");
-		expect(everything->wording().Keeps.contains(QStringLiteral("Sign-ins made in this app (sign out in Accounts & hosts)")), "Reset everything keeps sign-ins made in the app");
-		expect(!everything->wording().Lead.contains(QStringLiteral("stay signed in")), "Reset everything no longer promises you stay signed in");
+		expect(!everything->wording().Keeps.join(QLatin1Char{ ' ' }).contains(QStringLiteral("made in this app")), "Reset everything no longer keeps sign-ins made in the app");
 		everything->acknowledge_box()->setChecked(true);
 		everything->confirm_button()->click();
 		settle();
 		expect(requests.size() == 3U && requests.back() == core::profile_data_reset_request{ reset::everything, true, true }, "Reset everything dispatches with its copy");
+
+		// [[BPR-1858]]. Reset connections signs out and keeps everything else; it
+		// loses nothing that exists only here, so it asks no acknowledgement.
+		auto* connections = open_question(*panel, reset::connections);
+		expect(connections->wording().Title == QStringLiteral("Reset connections for “Default”?"), "Reset connections names the profile");
+		expect(connections->wording().Removes.contains(QStringLiteral("Sign-ins made in this app, and their saved tokens"))
+				   && connections->wording().Removes.contains(QStringLiteral("This profile’s GitHub CLI connection")),
+			   "Reset connections says it removes the app's sign-ins and the GitHub CLI connection");
+		expect(connections->wording().Lead.contains(QStringLiteral("doesn’t sign you out of GitHub CLI itself")), "Reset connections says gh itself stays signed in");
+		expect(connections->wording().Keeps.contains(QStringLiteral("GitHub CLI’s own sign-in, which other tools use")) && connections->wording().Keeps.contains(QStringLiteral("Notes, drafts and read marks")),
+			   "Reset connections keeps gh's sign-in and review data");
+		expect(connections->copy_box() == nullptr && connections->acknowledge_box() == nullptr && connections->confirm_button()->isEnabled(), "Reset connections asks no acknowledgement and offers no copy");
+		expect(connections->cancel_button()->isDefault(), "Cancel is the default for Reset connections too");
+		connections->confirm_button()->click();
+		settle();
+		expect(requests.size() == 4U && requests.back() == core::profile_data_reset_request{ reset::connections }, "confirming Reset connections dispatches it");
 
 		// A refusal is said on the group; a completed reset on the status bar.
 		window.refuse_profile_data_reset(QStringLiteral("BetterPullReview is busy with this profile."));
@@ -184,13 +202,16 @@ namespace {
 			   "the notice names the copy folder");
 		expect(qt::profile_data_reset_notice({ reset::settings, reason::none, 4U, false, false }, { }).contains(QStringLiteral("Reset everything clears them")), "a queue display that could not be restored is said");
 		expect(qt::profile_data_reset_notice({ reset::review_data, reason::incomplete_inventory }, { }).contains(QStringLiteral("Nothing was removed")), "a refusal says nothing was removed");
-		auto disconnected                  = core::profile_data_reset_outcome{ reset::everything, reason::none, 40U };
-		disconnected.GithubCliDisconnected = true;
-		expect(qt::profile_data_reset_notice(disconnected, { }).contains(QStringLiteral("no longer uses GitHub CLI. GitHub CLI is still signed in")), "a forgotten CLI connection is said, and gh's own sign-in");
-		auto retained              = core::profile_data_reset_outcome{ reset::everything, reason::none, 40U };
-		retained.GithubCliRetained = true;
-		expect(qt::profile_data_reset_notice(retained, { }).contains(QStringLiteral("could not be forgotten. Sign out in Accounts & hosts")), "a CLI connection that could not be forgotten is said");
-		expect(qt::profile_data_reset_notice({ reset::everything, reason::none, 40U }, { }) == QStringLiteral("This profile was reset."), "with no CLI connection the notice promises nothing about sign-in");
+		for (const auto& [each, lead] : { std::pair{ reset::everything, "This profile was reset" }, std::pair{ reset::connections, "Connections reset" } }) {
+			auto signedOut      = core::profile_data_reset_outcome{ each, reason::none, 40U };
+			signedOut.SignedOut = true;
+			expect(qt::profile_data_reset_notice(signedOut, { }) == QString::fromUtf8(lead) + QStringLiteral(" and signed out. GitHub CLI itself is still signed in; choose Sign in or Use GitHub CLI to connect again."),
+				   "a reset that signed out says so, and that gh itself is still signed in");
+			auto retained                = core::profile_data_reset_outcome{ each, reason::none, 40U };
+			retained.ConnectionsRetained = true;
+			expect(qt::profile_data_reset_notice(retained, { }).contains(QStringLiteral("could not be forgotten. Sign out in Accounts & hosts")), "connections that could not be forgotten are said");
+			expect(qt::profile_data_reset_notice({ each, reason::none, 40U }, { }) == QString::fromUtf8(lead) + QStringLiteral("."), "with nothing signed in the notice promises nothing about sign-in");
+		}
 	}
 
 	void test_recovery_dialog()

@@ -3031,14 +3031,16 @@ selection change dismisses a stale dialog. Cancellation after preparation does
 not restart the profile, and an irreversible failure can require recovery.
 
 **Troubleshooting** ([[BPR-1602]]) closes the page: Clear caches, Reset
-settings, Reset review data and Reset everything, each a name, one short line and
+settings, Reset review data, Reset connections and Reset everything, each a name, one short line and
 a button. Its confirmation lists Removes and Keeps side by side, gates the two
 destructive resets on an acknowledgement, and offers a copy of the removed data
 first. A confirmed reset closes and reopens the profile's windows; the reopened
-status bar says what was reset. Reset everything also disconnects GitHub CLI
-([[BPR-1858]]): its Removes list names "This profile’s GitHub CLI
-connection", its Keeps list names GitHub CLI's own sign-in and sign-ins made in
-the app, and the profile reopens at Sign in to GitHub. A profile that cannot open offers the same
+status bar says what was reset. Reset connections, above Reset everything,
+signs the profile out and stops it using GitHub CLI while keeping its other
+data; Reset everything signs out too ([[BPR-1858]]). Each names the app's
+sign-ins with their saved tokens and "This profile’s GitHub CLI connection" in
+Removes and GitHub CLI's own sign-in in Keeps, asks no acknowledgement for
+Reset connections, and reopens at Sign in to GitHub. A profile that cannot open offers the same
 resets in a start-up dialog.
 
 The terminal distinguishes local export, cleared diagnostics, purged/stopped

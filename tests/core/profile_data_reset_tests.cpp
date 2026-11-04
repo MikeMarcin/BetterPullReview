@@ -19,7 +19,7 @@ namespace {
 		}
 	}
 
-	constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::everything };
+	constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::connections, reset::everything };
 
 	void test_store_areas()
 	{
@@ -34,7 +34,8 @@ namespace {
 		}
 		expect(profile_data_store_area("insights") == area::statistics, "Insights has its own lifetime statistics area");
 		expect(profile_data_store_area("review-queue") == area::saved_sources, "saved repositories and rules are their own area");
-		for (const auto store : { "device-bindings", "remembered-connections", "profile-registry", "release-update", "update-draft-recovery", "a-store-added-later", "", "review-ledger.sqlite3" }) {
+		expect(profile_data_store_area("device-bindings") == area::connections, "device bindings are connections [[BPR-1858]]");
+		for (const auto store : { "remembered-connections", "profile-registry", "release-update", "update-draft-recovery", "a-store-added-later", "", "review-ledger.sqlite3" }) {
 			expect(profile_data_store_area(store) == area::kept, "sign-in, shared and unknown stores are kept");
 		}
 		for (const auto folder : { "repositories", "incoming", "locks", "quarantine", "mcp-snapshot" }) {
@@ -63,7 +64,15 @@ namespace {
 		for (const auto narrower : { reset::caches, reset::settings, reset::review_data }) {
 			expect(!profile_data_reset_removes(narrower, area::statistics), "narrower resets keep Insights");
 		}
-		for (const auto removed : { area::caches, area::settings, area::review_data, area::saved_sources, area::statistics }) {
+		for (const auto narrower : { reset::caches, reset::settings, reset::review_data }) {
+			expect(!profile_data_reset_removes(narrower, area::connections) && !profile_data_reset_signs_out(narrower), "narrower resets keep sign-in");
+		}
+		expect(profile_data_reset_removes(reset::connections, area::connections) && profile_data_reset_signs_out(reset::connections), "Reset connections signs out");
+		for (const auto kept : { area::caches, area::settings, area::review_data, area::saved_sources, area::statistics }) {
+			expect(!profile_data_reset_removes(reset::connections, kept), "Reset connections keeps every other area");
+		}
+		expect(profile_data_reset_signs_out(reset::everything), "Reset everything signs out");
+		for (const auto removed : { area::caches, area::settings, area::review_data, area::saved_sources, area::statistics, area::connections }) {
 			expect(profile_data_reset_removes(reset::everything, removed), "Reset everything removes every resettable area");
 		}
 		for (const auto each : resets) {
@@ -72,12 +81,8 @@ namespace {
 		expect(!profile_data_reset_removes(static_cast<reset>(0), area::caches) && !profile_data_reset_removes(static_cast<reset>(9), area::caches),
 			   "an unknown reset removes nothing");
 		expect(profile_data_reset_restores_queue_display(reset::settings), "Reset settings restores the queue display choices");
-		for (const auto each : { reset::caches, reset::review_data, reset::everything }) {
+		for (const auto each : { reset::caches, reset::review_data, reset::connections, reset::everything }) {
 			expect(!profile_data_reset_restores_queue_display(each), "only Reset settings restores queue display in place");
-		}
-		expect(profile_data_reset_forgets_github_cli(reset::everything), "Reset everything forgets the GitHub CLI connection");
-		for (const auto each : { reset::caches, reset::settings, reset::review_data }) {
-			expect(!profile_data_reset_forgets_github_cli(each), "only Reset everything forgets the GitHub CLI connection");
 		}
 	}
 
@@ -91,8 +96,10 @@ namespace {
 		expect(admit_profile_data_reset({ reset::everything, true, true }) == reason::none, "acknowledged reset with a copy is admitted");
 		expect(admit_profile_data_reset({ reset::caches, false, true }) == reason::invalid_selection, "Clear caches offers no copy");
 		expect(admit_profile_data_reset({ static_cast<reset>(0), true }) == reason::invalid_selection, "an unknown reset is refused");
+		expect(admit_profile_data_reset({ reset::connections }) == reason::none, "Reset connections needs no acknowledgement");
+		expect(admit_profile_data_reset({ reset::connections, true, true }) == reason::invalid_selection, "Reset connections offers no copy");
 		expect(profile_data_reset_destructive(reset::review_data) && profile_data_reset_destructive(reset::everything)
-				   && !profile_data_reset_destructive(reset::caches) && !profile_data_reset_destructive(reset::settings),
+				   && !profile_data_reset_destructive(reset::caches) && !profile_data_reset_destructive(reset::settings) && !profile_data_reset_destructive(reset::connections),
 			   "only review data and everything are destructive");
 	}
 
@@ -102,6 +109,7 @@ namespace {
 			expect(profile_data_reset_from_name(profile_data_reset_name(each)) == each, "each name round-trips");
 		}
 		expect(profile_data_reset_name(reset::review_data) == "review-data", "the command line names review data with a hyphen");
+		expect(profile_data_reset_name(reset::connections) == "connections", "the command line names Reset connections");
 		expect(!profile_data_reset_from_name("review_data") && !profile_data_reset_from_name("Caches") && !profile_data_reset_from_name(""),
 			   "an unknown name selects nothing");
 		expect(profile_data_reset_name(static_cast<reset>(0)).empty(), "an unknown reset has no name");
