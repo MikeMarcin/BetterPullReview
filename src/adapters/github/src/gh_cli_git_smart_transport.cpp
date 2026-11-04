@@ -8,6 +8,7 @@
 
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QString>
 #include <QTemporaryDir>
 
 #include <algorithm>
@@ -18,6 +19,7 @@
 #include <cstdint>
 #include <expected>
 #include <fstream>
+#include <memory>
 #include <mutex>
 #include <optional>
 #include <span>
@@ -41,6 +43,42 @@ namespace bpr::adapters::github::detail {
 		{
 			const auto bytes = std::span{ reinterpret_cast<const std::uint8_t*>(aBytes.constData()), static_cast<std::size_t>(aBytes.size()) };
 			return core::git_blob_identity(bytes, core::git_hash_algorithm::sha1);
+		}
+
+		// [[BPR-1857]]. A path Git reads from an argument or a file: UTF-8 with
+		// forward slashes, which Git for Windows takes as it does a POSIX path.
+		// A narrow `string()` would throw on a non-ASCII Windows profile.
+		[[nodiscard]] auto git_path_text(const std::filesystem::path& aPath) -> std::string
+		{
+			const auto bytes = aPath.generic_u8string();
+			return { reinterpret_cast<const char*>(bytes.data()), bytes.size() };
+		}
+
+		/// [[BPR-1857]]. A new clone root directly inside the platform's one
+		/// admitted parent, or null when it cannot be made. On macOS that is
+		/// `/private/tmp`, as before; on Windows and Linux the canonical system
+		/// temporary directory.
+		[[nodiscard]] auto make_clone_root() -> std::unique_ptr<QTemporaryDir>
+		{
+			const auto parent = gh_cli_git_temporary_parent();
+			if (parent.empty()) {
+				return nullptr;
+			}
+			auto directory = std::make_unique<QTemporaryDir>(
+				QString::fromStdU16String((parent / "bpr-cli-git-XXXXXX").generic_u16string()));
+			if (!directory->isValid()) {
+				return nullptr;
+			}
+			return directory;
+		}
+
+		/// The canonical path of \p aDirectory, which a clone request admits
+		/// only when it is already canonical; empty when it cannot be resolved.
+		[[nodiscard]] auto clone_root_path(const QTemporaryDir& aDirectory) -> std::filesystem::path
+		{
+			std::error_code error;
+			auto            root = std::filesystem::canonical(std::filesystem::path{ aDirectory.path().toStdU16String() }, error);
+			return error ? std::filesystem::path{ } : root;
 		}
 
 		// Git 2.49 introduced clone --revision, which keeps acquisition on exact accepted IDs.
@@ -394,7 +432,7 @@ namespace bpr::adapters::github::detail {
 		private:
 			[[nodiscard]] auto scope() const -> std::string
 			{
-				return "--git-dir=" + gh_cli_git_clone_store(Root, 0U).string();
+				return "--git-dir=" + git_path_text(gh_cli_git_clone_store(Root, 0U));
 			}
 
 			std::unique_ptr<QTemporaryDir>           Directory;
@@ -887,12 +925,12 @@ namespace bpr::adapters::github::detail {
 			auto acquire_pack(const std::vector<core::git_commit_oid>& aWants, std::uint64_t aMaximum,
 							  git_smart_wire_consumer& aConsumer, std::stop_token aStop, git_smart_transport_step& aStep) -> git_smart_transport_result<void>
 			{
-				aStep = git_smart_transport_step::temporary_store;
-				QTemporaryDir directory{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
-				if (!directory.isValid()) {
+				aStep                = git_smart_transport_step::temporary_store;
+				const auto directory = make_clone_root();
+				const auto root      = directory ? clone_root_path(*directory) : std::filesystem::path{ };
+				if (root.empty()) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				const std::filesystem::path root{ directory.path().toStdString() };
 				std::filesystem::create_directory(root / "empty");
 				// Destruction reaps the worker before QTemporaryDir removes its store.
 				aStep        = git_smart_transport_step::process_runner;
@@ -921,12 +959,12 @@ namespace bpr::adapters::github::detail {
 			auto acquire_chain(const git_smart_chain_request& aRequest, std::stop_token aStop, git_smart_transport_step& aStep)
 				-> git_smart_transport_result<std::shared_ptr<git_chain_tree_store>>
 			{
-				aStep          = git_smart_transport_step::temporary_store;
-				auto directory = std::make_unique<QTemporaryDir>(QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX"));
-				if (!directory->isValid()) {
+				aStep                = git_smart_transport_step::temporary_store;
+				auto       directory = make_clone_root();
+				const auto root      = directory ? clone_root_path(*directory) : std::filesystem::path{ };
+				if (root.empty()) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				const std::filesystem::path root{ directory->path().toStdString() };
 				std::filesystem::create_directory(root / "empty");
 				aStep        = git_smart_transport_step::process_runner;
 				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
@@ -987,7 +1025,7 @@ namespace bpr::adapters::github::detail {
 					const auto hex = std::string{ core::canonical_hex(commit).view() };
 					names.append(hex).append("\n").append(hex).append("^{tree}\n");
 				}
-				auto       check   = compile_gh_cli_local_git_request(Git, root, { "--git-dir=" + gh_cli_git_clone_store(root, 0U).string(), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
+				auto       check   = compile_gh_cli_local_git_request(Git, root, { "--git-dir=" + git_path_text(gh_cli_git_clone_store(root, 0U)), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
 																	  names, chain_output_limit);
 				const auto checked = process->run(check, aStop);
 				if (!checked) {
@@ -1020,12 +1058,12 @@ namespace bpr::adapters::github::detail {
 			auto acquire_snapshot(const core::git_commit_oid& aHead, std::stop_token aStop, git_smart_transport_step& aStep)
 				-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>>
 			{
-				aStep          = git_smart_transport_step::temporary_store;
-				auto directory = std::make_unique<QTemporaryDir>(QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX"));
-				if (!directory->isValid()) {
+				aStep                = git_smart_transport_step::temporary_store;
+				auto       directory = make_clone_root();
+				const auto root      = directory ? clone_root_path(*directory) : std::filesystem::path{ };
+				if (root.empty()) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				const std::filesystem::path root{ directory->path().toStdString() };
 				std::filesystem::create_directory(root / "empty");
 				aStep        = git_smart_transport_step::process_runner;
 				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
@@ -1082,7 +1120,7 @@ namespace bpr::adapters::github::detail {
 				aStep             = git_smart_transport_step::object_check;
 				const auto store  = gh_cli_git_clone_store(root, 0U);
 				const auto hex    = std::string{ core::canonical_hex(aHead).view() };
-				const auto scope  = "--git-dir=" + store.string();
+				const auto scope  = "--git-dir=" + git_path_text(store);
 				const auto commit = process->run(local_request(root, { scope, "cat-file", "-t", hex }), aStop);
 				const auto tree   = process->run(local_request(root, { scope, "cat-file", "-t", hex + "^{tree}" }), aStop);
 				if (!commit || !tree) {
@@ -1239,7 +1277,7 @@ namespace bpr::adapters::github::detail {
 					}
 					if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
 						aStep             = git_smart_transport_step::object_check;
-						const auto scope  = "--git-dir=" + gh_cli_git_clone_store(root, index).string();
+						const auto scope  = "--git-dir=" + git_path_text(gh_cli_git_clone_store(root, index));
 						const auto oid    = std::string{ core::canonical_hex(aWants[index]).view() };
 						const auto commit = process->run(local_request(root, { scope, "cat-file", "-t", oid }), aStop);
 						const auto tree   = process->run(local_request(root, { scope, "cat-file", "-t", oid + "^{tree}" }), aStop);
@@ -1277,7 +1315,7 @@ namespace bpr::adapters::github::detail {
 				std::string alternates;
 				std::string revisions;
 				for (std::size_t index = 0U; index < aWants.size(); ++index) {
-					alternates += (gh_cli_git_clone_store(root, index) / "objects").string() + "\n";
+					alternates += git_path_text(gh_cli_git_clone_store(root, index) / "objects") + "\n";
 					revisions += std::string{ core::canonical_hex(aWants[index]).view() } + "\n";
 				}
 				write(store / "objects/info/alternates", alternates);
@@ -1292,7 +1330,7 @@ namespace bpr::adapters::github::detail {
 				if (!packProcess) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				std::vector<std::string> packArguments{ "--git-dir=" + store.string(), "pack-objects", "--stdout", "--revs", "--quiet" };
+				std::vector<std::string> packArguments{ "--git-dir=" + git_path_text(store), "pack-objects", "--stdout", "--revs", "--quiet" };
 				if (Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees) {
 					packArguments.emplace_back("--filter=blob:none");
 				}

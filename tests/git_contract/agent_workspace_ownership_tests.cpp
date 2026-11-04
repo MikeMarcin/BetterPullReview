@@ -112,6 +112,18 @@ auto main(int argc, char** argv) -> int
 			registry = data / "agent-workspace-ownership-v1";
 		}
 #endif
+		if (phase == "recover-check") {
+			// [[BPR-1857]]. A refusal names the check and the folder it refused.
+			auto       refusal = git::workspace_recovery_refusal{ };
+			const auto result  = git::recover_installed_agent_workspaces(registry, neighbourhood, { }, &refusal);
+			if (result) {
+				std::cout << "recovered=" << result->Recovered << " live=" << result->Live << '\n';
+			} else {
+				std::cout << "failure=" << static_cast<int>(result.error()) << " check=" << git::workspace_refusal_check_name(refusal.Check)
+						  << " folder=" << std::filesystem::relative(refusal.Folder, root).generic_string() << '\n';
+			}
+			return 0;
+		}
 		if (phase == "recover" || phase == "cancelled") {
 			std::stop_source stop;
 			if (phase == "cancelled") {

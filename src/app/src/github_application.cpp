@@ -465,6 +465,50 @@ namespace bpr::app {
 			}
 			return "unavailable";
 		}
+		/// [[BPR-1857]]. What a startup refusal says to the reviewer: which check
+		/// refused, the folder or file it refused, and what they can do. The
+		/// general sentence said "needs repair or has reached its limit" for a
+		/// dozen different findings and named no folder. Nothing here is moved,
+		/// changed or deleted; the reviewer decides.
+		[[nodiscard]] auto agent_workspace_refusal_text(const adapters::git::workspace_recovery_refusal& aRefusal) -> QString
+		{
+			using check        = adapters::git::workspace_refusal_check;
+			const auto folder  = QDir::toNativeSeparators(QString::fromStdU16String(aRefusal.Folder.u16string()));
+			const auto account = QString::fromUtf8(aRefusal.Account.data(), static_cast<qsizetype>(aRefusal.Account.size()));
+			const auto lead    = QStringLiteral("Disposable agent workspaces are unavailable: ");
+			switch (aRefusal.Check) {
+			case check::none:
+				break;
+			case check::invalid_path:
+				return lead + QStringLiteral("their folder %1 is not a usable path.").arg(folder);
+			case check::neighbourhood_parent_shared:
+				if (account.startsWith(QStringLiteral("owner "))) {
+					return lead + QStringLiteral("%1 is owned by %2, not by you, so a workspace kept in it could be replaced. Take ownership of that folder, then restart.").arg(folder, account.mid(6));
+				}
+				return lead + (account.isEmpty() ? QStringLiteral("another account can change %1, so a workspace kept in it could be replaced. Remove other accounts' write access to that folder, or ask your administrator, then restart.").arg(folder) : QStringLiteral("%2 can change %1, so a workspace kept in it could be replaced. Remove that account's write access to the folder, or ask your administrator, then restart.").arg(folder, account));
+			case check::neighbourhood_not_private:
+				return lead + QStringLiteral("%1 is not private to you. Rename it aside and restart; a new private folder is made in its place.").arg(folder);
+			case check::neighbourhood_not_created:
+				return lead + QStringLiteral("%1 could not be created. Check that the folder above it exists and you can write to it, then restart.").arg(folder);
+			case check::data_folder_not_private:
+				return lead + QStringLiteral("the data folder %1 is not private to you.").arg(folder);
+			case check::registry_not_private:
+				return lead + QStringLiteral("their record folder %1 is not private to you or could not be made. Rename it aside and restart.").arg(folder);
+			case check::registry_unexpected_entry:
+				return lead + QStringLiteral("%1 is not a workspace record. Move it out of that folder, then restart.").arg(folder);
+			case check::unrecorded_leftover:
+				return lead + QStringLiteral("%1 is a workspace no record accounts for. It is kept, not deleted; move it out of that folder, then restart.").arg(folder);
+			case check::record_not_private:
+				return lead + QStringLiteral("the workspace record %1 is not private to you or cannot be opened. Move it out of its folder, then restart.").arg(folder);
+			case check::record_unreadable:
+				return lead + QStringLiteral("the workspace that record %1 names could not be read back or cleaned up exactly, so it is kept. Move the record and its workspace out of their folders, then restart.").arg(folder);
+			case check::limit_reached:
+				return lead + QStringLiteral("%1 holds more entries than the limit. Move old workspaces out of it, then restart.").arg(folder);
+			case check::lock_unavailable:
+				return lead + QStringLiteral("%1 is locked by another process. Close other BetterPullReview windows, then restart.").arg(folder);
+			}
+			return { };
+		}
 		using adapters::github::github_host_profile_candidate;
 		using adapters::github::github_profile_provenance;
 		using adapters::github::make_live_review_mutation_provider;
@@ -6029,9 +6073,10 @@ namespace bpr::app {
 			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);
 			try {
 				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
-					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
+					auto found     = adapters::git::workspace_recovery_refusal{ };
+					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood, { }, &found);
 					try {
-						DecisionLane.post([this, result = std::move(recovered)] {
+						DecisionLane.post([this, result = std::move(recovered), refusal = std::move(found)] {
 							// [[BPR-0817]]. A refusal is decided here, at startup, and it
 							// is not a failure of the quit. So it no longer sets the
 							// cleanup flag that a real quit turns into exit 1. Every
@@ -6041,8 +6086,12 @@ namespace bpr::app {
 							if (!result) {
 								AgentWorkspaceRecoveryFailure = static_cast<int>(result.error());
 								AgentWorkspaceRecoveryRefused = true;
+								// [[BPR-1857]]. The check that refused rides the
+								// line; the folder stays out of it, as before.
+								AgentWorkspaceRecoveryReason = agent_workspace_refusal_text(refusal);
 								bpr::app::detail::terminal_text_stream{ } << "AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:"
-																		  << QString::fromStdString(named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure)) << '\n';
+																		  << QString::fromStdString(named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure))
+																		  << ":check=" << QString::fromUtf8(adapters::git::workspace_refusal_check_name(refusal.Check)) << '\n';
 							}
 							// [[BPR-0808]]. Recovery is profile work, but its refusal is
 							// presented by every window: those open now, and any opened
@@ -6857,6 +6906,9 @@ namespace bpr::app {
 		// reported in the status, and it is not a cleanup failure of the quit.
 		int  AgentWorkspaceRecoveryFailure = -1;
 		bool AgentWorkspaceRecoveryRefused = false;
+		/// [[BPR-1857]]. What the refusal says to the reviewer: the check, the
+		/// folder and what to do. Empty keeps the general sentence.
+		QString AgentWorkspaceRecoveryReason;
 		// Dependents are destroyed before their retained ports and execution lanes.
 		std::unique_ptr<application::github_application_host> Host;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -8217,9 +8269,10 @@ namespace bpr::app {
 			}
 			// [[BPR-0817]]. The status bar says it on Home, which does not show the
 			// agent panel. The panel still says why nothing started.
-			Window->set_agent_workspaces_unavailable(true);
+			Window->set_agent_workspaces_unavailable(true, Profile ? Profile->AgentWorkspaceRecoveryReason : QString{ });
 			if (Window->agent_panel() != nullptr) {
-				Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
+				// [[BPR-1857]]. The panel says the same reason as the status line.
+				Window->agent_panel()->refuse(Window->agent_workspaces_problem_text().toStdString());
 			}
 		}
 		void cancel_restoration(bool aStartup, bool aReadingGesture = false)

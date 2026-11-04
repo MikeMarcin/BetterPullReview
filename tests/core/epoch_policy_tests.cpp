@@ -37,6 +37,13 @@ namespace {
 			   "unsupported GitHub CLI operations retain their actionable reason");
 		expect(reason_for(epoch_failure::gh_tool_probe_failed) == epoch_reason_code::gh_tool_probe_failed,
 			   "a failed GitHub CLI check is distinct from unsupported operations and from Git");
+		// [[BPR-1857]]. Each fetch failure keeps its own reason.
+		expect(reason_for(epoch_failure::fetch_sign_in_refused) == epoch_reason_code::fetch_sign_in_refused
+				   && reason_for(epoch_failure::fetch_network) == epoch_reason_code::fetch_network
+				   && reason_for(epoch_failure::fetch_limit) == epoch_reason_code::fetch_limit
+				   && reason_for(epoch_failure::fetch_failed) == epoch_reason_code::fetch_failed
+				   && reason_for(epoch_failure::fetch_storage) == epoch_reason_code::fetch_storage,
+			   "each fetch failure keeps its own reason rather than collapsing into unavailable");
 	}
 
 	auto test_sha256_known_vectors() -> void

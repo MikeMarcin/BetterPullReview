@@ -7873,6 +7873,19 @@ namespace {
 				   && stale.contains(QStringLiteral("selected file changed"))
 				   && unavailable != stale,
 			   "an unavailable comparison gives actionable recovery without claiming the selected file changed");
+
+		// [[BPR-1857]]. When review history failed for a stated reason, the
+		// file's own sentence says that reason instead of only pointing there.
+		window.epoch_selectors()->publish(application::epoch_presentation_update{
+			.Transition = application::epoch_transition_projection{
+				.Status      = core::epoch_status_delta{ .Status = core::epoch_status::failed },
+				.Diagnostics = { core::epoch_diagnostic{ .Code = core::epoch_reason_code::fetch_storage } },
+			},
+		});
+		window.fail({ .Failure = application::workbench_host_failure::selected_file_comparison_unavailable });
+		expect(window.status_text().contains(QStringLiteral("No exact comparison is ready for this file."))
+				   && window.status_text().contains(QStringLiteral("A temporary folder for the pull request's commits could not be made or written.")),
+			   "a file that cannot open names review history's failure reason");
 	}
 
 	/// [[BPR-0742]]. An unavailable saved layout is retained window state, not a

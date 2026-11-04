@@ -97,6 +97,10 @@ namespace bpr::qt {
 		/// \brief Whether the accepted comparison can serve a selected diff.
 		[[nodiscard]] auto comparison_available() const noexcept -> bool;
 		[[nodiscard]] auto comparison_text() const -> QString;
+		/// \brief [[BPR-1857]]. Why no comparison is ready, in the same words
+		/// the details give: the comparison's own reason, else the history's,
+		/// else the last diagnostic's. Empty when none is recorded.
+		[[nodiscard]] auto problem_text() const -> QString;
 		[[nodiscard]] auto statistics() const noexcept
 			-> epoch_comparison_control_statistics;
 
