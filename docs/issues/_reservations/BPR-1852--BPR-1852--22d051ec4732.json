@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1852"
+  ],
+  "reserve_for": "draft-pr-publish",
+  "purpose": "Make draft state clear and publish draft PR from app",
+  "created": "2026-11-04T02:51:07.781048+00:00",
+  "base": "fcfc78ff5d229e1fc36a0c8154d3cd6f76cbd448"
+}
