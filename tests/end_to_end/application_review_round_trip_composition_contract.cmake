@@ -1,3 +1,9 @@
+# [[BPR-1857]] reseal (2026-11-04), over 33e1e088a. github_application.cpp
+# only: startup agent-workspace recovery passes a refusal record, prints its
+# check name on the existing path-omitted terminal line, and hands each window
+# a sentence naming the check, folder and account (agent_workspace_refusal_text).
+# No provider, credential, grant, mutation branch or source-inventory change;
+# the production mutation-branch pin is unchanged.
 # [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
 # The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
 # profile activity store/timer/notification host and accepted-session adoption,
@@ -2607,7 +2613,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-        "e2976513d180c1ee228a298cc9778ec2b8f92a915265662b4e443cea03d23085"
+        "d2deffa2a7fa2cc0cee47e6af1089703eae4cef6497508fdaa19e9be5fd87a01"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2918,7 +2924,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "515641c19facc173a2b01649215cc3b0265af7ec59038ec4e8606a536fabb7c8"
+        "946fa269a323fda27012fb901f63b26f9f30c31c83ae8af5e7ffc8f5d663f21a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
