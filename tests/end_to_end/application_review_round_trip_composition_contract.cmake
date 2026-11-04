@@ -2915,10 +2915,15 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1833]]. Only the fixture setup described at the full application
 # digest changes. The production mutation branch and source inventory stay
 # exact; this content reseal supplies no native acceptance by itself.
+# [[BPR-1858]] Reset everything reseal (2026-11-04): profile_data_reset.{hpp,cpp}
+# forget the profile's GitHub CLI connections in remembered-connections after
+# the reset's files go, and github_application_fixture_access.hpp hands a
+# course the startup reset report. No grant, credential, vault, gh process,
+# admission, mutation, publication or source-inventory change.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "515641c19facc173a2b01649215cc3b0265af7ec59038ec4e8606a536fabb7c8"
+        "cafc22c6a6b1f8c7063d61e23271d67d3e6f141e2986aa3a608dcaf22405f3c7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
