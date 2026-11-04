@@ -5955,7 +5955,7 @@ namespace bpr::adapters::github::detail {
 			if (aObserver != nullptr && !aStop.stop_requested()
 				&& application::detail::validate_repository(*repository, overviewBudget, aLimits.Records) == application::github_read_validation_error::none
 				&& application::detail::validate_pull_request(pullRequest->Record, overviewBudget, aLimits.Records) == application::github_read_validation_error::none) {
-				aObserver->overview_observed({ aRequest.Context, *repository, pullRequest->Record, expectedFiles, std::nullopt });
+				aObserver->overview_observed({ aRequest.Context, *repository, pullRequest->Record, expectedFiles, std::nullopt, std::nullopt });
 			}
 			application::github_pull_request_snapshot result{
 				.Profile = aRequest.ProfileAuthority.Profile,
@@ -6007,7 +6007,7 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1842]]. The file list is the first part a reviewer reads, so
 			// it is observed as soon as it is complete, again without authority.
 			if (aObserver != nullptr && !aStop.stop_requested()) {
-				aObserver->overview_observed({ aRequest.Context, result.Repository, result.PullRequest, expectedFiles, result.Files });
+				aObserver->overview_observed({ aRequest.Context, result.Repository, result.PullRequest, expectedFiles, result.Files, std::nullopt });
 			}
 
 			if (const auto commits = read_rest_array_collection(
@@ -6050,6 +6050,24 @@ namespace bpr::adapters::github::detail {
 																aLimits);
 				!graphql.has_value()) {
 				return std::unexpected{ execution.enrich(graphql.error()) };
+			}
+			// [[BPR-1851]]. The conversation a reviewer reads beside the file on
+			// screen is complete here, ahead of the comments, checks, policy and
+			// history still to come, so a refresh can show it first. Observed only
+			// when the threads were read, after the file list, without authority,
+			// and only for a refresh: a first open has nothing to lay it over.
+			if (aObserver != nullptr && !aStop.stop_requested() && aRequest.Context.ExpectedPullRequest.has_value()
+				&& result.ReviewThreadsAvailability == application::github_collection_availability::available) {
+				aObserver->overview_observed({ .Context       = aRequest.Context,
+											   .Repository    = result.Repository,
+											   .PullRequest   = result.PullRequest,
+											   .ReportedFiles = expectedFiles,
+											   .Files         = result.Files,
+											   .Conversation  = application::github_pull_request_overview_observation::conversation{
+												   .Reviews                   = result.Reviews,
+												   .ReviewThreadsAvailability = result.ReviewThreadsAvailability,
+												   .ReviewThreads             = result.ReviewThreads,
+												   .ConversationLock          = result.ConversationLock } });
 			}
 
 			// The inline review conversation is read over REST only under the

@@ -59,6 +59,8 @@ namespace bpr::qt {
 		constexpr qreal sweep_step  = 0.04;
 		constexpr qreal sweep_span  = 1.3;
 		constexpr qreal sweep_width = 0.3;
+		// [[BPR-1851]]. Room a plate keeps beyond its words' measured advance.
+		constexpr int plate_text_slack = 4;
 
 		class pending_veil_accessible final : public QAccessibleWidget
 		{
@@ -333,8 +335,10 @@ namespace bpr::qt {
 		}
 		case core::pending_look::partial: {
 			const auto metrics = QFontMetrics{ font() };
-			const auto text    = std::min(metrics.horizontalAdvance(Words.Coming), std::max(0, width() - (4 * inset) - line));
-			const auto plate   = QRect{ inset, height() - line - 12 - 8, line + 8 + text + 20, line + 12 };
+			// [[BPR-1851]]. A little room beyond the words' advance: measured
+			// exactly, eliding them to that width dropped their last letter.
+			const auto text  = std::min(metrics.horizontalAdvance(Words.Coming) + plate_text_slack, std::max(0, width() - (4 * inset) - line));
+			const auto plate = QRect{ inset, height() - line - 12 - 8, line + 8 + text + 20, line + 12 };
 			return plate;
 		}
 		case core::pending_look::refreshing_slow: {

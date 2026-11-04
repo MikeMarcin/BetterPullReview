@@ -7,6 +7,7 @@
 #include "bpr/core/sha256.hpp"
 #include "github_projection_mapping.hpp"
 #include <algorithm>
+#include <array>
 #include <atomic>
 #include <limits>
 #include <mutex>
@@ -430,17 +431,7 @@ namespace bpr::application {
 					presentation.Session = project_github_session(*aSession);
 				}
 				if (aSnapshot != nullptr) {
-					presentation.PullRequest                  = project_github_pull_request(*aSnapshot);
-					presentation.PullRequest->MarkdownContext = markdown_identity();
-					if (AcceptedProfileAuthority) {
-						presentation.PullRequest->Hostname = std::string{ AcceptedProfileAuthority->Hostname.value() };
-					}
-					MarkdownBodies.clear();
-					for (const auto& body : presentation.PullRequest->Conversations) {
-						if (!body.Deleted) {
-							MarkdownBodies.insert(body.Id);
-						}
-					}
+					presentation.PullRequest = project_accepted_snapshot(*aSnapshot);
 				}
 				if (error && (error->RetryAfterSeconds || has_observations(error->RateLimits))) {
 					presentation.HostDiagnostics.push_back(project_github_host_diagnostic({
@@ -454,6 +445,23 @@ namespace bpr::application {
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
 			}
+		}
+		/// \brief The projection of an accepted snapshot, stamped with this
+		/// window's publication, whose bodies become the ones links may open.
+		[[nodiscard]] auto project_accepted_snapshot(const github_pull_request_snapshot& aSnapshot) -> github_pull_request_projection
+		{
+			auto projection            = project_github_pull_request(aSnapshot);
+			projection.MarkdownContext = markdown_identity();
+			if (AcceptedProfileAuthority) {
+				projection.Hostname = std::string{ AcceptedProfileAuthority->Hostname.value() };
+			}
+			MarkdownBodies.clear();
+			for (const auto& body : projection.Conversations) {
+				if (!body.Deleted) {
+					MarkdownBodies.insert(body.Id);
+				}
+			}
+			return projection;
 		}
 		void publish_and_execute(const core::github_transition_output& aOutput)
 		{
@@ -934,14 +942,15 @@ namespace bpr::application {
 											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
 			-> github_pull_request_overview_handler
 		{
-			// [[BPR-1842]]. Two observations at most, in order: the metadata,
-			// then the complete file list.
+			// [[BPR-1842]]. Three observations at most, in order: the metadata,
+			// the complete file list, and ([[BPR-1851]]) a refresh's conversation.
 			auto posted = std::make_shared<std::atomic<std::uint8_t>>(std::uint8_t{ 0U });
-			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted](github_pull_request_overview_observation aObservation) {
+			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted, digests = BodyDigests](github_pull_request_overview_observation aObservation) {
 				if (aObservation.Context != aContext || aTerminal->load()) {
 					return;
 				}
-				const auto stage = aObservation.Files ? std::uint8_t{ 2U } : std::uint8_t{ 1U };
+				const auto stage = aObservation.Conversation ? std::uint8_t{ 3U } : aObservation.Files ? std::uint8_t{ 2U }
+																									   : std::uint8_t{ 1U };
 				auto       prior = posted->load();
 				do {
 					if (prior + 1U != stage) {
@@ -952,12 +961,32 @@ namespace bpr::application {
 				if (!host) {
 					return;
 				}
+				// [[BPR-1447]]. As a completion's are: here, on the provider's
+				// thread, so the window thread hashes none of these bodies.
+				if (auto& conversation = aObservation.Conversation; conversation && digests != nullptr) {
+					try {
+						auto bodies                       = github_pull_request_snapshot{ };
+						bodies.ReviewThreadsAvailability  = conversation->ReviewThreadsAvailability;
+						bodies.ReviewThreads              = std::move(conversation->ReviewThreads);
+						bodies.Reviews                    = std::move(conversation->Reviews);
+						auto taken                        = digest_feedback_bodies(bodies, *digests);
+						conversation->ReviewThreads       = std::move(bodies.ReviewThreads);
+						conversation->Reviews             = std::move(bodies.Reviews);
+						conversation->FeedbackBodyDigests = std::move(taken);
+					} catch (...) {
+						return;
+					}
+				}
 				++host->Outstanding;
 				try {
 					lane->post([weak, aToken, observation = std::move(aObservation)] {
 						if (auto current = weak.lock()) {
 							--current->Outstanding;
-							current->publish_overview(aToken, observation);
+							if (observation.Conversation) {
+								current->publish_conversation(aToken, observation);
+							} else {
+								current->publish_overview(aToken, observation);
+							}
 						}
 					});
 				} catch (...) {
@@ -981,6 +1010,56 @@ namespace bpr::application {
 					return;
 				}
 				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, github_presentation_update{ .LoadingOverview = std::move(projection) } });
+			} catch (...) {
+				ProjectionDeliveryFailed = true;
+			}
+		}
+
+		/// \brief [[BPR-1851]]. A refresh's conversation, laid over the accepted
+		/// snapshot when the lane admits it, and published at once.
+		/// \details The accepted snapshot keeps its identity, its files, commits,
+		/// comments, checks and everything else the refresh has not reached yet;
+		/// only its reviews and review threads become this refresh's. Its
+		/// command and epoch authority are unchanged, so nothing is handed to
+		/// the epoch or to sibling windows: the refresh's own acceptance does
+		/// that, as before.
+		void publish_conversation(const std::uint64_t aToken, const github_pull_request_overview_observation& aObservation)
+		{
+			if (Closing || !Publish || SuppressPublication || aToken != ProviderOperationToken || !PendingProvider
+				|| PendingProvider->Context != aObservation.Context || !AcceptedSnapshot || !aObservation.Conversation) {
+				return;
+			}
+			try {
+				const auto& accepted     = *AcceptedSnapshot;
+				const auto& conversation = *aObservation.Conversation;
+				const auto  facts        = core::github_conversation_observation_facts{
+					.ThreadsAvailable = conversation.ReviewThreadsAvailability == github_collection_availability::available,
+					.SamePullRequest  = accepted.Repository.Repository == aObservation.Repository.Repository
+						&& accepted.PullRequest.PullRequest == aObservation.PullRequest.PullRequest,
+					.SameHead = accepted.PullRequest.HeadOid == aObservation.PullRequest.HeadOid,
+					.SameBase = accepted.PullRequest.BaseOid == aObservation.PullRequest.BaseOid
+						&& accepted.PullRequest.BaseRef == aObservation.PullRequest.BaseRef,
+					.SameMode = accepted.Mode == aObservation.Context.Mode,
+				};
+				auto refreshed                      = accepted;
+				refreshed.Reviews                   = conversation.Reviews;
+				refreshed.ReviewThreadsAvailability = conversation.ReviewThreadsAvailability;
+				refreshed.ReviewThreads             = conversation.ReviewThreads;
+				refreshed.ConversationLock          = conversation.ConversationLock;
+				const std::array<const github_feedback_body_digests*, 2> known{ &conversation.FeedbackBodyDigests, &accepted.FeedbackBodyDigests };
+				refreshed.FeedbackBodyDigests = assemble_feedback_body_digests(refreshed, known);
+				if (!validate(refreshed, aObservation.Context).valid()
+					|| !Policy.accept_conversation_observation(Policy.window(), aObservation.Context, facts)) {
+					return;
+				}
+				AcceptedSnapshot = std::move(refreshed);
+				if (MarkdownRevision != std::numeric_limits<std::uint64_t>::max()) {
+					++MarkdownRevision;
+				} else {
+					MarkdownExhausted = true;
+				}
+				auto presentation = github_presentation_update{ .PullRequest = project_accepted_snapshot(*AcceptedSnapshot), .PreserveWindowNavigation = true, .ConversationRefreshed = true };
+				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, std::move(presentation) });
 			} catch (...) {
 				ProjectionDeliveryFailed = true;
 			}
