@@ -718,7 +718,7 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto needs_repository(const read_operation aOperation) noexcept
 			-> bool
 		{
-			return aOperation != read_operation::get_viewer_identity;
+			return aOperation != read_operation::get_viewer_identity && aOperation != read_operation::list_notifications;
 		}
 
 		[[nodiscard]] auto needs_pull_request_number(
@@ -746,6 +746,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
 			case read_operation::get_viewer_identity:
+			case read_operation::list_notifications:
 			case read_operation::get_repository:
 			case read_operation::list_commit_statuses:
 			case read_operation::list_checks:
@@ -787,6 +788,7 @@ namespace bpr::adapters::github::detail {
 			case read_operation::get_team_membership:
 			case read_operation::list_home_pull_requests:
 			case read_operation::list_reactions:
+			case read_operation::list_notifications:
 				return 1U;
 			case read_operation::list_home_review_membership:
 			case read_operation::list_review_requests:
@@ -808,6 +810,37 @@ namespace bpr::adapters::github::detail {
 		{
 			return std::ranges::find(all_read_operations, aOperation)
 				!= all_read_operations.end();
+		}
+
+		/// [[BPR-1850]]. An IMF-fixdate, `Sun, 06 Nov 1994 08:49:37 GMT`: the
+		/// only `Last-Modified` form GitHub sends and the only one sent back.
+		[[nodiscard]] auto http_date_value(const std::string_view aValue) noexcept -> bool
+		{
+			constexpr auto shape = std::string_view{ "AAA, 00 AAA 0000 00:00:00 GMT" };
+			if (aValue.size() != shape.size()) {
+				return false;
+			}
+			for (std::size_t index = 0U; index < shape.size(); ++index) {
+				const auto byte = aValue[index];
+				switch (shape[index]) {
+				case 'A':
+					if (!((byte >= 'A' && byte <= 'Z') || (byte >= 'a' && byte <= 'z'))) {
+						return false;
+					}
+					break;
+				case '0':
+					if (byte < '0' || byte > '9') {
+						return false;
+					}
+					break;
+				default:
+					if (byte != shape[index]) {
+						return false;
+					}
+					break;
+				}
+			}
+			return true;
 		}
 
 		[[nodiscard]] auto unsafe_header_name(const std::string_view aName) noexcept
@@ -1893,6 +1926,8 @@ namespace bpr::adapters::github::detail {
 			// [[BPR-1680]]. Read and bound by its own production reader.
 			case read_operation::list_home_review_membership:
 			case read_operation::list_home_pull_requests:
+			// [[BPR-1850]]. Read and bound by its own production reader.
+			case read_operation::list_notifications:
 				return false;
 			case read_operation::get_viewer_identity:
 				return validate_viewer_fixture(aDocument);
@@ -1976,6 +2011,7 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_home_pull_requests:     return "ListHomePullRequests";
 		case read_operation::resolve_body_images:         return "ResolveBodyImages";
 		case read_operation::list_reactions:              return "ListReactions";
+		case read_operation::list_notifications:          return "ListNotifications";
 		}
 		return { };
 	}
@@ -2078,6 +2114,12 @@ namespace bpr::adapters::github::detail {
 			return failure(contract_failure_code::invalid_search_terms);
 		}
 
+		// [[BPR-1850]]. Only the notification list is conditional, and only on
+		// an HTTP date as GitHub sent it.
+		if ((aRequest.Operation != read_operation::list_notifications && !aRequest.IfModifiedSince.empty())
+			|| (!aRequest.IfModifiedSince.empty() && !http_date_value(aRequest.IfModifiedSince))) {
+			return failure(contract_failure_code::unsafe_header);
+		}
 		const auto graphql = graphql_read(aRequest.Operation);
 		if (
 			(!graphql && aRequest.GraphqlPage.has_value())
@@ -2135,6 +2177,15 @@ namespace bpr::adapters::github::detail {
 		switch (aRequest.Operation) {
 		case read_operation::get_viewer_identity:
 			result.Path = std::string{ *prefix } + "/user";
+			break;
+		case read_operation::list_notifications:
+			// [[BPR-1850]]. Unread threads I participate in, newest first, one
+			// bounded page; the answer is conditional on the last one's date.
+			result.Path  = std::string{ *prefix } + "/notifications";
+			result.Query = "participating=true&per_page=50";
+			if (!aRequest.IfModifiedSince.empty()) {
+				result.Headers.push_back(http_header{ .Name = "If-Modified-Since", .Value = aRequest.IfModifiedSince });
+			}
 			break;
 		case read_operation::get_repository:
 			result.Path = repository_path(*prefix, aRequest);

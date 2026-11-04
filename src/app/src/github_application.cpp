@@ -153,7 +153,9 @@
 
 #include "bpr/adapters/sqlite/cached_review_overview_store.hpp"
 #include "bpr/adapters/sqlite/markdown_image_disk_cache.hpp"
+#include "bpr/adapters/sqlite/pull_request_activity_store.hpp"
 #include "bpr/adapters/sqlite/view_filter_memory_store.hpp"
+#include "bpr/application/pull_request_activity_host.hpp"
 #include "bpr/application/view_filter_memory_host.hpp"
 #if defined(BPR_AGENT_INTEGRATIONS)
 	#include "bpr/application/agent_chat_session_host.hpp"
@@ -209,6 +211,7 @@
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/private_notes_panel.hpp"
 #include "bpr/qt/progress_mark.hpp"
+#include "bpr/qt/pull_request_activity_notifications.hpp"
 #include "bpr/qt/sensitive_text_input.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
@@ -2554,6 +2557,20 @@ namespace bpr::app {
 
 		/// \brief [[BPR-1844]]. The remembered view filters' store under the
 		/// profile's data root.
+		/// [[BPR-1850]]. Activity notifications' memory under the profile root.
+		class pull_request_activity_store final : public application::pull_request_activity_store_port
+		{
+		public:
+			explicit pull_request_activity_store(std::filesystem::path aRoot)
+				: Root{ std::move(aRoot) }
+			{ }
+			[[nodiscard]] auto load() const -> core::activity_memory_read { return adapters::sqlite::load_pull_request_activity(Root); }
+			[[nodiscard]] auto store(const core::activity_memory& aMemory) -> bool override { return adapters::sqlite::store_pull_request_activity(Root, aMemory); }
+
+		private:
+			std::filesystem::path Root;
+		};
+
 		class view_filter_memory_store final : public application::view_filter_memory_port
 		{
 		public:
@@ -4442,6 +4459,12 @@ namespace bpr::app {
 			/// The window's read lane, for Home's discovery to give way to
 			/// (`core::home_loading_yields`).
 			std::function<std::optional<core::github_state>()> ReadLane;
+			/// [[BPR-1850]]. The pull request the window shows while it is the
+			/// active window; opening a notified pull request in it; showing the
+			/// activity setting.
+			std::function<std::optional<core::pull_request_ref>()>            FocusedPullRequest;
+			std::function<bool(const std::optional<core::pull_request_ref>&)> OpenNotified;
+			std::function<void(bool, const QString&)>                         PresentActivity;
 		};
 		// [[BPR-0733]]. The recently viewed list is profile state; every window
 		// projects its own view of it for the session it has.
@@ -4451,6 +4474,13 @@ namespace bpr::app {
 		}
 		void publish(const application::github_presentation_update& aUpdate) override;
 		void adopt_discovery();
+		/// \brief [[BPR-1850]]. Activity notifications: the account session they
+		/// poll under, what Settings shows, the setting, and a click.
+		void               adopt_activity();
+		void               present_activity();
+		void               set_activity_enabled(bool aEnabled);
+		void               activate_activity();
+		[[nodiscard]] auto activity_focus() -> std::vector<core::pull_request_ref>;
 		/// \brief Home's discovery gives way while a window waits on a read, and
 		/// resumes once none does, as `core::home_loading_yields` decides.
 		void yield_discovery();
@@ -4998,6 +5028,9 @@ namespace bpr::app {
 			}
 			if (Host) {
 				Host->shutdown();
+			}
+			if (Activity) {
+				Activity->shutdown();
 			}
 			if (Discovery) {
 				Discovery->shutdown();
@@ -5842,6 +5875,39 @@ namespace bpr::app {
 				FixtureNotificationSink->set_activation_sink(activation);
 			}
 #endif
+			// [[BPR-1850]]. One poll host and one timer for every window of the
+			// profile. A fixture run never polls: its transports serve pull
+			// requests, not notifications.
+			{
+				auto sink = std::unique_ptr<qt::pull_request_activity_notification_sink>{ };
+				// The tray the review queue's notifications use, so the desktop
+				// shows one icon.
+				if (Config.StatusItem) {
+					sink = std::make_unique<qt::pull_request_activity_notification_sink>(*Config.StatusItem, nullptr);
+				} else if (SystemNotificationSink != nullptr && SystemNotificationSink->tray_icon() != nullptr) {
+					sink = std::make_unique<qt::pull_request_activity_notification_sink>(*SystemNotificationSink->tray_icon(), nullptr);
+				} else {
+					sink = std::make_unique<qt::pull_request_activity_notification_sink>(nullptr);
+				}
+				ActivitySink  = std::move(sink);
+				ActivityTimer = std::make_unique<qt::pull_request_activity_timer>([this] {
+					if (!Closing && Activity) {
+						Activity->tick();
+					}
+				});
+				ActivityStore = std::make_unique<pull_request_activity_store>(applicationDataRoot);
+				Activity      = std::make_unique<application::pull_request_activity_host>(
+					*Provider, *ActivityStore, WorkbenchEffects, DecisionLane, *ActivityTimer, *ActivitySink,
+					[] { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count(); },
+					[this] { return activity_focus(); }, ActivityStore->load(), DiagnosticLog);
+				ActivitySink->set_activation([this] { activate_activity(); });
+				Activity->set_observer([this] { present_activity(); });
+#if defined(BPR_BUILD_TESTING)
+				if (Fixture != nullptr) {
+					Activity->shutdown();
+				}
+#endif
+			}
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
 			// Persistent private neighbourhood on the cache filesystem, outside
 			// its isolation root. Only effect workers create or recover children.
@@ -6810,6 +6876,11 @@ namespace bpr::app {
 		// [[BPR-1844]]. The store outlives the host that writes through it.
 		std::unique_ptr<view_filter_memory_store>             ViewFilterStore;
 		std::unique_ptr<application::view_filter_memory_host> ViewFilterMemory;
+		// [[BPR-1850]]. The store, sink and timer outlive the host.
+		std::unique_ptr<pull_request_activity_store>                 ActivityStore;
+		std::unique_ptr<qt::pull_request_activity_notification_sink> ActivitySink;
+		std::unique_ptr<qt::pull_request_activity_timer>             ActivityTimer;
+		std::unique_ptr<application::pull_request_activity_host>     Activity;
 	};
 
 	void github_profile_runtime::publish(const application::github_presentation_update& aUpdate)
@@ -6860,6 +6931,83 @@ namespace bpr::app {
 		}
 		const auto session = Host->access_mode() == core::github_access_mode::authenticated ? Host->accepted_profile_session() : std::nullopt;
 		Discovery->adopt(session ? application::personal_discovery_session_of(*session) : std::nullopt);
+		adopt_activity();
+	}
+
+	void github_profile_runtime::adopt_activity()
+	{
+		if (Closing || Activity == nullptr || Host == nullptr) {
+			return;
+		}
+		const auto session = Host->access_mode() == core::github_access_mode::authenticated ? Host->accepted_profile_session() : std::nullopt;
+		Activity->adopt(session ? application::personal_discovery_session_of(*session) : std::nullopt);
+		present_activity();
+	}
+
+	void github_profile_runtime::present_activity()
+	{
+		if (Closing || Activity == nullptr) {
+			return;
+		}
+		auto status = QString{ };
+		switch (Activity->state()) {
+		case application::pull_request_activity_state::off:         status = QStringLiteral("Off."); break;
+		case application::pull_request_activity_state::signed_out:  status = QStringLiteral("Waiting for a GitHub sign-in."); break;
+		case application::pull_request_activity_state::unsupported: status = QStringLiteral("Needs a GitHub CLI sign-in."); break;
+		case application::pull_request_activity_state::watching:    status = QStringLiteral("Checking GitHub every minute."); break;
+		case application::pull_request_activity_state::waiting:     status = QStringLiteral("GitHub is not answering; checking less often."); break;
+		}
+		const auto enabled = Activity->enabled();
+		for_each_window([&](const window_observer& aObserver) {
+			if (aObserver.PresentActivity) {
+				aObserver.PresentActivity(enabled, status);
+			}
+		});
+	}
+
+	void github_profile_runtime::set_activity_enabled(const bool aEnabled)
+	{
+		if (Closing || Activity == nullptr) {
+			return;
+		}
+		Activity->set_enabled(aEnabled);
+		present_activity();
+	}
+
+	auto github_profile_runtime::activity_focus() -> std::vector<core::pull_request_ref>
+	{
+		auto focused = std::vector<core::pull_request_ref>{ };
+		for_each_window([&](const window_observer& aObserver) {
+			if (aObserver.FocusedPullRequest) {
+				if (auto ref = aObserver.FocusedPullRequest()) {
+					focused.push_back(std::move(*ref));
+				}
+			}
+		});
+		return focused;
+	}
+
+	void github_profile_runtime::activate_activity()
+	{
+		if (Closing || Activity == nullptr) {
+			return;
+		}
+		const auto target = Activity->activate();
+		// The focused window first, then any: it opens the pull request, or for
+		// a summary only comes forward on what it shows.
+		auto       opened = false;
+		const auto open   = [&](const window_observer& aObserver) {
+			if (opened || !aObserver.OpenNotified) {
+				return;
+			}
+			opened = aObserver.OpenNotified(target.PullRequest);
+		};
+		if (Focused) {
+			if (const auto found = Observers.find(*Focused); found != Observers.end() && !found->second.Lifetime.expired()) {
+				open(found->second);
+			}
+		}
+		for_each_window(open);
 	}
 
 	void github_profile_runtime::yield_discovery()
@@ -8320,6 +8468,25 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			Profile->Observers.at(DraftWindow).ReadLane = [this, weak]() -> std::optional<core::github_state> {
 				return weak.expired() || Closing || !WindowRead ? std::nullopt : std::optional{ WindowRead->state() };
 			};
+			// [[BPR-1850]]. Activity notifications: what this window shows while
+			// it is in use, opening a notified pull request, and the setting.
+			Profile->Observers.at(DraftWindow).FocusedPullRequest = [this, weak]() -> std::optional<core::pull_request_ref> {
+				return weak.expired() || Closing || !Window ? std::nullopt : Window->focused_pull_request();
+			};
+			Profile->Observers.at(DraftWindow).OpenNotified = [this, weak](const std::optional<core::pull_request_ref>& aRef) {
+				return !weak.expired() && !Closing && Window && Window->open_notified_pull_request(aRef);
+			};
+			Profile->Observers.at(DraftWindow).PresentActivity = [this, weak](const bool aEnabled, const QString& aStatus) {
+				if (!weak.expired() && !Closing && Window) {
+					Window->present_activity_notifications(aEnabled, aStatus);
+				}
+			};
+			Window->set_activity_notifications_dispatch([this, weak](const bool aEnabled) {
+				if (!weak.expired() && !Closing) {
+					Profile->set_activity_enabled(aEnabled);
+				}
+			});
+			Profile->present_activity();
 			// Home may already be checked while a restored read is pending. Its
 			// toggle then emits false, but the gesture still supersedes restoration.
 			QObject::connect(Window->home_action(), &QAction::triggered, Window.get(), [this, weak](bool) {

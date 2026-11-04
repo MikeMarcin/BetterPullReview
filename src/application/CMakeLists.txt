@@ -81,6 +81,7 @@ add_library(
         src/host_operation_diagnostics.cpp
         src/diagnostic_settings.cpp
         src/view_filter_memory_host.cpp
+        src/pull_request_activity_host.cpp
         src/release_profile_cleanup.cpp
         src/personal_discovery_host.cpp
         src/review_queue_facts.cpp

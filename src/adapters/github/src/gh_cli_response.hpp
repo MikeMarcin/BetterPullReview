@@ -51,7 +51,10 @@ namespace bpr::adapters::github::detail {
 	/// \details [[BPR-1736]]. With `aServerVersion`, for a review mutation's
 	/// answer only, `X-GitHub-Enterprise-Version` is kept too: it keys the
 	/// learned off-hunk fact, and no read metadata parser admits it.
-	[[nodiscard]] inline auto parse_gh_cli_response(const std::string_view aOutput, const bool aServerVersion = false)
+	/// [[BPR-1850]]. With `aConditional`, for the notification list only,
+	/// `Last-Modified` and `X-Poll-Interval` are kept too: the poll sends the
+	/// one back and waits the other.
+	[[nodiscard]] inline auto parse_gh_cli_response(const std::string_view aOutput, const bool aServerVersion = false, const bool aConditional = false)
 		-> std::expected<wire_response, application::github_provider_failure>
 	{
 		using failure = application::github_provider_failure;
@@ -135,9 +138,10 @@ namespace bpr::adapters::github::detail {
 		}
 		// Provider metadata accepts only this projection; other validated wire
 		// headers (including Content-Length) remain transport-local.
-		std::erase_if(response.Headers, [aServerVersion](const auto& aHeader) {
+		std::erase_if(response.Headers, [aServerVersion, aConditional](const auto& aHeader) {
 			const auto name = lowercase_header(aHeader.Name);
-			return !selected_response_header(name) && !(aServerVersion && name == "x-github-enterprise-version");
+			return !selected_response_header(name) && !(aServerVersion && name == "x-github-enterprise-version")
+				&& !(aConditional && (name == "last-modified" || name == "x-poll-interval"));
 		});
 		return response;
 	}

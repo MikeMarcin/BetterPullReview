@@ -88,6 +88,8 @@ namespace bpr::adapters::github::detail {
 		case read_operation::list_home_pull_requests:
 		// [[BPR-1741]]. Reactions carry the viewer's own state.
 		case read_operation::list_reactions:
+		// [[BPR-1850]]. Notifications are the viewer's own.
+		case read_operation::list_notifications:
 			return false;
 		}
 		return false;
@@ -114,7 +116,9 @@ namespace bpr::adapters::github::detail {
 		// [[BPR-0988]]. A personal discovery read names the viewer too.
 		if (aOperation == read_operation::get_viewer_identity
 			|| aOperation == read_operation::search_personal_pull_requests
-			|| aOperation == read_operation::list_requested_reviewers) {
+			|| aOperation == read_operation::list_requested_reviewers
+			// [[BPR-1850]]. Notifications are the viewer's.
+			|| aOperation == read_operation::list_notifications) {
 			return std::unexpected{
 				anonymous_read_refusal::identity_requires_credential
 			};
