@@ -8,6 +8,7 @@
 	#include "platform_body_digest.hpp"
 #endif
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <cstdlib>
@@ -277,8 +278,49 @@ namespace {
 	}
 } // namespace
 
+namespace {
+	/// [[BPR-1851]]. A refreshed conversation's digests and the accepted
+	/// snapshot's comment digests assemble into the whole snapshot's digests,
+	/// in its order, without hashing again; a body no set covers is left to the core.
+	void test_assembled_digests_equal_whole_digests()
+	{
+		const auto port                  = std::make_unique<application::core_body_digest>();
+		auto       whole                 = snapshot_of(5U);
+		auto       thread                = github_pull_request_snapshot{ };
+		thread.ReviewThreadsAvailability = whole.ReviewThreadsAvailability;
+		thread.ReviewThreads             = whole.ReviewThreads;
+		thread.Reviews                   = whole.Reviews;
+		auto older                       = whole;
+		older.ReviewThreads.pop_back();
+		const auto                                                            conversation = application::digest_feedback_bodies(thread, *port);
+		const auto                                                            accepted     = application::digest_feedback_bodies(older, *port);
+		const auto                                                            expected     = application::digest_feedback_bodies(whole, *port);
+		const std::array<const application::github_feedback_body_digests*, 2> known{ &conversation, &accepted };
+		const auto                                                            assembled = application::assemble_feedback_body_digests(whole, known);
+		expect(assembled.Entries && assembled.Entries->size() == expected.Entries->size(), "one entry per post");
+		for (std::size_t index = 0U; index < expected.Entries->size(); ++index) {
+			const auto& left  = (*assembled.Entries)[index];
+			const auto& right = (*expected.Entries)[index];
+			expect(left.Post == right.Post && left.Bytes == right.Bytes && left.Digest == right.Digest, "assembled digests equal the whole snapshot's, in its order");
+		}
+		// The issue comment is covered by neither set here: no digest, so the core hashes it.
+		const std::array<const application::github_feedback_body_digests*, 1> threadsOnly{ &conversation };
+		const auto                                                            partial = application::assemble_feedback_body_digests(whole, threadsOnly);
+		const auto                                                            issue   = std::ranges::find_if(*expected.Entries, [](const auto& aEntry) { return aEntry.Post == "issue-comment:i1"; });
+		expect(issue != expected.Entries->end(), "the issue comment has a post");
+		const auto at = static_cast<std::size_t>(issue - expected.Entries->begin());
+		expect((*partial.Entries)[at].Post.empty(), "a post no set covers carries no digest");
+		// An edited body of another length is not given its old digest.
+		auto edited = whole;
+		edited.ReviewThreads.front().Comments.front().Body += " (edited)";
+		const auto stale = application::assemble_feedback_body_digests(edited, known);
+		expect((*stale.Entries)[0].Post.empty(), "a body whose length changed is left to the core");
+	}
+}
+
 auto main() -> int
 try {
+	test_assembled_digests_equal_whole_digests();
 	test_known_answers();
 	test_boundaries_and_seeded_inputs();
 	test_annotations_carry_the_same_digest();

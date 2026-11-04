@@ -432,9 +432,14 @@ namespace bpr::application {
 		std::optional<github_loading_overview_projection> LoadingOverview = std::nullopt;
 		/// A sibling's server observation updates content, not Home/modality,
 		/// first-open filters or the window's chosen comparison.
-		bool                                             PreserveWindowNavigation = false;
-		std::optional<cached_review_source_projection>   CachedSource             = std::nullopt;
-		std::optional<github_cached_overview_projection> CachedOverview           = std::nullopt;
+		bool PreserveWindowNavigation = false;
+		/// [[BPR-1851]]. `PullRequest` is the accepted review with a refresh's
+		/// conversation already laid over it, at the same head: the file on
+		/// screen and its threads are up to date while the rest of the refresh
+		/// (comments, checks, policy, history) is still coming.
+		bool                                             ConversationRefreshed = false;
+		std::optional<cached_review_source_projection>   CachedSource          = std::nullopt;
+		std::optional<github_cached_overview_projection> CachedOverview        = std::nullopt;
 		/// RFC-BPR-0084. Images of this window's rendered bodies that changed state.
 		std::vector<markdown_image_projection> Images{ };
 		/// [[BPR-1807]]. People's pictures this window asked for that changed state.

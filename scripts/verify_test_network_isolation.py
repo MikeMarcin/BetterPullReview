@@ -261,6 +261,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_progressive_open_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1848]]. Coming back to Home on the same slow fixture network.
     "application_home_return_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1851]]. The file on screen refreshed first, same slow fixture network.
+    "application_refresh_current_file_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.
     "sqlite_view_filter_memory_store": "unmeasured (registered on macOS)",
     # [[BPR-1575]]. Refresh made visible on a slow fixture network.

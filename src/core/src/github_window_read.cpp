@@ -54,10 +54,11 @@ namespace bpr::core {
 		RetiredGeneration = Session->Identity.Context.IdentityGeneration;
 		Session.reset();
 		Adoption.reset();
-		State            = github_state{ .ApplicationSession = State.ApplicationSession,
-										 .NextRequest        = State.NextRequest };
-		OverviewObserved = false;
-		FilesObserved    = false;
+		State                = github_state{ .ApplicationSession = State.ApplicationSession,
+											 .NextRequest        = State.NextRequest };
+		OverviewObserved     = false;
+		FilesObserved        = false;
+		ConversationObserved = false;
 		return true;
 	}
 
@@ -76,8 +77,9 @@ namespace bpr::core {
 		},
 										 aEvent);
 		if (State.PendingPullRequest != previous) {
-			OverviewObserved = false;
-			FilesObserved    = false;
+			OverviewObserved     = false;
+			FilesObserved        = false;
+			ConversationObserved = false;
 		}
 		if (State != before) {
 			Adoption.reset();
@@ -133,6 +135,22 @@ namespace bpr::core {
 			return false;
 		}
 		FilesObserved = true;
+		return true;
+	}
+	auto github_window_read::accept_conversation_observation(const bpr_window_context                     aWindow,
+															 const pull_request_request_context&          aRequest,
+															 const github_conversation_observation_facts& aFacts) noexcept -> bool
+	{
+		// A refresh of the accepted pull request only: a first open has no
+		// accepted content to lay a conversation over, and another pull
+		// request's threads never stand for this one's.
+		if (aWindow != Window || !Session || State.PendingPullRequest != aRequest || !FilesObserved || ConversationObserved
+			|| !State.AcceptedSnapshot || !aRequest.ExpectedPullRequest || State.PullRequest != aRequest.ExpectedPullRequest
+			|| State.Repository != aRequest.ExpectedRepository || !aFacts.ThreadsAvailable || !aFacts.SamePullRequest || !aFacts.SameHead
+			|| !aFacts.SameBase || !aFacts.SameMode) {
+			return false;
+		}
+		ConversationObserved = true;
 		return true;
 	}
 	auto github_window_read::adoption() const noexcept -> const std::optional<github_transition_output>& { return Adoption; }

@@ -284,5 +284,67 @@ int main()
 	if (!load(closed, 7, 79) || closed.state().ActiveNumber != pull_request_number{ 7 }) {
 		return EXIT_FAILURE;
 	}
+	// [[BPR-1851]]. A refresh's conversation is accepted once, after its file
+	// list, only for a refresh of the accepted pull request whose head, base,
+	// mode and threads the facts confirm, and never changes the conversed's state.
+	{
+		const bpr_window_context refreshing{ first.Profile, bpr_window_id{ 7 }, first.Generation };
+		github_window_read       conversed{ refreshing, application_session_id{ 70 } };
+		const auto               same = github_conversation_observation_facts{ .ThreadsAvailable = true, .SamePullRequest = true, .SameHead = true, .SameBase = true, .SameMode = true };
+		if (!conversed.adopt(session)) {
+			return EXIT_FAILURE;
+		}
+		// A first open has no accepted content to lay a conversation over.
+		const auto opening = conversed.apply(refreshing, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 9 } });
+		if (!opening.Fetch || !conversed.accept_overview_observation(refreshing, opening.Fetch->Context)
+			|| !conversed.accept_files_observation(refreshing, opening.Fetch->Context)
+			|| conversed.accept_conversation_observation(refreshing, opening.Fetch->Context, same)) {
+			return EXIT_FAILURE;
+		}
+		if (!conversed.apply(refreshing, pull_request_loaded_event{ opening.Fetch->Context, repository_id{ 1 }, pull_request_id{ 9 }, provider_snapshot_id{ 90 } }).Projection.AcceptedSnapshot) {
+			return EXIT_FAILURE;
+		}
+		const auto refresh = conversed.apply(refreshing, refresh_pull_request_intent{ });
+		if (!refresh.Fetch || !refresh.Fetch->Context.ExpectedPullRequest) {
+			return EXIT_FAILURE;
+		}
+		const auto& context = refresh.Fetch->Context;
+		// Before the file list, nothing.
+		if (conversed.accept_conversation_observation(refreshing, context, same) || !conversed.accept_overview_observation(refreshing, context)
+			|| conversed.accept_conversation_observation(refreshing, context, same) || !conversed.accept_files_observation(refreshing, context)) {
+			return EXIT_FAILURE;
+		}
+		for (auto fact = 0; fact < 5; ++fact) {
+			auto denied                         = same;
+			(fact == 0 ? denied.ThreadsAvailable : fact == 1 ? denied.SamePullRequest
+				 : fact == 2                                 ? denied.SameHead
+				 : fact == 3                                 ? denied.SameBase
+															 : denied.SameMode) = false;
+			if (conversed.accept_conversation_observation(refreshing, context, denied)) {
+				return EXIT_FAILURE;
+			}
+		}
+		auto staleContext    = context;
+		staleContext.Request = request_id{ 999U };
+		auto otherWindow     = refreshing;
+		otherWindow.Window   = bpr_window_id{ 99U };
+		const auto before    = conversed.state();
+		if (conversed.accept_conversation_observation(otherWindow, context, same) || conversed.accept_conversation_observation(refreshing, staleContext, same)
+			|| !conversed.accept_conversation_observation(refreshing, context, same) || conversed.accept_conversation_observation(refreshing, context, same)
+			|| conversed.state() != before) {
+			return EXIT_FAILURE;
+		}
+		// The next refresh may be accepted again; a cancelled one may not.
+		static_cast<void>(conversed.apply(refreshing, pull_request_load_cancelled_event{ context }));
+		if (conversed.accept_conversation_observation(refreshing, context, same)) {
+			return EXIT_FAILURE;
+		}
+		const auto again = conversed.apply(refreshing, refresh_pull_request_intent{ });
+		if (!again.Fetch || !conversed.accept_overview_observation(refreshing, again.Fetch->Context)
+			|| !conversed.accept_files_observation(refreshing, again.Fetch->Context)
+			|| !conversed.accept_conversation_observation(refreshing, again.Fetch->Context, same)) {
+			return EXIT_FAILURE;
+		}
+	}
 	return EXIT_SUCCESS;
 }
