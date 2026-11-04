@@ -11,11 +11,6 @@
 #include <algorithm>
 
 namespace bpr::qt {
-	namespace {
-		constexpr int chip_padding = 6;
-		constexpr int icon_gap     = 4;
-	} // namespace
-
 	quiet_tool_button::quiet_tool_button(QWidget* const aParent)
 		: QToolButton{ aParent }
 	{
@@ -28,6 +23,11 @@ namespace bpr::qt {
 		return !text().isEmpty() && menu() == nullptr && arrowType() == Qt::NoArrow && toolButtonStyle() != Qt::ToolButtonTextUnderIcon && (icon().isNull() || textStyle);
 	}
 
+	auto quiet_tool_button::shows_icon() const -> bool
+	{
+		return !icon().isNull() && toolButtonStyle() == Qt::ToolButtonTextBesideIcon;
+	}
+
 	auto quiet_tool_button::sizeHint() const -> QSize
 	{
 		if (!uses_chip()) {
@@ -35,14 +35,13 @@ namespace bpr::qt {
 		}
 		auto option = QStyleOptionToolButton{ };
 		initStyleOption(&option);
-		const auto metrics     = fontMetrics();
-		const auto words       = metrics.size(Qt::TextShowMnemonic, text());
-		const auto beside      = !icon().isNull() && toolButtonStyle() == Qt::ToolButtonTextBesideIcon;
-		const auto across      = (2 * chip_padding) + words.width() + (beside ? option.iconSize.width() + icon_gap : 0);
+		// [[BPR-1855]]. The same content geometry paint_button_label draws in.
+		const auto content     = chip_content_size(*this, option.iconSize, shows_icon());
+		const auto across      = (2 * chip_padding) + content.width();
 		option.toolButtonStyle = Qt::ToolButtonTextBesideIcon;
-		const auto contents    = QSize{ across, std::max(option.iconSize.height(), words.height()) };
+		const auto contents    = QSize{ across, std::max(option.iconSize.height(), content.height()) };
 		const auto tall        = style()->sizeFromContents(QStyle::CT_ToolButton, &option, contents, this).height();
-		return QSize{ across, std::max(tall, words.height() + 6) };
+		return QSize{ across, std::max(tall, content.height() + 6) };
 	}
 
 	auto quiet_tool_button::minimumSizeHint() const -> QSize
@@ -73,14 +72,11 @@ namespace bpr::qt {
 		}
 		auto painter = QPainter{ this };
 		paint_button_surface(painter, *this, isChecked() || (!isCheckable() && !autoRaise()), KeyboardFocus);
+		// With no icon, Qt's default IconOnly still means a text button.
+		// [[BPR-1855]]. The chip draws its own content in the room it measured;
+		// the style's label element may elide or inset it.
 		auto option = QStyleOptionToolButton{ };
 		initStyleOption(&option);
-		option.rect.adjust(chip_padding, 0, -chip_padding, 0);
-		for (const auto group : { QPalette::Active, QPalette::Inactive, QPalette::Disabled }) {
-			option.palette.setColor(group, QPalette::ButtonText, option.palette.color(group, QPalette::WindowText));
-		}
-		// With no icon, Qt's default IconOnly still means a text button. State
-		// remains intact so native label drawing retains mnemonics and icon modes.
-		style()->drawControl(QStyle::CE_ToolButtonLabel, &option, &painter, this);
+		paint_button_label(painter, *this, option.iconSize, shows_icon());
 	}
 } // namespace bpr::qt
