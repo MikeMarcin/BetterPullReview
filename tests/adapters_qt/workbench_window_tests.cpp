@@ -115,6 +115,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextLayout>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -15111,6 +15112,72 @@ namespace {
 			agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```"), .Footer = QStringLiteral("answered") } });
 			process_events();
 			expect(codeAsks > 0U, "a reply's fenced code asks the code host for its colours");
+			// [[BPR-1860]] ("Reopening a pr and going back to an agent comment
+			// it doesn't have its syntax highlights"): the code host answers a
+			// text it has classified before from its cache, inside the ask.
+			// A kept thread shown again asks while it builds each turn, so
+			// that answer has to find the turn: its code is coloured exactly
+			// as when the spans came back later, as they do the first time.
+			{
+				const auto keptAnswer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```");
+				const auto spansFor   = [](const application::markdown_code_syntax_request& aRequest) {
+					return application::markdown_code_syntax_publication{
+						.Selector = aRequest.Selector,
+						.Text     = aRequest.Text,
+						.Spans    = std::make_shared<const application::token_span_list>(application::token_span_list{
+							{ .Line = 0U, .Column = 0U, .Length = 2U, .Role = core::appearance_role::syntax_keyword },
+							{ .Line = 0U, .Column = 5U, .Length = 8U, .Role = core::appearance_role::syntax_function },
+						}),
+					};
+				};
+				const auto colours = [&agent] {
+					auto        runs = std::vector<std::pair<QString, QRgb>>{ };
+					auto* const view = agent->turn_answer_view(0U);
+					if (view == nullptr) {
+						return runs;
+					}
+					// The code's colours are layout formats over its text.
+					for (auto block = view->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+						for (const auto& range : block.layout()->formats()) {
+							if (range.format.hasProperty(QTextFormat::ForegroundBrush)) {
+								runs.emplace_back(block.text().mid(range.start, range.length), range.format.foreground().color().rgba());
+							}
+						}
+					}
+					return runs;
+				};
+				// Live: the spans come back after the turn is shown.
+				auto later = std::vector<application::markdown_code_syntax_request>{ };
+				agent->set_code_syntax_dispatch([&later](std::vector<application::markdown_code_syntax_request> aRequests) {
+					later.insert(later.end(), aRequests.begin(), aRequests.end());
+				});
+				agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = keptAnswer, .Footer = QStringLiteral("answered") } });
+				process_events();
+				const auto liveAsks = later;
+				for (const auto& request : liveAsks) {
+					agent->apply_code_syntax(spansFor(request));
+				}
+				process_events();
+				const auto live = colours();
+				// Reopened: the host answers from its cache inside the ask.
+				agent->set_code_syntax_dispatch([&agent, &spansFor](std::vector<application::markdown_code_syntax_request> aRequests) {
+					for (const auto& request : aRequests) {
+						agent->apply_code_syntax(spansFor(request));
+					}
+				});
+				agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = keptAnswer, .Footer = QStringLiteral("answered") } });
+				process_events();
+				const auto reopened = colours();
+				const auto colourOf = [](const std::vector<std::pair<QString, QRgb>>& aRuns, const QString& aText) -> std::optional<QRgb> {
+					const auto found = std::ranges::find(aRuns, aText, &std::pair<QString, QRgb>::first);
+					return found == aRuns.end() ? std::nullopt : std::optional{ found->second };
+				};
+				const auto keyword = colourOf(live, QStringLiteral("if"));
+				const auto called  = colourOf(live, QStringLiteral("validate"));
+				expect(!liveAsks.empty() && keyword && called && *keyword != *called, "live, the reply's code is coloured by the spans that came back");
+				expect(reopened == live, "a kept thread shown again from the code host's cache is coloured exactly as it was live");
+				agent->set_code_syntax_dispatch({ });
+			}
 			// Owner look v004 ("Not drawing inline comment with syntax
 			// highlighing"): inline code is asked for as the pull request's
 			// language, and coloured when its spans come back.
