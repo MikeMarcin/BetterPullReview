@@ -63,6 +63,30 @@ namespace {
 		expect(controls(current) == review_submission_controls{ }, "invalid identity enables nothing");
 	}
 
+	// [[BPR-1853]]. The author of a pull request may only Comment on it;
+	// logins compare as GitHub compares them, without ASCII case.
+	void test_author_controls()
+	{
+		auto current = draft();
+		expect(own_pull_request("MikeMarcin", "mikemarcin") && own_pull_request("octo-Author", "OCTO-author"), "logins compare without ASCII case");
+		expect(!own_pull_request("MikeMarcinTest", "MikeMarcin") && !own_pull_request("", "") && !own_pull_request("", "MikeMarcin") && !own_pull_request("MikeMarcin", ""),
+			   "another login, or an unknown one, is not the author");
+		expect(verdict_open(review_disposition::comment, "MikeMarcin", "MikeMarcin") && !verdict_open(review_disposition::approve, "MikeMarcin", "MIKEMARCIN")
+				   && !verdict_open(review_disposition::request_changes, "MikeMarcin", "mikemarcin") && verdict_open(review_disposition::approve, "MikeMarcinTest", "MikeMarcin"),
+			   "the author may only Comment; anyone else may give any verdict");
+		const auto other = controls(current, "MikeMarcinTest", "MikeMarcin");
+		expect(other == controls(current) && !other.Authored && other.SubmitAs == std::array{ true, true, true }, "another's pull request offers every verdict, as before");
+		expect(controls(current, "", "MikeMarcin") == controls(current), "an unknown author changes nothing: GitHub's answer says why");
+		const auto own = controls(current, "mikemarcin", "MikeMarcin");
+		expect(own.Authored && own.SubmitAs == std::array{ true, false, false } && own.Submit && own.Edit && own.Discard, "my own pull request offers Comment only, and says why");
+		current.Disposition = review_disposition::approve;
+		expect(!controls(current, "MikeMarcin", "MikeMarcin").Submit && controls(current, "MikeMarcinTest", "MikeMarcin").Submit, "a draft holding Approve is not submitted on my own pull request");
+		current.Disposition = review_disposition::request_changes;
+		expect(!controls(current, "MikeMarcin", "MikeMarcin").Submit && controls(current, "MikeMarcin", "MikeMarcin").SubmitAs[0], "nor one holding Request changes, while Comment still submits");
+		current = *apply(current, command(kind::begin_submit)).Draft;
+		expect(controls(current, "MikeMarcin", "MikeMarcin") == review_submission_controls{ .Reconcile = true, .Authored = true }, "a submission in flight can still be checked");
+	}
+
 	// [[BPR-1129]]. Compose review's mark: a summary or a verdict while
 	// drafting, or a submission not yet settled, is kept work.
 	void test_kept_drafts()
@@ -482,6 +506,7 @@ int main()
 	test_ending_lines();
 	test_post_answers_settle();
 	test_decided_controls();
+	test_author_controls();
 	test_kept_drafts();
 	test_transitions();
 	test_body_policy();

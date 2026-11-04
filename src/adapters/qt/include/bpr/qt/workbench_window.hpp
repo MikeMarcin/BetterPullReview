@@ -2545,6 +2545,9 @@ namespace bpr::qt {
 			none,
 		};
 		compose_words ComposeReviewWords = compose_words::full;
+		/// [[BPR-1853]]. Whether the review page was last told the viewer
+		/// opened this pull request: Compose review then offers Comment.
+		[[nodiscard]] auto own_pull_request_review() const -> bool;
 #if defined(_WIN32)
 		QToolButton*             StripMenuButton = nullptr;
 		windows_caption_buttons* CaptionButtons  = nullptr;

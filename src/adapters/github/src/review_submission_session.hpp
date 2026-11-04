@@ -79,6 +79,9 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1715]]. Whether this run's refused POST said a comment's
 		/// line cannot be placed in the diff.
 		bool UnplaceableLine = false;
+		/// [[BPR-1853]]. Whether it said the author may not approve or
+		/// request changes on their own pull request.
+		bool OwnPullRequest = false;
 		/// [[BPR-1722]]. Whether this run is a Submit (not a Check
 		/// status or restart), the status GitHub answered its POST, and the
 		/// kept answer that settled the attempt, if one did.

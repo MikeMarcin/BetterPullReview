@@ -50,6 +50,9 @@ namespace bpr::app::detail {
 		/// [[BPR-1715]]. Refuse the next review with 422 as the GitHub
 		/// CLI reports it, an answer with that status rather than an error.
 		bool RefuseNextReviewAsAnswer = false;
+		/// [[BPR-1853]]. Refuse the next review as GitHub refuses its
+		/// author's own approval, with its words.
+		bool RefuseNextReviewAsOwn = false;
 		/// [[BPR-1715]]. Create nothing for the next review and give no
 		/// answer: a refusal whose answer was lost, as an application before
 		/// answers were kept was left with after the CLI's 422.

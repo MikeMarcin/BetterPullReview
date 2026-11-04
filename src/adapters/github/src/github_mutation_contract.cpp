@@ -4091,44 +4091,61 @@ namespace bpr::adapters::github::detail {
 		return off_hunk_unsupported_contract{ .Resource = "PullRequestReviewComment", .Field = "pull_request_review_thread.line", .Code = "custom", .Message = "could not be resolved", .RecordedDesignatedScope = true };
 	}
 
-	auto refusal_names_unplaceable_line(const std::string_view aBody) -> bool
-	{
-		auto       envelope = diagnostic_json_object{ };
-		const auto body     = std::string{ aBody };
-		if (body.size() > 4096U || !json_preflight{ body }.run() || glz::read<review_json_options{ }>(envelope, body)) {
-			return false;
-		}
-		const auto found = envelope.find("errors");
-		if (found == envelope.end()) {
-			return false;
-		}
-		const auto unplaceable = [](std::string aText) {
-			std::ranges::transform(aText, aText.begin(), [](const unsigned char aValue) { return static_cast<char>(std::tolower(aValue)); });
-			return std::ranges::any_of(std::array<std::string_view, 3>{ "line must be part of the diff", "line could not be resolved", "diff hunk can't be blank" },
-									   [&aText](const std::string_view aWords) { return aText.find(aWords) != std::string::npos; });
-		};
-		auto texts = std::vector<std::string>{ };
-		if (!glz::read<review_json_options{ }>(texts, found->second.str)) {
-			return texts.size() <= 8U && std::ranges::any_of(texts, unplaceable);
-		}
-		auto errors = std::vector<diagnostic_json_object>{ };
-		if (glz::read<review_json_options{ }>(errors, found->second.str) || errors.size() > 8U) {
-			return false;
-		}
-		return std::ranges::any_of(errors, [&unplaceable](const diagnostic_json_object& aError) {
-			const auto message = aError.find("message");
-			auto       text    = std::string{ };
-			if (message == aError.end() || glz::read<review_json_options{ }>(text, message->second.str)) {
+	namespace {
+		/// Whether an `errors` entry of GitHub's refusal, a string or an
+		/// object's `message`, reads any of `aWords` (lower case), compared
+		/// without ASCII case. Bounded; any other body is false.
+		[[nodiscard]] auto refusal_reads(const std::string_view aBody, const std::span<const std::string_view> aWords) -> bool
+		{
+			auto       envelope = diagnostic_json_object{ };
+			const auto body     = std::string{ aBody };
+			if (body.size() > 4096U || !json_preflight{ body }.run() || glz::read<review_json_options{ }>(envelope, body)) {
 				return false;
 			}
-			// GitHub's single-comment form names the field apart from the words.
-			const auto field = aError.find("field");
-			auto       named = std::string{ };
-			if (field != aError.end() && !glz::read<review_json_options{ }>(named, field->second.str) && named.ends_with("line")) {
-				text = "line " + text;
+			const auto found = envelope.find("errors");
+			if (found == envelope.end()) {
+				return false;
 			}
-			return unplaceable(std::move(text));
-		});
+			const auto reads = [aWords](std::string aText) {
+				std::ranges::transform(aText, aText.begin(), [](const unsigned char aValue) { return static_cast<char>(std::tolower(aValue)); });
+				return std::ranges::any_of(aWords, [&aText](const std::string_view aWord) { return aText.find(aWord) != std::string::npos; });
+			};
+			auto texts = std::vector<std::string>{ };
+			if (!glz::read<review_json_options{ }>(texts, found->second.str)) {
+				return texts.size() <= 8U && std::ranges::any_of(texts, reads);
+			}
+			auto errors = std::vector<diagnostic_json_object>{ };
+			if (glz::read<review_json_options{ }>(errors, found->second.str) || errors.size() > 8U) {
+				return false;
+			}
+			return std::ranges::any_of(errors, [&reads](const diagnostic_json_object& aError) {
+				const auto message = aError.find("message");
+				auto       text    = std::string{ };
+				if (message == aError.end() || glz::read<review_json_options{ }>(text, message->second.str)) {
+					return false;
+				}
+				// GitHub's single-comment form names the field apart from the words.
+				const auto field = aError.find("field");
+				auto       named = std::string{ };
+				if (field != aError.end() && !glz::read<review_json_options{ }>(named, field->second.str) && named.ends_with("line")) {
+					text = "line " + text;
+				}
+				return reads(std::move(text));
+			});
+		}
+	} // namespace
+
+	auto refusal_names_unplaceable_line(const std::string_view aBody) -> bool
+	{
+		static constexpr auto words = std::array<std::string_view, 3>{ "line must be part of the diff", "line could not be resolved", "diff hunk can't be blank" };
+		return refusal_reads(aBody, words);
+	}
+
+	auto refusal_names_own_pull_request(const std::string_view aBody) -> bool
+	{
+		// [[BPR-1853]]. GitHub's words, probed on MikeMarcin/BPR-Test#43.
+		static constexpr auto words = std::array<std::string_view, 2>{ "can not approve your own pull request", "can not request changes on your own pull request" };
+		return refusal_reads(aBody, words);
 	}
 
 	auto general_off_hunk_contract(const application::github_server_contract aServer) -> std::optional<off_hunk_unsupported_contract>

@@ -9641,13 +9641,23 @@ namespace bpr::qt {
 		};
 		// [[BPR-1700]]. The tooltip names the three verdicts the review
 		// page offers, so the command says what it is for in every state.
-		const auto compose = keptDraft
-			? QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction))
-			: QStringLiteral("Compose review (%1)\nApprove, request changes or comment on the whole pull request.").arg(key(ComposeReviewAction));
+		// [[BPR-1853]]. On my own pull request the page offers Comment only.
+		const auto verdicts = own_pull_request_review()
+			? QStringLiteral("Comment on the whole pull request. You opened it, so GitHub takes only a comment.")
+			: QStringLiteral("Approve, request changes or comment on the whole pull request.");
+		const auto compose  = keptDraft
+			? QStringLiteral("Compose review (%1)\n%2\nA review draft is kept for this pull request.").arg(key(ComposeReviewAction), verdicts)
+			: QStringLiteral("Compose review (%1)\n%2").arg(key(ComposeReviewAction), verdicts);
 		ComposeReviewAction->setToolTip(compose);
 		ComposeReviewAction->setStatusTip(compose);
 		update_comment_target();
 		present_compose_entry();
+	}
+
+	auto workbench_window::own_pull_request_review() const -> bool
+	{
+		// [[BPR-1853]]. The core's decision, as the review page was last given it.
+		return ReviewSubmissionEditor != nullptr && ReviewSubmissionEditor->shown_projection().Controls.Authored;
 	}
 
 	void workbench_window::present_compose_entry()
@@ -9673,7 +9683,10 @@ namespace bpr::qt {
 		// The bar's presenter takes its words from the action's icon text; the
 		// menus keep the command's own name. Where the bar is short of room
 		// the words keep Approve, the verdict a newcomer looks for.
+		// [[BPR-1853]]. On my own pull request there is nothing to approve.
+		const auto own   = own_pull_request_review();
 		const auto words = !worded                       ? tr("Compose review")
+			: own                                        ? tr("Comment…")
 			: ComposeReviewWords == compose_words::brief ? tr("Approve…")
 														 : tr("Approve or comment…");
 		if (ComposeReviewAction->iconText() != words) {
@@ -9685,10 +9698,11 @@ namespace bpr::qt {
 		}
 		// Its name keeps the command's and, with no review in progress, holds
 		// the words it shows, also when the bar is too narrow for them.
-		button->setAccessibleName(inProgress ? tr("Compose review") : tr("Compose review: approve or comment"));
-		button->setAccessibleDescription(keptDraft
-											 ? tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request; a review draft is kept for this pull request")
-											 : tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request"));
+		button->setAccessibleName(inProgress ? tr("Compose review") : own ? tr("Compose review: comment")
+																		  : tr("Compose review: approve or comment"));
+		const auto purpose = own ? tr("Open the review page, where you comment on the whole pull request; you opened it, so GitHub takes only a comment")
+								 : tr("Open the review page, where you choose Approve, Request changes or Comment for the whole pull request");
+		button->setAccessibleDescription(keptDraft ? purpose + tr("; a review draft is kept for this pull request") : purpose);
 		if (button->property(strip_style::mark_property).toBool() != keptDraft) {
 			button->setProperty(strip_style::mark_property, keptDraft);
 			button->update();

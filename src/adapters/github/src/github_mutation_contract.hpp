@@ -287,6 +287,11 @@ namespace bpr::adapters::github::detail {
 	/// can't be blank". Bounded; any other body is false. Nothing of the body
 	/// leaves this function.
 	[[nodiscard]] auto refusal_names_unplaceable_line(std::string_view aBody) -> bool;
+	/// \brief [[BPR-1853]]. Whether GitHub's refusal of a review says its
+	/// author may not approve or request changes on their own pull request
+	/// ("Can not approve your own pull request", "Can not request changes on
+	/// your own pull request"), read as `refusal_names_unplaceable_line` reads.
+	[[nodiscard]] auto refusal_names_own_pull_request(std::string_view aBody) -> bool;
 
 	struct review_mutation_target_observation
 	{
