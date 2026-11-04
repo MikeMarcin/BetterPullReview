@@ -329,14 +329,13 @@ Return chooses and Escape closes. The mutation's contract is in the
 
 A draft pull request says so wherever its name is shown: a grey Draft chip
 after the name in the title row and before the title in Overview, and Home's
-row chip ([[BPR-1852]]). Under Overview's summary a banner says what a draft
-means. For the pull request's author, in a signed-in session whose connection
-can change it, the banner holds **Ready for review**, and Pull Request > Mark
-Ready for Review does the same; once it is ready, People has **Convert to
-draft** (Pull Request > Convert to Draft). Pressing one asks GitHub once: the
-chips change at once and GitHub's answer confirms them, without a re-read of
-the pull request, and a refusal puts them back with the reason beside the
-button. Nothing is offered on a closed or merged pull request, or to anyone
+row chip ([[BPR-1852]]). For the pull request's author, in a signed-in
+session whose connection can change it, **Ready for review** ends Overview's
+title line, and Pull Request > Mark Ready for Review does the same; once it is
+ready, People has **Convert to draft** (Pull Request > Convert to Draft).
+Pressing one asks GitHub once: the chips change at once and GitHub's answer
+confirms them, without a re-read of the pull request, and a refusal puts them
+back with the reason in the defect ink. Nothing is offered on a closed or merged pull request, or to anyone
 but the author. The mutation's contract is in the
 [provider contract](github-provider-contract.md#normalized-provider-surface).
 
