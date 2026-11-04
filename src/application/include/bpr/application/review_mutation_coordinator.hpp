@@ -124,6 +124,12 @@ namespace bpr::application {
 			const std::string&        aLogin,
 			std::stop_token           aStop = { })
 			-> std::expected<review_reviewer_receipt, review_mutation_failure>;
+		/// \brief [[BPR-1852]]. Changes the pull request's draft state through
+		/// the provider after confirming the target as a description edit does.
+		[[nodiscard]] auto change_draft_state(
+			core::draft_state_change aChange,
+			std::stop_token          aStop = { })
+			-> std::expected<review_draft_state_receipt, review_mutation_failure>;
 		[[nodiscard]] auto designated() const noexcept
 			-> const core::review_mutation_target&;
 		[[nodiscard]] auto capabilities() const -> review_provider_capabilities;

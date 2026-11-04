@@ -129,6 +129,14 @@ namespace bpr::adapters::github::detail {
 		/// one user, `union:true`).
 		request_reviews,
 		edit_review_body,
+		/// [[BPR-1852]]. GraphQL: the pull request's `isDraft`, `state` and
+		/// `viewerCanUpdate`, asked before its draft state is changed and once
+		/// after an ambiguous write.
+		observe_pull_request_draft_state,
+		/// [[BPR-1852]]. GraphQL: `markPullRequestReadyForReview`.
+		mark_pull_request_ready_for_review,
+		/// [[BPR-1852]]. GraphQL: `convertPullRequestToDraft`.
+		convert_pull_request_to_draft,
 	};
 
 	/// \brief [[BPR-1018]]. What a transport demands of one operation's
@@ -213,7 +221,8 @@ namespace bpr::adapters::github::detail {
 			application::review_reaction_request,
 			application::review_description_request,
 			application::review_comment_edit_request,
-			application::review_reviewer_request>;
+			application::review_reviewer_request,
+			application::review_draft_state_request>;
 
 		semantic_type Semantic;
 
@@ -556,6 +565,43 @@ namespace bpr::adapters::github::detail {
 		const review_mutation_wire_response&        aResponse,
 		const application::review_reviewer_request& aExpected)
 		-> review_mutation_parse_result<core::reviewer_search_answer>;
+	/// \brief [[BPR-1852]]. The pull request's draft state, as an answer bound
+	/// to the designated pull request gave it.
+	struct review_draft_state_observation
+	{
+		bool Draft           = false;
+		bool Open            = false;
+		bool ViewerCanUpdate = false;
+
+		auto operator<=>(const review_draft_state_observation&) const = default;
+	};
+	/// \brief [[BPR-1852]]. Compiles `MarkReadyForReview` or `ConvertToDraft`
+	/// for the designated pull request; refused for an unbound or malformed
+	/// request.
+	[[nodiscard]] auto compile_draft_state_request(
+		const application::review_draft_state_request& aRequest,
+		application::github_server_contract            aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1852]]. Compiles `ObserveDraftState`, with every guard the
+	/// mutation has.
+	[[nodiscard]] auto compile_draft_state_observation_request(
+		const application::review_draft_state_request& aRequest,
+		application::github_server_contract            aServer
+		= application::github_server_contract::github_com_2022_11_28)
+		-> review_mutation_request_result;
+	/// \brief [[BPR-1852]]. Accepts only the designated pull request.
+	[[nodiscard]] auto parse_draft_state_observation(
+		const review_mutation_wire_response&           aResponse,
+		const application::review_draft_state_request& aExpected)
+		-> review_mutation_parse_result<review_draft_state_observation>;
+	/// \brief [[BPR-1852]]. A write's answer: only the designated pull
+	/// request. A null payload is GraphQL's refusal (`unexpected_body`):
+	/// definitely not written.
+	[[nodiscard]] auto parse_draft_state_response(
+		const review_mutation_wire_response&           aResponse,
+		const application::review_draft_state_request& aExpected)
+		-> review_mutation_parse_result<review_draft_state_observation>;
 	/// \brief Compiles an exact-head REST review with an explicit submission event.
 
 	[[nodiscard]] auto compile_review_submission_request(
@@ -1000,7 +1046,23 @@ namespace bpr::adapters::github::detail {
 			std::stop_token                             aStop = { })
 			-> std::expected<application::review_reviewer_receipt, application::review_mutation_failure>;
 
+		/// \brief [[BPR-1852]]. Changes the pull request's draft state:
+		/// observed first (bound to the pull request, with `isDraft`, `state`
+		/// and `viewerCanUpdate`), nothing sent when GitHub already has the
+		/// state asked or the pull request is closed, written once, and an
+		/// ambiguous outcome confirmed by one read back. No recovery record:
+		/// the state is the record.
+		[[nodiscard]] auto change_draft_state(
+			const application::review_draft_state_request& aRequest,
+			std::stop_token                                aStop = { })
+			-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure>;
+
 	private:
+		[[nodiscard]] auto observe_draft_state(
+			const application::review_draft_state_request& aRequest,
+			std::stop_token                                aStop)
+			-> std::expected<review_draft_state_observation, application::review_mutation_failure>;
+
 		[[nodiscard]] auto observe_comment(
 			const application::review_comment_edit_request& aRequest,
 			std::stop_token                                 aStop)

@@ -105,6 +105,7 @@ namespace bpr::application {
 		aCapabilities.EditsDescription  = aCapabilities.EditsDescription && core::pull_request_change_permitted(change::description_edit, aBinding.Open);
 		aCapabilities.EditsComments     = aCapabilities.EditsComments && core::pull_request_change_permitted(change::comment_edit, aBinding.Open);
 		aCapabilities.RequestsReviewers = aCapabilities.RequestsReviewers && core::pull_request_change_permitted(change::reviewer_request, aBinding.Open);
+		aCapabilities.ChangesDraftState = aCapabilities.ChangesDraftState && core::pull_request_change_permitted(change::draft_state, aBinding.Open);
 		return aCapabilities;
 	}
 

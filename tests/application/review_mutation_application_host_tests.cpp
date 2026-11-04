@@ -341,7 +341,7 @@ namespace {
 		[[nodiscard]] auto capabilities() const
 			-> application::review_provider_capabilities override
 		{
-			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments, .RequestsReviewers = RequestsReviewers };
+			return { .ResolvesThreads = Resolves, .RecordsViewedState = false, .Reacts = Reacts, .EditsDescription = EditsDescription, .EditsComments = EditsComments, .RequestsReviewers = RequestsReviewers, .ChangesDraftState = ChangesDraftState };
 		}
 		auto set_reaction(
 			const application::review_reaction_request& aRequest,
@@ -408,6 +408,19 @@ namespace {
 		}
 		bool                                              RequestsReviewers = false;
 		std::vector<application::review_reviewer_request> Reviewed;
+		auto                                              change_draft_state(
+			const application::review_draft_state_request& aRequest,
+			const std::stop_token                          aStop)
+			-> std::expected<application::review_draft_state_receipt, application::review_mutation_failure> override
+		{
+			if (aStop.stop_requested()) {
+				return std::unexpected(application::review_mutation_failure::cancelled);
+			}
+			Drafted.push_back(aRequest);
+			return application::review_draft_state_receipt{ .Draft = core::draft_after(aRequest.Change), .Written = true };
+		}
+		bool                                                 ChangesDraftState = false;
+		std::vector<application::review_draft_state_request> Drafted;
 
 		auto resolve_thread(
 			const application::review_thread_resolution_request& aRequest,
@@ -463,7 +476,12 @@ namespace {
 			Reviewers.push_back(aTerminal);
 		}
 		std::vector<application::review_reviewer_terminal> Reviewers;
-		void                                               publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
+		void                                               publish_draft_state(const application::review_draft_state_terminal& aTerminal) override
+		{
+			DraftStates.push_back(aTerminal);
+		}
+		std::vector<application::review_draft_state_terminal> DraftStates;
+		void                                                  publish_comment_edit(const application::review_comment_edit_terminal& aTerminal) override
 		{
 			CommentEdits.push_back(aTerminal);
 		}
@@ -1250,16 +1268,16 @@ namespace {
 		expect(application::valid(live_target()) && application::valid_identity(live_target()), "an open binding is valid for every change");
 		expect(!application::valid(closed) && application::valid_identity(closed), "a closed one keeps a valid identity but not the open-only contract");
 		expect(application::valid_for(closed, change::thread_resolution), "and takes a thread's resolution");
-		for (const auto other : { change::publication, change::reaction, change::description_edit, change::comment_edit, change::reviewer_request }) {
+		for (const auto other : { change::publication, change::reaction, change::description_edit, change::comment_edit, change::reviewer_request, change::draft_state }) {
 			expect(!application::valid_for(closed, other) && application::valid_for(live_target(), other), "and no other change");
 		}
 		auto unnamed              = closed;
 		unnamed.PullRequestNodeId = "";
 		expect(!application::valid_identity(unnamed) && !application::valid_for(unnamed, change::thread_resolution), "a closed binding's identity is still checked in full");
-		const auto all = application::review_provider_capabilities{ .ResolvesThreads = true, .RecordsViewedState = false, .Reacts = true, .EditsDescription = true, .EditsComments = true, .RequestsReviewers = true };
+		const auto all = application::review_provider_capabilities{ .ResolvesThreads = true, .RecordsViewedState = false, .Reacts = true, .EditsDescription = true, .EditsComments = true, .RequestsReviewers = true, .ChangesDraftState = true };
 		expect(application::capabilities_for(live_target(), all) == all, "an open binding keeps every capability");
 		const auto masked = application::capabilities_for(closed, all);
-		expect(masked.ResolvesThreads && !masked.Reacts && !masked.EditsDescription && !masked.EditsComments && !masked.RequestsReviewers,
+		expect(masked.ResolvesThreads && !masked.Reacts && !masked.EditsDescription && !masked.EditsComments && !masked.RequestsReviewers && !masked.ChangesDraftState,
 			   "a closed one keeps only thread resolution");
 		auto noResolution            = all;
 		noResolution.ResolvesThreads = false;
@@ -1271,6 +1289,7 @@ namespace {
 		provider->EditsDescription  = true;
 		provider->EditsComments     = true;
 		provider->RequestsReviewers = true;
+		provider->ChangesDraftState = true;
 		auto* observed              = provider.get();
 		auto  effects               = application::manual_executor{ };
 		auto  decisions             = application::manual_executor{ };
@@ -1308,9 +1327,10 @@ namespace {
 		static_cast<void>(host.react({ .Subject = "PRRC_fixture_1", .Content = core::reaction_content::heart, .Add = true }));
 		static_cast<void>(host.edit_description({ .Original = "Before.", .Body = "After." }));
 		static_cast<void>(host.edit_comment({ .Subject = "PRRC_fixture_1", .Original = "Before.", .Body = "After." }));
+		static_cast<void>(host.change_draft_state({ .Change = core::draft_state_change::ready_for_review }));
 		expect(effects.pending() == 0U, "no other change on the closed pull request is admitted to an effect");
 		decisions.drain();
-		expect(observed->Reacted.empty() && observed->Described.empty() && observed->Edited.empty() && observed->Submitted.empty(),
+		expect(observed->Reacted.empty() && observed->Described.empty() && observed->Edited.empty() && observed->Drafted.empty() && observed->Submitted.empty(),
 			   "and none reaches the provider");
 		expect(!projection.Reactions.empty() && !projection.Reactions.back().Result.has_value() && !projection.Descriptions.empty()
 				   && !projection.Descriptions.back().Result.has_value() && !projection.CommentEdits.empty() && !projection.CommentEdits.back().Result.has_value(),
@@ -1520,6 +1540,64 @@ namespace {
 		host.shutdown();
 		effects.run_next();
 		expect(observed->Described.size() == 1U, "an edit stopped by shutdown never reaches the provider");
+	}
+
+	/// [[BPR-1852]]. A draft-state change is admitted like a description
+	/// edit: the provider must change draft states, the grant must permit the
+	/// exact change, a grant issued for anything else permits none, and
+	/// nothing reaches the provider until the effect lane runs.
+	void test_a_draft_state_change_needs_the_capability_and_a_permitting_grant()
+	{
+		auto  provider   = std::make_unique<fake_provider>();
+		auto* observed   = provider.get();
+		auto  effects    = application::manual_executor{ };
+		auto  decisions  = application::manual_executor{ };
+		auto  projection = recording_projection{ };
+		auto  host       = application::review_mutation_application_host{
+			std::move(provider),
+			live_target(),
+			acting_identity(),
+			core::application_session_id{ 3U },
+			core::request_generation{ 8U },
+			testing_grant(),
+			effects,
+			decisions,
+			projection,
+			&projection,
+		};
+		const auto request = application::review_draft_state_publication_request{ .Change = core::draft_state_change::ready_for_review };
+		const auto refused = [&](const application::review_mutation_failure aFailure, const char* const aWhy) {
+			expect(effects.pending() == 0U && decisions.pending() == 1U, aWhy);
+			decisions.run_next();
+			expect(!projection.DraftStates.empty() && !projection.DraftStates.back().Result.has_value() && projection.DraftStates.back().Result.error() == aFailure, aWhy);
+		};
+		static_cast<void>(host.change_draft_state(request));
+		refused(application::review_mutation_failure::unsupported, "without the provider's capability the change is refused before any effect");
+		observed->ChangesDraftState = true;
+		static_cast<void>(host.change_draft_state(request, application::make_review_mutation_testing_grant(core::application_session_id{ 4U }, core::request_generation{ 8U }, live_target(), acting_identity())));
+		refused(application::review_mutation_failure::unavailable, "another session's grant permits nothing");
+		static_cast<void>(host.change_draft_state(request, application::make_review_mutation_testing_grant(core::application_session_id{ 3U }, core::request_generation{ 8U }, live_target(), acting_identity(), publication_request())));
+		refused(application::review_mutation_failure::unavailable, "a one-shot grant issued for a publication permits no draft-state change");
+		expect(observed->Drafted.empty() && host.statistics().DraftStateChanges == 0U, "no refusal reached the provider");
+
+		const auto context = host.change_draft_state(request);
+		expect(context.Request.value() != 0U && effects.pending() == 1U && observed->Drafted.empty(), "an admitted change is queued and returns immediately");
+		effects.run_next();
+		expect(observed->Drafted.size() == 1U && observed->Drafted.front().Change == request.Change && observed->Drafted.front().Target == target()
+				   && observed->Drafted.front().LiveBinding.has_value() && observed->Drafted.front().LiveBinding->Target == live_target()
+				   && observed->Drafted.front().LiveBinding->ActingIdentity == acting_identity(),
+			   "the effect asks the provider for exactly one change, bound to the target and the actor");
+		expect(!host.is_quiescent() && host.outstanding_requests() == 1U, "a held draft-state terminal keeps the host alive");
+		decisions.run_next();
+		expect(projection.DraftStates.back().Context == context && projection.DraftStates.back().Result.has_value() && !projection.DraftStates.back().Result->Draft
+				   && projection.DraftStates.back().Request == request && host.statistics().DraftStateChanges == 1U,
+			   "the terminal carries GitHub's answer for the draft state");
+
+		const auto stopped = host.change_draft_state({ .Change = core::draft_state_change::convert_to_draft });
+		host.cancel(stopped);
+		host.shutdown();
+		effects.run_next();
+		expect(observed->Drafted.size() == 1U, "a change stopped by shutdown never reaches the provider");
 	}
 
 	/// [[BPR-1804]]. A reviewer search is a read: it needs the capability but
@@ -2404,6 +2482,7 @@ auto main() -> int
 	test_conversation_refusal_failure_and_duplicate_terminals_settle_once();
 	test_a_reaction_needs_the_capability_and_a_permitting_grant();
 	test_a_description_edit_needs_the_capability_and_a_permitting_grant();
+	test_a_draft_state_change_needs_the_capability_and_a_permitting_grant();
 	test_reviewers_are_searched_freely_and_requested_under_a_grant();
 	test_a_comment_edit_needs_the_capability_and_a_permitting_grant();
 

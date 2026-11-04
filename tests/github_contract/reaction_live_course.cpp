@@ -157,23 +157,26 @@ namespace {
 	[[nodiscard]] auto operation_name(const review_mutation_operation aOperation) -> std::string
 	{
 		switch (aOperation) {
-		case review_mutation_operation::observe_pull_request:             return "observe-pull-request";
-		case review_mutation_operation::observe_viewer:                   return "observe-viewer";
-		case review_mutation_operation::observe_reaction_subject:         return "observe-reaction-subject";
-		case review_mutation_operation::add_reaction:                     return "add-reaction";
-		case review_mutation_operation::remove_reaction:                  return "remove-reaction";
-		case review_mutation_operation::observe_pull_request_description: return "observe-description";
-		case review_mutation_operation::update_pull_request_description:  return "update-description";
-		case review_mutation_operation::observe_comment_for_edit:         return "observe-comment";
-		case review_mutation_operation::edit_review_comment:              return "edit-review-comment";
-		case review_mutation_operation::edit_issue_comment:               return "edit-issue-comment";
-		case review_mutation_operation::edit_review_body:                 return "edit-review-body";
-		case review_mutation_operation::observe_reviewers:                return "observe-reviewers";
-		case review_mutation_operation::request_reviews:                  return "request-reviews";
-		case review_mutation_operation::observe_review_thread:            return "observe-thread";
-		case review_mutation_operation::resolve_review_thread:            return "resolve-thread";
-		case review_mutation_operation::unresolve_review_thread:          return "unresolve-thread";
-		default:                                                          return "other";
+		case review_mutation_operation::observe_pull_request:               return "observe-pull-request";
+		case review_mutation_operation::observe_viewer:                     return "observe-viewer";
+		case review_mutation_operation::observe_reaction_subject:           return "observe-reaction-subject";
+		case review_mutation_operation::add_reaction:                       return "add-reaction";
+		case review_mutation_operation::remove_reaction:                    return "remove-reaction";
+		case review_mutation_operation::observe_pull_request_description:   return "observe-description";
+		case review_mutation_operation::update_pull_request_description:    return "update-description";
+		case review_mutation_operation::observe_comment_for_edit:           return "observe-comment";
+		case review_mutation_operation::edit_review_comment:                return "edit-review-comment";
+		case review_mutation_operation::edit_issue_comment:                 return "edit-issue-comment";
+		case review_mutation_operation::edit_review_body:                   return "edit-review-body";
+		case review_mutation_operation::observe_reviewers:                  return "observe-reviewers";
+		case review_mutation_operation::request_reviews:                    return "request-reviews";
+		case review_mutation_operation::observe_pull_request_draft_state:   return "observe-draft-state";
+		case review_mutation_operation::mark_pull_request_ready_for_review: return "mark-ready-for-review";
+		case review_mutation_operation::convert_pull_request_to_draft:      return "convert-to-draft";
+		case review_mutation_operation::observe_review_thread:              return "observe-thread";
+		case review_mutation_operation::resolve_review_thread:              return "resolve-thread";
+		case review_mutation_operation::unresolve_review_thread:            return "unresolve-thread";
+		default:                                                            return "other";
 		}
 	}
 
