@@ -261,7 +261,10 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("cloneFoldersPanel"));
 		auto* const column = new QVBoxLayout{ this };
-		column->setContentsMargins(0, 0, 0, 0);
+		// [[BPR-1856]]. The panel follows Add repository on Repositories; the
+		// margin above its heading starts a new section rather than reading as
+		// part of the button's row.
+		column->setContentsMargins(0, 16, 0, 0);
 		column->addWidget(heading(tr("Clone folders"), this));
 		column->addWidget(note(tr("Where your clones live. The agent setup looks here, two levels down, for a clone of each pull request's repository. It reads only each clone's Git configuration and current branch, runs nothing and writes nothing."), this));
 		// Owner look v002: Visual Studio's folder list, edited in place.

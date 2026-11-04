@@ -17836,6 +17836,79 @@ namespace {
 		window.hide();
 	}
 
+	/// \brief [[BPR-1856]]. Settings › Repositories puts the saved repositories
+	/// and Add repository first and the clone folders under them (owner,
+	/// 2026-11-04), and Tab and the accessibility tree read the page in the
+	/// order it is drawn.
+	void test_add_repository_comes_before_the_clone_folders()
+	{
+		qt::workbench_window window;
+		auto                 projection = application::queue_landing_projection{
+			.Status            = application::queue_landing_status::ready,
+			.Session           = { .Host = "github.com", .Account = "reviewer", .Generation = 1U },
+			.SavedRepositories = { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
+								   { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" } }
+		};
+		window.set_saved_repository_dispatch([](auto) { });
+		window.set_repository_addition_dispatch([](auto) { });
+		window.publish(projection);
+		window.clone_folders()->present(application::clone_link_projection{
+			.Folders = { "/Users/reviewer/Documents/GitHub", "/Users/reviewer/src" },
+			.Links   = { { .Host = "github.com", .Owner = "octo", .Name = "app", .Path = "/Users/reviewer/Documents/GitHub/app" } },
+			.Loaded  = true });
+		window.show();
+		window.settings()->present(qt::settings_page::repositories);
+		window.settings()->resize(760, 820);
+		process_events();
+		const auto rendered = window.settings()->grab();
+		expect(!rendered.isNull(), "the Repositories page renders");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(QStringLiteral("%1/%2-repositories-page.png").arg(file.path(), file.completeBaseName()), "PNG"),
+				   "the Repositories page render is saved for inspection");
+		}
+		auto* const page    = window.settings()->page_widget(qt::settings_page::repositories);
+		auto* const editor  = window.saved_repositories_editor();
+		auto* const folders = window.clone_folders();
+		auto* const add     = window.settings()->findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"));
+		auto* const list    = window.saved_repository_list();
+		auto* const column  = qobject_cast<QVBoxLayout*>(page->layout());
+		expect(page != nullptr && column != nullptr && page->isAncestorOf(editor) && page->isAncestorOf(folders) && page->isAncestorOf(add),
+			   "the saved repositories and the clone folders share the Repositories page");
+		expect(column->indexOf(editor) >= 0 && column->indexOf(editor) < column->indexOf(folders),
+			   "the saved repositories come before the clone folders in the page's column");
+		const auto addBottom  = add->mapTo(page, QPoint{ 0, add->height() }).y();
+		const auto foldersTop = folders->mapTo(page, QPoint{ 0, 0 }).y();
+		expect(editor->mapTo(page, QPoint{ 0, 0 }).y() < foldersTop && addBottom <= foldersTop,
+			   "Add repository is drawn above the Clone folders heading");
+		expect(foldersTop - addBottom <= 64, "the clone folders follow Add repository without an empty gap");
+		// Tab: the list, Add repository, then the clone folders' own controls.
+		auto order = std::vector<QWidget*>{ };
+		for (auto* widget = page->nextInFocusChain(); widget != nullptr && widget != page; widget = widget->nextInFocusChain()) {
+			if (page->isAncestorOf(widget) && widget->isVisibleTo(page) && (widget->focusPolicy() & Qt::TabFocus) != 0) {
+				order.push_back(widget);
+			}
+		}
+		const auto position = [&](const QWidget* aWidget) {
+			return std::distance(order.begin(), std::find(order.begin(), order.end(), aWidget));
+		};
+		const auto firstFolder = std::find_if(order.begin(), order.end(), [&](const QWidget* aWidget) { return folders->isAncestorOf(aWidget); });
+		expect(firstFolder != order.end() && position(list) < position(add) && position(add) < std::distance(order.begin(), firstFolder)
+				   && std::none_of(firstFolder, order.end(), [&](const QWidget* aWidget) { return editor->isAncestorOf(aWidget); }),
+			   "Tab reaches the saved repositories and Add repository before any clone folder control");
+		add->setFocus(Qt::TabFocusReason);
+		process_events();
+		auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(add, &tab);
+		process_events();
+		expect(folders->isAncestorOf(QApplication::focusWidget()), "Tab from Add repository moves into the clone folders");
+		auto* const accessiblePage = QAccessible::queryAccessibleInterface(page);
+		const auto  editorIndex    = accessiblePage != nullptr ? accessiblePage->indexOfChild(QAccessible::queryAccessibleInterface(editor)) : -1;
+		const auto  foldersIndex   = accessiblePage != nullptr ? accessiblePage->indexOfChild(QAccessible::queryAccessibleInterface(folders)) : -1;
+		expect(editorIndex >= 0 && foldersIndex >= 0 && editorIndex < foldersIndex,
+			   "the accessibility tree presents the saved repositories before the clone folders");
+	}
+
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
 	{
 		qt::workbench_window window;
@@ -24083,6 +24156,7 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
 		runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+		runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
 		runCase("test_home_strip_holds_view_and_refresh", &test_home_strip_holds_view_and_refresh);
 		runCase("test_home_discovery_glyph_status_and_pull_request_menu", &test_home_discovery_glyph_status_and_pull_request_menu);
 		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.
@@ -24247,6 +24321,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_queue_rule_gestures_wait_for_the_accepted_projection", &test_queue_rule_gestures_wait_for_the_accepted_projection);
 	runCase("test_queue_rule_selection_survives_unrelated_projection", &test_queue_rule_selection_survives_unrelated_projection);
 	runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+	runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
 	runCase("test_add_enterprise_server_opens_a_card_in_its_edit_state", &test_add_enterprise_server_opens_a_card_in_its_edit_state);
 	runCase("test_github_cli_discovery_is_a_separate_accounts_path", &test_github_cli_discovery_is_a_separate_accounts_path);
 	runCase("test_a_kept_enterprise_server_remembers_and_forgets_on_its_card", &test_a_kept_enterprise_server_remembers_and_forgets_on_its_card);
