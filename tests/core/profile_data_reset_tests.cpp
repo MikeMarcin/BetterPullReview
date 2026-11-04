@@ -75,6 +75,10 @@ namespace {
 		for (const auto each : { reset::caches, reset::review_data, reset::everything }) {
 			expect(!profile_data_reset_restores_queue_display(each), "only Reset settings restores queue display in place");
 		}
+		expect(profile_data_reset_forgets_github_cli(reset::everything), "Reset everything forgets the GitHub CLI connection");
+		for (const auto each : { reset::caches, reset::settings, reset::review_data }) {
+			expect(!profile_data_reset_forgets_github_cli(each), "only Reset everything forgets the GitHub CLI connection");
+		}
 	}
 
 	void test_admission()

@@ -645,6 +645,19 @@ that stops part-way refuses that start and the next start replays its journal.
 Reset settings then restores Home's queue display choices through the queue
 store, keeping saved repositories, servers and observer rules.
 
+[[BPR-1858]] Reset everything then forgets the profile's GitHub CLI
+connections. It keeps `remembered-connections.sqlite3` as a file and saves
+`core::forget_github_cli_connections` through the remembered-connection store:
+every server whose row is a CLI connection loses that row and its retired
+identities, as Forget would, while native rows and the identity high-water
+marks stay. The next start therefore has no CLI choice to restore, the absent
+row suppresses an older device grant on that server, and the person must choose
+**Use GitHub CLI** and answer its read consent again. The reset never runs or
+reconfigures gh: gh's own sign-in belongs to gh and to the other tools that use
+it. A sign-in made in the application (device grant, vault item, device
+binding) is still kept; Accounts & hosts signs it out. The outcome says whether
+a CLI connection was forgotten or could not be saved, and the notice says so.
+
 ## Remembered connection metadata (RFC-BPR-0071)
 
 The profile-private `state/v1/remembered-connections.sqlite3` snapshot and its recognized SQLite sidecars are state-store inventory/purge targets. They carry connection selection and disable facts, never CLI credentials. Profile purge removes them through the existing exact inventory; it neither changes gh authentication/configuration nor removes shared updater/registry state. Storage/policy and composed restart/refusal evidence are mapped in the [RFC-BPR-0071 ledger](../verification/RFC-BPR-0071.md); they add no uninstall or shared-state purge claim.

@@ -215,6 +215,26 @@ namespace bpr::core {
 		return next;
 	}
 
+	auto holds_github_cli_connection(const remembered_connection_state& aState) noexcept -> bool
+	{
+		return std::ranges::any_of(aState.Connections, [](const auto& aRow) { return aRow.Transport == remembered_connection_transport::github_cli; });
+	}
+
+	auto forget_github_cli_connections(const remembered_connection_state& aState, const std::uint64_t aExpectedRevision) -> remembered_connection_result
+	{
+		auto next = prepare(aState, aExpectedRevision);
+		if (!next) {
+			return next;
+		}
+		for (const auto& row : aState.Connections) {
+			if (row.Transport == remembered_connection_transport::github_cli) {
+				std::erase_if(next->Connections, [&row](const auto& aRow) { return aRow.Hostname == row.Hostname; });
+				std::erase_if(next->Retired, [&row](const auto& aRow) { return aRow.Hostname == row.Hostname; });
+			}
+		}
+		return valid_remembered_connection_update(aState, *next) ? std::move(next) : std::unexpected(remembered_connection_failure::invalid);
+	}
+
 	auto select_remembered_connection(const remembered_connection_state& aState, const std::optional<std::string_view> aHostname) -> std::optional<remembered_connection>
 	{
 		if (!valid(aState)) {

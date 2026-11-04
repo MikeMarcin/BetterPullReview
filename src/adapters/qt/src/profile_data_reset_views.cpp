@@ -142,11 +142,12 @@ namespace bpr::qt {
 			break;
 		}
 		return { QStringLiteral("Reset everything for %1?").arg(name),
-				 QStringLiteral("This profile starts again as on first launch. You stay signed in, and nothing on GitHub changes."),
-				 { QStringLiteral("Caches: repository data, images, summaries"), QStringLiteral("Settings: every choice, saved repositories, observer rules"),
-				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles"), QStringLiteral("Insights statistics and history") },
-				 { QStringLiteral("Sign-in to your accounts and hosts"), QStringLiteral("Everything posted on GitHub"), QStringLiteral("Diagnostic logs"),
-				   QStringLiteral("Other profiles"), QStringLiteral("Your Git checkouts and exported files") },
+				 QStringLiteral("This profile starts again as on first launch and stops using GitHub CLI. It doesn’t sign you out of GitHub CLI itself, and nothing on GitHub changes."),
+				 { QStringLiteral("Caches: repository data, images, summaries"), QStringLiteral("Settings: every choice, saved repositories and servers, observer rules, filters, notifications, agent setup"),
+				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles"), QStringLiteral("Insights statistics and history"),
+				   QStringLiteral("This profile’s GitHub CLI connection") },
+				 { QStringLiteral("GitHub CLI’s own sign-in, which other tools use"), QStringLiteral("Sign-ins made in this app (sign out in Accounts & hosts)"),
+				   QStringLiteral("Everything posted on GitHub"), QStringLiteral("Diagnostic logs"), QStringLiteral("Other profiles"), QStringLiteral("Your Git checkouts and exported files") },
 				 { },
 				 QStringLiteral("Reset everything") };
 	}
@@ -171,7 +172,10 @@ namespace bpr::qt {
 			notice = QStringLiteral("Review data reset.");
 			break;
 		case reset::everything:
-			notice = QStringLiteral("This profile was reset. You are still signed in.");
+			notice = aOutcome.GithubCliRetained ? QStringLiteral("This profile was reset, but its GitHub CLI connection could not be forgotten. Sign out in Accounts & hosts.")
+				: aOutcome.GithubCliDisconnected
+				? QStringLiteral("This profile was reset and no longer uses GitHub CLI. GitHub CLI is still signed in; choose Use GitHub CLI to connect again.")
+				: QStringLiteral("This profile was reset.");
 			break;
 		}
 		if (aOutcome.Copied && !aCopyFolder.isEmpty()) {
@@ -357,7 +361,7 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("profileResetPanel"));
 		auto* const column = new QVBoxLayout{ this };
-		auto* const lead   = new QLabel{ QStringLiteral("Each reset keeps you signed in and reopens this profile’s windows."), this };
+		auto* const lead   = new QLabel{ QStringLiteral("Each reset reopens this profile’s windows. Only Reset everything disconnects GitHub CLI."), this };
 		lead->setObjectName(QStringLiteral("profileResetLead"));
 		lead->setWordWrap(true);
 		lead->setForegroundRole(QPalette::PlaceholderText);
@@ -369,7 +373,7 @@ namespace bpr::qt {
 			std::pair{ QStringLiteral("Clear caches"), QStringLiteral("Downloaded data. It downloads again when needed.") },
 			std::pair{ QStringLiteral("Reset settings"), QStringLiteral("Every choice in Settings returns to its default.") },
 			std::pair{ QStringLiteral("Reset review data"), QStringLiteral("Read marks, notes, drafts, tours and Review Cycles.") },
-			std::pair{ QStringLiteral("Reset everything"), QStringLiteral("All three at once. You stay signed in.") },
+			std::pair{ QStringLiteral("Reset everything"), QStringLiteral("All three at once, and disconnects GitHub CLI.") },
 		};
 		const std::array names{ QStringLiteral("Caches"), QStringLiteral("Settings"), QStringLiteral("ReviewData"), QStringLiteral("Everything") };
 		for (const auto each : resets) {

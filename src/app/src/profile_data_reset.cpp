@@ -2,16 +2,47 @@
 
 #include "bpr/adapters/sqlite/queue_enrollment_store.hpp"
 #include "bpr/adapters/sqlite/release_maintenance_files.hpp"
+#include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/app/diagnostic_export_directory.hpp"
 #include "bpr/app/native_filesystem_path.hpp"
 
 #include <QDateTime>
 #include <QString>
 
+#include <system_error>
+
 namespace bpr::app {
 	auto profile_data_reset_copy_name() -> std::string
 	{
 		return QStringLiteral("BetterPullReview reset %1").arg(QDateTime::currentDateTime().toString(QStringLiteral("yyyy-MM-dd HH.mm.ss"))).toStdString();
+	}
+
+	namespace {
+		/// [[BPR-1858]]. Reset everything leaves the profile not connected
+		/// through gh: core forgets each CLI row, this saves the result. gh's
+		/// own sign-in is never asked about or changed. A store that is absent
+		/// or cannot be read holds no reusable CLI choice, so only a failed save
+		/// of a CLI row it did read is reported.
+		void forget_github_cli(const std::filesystem::path& aRoot, const core::bpr_profile_id aProfile, core::profile_data_reset_outcome& aOutcome, const std::stop_token aStop)
+		{
+			auto present = std::error_code{ };
+			if (!std::filesystem::exists(aRoot / "state" / "v1" / "remembered-connections.sqlite3", present) || present) {
+				return;
+			}
+			try {
+				auto       store  = adapters::sqlite::make_remembered_connection_store(aRoot, aProfile);
+				const auto loaded = store ? store->load(aStop) : std::unexpected(application::remembered_connection_store_failure::unavailable);
+				if (!loaded || !core::holds_github_cli_connection(*loaded)) {
+					return;
+				}
+				const auto next                = core::forget_github_cli_connections(*loaded, loaded->Revision);
+				const auto saved               = next && store->save(*next, loaded->Revision, aStop).has_value();
+				aOutcome.GithubCliDisconnected = saved;
+				aOutcome.GithubCliRetained     = !saved;
+			} catch (...) {
+				aOutcome.GithubCliRetained = true;
+			}
+		}
 	}
 
 	auto run_profile_data_reset(const std::filesystem::path& aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
@@ -55,6 +86,9 @@ namespace bpr::app {
 			} catch (...) {
 				report.Outcome.QueueDisplayRestored = false;
 			}
+		}
+		if (core::profile_data_reset_forgets_github_cli(aRequest.Reset)) {
+			forget_github_cli(aRoot, aProfile, report.Outcome, aStop);
 		}
 		return report;
 	}
