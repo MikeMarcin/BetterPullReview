@@ -24,6 +24,9 @@
 // [[BPR-1804]]. tests/scripts/reviewer_live_course.py runs its `--reviewers`
 // (the author) and `--reviewers-second` (another account) modes through the
 // shipped `review_mutation_session::reviewers`.
+// [[BPR-1852]]. tests/scripts/draft_live_course.py runs its `--draft` (the
+// author) and `--draft-second` (another account) modes through the shipped
+// `review_mutation_session::change_draft_state`.
 #include "gh_cli_response.hpp"
 #include "github_host_profile.hpp"
 #include "github_mutation_contract.hpp"
@@ -699,6 +702,48 @@ namespace {
 		}
 		static_cast<void>(found);
 	}
+	/// [[BPR-1852]]. One draft-state change through the shipped session; the
+	/// receipt and the writes it made are printed and returned.
+	[[nodiscard]] auto draft_state(review_mutation_session& aSession, gh_mutation_transport& aWire, const std::string& aStep, const core::draft_state_change aChange)
+		-> std::pair<std::expected<application::review_draft_state_receipt, application::review_mutation_failure>, std::size_t>
+	{
+		const auto before  = aWire.Operations.size();
+		auto       receipt = aSession.change_draft_state(application::review_draft_state_request{
+			.Target = target().Semantic, .ActingIdentity = actor().Account, .Change = aChange, .LiveBinding = binding() });
+		const auto writes  = static_cast<std::size_t>(std::ranges::count_if(aWire.Operations.begin() + static_cast<std::ptrdiff_t>(before), aWire.Operations.end(), [](const review_mutation_operation aOperation) {
+			return aOperation == review_mutation_operation::mark_pull_request_ready_for_review || aOperation == review_mutation_operation::convert_pull_request_to_draft;
+		}));
+		std::cout << "REACTION_LIVE:" << aStep << ":" << (receipt ? "answered" : std::string{ application::name(receipt.error()) }) << " writes=" << writes
+				  << (receipt ? " draft=" + std::to_string(receipt->Draft) + " written=" + std::to_string(receipt->Written) : std::string{ }) << '\n'
+				  << std::flush;
+		return { std::move(receipt), writes };
+	}
+
+	/// [[BPR-1852]]. The author of a draft marks it ready (written once),
+	/// marks it ready again (nothing sent), converts it back to a draft and
+	/// marks it ready once more, each answered with GitHub's `isDraft`.
+	void draft_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		using change             = core::draft_state_change;
+		const auto [ready, w1]   = draft_state(aSession, aWire, "draft-ready", change::ready_for_review);
+		const auto [again, w2]   = draft_state(aSession, aWire, "draft-ready-again", change::ready_for_review);
+		const auto [back, w3]    = draft_state(aSession, aWire, "draft-convert", change::convert_to_draft);
+		const auto [readied, w4] = draft_state(aSession, aWire, "draft-ready-last", change::ready_for_review);
+		if (!ready || !ready->Written || ready->Draft || w1 != 1U || !again || again->Written || again->Draft || w2 != 0U || !back || !back->Written || !back->Draft || w3 != 1U
+			|| !readied || !readied->Written || readied->Draft || w4 != 1U) {
+			fail("draft:unexpected");
+		}
+	}
+
+	/// [[BPR-1852]]. Someone who may not change the pull request asks to make
+	/// it a draft: GitHub says so before anything is written.
+	void draft_second_course(review_mutation_session& aSession, gh_mutation_transport& aWire)
+	{
+		const auto [asked, writes] = draft_state(aSession, aWire, "draft-second-convert", core::draft_state_change::convert_to_draft);
+		if (asked || asked.error() != application::review_mutation_failure::refused_by_server || writes != 0U) {
+			fail("draft-second:unexpected");
+		}
+	}
 } // namespace
 
 auto main(int aCount, char** aValues) -> int
@@ -706,7 +751,7 @@ auto main(int aCount, char** aValues) -> int
 	QCoreApplication application{ aCount, aValues };
 	const auto       arguments = QCoreApplication::arguments();
 	if (arguments.size() < 4) {
-		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other|--reviewers|--reviewers-second) CONFIG OUTPUT [FLOOR]\n";
+		std::cerr << "usage: reaction_live_course (--main|--second-add|--second-remove|--read|--description|--description-second|--comments|--comments-other|--reviewers|--reviewers-second|--draft|--draft-second) CONFIG OUTPUT [FLOOR]\n";
 		return EXIT_FAILURE;
 	}
 	auto file = QFile{ arguments[2] };
@@ -749,6 +794,10 @@ auto main(int aCount, char** aValues) -> int
 		reviewers_course(session, wire);
 	} else if (mode == QStringLiteral("--reviewers-second")) {
 		reviewers_second_course(session, wire);
+	} else if (mode == QStringLiteral("--draft")) {
+		draft_course(session, wire);
+	} else if (mode == QStringLiteral("--draft-second")) {
+		draft_second_course(session, wire);
 	} else if (mode == QStringLiteral("--comments-other")) {
 		comments_other_course(session, wire);
 	} else if (mode == QStringLiteral("--main")) {
