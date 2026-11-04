@@ -409,10 +409,27 @@ namespace bpr::application {
 			return { "Merge state unknown", overview_merge_tone::unknown, "The merge assessment is unknown" };
 		}
 
+		/// \brief [[BPR-1852]]. GitHub's merge assessment for the draft state
+		/// the overview shows. GitHub names a draft's state DRAFT; a draft the
+		/// viewer has just made ready is assessed afresh, which is unknown
+		/// until the next read, and one just made a draft is a draft's.
+		[[nodiscard]] auto merge_for_draft(github_merge_observation aMerge, const bool aReadDraft, const bool aDraft) -> github_merge_observation
+		{
+			if (aDraft == aReadDraft) {
+				return aMerge;
+			}
+			if (aDraft) {
+				aMerge.Assessment = github_merge_assessment::draft;
+			} else if (aMerge.Assessment == github_merge_assessment::draft) {
+				aMerge.Assessment = github_merge_assessment::unknown;
+			}
+			return aMerge;
+		}
+
 		void project_merge_requirements(const github_pull_request_snapshot& aSnapshot, pull_request_overview_projection& aProjection, const overview_check_policy_index& aChecks)
 		{
-			const auto& merge      = aSnapshot.Merge;
-			const auto  reading    = read_merge(merge);
+			const auto merge       = merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft);
+			const auto reading     = read_merge(merge);
 			aProjection.MergeState = reading.State;
 			aProjection.MergeTone  = reading.Tone;
 			auto& conditions       = aProjection.MergeConditions;
@@ -702,6 +719,26 @@ namespace bpr::application {
 		return before != std::tie(aProjection.ReviewRequests, aProjection.ReviewRequestsNote, aProjection.Status);
 	}
 
+	auto apply_draft_state(pull_request_overview_projection&                aProjection,
+						   const github_pull_request_snapshot&              aSnapshot,
+						   const std::optional<core::projected_draft_state> aProjected) -> bool
+	{
+		const auto before        = std::tuple{ aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails };
+		const auto shown         = read_merge(merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft));
+		const auto now           = aProjected.value_or(core::projected_draft_state{ .Draft = aSnapshot.PullRequest.Draft });
+		aProjection.Draft        = now.Draft;
+		aProjection.DraftPending = now.Pending;
+		const auto reading       = read_merge(merge_for_draft(aSnapshot.Merge, aSnapshot.PullRequest.Draft, aProjection.Draft));
+		aProjection.MergeState   = reading.State;
+		aProjection.MergeTone    = reading.Tone;
+		// The details begin with the assessment's sentence; the rest is the
+		// read's and stays.
+		if (aProjection.RequirementDetails.starts_with(shown.Sentence)) {
+			aProjection.RequirementDetails.replace(0U, shown.Sentence.size(), reading.Sentence);
+		}
+		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails);
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)
@@ -711,16 +748,21 @@ namespace bpr::application {
 		const auto& request    = aSnapshot.PullRequest;
 		const auto  viewer     = aSnapshot.Viewer.Login;
 
-		projection.Owner               = aSnapshot.Repository.Owner;
-		projection.RepositoryName      = aSnapshot.Repository.Name;
-		projection.Number              = request.Number;
-		projection.Title               = request.Title;
-		projection.Body                = request.Body;
-		projection.AuthorLogin         = login_of(request.Author);
-		projection.BaseRef             = request.BaseRef;
-		projection.HeadRef             = request.HeadRef;
-		projection.State               = request.State;
-		projection.Draft               = request.Draft;
+		projection.Owner          = aSnapshot.Repository.Owner;
+		projection.RepositoryName = aSnapshot.Repository.Name;
+		projection.Number         = request.Number;
+		projection.Title          = request.Title;
+		projection.Body           = request.Body;
+		projection.AuthorLogin    = login_of(request.Author);
+		projection.BaseRef        = request.BaseRef;
+		projection.HeadRef        = request.HeadRef;
+		projection.State          = request.State;
+		projection.Draft          = request.Draft;
+		// [[BPR-1852]]. The viewer's own change counts until a read agrees.
+		if (aContext.ProjectedDraft.has_value()) {
+			projection.Draft        = aContext.ProjectedDraft->Draft;
+			projection.DraftPending = aContext.ProjectedDraft->Pending;
+		}
 		projection.CommitCount         = request.ReportedCommitCount.value_or(aSnapshot.Commits.size());
 		projection.ReturnedCommitCount = aSnapshot.Commits.size();
 

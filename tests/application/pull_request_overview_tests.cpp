@@ -795,6 +795,42 @@ namespace {
 			   "the asked request is shown and the list still says it is partial");
 	}
 
+	// [[BPR-1852]]. The viewer's own draft-state change is in the overview at
+	// once; moving it in place decides what projecting the whole overview
+	// with it would, the merge assessment included.
+	void test_a_draft_state_change_moves_the_overview_as_a_projection_would()
+	{
+		auto review               = snapshot();
+		review.PullRequest.Draft  = true;
+		review.Merge.Availability = application::github_observation_availability::available;
+		review.Merge.Assessment   = application::github_merge_assessment::draft;
+		const auto read           = application::project_pull_request_overview(review, { });
+		expect(read.Draft && !read.DraftPending && read.MergeState == "Draft" && read.RequirementDetails.starts_with("Merging is blocked while this pull request is a draft"),
+			   "a draft's merge is blocked as a draft's");
+
+		auto context           = application::overview_context{ };
+		context.ProjectedDraft = core::projected_draft_state{ .Draft = false, .Pending = true };
+		const auto projected   = application::project_pull_request_overview(review, context);
+		expect(!projected.Draft && projected.DraftPending && projected.MergeState == "Merge state unknown"
+				   && projected.RequirementDetails.starts_with("GitHub is checking merge requirements"),
+			   "made ready, it is no longer a draft and GitHub assesses it afresh");
+
+		auto moved = read;
+		expect(application::apply_draft_state(moved, review, context.ProjectedDraft) && moved == projected, "moved in place, it is the projection");
+		expect(!application::apply_draft_state(moved, review, context.ProjectedDraft), "the same state changes nothing");
+		expect(application::apply_draft_state(moved, review, core::projected_draft_state{ .Draft = false }) && !moved.DraftPending, "GitHub's answer confirms it");
+		expect(application::apply_draft_state(moved, review, std::nullopt) && moved == read, "a withdrawn change leaves the read's state");
+
+		// Converted to a draft, a mergeable pull request is a draft's.
+		review.PullRequest.Draft = false;
+		review.Merge.Assessment  = application::github_merge_assessment::clean;
+		auto ready               = application::project_pull_request_overview(review, { });
+		expect(application::apply_draft_state(ready, review, core::projected_draft_state{ .Draft = true, .Pending = true }) && ready.Draft && ready.MergeState == "Draft",
+			   "converted, it is blocked as a draft");
+		context.ProjectedDraft = core::projected_draft_state{ .Draft = true, .Pending = true };
+		expect(ready == application::project_pull_request_overview(review, context), "and that is the projection");
+	}
+
 } // namespace
 
 auto main() -> int
@@ -802,6 +838,7 @@ auto main() -> int
 	test_merge_evidence_boundaries();
 	test_status_leads_with_my_role_and_what_needs_attention();
 	test_a_requested_reviewer_moves_people_as_a_projection_would();
+	test_a_draft_state_change_moves_the_overview_as_a_projection_would();
 	test_history_header_matches_complete_projection();
 	test_receipt_readoption_keeps_exact_current_paths();
 	test_a_resolution_moves_the_counts_as_a_projection_would();

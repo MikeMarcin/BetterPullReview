@@ -74,7 +74,7 @@ namespace {
 		core::observe_draft_state(overlay, true);
 		expect(overlay.held(), "a read begun before the change does not end a pending one");
 		core::settle_draft_state_change(overlay, 8U, false);
-		expect(!overlay.Confirmed, "another request's answer changes nothing");
+		expect(overlay.pending() && !overlay.Answered.has_value(), "another request's answer changes nothing");
 		core::settle_draft_state_change(overlay, 7U, false);
 		expect(core::project_draft_state(true, overlay) == core::projected_draft_state{ .Draft = false }, "GitHub's answer confirms it");
 		core::observe_draft_state(overlay, true);
@@ -90,7 +90,9 @@ namespace {
 
 		core::begin_draft_state_change(overlay, 10U, draft_state_change::ready_for_review);
 		core::settle_draft_state_change(overlay, 10U, true);
-		expect(!overlay.held(), "an answer in the other state withdraws the change");
+		expect(core::project_draft_state(false, overlay) == core::projected_draft_state{ .Draft = true }, "an answer in the other state is GitHub's, and believed");
+		core::observe_draft_state(overlay, true);
+		expect(!overlay.held(), "until a read agrees");
 
 		core::begin_draft_state_change(overlay, 11U, draft_state_change::ready_for_review);
 		core::abandon_draft_state_change(overlay, 12U);
@@ -98,9 +100,18 @@ namespace {
 		core::abandon_draft_state_change(overlay, 11U);
 		expect(core::project_draft_state(true, overlay) == core::projected_draft_state{ .Draft = true }, "a failure shows the read again");
 
+		// Made ready, then a conversion fails before any read: the window
+		// falls back to GitHub's answer, not to the read that is behind it.
 		core::begin_draft_state_change(overlay, 13U, draft_state_change::ready_for_review);
+		core::settle_draft_state_change(overlay, 13U, false);
 		core::begin_draft_state_change(overlay, 14U, draft_state_change::convert_to_draft);
-		expect(overlay.Request == 14U && overlay.Draft, "a later change replaces the earlier");
+		expect(core::project_draft_state(true, overlay) == core::projected_draft_state{ .Draft = true, .Pending = true }, "the conversion shows at once");
+		core::abandon_draft_state_change(overlay, 14U);
+		expect(core::project_draft_state(true, overlay) == core::projected_draft_state{ .Draft = false }, "and its failure shows GitHub's last answer");
+
+		core::begin_draft_state_change(overlay, 15U, draft_state_change::ready_for_review);
+		core::begin_draft_state_change(overlay, 16U, draft_state_change::convert_to_draft);
+		expect(overlay.Request == 16U && overlay.PendingDraft, "a later change replaces the earlier");
 	}
 
 	void test_names()

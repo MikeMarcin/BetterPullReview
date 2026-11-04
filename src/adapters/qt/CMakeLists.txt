@@ -91,6 +91,7 @@ add_library(
         src/markdown_github_math.cpp
         src/pull_request_overview_page.cpp
         src/reviewer_picker.cpp
+        src/draft_state_chip.cpp
         src/conversation_cards_view.cpp
         src/conversation_finder.cpp
         src/conversation_glyphs.cpp

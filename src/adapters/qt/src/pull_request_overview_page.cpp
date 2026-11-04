@@ -11,6 +11,7 @@
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/commit_filter_view.hpp"
 #include "bpr/qt/disclosure_button.hpp"
+#include "bpr/qt/draft_state_chip.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/generated_files_view.hpp"
 #include "bpr/qt/identity_avatar.hpp"
@@ -93,6 +94,32 @@
 
 namespace bpr::qt {
 	namespace {
+		/// \brief [[BPR-1852]]. The draft banner's ground: a faint wash of the
+		/// draft chip's grey inside a hairline of it, so the banner reads as
+		/// belonging to the chip above it without shouting over the title.
+		class draft_banner_frame final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto blend = [](const QColor& aInk, const QColor& aPaper, const double aShare) {
+					return QColor::fromRgbF(static_cast<float>(aPaper.redF() + (aInk.redF() - aPaper.redF()) * aShare),
+											static_cast<float>(aPaper.greenF() + (aInk.greenF() - aPaper.greenF()) * aShare),
+											static_cast<float>(aPaper.blueF() + (aInk.blueF() - aPaper.blueF()) * aShare));
+				};
+				const auto ink   = palette().color(QPalette::Active, QPalette::PlaceholderText);
+				const auto paper = palette().color(QPalette::Active, QPalette::Window);
+				painter.setPen(QPen{ blend(ink, paper, 0.35), 1.0 });
+				painter.setBrush(blend(ink, paper, 0.09));
+				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+			}
+		};
+
 		/// \brief [[BPR-1677]]. The files' keys for their top and bottom row,
 		/// as a screen reader speaks them: "Command-Up Arrow and Command-Down
 		/// Arrow go to the top and bottom row" on macOS.
@@ -2473,7 +2500,17 @@ namespace bpr::qt {
 		titleFont.setPointSizeF(titleFont.pointSizeF() * 1.3);
 		titleFont.setWeight(QFont::DemiBold);
 		Title->setFont(titleFont);
-		headerLayout->addWidget(Title);
+		// [[BPR-1852]]. A draft says so before its title, as GitHub's page
+		// does: the chip leads the title's first line.
+		auto* const titleRow = new QHBoxLayout;
+		titleRow->setContentsMargins(0, 0, 0, 0);
+		titleRow->setSpacing(8);
+		DraftChip = new draft_state_chip{ main };
+		DraftChip->setObjectName(QStringLiteral("overviewDraftChip"));
+		DraftChip->hide();
+		titleRow->addWidget(DraftChip, 0, Qt::AlignTop);
+		titleRow->addWidget(Title, 1);
+		headerLayout->addLayout(titleRow);
 
 		Summary = new QLabel{ main };
 		Summary->setObjectName(QStringLiteral("overviewSummary"));
@@ -2482,6 +2519,47 @@ namespace bpr::qt {
 		Summary->setWordWrap(true);
 		Summary->setForegroundRole(QPalette::PlaceholderText);
 		headerLayout->addWidget(Summary);
+		// [[BPR-1852]]. Under the summary, while the pull request is an open
+		// draft: what that means, and for its author the one action that ends
+		// it. The owner could not find a way to publish a draft from the app.
+		DraftBanner = new draft_banner_frame{ main };
+		DraftBanner->setObjectName(QStringLiteral("overviewDraftBanner"));
+		DraftBanner->setAccessibleName(QStringLiteral("Draft pull request"));
+		auto* const bannerLayout = new QHBoxLayout{ DraftBanner };
+		bannerLayout->setContentsMargins(12, 8, 8, 8);
+		bannerLayout->setSpacing(12);
+		auto* const bannerWords = new QVBoxLayout;
+		bannerWords->setContentsMargins(0, 0, 0, 0);
+		bannerWords->setSpacing(2);
+		DraftBannerText = new QLabel{ DraftBanner };
+		DraftBannerText->setObjectName(QStringLiteral("overviewDraftBannerText"));
+		DraftBannerText->setTextFormat(Qt::PlainText);
+		DraftBannerText->setWordWrap(true);
+		bannerWords->addWidget(DraftBannerText);
+		ReadyStatus = new QLabel{ DraftBanner };
+		ReadyStatus->setObjectName(QStringLiteral("overviewReadyForReviewStatus"));
+		ReadyStatus->setTextFormat(Qt::PlainText);
+		ReadyStatus->setWordWrap(true);
+		ReadyStatus->setForegroundRole(QPalette::PlaceholderText);
+		ReadyStatus->hide();
+		bannerWords->addWidget(ReadyStatus);
+		bannerLayout->addLayout(bannerWords, 1);
+		ReadyForReview = new QPushButton{ QStringLiteral("Ready for review"), DraftBanner };
+		ReadyForReview->setObjectName(QStringLiteral("overviewReadyForReview"));
+		ReadyForReview->setAccessibleName(QStringLiteral("Ready for review"));
+		ReadyForReview->setAccessibleDescription(QStringLiteral("Marks this draft ready for review on GitHub, so reviewers are asked for their review"));
+		ReadyForReview->setToolTip(QStringLiteral("Mark this pull request ready for review on GitHub"));
+		ReadyForReview->setDefault(true);
+		ReadyForReview->hide();
+		bannerLayout->addWidget(ReadyForReview, 0, Qt::AlignVCenter);
+		DraftBanner->hide();
+		headerLayout->addSpacing(2);
+		headerLayout->addWidget(DraftBanner);
+		connect(ReadyForReview, &QPushButton::clicked, this, [this] {
+			if (DraftStateOffer == core::draft_state_change::ready_for_review && !ReadyBusy && DraftStateDispatch) {
+				DraftStateDispatch(core::draft_state_change::ready_for_review);
+			}
+		});
 		// [[BPR-0671]]. The commit oids behind the branches, disclosed. They
 		// were in the files drawer's summary box, which the overview replaces;
 		// they belong beside the branches they identify.
@@ -3177,6 +3255,25 @@ namespace bpr::qt {
 				ReviewerDispatch({ .Kind = reviewer_picker_gesture::kind::open });
 			}
 		});
+		// [[BPR-1852]]. Convert to draft sits with who is asked to review,
+		// where GitHub's own page keeps it: making a pull request a draft
+		// again is about the reviewers being asked.
+		ConvertToDraft = new quiet_push_button{ QStringLiteral("Convert to draft"), peopleBody };
+		ConvertToDraft->setObjectName(QStringLiteral("overviewConvertToDraft"));
+		ConvertToDraft->setAccessibleName(QStringLiteral("Convert to draft"));
+		ConvertToDraft->setAccessibleDescription(QStringLiteral("Makes this pull request a draft again on GitHub; it is not ready for review until it is marked ready"));
+		ConvertToDraft->setToolTip(QStringLiteral("Still in progress? Make this pull request a draft again"));
+		ConvertToDraft->hide();
+		people.Body->addWidget(ConvertToDraft, 0, Qt::AlignLeft);
+		ConvertStatus = makeText(peopleBody, QStringLiteral("overviewConvertToDraftStatus"));
+		ConvertStatus->setForegroundRole(QPalette::PlaceholderText);
+		ConvertStatus->hide();
+		people.Body->addWidget(ConvertStatus);
+		connect(ConvertToDraft, &QPushButton::clicked, this, [this] {
+			if (DraftStateOffer == core::draft_state_change::convert_to_draft && !ConvertBusy && DraftStateDispatch) {
+				DraftStateDispatch(core::draft_state_change::convert_to_draft);
+			}
+		});
 		Participants = new QVBoxLayout;
 		Participants->setContentsMargins(0, 0, 0, 0);
 		Participants->setSpacing(0);
@@ -3284,9 +3381,19 @@ namespace bpr::qt {
 			state = QStringLiteral(" Closed without merge.");
 			break;
 		case application::github_pull_request_state::open:
-			state = aProjection.Draft ? QStringLiteral(" Draft.") : QString{ };
+			// [[BPR-1852]]. A draft is said by the chip and the banner.
 			break;
 		}
+		ShownDraft        = aProjection.Draft;
+		ShownOpen         = aProjection.State == application::github_pull_request_state::open;
+		ShownDraftPending = aProjection.DraftPending;
+		if (!samePullRequest) {
+			ReadyBusy   = false;
+			ConvertBusy = false;
+			ReadyStatus->clear();
+			ConvertStatus->clear();
+		}
+		present_draft_controls();
 		auto commits = aProjection.CommitCount == 1U
 			? QStringLiteral("1 commit")
 			: QStringLiteral("%1 commits").arg(count_text(aProjection.CommitCount));
@@ -3548,6 +3655,15 @@ namespace bpr::qt {
 		NewConversation.reset();
 		set_description_expanded(false);
 		Projection.reset();
+		// [[BPR-1852]]. Nothing presented is a draft, and no change is under way.
+		ShownDraft        = false;
+		ShownOpen         = false;
+		ShownDraftPending = false;
+		ReadyBusy         = false;
+		ConvertBusy       = false;
+		ReadyStatus->clear();
+		ConvertStatus->clear();
+		present_draft_controls();
 		MergeState->hide();
 		MergeConditions->hide();
 		RequestsNote->hide();
@@ -3728,6 +3844,11 @@ namespace bpr::qt {
 		} else if (aObservation.State == application::github_pull_request_state_projection::closed) {
 			state = QStringLiteral("Closed without merge");
 		}
+		// [[BPR-1852]]. The chip and the banner as soon as GitHub names the
+		// pull request; its author's action waits for the review to load.
+		ShownDraft = aObservation.Draft;
+		ShownOpen  = aObservation.State == application::github_pull_request_state_projection::open;
+		present_draft_controls();
 		const auto commits = aObservation.ReportedCommits == 1U ? QStringLiteral("1 commit")
 																: QStringLiteral("%1 commits").arg(count_text(aObservation.ReportedCommits));
 		Summary->setText(QStringLiteral("%1 · %2 · %3 → %4 · %5. Provisional metadata; review data is still loading.")
@@ -5765,6 +5886,120 @@ namespace bpr::qt {
 		present_status(true);
 		++ReviewRequestUpdates;
 		return true;
+	}
+
+	void pull_request_overview_page::set_draft_state_offer(const std::optional<core::draft_state_change> aOffered)
+	{
+		if (DraftStateOffer == aOffered) {
+			return;
+		}
+		DraftStateOffer = aOffered;
+		present_draft_controls();
+	}
+
+	auto pull_request_overview_page::draft_state_offer() const noexcept -> std::optional<core::draft_state_change>
+	{
+		return DraftStateOffer;
+	}
+
+	void pull_request_overview_page::set_draft_state_dispatch(std::function<void(core::draft_state_change)> aDispatch)
+	{
+		DraftStateDispatch = std::move(aDispatch);
+	}
+
+	void pull_request_overview_page::present_draft_state_status(const core::draft_state_change aChange, const QString& aText, const bool aBusy)
+	{
+		auto* const status                                                                = aChange == core::draft_state_change::ready_for_review ? ReadyStatus : ConvertStatus;
+		(aChange == core::draft_state_change::ready_for_review ? ReadyBusy : ConvertBusy) = aBusy;
+		status->setText(aText);
+		present_draft_controls();
+	}
+
+	auto pull_request_overview_page::present_draft_state(const application::pull_request_overview_projection& aProjection) -> bool
+	{
+		const auto samePullRequest = Projection.has_value() && !Cached && Projection->Owner == aProjection.Owner && Projection->RepositoryName == aProjection.RepositoryName
+			&& Projection->Number == aProjection.Number;
+		if (!samePullRequest) {
+			return false;
+		}
+		Projection->Draft              = aProjection.Draft;
+		Projection->DraftPending       = aProjection.DraftPending;
+		Projection->MergeState         = aProjection.MergeState;
+		Projection->MergeTone          = aProjection.MergeTone;
+		Projection->RequirementDetails = aProjection.RequirementDetails;
+		ShownDraft                     = aProjection.Draft;
+		ShownDraftPending              = aProjection.DraftPending;
+		present_draft_controls();
+		present_merge(*Projection);
+		++DraftStateUpdates;
+		return true;
+	}
+
+	void pull_request_overview_page::present_draft_controls()
+	{
+		if (DraftChip == nullptr || DraftBanner == nullptr || ConvertToDraft == nullptr) {
+			return;
+		}
+		const auto openDraft = ShownDraft && ShownOpen;
+		DraftChip->setVisible(openDraft);
+		// The action is the author's, on a review that has loaded.
+		const auto loaded = Projection.has_value() && !Cached;
+		// Marked ready and waiting on GitHub: the chip has gone at once, and
+		// the banner stays to say GitHub is being asked, until it answers.
+		const auto readying = loaded && ShownOpen && ReadyBusy && !ShownDraft;
+		const auto ready    = loaded && openDraft && DraftStateOffer == core::draft_state_change::ready_for_review;
+		const auto convert  = loaded && !ShownDraft && ShownOpen && DraftStateOffer == core::draft_state_change::convert_to_draft;
+		DraftBannerText->setText(readying    ? QStringLiteral("Asking GitHub to mark this pull request ready for review…")
+									 : ready ? QStringLiteral("This pull request is still a draft, so no one is asked to review it. Mark it ready when it is.")
+											 : QStringLiteral("This pull request is still a draft. Its author has not asked for review yet."));
+		DraftBanner->setAccessibleDescription(DraftBannerText->text());
+		ReadyForReview->setVisible(ready || readying);
+		// A conversion GitHub has not answered is not marked ready over.
+		ReadyForReview->setEnabled(!ReadyBusy && !ShownDraftPending);
+		ReadyForReview->setText(ReadyBusy ? QStringLiteral("Marking ready…") : QStringLiteral("Ready for review"));
+		ReadyStatus->setVisible(!ReadyStatus->text().isEmpty());
+		DraftBanner->setVisible(openDraft || readying);
+		// While a conversion waits on GitHub the button stays, disabled, where
+		// it was pressed, and says so.
+		ConvertToDraft->setVisible(convert || (ConvertBusy && loaded && ShownOpen));
+		ConvertToDraft->setEnabled(!ConvertBusy);
+		ConvertToDraft->setText(ConvertBusy ? QStringLiteral("Converting to draft…") : QStringLiteral("Convert to draft"));
+		ConvertStatus->setVisible(!ConvertStatus->text().isEmpty());
+	}
+
+	auto pull_request_overview_page::draft_chip() const noexcept -> QWidget*
+	{
+		return DraftChip;
+	}
+
+	auto pull_request_overview_page::draft_banner() const noexcept -> QWidget*
+	{
+		return DraftBanner;
+	}
+
+	auto pull_request_overview_page::draft_banner_text() const noexcept -> QLabel*
+	{
+		return DraftBannerText;
+	}
+
+	auto pull_request_overview_page::ready_for_review_button() const noexcept -> QPushButton*
+	{
+		return ReadyForReview;
+	}
+
+	auto pull_request_overview_page::convert_to_draft_button() const noexcept -> QPushButton*
+	{
+		return ConvertToDraft;
+	}
+
+	auto pull_request_overview_page::draft_state_status(const core::draft_state_change aChange) const noexcept -> QLabel*
+	{
+		return aChange == core::draft_state_change::ready_for_review ? ReadyStatus : ConvertStatus;
+	}
+
+	auto pull_request_overview_page::draft_state_updates() const noexcept -> std::size_t
+	{
+		return DraftStateUpdates;
 	}
 
 	auto pull_request_overview_page::request_row_builds() const noexcept -> std::size_t

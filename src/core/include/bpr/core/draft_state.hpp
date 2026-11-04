@@ -108,38 +108,44 @@ namespace bpr::core {
 	/// answer, and kept until a read agrees.
 	struct draft_state_overlay
 	{
-		/// The change's request identity; 0 while no change is held.
+		/// The pending change's request identity; 0 while none is pending.
 		std::uint64_t Request = 0U;
-		/// The draft state the change leaves the pull request in.
-		bool Draft = false;
-		/// GitHub answered that the pull request is in that state.
-		bool Confirmed = false;
-		/// How many reads since GitHub's answer disagreed. A read begun before
-		/// the change can arrive after it; the second one that disagrees is
-		/// believed, as `conversation_overlay` does for a resolve.
+		/// The draft state the pending change leaves the pull request in.
+		bool PendingDraft = false;
+		/// The draft state GitHub last answered with, until a read agrees: a
+		/// change confirmed, or GitHub's own answer when it was not the state
+		/// asked. A later change that fails falls back to it, not to a read
+		/// that has not caught up.
+		std::optional<bool> Answered;
+		/// How many reads since GitHub's answer disagreed with it. A read begun
+		/// before the change can arrive after it; the second one that disagrees
+		/// is believed, as `conversation_overlay` does for a resolve.
 		std::uint8_t Disagreements = 0U;
 
-		[[nodiscard]] auto held() const noexcept -> bool { return Request != 0U; }
+		[[nodiscard]] auto pending() const noexcept -> bool { return Request != 0U; }
+		[[nodiscard]] auto held() const noexcept -> bool { return pending() || Answered.has_value(); }
 
 		auto operator<=>(const draft_state_overlay&) const = default;
 	};
 
 	/// \brief Records the change a gesture asked for, pending, under
-	/// `aRequest` (non-zero). A change already held is replaced.
+	/// `aRequest` (non-zero). A change already pending is replaced; GitHub's
+	/// last answer stays to fall back to.
 	void begin_draft_state_change(draft_state_overlay& aOverlay, std::uint64_t aRequest, draft_state_change aChange) noexcept;
 
 	/// \brief GitHub answered request `aRequest` with the pull request's
-	/// draft state `aDraft`: confirmed when it is the state asked, withdrawn
-	/// otherwise. An answer to a request the overlay does not hold changes
-	/// nothing.
+	/// draft state `aDraft`, which is believed until a read agrees, whether or
+	/// not it is the state asked. An answer to a request the overlay does not
+	/// hold pending changes nothing.
 	void settle_draft_state_change(draft_state_overlay& aOverlay, std::uint64_t aRequest, bool aDraft) noexcept;
 
-	/// \brief The change failed or went unanswered: the window shows the read again.
+	/// \brief The change failed or went unanswered: the window shows GitHub's
+	/// last answer again, or the read when there is none.
 	void abandon_draft_state_change(draft_state_overlay& aOverlay, std::uint64_t aRequest) noexcept;
 
-	/// \brief A new read arrived with draft state `aDraft`. A confirmed change
-	/// it agrees with is done; one it disagrees with a second time is given
-	/// up. A pending change stays.
+	/// \brief A new read arrived with draft state `aDraft`. GitHub's answer
+	/// that it agrees with is done; one it disagrees with a second time is
+	/// given up. A pending change stays.
 	void observe_draft_state(draft_state_overlay& aOverlay, bool aDraft) noexcept;
 
 	/// \brief The draft state the window shows over a read.

@@ -172,7 +172,11 @@ to the pull request and says its body, `viewerCanUpdate` and
 `viewerDidAuthor` (`ObserveComment`) ([[BPR-1775]]). It carries one review
 requested (`RequestReviews`, `requestReviews` with one user and
 `union:true`), after the read that binds the pull request and lists its
-requests (`ObserveReviewers`) ([[BPR-1804]]). Those are the only
+requests (`ObserveReviewers`) ([[BPR-1804]]). It carries the author's
+draft-state change (`MarkReadyForReview`, `markPullRequestReadyForReview`;
+`ConvertToDraft`, `convertPullRequestToDraft`), after the read that binds the
+pull request and says its `isDraft`, `state` and `viewerCanUpdate`
+(`ObserveDraftState`) ([[BPR-1852]]). Those are the only
 GraphQL writes it admits; each
 body must equal its compiled form byte for byte, and one that differs is never
 launched.
@@ -908,6 +912,7 @@ AddReaction / RemoveReaction
 ObserveDescription / UpdateDescription
 ObserveComment / EditReviewComment / EditIssueComment / EditReviewBody
 ObserveReviewers / RequestReviews
+ObserveDraftState / MarkReadyForReview / ConvertToDraft
 ```
 
 [[BPR-1774]]. The description edit is offered to the pull request's author
@@ -959,6 +964,22 @@ refusal (`requestReviews: null`) is refused by the server; a lost or
 unreadable answer is settled by one read back, never a second write. No
 recovery record is kept: GitHub's list is the record. Removing a request and
 teams as reviewers are not offered yet.
+
+[[BPR-1852]]. The pull request's author marks a draft ready for review, or
+converts an open pull request back to a draft, from Overview or the Pull
+Request menu. `ObserveDraftState` names the pull request by the accepted
+read's node and asks for `isDraft`, `state` and `viewerCanUpdate`; both
+mutations answer with the same selection, and both are in GitHub.com's and
+GHES 3.18's recorded schemas. The change is a one-shot grant for that change
+alone; a closed or merged pull request's binding takes none. The coordinator
+confirms the target, the session reads `ObserveDraftState`, and the core
+decides (`decide_draft_state_write`: GitHub already in the state asked sends
+nothing, a pull request no longer open is `target_unavailable`,
+`viewerCanUpdate` false is refused). One write follows on the native and the
+GitHub CLI connection alike, and its answer's `isDraft` is what is believed.
+A GraphQL refusal (a null payload) is refused by the server; a lost or
+unreadable answer is settled by one read back, never a second write. No
+recovery record is kept: the state is the record.
 
 Unsupported capabilities produce explicit unavailable states and safe fallbacks; they do not silently approximate a mutation.
 
