@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1858"
+  ],
+  "reserve_for": "reset-gh",
+  "purpose": "Reset everything leaves GitHub CLI connected",
+  "created": "2026-11-04T20:31:41.345627+00:00",
+  "base": "7c605c6a234bf4b81436e59ed712537d78f64dc4"
+}
