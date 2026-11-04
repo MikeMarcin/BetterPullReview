@@ -1299,6 +1299,9 @@ namespace bpr::qt {
 		present_verdicts();
 		Submit->setToolTip(Submit->isEnabled() ? tr("Publish this review with the displayed account and revision.")
 											   : (aProjection.Status.isEmpty() ? tr("This review cannot be submitted as it is.") : aProjection.Status));
+		if (!Submit->isEnabled() && aProjection.Controls.Authored && Draft && Draft->Disposition != core::review_disposition::comment) {
+			Submit->setToolTip(Decisions[decision_index(Draft->Disposition)]->toolTip());
+		}
 		Discard->setToolTip(Discard->isEnabled() ? (carried ? tr("Delete this review's pending comments and its summary. You are asked first.")
 															: tr("Discard this unpublished review draft."))
 												 : tr("Only an editable, unpublished draft can be discarded. %1").arg(aProjection.Status));
@@ -1645,6 +1648,14 @@ namespace bpr::qt {
 			}
 			if (held > 0U) {
 				tip = heldWords;
+			}
+			// [[BPR-1853]]. The core says the reviewer opened this pull
+			// request: GitHub takes only a comment from its author, so that
+			// reason outlasts every other.
+			if (Shown.Controls.Authored && disposition == core::review_disposition::approve) {
+				tip = tr("You can't approve your own pull request. GitHub lets its author leave only a comment.");
+			} else if (Shown.Controls.Authored && disposition == core::review_disposition::request_changes) {
+				tip = tr("You can't request changes on your own pull request. GitHub lets its author leave only a comment.");
 			}
 			button->setToolTip(tip);
 			button->setAccessibleDescription(tip);

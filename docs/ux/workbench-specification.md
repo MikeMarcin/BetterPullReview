@@ -2769,7 +2769,16 @@ three verdicts **Comment**, **Approve** and **Request changes**, which submit
 the review at once, each as its own verdict, and are each enabled only when
 the core says the review can be submitted so (Request changes waits for a
 summary, Comment for a summary or a line comment; a disabled one says why in
-its tooltip); "Nothing is published until you submit." said once, with
+its tooltip). On a pull request the signed-in account opened, Approve and
+Request changes stay in place but are off, each saying "You can't approve
+your own pull request" or "You can't request changes on your own pull
+request", then "GitHub lets its author leave only a comment"; the core decides
+it from the account's login and the author's, compared without ASCII case as
+GitHub compares them, and an unknown author changes nothing. Compose review
+then reads "Comment…". If GitHub refuses an author's verdict anyway, the page
+says "Not published: GitHub doesn't let you approve your own pull request"
+(or request changes on it) and keeps the summary and comments for a Comment
+([[BPR-1853]]). "Nothing is published until you submit." said once, with
 **Discard review** quiet at the end of the same line, in red words with the
 red tint only under the pointer; and "Pull request and account", a disclosure
 closed by default, over the host, head and account. The status line shows only

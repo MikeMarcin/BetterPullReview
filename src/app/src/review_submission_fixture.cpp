@@ -50,11 +50,18 @@ namespace bpr::app::detail {
 				}
 				return result;
 			}
+			[[nodiscard]] auto refuses_as_own() const -> bool
+			{
+				std::scoped_lock lock{ State->Mutex };
+				return State->RefuseNextReviewAsOwn;
+			}
 			auto submit_and_reconcile(const application::review_submission_request& aRequest, std::stop_token aStop) -> application::review_submission_result override
 			{
 				// [[BPR-1345]]. A review with line comments: the exact production
 				// request, journal and reconciliation, against this server.
-				if (State->CliStrictCourse || !aRequest.Proposal.Comments.empty()) {
+				// [[BPR-1853]]. So is one this server refuses as GitHub refuses
+				// its author's own approval: the production session reads why.
+				if (State->CliStrictCourse || !aRequest.Proposal.Comments.empty() || refuses_as_own()) {
 					return Production->submit_and_reconcile(aRequest, aStop);
 				}
 				if (aStop.stop_requested() || !aRequest.LiveBinding || *aRequest.LiveBinding != Binding) {
@@ -457,6 +464,10 @@ namespace bpr::app::detail {
 						// GitHub's answer to a review with a comment on a line
 						// outside the diff: its words, and no comment named.
 						return wire::github_mutation_wire_success{ .Response = { .Status = 422, .Body = R"({"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff and Pull request review thread diff hunk can't be blank"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})" } };
+					}
+					if (std::exchange(State->RefuseNextReviewAsOwn, false)) {
+						// GitHub's answer to its author's own approval (MikeMarcin/BPR-Test#43).
+						return wire::github_mutation_wire_success{ .Response = { .Status = 422, .Body = R"({"message":"Unprocessable Entity","errors":["Review Can not approve your own pull request"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})" } };
 					}
 					if (std::exchange(State->DropNextReview, false)) {
 						return wire::github_mutation_wire_error{ .Failure = application::review_mutation_failure::unavailable, .Transmission = wire::github_mutation_transmission::indeterminate };

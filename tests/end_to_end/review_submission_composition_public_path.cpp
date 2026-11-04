@@ -236,11 +236,12 @@ auto main(int argc, char** argv) -> int
 	auto                        server = std::make_shared<app::detail::review_submission_fixture_state>();
 	server->CliStrictCourse            = cliMode;
 	auto make                          = [&](app::detail::github_epoch_fixture_phase aPhase = app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture aFixture = app::detail::github_public_path_fixture::github_com, bool aRepeatReads = false,
-											 bool aMergeBaseUnavailable = false) {
+											 bool aMergeBaseUnavailable = false, bool aViewerAuthors = false) {
 		std::unique_ptr<app::github_application> started;
 		auto                                     startupTerminal = false;
 		auto                                     options         = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .EpochPhase = aPhase, .ReviewSubmissionServer = server, .RepeatReadSessions = aRepeatReads };
 		options.MergeBaseUnavailable                             = aMergeBaseUnavailable;
+		options.ViewerAuthors                                    = aViewerAuthors;
 		cli.configure(options);
 		auto startup = access::start(aFixture,
 									 options,
@@ -1327,6 +1328,74 @@ auto main(int argc, char** argv) -> int
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->Submissions == before + 3U && server->Reviews.back().Proposal.Disposition == core::review_disposition::request_changes,
 				   "each finish submitted exactly once");
+		}
+		const auto submissions = [&] {
+			std::scoped_lock lock{ server->Mutex };
+			return server->Submissions;
+		};
+		{
+			// [[BPR-1853]]. GitHub refuses an approval the page offered (the
+			// author was not known, or changed): not published, and the page
+			// says it was the reviewer's own pull request and what still works.
+			open_pull_request(*application);
+			auto&       refusing = *application->window().review_submission_editor_view();
+			auto* const approve  = refusing.disposition_button(core::review_disposition::approve);
+			refusing.body_editor()->setPlainText(QStringLiteral("Approved, GitHub says no."));
+			wait([&] { return approve->isEnabled(); }, "Approve is offered on another's pull request");
+			const auto before = submissions();
+			{
+				std::scoped_lock lock{ server->Mutex };
+				server->RefuseNextReviewAsOwn = true;
+			}
+			approve->click();
+			wait([&] { return submissions() == before + 1U && refusing.shown_draft() && refusing.shown_draft()->State == state::drafting && !refusing.reconcile_action()->isEnabled(); },
+				 "GitHub's refusal of the author's own approval is settled as not published");
+			expect(refusing.status_label()->text() == QStringLiteral("Not published: GitHub doesn't let you approve your own pull request. Your summary is kept; submit it as a comment instead.")
+					   && refusing.shown_draft()->Body == "Approved, GitHub says no.",
+				   "the page says why GitHub refused it, and keeps the summary");
+			refusing.discard_action()->trigger();
+			if (auto* const question = refusing.discard_confirmation(); question != nullptr) {
+				question->findChild<QAbstractButton*>(QStringLiteral("discardReviewConfirmationConfirm"))->click();
+			}
+			wait([&] { return refusing.shown_draft() && refusing.shown_draft()->Body.empty(); }, "the refused summary is discarded");
+		}
+		shutdown(*application);
+		application.reset();
+		// [[BPR-1853]]. The signed-in account opened this pull request:
+		// Comment only, as on GitHub. Approve and
+		// Request changes are shown, off, and say why; nothing sends them.
+		application = make(app::detail::github_epoch_fixture_phase::single, app::detail::github_public_path_fixture::github_com, false, false, true);
+		open(*application, cli);
+		{
+			auto&       own     = *application->window().review_submission_editor_view();
+			auto* const comment = own.disposition_button(core::review_disposition::comment);
+			auto* const approve = own.disposition_button(core::review_disposition::approve);
+			auto* const changes = own.disposition_button(core::review_disposition::request_changes);
+			own.body_editor()->setPlainText(QStringLiteral("A comment on my own pull request."));
+			wait([&] { return own.shown_projection().Controls.Authored && comment->isEnabled(); }, "my own pull request offers Comment");
+			expect(!approve->isEnabled() && !changes->isEnabled() && approve->isVisible() && changes->isVisible(), "Approve and Request changes are shown, off");
+			expect(approve->toolTip() == QStringLiteral("You can't approve your own pull request. GitHub lets its author leave only a comment.")
+					   && changes->toolTip() == QStringLiteral("You can't request changes on your own pull request. GitHub lets its author leave only a comment."),
+				   "each says why");
+			expect(application->window().compose_review_action()->iconText() == QStringLiteral("Comment…")
+					   && application->window().compose_review_action()->toolTip().contains(QStringLiteral("You opened it, so GitHub takes only a comment.")),
+				   "Compose review offers a comment, not an approval");
+			if (argc > 1) {
+				expect(application->window().grab().save(QString::fromLocal8Bit(argv[1]) + QStringLiteral("-own-pull-request.png")), "own pull request render");
+			}
+			const auto before = submissions();
+			approve->click();
+			changes->click();
+			own.choose_disposition(core::review_disposition::approve);
+			QApplication::processEvents();
+			own.submit_action()->trigger();
+			QApplication::processEvents();
+			expect(submissions() == before && !own.submit_action()->isEnabled(), "no gesture sends Approve or Request changes on my own pull request");
+			comment->click();
+			submitted(own);
+			std::scoped_lock lock{ server->Mutex };
+			expect(server->Submissions == before + 1U, "Comment submits once");
+			expect(server->Reviews.back().Proposal.Disposition == core::review_disposition::comment, "as a comment");
 		}
 		shutdown(*application);
 		cli.check();
