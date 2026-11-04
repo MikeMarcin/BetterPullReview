@@ -4871,8 +4871,10 @@ namespace bpr::qt {
 		column->addSpacing(12);
 		column->addWidget(ReviewSkill);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+		// [[BPR-1856]], owner 2026-11-04: Add repository comes first on
+		// Repositories; the clone folders and linked clones follow it.
 		CloneFolders = new clone_folders_panel;
-		SettingsWindow->adopt_panel(settings_page::repositories, CloneFolders);
+		SettingsWindow->adopt_panel_below(settings_page::repositories, CloneFolders, SavedRepositoriesEditor);
 
 		auto* const storage       = new QWidget;
 		auto* const storageColumn = new QVBoxLayout{ storage };

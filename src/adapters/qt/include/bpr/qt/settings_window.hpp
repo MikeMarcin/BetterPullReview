@@ -81,6 +81,16 @@ namespace bpr::qt {
 		/// \brief Places a live settings surface on a page, replacing its notice.
 		void adopt_panel(settings_page aPage, QWidget* aPanel);
 
+		/// \brief [[BPR-1856]]. Places a live settings surface on a page
+		/// directly under a panel the page already holds.
+		///
+		/// \details `adopt_panel` puts each new panel at the top of its page;
+		/// this keeps a later panel below an earlier one, so the page is drawn
+		/// in the order its panels were adopted, which is also the order Tab
+		/// and the accessibility tree reach them. Without `aAbove` on the page
+		/// it places the panel as `adopt_panel` does.
+		void adopt_panel_below(settings_page aPage, QWidget* aPanel, const QWidget* aAbove);
+
 		/// \brief [[BPR-1179]]. Removes a page from the sidebar for this window's life.
 		///
 		/// \details For a page whose capability the composition does not
