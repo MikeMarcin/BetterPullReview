@@ -171,6 +171,22 @@ namespace bpr::core {
 		cycle_bundle_import,
 		/// [[BPR-1830]]. What one Send to Agent of a round observed, recorded.
 		cycle_round_send,
+		/// [[BPR-1850]]. An activity poll GitHub answered 200: the list changed.
+		/// `count` is the wire requests the poll sent.
+		activity_poll_changed,
+		/// [[BPR-1850]]. An activity poll answered 304 (`count`: wire requests).
+		activity_poll_unchanged,
+		/// [[BPR-1850]]. An activity poll that failed, was rate limited or is
+		/// not supported for the sign-in (`count`: wire requests).
+		activity_poll,
+		/// [[BPR-1850]]. Activity notifications decided by one poll and handed
+		/// to the platform (`count`); `unavailable` when it has no surface.
+		activity_post,
+		/// [[BPR-1850]]. New activity not announced: read, another reason or
+		/// focused (`count`).
+		activity_suppress,
+		/// [[BPR-1850]]. The reviewer chose an activity notification.
+		activity_activate,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set

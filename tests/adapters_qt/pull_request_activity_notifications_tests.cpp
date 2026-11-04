@@ -3,15 +3,18 @@
 // with the review queue's sink routes a click to whichever posted last, the
 // one timer is armed as the host asks, and Settings shows the switch.
 #include "bpr/qt/pull_request_activity_notifications.hpp"
+#include "bpr/qt/settings_window.hpp"
 #include "bpr/qt/system_tray_notification_sink.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
 #include <QApplication>
 #include <QCheckBox>
 #include <QLabel>
+#include <QPixmap>
 #include <QSystemTrayIcon>
 #include <QTimer>
 
+#include <chrono>
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -124,11 +127,16 @@ namespace {
 
 		provider.Script.push_back(answer({ core::activity_thread{ .Id = "7", .UpdatedAt = 1793707100, .Unread = true, .LastReadAt = std::nullopt, .Reason = core::activity_reason::author, .Repository = "octo/widgets", .Number = 42, .Anchor = { .Kind = core::activity_anchor_kind::review, .Id = 5U } } }));
 		now += 60;
+		// The timer is coarse, so its shortest wait is up to a second: run the
+		// event loop until it fires, bounded.
 		timer.timer()->setInterval(0);
 		timer.timer()->start();
-		process_events();
-		decisions.drain();
-		effects.drain();
+		const auto deadline = std::chrono::steady_clock::now() + std::chrono::seconds{ 5 };
+		while (shown.empty() && std::chrono::steady_clock::now() < deadline) {
+			QApplication::processEvents(QEventLoop::AllEvents, 50);
+			decisions.drain();
+			effects.drain();
+		}
 		expect(shown.size() == 1U && shown[0] == std::pair<QString, QString>{ QStringLiteral("octo/widgets #42"), QStringLiteral("New review.") } && sink.posted() == 1U,
 			   "the timer's poll posts one notification through the tray");
 
@@ -171,6 +179,15 @@ namespace {
 		expect(window.activity_notifications_status()->text() == QStringLiteral("On. Checking GitHub about once a minute."), "the status line says what it does");
 		window.activity_notifications_switch()->click();
 		expect(told == std::vector<bool>{ false }, "the reviewer's click is dispatched");
+		// For the owner's review of the wording: the Notifications page as shown.
+		if (const auto render = qEnvironmentVariable("BPR_ACTIVITY_SETTINGS_RENDER"); !render.isEmpty()) {
+			window.present_activity_notifications(true, QStringLiteral("On. Checking GitHub about once a minute."));
+			window.settings()->resize(900, 720);
+			window.settings()->present(qt::settings_page::notifications);
+			window.settings()->show();
+			process_events();
+			expect(window.settings()->grab().save(render), "the Notifications page renders");
+		}
 	}
 } // namespace
 

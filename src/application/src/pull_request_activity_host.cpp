@@ -1,5 +1,7 @@
 #include "bpr/application/pull_request_activity_host.hpp"
 
+#include "bpr/application/operation_diagnostics.hpp"
+
 #include <utility>
 
 namespace bpr::application {
@@ -24,6 +26,7 @@ namespace bpr::application {
 		pull_request_activity_clock               Clock;
 		pull_request_activity_focus               Focus;
 		std::function<void()>                     Observer;
+		std::shared_ptr<diagnostic_log_port>      Log;
 		core::activity_memory                     Memory;
 		core::activity_session                    Session;
 		core::activity_schedule                   Schedule;
@@ -40,7 +43,7 @@ namespace bpr::application {
 
 		implementation(pull_request_activity_port& aProvider, pull_request_activity_store_port& aStore, effect_executor& aEffects, decision_executor& aDecisions,
 					   pull_request_activity_timer_port& aTimer, pull_request_activity_sink_port& aSink, pull_request_activity_clock aClock,
-					   pull_request_activity_focus aFocus, const core::activity_memory_read& aLoaded)
+					   pull_request_activity_focus aFocus, const core::activity_memory_read& aLoaded, std::shared_ptr<diagnostic_log_port> aLog)
 			: Provider{ aProvider }
 			, Store{ aStore }
 			, Effects{ aEffects }
@@ -49,6 +52,7 @@ namespace bpr::application {
 			, Sink{ aSink }
 			, Clock{ std::move(aClock) }
 			, Focus{ std::move(aFocus) }
+			, Log{ std::move(aLog) }
 			, Memory{ aLoaded.Memory }
 			, Writable{ aLoaded.Writable }
 		{ }
@@ -176,6 +180,15 @@ namespace bpr::application {
 				return;
 			}
 			const auto time = now();
+			// [[BPR-1850]]. One line per poll: enums and counts, no repository.
+			const auto requests = aAnswer.Requests;
+			switch (aAnswer.Poll.Outcome) {
+			case core::activity_poll_outcome::changed:      record_operation(Log.get(), { .Action = core::operation_action::activity_poll_changed, .Count = requests }); break;
+			case core::activity_poll_outcome::unchanged:    record_operation(Log.get(), { .Action = core::operation_action::activity_poll_unchanged, .Count = requests }); break;
+			case core::activity_poll_outcome::unsupported:  record_operation(Log.get(), { .Action = core::operation_action::activity_poll, .Failure = core::operation_failure::unsupported, .Count = requests }); break;
+			case core::activity_poll_outcome::rate_limited: record_operation(Log.get(), { .Action = core::operation_action::activity_poll, .Failure = core::operation_failure::rate_limited, .Count = requests }); break;
+			case core::activity_poll_outcome::failed:       record_operation(Log.get(), { .Action = core::operation_action::activity_poll, .Failure = core::operation_failure::unavailable, .Count = requests }); break;
+			}
 			switch (aAnswer.Poll.Outcome) {
 			case core::activity_poll_outcome::changed:
 			case core::activity_poll_outcome::unchanged: {
@@ -195,12 +208,21 @@ namespace bpr::application {
 				Session                  = std::move(decision.Session);
 				const auto memoryChanged = decision.Memory != Memory;
 				Memory                   = std::move(decision.Memory);
+				auto handed              = std::uint32_t{ 0U };
 				for (const auto& notification : decision.Notifications) {
 					try {
 						if (Sink.post(core::activity_notification_title(notification), core::activity_notification_body(notification))) {
 							++Statistics.Posted;
+							++handed;
 						}
 					} catch (...) { }
+				}
+				if (!decision.Notifications.empty()) {
+					const auto decided = static_cast<std::uint32_t>(decision.Notifications.size());
+					record_operation(Log.get(), { .Action = core::operation_action::activity_post, .Failure = handed == decided ? core::operation_failure::none : core::operation_failure::unavailable, .Count = decided });
+				}
+				if (decision.Suppressed != 0U) {
+					record_operation(Log.get(), { .Action = core::operation_action::activity_suppress, .Count = decision.Suppressed });
 				}
 				if (memoryChanged) {
 					write();
@@ -229,16 +251,17 @@ namespace bpr::application {
 		}
 	};
 
-	pull_request_activity_host::pull_request_activity_host(pull_request_activity_port&       aProvider,
-														   pull_request_activity_store_port& aStore,
-														   effect_executor&                  aEffects,
-														   decision_executor&                aDecisions,
-														   pull_request_activity_timer_port& aTimer,
-														   pull_request_activity_sink_port&  aSink,
-														   pull_request_activity_clock       aClock,
-														   pull_request_activity_focus       aFocus,
-														   core::activity_memory_read        aLoaded)
-		: Impl{ std::make_shared<implementation>(aProvider, aStore, aEffects, aDecisions, aTimer, aSink, std::move(aClock), std::move(aFocus), aLoaded) }
+	pull_request_activity_host::pull_request_activity_host(pull_request_activity_port&          aProvider,
+														   pull_request_activity_store_port&    aStore,
+														   effect_executor&                     aEffects,
+														   decision_executor&                   aDecisions,
+														   pull_request_activity_timer_port&    aTimer,
+														   pull_request_activity_sink_port&     aSink,
+														   pull_request_activity_clock          aClock,
+														   pull_request_activity_focus          aFocus,
+														   core::activity_memory_read           aLoaded,
+														   std::shared_ptr<diagnostic_log_port> aLog)
+		: Impl{ std::make_shared<implementation>(aProvider, aStore, aEffects, aDecisions, aTimer, aSink, std::move(aClock), std::move(aFocus), aLoaded, std::move(aLog)) }
 	{ }
 
 	pull_request_activity_host::~pull_request_activity_host()
@@ -301,6 +324,7 @@ namespace bpr::application {
 
 	auto pull_request_activity_host::activate() -> core::activity_target
 	{
+		record_operation(Impl->Log.get(), { .Action = core::operation_action::activity_activate });
 		auto activation = core::activate_activity(Impl->Session);
 		Impl->Session   = std::move(activation.Session);
 		return activation.Target;

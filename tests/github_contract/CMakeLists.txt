@@ -1611,3 +1611,21 @@ bpr_add_network_isolated_test(
     NAME github_notifications_read
     COMMAND test_better_pull_review_github_notifications_read_tests
 )
+
+# [[BPR-1850]]. The live activity-notification course: never a CTest row;
+# tests/scripts/activity_live_course.py runs it by hand on MikeMarcin/BPR-Test.
+option(BPR_BUILD_LIVE_ACTIVITY_COURSE "Build the live activity-notification course (reaches github.com/MikeMarcin/BPR-Test through gh)" OFF)
+if(BPR_BUILD_LIVE_ACTIVITY_COURSE)
+    bpr_add_executable(tool_activity_live_course activity_live_course.cpp)
+    target_link_libraries(
+        tool_activity_live_course
+        PRIVATE
+            BetterPullReview::AdapterGitHub
+            BetterPullReview::AdapterSQLite
+            BetterPullReview::AdapterQt
+            BetterPullReview::Application
+    )
+    target_include_directories(tool_activity_live_course PRIVATE "${PROJECT_SOURCE_DIR}/src/adapters/github/src")
+    bpr_enable_hardening(tool_activity_live_course)
+    bpr_enable_warnings(tool_activity_live_course)
+endif()
