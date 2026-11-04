@@ -1,11 +1,17 @@
 #include "bpr/qt/agent_setup_settings.hpp"
 
+#include "bpr/qt/agent_setup_view.hpp"
+#include "bpr/qt/disclosure_button.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
+#include <QApplication>
 #include <QCheckBox>
+#include <QClipboard>
 #include <QComboBox>
 #include <QDir>
+#include <QEvent>
 #include <QFileDialog>
+#include <QFontDatabase>
 #include <QFormLayout>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -13,9 +19,11 @@
 #include <QListWidget>
 #include <QMenu>
 #include <QPlainTextEdit>
+#include <QProgressBar>
 #include <QPushButton>
 #include <QSignalBlocker>
 #include <QSpinBox>
+#include <QStringList>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -141,6 +149,7 @@ namespace bpr::qt {
 		Status = note({ }, this);
 		Status->setObjectName(QStringLiteral("settingsAgentStatus"));
 		column->addWidget(Status);
+		build_check(*column);
 		// Owner decision 2026-10-23 ("I guess we can keep a timeout as an
 		// option, but i wouldnt want it on by default"): off unless chosen.
 		auto* const limitRow = new QHBoxLayout{ };
@@ -249,6 +258,231 @@ namespace bpr::qt {
 		}
 		List->setCurrentRow(current);
 		settle_buttons();
+	}
+
+	void agent_programs_panel::build_check(QVBoxLayout& aColumn)
+	{
+		aColumn.addSpacing(8);
+		auto* const row = new QHBoxLayout{ };
+		row->setSpacing(8);
+		CheckButton = new quiet_push_button{ tr("Check agent"), this };
+		CheckButton->setObjectName(QStringLiteral("settingsCheckAgent"));
+		connect(CheckButton, &QPushButton::clicked, this, [this] {
+			if (Dispatch.Check) {
+				Dispatch.Check();
+			}
+		});
+		row->addWidget(CheckButton, 0, Qt::AlignVCenter);
+		StopCheckButton = new quiet_push_button{ tr("Stop"), this };
+		StopCheckButton->setObjectName(QStringLiteral("settingsStopAgentCheck"));
+		StopCheckButton->hide();
+		connect(StopCheckButton, &QPushButton::clicked, this, [this] {
+			if (Dispatch.StopCheck) {
+				Dispatch.StopCheck();
+			}
+		});
+		row->addWidget(StopCheckButton, 0, Qt::AlignVCenter);
+		auto* const progress = new QProgressBar{ this };
+		progress->setObjectName(QStringLiteral("settingsAgentCheckProgress"));
+		progress->setRange(0, 0);
+		progress->setTextVisible(false);
+		progress->setMaximumWidth(64);
+		progress->hide();
+		CheckProgress = progress;
+		row->addWidget(progress, 0, Qt::AlignVCenter);
+		CheckNote = note({ }, this);
+		CheckNote->setObjectName(QStringLiteral("settingsAgentCheckNote"));
+		row->addWidget(CheckNote, 1, Qt::AlignVCenter);
+		aColumn.addLayout(row);
+
+		// The rows, as Check it works draws them: a mark and what it proves.
+		CheckRows        = new QWidget{ this };
+		auto* const rows = new QVBoxLayout{ CheckRows };
+		rows->setContentsMargins(4, 2, 0, 0);
+		rows->setSpacing(4);
+		const auto line = [this, rows](QLabel*& aMark, QLabel*& aText, const QString& aName) {
+			auto* const holder = new QWidget{ CheckRows };
+			auto* const across = new QHBoxLayout{ holder };
+			across->setContentsMargins(0, 0, 0, 0);
+			across->setSpacing(8);
+			aMark = new QLabel{ holder };
+			aMark->setObjectName(aName + QStringLiteral("Mark"));
+			aMark->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+			aMark->setMinimumWidth(aMark->fontMetrics().horizontalAdvance(QChar{ 0x2713 }) + 2);
+			across->addWidget(aMark, 0, Qt::AlignTop);
+			aText = new QLabel{ holder };
+			aText->setObjectName(aName);
+			aText->setWordWrap(true);
+			aText->setTextFormat(Qt::PlainText);
+			aText->setAlignment(Qt::AlignLeft | Qt::AlignTop);
+			across->addWidget(aText, 1);
+			rows->addWidget(holder);
+			return holder;
+		};
+		static_cast<void>(line(AgentMark, AgentRow, QStringLiteral("settingsAgentCheckRow")));
+		WorkspaceLine = line(WorkspaceMark, WorkspaceRow, QStringLiteral("settingsWorkspaceCheckRow"));
+		// What failed, what to do and the details sit under the rows' words.
+		auto* const follow = new QWidget{ CheckRows };
+		auto* const under  = new QVBoxLayout{ follow };
+		under->setContentsMargins(AgentMark->minimumWidth() + 8, 0, 0, 0);
+		under->setSpacing(4);
+		rows->addWidget(follow);
+		CheckFailure = new QLabel{ CheckRows };
+		CheckFailure->setObjectName(QStringLiteral("settingsAgentCheckFailure"));
+		CheckFailure->setWordWrap(true);
+		CheckFailure->setTextFormat(Qt::PlainText);
+		under->addWidget(CheckFailure);
+		SignInLine             = new QWidget{ CheckRows };
+		auto* const signInLine = new QHBoxLayout{ SignInLine };
+		signInLine->setContentsMargins(0, 0, 0, 0);
+		SignInCommand = new QLabel{ SignInLine };
+		SignInCommand->setObjectName(QStringLiteral("settingsAgentSignInCommand"));
+		SignInCommand->setTextInteractionFlags(Qt::TextSelectableByMouse);
+		SignInCommand->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+		signInLine->addWidget(SignInCommand);
+		auto* const copy = new quiet_push_button{ tr("Copy"), SignInLine };
+		copy->setObjectName(QStringLiteral("settingsAgentCopyCommand"));
+		connect(copy, &QPushButton::clicked, this, [this] { QApplication::clipboard()->setText(SignInCommand->text()); });
+		signInLine->addWidget(copy);
+		signInLine->addStretch(1);
+		under->addWidget(SignInLine);
+		WorkspaceReason = new QLabel{ CheckRows };
+		WorkspaceReason->setObjectName(QStringLiteral("settingsWorkspaceCheckFailure"));
+		WorkspaceReason->setWordWrap(true);
+		WorkspaceReason->setTextFormat(Qt::PlainText);
+		under->addWidget(WorkspaceReason);
+		auto* const toggle = new disclosure_button{ CheckRows };
+		toggle->setObjectName(QStringLiteral("settingsAgentCheckDetails"));
+		toggle->setText(tr("Show details"));
+		toggle->setAccessibleName(tr("Show details"));
+		DetailsToggle = toggle;
+		under->addWidget(toggle, 0, Qt::AlignLeft);
+		DetailsText = new QPlainTextEdit{ CheckRows };
+		DetailsText->setObjectName(QStringLiteral("settingsAgentCheckDetailsText"));
+		DetailsText->setAccessibleName(tr("Check details"));
+		DetailsText->setReadOnly(true);
+		DetailsText->setFont(QFontDatabase::systemFont(QFontDatabase::FixedFont));
+		DetailsText->setMinimumHeight(96);
+		DetailsText->setMaximumHeight(144);
+		DetailsText->hide();
+		under->addWidget(DetailsText);
+		connect(toggle, &QToolButton::toggled, DetailsText, &QWidget::setVisible);
+		CheckRows->hide();
+		aColumn.addWidget(CheckRows);
+	}
+
+	void agent_programs_panel::changeEvent(QEvent* const aEvent)
+	{
+		QWidget::changeEvent(aEvent);
+		if ((aEvent->type() == QEvent::PaletteChange || aEvent->type() == QEvent::StyleChange) && ShownCheck) {
+			const auto shown = *ShownCheck;
+			present_check(shown);
+		}
+	}
+
+	void agent_programs_panel::present_check(const agent_check_presentation& aCheck)
+	{
+		ShownCheck                   = aCheck;
+		const auto& setup            = aCheck.Setup;
+		const auto& state            = setup.State;
+		const auto  saved            = state.Chosen ? state.Chosen : setup.Preferences.Chosen;
+		const auto  name             = saved ? setup_agent_name(setup.Preferences, *saved) : tr("The agent");
+		const auto  offer            = aCheck.Decision.Offer;
+		const auto  running          = offer == core::agent_check_offer::running;
+		const auto  workspaceRunning = state.WorkspaceCheck.State == core::setup_check_state::running;
+		const auto  ran              = state.AgentCheck.State != core::setup_check_state::not_run || state.WorkspaceCheck.State != core::setup_check_state::not_run;
+		CheckButton->setText(ran && !running ? tr("Check again") : tr("Check agent"));
+		CheckButton->setEnabled(offer == core::agent_check_offer::available);
+		StopCheckButton->setVisible(running);
+		CheckProgress->setVisible(running);
+
+		// What it does, what runs now, or why it cannot run.
+		auto said = QString{ };
+		switch (offer) {
+		case core::agent_check_offer::available: {
+			const auto agent = saved.value_or(core::setup_agent::claude_code);
+			said             = !setup.Detected ? tr("Looks for your agents, then checks the chosen one as the setup does. No question or code is sent.")
+				: !setup.ChecksSignIn          ? tr("Checks that %1's program can run, and runs its own check if it names one. No question or code is sent.").arg(name)
+				: setup.ChecksWrapper          ? tr("Asks your Claude process wrapper for its sign-in status and version. No question or code is sent.")
+											   : tr("Runs %1, which sends no question and no code.").arg(status_command(agent));
+			said += QStringLiteral(" ")
+				+ (aCheck.Decision.ChecksWorkspace ? tr("It also makes the open pull request's workspace once, then removes it.") : tr("Open a pull request to check its workspace too."));
+			break;
+		}
+		case core::agent_check_offer::running:
+			said = setup.Checking && workspaceRunning ? tr("Checking %1 and preparing the workspace…").arg(name)
+				: setup.Checking                      ? (setup.Detected ? tr("Checking %1…").arg(name) : tr("Looking for your agents…"))
+													  : tr("Preparing the workspace…");
+			break;
+		case core::agent_check_offer::no_agent:   said = tr("Add an agent, then check it here."); break;
+		case core::agent_check_offer::not_chosen: said = tr("Several agents were found. Choose one in the Agent tab's setup, then check it here."); break;
+		case core::agent_check_offer::forbidden:  said = tr("The open pull request's host doesn't allow %1, so it can't be checked now.").arg(name); break;
+		}
+		CheckNote->setText(said);
+		CheckButton->setToolTip(offer == core::agent_check_offer::available ? tr("Run the setup's check of %1 again").arg(name)
+									: running                               ? tr("A check is running. Stop it to start again.")
+																			: said);
+		CheckButton->setAccessibleDescription(offer == core::agent_check_offer::available ? QString{ } : CheckButton->toolTip());
+		CheckProgress->setAccessibleName(said);
+
+		// The rows once a check has run this session.
+		const auto mark = [this](QLabel* aMark, const core::setup_check_state aState) {
+			const auto [glyph, colour] = setup_check_mark(aState, palette());
+			aMark->setText(glyph);
+			auto shade = aMark->palette();
+			shade.setColor(QPalette::WindowText, colour);
+			aMark->setPalette(shade);
+		};
+		const auto agentRan     = state.AgentCheck.State != core::setup_check_state::not_run;
+		const auto workspaceRan = state.WorkspaceCheck.State != core::setup_check_state::not_run;
+		CheckRows->setVisible(agentRan || workspaceRan);
+		mark(AgentMark, state.AgentCheck.State);
+		auto proves = agent_check_words(setup, name);
+		if (state.AgentCheck.State == core::setup_check_state::passed && !state.AgentCheck.Version.empty()) {
+			proves = tr("%1, version %2").arg(proves, text_of(state.AgentCheck.Version));
+		}
+		AgentRow->setText(proves);
+		AgentMark->parentWidget()->setVisible(agentRan);
+		WorkspaceLine->setVisible(workspaceRan);
+		mark(WorkspaceMark, state.WorkspaceCheck.State);
+		WorkspaceRow->setText(tr("The open pull request's workspace can be made"));
+
+		const auto agentFailed = state.AgentCheck.State == core::setup_check_state::failed && state.AgentCheck.Failure.has_value();
+		CheckFailure->setVisible(agentFailed);
+		CheckFailure->setText(agentFailed ? setup_failure_words(*state.AgentCheck.Failure, name, text_of(setup.CheckDetail)) : QString{ });
+		const auto signIn = agentFailed && *state.AgentCheck.Failure == core::agent_setup_failure::not_signed_in && saved ? sign_in_command(*saved) : QString{ };
+		SignInCommand->setText(signIn);
+		SignInLine->setVisible(!signIn.isEmpty());
+		const auto workspaceFailed = state.WorkspaceCheck.State == core::setup_check_state::failed;
+		WorkspaceReason->setVisible(workspaceFailed);
+		WorkspaceReason->setText(!workspaceFailed             ? QString{ }
+									 : aCheck.WorkspaceReason ? workspace_unavailable_words(*aCheck.WorkspaceReason)
+															  : setup_failure_words(core::agent_setup_failure::workspace_unavailable, name, { }));
+		// A failed check's own output, and the workspace's log, behind one
+		// disclosure; a new detail closes it, as in the setup.
+		auto detail = agentFailed ? setup.CheckDetail : std::string{ };
+		if (workspaceFailed && !setup.WorkspaceDetail.empty()) {
+			detail += (detail.empty() ? std::string{ } : std::string{ "\n\n" }) + setup.WorkspaceDetail;
+		}
+		DetailsToggle->setVisible(agentFailed || workspaceFailed);
+		if (detail != ShownDetail || !(agentFailed || workspaceFailed)) {
+			DetailsToggle->setChecked(false);
+		}
+		ShownDetail = detail;
+		DetailsText->setPlainText(detail.empty() ? tr("No process output was returned.") : text_of(detail));
+	}
+
+	auto agent_programs_panel::check_result_text() const -> QString
+	{
+		auto lines = QStringList{ };
+		for (const auto* label : { AgentRow, WorkspaceRow, CheckFailure, SignInCommand, WorkspaceReason }) {
+			if (label->isVisibleTo(this) && !label->text().isEmpty()) {
+				const auto* const mark = label == AgentRow ? AgentMark : label == WorkspaceRow ? WorkspaceMark
+																							   : nullptr;
+				lines << (mark != nullptr ? mark->text() + QStringLiteral(" ") : QString{ }) + label->text();
+			}
+		}
+		return lines.join(QLatin1Char{ '\n' });
 	}
 
 	void agent_programs_panel::show_answer(const core::setup_agent /*aAgent*/, const std::optional<core::agent_wrapper_refusal>& aRefusal)

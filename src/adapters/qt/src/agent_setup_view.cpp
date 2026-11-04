@@ -426,6 +426,33 @@ namespace bpr::qt {
 		return { };
 	}
 
+	auto setup_agent_name(const application::agent_setup_preferences& aPreferences, const core::setup_agent aAgent) -> QString
+	{
+		const auto found = std::ranges::find(aPreferences.Agents, aPreferences.PreferredAgent, &core::agent_entry::Id);
+		if (aPreferences.PreferredAgent != 0U && found != aPreferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
+			return text_of(found->Name);
+		}
+		return plain(aAgent);
+	}
+
+	auto agent_check_words(const application::agent_setup_projection& aSetup, const QString& aAgent) -> QString
+	{
+		return !aSetup.ChecksSignIn ? QObject::tr("%1 is available").arg(aAgent)
+			: aSetup.ChecksWrapper  ? QObject::tr("Claude process wrapper reports signed in")
+									: QObject::tr("%1 is signed in").arg(aAgent);
+	}
+
+	auto setup_check_mark(const core::setup_check_state aState, const QPalette& aPalette) -> std::pair<QString, QColor>
+	{
+		switch (aState) {
+		case core::setup_check_state::not_run: break;
+		case core::setup_check_state::running: return { QString{ QChar{ 0x25D4 } }, aPalette.color(QPalette::Highlight) };
+		case core::setup_check_state::passed:  return { QString{ QChar{ 0x2713 } }, passed_colour(aPalette) };
+		case core::setup_check_state::failed:  return { QString{ QChar{ 0x2715 } }, failed_colour(aPalette) };
+		}
+		return { QString{ QChar{ 0x25CB } }, aPalette.color(QPalette::PlaceholderText) };
+	}
+
 	agent_setup_view::agent_setup_view(QWidget* aParent)
 		: QWidget{ aParent }
 	{
@@ -530,15 +557,7 @@ namespace bpr::qt {
 
 	auto agent_setup_view::agent_name() const -> QString { return Setup.State.Chosen ? name_for(*Setup.State.Chosen) : tr("The agent"); }
 
-	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString
-	{
-		const auto& preferences = Setup.Preferences;
-		const auto  found       = std::ranges::find(preferences.Agents, preferences.PreferredAgent, &core::agent_entry::Id);
-		if (preferences.PreferredAgent != 0U && found != preferences.Agents.end() && core::setup_agent_of(found->Protocol) == aAgent) {
-			return text_of(found->Name);
-		}
-		return plain(aAgent);
-	}
+	auto agent_setup_view::name_for(const core::setup_agent aAgent) const -> QString { return setup_agent_name(Setup.Preferences, aAgent); }
 
 	void agent_setup_view::set_entry_editor(agent_entry_editor aEditor) { Editor = std::move(aEditor); }
 
@@ -1062,23 +1081,7 @@ namespace bpr::qt {
 			line->setSpacing(8);
 			auto* const mark = new QLabel{ card };
 			mark->setObjectName(aName + QStringLiteral("Mark"));
-			auto glyph  = QString{ QChar{ 0x25CB } };
-			auto colour = palette().color(QPalette::PlaceholderText);
-			switch (aCheck.State) {
-			case core::setup_check_state::not_run: break;
-			case core::setup_check_state::running:
-				glyph  = QString{ QChar{ 0x25D4 } };
-				colour = palette().color(QPalette::Highlight);
-				break;
-			case core::setup_check_state::passed:
-				glyph  = QString{ QChar{ 0x2713 } };
-				colour = passed_colour(palette());
-				break;
-			case core::setup_check_state::failed:
-				glyph  = QString{ QChar{ 0x2715 } };
-				colour = failed_colour(palette());
-				break;
-			}
+			const auto [glyph, colour] = setup_check_mark(aCheck.State, palette());
 			mark->setText(glyph);
 			auto markPalette = mark->palette();
 			markPalette.setColor(QPalette::WindowText, colour);
@@ -1089,9 +1092,7 @@ namespace bpr::qt {
 			line->addWidget(label, 1);
 			rows->addLayout(line);
 		};
-		row(Setup.State.AgentCheck, !Setup.ChecksSignIn ? tr("%1 is available").arg(name) : Setup.ChecksWrapper ? tr("Claude process wrapper reports signed in")
-																												: tr("%1 is signed in").arg(name),
-			QStringLiteral("agentSetupAgentCheck"));
+		row(Setup.State.AgentCheck, agent_check_words(Setup, name), QStringLiteral("agentSetupAgentCheck"));
 		auto where = workspace_words();
 		if (!where.isEmpty()) {
 			where[0] = where[0].toUpper();
