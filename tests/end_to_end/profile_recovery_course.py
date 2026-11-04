@@ -23,6 +23,7 @@ import os
 from pathlib import Path
 import shutil
 import signal
+import sqlite3
 import subprocess
 import sys
 import time
@@ -99,6 +100,26 @@ def identity(path):
     return (status.st_ino, status.st_size, path.read_bytes())
 
 
+def contents(path, copy):
+    """The remembered connections and identity high-water marks, read from a
+    copy of the store and its WAL so the application's file is never opened
+    here. The revision is left out: each start may record its own decision."""
+    copy.mkdir()
+    for suffix in ("", "-wal"):
+        source = path.with_name(path.name + suffix)
+        if source.exists():
+            shutil.copyfile(source, copy / (path.name + suffix))
+    database = sqlite3.connect(copy / path.name)
+    try:
+        return (
+            database.execute("SELECT bpr_profile, last_profile, last_host, last_selected FROM connection_meta").fetchall(),
+            database.execute("SELECT * FROM remembered_connection ORDER BY hostname").fetchall(),
+            database.execute("SELECT * FROM retired_connection ORDER BY profile").fetchall(),
+        )
+    finally:
+        database.close()
+
+
 def damage(path):
     for sidecar in ("-wal", "-shm"):
         candidate = path.with_name(path.name + sidecar)
@@ -159,13 +180,20 @@ def main():
         ledger = state / "review-ledger.sqlite3"
         connections = state / "remembered-connections.sqlite3"
         ledger_before = ledger.stat().st_ino if ledger.exists() else None
-        connections_before = identity(connections) if connections.exists() else None
+        connections_before = (connections.stat().st_ino, contents(connections, scratch / "connections-before")) if connections.exists() else None
         requested = run(application, source, root, scratch / "requested.log", "--reset-profile-data", "--profile-recovery-answer", "everything")
         if "PROFILE_RECOVERY_OFFERED:requested" not in requested or "PROFILE_RECOVERY_CHOICE:everything" not in requested or OPENED not in requested:
             fail("--reset-profile-data offers the dialog and Reset everything opens the profile", requested)
         if ledger_before is not None and ledger.exists() and ledger.stat().st_ino == ledger_before:
             fail("Reset everything replaced the review data")
-        if connections_before is not None and (not connections.exists() or identity(connections) != connections_before):
+        # [[BPR-1858]]. Reset everything reads this store to forget any GitHub
+        # CLI connection, which may checkpoint its WAL into the file. This
+        # fixture has none, so the same file keeps the same rows.
+        if connections_before is not None and (
+            not connections.exists()
+            or connections.stat().st_ino != connections_before[0]
+            or contents(connections, scratch / "connections-after") != connections_before[1]
+        ):
             fail("Reset everything keeps remembered connections")
 
         refused = run(application, source, root, scratch / "refused.log", "--reset-profile-data-copy", wait=30)
