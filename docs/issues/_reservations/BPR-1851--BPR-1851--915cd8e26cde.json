@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1851"
+  ],
+  "reserve_for": "current-file-refresh",
+  "purpose": "Prioritize current file on PR refresh",
+  "created": "2026-11-04T02:00:25.275138+00:00",
+  "base": "e466ed1ea74c6e12d1828d72bda504ce4d643dd0"
+}
