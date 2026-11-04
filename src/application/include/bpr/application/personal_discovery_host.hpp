@@ -98,6 +98,10 @@ namespace bpr::application {
 		/// [[BPR-1680]]. Searches of several repositories asked again one
 		/// repository at a time.
 		std::uint64_t Split = 0U;
+		/// [[BPR-1848]]. Returns to Home that read only the row left, and
+		/// returns that moved that row's read to the front of a running refresh.
+		std::uint64_t ReturnReads      = 0U;
+		std::uint64_t ReturnPromotions = 0U;
 
 		auto operator<=>(const personal_discovery_statistics&) const = default;
 	};
@@ -163,6 +167,16 @@ namespace bpr::application {
 		/// \brief The explicit Refresh: refreshes now unless one is running or
 		/// a rate limit holds discovery off, which is said instead.
 		void refresh();
+		/// \brief [[BPR-1848]]. The reviewer came back to Home from \p aRef.
+		///
+		/// \details What it reads is `core::decide_home_return`'s: with a fresh
+		/// list, only \p aRef's retained read, alone, leaving the list's status
+		/// and freshness as they are (a Refresh, or an activation that finds the
+		/// list stale, asked meanwhile runs once it ends); with an aged list the
+		/// whole refresh, \p aRef first; during a refresh, \p aRef's read moves
+		/// to the front of what is queued. Nothing for a pull request that is
+		/// not on this account's Home, or while a rate limit holds discovery off.
+		void returned(const core::pull_request_ref& aRef);
 		/// \brief [[BPR-0990]]. Catches up with the account's saved repositories.
 		///
 		/// \details Refreshes when a repository is saved that the last refresh

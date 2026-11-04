@@ -281,6 +281,12 @@ namespace bpr::app::detail {
 		/// round trip do (about 330 ms each on the owner's Mac), so a course
 		/// measures what the load's reads cost one after another.
 		std::atomic<std::uint32_t> EveryReadMilliseconds{ 0U };
+		/// [[BPR-1848]]. While set, `EveryReadMilliseconds` holds and logs
+		/// every account read, not only a pull request's load: Home's
+		/// discovery, the viewer and avatars cost a round trip each too. A
+		/// read outside a pull request's load is logged as `home:` and its
+		/// operation.
+		std::atomic<bool> EveryReadEverywhere{ false };
 		/// [[BPR-1842]]. One read a pull request's load made: its operation's
 		/// contract name and when the fixture began to answer it.
 		struct logged_read
@@ -518,7 +524,11 @@ namespace bpr::app::detail {
 		/// "closed", with `merged` for a merged one). Absent, it is open.
 		std::optional<application::github_pull_request_state> PullRequestState;
 		std::int64_t                                          DeviceWallOffsetSeconds = 0;
-		std::shared_ptr<github_fixture_vault_state>           SharedDeviceVault;
+		/// [[BPR-1848]]. Seconds added to Home discovery's wall clock, read on
+		/// every reading, so a course can age the list past its freshness
+		/// window without waiting.
+		std::shared_ptr<std::atomic<std::int64_t>>  DiscoveryWallOffsetSeconds;
+		std::shared_ptr<github_fixture_vault_state> SharedDeviceVault;
 		// RFC-BPR-0016 construction cut. Composes the device host with no
 		// browser capability bound at all, which is what every build was
 		// before [[BPR-0516]]. Removes exactly one construction: the flow

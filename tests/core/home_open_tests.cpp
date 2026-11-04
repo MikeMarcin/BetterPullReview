@@ -220,6 +220,40 @@ namespace {
 		expect(abandoned.Read.has_value() && abandoned.Read->Request == fetch_of(second).Request && !home_loading_yields(lanes),
 			   "signing out abandons the read and Home resumes");
 	}
+
+	// [[BPR-1848]]. Coming back to Home reads only the row left while the list
+	// is fresh, the whole list left first once it has aged, the row left next
+	// during a refresh, and nothing without an account or under a rate limit.
+	void test_a_return_to_home_reads_what_the_core_decides()
+	{
+		const auto facts = home_return_facts{ .Session = true, .SinceLastEnded = 10, .FreshnessSeconds = 300, .LeftListed = true };
+		expect(decide_home_return(facts) == home_return_read::left, "a fresh list reads only the row left");
+		auto unlisted       = facts;
+		unlisted.LeftListed = false;
+		expect(decide_home_return(unlisted) == home_return_read::nothing, "a fresh list with the row left not on it reads nothing");
+		auto edge           = facts;
+		edge.SinceLastEnded = 299;
+		expect(decide_home_return(edge) == home_return_read::left, "one second inside the window is still fresh");
+		edge.SinceLastEnded = 300;
+		expect(decide_home_return(edge) == home_return_read::everything, "at the window's end the whole list is refreshed");
+		auto never           = facts;
+		never.SinceLastEnded = std::nullopt;
+		expect(decide_home_return(never) == home_return_read::everything, "a list no refresh has ended for is refreshed");
+		unlisted.SinceLastEnded = 900;
+		expect(decide_home_return(unlisted) == home_return_read::everything, "an aged list is refreshed whatever was left");
+		auto running    = facts;
+		running.Running = true;
+		expect(decide_home_return(running) == home_return_read::left_next, "during a refresh the row left is read next");
+		running.LeftListed = false;
+		expect(decide_home_return(running) == home_return_read::nothing, "and a refresh is left alone for a row not on Home");
+		auto limited       = never;
+		limited.BackingOff = true;
+		expect(decide_home_return(limited) == home_return_read::nothing, "a rate limit reads nothing");
+		auto signedOut    = never;
+		signedOut.Session = false;
+		expect(decide_home_return(signedOut) == home_return_read::nothing, "no account reads nothing");
+		expect(decide_home_return(facts) == decide_home_return(facts), "the same facts decide the same");
+	}
 } // namespace
 
 auto main() -> int
@@ -229,6 +263,7 @@ auto main() -> int
 	test_a_failure_stays_with_its_reason_until_the_next_open();
 	test_cancel_refresh_and_foreign_reads();
 	test_home_loading_yields_to_a_window_read();
+	test_a_return_to_home_reads_what_the_core_decides();
 	std::cout << "core home open tests passed\n";
 	return EXIT_SUCCESS;
 }

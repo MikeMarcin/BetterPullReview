@@ -121,6 +121,52 @@ namespace bpr::core {
 	/// behind it: Home's loading does not give way, and keeps loading while the
 	/// pull request opens.
 	[[nodiscard]] auto home_loading_yields(std::span<const github_state> aLanes, bool aDiscoveryBeside = false) noexcept -> bool;
+
+	/// \brief [[BPR-1848]]. What Home's discovery reads when the reviewer comes
+	/// back to Home from a pull request.
+	enum class home_return_read : std::uint8_t {
+		/// Nothing: no account, a rate limit holds discovery off, or the list
+		/// is fresh and the pull request left is not on it.
+		nothing,
+		/// The list is fresh: only the pull request left, so its row says what
+		/// the reviewer just did there.
+		left,
+		/// The list has aged past the freshness window: the whole refresh,
+		/// with the pull request left read first when it is listed.
+		everything,
+		/// A refresh is running: the pull request left is read next, ahead
+		/// of what that refresh still has queued.
+		left_next,
+	};
+
+	/// \brief [[BPR-1848]]. What discovery knows when the reviewer comes back.
+	struct home_return_facts
+	{
+		/// An account session is adopted.
+		bool Session = false;
+		/// A refresh, of the whole list or of one row, is running.
+		bool Running = false;
+		/// A rate limit holds discovery off.
+		bool BackingOff = false;
+		/// Seconds since the last refresh that ran to its end; none if none has.
+		std::optional<std::int64_t> SinceLastEnded;
+		/// How long a refreshed list stays fresh.
+		std::int64_t FreshnessSeconds = 0;
+		/// The pull request left is on this account's Home.
+		bool LeftListed = false;
+
+		auto operator<=>(const home_return_facts&) const = default;
+	};
+
+	/// \brief [[BPR-1848]]. Decides what coming back to Home reads.
+	///
+	/// \details The owner, 2026-11-03: "I hate how slow the home refresh is
+	/// every time I finish with a PR and return there." Home is shown from what
+	/// it already lists at once; this only decides what is read behind it. A
+	/// fresh list reads only the row the reviewer has just left, one read in
+	/// place of the whole refresh; an aged list is refreshed as activation
+	/// always refreshed it, starting from that row.
+	[[nodiscard]] auto decide_home_return(const home_return_facts& aFacts) noexcept -> home_return_read;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_HOME_OPEN_HPP
