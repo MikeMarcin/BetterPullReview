@@ -2603,6 +2603,22 @@ set_tests_properties(qt_quiet_buttons PROPERTIES
     PASS_REGULAR_EXPRESSION "quiet-buttons-tests:pass"
     RUN_SERIAL TRUE TIMEOUT 120)
 
+# [[BPR-1855]]. The signed-out Home card's buttons fit their words and its
+# sentence wraps with a wide typeface at 100, 125, 150 and 200% display scale.
+bpr_add_executable(test_better_pull_review_qt_home_card_fit_tests home_card_fit_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_home_card_fit_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_home_card_fit_tests)
+bpr_enable_warnings(test_better_pull_review_qt_home_card_fit_tests)
+foreach(bpr_home_card_scale IN ITEMS 100 125 150 200)
+    math(EXPR bpr_home_card_whole "${bpr_home_card_scale} / 100")
+    math(EXPR bpr_home_card_fraction "${bpr_home_card_scale} % 100")
+    bpr_add_network_isolated_test(NAME qt_home_card_fit_scale_${bpr_home_card_scale}
+        COMMAND test_better_pull_review_qt_home_card_fit_tests)
+    set_tests_properties(qt_home_card_fit_scale_${bpr_home_card_scale} PROPERTIES
+        ENVIRONMENT "${bpr_qt_github_common_environment};QT_SCALE_FACTOR=${bpr_home_card_whole}.${bpr_home_card_fraction};BPR_HOME_CARD_RENDER_DIR=${CMAKE_CURRENT_BINARY_DIR}/home-card-fit"
+        RUN_SERIAL TRUE TIMEOUT 90 PASS_REGULAR_EXPRESSION "home-card-fit-tests:pass")
+endforeach()
+
 # [[BPR-1802]]. Blob line permalinks in the pull request's repository as
 # GitHub's snippet box, through the snippet host and the composed classifier.
 bpr_add_executable(test_better_pull_review_qt_markdown_blob_snippet_view_tests markdown_blob_snippet_view_tests.cpp)
