@@ -5898,7 +5898,7 @@ namespace bpr::app {
 				Activity      = std::make_unique<application::pull_request_activity_host>(
 					*Provider, *ActivityStore, WorkbenchEffects, DecisionLane, *ActivityTimer, *ActivitySink,
 					[] { return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count(); },
-					[this] { return activity_focus(); }, ActivityStore->load());
+					[this] { return activity_focus(); }, ActivityStore->load(), DiagnosticLog);
 				ActivitySink->set_activation([this] { activate_activity(); });
 				Activity->set_observer([this] { present_activity(); });
 #if defined(BPR_BUILD_TESTING)

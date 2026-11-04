@@ -3,10 +3,12 @@
 // relaunch without re-notifying, focus, sign-out and the setting.
 #include "bpr/application/pull_request_activity_host.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <deque>
 #include <functional>
 #include <iostream>
+#include <memory>
 #include <optional>
 #include <string>
 #include <string_view>
@@ -136,11 +138,31 @@ namespace {
 		return answer;
 	}
 
+	/// The diagnostics log, as the summaries it was handed.
+	class recording_log final : public application::diagnostic_log_port
+	{
+	public:
+		auto record(const application::diagnostic_event& aEvent) noexcept -> application::diagnostic_log_status override
+		{
+			try {
+				Lines.emplace_back(aEvent.Summary.text());
+			} catch (...) { }
+			return application::diagnostic_log_status::available;
+		}
+		auto                     status() const noexcept -> application::diagnostic_log_status override { return application::diagnostic_log_status::available; }
+		std::vector<std::string> Lines;
+	};
+
 	struct harness
 	{
 		explicit harness(core::activity_memory_read aLoaded = { })
-			: Host{ Transport, Store, Effects, Decisions, Timer, Sink, [this] { return Now; }, [this] { return Focused; }, std::move(aLoaded) }
+			: Log{ std::make_shared<recording_log>() }
+			, Host{ Transport, Store, Effects, Decisions, Timer, Sink, [this] { return Now; }, [this] { return Focused; }, std::move(aLoaded), Log }
 		{ }
+		[[nodiscard]] auto logged(const std::string_view aAction) const -> std::size_t
+		{
+			return static_cast<std::size_t>(std::ranges::count_if(Log->Lines, [aAction](const std::string& aLine) { return aLine.starts_with("action=" + std::string{ aAction } + " "); }));
+		}
 		void drain()
 		{
 			while (Effects.run_one() || Decisions.run_one()) { }
@@ -153,6 +175,7 @@ namespace {
 		posted                                  Sink;
 		std::int64_t                            Now = 1793707000;
 		std::vector<core::pull_request_ref>     Focused;
+		std::shared_ptr<recording_log>          Log;
 		application::pull_request_activity_host Host;
 	};
 
@@ -220,6 +243,9 @@ namespace {
 		const auto stats = h.Host.statistics();
 		expect(stats.Polls == 7U && stats.Unchanged == 1U && stats.Changed == 4U && stats.Failed == 1U && stats.RateLimited == 1U && stats.Posted == 1U && stats.Requests == 11U,
 			   "statistics count polls, answers and wire requests");
+		expect(h.logged("activity_poll_changed") == 4U && h.logged("activity_poll_unchanged") == 1U && h.logged("activity_poll") == 2U && h.logged("activity_post") == 1U
+				   && h.logged("activity_suppress") == 1U && h.logged("activity_activate") == 1U,
+			   "the diagnostics log has one line per poll, post, suppression and click");
 
 		// Signing out cancels the timer; a poll answered afterwards is stale.
 		h.Host.tick();

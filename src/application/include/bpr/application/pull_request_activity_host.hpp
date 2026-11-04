@@ -1,6 +1,7 @@
 #ifndef BPR_APPLICATION_PULL_REQUEST_ACTIVITY_HOST_HPP
 #define BPR_APPLICATION_PULL_REQUEST_ACTIVITY_HOST_HPP
 
+#include "bpr/application/diagnostic_log_port.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/pull_request_activity.hpp"
@@ -122,15 +123,16 @@ namespace bpr::application {
 	class pull_request_activity_host final
 	{
 	public:
-		pull_request_activity_host(pull_request_activity_port&       aProvider,
-								   pull_request_activity_store_port& aStore,
-								   effect_executor&                  aEffects,
-								   decision_executor&                aDecisions,
-								   pull_request_activity_timer_port& aTimer,
-								   pull_request_activity_sink_port&  aSink,
-								   pull_request_activity_clock       aClock,
-								   pull_request_activity_focus       aFocus,
-								   core::activity_memory_read        aLoaded);
+		pull_request_activity_host(pull_request_activity_port&          aProvider,
+								   pull_request_activity_store_port&    aStore,
+								   effect_executor&                     aEffects,
+								   decision_executor&                   aDecisions,
+								   pull_request_activity_timer_port&    aTimer,
+								   pull_request_activity_sink_port&     aSink,
+								   pull_request_activity_clock          aClock,
+								   pull_request_activity_focus          aFocus,
+								   core::activity_memory_read           aLoaded,
+								   std::shared_ptr<diagnostic_log_port> aLog = { });
 		~pull_request_activity_host();
 
 		pull_request_activity_host(const pull_request_activity_host&)                    = delete;
