@@ -17,6 +17,7 @@ namespace bpr::core {
 			std::pair{ std::string_view{ "agent-setup" }, area::settings },
 			std::pair{ std::string_view{ "window-restoration" }, area::settings },
 			std::pair{ std::string_view{ "view-filters" }, area::settings },
+			std::pair{ std::string_view{ "pull-request-activity" }, area::settings },
 			std::pair{ std::string_view{ "review-ledger" }, area::review_data },
 			std::pair{ std::string_view{ "review-tours" }, area::review_data },
 			std::pair{ std::string_view{ "review-cycles" }, area::review_data },

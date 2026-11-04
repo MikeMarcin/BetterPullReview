@@ -1542,6 +1542,7 @@ namespace {
 				case read_operation::get_team_membership:
 				case read_operation::list_home_review_membership:
 				case read_operation::list_home_pull_requests:
+				case read_operation::list_notifications:
 					break;
 				}
 				return success_response(fixture_json(fixture_object{ }));

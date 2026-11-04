@@ -616,7 +616,7 @@ namespace {
 			.Page              = 1,
 			.GraphqlPage       = std::nullopt,
 		};
-		if (aOperation != read_operation::get_viewer_identity) {
+		if (aOperation != read_operation::get_viewer_identity && aOperation != read_operation::list_notifications) {
 			request.Owner      = "octo-org";
 			request.Repository = "review-repository";
 		}
@@ -635,6 +635,7 @@ namespace {
 			request.PullRequestNumber = 17;
 			break;
 		case read_operation::get_viewer_identity:
+		case read_operation::list_notifications:
 		case read_operation::get_repository:
 		case read_operation::list_commit_statuses:
 		case read_operation::list_checks:
@@ -1056,7 +1057,7 @@ namespace {
 		// deliberately outside the ten-interaction recording so the
 		// authenticated wire shape is unchanged by its arrival.
 		expect(
-			all_read_operations.size() == 25U
+			all_read_operations.size() == 26U
 				&& std::ranges::find(read_operation_catalog,
 									 read_operation::list_review_comments)
 					== read_operation_catalog.end()
@@ -1064,7 +1065,7 @@ namespace {
 									 read_operation::list_review_comments)
 					!= all_read_operations.end()
 				&& std::ranges::find(read_operation_catalog, read_operation::get_merge_base) == read_operation_catalog.end(),
-			"the compiled set holds twenty-five reads and the recording holds ten");
+			"the compiled set holds twenty-six reads and the recording holds ten");
 		for (const auto operation : all_read_operations) {
 			const auto roundTrip = read_operation_from_name(operation_name(operation));
 			expect(

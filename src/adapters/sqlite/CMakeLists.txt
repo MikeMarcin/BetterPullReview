@@ -28,6 +28,7 @@ add_library(
         src/appearance_settings_store.cpp
         src/diagnostic_preferences.cpp
         src/view_filter_memory_store.cpp
+        src/pull_request_activity_store.cpp
         src/agent_setup_store.cpp
         src/workbench_settings_database.cpp
         src/workbench_settings_store.cpp

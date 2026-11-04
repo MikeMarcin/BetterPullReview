@@ -2053,7 +2053,7 @@ namespace bpr::adapters::github::detail {
 		if (!result) {
 			return wire_error(aRequest, process_failure(result.error()));
 		}
-		auto response = parse_gh_cli_response(result->StandardOutput);
+		auto response = parse_gh_cli_response(result->StandardOutput, false, aRequest.Wire.Operation == read_operation::list_notifications);
 		if (insights_channel()) {
 			insights_channel()->request(insights_resource_for(aRequest.Wire.Operation), insights_category_for(aRequest.Wire.Operation), response ? &*response : nullptr, 0);
 		}
