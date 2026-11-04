@@ -3071,6 +3071,68 @@ namespace {
 		fixture.Queue.shutdown();
 	}
 
+	// [[BPR-1848]]. Coming back to Home from a pull request reads only that
+	// row while the list is fresh, without saying the list is refreshing; a
+	// Refresh asked meanwhile runs once it ends. An aged list is refreshed with
+	// that row first, and during a refresh the row left is read next.
+	void test_a_return_to_home_reads_the_row_left()
+	{
+		const auto requested = core::queue_membership{ .Requested = true };
+		auto       fixture   = discovery_fixture{ { }, { { .Ref = ref(17), .Membership = requested }, { .Ref = ref(18), .Membership = requested }, { .Ref = ref(19), .Membership = requested }, { .Ref = ref(20), .Membership = requested } } };
+		fixture.Discovery.adopt(discovery_session());
+		answer_retained(fixture);
+		const auto rested = fixture.Discovery.status();
+		expect(rested.State != application::queue_discovery_state::refreshing && fixture.Discovery.statistics().Refreshes == 1U, "the first refresh settles");
+		const auto settled = fixture.Provider.Requests.size();
+
+		fixture.Discovery.returned(ref(17));
+		expect(fixture.Provider.Requests.size() == settled + 1U && fixture.Provider.next().Reason == application::personal_discovery_reason::retained
+				   && fixture.Provider.next().Number == core::pull_request_number{ 17U },
+			   "a fresh list reads only the row left");
+		expect(fixture.Discovery.status() == rested && fixture.Discovery.statistics().Refreshes == 1U && fixture.Discovery.statistics().ReturnReads == 1U,
+			   "and does not say the list is refreshing, nor count a refresh");
+		fixture.Discovery.refresh();
+		fixture.Discovery.activate();
+		expect(fixture.Provider.Requests.size() == settled + 1U, "a Refresh asked meanwhile waits for that read");
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(17U, true) }));
+		fixture.settle();
+		expect(fixture.item(17)->Bucket == core::attention_bucket::quiet, "the row left says what the reviewer did there");
+		expect(fixture.Discovery.statistics().Refreshes == 2U && fixture.Provider.Requests.size() == settled + 3U
+				   && fixture.Discovery.status().State == application::queue_discovery_state::refreshing,
+			   "the owed Refresh runs as soon as it ends");
+		answer_retained(fixture);
+		expect(fixture.Discovery.status().State != application::queue_discovery_state::refreshing, "and settles");
+
+		const auto fresh = fixture.Provider.Requests.size();
+		fixture.Discovery.returned(ref(99));
+		auto foreign    = ref(18);
+		foreign.Account = "someone-else";
+		fixture.Discovery.returned(foreign);
+		expect(fixture.Provider.Requests.size() == fresh, "a row not on this account's Home reads nothing");
+
+		fixture.Clock.Now += application::personal_discovery_freshness_seconds;
+		fixture.Discovery.returned(ref(19));
+		expect(fixture.Discovery.statistics().Refreshes == 3U && fixture.Provider.next().Number == core::pull_request_number{ 19U }
+				   && fixture.Discovery.status().State == application::queue_discovery_state::refreshing,
+			   "an aged list is refreshed, the row left first");
+		// 19 and 17 are in flight; 18, then 20, are queued. Coming back from
+		// 20 reads it next.
+		expect(fixture.Provider.Requests.back().Number == core::pull_request_number{ 17U }, "the refresh reads the rest in the queue's order");
+		const auto queued = fixture.Provider.Requests.size();
+		fixture.Discovery.returned(ref(20));
+		expect(fixture.Provider.Requests.size() == queued && fixture.Discovery.statistics().ReturnPromotions == 1U && fixture.Discovery.statistics().Refreshes == 3U,
+			   "during a refresh the row left is moved ahead, without another refresh");
+		fixture.Provider.answer(fixture.Provider.rows({ metadata_row(19U) }));
+		fixture.settle();
+		expect(fixture.Provider.Requests.back().Number == core::pull_request_number{ 20U }, "and is the next read submitted");
+		answer_retained(fixture);
+		expect(fixture.Discovery.status().State != application::queue_discovery_state::refreshing, "the refresh settles");
+
+		fixture.Discovery.shutdown();
+		fixture.settle();
+		fixture.Queue.shutdown();
+	}
+
 	void test_repository_addition_refuses_unknown_durable_state()
 	{
 		auto store     = memory_queue_store{ };
@@ -3310,6 +3372,7 @@ auto main() -> int
 	test_discovery_follows_the_saved_repositories();
 	test_discovery_freshness_and_forgotten_repositories();
 	test_activation_after_a_refresh_that_ended_with_a_failure();
+	test_a_return_to_home_reads_the_row_left();
 
 	std::cout << "review-queue-enrollment-tests:pass\n";
 	return EXIT_SUCCESS;
