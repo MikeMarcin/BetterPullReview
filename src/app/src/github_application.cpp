@@ -857,15 +857,26 @@ namespace bpr::app {
 		class system_discovery_clock final : public application::personal_discovery_clock_port
 		{
 		public:
+			system_discovery_clock() = default;
+			/// [[BPR-1848]]. A course's offset, added on every reading.
+			explicit system_discovery_clock(std::shared_ptr<const std::atomic<std::int64_t>> aOffset)
+				: Offset{ std::move(aOffset) }
+			{
+			}
+
 			[[nodiscard]] auto now_seconds() const -> std::int64_t override
 			{
-				return std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				const auto now = std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now().time_since_epoch()).count();
+				return Offset != nullptr ? now + Offset->load() : now;
 			}
 			/// [[BPR-1680]]. Monotonic, for a refresh's logged duration only.
 			[[nodiscard]] auto elapsed_milliseconds() const -> std::int64_t override
 			{
 				return std::chrono::duration_cast<std::chrono::milliseconds>(std::chrono::steady_clock::now().time_since_epoch()).count();
 			}
+
+		private:
+			std::shared_ptr<const std::atomic<std::int64_t>> Offset;
 		};
 
 		class composition_queue_refresh final
@@ -5304,6 +5315,7 @@ namespace bpr::app {
 				DeviceRefreshCourse     = aFixtureOptions.DeviceRefreshCourse;
 				RememberDeviceSignIn    = aFixtureOptions.PersistDeviceBindings;
 				DeviceWallOffsetSeconds = aFixtureOptions.DeviceWallOffsetSeconds;
+				DiscoveryWallOffset     = aFixtureOptions.DiscoveryWallOffsetSeconds;
 				SuppressDeviceBrowser   = aFixtureOptions.SuppressDeviceBrowser;
 				AttendedWindowBrowser   = aFixtureOptions.AttendedWindowBrowser;
 				AttendedAgentSearch     = aFixtureOptions.AttendedAgentSearch;
@@ -5745,7 +5757,12 @@ namespace bpr::app {
 			// provider's personal reads and this profile's queue. It adopts the
 			// accepted account session as each presentation publishes.
 			DiscoveryClock = std::make_unique<system_discovery_clock>();
-			Discovery      = std::make_unique<application::personal_discovery_host>(*Provider, DecisionLane, *QueueHost, *DiscoveryClock, DiagnosticLog.get());
+#if defined(BPR_BUILD_TESTING)
+			if (DiscoveryWallOffset != nullptr) {
+				DiscoveryClock = std::make_unique<system_discovery_clock>(DiscoveryWallOffset);
+			}
+#endif
+			Discovery = std::make_unique<application::personal_discovery_host>(*Provider, DecisionLane, *QueueHost, *DiscoveryClock, DiagnosticLog.get());
 			// Queue projections arrive at this composition first. It forwards the
 			// accepted value unchanged to the real window, then asks this notifier
 			// only for newly warranting session/ref/bucket transitions.
@@ -6567,6 +6584,8 @@ namespace bpr::app {
 		bool                                                              RememberDeviceSignIn = true;
 #if defined(BPR_BUILD_TESTING)
 		std::int64_t DeviceWallOffsetSeconds = 0;
+		/// [[BPR-1848]]. A course's offset to discovery's wall clock.
+		std::shared_ptr<std::atomic<std::int64_t>> DiscoveryWallOffset;
 #endif
 #if defined(BPR_BUILD_TESTING)
 		bool RegisteredDeviceCourse = false;
@@ -8795,6 +8814,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value()) {
 						Discovery->refresh();
 					} else {
 						Discovery->activate();
+					}
+				});
+			// [[BPR-1848]]. Coming back to Home from a pull request: discovery
+			// decides, through the core, whether that reads the row, the list or
+			// nothing.
+			Window->set_home_return_dispatch(
+				[this](const core::pull_request_ref& aRef) {
+					if (!Closing && Discovery != nullptr) {
+						Discovery->returned(aRef);
 					}
 				});
 			// [[BPR-0660]]. Remembering a server is the same durable path.

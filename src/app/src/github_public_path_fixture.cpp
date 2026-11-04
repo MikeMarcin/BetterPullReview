@@ -3065,11 +3065,14 @@ namespace bpr::app::detail {
 				} active{ *State, Role == fixture_transport_role::account };
 				// [[BPR-1842]]. What a pull request's load reads, in order, and a
 				// round trip's cost for each read.
-				if (State->ReadDelay && std::holds_alternative<core::pull_request_request_context>(aRequest.Correlation.Parent)) {
+				// [[BPR-1848]]. Or every account read, Home's included.
+				const auto loading = std::holds_alternative<core::pull_request_request_context>(aRequest.Correlation.Parent);
+				if (State->ReadDelay && (loading || (Role == fixture_transport_role::account && State->ReadDelay->EveryReadEverywhere.load()))) {
 					auto& delay = *State->ReadDelay;
 					{
 						const std::scoped_lock lock{ delay.ReadLogMutex };
-						delay.ReadLog.push_back({ std::string{ adapters::github::detail::operation_name(aRequest.Wire.Operation) }, std::chrono::steady_clock::now() });
+						const auto             name = std::string{ adapters::github::detail::operation_name(aRequest.Wire.Operation) };
+						delay.ReadLog.push_back({ loading ? name : "home:" + name, std::chrono::steady_clock::now() });
 					}
 					const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ delay.EveryReadMilliseconds.load() };
 					while (std::chrono::steady_clock::now() < until && !aStop.stop_requested()) {

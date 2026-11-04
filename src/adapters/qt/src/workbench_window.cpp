@@ -13299,8 +13299,20 @@ namespace bpr::qt {
 		update_discovery_controls();
 		// [[BPR-0990]]. Arriving at Home asks discovery to catch up if its list
 		// is older than the freshness window; the host decides whether it is.
-		if (arrivedHome && HomeAccount && QueueDiscoveryDispatch) {
-			QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
+		// [[BPR-1848]]. Coming back from a pull request names it, so a fresh
+		// list reads only that row and an aged one reads it first.
+		if (!home && !cycle) {
+			if (auto shown = open_queue_ref()) {
+				ReviewShownRef = std::move(shown);
+			}
+		}
+		if (arrivedHome) {
+			const auto left = std::exchange(ReviewShownRef, std::nullopt);
+			if (HomeAccount && left && HomeReturnDispatch) {
+				HomeReturnDispatch(*left);
+			} else if (HomeAccount && QueueDiscoveryDispatch) {
+				QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
+			}
 		}
 		update_open_on_github_action();
 	}
@@ -15825,6 +15837,11 @@ namespace bpr::qt {
 		update_discovery_controls();
 	}
 
+	void workbench_window::set_home_return_dispatch(std::function<void(const core::pull_request_ref&)> aDispatch)
+	{
+		HomeReturnDispatch = std::move(aDispatch);
+	}
+
 	void workbench_window::set_home_clock(std::function<std::optional<std::int64_t>()> aClock)
 	{
 		HomeClock = std::move(aClock);
@@ -17417,9 +17434,14 @@ namespace bpr::qt {
 		if (restoring) {
 			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false, { .Loading = QStringLiteral("Loading my pull requests…") });
 		} else if (finding) {
-			PendingPanes.HomeList->present(core::pending_activity::loading, rows, false,
+			// [[BPR-1848]]. Rows already listed are the newest there are until
+			// the refresh replaces them row by row, so they are never washed
+			// over: the refresh is said on the partial plate at the list's foot,
+			// and every row stays as readable and usable as before it began.
+			PendingPanes.HomeList->present(core::pending_activity::loading, rows, rows,
 										   { .Loading = QStringLiteral("Finding my pull requests in %1…").arg(repositories),
 											 .Waiting = QStringLiteral("Still waiting for GitHub to search %1.").arg(repositories),
+											 .Coming  = QStringLiteral("Refreshing my pull requests in %1…").arg(repositories),
 											 .Done    = QStringLiteral("My pull requests found.") });
 		} else if (HomeAccount && hasSaved && discovery.State == application::queue_discovery_state::stale && !rows) {
 			PendingPanes.HomeList->present(core::pending_activity::failed, false, false,
