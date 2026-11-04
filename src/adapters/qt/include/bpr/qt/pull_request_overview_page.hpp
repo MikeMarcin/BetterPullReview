@@ -723,10 +723,8 @@ namespace bpr::qt {
 		/// \returns Whether the change was taken.
 		[[nodiscard]] auto present_draft_state(const application::pull_request_overview_projection& aProjection) -> bool;
 		[[nodiscard]] auto draft_chip() const noexcept -> QWidget*;
-		[[nodiscard]] auto draft_banner() const noexcept -> QWidget*;
-		[[nodiscard]] auto draft_banner_text() const noexcept -> QLabel*;
-		[[nodiscard]] auto ready_for_review_button() const noexcept -> QPushButton*;
-		[[nodiscard]] auto convert_to_draft_button() const noexcept -> QPushButton*;
+		[[nodiscard]] auto ready_for_review_button() const noexcept -> QAbstractButton*;
+		[[nodiscard]] auto convert_to_draft_button() const noexcept -> QAbstractButton*;
 		[[nodiscard]] auto draft_state_status(core::draft_state_change aChange) const noexcept -> QLabel*;
 		[[nodiscard]] auto draft_state_updates() const noexcept -> std::size_t;
 		[[nodiscard]] auto title_label() const noexcept -> QLabel*;
@@ -919,15 +917,13 @@ namespace bpr::qt {
 		reviewer_picker*                                    ReviewerPicker = nullptr;
 		std::function<void(const reviewer_picker_gesture&)> ReviewerDispatch;
 		bool                                                ReviewersOffered = false;
-		/// [[BPR-1852]]. The draft chip beside the title, the draft banner
-		/// under it with Ready for review, and Convert to draft in People.
-		draft_state_chip*                             DraftChip       = nullptr;
-		QWidget*                                      DraftBanner     = nullptr;
-		QLabel*                                       DraftBannerText = nullptr;
-		QPushButton*                                  ReadyForReview  = nullptr;
-		QLabel*                                       ReadyStatus     = nullptr;
-		QPushButton*                                  ConvertToDraft  = nullptr;
-		QLabel*                                       ConvertStatus   = nullptr;
+		/// [[BPR-1852]]. The draft chip before the title and, for its author,
+		/// Ready for review at the title line's end; Convert to draft in People.
+		draft_state_chip*                             DraftChip      = nullptr;
+		QPushButton*                                  ReadyForReview = nullptr;
+		QLabel*                                       ReadyStatus    = nullptr;
+		QToolButton*                                  ConvertToDraft = nullptr;
+		QLabel*                                       ConvertStatus  = nullptr;
 		std::function<void(core::draft_state_change)> DraftStateDispatch;
 		std::optional<core::draft_state_change>       DraftStateOffer;
 		bool                                          ReadyBusy         = false;

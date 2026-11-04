@@ -35005,12 +35005,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return result::pending;
 			}
 			auto* const action          = window->draft_state_action();
-			probe.Evidence.DraftOffered = window->strip_draft_shown() && page->draft_chip()->isVisible() && page->draft_banner()->isVisible()
+			probe.Evidence.DraftOffered = window->strip_draft_shown() && page->draft_chip()->isVisible()
 				&& page->ready_for_review_button()->isVisible() && page->ready_for_review_button()->isEnabled() && action != nullptr && action->isVisible()
 				&& action->text().remove(QLatin1Char{ '&' }) == QStringLiteral("Mark Ready for Review") && !page->convert_to_draft_button()->isVisible();
 			if (!probe.Evidence.DraftOffered) {
-				return fail("draft-not-offered strip=" + std::to_string(window->strip_draft_shown() ? 1 : 0) + " banner=" + std::to_string(page->draft_banner()->isVisible() ? 1 : 0)
-							+ " ready=" + std::to_string(page->ready_for_review_button()->isVisible() ? 1 : 0));
+				return fail("draft-not-offered strip=" + std::to_string(window->strip_draft_shown() ? 1 : 0) + " ready=" + std::to_string(page->ready_for_review_button()->isVisible() ? 1 : 0));
 			}
 			probe.DraftBaseline = state_type::reviewer_baseline{
 				.Reads          = implementation->Fixture->evidence().AccountReadCount,
@@ -35020,12 +35019,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			};
 			page->ready_for_review_button()->click();
 			// The gesture dispatched synchronously: the chips are gone now, and
-			// the banner says GitHub is being asked.
-			probe.Evidence.DraftShownAtOnce = !window->strip_draft_shown() && !page->draft_chip()->isVisible() && page->draft_banner()->isVisible()
-				&& page->draft_banner_text()->text().startsWith(QStringLiteral("Asking GitHub")) && !page->ready_for_review_button()->isEnabled()
+			// the button says GitHub is being asked.
+			probe.Evidence.DraftShownAtOnce = !window->strip_draft_shown() && !page->draft_chip()->isVisible() && page->ready_for_review_button()->isVisible()
+				&& page->ready_for_review_button()->text() == QStringLiteral("Marking ready…") && !page->ready_for_review_button()->isEnabled()
 				&& page->projection().has_value() && !page->projection()->Draft && page->projection()->DraftPending;
 			note("shown strip=" + std::to_string(window->strip_draft_shown() ? 1 : 0) + " chip=" + std::to_string(page->draft_chip()->isVisible() ? 1 : 0)
-				 + " banner=" + std::to_string(page->draft_banner()->isVisible() ? 1 : 0) + " text=" + page->draft_banner_text()->text().toStdString()
+				 + " button=" + page->ready_for_review_button()->text().toStdString()
 				 + " enabled=" + std::to_string(page->ready_for_review_button()->isEnabled() ? 1 : 0)
 				 + " draft=" + std::to_string(page->projection().has_value() && page->projection()->Draft ? 1 : 0)
 				 + " pending=" + std::to_string(page->projection().has_value() && page->projection()->DraftPending ? 1 : 0));
@@ -35051,7 +35050,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			probe.Evidence.DraftReads           = implementation->Fixture->evidence().AccountReadCount - probe.DraftBaseline->Reads;
 			probe.Evidence.DraftOverviewBuilds  = static_cast<std::size_t>(implementation->OverviewBuilds - probe.DraftBaseline->OverviewBuilds);
 			probe.Evidence.DraftOverviewUpdates = implementation->OverviewDraftStateUpdates - probe.DraftBaseline->OverviewMoves;
-			probe.Evidence.DraftReadyOnce       = evidence.DraftStateChanges == 1U && evidence.DraftStateWrites == 1U && !page->draft_banner()->isVisible()
+			probe.Evidence.DraftReadyOnce       = evidence.DraftStateChanges == 1U && evidence.DraftStateWrites == 1U && !page->ready_for_review_button()->isVisible()
 				&& !page->draft_chip()->isVisible() && !window->strip_draft_shown() && page->projection().has_value() && !page->projection()->Draft
 				&& !page->projection()->DraftPending && page->draft_state_offer() == core::draft_state_change::convert_to_draft && page->convert_to_draft_button()->isVisible()
 				&& window->draft_state_action()->text().remove(QLatin1Char{ '&' }) == QStringLiteral("Convert to Draft");

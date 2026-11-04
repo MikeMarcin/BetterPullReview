@@ -3624,9 +3624,8 @@ namespace {
 		page.present(draft);
 		page.status_section_header(qt::overview_status_section::people)->setChecked(true);
 		settle();
-		expect(page.draft_chip()->isVisible() && page.draft_banner()->isVisible() && !page.ready_for_review_button()->isVisible() && !page.convert_to_draft_button()->isVisible(),
-			   "a draft is said beside its title and in the banner, with no action until one is offered");
-		expect(page.draft_banner_text()->text() == QStringLiteral("This pull request is still a draft. Its author has not asked for review yet."), "a reader who is not the author is told what it means");
+		expect(page.draft_chip()->isVisible() && !page.ready_for_review_button()->isVisible() && !page.convert_to_draft_button()->isVisible(),
+			   "a draft is said before its title, with no action until one is offered");
 		expect(!page.summary_label()->text().contains(QStringLiteral("Draft")), "the summary no longer hides it at its end");
 
 		auto dispatched = std::vector<core::draft_state_change>{ };
@@ -3634,8 +3633,8 @@ namespace {
 		page.set_draft_state_offer(core::draft_state_change::ready_for_review);
 		settle();
 		expect(page.ready_for_review_button()->isVisible() && page.ready_for_review_button()->isEnabled() && page.ready_for_review_button()->text() == QStringLiteral("Ready for review")
-				   && page.draft_banner_text()->text().startsWith(QStringLiteral("This pull request is still a draft, so no one is asked to review it")),
-			   "its author is offered Ready for review in the banner");
+				   && page.ready_for_review_button()->geometry().top() < page.summary_label()->geometry().top(),
+			   "its author is offered Ready for review at the end of the title line");
 		render_draft_state(page, "overview-draft-author-light.png");
 		page.ready_for_review_button()->click();
 		expect(dispatched == std::vector{ core::draft_state_change::ready_for_review }, "pressing it only dispatches the change");
@@ -3651,9 +3650,9 @@ namespace {
 		readying.MergeState   = "Merge state unknown";
 		expect(page.present_draft_state(readying), "the same pull request takes the change in place");
 		settle();
-		expect(!page.draft_chip()->isVisible() && page.draft_banner()->isVisible() && page.draft_banner_text()->text().startsWith(QStringLiteral("Asking GitHub"))
-				   && !page.ready_for_review_button()->isEnabled() && page.ready_for_review_button()->text() == QStringLiteral("Marking ready…"),
-			   "the chip goes at once and the banner says GitHub is being asked");
+		expect(!page.draft_chip()->isVisible() && page.ready_for_review_button()->isVisible() && !page.ready_for_review_button()->isEnabled()
+				   && page.ready_for_review_button()->text() == QStringLiteral("Marking ready…"),
+			   "the chip goes at once and the button says GitHub is being asked");
 		render_draft_state(page, "overview-draft-readying-light.png");
 		page.present_draft_state_status(core::draft_state_change::ready_for_review, QString{ }, false);
 		page.set_draft_state_offer(core::draft_state_change::convert_to_draft);
@@ -3661,7 +3660,7 @@ namespace {
 		ready.DraftPending = false;
 		expect(page.present_draft_state(ready), "GitHub's answer is taken in place");
 		settle();
-		expect(!page.draft_chip()->isVisible() && !page.draft_banner()->isVisible() && page.convert_to_draft_button()->isVisible(),
+		expect(!page.draft_chip()->isVisible() && !page.ready_for_review_button()->isVisible() && page.convert_to_draft_button()->isVisible(),
 			   "ready, it is no longer said to be a draft, and Convert to draft is in People");
 		expect(fileSignals == 0 && page.participant_rows() == participants && page.draft_state_updates() == 2U, "no file row or participant is touched");
 		page.convert_to_draft_button()->click();
@@ -3675,7 +3674,7 @@ namespace {
 		closed.State = application::github_pull_request_state::closed;
 		page.present(closed);
 		settle();
-		expect(!page.draft_chip()->isVisible() && !page.draft_banner()->isVisible(), "a closed draft is said closed, not draft");
+		expect(!page.draft_chip()->isVisible() && !page.ready_for_review_button()->isVisible(), "a closed draft is said closed, not draft");
 		auto other   = draft;
 		other.Number = core::pull_request_number{ draft.Number.value() + 1U };
 		expect(!page.present_draft_state(other), "another pull request is presented whole");
