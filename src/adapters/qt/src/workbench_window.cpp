@@ -132,6 +132,7 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
+#include <QToolTip>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -4964,15 +4965,40 @@ namespace bpr::qt {
 		ActivityNotifications->setObjectName(QStringLiteral("activityNotifications"));
 		ActivityNotifications->setChecked(true);
 		ActivityNotifications->setEnabled(false);
+		// The owner, 2026-11-03: less text, the detail behind an info button.
+		// One row (the switch and its ⓘ), then one line saying what it is doing.
+		auto* const activityRow    = new QWidget{ notifications };
+		auto* const activityLayout = new QHBoxLayout{ activityRow };
+		activityLayout->setContentsMargins(0, 0, 0, 0);
+		activityLayout->setSpacing(4);
+		activityLayout->addWidget(ActivityNotifications);
+		ActivityInfo = new QToolButton{ activityRow };
+		ActivityInfo->setObjectName(QStringLiteral("activityNotificationsInfo"));
+		ActivityInfo->setText(QStringLiteral("\u24D8"));
+		ActivityInfo->setAutoRaise(true);
+		ActivityInfo->setFocusPolicy(Qt::StrongFocus);
+		ActivityInfo->setAccessibleName(QStringLiteral("About activity notifications"));
+		const auto activityDetail = QStringLiteral(
+			"New comments, reviews and mentions on pull requests you take part in, checked about once a minute. "
+			"Nothing is announced for a pull request you have open in the window you are using. "
+			"Notifications name the repository and number only, and nothing is marked read on GitHub. "
+			"It needs a GitHub CLI sign-in.");
+		ActivityInfo->setAccessibleDescription(activityDetail);
+		// Rich text, so the tooltip wraps instead of running off the screen.
+		ActivityInfo->setToolTip(QStringLiteral("<p style='white-space:normal'>%1</p>").arg(activityDetail.toHtmlEscaped()));
+		connect(ActivityInfo, &QToolButton::clicked, this, [this] {
+			QToolTip::showText(ActivityInfo->mapToGlobal(QPoint{ 0, ActivityInfo->height() }), ActivityInfo->toolTip(), ActivityInfo);
+		});
+		activityLayout->addWidget(ActivityInfo);
+		activityLayout->addStretch(1);
 		column->addSpacing(12);
-		column->addWidget(ActivityNotifications);
-		auto* const activityExplanation = new QLabel{ QStringLiteral("New comments, reviews and mentions on pull requests you take part in, checked about once a minute. Nothing is announced for a pull request you have open in the window you are using. Notifications name the repository and number only, and nothing is marked read on GitHub."), notifications };
-		activityExplanation->setWordWrap(true);
-		column->addWidget(activityExplanation);
+		column->addWidget(activityRow);
 		ActivityStatus = new QLabel{ notifications };
 		ActivityStatus->setObjectName(QStringLiteral("activityNotificationsStatus"));
 		ActivityStatus->setAccessibleName(QStringLiteral("Activity notification status"));
-		ActivityStatus->setWordWrap(true);
+		// Under the switch's text, not its box.
+		const auto indent = style()->pixelMetric(QStyle::PM_IndicatorWidth, nullptr, ActivityNotifications) + style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing, nullptr, ActivityNotifications);
+		ActivityStatus->setContentsMargins(indent, 0, 0, 0);
 		column->addWidget(ActivityStatus);
 		connect(ActivityNotifications, &QCheckBox::toggled, this, [this](const bool aChecked) {
 			if (!PresentingActivity && ActivityDispatch) {
@@ -5038,6 +5064,11 @@ namespace bpr::qt {
 	auto workbench_window::activity_notifications_status() const noexcept -> QLabel*
 	{
 		return ActivityStatus;
+	}
+
+	auto workbench_window::activity_notifications_info() const noexcept -> QToolButton*
+	{
+		return ActivityInfo;
 	}
 
 	auto workbench_window::focused_pull_request() const -> std::optional<core::pull_request_ref>

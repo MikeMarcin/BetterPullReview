@@ -13,6 +13,7 @@
 #include <QPixmap>
 #include <QSystemTrayIcon>
 #include <QTimer>
+#include <QToolButton>
 
 #include <chrono>
 #include <cstdlib>
@@ -174,14 +175,17 @@ namespace {
 		expect(window.activity_notifications_switch() != nullptr && !window.activity_notifications_switch()->isEnabled(), "the switch is there, disabled without a dispatch");
 		auto told = std::vector<bool>{ };
 		window.set_activity_notifications_dispatch([&](const bool aEnabled) { told.push_back(aEnabled); });
-		window.present_activity_notifications(true, QStringLiteral("On. Checking GitHub about once a minute."));
+		window.present_activity_notifications(true, QStringLiteral("Checking GitHub every minute."));
 		expect(window.activity_notifications_switch()->isEnabled() && window.activity_notifications_switch()->isChecked() && told.empty(), "presenting tells nothing back");
-		expect(window.activity_notifications_status()->text() == QStringLiteral("On. Checking GitHub about once a minute."), "the status line says what it does");
+		expect(window.activity_notifications_status()->text() == QStringLiteral("Checking GitHub every minute."), "the status line says what it does");
+		expect(window.activity_notifications_info() != nullptr && window.activity_notifications_info()->toolTip().contains(QStringLiteral("nothing is marked read on GitHub"))
+				   && !window.activity_notifications_info()->accessibleName().isEmpty(),
+			   "the full explanation is behind the info button, named for assistive technology");
 		window.activity_notifications_switch()->click();
 		expect(told == std::vector<bool>{ false }, "the reviewer's click is dispatched");
 		// For the owner's review of the wording: the Notifications page as shown.
 		if (const auto render = qEnvironmentVariable("BPR_ACTIVITY_SETTINGS_RENDER"); !render.isEmpty()) {
-			window.present_activity_notifications(true, QStringLiteral("On. Checking GitHub about once a minute."));
+			window.present_activity_notifications(true, QStringLiteral("Checking GitHub every minute."));
 			window.settings()->resize(900, 720);
 			window.settings()->present(qt::settings_page::notifications);
 			window.settings()->show();

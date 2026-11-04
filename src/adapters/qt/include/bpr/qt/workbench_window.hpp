@@ -1580,6 +1580,8 @@ namespace bpr::qt {
 		void               present_activity_notifications(bool aEnabled, const QString& aStatus);
 		[[nodiscard]] auto activity_notifications_switch() const noexcept -> QCheckBox*;
 		[[nodiscard]] auto activity_notifications_status() const noexcept -> QLabel*;
+		/// \brief [[BPR-1850]]. The ⓘ that holds the full explanation.
+		[[nodiscard]] auto activity_notifications_info() const noexcept -> QToolButton*;
 		/// \brief [[BPR-1850]]. The pull request this window shows while it is
 		/// the active window; none otherwise.
 		[[nodiscard]] auto focused_pull_request() const -> std::optional<core::pull_request_ref>;
@@ -3050,6 +3052,7 @@ namespace bpr::qt {
 		std::function<bool(const core::pull_request_ref&)> NotificationPreviewDispatch;
 		QCheckBox*                                         ActivityNotifications = nullptr;
 		QLabel*                                            ActivityStatus        = nullptr;
+		QToolButton*                                       ActivityInfo          = nullptr;
 		std::function<void(bool)>                          ActivityDispatch;
 		bool                                               PresentingActivity        = false;
 		QComboBox*                                         QueueRuleSelector         = nullptr;
