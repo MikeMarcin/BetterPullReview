@@ -167,10 +167,31 @@ namespace bpr::core {
 		/// [[BPR-1345]] v002. Whether the review can be submitted now as each
 		/// verdict, in the order Comment, Approve, Request changes: the three
 		/// buttons that finish a review submit directly, each its own verdict.
-		std::array<bool, 3> SubmitAs                                             = { };
-		auto                operator<=>(const review_submission_controls&) const = default;
+		std::array<bool, 3> SubmitAs = { };
+		/// [[BPR-1853]]. The acting account opened this pull request. GitHub
+		/// takes only a Comment review from its author, so Approve and
+		/// Request changes are off for this reason, whatever else holds.
+		bool Authored                                             = false;
+		auto operator<=>(const review_submission_controls&) const = default;
 	};
 	[[nodiscard]] auto controls(const review_submission_draft& aDraft) noexcept -> review_submission_controls;
+	/// \brief [[BPR-1853]]. Whether `aViewer`, the signed-in account's login,
+	/// opened the pull request `aAuthor` names, compared as GitHub compares
+	/// logins (`same_login`: ASCII case is ignored, on GHES as on github.com).
+	/// An empty login is nobody's: an author the read did not give, or an
+	/// anonymous read, is never the viewer.
+	[[nodiscard]] auto own_pull_request(std::string_view aAuthor, std::string_view aViewer) noexcept -> bool;
+	/// \brief [[BPR-1853]]. Whether GitHub takes a review with `aDisposition`
+	/// from `aViewer` on `aAuthor`'s pull request: its author may only
+	/// Comment ("Can not approve your own pull request", "Can not request
+	/// changes on your own pull request", probed on `MikeMarcin/BPR-Test#43`).
+	[[nodiscard]] auto verdict_open(review_disposition aDisposition, std::string_view aAuthor, std::string_view aViewer) noexcept -> bool;
+	/// \brief [[BPR-1853]]. `controls(aDraft)` for a review `aViewer` writes on
+	/// `aAuthor`'s pull request: on their own pull request Approve and
+	/// Request changes are off and `Authored` says why, and Submit is off
+	/// while the draft holds either verdict. An unknown author changes nothing;
+	/// GitHub's refusal then says why.
+	[[nodiscard]] auto controls(const review_submission_draft& aDraft, std::string_view aAuthor, std::string_view aViewer) noexcept -> review_submission_controls;
 	/// \brief [[BPR-1345]] v002. Whether `aControls` let the review be
 	/// submitted as `aDisposition`.
 	[[nodiscard]] auto submits_as(const review_submission_controls& aControls, review_disposition aDisposition) noexcept -> bool;

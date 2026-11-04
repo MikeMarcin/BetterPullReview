@@ -587,7 +587,9 @@ namespace bpr::adapters::github::detail {
 			auto       settled = result(aRecord.Request, application::review_submission_publication::definitely_not_published,
 										refused ? application::review_mutation_failure::refused_by_server : application::review_mutation_failure::unavailable);
 			if (refused) {
-				settled.Refusal = UnplaceableLine ? application::review_submission_refusal::unplaceable_line : application::review_submission_refusal::review;
+				settled.Refusal = UnplaceableLine ? application::review_submission_refusal::unplaceable_line
+					: OwnPullRequest              ? application::review_submission_refusal::own_pull_request
+												  : application::review_submission_refusal::review;
 			}
 			return settled;
 		}
@@ -608,6 +610,7 @@ namespace bpr::adapters::github::detail {
 			Pages           = 0U;
 			Candidates      = 0U;
 			UnplaceableLine = false;
+			OwnPullRequest  = false;
 			Submitting      = aAllowNew;
 			PostStatus      = 0U;
 			Settled         = false;
@@ -765,6 +768,7 @@ namespace bpr::adapters::github::detail {
 			const auto post = post_answer(completion, now());
 			if (const auto* answered = std::get_if<github_mutation_wire_success>(&completion); answered != nullptr && status_class(answered->Response.Status) == 4U) {
 				UnplaceableLine = refusal_names_unplaceable_line(answered->Response.Body);
+				OwnPullRequest  = refusal_names_own_pull_request(answered->Response.Body);
 			}
 			if (witnessed->load()) {
 				static_cast<void>(Recovery->note_post(aRequest.IdempotencyKey, expected.RequestFingerprint, post));

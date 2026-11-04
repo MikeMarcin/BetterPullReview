@@ -2146,6 +2146,9 @@ namespace bpr::app::detail {
 			// fixture's provider (or another client) last wrote; unset until
 			// the recorded body is first read.
 			bool DescriptionServed = false;
+			// [[BPR-1853]]. With `ViewerAuthors`, the viewer opened the pull
+			// request.
+			bool ViewerAuthors = false;
 			// [[BPR-1775]]. With `--comment-edit-probe`, the provider edits the
 			// replies it published (their bodies live in `ThreadOverlays`).
 			bool CommentsEditable = false;
@@ -3507,6 +3510,11 @@ namespace bpr::app::detail {
 					}
 					object.insert(QStringLiteral("requested_reviewers"), QJsonArray{ });
 					object.insert(QStringLiteral("requested_teams"), QJsonArray{ });
+					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
+				}
+				if (State->ViewerAuthors && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
+					auto object = QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).object();
+					object.insert(QStringLiteral("user"), QJsonObject{ { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") }, { QStringLiteral("login"), QStringLiteral("octo-reviewer") } });
 					response->Body = QJsonDocument{ object }.toJson(QJsonDocument::Compact).toStdString();
 				}
 				if (State->DescriptionServed && Role == fixture_transport_role::account && aRequest.Wire.Operation == read_operation::get_pull_request && response->Status == 200) {
@@ -5776,6 +5784,7 @@ namespace bpr::app::detail {
 			// a thumbs up.
 			Recording->ReactionsServed   = aOptions.ServesReactions;
 			Recording->DescriptionServed = aOptions.EditsDescription;
+			Recording->ViewerAuthors     = aOptions.ViewerAuthors;
 			Recording->CommentsEditable  = aOptions.EditsComments;
 			Recording->ReviewersServed   = aOptions.RequestsReviewers;
 			Recording->PullRequestState  = aOptions.PullRequestState;

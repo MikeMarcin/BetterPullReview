@@ -355,10 +355,13 @@ namespace {
 		bool                       Refuse422 = false;
 		/// [[BPR-1715]]. Refuse the next review with 422 as the GitHub
 		/// CLI transport reports it: an answer with that status.
-		bool                  Refuse422AsAnswer = false;
-		std::function<void()> OnTarget;
-		std::function<void()> OnPublished;
-		auto                  perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
+		bool Refuse422AsAnswer = false;
+		/// [[BPR-1853]]. The words of that 422, when set; else the
+		/// unplaceable line's.
+		std::optional<std::string> RefusalBody;
+		std::function<void()>      OnTarget;
+		std::function<void()>      OnPublished;
+		auto                       perform_review_mutation(const github_mutation_wire_request& aRequest, std::stop_token, github_mutation_transmission_witness aWitness) -> github_mutation_wire_completion override
 		{
 			// [[BPR-1121]]. The session calls this and catches what it throws, so a
 			// failure here, or in the hooks it calls, still ends the process rather
@@ -455,7 +458,7 @@ namespace {
 					if (OnPublished) {
 						OnPublished();
 					}
-					return github_mutation_wire_success{ .Response = { .Status = 422, .Body = R"({"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff and Pull request review thread diff hunk can't be blank"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})" } };
+					return github_mutation_wire_success{ .Response = { .Status = 422, .Body = RefusalBody.value_or(R"({"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff and Pull request review thread diff hunk can't be blank"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})") } };
 				}
 				expect(static_cast<bool>(aWitness), "POST requires durable witness");
 				WitnessRejected = !aWitness();
@@ -2222,6 +2225,30 @@ namespace {
 			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
 			const auto                result = session.submit_and_reconcile(wire.Request);
 			expect(result.Publication == publication::definitely_not_published && result.Refusal == application::review_submission_refusal::review, "a refusal without words is the review refused");
+		}
+		{
+			// [[BPR-1853]]. GitHub refuses the author's own approval with its
+			// words (MikeMarcin/BPR-Test#43): a definite refusal that says why.
+			temporary_directory root;
+			transport           wire;
+			wire.Request           = carried();
+			wire.NewCount          = 0U;
+			wire.Refuse422AsAnswer = true;
+			wire.RefusalBody       = R"({"message":"Unprocessable Entity","errors":["Review Can not approve your own pull request"],"documentation_url":"https://docs.github.com/rest/pulls/reviews#create-a-review-for-a-pull-request","status":"422"})";
+			review_submission_session session{ wire, configuration(), std::make_shared<lease>(), storage(root.Path) };
+			const auto                result = session.submit_and_reconcile(wire.Request);
+			expect(result.Publication == publication::definitely_not_published && result.Failure == application::review_mutation_failure::refused_by_server
+					   && result.Refusal == application::review_submission_refusal::own_pull_request && wire.Posts == 1U,
+				   "GitHub's refusal of an author's own approval is not published, and says it is their own pull request");
+		}
+		for (const auto& [body, own] : { std::pair{ std::string_view{ R"({"message":"Unprocessable Entity","errors":["Review Can not approve your own pull request"]})" }, true },
+										 std::pair{ std::string_view{ R"({"message":"Unprocessable Entity","errors":["Review Can not request changes on your own pull request"]})" }, true },
+										 std::pair{ std::string_view{ R"({"message":"Unprocessable Entity","errors":[{"resource":"PullRequestReview","code":"custom","message":"Can not approve your own pull request"}]})" }, true },
+										 std::pair{ std::string_view{ R"({"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff"]})" }, false },
+										 std::pair{ std::string_view{ R"({"message":"Can not approve your own pull request"})" }, false },
+										 std::pair{ std::string_view{ "not json" }, false } }) {
+			expect(refusal_names_own_pull_request(body) == own, "only GitHub's words about the author's own pull request are read as that");
+			expect(!refusal_names_unplaceable_line(body) || !own, "and they are not an unplaceable line");
 		}
 		for (const auto& [body, unplaceable] : { std::pair{ std::string_view{ R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReviewComment","field":"pull_request_review_thread.line","code":"custom","message":"could not be resolved"}]})" }, true },
 												 std::pair{ std::string_view{ R"({"message":"Validation Failed","errors":[{"resource":"PullRequestReview","code":"custom","message":"User can only have one pending review per pull request"}]})" }, false },

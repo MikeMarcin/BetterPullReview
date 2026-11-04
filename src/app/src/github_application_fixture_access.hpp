@@ -513,6 +513,10 @@ namespace bpr::app::detail {
 		/// author and its mutation provider edits the description; off, no
 		/// course offers Edit.
 		bool EditsDescription = false;
+		/// [[BPR-1853]]. The fixture names the viewer the pull request's
+		/// author; nothing else changes. One node keeps one login, so the
+		/// case-insensitive comparison is the core's tests' to show.
+		bool ViewerAuthors = false;
 		/// [[BPR-1775]]. The fixture's mutation provider edits the viewer's
 		/// published comments; off, no course offers Edit on a comment.
 		bool EditsComments = false;
