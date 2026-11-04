@@ -20,8 +20,15 @@ foreach(product IN LISTS products)
     target_compile_features("${product}" PRIVATE cxx_std_23)
     target_link_libraries("${product}" PRIVATE Threads::Threads ${CMAKE_DL_LIBS})
     add_dependencies("${product}" bpr_mimalloc_probe_module)
-    bpr_add_network_isolated_test(NAME "mimalloc_${product}" WINDOWS_UNCONTAINED
-        COMMAND "$<TARGET_FILE:${product}>")
+    # [[BPR-1854]]. The avatar helper's native Windows probe passes inside
+    # the zero-capability container. Keep its measured containment enabled.
+    if(product STREQUAL "tool_better_pull_review_gh_avatar_helper")
+        bpr_add_network_isolated_test(NAME mimalloc_tool_better_pull_review_gh_avatar_helper
+            COMMAND "$<TARGET_FILE:${product}>")
+    else()
+        bpr_add_network_isolated_test(NAME "mimalloc_${product}" WINDOWS_UNCONTAINED
+            COMMAND "$<TARGET_FILE:${product}>")
+    endif()
     set_tests_properties("mimalloc_${product}" PROPERTIES TIMEOUT 60
         ENVIRONMENT "BPR_MIMALLOC_PROBE=1;BPR_MIMALLOC_PROBE_MODULE=$<TARGET_FILE:bpr_mimalloc_probe_module>"
         PASS_REGULAR_EXPRESSION "MIMALLOC_PROBE_PASS")

@@ -758,6 +758,11 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # passes directly; contained, its first image-store assertion
                 # fails. The pin does not claim an unobserved Windows cause.
                 "image-store-unavailable",
+                # [[BPR-1854]]. Same-image Release pairs name the first
+                # private-desktop and fresh-store predicates, not an ACL cause.
+                "private-desktop-root-refused",
+                "fresh-view-filter-store-predicate-failed",
+                "fresh-activity-store-predicate-failed",
                 # RFC-BPR-0093 measured native loader refusals.
                 "cmake-dll-initialization",
                 "qt-dll-initialization",

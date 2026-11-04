@@ -18,3 +18,14 @@ metadata: {"external_state":"/Users/jaeger/.codex/release-runs/v0.4.2-20261104",
 - Produce Ubuntu packages, audit corresponding source/SPDX/signatures/security, resolve actual blockers and publish the full stable release under the owner's current authorization. Verify downloaded bytes and native trust on each producer.
 
 No prior release failure, security disposition or native acceptance transfers without its exact input and authority checks. Existing releases and assets remain immutable.
+
+## Native registration correction
+
+The seven new Windows Release courses pass directly. The avatar helper's
+allocator probe also passes in the zero-capability AppContainer; remove its
+exemption. Record the six other courses' exact observed refusals and the missing
+draft-state pin, without guessing a filesystem or OS cause. See the
+[native measurement record](../../verification/release-v042-windows-containment.md).
+The registration correction needs a successor frozen source; comprehensive
+qualification and publication remain in progress. Preserve the earlier source,
+signed artifacts and actual interrupted-build receipts.
