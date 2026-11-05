@@ -1,3 +1,11 @@
+# [[BPR-1854]] native Ubuntu functional probe repair, reviewed over 9cbff5c3c.
+# Only fixture code changes: keep_waiting accepts a finite optional cap (all
+# existing callers retain 5s); review-round-trip uses 15s phases inside its
+# unchanged 40s outer budget, waits for the off-hunk public selection before
+# advancing, records anchor availability and checks optional draft presence.
+# No semantic assertion, provider, credential, grant, publication, source
+# inventory or production mutation branch change. Raw Ubuntu failures remain
+# external evidence. These content pins are not native qualification.
 # [[BPR-1857]] release integration reseal, 2026-11-04, over matching
 # 24a94242a: cherry-picked only 49da209d3 relative to its first parent.
 # Scoped engineering self-review: github_application.cpp adds startup recovery's
@@ -2617,7 +2625,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-        "d2deffa2a7fa2cc0cee47e6af1089703eae4cef6497508fdaa19e9be5fd87a01"
+        "dc7decab0df940f9659ef8f2f94ada737a6fcae7c6eda1f62fe188c09a07fd44"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2928,7 +2936,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "946fa269a323fda27012fb901f63b26f9f30c31c83ae8af5e7ffc8f5d663f21a"
+        "e9fc3c7b0e537fddc02661cfbd2ede377dc1c766947468f24abb7a4e376fd5e0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

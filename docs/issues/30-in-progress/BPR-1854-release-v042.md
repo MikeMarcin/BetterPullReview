@@ -88,3 +88,24 @@ setup failures and intentional exact-owned process stops remain in the external
 run state. No other process was stopped, and its unstarted qualification and
 production tasks are disabled. Freeze a source successor and complete its
 required gates before full publication; the public build 9 remains immutable.
+
+
+### Ubuntu pre-freeze composition feedback after BPR-1857
+
+At `9cbff5c3c`, native Ubuntu 26.04 compiled the affected graph and passed
+three source/cache gates and 12 functional rows. The round-trip composition
+course failed at its five-second fallback-draft wait; an isolated retry failed
+at the initial draft wait with a selected-diff request still outstanding. Both
+raw failures remain in the external release run. This is functional feedback,
+not a Debug timing omission or an accepted full qualification result.
+
+The fixture could advance to its fallback-draft phase without finding an
+unchanged off-hunk line while a refreshed comparison was arriving. It now waits
+for that public selection before advancing and records anchor availability.
+It also checks draft presence before reading draft state. Only this functional
+course's phase watchdog changes from five to fifteen seconds; its outer
+40-second budget and every publication, persistence and semantic assertion stay
+in place. Other fixture courses retain their five-second default. The full
+application and manifest pins are resealed after reviewing these fixture-only
+bytes; the production mutation branch remains `70fe8a7e`. Fresh native affected
+composition checks are required before freezing the release candidate.
