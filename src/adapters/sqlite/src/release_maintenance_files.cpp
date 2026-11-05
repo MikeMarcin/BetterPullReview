@@ -279,6 +279,8 @@ namespace bpr::adapters::sqlite {
 			reset_settings   = 12U,
 			reset_review     = 13U,
 			reset_everything = 14U,
+			/// [[BPR-1858]]
+			reset_connections = 15U,
 		};
 		auto scope_of(core::profile_data_reset aReset) -> scope
 		{
@@ -291,6 +293,8 @@ namespace bpr::adapters::sqlite {
 				return scope::reset_review;
 			case core::profile_data_reset::everything:
 				return scope::reset_everything;
+			case core::profile_data_reset::connections:
+				return scope::reset_connections;
 			}
 			fail(reason::invalid_selection);
 		}
@@ -305,6 +309,8 @@ namespace bpr::adapters::sqlite {
 				return core::profile_data_reset::review_data;
 			case scope::reset_everything:
 				return core::profile_data_reset::everything;
+			case scope::reset_connections:
+				return core::profile_data_reset::connections;
 			case scope::clear:
 			case scope::purge:
 				break;
@@ -313,7 +319,15 @@ namespace bpr::adapters::sqlite {
 		}
 		auto known_scope(std::uint64_t aValue) -> bool
 		{
-			return aValue == 0U || aValue == 1U || (aValue >= 11U && aValue <= 14U);
+			return aValue == 0U || aValue == 1U || (aValue >= 11U && aValue <= 15U);
+		}
+		/// \brief [[BPR-1858]]. Whether the scope deletes this profile's stored
+		/// sign-ins through the credential cleanup: the purge, and the resets
+		/// core says sign out.
+		auto erases_credentials(scope aScope) -> bool
+		{
+			const auto reset = reset_of(aScope);
+			return aScope == scope::purge || (reset && core::profile_data_reset_signs_out(*reset));
 		}
 		/// \brief A `state/v1` entry the reset selects by name: a known store
 		/// or one of its sidecars whose area the reset removes, or the epoch
@@ -1568,10 +1582,11 @@ namespace bpr::adapters::sqlite {
 		}
 		auto capture(scope aScope, std::stop_token aStop) -> inventory
 		{
-			const auto purge = aScope == scope::purge;
+			const auto purge   = aScope == scope::purge;
+			const auto signOut = erases_credentials(aScope);
 			inventory  observed{ Device, Inode, ObjectHigh, Authority.Profile.value(), aScope, false, { }, { } };
 			// A scoped binding-store read is closed before inventorying its native files.
-			if (purge && Credentials) {
+			if (signOut && Credentials) {
 				auto credentials = Credentials->inspect(aStop);
 				if (!credentials) {
 					fail(credentials.error());
@@ -1580,6 +1595,11 @@ namespace bpr::adapters::sqlite {
 			}
 			scan(RootHandle.Value, "", aScope, observed.Entries, aStop);
 			std::ranges::sort(observed.Entries, { }, &entry::Path);
+			// [[BPR-1858]]. The bindings name the vault entries; a reset that
+			// removed them without the cleanup would orphan those entries.
+			if (!purge && signOut && !Credentials && std::ranges::any_of(observed.Entries, [](const entry& aEntry) { return aEntry.Path.starts_with("state/v1/device-bindings.sqlite3"); })) {
+				fail(reason::unavailable);
+			}
 			if (purge) {
 				auto workspaceRoot = Root;
 				workspaceRoot += "-agent-workspaces-v1";
@@ -1687,7 +1707,7 @@ namespace bpr::adapters::sqlite {
 			validate_journal(aJournal);
 			static_cast<void>(validate_inventory(aInventory, true));
 			if (!aInventory.CredentialsDone) {
-				if (aInventory.Scope == scope::purge && Credentials) {
+				if (erases_credentials(aInventory.Scope) && Credentials) {
 					auto erased = Credentials->erase(aInventory.Credentials);
 					if (!erased) {
 						fail(erased.error());

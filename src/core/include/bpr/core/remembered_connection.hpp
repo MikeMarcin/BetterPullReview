@@ -76,6 +76,16 @@ namespace bpr::core {
 	[[nodiscard]] auto disable_connection_reuse(const remembered_connection_state& aState, std::uint64_t aExpectedRevision, std::string_view aHostname) -> remembered_connection_result;
 	/// \brief Removes the selection and retired identities, preserving identity high-water marks and unrelated servers.
 	[[nodiscard]] auto forget_connection(const remembered_connection_state& aState, std::uint64_t aExpectedRevision, std::string_view aHostname) -> remembered_connection_result;
+	/// \brief [[BPR-1858]]. Whether any server has a row: a selection, a signed-out
+	/// suppression or retired identities.
+	[[nodiscard]] auto holds_remembered_connection(const remembered_connection_state& aState) noexcept -> bool;
+	/// \brief [[BPR-1858]]. Forget for every server: the edit Reset connections and
+	/// Reset everything make, in the store they keep.
+	/// \details Every row, native or GitHub CLI, and every retired identity goes, as
+	/// Forget would for each server, so no connection is reused at the next launch.
+	/// The identity high-water marks stay, so a forgotten identity cannot return as a
+	/// new authority over review data the reset kept. gh's own sign-in is not touched.
+	[[nodiscard]] auto forget_remembered_connections(const remembered_connection_state& aState, std::uint64_t aExpectedRevision) -> remembered_connection_result;
 	/// \brief Exact-host choice, or most recently selected enabled connection without a host.
 	/// \details A disabled exact-host row yields no validation attempt, never another host.
 	[[nodiscard]] auto select_remembered_connection(const remembered_connection_state& aState, std::optional<std::string_view> aHostname = std::nullopt) -> std::optional<remembered_connection>;

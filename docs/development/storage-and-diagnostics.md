@@ -46,8 +46,15 @@ details…** also keeps request and window IDs.
 
 ## Reset this profile's local data
 
-The resets in **Settings > Storage & privacy > Troubleshooting** keep you
-signed in and change nothing on GitHub.
+The resets in **Settings > Storage & privacy > Troubleshooting** change
+nothing on GitHub. **Reset connections** signs this profile out and stops it
+using GitHub CLI, keeping notes, drafts, settings, saved repositories and
+caches; **Reset everything** does that too and removes the rest. Both delete
+the sign-ins this profile saved in the system's credential store and open at
+**Sign in to GitHub**; the app connects through gh again only when you choose
+**Use GitHub CLI**. Neither signs you out of GitHub CLI itself, which other
+tools use (`gh auth logout` does that). No reset is an uninstall, and none
+touches shared registry or updater state.
 
 > [!WARNING]
 > **Clear caches** loses earlier pushes that GitHub dropped after a

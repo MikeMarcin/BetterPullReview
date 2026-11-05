@@ -2625,8 +2625,17 @@ function(bpr_verify_full_application_digest source_variable)
 	# [[BPR-1811]]. Owner-authorized current-main restart combines canonical
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
+	# [[BPR-1858]] sign-out reset reseal (2026-11-04): the startup data reset
+	# step owns a vault worker and this profile's platform vault (a course's
+	# fixture vault under testing) only for Reset connections and Reset
+	# everything, passes it to run_profile_data_reset and drains it. No grant,
+	# provider, admission, mutation branch, publication or source-inventory
+	# change; the vault deletion is the purge's release_profile_credentials.
+	# [[BPR-1858]] main-merge reseal (2026-11-05): main a2e2ca244's
+	# github_application.cpp combined with the sign-out reset step above; both
+	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "8219265028abf32d0efbe278ca564926f71d5980becc7688ee46662d957bdb48"
+        "4fd7d9db0164dc8e0f61ef7cf51dec1bfcd5b52a365583b6b9aef176df87db9c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2934,10 +2943,24 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1833]]. Only the fixture setup described at the full application
 # digest changes. The production mutation branch and source inventory stay
 # exact; this content reseal supplies no native acceptance by itself.
+# [[BPR-1858]] Reset everything reseal (2026-11-04): profile_data_reset.{hpp,cpp}
+# forget the profile's GitHub CLI connections in remembered-connections after
+# the reset's files go, and github_application_fixture_access.hpp hands a
+# course the startup reset report. No grant, credential, vault, gh process,
+# admission, mutation, publication or source-inventory change.
+# [[BPR-1858]] sign-out reset reseal (2026-11-04), owner decision 04ebe7a6:
+# Reset connections and Reset everything delete this profile's own vault
+# entries through the purge's release_profile_credentials and forget every
+# remembered connection (profile_data_reset.{hpp,cpp}, github_application.cpp,
+# main.cpp's option comment); the fixture accessor and fixture gain the
+# course's reset vault. No grant, provider, gh process, admission, mutation
+# branch, publication or source-inventory change.
+# [[BPR-1858]] main-merge reseal (2026-11-05): the production manifest over
+# main a2e2ca244 with the sign-out reset sources above; both sides kept.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "3b80d776fed3227cb0f3058561efef397f0497d4b82f77f6eadfd7c8bdd56439"
+        "0f9436799534c6ae607206d255de1a281429a2596d6d288a93f8c75956ffd61a"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
