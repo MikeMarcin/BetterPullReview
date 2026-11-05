@@ -109,3 +109,18 @@ in place. Other fixture courses retain their five-second default. The full
 application and manifest pins are resealed after reviewing these fixture-only
 bytes; the production mutation branch remains `70fe8a7e`. Fresh native affected
 composition checks are required before freezing the release candidate.
+
+
+The corrected fixture's early native checks at `c5e77a2b5` now pass on all
+three producers: Mac architecture plus composition 2/2 (composition 4.14 s),
+Windows source gates plus a clean isolated composition rerun (15.48 s), and
+Ubuntu source/cache gates 3/3 plus composition (26.70 s). Windows' first C5E
+attempt failed while a separate build began after its idle preflight; that raw
+failure is retained. The clean retry reused the successful exact-source build
+and source gates and changed neither the root nor any semantic assertion. A
+prepared alternate-root diagnostic was not needed and never ran. The later
+Windows readiness proof identified only approved orphan MSBuild reuse workers
+with unchanged CPU counters; it stopped none. They subsequently exited before
+Ubuntu's corrected run. Fresh app-TU LLVM22 analysis reports only the previously
+recorded `go_on_to_reviewers` naming debt (raw exit 1); no new finding is
+present. Final freeze and comprehensive qualification remain pending.
