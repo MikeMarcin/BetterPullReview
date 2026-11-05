@@ -347,3 +347,32 @@ state that comprehensive three-platform qualification and stable publication are
 pending; no partial suite is a passing complete suite. The full matrix and Linux
 assets follow, then the separate stable-copy route. Main is rechecked locally and
 on GitHub before publication so all current main fixes are included.
+
+### Updated build 17 preview and draft-state qualification observation
+
+Build 17 is published as a prerelease with ten macOS and seven Windows assets.
+Both packages, their separate corresponding-source assets and inventories were
+downloaded anonymously, matched byte for byte, and checked again on their native
+producers. macOS signature, notarization and Gatekeeper checks pass; Windows
+passes all 42 signature, extraction-equivalence and runtime/source audit commands.
+Stable Latest remains 0.4.1. Both canonical local main and freshly fetched GitHub
+main are ancestors of the frozen source. All nine native compilation graphs
+pass. Fresh scanner findings remain the exact reviewed platform sets (23 macOS,
+21 Windows); their raw failed gates remain, with only matching standing owner
+exceptions carried. This is not comprehensive qualification or stable acceptance.
+
+The retained macOS build 16 partial also contains a separate manual-publication
+failure. Its predicate waits for `Draft.` in the summary; accepted BPR-1852 moved
+that state to the title chip, and the Qt regression explicitly requires the
+summary not to repeat it. The fixture now observes the actual chip's shown state
+and exact accessible name, `Draft pull request`. All publication, route, source,
+recovery and write assertions remain. No production behavior changes. The
+corrected full manual-publication course passes on macOS in Release and Debug;
+Windows and Ubuntu focused checks are pending. A new frozen cohort and full
+qualification remain required before stable publication. Build 17's notes disclose
+the retained failure and unfinished qualification.
+
+The Windows upgrade floor records the actually published, native-verified build
+17 MSI (0.4.17), its exact digest, source, tag and release ID; this does not assert
+installation or upgrade acceptance. The next producer must inspect those exact
+prior MSI bytes before packaging.
