@@ -182,3 +182,34 @@ The observed finite reasons replace those provisional entries, as recorded in
 `docs/verification/release-v042-windows-containment.md`. Raw failures remain
 retained. The corrected native manifest and changed functional selection must
 pass on the successor source before release qualification proceeds.
+
+
+### Updated-main storage and agent feedback
+
+The BPR-1869 and BPR-1870 changes are reconciled at `2a8b6b1f5`, preserving
+the release's Windows CLI and fixture corrections. Native optimized feedback
+passes 17 configured courses on macOS and 15 on Windows, including storage,
+workspace ownership, agent canary, crash recovery and logging. The expanded
+startup root course is Unix-only; a separate actual Windows entry-point probe
+passes three starts, with owner/DACL readback, unrelated folder/file identity
+and content preservation, repeated private-child selection and exact cleanup.
+The first probe omitted CTest's DLL environment and failed before app code;
+that raw failure is retained, and the corrected probe applies the configured
+environment and working directory without changing product source.
+
+Fresh Windows production CLI feedback on the designated live test pull request
+passes all three whole-PR comparisons with exact blob identities and diff
+lines. The account remains MikeMarcin and actual remaining-quota headers are
+4994, 4993 and 4915. A fresh local history cannot offer the previous-upload
+comparison; that unavailable interdiff is retained, not claimed passed.
+Ubuntu feedback at the same source is still running at this commit.
+
+LLVM22 analysis of the four newly changed production translation units
+returns raw exit 1: two new automatic-move findings refer to one `const`
+local path in `storage_root_placement`, and the app repeats its published
+`go_on_to_reviewers` naming finding. The local path now permits a move on
+return, with identical path values and branches; no assertion, permission,
+root selection or app source seal changes. Targeted analyzer and native
+checks for that correction remain required. All receipts retain their actual
+source, and comprehensive qualification of the final frozen candidate on all
+three platforms, source/security audits, signing and publication remain open.

@@ -4429,7 +4429,7 @@ namespace bpr::adapters::sqlite {
 			if (error || status.type() != std::filesystem::file_type::directory) {
 				return aRoot;
 			}
-			const auto nested = aRoot / std::string{ nested_storage_folder } / std::string{ nested_storage_leaf };
+			auto nested = aRoot / std::string{ nested_storage_folder } / std::string{ nested_storage_leaf };
 			if (present(std::filesystem::symlink_status(nested, error))) {
 				return nested;
 			}
