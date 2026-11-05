@@ -3300,6 +3300,81 @@ namespace bpr::adapters::git {
 	#endif
 		}
 
+		/// [[BPR-1870]]. Narrows one of the application's own workspace objects
+		/// (the neighbourhood, the registry or a record) that
+		/// exists wider than private. Only an object this user owns, opened
+		/// without following a link and shown to be the named one, that is a
+		/// real folder or a single-link regular file, is changed, and only
+		/// through that opened handle: POSIX `fchmod` to `0700` or `0600`,
+		/// Windows the exact owner-private descriptor. Nothing above these
+		/// objects is ever changed. The caller re-reads the object afterwards.
+		[[nodiscard]] auto tighten_workspace_object(const std::filesystem::path& aPath, const bool aDirectory) -> bool
+		{
+			if (canonical_existing(aPath) != aPath) {
+				return false;
+			}
+	#if defined(Q_OS_WIN)
+			const auto principals = win_guard::windows_private_principals::load();
+			if (!principals) {
+				return false;
+			}
+			const auto handle      = workspace_descriptor{ CreateFileW(
+				aPath.c_str(), READ_CONTROL | WRITE_DAC | FILE_READ_ATTRIBUTES, FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE, nullptr,
+				OPEN_EXISTING, FILE_FLAG_OPEN_REPARSE_POINT | FILE_FLAG_BACKUP_SEMANTICS, nullptr) };
+			auto       tag         = FILE_ATTRIBUTE_TAG_INFO{ };
+			auto       information = BY_HANDLE_FILE_INFORMATION{ };
+			if (!handle.valid() || GetFileInformationByHandleEx(handle.get(), FileAttributeTagInfo, &tag, sizeof(tag)) == FALSE
+				|| (tag.FileAttributes & FILE_ATTRIBUTE_REPARSE_POINT) != 0U
+				|| ((tag.FileAttributes & FILE_ATTRIBUTE_DIRECTORY) != 0U) != aDirectory
+				|| GetFileInformationByHandle(handle.get(), &information) == FALSE
+				|| (!aDirectory && information.nNumberOfLinks != 1U)) {
+				return false;
+			}
+			PSID                 owner      = nullptr;
+			PSECURITY_DESCRIPTOR descriptor = nullptr;
+			if (GetSecurityInfo(handle.get(), SE_FILE_OBJECT, OWNER_SECURITY_INFORMATION, &owner, nullptr, nullptr, nullptr, &descriptor) != ERROR_SUCCESS) {
+				return false;
+			}
+			const auto freed = std::unique_ptr<void, decltype(&LocalFree)>{ descriptor, &LocalFree };
+			if (owner == nullptr || EqualSid(owner, principals->user()) == FALSE) {
+				return false;
+			}
+			auto exact = win_guard::windows_private_descriptor::make(*principals, aDirectory);
+			return exact
+				&& SetSecurityInfo(handle.get(), SE_FILE_OBJECT, DACL_SECURITY_INFORMATION | PROTECTED_DACL_SECURITY_INFORMATION, nullptr, nullptr, exact->acl(), nullptr)
+				== ERROR_SUCCESS
+				&& win_guard::windows_private_to_current_user(handle.get(), *principals, aDirectory);
+	#else
+			const auto  handle = workspace_descriptor{ ::open(aPath.c_str(), O_RDONLY | O_CLOEXEC | O_NOFOLLOW | O_NONBLOCK | (aDirectory ? O_DIRECTORY : 0)) };
+			struct stat held{ };
+			struct stat named{ };
+			if (!handle.valid() || ::fstat(handle.get(), &held) != 0 || ::lstat(aPath.c_str(), &named) != 0
+				|| held.st_dev != named.st_dev || held.st_ino != named.st_ino || held.st_uid != ::geteuid()
+				|| (aDirectory ? !S_ISDIR(held.st_mode) : (!S_ISREG(held.st_mode) || held.st_nlink != 1))) {
+				return false;
+			}
+			return ::fchmod(handle.get(), aDirectory ? S_IRWXU : static_cast<mode_t>(S_IRUSR | S_IWUSR)) == 0;
+	#endif
+		}
+		/// [[BPR-1870]]. True when the object is private, or was narrowed by
+		/// `tighten_workspace_object` and now reads back private; the check is
+		/// then recorded as repaired.
+		[[nodiscard]] auto admit_workspace_object(const std::filesystem::path& aPath, const bool aDirectory, const workspace_refusal_check aCheck,
+												  workspace_recovery_refusal* aRefusal) -> bool
+		{
+			const auto admitted = [&] { return aDirectory ? workspace_private_directory(aPath) : workspace_private_file(aPath); };
+			if (admitted()) {
+				return true;
+			}
+			if (!tighten_workspace_object(aPath, aDirectory) || !admitted()) {
+				return false;
+			}
+			if (aRefusal != nullptr) {
+				aRefusal->Repaired.push_back(aCheck);
+			}
+			return true;
+		}
+
 		/// Exclusive creation of one private directory; never adopts an existing one.
 		[[nodiscard]] auto create_workspace_directory(const std::filesystem::path& aPath) -> bool
 		{
@@ -3915,7 +3990,8 @@ namespace bpr::adapters::git {
 		[[nodiscard]] auto prepare_workspace_neighbourhood(const std::filesystem::path& aPath, workspace_recovery_refusal* aRefusal = nullptr) -> bool
 		{
 			if (!absent(aPath)) {
-				return workspace_private_directory(aPath) || refuse_workspace(aRefusal, workspace_refusal_check::neighbourhood_not_private, aPath);
+				return admit_workspace_object(aPath, true, workspace_refusal_check::neighbourhood_not_private, aRefusal)
+					|| refuse_workspace(aRefusal, workspace_refusal_check::neighbourhood_not_private, aPath);
 			}
 			const auto parent  = aPath.parent_path();
 			auto       account = std::string{ };
@@ -3944,8 +4020,14 @@ namespace bpr::adapters::git {
 			if (!prepare_workspace_neighbourhood(aNeighbourhood, aRefusal)) {
 				return false;
 			}
+			// [[BPR-1870]]. The data folder is not narrowed here: the stores'
+			// startup already narrows it when it is the application's own, and
+			// this adapter cannot tell that from a folder other programs use.
 			if (!workspace_private_directory(aRegistry.parent_path())) {
 				return refuse_workspace(aRefusal, workspace_refusal_check::data_folder_not_private, aRegistry.parent_path());
+			}
+			if (!absent(aRegistry) && !admit_workspace_object(aRegistry, true, workspace_refusal_check::registry_not_private, aRefusal)) {
+				return refuse_workspace(aRefusal, workspace_refusal_check::registry_not_private, aRegistry);
 			}
 			return (make_workspace_root_directory(aRegistry) && sync_workspace_directory(aRegistry.parent_path()))
 				|| refuse_workspace(aRefusal, workspace_refusal_check::registry_not_private, aRegistry);
@@ -3999,7 +4081,7 @@ namespace bpr::adapters::git {
 				if (aStop.stop_requested()) {
 					return std::unexpected{ workspace_ownership_failure::cancelled };
 				}
-				if (!workspace_private_file(path)) {
+				if (!admit_workspace_object(path, false, workspace_refusal_check::record_not_private, aRefusal)) {
 					return refuse_recovery(aRefusal, workspace_refusal_check::record_not_private, path, workspace_ownership_failure::repair_required);
 				}
 				workspace_descriptor descriptor{ open_journal(path) };

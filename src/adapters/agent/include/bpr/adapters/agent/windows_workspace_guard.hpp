@@ -166,6 +166,9 @@ namespace bpr::adapters::agent::detail {
 		~windows_private_descriptor()                                                    = default;
 
 		[[nodiscard]] auto attributes() noexcept -> SECURITY_ATTRIBUTES* { return Descriptor.attributes(); }
+		/// [[BPR-1870]]. The same protected list, for writing onto an existing
+		/// object of this user's that is wider than private.
+		[[nodiscard]] auto acl() noexcept -> PACL { return Descriptor.acl(); }
 
 	private:
 		windows_private_descriptor() noexcept = default;

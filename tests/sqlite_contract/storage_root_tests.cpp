@@ -209,6 +209,101 @@ namespace {
 		std::error_code ignored;
 		(void)std::filesystem::remove_all(scratch, ignored);
 	}
+
+	void loosen(const std::filesystem::path& aPath, const mode_t aMode)
+	{
+		expect(::chmod(aPath.c_str(), aMode) == 0, "the fixture entry is loosened");
+	}
+
+	// [[BPR-1870]]. An existing data root is narrowed only when it is the
+	// application's own; a folder with other content keeps its mode and the
+	// stores use a private folder made inside it; a link is never followed.
+	void prove_existing_root_tightening(const std::filesystem::path& aParent)
+	{
+		using tightening   = sqlite_adapter::storage_root_tightening;
+		const auto scratch = std::filesystem::canonical(aParent)
+			/ ("bpr-storage-root-tighten-"
+			   + std::to_string(
+				   std::chrono::steady_clock::now().time_since_epoch().count()));
+		expect(std::filesystem::create_directory(scratch), "the tightening scratch is new");
+		std::filesystem::permissions(scratch, std::filesystem::perms::owner_all);
+
+		// What `mkdir -p` gives: empty and 0755.
+		const auto empty = scratch / "empty";
+		expect(std::filesystem::create_directory(empty), "the empty root is created");
+		loosen(empty, 0755);
+		expect(sqlite_adapter::storage_root_placement(empty) == empty, "an empty folder is used as the root");
+		expect(sqlite_adapter::tighten_existing_storage_root(empty) == tightening::tightened, "an empty 0755 root is narrowed");
+		expect(mode_of(empty) == 0700, "the narrowed root is exactly 0700");
+		expect(catalog_opens(empty), "the catalog accepts the narrowed root");
+		expect(sqlite_adapter::tighten_existing_storage_root(empty) == tightening::already_private, "narrowing again changes nothing");
+
+		// A copied or restored data folder: the application's own entries, all
+		// with the modes a copy under umask 022 gives them.
+		const auto copied = scratch / "copied";
+		expect(std::filesystem::create_directory(copied), "the copied root is created");
+		std::filesystem::permissions(copied, std::filesystem::perms::owner_all);
+		expect(catalog_opens(copied), "the copied root first holds a catalog");
+		const auto version = copied / "state" / "v1";
+		const auto catalog = version / "epoch-catalog.sqlite3";
+		loosen(copied, 0755);
+		loosen(copied / "state", 0755);
+		loosen(version, 0755);
+		loosen(catalog, 0644);
+		expect(!catalog_opens(copied), "the loosened copy is not admitted before it is narrowed");
+		expect(sqlite_adapter::storage_root_placement(copied) == copied, "a folder holding state/v1 is used as the root");
+		expect(sqlite_adapter::tighten_existing_storage_root(copied) == tightening::tightened, "the copied root is narrowed");
+		expect(catalog_opens(copied), "the catalog narrows its own folders and file and opens");
+		expect(mode_of(copied) == 0700 && mode_of(copied / "state") == 0700 && mode_of(version) == 0700,
+			   "the root, state and v1 are exactly 0700");
+		expect(mode_of(catalog) == 0600, "the catalog file is exactly 0600");
+
+		// A folder other programs use: left exactly as it is.
+		const auto shared = scratch / "shared";
+		expect(std::filesystem::create_directory(shared), "the shared folder is created");
+		{
+			std::ofstream file{ shared / "notes.txt" };
+			file << "another program's file";
+		}
+		loosen(shared, 0755);
+		loosen(shared / "notes.txt", 0644);
+		const auto nested = shared / "BetterPullReview" / "data";
+		expect(sqlite_adapter::storage_root_placement(shared) == nested, "a folder with other content places the root inside it");
+		expect(sqlite_adapter::tighten_existing_storage_root(shared) == tightening::foreign_content, "a folder with other content is not narrowed");
+		expect(mode_of(shared) == 0755 && mode_of(shared / "notes.txt") == 0644, "the folder and its file keep their modes");
+		expect(sqlite_adapter::create_storage_root_owner_private(nested), "the nested root is created");
+		expect(mode_of(shared / "BetterPullReview") == 0700 && mode_of(nested) == 0700, "the nested folders are exactly 0700");
+		expect(catalog_opens(nested), "the catalog accepts the nested root");
+		expect(mode_of(shared) == 0755, "the shared folder still keeps its mode");
+		loosen(shared, 0700);
+		expect(sqlite_adapter::storage_root_placement(shared) == nested, "the nested root stays chosen after the folder changes");
+
+		// A link: never followed, its target never changed.
+		const auto target = scratch / "target";
+		expect(std::filesystem::create_directory(target), "the link target is created");
+		loosen(target, 0755);
+		std::filesystem::create_directory_symlink(target, scratch / "link");
+		expect(sqlite_adapter::storage_root_placement(scratch / "link") == scratch / "link", "a linked root keeps its spelling");
+		expect(sqlite_adapter::tighten_existing_storage_root(scratch / "link") == tightening::refused, "a linked root is refused");
+		expect(!sqlite_adapter::make_storage_root_owner_private(scratch / "link"), "a linked root is not narrowed by the caller's helper either");
+		expect(mode_of(target) == 0755, "the link's target keeps its mode");
+
+		// A store file that is a link to a loose file is refused, and the file
+		// it names is not changed.
+		const auto linked = scratch / "linked-store";
+		expect(std::filesystem::create_directory(linked), "the linked-store root is created");
+		std::filesystem::permissions(linked, std::filesystem::perms::owner_all);
+		expect(catalog_opens(linked), "the linked-store root first holds a catalog");
+		const auto outside = scratch / "outside.sqlite3";
+		std::filesystem::rename(linked / "state" / "v1" / "epoch-catalog.sqlite3", outside);
+		loosen(outside, 0644);
+		std::filesystem::create_symlink(outside, linked / "state" / "v1" / "epoch-catalog.sqlite3");
+		expect(!catalog_opens(linked), "a store file that is a link is refused");
+		expect(mode_of(outside) == 0644, "the file a store link names keeps its mode");
+
+		std::error_code ignored;
+		(void)std::filesystem::remove_all(scratch, ignored);
+	}
 #endif
 } // namespace
 
@@ -240,6 +335,7 @@ auto main(int aArgumentCount, char** aArguments) -> int
 	(void)std::filesystem::remove_all(root, ignored);
 #if !defined(_WIN32)
 	prove_fresh_root_creation(std::filesystem::path{ aArguments[1] });
+	prove_existing_root_tightening(std::filesystem::path{ aArguments[1] });
 #endif
 	std::cout << "storage-root-tests:pass\n";
 	return EXIT_SUCCESS;

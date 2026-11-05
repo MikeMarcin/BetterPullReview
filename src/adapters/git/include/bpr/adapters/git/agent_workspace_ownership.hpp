@@ -11,6 +11,7 @@
 #include <stop_token>
 #include <string>
 #include <string_view>
+#include <vector>
 
 namespace bpr::adapters::git {
 #if defined(BPR_WORKSPACE_OWNERSHIP_FAULT_INJECTION)
@@ -64,6 +65,12 @@ namespace bpr::adapters::git {
 		std::filesystem::path   Folder;
 		/// An account name or SID the refusal is about; empty when none.
 		std::string Account;
+		/// [[BPR-1870]]. Checks that found one of the application's own
+		/// workspace folders or records wider than private and narrowed it in
+		/// place instead of refusing (this user's, a real folder or
+		/// single-link file, reached through no link). Filled whether or not
+		/// recovery then refused for another reason.
+		std::vector<workspace_refusal_check> Repaired;
 	};
 	struct workspace_recovery_statistics
 	{
