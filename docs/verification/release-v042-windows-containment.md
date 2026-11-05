@@ -44,3 +44,32 @@ release source receives its own build identity and fresh required qualification;
 these observations do not transfer a security disposition or accept changed
 packages. The earlier interrupted build and measurement-prerequisite attempts
 remain failed or unrun in the external release record.
+
+
+## Updated-main registrations
+
+At `3ccc4369e8970c2371601444d95f4ac48b4215e3`, four further actual
+Release registrations were measured in the same approved native Limited
+Interactive Windows context. All four direct courses pass (CTest exit 0,
+61.40 seconds). Each unchanged command was then prefixed with the maintained
+zero-capability AppContainer launcher, preserving configured arguments,
+environment, working directory and deadline.
+
+| Course | Direct exit | Contained child exit | First contained observation |
+| --- | --- | --- | --- |
+| `application_home_own_activity_public_path` | 0 | 1 | private desktop test root under the canonical storage policy |
+| `application_home_filter_public_path` | 0 | 1 | private desktop root under the canonical storage policy |
+| `application_open_pull_request_activity_public_path` | 0 | 1 | private desktop root under the canonical storage policy |
+| `application_draft_delete_contract` | 0 | 1 | CMake `file` failed to set permissions on the owned draft-delete-contract root |
+
+Each contained CTest invocation exits 8 with the actual child exit 1 retained.
+The pins name only the observed failed predicate; no inferred Windows error
+or broader ACL cause is claimed. No command, assertion, deadline or network
+capability changes. The original mandatory manifest failure remains recorded.
+
+The external evidence is
+`/Users/jaeger/.codex/release-runs/v0.4.2-20261104/main-feedback/measure-main-containment-r1/`.
+Its `receipt.json` SHA-256 is `38dd40e56a782cd1562f7ef60bdc993d35603197a8f83dae7a2be46f5d7c3c63`.
+It retains the configured rows, generated replay files, native process
+identities, raw commands, exits and stdout/stderr. This is finite inventory
+measurement, not comprehensive qualification or package approval.

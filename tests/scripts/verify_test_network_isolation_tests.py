@@ -761,6 +761,9 @@ class ConfiguredManifestTests(unittest.TestCase):
                 # [[BPR-1854]]. Same-image Release pairs name the first
                 # private-desktop and fresh-store predicates, not an ACL cause.
                 "private-desktop-root-refused",
+                # [[BPR-1854]]. The exact contained draft-delete CMake
+                # file permission operation refuses its owned root.
+                "private-root-permissions-refused",
                 "fresh-view-filter-store-predicate-failed",
                 "fresh-activity-store-predicate-failed",
                 # RFC-BPR-0093 measured native loader refusals.

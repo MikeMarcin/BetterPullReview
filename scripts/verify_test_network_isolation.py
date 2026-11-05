@@ -164,7 +164,7 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
     # [[BPR-1866]]. The --home-own-activity mode of the Home waiting course.
-    "application_home_own_activity_public_path": "unmeasured (registered on macOS)",
+    "application_home_own_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1818]]. Prior release-source Release passed in the approved Limited
     # Interactive producer context. Its exact zero-capability replay reported
     # STARTUP_PROFILE_REFUSAL:registry_unavailable. Preserve that measurement;
@@ -269,11 +269,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1848]]. Coming back to Home on the same slow fixture network.
     "application_home_return_public_path": "private-desktop-root-refused",
     # [[BPR-1865]]. Home's filter, same public-path fixture desktop root.
-    "application_home_filter_public_path": "unmeasured (registered on macOS)",
+    "application_home_filter_public_path": "private-desktop-root-refused",
     # [[BPR-1867]]. Automatic activity refresh uses the same fixture desktop root.
-    "application_open_pull_request_activity_public_path": "unmeasured (registered on macOS)",
+    "application_open_pull_request_activity_public_path": "private-desktop-root-refused",
     # [[BPR-1862]]. Draft deletion uses the private fixture profile and store.
-    "application_draft_delete_contract": "unmeasured (registered on macOS)",
+    "application_draft_delete_contract": "private-root-permissions-refused",
     # [[BPR-1851]]. The file on screen refreshed first, same slow fixture network.
     "application_refresh_current_file_public_path": "private-desktop-root-refused",
     # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.
