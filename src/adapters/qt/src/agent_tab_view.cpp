@@ -29,6 +29,7 @@
 #include <QHBoxLayout>
 #include <QInputDialog>
 #include <QKeyEvent>
+#include <QKeySequence>
 #include <QLabel>
 #include <QListWidget>
 #include <QLocale>
@@ -44,6 +45,7 @@
 #include <QStackedWidget>
 #include <QStyleOptionToolButton>
 #include <QStylePainter>
+#include <QTextCursor>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -949,9 +951,10 @@ namespace bpr::qt {
 		composer->installEventFilter(this);
 		// What was asked is read when it is sent, by Send or by the keyboard.
 		connect(Chat.send_action(), &QAction::triggered, this, [this] {
-			PendingQuestion = Chat.composer()->toPlainText().trimmed();
-			PendingReview   = false;
-			PendingAbout    = ConversationShown;
+			PendingQuestion   = Chat.composer()->toPlainText().trimmed();
+			PendingReview     = false;
+			PendingKeepsField = KeepingDraft;
+			PendingAbout      = ConversationShown;
 			// [[BPR-1773]]. Where its answer's Draft comment would go is
 			// decided now, while what it was asked on is on screen.
 			PendingDraftTarget = DraftTargetSource ? std::optional{ DraftTargetSource() } : std::nullopt;
@@ -1235,9 +1238,13 @@ namespace bpr::qt {
 			next.Question    = *PendingQuestion;
 			next.About       = PendingAbout;
 			next.DraftTarget = PendingDraftTarget;
-			// Sent: the field is ready for the next question.
-			Chat.composer()->clear();
+			// Sent: the field is ready for the next question, unless it
+			// holds what the reviewer typed before a suggestion was sent.
+			if (!PendingKeepsField) {
+				Chat.composer()->clear();
+			}
 		}
+		PendingKeepsField = false;
 		PendingQuestion.reset();
 		PendingAbout.reset();
 		PendingDraftTarget.reset();
@@ -1734,13 +1741,51 @@ namespace bpr::qt {
 		return result;
 	}
 
-	void agent_tab_view::send_prompt(const QString& aPrompt)
+	void agent_tab_view::send_prompt(const QString& aPrompt) { choose_prompt(aPrompt, false); }
+
+	void agent_tab_view::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
-		if (!panels_alive() || !Chat.send_action()->isEnabled()) {
+		if (!panels_alive()) {
 			return;
 		}
-		Chat.composer()->setPlainText(aPrompt);
-		ask();
+		auto* const composer = Chat.composer();
+		const auto  draft    = composer->toPlainText();
+		const auto  press    = core::decide_agent_suggestion_press({
+			.EditFirst = aEditFirst,
+			.DraftHeld = !draft.trimmed().isEmpty(),
+			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
+		});
+		const auto  to_end   = [composer] {
+			auto cursor = composer->textCursor();
+			cursor.movePosition(QTextCursor::End);
+			composer->setTextCursor(cursor);
+		};
+		switch (press) {
+		case core::agent_suggestion_press::ignored: return;
+		case core::agent_suggestion_press::send:
+			composer->setPlainText(aPrompt);
+			ask();
+			return;
+		case core::agent_suggestion_press::send_keeping_draft:
+			// Sent alone, as if typed and sent; what the reviewer had typed
+			// is put back, and its turn's start leaves it there.
+			composer->setPlainText(aPrompt);
+			KeepingDraft = true;
+			ask();
+			KeepingDraft = false;
+			composer->setPlainText(draft);
+			to_end();
+			return;
+		case core::agent_suggestion_press::edit: composer->setPlainText(aPrompt); break;
+		case core::agent_suggestion_press::edit_after_draft:
+			// Added, never replacing: on its own line after the words there,
+			// and undone in one step.
+			to_end();
+			composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + aPrompt);
+			break;
+		}
+		composer->setFocus(Qt::OtherFocusReason);
+		to_end();
 	}
 
 	void agent_tab_view::refresh_suggestions()
@@ -1797,10 +1842,15 @@ namespace bpr::qt {
 				button->setObjectName(QStringLiteral("agentSuggestion"));
 				// A long path is shortened in its middle; the prompt sent is whole.
 				button->setText(button->fontMetrics().elidedText(prompt, Qt::ElideMiddle, 320));
-				button->setToolTip(prompt);
+				// [[BPR-1872]]. A click sends; Shift edits first. Said where the
+				// prompt is pointed at, and to a screen reader.
+				button->setToolTip(tr("%1\nClick to send. Shift-click to edit before sending.").arg(prompt));
 				button->setAccessibleName(prompt);
+				button->setAccessibleDescription(tr("Sends this prompt to the agent. Shift-click or %1 puts it in the question field to edit before sending.")
+													 .arg(QKeySequence{ Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 				button->setProperty("agentPrompt", prompt);
-				connect(button, &QPushButton::clicked, this, [this, prompt] { send_prompt(prompt); });
+				button->installEventFilter(this);
+				connect(button, &QPushButton::clicked, this, [this, prompt] { choose_prompt(prompt, std::exchange(PressEditFirst, false)); });
 				SuggestionColumn->addWidget(button, 0, Qt::AlignLeft);
 				PromptButtons.emplace_back(button);
 			}
@@ -3015,6 +3065,25 @@ namespace bpr::qt {
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0) {
 				ask();
 				return true;
+			}
+		}
+		// [[BPR-1872]]. A suggested prompt reads Shift on the press that
+		// clicks it; Return and Enter choose it too, as Space does.
+		if (aWatched->objectName() == QStringLiteral("agentSuggestion")) {
+			if (aEvent->type() == QEvent::MouseButtonRelease) {
+				PressEditFirst = (static_cast<QMouseEvent*>(aEvent)->modifiers() & Qt::ShiftModifier) != 0;
+			} else if (aEvent->type() == QEvent::KeyRelease || aEvent->type() == QEvent::KeyPress) {
+				const auto* const key   = static_cast<QKeyEvent*>(aEvent);
+				const auto        shift = (key->modifiers() & Qt::ShiftModifier) != 0;
+				if (key->key() == Qt::Key_Space) {
+					PressEditFirst = shift;
+				} else if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && aEvent->type() == QEvent::KeyPress) {
+					auto* const button = static_cast<QPushButton*>(aWatched);
+					if (button->isEnabled() && !key->isAutoRepeat()) {
+						choose_prompt(button->property("agentPrompt").toString(), shift);
+					}
+					return true;
+				}
 			}
 		}
 		if (aEvent->type() == QEvent::Resize && aWatched == Field) {

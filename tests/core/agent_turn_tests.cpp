@@ -123,6 +123,27 @@ namespace {
 		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "an unfinished setup is said before the rest");
 		expect(core::stable_name(agent_suggestions_verdict::setup_unfinished) == "setup_unfinished", "the verdict's stable name");
 	}
+
+	// [[BPR-1872]]. Owner, 2026-11-05: a click sends; a Shift-click edits.
+	void test_suggestion_press()
+	{
+		using core::agent_suggestion_press;
+		using core::agent_suggestion_press_facts;
+		const auto decide = [](const bool aEditFirst, const bool aDraftHeld, const bool aUsable) {
+			return core::decide_agent_suggestion_press(agent_suggestion_press_facts{ .EditFirst = aEditFirst, .DraftHeld = aDraftHeld, .Usable = aUsable });
+		};
+		expect(decide(false, false, true) == agent_suggestion_press::send, "a plain press on an empty field sends");
+		expect(decide(true, false, true) == agent_suggestion_press::edit, "a Shift press on an empty field puts the prompt there to edit");
+		expect(decide(false, true, true) == agent_suggestion_press::send_keeping_draft, "a plain press with words in the field sends the prompt and keeps the words");
+		expect(decide(true, true, true) == agent_suggestion_press::edit_after_draft, "a Shift press with words in the field adds the prompt after them");
+		for (const auto edit : { false, true }) {
+			for (const auto draft : { false, true }) {
+				expect(decide(edit, draft, false) == agent_suggestion_press::ignored, "nothing can be sent: the press does nothing");
+			}
+		}
+		expect(core::stable_name(agent_suggestion_press::send_keeping_draft) == "send_keeping_draft" && core::stable_name(agent_suggestion_press::edit_after_draft) == "edit_after_draft",
+			   "the press's stable names");
+	}
 } // namespace
 
 auto main() -> int
@@ -131,6 +152,7 @@ auto main() -> int
 	test_answer_actions();
 	test_error_actions();
 	test_suggestions();
+	test_suggestion_press();
 	std::cout << "agent-turn-tests:pass\n";
 	return EXIT_SUCCESS;
 }
