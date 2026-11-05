@@ -1,7 +1,9 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_SETUP_SETTINGS_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_SETUP_SETTINGS_HPP
 
+#include "bpr/application/agent_setup_host.hpp"
 #include "bpr/application/agent_setup_preferences.hpp"
+#include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/review_skill_host.hpp"
 #include "bpr/core/agent_setup.hpp"
@@ -24,6 +26,8 @@ class QListWidget;
 class QPlainTextEdit;
 class QPushButton;
 class QSpinBox;
+class QToolButton;
+class QVBoxLayout;
 
 namespace bpr::qt {
 	/// \brief [[BPR-1753]], RFC-BPR-0092, owner amendment 2026-10-23
@@ -32,12 +36,26 @@ namespace bpr::qt {
 	/// **Add agent…** (Claude Code and Codex when found and not yet added, or a
 	/// custom agent), **Edit…**, **Remove**, **Move up** and **Move down**, and
 	/// **Set up agent…**.
+	/// \brief [[BPR-1859]]. What Check agent on Settings shows: the
+	/// setup as published, the core's offer, and why the last workspace check
+	/// could not make the workspace.
+	struct agent_check_presentation
+	{
+		application::agent_setup_projection                            Setup;
+		core::agent_check_decision                                     Decision;
+		std::optional<application::agent_workspace_unavailable_reason> WorkspaceReason;
+	};
+
 	class agent_programs_panel final : public QWidget
 	{
 	public:
 		using answer = std::function<void(std::optional<core::agent_entry_refusal>)>;
 		struct dispatch
 		{
+			/// [[BPR-1859]]. Check agent and its Stop: the setup's own check,
+			/// through the same host as Check it works.
+			std::function<void()> Check;
+			std::function<void()> StopCheck;
 			/// Owner look v006: Reset agents…, which asks before it clears.
 			std::function<void()>                          Reset;
 			std::function<void(core::agent_entry, answer)> Add;
@@ -75,23 +93,60 @@ namespace bpr::qt {
 		[[nodiscard]] auto run_limit_toggle() const noexcept -> QCheckBox* { return RunLimitOn; }
 		[[nodiscard]] auto run_limit_minutes() const noexcept -> QSpinBox* { return RunLimit; }
 
+		/// \brief [[BPR-1859]]. Check agent: offered, running with Stop, or
+		/// disabled with its reason; its rows, a failure's words and remedy,
+		/// and its details, all on the page.
+		void               present_check(const agent_check_presentation& aCheck);
+		[[nodiscard]] auto check_button() const noexcept -> QPushButton* { return CheckButton; }
+		[[nodiscard]] auto stop_check_button() const noexcept -> QPushButton* { return StopCheckButton; }
+		/// The line beside the button: what the check does, what runs, or why
+		/// it cannot run.
+		[[nodiscard]] auto check_note() const noexcept -> QLabel* { return CheckNote; }
+		/// The rows and a failure's words, as plain text, for tests and
+		/// accessibility.
+		[[nodiscard]] auto check_result_text() const -> QString;
+
+	protected:
+		/// The marks' colours come from the palette: a palette or style change
+		/// draws them again.
+		void changeEvent(QEvent* aEvent) override;
+
 	private:
-		void                               settle_buttons();
-		[[nodiscard]] auto                 selected() const -> const core::agent_entry*;
-		dispatch                           Dispatch;
-		agent_entry_editor                 Editor;
-		std::vector<core::agent_entry>     Agents;
-		std::vector<core::agent_detection> Found;
-		QListWidget*                       List         = nullptr;
-		QPushButton*                       AddButton    = nullptr;
-		QPushButton*                       EditButton   = nullptr;
-		QPushButton*                       RemoveButton = nullptr;
-		QPushButton*                       UpButton     = nullptr;
-		QPushButton*                       DownButton   = nullptr;
-		QLabel*                            Status       = nullptr;
-		QCheckBox*                         RunLimitOn   = nullptr;
-		QSpinBox*                          RunLimit     = nullptr;
-		void                               send_run_limit();
+		void                                    build_check(QVBoxLayout& aColumn);
+		std::optional<agent_check_presentation> ShownCheck;
+		QPushButton*                            CheckButton     = nullptr;
+		QPushButton*                            StopCheckButton = nullptr;
+		QWidget*                                CheckProgress   = nullptr;
+		QLabel*                                 CheckNote       = nullptr;
+		QWidget*                                CheckRows       = nullptr;
+		QLabel*                                 AgentMark       = nullptr;
+		QLabel*                                 AgentRow        = nullptr;
+		QWidget*                                WorkspaceLine   = nullptr;
+		QLabel*                                 WorkspaceMark   = nullptr;
+		QLabel*                                 WorkspaceRow    = nullptr;
+		QLabel*                                 CheckFailure    = nullptr;
+		QWidget*                                SignInLine      = nullptr;
+		QLabel*                                 SignInCommand   = nullptr;
+		QToolButton*                            DetailsToggle   = nullptr;
+		QPlainTextEdit*                         DetailsText     = nullptr;
+		QLabel*                                 WorkspaceReason = nullptr;
+		std::string                             ShownDetail;
+		void                                    settle_buttons();
+		[[nodiscard]] auto                      selected() const -> const core::agent_entry*;
+		dispatch                                Dispatch;
+		agent_entry_editor                      Editor;
+		std::vector<core::agent_entry>          Agents;
+		std::vector<core::agent_detection>      Found;
+		QListWidget*                            List         = nullptr;
+		QPushButton*                            AddButton    = nullptr;
+		QPushButton*                            EditButton   = nullptr;
+		QPushButton*                            RemoveButton = nullptr;
+		QPushButton*                            UpButton     = nullptr;
+		QPushButton*                            DownButton   = nullptr;
+		QLabel*                                 Status       = nullptr;
+		QCheckBox*                              RunLimitOn   = nullptr;
+		QSpinBox*                               RunLimit     = nullptr;
+		void                                    send_run_limit();
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 (owner decision D2). Settings ›

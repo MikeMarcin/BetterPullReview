@@ -12500,6 +12500,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// now open, for its remembered clone.
 		void observe_clone_repository()
 		{
+			// [[BPR-1859]]. Whether Check agent also makes a workspace
+			// follows the open review.
+			present_settings_check();
 			if (!CloneLinks) {
 				return;
 			}
@@ -12537,13 +12540,62 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// [[BPR-1751]], RFC-BPR-0092 Check it works. One Check runs the
 		/// agent's own status command and makes, then removes, the workspace an
 		/// Ask would make for the review on screen.
-		void check_agent_setup()
+		/// [[BPR-1859]]. Settings' Check agent runs this same check when the
+		/// core offers it; with no review open there is no workspace to make,
+		/// so its row is left not run rather than failed.
+		void check_agent_setup(const bool aWorkspace = true)
 		{
 			if (Closing || !AgentSetup || AgentSetup->projection().Checking || AgentSetup->projection().State.WorkspaceCheck.State == core::setup_check_state::running) {
 				return;
 			}
 			AgentSetup->check();
-			check_agent_workspace();
+			if (aWorkspace) {
+				check_agent_workspace();
+				return;
+			}
+			LastWorkspaceProbeReason.reset();
+			AgentSetup->set_workspace_check({ });
+		}
+
+		/// Stop, from the setup or Settings: the agent's check and the
+		/// workspace's.
+		void stop_agent_setup_check()
+		{
+			if (!Closing && AgentSetup) {
+				AgentSetupWorkspaceStop.request_stop();
+				AgentSetup->stop();
+			}
+		}
+
+		[[nodiscard]] auto settings_check_decision() const -> core::agent_check_decision
+		{
+			return AgentSetup ? core::decide_agent_check(application::agent_check_facts_of(AgentSetup->projection(), static_cast<bool>(AgentReview))) : core::agent_check_decision{ };
+		}
+
+		/// [[BPR-1859]]. Settings › Agents & context: Check agent as the
+		/// core offers it, with the setup's rows as the host published them.
+		void check_agent_from_settings()
+		{
+			if (Closing || !AgentSetup) {
+				return;
+			}
+			const auto decision = settings_check_decision();
+			if (decision.Offer != core::agent_check_offer::available) {
+				return;
+			}
+			check_agent_setup(decision.ChecksWorkspace);
+		}
+
+		void present_settings_check()
+		{
+			if (Closing || Window == nullptr || !AgentSetup) {
+				return;
+			}
+			auto shown            = qt::agent_check_presentation{ };
+			shown.Setup           = AgentSetup->projection();
+			shown.Decision        = settings_check_decision();
+			shown.WorkspaceReason = LastWorkspaceProbeReason;
+			Window->agent_programs()->present_check(shown);
 		}
 
 		void check_agent_workspace()
@@ -12804,13 +12856,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 						}
 					},
 				.Check = [this] { check_agent_setup(); },
-				.Stop =
-					[this] {
-						if (!Closing && AgentSetup) {
-							AgentSetupWorkspaceStop.request_stop();
-							AgentSetup->stop();
-						}
-					},
+				.Stop  = [this] { stop_agent_setup_check(); },
 				.AddCustomAgent =
 					[this](core::agent_entry aEntry) {
 						if (!Closing && AgentSetup) {
@@ -12825,6 +12871,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					},
 			});
 			Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
+				// [[BPR-1859]]. Check agent is the setup's check, and its Stop
+				// the setup's Stop.
+				.Check     = [this] { check_agent_from_settings(); },
+				.StopCheck = [this] { stop_agent_setup_check(); },
 				.Reset =
 					[this] {
 						if (!Closing && Window != nullptr) {
@@ -12922,6 +12972,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// and the ready line once it finishes.
 		void present_setup_view()
 		{
+			present_settings_check();
 			if (Closing || Window == nullptr || !AgentSetup || !CloneLinks || Window->agent_setup() == nullptr) {
 				return;
 			}
@@ -38785,13 +38836,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			return true;
 		};
 		// [[BPR-1345]] v002. The page as the owner asked for it: Comment
-		// offered, Request changes waiting for a summary and saying so,
-		// the details closed, and what is published said once.
+		// offered, the details closed, and what is published said once.
+		// [[BPR-1853]]. The fixture's viewer, fixture-author, opened this pull
+		// request, and GitHub takes only a comment from its author: Approve
+		// and Request changes are off and each says why.
 		const auto calm = [&] {
 			auto* const comment = summary->disposition_button(core::review_disposition::comment);
 			auto* const changes = summary->disposition_button(core::review_disposition::request_changes);
 			auto* const approve = summary->disposition_button(core::review_disposition::approve);
-			return comment->isEnabled() && approve->isEnabled() && !changes->isEnabled() && changes->toolTip().startsWith(QStringLiteral("Request changes needs a summary"))
+			return comment->isEnabled() && !approve->isEnabled() && approve->toolTip().startsWith(QStringLiteral("You can't approve your own pull request")) && !changes->isEnabled()
+				&& changes->toolTip().startsWith(QStringLiteral("You can't request changes on your own pull request"))
 				&& !summary->details_toggle()->isChecked() && !summary->target_editor()->isVisibleTo(window)
 				&& summary->note_label()->isVisibleTo(window) && summary->note_label()->text() == QStringLiteral("Nothing is published until you submit.");
 		};

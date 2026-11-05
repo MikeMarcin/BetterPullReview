@@ -5,6 +5,7 @@
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/agent_setup_view.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 
@@ -966,7 +967,41 @@ auto main(int argc, char** argv) -> int
 			})) {
 			return fail(*application, "wrapper-setup-exact-entry");
 		}
+		// [[BPR-1859]]. Settings › Agents & context › Check agent runs the
+		// same check through the same host: while it runs it is not offered
+		// again and offers Stop; it passes inline, and once the program is
+		// gone it says so with its remedy.
+		auto* const programs = window.agent_programs();
+		std::filesystem::remove(externalExecutable.parent_path() / ".bpr-agent-status-waiting");
+		touch(agentHold);
+		if (programs->check_button() == nullptr || !programs->check_button()->isEnabled()) {
+			return fail(*application, "settings-check-offered", programs->check_note()->text().toStdString());
+		}
+		programs->check_button()->click();
+		if (!wait_until([&] { return std::filesystem::is_regular_file(externalExecutable.parent_path() / ".bpr-agent-status-waiting"); }, extended_agent_budget)
+			|| programs->check_button()->isEnabled() || !programs->stop_check_button()->isVisibleTo(programs) || !programs->check_note()->text().startsWith(QStringLiteral("Checking"))) {
+			return fail(*application, "settings-check-running", programs->check_note()->text().toStdString());
+		}
+		std::filesystem::remove(agentHold);
+		const auto settingsPassed = QStringLiteral("✓ Claude process wrapper reports signed in");
+		if (!wait_until([&] { return programs->check_button()->isEnabled() && programs->check_result_text().contains(settingsPassed) && !programs->check_result_text().contains(QChar{ 0x2715 }); },
+						extended_agent_budget)) {
+			return fail(*application, "settings-check-passed", programs->check_result_text().toStdString());
+		}
+		if (window.agent_tab()->state() == qt::agent_tab_state::setting_up) {
+			return fail(*application, "settings-check-keeps-setup-finished");
+		}
+		const auto renderSettings = qEnvironmentVariable("BPR_SETUP_RENDER_DIR");
 		std::filesystem::remove(externalExecutable);
+		programs->check_button()->click();
+		if (!wait_until([&] { return programs->check_button()->isEnabled() && programs->check_result_text().contains(QStringLiteral("✕")); }, extended_agent_budget)
+			|| programs->check_result_text().contains(settingsPassed)) {
+			return fail(*application, "settings-check-failed", programs->check_result_text().toStdString());
+		}
+		if (!renderSettings.isEmpty()) {
+			QDir{ }.mkpath(renderSettings);
+			static_cast<void>(programs->grab().save(renderSettings + QStringLiteral("/composed-settings-check-failed.png")));
+		}
 		{
 			auto marker = std::ofstream{ diagnosticGit->parent_path() / workspace_failure_marker };
 			marker << "fail the workspace after the successful setup check\n";
