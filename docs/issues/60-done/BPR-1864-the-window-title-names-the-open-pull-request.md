@@ -2,14 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1864"
 title: "The window title names the open pull request"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"feature","found_by":"Owner, 2026-11-04: \"Window title in the dock on Mac id like to see the open PR if there is one rather than the app name and the profile\"","related_cards":["BPR-0722","BPR-1129","BPR-1842","BPR-1863"],"id_allocation":"Reserved on main (docs/issues/_reservations/BPR-1864--BPR-1864--e96321f66234.json).","surface":"The workbench window's title (QWidget::windowTitle and its accessible name): what the macOS Dock's window list, Window menu and Mission Control, and the Windows and Linux taskbars name the window by.","design_skill":"frontend-design:frontend-design loaded for the wording and ordering choice.","owner_review":"One Accept/Reject question on the format, with example titles."}
-parked_on: "human-review"
-acceptance: [{"criterion":"AC1","outcome":"pass","revision":"this slice's commit (child of 41d9ead29)","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R core_window_title --output-on-failure","detail":"Passed. Nothing open, Home, signed-out mode, a numberless pull request, number-first ordering, the profile only with more than one profile, shortening at a word at 48 characters with the repository kept, a word ending exactly at the cut kept whole, one long word cut within it, a too-distant space not cut at, controls collapsed to spaces, multi-byte characters counted and cut whole, determinism."}},{"criterion":"AC2","outcome":"pass","revision":"this slice's commit (child of 41d9ead29)","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R \"qt_workbench_title_row|qt_workbench_window_scale_100|qt_anonymous_public_preview_scale_100\" --output-on-failure","detail":"All pass on macOS (offscreen): qt_workbench_title_row_scale_{100,125,200} run test_the_window_title_names_the_open_pull_request (loading, accepted, retitle, a second profile, Home round trip, local cycle, [*], close); qt_workbench_window_scale_100 and qt_anonymous_public_preview_scale_100 still pass."}},{"criterion":"AC3","outcome":"pending","revision":"this slice's commit (child of 41d9ead29)","evidence":{"kind":"observation","detail":"Owner Accept/Reject on the format, through a fresh attended session with a frozen build; see the checkpoint."}},{"criterion":"AC4","outcome":"pass","revision":"this slice's commit (child of 41d9ead29)","evidence":{"kind":"command","command":"python3 _coding-standard/scripts/format.py --root . <changed C++ files>; python3 scripts/verify_documentation.py --root .","detail":"clang-format 22 applied through the project script; documentation gate DOCUMENTATION_OK."}}]
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"278f012fa","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R core_window_title --output-on-failure","detail":"Passed. Nothing open, Home, signed-out mode, a numberless pull request, number-first ordering, the profile only with more than one profile, shortening at a word at 48 characters with the repository kept, a word ending exactly at the cut kept whole, one long word cut within it, a too-distant space not cut at, controls collapsed to spaces, multi-byte characters counted and cut whole, determinism."}},{"criterion":"AC2","outcome":"pass","revision":"278f012fa","evidence":{"kind":"command","command":"ctest --test-dir build/dev -R \"qt_workbench_title_row|qt_workbench_window_scale_100|qt_anonymous_public_preview_scale_100\" --output-on-failure","detail":"All pass on macOS (offscreen): qt_workbench_title_row_scale_{100,125,200} run test_the_window_title_names_the_open_pull_request (loading, accepted, retitle, a second profile, Home round trip, local cycle, [*], close); qt_workbench_window_scale_100 and qt_anonymous_public_preview_scale_100 still pass."}},{"criterion":"AC3","outcome":"pass","revision":"278f012fa","evidence":{"kind":"observation","detail":"Owner accepted the format. Attended session 769800ec26e5b004275ce1a15fe44832, candidate BPR-1864-window-title-v001 (frozen from 278f012fa, executable 63acb2965e4d8d929def93383d111c042a843e30fdb66f6d21d247a8395df11d), fingerprint 58dcb816e34355c003df540d13730084fbb20ca7fe85348b0c067f239588c75b, decision c67dd828-02e2-4b43-926d-0fe128a4f46e, actor human, outcome accept, 2026-11-05T02:13:26Z, no note."}},{"criterion":"AC4","outcome":"pass","revision":"278f012fa","evidence":{"kind":"command","command":"python3 _coding-standard/scripts/format.py --root . <changed C++ files>; python3 scripts/verify_documentation.py --root .","detail":"clang-format 22 applied through the project script; documentation gate DOCUMENTATION_OK."}}]
 ---
 
 # BPR-1864: The window title names the open pull request
@@ -99,3 +98,11 @@ New short session `769800ec26e5b004275ce1a15fe44832`, state
 repo root the main checkout, candidate `BPR-1864-window-title-v001`
 (fingerprint `58dcb816e343…`), consumed cursor 2, loopback host started.
 The offline page is `review.html` in the state directory.
+
+## Closeout, 2026-11-05
+
+The owner accepted the format (AC3; decision `c67dd828-02e2-4b43-926d-0fe128a4f46e`
+in session `769800ec26e5b004275ce1a15fe44832`, handed back with nothing pending).
+The review host was stopped and the frozen root removed with
+`scripts/freeze_attended_build.py remove`. The focused courses, the format check
+and the documentation gate were run again after merging main at `a2e2ca244`.
