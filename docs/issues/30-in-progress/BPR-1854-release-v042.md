@@ -368,7 +368,9 @@ summary not to repeat it. The fixture now observes the actual chip's shown state
 and exact accessible name, `Draft pull request`. All publication, route, source,
 recovery and write assertions remain. No production behavior changes. The
 corrected full manual-publication course passes on macOS in Release and Debug;
-Windows and Ubuntu focused checks are pending. A new frozen cohort and full
+Windows and Ubuntu now also pass the complete manual-publication course in
+both Release and Debug; all six focused native configurations pass. A new
+frozen cohort and full
 qualification remain required before stable publication. Build 17's notes disclose
 the retained failure and unfinished qualification.
 
