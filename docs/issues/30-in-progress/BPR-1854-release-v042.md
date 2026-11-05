@@ -248,3 +248,12 @@ limit disclosures while continuing to reject a macOS write-denial or supervised
 store-cutoff promise on Windows and Linux. No product copy or capability changes.
 The original failed rows are retained; affected native build and functional proof
 remain required before the next candidate is frozen.
+
+The Windows Home-own-activity row also judged a newly admitted sibling after
+one event-loop drain, while its Home projection is asynchronous. The fixture
+now waits within its existing bounded helper for the observable signed-out
+Home publication. An account read ends that wait immediately and still fails
+the unchanged no-read assertion; the final exact status, landing, queue and
+account-label checks remain. A timeout records the observed state. This is
+fixture synchronization, with native proof still pending, not a product fix or
+an acceptance of the original failure.
