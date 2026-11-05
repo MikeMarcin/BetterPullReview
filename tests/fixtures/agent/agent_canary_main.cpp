@@ -589,6 +589,19 @@ namespace {
 		}
 		return (executable.parent_path() / ".bpr-descendant-heartbeat").string();
 	}
+
+	/// \brief The supervisor's and this process's identities, which a
+	/// course reads to pause the one and watch the other die.
+	void report_process_identity(const protocol aProtocol)
+	{
+#if defined(_WIN32)
+		emit(aProtocol, "supervisor-id\t" + std::to_string(parent_process_id()));
+		emit(aProtocol, "process-id\t" + std::to_string(::_getpid()));
+#else
+		emit(aProtocol, "supervisor-id\t" + std::to_string(::getppid()));
+		emit(aProtocol, "process-id\t" + std::to_string(::getpid()));
+#endif
+	}
 } // namespace
 
 namespace {
@@ -902,6 +915,14 @@ auto main(int argc, char** argv) -> int
 			|| executable_mode(argv, "crash-descendant-wait")) {
 			emit(protocol, "descendant-id\t" + std::to_string(childId));
 		}
+		// [[BPR-1869]]. The crash course's checkpoint waits for these, and the
+		// echo below is paced at three bytes a millisecond: with the review
+		// context on stdin, then again as hex, it is some 45 KB, which took
+		// 25 s on macOS and longer on Windows, past the course's 30 s wait.
+		// So the identities go out here, before the echo.
+		if (executable_mode(argv, "crash-descendant-wait")) {
+			report_process_identity(protocol);
+		}
 	}
 
 	for (auto index = 0; index < argc; ++index) {
@@ -988,14 +1009,8 @@ auto main(int argc, char** argv) -> int
 	} else if (has_argument(argc, argv, "--wait-forever")
 			   || executable_mode(argv, "wait")) {
 		if (has_argument(argc, argv, "--report-process-id")
-			|| executable_mode(argv, "crash-descendant-wait")) {
-#if defined(_WIN32)
-			emit(protocol, "supervisor-id\t" + std::to_string(parent_process_id()));
-			emit(protocol, "process-id\t" + std::to_string(::_getpid()));
-#else
-			emit(protocol, "supervisor-id\t" + std::to_string(::getppid()));
-			emit(protocol, "process-id\t" + std::to_string(::getpid()));
-#endif
+			&& !executable_mode(argv, "crash-descendant-wait")) {
+			report_process_identity(protocol);
 		}
 		while (true) {
 			std::this_thread::sleep_for(std::chrono::hours{ 1 });
