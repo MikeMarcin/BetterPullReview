@@ -65,6 +65,12 @@ namespace bpr::app::detail {
 		/// Home is seen with a title that wraps beside its facts.
 		[[nodiscard]] auto discovered_title(const QString& aNumber) -> QString
 		{
+			// [[BPR-1865]]. Home's filter's rows say titles of their own.
+			for (const auto& row : home_filter_fixture_rows) {
+				if (aNumber == QString::number(row.Number)) {
+					return QString::fromUtf8(row.Title.data(), static_cast<qsizetype>(row.Title.size()));
+				}
+			}
 			return aNumber == QStringLiteral("4002")
 				? QStringLiteral("Keep the review queue's discovery cache warm across restarts so one slow repository never holds back the rows of every other saved repository")
 				: QStringLiteral("Discovered pull request ") + aNumber;
