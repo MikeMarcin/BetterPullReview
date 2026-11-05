@@ -237,3 +237,14 @@ macOS and Windows qualification processes were stopped, with exact observed
 process identities and empty owned-process readback. Ubuntu comprehensive,
 packaging, signing and publication were not started. A new frozen identity and
 required native compilation/qualification remain pending for the correction.
+
+### Windows and Linux CLI disclosure oracle
+
+Build 14's Windows comprehensive Release run exposes four composed-Qt rows
+whose non-Apple assertions still require full GitHub CLI diffs to be unavailable.
+BPR-1857 deliberately enables them on all three platforms. The assertions now
+require the actual temporary-folder, Git/helper, local-version and 32 MiB file
+limit disclosures while continuing to reject a macOS write-denial or supervised
+store-cutoff promise on Windows and Linux. No product copy or capability changes.
+The original failed rows are retained; affected native build and functional proof
+remain required before the next candidate is frozen.
