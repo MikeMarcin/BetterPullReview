@@ -86,3 +86,16 @@ The core also gained a fix found against a real fixture title
 (directxmath-336): a cut falling exactly at a space keeps the last word.
 
 Owed: the owner's Accept/Reject (AC3) on a frozen build of this commit.
+
+Prepared for AC3: frozen root `/Users/jaeger/bpr1864-window-title-v001.or3fxcyi`,
+made by `scripts/freeze_attended_build.py freeze --open-pull-request --fixture
+nested-folders-v1 --commit 278f012fa`; it opens bpr-fixtures/nested-folders#21
+on its Overview. `better_pull_review` SHA-256
+`63acb2965e4d8d929def93383d111c042a843e30fdb66f6d21d247a8395df11d`; the
+launcher's own check reached `ATTENDED_PULL_REQUEST_OPENED`. Launch:
+`python3 /Users/jaeger/bpr1864-window-title-v001.or3fxcyi/launch.py`.
+New short session `769800ec26e5b004275ce1a15fe44832`, state
+`/Users/jaeger/.mask/attended-review/owner-review-20261104-bpr1864-window-title-v001/state`,
+repo root the main checkout, candidate `BPR-1864-window-title-v001`
+(fingerprint `58dcb816e343…`), consumed cursor 2, loopback host started.
+The offline page is `review.html` in the state directory.
