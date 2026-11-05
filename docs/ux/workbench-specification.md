@@ -2566,7 +2566,9 @@ have not run since the application started, counts as finished. A turn's finding
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the
-suggested comment, **Save as note** a private note on them, and **Dismiss**
+suggested comment, opening with the Conventional Comments label the agent
+wrote already chosen in the label control ([[BPR-1861]]; an answer's
+**Draft comment** does the same, and no label is invented), **Save as note** a private note on them, and **Dismiss**
 rules it out; the card then says Drafted, Saved as a private note, or
 Dismissed with **Undo**, and a refusal says why (for another file: open it,
 then try again). A reply offers **Save as note** for the whole of it, or the

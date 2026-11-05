@@ -4,6 +4,7 @@
 /// the review brief's bounds, without any file but the shipped skill.
 
 #include "bpr/core/agent_context_supplement.hpp"
+#include "bpr/core/feedback_convention.hpp"
 #include "bpr/core/review_skill.hpp"
 
 #include <array>
@@ -37,14 +38,33 @@ namespace {
 		std::ifstream input{ BPR_TEST_REVIEW_SKILL, std::ios::binary };
 		const auto    text  = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 		const auto    facts = core::inspect_review_skill(text);
-		expect(!text.empty() && facts.has_value() && facts->Version == 2U && facts->Description.starts_with("Review one GitHub pull request"),
-			   "the shipped bpr-pr-review is a review skill of version 2");
+		expect(!text.empty() && facts.has_value() && facts->Version == 3U && facts->Description.starts_with("Review one GitHub pull request"),
+			   "the shipped bpr-pr-review is a review skill of version 3");
 		// [[BPR-1753]], owner decision (a) 2026-10-23: every review
 		// prompt answers with a summary, even with no finding; and decision
 		// (b): the conversation so far is the agent's to continue.
 		expect(text.find("brief.conversation") != std::string::npos && text.find("summary") != std::string::npos,
 			   "the shipped skill reads the conversation and always ends with a summary");
 		expect(text.find(")BPR\"") == std::string::npos, "the shipped text can be embedded as a raw string");
+		// [[BPR-1861]], owner 2026-11-04: "Suggested comments from the agent
+		// should use the conventional comments labels". The skill asks for a
+		// plain header naming every label and decoration in the editor's own
+		// lowercase spelling, and its example suggestion reads as one.
+		expect(text.find("Conventional Comments") != std::string::npos && text.find("label (decorations): subject") != std::string::npos,
+			   "the shipped skill asks for Conventional Comments headers");
+		for (const std::string_view label : { "praise", "nitpick", "suggestion", "issue", "todo", "question", "thought", "chore", "note" }) {
+			expect(text.find("`" + std::string{ label } + "`") != std::string::npos, "the skill names every label");
+		}
+		for (const std::string_view decoration : { "(blocking)", "(non-blocking)", "(if-minor)" }) {
+			expect(text.find("`" + std::string{ decoration } + "`") != std::string::npos, "the skill names every decoration");
+		}
+		constexpr auto key     = std::string_view{ "\"suggestedComment\": \"" };
+		const auto     example = text.find(key);
+		expect(example != std::string::npos, "the skill shows a suggested comment");
+		const auto begin       = example + key.size();
+		const auto exampleRead = core::recognize_feedback_prefix(std::string_view{ text }.substr(begin, text.find('"', begin) - begin));
+		expect(exampleRead.Status == core::feedback_prefix_status::recognized && exampleRead.Label == core::feedback_label::question,
+			   "the skill's example suggestion is a Conventional Comment the editor recognizes");
 	}
 
 	void test_front_matter()
