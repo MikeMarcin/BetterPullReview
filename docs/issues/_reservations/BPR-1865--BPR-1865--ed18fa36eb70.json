@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1865"
+  ],
+  "reserve_for": "home-fuzzy-filter",
+  "purpose": "Fuzzy filter on Home to find a PR",
+  "created": "2026-11-05T00:19:41.779687+00:00",
+  "base": "fffae7c7195ec93543e8182dd88fec67822e1989"
+}

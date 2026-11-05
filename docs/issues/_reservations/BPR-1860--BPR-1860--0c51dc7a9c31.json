@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1860"
+  ],
+  "reserve_for": "agent-comment-highlight",
+  "purpose": "Agent comment loses syntax highlighting after reopening PR",
+  "created": "2026-11-04T23:36:49.502791+00:00",
+  "base": "4605d6461483ceb33a3ee65d791419a19f9dd17a"
+}
