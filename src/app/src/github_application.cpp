@@ -38257,13 +38257,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			return true;
 		};
 		// [[BPR-1345]] v002. The page as the owner asked for it: Comment
-		// offered, Request changes waiting for a summary and saying so,
-		// the details closed, and what is published said once.
+		// offered, the details closed, and what is published said once.
+		// [[BPR-1853]]. The fixture's viewer, fixture-author, opened this pull
+		// request, and GitHub takes only a comment from its author: Approve
+		// and Request changes are off and each says why.
 		const auto calm = [&] {
 			auto* const comment = summary->disposition_button(core::review_disposition::comment);
 			auto* const changes = summary->disposition_button(core::review_disposition::request_changes);
 			auto* const approve = summary->disposition_button(core::review_disposition::approve);
-			return comment->isEnabled() && approve->isEnabled() && !changes->isEnabled() && changes->toolTip().startsWith(QStringLiteral("Request changes needs a summary"))
+			return comment->isEnabled() && !approve->isEnabled() && approve->toolTip().startsWith(QStringLiteral("You can't approve your own pull request")) && !changes->isEnabled()
+				&& changes->toolTip().startsWith(QStringLiteral("You can't request changes on your own pull request"))
 				&& !summary->details_toggle()->isChecked() && !summary->target_editor()->isVisibleTo(window)
 				&& summary->note_label()->isVisibleTo(window) && summary->note_label()->text() == QStringLiteral("Nothing is published until you submit.");
 		};
