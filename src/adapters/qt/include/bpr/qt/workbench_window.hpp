@@ -1848,6 +1848,8 @@ namespace bpr::qt {
 		bool                                                        GeometryReady    = false;
 		bool                                                        ApplyingGeometry = false;
 		QString                                                     ProfileLabel     = QStringLiteral("Default");
+		/// [[BPR-1864]]. How many profiles exist, from the profile projection.
+		std::size_t ProfileCount = 0U;
 		/// \brief Binds one primary action to its presentation wording.
 		///
 		/// \details `Name` is retained action wording for native menus and platform
@@ -1949,7 +1951,7 @@ namespace bpr::qt {
 		void apply_public_preview_availability();
 		/// \brief Presents the observed inline conversation, or says it was not.
 		void apply_public_preview_conversation();
-		void update_public_preview_title();
+		void update_window_title();
 		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
 		/// \brief [[BPR-1532]]. Binds First and Last change's keys unless the
@@ -2721,6 +2723,8 @@ namespace bpr::qt {
 			QString Owner;
 			QString Repository;
 			QString Number;
+			/// [[BPR-1864]]. The title alone, for the window's title.
+			QString Title;
 			/// [[BPR-1852]]. GitHub's first answer named an open draft.
 			bool Draft = false;
 		};

@@ -22,6 +22,7 @@
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/core/window_title.hpp"
 #include "github_presentation_text.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
@@ -13524,6 +13525,7 @@ namespace bpr::qt {
 			}
 		}
 		update_open_on_github_action();
+		update_window_title();
 	}
 
 	auto workbench_window::showing_ai_tools() const -> bool
@@ -14019,6 +14021,8 @@ namespace bpr::qt {
 
 	void workbench_window::update_strip_identity()
 	{
+		// [[BPR-1864]]. The window's title names what the strip names.
+		update_window_title();
 		if (IdentityLabel == nullptr) {
 			return;
 		}
@@ -14576,6 +14580,7 @@ namespace bpr::qt {
 					name.Owner      = QString::fromStdString(overview.Owner);
 					name.Repository = QString::fromStdString(overview.RepositoryName);
 					name.Number     = QString::number(overview.Number);
+					name.Title      = QString::fromStdString(overview.Title);
 					name.Text       = QStringLiteral("%1/%2  #%3 %4").arg(name.Owner, name.Repository, name.Number, QString::fromStdString(overview.Title));
 					name.Draft      = overview.Draft && overview.State == application::github_pull_request_state_projection::open;
 					LoadingIdentity = std::move(name);
@@ -15406,7 +15411,7 @@ namespace bpr::qt {
 		if (SessionPanel != nullptr) {
 			SessionPanel->apply_public_preview(aPresentation, PublicPreviewNow);
 		}
-		update_public_preview_title();
+		update_window_title();
 		apply_public_preview_conversation();
 		// Re-decides the commands from their projections first, then lets the
 		// mode have the last word over them.
@@ -15436,15 +15441,37 @@ namespace bpr::qt {
 		if (MountedSettings) {
 			MountedSettings->set_profile_label(aLabel);
 		}
-		update_public_preview_title();
+		update_window_title();
 	}
 
-	void workbench_window::update_public_preview_title()
+	void workbench_window::update_window_title()
 	{
-		const auto title = PublicPreviewSignedOut ? QStringLiteral("BetterPullReview — %1 — %2 profile").arg(public_preview_mode_text(), ProfileLabel)
-												  : QStringLiteral("BetterPullReview — %1 profile").arg(ProfileLabel);
-		setWindowTitle(title);
-		setAccessibleName(title);
+		// [[BPR-1864]]. The Dock's window list, the Window menu, Mission
+		// Control and the taskbars name the window by its title (macOS hides
+		// the title bar). The core words it from what the window shows: the
+		// pull request, accepted or named by GitHub's first answer, unless
+		// Home or a local cycle is in front of it.
+		const auto loading  = IdentityText.isEmpty() && LoadingIdentity.has_value();
+		const auto named    = !IdentityText.isEmpty() || loading;
+		const auto shown    = named && !showing_home() && !LocalCycleShown;
+		const auto owner    = (loading ? LoadingIdentity->Owner : IdentityOwner).toStdString();
+		const auto repo     = (loading ? LoadingIdentity->Repository : IdentityRepository).toStdString();
+		const auto number   = (loading ? LoadingIdentity->Number : IdentityNumber).toULongLong();
+		const auto pullName = loading ? LoadingIdentity->Title.toStdString() : OpenQueueTitle;
+		const auto profile  = ProfileLabel.toStdString();
+		const auto mode     = PublicPreviewSignedOut ? public_preview_mode_text().toStdString() : std::string{ };
+		auto       input    = core::window_title_input{ .Profile = profile, .Profiles = ProfileCount, .Mode = mode };
+		if (shown) {
+			input.PullRequest = core::window_title_pull_request{ .Owner = owner, .Repository = repo, .Number = number, .Title = pullName };
+		}
+		// Qt reads "[*]" in a title as the modified mark; doubled, it is
+		// shown literally.
+		auto title = QString::fromStdString(core::window_title(input));
+		title.replace(QStringLiteral("[*]"), QStringLiteral("[*][*]"));
+		if (windowTitle() != title || accessibleName() != title) {
+			setWindowTitle(title);
+			setAccessibleName(title);
+		}
 	}
 
 	void workbench_window::apply_public_preview_availability()
@@ -19567,6 +19594,10 @@ namespace bpr::qt {
 		ProfileStatusAction->setVisible(ProfileFailure.has_value());
 		ProfileStatusSeparator->setVisible(ProfileFailure.has_value());
 		update_status_text();
+		// [[BPR-1864]]. With more than one profile, a pull request's title
+		// names the profile too.
+		ProfileCount = aProjection.Profiles.size();
+		update_window_title();
 		if (aProjection.Profiles.size() > core::maximum_bpr_profiles) {
 			return;
 		}
