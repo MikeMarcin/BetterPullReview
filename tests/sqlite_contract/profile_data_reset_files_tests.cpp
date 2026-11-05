@@ -118,7 +118,7 @@ namespace {
 	auto kept_files() -> std::set<std::string>
 	{
 		return {
-			"state/v1/device-bindings.sqlite3", "state/v1/remembered-connections.sqlite3", "state/v1/profile-registry.sqlite3",
+			"state/v1/remembered-connections.sqlite3", "state/v1/profile-registry.sqlite3",
 			"state/v1/release-update.sqlite3", "state/v1/update-draft-recovery.sqlite3", "state/v1/a-store-added-later.sqlite3",
 			"logs/session-0123456789abcdef0123456789abcdef-00000001.jsonl", "logs/not-a-log-name",
 			"agent-workspace-ownership-v1/claim", "config-global", "home/.gitconfig", "profiles/other/state/v1/review-ledger.sqlite3",
@@ -126,9 +126,17 @@ namespace {
 		};
 	}
 
+	/// [[BPR-1858]] The bindings that name the vault entries, removed by the
+	/// resets that sign out after the credential cleanup. Remembered
+	/// connections stay a kept file: the application edits them instead.
+	auto connection_files() -> std::set<std::string>
+	{
+		return { "state/v1/device-bindings.sqlite3", "state/v1/device-bindings.sqlite3-wal" };
+	}
+
 	void populate(const fs::path& aRoot)
 	{
-		for (const auto& set : { cache_files(), settings_files(), review_files(), saved_source_files(), kept_files() }) {
+		for (const auto& set : { cache_files(), settings_files(), review_files(), saved_source_files(), connection_files(), kept_files() }) {
 			for (const auto& file : set) {
 				write(aRoot, file);
 			}
@@ -151,6 +159,9 @@ namespace {
 		if (aReset == reset::everything) {
 			add(saved_source_files());
 		}
+		if (aReset == reset::connections || aReset == reset::everything) {
+			add(connection_files());
+		}
 		return removed;
 	}
 
@@ -161,19 +172,22 @@ namespace {
 		return *result;
 	}
 
-	/// Fails the test on any credential call: a reset never reads or deletes one.
+	/// Counts credential calls: only the resets that sign out read and delete
+	/// this profile's entries ([[BPR-1858]]); the others never call it.
 	class credentials final : public application::release_profile_cleanup_port
 	{
 	public:
-		int  Calls = 0;
+		int  Calls    = 0;
+		int  Erasures = 0;
 		auto inspect(std::stop_token) -> std::expected<application::release_profile_resource_inventory, reason> override
 		{
 			++Calls;
 			return application::release_profile_resource_inventory{ { }, 2U };
 		}
-		auto erase(const application::release_profile_resource_inventory&) -> application::release_maintenance_result override
+		auto erase(const application::release_profile_resource_inventory& aInventory) -> application::release_maintenance_result override
 		{
 			++Calls;
+			Erasures += aInventory.Entries == 2U ? 1 : 100;
 			return { };
 		}
 	};
@@ -207,7 +221,7 @@ namespace {
 
 	void test_each_reset_removes_exactly_its_scope()
 	{
-		for (const auto each : { reset::caches, reset::settings, reset::review_data, reset::everything }) {
+		for (const auto each : { reset::caches, reset::settings, reset::review_data, reset::connections, reset::everything }) {
 			const auto  name = core::profile_data_reset_name(each);
 			scratch     root{ name };
 			credentials vault;
@@ -220,7 +234,11 @@ namespace {
 				expect(*removed >= expected_removed(each).size(), "the count covers every removed file");
 			}
 			expect_exact(before, root.Path, expected_removed(each), "the reset removed exactly its scope");
-			expect(vault.Calls == 0, "no reset reads or deletes a credential");
+			if (core::profile_data_reset_signs_out(each)) {
+				expect(vault.Erasures == 1, "a reset that signs out deletes exactly the inspected entries once");
+			} else {
+				expect(vault.Calls == 0, "a reset that keeps sign-in never reads or deletes a credential");
+			}
 			expect(!fs::exists(root.Path / ".bpr-maintenance-v1"), "the journal is removed last");
 			expect(fs::exists(root.Path / "state/v1"), "the state folder stays while kept stores remain");
 			if (each == reset::caches || each == reset::everything) {
@@ -334,11 +352,28 @@ namespace {
 		const auto second = snapshot(again.Path);
 		{
 			adapters::sqlite::release_maintenance_files files{ again.Path, lease(again.Path), core::bpr_profile_id{ 7U }, core::application_session_id{ 9U } };
-			const auto                                  refused = files.reset(reset::everything, folder, { });
+			const auto                                  refused = files.reset(reset::review_data, folder, { });
 			expect(!refused, "an existing copy folder is never overwritten");
 		}
 		expect_exact(second, again.Path, { }, "a refused copy removes nothing");
 		expect(fs::exists(folder / "review-ledger.sqlite3"), "the earlier copy is untouched");
+	}
+
+	// [[BPR-1858]]. Without the credential cleanup a reset that signs out
+	// would orphan the vault entries its bindings name, so it removes nothing.
+	void test_sign_out_without_a_vault_removes_nothing()
+	{
+		for (const auto each : { reset::connections, reset::everything }) {
+			scratch root{ "no-vault" };
+			populate(root.Path);
+			const auto before = snapshot(root.Path);
+			{
+				adapters::sqlite::release_maintenance_files files{ root.Path, lease(root.Path), core::bpr_profile_id{ 7U }, core::application_session_id{ 9U } };
+				const auto                                  refused = files.reset(each, std::nullopt, { });
+				expect(!refused && refused.error() == reason::unavailable, "a reset that signs out needs the credential cleanup");
+			}
+			expect_exact(before, root.Path, { }, "a refused sign-out removes nothing");
+		}
 	}
 }
 
@@ -351,6 +386,7 @@ auto main() -> int
 	test_interrupted_reset_is_finished_by_recovery();
 #endif
 	test_copy_holds_the_removed_stores();
+	test_sign_out_without_a_vault_removes_nothing();
 	std::cout << "sqlite_profile_data_reset_files passed\n";
 	return EXIT_SUCCESS;
 }

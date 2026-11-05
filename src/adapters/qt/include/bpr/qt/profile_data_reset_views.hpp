@@ -83,7 +83,7 @@ namespace bpr::qt {
 	};
 
 	/// \brief The Troubleshooting group on Settings › Storage & privacy.
-	/// \details Four rows, each a name, one short line and a button that asks
+	/// \details Five rows, each a name, one short line and a button that asks
 	/// its confirmation. A confirmed request goes to the dispatch; nothing
 	/// here removes anything.
 	class profile_reset_panel final : public QGroupBox
@@ -104,7 +104,7 @@ namespace bpr::qt {
 	private:
 		dispatch                    Dispatch;
 		QString                     Profile;
-		std::array<QPushButton*, 4> Buttons{ };
+		std::array<QPushButton*, 5> Buttons{ };
 		QLabel*                     Status = nullptr;
 	};
 

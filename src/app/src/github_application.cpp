@@ -25877,7 +25877,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// One that stopped part-way leaves its journal for the next start,
 			// which finishes it; until then the profile does not open over it.
 			if (Config.DataReset) {
-				DataResetReport = run_profile_data_reset(*root, RuntimeLease, Config.Profile, *Config.DataReset, aStop);
+				// [[BPR-1858]]. A reset that signs out reaches this profile's own
+				// vault on a worker it owns, drained before the vault goes; a
+				// course reaches its fixture vault instead, never the keychain.
+				auto vaultEffects = std::optional<worker_executor>{ };
+				auto vault        = std::unique_ptr<application::github_credential_vault_port>{ };
+				if (core::profile_data_reset_signs_out(Config.DataReset->Reset)) {
+					vaultEffects.emplace();
+#if defined(BPR_BUILD_TESTING)
+					if (Fixture) {
+						vault = detail::make_github_fixture_reset_vault(*vaultEffects, Options);
+					} else
+#endif
+					{
+						vault = make_platform_vault(*vaultEffects, Config.Profile);
+					}
+				}
+				DataResetReport = run_profile_data_reset(*root, RuntimeLease, Config.Profile, *Config.DataReset, vault.get(), aStop);
+				if (vaultEffects) {
+					vaultEffects->close_and_drain();
+				}
+				vault.reset();
 				if (DataResetReport->Outcome.Reason == core::release_maintenance_reason::recovery_required) {
 					detail::note_startup_failure("profile-data-reset-unfinished");
 					return std::unexpected(application::profile_startup_failure::root_unavailable);

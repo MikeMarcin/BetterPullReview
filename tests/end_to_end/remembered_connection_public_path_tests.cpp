@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../sqlite_contract/platform_test_support.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/remembered_connection_store.hpp"
 #include "bpr/qt/device_authorization_panel.hpp"
@@ -47,6 +48,10 @@ namespace {
 		wait_for([&] { return terminal && startup->is_quiescent(); }, "startup terminates");
 		expect(result != nullptr, "application starts");
 		return result;
+	}
+	auto holds_cli(const core::remembered_connection_state& aState) -> bool
+	{
+		return std::ranges::any_of(aState.Connections, [](const auto& aRow) { return aRow.Transport == core::remembered_connection_transport::github_cli; });
 	}
 	void stop(std::unique_ptr<app::github_application>& aApplication)
 	{
@@ -422,6 +427,167 @@ namespace {
 		consent.stop();
 	}
 
+	// [[BPR-1858]]. Reset everything leaves the composed app at the first-run
+	// sign-in, not connected through gh, and the next launch does not reconnect
+	// through gh until Use GitHub CLI is chosen and trusted again. gh itself is
+	// never asked anything by the reset.
+	void reset_everything_disconnects_github_cli()
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.PublicPreviewEnabledCourse = true;
+		options.IndependentWindowReads     = true;
+		options.RepeatReadSessions         = true;
+		expect(options.ApplicationDataRoot.has_value(), "private root");
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = "octo-reviewer" } };
+		options.GithubCliInventoryChecks   = std::make_shared<std::atomic_size_t>(0U);
+		unsigned prompts                   = 0;
+		QTimer   consent;
+		QObject::connect(&consent, &QTimer::timeout, [&] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				++prompts;
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		consent.start(1);
+		// Use GitHub CLI from the first-run Home: the first press discovers
+		// gh's accounts, the second chooses the one offered.
+		const auto chooseCli = [&](app::github_application& aApplication) {
+			auto& window = aApplication.window();
+			window.show();
+			window.home_action()->trigger();
+			QApplication::processEvents();
+			expect(window.home_landing()->state() == qt::landing_state::sign_in && window.home_landing()->secondary_button()->text() == QStringLiteral("Use GitHub CLI"), "Home is the first-run sign-in with Use GitHub CLI");
+			window.home_landing()->secondary_button()->click();
+			expect(window.sign_in_dialog() && window.sign_in_dialog()->isVisible(), "CLI discovery opens the public sign-in surface");
+			window.sign_in_dialog()->reject();
+			window.home_landing()->secondary_button()->click();
+		};
+		auto application = start(options);
+		chooseCli(*application);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "explicit CLI selection accepts authenticated viewer");
+		expect(prompts == 1, "the first CLI selection asks read trust");
+		auto store = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
+		wait_for([&] { auto saved=store->load({}); return saved && holds_cli(*saved); }, "the CLI selection is remembered");
+		const auto before = *store->load({ });
+		stop(application);
+
+		const auto checksBeforeReset = options.GithubCliInventoryChecks->load();
+		auto       reset             = options;
+		reset.DataReset              = core::profile_data_reset_request{ core::profile_data_reset::everything, true, false };
+		application                  = start(reset);
+		const auto report            = github_application_fixture_access::take_profile_data_reset_report(*application);
+		expect(report && report->Outcome.Reason == core::release_maintenance_reason::none && report->Outcome.SignedOut && !report->Outcome.ConnectionsRetained,
+			   "Reset everything reports the GitHub CLI connection forgotten");
+		auto& window = application->window();
+		window.show();
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		expect(window.session_panel()->status() == core::github_status::no_profile, "after Reset everything the app is not connected");
+		expect(window.home_landing()->state() == qt::landing_state::sign_in, "after Reset everything Home is the first-run Sign in to GitHub");
+		const auto after = store->load({ });
+		expect(after && !holds_cli(*after) && !core::select_remembered_connection(*after), "no GitHub CLI choice is remembered");
+		expect(after->LastProfileId == before.LastProfileId && after->LastHostId == before.LastHostId, "identity high-water marks are kept");
+		expect(prompts == 1 && options.GithubCliInventoryChecks->load() == checksBeforeReset, "the reset asks gh nothing and trusts nothing");
+		stop(application);
+
+		application = start(options);
+		application->window().show();
+		QApplication::processEvents();
+		expect(application->window().session_panel()->status() == core::github_status::no_profile && prompts == 1
+				   && options.GithubCliInventoryChecks->load() == checksBeforeReset,
+			   "the next launch does not reconnect through gh");
+		// Forget's fresh host identity is outside this fixture's one recorded
+		// host, so the course stops at the trust question the choice asks again.
+		chooseCli(*application);
+		wait_for([&] { return prompts == 2; }, "choosing Use GitHub CLI again asks read trust again");
+		stop(application);
+		consent.stop();
+	}
+
+	// [[BPR-1858]]. Reset connections and Reset everything sign out a sign-in
+	// made in the app: its vault entries go through the fixture vault (never
+	// the keychain), its device bindings go, every remembered connection is
+	// forgotten, and the app reopens at Sign in to GitHub and stays there.
+	// Reset connections keeps the profile's other stores as the same files.
+	void reset_signs_out_a_native_sign_in(const core::profile_data_reset aReset)
+	{
+		QTemporaryDir temporary;
+		auto          options              = app::detail::github_public_path_fixture_options{ };
+		options.ApplicationDataRoot        = e2e::private_data_root(temporary);
+		options.PublicPreviewEnabledCourse = true;
+		options.IndependentWindowReads     = true;
+		options.RepeatReadSessions         = true;
+		options.RegisteredDeviceCourse     = true;
+		options.DeviceRefreshCourse        = true;
+		options.PersistDeviceBindings      = true;
+		options.SharedDeviceVault          = app::detail::make_shared_github_fixture_vault();
+		options.DeviceAuthorizationPending = std::make_shared<std::atomic_bool>(false);
+		expect(options.ApplicationDataRoot.has_value(), "private root");
+		const auto state       = *options.ApplicationDataRoot / "state" / "v1";
+		auto       store       = adapters::sqlite::make_remembered_connection_store(*options.ApplicationDataRoot, core::default_bpr_profile_id);
+		auto       application = start(options);
+		application->window().show();
+		application->window().open_settings(qt::settings_page::accounts_and_hosts);
+		QApplication::processEvents();
+		{
+			const auto cards = application->window().server_cards();
+			auto*      card  = *std::ranges::find_if(cards, [](const auto* aCard) { return aCard->hostname() == "github.com"; });
+			card->sign_in_button()->click();
+		}
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "the device sign-in is accepted");
+		wait_for([&] { return github_application_fixture_access::device_binding_durable(*application); }, "the device sign-in is durably resumable");
+		wait_for([&] { auto saved=store->load({}); const auto row=saved ? core::select_remembered_connection(*saved) : std::nullopt; return row && row->Transport == core::remembered_connection_transport::native_device; }, "the device choice is remembered");
+		stop(application);
+		expect(app::detail::github_fixture_vault_holds_entry(options.SharedDeviceVault), "the vault holds the sign-in before the reset");
+		expect(std::filesystem::exists(state / "device-bindings.sqlite3"), "the device binding exists before the reset");
+		application = start(options);
+		wait_for([&] { return application->window().session_panel()->status() == core::github_status::session_ready; }, "without a reset the sign-in is restored at launch");
+		stop(application);
+
+		// The stores Reset connections keeps, by native file identity.
+		const auto kept   = std::array{ "review-queue.sqlite3", "workbench-settings.sqlite3", "appearance-settings.sqlite3", "epoch-catalog.sqlite3", "window-restoration.sqlite3" };
+		auto       before = std::vector<std::optional<tests::sqlite_contract::file_identity>>{ };
+		for (const auto* each : kept) {
+			before.push_back(tests::sqlite_contract::identity_of(state / each));
+		}
+		expect(before.front().has_value() && before[3].has_value(), "the profile made its saved-sources and cache stores");
+		const auto marks = *store->load({ });
+
+		auto reset        = options;
+		reset.DataReset   = core::profile_data_reset_request{ aReset, core::profile_data_reset_destructive(aReset), false };
+		application       = start(reset);
+		const auto report = github_application_fixture_access::take_profile_data_reset_report(*application);
+		expect(report && report->Outcome.Reason == core::release_maintenance_reason::none && report->Outcome.SignedOut && !report->Outcome.ConnectionsRetained,
+			   "the reset reports that it signed out");
+		auto& window = application->window();
+		window.show();
+		window.home_action()->trigger();
+		QApplication::processEvents();
+		expect(window.session_panel()->status() == core::github_status::no_profile, "after the reset the app is not signed in");
+		expect(window.home_landing()->state() == qt::landing_state::sign_in, "after the reset Home is the first-run Sign in to GitHub");
+		expect(!app::detail::github_fixture_vault_holds_entry(options.SharedDeviceVault), "no vault entry is left");
+		expect(!std::filesystem::exists(state / "device-bindings.sqlite3"), "the device binding is gone");
+		const auto after = store->load({ });
+		expect(after && !core::holds_remembered_connection(*after) && after->LastProfileId == marks.LastProfileId && after->LastHostId == marks.LastHostId,
+			   "no connection is remembered and the identity high-water marks are kept");
+		for (std::size_t index = 0U; index < kept.size(); ++index) {
+			const auto now = tests::sqlite_contract::identity_of(state / kept[index]);
+			if (aReset == core::profile_data_reset::connections) {
+				expect(!before[index] || now == before[index], "Reset connections keeps the profile's other stores as the same files");
+			} else if (before[index]) {
+				expect(now != before[index], "Reset everything removes them");
+			}
+		}
+		stop(application);
+
+		application = start(options);
+		application->window().show();
+		QApplication::processEvents();
+		expect(application->window().session_panel()->status() == core::github_status::no_profile, "the next launch stays signed out");
+		stop(application);
+	}
 }
 int main(int aArgc, char** aArgv)
 try {
@@ -430,6 +596,9 @@ try {
 	failed_cli_connect();
 	forget_server();
 	native_replacement_and_legacy();
+	reset_everything_disconnects_github_cli();
+	reset_signs_out_a_native_sign_in(core::profile_data_reset::connections);
+	reset_signs_out_a_native_sign_in(core::profile_data_reset::everything);
 	std::cout << "remembered-connection-public-path-tests:pass\n";
 } catch (const std::exception& aError) {
 	std::cerr << aError.what() << '\n';

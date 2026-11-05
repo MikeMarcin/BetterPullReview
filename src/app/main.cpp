@@ -164,7 +164,7 @@ namespace {
 		// [[BPR-1602]]. Opens the reset dialog before the profile loads.
 		bpr::app::command_line_option{ .Name = "reset-profile-data" },
 		// [[BPR-1602]]. Runs one named reset before the profile loads:
-		// caches, settings, review-data or everything; naming a destructive
+		// caches, settings, review-data, connections or everything; naming a destructive
 		// one on the command line is its acknowledgement.
 		bpr::app::command_line_option{ .Name = "reset-profile-data-scope", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "reset-profile-data-copy" },
