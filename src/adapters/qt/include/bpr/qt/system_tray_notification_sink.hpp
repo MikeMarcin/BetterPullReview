@@ -20,6 +20,29 @@ namespace bpr::qt {
 		const QString&,
 		const QString&)>;
 
+	/// \brief The display-time hint every desktop notification is submitted
+	/// with, in milliseconds.
+	///
+	/// \details [[BPR-1850]]. On macOS Qt submits a tray message as an
+	/// `NSUserNotification` and, for any nonzero hint, schedules
+	/// `removeDeliveredNotification:` once it elapses. Qt's default of 10 000 ms
+	/// therefore withdrew every notification from Notification Center ten
+	/// seconds after it was posted; under Do Not Disturb, where no banner shows,
+	/// it was gone before anyone could see it. On macOS the hint is 0, so the
+	/// notification stays until the reviewer clears it. Elsewhere it keeps Qt's
+	/// default: on Linux it is the freedesktop expiry, where 0 would be a popup
+	/// that never closes.
+	[[nodiscard]] auto desktop_notification_timeout_hint() noexcept -> int;
+
+	/// \brief Submits one notification to the operating system through \p aTray.
+	///
+	/// \details The one native submission both the review queue's sink and the
+	/// activity sink use. It is not evidence that a banner was displayed.
+	void show_desktop_notification(
+		QSystemTrayIcon& aTray,
+		const QString&   aTitle,
+		const QString&   aBody);
+
 	/// \brief Shows one queue notification through the desktop's own surface.
 	///
 	/// \details The payload arrives already composed. This class reads
