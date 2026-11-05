@@ -995,6 +995,13 @@ bpr_enable_hardening(test_agent_comment_suggestion)
 bpr_enable_warnings(test_agent_comment_suggestion)
 bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
 
+# [[BPR-1861]]. An agent's answer split into prose and its bpr-findings block, a fenced suggestion included.
+bpr_add_executable(test_agent_answer_findings agent_answer_findings_tests.cpp)
+target_link_libraries(test_agent_answer_findings PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_answer_findings)
+bpr_enable_warnings(test_agent_answer_findings)
+bpr_add_network_isolated_test(NAME core_agent_answer_findings COMMAND test_agent_answer_findings)
+
 # [[BPR-1082]]. Header edits as commands of the existing revisioned comment draft and tour-stop owners.
 bpr_add_executable(test_feedback_draft_edit feedback_draft_edit_tests.cpp)
 target_link_libraries(test_feedback_draft_edit PRIVATE BetterPullReview::Core)

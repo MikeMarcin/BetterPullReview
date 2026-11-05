@@ -1,3 +1,10 @@
+# [[BPR-1861]] reseal, 2026-11-04, over 41d9ead29 (last matching: BPR-1854's
+# e6eba9b8d). github_application.cpp only: act_on_agent_card and
+# draft_agent_answer pass an agent's suggested comment or answer through
+# core::read_agent_comment_suggestion before drafting it, so its Conventional
+# Comments header is written as the label chip writes it; the production
+# app manifest pin follows that one file. No provider,
+# credential, grant, mutation branch, publication or source-inventory change.
 # [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
 # The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
 # profile activity store/timer/notification host and accepted-session adoption,
@@ -2607,7 +2614,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-        "e2976513d180c1ee228a298cc9778ec2b8f92a915265662b4e443cea03d23085"
+        "328d98333175f136367b376c06a228978c5cac1cd0c7e2d2a69cfe536439fc33"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2918,7 +2925,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "515641c19facc173a2b01649215cc3b0265af7ec59038ec4e8606a536fabb7c8"
+        "c30c7b91d678a1cdcbe7755897bc71a079b5859c8bbb80e0d6f8c6ebbd4cd1b8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

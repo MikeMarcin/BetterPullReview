@@ -315,6 +315,16 @@ the session, and anchors a finding to its first line only on a file the
 turn's frozen snapshot holds; any other finding has no anchor, and
 `core::validate_agent_finding` delivers it unanchored. Nothing reaches a
 draft or a note without the reviewer's gesture on its card.
+`core::split_agent_answer` finds the block for both the decoder and the
+reply ([[BPR-1861]]): the last line that is the opening fence opens it, and
+it ends where its JSON object or array ends, read with string escapes
+honoured, then at the closing fence or the end of the answer. Backticks,
+quotes, braces and brackets inside a string, such as a suggested comment
+holding a fenced code block, are text; the block used to end at the first
+backticks after its opening and tore there. A block with no complete value
+(cut short, unbalanced, or with text after the value) yields no findings and
+is shown after the prose whole, as a `json` code block whose fence no
+backtick run inside it can close, so no fragment of it is read as Markdown.
 
 **Suggested comments carry Conventional Comments labels ([[BPR-1861]],
 owner 2026-11-04).** The review skill (version 3) asks every
