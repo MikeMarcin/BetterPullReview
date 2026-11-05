@@ -1,3 +1,9 @@
+# [[BPR-1854]] reviewed 6b68d0f47..1f16a7c68: the only pinned app
+# delta is the Windows selected-diff observer selecting the final toolbar action
+# (caption controls) instead of index16 (now Settings after Draft-chip insertion).
+# No production action, host effect, provider, grant, credential or mutation
+# branch changes. Full/app-manifest pins bind that exact observer correction;
+# native qualification and original failed measurements remain separate.
 # [[BPR-1854]] BPR-1870 release merge review over 468cfe20c/e61ad029a.
 # github_application.cpp places a user-named foreign-content root in a private
 # BetterPullReview/data child and narrows an existing application-owned root
@@ -2688,7 +2694,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "582ff8364c58ee8bde0c3018bdd380650d927afcba95ea8c2ea89e0e2260ee5a"
+        "b328ce27e8a3137369ca44c9300ef083093ca9efe78008bb0c9557f3d9ce0db4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3013,7 +3019,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "379dcb90353ac1203f2be651b300bc3d244f66a1ddb2411dd7e10b18bea79fbd"
+        "b3538b452d4a334ca245b804180c685149ef96d4c20b7b8500385c315d01efbb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -378,3 +378,20 @@ The Windows upgrade floor records the actually published, native-verified build
 17 MSI (0.4.17), its exact digest, source, tag and release ID; this does not assert
 installation or upgrade acceptance. The next producer must inspect those exact
 prior MSI bytes before packaging.
+
+
+### Successor source-seal recovery
+
+Reviewed the pinned app range `6b68d0f47..1f16a7c68`, covering commits
+`ef0b3101963e8b60ab1bab05c0da071ac3d62737`,
+`0fa6de874e5eb3048a1c8ca4e818c0e910502546` and merge `1f16a7c68`.
+The only pinned app delta selects the final Windows toolbar action for the
+caption rectangle instead of index 16, which now measures Settings after
+the Draft-chip insertion. The accompanying shortcut repair is in the Qt
+window, outside this manifest. Main itself already seals its BPR-1871/1872
+app changes. No host effect, provider, grant, credential or production
+mutation branch changed in this observer correction. Full application and
+manifest digests were printed and resealed under the recorded review; the
+mutation digest remains exact. The original early source-gate failure is
+preserved under `native-feedback19/macos-r1`; fresh gate and native checks
+remain required. This review is not qualification or acceptance.
