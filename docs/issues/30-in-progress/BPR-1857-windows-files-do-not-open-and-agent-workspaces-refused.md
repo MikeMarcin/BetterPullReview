@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["windows", "linux", "macos"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-1857--BPR-1857--58190ccb501f.json", "kind": "defect", "found_by": "owner photos, 2026-11-04 (corporate Windows machine, release 0.4.x)", "related": ["BPR-1791", "BPR-1790", "BPR-1789"], "related_rfcs": ["RFC-BPR-0015", "RFC-BPR-0033"]}
-acceptance: [{"criterion": "AC1", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "macOS arm64 dev, 784f97eea: core_epoch_policy, application_epoch_host, qt_epoch_comparison_scale_100, qt_workbench_window_scale_100, gh_cli_transport, gh_cli_git_smart_transport, agent_workspace_ownership, application_agent_crash_recovery, application_agent_materialization_crash_recovery, application_review_round_trip_composition_contract, application_setup_destination_public_path, application_profile_management_public_path, application_home_open_feedback_public_path, application_terminal_diagnostics pass. Windows build and the same selection on bpr-main-win pending."}}, {"criterion": "AC2", "outcome": "pass", "revision": "9cbff5c3c209161eeb525288f368c3c8c33b17aa", "evidence": {"kind": "command", "detail": "Native Windows 11 limited interactive producer, real production composition using MikeMarcin GitHub CLI sign-in: read-only BPR-Test #40 parity course passed, 3/3 whole-PR files (removed, modified, added), exact blob IDs and actual changed lines recorded. Native exit0, same account before/after. External v0.4.2 release run candidate12/bpr1857-live-cli-r4 receipt and parity. Fresh-history previous-update interdiff was unavailable and is not claimed; corporate Windows AC3 and final release qualification remain pending."}}, {"criterion": "AC3", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: the owner's machine shows the named refusal (check, folder, account) or recovers."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "c5e77a2b55a6cad87b35ac7a12824e9ffb655617", "evidence": {"kind": "command", "detail": "Native affected-path evidence across Mac, Windows11 and Ubuntu26: original new-reason/Qt/ownership selection passes on Mac83b14/14 andWindows83b12/12; Git request boundary/clone correction tests pass on Mac,Windows9cb andUbuntu9cb(12/13 with retained composition failure). Fixture-only correction C5E passes round-trip composition on Mac4.14s, Windowsquietrerun15.48s andUbuntu26.70s, with unchanged semantics/40souterbudget. Current source gates pass on all3. Explicit unchanged-production bridge and all raw attempts live in external v0.4.2 run candidate12. Final frozen comprehensive qualification and corporateWindowsAC3 remain separate."}}, {"criterion": "AC2", "outcome": "pass", "revision": "9cbff5c3c209161eeb525288f368c3c8c33b17aa", "evidence": {"kind": "command", "detail": "Native Windows 11 limited interactive producer, real production composition using MikeMarcin GitHub CLI sign-in: read-only BPR-Test #40 parity course passed, 3/3 whole-PR files (removed, modified, added), exact blob IDs and actual changed lines recorded. Native exit0, same account before/after. External v0.4.2 release run candidate12/bpr1857-live-cli-r4 receipt and parity. Fresh-history previous-update interdiff was unavailable and is not claimed; corporate Windows AC3 and final release qualification remain pending."}}, {"criterion": "AC3", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: the owner's machine shows the named refusal (check, folder, account) or recovers."}}]
 ---
 
 # BPR-1857: Windows files do not open; agent workspaces refused without a reason
@@ -319,3 +319,15 @@ after. This satisfies AC2. It does not establish the owner's corporate Windows
 configuration (AC3), previous-update history in a fresh catalog, full native
 qualification, or artifact trust. The external raw receipt and parity remain
 bound to these exact bytes.
+
+### Native affected-path feedback complete before release freeze
+
+The corrected fixture at `c5e77a2b5` passes its complete round-trip composition
+course on Mac (4.14 s), Windows 11 (15.48 s on the clean rerun), and Ubuntu
+26.04 (26.70 s). Each platform also passes the current source gates. Earlier
+focused core, host, Qt and ownership rows retain their exact source and scope;
+the bridge across C5E changes only test-enabled fixture code. The earlier
+Ubuntu failures and the Windows run overlapped by another build remain raw
+failures, not passing evidence. AC1 and AC2 are satisfied within that scope.
+The final frozen all-platform compilation, comprehensive qualification, package
+trust and the owner's corporate-machine criterion remain separate.
