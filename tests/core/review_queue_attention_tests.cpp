@@ -442,10 +442,66 @@ namespace {
 		std::ranges::sort(names);
 		expect(std::ranges::adjacent_find(names) == names.end() && std::ranges::none_of(names, &std::string_view::empty), "every verdict has its own name");
 	}
+	/// [[BPR-1866]]. My own pull requests: my replies (GitHub's comment-only
+	/// reviews by the author) and my own pushes are never activity for me.
+	void test_my_own_activity_is_never_news_to_me()
+	{
+		using verdict      = core::my_review_verdict;
+		const auto author  = core::queue_membership{ .Authored = true };
+		const auto byRole  = membership(core::github_role::author);
+		const auto awaited = core::queue_activity_observation{ .ReviewersAwaited = 1U };
+
+		expect(!core::reviewed_by_viewer(true, true) && core::reviewed_by_viewer(true, false) && !core::reviewed_by_viewer(false, false),
+			   "my submitted reviews make me a reviewer only of pull requests I did not author");
+
+		// Untouched for a month: I replied on the head that is still there.
+		auto untouched                   = awaited;
+		untouched.ReviewedByMe           = true;
+		untouched.HeadMovedSinceMyReview = false;
+		// I pushed after replying.
+		auto pushed                   = awaited;
+		pushed.ReviewedByMe           = true;
+		pushed.HeadMovedSinceMyReview = true;
+		for (const auto& own : { author, byRole }) {
+			for (const auto& activity : { untouched, pushed }) {
+				const auto bucket = core::bucket_for(own, activity);
+				expect(bucket == core::attention_bucket::authored_awaiting_reviewer_action, "my own reply and my own push leave my pull request waiting on its reviewers");
+				expect(core::home_section_for(own, bucket) == core::home_queue_section::waiting_on_others, "and it is in Waiting for others, not My pull requests");
+			}
+			auto quiet             = pushed;
+			quiet.ReviewersAwaited = 0U;
+			expect(core::bucket_for(own, quiet) == core::attention_bucket::quiet, "with nobody asked, my own reply and push leave it quiet, never Changed");
+		}
+
+		// Someone else's new comment is still news.
+		auto commented           = pushed;
+		commented.UnseenComments = 1U;
+		expect(core::bucket_for(author, commented) == core::attention_bucket::new_comments_or_author_replies
+				   && core::home_section_for(author, core::bucket_for(author, commented)) == core::home_queue_section::my_pull_requests,
+			   "a comment from someone else I have not read brings my pull request to My pull requests");
+
+		// The same review facts on someone else's pull request still count.
+		expect(core::bucket_for(membership(core::github_role::reviewer), pushed) == core::attention_bucket::changed_since_my_review,
+			   "a reviewer whose reviewed head moved is still told it changed");
+
+		// No verdict chip on my own pull request, from a read or a restored row.
+		const auto stale = core::queue_my_review{ .Verdict = verdict::commented, .SubmittedAt = 100, .NewCommits = true };
+		expect(core::my_review_shown(author, stale) == core::queue_my_review{ } && core::my_review_shown(byRole, stale) == core::queue_my_review{ },
+			   "my reply is never shown as my verdict, nor as Commented with new commits");
+		expect(core::my_review_shown(membership(core::github_role::reviewer), stale) == stale, "a reviewer's verdict is shown as it is");
+
+		// My replies never make me a reviewer of my own pull request.
+		const auto withActivity = core::queue_membership_with_activity({ .Authored = true, .Reviewed = true }, true, true);
+		expect(withActivity.authored() && !withActivity.Reviewed, "an author is not a reviewer of their own pull request, even from a retained reason");
+		expect(core::queue_membership_with_activity({ .Requested = true }, false, true).Reviewed, "a reviewer's own review still makes them one");
+		const auto notMine = core::queue_membership_with_activity({ .Authored = true }, false, true);
+		expect(!notMine.authored() && notMine.Reviewed, "authorship another account held is cleared before reviews are counted");
+	}
 } // namespace
 
 auto main() -> int
 {
+	test_my_own_activity_is_never_news_to_me();
 	test_a_role_is_held_by_any_of_its_reasons();
 	test_home_ownership_preserves_attention();
 	test_discovery_reasons_and_unknown_detail();

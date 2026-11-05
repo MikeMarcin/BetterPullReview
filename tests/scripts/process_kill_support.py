@@ -51,7 +51,16 @@ def kill_at_checkpoint(
                         f"{stdout}\n{stderr}"
                     )
                 if time.monotonic() >= deadline:
-                    raise RuntimeError(f"{phase} did not reach checkpoint")
+                    # [[BPR-1857]]. Say what the fixture printed, so a missed
+                    # checkpoint names its own failing predicate.
+                    process.kill()
+                    try:
+                        stdout, stderr = process.communicate(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        stdout, stderr = "", "(no output collected)"
+                    raise RuntimeError(
+                        f"{phase} did not reach checkpoint:\n{stdout[-4000:]}\n{stderr[-4000:]}"
+                    )
                 time.sleep(0.01)
             if process.poll() is not None:
                 raise RuntimeError(f"{phase} exited instead of waiting to be killed")

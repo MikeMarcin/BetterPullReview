@@ -21,6 +21,7 @@
 #include "bpr/application/review_mutation_diagnostics.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
+#include "bpr/core/agent_comment_suggestion.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
 #include "bpr/core/conversation_reply.hpp"
@@ -464,6 +465,50 @@ namespace bpr::app {
 			case adapters::git::workspace_ownership_failure::unavailable:     break;
 			}
 			return "unavailable";
+		}
+		/// [[BPR-1857]]. What a startup refusal says to the reviewer: which check
+		/// refused, the folder or file it refused, and what they can do. The
+		/// general sentence said "needs repair or has reached its limit" for a
+		/// dozen different findings and named no folder. Nothing here is moved,
+		/// changed or deleted; the reviewer decides.
+		[[nodiscard]] auto agent_workspace_refusal_text(const adapters::git::workspace_recovery_refusal& aRefusal) -> QString
+		{
+			using check        = adapters::git::workspace_refusal_check;
+			const auto folder  = QDir::toNativeSeparators(QString::fromStdU16String(aRefusal.Folder.u16string()));
+			const auto account = QString::fromUtf8(aRefusal.Account.data(), static_cast<qsizetype>(aRefusal.Account.size()));
+			const auto lead    = QStringLiteral("Disposable agent workspaces are unavailable: ");
+			switch (aRefusal.Check) {
+			case check::none:
+				break;
+			case check::invalid_path:
+				return lead + QStringLiteral("their folder %1 is not a usable path.").arg(folder);
+			case check::neighbourhood_parent_shared:
+				if (account.startsWith(QStringLiteral("owner "))) {
+					return lead + QStringLiteral("%1 is owned by %2, not by you, so a workspace kept in it could be replaced. Take ownership of that folder, then restart.").arg(folder, account.mid(6));
+				}
+				return lead + (account.isEmpty() ? QStringLiteral("another account can change %1, so a workspace kept in it could be replaced. Remove other accounts' write access to that folder, or ask your administrator, then restart.").arg(folder) : QStringLiteral("%2 can change %1, so a workspace kept in it could be replaced. Remove that account's write access to the folder, or ask your administrator, then restart.").arg(folder, account));
+			case check::neighbourhood_not_private:
+				return lead + QStringLiteral("%1 is not private to you. Rename it aside and restart; a new private folder is made in its place.").arg(folder);
+			case check::neighbourhood_not_created:
+				return lead + QStringLiteral("%1 could not be created. Check that the folder above it exists and you can write to it, then restart.").arg(folder);
+			case check::data_folder_not_private:
+				return lead + QStringLiteral("the data folder %1 is not private to you.").arg(folder);
+			case check::registry_not_private:
+				return lead + QStringLiteral("their record folder %1 is not private to you or could not be made. Rename it aside and restart.").arg(folder);
+			case check::registry_unexpected_entry:
+				return lead + QStringLiteral("%1 is not a workspace record. Move it out of that folder, then restart.").arg(folder);
+			case check::unrecorded_leftover:
+				return lead + QStringLiteral("%1 is a workspace no record accounts for. It is kept, not deleted; move it out of that folder, then restart.").arg(folder);
+			case check::record_not_private:
+				return lead + QStringLiteral("the workspace record %1 is not private to you or cannot be opened. Move it out of its folder, then restart.").arg(folder);
+			case check::record_unreadable:
+				return lead + QStringLiteral("the workspace that record %1 names could not be read back or cleaned up exactly, so it is kept. Move the record and its workspace out of their folders, then restart.").arg(folder);
+			case check::limit_reached:
+				return lead + QStringLiteral("%1 holds more entries than the limit. Move old workspaces out of it, then restart.").arg(folder);
+			case check::lock_unavailable:
+				return lead + QStringLiteral("%1 is locked by another process. Close other BetterPullReview windows, then restart.").arg(folder);
+			}
+			return { };
 		}
 		using adapters::github::github_host_profile_candidate;
 		using adapters::github::github_profile_provenance;
@@ -6029,9 +6074,10 @@ namespace bpr::app {
 			AgentWorkspaceRecoveryPending.store(true, std::memory_order_release);
 			try {
 				EpochEffects.post([this, registry = ApplicationDataRoot / "agent-workspace-ownership-v1", neighbourhood = AgentWorkspaceNeighbourhood] {
-					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood);
+					auto found     = adapters::git::workspace_recovery_refusal{ };
+					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood, { }, &found);
 					try {
-						DecisionLane.post([this, result = std::move(recovered)] {
+						DecisionLane.post([this, result = std::move(recovered), refusal = std::move(found)] {
 							// [[BPR-0817]]. A refusal is decided here, at startup, and it
 							// is not a failure of the quit. So it no longer sets the
 							// cleanup flag that a real quit turns into exit 1. Every
@@ -6041,8 +6087,12 @@ namespace bpr::app {
 							if (!result) {
 								AgentWorkspaceRecoveryFailure = static_cast<int>(result.error());
 								AgentWorkspaceRecoveryRefused = true;
+								// [[BPR-1857]]. The check that refused rides the
+								// line; the folder stays out of it, as before.
+								AgentWorkspaceRecoveryReason = agent_workspace_refusal_text(refusal);
 								bpr::app::detail::terminal_text_stream{ } << "AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:"
-																		  << QString::fromStdString(named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure)) << '\n';
+																		  << QString::fromStdString(named_workspace_ownership_failure(AgentWorkspaceRecoveryFailure))
+																		  << ":check=" << QString::fromUtf8(adapters::git::workspace_refusal_check_name(refusal.Check)) << '\n';
 							}
 							// [[BPR-0808]]. Recovery is profile work, but its refusal is
 							// presented by every window: those open now, and any opened
@@ -6857,6 +6907,9 @@ namespace bpr::app {
 		// reported in the status, and it is not a cleanup failure of the quit.
 		int  AgentWorkspaceRecoveryFailure = -1;
 		bool AgentWorkspaceRecoveryRefused = false;
+		/// [[BPR-1857]]. What the refusal says to the reviewer: the check, the
+		/// folder and what to do. Empty keeps the general sentence.
+		QString AgentWorkspaceRecoveryReason;
 		// Dependents are destroyed before their retained ports and execution lanes.
 		std::unique_ptr<application::github_application_host> Host;
 		std::unique_ptr<application::github_host_device_authorization_enrollment>
@@ -8217,9 +8270,10 @@ namespace bpr::app {
 			}
 			// [[BPR-0817]]. The status bar says it on Home, which does not show the
 			// agent panel. The panel still says why nothing started.
-			Window->set_agent_workspaces_unavailable(true);
+			Window->set_agent_workspaces_unavailable(true, Profile ? Profile->AgentWorkspaceRecoveryReason : QString{ });
 			if (Window->agent_panel() != nullptr) {
-				Window->agent_panel()->refuse("Disposable workspace recovery needs repair or has reached its limit.");
+				// [[BPR-1857]]. The panel says the same reason as the status line.
+				Window->agent_panel()->refuse(Window->agent_workspaces_problem_text().toStdString());
 			}
 		}
 		void cancel_restoration(bool aStartup, bool aReadingGesture = false)
@@ -12103,7 +12157,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				});
 				return;
 			}
-			const auto text    = finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim;
+			// [[BPR-1861]]. The draft opens with the Conventional Comments
+			// label the agent wrote already in the label control.
+			const auto text    = core::read_agent_comment_suggestion(finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim).Body;
 			auto       refused = [state] { state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: resolve the draft open at that line first.")); };
 			auto       done    = [state] { state(qt::agent_finding_card_state::drafted); };
 			if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
@@ -12358,9 +12414,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				answer(false, QStringLiteral("there is nothing to draft"));
 				return;
 			}
+			// [[BPR-1861]]. An answer that opens with a Conventional Comments
+			// header drafts with its label in the label control. The line
+			// comment reads it on the card's way below.
+			const auto labelled = QString::fromStdString(core::read_agent_comment_suggestion(aText.toStdString()).Body);
 			switch (draft.Place) {
 			case core::answer_draft_place::thread_reply:
-				Window->draft_thread_reply(draft.Thread, aText, [answer](const bool aWritten) { answer(aWritten, aWritten ? QString{ } : QStringLiteral("the conversation's reply did not open; the words are on the clipboard")); });
+				Window->draft_thread_reply(draft.Thread, labelled, [answer](const bool aWritten) { answer(aWritten, aWritten ? QString{ } : QStringLiteral("the conversation's reply did not open; the words are on the clipboard")); });
 				return;
 			case core::answer_draft_place::line_comment: {
 				auto finding             = core::agent_finding{ };
@@ -12387,7 +12447,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			case core::answer_draft_place::pull_request_comment:
-				if (Window->draft_pull_request_comment(aText)) {
+				if (Window->draft_pull_request_comment(labelled)) {
 					answer(true);
 				} else {
 					answer(false, QStringLiteral("the pull request's comment could not be opened"));
@@ -12500,6 +12560,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// now open, for its remembered clone.
 		void observe_clone_repository()
 		{
+			// [[BPR-1859]]. Whether Check agent also makes a workspace
+			// follows the open review.
+			present_settings_check();
 			if (!CloneLinks) {
 				return;
 			}
@@ -12537,13 +12600,62 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// [[BPR-1751]], RFC-BPR-0092 Check it works. One Check runs the
 		/// agent's own status command and makes, then removes, the workspace an
 		/// Ask would make for the review on screen.
-		void check_agent_setup()
+		/// [[BPR-1859]]. Settings' Check agent runs this same check when the
+		/// core offers it; with no review open there is no workspace to make,
+		/// so its row is left not run rather than failed.
+		void check_agent_setup(const bool aWorkspace = true)
 		{
 			if (Closing || !AgentSetup || AgentSetup->projection().Checking || AgentSetup->projection().State.WorkspaceCheck.State == core::setup_check_state::running) {
 				return;
 			}
 			AgentSetup->check();
-			check_agent_workspace();
+			if (aWorkspace) {
+				check_agent_workspace();
+				return;
+			}
+			LastWorkspaceProbeReason.reset();
+			AgentSetup->set_workspace_check({ });
+		}
+
+		/// Stop, from the setup or Settings: the agent's check and the
+		/// workspace's.
+		void stop_agent_setup_check()
+		{
+			if (!Closing && AgentSetup) {
+				AgentSetupWorkspaceStop.request_stop();
+				AgentSetup->stop();
+			}
+		}
+
+		[[nodiscard]] auto settings_check_decision() const -> core::agent_check_decision
+		{
+			return AgentSetup ? core::decide_agent_check(application::agent_check_facts_of(AgentSetup->projection(), static_cast<bool>(AgentReview))) : core::agent_check_decision{ };
+		}
+
+		/// [[BPR-1859]]. Settings › Agents & context: Check agent as the
+		/// core offers it, with the setup's rows as the host published them.
+		void check_agent_from_settings()
+		{
+			if (Closing || !AgentSetup) {
+				return;
+			}
+			const auto decision = settings_check_decision();
+			if (decision.Offer != core::agent_check_offer::available) {
+				return;
+			}
+			check_agent_setup(decision.ChecksWorkspace);
+		}
+
+		void present_settings_check()
+		{
+			if (Closing || Window == nullptr || !AgentSetup) {
+				return;
+			}
+			auto shown            = qt::agent_check_presentation{ };
+			shown.Setup           = AgentSetup->projection();
+			shown.Decision        = settings_check_decision();
+			shown.WorkspaceReason = LastWorkspaceProbeReason;
+			Window->agent_programs()->present_check(shown);
 		}
 
 		void check_agent_workspace()
@@ -12804,13 +12916,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 						}
 					},
 				.Check = [this] { check_agent_setup(); },
-				.Stop =
-					[this] {
-						if (!Closing && AgentSetup) {
-							AgentSetupWorkspaceStop.request_stop();
-							AgentSetup->stop();
-						}
-					},
+				.Stop  = [this] { stop_agent_setup_check(); },
 				.AddCustomAgent =
 					[this](core::agent_entry aEntry) {
 						if (!Closing && AgentSetup) {
@@ -12825,6 +12931,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					},
 			});
 			Window->agent_programs()->set_dispatch(qt::agent_programs_panel::dispatch{
+				// [[BPR-1859]]. Check agent is the setup's check, and its Stop
+				// the setup's Stop.
+				.Check     = [this] { check_agent_from_settings(); },
+				.StopCheck = [this] { stop_agent_setup_check(); },
 				.Reset =
 					[this] {
 						if (!Closing && Window != nullptr) {
@@ -12922,6 +13032,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// and the ready line once it finishes.
 		void present_setup_view()
 		{
+			present_settings_check();
 			if (Closing || Window == nullptr || !AgentSetup || !CloneLinks || Window->agent_setup() == nullptr) {
 				return;
 			}
@@ -38785,13 +38896,16 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			return true;
 		};
 		// [[BPR-1345]] v002. The page as the owner asked for it: Comment
-		// offered, Request changes waiting for a summary and saying so,
-		// the details closed, and what is published said once.
+		// offered, the details closed, and what is published said once.
+		// [[BPR-1853]]. The fixture's viewer, fixture-author, opened this pull
+		// request, and GitHub takes only a comment from its author: Approve
+		// and Request changes are off and each says why.
 		const auto calm = [&] {
 			auto* const comment = summary->disposition_button(core::review_disposition::comment);
 			auto* const changes = summary->disposition_button(core::review_disposition::request_changes);
 			auto* const approve = summary->disposition_button(core::review_disposition::approve);
-			return comment->isEnabled() && approve->isEnabled() && !changes->isEnabled() && changes->toolTip().startsWith(QStringLiteral("Request changes needs a summary"))
+			return comment->isEnabled() && !approve->isEnabled() && approve->toolTip().startsWith(QStringLiteral("You can't approve your own pull request")) && !changes->isEnabled()
+				&& changes->toolTip().startsWith(QStringLiteral("You can't request changes on your own pull request"))
 				&& !summary->details_toggle()->isChecked() && !summary->target_editor()->isVisibleTo(window)
 				&& summary->note_label()->isVisibleTo(window) && summary->note_label()->text() == QStringLiteral("Nothing is published until you submit.");
 		};

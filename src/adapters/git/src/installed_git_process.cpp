@@ -67,6 +67,7 @@
 
 #if defined(Q_OS_WIN)
 	#include <qt_windows.h>
+	#include <sddl.h>
 
 	#include "bpr/adapters/agent/windows_workspace_guard.hpp"
 	#include "bpr/platform/windows_standard_handles.hpp"
@@ -3504,10 +3505,36 @@ namespace bpr::adapters::git {
 			return ::unlink(aPath.c_str()) == 0;
 	#endif
 		}
+	#if defined(Q_OS_WIN)
+		/// [[BPR-1857]]. `DOMAIN\name` for \p aSid, else its `S-1-…` form, so
+		/// a refusal can say whose access it found. Only a refusal asks.
+		[[nodiscard]] auto windows_account_text(const PSID aSid) -> std::string
+		{
+			if (aSid == nullptr) {
+				return { };
+			}
+			std::array<wchar_t, 256U> name{ };
+			std::array<wchar_t, 256U> domain{ };
+			auto                      nameSize   = static_cast<DWORD>(name.size());
+			auto                      domainSize = static_cast<DWORD>(domain.size());
+			auto                      use        = SID_NAME_USE{ };
+			auto                      text       = std::wstring{ };
+			if (LookupAccountSidW(nullptr, aSid, name.data(), &nameSize, domain.data(), &domainSize, &use) != FALSE) {
+				text = domainSize > 0U ? std::wstring{ domain.data() } + L"\\" + name.data() : std::wstring{ name.data() };
+			} else if (LPWSTR sid = nullptr; ConvertSidToStringSidW(aSid, &sid) != FALSE) {
+				text = sid;
+				static_cast<void>(LocalFree(sid));
+			}
+			const auto bytes = std::filesystem::path{ text }.u8string();
+			return { reinterpret_cast<const char*>(bytes.data()), bytes.size() };
+		}
+	#endif
 		/// The neighbourhood's parent may not be writable by anyone but this user
 		/// (and, on Windows, the package, SYSTEM and Administrators, the analogue of
 		/// root), so nobody else can swap the neighbourhood out from under it.
-		[[nodiscard]] auto workspace_parent_trusted(const std::filesystem::path& aParent) -> bool
+		/// [[BPR-1857]]. \p aAccount, when given, receives the owner or the
+		/// account whose write access refused it.
+		[[nodiscard]] auto workspace_parent_trusted(const std::filesystem::path& aParent, std::string* aAccount = nullptr) -> bool
 		{
 	#if defined(Q_OS_WIN)
 			if (canonical_existing(aParent) != aParent || !private_directory(aParent)) {
@@ -3527,6 +3554,9 @@ namespace bpr::adapters::git {
 			}
 			const auto freed = std::unique_ptr<void, decltype(&LocalFree)>{ descriptor, &LocalFree };
 			if (owner == nullptr || EqualSid(owner, principals->user()) == FALSE || dacl == nullptr) {
+				if (aAccount != nullptr && owner != nullptr) {
+					*aAccount = "owner " + windows_account_text(owner);
+				}
 				return false;
 			}
 			// OWNER RIGHTS grants only to the object's owner, which is this user;
@@ -3551,6 +3581,15 @@ namespace bpr::adapters::git {
 					return false;
 				}
 				const auto* const header = static_cast<ACE_HEADER*>(entry);
+				// [[BPR-1857]]. An inherit-only entry grants nothing on this
+				// folder: it only seeds what is created inside it, and the
+				// neighbourhood is created with a protected descriptor that
+				// inherits nothing. Corporate profiles commonly carry one, for
+				// CREATOR OWNER or an administrators' group, and refusing it was
+				// a false refusal.
+				if ((header->AceFlags & INHERIT_ONLY_ACE) != 0U) {
+					continue;
+				}
 				// [[BPR-0825]]. A deny entry can only narrow access. Every other type
 				// that is not a plain allow (object, callback, compound or unknown)
 				// may grant write to a principal this walk cannot identify, so the
@@ -3570,10 +3609,14 @@ namespace bpr::adapters::git {
 					|| EqualSid(sid, ownerRights.data()) != FALSE) {
 					continue;
 				}
+				if (aAccount != nullptr) {
+					*aAccount = windows_account_text(sid);
+				}
 				return false;
 			}
 			return true;
 	#else
+			static_cast<void>(aAccount);
 			struct stat info{ };
 			return canonical_existing(aParent) == aParent && ::lstat(aParent.c_str(), &info) == 0 && S_ISDIR(info.st_mode)
 				&& info.st_uid == ::geteuid() && (info.st_mode & static_cast<mode_t>(S_IWGRP | S_IWOTH)) == 0;
@@ -3851,36 +3894,64 @@ namespace bpr::adapters::git {
 			}
 			return previous;
 		}
-		[[nodiscard]] auto prepare_workspace_neighbourhood(const std::filesystem::path& aPath) -> bool
+		/// [[BPR-1857]]. Records which check refused and where, when asked,
+		/// and answers false so a check can return it.
+		[[nodiscard]] auto refuse_workspace(workspace_recovery_refusal* aRefusal, const workspace_refusal_check aCheck,
+											const std::filesystem::path& aFolder, std::string aAccount = { }) -> bool
+		{
+			if (aRefusal != nullptr) {
+				*aRefusal = workspace_recovery_refusal{ .Check = aCheck, .Folder = aFolder, .Account = std::move(aAccount) };
+			}
+			return false;
+		}
+		/// The same, for a check that answers a recovery failure.
+		[[nodiscard]] auto refuse_recovery(workspace_recovery_refusal* aRefusal, const workspace_refusal_check aCheck,
+										   const std::filesystem::path& aFolder, const workspace_ownership_failure aFailure)
+			-> std::unexpected<workspace_ownership_failure>
+		{
+			static_cast<void>(refuse_workspace(aRefusal, aCheck, aFolder));
+			return std::unexpected{ aFailure };
+		}
+		[[nodiscard]] auto prepare_workspace_neighbourhood(const std::filesystem::path& aPath, workspace_recovery_refusal* aRefusal = nullptr) -> bool
 		{
 			if (!absent(aPath)) {
-				return workspace_private_directory(aPath);
+				return workspace_private_directory(aPath) || refuse_workspace(aRefusal, workspace_refusal_check::neighbourhood_not_private, aPath);
 			}
-			const auto parent = aPath.parent_path();
-			if (!workspace_parent_trusted(parent)) {
-				return false;
+			const auto parent  = aPath.parent_path();
+			auto       account = std::string{ };
+			if (!workspace_parent_trusted(parent, &account)) {
+				return refuse_workspace(aRefusal, workspace_refusal_check::neighbourhood_parent_shared, parent, std::move(account));
 			}
 			if (!create_workspace_directory(aPath) && absent(aPath)) {
+				return refuse_workspace(aRefusal, workspace_refusal_check::neighbourhood_not_created, aPath);
+			}
+			return (workspace_private_directory(aPath) && sync_workspace_directory(parent))
+				|| refuse_workspace(aRefusal, workspace_refusal_check::neighbourhood_not_private, aPath);
+		}
+		[[nodiscard]] auto prepare_workspace_registry(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood,
+													  workspace_recovery_refusal* aRefusal = nullptr) -> bool
+		{
+			if (!(aRegistry.is_absolute() && path_text(aRegistry).size() <= 3500U
+				  && path_text(aRegistry).find('\0') == std::string::npos
+				  && aRegistry == aRegistry.lexically_normal()
+				  && path_text(aNeighbourhood).size() <= 3500U
+				  && path_text(aNeighbourhood).find('\0') == std::string::npos
+				  && aNeighbourhood.is_absolute() && aNeighbourhood == aNeighbourhood.lexically_normal()
+				  && aRegistry != aNeighbourhood
+				  && !path_begins_with(aNeighbourhood, aRegistry))) {
+				return refuse_workspace(aRefusal, workspace_refusal_check::invalid_path, aNeighbourhood);
+			}
+			if (!prepare_workspace_neighbourhood(aNeighbourhood, aRefusal)) {
 				return false;
 			}
-			return workspace_private_directory(aPath) && sync_workspace_directory(parent);
+			if (!workspace_private_directory(aRegistry.parent_path())) {
+				return refuse_workspace(aRefusal, workspace_refusal_check::data_folder_not_private, aRegistry.parent_path());
+			}
+			return (make_workspace_root_directory(aRegistry) && sync_workspace_directory(aRegistry.parent_path()))
+				|| refuse_workspace(aRefusal, workspace_refusal_check::registry_not_private, aRegistry);
 		}
-		[[nodiscard]] auto prepare_workspace_registry(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood) -> bool
-		{
-			return aRegistry.is_absolute() && path_text(aRegistry).size() <= 3500U
-				&& path_text(aRegistry).find('\0') == std::string::npos
-				&& aRegistry == aRegistry.lexically_normal()
-				&& path_text(aNeighbourhood).size() <= 3500U
-				&& path_text(aNeighbourhood).find('\0') == std::string::npos
-				&& aNeighbourhood.is_absolute() && aNeighbourhood == aNeighbourhood.lexically_normal()
-				&& aRegistry != aNeighbourhood
-				&& !path_begins_with(aNeighbourhood, aRegistry)
-				&& prepare_workspace_neighbourhood(aNeighbourhood)
-				&& workspace_private_directory(aRegistry.parent_path())
-				&& make_workspace_root_directory(aRegistry)
-				&& sync_workspace_directory(aRegistry.parent_path());
-		}
-		[[nodiscard]] auto recover_workspaces_locked(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::stop_token aStop)
+		[[nodiscard]] auto recover_workspaces_locked(const std::filesystem::path& aRegistry, const std::filesystem::path& aNeighbourhood, std::stop_token aStop,
+													 workspace_recovery_refusal* aRefusal = nullptr)
 			-> std::expected<workspace_recovery_statistics, workspace_ownership_failure>
 		{
 			workspace_recovery_statistics      result;
@@ -3893,11 +3964,11 @@ namespace bpr::adapters::git {
 					continue;
 				}
 				if (records.size() >= maximum_workspace_records) {
-					return std::unexpected{ workspace_ownership_failure::capacity };
+					return refuse_recovery(aRefusal, workspace_refusal_check::limit_reached, aRegistry, workspace_ownership_failure::capacity);
 				}
 				const auto name = entry.path().filename().string();
 				if (name.size() != 38U || !name.ends_with(".jsonl") || !std::ranges::all_of(std::string_view{ name }.substr(0U, 32U), [](char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || (aCharacter >= 'a' && aCharacter <= 'f'); })) {
-					return std::unexpected{ workspace_ownership_failure::repair_required };
+					return refuse_recovery(aRefusal, workspace_refusal_check::registry_unexpected_entry, entry.path(), workspace_ownership_failure::repair_required);
 				}
 				records.push_back(entry.path());
 			}
@@ -3909,7 +3980,7 @@ namespace bpr::adapters::git {
 					return std::unexpected{ workspace_ownership_failure::cancelled };
 				}
 				if (++inspected > 4096U) {
-					return std::unexpected{ workspace_ownership_failure::capacity };
+					return refuse_recovery(aRefusal, workspace_refusal_check::limit_reached, aNeighbourhood, workspace_ownership_failure::capacity);
 				}
 				const auto       name = entry.path().filename().string();
 				std::string_view token{ name };
@@ -3921,7 +3992,7 @@ namespace bpr::adapters::git {
 					continue;
 				}
 				if (!std::ranges::any_of(records, [&](const auto& aPath) { return aPath.stem().string() == token; })) {
-					return std::unexpected{ workspace_ownership_failure::repair_required };
+					return refuse_recovery(aRefusal, workspace_refusal_check::unrecorded_leftover, entry.path(), workspace_ownership_failure::repair_required);
 				}
 			}
 			for (const auto& path : records) {
@@ -3929,29 +4000,29 @@ namespace bpr::adapters::git {
 					return std::unexpected{ workspace_ownership_failure::cancelled };
 				}
 				if (!workspace_private_file(path)) {
-					return std::unexpected{ workspace_ownership_failure::repair_required };
+					return refuse_recovery(aRefusal, workspace_refusal_check::record_not_private, path, workspace_ownership_failure::repair_required);
 				}
 				workspace_descriptor descriptor{ open_journal(path) };
 				const auto           fd = descriptor.get();
 				if (!descriptor.valid()) {
-					return std::unexpected{ workspace_ownership_failure::repair_required };
+					return refuse_recovery(aRefusal, workspace_refusal_check::record_not_private, path, workspace_ownership_failure::repair_required);
 				}
 				if (!journal_lock(fd, true)) {
 					const auto busy = lock_busy();
 					if (!busy) {
-						return std::unexpected{ workspace_ownership_failure::unavailable };
+						return refuse_recovery(aRefusal, workspace_refusal_check::lock_unavailable, path, workspace_ownership_failure::unavailable);
 					}
 					++result.Live;
 					continue;
 				}
 				auto record = load_workspace_record(fd, aRegistry, aNeighbourhood, path.stem().string());
 				if (!record) {
-					return std::unexpected{ workspace_ownership_failure::repair_required };
+					return refuse_recovery(aRefusal, workspace_refusal_check::record_unreadable, path, workspace_ownership_failure::repair_required);
 				}
 				workspace_ownership owner{ aRegistry, aNeighbourhood, std::move(*record), fd };
 				static_cast<void>(descriptor.release());
 				if (!owner.cleanup_locked()) {
-					return std::unexpected{ workspace_ownership_failure::repair_required };
+					return refuse_recovery(aRefusal, workspace_refusal_check::record_unreadable, path, workspace_ownership_failure::repair_required);
 				}
 				++result.Recovered;
 			}
@@ -7290,10 +7361,31 @@ namespace bpr::adapters::git {
 		}
 	}
 
+	auto workspace_refusal_check_name(const workspace_refusal_check aCheck) noexcept -> std::string_view
+	{
+		switch (aCheck) {
+		case workspace_refusal_check::none:                        return "none";
+		case workspace_refusal_check::invalid_path:                return "invalid-path";
+		case workspace_refusal_check::neighbourhood_parent_shared: return "neighbourhood-parent-shared";
+		case workspace_refusal_check::neighbourhood_not_private:   return "neighbourhood-not-private";
+		case workspace_refusal_check::neighbourhood_not_created:   return "neighbourhood-not-created";
+		case workspace_refusal_check::data_folder_not_private:     return "data-folder-not-private";
+		case workspace_refusal_check::registry_not_private:        return "registry-not-private";
+		case workspace_refusal_check::registry_unexpected_entry:   return "registry-unexpected-entry";
+		case workspace_refusal_check::unrecorded_leftover:         return "unrecorded-leftover";
+		case workspace_refusal_check::record_not_private:          return "record-not-private";
+		case workspace_refusal_check::record_unreadable:           return "record-unreadable";
+		case workspace_refusal_check::limit_reached:               return "limit-reached";
+		case workspace_refusal_check::lock_unavailable:            return "lock-unavailable";
+		}
+		return "unknown";
+	}
+
 	auto recover_installed_agent_workspaces(
 		const std::filesystem::path& aRegistry,
 		const std::filesystem::path& aNeighbourhood,
-		const std::stop_token        aStop)
+		const std::stop_token        aStop,
+		workspace_recovery_refusal*  aRefusal)
 		-> std::expected<workspace_recovery_statistics, workspace_ownership_failure>
 	{
 #if defined(Q_OS_UNIX) || defined(Q_OS_WIN)
@@ -7301,14 +7393,17 @@ namespace bpr::adapters::git {
 			if (aStop.stop_requested()) {
 				return std::unexpected{ workspace_ownership_failure::cancelled };
 			}
-			if (!prepare_workspace_registry(aRegistry, aNeighbourhood)) {
+			if (!prepare_workspace_registry(aRegistry, aNeighbourhood, aRefusal)) {
 				return std::unexpected{ workspace_ownership_failure::repair_required };
 			}
 			auto boundary = process_boundary_lock{ aRegistry, aStop };
 			if (!boundary.valid()) {
-				return std::unexpected{ aStop.stop_requested() ? workspace_ownership_failure::cancelled : workspace_ownership_failure::unavailable };
+				if (aStop.stop_requested()) {
+					return std::unexpected{ workspace_ownership_failure::cancelled };
+				}
+				return refuse_recovery(aRefusal, workspace_refusal_check::lock_unavailable, aRegistry, workspace_ownership_failure::unavailable);
 			}
-			return recover_workspaces_locked(aRegistry, aNeighbourhood, aStop);
+			return recover_workspaces_locked(aRegistry, aNeighbourhood, aStop, aRefusal);
 		} catch (...) {
 			return std::unexpected{ workspace_ownership_failure::unavailable };
 		}
@@ -7316,6 +7411,7 @@ namespace bpr::adapters::git {
 		static_cast<void>(aRegistry);
 		static_cast<void>(aNeighbourhood);
 		static_cast<void>(aStop);
+		static_cast<void>(aRefusal);
 		return std::unexpected{ workspace_ownership_failure::unavailable };
 #endif
 	}

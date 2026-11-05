@@ -207,6 +207,67 @@ namespace bpr::core {
 	/// \brief The first unfinished step. A finished step stays folded; a
 	/// check that has not passed is never taken as passed.
 	[[nodiscard]] auto current_setup_step(const agent_setup_state& aState) noexcept -> setup_step;
+
+	/// \brief [[BPR-1859]]. Whether Settings › Agents & context may run
+	/// the setup's check now, or why not.
+	enum class agent_check_offer : std::uint8_t {
+		available,
+		/// The agent's check or the workspace's runs; Stop is offered.
+		running,
+		/// No agent has been added.
+		no_agent,
+		/// The agents were looked for and none is chosen: several were found
+		/// and the reviewer has not picked one.
+		not_chosen,
+		/// The chosen agent is found, but the open review's host forbids it.
+		forbidden,
+	};
+
+	[[nodiscard]] auto stable_name(agent_check_offer aOffer) noexcept -> std::string_view;
+
+	/// \brief What the check offer is decided from, as the host knows it.
+	struct agent_check_facts
+	{
+		/// At least one agent is in the list.
+		bool AgentsAdded = false;
+		/// The agents were looked for at least once.
+		bool Detected = false;
+		/// The setup has a chosen agent whose row is present and permitted.
+		bool Chosen = false;
+		/// An agent was chosen and saved before.
+		bool SavedChoice = false;
+		/// The saved choice's row is present and the host policy forbids it.
+		bool SavedForbidden = false;
+		bool AgentChecking  = false;
+		/// The workspace row runs.
+		bool WorkspaceChecking = false;
+		/// A review is open, so its workspace can be made and removed.
+		bool ReviewOpen = false;
+
+		auto operator<=>(const agent_check_facts&) const = default;
+	};
+
+	/// \brief The offer, and whether a check run now also makes the
+	/// workspace.
+	struct agent_check_decision
+	{
+		agent_check_offer Offer = agent_check_offer::no_agent;
+		/// The workspace row runs with the agent row. Without a review open it
+		/// cannot, and it is left not run rather than failed: a workspace not
+		/// checked does not hold the setup back ([[BPR-1847]]).
+		bool ChecksWorkspace = false;
+
+		auto operator<=>(const agent_check_decision&) const = default;
+	};
+
+	/// \brief [[BPR-1859]]. Owner, 2026-11-04: "I want to be able to run
+	/// agent check from agent settings page". Decided in this order: a check
+	/// running, an agent added, an agent chosen once looked for.
+	///
+	/// \details Before the agents were looked for the check is available: the
+	/// host looks first. A saved choice that is no longer found is available
+	/// too, so the check itself says the agent was not found and what to do.
+	[[nodiscard]] auto decide_agent_check(const agent_check_facts& aFacts) noexcept -> agent_check_decision;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_SETUP_HPP

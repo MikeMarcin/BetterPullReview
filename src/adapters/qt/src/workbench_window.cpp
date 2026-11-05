@@ -134,7 +134,6 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
-#include <QToolTip>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -724,6 +723,20 @@ namespace bpr::qt {
 					"Show the hidden commit, or hide one of the others, to read it.");
 			}
 			return QStringLiteral("The workbench could not be updated.");
+		}
+
+		/// [[BPR-1857]]. A file that cannot open for want of a comparison says
+		/// why, in Review history's own words, instead of only pointing there.
+		[[nodiscard]] auto failure_text(
+			const application::workbench_host_failure aFailure,
+			const epoch_comparison_control*           aEpoch) -> QString
+		{
+			if (aFailure == application::workbench_host_failure::selected_file_comparison_unavailable && aEpoch != nullptr) {
+				if (const auto why = aEpoch->problem_text(); !why.isEmpty()) {
+					return QStringLiteral("No exact comparison is ready for this file. %1").arg(why);
+				}
+			}
+			return failure_text(aFailure);
 		}
 
 		[[nodiscard]] auto receipt_failure_text(
@@ -5011,10 +5024,12 @@ namespace bpr::qt {
 			"Notifications name the repository and number only, and nothing is marked read on GitHub. "
 			"It needs a GitHub CLI sign-in.");
 		ActivityInfo->setAccessibleDescription(activityDetail);
-		// Rich text, so the tooltip wraps instead of running off the screen.
-		ActivityInfo->setToolTip(QStringLiteral("<p style='white-space:normal'>%1</p>").arg(activityDetail.toHtmlEscaped()));
+		// Hover is answered by the application's anchored tooltips, which wrap
+		// long lines; a click or a key shows the same text anchored to the
+		// button and held while it has focus.
+		ActivityInfo->setToolTip(activityDetail);
 		connect(ActivityInfo, &QToolButton::clicked, this, [this] {
-			QToolTip::showText(ActivityInfo->mapToGlobal(QPoint{ 0, ActivityInfo->height() }), ActivityInfo->toolTip(), ActivityInfo);
+			show_anchored_tooltip(*ActivityInfo, ActivityInfo->rect(), ActivityInfo->toolTip(), anchored_tooltip_hold::focus);
 		});
 		activityLayout->addWidget(ActivityInfo);
 		activityLayout->addStretch(1);
@@ -7391,12 +7406,28 @@ namespace bpr::qt {
 
 	void workbench_window::set_agent_workspaces_unavailable(const bool aUnavailable)
 	{
-		if (AgentWorkspacesUnavailable == aUnavailable) {
+		set_agent_workspaces_unavailable(aUnavailable, AgentWorkspacesReason);
+	}
+
+	void workbench_window::set_agent_workspaces_unavailable(const bool aUnavailable, QString aReason)
+	{
+		if (AgentWorkspacesUnavailable == aUnavailable && AgentWorkspacesReason == aReason) {
 			return;
 		}
 		AgentWorkspacesUnavailable = aUnavailable;
+		AgentWorkspacesReason      = std::move(aReason);
 		update_status_text();
 		announce_update();
+	}
+
+	auto workbench_window::agent_workspaces_problem_text() const -> QString
+	{
+		if (!AgentWorkspacesUnavailable) {
+			return { };
+		}
+		return AgentWorkspacesReason.isEmpty()
+			? QStringLiteral("Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit.")
+			: AgentWorkspacesReason;
 	}
 
 	void workbench_window::set_dispatch(workbench_intent_dispatch aDispatch)
@@ -18284,13 +18315,13 @@ namespace bpr::qt {
 		auto text = QString{ };
 		auto tone = home_status_tone::notice;
 		if (Failure) {
-			text = failure_text(*Failure);
+			text = failure_text(*Failure, EpochSelectors);
 			tone = home_status_tone::problem;
 		} else if (ProfileFailure) {
 			text = profile_management_failure_text(*ProfileFailure);
 			tone = home_status_tone::problem;
 		} else if (AgentWorkspacesUnavailable) {
-			text = QStringLiteral("Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit.");
+			text = agent_workspaces_problem_text();
 			tone = home_status_tone::problem;
 		} else if (SavedLayoutUnavailable) {
 			text = failure_text(application::workbench_host_failure::settings_unavailable);
@@ -21091,7 +21122,7 @@ namespace bpr::qt {
 						 .arg(Cursor->ActionableCount);
 		}
 		if (Failure) {
-			status.append(QStringLiteral(" %1").arg(failure_text(*Failure)));
+			status.append(QStringLiteral(" %1").arg(failure_text(*Failure, EpochSelectors)));
 		}
 		// [[BPR-0742]]. Retained, so the projection that resets `Failure` does not
 		// silence it; said once when a host failure already says the same.
@@ -21108,7 +21139,7 @@ namespace bpr::qt {
 		// [[BPR-0817]]. Said on whatever the window shows, Home included, because
 		// the agent panel, which also says it, is not showing at Home.
 		if (AgentWorkspacesUnavailable) {
-			status.append(QStringLiteral(" Disposable agent workspaces are unavailable: their folder needs repair or has reached its limit."));
+			status.append(QStringLiteral(" %1").arg(agent_workspaces_problem_text()));
 		}
 		if (home) {
 			return status;

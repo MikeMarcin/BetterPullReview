@@ -129,6 +129,9 @@ target-native connector, credential, process, read/write and UI evidence".
   through `gh` stay macOS-only. A Windows or Linux CLI session reads the pull
   request, but full diffs through GitHub CLI are unavailable, and the read warning
   says so. A follow-up card would qualify Git-object acquisition there.
+  [[BPR-1857]] is that follow-up: on the owner's work machine this left every
+  file unopenable ("The exact comparison is unavailable"). Clones now go into
+  the user's temporary directory on Windows and Linux; native evidence is pending.
 - Linux finds Secret Service only through `$XDG_RUNTIME_DIR/bus`. A session
   without that socket (no systemd user session, or a custom bus address) fails
   configuration and reports "could not be run successfully"; it does not hang.

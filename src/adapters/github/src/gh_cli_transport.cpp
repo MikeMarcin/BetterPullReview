@@ -1597,12 +1597,7 @@ namespace bpr::adapters::github::detail {
 		const validated_gh_cli_configuration& aConfiguration, const validated_github_host_profile& aProfile,
 		const application::git_smart_exact_blob_request& aRequest) -> std::optional<github_cli_process_request>
 	{
-#if !defined(__APPLE__)
-		static_cast<void>(aConfiguration);
-		static_cast<void>(aProfile);
-		static_cast<void>(aRequest);
-		return std::nullopt;
-#else
+		// [[BPR-1857]]. Every platform that offers GitHub CLI reads blobs through it.
 		const auto& context = aRequest.Context;
 		if (!application::valid(context) || !aRequest.ExpectedBlob.valid()
 			|| aRequest.ExpectedBlob.algorithm() != core::git_hash_algorithm::sha1
@@ -1629,19 +1624,13 @@ namespace bpr::adapters::github::detail {
 			.Timeout             = process_timeout,
 			.ReapTimeout         = process_reap_timeout,
 		});
-#endif
 	}
 
 	auto compile_gh_cli_exact_blobs_request(
 		const validated_gh_cli_configuration& aConfiguration, const validated_github_host_profile& aProfile,
 		const application::git_smart_exact_blobs_request& aRequest) -> std::optional<github_cli_process_request>
 	{
-#if !defined(__APPLE__)
-		static_cast<void>(aConfiguration);
-		static_cast<void>(aProfile);
-		static_cast<void>(aRequest);
-		return std::nullopt;
-#else
+		// [[BPR-1857]]. Every platform that offers GitHub CLI reads blobs through it.
 		const auto& context = aRequest.Context;
 		if (!application::valid(context) || !application::valid(aRequest)
 			|| std::ranges::any_of(aRequest.ExpectedBlobs, [](const core::git_blob_oid& aBlob) {
@@ -1690,7 +1679,6 @@ namespace bpr::adapters::github::detail {
 			.Timeout             = process_timeout,
 			.ReapTimeout         = process_reap_timeout,
 		});
-#endif
 	}
 
 	auto compile_gh_cli_git_clone_request(
@@ -1700,18 +1688,6 @@ namespace bpr::adapters::github::detail {
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
 		std::size_t aIndex, const std::uint32_t aDepth, const gh_cli_clone_content aContent) -> std::optional<github_cli_process_request>
 	{
-#if !defined(__APPLE__)
-		static_cast<void>(aContent);
-		static_cast<void>(aConfiguration);
-		static_cast<void>(aProfile);
-		static_cast<void>(aContext);
-		static_cast<void>(aCommit);
-		static_cast<void>(aGit);
-		static_cast<void>(aRoot);
-		static_cast<void>(aIndex);
-		static_cast<void>(aDepth);
-		return std::nullopt;
-#else
 		// A complete clone takes no depth; a sparse one takes one generation
 		// for an epoch's commit, or the chain's (RFC-BPR-0089).
 		const auto snapshot = aContent == gh_cli_clone_content::snapshot;
@@ -1724,7 +1700,7 @@ namespace bpr::adapters::github::detail {
 		std::error_code error;
 		const auto      root = std::filesystem::canonical(aRoot, error);
 		const auto      name = aRoot.filename().string();
-		if (error || root != aRoot || root.parent_path() != "/private/tmp"
+		if (error || root != aRoot || root.parent_path() != gh_cli_git_temporary_parent() || root.parent_path().empty()
 			|| !name.starts_with("bpr-cli-git-") || name.size() > 64U
 			|| !std::ranges::all_of(name, [](unsigned char aByte) {
 				   return (aByte >= 'a' && aByte <= 'z') || (aByte >= 'A' && aByte <= 'Z')
@@ -1774,6 +1750,27 @@ namespace bpr::adapters::github::detail {
 									   .PreserveCompletedOutput = true,
 								   },
 								   path_bytes(root));
+	}
+
+	auto gh_cli_git_temporary_parent() -> std::filesystem::path
+	{
+#if defined(__APPLE__)
+		return std::filesystem::path{ "/private/tmp" };
+#else
+		// [[BPR-1857]]. A literal `/private/tmp` names nothing on Windows, so
+		// every clone root failed to exist there and no comparison was ever
+		// formed. The user's own temporary directory, resolved once and
+		// canonical, is the parent on Windows and Linux.
+		std::error_code error;
+		const auto      temporary = std::filesystem::temp_directory_path(error);
+		if (error || temporary.empty()) {
+			return { };
+		}
+		auto parent = std::filesystem::canonical(temporary, error);
+		if (error || !std::filesystem::is_directory(parent, error) || error) {
+			return { };
+		}
+		return parent;
 #endif
 	}
 

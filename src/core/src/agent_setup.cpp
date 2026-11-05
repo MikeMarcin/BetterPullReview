@@ -203,4 +203,34 @@ namespace bpr::core {
 		}
 		return setup_step::ready;
 	}
+	auto stable_name(const agent_check_offer aOffer) noexcept -> std::string_view
+	{
+		switch (aOffer) {
+		case agent_check_offer::available:  return "available";
+		case agent_check_offer::running:    return "running";
+		case agent_check_offer::no_agent:   return "no_agent";
+		case agent_check_offer::not_chosen: return "not_chosen";
+		case agent_check_offer::forbidden:  return "forbidden";
+		}
+		return "no_agent";
+	}
+
+	auto decide_agent_check(const agent_check_facts& aFacts) noexcept -> agent_check_decision
+	{
+		if (aFacts.AgentChecking || aFacts.WorkspaceChecking) {
+			return { .Offer = agent_check_offer::running };
+		}
+		if (!aFacts.AgentsAdded) {
+			return { .Offer = agent_check_offer::no_agent };
+		}
+		if (aFacts.Detected && !aFacts.Chosen) {
+			if (aFacts.SavedChoice && aFacts.SavedForbidden) {
+				return { .Offer = agent_check_offer::forbidden };
+			}
+			if (!aFacts.SavedChoice) {
+				return { .Offer = agent_check_offer::not_chosen };
+			}
+		}
+		return { .Offer = agent_check_offer::available, .ChecksWorkspace = aFacts.ReviewOpen };
+	}
 } // namespace bpr::core

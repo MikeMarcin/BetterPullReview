@@ -144,6 +144,11 @@ namespace bpr::adapters::logging {
 			case core::epoch_failure::git_tool_probe_failed: return "git_tool_probe_failed";
 			case core::epoch_failure::gh_tool_unsupported:   return "gh_tool_unsupported";
 			case core::epoch_failure::gh_tool_probe_failed:  return "gh_tool_probe_failed";
+			case core::epoch_failure::fetch_sign_in_refused: return "fetch_sign_in_refused";
+			case core::epoch_failure::fetch_network:         return "fetch_network";
+			case core::epoch_failure::fetch_limit:           return "fetch_limit";
+			case core::epoch_failure::fetch_failed:          return "fetch_failed";
+			case core::epoch_failure::fetch_storage:         return "fetch_storage";
 			}
 			return "unknown";
 		}

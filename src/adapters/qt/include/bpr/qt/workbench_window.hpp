@@ -660,6 +660,13 @@ namespace bpr::qt {
 		/// says it on Home and on every other surface. RFC-BPR-0033's
 		/// owner-delegated amendment routes it here, as B3 routes a profile failure.
 		void set_agent_workspaces_unavailable(bool aUnavailable);
+		/// \brief [[BPR-1857]]. The same, saying why and what to do: the
+		/// sentence names the check that refused and its folder. An empty
+		/// \p aReason keeps the general sentence.
+		void set_agent_workspaces_unavailable(bool aUnavailable, QString aReason);
+		/// \brief [[BPR-1857]]. The sentence the status line and Home say while
+		/// disposable workspaces are unavailable; empty while they are not.
+		[[nodiscard]] auto agent_workspaces_problem_text() const -> QString;
 
 		void add_setup_profile(application::github_profile_option aProfile);
 		void set_setup_destination_dispatch(application::setup_destination_dispatch aDispatch);
@@ -3392,10 +3399,11 @@ namespace bpr::qt {
 		bool                                                       LedgerUnavailable          = false;
 		bool                                                       SavedLayoutUnavailable     = false;
 		bool                                                       AgentWorkspacesUnavailable = false;
-		bool                                                       HasCommands                = false;
-		bool                                                       ApplyingLayout             = false;
-		bool                                                       ApplyingFileSelection      = false;
-		bool                                                       QueueReady                 = false;
+		QString                                                    AgentWorkspacesReason;
+		bool                                                       HasCommands           = false;
+		bool                                                       ApplyingLayout        = false;
+		bool                                                       ApplyingFileSelection = false;
+		bool                                                       QueueReady            = false;
 		/// [[BPR-0776]]. Whether the window has an account to list a queue for.
 		/// Until the session decides, the queue is shown, as its surface always was.
 		bool HomeAccount = true;
