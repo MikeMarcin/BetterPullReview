@@ -1633,10 +1633,14 @@ namespace bpr::qt {
 			next.AnsweredAt = shown.AnsweredAt;
 			next.Outcome    = shown.Outcome;
 			add_turn_widgets(next);
-			set_answer(next, shown.Answer);
-			next.Footer->setText(shown.Footer);
+			// [[BPR-1860]]. Kept before its answer is shown: the code host
+			// answers a text it has seen from its cache inside the ask, and
+			// `apply_code_syntax` hands spans only to the turns kept here.
 			Turns.push_back(std::move(next));
-			settle_reply_footer(Turns.back());
+			auto& kept = Turns.back();
+			set_answer(kept, shown.Answer);
+			kept.Footer->setText(shown.Footer);
+			settle_reply_footer(kept);
 		}
 		Finished = false;
 		refresh();
@@ -2245,6 +2249,20 @@ namespace bpr::qt {
 	void agent_tab_view::set_answer_draft_dispatch(agent_answer_draft_dispatch aDispatch) { DraftDispatch = std::move(aDispatch); }
 
 	void agent_tab_view::set_draft_navigation(agent_answer_draft_navigation aNavigate) { DraftNavigate = std::move(aNavigate); }
+
+	void agent_tab_view::release_answer_draft(const std::string& aKey)
+	{
+		for (auto& turn : Turns) {
+			if (!turn.Drafted || !turn.DraftTarget || turn.DraftTarget->Key != aKey || turn.Draft == nullptr) {
+				continue;
+			}
+			turn.Drafted = false;
+			turn.Draft->setText(tr("Draft comment"));
+			turn.Draft->setToolTip(!turn.DraftTarget->Tip.isEmpty() ? turn.DraftTarget->Tip
+																	: tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+			turn.Draft->setEnabled(true);
+		}
+	}
 
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
 

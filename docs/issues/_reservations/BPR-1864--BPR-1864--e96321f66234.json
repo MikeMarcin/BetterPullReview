@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1864"
+  ],
+  "reserve_for": "window-title-pr",
+  "purpose": "Window title shows the open PR",
+  "created": "2026-11-04T23:54:00.430612+00:00",
+  "base": "cc0cff1461f1e2dd6eab9f464a5ef11bd012e51f"
+}

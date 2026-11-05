@@ -1,4 +1,5 @@
 #include "bpr/qt/desktop_menu_bar.hpp"
+#include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/profile_management_window.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -270,15 +271,25 @@ namespace {
 		window.findChild<QAction*>(QStringLiteral("manageProfilesAction"))->trigger();
 		window.findChild<QAction*>(QStringLiteral("quitProfilesAction"))->trigger();
 		expect(managed == 1U && quit == 1U, "management and Quit invoke their desktop owner callbacks");
+		// [[BPR-1863]]. New Window is File's first item, on the catalogue's key,
+		// and no longer in Profiles.
 		auto* newWindow = window.findChild<QAction*>(QStringLiteral("newBprWindowAction"));
-		expect(newWindow != nullptr && newWindow->isEnabled(), "New Window is reachable in the real profile menu");
+		auto* fileMenu  = newWindow == nullptr ? nullptr : qobject_cast<QMenu*>(newWindow->parent());
+		expect(newWindow != nullptr && newWindow->isEnabled() && fileMenu != nullptr
+				   && window.menu_bar()->actions().front() == fileMenu->menuAction() && fileMenu->actions().front() == newWindow
+				   && !menu->actions().contains(newWindow),
+			   "New Window is the first item of the window's File menu and not in Profiles");
+		expect(newWindow->shortcuts() == qt::shortcut_keys(qt::shortcut_command::new_window)
+				   && newWindow->shortcut() == QKeySequence{ QKeySequence::New },
+			   "and carries the platform's New key, as the windowless bar's does");
 		newWindow->trigger();
 		expect(std::get<application::new_bpr_window_intent>(intents.back()).Profile == core::default_bpr_profile_id, "New Window dispatches this window's current profile identity");
 		auto visible = 0;
 		for (const auto* action : menu->actions()) {
 			visible += action->isVisible() ? 1 : 0;
 		}
-		expect(visible == 4, "Profiles shows the existing profiles, New Window and management, and nothing else");
+		expect(visible == 3 && menu->actions()[2] == window.findChild<QAction*>(QStringLiteral("manageProfilesAction")),
+			   "Profiles shows the existing profiles and management, and nothing else");
 
 		// [[BPR-0777]] RFC-BPR-0033 B3: a refusal while this window is live is said
 		// here and in its status line, which is what lets the desktop keep the
@@ -316,7 +327,12 @@ namespace {
 		menu.adopt(accepted, core::bpr_profile_id{ 2U });
 		expect(menu.parentWidget() == nullptr, "the desktop's menu bar belongs to the application, not to a window");
 		auto* const profiles = menu.profiles_menu();
-		expect(profiles->actions().size() == 4, "Profiles lists the profiles, New Window and management");
+		expect(profiles->actions().size() == 3 && profiles->actions()[2] == menu.manage_profiles_action(),
+			   "Profiles lists the profiles and management");
+		auto* const fileMenu = qobject_cast<QMenu*>(menu.new_window_action()->parent());
+		expect(fileMenu != nullptr && menu.actions().front() == fileMenu->menuAction() && fileMenu->actions().front() == menu.new_window_action()
+				   && !profiles->actions().contains(menu.new_window_action()),
+			   "[[BPR-1863]] New Window is the first item of File, as in a window's bar");
 		expect(profiles->actions()[1]->isChecked() && !profiles->actions()[0]->isChecked(),
 			   "the most recently used profile is the checked one");
 		expect(menu.new_window_action()->isEnabled()
@@ -534,11 +550,13 @@ namespace {
 				   && pullRequest->accessibleName() == QStringLiteral("Pull Request"),
 			   "the resident menus retain their accessible names");
 		const auto fileActions = file->actions();
-		expect(fileActions.size() == 3 && fileActions[0] == menu.quit_action()
-				   && fileActions[1]->text() == QStringLiteral("Open Project…") && !fileActions[1]->isEnabled()
-				   && fileActions[2]->text() == QStringLiteral("Close Tab") && !fileActions[2]->isEnabled(),
-			   "File retains Open Project… and Close Tab after Quit, disabled with no window");
-		expect(fileActions[2]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
+		// [[BPR-1863]]. New Window leads, before a separator.
+		expect(fileActions.size() == 5 && fileActions[0] == menu.new_window_action() && fileActions[1]->isSeparator()
+				   && fileActions[2] == menu.quit_action()
+				   && fileActions[3]->text() == QStringLiteral("Open Project…") && !fileActions[3]->isEnabled()
+				   && fileActions[4]->text() == QStringLiteral("Close Tab") && !fileActions[4]->isEnabled(),
+			   "File opens with New Window and retains Open Project… and Close Tab after Quit, disabled with no window");
+		expect(fileActions[4]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+W") }
 				   && pullRequestActions[8]->shortcut() == QKeySequence{ QStringLiteral("Alt+R") }
 				   && pullRequestActions[9]->shortcut() == QKeySequence{ QStringLiteral("Alt+C") }
 				   && pullRequestActions[6]->shortcut().isEmpty() && viewActions[18]->shortcut().isEmpty(),
@@ -552,7 +570,7 @@ namespace {
 				   && viewActions[25]->shortcut() == QKeySequence{ QStringLiteral("Ctrl+Shift+Tab") },
 			   "tab navigation keeps the Control key");
 #endif
-		for (auto* const action : { fileActions[1], fileActions[2], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[1], pullRequestActions[6], pullRequestActions[8], pullRequestActions[9], pullRequestActions[10], pullRequestActions[11], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
+		for (auto* const action : { fileActions[3], fileActions[4], viewActions[1], viewActions[2], viewActions[3], viewActions[4], viewActions[5], viewActions[6], viewActions[8], viewActions[12], viewActions[13], viewActions[14], viewActions[18], viewActions[20], viewActions[21], viewActions[22], viewActions[24], viewActions[25], pullRequestActions[0], pullRequestActions[1], pullRequestActions[6], pullRequestActions[8], pullRequestActions[9], pullRequestActions[10], pullRequestActions[11], helpActions[0], helpActions[2], helpActions[3], helpActions[5], helpActions[6] }) {
 			action->trigger();
 		}
 		expect(managed == 1U && quit == 1U && intents.size() == 2U,
