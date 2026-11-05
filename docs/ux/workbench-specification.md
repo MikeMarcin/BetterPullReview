@@ -914,6 +914,51 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
   It has focus when Home appears — on arrival only, so a later projection
   cannot take focus from wherever the reviewer has since moved it.
+- **The filter** ([[BPR-1865]], the owner, 2026-11-04: "I want to be able
+  to fuzzy filter the home screen to quickly find a PR"). One quiet line
+  under the bar, above everything it filters: a magnifier, the field with
+  the placeholder "Filter by number, title, repository or author", and at
+  its right its key (`Ctrl+F`, ⌘F on macOS) or, while it filters, how many
+  rows it shows ("2 matches", "No matches"), over a hairline in the
+  window's mid ink that turns to its text ink, heavier, while the field has
+  the keyboard. It is not a second bordered field: the bar names a pull
+  request anywhere, the filter finds one among Home's own rows, so it is
+  drawn as part of the lists. It stands whenever Home has rows to filter (an
+  account, Recently viewed or Review Cycles). Find's key is the filter's
+  while Home shows and the file's Find otherwise, moved between them as the
+  Refresh key is ([[BPR-1600]]), so a press is never ambiguous; `/`, or any
+  character typed in one of Home's lists, takes the keyboard to the field,
+  the character included (Space and modified keys stay the list's).
+  **What it finds.** The core matches and ranks (`core::rank_home_filter`):
+  the query's terms, split at white space, must each match the number, the
+  title, the repository (or its name alone), the author, the branch or a
+  label, and different terms may match different fields ("app login"). A
+  term of digits, with or without `#`, equal to the number ranks first;
+  then a prefix or a word's start, then a run inside a word, then scattered
+  letters, with a typo only when nothing else matched. `#12` is the number
+  only, `name#12` a repository and a number. Case, diacritics and full-width
+  forms fold, so "cafe" finds "café". Equal matches keep Home's order, the
+  queue before Recently viewed. Nothing reads GitHub: it is a function of
+  the rows already shown, run once per keystroke.
+  **How it shows.** Every panel keeps only its matching rows, best first,
+  and counts them; a panel with none is not shown, and no empty box is
+  drawn. While it filters every panel is held open; each panel's own
+  collapse comes back when the query is cleared and is never written to the
+  remembered view. Over a review the Active review card stands only while
+  it matches; Review Cycles keep their matching rows and go when none
+  match. Matched characters sit on a faint plate of the row's own ink, so
+  they claim no state colour; in the quieter second line they also rise to
+  the full ink. When nothing on Home matches, the list holds one sentence:
+  "Nothing on Home matches “zebra”. Search by number, title, repository or
+  author; Esc clears the filter."
+  **Keys in the field.** The best match anywhere is the current result,
+  selected in its list while the keyboard stays in the field. Down and Up
+  move it through the results in reading order; Return opens it in this
+  window (as the row's Return does, a Recently viewed row as Recently viewed
+  opens it) and ⌘Return (Ctrl+Return off macOS) in a new window. Escape
+  clears the query; on an empty field it hands the keyboard to the current
+  row of the list. Opening a pull request clears the filter, so coming back
+  finds Home whole.
 - **What a link names** ([[BPR-0987]], RFC-BPR-0026 AC-07/AC-08). A link to
   the pull request the window already shows reads it fresh from GitHub, then
   goes to the location, and a Recently viewed row of that pull request reads
@@ -1658,7 +1703,8 @@ never invents enabled state.
 | Previous file ([[BPR-1328]]) | `Ctrl+Alt+Up` (⌥⌘↑) |
 | Next file ([[BPR-1328]]) | `Ctrl+Alt+Down` (⌥⌘↓) |
 | View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
-| View > Find > Find ([[BPR-1422]]) | `Ctrl+F` (⌘F) |
+| View > Find > Find ([[BPR-1422]]); on Home, Filter Home ([[BPR-1865]]) | `Ctrl+F` (⌘F) |
+| Filter Home from one of its lists ([[BPR-1865]]) | `/`, or start typing |
 | View > Find > Next / Previous Match ([[BPR-1422]]) | `F3` / `Shift+F3`; macOS also ⌘G / ⌘⇧G |
 | In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+W` (⌥W) toggles Whole Word and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus; `Alt+C` and `Alt+R` stay Comment and Compose review (owner, 2026-10-14) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |

@@ -266,6 +266,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "application_progressive_open_public_path": "private-desktop-root-refused",
     # [[BPR-1848]]. Coming back to Home on the same slow fixture network.
     "application_home_return_public_path": "private-desktop-root-refused",
+    # [[BPR-1865]]. Home's filter, same public-path fixture desktop root.
+    "application_home_filter_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1851]]. The file on screen refreshed first, same slow fixture network.
     "application_refresh_current_file_public_path": "private-desktop-root-refused",
     # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.

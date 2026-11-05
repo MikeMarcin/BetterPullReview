@@ -212,6 +212,55 @@ namespace bpr::app::detail {
 		std::shared_ptr<std::atomic<bool>> OtherRepositoriesRefused;
 	};
 
+	/// \brief [[BPR-1865]]. One discovered pull request with a title and an
+	/// author of its own, for Home's filter.
+	struct home_filter_fixture_row
+	{
+		std::uint32_t    Number = 0U;
+		std::string_view Title;
+		std::string_view Author;
+	};
+
+	/// \brief [[BPR-1865]]. Sixteen pull requests a reviewer might be looking
+	/// for, so Home's filter has titles, authors and numbers to tell apart: its
+	/// attended look (`--attended-home-rows`) and its composed course. Every
+	/// title is served as written (`discovered_title`).
+	inline constexpr auto home_filter_fixture_rows = std::array{
+		home_filter_fixture_row{ .Number = 4010U, .Title = "Fix login redirect loop on expired sessions", .Author = "alice" },
+		home_filter_fixture_row{ .Number = 4011U, .Title = "Speed up the discovery cache on cold start", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4012U, .Title = "Teach the queue to wait for slow repositories", .Author = "bob" },
+		home_filter_fixture_row{ .Number = 4013U, .Title = "Render Zoë's résumé fixture without mojibake", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4014U, .Title = "Add keyboard shortcuts for the files drawer", .Author = "carol" },
+		home_filter_fixture_row{ .Number = 4015U, .Title = "Migrate settings storage to SQLite WAL mode", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4016U, .Title = "Bump Qt and replace deprecated proxy calls", .Author = "dmitri" },
+		home_filter_fixture_row{ .Number = 4017U, .Title = "Explore a fuzzy matcher for Home", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4018U, .Title = "Handle GitHub Enterprise rate-limit headers", .Author = "erin" },
+		home_filter_fixture_row{ .Number = 4019U, .Title = "Remove the legacy diff renderer", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4020U, .Title = "Make conventional comment labels translatable", .Author = "farah" },
+		home_filter_fixture_row{ .Number = 4021U, .Title = "Fix crash when a thread is deleted mid-reply", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4022U, .Title = "Cache avatars per account and host", .Author = "alice" },
+		home_filter_fixture_row{ .Number = 4023U, .Title = "Show line counts beside each changed file", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4024U, .Title = "Document the attended review workflow", .Author = "bob" },
+		home_filter_fixture_row{ .Number = 4025U, .Title = "Split the GitHub read lane into smaller steps", .Author = "octo-reviewer" },
+	};
+
+	/// \brief [[BPR-1865]]. Those rows as discovery serves them: another
+	/// author's asks `aViewer` for a review (Needs me); the viewer's own waits
+	/// on alice (My pull requests and Waiting on others).
+	[[nodiscard]] inline auto home_filter_fixture_pull_requests(const std::string_view aViewer)
+		-> std::vector<github_personal_discovery_fixture::pull_request>
+	{
+		auto rows = std::vector<github_personal_discovery_fixture::pull_request>{ };
+		for (const auto& row : home_filter_fixture_rows) {
+			auto pull           = github_personal_discovery_fixture::pull_request{ };
+			pull.Number         = row.Number;
+			pull.Author         = std::string{ row.Author };
+			pull.RequestedUsers = { std::string{ row.Author == aViewer ? std::string_view{ "alice" } : aViewer } };
+			rows.push_back(std::move(pull));
+		}
+		return rows;
+	}
+
 	/// \brief Safe wire-level primary/secondary refusal control for BPR-0968.
 	struct github_rate_limit_fixture
 	{

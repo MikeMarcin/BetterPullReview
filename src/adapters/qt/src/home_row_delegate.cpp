@@ -30,6 +30,7 @@
 #include <cmath>
 #include <tuple>
 #include <utility>
+#include <vector>
 
 namespace bpr::qt {
 	namespace {
@@ -63,6 +64,13 @@ namespace bpr::qt {
 		/// The least room, in average characters, the second line keeps beside
 		/// the verdict chip before the chip takes a line of its own.
 		constexpr auto verdict_beside_characters = 12;
+		/// [[BPR-1865]]. The filter's mark under a matched run: the row's own
+		/// ink, faint, so it claims no state colour (on Home colour means
+		/// state); a little stronger on the selection, which is already a tint.
+		constexpr auto mark_strength          = 0.17F;
+		constexpr auto mark_selected_strength = 0.22F;
+		constexpr auto mark_radius            = 3.0;
+		constexpr auto mark_pad_x             = 1.0;
 		/// [[BPR-0783]]. The one host a chip never repeats.
 		constexpr auto default_host = QLatin1StringView{ "github.com" };
 		/// Between a login and the host it is not on by default.
@@ -229,6 +237,54 @@ namespace bpr::qt {
 			return static_cast<int>(std::ceil(height));
 		}
 
+		/// \brief A run of a row's text, by UTF-16 start and length.
+		using text_run = std::pair<int, int>;
+
+		/// \brief [[BPR-1865]]. A role's marked runs, as the filter answered them.
+		[[nodiscard]] auto marks_of(const QModelIndex& aIndex, const int aRole) -> std::vector<text_run>
+		{
+			auto runs = std::vector<text_run>{ };
+			for (const auto& value : aIndex.data(aRole).toList()) {
+				const auto point = value.toPoint();
+				if (point.y() > 0) {
+					runs.emplace_back(point.x(), point.y());
+				}
+			}
+			return runs;
+		}
+
+		/// \brief Moves runs of one text into another that holds `aFirst` to
+		/// `aEnd` of it at `aAt`, keeping only what falls in that part.
+		void place_runs(std::vector<text_run>& aInto, const std::vector<text_run>& aRuns, const int aFirst, const int aEnd, const int aAt)
+		{
+			for (const auto& [start, length] : aRuns) {
+				const auto begin = std::max(start, aFirst);
+				const auto end   = std::min(start + length, aEnd);
+				if (begin < end) {
+					aInto.emplace_back(aAt + begin - aFirst, end - begin);
+				}
+			}
+		}
+
+		/// \brief Where runs of a laid-out text stand: one rectangle per run
+		/// and line, relative to the text's own origin.
+		void run_rects(const QTextLayout& aLayout, const std::vector<text_run>& aRuns, const QPointF aOrigin, std::vector<QRectF>& aInto)
+		{
+			for (const auto& [start, length] : aRuns) {
+				for (auto index = 0; index < aLayout.lineCount(); ++index) {
+					const auto line  = aLayout.lineAt(index);
+					const auto begin = std::max(start, line.textStart());
+					const auto end   = std::min(start + length, line.textStart() + line.textLength());
+					if (begin >= end) {
+						continue;
+					}
+					const auto left  = line.cursorToX(begin);
+					const auto right = line.cursorToX(end);
+					aInto.emplace_back(aOrigin.x() + std::min(left, right), aOrigin.y() + line.y(), std::abs(right - left), line.height());
+				}
+			}
+		}
+
 		/// \brief One row's text, laid out for the width it is drawn at.
 		///
 		/// \details Coordinates are relative to the row's top-left corner. The
@@ -288,6 +344,23 @@ namespace bpr::qt {
 					Second = Second.isEmpty() ? byline : byline + identity_separator + Second;
 				} else {
 					authorStart = -1;
+				}
+				// [[BPR-1865]]. What the filter matched: the title's runs on the
+				// first line (or the identity's where it stands in for the
+				// title), and on the second the identity's runs where it shows
+				// them and the author's.
+				const auto identityMarks = marks_of(aIndex, home_row_role::identity_marks);
+				if (title.isEmpty()) {
+					place_runs(FirstMarks, identityMarks, 0, static_cast<int>(identity.size()), 0);
+				} else {
+					place_runs(FirstMarks, marks_of(aIndex, home_row_role::title_marks), 0, static_cast<int>(title.size()), 0);
+					if (!Opening && identity.endsWith(shown)) {
+						const auto hidden = static_cast<int>(identity.size() - shown.size());
+						place_runs(SecondMarks, identityMarks, hidden, static_cast<int>(identity.size()), 0);
+					}
+				}
+				if (authorStart >= 0) {
+					place_runs(SecondMarks, marks_of(aIndex, home_row_role::author_marks), 0, static_cast<int>(author.size()), authorStart);
 				}
 				if (!reason.isEmpty() && !Opening) {
 					if (!Second.isEmpty()) {
@@ -370,6 +443,16 @@ namespace bpr::qt {
 					authorFormat.length = static_cast<int>(author.size());
 					authorFormat.format.setForeground(aAuthorInk);
 					secondFormats.push_back(authorFormat);
+				}
+				// The quiet line's matched characters rise to the full ink.
+				for (const auto& [start, length] : SecondMarks) {
+					if (aAuthorInk.isValid()) {
+						auto markFormat   = QTextLayout::FormatRange{ };
+						markFormat.start  = start;
+						markFormat.length = length;
+						markFormat.format.setForeground(aAuthorInk);
+						secondFormats.push_back(markFormat);
+					}
 				}
 				if (ReasonStart >= 0) {
 					auto reasonFormat   = QTextLayout::FormatRange{ };
@@ -456,6 +539,20 @@ namespace bpr::qt {
 				return result;
 			}
 
+			/// \brief [[BPR-1865]]. The filter's marks, relative to the row's top-left.
+			[[nodiscard]] auto mark_rects() const -> std::vector<QRectF>
+			{
+				auto rects = std::vector<QRectF>{ };
+				run_rects(FirstLayout, FirstMarks, QPointF{ static_cast<qreal>(TextLeft + FirstIndent), static_cast<qreal>(ContentTop) }, rects);
+				if (!Opening) {
+					run_rects(SecondLayout, SecondMarks, QPointF{ static_cast<qreal>(TextLeft + SecondIndent), static_cast<qreal>(SecondTextTop) }, rects);
+				}
+				for (auto& rect : rects) {
+					rect.adjust(-mark_pad_x, 0.0, mark_pad_x, 0.0);
+				}
+				return rects;
+			}
+
 			[[nodiscard]] auto lines() const -> QStringList
 			{
 				auto result = QStringList{ };
@@ -536,6 +633,10 @@ namespace bpr::qt {
 			int                     VerdictHeight    = 0;
 			int                     SecondTextOffset = 0;
 			int                     SecondTextTop    = 0;
+
+			// [[BPR-1865]]. The filter's matched runs, in `First` and `Second`.
+			std::vector<text_run> FirstMarks;
+			std::vector<text_run> SecondMarks;
 		};
 	} // namespace
 
@@ -786,6 +887,20 @@ namespace bpr::qt {
 		}
 		const auto ink   = colours.color(group, selected ? QPalette::HighlightedText : QPalette::Text);
 		const auto quiet = colours.color(group, selected ? QPalette::HighlightedText : QPalette::PlaceholderText);
+		if (const auto marks = layout.mark_rects(); !marks.empty()) {
+			// [[BPR-1865]]. A faint plate of the row's own ink under each run the
+			// filter matched, drawn before the text so the letters stay crisp.
+			auto plate = ink;
+			plate.setAlphaF(selected ? mark_selected_strength : mark_strength);
+			aPainter->save();
+			aPainter->setRenderHint(QPainter::Antialiasing, true);
+			aPainter->setPen(Qt::NoPen);
+			aPainter->setBrush(plate);
+			for (const auto& rect : marks) {
+				aPainter->drawRoundedRect(rect, mark_radius, mark_radius);
+			}
+			aPainter->restore();
+		}
 		aPainter->setPen(ink);
 		layout.FirstLayout.draw(aPainter, QPointF{ static_cast<qreal>(layout.TextLeft + layout.FirstIndent), static_cast<qreal>(layout.ContentTop) });
 		if (!layout.Draft.isEmpty()) {
@@ -956,6 +1071,18 @@ namespace bpr::qt {
 					  aOption.rect.top() + ((layout.RowHeight - size.height()) / 2),
 					  size.width(),
 					  size.height() };
+	}
+
+	auto home_row_delegate::mark_rects(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const -> std::vector<QRect>
+	{
+		auto option = aOption;
+		initStyleOption(&option, aIndex);
+		const row_layout layout{ option, aIndex, Marks, QColor{ }, &Open, option.palette.color(QPalette::Text) };
+		auto             rects = std::vector<QRect>{ };
+		for (const auto& rect : layout.mark_rects()) {
+			rects.push_back(rect.translated(QPointF{ option.rect.topLeft() }).toAlignedRect());
+		}
+		return rects;
 	}
 
 	auto home_row_delegate::reviewing_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const

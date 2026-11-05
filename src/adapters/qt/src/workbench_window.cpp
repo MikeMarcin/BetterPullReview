@@ -30,6 +30,7 @@
 
 #include "bpr/core/file_progress_mark.hpp"
 
+#include "bpr/core/home_filter.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -44,6 +45,7 @@
 #include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
+#include "bpr/qt/home_filter_field.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/identity_avatar_pictures.hpp"
@@ -3600,6 +3602,25 @@ namespace bpr::qt {
 			homeColumn->addLayout(setupRow);
 			// The first-launch card sits under this row (see place_home_landing).
 			HomeSetupRow = setupRow;
+			// [[BPR-1865]]. The owner, 2026-11-04: "I want to be able to fuzzy
+			// filter the home screen to quickly find a PR." One quiet line
+			// under the bar, above everything it filters: the Active review
+			// card, Review Cycles and every panel of the list. Command-F (the
+			// key moves here while Home shows, as Refresh does), "/" or a
+			// character typed in a list takes the keyboard to it.
+			HomeFilter = new home_filter_field{ HomePage };
+			HomeFilter->hide();
+			homeColumn->addWidget(HomeFilter);
+			HomeFilterAction = new QAction{ tr("Filter Home"), this };
+			HomeFilterAction->setObjectName(QStringLiteral("homeFilterAction"));
+			HomeFilterAction->setShortcutContext(Qt::WindowShortcut);
+			addAction(HomeFilterAction);
+			HomeFilter->set_shortcut(shortcut_key(shortcut_command::home_filter));
+			connect(HomeFilterAction, &QAction::triggered, this, [this] {
+				if (showing_home() && HomeFilter != nullptr && HomeFilter->isVisible()) {
+					HomeFilter->focus_field();
+				}
+			});
 			SetupContinueButton->hide();
 			SetupCancelButton->hide();
 			connect(SetupContinueButton, &QPushButton::clicked, this, [this] {
@@ -4560,6 +4581,23 @@ namespace bpr::qt {
 			}
 		});
 		HomeList->set_ignore_dispatch([this](const core::queue_item& aItem) { dispatch_home_ignore(aItem); });
+		// [[BPR-1865]]. The filter decides nothing: the core ranks, the list
+		// shows what it found, and these keys move through it.
+		if (HomeFilter != nullptr) {
+			HomeFilter->set_query_observer([this](const QString&) { apply_home_filter(); });
+			HomeFilter->set_step_dispatch([this](const int aStep) { return HomeList->step_filter(aStep); });
+			HomeFilter->set_open_dispatch([this](const bool aNewWindow) { HomeList->open_filter_result(aNewWindow); });
+			HomeFilter->set_leave_dispatch([this] { HomeList->focus_filter_result(); });
+			HomeList->set_filter_typing_dispatch([this](const QString& aText) {
+				if (HomeFilter->isVisible()) {
+					HomeFilter->take_typing(aText);
+				}
+			});
+			HomeList->set_filter_result_observer([this](QAbstractItemView* const aView) {
+				claim_home_selection(aView == HomeRecentList ? home_selection_list::recent : home_selection_list::queue);
+			});
+			HomeList->set_recent_open_dispatch([this](const int aRow) { dispatch_recent_review(aRow, false); });
+		}
 		OpenOnGithubAction->setShortcutVisibleInContextMenu(true);
 		HomeRowMenu = new QMenu{ this };
 		HomeRowMenu->setObjectName(QStringLiteral("homeRowMenu"));
@@ -13487,6 +13525,11 @@ namespace bpr::qt {
 		}
 		// [[BPR-0775]]. Focus goes back once the strip is settled, so a strip
 		// control that had it before Home is shown again to take it back.
+		if (leavingHome && HomeFilter != nullptr) {
+			// [[BPR-1865]]. A filter is for finding one pull request; coming
+			// back finds Home whole.
+			HomeFilter->clear_query();
+		}
 		if (leavingHome) {
 			if (FocusBeforeHome != nullptr && FocusBeforeHome->isVisible()) {
 				FocusBeforeHome->setFocus(Qt::OtherFocusReason);
@@ -13712,6 +13755,10 @@ namespace bpr::qt {
 			item->setToolTip(location);
 		}
 		HomeCyclesList->setVisible(!CycleRecents.empty());
+		update_home_surface();
+		if (HomeFilter != nullptr && !HomeFilter->query().isEmpty()) {
+			apply_home_filter();
+		}
 	}
 
 	void workbench_window::set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume)
@@ -13740,6 +13787,14 @@ namespace bpr::qt {
 		auto* const to   = aHome ? QueueRefreshAction : GithubRefreshAction;
 		from->setShortcuts({ });
 		to->setShortcuts(shortcut_keys(aHome ? shortcut_command::home_refresh : shortcut_command::refresh));
+		// [[BPR-1865]]. Find's key, the same way: Home's filter while Home
+		// shows, the file's Find otherwise.
+		if (HomeFilterAction != nullptr && SourceFindActions[0] != nullptr) {
+			auto* const findFrom = aHome ? SourceFindActions[0] : HomeFilterAction;
+			auto* const findTo   = aHome ? HomeFilterAction : SourceFindActions[0];
+			findFrom->setShortcuts({ });
+			findTo->setShortcuts(shortcut_keys(aHome ? shortcut_command::home_filter : shortcut_command::find));
+		}
 	}
 
 	auto workbench_window::showing_home() const -> bool
@@ -13753,11 +13808,18 @@ namespace bpr::qt {
 			return;
 		}
 		const auto state = HomeLanding->state();
-		HomeLanding->setVisible(state != landing_state::choose_pull_request || HomeLandingHold > 0);
+		// [[BPR-1865]]. Over a review the card is filtered with the lists; the
+		// sign-in and first-launch cards are not rows and always stand.
+		HomeLanding->setVisible((state != landing_state::choose_pull_request || HomeLandingHold > 0)
+								&& !(HomeLandingFiltered && state == landing_state::back_to_review));
 		// [[BPR-1843]]. Over a review the Active review card follows the bar
 		// and stands above every list, as the first-launch card does signed
 		// out. The bar keeps its whole width and never moves ([[BPR-1381]]).
-		const auto wanted = HomeColumn->indexOf(HomeSetupRow) + 1;
+		// [[BPR-1865]]. Under the filter, which stands above all it filters.
+		const auto anchor = [this] {
+			return HomeFilter != nullptr ? HomeColumn->indexOf(HomeFilter) : HomeColumn->indexOf(HomeSetupRow);
+		};
+		const auto wanted = anchor() + 1;
 		if (HomeColumn->indexOf(HomeLanding) == wanted) {
 			return;
 		}
@@ -13765,7 +13827,7 @@ namespace bpr::qt {
 			HomeOpenRow->removeWidget(HomeLanding);
 		}
 		HomeColumn->removeWidget(HomeLanding);
-		HomeColumn->insertWidget(HomeColumn->indexOf(HomeSetupRow) + 1, HomeLanding);
+		HomeColumn->insertWidget(anchor() + 1, HomeLanding);
 	}
 
 	void workbench_window::focus_home_bar()
@@ -13879,6 +13941,60 @@ namespace bpr::qt {
 	auto workbench_window::home_open_frame() const noexcept -> QWidget*
 	{
 		return HomeOpenFrame;
+	}
+
+	auto workbench_window::home_filter_box() const noexcept -> home_filter_field*
+	{
+		return HomeFilter;
+	}
+
+	auto workbench_window::home_filter_action() const noexcept -> QAction*
+	{
+		return HomeFilterAction;
+	}
+
+	auto workbench_window::home_landing_matches() const -> bool
+	{
+		if (HomeFilter == nullptr || IdentityOwner.isEmpty() || IdentityRepository.isEmpty()) {
+			return false;
+		}
+		const auto candidate = core::home_filter_candidate{
+			.Number     = IdentityNumber.toLongLong(),
+			.Title      = OpenQueueTitle,
+			.Repository = QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository).toStdString(),
+		};
+		return core::match_home_filter(HomeFilter->query().toStdString(), candidate).has_value();
+	}
+
+	void workbench_window::apply_home_filter()
+	{
+		if (HomeFilter == nullptr || HomeList == nullptr) {
+			return;
+		}
+		const auto query  = HomeFilter->query();
+		const auto active = core::home_filter_active(query.toStdString());
+		HomeList->set_filter(query);
+		// The Active review card and Review Cycles are filtered with the list:
+		// each is shown while it matches, and counted as a match.
+		auto elsewhere      = 0;
+		HomeLandingFiltered = active && !home_landing_matches();
+		if (active && !HomeLandingFiltered && HomeLanding != nullptr && HomeLanding->state() == landing_state::back_to_review) {
+			++elsewhere;
+		}
+		if (HomeCyclesList != nullptr && HomeCycles != nullptr) {
+			auto cycles = 0;
+			for (auto row = 0; row < HomeCyclesList->count() && static_cast<std::size_t>(row) < CycleRecents.size(); ++row) {
+				const auto& recent  = CycleRecents[static_cast<std::size_t>(row)];
+				const auto  matched = !active || core::match_home_filter(query.toStdString(), core::home_filter_candidate{ .Title = std::string{ recent.Cycle.Title }, .Repository = recent.Location }).has_value();
+				HomeCyclesList->setRowHidden(row, !matched);
+				cycles += active && matched ? 1 : 0;
+			}
+			HomeCycles->setVisible(!active || cycles > 0);
+			elsewhere += cycles;
+		}
+		HomeList->set_filter_elsewhere(elsewhere);
+		HomeFilter->set_count(HomeList->filter_matches() + elsewhere);
+		update_home_landing();
 	}
 
 	auto workbench_window::home_focus_bar_action() const noexcept -> QAction*
@@ -16503,6 +16619,14 @@ namespace bpr::qt {
 		if (HomeList != nullptr) {
 			HomeList->set_queue_status(QueueReady, HomeAccount);
 		}
+		// [[BPR-1865]]. The filter stands while Home has rows to filter.
+		if (HomeFilter != nullptr) {
+			const auto rows = HomeAccount || !RecentReviews.Entries.empty() || !CycleRecents.empty();
+			if (!rows && !HomeFilter->query().isEmpty()) {
+				HomeFilter->clear_query();
+			}
+			HomeFilter->setVisible(rows);
+		}
 	}
 
 	void workbench_window::update_recent_resume_action()
@@ -16632,6 +16756,13 @@ namespace bpr::qt {
 		}
 		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			// [[BPR-1865]]. As in every Home list, "/" or a character typed
+			// goes to the filter.
+			if (const auto typed = key->text(); HomeFilter != nullptr && HomeFilter->isVisible() && !typed.isEmpty() && typed.front().isPrint() && !typed.front().isSpace()
+				&& (key->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier) {
+				HomeFilter->take_typing(typed == QStringLiteral("/") ? QString{ } : typed);
+				return true;
+			}
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
 				&& (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
 				resume_home_cycle(HomeCyclesList->currentRow());
@@ -18500,6 +18631,10 @@ namespace bpr::qt {
 		// the two selectors on one grid row above their two exact OIDs, the row
 		// order the composed control already walks.
 		if (HomeLanding != nullptr) {
+			// [[BPR-1865]]. The filter, under the bar, before what it filters.
+			if (HomeFilter != nullptr) {
+				append(HomeFilter->line_edit());
+			}
 			append(HomeOnboardingButton);
 			append(HomeAddRepositoryButton);
 			append(HomeLanding->primary_button());

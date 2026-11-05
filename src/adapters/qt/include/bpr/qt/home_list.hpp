@@ -16,6 +16,7 @@
 #include <QSortFilterProxyModel>
 #include <QString>
 #include <QToolButton>
+#include <QVariant>
 
 #include <array>
 #include <cstddef>
@@ -24,8 +25,10 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <utility>
 #include <vector>
 
+class QKeyEvent;
 class QLabel;
 class QTimer;
 class QVBoxLayout;
@@ -69,6 +72,26 @@ namespace bpr::qt {
 	/// \brief [[BPR-1365]]. Selects a Home list's current row, if it has one.
 	void home_show_selection(QAbstractItemView& aView);
 
+	/// \brief [[BPR-1865]]. What Home's filter found, shared by the list and
+	/// every slice of it.
+	///
+	/// \details The core ranked the rows (`core::rank_home_filter`); this is
+	/// that answer by row of the queue's source model, so a slice can admit,
+	/// order and mark a row without asking again.
+	struct home_filter_state
+	{
+		QString Query;
+		bool    Active = false;
+		/// The row's place in the ranking, best first; -1 for no match.
+		std::vector<int> Rank;
+		/// The marked runs, as `home_row_role::title_marks`,
+		/// `identity_marks` and `author_marks` answer them.
+		std::vector<std::array<QVariant, 3U>> Marks;
+
+		/// \brief The rank of one source row, or -1.
+		[[nodiscard]] auto rank(int aRow) const -> int;
+	};
+
 	/// \brief [[BPR-0776]] [[BPR-0783]]. One slice of the decided, filtered queue:
 	/// a state panel, a group panel, or a state band inside a group.
 	///
@@ -88,6 +111,11 @@ namespace bpr::qt {
 		void set_state(std::optional<home_group> aState);
 		/// \brief Orders by state first, then by the queue's own order within it.
 		void set_state_ordered(bool aOrdered);
+		/// \brief [[BPR-1865]]. The filter this slice admits and orders by.
+		void set_filter(const home_filter_state* aFilter);
+		/// \brief [[BPR-1865]]. Admits and orders again after the filter
+		/// changed: while it filters, by its ranking, best first.
+		void refilter();
 		/// \brief Whether this slice's rows answer with their account chip.
 		///
 		/// \details A row drops the chip where its group already says the account:
@@ -107,7 +135,13 @@ namespace bpr::qt {
 			-> bool override;
 
 	private:
+		/// \brief The row of the queue's source model that one row of the
+		/// queue stands for, or -1.
+		[[nodiscard]] auto source_row(const QModelIndex& aQueueIndex) const -> int;
+		[[nodiscard]] auto filtering() const noexcept -> bool;
+
 		review_landing_filter_model& Queue;
+		const home_filter_state*     Filter   = nullptr;
 		application::home_grouping   Grouping = application::home_grouping::none;
 		home_group_key               Key;
 		std::optional<home_group>    State;
@@ -318,6 +352,43 @@ namespace bpr::qt {
 		void               set_selection_shown(bool aShown);
 		[[nodiscard]] auto selection_shown() const noexcept -> bool;
 
+		/// \brief [[BPR-1865]]. Filters every list by a query, which the core
+		/// matches and ranks; a blank query filters nothing.
+		///
+		/// \details Each panel keeps the rows that match, best first, and a
+		/// panel with none is not shown. While it filters every panel is held
+		/// open, and its own collapse comes back once the query is cleared.
+		/// The best match anywhere becomes the current result.
+		void               set_filter(const QString& aQuery);
+		[[nodiscard]] auto filter() const -> QString;
+		[[nodiscard]] auto filter_state() const noexcept -> const home_filter_state&;
+		/// \brief The rows the filter shows, in every list.
+		[[nodiscard]] auto filter_matches() const -> int;
+		/// \brief Moves the current result to the next (`aStep` 1) or previous
+		/// (-1) one in reading order; answers whether it moved.
+		auto step_filter(int aStep) -> bool;
+		/// \brief Opens the current result, here or in a new window.
+		void open_filter_result(bool aNewWindow);
+		/// \brief Puts the keyboard on the current result, or on the first row.
+		void focus_filter_result();
+		/// \brief The list holding the current result, and its row; none while
+		/// nothing matches.
+		[[nodiscard]] auto filter_result_view() const noexcept -> QAbstractItemView*;
+		[[nodiscard]] auto filter_result() const -> QModelIndex;
+		/// \brief Matches elsewhere on Home (the Active review card, Review
+		/// Cycles), so the list does not say nothing matches.
+		void set_filter_elsewhere(int aMatches);
+		/// \brief The sentence shown when nothing on Home matches.
+		[[nodiscard]] auto filter_sentence() const noexcept -> QLabel*;
+		/// \brief Typing in a list: a character, or "/" (an empty text), the
+		/// field takes the keyboard for.
+		void set_filter_typing_dispatch(std::function<void(const QString&)> aDispatch);
+		/// \brief Told which list the current result moved to, so the window
+		/// can show the selection there.
+		void set_filter_result_observer(std::function<void(QAbstractItemView*)> aObserver);
+		/// \brief A Recently viewed result opened in this window.
+		void set_recent_open_dispatch(std::function<void(int aRow)> aDispatch);
+
 		/// \brief Recounts every panel, and shows or hides each by what it holds.
 		void refresh();
 		/// \brief Makes one queue identity current; a focusing selection expands
@@ -393,6 +464,23 @@ namespace bpr::qt {
 		};
 
 		void schedule_refresh();
+		/// \brief [[BPR-1865]]. Ranks again once whatever changed has landed.
+		void schedule_filter();
+		void apply_filter();
+		/// \brief Every slice model that exists, shown or not.
+		[[nodiscard]] auto slice_models() const -> std::vector<home_slice_model*>;
+		/// \brief The source row of one row of a list, or -1.
+		[[nodiscard]] auto source_row_of(const QAbstractItemView& aView, const QModelIndex& aIndex) const -> int;
+		/// \brief Every shown result in reading order.
+		[[nodiscard]] auto filter_results() const -> std::vector<std::pair<QAbstractItemView*, QModelIndex>>;
+		void               set_filter_result(QAbstractItemView* aView, const QModelIndex& aIndex);
+		/// \brief Holds every panel open while the filter runs, keeping their
+		/// own collapse to give back.
+		void hold_panels_open();
+		void release_panels();
+		void update_filter_sentence();
+		/// \brief Typing in a list goes to the filter; answers whether it was taken.
+		auto read_filter_typing(const QKeyEvent& aKey) -> bool;
 		/// \brief The keys of every group with a row, in the order of their first
 		/// row in state order, ties by name.
 		[[nodiscard]] auto ordered_keys() const -> std::vector<home_group_key>;
@@ -471,6 +559,22 @@ namespace bpr::qt {
 		std::function<void(const core::queue_item&)> IgnoreDispatch;
 		QLabel*                                      EmptySentence    = nullptr;
 		QLabel*                                      FilteredSentence = nullptr;
+		/// [[BPR-1865]]. The filter, what it found and what it holds open.
+		home_filter_state                            Filter;
+		std::vector<int>                             RecentRank;
+		QLabel*                                      FilterSentence = nullptr;
+		QAbstractItemView*                           FilterView     = nullptr;
+		QPersistentModelIndex                        FilterIndex;
+		int                                          FilterElsewhere = 0;
+		bool                                         FilterPending   = false;
+		bool                                         FilterHeld      = false;
+		bool                                         FilterGesture   = false;
+		std::uint8_t                                 HeldPanels      = 0U;
+		bool                                         HeldIgnored     = true;
+		std::map<QString, bool>                      HeldGroups;
+		std::function<void(const QString&)>          FilterTypingDispatch;
+		std::function<void(QAbstractItemView*)>      FilterResultObserver;
+		std::function<void(int aRow)>                RecentOpenDispatch;
 		std::function<void()>                        ClearFiltersDispatch;
 		QAbstractItemView*                           CurrentRows = nullptr;
 		std::function<void(const core::queue_item&)> OpenDispatch;
