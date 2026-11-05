@@ -42,14 +42,49 @@ provider course must verify the correction before the successor freezes;
 build 10's signed artifacts and failed compilation receipt remain immutable.
 
 The corrected provider target compiles with native GCC 15, and both provider
-courses pass on Ubuntu and macOS. Ubuntu's full Release graph also compiles;
-Debug and distribution compilation remain in progress.
+courses pass on Ubuntu and macOS. Frozen build 11 subsequently compiles all
+nine required Release, Debug and distribution graphs across the three hosts.
 
-## Published Windows preview
+## Published Mac and Windows preview
 
 The Windows build 9 prerelease is public at tag `v0.4.2-build.9`, release
 434387749. Its seven anonymous downloads match the native producer bytes and
 retain passing native publisher/timestamp checks. Latest remains 0.4.1.
-Advance the authoritative Windows floor to that observed per-machine MSI's
-`0.4.9` identity before allocating the successor. Mac publication still needs
-the existing notarization credential recovery; no Mac asset is published yet.
+The Mac assets are now published in the same prerelease after credential
+recovery. All seventeen anonymous downloads match their producer inventories;
+native Windows signatures and Mac signatures, staples and Gatekeeper checks
+pass. The separate source assets and SPDX bindings are verified. The frozen
+successor records that published per-machine MSI's `0.4.9` identity as its
+authoritative Windows floor.
+
+## Full qualification corrections
+
+Build 11's comprehensive gates found the activity information button's direct
+`QToolTip::showText` call, which violates the established tooltip boundary.
+Use the shared anchored tooltip with focus ownership for a click or keyboard
+activation. The application-wide tooltip handler already anchors hover. Keep
+the content, accessible description and surrounding layout. The shared helper
+wraps plain text; remove the obsolete rich-text wrapper rather than showing
+literal markup. The MASK
+frontend-design skill and its desktop reference were read for this correction.
+The source architecture gate and exact format 22 check pass; the rebuilt Mac
+anchored-tooltip course and workbench courses at 100%, 125% and 200% pass.
+Other native checks and the fresh successor's full gates remain pending.
+
+The Windows nested offline configure also exposed the producer's absent
+default cache alias. Its own build directory now points to the existing pinned
+canonical cache, preserving the former empty bootstrap directory and leaving
+the shared cache intact. The focused native release contract returns zero;
+retain the supervisor's separate exact-owned MSVC auxiliary cleanup assertion.
+
+The same three Windows Release storage courses pass with native C: temporary
+storage in 12.15 seconds. With D: temporary storage, two hit their 30/60-second
+watchdogs. Use native C: temporary storage for qualification and keep large
+build outputs on D:. No SQLite change or watchdog increase is justified by
+that comparison.
+
+Build 11 is rejected for full publication. Its partial suites, source failure,
+setup failures and intentional exact-owned process stops remain in the external
+run state. No other process was stopped, and its unstarted qualification and
+production tasks are disabled. Freeze a source successor and complete its
+required gates before full publication; the public build 9 remains immutable.
