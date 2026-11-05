@@ -2589,7 +2589,10 @@ namespace bpr::e2e::large_review {
 			fixtureOptions.LargeReviewHistory     = report.HistoryCourse || report.CacheByteCourse || report.FirstTabCourse;
 			fixtureOptions.RepeatReadSessions     = reopenDiagnostic;
 			fixtureOptions.LargeReviewRepeatReads = reopenDiagnostic;
-			if (report.Extended.ProviderCancelCourse) {
+			if (report.Extended.ProviderCancelCourse || report.ResponsivenessCourse) {
+				// Responsiveness observes a pending page before accepting it. A
+				// fast fixture may otherwise deliver both projections between
+				// timer callbacks, so no provisional frame can be observed.
 				fixtureOptions.BeforeFilesPage = [heldRead](std::stop_token aStop) { heldRead->wait(aStop); };
 			}
 			if (report.Extended.PathologicalCourse) {
@@ -2754,6 +2757,9 @@ namespace bpr::e2e::large_review {
 					report.Extended.ProvisionalMetadataRenderMs = metadataClock.completion_ms();
 					note_wall(report, "provisional_metadata_render", metadataClock.wall_ms());
 					report.Extended.MetadataTitle = page->title_label()->text().toStdString();
+					if (report.Extended.ProvisionalMetadataObserved) {
+						heldRead->release();
+					}
 				}
 				if (!report.Extended.AcceptedMetadataObserved && page->projection().has_value() && page->file_model()->file_count() == 515U) {
 					const auto captureStart                  = metadataClock.wall_ms();
@@ -2774,7 +2780,8 @@ namespace bpr::e2e::large_review {
 			// loop. Fixture evidence takes the fake server's mutex, so polling
 			// it here can block the UI on the worker serving the recording.
 			// verify_snapshot below still requires exactly one smart fetch.
-			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application); }), "review load timed out");
+			require(measure_wait(*application, budget, report, "paged_review_and_git_load", [&] { window.home_open_action()->trigger(); }, [&] { return window.files_drawer()->contents_view()->model()->rowCount() == 515 && application->status().EpochStatus == core::epoch_status::ready && access::diff_work_evidence(*application).NavigationReady && quiet(*application)
+																																					 && (!report.ResponsivenessCourse || report.Extended.AcceptedMetadataObserved); }), "review load timed out");
 			metadataObserver.stop();
 			if (report.ResponsivenessCourse) {
 				require(report.Extended.ProvisionalMetadataObserved && report.Extended.AcceptedMetadataObserved
