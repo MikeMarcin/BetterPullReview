@@ -124,11 +124,16 @@ auto main(int argc, char** argv) -> int
 			auto       refusal = git::workspace_recovery_refusal{ };
 			const auto result  = git::recover_installed_agent_workspaces(registry, neighbourhood, { }, &refusal);
 			if (result) {
-				std::cout << "recovered=" << result->Recovered << " live=" << result->Live << '\n';
+				std::cout << "recovered=" << result->Recovered << " live=" << result->Live;
 			} else {
 				std::cout << "failure=" << static_cast<int>(result.error()) << " check=" << git::workspace_refusal_check_name(refusal.Check)
-						  << " folder=" << std::filesystem::relative(refusal.Folder, root).generic_string() << '\n';
+						  << " folder=" << std::filesystem::relative(refusal.Folder, root).generic_string();
 			}
+			// [[BPR-1870]]. The checks that narrowed an object in place.
+			for (const auto check : refusal.Repaired) {
+				std::cout << " repaired=" << git::workspace_refusal_check_name(check);
+			}
+			std::cout << '\n';
 			return 0;
 		}
 		if (phase == "recover" || phase == "cancelled") {
