@@ -407,3 +407,19 @@ workbench queue-filter pointer and `finish_choice` findings, the app
 match the earlier precise dispositions in the external release ledger.
 No clean whole-gate result is claimed. A targeted analyzer recheck and final
 frozen native qualification remain required.
+
+
+### Windows focused-layout fixture wait
+
+The recovered caption course passes its initial theme, then fails in the
+dark theme after 65 polls while Line Details remains shown. A read-only
+inspection of only this disposable test store finds `line_details=1`
+(hidden), matching the passing light theme. The UI projection follows an
+asynchronous profile preference write, whereas the fixture used a fixed
+64-poll wait. The probe now uses its existing five-second bounded effect
+wait with all focused-layout predicates intact. This is a candidate
+correction, not an accepted result: native validation must pass before
+freeze. The exact app delta over `6738233a9` is confined to tests-on
+observation, comments and diagnostics. Full application and manifest pins
+record that review; production mutation pin stays unchanged. All original
+layout, optimized timing/resource and course outer limits remain.

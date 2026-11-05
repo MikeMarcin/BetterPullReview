@@ -24835,7 +24835,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			std::optional<core::semantic_selection>       ChangeOrigin;
 			/// \brief [[BPR-0859]]. Ticks of the waits this probe bounds by
 			/// count and names itself: the panes, the role paint, the change
-			/// walk and the focused layout.
+			/// walk. Focused layout also awaits a profile preference effect.
 			std::size_t Waits = 0U;
 			/// \brief [[BPR-1036]]. The current phase's bounded wait for an
 			/// effect: the observation, a selection's publication and its blobs.
@@ -31720,7 +31720,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		// term naming the condition, the inputs it depends on and the
 		// modality facts. `advance` is the only thing that restarts it. The
 		// waits this probe already bounded by ticks and named -- the panes,
-		// the reveals, the role paint and the focused layout -- keep their
+		// the reveals and the role paint -- keep their
 		// bounds.
 		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
 			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
@@ -32323,32 +32323,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				&& !window->line_details_action()->isChecked()
 				&& detail != nullptr && !detail->isVisible();
 			if (!focused) {
-				if (++probe.Waits <= 64U) {
-					return result::pending;
-				}
-				// [[BPR-0859]]. Name the part of the focused layout that did
-				// not arrive, rather than the stage it did not leave.
-				bpr::app::detail::terminal_text_stream{ }
-					<< "UIFORETW_FOCUSED_LAYOUT_STALLED:rail="
-					<< qt::workbench_drawer_rail::width_pixels
-					<< " files=" << window->files_drawer()->width()
-					<< " conversations=" << window->conversations_drawer()->width()
-					<< " repositories=" << window->repositories_drawer()->width()
-					<< " files_checked="
-					<< window->files_drawer_toggle_action()->isChecked()
-					<< " repositories_checked="
-					<< window->repositories_drawer_toggle_action()->isChecked()
-					<< " conversations_checked="
-					<< window->conversations_drawer_toggle_action()->isChecked()
-					<< " details_checked="
-					<< window->review_details_toggle_action()->isChecked()
-					<< " selector_details="
-					<< window->epoch_selectors()->details_visible()
-					<< " line_details_checked="
-					<< window->line_details_action()->isChecked()
-					<< " detail_shown="
-					<< (detail != nullptr && detail->isVisible()) << '\n';
-				return fail();
+				++probe.Waits;
+				// [[BPR-1854]]. Line details follows an asynchronous profile
+				// preference write. Wait for its public projection through the
+				// existing bounded effect wait, keeping every layout assertion.
+				return wait("UIFORETW_FOCUSED_LAYOUT_STALLED", [&](QTextStream& stream) {
+					stream << "rail="
+						   << qt::workbench_drawer_rail::width_pixels
+						   << " files=" << window->files_drawer()->width()
+						   << " conversations=" << window->conversations_drawer()->width()
+						   << " repositories=" << window->repositories_drawer()->width()
+						   << " files_checked="
+						   << window->files_drawer_toggle_action()->isChecked()
+						   << " repositories_checked="
+						   << window->repositories_drawer_toggle_action()->isChecked()
+						   << " conversations_checked="
+						   << window->conversations_drawer_toggle_action()->isChecked()
+						   << " details_checked="
+						   << window->review_details_toggle_action()->isChecked()
+						   << " selector_details="
+						   << window->epoch_selectors()->details_visible()
+						   << " line_details_checked="
+						   << window->line_details_action()->isChecked()
+						   << " detail_shown="
+						   << (detail != nullptr && detail->isVisible());
+				});
 			}
 			probe.Evidence.FocusedReviewLayout = true;
 			probe.Phase                        = state_type::phase::passed;

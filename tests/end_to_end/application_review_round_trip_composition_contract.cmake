@@ -1,3 +1,7 @@
+# [[BPR-1854]] reviewed over 6738233a9: only the tests-on selected-diff
+# probe replaces a poll-count wait for asynchronous Line Details persistence
+# with the existing bounded effect wait. Every focused-layout predicate and
+# original resource/timing budget stays; no production mutation/host change.
 # [[BPR-1854]] reviewed 6b68d0f47..1f16a7c68: the only pinned app
 # delta is the Windows selected-diff observer selecting the final toolbar action
 # (caption controls) instead of index16 (now Settings after Draft-chip insertion).
@@ -2694,7 +2698,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "b328ce27e8a3137369ca44c9300ef083093ca9efe78008bb0c9557f3d9ce0db4"
+        "05811d533c3eee8c4997593fd3f81612efe18855381ac36452f59d3d88761f42"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3019,7 +3023,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "b3538b452d4a334ca245b804180c685149ef96d4c20b7b8500385c315d01efbb"
+        "4444608f8dd48ca49d83a9da60f579fa9ed6e7bdecf05ddf5f6f51cb3dec4f65"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
