@@ -204,6 +204,10 @@ namespace bpr::app::detail {
 			std::shared_ptr<std::atomic<bool>> Draft;
 			bool                               WaitingDetails = false;
 			std::shared_ptr<std::atomic<bool>> RequiredReviewPresent, CheckFailed;
+			/// [[BPR-1866]]. The viewer's own comment-only review, as GitHub
+			/// records the author's reply in a review thread: 0 none, 1 on the
+			/// current head, 2 on an earlier commit (the author pushed after).
+			std::shared_ptr<std::atomic<int>> ViewerReply;
 		};
 		std::vector<pull_request> OpenPullRequests;
 		/// [[BPR-1681]]. While set, a personal search of any saved
@@ -323,8 +327,11 @@ namespace bpr::app::detail {
 		std::uint64_t                ScriptRead = 0U;
 		refresh_outcome              ScriptOutcome{ refresh_outcome::serve };
 		std::atomic<std::uint32_t>   RepliesOwed{ 0U };
-		std::atomic<std::uint32_t>   RepliesAdded{ 0U };
-		std::atomic<std::uint32_t>   RefreshesSeen{ 0U };
+		/// [[BPR-1866]]. While set, an owed reply is another reviewer's
+		/// rather than the viewer's own.
+		std::atomic<bool>          ForeignReplies{ false };
+		std::atomic<std::uint32_t> RepliesAdded{ 0U };
+		std::atomic<std::uint32_t> RefreshesSeen{ 0U };
 		/// [[BPR-1842]]. Holds every read a pull request's load makes this
 		/// long, before anything else answers it, as `gh`'s own launch and
 		/// round trip do (about 330 ms each on the owner's Mac), so a course
@@ -1319,6 +1326,52 @@ namespace bpr::app::detail {
 		auto operator<=>(const refresh_pick_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1862]]. Delete comment on a draft, in the composed application
+	/// over `conventional-comments-v1`, on `src/engine/renderer.cpp`, with
+	/// the private store. `line` writes a draft on a line inside GitHub's
+	/// diff; `off_hunk` writes one on a line outside every hunk; `agent`
+	/// drafts an agent answer's Draft comment on such a line. Each presses
+	/// the draft's Delete comment, confirms it, and checks that the draft is
+	/// gone from the drawer, the notes and the store. `reopened`, over the
+	/// same data root after a restart, checks that none of the three came
+	/// back.
+	enum class draft_delete_course {
+		line,
+		off_hunk,
+		agent,
+		reopened,
+	};
+
+	enum class draft_delete_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct draft_delete_probe_evidence
+	{
+		/// The draft was saved with its words at its line: inside GitHub's
+		/// diff for `line`, outside it for `off_hunk` and `agent`.
+		bool Written = false;
+		/// Delete comment asked first, and its confirm was pressed.
+		bool Asked = false;
+		/// Neither the drawer nor the notes show the words afterwards.
+		bool ViewGone = false;
+		/// No active draft in the store holds the words afterwards.
+		bool StoreGone = false;
+		/// With the line chosen again, twenty ticks later, still gone.
+		bool Stayed = false;
+		// `agent` only.
+		/// Once its draft was deleted, the turn no longer holds it, so it
+		/// offers Draft comment again.
+		bool Released = false;
+		/// Draft comment pressed again makes a new draft; deleted from Finish
+		/// your review once it is pending, the turn lets it go too.
+		bool Fresh = false;
+
+		auto operator<=>(const draft_delete_probe_evidence&) const = default;
+	};
+
 	/// [[BPR-1345]]. Start a review in the composed application over
 	/// `conventional-comments-v1`, on `src/engine/renderer.cpp`. `pending`
 	/// starts a review on one line, adds a range to it, publishes a third
@@ -2245,6 +2298,13 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto refresh_pick_evidence(const github_application& aApplication)
 			-> refresh_pick_probe_evidence;
 		[[nodiscard]] static auto refresh_pick_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1862]]. One tick of the draft-delete course.
+		[[nodiscard]] static auto exercise_draft_delete(github_application& aApplication, draft_delete_course aCourse)
+			-> draft_delete_probe_result;
+		[[nodiscard]] static auto draft_delete_evidence(const github_application& aApplication)
+			-> draft_delete_probe_evidence;
+		[[nodiscard]] static auto draft_delete_diagnostic(const github_application& aApplication)
 			-> std::string;
 		/// \brief [[BPR-1345]]. One tick of the start-a-review course.
 		[[nodiscard]] static auto exercise_start_review(github_application& aApplication, start_review_course aCourse)

@@ -127,6 +127,8 @@ add_library(
         src/feedback_convention.cpp
         src/feedback_draft_edit.cpp
         src/feedback_header_edit.cpp
+        src/agent_comment_suggestion.cpp
+        src/agent_answer_findings.cpp
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
         src/feedback_label_columns.cpp

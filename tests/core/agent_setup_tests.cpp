@@ -166,6 +166,42 @@ namespace {
 											codex_protocol_choice::app_server);
 		expect(core::current_setup_step(state) == setup_step::ready, "a permitted agent stays ready on GHES");
 	}
+	/// [[BPR-1859]]. Settings' Check agent: offered, running, or why not.
+	void test_check_offer()
+	{
+		using core::agent_check_offer;
+		auto facts = core::agent_check_facts{ .AgentsAdded = true, .Detected = true, .Chosen = true, .SavedChoice = true };
+		expect(core::decide_agent_check(facts) == core::agent_check_decision{ .Offer = agent_check_offer::available, .ChecksWorkspace = false },
+			   "a chosen agent with no review open: the agent row alone");
+		facts.ReviewOpen = true;
+		expect(core::decide_agent_check(facts) == core::agent_check_decision{ .Offer = agent_check_offer::available, .ChecksWorkspace = true }, "with a review open the workspace is made too, as in the setup");
+		facts.AgentChecking = true;
+		expect(core::decide_agent_check(facts) == core::agent_check_decision{ .Offer = agent_check_offer::running }, "a running agent check is not started again");
+		facts.AgentChecking     = false;
+		facts.WorkspaceChecking = true;
+		expect(core::decide_agent_check(facts).Offer == agent_check_offer::running, "nor while the workspace row runs");
+		facts.WorkspaceChecking = false;
+		facts.AgentsAdded       = false;
+		expect(core::decide_agent_check(facts) == core::agent_check_decision{ .Offer = agent_check_offer::no_agent }, "no agent added: nothing to check");
+		facts.AgentsAdded = true;
+		facts.Chosen      = false;
+		facts.SavedChoice = false;
+		expect(core::decide_agent_check(facts).Offer == agent_check_offer::not_chosen, "several found, none picked: choose first");
+		facts.SavedChoice    = true;
+		facts.SavedForbidden = true;
+		expect(core::decide_agent_check(facts).Offer == agent_check_offer::forbidden, "the saved agent forbidden by the open review's host");
+		facts.SavedForbidden = false;
+		expect(core::decide_agent_check(facts) == core::agent_check_decision{ .Offer = agent_check_offer::available, .ChecksWorkspace = true },
+			   "a saved agent no longer found is checked, so the check says so");
+		facts.Detected    = false;
+		facts.SavedChoice = false;
+		expect(core::decide_agent_check(facts).Offer == agent_check_offer::available, "not looked for yet: the host looks first");
+		auto names = std::set<std::string_view>{ };
+		for (const auto offer : { agent_check_offer::available, agent_check_offer::running, agent_check_offer::no_agent, agent_check_offer::not_chosen, agent_check_offer::forbidden }) {
+			names.insert(core::stable_name(offer));
+		}
+		expect(names.size() == 5U, "each offer has its own stable name");
+	}
 }
 
 auto main() -> int
@@ -174,6 +210,7 @@ auto main() -> int
 	test_rows();
 	test_choice();
 	test_checks_and_steps();
+	test_check_offer();
 	std::cout << "agent-setup-tests:pass\n";
 	return EXIT_SUCCESS;
 }

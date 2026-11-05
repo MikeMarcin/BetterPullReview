@@ -939,6 +939,21 @@ namespace bpr::core {
 		git_tool_probe_failed,
 		gh_tool_unsupported,
 		gh_tool_probe_failed,
+		/// \brief [[BPR-1857]]. GitHub refused the account fetching the
+		/// pull request's commits: its sign-in, its permission, or an
+		/// organization's single sign-on the account has not authorized.
+		fetch_sign_in_refused,
+		/// \brief [[BPR-1857]]. The fetch did not reach GitHub, or did not get
+		/// a whole answer: network, proxy, certificate, redirect or timeout.
+		fetch_network,
+		/// \brief [[BPR-1857]]. The fetched commits exceed a fixed size limit.
+		fetch_limit,
+		/// \brief [[BPR-1857]]. The clone that fetches the commits ended in
+		/// failure, for a reason Git did not classify any closer.
+		fetch_failed,
+		/// \brief [[BPR-1857]]. The local folder the fetch writes into could
+		/// not be made or written, or its helper process could not start.
+		fetch_storage,
 	};
 
 	/// \brief Describes the epoch catalog load failed event record.
@@ -1426,6 +1441,12 @@ namespace bpr::core {
 		/// [[BPR-1572]]. GitHub's answers disagree about the accepted
 		/// revision's merge base, so Whole PR has no base it may compare from.
 		merge_base_disputed,
+		/// [[BPR-1857]]. The five fetch failures `epoch_failure` names.
+		fetch_sign_in_refused,
+		fetch_network,
+		fetch_limit,
+		fetch_failed,
+		fetch_storage,
 	};
 
 	/// \brief Computes the reason for result.

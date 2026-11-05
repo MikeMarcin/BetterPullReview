@@ -2236,6 +2236,17 @@ namespace bpr::app::detail {
 							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-14T16:20:00Z") },
 						});
 					}
+					if (const auto reply = found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
+						reviews.append(QJsonObject{
+							{ QStringLiteral("id"), 73000 + static_cast<qint64>(found->Number) },
+							{ QStringLiteral("node_id"), QStringLiteral("R_home_reply_%1").arg(found->Number) },
+							{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QStringLiteral("octo-reviewer") }, { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") } } },
+							{ QStringLiteral("state"), QStringLiteral("COMMENTED") },
+							{ QStringLiteral("commit_id"), reply == 1 ? head : QString{ 40, QLatin1Char('b') } },
+							{ QStringLiteral("body"), QString{ } },
+							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-04T15:12:00Z") },
+						});
+					}
 					response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
 					return response;
 				}
@@ -2377,6 +2388,10 @@ namespace bpr::app::detail {
 				auto       reviews = QJsonArray{ };
 				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
 					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "submittedAt", "2026-10-14T16:20:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+				}
+				// [[BPR-1866]]. The viewer's own reply, a month old.
+				if (const auto reply = known && found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
+					reviews.append(QJsonObject{ { "databaseId", 73000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "submittedAt", "2026-10-04T15:12:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", reply == 1 ? head(waiting) : QString{ 40, QLatin1Char('b') } } } }, { "comments", QJsonObject{ { "totalCount", 1 } } } });
 				}
 				// The inline comments the REST pull request counts, on a review of their own.
 				const auto inlineComments = large ? 5 : small ? 0
@@ -2853,9 +2868,11 @@ namespace bpr::app::detail {
 					? QString{ }
 					: posts.at(0).toObject().value(QStringLiteral("id")).toString();
 				for (const auto& [identifier, body] : overlay->second.Replies) {
-					auto author = QJsonObject{ };
-					author.insert(QStringLiteral("login"), QStringLiteral("octo-reviewer"));
-					author.insert(QStringLiteral("id"), QStringLiteral("U_fixture_viewer"));
+					// [[BPR-1866]]. A refresh's foreign reply is another reviewer's.
+					const auto foreign = identifier.starts_with("PRRC_refresh_foreign_");
+					auto       author  = QJsonObject{ };
+					author.insert(QStringLiteral("login"), foreign ? QStringLiteral("fixture-other-reviewer") : QStringLiteral("octo-reviewer"));
+					author.insert(QStringLiteral("id"), foreign ? QStringLiteral("SYNTHETIC_USER_800099") : QStringLiteral("U_fixture_viewer"));
 					auto replyTo = QJsonObject{ };
 					replyTo.insert(QStringLiteral("id"), rootId);
 					auto post = QJsonObject{ };
@@ -3622,7 +3639,7 @@ namespace bpr::app::detail {
 						while (State->ReadDelay->RepliesOwed.load() != 0U) {
 							--State->ReadDelay->RepliesOwed;
 							const auto added = ++State->ReadDelay->RepliesAdded;
-							State->ThreadOverlays[thread].Replies.emplace_back("PRRC_refresh_reply_" + std::to_string(added),
+							State->ThreadOverlays[thread].Replies.emplace_back((State->ReadDelay->ForeignReplies.load() ? "PRRC_refresh_foreign_" : "PRRC_refresh_reply_") + std::to_string(added),
 																			   "A reply posted while you were reading (" + std::to_string(added) + ").");
 						}
 					}

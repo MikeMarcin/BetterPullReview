@@ -46,6 +46,7 @@
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/feedback_label_controls.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
@@ -679,18 +680,27 @@ auto main(int argc, char** argv) -> int
 		const auto  noUseAsReply = tab->findChildren<QPushButton*>(QStringLiteral("agentTurnUseAsReply")).empty();
 		const auto  answerText   = tab->turn_count() != 0U ? tab->turn_answer(last) : QString{ };
 		auto        drafted      = false;
-		if (draftButton != nullptr && !draftButton->isHidden() && draftButton->text() == QStringLiteral("Draft comment") && !answerText.isEmpty()) {
+		// [[BPR-1861]]. The fixture answered with a bold, title-cased
+		// Conventional Comments header. The reply opens with that label
+		// chosen in the label control and the header in the editor's own
+		// spelling, followed by the agent's words.
+		const auto labelledAnswer = answerText.startsWith(QStringLiteral("**Suggestion (Non-Blocking):** "));
+		if (labelledAnswer && draftButton != nullptr && !draftButton->isHidden() && draftButton->text() == QStringLiteral("Draft comment")) {
 			draftButton->click();
 			auto terms = wait_terms{ };
 			drafted    = wait_until_reporting(terms, [&](wait_terms& aTerms) {
 				QApplication::processEvents();
-				const auto& shown = window.review_editor()->shown_draft();
+				const auto& shown  = window.review_editor()->shown_draft();
+				const auto* labels = window.review_editor()->label_controls();
 				return aTerms.require("reply-open", shown.has_value() && shown->ReplyToThread.has_value())
-					&& aTerms.require("reply-written", window.review_editor()->body_editor()->toPlainText().contains(answerText))
+					&& aTerms.require("reply-written",
+									  window.review_editor()->body_editor()->toPlainText() == QStringLiteral("suggestion (non-blocking): finding-canary-complete name the exhausted retry"))
+					&& aTerms.require("label-chosen", labels != nullptr && labels->state().Label == core::feedback_label::suggestion && labels->state().NonBlocking && !labels->state().Blocking)
 					&& aTerms.require("go-to-draft", draftButton->text() == QStringLiteral("Go to draft"));
 			});
 			if (!drafted) {
-				std::cerr << "agent-chat-conversation-draft:" << terms.render() << " button=" << draftButton->text().toStdString() << '\n';
+				std::cerr << "agent-chat-conversation-draft:" << terms.render() << " button=" << draftButton->text().toStdString()
+						  << " body=" << window.review_editor()->body_editor()->toPlainText().toStdString() << '\n';
 			}
 		}
 		const auto afterDraft            = app::detail::github_application_fixture_access::review_mutation_evidence(*application);
