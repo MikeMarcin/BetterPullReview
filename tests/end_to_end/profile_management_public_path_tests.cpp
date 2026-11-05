@@ -325,8 +325,8 @@ try {
 	initial->window().close();
 	closedTheLastWindow();
 	auto* desktopMenu = residentMenuBar();
-	expect(desktopMenu->profiles_menu()->actions().size() == 5,
-		   "which lists the three profiles, New Window and management");
+	expect(desktopMenu->profiles_menu()->actions().size() == 4,
+		   "which lists the three profiles and management");
 	expect(desktopMenu->view_menu() != nullptr && viewItems(desktopMenu->view_menu()) == windowView
 			   && std::ranges::all_of(desktopMenu->view_menu()->actions(), [](const auto* aAction) {
 					  return aAction->isSeparator() || !aAction->isEnabled();

@@ -167,14 +167,15 @@ namespace {
 			deliver_key_window(nullptr);
 		}
 	}
-	/// The menu bar RFC-BPR-0033 promises while no window is open: Profiles with New
-	/// Window and management, View, and Quit, which AppKit merges into the
+	/// The menu bar RFC-BPR-0033 promises while no window is open: File with New
+	/// Window ([[BPR-1863]]), Profiles with management, View, and Quit, which AppKit merges into the
 	/// application menu. Read from AppKit, not from Qt. Every bar this course sees -
 	/// a window's and the desktop's - satisfies it, so it is also the predicate for
 	/// "no menu was lost for a moment" across a close or a reopening.
 	auto resident_menu_bar_present() -> bool
 	{
-		return native::main_menu_offers("Profiles", "New Window")
+		return native::main_menu_offers("File", "New Window")
+			&& !native::main_menu_offers("Profiles", "New Window")
 			&& native::main_menu_offers("Profiles", "Manage Profiles…")
 			&& native::main_menu_offers("View", "Line numbers")
 			&& native::main_menu_offers("", "Quit");
@@ -382,7 +383,7 @@ try {
 	wait_for([&] { return native::main_menu_is(initial->window().menu_bar()->toNSMenu()); },
 			 "with a window open, the main menu is that window's own menu bar");
 	note("windowed main menu: " + native::describe_main_menu());
-	expect(native::main_menu_offers("Profiles", "New Window") && native::main_menu_offers("View", "Line numbers"),
+	expect(native::main_menu_offers("File", "New Window") && native::main_menu_offers("View", "Line numbers"),
 		   "and it carries the workbench menus");
 	const auto windowed = snapshot_menu_bar();
 	// [[BPR-1305]]. Home hides Hide Drawers in the window's native menu;
@@ -409,7 +410,7 @@ try {
 	check_update_menu();
 	initial->window().activateWindow();
 	focus(initial->window(), "focus returns after the update dialog");
-	expect(native::perform_main_menu_item("Profiles", "New Window"), "native New Window creates an updater sibling");
+	expect(native::perform_main_menu_item("File", "New Window"), "native New Window creates an updater sibling");
 	wait_for([&] { return initial->windows().size() == 2U; }, "two native windows are open");
 	const auto contexts = initial->windows();
 	auto*      sibling  = initial->window(contexts.back());
@@ -463,7 +464,7 @@ try {
 	expect(native::activation_policy_is_regular(), "the process still owns a Dock tile");
 	expect(native::main_menu_is(desktop->desktop_menu()->toNSMenu()),
 		   "with no window, the main menu is the desktop's own menu bar");
-	expect(resident_menu_bar_present(), "and it offers Profiles, New Window, management and Quit");
+	expect(resident_menu_bar_present(), "and it offers New Window, Profiles, management and Quit");
 	expect(native::main_menu_offers("Profiles", "Default"), "and the profile by name");
 	// The owner's rejection, "Closing last window closes menu bar.", is this
 	// comparison. The bar is never lost, but until [[BPR-0796]] the close took
