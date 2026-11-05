@@ -157,6 +157,47 @@ namespace bpr::core {
 	/// checks are not kept, so a reopened application that was set up before
 	/// stands at Check it works with both not run.
 	[[nodiscard]] auto decide_agent_suggestions(const agent_suggestion_facts& aFacts) noexcept -> agent_suggestions_verdict;
+
+	/// \brief [[BPR-1872]]. What the Agent tab knows when a suggested prompt
+	/// is pressed.
+	struct agent_suggestion_press_facts
+	{
+		/// Shift was held: a Shift-click or Shift-Return on the prompt.
+		bool EditFirst = false;
+		/// The question field holds words the reviewer typed (not only
+		/// spaces or line breaks).
+		bool DraftHeld = false;
+		/// A prompt can be sent now: the review is open and no turn runs.
+		bool Usable = false;
+
+		auto operator<=>(const agent_suggestion_press_facts&) const = default;
+	};
+
+	/// \brief What one press on a suggested prompt does.
+	enum class agent_suggestion_press : std::uint8_t {
+		/// Nothing: no prompt can be sent now.
+		ignored,
+		/// Sent as written, as if typed and sent.
+		send,
+		/// Sent as written; the reviewer's own words stay in the field.
+		send_keeping_draft,
+		/// Put in the empty field to edit, the cursor at its end.
+		edit,
+		/// Put after the reviewer's own words in the field, on its own line.
+		edit_after_draft,
+	};
+
+	[[nodiscard]] auto stable_name(agent_suggestion_press aPress) noexcept -> std::string_view;
+
+	/// \brief [[BPR-1872]]. Owner, 2026-11-05: "by default a click on a
+	/// suggested prompt should submit it. Maybe a shift click to let you edit
+	/// before submitting".
+	///
+	/// \details A plain press sends; a Shift press edits. Words already in the
+	/// field are never replaced or sent with the prompt: a plain press sends
+	/// the prompt alone and leaves them in the field, and a Shift press adds
+	/// the prompt after them.
+	[[nodiscard]] auto decide_agent_suggestion_press(const agent_suggestion_press_facts& aFacts) noexcept -> agent_suggestion_press;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_AGENT_TURN_HPP
