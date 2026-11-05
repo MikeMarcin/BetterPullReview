@@ -88,6 +88,38 @@ A reviewer whose reviewed head moved is still told it changed.
   batched reads; `ForeignReplies` makes a refresh's owed reply another
   reviewer's.
 
+### Windows containment pin (2026-11-05, not yet measured)
+
+`application_home_own_activity_public_path` is still pinned
+`unmeasured (registered on macOS)`. The station could not be measured in the
+same context as the other pins. Run on bpr-main-win (JaegAW) at 54117c6ae,
+windows-dev Debug, over OpenSSH, in `C:\code\git\bpr-1857-ac2`:
+
+- `ctest --preset windows-dev -C Debug -R "^application_home_own_activity_public_path$"`
+  passes in 17.26 s. Run directly with the row's environment, it passes in
+  17.34 s. Image SHA-256 `611a65ab…f3345`.
+- Run through `better_pull_review_network_sandbox.exe` with zero capabilities,
+  the same command exits `0xC0000142` (STATUS_DLL_INIT_FAILED) in 0.04 s,
+  before `main`. Two rows from the same image fail the same way: `--home-waiting`
+  (`application_home_waiting_public_path`) and the plain mode
+  (`application_personal_discovery_public_path`). Both are pinned
+  `dos-volume-name`, a cause observed past startup. An OpenSSH session's
+  container stops every Qt image at DLL initialisation, so it cannot show
+  this row's own refusal. The measured pins come from the station's Limited
+  Interactive producer context
+  (`docs/verification/release-v042-windows-containment.md`).
+- `test_network_isolation_structure_contract` passes on the station and on
+  macOS (74 cases). Run without its container, the Windows manifest check
+  refuses this row's unmeasured pin by name. It also refuses
+  `application_home_filter_public_path`'s pin and the missing entries for
+  `application_draft_delete_contract` and
+  `application_open_pull_request_activity_public_path`. Those come from other
+  cards. Inside its container under OpenSSH, the manifest row stops earlier,
+  at `CTest JSON contains no tests`.
+
+Next: repeat the paired direct and contained run in the Limited Interactive
+context and pin the first contained predicate.
+
 ## Owner judgement
 
 None needed. The owner named the section and the rows now land there; the
