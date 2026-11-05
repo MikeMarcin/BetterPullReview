@@ -75,6 +75,46 @@ namespace {
 				   == maximum_prepared_comparison_window,
 			   "the largest window is honoured exactly");
 	}
+
+	// [[BPR-1871]]. A file opened while its pull request still loads waits,
+	// named, until it shows or something says it never will.
+	void an_opened_file_waits_until_it_shows_or_cannot()
+	{
+		expect(decide_opened_file_wait({ }) == opened_file_wait::none, "no file open: nothing waits");
+		expect(decide_opened_file_wait({ .Opened = true, .Shown = true }) == opened_file_wait::none,
+			   "a shown file waits for nothing");
+		expect(decide_opened_file_wait({ .Opened = true }) == opened_file_wait::loading,
+			   "a file opened and not yet refused is loading");
+		for (const auto status : { epoch_status::inactive, epoch_status::loading_catalog, epoch_status::preparing,
+								   epoch_status::committing, epoch_status::resolving, epoch_status::maintaining }) {
+			expect(decide_opened_file_wait({ .Opened = true, .ComparisonRefused = true, .Epoch = status }) == opened_file_wait::loading,
+				   "while the history is still being read, a missing comparison means not yet");
+		}
+		for (const auto status : { epoch_status::ready, epoch_status::unavailable, epoch_status::failed, epoch_status::cancelled }) {
+			expect(decide_opened_file_wait({ .Opened = true, .ComparisonRefused = true, .Epoch = status }) == opened_file_wait::failed,
+				   "a history that stopped without a comparison fails the file");
+		}
+		expect(decide_opened_file_wait({ .Opened = true, .ComparisonRefused = true, .ComparisonPending = true, .Epoch = epoch_status::ready })
+				   == opened_file_wait::loading,
+			   "a comparison still resolving is not yet a failure");
+		expect(decide_opened_file_wait({ .Opened = true, .ComparisonRefused = true, .ComparisonAvailable = true, .Epoch = epoch_status::failed })
+				   == opened_file_wait::loading,
+			   "a comparison that has become available reads the file again");
+		expect(decide_opened_file_wait({ .Opened = true, .FileFailed = true, .ComparisonAvailable = true, .Epoch = epoch_status::ready })
+				   == opened_file_wait::failed,
+			   "the file's own failed read fails it");
+		expect(decide_opened_file_wait({ .Opened = true, .Shown = true, .FileFailed = true }) == opened_file_wait::none,
+			   "once shown, an older failure says nothing");
+	}
+
+	// [[BPR-1871]]. The opened file's reads go ahead of a preparation round
+	// that is not preparing it.
+	void an_opened_file_preempts_a_round_preparing_other_files()
+	{
+		expect(opening_preempts_preparation(true, false), "a running round of other files is stopped");
+		expect(!opening_preempts_preparation(true, true), "a running round preparing the opened file is kept");
+		expect(!opening_preempts_preparation(false, false), "with no round running there is nothing to stop");
+	}
 } // namespace
 
 int main()
@@ -82,5 +122,7 @@ int main()
 	a_small_review_is_prepared_whole_current_then_next_then_the_rest();
 	a_large_review_is_prepared_as_a_bounded_window_around_the_cursor();
 	refusals_yield_nothing();
+	an_opened_file_waits_until_it_shows_or_cannot();
+	an_opened_file_preempts_a_round_preparing_other_files();
 	return EXIT_SUCCESS;
 }
