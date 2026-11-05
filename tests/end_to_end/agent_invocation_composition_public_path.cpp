@@ -1465,11 +1465,20 @@ auto main(int argc, char** argv) -> int
 	}
 	if (course == "crash-running") {
 		auto running = wait_terms{ };
+		// [[BPR-1869]]. The canary reports its identities first, then the
+		// descendant's working directory and HEAD; `origin` follows HEAD, so
+		// once it is shown every line read below is whole. The review context
+		// it echoes afterwards is not waited for.
 		if (!wait_until_reporting(running, [panel](wait_terms& aTerms) {
 				const auto output = panel->output_text().toStdString();
+				aTerms.note("output-bytes", static_cast<std::uint64_t>(output.size()));
+				aTerms.note("descendant-id-seen", output.find("descendant-id\t") != std::string::npos);
+				aTerms.note("process-id-seen", output.find("process-id\t") != std::string::npos);
+				aTerms.note_name("status", panel->status_text().toStdString());
 				return aTerms.require("agent-and-descendant-running",
 									  output.find("process-id\t") != std::string::npos
-										  && output.find("descendant-id\t") != std::string::npos);
+										  && output.find("descendant-id\t") != std::string::npos)
+					&& aTerms.require("workspace-reported", output.find("\norigin\t") != std::string::npos);
 			})) {
 			return fail(*application, "crash-running", running.render());
 		}

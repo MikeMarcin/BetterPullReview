@@ -21,6 +21,17 @@ from scripts.contained_temporary_support import contained_temporary_directory  #
 from process_kill_support import kill_at_checkpoint, run
 
 
+def current_user_sid() -> str:
+    """Windows only: the current user's SID, from System32's whoami.
+
+    Named by path: Git for Windows' usr\\bin, on PATH for perl, carries a POSIX
+    whoami that has no /user.
+    """
+    whoami = Path(os.environ["SystemRoot"]) / "System32" / "whoami.exe"
+    return subprocess.run([str(whoami), "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
+                          check=True).stdout.strip().split(",")[1].strip('"')
+
+
 def make_private(path: Path) -> None:
     """A fixture directory as private as the product creates them.
 
@@ -31,7 +42,10 @@ def make_private(path: Path) -> None:
     if os.name == "posix":
         path.chmod(0o700)
         return
-    user = os.environ["USERDOMAIN"] + "\\" + os.environ["USERNAME"]
+    # [[BPR-1869]]. By SID, not USERDOMAIN\USERNAME: an OpenSSH logon on a
+    # workgroup machine has USERDOMAIN=WORKGROUP, which names no account, and
+    # icacls refused the grant with 1332.
+    user = "*" + current_user_sid()
     # Python's mkdir(mode=0o700) on Windows writes explicit SYSTEM,
     # Administrators and OWNER RIGHTS grants; a private workspace object has
     # only the user's.
@@ -53,8 +67,7 @@ def grant_everyone_object_ace(path: Path) -> None:
         wintypes.LPCWSTR, wintypes.DWORD, ctypes.POINTER(ctypes.c_void_p), ctypes.POINTER(wintypes.ULONG)]
     advapi32.SetFileSecurityW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, ctypes.c_void_p]
     kernel32.LocalFree.argtypes = [ctypes.c_void_p]
-    user = subprocess.run(["whoami", "/user", "/fo", "csv", "/nh"], capture_output=True, text=True,
-                          check=True).stdout.strip().split(",")[1].strip('"')
+    user = current_user_sid()
     sddl = f"D:P(A;OICI;FA;;;{user})(OA;OICI;FA;bf967aba-0de6-11d0-a285-00aa003049e2;;WD)"
     descriptor = ctypes.c_void_p()
     if not advapi32.ConvertStringSecurityDescriptorToSecurityDescriptorW(sddl, 1, ctypes.byref(descriptor), None):
