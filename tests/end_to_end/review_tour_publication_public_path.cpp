@@ -152,7 +152,8 @@ auto main(int argc, char** argv) -> int
 			editor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
 			saved(editor);
 			expect(editor.shown().Draft->Stops.front().Title == "Use the retained source", "manual route reorder precedes publication");
-			wait([&] {auto* summary=window.findChild<QLabel*>(QStringLiteral("overviewSummary"));return summary && summary->text().contains("Draft."); }, "actual provider snapshot renders draft PR status");
+			// BPR-1852 moved the draft state from summary text to the title chip.
+			wait([&] {auto* chip=window.overview_page()->draft_chip();return chip && !chip->isHidden() && chip->accessibleName() == QStringLiteral("Draft pull request"); }, "actual provider snapshot renders draft PR status");
 		}
 		editor.roadmap()->setCurrentIndex(editor.roadmap()->count() - 1);
 		if (mode == "compat") {
