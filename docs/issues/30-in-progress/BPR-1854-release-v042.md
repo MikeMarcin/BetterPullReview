@@ -423,3 +423,11 @@ freeze. The exact app delta over `6738233a9` is confined to tests-on
 observation, comments and diagnostics. Full application and manifest pins
 record that review; production mutation pin stays unchanged. All original
 layout, optimized timing/resource and course outer limits remain.
+
+
+The app-TU recheck at `ced72d7fe` found the new diagnostic callback
+parameter spelling `stream`, alongside the existing `go_on_to_reviewers`
+finding. Only that callback parameter and its single use are renamed to
+`aStream`; captures, operations, predicates and budgets are unchanged.
+This tests-only review reseals full/app-manifest digests while preserving
+the exact production mutation pin. Raw analyzer output is retained.

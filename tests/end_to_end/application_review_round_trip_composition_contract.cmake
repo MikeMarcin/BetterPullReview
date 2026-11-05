@@ -1,3 +1,6 @@
+# [[BPR-1854]] over ced72d7fe, the diagnostic callback parameter is
+# renamed stream to aStream for the pinned naming rule; no operation, capture,
+# predicate or budget changes. This exact tests-only delta is reviewed below.
 # [[BPR-1854]] reviewed over 6738233a9: only the tests-on selected-diff
 # probe replaces a poll-count wait for asynchronous Line Details persistence
 # with the existing bounded effect wait. Every focused-layout predicate and
@@ -2698,7 +2701,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "05811d533c3eee8c4997593fd3f81612efe18855381ac36452f59d3d88761f42"
+        "8b5563e88b1499312f5f9912bbbe721de3cec29efaa3fd8ad9813402406c128c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3023,7 +3026,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "4444608f8dd48ca49d83a9da60f579fa9ed6e7bdecf05ddf5f6f51cb3dec4f65"
+        "dd084d48b4cde531d37238f92e11d1eb18e52e5bd84f692b459de7c34933ed54"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

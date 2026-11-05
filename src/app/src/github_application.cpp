@@ -32327,8 +32327,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				// [[BPR-1854]]. Line details follows an asynchronous profile
 				// preference write. Wait for its public projection through the
 				// existing bounded effect wait, keeping every layout assertion.
-				return wait("UIFORETW_FOCUSED_LAYOUT_STALLED", [&](QTextStream& stream) {
-					stream << "rail="
+				return wait("UIFORETW_FOCUSED_LAYOUT_STALLED", [&](QTextStream& aStream) {
+					aStream << "rail="
 						   << qt::workbench_drawer_rail::width_pixels
 						   << " files=" << window->files_drawer()->width()
 						   << " conversations=" << window->conversations_drawer()->width()
