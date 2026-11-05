@@ -1,10 +1,13 @@
-# [[BPR-1861]] reseal, 2026-11-04, over 41d9ead29 (last matching: BPR-1854's
-# e6eba9b8d). github_application.cpp only: act_on_agent_card and
-# draft_agent_answer pass an agent's suggested comment or answer through
-# core::read_agent_comment_suggestion before drafting it, so its Conventional
-# Comments header is written as the label chip writes it; the production
-# app manifest pin follows that one file. No provider,
-# credential, grant, mutation branch, publication or source-inventory change.
+# [[BPR-1861]] reseal, 2026-11-04, over main b399051a2 merged into the
+# BPR-1861 branch (last matching: BPR-1854's e6eba9b8d). BPR-1861's own app
+# change: act_on_agent_card and draft_agent_answer pass an agent's suggested
+# comment or answer through core::read_agent_comment_suggestion before
+# drafting it, so its Conventional Comments header is written as the label
+# chip writes it; no provider, credential, grant, mutation branch,
+# publication or source-inventory change. The pins also bind main's
+# unresealed BPR-1862 (answer drafts remembered for delete) and BPR-1863
+# (New Window) app bytes, main.cpp and the fixture access header as merged;
+# this reseal does not review those changes.
 # [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
 # The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
 # profile activity store/timer/notification host and accepted-session adoption,
@@ -2614,7 +2617,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-        "328d98333175f136367b376c06a228978c5cac1cd0c7e2d2a69cfe536439fc33"
+        "f85caed614bb290ea66566ff14c9053c7ea140e72bbdd58049ebf7d48e4f71c4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2925,7 +2928,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "c30c7b91d678a1cdcbe7755897bc71a079b5859c8bbb80e0d6f8c6ebbd4cd1b8"
+        "02f0b121a33674244db71609d9f30f9eeeb88772a8163fb7d830753c8e2aae6e"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
