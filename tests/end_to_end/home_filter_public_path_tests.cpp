@@ -163,6 +163,7 @@ try {
 	};
 	const auto reads = logged();
 
+	render(*window, QStringLiteral("home-rest"));
 	// Command-F: the window's Find key is the filter's on Home.
 	window->activateWindow();
 	wait_for([&] { return QApplication::activeWindow() == window; }, "the window is active again once Settings is closed");
@@ -174,8 +175,8 @@ try {
 	settle(30);
 	expect(list->filter_result().data(qt::home_row_role::identity).toString() == QStringLiteral("octo-org/review-repository#18"), "a number's exact row is the current result");
 	expect(shown_rows(*window).contains(QStringLiteral("octo-org/review-repository#18")) && !shown_rows(*window).contains(QStringLiteral("octo-org/review-repository#17")), "the rows that do not match are gone");
+	render(*window, QStringLiteral("home-number"));
 
-	render(*window, QStringLiteral("home-rest"));
 	field->setText(QStringLiteral("cache"));
 	settle(30);
 	render(*window, QStringLiteral("home-cache"));
@@ -190,12 +191,16 @@ try {
 	}
 	expect(filter->count_label()->text() == QStringLiteral("2 matches"), "the field says how many it found");
 
+	field->setText(QStringLiteral("fix"));
+	settle(30);
+	render(*window, QStringLiteral("home-fix"));
 	field->setText(QStringLiteral("dmitri"));
 	settle(30);
 	expect(shown_rows(*window) == QStringList{ QStringLiteral("octo-org/review-repository#4016") }, "an author finds their pull request");
 	field->setText(QStringLiteral("zebra"));
 	settle(30);
 	expect(shown_rows(*window).isEmpty() && list->filter_sentence()->isVisible(), "nothing matching says so in one sentence");
+	render(*window, QStringLiteral("home-nothing"));
 
 	send_key(*field, Qt::Key_Escape);
 	expect(field->text().isEmpty() && shown_rows(*window).size() == listed && field->hasFocus(), "Escape clears the filter and every row is back");
