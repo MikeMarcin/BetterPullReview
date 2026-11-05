@@ -249,7 +249,28 @@ namespace bpr::core {
 		auto operator<=>(const queue_item_facts&) const = default;
 	};
 
+	/// \brief [[BPR-1866]]. Whether the viewer's own submitted reviews make
+	/// them a reviewer of a pull request.
+	///
+	/// \details Never on one they authored. GitHub records an author's reply
+	/// in a review thread, and their comment on a line of their own diff, as
+	/// a comment-only review by them; it cannot be an approval or a change
+	/// request. That is the author speaking, not reviewing, and the commits
+	/// they push after it are their own, so neither is news to them: no
+	/// "changed since my review", no verdict, no reviewer role.
+	[[nodiscard]] constexpr auto reviewed_by_viewer(const bool aReviewedByMe, const bool aAuthored) noexcept -> bool
+	{
+		return aReviewedByMe && !aAuthored;
+	}
+
+	/// \brief [[BPR-1866]]. The viewer's standing verdict as Home says it:
+	/// none on a pull request they authored (see `reviewed_by_viewer`).
+	[[nodiscard]] auto my_review_shown(const queue_membership& aMembership, const queue_my_review& aReview) noexcept -> queue_my_review;
+
 	/// \brief Adds observed authorship and submitted-review facts to presentation without changing retained enrollment reasons.
+	///
+	/// \details [[BPR-1866]]. A pull request the viewer authored is never
+	/// one they reviewed, whatever the retained reasons say.
 	[[nodiscard]] auto queue_membership_with_activity(queue_membership aMembership, std::optional<bool> aAuthored, bool aReviewedByMe) noexcept -> queue_membership;
 
 	struct queue_item

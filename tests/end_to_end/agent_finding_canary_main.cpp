@@ -222,10 +222,19 @@ auto main() -> int
 	findings += ",\"analyzedHead\":\"" + head + "\"";
 	findings += ",\"analyzedCommits\":[\"" + head + "\"]}]}";
 
+	// [[BPR-1861]]. Asked about a review thread, this fixture answers as the
+	// review skill asks a reply to be written, with a Conventional Comments
+	// header, but in the bold, title-cased spelling a model often uses, so a
+	// course can see Draft comment open the reply with that label chosen.
+	const auto answer = field(fields, "conversation.subject", "") == "review_thread"
+		? std::string_view{ "**Suggestion (Non-Blocking):** finding-canary-complete name the exhausted retry" }
+		: std::string_view{ "finding-canary-complete" };
 	std::cout << "{\"type\":\"thread.started\",\"thread_id\":\"finding-canary\"}\n"
 				 "{\"type\":\"turn.started\"}\n"
 				 "{\"type\":\"item.completed\",\"item\":{\"id\":\"item-1\","
-				 "\"type\":\"agent_message\",\"text\":\"finding-canary-complete\"}}\n"
+				 "\"type\":\"agent_message\",\"text\":\""
+			  << answer
+			  << "\"}}\n"
 				 "{\"type\":\"turn.completed\",\"usage\":{\"input_tokens\":1,"
 				 "\"cached_input_tokens\":0,\"output_tokens\":1},\"bprFindings\":"
 			  << findings << "}\n";
