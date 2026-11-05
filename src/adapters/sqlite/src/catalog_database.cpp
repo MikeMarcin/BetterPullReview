@@ -1389,6 +1389,36 @@ namespace bpr::adapters::sqlite::detail {
 				&& (aStatus.st_mode & static_cast<mode_t>(0777)) == 0600 && aStatus.st_nlink == 1;
 		}
 
+		/// [[BPR-1870]]. Whether `aName` under a held private directory is, or
+		/// has just been made, a private store file. A store file is the
+		/// adapter's own; one that is a single-link regular file of this user
+		/// with a wider mode, as a copied or restored data folder has, is
+		/// narrowed to 0600 through a descriptor opened relative to the held
+		/// directory without following a link. A file that is already private
+		/// is only examined, never opened: closing a descriptor drops every
+		/// POSIX record lock this process holds on the file, SQLite's included.
+		/// `ENOENT` is reported through `aMissing`.
+		[[nodiscard]] auto private_file_at(const file_descriptor& aParent, const std::string& aName, bool* aMissing = nullptr) -> bool
+		{
+			struct stat status{ };
+			if (::fstatat(aParent.Value, aName.c_str(), &status, AT_SYMLINK_NOFOLLOW) != 0) {
+				if (aMissing != nullptr) {
+					*aMissing = errno == ENOENT;
+				}
+				return false;
+			}
+			if (private_file(status)) {
+				return true;
+			}
+			if (!S_ISREG(status.st_mode) || status.st_uid != ::geteuid() || status.st_nlink != 1) {
+				return false;
+			}
+			file_descriptor file{ ::openat(aParent.Value, aName.c_str(), O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC) };
+			struct stat     held{ };
+			return file.Value >= 0 && ::fstat(file.Value, &held) == 0 && held.st_dev == status.st_dev && held.st_ino == status.st_ino
+				&& ::fchmod(file.Value, S_IRUSR | S_IWUSR) == 0 && ::fstat(file.Value, &held) == 0 && private_file(held);
+		}
+
 		[[nodiscard]] auto open_private_directory(const std::filesystem::path& aPath)
 			-> std::expected<file_descriptor, failure>
 		{
@@ -1422,6 +1452,17 @@ namespace bpr::adapters::sqlite::detail {
 			struct stat     status{ };
 			if (result.Value < 0 || ::fstat(result.Value, &status) != 0) {
 				return std::unexpected(failure::invalid_path);
+			}
+			// [[BPR-1870]]. A child of a held private parent is one of the
+			// adapter's own folders (`state`, `v1`, `profiles`, a profile's
+			// root), which nothing else uses. One that is a real folder of this
+			// user with a wider mode, as a copied or restored data folder has,
+			// is narrowed through the descriptor just opened without following
+			// a link, never through its path; one owned by anybody else is
+			// still refused.
+			if (!private_directory(status) && S_ISDIR(status.st_mode) && status.st_uid == ::geteuid()
+				&& (::fchmod(result.Value, S_IRWXU) != 0 || ::fstat(result.Value, &status) != 0)) {
+				return std::unexpected(failure::invalid_permissions);
 			}
 			if (!private_directory(status)) {
 				return std::unexpected(failure::invalid_permissions);
@@ -1735,7 +1776,7 @@ namespace bpr::adapters::sqlite::detail {
 				}
 				return std::unexpected(failure::invalid_path);
 			}
-			if (!private_file(status)) {
+			if (!private_file(status) && !private_file_at(aParent, ownedName)) {
 				return std::unexpected(failure::invalid_permissions);
 			}
 			return { };
@@ -3830,11 +3871,11 @@ namespace bpr::adapters::sqlite::detail {
 			return std::unexpected(state_directory_failure::unavailable);
 		}
 #else
-		std::error_code error;
-		const auto      status = std::filesystem::symlink_status(aDirectory.path() / std::string{ aName }, error);
-		if (std::filesystem::exists(status)
-			&& (!std::filesystem::is_regular_file(status)
-				|| (status.permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) != std::filesystem::perms::none)) {
+		// [[BPR-1870]]. A store file under the held, private state/v1 is the
+		// adapter's own; one of this user's with a wider mode is narrowed in
+		// place (`private_file_at`), and anything else is refused.
+		auto missing = false;
+		if (!private_file_at(aDirectory.handles().Version, std::string{ aName }, &missing) && !missing) {
 			return std::unexpected(state_directory_failure::invalid_permissions);
 		}
 		return { };
@@ -4069,21 +4110,17 @@ namespace bpr::adapters::sqlite {
 			return false;
 		}
 #else
-		std::error_code error;
-		if (!std::filesystem::is_directory(aRoot, error) || error) {
+		// [[BPR-1870]]. Narrowed through a descriptor opened without following
+		// a link, after the opened folder is shown to be this user's: a path
+		// based `permissions` call followed a link at the root and changed
+		// whatever it named.
+		detail::file_descriptor root{ ::open(aRoot.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW) };
+		struct stat             status{ };
+		if (root.Value < 0 || ::fstat(root.Value, &status) != 0 || !S_ISDIR(status.st_mode)
+			|| status.st_uid != ::geteuid()) {
 			return false;
 		}
-		std::filesystem::permissions(
-			aRoot,
-			std::filesystem::perms::owner_all,
-			std::filesystem::perm_options::replace,
-			error);
-		if (error) {
-			return false;
-		}
-		const auto status = std::filesystem::symlink_status(aRoot, error);
-		return !error && std::filesystem::is_directory(status)
-			&& status.permissions() == std::filesystem::perms::owner_all;
+		return ::fchmod(root.Value, S_IRWXU) == 0 && ::fstat(root.Value, &status) == 0 && detail::private_directory(status);
 #endif
 	}
 
@@ -4314,6 +4351,146 @@ namespace bpr::adapters::sqlite {
 #endif
 		} catch (...) {
 			return aRoot;
+		}
+	}
+
+	namespace {
+		[[nodiscard]] auto present(const std::filesystem::file_status aStatus) noexcept -> bool
+		{
+			return aStatus.type() != std::filesystem::file_type::not_found
+				&& aStatus.type() != std::filesystem::file_type::none;
+		}
+
+		// [[BPR-1870]]. A folder is the application's own when it is empty or
+		// holds the catalog's `state/v1`, which every store creates on the first
+		// launch over it. Only such a folder is ever narrowed in place.
+		[[nodiscard]] auto application_shaped_folder(const std::filesystem::path& aRoot) -> bool
+		{
+			std::error_code error;
+			const auto      entries = std::filesystem::directory_iterator{ aRoot, error };
+			if (error) {
+				return false;
+			}
+			if (entries == std::filesystem::directory_iterator{ }) {
+				return true;
+			}
+			const auto state   = std::filesystem::symlink_status(aRoot / "state", error);
+			const auto version = std::filesystem::symlink_status(aRoot / "state" / "v1", error);
+			return state.type() == std::filesystem::file_type::directory
+				&& version.type() == std::filesystem::file_type::directory;
+		}
+
+#if !defined(_WIN32)
+		// The same question asked of the held folder, so what is answered is
+		// what will be narrowed.
+		[[nodiscard]] auto held_application_shaped_folder(const detail::file_descriptor& aRoot) -> bool
+		{
+			const auto listing = ::openat(aRoot.Value, ".", O_RDONLY | O_DIRECTORY | O_CLOEXEC);
+			if (listing < 0) {
+				return false;
+			}
+			auto* const directory = ::fdopendir(listing);
+			if (directory == nullptr) {
+				static_cast<void>(::close(listing));
+				return false;
+			}
+			auto empty = true;
+			while (const auto* const entry = ::readdir(directory)) {
+				const auto name = std::string_view{ entry->d_name };
+				if (name != "." && name != "..") {
+					empty = false;
+					break;
+				}
+			}
+			static_cast<void>(::closedir(directory));
+			if (empty) {
+				return true;
+			}
+			struct stat status{ };
+			if (::fstatat(aRoot.Value, "state", &status, AT_SYMLINK_NOFOLLOW) != 0 || !S_ISDIR(status.st_mode)) {
+				return false;
+			}
+			const auto state = detail::file_descriptor{ ::openat(
+				aRoot.Value, "state", O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW) };
+			return state.Value >= 0 && ::fstatat(state.Value, "v1", &status, AT_SYMLINK_NOFOLLOW) == 0
+				&& S_ISDIR(status.st_mode);
+		}
+#endif
+	} // namespace
+
+	auto storage_root_placement(const std::filesystem::path& aRoot) -> std::filesystem::path
+	{
+		try {
+			if (aRoot.empty() || !aRoot.is_absolute() || aRoot != aRoot.lexically_normal() || !aRoot.has_filename()) {
+				return aRoot;
+			}
+			std::error_code error;
+			const auto      status = std::filesystem::symlink_status(aRoot, error);
+			if (error || status.type() != std::filesystem::file_type::directory) {
+				return aRoot;
+			}
+			const auto nested = aRoot / std::string{ nested_storage_folder } / std::string{ nested_storage_leaf };
+			if (present(std::filesystem::symlink_status(nested, error))) {
+				return nested;
+			}
+			if (detail::validate_private_storage_root(aRoot)) {
+				return aRoot;
+			}
+#if !defined(_WIN32)
+			struct stat owner{ };
+			if (::lstat(aRoot.c_str(), &owner) != 0 || owner.st_uid != ::geteuid()) {
+				return nested;
+			}
+#endif
+			return application_shaped_folder(aRoot) ? aRoot : nested;
+		} catch (...) {
+			return aRoot;
+		}
+	}
+
+	auto tighten_existing_storage_root(const std::filesystem::path& aRoot) -> storage_root_tightening
+	{
+		try {
+			if (aRoot.empty() || !aRoot.is_absolute() || aRoot != aRoot.lexically_normal() || !aRoot.has_filename()) {
+				return storage_root_tightening::refused;
+			}
+			if (detail::validate_private_storage_root(aRoot)) {
+				return storage_root_tightening::already_private;
+			}
+#if defined(_WIN32)
+			if (!application_shaped_folder(aRoot)) {
+				return storage_root_tightening::foreign_content;
+			}
+			return make_storage_root_owner_private(aRoot) ? storage_root_tightening::tightened : storage_root_tightening::refused;
+#else
+			std::error_code error;
+			const auto      canonical = std::filesystem::canonical(aRoot, error);
+			if (error || canonical != aRoot) {
+				return storage_root_tightening::refused;
+			}
+			const auto  root = detail::file_descriptor{ ::open(aRoot.c_str(), O_RDONLY | O_DIRECTORY | O_CLOEXEC | O_NOFOLLOW) };
+			struct stat held{ };
+			struct stat named{ };
+			if (root.Value < 0 || ::fstat(root.Value, &held) != 0 || !S_ISDIR(held.st_mode)
+				|| ::lstat(aRoot.c_str(), &named) != 0 || held.st_dev != named.st_dev || held.st_ino != named.st_ino) {
+				return storage_root_tightening::refused;
+			}
+			if (held.st_uid != ::geteuid()) {
+				return storage_root_tightening::not_owned;
+			}
+			if (detail::private_directory(held)) {
+				return storage_root_tightening::already_private;
+			}
+			if (!held_application_shaped_folder(root)) {
+				return storage_root_tightening::foreign_content;
+			}
+			if (::fchmod(root.Value, S_IRWXU) != 0 || ::fstat(root.Value, &held) != 0 || !detail::private_directory(held)) {
+				return storage_root_tightening::refused;
+			}
+			return storage_root_tightening::tightened;
+#endif
+		} catch (...) {
+			return storage_root_tightening::refused;
 		}
 	}
 } // namespace bpr::adapters::sqlite

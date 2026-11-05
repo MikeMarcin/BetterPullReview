@@ -1,7 +1,9 @@
 #ifndef BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_STORAGE_ROOT_HPP
 #define BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_STORAGE_ROOT_HPP
 
+#include <cstdint>
 #include <filesystem>
+#include <string_view>
 
 namespace bpr::adapters::sqlite {
 	/// \brief Narrows a directory the caller owns to the owner-private shape
@@ -78,6 +80,66 @@ namespace bpr::adapters::sqlite {
 	/// changes or opens anything for writing, and throws nothing.
 	[[nodiscard]] auto storage_root_on_disk_spelling(
 		const std::filesystem::path& aRoot) -> std::filesystem::path;
+
+	/// \brief The folder, inside a named data folder that is not the
+	/// application's own, that the stores keep their data in instead.
+	inline constexpr auto nested_storage_folder = std::string_view{ "BetterPullReview" };
+	/// \brief The data root inside `nested_storage_folder`.
+	inline constexpr auto nested_storage_leaf = std::string_view{ "data" };
+
+	/// \brief Where the stores keep their data for a data folder the user
+	/// named.
+	///
+	/// \details [[BPR-1870]]. The stores need a root only this user can
+	/// reach. A folder the application made, or one that is empty or holds
+	/// the catalog's `state/v1` (the application's own data, copied or made
+	/// beforehand with `mkdir -p`), is used as it is and narrowed by
+	/// `tighten_existing_storage_root`. A folder that holds anything else may
+	/// be used by other programs (a sync client, a backup tool, a project), so
+	/// its mode is never changed: the stores keep their data in
+	/// `<root>/BetterPullReview/data` instead, which the application creates
+	/// owner-private, and whose own private parent then holds the agent
+	/// workspace neighbourhood. The same happens for an existing folder owned
+	/// by another account. Once that nested root exists it is always chosen,
+	/// so a later change to the outer folder never strands the data.
+	///
+	/// A root that is missing, not a real folder, or not absolute and
+	/// lexically normal is returned unchanged for the checks that create or
+	/// refuse it. Read-only; never throws.
+	[[nodiscard]] auto storage_root_placement(
+		const std::filesystem::path& aRoot) -> std::filesystem::path;
+
+	/// \brief What `tighten_existing_storage_root` found and did.
+	enum class storage_root_tightening : std::uint8_t {
+		/// The stores already admit the root; nothing was changed.
+		already_private,
+		/// The root was the application's own and was narrowed in place.
+		tightened,
+		/// The root belongs to another account; nothing was changed.
+		not_owned,
+		/// The root holds something that is not the application's; nothing
+		/// was changed.
+		foreign_content,
+		/// The root is reached through a link or another spelling, is not a
+		/// folder, or could not be narrowed.
+		refused,
+	};
+
+	/// \brief Narrows an existing data root that is the application's own to
+	/// the owner-private shape, instead of refusing it.
+	///
+	/// \details [[BPR-1870]]. Owner, 2026-11-04: a folder made beforehand
+	/// (`mkdir -p` gives `0755`) was refused at startup. The root is narrowed
+	/// only when it is this user's real folder, reached through no link with
+	/// its own canonical spelling, and is empty or holds the catalog's
+	/// `state/v1`. On POSIX the folder is opened without following a link,
+	/// shown to be the named one by device and inode, inspected through that
+	/// descriptor and set to `0700` with `fchmod`; on Windows the exact
+	/// owner-private descriptor is written through
+	/// `make_storage_root_owner_private`. A folder with other content, another
+	/// account's, or a link is never changed. Never throws.
+	[[nodiscard]] auto tighten_existing_storage_root(
+		const std::filesystem::path& aRoot) -> storage_root_tightening;
 } // namespace bpr::adapters::sqlite
 
 #endif // BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_STORAGE_ROOT_HPP
