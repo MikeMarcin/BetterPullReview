@@ -140,3 +140,14 @@ branch unchanged. Previous early results remain bound to their earlier source;
 fresh relevant native checks and the final frozen comprehensive matrix are
 required for this broader source. The failed allocation created no build-13
 identity and changed neither the counter nor its receipts.
+
+
+The reconciled source `b71e8e3a5` compiled all 26 affected Mac targets and
+passed architecture boundaries. The test-isolation manifest then correctly
+refused two newly merged `WINDOWS_UNCONTAINED` registrations without inventory
+rows: `application_draft_delete_contract` and
+`application_open_pull_request_activity_public_path`. Their declared status is
+now recorded as `unmeasured (registered on macOS)`, as the inventory requires;
+no sandbox, command or test registration changes. The raw failure is retained,
+no functional selection ran after it, and native Windows measurement remains
+distinct from this metadata correction.
