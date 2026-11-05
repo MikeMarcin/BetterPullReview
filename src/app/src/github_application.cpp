@@ -12337,7 +12337,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// Each is a private draft; nothing is published.
 		void draft_agent_answer(const std::string& aKey, const QString& aText, qt::agent_answer_draft_done aDone)
 		{
-			const auto answer = [aDone](const bool aDrafted, const QString& aWhy = { }) {
+			const auto found = AgentAnswerDrafts.find(aKey);
+			const auto draft = found != AgentAnswerDrafts.end() ? found->second : agent_answer_draft{ };
+			// [[BPR-1862]]. The turn keeps the draft it wrote, so that once
+			// the draft is deleted the turn offers Draft comment again.
+			const auto answer = [this, aDone, aKey, draft](const bool aDrafted, const QString& aWhy = { }) {
+				if (aDrafted && !Closing && ReviewDraft) {
+					const auto wrote = draft.Place == core::answer_draft_place::thread_reply ? ReviewDraft->ReplyToThread == std::optional{ draft.Thread }
+						: draft.Place == core::answer_draft_place::line_comment              ? !ReviewDraft->ReplyToThread && ReviewDraft->Anchor.Line == draft.First
+																							 : false;
+					if (const auto kept = AgentAnswerDrafts.find(aKey); wrote && kept != AgentAnswerDrafts.end()) {
+						kept->second.Drafted = ReviewDraft->Id;
+					}
+				}
 				if (aDone) {
 					aDone(aDrafted, aWhy);
 				}
@@ -12346,8 +12358,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				answer(false, QStringLiteral("there is nothing to draft"));
 				return;
 			}
-			const auto found = AgentAnswerDrafts.find(aKey);
-			const auto draft = found != AgentAnswerDrafts.end() ? found->second : agent_answer_draft{ };
 			switch (draft.Place) {
 			case core::answer_draft_place::thread_reply:
 				Window->draft_thread_reply(draft.Thread, aText, [answer](const bool aWritten) { answer(aWritten, aWritten ? QString{ } : QStringLiteral("the conversation's reply did not open; the words are on the clipboard")); });
@@ -13868,6 +13878,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			publish_review_comments(saved);
 			// [[BPR-1733]]. A carried or deleted suggestion leaves its note.
 			present_moved_suggestions();
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-1862]]. An agent turn whose draft was deleted, by any
+			// route, offers Draft comment again.
+			for (auto& [key, answer] : AgentAnswerDrafts) {
+				if (!answer.Drafted || !SharedDrafts) {
+					continue;
+				}
+				const auto read = SharedDrafts->read(DraftConsumer, *answer.Drafted);
+				if (read.Accepted && read.Accepted->Draft.State != core::review_draft_state::discarded) {
+					continue;
+				}
+				answer.Drafted.reset();
+				Window->agent_tab()->release_answer_draft(key);
+			}
+#endif
 		}
 
 		/// \brief [[BPR-1374]]. The accepted snapshot's review threads, as the
@@ -14371,6 +14396,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 						}
 					}
 				}
+				// [[BPR-1862]]. A draft deleted from Finish your review, or by
+				// Discard review, while it is the line's draft.
+				leave_deleted_draft();
 			};
 			if (PrivateReview && PrivateDraftsReady) {
 				PrivateReview->change_drafts(aCommands, [this, owner, commands = aCommands, present, done = std::move(aDone)](auto aCommit) {
@@ -14494,6 +14522,21 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			command.ExpectedRevision = aRevision;
 			command.Scope            = read.Accepted->Scope;
 			change_review_drafts({ std::move(command) }, [](bool) { });
+		}
+
+		/// \brief [[BPR-1862]]. A deleted draft is no longer its line's draft.
+		/// \details The store's discard leaves the draft's record, its words
+		/// kept, in the discarded state; held as the selected draft it was
+		/// still drawn as the line's unpublished note, so a confirmed Delete
+		/// looked like it did nothing. The line's draft is read again instead,
+		/// as for a draft that was never saved: nothing at the line, and a new
+		/// comment there is a new draft.
+		void leave_deleted_draft()
+		{
+			if (Closing || Window == nullptr || !ReviewDraft || ReviewDraft->State != core::review_draft_state::discarded) {
+				return;
+			}
+			adopt_review_selection(SelectedSemanticSelection, qt::review_draft_editor_clear_reason::selection_cleared);
 		}
 
 		void accept_shared_draft(const core::revisioned_review_draft& aAccepted)
@@ -16531,6 +16574,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					}
 				}
 			};
+			// [[BPR-1862]]. Nor does a Delete stop without a word.
+			const auto discard      = aCommand.Kind == core::review_draft_command_kind::discard;
+			const auto refuseDelete = [this, discard](const QString& aReason) {
+				if (discard && !Closing && Window) {
+					Window->present_draft_delete_refusal(aReason);
+				}
+			};
 			if (publish) {
 				const auto admission = InlineReviewBinding ? admit_cli_publication(InlineReviewBinding->Target, InlineReviewBinding->ActingIdentity)
 														   : std::expected<void, application::review_mutation_failure>{ std::unexpected(application::review_mutation_failure::undesignated_target) };
@@ -16542,6 +16592,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			if (Closing || !ReviewDraft || !ReviewMutationHost || !SharedDrafts) {
 				refusePublish(QStringLiteral("Not published: the pull request was refreshed before this could be sent. Your draft is kept; publish it again."));
+				refuseDelete(QStringLiteral("Not deleted: the pull request was refreshed before this comment could be deleted. It is kept; delete it again."));
 				settle(false);
 				return;
 			}
@@ -16575,12 +16626,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				if (aRevisionedCommand.Scope != DraftScope || aRevisionedCommand.ExpectedRevision != ReviewDraftRevision || aCommand.Id != ReviewDraft->Id) {
 					Window->review_editor()->present_conflict({ .Accepted = { *ReviewDraft, ReviewDraftRevision, DraftScope }, .Refusal = core::revisioned_draft_refusal::conflict });
 					refusePublish(QStringLiteral("Not published: this draft changed before it could be sent. Check it and publish again."));
+					refuseDelete(QStringLiteral("Not deleted: this comment changed before it could be deleted. Check it and delete it again."));
 					settle(false);
 					return;
 				}
 				if (ReviewDraft->Id.value() > core::maximum_private_identity) {
 					if (aCommand.Kind == core::review_draft_command_kind::discard && PrivateDraftCommandPending) {
-						Window->review_editor()->present_publication_refusal(QStringLiteral("Your comment is still being saved. Delete it after saving completes."));
+						refuseDelete(QStringLiteral("Not deleted: your comment is still being saved. Delete it after saving completes."));
 						settle(false);
 						return;
 					}
@@ -16646,12 +16698,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				}
 				if (PrivateDraftCommandPending) {
 					refusePublish(QStringLiteral("Not published: your last change to this draft is still being saved. Publish again in a moment."));
+					refuseDelete(QStringLiteral("Not deleted: your last change to this comment is still being saved. Delete it again in a moment."));
 					settle(false);
 					return;
 				}
 				PrivateDraftCommandPending = true;
 				const auto owner           = SharedDrafts;
-				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, priorOutcome, settled = std::move(aSettled)](auto aCommit) {
+				PrivateReview->change_draft(aRevisionedCommand, [this, owner, aRevisionedCommand, priorOutcome, refuseDelete, settled = std::move(aSettled)](auto aCommit) {
 					PrivateDraftCommandPending = false;
 					const auto answer          = [&settled](const bool aAccepted) {
 						if (settled) {
@@ -16661,6 +16714,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					if (Closing || owner != SharedDrafts || !aCommit || !owner->adopt(owner->authority(), *aCommit)) {
 						if (!Closing && owner == SharedDrafts && aRevisionedCommand.Command.Kind == core::review_draft_command_kind::begin_publish && Window && Window->review_editor()) {
 							Window->review_editor()->present_publication_refusal(QStringLiteral("Not published: this draft could not be saved for publishing. Your text is kept; publish it again."));
+						}
+						if (!Closing && owner == SharedDrafts) {
+							refuseDelete(QStringLiteral("Not deleted: the comment could not be removed from storage. It is kept; delete it again."));
 						}
 						answer(false);
 						return;
@@ -16676,6 +16732,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			const auto outcome = SharedDrafts->apply(DraftConsumer, aRevisionedCommand);
 			finish_review_draft_command(aRevisionedCommand, outcome, priorOutcome);
+			if (outcome.Failure || !outcome.Accepted) {
+				refuseDelete(QStringLiteral("Not deleted: the comment could not be deleted. It is kept; delete it again."));
+			}
 			settle(!outcome.Failure && outcome.Accepted.has_value());
 		}
 		std::optional<std::pair<core::source_line_ref, std::string>> PendingPrivateReply;
@@ -16734,6 +16793,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			auto* const editor = Window->review_editor();
 			editor->present(core::revisioned_review_draft{ *ReviewDraft, ReviewDraftRevision, DraftScope });
 			refresh_agent_private_context_choices();
+			if (aCommand.Kind == core::review_draft_command_kind::discard) {
+				leave_deleted_draft();
+				return;
+			}
 			if (aCommand.Kind != core::review_draft_command_kind::begin_publish) {
 				return;
 			}
@@ -21021,8 +21084,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				if (Closing || Window == nullptr) {
 					return;
 				}
+				// [[BPR-1862]]. A line's first draft is a placeholder until its
+				// first save gives it the store's identity: the saved draft is
+				// this one under its new identity, not another.
+				const auto placeholder = id.value() > core::maximum_private_identity;
 				if (!aAccepted || !ReviewDraft || DraftScope != scope || ReviewDraft->Anchor != anchor
-					|| ReviewDraft->Id != id || ReviewDraft->Body != text
+					|| (ReviewDraft->Id != id && !placeholder) || ReviewDraft->Body != text
 					|| Window->review_editor()->rejected_candidate()) {
 					refused();
 					return;
@@ -24843,6 +24910,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			std::string                               Diagnostic;
 		};
 		std::optional<refresh_pick_probe_state> RefreshPickProbe;
+		// [[BPR-1862]]. The draft-delete course.
+		struct draft_delete_probe_state
+		{
+			enum class phase {
+				awaiting_file,
+				awaiting_lines,
+				awaiting_line,
+				awaiting_saved,
+				awaiting_question,
+				awaiting_deleted,
+				awaiting_stayed,
+				awaiting_again_saved,
+				awaiting_review_line,
+				awaiting_review_saved,
+				awaiting_review_pending,
+				awaiting_review_finish,
+				awaiting_review_deleted,
+				passed,
+				failed,
+			};
+			detail::draft_delete_probe_evidence  Evidence;
+			std::optional<std::uint32_t>         ReviewLine;
+			std::optional<std::string>           ReviewKey;
+			std::optional<std::uint32_t>         Line;
+			std::optional<core::review_draft_id> Draft;
+			std::optional<core::review_draft_id> Again;
+			std::optional<std::string>           AgentKey;
+			bool                                 AgentAsked = false;
+			std::size_t                          Waited     = 0U;
+			phase                                Phase      = phase::awaiting_file;
+			std::string                          Diagnostic;
+		};
+		std::optional<draft_delete_probe_state> DraftDeleteProbe;
 		// [[BPR-1345]]. The start-a-review course.
 		struct start_review_probe_state
 		{
@@ -25265,6 +25365,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			core::diff_side          Side  = core::diff_side::right;
 			std::uint32_t            First = 0U;
 			std::uint32_t            Last  = 0U;
+			/// [[BPR-1862]]. The draft Draft comment wrote, while the turn
+			/// says Go to draft.
+			std::optional<core::review_draft_id> Drafted;
 		};
 		std::map<std::string, agent_answer_draft> AgentAnswerDrafts;
 		std::uint64_t                             NextAgentAnswerDraft = 0U;
@@ -37935,6 +38038,482 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 	{
 		const auto* const implementation = aApplication.Implementation.get();
 		return implementation != nullptr && implementation->RefreshPickProbe.has_value() ? implementation->RefreshPickProbe->Diagnostic : std::string{ };
+	}
+
+	auto detail::github_application_fixture_access::exercise_draft_delete(
+		github_application& aApplication, const detail::draft_delete_course aCourse) -> detail::draft_delete_probe_result
+	{
+		using result               = detail::draft_delete_probe_result;
+		using course               = detail::draft_delete_course;
+		using state_type           = github_application::implementation::draft_delete_probe_state;
+		auto* const implementation = aApplication.Implementation.get();
+		if (implementation == nullptr) {
+			return result::failed;
+		}
+		if (!implementation->DraftDeleteProbe.has_value()) {
+			implementation->DraftDeleteProbe.emplace();
+		}
+		auto& probe = *implementation->DraftDeleteProbe;
+		if (probe.Phase == state_type::phase::failed) {
+			return result::failed;
+		}
+		if (probe.Phase == state_type::phase::passed) {
+			return result::passed;
+		}
+		if (implementation->Fixture == nullptr || implementation->Window == nullptr || implementation->WorkbenchHost == nullptr || implementation->ReviewMutationHost == nullptr) {
+			return result::pending;
+		}
+		auto* const window = &*implementation->Window;
+		auto* const cards  = window->conversation_panel() != nullptr ? window->conversation_panel()->cards() : nullptr;
+		auto* const editor = window->review_editor();
+		auto* const model  = window->conversation_model();
+		if (cards == nullptr || editor == nullptr || model == nullptr) {
+			return result::pending;
+		}
+		const auto fail = [&probe](const std::string_view aWhy) {
+			probe.Diagnostic += " | phase=" + std::to_string(static_cast<int>(probe.Phase)) + " failed=" + std::string{ aWhy };
+			probe.Phase = state_type::phase::failed;
+			return result::failed;
+		};
+		const auto note = [&probe](std::string aFacts) {
+			const auto key   = "phase=" + std::to_string(static_cast<int>(probe.Phase)) + " ";
+			const auto start = probe.Diagnostic.find(key);
+			if (start == std::string::npos) {
+				probe.Diagnostic += (probe.Diagnostic.empty() ? "" : " | ") + key + std::move(aFacts);
+				return;
+			}
+			const auto end = probe.Diagnostic.find(" | ", start);
+			probe.Diagnostic.replace(start, end == std::string::npos ? std::string::npos : end - start, key + std::move(aFacts));
+		};
+		constexpr auto path  = std::string_view{ "src/engine/renderer.cpp" };
+		const auto     words = std::array{
+			std::string{ "issue: this draft on a changed line is deleted. (BPR-1862 line)" },
+			std::string{ "issue: this draft outside every hunk is deleted. (BPR-1862 off-hunk)" },
+			std::string{ "The agent's answer, drafted outside every hunk, is deleted. (BPR-1862 agent)" },
+			std::string{ "The agent's answer, drafted in a review, is deleted from Finish your review. (BPR-1862 agent review)" },
+		};
+		// Drafted again from the same turn, and kept: `reopened` finds it.
+		const auto again = std::string{ "The agent's answer, drafted again outside every hunk, is kept. (BPR-1862 agent again)" };
+		// The draft an agent turn holds, while it says Go to draft.
+		const auto turnHolds = [&](const std::optional<std::string>& aKey) -> std::optional<core::review_draft_id> {
+	#if defined(BPR_AGENT_INTEGRATIONS)
+			if (aKey) {
+				if (const auto found = implementation->AgentAnswerDrafts.find(*aKey); found != implementation->AgentAnswerDrafts.end()) {
+					return found->second.Drafted;
+				}
+			}
+	#else
+			static_cast<void>(aKey);
+	#endif
+			return std::nullopt;
+		};
+		const auto  index = aCourse == course::line ? 0U : aCourse == course::off_hunk ? 1U
+																					   : 2U;
+		const auto& mine  = words[index];
+		const auto  ready = [&] {
+			return window->github_refresh_action()->isEnabled() && window->github_status_text() == "Pull request ready."
+				&& implementation->WorkbenchHost->outstanding_requests() == 0U && !implementation->PendingReviewMutation.has_value()
+				&& !implementation->PrivateDraftCommandPending && !implementation->PrivateDraftSelectionPending;
+		};
+		const auto saved = [&] {
+			return implementation->SharedDrafts ? implementation->SharedDrafts->recovery_snapshot() : std::vector<core::revisioned_review_draft>{ };
+		};
+		// An active draft in the store with these words.
+		const auto stored = [&](const std::string& aWords) {
+			const auto all = saved();
+			return std::ranges::any_of(all, [&aWords](const core::revisioned_review_draft& aDraft) {
+				return aDraft.Draft.Body == aWords && (aDraft.Draft.State == core::review_draft_state::drafting || aDraft.Draft.State == core::review_draft_state::publishing);
+			});
+		};
+		// The words anywhere the window shows a draft: the drawer's field, the
+		// editor, or a note's post.
+		const auto shown = [&](const std::string& aWords) {
+			const auto text = QString::fromStdString(aWords);
+			if (cards->draft_editor() != nullptr && cards->draft_editor()->toPlainText() == text) {
+				return true;
+			}
+			if (editor->body_editor()->toPlainText() == text) {
+				return true;
+			}
+			return std::ranges::any_of(cards->cards(), [&text](const qt::thread_card& aCard) {
+				return aCard.Draft && std::ranges::any_of(aCard.Posts, [&text](const qt::card_post& aPost) { return aPost.Body == text; });
+			});
+		};
+		const auto facts = [&] {
+			const auto& draft = implementation->ReviewDraft;
+			return "ready=" + std::to_string(ready() ? 1 : 0) + " draft=" + (draft ? std::to_string(draft->Id.value()) : std::string{ "-" })
+				+ " state=" + (draft ? std::string{ core::name(draft->State) } : std::string{ "-" }) + " body=" + (draft ? draft->Body : std::string{ "-" })
+				+ " stored=" + std::to_string(stored(mine) ? 1 : 0) + " shown=" + std::to_string(shown(mine) ? 1 : 0)
+				+ " field=" + std::to_string(cards->draft_editor() != nullptr && cards->draft_editor()->toPlainText().toStdString() == mine ? 1 : 0)
+				+ " editor=" + std::to_string(editor->body_editor()->toPlainText().toStdString() == mine ? 1 : 0) + " cards=" + [&] {
+					  auto ids = std::string{ };
+					  for (const auto& card : cards->cards()) {
+						  if (card.Draft) {
+							  ids += card.Id + "[" + (card.Posts.empty() ? std::string{ "-" } : card.Posts.front().Body.toStdString()) + "],";
+						  }
+					  }
+					  return ids;
+				  }()
+				+ " writing=" + std::to_string(cards->writing_draft() ? 1 : 0) + " status=" + editor->mutation_status_label()->text().toStdString() + " bar=" + window->statusBar()->currentMessage().toStdString();
+		};
+		switch (probe.Phase) {
+		case state_type::phase::awaiting_file: {
+			const auto revealed = reveal_fixture_file(aApplication, path);
+			note("reveal=" + std::to_string(static_cast<int>(revealed)));
+			if (revealed == detail::fixture_file_reveal_result::failed) {
+				return fail("file-not-revealed");
+			}
+			if (revealed == detail::fixture_file_reveal_result::shown) {
+				if (window->current_modality() != qt::review_modality::review) {
+					window->choose_modality(qt::review_modality::review);
+					QCoreApplication::processEvents();
+				}
+				probe.Phase = state_type::phase::awaiting_lines;
+			}
+			return result::pending;
+		}
+		case state_type::phase::awaiting_lines: {
+			note(facts() + " drafts=" + std::to_string(implementation->PrivateDraftsReady ? 1 : 0));
+			if (!ready() || !implementation->PrivateDraftsReady || window->comparison_surface()->current_result() == nullptr) {
+				return result::pending;
+			}
+			if (aCourse == course::reopened) {
+				// After the restart: none of the deleted drafts is kept, and
+				// none shows.
+				for (const auto& written : words) {
+					if (stored(written)) {
+						return fail("reopened-store-kept:" + written);
+					}
+					if (shown(written)) {
+						return fail("reopened-view-shows:" + written);
+					}
+				}
+				// The agent turn's second draft, never deleted, is kept.
+				if (!stored(again)) {
+					return fail("reopened-kept-draft-lost");
+				}
+				probe.Evidence.Written = probe.Evidence.Asked = probe.Evidence.ViewGone = probe.Evidence.StoreGone = true;
+				probe.Waited                                                                                       = 0U;
+				probe.Phase                                                                                        = state_type::phase::awaiting_stayed;
+				return result::pending;
+			}
+			// [[BPR-1735]]. GitHub's own diff of the file decides which lines
+			// are inside a hunk.
+			const auto lines = implementation->shown_github_diff_lines();
+			if (!lines) {
+				return result::pending;
+			}
+			if (!*lines) {
+				return fail("github-diff-unknown");
+			}
+			const auto all = saved();
+			for (auto candidate = std::uint32_t{ 0U }; candidate < 96U && !probe.Line; ++candidate) {
+				const auto outside = core::place_on_github_diff(*lines, core::diff_side::right, candidate, std::nullopt) == core::github_diff_placement::outside_diff;
+				if (outside != (aCourse != course::line)) {
+					continue;
+				}
+				if (std::ranges::any_of(all, [candidate](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Anchor.Line == candidate && !aDraft.Draft.Body.empty(); })) {
+					continue;
+				}
+				if (window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate) && window->conversation_panel()->anchor_line().has_value()
+					&& model->rowCount() == 0) {
+					probe.Line = candidate;
+				}
+			}
+			if (!probe.Line) {
+				return fail("no-line");
+			}
+			probe.Phase = state_type::phase::awaiting_line;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_line: {
+			const auto& draft = implementation->ReviewDraft;
+			note(facts() + " line=" + std::to_string(*probe.Line));
+			if (!ready() || !draft || draft->ReplyToThread || draft->Anchor.Line != *probe.Line || draft->Anchor.Side != core::diff_side::right
+				|| draft->State != core::review_draft_state::drafting || !window->comment_action()->isEnabled()) {
+				return result::pending;
+			}
+			if (aCourse == course::agent) {
+	#if defined(BPR_AGENT_INTEGRATIONS)
+				// [[BPR-1773]]. The Draft comment an agent's answer offers,
+				// for a question asked with this line selected.
+				const auto target = implementation->decide_answer_draft();
+				const auto found  = implementation->AgentAnswerDrafts.find(target.Key);
+				if (found == implementation->AgentAnswerDrafts.end() || found->second.Place != core::answer_draft_place::line_comment || found->second.First != *probe.Line) {
+					return fail("agent-target-not-the-line");
+				}
+				probe.AgentKey = target.Key;
+				implementation->draft_agent_answer(target.Key, QString::fromStdString(mine), [&probe](const bool aDrafted, const QString& aWhy) {
+					probe.AgentAsked = true;
+					if (!aDrafted) {
+						probe.Diagnostic += " | agent-refused=" + aWhy.toStdString();
+					}
+				});
+	#else
+				return fail("agent-integrations-off");
+	#endif
+			} else {
+				window->comment_action()->trigger();
+				QCoreApplication::processEvents();
+				if (cards->draft_editor() == nullptr || cards->draft_editor()->isReadOnly()) {
+					return fail("drawer-draft-not-editable");
+				}
+				cards->draft_editor()->setPlainText(QString::fromStdString(mine));
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_saved: {
+			const auto& draft = implementation->ReviewDraft;
+			note(facts());
+			if (!ready() || !draft || draft->Body != mine || !stored(mine)) {
+				return ++probe.Waited < 2000U ? result::pending : fail("not-saved");
+			}
+			if (aCourse == course::agent) {
+				// The turn says Go to draft, on this draft.
+				if (!probe.AgentAsked) {
+					return ++probe.Waited < 2000U ? result::pending : fail("agent-not-answered");
+				}
+				if (turnHolds(probe.AgentKey) != std::optional{ draft->Id }) {
+					return fail("agent-turn-not-on-its-draft");
+				}
+			}
+			probe.Draft            = draft->Id;
+			probe.Evidence.Written = true;
+			// The draft opens in the drawer, where its Delete is.
+			if (!cards->writing_draft()) {
+				window->comment_action()->trigger();
+				QCoreApplication::processEvents();
+			}
+			auto* const open   = cards->open_card();
+			auto* const remove = open != nullptr ? open->findChild<QAbstractButton*>(QStringLiteral("threadDeleteDraft")) : nullptr;
+			if (remove == nullptr || !remove->isEnabled() || !remove->isVisibleTo(window)) {
+				return ++probe.Waited < 2000U ? result::pending : fail("no-delete");
+			}
+			remove->click();
+			QCoreApplication::processEvents();
+			probe.Phase = state_type::phase::awaiting_question;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_question: {
+			auto* const question = window->delete_draft_confirmation();
+			auto* const yes      = question != nullptr ? question->findChild<QAbstractButton*>(QStringLiteral("deleteDraftConfirmationConfirm")) : nullptr;
+			note(facts());
+			if (yes == nullptr || !question->isVisible()) {
+				return fail("delete-asked-nothing");
+			}
+			yes->click();
+			QCoreApplication::processEvents();
+			probe.Evidence.Asked = true;
+			probe.Waited         = 0U;
+			probe.Phase          = state_type::phase::awaiting_deleted;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_deleted: {
+			note(facts() + " waited=" + std::to_string(probe.Waited));
+			if (!ready() || stored(mine) || shown(mine)) {
+				return ++probe.Waited < 400U ? result::pending : fail("not-deleted");
+			}
+			probe.Evidence.StoreGone = true;
+			probe.Evidence.ViewGone  = true;
+			// The line chosen again reopens nothing with these words.
+			static_cast<void>(window->comparison_surface()->select_conversation_line(core::diff_side::right, *probe.Line == 0U ? 1U : *probe.Line - 1U));
+			QCoreApplication::processEvents();
+			static_cast<void>(window->comparison_surface()->select_conversation_line(core::diff_side::right, *probe.Line));
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_stayed;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_stayed: {
+			note(facts() + " waited=" + std::to_string(probe.Waited));
+			for (const auto& written : words) {
+				if (stored(written) || shown(written)) {
+					return fail("came-back:" + written);
+				}
+			}
+			if (!ready() || ++probe.Waited < 20U) {
+				return probe.Waited < 2000U ? result::pending : fail("not-settled");
+			}
+			probe.Evidence.Stayed = true;
+			if (aCourse != course::agent) {
+				probe.Phase = state_type::phase::passed;
+				return result::passed;
+			}
+			// The turn let its deleted draft go, and Draft comment pressed
+			// again makes a new one.
+			probe.Evidence.Released = !turnHolds(probe.AgentKey).has_value();
+			if (!probe.Evidence.Released) {
+				return fail("agent-turn-still-holds-deleted-draft");
+			}
+			const auto& draft = implementation->ReviewDraft;
+			if (!draft || draft->Anchor.Line != *probe.Line || draft->State != core::review_draft_state::drafting || !window->comment_action()->isEnabled()) {
+				return probe.Waited < 2000U ? result::pending : fail("line-draft-not-back");
+			}
+	#if defined(BPR_AGENT_INTEGRATIONS)
+			probe.AgentAsked = false;
+			implementation->draft_agent_answer(*probe.AgentKey, QString::fromStdString(again), [&probe](const bool aDrafted, const QString& aWhy) {
+				probe.AgentAsked = true;
+				if (!aDrafted) {
+					probe.Diagnostic += " | agent-again-refused=" + aWhy.toStdString();
+				}
+			});
+	#endif
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_again_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_again_saved: {
+			const auto& draft = implementation->ReviewDraft;
+			note(facts() + " again=" + std::to_string(stored(again) ? 1 : 0));
+			if (!ready() || !probe.AgentAsked || !draft || draft->Body != again || !stored(again)) {
+				return ++probe.Waited < 2000U ? result::pending : fail("again-not-saved");
+			}
+			if (draft->Id == probe.Draft || turnHolds(probe.AgentKey) != std::optional{ draft->Id }) {
+				return fail("again-not-a-fresh-draft");
+			}
+			probe.Again = draft->Id;
+			// Then a second turn's draft on a line GitHub's diff holds, which a
+			// review can carry; it leaves the review from Finish your review.
+			const auto lines = implementation->shown_github_diff_lines();
+			if (!lines || !*lines) {
+				return fail("github-diff-unknown");
+			}
+			if (cards->writing_draft()) {
+				window->comment_action()->trigger();
+				QCoreApplication::processEvents();
+			}
+			for (auto candidate = std::uint32_t{ 0U }; candidate < 96U && !probe.ReviewLine; ++candidate) {
+				if (candidate != *probe.Line && core::place_on_github_diff(**lines, core::diff_side::right, candidate, std::nullopt) != core::github_diff_placement::outside_diff
+					&& window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate) && model->rowCount() == 0) {
+					probe.ReviewLine = candidate;
+				}
+			}
+			if (!probe.ReviewLine) {
+				return fail("no-review-line");
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_review_line;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_review_line: {
+			const auto& draft = implementation->ReviewDraft;
+			note(facts() + " reviewLine=" + std::to_string(*probe.ReviewLine));
+			if (!ready() || !draft || draft->ReplyToThread || draft->Anchor.Line != *probe.ReviewLine || draft->State != core::review_draft_state::drafting
+				|| !window->comment_action()->isEnabled()) {
+				return ++probe.Waited < 2000U ? result::pending : fail("review-line-draft");
+			}
+	#if defined(BPR_AGENT_INTEGRATIONS)
+			const auto target = implementation->decide_answer_draft();
+			probe.ReviewKey   = target.Key;
+			probe.AgentAsked  = false;
+			implementation->draft_agent_answer(target.Key, QString::fromStdString(words[3]), [&probe](const bool aDrafted, const QString& aWhy) {
+				probe.AgentAsked = true;
+				if (!aDrafted) {
+					probe.Diagnostic += " | agent-review-refused=" + aWhy.toStdString();
+				}
+			});
+	#endif
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_review_saved;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_review_saved: {
+			const auto& draft = implementation->ReviewDraft;
+			note(facts() + " review=" + std::to_string(stored(words[3]) ? 1 : 0));
+			if (!ready() || !probe.AgentAsked || !draft || draft->Body != words[3] || !stored(words[3])) {
+				return ++probe.Waited < 2000U ? result::pending : fail("review-not-saved");
+			}
+			if (turnHolds(probe.ReviewKey) != std::optional{ draft->Id }) {
+				return fail("review-turn-not-on-its-draft");
+			}
+			probe.Draft = draft->Id;
+			// Start a review takes it into a review.
+			if (!cards->writing_draft()) {
+				window->comment_action()->trigger();
+				QCoreApplication::processEvents();
+			}
+			auto* const open   = cards->open_card();
+			auto* const review = open != nullptr ? open->findChild<QAbstractButton*>(QStringLiteral("threadReviewDraft")) : nullptr;
+			if (review == nullptr || !review->isEnabled()) {
+				return ++probe.Waited < 2000U ? result::pending : fail("no-start-a-review");
+			}
+			review->click();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_review_pending;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_review_pending: {
+			const auto all     = saved();
+			const auto pending = std::ranges::any_of(all, [&](const core::revisioned_review_draft& aDraft) { return aDraft.Draft.Id == probe.Draft && core::pending_in_review(aDraft.Draft); });
+			note(facts() + " pending=" + std::to_string(pending ? 1 : 0));
+			if (!ready() || !pending || cards->writing_draft()) {
+				return ++probe.Waited < 2000U ? result::pending : fail("review-not-pending");
+			}
+			if (!window->review_sheet_open()) {
+				window->finish_review_action()->trigger();
+				QCoreApplication::processEvents();
+			}
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_review_finish;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_review_finish: {
+			auto* const summary = window->review_submission_editor_view();
+			auto        visible = std::vector<QToolButton*>{ };
+			for (auto* const button : summary->pending_list()->findChildren<QToolButton*>(QStringLiteral("wholeReviewPendingDelete"))) {
+				if (button->isVisibleTo(window)) {
+					visible.push_back(button);
+				}
+			}
+			note(facts() + " sheet=" + std::to_string(window->review_sheet_open() ? 1 : 0) + " rows=" + std::to_string(visible.size()));
+			if (!window->review_sheet_open() || visible.size() != 1U) {
+				return ++probe.Waited < 2000U ? result::pending : fail("finish-review-row");
+			}
+			visible.front()->click();
+			QCoreApplication::processEvents();
+			auto* const question = summary->delete_confirmation();
+			auto* const yes      = question != nullptr ? question->findChild<QAbstractButton*>(QStringLiteral("deleteCommentConfirmationConfirm")) : nullptr;
+			if (yes == nullptr) {
+				return fail("row-delete-asked-nothing");
+			}
+			yes->click();
+			QCoreApplication::processEvents();
+			probe.Waited = 0U;
+			probe.Phase  = state_type::phase::awaiting_review_deleted;
+			return result::pending;
+		}
+		case state_type::phase::awaiting_review_deleted: {
+			note(facts() + " review=" + std::to_string(stored(words[3]) ? 1 : 0) + " held=" + std::to_string(turnHolds(probe.ReviewKey) ? 1 : 0));
+			if (!ready() || stored(words[3]) || shown(words[3]) || turnHolds(probe.ReviewKey).has_value()) {
+				return ++probe.Waited < 400U ? result::pending : fail("review-comment-not-let-go");
+			}
+			// The first turn's second draft, never deleted, is kept.
+			if (!stored(again) || turnHolds(probe.AgentKey) != std::optional{ probe.Again }) {
+				return fail("kept-draft-lost");
+			}
+			probe.Evidence.Fresh = true;
+			probe.Phase          = state_type::phase::passed;
+			return result::passed;
+		}
+		case state_type::phase::passed: return result::passed;
+		case state_type::phase::failed: return result::failed;
+		}
+		return result::failed;
+	}
+
+	auto detail::github_application_fixture_access::draft_delete_evidence(const github_application& aApplication) -> detail::draft_delete_probe_evidence
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->DraftDeleteProbe.has_value() ? implementation->DraftDeleteProbe->Evidence : detail::draft_delete_probe_evidence{ };
+	}
+
+	auto detail::github_application_fixture_access::draft_delete_diagnostic(const github_application& aApplication) -> std::string
+	{
+		const auto* const implementation = aApplication.Implementation.get();
+		return implementation != nullptr && implementation->DraftDeleteProbe.has_value() ? implementation->DraftDeleteProbe->Diagnostic : std::string{ };
 	}
 
 	auto detail::github_application_fixture_access::exercise_start_review(
