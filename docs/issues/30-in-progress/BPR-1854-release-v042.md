@@ -280,3 +280,30 @@ temporary-directory or Git policy setting changes. Build output remains on D:.
 The next frozen source still requires all-nine compilation and comprehensive
 native qualification, fresh artifact/source/security audits, signing and public
 download trust verification.
+
+### Build 15: distinguish entering preview from an accepted preview session
+
+All nine build 15 compilation graphs and both bounded sanitizer fuzz courses
+pass at `637f094efb86cc363b539ee141ef054c1abd1cb2`. Windows comprehensive
+Release nevertheless reproduces the public-preview sibling mismatch for the
+whole bounded wait: `session_ready`, the choose-PR landing and the queue shown,
+with zero account reads. Build 15 is rejected; its failed and interrupted
+results are retained. Only this release's owned jobs were stopped, with empty
+owned-process readback. No build 15 package or publication was made.
+
+The previous wait addressed the wrong prerequisite. `activate_public_preview`
+changes the host access mode when it submits profile resolution. That mode bit
+therefore does not establish session acceptance. `accept_session` later
+publishes the accepted preview session to windows already attached through the
+profile's shared projection. In contrast, `adopted_presentation()` intentionally
+returns empty for a window attached after preview acceptance (BPR-1017). A
+sibling attached between those two events can legitimately receive the shared
+activation's `session_ready` publication; waiting longer cannot undo it.
+
+The course now waits for the first window's delivered `session_ready` terminal
+as well as the public-preview mode before opening the late-attached sibling.
+This makes the BPR-1017 precondition explicit. The sibling's exact signed-out
+status, landing, hidden queue, account label and zero-account-read assertions
+remain unchanged. No product source, host broadcast, timing bound or acceptance
+criterion changes. Native focused feedback and a newly frozen comprehensive
+qualification are required; the earlier isolated passes do not accept build 15.
