@@ -2650,7 +2650,16 @@ under one collapsed disclosure. History
 adds Reset agents… (owner look v006): it asks first, then clears every agent
 setting, the clone folders and links and an edited review skill, forgets
 which agent each pull request was last asked with (its turns stay), and the
-setup starts again at Agent; there is no other way back into the setup. At
+setup starts again at Agent; there is no other way back into the setup.
+[[BPR-1859]]. Settings › Agents & context has Check agent under the agent
+list: the setup's own check of the chosen agent, through the same host, with
+the workspace made and removed once while a pull request is open and left
+unchecked otherwise. Beside it one line says what runs, or why it cannot
+(no agent added, several found and none chosen, the open pull request's host
+forbids it, or a check already running, which shows progress and Stop). Its
+rows, a failure's words and remedy (the sign-in command with Copy) and Show
+details appear on the page; it becomes Check again, and a pass after a fix
+moves the setup on exactly as Check it works does. At
 full width the tray's tabs are their names alone, the Agent tab's as well;
 its glyph shows only in the narrow row (the owner's accept of look v007). A new window with a saved
 agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I

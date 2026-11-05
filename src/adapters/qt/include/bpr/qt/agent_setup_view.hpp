@@ -7,6 +7,8 @@
 #include "bpr/core/agent_setup.hpp"
 
 #include "bpr/qt/agent_entry_dialog.hpp"
+#include <QColor>
+#include <QPalette>
 #include <QString>
 
 #include <QWidget>
@@ -16,6 +18,7 @@
 #include <functional>
 #include <optional>
 #include <string>
+#include <utility>
 #include <vector>
 
 class QLabel;
@@ -164,6 +167,20 @@ namespace bpr::qt {
 	[[nodiscard]] auto sign_in_command(core::setup_agent aAgent) -> QString;
 	/// \brief The command the check runs, as the setup names it.
 	[[nodiscard]] auto status_command(core::setup_agent aAgent) -> QString;
+
+	/// \brief [[BPR-1859]]. The chosen entry's own name for an agent of
+	/// its kind, else the agent's plain name; the setup and Settings' Check
+	/// agent say the same.
+	[[nodiscard]] auto setup_agent_name(const application::agent_setup_preferences& aPreferences, core::setup_agent aAgent) -> QString;
+
+	/// \brief [[BPR-1859]]. What the agent row of Check it works proves:
+	/// "Claude Code is signed in", "… is available" or the wrapper's line.
+	[[nodiscard]] auto agent_check_words(const application::agent_setup_projection& aSetup, const QString& aAgent) -> QString;
+
+	/// \brief [[BPR-1859]]. A check row's mark and its colour, from the
+	/// palette: a ring not run, a part-filled ring running, a tick passed, a
+	/// cross failed.
+	[[nodiscard]] auto setup_check_mark(core::setup_check_state aState, const QPalette& aPalette) -> std::pair<QString, QColor>;
 } // namespace bpr::qt
 
 #endif // BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_AGENT_SETUP_VIEW_HPP

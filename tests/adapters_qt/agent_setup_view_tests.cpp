@@ -570,6 +570,107 @@ namespace {
 		skill.show_answer(application::review_skill_answer::copy_failed);
 		expect(skill.status_text().contains(QStringLiteral("nothing was removed")), "a failed Downloads copy says nothing was removed");
 	}
+	/// [[BPR-1859]]. Owner, 2026-11-04: "I want to be able to run agent
+	/// check from agent settings page". Check agent on Settings: an intent,
+	/// disabled with its reason, running with Stop and progress, and the
+	/// result inline: a pass, or the failure, its remedy and its details.
+	void test_settings_check_agent()
+	{
+		auto programs = qt::agent_programs_panel{ };
+		programs.resize(560, 400);
+		auto pressed = std::vector<std::string>{ };
+		programs.set_dispatch({ .Check = [&pressed] { pressed.emplace_back("check"); }, .StopCheck = [&pressed] { pressed.emplace_back("stop"); } });
+		auto preferences   = application::agent_setup_preferences{ };
+		preferences.Chosen = core::setup_agent::claude_code;
+		preferences.Agents = *core::add_agent_entry({ }, core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }));
+		programs.present(preferences, { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude" } });
+		programs.show();
+		QApplication::processEvents();
+		const auto shown = [&programs](const QWidget* aWidget) { return aWidget != nullptr && aWidget->isVisibleTo(&programs); };
+
+		// Nothing added: disabled, and the line says what to do.
+		auto check = qt::agent_check_presentation{ };
+		programs.present_check(check);
+		expect(!programs.check_button()->isEnabled() && programs.check_note()->text() == QStringLiteral("Add an agent, then check it here.") && !shown(programs.stop_check_button()),
+			   "with no agent added Check agent is disabled and says why");
+		check.Decision.Offer = core::agent_check_offer::not_chosen;
+		programs.present_check(check);
+		expect(!programs.check_button()->isEnabled() && programs.check_note()->text().contains(QStringLiteral("Choose one in the Agent tab's setup")), "several found, none chosen: choose first");
+
+		// Offered, with no review open: the agent alone.
+		auto& setup        = check.Setup;
+		setup.Preferences  = preferences;
+		setup.Detected     = true;
+		setup.State.Chosen = core::setup_agent::claude_code;
+		setup.State.Rows   = { { .Agent = core::setup_agent::claude_code, .Path = "/opt/homebrew/bin/claude", .Verdict = { .Permitted = true } } };
+		check.Decision     = { .Offer = core::agent_check_offer::available, .ChecksWorkspace = false };
+		programs.present_check(check);
+		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check agent"), "a chosen agent can be checked");
+		expect(programs.check_note()->text() == QStringLiteral("Runs claude auth status, which sends no question and no code. Open a pull request to check its workspace too."),
+			   "the line says what runs, and that the workspace needs an open pull request");
+		expect(programs.check_result_text().isEmpty(), "no rows before a check has run");
+		programs.check_button()->click();
+		expect(pressed == std::vector<std::string>{ "check" }, "Check agent is an intent");
+		programs.resize(560, programs.sizeHint().height());
+		render(programs, QStringLiteral("settings-check-offered"));
+
+		// Running: disabled with its reason, Stop and progress.
+		setup.Checking                   = true;
+		setup.State.AgentCheck.State     = core::setup_check_state::running;
+		setup.State.WorkspaceCheck.State = core::setup_check_state::running;
+		check.Decision                   = { .Offer = core::agent_check_offer::running };
+		programs.present_check(check);
+		auto* const progress = programs.findChild<QProgressBar*>(QStringLiteral("settingsAgentCheckProgress"));
+		expect(!programs.check_button()->isEnabled() && programs.check_button()->toolTip() == QStringLiteral("A check is running. Stop it to start again.") && shown(programs.stop_check_button())
+				   && shown(progress) && programs.check_note()->text() == QStringLiteral("Checking Claude Code and preparing the workspace…"),
+			   "a running check is not started again, shows its progress and offers Stop");
+		expect(progress->accessibleName() == programs.check_note()->text(), "the progress is named for what runs");
+		programs.stop_check_button()->click();
+		expect(pressed.back() == "stop", "Stop is an intent");
+		programs.resize(560, programs.sizeHint().height());
+		render(programs, QStringLiteral("settings-check-running"));
+
+		// Failed: not signed in, its remedy and the command to copy, details.
+		setup.Checking                   = false;
+		setup.State.AgentCheck           = core::fail_check(core::agent_setup_failure::not_signed_in);
+		setup.State.WorkspaceCheck.State = core::setup_check_state::passed;
+		setup.CheckDetail                = "success (exit 0)\n{\"loggedIn\": false}";
+		check.Decision                   = { .Offer = core::agent_check_offer::available, .ChecksWorkspace = true };
+		programs.present_check(check);
+		const auto failed = programs.check_result_text();
+		expect(failed.contains(QStringLiteral("\u2715 Claude Code is signed in")) && failed.contains(QStringLiteral("\u2713 The open pull request's workspace can be made"))
+				   && failed.contains(QStringLiteral("Claude Code isn't signed in. Sign in from a terminal, then check again.")) && failed.contains(QStringLiteral("claude auth login")),
+			   "a failure says what failed, what to do and the command: " + failed.toStdString());
+		expect(programs.check_button()->isEnabled() && programs.check_button()->text() == QStringLiteral("Check again"), "it can be run again");
+		auto* const details = programs.findChild<QToolButton*>(QStringLiteral("settingsAgentCheckDetails"));
+		auto* const text    = programs.findChild<QPlainTextEdit*>(QStringLiteral("settingsAgentCheckDetailsText"));
+		expect(shown(details) && !shown(text), "its details wait behind Show details");
+		details->click();
+		expect(shown(text) && text->toPlainText().contains(QStringLiteral("loggedIn")), "Show details shows the check's own output");
+		programs.resize(560, programs.sizeHint().height());
+		render(programs, QStringLiteral("settings-check-failed"));
+
+		// Checked again after signing in: a pass with its version.
+		setup.State.AgentCheck = { .State = core::setup_check_state::passed, .Version = "2.1.300" };
+		setup.CheckDetail.clear();
+		programs.present_check(check);
+		const auto passed = programs.check_result_text();
+		expect(passed == QStringLiteral("\u2713 Claude Code is signed in, version 2.1.300\n\u2713 The open pull request's workspace can be made"), "a pass says so: " + passed.toStdString());
+		expect(!shown(details) && !shown(text), "a pass has no details to show");
+		programs.resize(560, programs.sizeHint().height());
+		render(programs, QStringLiteral("settings-check-passed"));
+
+		// A workspace that could not be made says why.
+		setup.State.WorkspaceCheck = core::fail_check(core::agent_setup_failure::workspace_unavailable);
+		programs.present_check(check);
+		expect(programs.check_result_text().contains(QStringLiteral("The agent's workspace could not be made.")) && shown(details), "a workspace failure says so, with its log");
+
+		// Forbidden by the open review's host.
+		check.Decision = { .Offer = core::agent_check_offer::forbidden };
+		programs.present_check(check);
+		expect(!programs.check_button()->isEnabled() && programs.check_note()->text().contains(QStringLiteral("doesn't allow Claude Code")), "a forbidden agent says so");
+		programs.hide();
+	}
 } // namespace
 
 auto main(int argc, char** argv) -> int
@@ -583,6 +684,7 @@ auto main(int argc, char** argv) -> int
 	test_repository_states();
 	test_check_and_ready();
 	test_settings_rows();
+	test_settings_check_agent();
 	std::cout << "agent-setup-view-tests:pass\n";
 	return EXIT_SUCCESS;
 }
