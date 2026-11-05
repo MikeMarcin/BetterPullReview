@@ -395,6 +395,21 @@ def main() -> None:
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
             check(exe, "recover-check", root, "recovered=1 live=0 repaired=record-not-private")
             assert_empty(root)
+            # The same for the application's own folders: a neighbourhood and
+            # a registry of this user's that Everyone can read are given the
+            # exact descriptor through their handles.
+            root = create_root(parent, "negative-acl-neighbourhood")
+            subprocess.run(["icacls", str(root / "neighbourhood"), "/grant", "*S-1-1-0:(OI)(CI)(R)"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            check(exe, "recover-check", root, "recovered=0 live=0 repaired=neighbourhood-not-private")
+            check(exe, "recover-check", root, "recovered=0 live=0")
+            root = create_root(parent, "negative-acl-registry")
+            (root / "registry").mkdir()
+            make_private(root / "registry")
+            subprocess.run(["icacls", str(root / "registry"), "/grant", "*S-1-1-0:(OI)(CI)(R)"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            check(exe, "recover-check", root, "recovered=0 live=0 repaired=registry-not-private")
+            check(exe, "recover-check", root, "recovered=0 live=0")
             # A neighbourhood is never created under a parent another principal can write.
             root = parent / "untrusted-parent"
             root.mkdir()
