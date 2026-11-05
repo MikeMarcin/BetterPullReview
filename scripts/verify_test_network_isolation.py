@@ -163,6 +163,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_agent_supervisor": "qt-dll-initialization",
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
+    # [[BPR-1866]]. The --home-own-activity mode of the Home waiting course.
+    "application_home_own_activity_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1818]]. Prior release-source Release passed in the approved Limited
     # Interactive producer context. Its exact zero-capability replay reported
     # STARTUP_PROFILE_REFUSAL:registry_unavailable. Preserve that measurement;
