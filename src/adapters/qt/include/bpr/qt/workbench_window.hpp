@@ -1040,6 +1040,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]] v002. The drawer draft's Delete question while
 		/// it is open, or null.
 		[[nodiscard]] auto delete_draft_confirmation() const noexcept -> destructive_question*;
+		/// \brief [[BPR-1862]]. Says that a confirmed Delete comment did not
+		/// delete the draft, and why. A delete never ends in silence.
+		void present_draft_delete_refusal(const QString& aReason);
 		/// \brief [[BPR-1345]] v002. Goes to a pending comment from Finish
 		/// your review: Review, its file, and its line selected once that
 		/// file's comparison shows. Navigation only.
