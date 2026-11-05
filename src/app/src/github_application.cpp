@@ -32690,7 +32690,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		// at its right.
 	#if defined(_WIN32)
 		const auto windowControlsInRow = exactRowOrder
-			? toolbar->actionGeometry(toolbarActions[at(16)])
+			? toolbar->actionGeometry(toolbarActions.constLast())
 			: QRect{ };
 	#else
 		const auto windowControlsInRow = QRect{ };
