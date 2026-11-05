@@ -1331,6 +1331,13 @@ bpr_enable_hardening(test_better_pull_review_fuzzy_match_tests)
 bpr_enable_warnings(test_better_pull_review_fuzzy_match_tests)
 bpr_add_network_isolated_test(NAME core_fuzzy_match COMMAND test_better_pull_review_fuzzy_match_tests)
 
+# [[BPR-1865]]. Home's filter: number forms, tiers, ties and Unicode titles.
+bpr_add_executable(test_better_pull_review_home_filter_tests home_filter_tests.cpp)
+target_link_libraries(test_better_pull_review_home_filter_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_home_filter_tests)
+bpr_enable_warnings(test_better_pull_review_home_filter_tests)
+bpr_add_network_isolated_test(NAME core_home_filter COMMAND test_better_pull_review_home_filter_tests)
+
 # [[BPR-1298]]. A body's line endings kept through the desktop editors.
 bpr_add_executable(test_better_pull_review_line_endings_tests line_endings_tests.cpp)
 target_link_libraries(test_better_pull_review_line_endings_tests PRIVATE BetterPullReview::Core)

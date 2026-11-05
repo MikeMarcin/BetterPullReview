@@ -2605,6 +2605,18 @@ set_tests_properties(qt_quiet_buttons PROPERTIES
 
 # [[BPR-1855]]. The signed-out Home card's buttons fit their words and its
 # sentence wraps with a wide typeface at 100, 125, 150 and 200% display scale.
+# [[BPR-1865]]. Home's filter: typing filters, marks, keyboard, Escape and
+# the panels that collapse away.
+bpr_add_executable(test_better_pull_review_qt_home_filter_tests home_filter_tests.cpp)
+target_link_libraries(test_better_pull_review_qt_home_filter_tests PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_better_pull_review_qt_home_filter_tests)
+bpr_enable_warnings(test_better_pull_review_qt_home_filter_tests)
+bpr_add_network_isolated_test(NAME qt_home_filter
+    COMMAND test_better_pull_review_qt_home_filter_tests "${CMAKE_CURRENT_BINARY_DIR}/home-filter.png")
+set_tests_properties(qt_home_filter PROPERTIES
+    ENVIRONMENT "${bpr_qt_github_common_environment}"
+    PASS_REGULAR_EXPRESSION "home-filter-tests:pass")
+
 bpr_add_executable(test_better_pull_review_qt_home_card_fit_tests home_card_fit_tests.cpp)
 target_link_libraries(test_better_pull_review_qt_home_card_fit_tests PRIVATE BetterPullReview::AdapterQt)
 bpr_enable_hardening(test_better_pull_review_qt_home_card_fit_tests)

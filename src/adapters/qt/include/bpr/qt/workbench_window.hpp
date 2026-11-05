@@ -141,6 +141,7 @@ namespace bpr::qt {
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
+	class home_filter_field;
 	class pending_veil;
 	class refresh_note;
 	class keyboard_shortcuts_window;
@@ -1479,6 +1480,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_open_frame() const noexcept -> QWidget*;
 		/// \brief [[BPR-0775]]. Command-L: Home, with the bar focused and its text selected.
 		[[nodiscard]] auto home_focus_bar_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1865]]. Home's filter, under the bar.
+		[[nodiscard]] auto home_filter_box() const noexcept -> home_filter_field*;
+		/// \brief [[BPR-1865]]. Command-F on Home: the filter, focused with its text selected.
+		[[nodiscard]] auto home_filter_action() const noexcept -> QAction*;
 		/// \brief The window's one status line; on Home it is the session line.
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0669]]. Opens what the bar names; disabled until it names one.
@@ -2027,6 +2032,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
 		/// or under it as the first-launch card.
 		void place_home_landing();
+		/// \brief [[BPR-1865]]. Filters Home by the filter's query: the list, the
+		/// Active review card and Review Cycles.
+		void apply_home_filter();
+		/// \brief [[BPR-1865]]. Whether the open review's card matches the filter.
+		[[nodiscard]] auto home_landing_matches() const -> bool;
 		/// \brief [[BPR-0775]]. Home with the bar focused and its text selected.
 		void focus_home_bar();
 		void update_dif_presentation();
@@ -3140,6 +3150,11 @@ namespace bpr::qt {
 		/// while a pull request asked for there is being opened, so the rows
 		/// under the pointer do not move when the review it named is let go.
 		int HomeLandingHold = 0;
+		/// [[BPR-1865]]. The filter under the bar, its Command-F, and whether
+		/// it hides the Active review card.
+		home_filter_field* HomeFilter          = nullptr;
+		QAction*           HomeFilterAction    = nullptr;
+		bool               HomeLandingFiltered = false;
 		/// [[BPR-1843]]. Set while Close review lets the review go: the card
 		/// then leaves at once, since nothing is being opened in its place.
 		bool                            ReleasingReview = false;
