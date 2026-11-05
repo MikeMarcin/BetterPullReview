@@ -242,9 +242,21 @@ namespace bpr::qt {
 		void invalidate(const core::pull_request_authority& aAuthority) override;
 
 		/// \brief Clears stale geometry and presents an exact pending context.
-		void set_loading(const core::diff_request_context& aContext);
+		/// \details [[BPR-1871]]. With `aPath`, the wait names that file.
+		void set_loading(const core::diff_request_context& aContext, QString aPath = { });
 		/// \brief Clears material and optionally presents a host-supplied unavailable reason.
 		void clear(QString aStatus = { });
+		/// \brief [[BPR-1871]]. A file the reviewer opened is on its way, before
+		/// any comparison of it is asked for: the panes say they are loading
+		/// it, by name, in place of "No file open". `aHistory` says the pull
+		/// request's history is still being fetched, which the slow line names.
+		void set_waiting(QString aPath, bool aHistory);
+		/// \brief [[BPR-1871]]. The opened file cannot open: `aSentence` says
+		/// why, in place of the panes, in the failure ink.
+		void set_waiting_failed(QString aPath, QString aSentence);
+		/// \brief [[BPR-1871]]. The file the panes are waiting for or failed
+		/// on, or empty.
+		[[nodiscard]] auto waiting_path() const noexcept -> const QString&;
 		/// \brief Publishes exact semantic selections for application binding.
 		void set_selection_sink(selection_sink aSink);
 		/// \brief Reports an explicit choice of an already selected line.
@@ -727,8 +739,13 @@ namespace bpr::qt {
 		QWidget* IdlePage = nullptr;
 		QWidget* PanesTop = nullptr;
 		/// [[BPR-1576]]. The comparison's wait, and its colours' arrival.
-		pending_veil*             Veil              = nullptr;
-		bool                      ComparisonLoading = false;
+		pending_veil* Veil              = nullptr;
+		bool          ComparisonLoading = false;
+		/// [[BPR-1871]]. The opened file the wait names, whether the pull
+		/// request's history is what it waits on, and why it cannot open.
+		QString                   WaitingPath;
+		bool                      WaitingHistory = false;
+		QString                   WaitingFailure;
 		std::array<bool, 2>       SyntaxAwaited{ };
 		QStackedLayout*           PanesSlot     = nullptr;
 		QLabel*                   IdleTitle     = nullptr;

@@ -268,6 +268,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "fixture-refresh-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-page-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-discovery-delay-ms", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "fixture-clone-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-refresh-script", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "label-authoring-evidence", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "line-draft-course" },
@@ -10495,10 +10496,13 @@ auto main(int argc, char** argv) -> int
 		const auto refreshDelayText   = launch.value("--fixture-refresh-delay-ms");
 		const auto pageDelayText      = launch.value("--fixture-page-delay-ms");
 		const auto discoveryDelayText = launch.value("--fixture-discovery-delay-ms");
+		// [[BPR-1871]]. A slow clone: each Git fetch is held this long.
+		const auto cloneDelayText     = launch.value("--fixture-clone-delay-ms");
 		const auto refreshScriptText  = launch.value("--fixture-refresh-script");
 		const auto refreshDelay       = parseCount(refreshDelayText);
 		const auto pageDelay          = parseCount(pageDelayText);
 		const auto discoveryDelay     = parseCount(discoveryDelayText);
+		const auto cloneDelay         = parseCount(cloneDelayText);
 		auto       refreshScript      = std::vector<bpr::app::detail::github_read_delay_fixture::refresh_outcome>{ };
 		auto       refreshScriptValid = true;
 		if (refreshScriptText.has_value()) {
@@ -10518,18 +10522,19 @@ auto main(int argc, char** argv) -> int
 			}
 		}
 		if ((refreshDelayText.has_value() && !refreshDelay.has_value()) || (pageDelayText.has_value() && !pageDelay.has_value())
-			|| (discoveryDelayText.has_value() && !discoveryDelay.has_value()) || !refreshScriptValid) {
+			|| (discoveryDelayText.has_value() && !discoveryDelay.has_value()) || (cloneDelayText.has_value() && !cloneDelay.has_value()) || !refreshScriptValid) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
 		}
 		if (readDelay.has_value() || readFailNumber.has_value() || refreshDelay.has_value() || pageDelay.has_value() || discoveryDelay.has_value()
-			|| !refreshScript.empty()) {
+			|| cloneDelay.has_value() || !refreshScript.empty()) {
 			readDelayFixture                        = std::make_shared<bpr::app::detail::github_read_delay_fixture>();
 			readDelayFixture->Milliseconds          = attendedHomeLook ? 0U : readDelay.value_or(0U);
 			readDelayFixture->FailNumber            = readFailNumber.value_or(0U);
 			readDelayFixture->RefreshMilliseconds   = refreshDelay.value_or(0U);
 			readDelayFixture->PageMilliseconds      = pageDelay.value_or(0U);
 			readDelayFixture->DiscoveryMilliseconds = discoveryDelay.value_or(0U);
+			readDelayFixture->GitFetchMilliseconds  = cloneDelay.value_or(0U);
 			readDelayFixture->RefreshScript         = std::move(refreshScript);
 			fixtureOptions.ReadDelay                = readDelayFixture;
 			// A look that refreshes replays the recorded read for each refresh.

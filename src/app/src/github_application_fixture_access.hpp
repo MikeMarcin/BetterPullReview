@@ -343,6 +343,16 @@ namespace bpr::app::detail {
 		/// read outside a pull request's load is logged as `home:` and its
 		/// operation.
 		std::atomic<bool> EveryReadEverywhere{ false };
+		/// [[BPR-1871]]. Holds each Git fetch this long before it answers, as a
+		/// large repository's clone does, so a file can be opened while the
+		/// review's Git objects are still on their way. A cancelled fetch stops
+		/// waiting at once. `GitFetchesHeld` counts the fetches it held and
+		/// `GitFetchReleasedAt` is when the last one began to answer.
+		std::atomic<std::uint32_t>                              GitFetchMilliseconds{ 0U };
+		std::atomic<std::uint32_t>                              GitFetchesHeld{ 0U };
+		std::atomic<std::chrono::steady_clock::time_point::rep> GitFetchReleasedAt{ 0 };
+		/// While set, a held fetch then fails as an unreachable remote does.
+		std::atomic<bool> GitFetchFails{ false };
 		/// [[BPR-1842]]. One read a pull request's load made: its operation's
 		/// contract name and when the fixture began to answer it.
 		struct logged_read
@@ -1885,6 +1895,10 @@ namespace bpr::app::detail {
 		std::size_t   PreparedRemoteBlobs   = 0U;
 		std::size_t   PreparedRemoteBatches = 0U;
 		std::uint64_t PreparedHits          = 0U;
+		/// [[BPR-1871]]. Preparation rounds an opened file stopped, and rounds
+		/// that started while an opened file still waited for its comparison.
+		std::size_t PreparationsPreempted               = 0U;
+		std::size_t PreparationsStartedBeforeOpenedFile = 0U;
 	};
 
 	/// \brief Observes public-composition scaling without invoking any effect.
