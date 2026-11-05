@@ -623,7 +623,7 @@ namespace {
 			!window->public_preview_signed_out(),
 			"a window nobody published to is not in the signed-out mode");
 		expect(
-			window->windowTitle() == QStringLiteral("BetterPullReview"),
+			window->windowTitle().startsWith(QStringLiteral("BetterPullReview")) && !window->windowTitle().contains(qt::public_preview_mode_text()),
 			"the title says nothing about a mode nothing described");
 		auto* const card = window->server_card_for(core::host_profile_id{ 1U });
 		expect(

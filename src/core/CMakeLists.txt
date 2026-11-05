@@ -148,6 +148,7 @@ add_library(
         src/tour_steps.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
+        src/window_title.cpp
         src/reviewer_request.cpp
         src/draft_state.cpp
     src/review_publication_policy.cpp

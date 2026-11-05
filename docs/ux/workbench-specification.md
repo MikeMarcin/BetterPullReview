@@ -80,6 +80,26 @@ republication and clear; neither a resize nor a Home round trip is required.
 A content update that preserves navigation keeps Home, the chosen modality
 and selected file; a retained local cycle keeps its own name without the button.
 
+**Window title** ([[BPR-1864]], the owner, 2026-11-04: "Window title in the
+dock on Mac id like to see the open PR if there is one rather than the app
+name and the profile"). macOS hides the title bar, but the window's title is
+what the Dock's window list, the Window menu and Mission Control name it by,
+as do the Windows and Linux taskbars. While a pull request is in front of the
+window, accepted or already named by GitHub's first answer, the title names
+it: number, title, repository, "#188875 Add the Flow Control panel —
+MikeMarcin/BPR-Test". The number leads because it is short and tells windows
+apart in a narrow menu; a title longer than 48 characters is shortened at a
+word with "…", so the repository is never what is cut. The profile follows
+("— Work profile") only when more than one profile exists. Home, a local
+cycle in front of the review, and a window with nothing open keep "BetterPullReview —
+Work profile" (with "Reading without signing in" before the profile while
+signed out in public preview). A window shows one pull request, so the
+document tabs, all files of it, never change the title. The title follows a
+Home round trip, a retitle arriving with a refresh, a close and a profile
+added or removed. The core words it (`core::window_title`); the window sets
+it and its accessible name. No proxy icon or represented file is set: a pull
+request is not a local file and the title bar that would carry one is hidden.
+
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
 Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
 modality rather than by position, and Threads on `Ctrl+4` (⌘4) since
