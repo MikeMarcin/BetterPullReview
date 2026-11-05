@@ -164,6 +164,11 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     "mimalloc_tool_better_pull_review_mcp_context_helper": "qt-dll-initialization",
     "mimalloc_tool_bpr_update_helper": "unmeasured (registered on macOS)",
     # [[BPR-1866]]. The --home-own-activity mode of the Home waiting course.
+    # Still unmeasured. On 2026-11-05, over OpenSSH (not the Limited Interactive
+    # producer context), source 54117c6ae Debug passed directly in 17.3 s.
+    # Contained, it exited 0xC0000142 in 0.04 s, before main. The same image's
+    # --home-waiting and plain modes, both pinned dos-volume-name, exited the
+    # same way. So that session cannot show this row's refusal.
     "application_home_own_activity_public_path": "unmeasured (registered on macOS)",
     # [[BPR-1818]]. Prior release-source Release passed in the approved Limited
     # Interactive producer context. Its exact zero-capability replay reported
