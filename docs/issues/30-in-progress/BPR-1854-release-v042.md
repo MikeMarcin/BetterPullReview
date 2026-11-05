@@ -151,3 +151,23 @@ now recorded as `unmeasured (registered on macOS)`, as the inventory requires;
 no sandbox, command or test registration changes. The raw failure is retained,
 no functional selection ran after it, and native Windows measurement remains
 distinct from this metadata correction.
+
+
+### Updated-main static analysis
+
+The fresh pinned LLVM22 run on 38 changed production translation units at
+`3ccc4369e` reports seven findings (raw exit 1). Three introduced findings are
+corrected: the draft-delete fixture passes its guarded optional without an
+unwrap/re-wrap conversion, the new agent-label parser names its lambda
+`skipSpace`, and the new window-title shortener allows its local string to
+move on return. No decision or returned value changes. The fixture-only app
+delta is reviewed and resealed; the production mutation branch stays exact.
+
+The other findings remain recorded: two published identifier names, the
+previously established fixture body-null analyzer false positive, and a queue
+model-null trace that assumes a construction state unavailable to the completed
+window. `QueueReady` is false until a post-construction projection; the model
+has one unconditional construction assignment and is never cleared. The raw
+finding and full rationale remain external. Focused native, core-only and
+three-file analyzer rechecks are required for the corrections; this is not a
+whole Tidy pass or final qualification.

@@ -49,7 +49,7 @@ namespace bpr::core {
 		if (aCharacters == 0U) {
 			return { };
 		}
-		const auto line = one_line(aText);
+		auto line = one_line(aText);
 		// Counts the code points and finds where the last one that leaves
 		// room for the ellipsis ends.
 		auto characters = std::size_t{ 0U };

@@ -105,7 +105,7 @@ namespace bpr::core {
 					at += marker.size();
 				}
 			};
-			const auto skip_space = [&] {
+			const auto skipSpace = [&] {
 				while (at < line.size() && horizontal_space(line[at])) {
 					++at;
 				}
@@ -119,7 +119,7 @@ namespace bpr::core {
 			}
 			result.Label = line.substr(labelBegin, at - labelBegin);
 			close();
-			skip_space();
+			skipSpace();
 			if (at < line.size() && line[at] == '(') {
 				const auto listEnd = line.find(')', at);
 				const auto nested  = line.find('(', at + 1U);
@@ -143,7 +143,7 @@ namespace bpr::core {
 				}
 				at = listEnd + 1U;
 				close();
-				skip_space();
+				skipSpace();
 			}
 			if (at >= line.size() || line[at] != ':') {
 				return result;
@@ -153,7 +153,7 @@ namespace bpr::core {
 			if (!closed) {
 				return result;
 			}
-			skip_space();
+			skipSpace();
 			result.Shaped       = true;
 			result.SubjectBegin = at;
 			return result;

@@ -38651,7 +38651,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				QCoreApplication::processEvents();
 			}
 			for (auto candidate = std::uint32_t{ 0U }; candidate < 96U && !probe.ReviewLine; ++candidate) {
-				if (candidate != *probe.Line && core::place_on_github_diff(**lines, core::diff_side::right, candidate, std::nullopt) != core::github_diff_placement::outside_diff
+				if (candidate != *probe.Line && core::place_on_github_diff(*lines, core::diff_side::right, candidate, std::nullopt) != core::github_diff_placement::outside_diff
 					&& window->comparison_surface()->select_conversation_line(core::diff_side::right, candidate) && model->rowCount() == 0) {
 					probe.ReviewLine = candidate;
 				}
