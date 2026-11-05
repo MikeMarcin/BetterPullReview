@@ -97,4 +97,26 @@ namespace bpr::core {
 		}
 		return agent_suggestions_verdict::shown;
 	}
+	auto stable_name(const agent_suggestion_press aPress) noexcept -> std::string_view
+	{
+		switch (aPress) {
+		case agent_suggestion_press::ignored:            return "ignored";
+		case agent_suggestion_press::send:               return "send";
+		case agent_suggestion_press::send_keeping_draft: return "send_keeping_draft";
+		case agent_suggestion_press::edit:               return "edit";
+		case agent_suggestion_press::edit_after_draft:   return "edit_after_draft";
+		}
+		return { };
+	}
+
+	auto decide_agent_suggestion_press(const agent_suggestion_press_facts& aFacts) noexcept -> agent_suggestion_press
+	{
+		if (!aFacts.Usable) {
+			return agent_suggestion_press::ignored;
+		}
+		if (aFacts.EditFirst) {
+			return aFacts.DraftHeld ? agent_suggestion_press::edit_after_draft : agent_suggestion_press::edit;
+		}
+		return aFacts.DraftHeld ? agent_suggestion_press::send_keeping_draft : agent_suggestion_press::send;
+	}
 } // namespace bpr::core

@@ -15273,6 +15273,114 @@ namespace {
 			agent->set_code_syntax_dispatch({ });
 			agent->present_thread({ });
 			agent->set_clear_session_dispatch({ });
+			// [[BPR-1872]]. Owner, 2026-11-05: "by default a click on a
+			// suggested prompt should submit it. Maybe a shift click to let you
+			// edit before submitting". The press reaches the prompt as a
+			// reviewer's would: a mouse press and release, or keys on it.
+			{
+				auto* const field  = window.side_chat()->composer();
+				const auto  chosen = [agent] {
+					agent->refresh_suggestions();
+					process_events();
+					const auto buttons = agent->suggestion_buttons();
+					return buttons.empty() ? static_cast<QPushButton*>(nullptr) : buttons.front();
+				};
+				const auto mouse = [](QPushButton& aButton, const Qt::KeyboardModifiers aModifiers) {
+					const auto at      = QPointF{ aButton.rect().center() };
+					auto       press   = QMouseEvent{ QEvent::MouseButtonPress, at, at, at, Qt::LeftButton, Qt::LeftButton, aModifiers };
+					auto       release = QMouseEvent{ QEvent::MouseButtonRelease, at, at, at, Qt::LeftButton, Qt::NoButton, aModifiers };
+					QCoreApplication::sendEvent(&aButton, &press);
+					QCoreApplication::sendEvent(&aButton, &release);
+					process_events();
+				};
+				const auto keys = [](QPushButton& aButton, const int aKey, const Qt::KeyboardModifiers aModifiers) {
+					auto press   = QKeyEvent{ QEvent::KeyPress, aKey, aModifiers };
+					auto release = QKeyEvent{ QEvent::KeyRelease, aKey, aModifiers };
+					QCoreApplication::sendEvent(&aButton, &press);
+					QCoreApplication::sendEvent(&aButton, &release);
+					process_events();
+				};
+				const auto answer = [&window, &identity](const unsigned aGeneration) {
+					identity.InvocationGeneration = aGeneration;
+					window.agent_panel()->admit(identity);
+					window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+					process_events();
+				};
+				const auto finish = [&window, &identity] {
+					window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
+					process_events();
+				};
+				const auto at_end = [field] { return field->textCursor().position() == static_cast<int>(field->toPlainText().size()); };
+				window.side_chat()->send_action()->setEnabled(true);
+				field->clear();
+				auto* button = chosen();
+				expect(button != nullptr && button->isEnabled(), "a suggested prompt can be pressed");
+				const auto prompt = button->property("agentPrompt").toString();
+				expect(button->toolTip() == prompt + QStringLiteral("\nClick to send. Shift-click to edit before sending.") && button->accessibleName() == prompt
+						   && button->accessibleDescription().startsWith(QStringLiteral("Sends this prompt to the agent. Shift-click or "))
+						   && button->accessibleDescription().endsWith(QStringLiteral(" puts it in the question field to edit before sending.")),
+					   "the prompt says a click sends and Shift-click edits, to the pointer and to a screen reader");
+
+				// A plain click sends it: the next turn asks it, exactly.
+				const auto before = agent->turn_count();
+				mouse(*button, Qt::NoModifier);
+				answer(5U);
+				expect(agent->turn_count() == before + 1U && agent->turn_question(before) == prompt && field->toPlainText().isEmpty() && agent->state() == qt::agent_tab_state::working,
+					   "a click sends the prompt as the next turn's question, as if typed and sent");
+				// Busy: nothing a prompt does while a turn runs.
+				expect(!button->isEnabled() && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isHidden(), "while the agent works the prompts are neither shown nor pressable");
+				field->setPlainText(QStringLiteral("typed while it works"));
+				agent->choose_prompt(prompt, false);
+				agent->choose_prompt(prompt, true);
+				process_events();
+				expect(agent->turn_count() == before + 1U && field->toPlainText() == QStringLiteral("typed while it works"), "a prompt chosen while a turn runs neither sends nor touches the field");
+				finish();
+
+				// Shift-click puts it in the field to edit, the cursor at its
+				// end; nothing is sent.
+				field->clear();
+				button = chosen();
+				mouse(*button, Qt::ShiftModifier);
+				expect(field->toPlainText() == prompt && field->hasFocus() && at_end() && agent->turn_count() == before + 1U && agent->state() != qt::agent_tab_state::working,
+					   "Shift-click puts the prompt in the question field to edit, focused and at its end, and sends nothing");
+
+				// Words already typed are kept: a click sends the prompt alone
+				// and leaves them in the field when its turn begins.
+				const auto typed = QStringLiteral("Is the cache invalidated on");
+				field->setPlainText(typed);
+				button = chosen();
+				mouse(*button, Qt::NoModifier);
+				expect(field->toPlainText() == typed, "a click with words in the field leaves them there");
+				answer(6U);
+				expect(agent->turn_count() == before + 2U && agent->turn_question(before + 1U) == prompt && field->toPlainText() == typed,
+					   "the prompt alone is sent, and the reviewer's words are still in the field once its turn begins");
+				finish();
+				// Shift-Return adds it after the words, on its own line.
+				button = chosen();
+				keys(*button, Qt::Key_Return, Qt::ShiftModifier);
+				expect(field->toPlainText() == typed + QStringLiteral("\n") + prompt && field->hasFocus() && at_end() && agent->turn_count() == before + 2U,
+					   "Shift-Return adds the prompt after the words in the field, never replacing them, and sends nothing");
+
+				// Return and Space send, as a click does; Shift-Space edits.
+				field->clear();
+				button = chosen();
+				keys(*button, Qt::Key_Return, Qt::NoModifier);
+				answer(7U);
+				expect(agent->turn_count() == before + 3U && agent->turn_question(before + 2U) == prompt, "Return on a focused prompt sends it");
+				finish();
+				field->clear();
+				button = chosen();
+				keys(*button, Qt::Key_Space, Qt::NoModifier);
+				answer(8U);
+				expect(agent->turn_count() == before + 4U && agent->turn_question(before + 3U) == prompt, "Space on a focused prompt sends it");
+				finish();
+				field->clear();
+				button = chosen();
+				keys(*button, Qt::Key_Space, Qt::ShiftModifier);
+				expect(field->toPlainText() == prompt && agent->turn_count() == before + 4U, "Shift-Space puts it in the field to edit");
+				field->clear();
+				agent->present_thread({ });
+			}
 			agent->set_clear_confirmation({ });
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-finished.png"), "PNG"), "render saved");
