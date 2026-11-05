@@ -213,3 +213,27 @@ root selection or app source seal changes. Targeted analyzer and native
 checks for that correction remain required. All receipts retain their actual
 source, and comprehensive qualification of the final frozen candidate on all
 three platforms, source/security audits, signing and publication remain open.
+
+### Frozen build 13 case-inventory correction
+
+All nine native Release, Debug and distribution compilation graphs passed at
+`4c2fcb25467fb30775d51b6efc77a6b75d109b3a`. The two bounded release fuzz
+harnesses each completed 100,000 sanitizer-instrumented iterations. These are
+compilation and selected-path results, not complete release qualification.
+
+The subsequent macOS comprehensive Release suite fails
+`command_correctness_registry_contract`: the window-title test added by the
+accepted updated main appears in both the `--title-row` and default executable
+selections but is absent from their case inventory. The default now has 124
+ordered cases. The inventory records those actual occurrences and its current
+source hash; the contract's explicit count follows that reviewed addition.
+All nine registry contract tests pass after the correction. The scheduling
+registry remains unchanged, so its stale concurrency seals continue to keep
+changed sources exclusive. No application code or scheduling permission changes.
+
+Build 13 is rejected for publication. Its failed and interrupted comprehensive
+results remain raw, with no credit for unreached checks. Only the release's own
+macOS and Windows qualification processes were stopped, with exact observed
+process identities and empty owned-process readback. Ubuntu comprehensive,
+packaging, signing and publication were not started. A new frozen identity and
+required native compilation/qualification remain pending for the correction.

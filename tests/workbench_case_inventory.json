@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "a9b15ac2e7b9ed5b967534fb31586178b8e6c4d466db0caa3a96189e9ffae751",
+  "source_sha256": "7f7a95a07c4e187c7df1929e8c076e03e03ba287b07613a36200c12ffeb2ed29",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -94,6 +94,7 @@
       "test_an_agent_error_is_an_error_and_suggestions_wait_for_setup"
     ],
     "--title-row": [
+      "test_the_window_title_names_the_open_pull_request",
       "test_navigation_label_spacing",
       "test_compact_icon_row_preserves_exact_order_and_edges",
       "test_title_row_settles_on_content_publication",
@@ -196,6 +197,7 @@
       "test_one_pane_places_threads_on_their_own_changed_rows",
       "test_collapsing_a_drawer_returns_space_to_the_centre",
       "test_strip_modalities_positions_and_account",
+      "test_the_window_title_names_the_open_pull_request",
       "test_title_row_settles_on_content_publication",
       "test_strip_identity_stays_at_every_width",
       "test_navigation_label_spacing",
