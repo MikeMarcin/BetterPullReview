@@ -2020,7 +2020,13 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1558]]. Holds, or releases, every syntax classifier
 		/// blob read at its start, as a slow read would hold it. A departure
 		/// from the comparison still ends a held read, as it ends a real one.
-		static void               hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		static void hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		/// \brief [[BPR-1867]]. Hands the profile's windows what an activity poll
+		/// found new activity on, as the activity host does after a poll (a
+		/// fixture profile never polls: its sign-in is native).
+		static void activity_arrived(github_application& aApplication, const std::vector<core::pull_request_ref>& aActive);
+		/// \brief [[BPR-1867]]. Whether the window still owes a reread.
+		[[nodiscard]] static auto reread_owed(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept

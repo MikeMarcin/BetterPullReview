@@ -304,6 +304,47 @@ namespace {
 		expect(refused.Transport.Requests.size() == 1U && !refused.Timer.Armed && refused.Host.state() == application::pull_request_activity_state::unsupported,
 			   "a sign-in GitHub refuses stops polling");
 	}
+
+	/// [[BPR-1867]]. Every answer with new activity names its pull requests
+	/// for the windows showing them to read again, focused or not, posted or
+	/// not; a baseline, a 304 and a repeat name nothing.
+	void test_refresh()
+	{
+		auto h      = harness{ };
+		auto handed = std::vector<std::vector<core::pull_request_ref>>{ };
+		auto order  = std::vector<std::string>{ };
+		h.Host.set_refresh([&](const std::vector<core::pull_request_ref>& aActive) {
+			handed.push_back(aActive);
+			order.emplace_back("refresh");
+		});
+		h.Host.set_observer([&] { order.emplace_back("observer"); });
+		const auto pull = [](const std::int64_t aNumber) { return core::pull_request_ref{ .Host = "github.com", .Account = "me", .Repository = "octo/widgets", .Number = aNumber }; };
+
+		h.Transport.Script.push_back(changed({ thread("1", 1793706000, 7) }));
+		h.Host.adopt(session());
+		h.drain();
+		expect(handed.empty(), "a baseline hands nothing on");
+
+		h.Now += 60;
+		h.Focused = { pull(7) };
+		h.Transport.Script.push_back(changed({ thread("1", 1793707100, 7), thread("2", 1793707100, 8) }));
+		h.Host.tick();
+		h.drain();
+		expect(handed.size() == 1U && handed[0] == std::vector{ pull(7), pull(8) }, "new activity names its pull requests, the focused one too");
+		expect(h.Sink.Posts.size() == 1U && h.Host.statistics().Suppressed == 1U, "while what is posted is unchanged");
+		expect(order == std::vector<std::string>{ "observer", "refresh", "observer" }, "on the decision lane, before the observer");
+		expect(h.Host.statistics().Active == 2U && h.logged("activity_refresh") == 1U, "counted and logged without naming anything");
+
+		h.Now += 60;
+		h.Transport.Script.push_back(unchanged());
+		h.Host.tick();
+		h.drain();
+		h.Now += 60;
+		h.Transport.Script.push_back(changed({ thread("1", 1793707100, 7), thread("2", 1793707100, 8) }));
+		h.Host.tick();
+		h.drain();
+		expect(handed.size() == 1U, "a 304 and a repeat hand nothing on");
+	}
 } // namespace
 
 auto main() -> int
@@ -312,6 +353,7 @@ auto main() -> int
 	test_polling(kept);
 	test_relaunch(kept);
 	test_setting_and_sign_in();
+	test_refresh();
 	std::cout << "pull-request-activity-host:pass\n";
 	return EXIT_SUCCESS;
 }

@@ -1,6 +1,7 @@
 #include "bpr/core/pull_request_activity.hpp"
 
 #include <algorithm>
+#include <cctype>
 #include <utility>
 
 namespace bpr::core {
@@ -211,7 +212,11 @@ namespace bpr::core {
 			if (baseline || (before && *before >= thread.UpdatedAt)) {
 				continue;
 			}
-			const auto ref  = pull_request_ref{ .Host = aContext.Host, .Account = aContext.Login, .Repository = thread.Repository, .Number = thread.Number };
+			const auto ref = pull_request_ref{ .Host = aContext.Host, .Account = aContext.Login, .Repository = thread.Repository, .Number = thread.Number };
+			if (thread.Number > 0 && !thread.Repository.empty()) {
+				// [[BPR-1867]]. Whatever is said about it, a window showing it reads it again.
+				decision.Active.push_back(ref);
+			}
 			const auto read = !thread.Unread || (thread.LastReadAt && *thread.LastReadAt >= thread.UpdatedAt);
 			if (read || !heard(thread.Reason) || thread.Number <= 0 || thread.Repository.empty()
 				|| std::ranges::find(aContext.Focused, ref) != aContext.Focused.end()) {
@@ -281,9 +286,24 @@ namespace bpr::core {
 			++aSession.Outstanding;
 			aSession.Last = notification.Target;
 		}
+		std::ranges::sort(decision.Active);
+		const auto repeated = std::ranges::unique(decision.Active);
+		decision.Active.erase(repeated.begin(), repeated.end());
 		decision.Memory  = std::move(aMemory);
 		decision.Session = std::move(aSession);
 		return decision;
+	}
+
+	auto activity_concerns(const std::vector<pull_request_ref>& aActive, const pull_request_ref& aShown) -> bool
+	{
+		const auto same = [](const std::string_view aLeft, const std::string_view aRight) {
+			return std::ranges::equal(aLeft, aRight, [](const char aOne, const char aTwo) {
+				return std::tolower(static_cast<unsigned char>(aOne)) == std::tolower(static_cast<unsigned char>(aTwo));
+			});
+		};
+		return std::ranges::any_of(aActive, [&](const pull_request_ref& aRef) {
+			return aRef.Number == aShown.Number && same(aRef.Host, aShown.Host) && same(aRef.Account, aShown.Account) && same(aRef.Repository, aShown.Repository);
+		});
 	}
 
 	auto activate_activity(activity_session aSession) -> activity_activation
