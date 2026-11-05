@@ -1,6 +1,7 @@
 #include "bpr/application/agent_launch.hpp"
 
 #include "bpr/application/writing_hooks.hpp"
+#include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/review_cycle_send.hpp"
@@ -2624,16 +2625,13 @@ namespace bpr::application {
 	auto decode_agent_review_findings(const std::string_view aAnswer, const core::agent_session& aSession, const core::agent_finding_snapshot& aSnapshot)
 		-> std::optional<agent_finding_payload>
 	{
-		const auto opened = aAnswer.rfind(agent_review_findings_fence);
-		if (opened == std::string_view::npos) {
+		// [[BPR-1861]]. The block ends where its JSON value ends, not at the
+		// first backticks after it: a suggested comment may hold a fence.
+		const auto split = core::split_agent_answer(aAnswer);
+		if (split.Block != core::agent_findings_block::complete) {
 			return std::nullopt;
 		}
-		const auto body = aAnswer.find('\n', opened);
-		if (body == std::string_view::npos) {
-			return std::nullopt;
-		}
-		const auto closed = aAnswer.find("```", body + 1U);
-		const auto text   = aAnswer.substr(body + 1U, closed == std::string_view::npos ? std::string_view::npos : closed - body - 1U);
+		const auto text = std::string_view{ split.Payload };
 		if (text.size() > maximum_agent_finding_payload_bytes) {
 			return std::nullopt;
 		}
