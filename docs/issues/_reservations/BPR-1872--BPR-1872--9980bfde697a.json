@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1872"
+  ],
+  "reserve_for": "suggested-prompt-click-submits",
+  "purpose": "Click on a suggested prompt submits it; shift-click puts it in the composer to edit",
+  "created": "2026-11-05T20:59:36.710075+00:00",
+  "base": "7da4da3e269c43f12ec6a41e3bd0e09babacb7a5"
+}
