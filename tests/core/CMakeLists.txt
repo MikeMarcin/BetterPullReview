@@ -988,6 +988,13 @@ bpr_enable_hardening(test_feedback_header_edit)
 bpr_enable_warnings(test_feedback_header_edit)
 bpr_add_network_isolated_test(NAME core_feedback_header_edit COMMAND test_feedback_header_edit "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1861]]. An agent's suggested comment read into the editor's Conventional Comments label model.
+bpr_add_executable(test_agent_comment_suggestion agent_comment_suggestion_tests.cpp)
+target_link_libraries(test_agent_comment_suggestion PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_comment_suggestion)
+bpr_enable_warnings(test_agent_comment_suggestion)
+bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
+
 # [[BPR-1082]]. Header edits as commands of the existing revisioned comment draft and tour-stop owners.
 bpr_add_executable(test_feedback_draft_edit feedback_draft_edit_tests.cpp)
 target_link_libraries(test_feedback_draft_edit PRIVATE BetterPullReview::Core)

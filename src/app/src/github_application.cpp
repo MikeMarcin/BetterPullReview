@@ -21,6 +21,7 @@
 #include "bpr/application/review_mutation_diagnostics.hpp"
 #include "bpr/application/review_tour_host.hpp"
 #include "bpr/application/review_tour_import.hpp"
+#include "bpr/core/agent_comment_suggestion.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/conversation_mutation_lifecycle.hpp"
 #include "bpr/core/conversation_reply.hpp"
@@ -12103,7 +12104,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				});
 				return;
 			}
-			const auto text    = finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim;
+			// [[BPR-1861]]. The draft opens with the Conventional Comments
+			// label the agent wrote already in the label control.
+			const auto text    = core::read_agent_comment_suggestion(finding.SuggestedComment && !finding.SuggestedComment->empty() ? *finding.SuggestedComment : finding.Claim).Body;
 			auto       refused = [state] { state(qt::agent_finding_card_state::refused, QStringLiteral("Not drafted: resolve the draft open at that line first.")); };
 			auto       done    = [state] { state(qt::agent_finding_card_state::drafted); };
 			if (ReviewDraft && ReviewDraft->Anchor.Comparison == at.Comparison && ReviewDraft->Anchor.Side == at.Side && ReviewDraft->Anchor.Line == at.Line) {
@@ -12348,9 +12351,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			const auto found = AgentAnswerDrafts.find(aKey);
 			const auto draft = found != AgentAnswerDrafts.end() ? found->second : agent_answer_draft{ };
+			// [[BPR-1861]]. An answer that opens with a Conventional Comments
+			// header drafts with its label in the label control. The line
+			// comment reads it on the card's way below.
+			const auto labelled = QString::fromStdString(core::read_agent_comment_suggestion(aText.toStdString()).Body);
 			switch (draft.Place) {
 			case core::answer_draft_place::thread_reply:
-				Window->draft_thread_reply(draft.Thread, aText, [answer](const bool aWritten) { answer(aWritten, aWritten ? QString{ } : QStringLiteral("the conversation's reply did not open; the words are on the clipboard")); });
+				Window->draft_thread_reply(draft.Thread, labelled, [answer](const bool aWritten) { answer(aWritten, aWritten ? QString{ } : QStringLiteral("the conversation's reply did not open; the words are on the clipboard")); });
 				return;
 			case core::answer_draft_place::line_comment: {
 				auto finding             = core::agent_finding{ };
@@ -12377,7 +12384,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			case core::answer_draft_place::pull_request_comment:
-				if (Window->draft_pull_request_comment(aText)) {
+				if (Window->draft_pull_request_comment(labelled)) {
 					answer(true);
 				} else {
 					answer(false, QStringLiteral("the pull request's comment could not be opened"));
