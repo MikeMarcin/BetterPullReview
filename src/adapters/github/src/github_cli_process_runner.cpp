@@ -149,8 +149,9 @@ namespace bpr::adapters::github::detail {
 		constexpr std::array<std::string_view, 4U> credential_environment_names{ "GH_TOKEN", "GITHUB_TOKEN", "GH_ENTERPRISE_TOKEN", "GITHUB_ENTERPRISE_TOKEN" };
 
 		[[nodiscard]] auto valid_request_shape(
-			const github_cli_process_request& aRequest) noexcept -> bool
+			const github_cli_process_request& aRequest, const std::string_view aLocalGitDirectory) noexcept -> bool
 		{
+			static_cast<void>(aLocalGitDirectory);
 			if (
 				aRequest.Executable.empty()
 				|| aRequest.Executable.size() > github_cli_process_max_path_bytes
@@ -201,8 +202,8 @@ namespace bpr::adapters::github::detail {
 
 			std::size_t environmentBytes = 0;
 #if defined(_WIN32)
-			bool hasEmptyPath  = false;
-			bool hasSystemRoot = false;
+			bool hasAdmittedPath = false;
+			bool hasSystemRoot   = false;
 #endif
 			for (std::size_t index = 0; index < aRequest.Environment.size(); ++index) {
 				const auto& entry = aRequest.Environment[index];
@@ -228,7 +229,7 @@ namespace bpr::adapters::github::detail {
 				}
 #if defined(_WIN32)
 				if (equal_environment_names(entry.Name, "PATH")) {
-					hasEmptyPath = entry.Value.empty();
+					hasAdmittedPath = entry.Value.empty() || (!aLocalGitDirectory.empty() && entry.Value == aLocalGitDirectory);
 				}
 				if (equal_environment_names(entry.Name, "SystemRoot")) {
 					hasSystemRoot = !entry.Value.empty();
@@ -243,7 +244,7 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 #if defined(_WIN32)
-			if (!hasEmptyPath || !hasSystemRoot) {
+			if (!hasAdmittedPath || !hasSystemRoot) {
 				return false;
 			}
 #endif
@@ -350,10 +351,10 @@ namespace bpr::adapters::github::detail {
 
 		[[nodiscard]] auto validate_request(
 			const github_cli_process_request& aRequest,
-			validated_process_request&        aValidated) -> bool
+			validated_process_request& aValidated, const std::string_view aLocalGitDirectory) -> bool
 		{
 			if (
-				!valid_request_shape(aRequest)
+				!valid_request_shape(aRequest, aLocalGitDirectory)
 				|| !exact_canonical_file(
 					aRequest.Executable,
 					aValidated.Executable)
@@ -380,6 +381,15 @@ namespace bpr::adapters::github::detail {
 				aValidated.Environment.insert(name, value);
 			}
 			return true;
+		}
+
+		[[nodiscard]] auto local_git_directory(const std::filesystem::path& aExecutable) -> std::string
+		{
+			if (aExecutable.empty()) {
+				return { };
+			}
+			const auto bytes = aExecutable.parent_path().generic_u8string();
+			return { reinterpret_cast<const char*>(bytes.data()), bytes.size() };
 		}
 
 		// Withhold a possible credential prefix across read chunks. No complete
@@ -571,7 +581,7 @@ namespace bpr::adapters::github::detail {
 		{
 			validated_process_request validated;
 			try {
-				if (!validate_request(aRequest, validated)) {
+				if (!validate_request(aRequest, validated, local_git_directory(aFileLimits.LocalGitExecutable))) {
 					return {
 						.Result = std::unexpected{
 							github_cli_process_failure::invalid_request },
@@ -1048,7 +1058,8 @@ namespace bpr::adapters::github::detail {
 			explicit process_worker(
 				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
 				github_cli_process_file_limits                       aFileLimits)
-				: Lane{ process_lane_traits{
+				: LocalGitDirectory{ local_git_directory(aFileLimits.LocalGitExecutable) }
+				, Lane{ process_lane_traits{
 					  .TestSeam   = std::move(aTestSeam),
 					  .FileLimits = std::move(aFileLimits),
 				  } }
@@ -1061,7 +1072,7 @@ namespace bpr::adapters::github::detail {
 				std::shared_ptr<cli_sensitive_bytes> aCapture = { }, cli_transient_credential aCredential = { },
 				cli_credential_environment aCredentialEnvironment = cli_credential_environment::github) -> github_cli_process_result
 			{
-				if (!valid_request_shape(aRequest)) {
+				if (!valid_request_shape(aRequest, LocalGitDirectory)) {
 					return std::unexpected{
 						github_cli_process_failure::invalid_request
 					};
@@ -1090,6 +1101,7 @@ namespace bpr::adapters::github::detail {
 			}
 
 		private:
+			const std::string                                             LocalGitDirectory;
 			process_support::serialized_process_lane<process_lane_traits> Lane;
 		};
 
@@ -1189,6 +1201,22 @@ namespace bpr::adapters::github::detail {
 			github_cli_process_file_limits                       aFileLimits = { })
 			-> std::unique_ptr<github_cli_process_port>
 		{
+			if (!aFileLimits.LocalGitExecutable.empty()) {
+				const auto directory = aFileLimits.LocalGitExecutable.parent_path().generic_u8string();
+#if defined(_WIN32)
+				if (directory.find(u8';') != std::u8string::npos) {
+#else
+				if (directory.find(u8':') != std::u8string::npos) {
+#endif
+					return nullptr;
+				}
+				const auto bytes = aFileLimits.LocalGitExecutable.generic_u8string();
+				QString    canonical;
+				if (!aFileLimits.LocalGitExecutable.is_absolute()
+					|| !exact_canonical_file(std::string_view{ reinterpret_cast<const char*>(bytes.data()), bytes.size() }, canonical)) {
+					return nullptr;
+				}
+			}
 			return std::make_unique<qprocess_github_cli_process_runner>(
 				std::move(aTestSeam), std::move(aFileLimits));
 		}

@@ -275,6 +275,9 @@ namespace bpr::adapters::github::detail {
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_exact_blobs_request&)
 			-> std::optional<github_cli_process_request>;
+		friend auto compile_gh_cli_local_git_request(
+			const validated_gh_cli_configuration&, const std::filesystem::path&, const std::filesystem::path&,
+			std::vector<std::string>, std::string, std::size_t) -> github_cli_process_request;
 		friend auto compile_gh_cli_git_clone_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_request_context&, core::git_commit_oid,
@@ -484,8 +487,11 @@ namespace bpr::adapters::github::detail {
 	/// \brief Compiles one credential-free local Git request over an owned store.
 	/// \details The environment is built from nothing. No network, lazy object
 	/// fetch, ambient Git configuration, or repository executable configuration
-	/// participates, and `PATH` holds only the directory of \p aGit.
+	/// participates. PATH holds only the observed Git directory, admitted on Windows
+	/// only by its bounded acquisition runner; SystemRoot comes from the validated
+	/// configuration, with no other account or proxy environment copied.
 	[[nodiscard]] auto compile_gh_cli_local_git_request(
+		const validated_gh_cli_configuration& aConfiguration,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
 		std::vector<std::string> aArguments, std::string aInput,
 		std::size_t aStandardOutputLimit) -> github_cli_process_request;

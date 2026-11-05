@@ -20,6 +20,10 @@ namespace bpr::adapters::github::detail {
 		// Optional task-owned stdout spool; clean success exposes no stdout bytes.
 		std::filesystem::path StandardOutputFile;
 		bool                  DiscardStandardOutput = false;
+		/// [[BPR-1857]]. The observed canonical Git executable whose directory
+		/// this acquisition may search. Empty keeps the ordinary empty-PATH rule
+		/// on Windows; no ambient search path is ever admitted.
+		std::filesystem::path LocalGitExecutable = { };
 	};
 	class github_cli_process_runner_test_seam
 	{

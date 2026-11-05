@@ -3744,7 +3744,7 @@ string(
 )
 set(
     required_github_request_shape_patterns
-    "valid_request_shape\\( const github_cli_process_request& (request|aRequest)\\) noexcept -> bool"
+    "valid_request_shape\\( const github_cli_process_request& (request|aRequest)(, const std::string_view aLocalGitDirectory)?\\) noexcept -> bool"
     "(request|aRequest)\\.Executable\\.empty\\(\\)"
     "(request|aRequest)\\.Executable\\.size\\(\\) > github_cli_process_max_path_bytes"
     "contains_nul\\((request|aRequest)\\.Executable\\)"
@@ -3776,7 +3776,7 @@ set(
     "add_bounded\\( (environment_bytes|environmentBytes), entry\\.Name\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
     "add_bounded\\( (environment_bytes|environmentBytes), entry\\.Value\\.size\\(\\), github_cli_process_max_environment_bytes\\)"
     "equal_environment_names\\( entry\\.Name, (request|aRequest)\\.Environment\\[prior\\]\\.Name\\)"
-    "!(has_empty_path|hasEmptyPath) \\|\\| !(has_system_root|hasSystemRoot)"
+    "!(has_empty_path|hasEmptyPath|hasAdmittedPath) \\|\\| !(has_system_root|hasSystemRoot)"
 )
 foreach(
     required_request_shape_pattern
@@ -3836,7 +3836,7 @@ endif()
 if(
     NOT github_process_runner_compact
         MATCHES
-            "if[ ]*\\(!valid_request_shape\\((request|aRequest)\\)\\).*github_cli_process_failure::invalid_request.*if[ ]*\\((stop|aStop)\\.stop_requested\\(\\)\\).*github_cli_process_failure::cancelled.*std::shared_ptr<process_work_item> item; try \\{ item = std::make_shared<process_work_item>\\(\\); item->Request = (request|aRequest);"
+            "if[ ]*\\(!valid_request_shape\\((request|aRequest)(, LocalGitDirectory)?\\)\\).*github_cli_process_failure::invalid_request.*if[ ]*\\((stop|aStop)\\.stop_requested\\(\\)\\).*github_cli_process_failure::cancelled.*std::shared_ptr<process_work_item> item; try \\{ item = std::make_shared<process_work_item>\\(\\); item->Request = (request|aRequest);"
 )
     message(
         FATAL_ERROR
@@ -3899,11 +3899,11 @@ endforeach()
 set(
     required_github_process_windows_environment_patterns
     "#if[ \t]+defined[ \t]*\\([ \t]*_WIN32[ \t]*\\)"
-    "bool[ \t]+(has_empty_path|hasEmptyPath)[ \t]*=[ \t]*false"
+    "bool[ \t]+(has_empty_path|hasEmptyPath|hasAdmittedPath)[ \t]*=[ \t]*false"
     "bool[ \t]+(has_system_root|hasSystemRoot)[ \t]*=[ \t]*false"
-    "(has_empty_path|hasEmptyPath)[ \t]*=[ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
+    "(has_empty_path|hasEmptyPath|hasAdmittedPath)[ \t]*=[ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
     "(has_system_root|hasSystemRoot)[ \t]*=[ \t]*![ \t]*entry\\.Value\\.empty[ \t\r\n]*\\([ \t]*\\)"
-    "![ \t]*(has_empty_path|hasEmptyPath)[ \t]*\\|\\|[ \t]*![ \t]*(has_system_root|hasSystemRoot)"
+    "![ \t]*(has_empty_path|hasEmptyPath|hasAdmittedPath)[ \t]*\\|\\|[ \t]*![ \t]*(has_system_root|hasSystemRoot)"
 )
 foreach(
     required_windows_environment_pattern
@@ -5899,6 +5899,68 @@ if(
         "GitHub CLI runner may name PATH and SystemRoot only while validating "
         "the transport-constructed Windows environment"
     )
+endif()
+
+# [[BPR-1857]]. A bounded Git acquisition may use only its observed executable's
+# directory. The ordinary nullary factory has no such fact. Keep the pre-copy
+# validator allocation-free and bind both its cached and execution-time view to
+# the same immutable factory input; do not grant a general nonempty PATH.
+if(github_process_runner_code_compact MATCHES "LocalGitDirectory")
+    foreach(required_git_binding IN ITEMS
+        "const std::string LocalGitDirectory"
+        "LocalGitDirectory{ local_git_directory(aFileLimits.LocalGitExecutable) }"
+        "hasAdmittedPath = entry.Value.empty() || (!aLocalGitDirectory.empty() && entry.Value == aLocalGitDirectory)"
+        "valid_request_shape(aRequest, LocalGitDirectory)"
+        "validate_request(aRequest, validated, local_git_directory(aFileLimits.LocalGitExecutable))"
+    )
+        string(FIND "${github_process_runner_code_compact}" "${required_git_binding}" git_binding_position)
+        if(git_binding_position EQUAL -1)
+            message(FATAL_ERROR "GitHub CLI bounded Git search authority must remain tied to its factory: ${required_git_binding}")
+        endif()
+    endforeach()
+    set(github_cli_git_directory_helper [=[
+[[nodiscard]] auto local_git_directory(const std::filesystem::path& aExecutable) -> std::string
+{
+    if (aExecutable.empty()) {
+        return { };
+    }
+    const auto bytes = aExecutable.parent_path().generic_u8string();
+    return { reinterpret_cast<const char*>(bytes.data()), bytes.size() };
+}
+]=])
+    set(github_cli_bound_git_factory [=[
+[[nodiscard]] auto make_qprocess_github_cli_process_runner(
+    std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
+    github_cli_process_file_limits aFileLimits = { }) -> std::unique_ptr<github_cli_process_port>
+{
+    if (!aFileLimits.LocalGitExecutable.empty()) {
+        const auto directory = aFileLimits.LocalGitExecutable.parent_path().generic_u8string();
+#if defined(_WIN32)
+        if (directory.find(u8';') != std::u8string::npos) {
+#else
+        if (directory.find(u8':') != std::u8string::npos) {
+#endif
+            return nullptr;
+        }
+        const auto bytes = aFileLimits.LocalGitExecutable.generic_u8string();
+        QString canonical;
+        if (!aFileLimits.LocalGitExecutable.is_absolute()
+            || !exact_canonical_file(std::string_view{ reinterpret_cast<const char*>(bytes.data()), bytes.size() }, canonical)) {
+            return nullptr;
+        }
+    }
+    return std::make_unique<qprocess_github_cli_process_runner>(
+        std::move(aTestSeam), std::move(aFileLimits));
+}
+]=])
+    foreach(git_scope IN ITEMS github_cli_git_directory_helper github_cli_bound_git_factory)
+        string(REGEX REPLACE "[ \t\r\n]+" " " git_scope_compact "${${git_scope}}")
+        string(STRIP "${git_scope_compact}" git_scope_compact)
+        string(FIND "${github_process_runner_code_compact}" "${git_scope_compact}" git_scope_position)
+        if(git_scope_position EQUAL -1)
+            message(FATAL_ERROR "GitHub CLI bounded Git search authority must retain canonical single-directory factory validation: ${git_scope}")
+        endif()
+    endforeach()
 endif()
 
 foreach(source_file IN LISTS source_files)

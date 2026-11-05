@@ -342,10 +342,11 @@ namespace bpr::adapters::github::detail {
 		class gh_cli_chain_tree_store final : public git_chain_tree_store
 		{
 		public:
-			gh_cli_chain_tree_store(std::unique_ptr<QTemporaryDir> aDirectory, std::filesystem::path aRoot, std::filesystem::path aGit,
+			gh_cli_chain_tree_store(std::unique_ptr<QTemporaryDir> aDirectory, std::filesystem::path aRoot, const validated_gh_cli_configuration& aConfiguration, std::filesystem::path aGit,
 									std::unique_ptr<github_cli_process_port> aProcess, std::vector<core::git_commit_oid> aHeld)
 				: Directory{ std::move(aDirectory) }
 				, Root{ std::move(aRoot) }
+				, Configuration{ aConfiguration }
 				, Git{ std::move(aGit) }
 				, Process{ std::move(aProcess) }
 				, Held{ std::move(aHeld) }
@@ -366,7 +367,7 @@ namespace bpr::adapters::github::detail {
 				}
 				std::lock_guard lock{ Mutex };
 				const auto      request = compile_gh_cli_local_git_request(
-					Git, Root,
+					Configuration, Git, Root,
 					{ scope(), "diff-tree", "-r", "-z", "--raw", "--no-abbrev", "--no-commit-id", "--no-ext-diff", "--no-textconv", "--find-renames=100%",
 					  "--find-copies=100%", "-l10000", std::string{ core::canonical_hex(aLeft).view() }, std::string{ core::canonical_hex(aRight).view() }, "--" },
 					{ }, chain_output_limit);
@@ -394,7 +395,7 @@ namespace bpr::adapters::github::detail {
 				// The trees alone name the blob: the store holds no blob, so a
 				// lookup that checked the object would answer missing.
 				const auto request
-					= compile_gh_cli_local_git_request(Git, Root, { scope(), "--literal-pathspecs", "ls-tree", "-z", std::string{ core::canonical_hex(aCommit).view() }, "--", aPath },
+					= compile_gh_cli_local_git_request(Configuration, Git, Root, { scope(), "--literal-pathspecs", "ls-tree", "-z", std::string{ core::canonical_hex(aCommit).view() }, "--", aPath },
 													   { }, 64U * 1024U);
 				const auto result = Process->run(request, aStop);
 				if (!result) {
@@ -437,6 +438,7 @@ namespace bpr::adapters::github::detail {
 
 			std::unique_ptr<QTemporaryDir>           Directory;
 			std::filesystem::path                    Root;
+			validated_gh_cli_configuration           Configuration;
 			std::filesystem::path                    Git;
 			std::unique_ptr<github_cli_process_port> Process;
 			std::vector<core::git_commit_oid>        Held;
@@ -881,7 +883,7 @@ namespace bpr::adapters::github::detail {
 			[[nodiscard]] auto local_request(const std::filesystem::path& aRoot, std::vector<std::string> aArguments,
 											 std::string aInput = { }) const -> github_cli_process_request
 			{
-				return compile_gh_cli_local_git_request(Git, aRoot, std::move(aArguments), std::move(aInput), pack_limit);
+				return compile_gh_cli_local_git_request(Configuration, Git, aRoot, std::move(aArguments), std::move(aInput), pack_limit);
 			}
 
 			[[nodiscard]] auto viewer(gh_cli_transport& aTransport, std::stop_token aStop) -> git_smart_transport_result<github_viewer_record>
@@ -934,7 +936,7 @@ namespace bpr::adapters::github::detail {
 				std::filesystem::create_directory(root / "empty");
 				// Destruction reaps the worker before QTemporaryDir removes its store.
 				aStep        = git_smart_transport_step::process_runner;
-				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false, Git });
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
@@ -967,7 +969,7 @@ namespace bpr::adapters::github::detail {
 				}
 				std::filesystem::create_directory(root / "empty");
 				aStep        = git_smart_transport_step::process_runner;
-				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false, Git });
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
@@ -996,7 +998,7 @@ namespace bpr::adapters::github::detail {
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
-					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
+					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true, Git });
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
@@ -1025,7 +1027,7 @@ namespace bpr::adapters::github::detail {
 					const auto hex = std::string{ core::canonical_hex(commit).view() };
 					names.append(hex).append("\n").append(hex).append("^{tree}\n");
 				}
-				auto       check   = compile_gh_cli_local_git_request(Git, root, { "--git-dir=" + git_path_text(gh_cli_git_clone_store(root, 0U)), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
+				auto       check   = compile_gh_cli_local_git_request(Configuration, Git, root, { "--git-dir=" + git_path_text(gh_cli_git_clone_store(root, 0U)), "cat-file", "--batch-check=%(objectname) %(objecttype)" },
 																	  names, chain_output_limit);
 				const auto checked = process->run(check, aStop);
 				if (!checked) {
@@ -1048,7 +1050,7 @@ namespace bpr::adapters::github::detail {
 						return std::unexpected{ git_smart_transport_error{ failure::response_limit } };
 					}
 				}
-				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Git, std::move(process), aRequest.Commits);
+				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Configuration, Git, std::move(process), aRequest.Commits);
 			}
 
 			/// \brief [[BPR-1738]]. A sparse review's cache holds no blobs, so
@@ -1066,7 +1068,7 @@ namespace bpr::adapters::github::detail {
 				}
 				std::filesystem::create_directory(root / "empty");
 				aStep        = git_smart_transport_step::process_runner;
-				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false });
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false, Git });
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
@@ -1095,7 +1097,7 @@ namespace bpr::adapters::github::detail {
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
-					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
+					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true, Git });
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
@@ -1142,7 +1144,7 @@ namespace bpr::adapters::github::detail {
 				}
 				aStep                  = git_smart_transport_step::local_pack;
 				const auto spool       = root / "snapshot.pack";
-				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false });
+				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false, Git });
 				if (!packProcess) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
@@ -1261,7 +1263,7 @@ namespace bpr::adapters::github::detail {
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
-					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true });
+					auto cloneProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, true, Git });
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
@@ -1326,7 +1328,7 @@ namespace bpr::adapters::github::detail {
 				}
 				aStep                  = git_smart_transport_step::local_pack;
 				const auto spool       = root / "wire.pack";
-				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false });
+				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false, Git });
 				if (!packProcess) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}

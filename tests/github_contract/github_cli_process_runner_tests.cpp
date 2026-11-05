@@ -175,6 +175,17 @@ namespace {
 		}
 
 		const auto& mode = aArguments.at(2);
+#if defined(_WIN32)
+		if (mode == QStringLiteral("git-search-path") && aArguments.size() == 5) {
+			const auto environment = QProcessEnvironment::systemEnvironment();
+			if (environment.keys().size() != 3 || environment.value(QStringLiteral("BPR_ALLOWED_PROCESS_FACT")) != QStringLiteral("fixed")
+				|| environment.value(QStringLiteral("PATH")) != aArguments.at(3) || environment.value(QStringLiteral("SystemRoot")) != aArguments.at(4)) {
+				return 1;
+			}
+			std::cout << "ok";
+			return 0;
+		}
+#endif
 		if (mode == QStringLiteral("sensitive")) {
 			const auto size = aArguments.size() > 3 ? parse_count(aArguments.at(3)) : 32U;
 			std::cout << std::string(size, 'q') << '\n';
@@ -880,6 +891,59 @@ namespace {
 		expect(refused([](github_cli_process_file_limits& aLimits) { aLimits.Directory = "relative-store"; }),
 			   "a relative store is refused");
 	}
+
+#if defined(_WIN32)
+	// [[BPR-1857]]. gh's Git clone needs one observed Git directory in PATH.
+	// Only an explicitly bound acquisition runner may admit it; the ordinary
+	// CLI runner and all broader or incomplete environments still refuse it.
+	auto test_windows_acquisition_search_path_is_bound() -> void
+	{
+		QTemporaryDir store;
+		expect(store.isValid(), "bounded search-path store is created");
+		const auto executable   = std::filesystem::path{ QFileInfo{ QCoreApplication::applicationFilePath() }.canonicalFilePath().toStdWString() };
+		const auto bytes        = executable.parent_path().generic_u8string();
+		const auto search       = std::string{ reinterpret_cast<const char*>(bytes.data()), bytes.size() };
+		auto       request      = base_request(store, { "--bpr-helper", "git-search-path", search, windows_system_root() });
+		auto       selectedPath = request;
+		for (auto& entry : selectedPath.Environment) {
+			if (entry.Name == "PATH") {
+				entry.Value = search;
+			}
+		}
+		const auto ordinary = make_github_cli_process_runner();
+		expect_failure(*ordinary, selectedPath, github_cli_process_failure::invalid_request, "ordinary CLI launches retain their empty request search path");
+		auto limits = github_cli_process_file_limits{
+			.MaximumFileBytes        = 1024U,
+			.Directory               = std::filesystem::path{ QFileInfo{ store.path() }.canonicalFilePath().toStdWString() },
+			.MaximumDirectoryBytes   = 4096U,
+			.MaximumDirectoryEntries = 16U,
+			.LocalGitExecutable      = executable,
+		};
+		const auto runner = make_github_cli_git_acquisition_process_runner(limits);
+		expect(runner != nullptr, "a canonical observed executable binds the acquisition search path");
+		const auto result = runner->run(selectedPath, { });
+		expect(result && result->StandardOutput == "ok", "the real child receives only the bound Git directory, explicit SystemRoot and allowed fact under the Windows handle restriction");
+		auto wider = selectedPath;
+		for (auto& entry : wider.Environment) {
+			if (entry.Name == "PATH") {
+				entry.Value = search + ";" + canonical_directory(store);
+			}
+		}
+		expect_failure(*runner, wider, github_cli_process_failure::invalid_request, "an additional requested search directory is refused");
+		auto missingRoot = selectedPath;
+		std::erase_if(missingRoot.Environment, [](const auto& aEntry) { return aEntry.Name == "SystemRoot"; });
+		expect_failure(*runner, missingRoot, github_cli_process_failure::invalid_request, "a Git search capability does not excuse a missing Windows system root");
+		limits.LocalGitExecutable = "relative-git.exe";
+		expect(make_github_cli_git_acquisition_process_runner(limits) == nullptr, "an unobserved relative Git executable binds no search authority");
+		QDir root{ store.path() };
+		expect(root.mkdir(QStringLiteral("ambiguous;search")), "a path-separator fixture directory is created");
+		const auto ambiguous = root.filePath(QStringLiteral("ambiguous;search/git.exe"));
+		expect(QFile::copy(QCoreApplication::applicationFilePath(), ambiguous), "the trusted same-test image is copied without launching it");
+		limits.LocalGitExecutable = std::filesystem::path{ QFileInfo{ ambiguous }.canonicalFilePath().toStdWString() };
+		expect(make_github_cli_git_acquisition_process_runner(limits) == nullptr, "a canonical directory that would expand into several PATH entries is refused");
+	}
+
+#endif
 
 	auto test_git_acquisition_store_sampling() -> void
 	{
@@ -2076,6 +2140,9 @@ try {
 	test_bare_repository_working_directory_is_rejected();
 	test_shape_limits_reject_without_launch();
 	test_git_acquisition_factory_refuses_unbounded_stores();
+#if defined(_WIN32)
+	test_windows_acquisition_search_path_is_bound();
+#endif
 	test_git_acquisition_store_sampling();
 	test_stream_limits_and_redaction();
 	test_sensitive_execution();
