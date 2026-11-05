@@ -37,3 +37,11 @@ app offers no repair action.
   repair path the reviewer can use.
 
 Needs access to the owner's Windows machine (SSH, or a wizard).
+
+## Update (BPR-1857, 2026-11-04)
+
+The refusal now names its check, the folder and, on Windows, the account it
+found (`AGENT_WORKSPACE_RECOVERY_REFUSED:path=omitted:<failure>:check=<name>`,
+and the full sentence on Home). Inherit-only entries on the neighbourhood's
+parent no longer refuse it. The check this machine hits is still to be read
+from that build; [[BPR-1857]] lists every condition.

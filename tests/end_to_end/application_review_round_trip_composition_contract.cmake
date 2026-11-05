@@ -1,3 +1,6 @@
+# [[BPR-1857]] merge reseal (coordinator, 2026-11-05): main 35a4a3df3 with
+# BPR-1857 merged. Pins rebound to the merged bytes; they also cover
+# BPR-1859 and the BPR-1861/1862/1863 app bytes as merged. Not a review.
 # [[BPR-1861]] reseal, 2026-11-04, over main b399051a2 merged into the
 # BPR-1861 branch (last matching: BPR-1854's e6eba9b8d). BPR-1861's own app
 # change: act_on_agent_card and draft_agent_answer pass an agent's suggested
@@ -8,6 +11,12 @@
 # unresealed BPR-1862 (answer drafts remembered for delete) and BPR-1863
 # (New Window) app bytes, main.cpp and the fixture access header as merged;
 # this reseal does not review those changes.
+# [[BPR-1857]] reseal (2026-11-04), over 33e1e088a. github_application.cpp
+# only: startup agent-workspace recovery passes a refusal record, prints its
+# check name on the existing path-omitted terminal line, and hands each window
+# a sentence naming the check, folder and account (agent_workspace_refusal_text).
+# No provider, credential, grant, mutation branch or source-inventory change;
+# the production mutation-branch pin is unchanged.
 # [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
 # The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
 # profile activity store/timer/notification host and accepted-session adoption,
@@ -2617,7 +2626,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
 	set(bpr_expected_full_application_digest
-        "f85caed614bb290ea66566ff14c9053c7ea140e72bbdd58049ebf7d48e4f71c4"
+        "8219265028abf32d0efbe278ca564926f71d5980becc7688ee46662d957bdb48"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2928,7 +2937,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "02f0b121a33674244db71609d9f30f9eeeb88772a8163fb7d830753c8e2aae6e"
+        "5e363b95f44e6b367a3907e44af0ac5733e819813b7b3b6c8d6be1dafc423123"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

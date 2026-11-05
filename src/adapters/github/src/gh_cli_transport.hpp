@@ -471,6 +471,12 @@ namespace bpr::adapters::github::detail {
 	/// the commit the chain grew from.
 	inline constexpr std::uint32_t maximum_gh_cli_clone_depth = 251U;
 
+	/// \brief [[BPR-1857]]. The one directory a clone root may sit directly in:
+	/// `/private/tmp` on macOS, where the write denial names it, and the
+	/// canonical system temporary directory on Windows and Linux. Empty when
+	/// that directory cannot be resolved, which refuses every clone root.
+	[[nodiscard]] auto gh_cli_git_temporary_parent() -> std::filesystem::path;
+
 	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
 		-> std::filesystem::path;
