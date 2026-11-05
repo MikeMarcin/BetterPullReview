@@ -6112,3 +6112,28 @@ foreach(source IN LISTS quill_boundary_sources)
         message(FATAL_ERROR "Quill effects belong exclusively to the logging adapter: ${source}")
     endif()
 endforeach()
+
+# [[BPR-1850]]. Every desktop notification goes through
+# bpr::qt::show_desktop_notification, which submits with the display hint that
+# keeps it in macOS Notification Center. A bare QSystemTrayIcon::showMessage
+# takes Qt's ten-second default, after which Qt withdraws the notification from
+# Notification Center: the owner's banner wizard (v003) found nothing listed
+# after Do Not Disturb. A status bar's showMessage is not a tray submission.
+file(GLOB_RECURSE tray_submission_sources "${BPR_ROOT}/src/*.cpp" "${BPR_ROOT}/src/*.hpp" "${BPR_ROOT}/src/*.mm")
+foreach(source IN LISTS tray_submission_sources)
+    if(source MATCHES "/src/adapters/qt/src/system_tray_notification_sink\\.cpp$")
+        continue()
+    endif()
+    file(READ "${source}" contents)
+    string(REPLACE "statusBar()->showMessage" "status_bar_message" contents "${contents}")
+    string(REGEX REPLACE "//[^\n]*" " " contents "${contents}")
+    if(contents MATCHES "[.>]showMessage[ \t]*\\(")
+        file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source}")
+        message(
+            FATAL_ERROR
+            "Desktop notification submitted outside show_desktop_notification: "
+            "${relative_file} calls showMessage. Use bpr::qt::show_desktop_notification "
+            "so macOS keeps the notification in Notification Center ([[BPR-1850]])."
+        )
+    endif()
+endforeach()
