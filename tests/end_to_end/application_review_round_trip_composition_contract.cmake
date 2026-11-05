@@ -1,3 +1,15 @@
+# [[BPR-1854]] BPR-1870 release merge review over 468cfe20c/e61ad029a.
+# github_application.cpp places a user-named foreign-content root in a private
+# BetterPullReview/data child and narrows an existing application-owned root
+# through the SQLite capability before composing stores. Workspace recovery
+# reports each exact owner-private repair; refusal wording follows the policy.
+# Narrowing remains in the host adapters, with owner/type/link checks, and
+# writes only held handles/descriptors; no credential, provider selection,
+# publication grant, app source inventory or production mutation branch change.
+# The release's exact Windows Git environment/admission and guarded test-only
+# draft conversion/round-trip repairs remain. These pins bind reviewed merged
+# content; native qualification, security and filesystem race guarantees are
+# separate obligations, not established by this reseal.
 # [[BPR-1854]] changed-surface LLVM22 correction over 3ccc4369e: the app
 # delta is only the draft-delete fixture passing its already-guarded optional
 # directly instead of unwrapping/reconstructing it. Every semantic assertion
@@ -2676,7 +2688,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "8adfe49e40c16888e9e06b583d90d15ea1d36c74dc9f0b4bcf89fe9e9e7176f6"
+        "01ebdf41553fd95fd21d28cd41ce792c05e1fb87d09bae0730b516183a8c6a83"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3001,7 +3013,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "b7b5e8923bb8c5a2a0ae915b3a2a842c1e359b64303b2e7c6b0b9c28cf6a4109"
+        "482575a94ce39129c0fef63cb2dddcb09acf19def7663be8ca514a6322be2ca3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
