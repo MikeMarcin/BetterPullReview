@@ -492,6 +492,11 @@ target_link_libraries(
         BetterPullReview::AdapterSQLite
         BetterPullReview::Application
 )
+if(WIN32)
+    # The clone-admission course creates its fresh root with the shared
+    # owner-private Windows scratch descriptor.
+    target_link_libraries(test_better_pull_review_gh_cli_transport_tests PRIVATE BetterPullReview::Platform)
+endif()
 target_include_directories(
     test_better_pull_review_gh_cli_transport_tests
     PRIVATE

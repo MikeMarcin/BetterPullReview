@@ -261,7 +261,13 @@ namespace bpr::adapters::github::detail {
 			const std::filesystem::path& aPath) -> bool
 		{
 #if defined(_WIN32)
-			return executable_name(aPath);
+			// The role-specific gh.exe name is checked separately. This check
+			// also serves an already qualified Git executable, which is git.exe.
+			auto extension = aPath.extension().native();
+			std::ranges::transform(extension, extension.begin(), [](wchar_t aCharacter) {
+				return aCharacter >= L'A' && aCharacter <= L'Z' ? static_cast<wchar_t>(aCharacter - L'A' + L'a') : aCharacter;
+			});
+			return extension == L".exe";
 #else
 			return ::access(aPath.c_str(), X_OK) == 0;
 #endif
