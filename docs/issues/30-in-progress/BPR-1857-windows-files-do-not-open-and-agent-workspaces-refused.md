@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["windows", "linux", "macos"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-1857--BPR-1857--58190ccb501f.json", "kind": "defect", "found_by": "owner photos, 2026-11-04 (corporate Windows machine, release 0.4.x)", "related": ["BPR-1791", "BPR-1790", "BPR-1789"], "related_rfcs": ["RFC-BPR-0015", "RFC-BPR-0033"]}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "83bb56cd9", "evidence": {"kind": "command", "detail": "bpr-main-win, clean full Debug build (MSVC 14.51) at 83bb56cd9: core_epoch_policy, application_epoch_host, qt_epoch_comparison_scale_100, qt_workbench_window_scale_100, gh_cli_transport, agent_workspace_ownership, application_agent_materialization_crash_recovery, application_review_round_trip_composition_contract pass. macOS arm64 dev passed the same selection plus gh_cli_git_smart_transport, application_agent_crash_recovery and application_terminal_diagnostics. application_agent_crash_recovery fails on Windows identically on base 33e1e088a (pre-existing; follow-up below). Merged to main as 49da209d3."}}, {"criterion": "AC2", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: a GitHub CLI session on bpr-main-win opens a file of a BPR-Test pull request."}}, {"criterion": "AC3", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: the owner's machine shows the named refusal (check, folder, account) or recovers."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "83bb56cd9", "evidence": {"kind": "command", "detail": "bpr-main-win, clean full Debug build (MSVC 14.51) at 83bb56cd9: core_epoch_policy, application_epoch_host, qt_epoch_comparison_scale_100, qt_workbench_window_scale_100, gh_cli_transport, agent_workspace_ownership, application_agent_materialization_crash_recovery, application_review_round_trip_composition_contract pass. macOS arm64 dev passed the same selection plus gh_cli_git_smart_transport, application_agent_crash_recovery and application_terminal_diagnostics. application_agent_crash_recovery fails on Windows identically on base 33e1e088a (pre-existing; follow-up below). Merged to main as 49da209d3."}}, {"criterion": "AC2", "outcome": "pending", "revision": "54117c6ae", "evidence": {"kind": "command", "command": "ssh aito-main-win: gh auth status; gh auth token (exit status only)", "detail": "Not run, 2026-11-05: over OpenSSH gh on bpr-main-win cannot read its token. hosts.yml names MikeMarcin with keyring storage; gh auth token says no oauth token found for github.com and gh auth status says the token in default is invalid. The app takes its GitHub CLI token from the same gh auth token (private GH_CONFIG_DIR, keyring), so an OpenSSH run cannot sign in. Running in the station interactive session through a scheduled task was refused by the implementer permission policy. The app has no live driver either: --attended-launch refuses without a fixture. See Pending."}}, {"criterion": "AC3", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: the owner's machine shows the named refusal (check, folder, account) or recovers."}}]
 ---
 
 # BPR-1857: Windows files do not open; agent workspaces refused without a reason
@@ -231,12 +231,39 @@ agent's panel output never shows both `process-id` and `descendant-id`, so the
 agent and its descendant are never seen running. macOS passes. It needs its own
 card.
 
+Fixed by [[BPR-1869]] (done): the agent course's frame splitting and the
+streaming answer's redraw rate. At fefa2b983 `application_agent_crash_recovery`
+passes on bpr-main-win four times in a row (30.2 to 30.6 s).
+
 ## Pending
 
 - The owner: is the work machine's account **GitHub CLI** (Accounts shows the
   transport)? Is `%LOCALAPPDATA%`/`%APPDATA%` redirected (OneDrive, a network
   share, folder redirection)? And `icacls` of the folders below, which only
   their machine can give.
-- bpr-main-win: the build and courses below, then AC2 live on BPR-Test.
+- AC2 live on BPR-Test, from bpr-main-win's interactive session. Two things
+  stand in the way, found 2026-11-05 at 54117c6ae:
+  - **The token.** gh on bpr-main-win is signed in as MikeMarcin, with the
+    token in Windows Credential Manager (`hosts.yml` has no `oauth_token`).
+    An OpenSSH session cannot read it: `gh auth token` prints
+    `no oauth token found for github.com`, and `gh auth status` says
+    `The token in default is invalid`. The app's GitHub CLI sign-in reads the
+    token the same way (`gh auth token --hostname --user` under its private
+    `GH_CONFIG_DIR`), so an OpenSSH run cannot sign in. Nothing here needs the
+    owner to sign in again. The run must start in the interactive session: the
+    `bpr-win` remote station, or an `InteractiveToken` scheduled task like the
+    `BPR-1525-*` ones. Creating that task was refused by the implementer's
+    permission policy.
+  - **The driver.** No product hook opens a live pull request offscreen.
+    `--attended-open-file` and `--attended-open-pull-request` need
+    `--attended-launch`, which refuses to start without `--github-fixture`.
+    An offscreen AC2 run needs a test-only live course (opt-in CMake option,
+    never a CTest row, like `tool_activity_live_course`). It would start
+    `profile_desktop::start` on a private data root, press
+    `use_github_cli_button()`, answer the read opt-in, open the BPR-Test pull
+    request from the Home bar, reveal a file through
+    `github_application_fixture_access::reveal_fixture_file`, and print
+    `epoch_selectors()->line_summary()->text()` (`pair ready`),
+    `problem_text()` and the status bar.
 - Not compiled here: every `_WIN32`/`Q_OS_WIN` line of this change
   (`windows_account_text`, the inherit-only skip, the Windows clone root).
