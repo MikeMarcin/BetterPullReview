@@ -285,6 +285,16 @@ account read is the only bracket around it (the operation's one pinned
 credential cannot answer as another account). Nothing is ever marked read on
 GitHub. Notifications go through the desktop's tray (the macOS status item
 where there is one), so the system's Do Not Disturb applies.
+BPR-1867: every decision also names the pull requests with a new thread
+(`activity_decision::Active`, notified or not, never for a baseline), and the
+host hands them to the profile's windows after each answer. A window showing
+one (`core::activity_concerns`, names compared without case) owes the
+publication reread's one automatic reread; `core::decide_reread` makes that
+news wait for a read under way and for the reviewer to stop writing (Qt
+reports only that focus is in a multi-line editor). Coming back in front on a
+pull request whose update is `core::refresh_return_seconds` old owes the same
+reread (`core::refresh_due_on_return`, none into a rate limit's wait); it is
+the only news a native profile gets.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 

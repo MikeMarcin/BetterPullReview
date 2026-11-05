@@ -4933,6 +4933,20 @@ set_tests_properties(application_refresh_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "refresh-feedback-public-path:pass")
 
+# [[BPR-1867]]. The open pull request picks up new activity by itself: an
+# activity poll's hand-off rereads the shown pull request in place, waits while
+# the reviewer writes, and coming back reads an aged one again.
+bpr_add_executable(test_open_pull_request_activity_public_path open_pull_request_activity_public_path_tests.cpp)
+target_link_libraries(test_open_pull_request_activity_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_open_pull_request_activity_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_open_pull_request_activity_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_open_pull_request_activity_public_path)
+bpr_enable_warnings(test_open_pull_request_activity_public_path)
+bpr_add_network_isolated_test(NAME application_open_pull_request_activity_public_path WINDOWS_UNCONTAINED COMMAND test_open_pull_request_activity_public_path)
+set_tests_properties(application_open_pull_request_activity_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "open-pull-request-activity-public-path:pass")
+
 # [[BPR-1601]]. Singleton read state through Discuss, Threads, Status and restart.
 bpr_add_executable(test_conversation_read_public_path conversation_read_public_path_tests.cpp)
 target_link_libraries(test_conversation_read_public_path PRIVATE BetterPullReview::Composition)

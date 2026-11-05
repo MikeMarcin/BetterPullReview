@@ -130,6 +130,7 @@
 #include <QStyleOption>
 #include <QTabBar>
 #include <QTextBlock>
+#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
@@ -5157,6 +5158,31 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		return open_queue_ref();
+	}
+
+	auto workbench_window::shown_pull_request() const -> std::optional<core::pull_request_ref>
+	{
+		return showing_home() ? std::nullopt : open_queue_ref();
+	}
+
+	auto workbench_window::composing() const -> bool
+	{
+		auto* const focus = focusWidget();
+		if (focus == nullptr || (focus != this && !isAncestorOf(focus))) {
+			return false;
+		}
+		// A draft's editor is read-only for a moment while each edit is saved,
+		// so a multi-line editor holding the focus counts whatever its state;
+		// only a browser, which is never written in, does not.
+		if (qobject_cast<const QTextBrowser*>(focus) != nullptr) {
+			return false;
+		}
+		return qobject_cast<const QTextEdit*>(focus) != nullptr || qobject_cast<const QPlainTextEdit*>(focus) != nullptr;
+	}
+
+	void workbench_window::set_pull_request_return_dispatch(std::function<void(std::int64_t)> aDispatch)
+	{
+		PullRequestReturnDispatch = std::move(aDispatch);
 	}
 
 	auto workbench_window::open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool
@@ -19161,6 +19187,11 @@ namespace bpr::qt {
 			// other activation discovery hears.
 			if (isActiveWindow() && showing_home() && HomeAccount && QueueDiscoveryDispatch) {
 				QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
+			}
+			// [[BPR-1867]]. Coming back to a pull request it shows: read again
+			// by itself once its update has aged.
+			if (isActiveWindow() && PullRequestReturnDispatch && shown_pull_request()) {
+				PullRequestReturnDispatch(refresh_clock());
 			}
 			break;
 		case QEvent::ApplicationPaletteChange:

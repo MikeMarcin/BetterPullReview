@@ -187,6 +187,9 @@ namespace bpr::core {
 		activity_suppress,
 		/// [[BPR-1850]]. The reviewer chose an activity notification.
 		activity_activate,
+		/// [[BPR-1867]]. Pull requests with new activity handed on, so a window
+		/// showing one reads it again (`count`).
+		activity_refresh,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
