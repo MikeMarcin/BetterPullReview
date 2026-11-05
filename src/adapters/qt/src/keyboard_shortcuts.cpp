@@ -102,7 +102,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::copy_pending_comments, .Group = comments, .Binding = read, .Title = "Copy the selected comments with their lines", .Place = in_pending, .Standard = QKeySequence::Copy, .Objects = "wholeReviewPendingCopy" },
 
 			// Find.
-			shortcut_entry{ .Command = command::find, .Group = find, .Binding = bound, .Title = "Find in the file", .Standard = QKeySequence::Find, .Objects = "sourceFindAction;desktopSourceFindAction" },
+			shortcut_entry{ .Command = command::find, .Group = find, .Binding = bound, .Title = "Find in the file", .Standard = QKeySequence::Find, .Conditional = true, .Objects = "sourceFindAction;desktopSourceFindAction" },
 #if defined(Q_OS_MACOS)
 			shortcut_entry{ .Command = command::find_next, .Group = find, .Binding = bound, .Title = "Next match", .Keys = "F3;Ctrl+G", .Objects = "sourceFindNextAction;desktopSourceFindNextAction" },
 			shortcut_entry{ .Command = command::find_previous, .Group = find, .Binding = bound, .Title = "Previous match", .Keys = "Shift+F3;Ctrl+Shift+G", .Objects = "sourceFindPreviousAction;desktopSourceFindPreviousAction" },
@@ -190,6 +190,11 @@ namespace bpr::qt {
 			// request's otherwise, never on both. Like the pull request's, it
 			// acts while the keyboard is in Home's Open bar.
 			shortcut_entry{ .Command = command::home_refresh, .Group = home, .Binding = bound, .Title = "Refresh my pull requests", .Place = "On Home", .Standard = QKeySequence::Refresh, .Conditional = true, .Objects = "refreshQueueAction" },
+			// [[BPR-1865]]. Find's key filters Home while Home shows and finds in
+			// the file otherwise, never both, as the Refresh key moves. "/" or
+			// any character typed in a Home list goes to the filter too.
+			shortcut_entry{ .Command = command::home_filter, .Group = home, .Binding = bound, .Title = "Filter Home", .Place = "On Home", .Standard = QKeySequence::Find, .Conditional = true, .Objects = "homeFilterAction" },
+			shortcut_entry{ .Command = command::home_filter_from_list, .Group = home, .Binding = read, .Title = "Filter Home, or start typing", .Place = "In a Home list", .Keys = "/" },
 
 		// Review Cycles: a local project's own keys ([[BPR-1157]], [[BPR-1280]]).
 		// The code view reads Return as macOS names it and Enter as Windows
@@ -225,7 +230,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::settings, .Group = application, .Binding = bound, .Title = "Settings", .Keys = "Ctrl+,", .Objects = "openSettingsAction;desktopOpenSettingsAction" },
 			shortcut_entry{ .Command = command::insights, .Group = application, .Binding = bound, .Title = "Insights", .Keys = "Ctrl+Alt+Shift+I", .Objects = "openInsightsAction;desktopOpenInsightsAction" },
 			shortcut_entry{ .Command = command::settings_find, .Group = application, .Binding = bound, .Title = "Search Settings", .Place = "In Settings", .Standard = QKeySequence::Find, .EveryBinding = true, .Shown = 1U, .Objects = "settingsFindShortcut" },
-			shortcut_entry{ .Command = command::new_window, .Group = application, .Binding = bound, .Title = "New window", .Place = "With no window open", .Standard = QKeySequence::New, .Objects = "desktopNewBprWindowAction" },
+			shortcut_entry{ .Command = command::new_window, .Group = application, .Binding = bound, .Title = "New window", .Standard = QKeySequence::New, .Objects = "newBprWindowAction;desktopNewBprWindowAction" },
 			shortcut_entry{ .Command = command::quit, .Group = application, .Binding = bound, .Title = "Quit", .Standard = QKeySequence::Quit, .Objects = "quitProfilesAction;desktopQuitProfilesAction" },
 			shortcut_entry{ .Command = command::connect, .Group = application, .Binding = bound, .Title = "Sign in to GitHub", .Keys = "Ctrl+Shift+C", .Objects = "connectGithubAction" },
 			shortcut_entry{ .Command = command::open_pull_request, .Group = application, .Binding = bound, .Title = "Open a pull request", .Standard = QKeySequence::Open, .Objects = "openPullRequestAction" },

@@ -1,5 +1,6 @@
 #include "bpr/qt/home_list.hpp"
 
+#include "bpr/core/home_filter.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
 #include <QApplication>
@@ -18,8 +19,11 @@
 #include <QStyleOptionViewItem>
 #include <QTimer>
 #include <QVBoxLayout>
+#include <QVariantList>
 
 #include <algorithm>
+#include <limits>
+#include <string>
 #include <utility>
 
 namespace bpr::qt {
@@ -149,6 +153,75 @@ namespace bpr::qt {
 			return rows;
 		}
 
+		/// \brief [[BPR-1865]]. The core's matched byte runs of `aText` as
+		/// UTF-16 runs, moved along by `aAt` characters.
+		void append_runs(QVariantList& aInto, const QString& aText, const std::vector<core::fuzzy_match_span>& aSpans, const qsizetype aAt)
+		{
+			const auto utf8 = aText.toUtf8();
+			for (const auto& span : aSpans) {
+				const auto first = std::min<qsizetype>(static_cast<qsizetype>(span.Begin), utf8.size());
+				const auto last  = std::min<qsizetype>(static_cast<qsizetype>(span.Begin + span.Length), utf8.size());
+				const auto begin = QString::fromUtf8(utf8.first(first)).size();
+				const auto end   = QString::fromUtf8(utf8.first(last)).size();
+				if (end > begin) {
+					aInto.push_back(QPoint{ static_cast<int>(aAt + begin), static_cast<int>(end - begin) });
+				}
+			}
+		}
+
+		/// \brief [[BPR-1865]]. One row's text as the filter matches it, and
+		/// the texts its marks are measured in.
+		struct filter_row
+		{
+			core::home_filter_candidate Candidate;
+			QString                     Title;
+			QString                     Repository;
+			QString                     Author;
+		};
+
+		[[nodiscard]] auto filter_row_of(const qint64 aNumber, QString aTitle, QString aRepository, QString aAuthor) -> filter_row
+		{
+			auto row      = filter_row{ .Title = std::move(aTitle), .Repository = std::move(aRepository), .Author = std::move(aAuthor) };
+			row.Candidate = core::home_filter_candidate{ .Number = aNumber, .Title = row.Title.toStdString(), .Repository = row.Repository.toStdString(), .Author = row.Author.toStdString() };
+			return row;
+		}
+
+		/// \brief The marks of one match: the title's, the identity's
+		/// ("owner/name#123", the repository then the number) and the author's.
+		[[nodiscard]] auto marks_of(const filter_row& aRow, const core::home_filter_match& aMatch) -> std::array<QVariant, 3U>
+		{
+			auto title    = QVariantList{ };
+			auto identity = QVariantList{ };
+			auto author   = QVariantList{ };
+			for (const auto& hit : aMatch.Hits) {
+				switch (hit.Field) {
+				case core::home_filter_field::title:      append_runs(title, aRow.Title, hit.Spans, 0); break;
+				case core::home_filter_field::repository: append_runs(identity, aRow.Repository, hit.Spans, 0); break;
+				// The digits are ASCII, so their bytes are their characters.
+				case core::home_filter_field::number: append_runs(identity, QString::number(aRow.Candidate.Number), hit.Spans, aRow.Repository.size() + 1); break;
+				case core::home_filter_field::author: append_runs(author, aRow.Author, hit.Spans, 0); break;
+				case core::home_filter_field::branch:
+				case core::home_filter_field::label:  break;
+				}
+			}
+			// The number's runs come before the repository's in field order;
+			// the identity says the repository first.
+			std::ranges::sort(identity, [](const QVariant& aLeft, const QVariant& aRight) { return aLeft.toPoint().x() < aRight.toPoint().x(); });
+			return { QVariant{ title }, QVariant{ identity }, QVariant{ author } };
+		}
+
+		/// \brief A key that types a character into a field: printable, with
+		/// Shift at most. Space stays the list's.
+		[[nodiscard]] auto typed_character(const QKeyEvent& aKey) -> QString
+		{
+			const auto modifiers = aKey.modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier);
+			auto       text      = aKey.text();
+			if (modifiers != Qt::NoModifier || text.isEmpty() || text.front().isSpace() || !text.front().isPrint()) {
+				return { };
+			}
+			return text;
+		}
+
 		void connect_model_signals(QAbstractItemModel& aModel, QObject& aContext, const std::function<void()>& aChanged)
 		{
 			QObject::connect(&aModel, &QAbstractItemModel::rowsInserted, &aContext, [aChanged](const QModelIndex&, int, int) { aChanged(); });
@@ -191,6 +264,13 @@ namespace bpr::qt {
 		// or a login. The host is never part of the name.
 		static_cast<void>(aGrouping);
 		return aKey.Value;
+	}
+
+	// ---- home_filter_state --------------------------------------------------
+
+	auto home_filter_state::rank(const int aRow) const -> int
+	{
+		return aRow >= 0 && static_cast<std::size_t>(aRow) < Rank.size() ? Rank[static_cast<std::size_t>(aRow)] : -1;
 	}
 
 	// ---- home_slice_model ---------------------------------------------------
@@ -263,6 +343,38 @@ namespace bpr::qt {
 		}
 	}
 
+	void home_slice_model::set_filter(const home_filter_state* const aFilter)
+	{
+		Filter = aFilter;
+	}
+
+	void home_slice_model::refilter()
+	{
+#if QT_VERSION >= QT_VERSION_CHECK(6, 10, 0)
+		beginFilterChange();
+		endFilterChange(Direction::Rows);
+#else
+		invalidateFilter();
+#endif
+		// The proxy sort is turned off first, so a sort already on column 0 is
+		// made again by the new ranking; off for the queue's own order.
+		sort(-1);
+		if (StateOrdered || filtering()) {
+			sort(0, Qt::AscendingOrder);
+		}
+	}
+
+	auto home_slice_model::filtering() const noexcept -> bool
+	{
+		return Filter != nullptr && Filter->Active;
+	}
+
+	auto home_slice_model::source_row(const QModelIndex& aQueueIndex) const -> int
+	{
+		const auto source = Queue.mapToSource(aQueueIndex);
+		return source.isValid() ? source.row() : -1;
+	}
+
 	auto home_slice_model::state() const noexcept -> std::optional<home_group>
 	{
 		return State;
@@ -280,6 +392,17 @@ namespace bpr::qt {
 
 	auto home_slice_model::data(const QModelIndex& aIndex, const int aRole) const -> QVariant
 	{
+		if (aRole == home_row_role::title_marks || aRole == home_row_role::identity_marks || aRole == home_row_role::author_marks) {
+			// [[BPR-1865]]. What the filter matched in this row, if it filters.
+			if (!filtering()) {
+				return { };
+			}
+			const auto row = static_cast<std::size_t>(std::max(0, source_row(mapToSource(aIndex))));
+			if (row >= Filter->Marks.size()) {
+				return { };
+			}
+			return Filter->Marks[row][static_cast<std::size_t>(aRole - home_row_role::title_marks)];
+		}
 		if (aRole == home_row_role::account_chip && !Chips) {
 			// [[BPR-0783]]. The group already says the account, so its rows do not
 			// repeat it: under Account grouping, and in a single-account group.
@@ -313,11 +436,19 @@ namespace bpr::qt {
 		if (State.has_value() ? state != State : state == home_group::ignored) {
 			return false;
 		}
+		// [[BPR-1865]]. While the filter runs, only the rows it found.
+		if (filtering() && Filter->rank(source_row(row)) < 0) {
+			return false;
+		}
 		return Key.empty() || key_of_row(Grouping, row) == Key;
 	}
 
 	auto home_slice_model::lessThan(const QModelIndex& aLeft, const QModelIndex& aRight) const -> bool
 	{
+		if (filtering()) {
+			// [[BPR-1865]]. The core's ranking, best first, in every slice.
+			return Filter->rank(source_row(aLeft)) < Filter->rank(source_row(aRight));
+		}
 		if (!StateOrdered) {
 			return aLeft.row() < aRight.row();
 		}
@@ -526,6 +657,24 @@ namespace bpr::qt {
 		});
 		Layout->addWidget(FilteredSentence);
 
+		// [[BPR-1865]]. Nothing on Home matches the filter: one sentence that
+		// says what was looked for and the way out, never an empty box.
+		FilterSentence = new QLabel{ Column };
+		FilterSentence->setObjectName(QStringLiteral("homeFilterSentence"));
+		FilterSentence->setTextFormat(Qt::PlainText);
+		FilterSentence->setWordWrap(true);
+		FilterSentence->setFocusPolicy(Qt::NoFocus);
+		FilterSentence->setContentsMargins(sentence_inset, sentence_inset_vertical, sentence_inset, sentence_inset_vertical);
+		FilterSentence->hide();
+		Layout->addWidget(FilterSentence);
+		if (auto* const source = Queue.sourceModel(); source != nullptr) {
+			connect_model_signals(*source, *this, [this] {
+				if (Filter.Active) {
+					schedule_filter();
+				}
+			});
+		}
+
 		Delegate = new home_row_delegate{ this };
 		for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
 			const auto  group   = groups[index];
@@ -684,6 +833,11 @@ namespace bpr::qt {
 		aView.setAccessibleDescription(home_open_description());
 		aView.setModel(&aModel);
 		aView.setItemDelegate(Delegate);
+		// [[BPR-1865]]. Every slice admits and orders by the list's one filter.
+		aModel.set_filter(&Filter);
+		if (Filter.Active) {
+			aModel.refilter();
+		}
 		aView.installEventFilter(this);
 		aView.viewport()->installEventFilter(this);
 		// [[BPR-1364]]. A single click only selects: the row becomes current,
@@ -857,6 +1011,12 @@ namespace bpr::qt {
 		RecentCount = aCount;
 		RecentPanel->set_count(aCount);
 		RecentPanel->set_summary(aSummary);
+		// [[BPR-1865]]. Recently viewed was written again, so its rows are
+		// matched again.
+		if (Filter.Active) {
+			apply_filter();
+			return;
+		}
 		refresh();
 	}
 
@@ -924,6 +1084,12 @@ namespace bpr::qt {
 
 	void home_list::set_collapsed_panels(const std::uint8_t aCollapsed)
 	{
+		if (FilterHeld) {
+			// [[BPR-1865]]. The filter holds every panel open; the view's own
+			// collapse is what comes back when it is cleared.
+			HeldPanels = aCollapsed;
+			return;
+		}
 		if (CollapsedPanels == aCollapsed) {
 			return;
 		}
@@ -972,6 +1138,7 @@ namespace bpr::qt {
 				: static_cast<std::uint8_t>(CollapsedPanels & static_cast<std::uint8_t>(~aBit));
 			const auto changed = next != CollapsedPanels;
 			CollapsedPanels    = next;
+			FilterGesture      = FilterGesture || (FilterHeld && changed && !ApplyingCollapse);
 			update_sticky_headers();
 			if (changed && !ApplyingCollapse && ViewObserver) {
 				ViewObserver();
@@ -1058,7 +1225,9 @@ namespace bpr::qt {
 			}
 			panel->set_count(rows);
 			panel->set_summary(home_state_summary(group, items));
-			const auto sentence = group == home_group::needs_you && allEmpty && !Onboarding;
+			// [[BPR-1865]]. While the filter runs, an empty queue's sentence is
+			// not a match, so it gives way to the filter's own.
+			const auto sentence = group == home_group::needs_you && allEmpty && !Onboarding && !Filter.Active;
 			// A list is shown by what it holds; whether its state belongs to this
 			// arrangement at all is the panel's to say. Hiding the list itself
 			// would take the keyboard from a row an activation had just made
@@ -1108,7 +1277,11 @@ namespace bpr::qt {
 		}
 		FilteredSentence->setVisible(filtered);
 
-		RecentPanel->setVisible(RecentView != nullptr && RecentCount > 0);
+		// [[BPR-1865]]. While the filter runs, Recently viewed counts and
+		// shows the rows it found.
+		const auto recentShown = Filter.Active ? static_cast<int>(std::ranges::count_if(RecentRank, [](const int aRank) { return aRank >= 0; })) : RecentCount;
+		RecentPanel->set_count(recentShown);
+		RecentPanel->setVisible(RecentView != nullptr && recentShown > 0);
 		const auto ignoredRows = IgnoredModel->rowCount();
 		IgnoredPanel->set_count(ignoredRows);
 		IgnoredPanel->set_summary(QStringLiteral("%1 ignored").arg(ignoredRows));
@@ -1121,6 +1294,11 @@ namespace bpr::qt {
 				CurrentRows = nullptr;
 			}
 		}
+		if (FilterHeld) {
+			// A group or band made while the filter runs opens with the rest.
+			hold_panels_open();
+		}
+		update_filter_sentence();
 		update_sticky_headers();
 		place_open_action();
 	}
@@ -2055,6 +2233,369 @@ namespace bpr::qt {
 		}
 	}
 
+	// ---- [[BPR-1865]] the filter ------------------------------------------
+
+	void home_list::set_filter(const QString& aQuery)
+	{
+		if (aQuery == Filter.Query && FilterHeld == core::home_filter_active(aQuery.toStdString())) {
+			return;
+		}
+		Filter.Query = aQuery;
+		apply_filter();
+	}
+
+	auto home_list::filter() const -> QString
+	{
+		return Filter.Query;
+	}
+
+	auto home_list::filter_state() const noexcept -> const home_filter_state&
+	{
+		return Filter;
+	}
+
+	void home_list::schedule_filter()
+	{
+		if (FilterPending) {
+			return;
+		}
+		FilterPending = true;
+		QMetaObject::invokeMethod(
+			this, [this] {
+				if (FilterPending) {
+					apply_filter();
+				}
+			},
+			Qt::QueuedConnection);
+	}
+
+	void home_list::apply_filter()
+	{
+		FilterPending     = false;
+		const auto query  = Filter.Query.toStdString();
+		const auto active = core::home_filter_active(query);
+		if (active && !FilterHeld) {
+			hold_panels_open();
+		}
+		Filter.Active       = active;
+		const auto* source  = Queue.sourceModel();
+		const auto  rows    = source != nullptr ? source->rowCount() : 0;
+		const auto  recents = RecentView != nullptr ? RecentView->count() : 0;
+		Filter.Rank.assign(static_cast<std::size_t>(rows), -1);
+		Filter.Marks.assign(static_cast<std::size_t>(rows), { });
+		RecentRank.assign(static_cast<std::size_t>(recents), -1);
+		auto recentMarks = std::vector<std::array<QVariant, 3U>>(static_cast<std::size_t>(recents));
+		if (active) {
+			// One ranking over the queue's rows, then Recently viewed's, so the
+			// best match anywhere is known and equal matches keep Home's order.
+			auto texts = std::vector<filter_row>{ };
+			texts.reserve(static_cast<std::size_t>(rows) + static_cast<std::size_t>(recents));
+			for (auto row = 0; row < rows; ++row) {
+				const auto index = source->index(row, 0);
+				texts.push_back(filter_row_of(index.data(review_landing_model::number_role).toLongLong(), index.data(review_landing_model::title_role).toString(),
+											  index.data(review_landing_model::repository_role).toString(), index.data(review_landing_model::author_role).toString()));
+			}
+			for (auto row = 0; row < recents; ++row) {
+				const auto* const item     = RecentView->item(row);
+				const auto        identity = item->data(home_row_role::identity).toString();
+				const auto        hash     = identity.lastIndexOf(QLatin1Char{ '#' });
+				texts.push_back(filter_row_of(hash >= 0 ? identity.mid(hash + 1).toLongLong() : 0, item->data(home_row_role::title).toString(),
+											  hash >= 0 ? identity.left(hash) : identity, item->data(home_row_role::author).toString()));
+			}
+			auto candidates = std::vector<core::home_filter_candidate>{ };
+			candidates.reserve(texts.size());
+			for (const auto& text : texts) {
+				candidates.push_back(text.Candidate);
+			}
+			const auto ranked = core::rank_home_filter(query, candidates);
+			for (std::size_t place = 0U; place < ranked.size(); ++place) {
+				const auto& entry = ranked[place];
+				if (entry.Index < static_cast<std::size_t>(rows)) {
+					Filter.Rank[entry.Index]  = static_cast<int>(place);
+					Filter.Marks[entry.Index] = marks_of(texts[entry.Index], entry.Match);
+				} else {
+					const auto row   = entry.Index - static_cast<std::size_t>(rows);
+					RecentRank[row]  = static_cast<int>(place);
+					recentMarks[row] = marks_of(texts[entry.Index], entry.Match);
+				}
+			}
+		}
+		for (auto* const model : slice_models()) {
+			model->refilter();
+		}
+		if (RecentView != nullptr) {
+			for (auto row = 0; row < recents; ++row) {
+				auto* const item = RecentView->item(row);
+				RecentView->setRowHidden(row, active && RecentRank[static_cast<std::size_t>(row)] < 0);
+				for (auto role = 0; role < 3; ++role) {
+					item->setData(home_row_role::title_marks + role, recentMarks[static_cast<std::size_t>(row)][static_cast<std::size_t>(role)]);
+				}
+			}
+			RecentView->doItemsLayout();
+			RecentView->viewport()->update();
+		}
+		if (!active && FilterHeld) {
+			release_panels();
+		}
+		refresh();
+		// The best match anywhere is the current result: the one Return opens.
+		auto best     = std::pair<QAbstractItemView*, QModelIndex>{ };
+		auto bestRank = std::numeric_limits<int>::max();
+		if (active) {
+			for (const auto& [view, index] : filter_results()) {
+				const auto rank = view == RecentView ? RecentRank[static_cast<std::size_t>(index.row())] : Filter.rank(source_row_of(*view, index));
+				if (rank >= 0 && rank < bestRank) {
+					bestRank = rank;
+					best     = { view, index };
+				}
+			}
+		}
+		if (best.first != nullptr) {
+			set_filter_result(best.first, best.second);
+		} else {
+			FilterView  = nullptr;
+			FilterIndex = QPersistentModelIndex{ };
+		}
+	}
+
+	auto home_list::slice_models() const -> std::vector<home_slice_model*>
+	{
+		auto models = std::vector<home_slice_model*>{ StateModels.begin(), StateModels.end() };
+		models.push_back(FlatModel);
+		models.push_back(IgnoredModel);
+		for (const auto& group : Groups) {
+			models.push_back(group->RowsModel);
+			models.insert(models.end(), group->BandModels.begin(), group->BandModels.end());
+		}
+		std::erase(models, nullptr);
+		return models;
+	}
+
+	auto home_list::source_row_of(const QAbstractItemView& aView, const QModelIndex& aIndex) const -> int
+	{
+		const auto* const proxy = qobject_cast<const QSortFilterProxyModel*>(aView.model());
+		if (proxy == nullptr || !aIndex.isValid()) {
+			return -1;
+		}
+		const auto source = Queue.mapToSource(proxy->mapToSource(aIndex));
+		return source.isValid() ? source.row() : -1;
+	}
+
+	auto home_list::filter_results() const -> std::vector<std::pair<QAbstractItemView*, QModelIndex>>
+	{
+		auto results = std::vector<std::pair<QAbstractItemView*, QModelIndex>>{ };
+		for (const auto& stop : reading_order()) {
+			if (stop.Panel->collapsed() || stop.Rows == nullptr || stop.Rows->model() == nullptr) {
+				continue;
+			}
+			auto* const model = stop.Rows->model();
+			for (auto row = 0; row < model->rowCount(stop.Rows->rootIndex()); ++row) {
+				if (stop.Rows == RecentView && RecentView->isRowHidden(row)) {
+					continue;
+				}
+				results.emplace_back(stop.Rows, model->index(row, 0, stop.Rows->rootIndex()));
+			}
+		}
+		return results;
+	}
+
+	auto home_list::filter_matches() const -> int
+	{
+		return Filter.Active ? static_cast<int>(filter_results().size()) : 0;
+	}
+
+	void home_list::set_filter_result(QAbstractItemView* const aView, const QModelIndex& aIndex)
+	{
+		FilterView  = aView;
+		FilterIndex = QPersistentModelIndex{ aIndex };
+		aView->setCurrentIndex(aIndex);
+		if (aView == RecentView) {
+			if (auto* const panel = panel_of(*aView); panel != nullptr) {
+				ensure_row_visible(*aView, aIndex, *panel);
+			}
+		}
+		if (FilterResultObserver) {
+			FilterResultObserver(aView);
+		}
+		aView->viewport()->update();
+	}
+
+	auto home_list::step_filter(const int aStep) -> bool
+	{
+		const auto results = filter_results();
+		if (results.empty()) {
+			return false;
+		}
+		const auto found = std::ranges::find_if(results, [this](const std::pair<QAbstractItemView*, QModelIndex>& aResult) {
+			return aResult.first == FilterView && QPersistentModelIndex{ aResult.second } == FilterIndex;
+		});
+		const auto at    = found == results.end() ? (aStep > 0 ? -1 : static_cast<int>(results.size())) : static_cast<int>(found - results.begin());
+		const auto next  = at + aStep;
+		if (next < 0 || next >= static_cast<int>(results.size())) {
+			return false;
+		}
+		const auto& [view, index] = results[static_cast<std::size_t>(next)];
+		set_filter_result(view, index);
+		return true;
+	}
+
+	void home_list::open_filter_result(const bool aNewWindow)
+	{
+		if (FilterView == nullptr || !FilterIndex.isValid()) {
+			return;
+		}
+		const auto index = QModelIndex{ FilterIndex };
+		if (FilterView == RecentView) {
+			if (aNewWindow) {
+				open_row_in_new_window(*FilterView, index);
+			} else if (RecentOpenDispatch) {
+				RecentOpenDispatch(index.row());
+			}
+			return;
+		}
+		if (aNewWindow) {
+			open_row_in_new_window(*FilterView, index);
+		} else {
+			open_row(*FilterView, index);
+		}
+	}
+
+	void home_list::focus_filter_result()
+	{
+		if (FilterView != nullptr && FilterIndex.isValid()) {
+			FilterView->setFocus(Qt::OtherFocusReason);
+			FilterView->setCurrentIndex(QModelIndex{ FilterIndex });
+			return;
+		}
+		if (CurrentRows != nullptr && CurrentRows->currentIndex().isValid() && CurrentRows->isVisible()) {
+			CurrentRows->setFocus(Qt::OtherFocusReason);
+			return;
+		}
+		focus_first_row();
+	}
+
+	auto home_list::filter_result_view() const noexcept -> QAbstractItemView*
+	{
+		return FilterView;
+	}
+
+	auto home_list::filter_result() const -> QModelIndex
+	{
+		return QModelIndex{ FilterIndex };
+	}
+
+	void home_list::set_filter_elsewhere(const int aMatches)
+	{
+		if (FilterElsewhere == aMatches) {
+			return;
+		}
+		FilterElsewhere = aMatches;
+		update_filter_sentence();
+	}
+
+	auto home_list::filter_sentence() const noexcept -> QLabel*
+	{
+		return FilterSentence;
+	}
+
+	void home_list::set_filter_typing_dispatch(std::function<void(const QString&)> aDispatch)
+	{
+		FilterTypingDispatch = std::move(aDispatch);
+	}
+
+	void home_list::set_filter_result_observer(std::function<void(QAbstractItemView*)> aObserver)
+	{
+		FilterResultObserver = std::move(aObserver);
+	}
+
+	void home_list::set_recent_open_dispatch(std::function<void(int aRow)> aDispatch)
+	{
+		RecentOpenDispatch = std::move(aDispatch);
+	}
+
+	void home_list::hold_panels_open()
+	{
+		if (!FilterHeld) {
+			FilterHeld    = true;
+			FilterGesture = false;
+			HeldPanels    = CollapsedPanels;
+			HeldGroups    = GroupCollapse;
+			HeldIgnored   = IgnoredPanel->collapsed();
+		}
+		ApplyingCollapse = true;
+		auto panels      = std::vector<home_panel*>{ StatePanels.begin(), StatePanels.end() };
+		panels.push_back(RecentPanel);
+		panels.push_back(IgnoredPanel);
+		for (const auto& group : Groups) {
+			panels.push_back(group->Panel);
+			panels.insert(panels.end(), group->Bands.begin(), group->Bands.end());
+		}
+		for (auto* const panel : panels) {
+			if (panel != nullptr && panel->collapsed()) {
+				panel->set_collapsed(false);
+			}
+		}
+		ApplyingCollapse = false;
+	}
+
+	void home_list::release_panels()
+	{
+		FilterHeld      = false;
+		GroupCollapse   = HeldGroups;
+		const auto told = FilterGesture;
+		FilterGesture   = false;
+		CollapsedPanels = HeldPanels;
+		apply_collapsed_panels();
+		ApplyingCollapse      = true;
+		const auto remembered = [this](const home_group_key& aKey, const std::optional<home_group> aState) {
+			const auto found = GroupCollapse.find(collapse_key(Grouping, aKey, aState));
+			return found != GroupCollapse.end() && found->second;
+		};
+		for (const auto& group : Groups) {
+			group->Panel->set_collapsed(remembered(group->Key, std::nullopt));
+			for (auto index = std::size_t{ 0U }; index < state_count; ++index) {
+				if (group->Bands[index] != nullptr) {
+					group->Bands[index]->set_collapsed(remembered(group->Key, groups[index]));
+				}
+			}
+		}
+		IgnoredPanel->set_collapsed(HeldIgnored);
+		ApplyingCollapse = false;
+		// A panel the reviewer folded while filtering is unfolded again by the
+		// view, which hears it as it heard the fold.
+		if (told && ViewObserver) {
+			ViewObserver();
+		}
+	}
+
+	void home_list::update_filter_sentence()
+	{
+		if (FilterSentence == nullptr) {
+			return;
+		}
+		const auto none = Filter.Active && FilterElsewhere == 0 && filter_results().empty();
+		if (none) {
+			const auto said = QStringLiteral("Nothing on Home matches \u201C%1\u201D. Search by number, title, repository or author; Esc clears the filter.")
+								  .arg(Filter.Query.trimmed());
+			FilterSentence->setText(said);
+			FilterSentence->setAccessibleName(said);
+		}
+		FilterSentence->setVisible(none);
+	}
+
+	auto home_list::read_filter_typing(const QKeyEvent& aKey) -> bool
+	{
+		if (!FilterTypingDispatch) {
+			return false;
+		}
+		const auto typed = typed_character(aKey);
+		if (typed.isEmpty()) {
+			return false;
+		}
+		FilterTypingDispatch(typed == QStringLiteral("/") ? QString{ } : typed);
+		return true;
+	}
+
 	auto home_list::eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool
 	{
 		if (aEvent == nullptr) {
@@ -2133,6 +2674,11 @@ namespace bpr::qt {
 			}
 		}
 		const auto unshifted = key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier;
+		// [[BPR-1865]]. "/" or a character typed in any of Home's lists goes to
+		// the filter, as a list's own type-ahead would have searched it.
+		if ((std::ranges::contains(views, aWatched) || (RecentView != nullptr && aWatched == RecentView)) && read_filter_typing(*key)) {
+			return true;
+		}
 		for (auto* const view : views) {
 			if (aWatched != view) {
 				continue;

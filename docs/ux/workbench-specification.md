@@ -80,6 +80,26 @@ republication and clear; neither a resize nor a Home round trip is required.
 A content update that preserves navigation keeps Home, the chosen modality
 and selected file; a retained local cycle keeps its own name without the button.
 
+**Window title** ([[BPR-1864]], the owner, 2026-11-04: "Window title in the
+dock on Mac id like to see the open PR if there is one rather than the app
+name and the profile"). macOS hides the title bar, but the window's title is
+what the Dock's window list, the Window menu and Mission Control name it by,
+as do the Windows and Linux taskbars. While a pull request is in front of the
+window, accepted or already named by GitHub's first answer, the title names
+it: number, title, repository, "#188875 Add the Flow Control panel —
+MikeMarcin/BPR-Test". The number leads because it is short and tells windows
+apart in a narrow menu; a title longer than 48 characters is shortened at a
+word with "…", so the repository is never what is cut. The profile follows
+("— Work profile") only when more than one profile exists. Home, a local
+cycle in front of the review, and a window with nothing open keep "BetterPullReview —
+Work profile" (with "Reading without signing in" before the profile while
+signed out in public preview). A window shows one pull request, so the
+document tabs, all files of it, never change the title. The title follows a
+Home round trip, a retitle arriving with a refresh, a close and a profile
+added or removed. The core words it (`core::window_title`); the window sets
+it and its accessible name. No proxy icon or represented file is set: a pull
+request is not a local file and the title bar that would carry one is hidden.
+
 **Modalities** ([[BPR-1295]], owner direction 2026-10-06). The modalities are
 Overview, Review and Discuss, on `Ctrl+1` to `Ctrl+3` (⌘1 to ⌘3), set per
 modality rather than by position, and Threads on `Ctrl+4` (⌘4) since
@@ -905,12 +925,60 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   draft; returning requires a new Add after checking the destination. Cancel
   or Escape discards the draft. Long identities wrap; progress and refusal are
   announced politely. The open-PR shortcut saves its known repository directly
-  through the same host and durable store.
+  through the same host and durable store. On the page, the account's
+  repository card and Add repository come first and Clone folders and Linked
+  clones follow ([[BPR-1856]], the owner, 2026-11-04); Tab and the
+  accessibility tree reach them in that order.
 - **The bar**, alone in the first row: one bordered field labelled Open,
   with the placeholder "Paste a link, or write owner/name#123", its shortcut
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
   It has focus when Home appears — on arrival only, so a later projection
   cannot take focus from wherever the reviewer has since moved it.
+- **The filter** ([[BPR-1865]], the owner, 2026-11-04: "I want to be able
+  to fuzzy filter the home screen to quickly find a PR"). One quiet line
+  under the bar, above everything it filters: a magnifier, the field with
+  the placeholder "Filter by number, title, repository or author", and at
+  its right its key (`Ctrl+F`, ⌘F on macOS) or, while it filters, how many
+  rows it shows ("2 matches", "No matches"), over a hairline in the
+  window's mid ink that turns to its text ink, heavier, while the field has
+  the keyboard. It is not a second bordered field: the bar names a pull
+  request anywhere, the filter finds one among Home's own rows, so it is
+  drawn as part of the lists. It stands whenever Home has rows to filter (an
+  account, Recently viewed or Review Cycles). Find's key is the filter's
+  while Home shows and the file's Find otherwise, moved between them as the
+  Refresh key is ([[BPR-1600]]), so a press is never ambiguous; `/`, or any
+  character typed in one of Home's lists, takes the keyboard to the field,
+  the character included (Space and modified keys stay the list's).
+  **What it finds.** The core matches and ranks (`core::rank_home_filter`):
+  the query's terms, split at white space, must each match the number, the
+  title, the repository (or its name alone), the author, the branch or a
+  label, and different terms may match different fields ("app login"). A
+  term of digits, with or without `#`, equal to the number ranks first;
+  then a prefix or a word's start, then a run inside a word, then scattered
+  letters, with a typo only when nothing else matched. `#12` is the number
+  only, `name#12` a repository and a number. Case, diacritics and full-width
+  forms fold, so "cafe" finds "café". Equal matches keep Home's order, the
+  queue before Recently viewed. Nothing reads GitHub: it is a function of
+  the rows already shown, run once per keystroke.
+  **How it shows.** Every panel keeps only its matching rows, best first,
+  and counts them; a panel with none is not shown, and no empty box is
+  drawn. While it filters every panel is held open; each panel's own
+  collapse comes back when the query is cleared and is never written to the
+  remembered view. Over a review the Active review card stands only while
+  it matches; Review Cycles keep their matching rows and go when none
+  match. Matched characters sit on a faint plate of the row's own ink, so
+  they claim no state colour; in the quieter second line they also rise to
+  the full ink. When nothing on Home matches, the list holds one sentence:
+  "Nothing on Home matches “zebra”. Search by number, title, repository or
+  author; Esc clears the filter."
+  **Keys in the field.** The best match anywhere is the current result,
+  selected in its list while the keyboard stays in the field. Down and Up
+  move it through the results in reading order; Return opens it in this
+  window (as the row's Return does, a Recently viewed row as Recently viewed
+  opens it) and ⌘Return (Ctrl+Return off macOS) in a new window. Escape
+  clears the query; on an empty field it hands the keyboard to the current
+  row of the list. Opening a pull request clears the filter, so coming back
+  finds Home whole.
 - **What a link names** ([[BPR-0987]], RFC-BPR-0026 AC-07/AC-08). A link to
   the pull request the window already shows reads it fresh from GitHub, then
   goes to the location, and a Recently viewed row of that pull request reads
@@ -1129,7 +1197,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Resume for a Recently viewed row, then a separator and Open on GitHub. Each
   item shows its key: ↩, ⌘↩, ⇧↩ and ⇧⌘O on macOS. The lists read the keys
   themselves; the menu's shortcuts never act from the window. Open Review in
-  New Window is offered exactly when Profiles › New Window is. It is that New
+  New Window is offered exactly when File › New Window is. It is that New
   Window, in the same profile under its one runtime owner, carrying the one
   pull request the window's host admitted: the new window opens Home, as
   every new window does, and then that pull request by its own bar's path, on
@@ -1156,6 +1224,22 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   the reviewer picks while this reread or a Refresh is in flight is the one
   shown once the read lands ([[BPR-1478]]): the latest pick wins, and the
   read never takes the window back to the file it showed before.
+- **When someone else acts on it** ([[BPR-1867]], the owner, 2026-11-04:
+  another user commented on the open pull request and it did not show the
+  comment "on its own; I had to manually refresh"). When the profile's
+  activity poll ([[BPR-1850]]) finds new activity on the pull request a
+  window shows, in front or not and whether or not a notification was posted,
+  that window reads it again by itself, as after publishing: the same one
+  reread, presented as the application's own update ("Updated just now · 1
+  new comment"), the same place kept. It waits while the reviewer is writing
+  in one of the window's multi-line editors and runs once the focus leaves
+  it; the text written is untouched. A window that comes back in front on a
+  pull request last brought up to date five minutes ago or more
+  (`core::refresh_return_seconds`, Home's freshness window) reads it again
+  the same way, unless a rate limit's wait is still running. That return is
+  the only news a native sign-in gets, which GitHub refuses the notification
+  list; there is no periodic poll of the open pull request, because a read
+  of it is about eighteen requests and none of them is conditional.
 - **While a row opens** ([[BPR-1357]], the owner, 2026-10-09: "There's no
   obvious immediate indication you actually tried to open a review if there
   is real network latency on the action."). A first read stays on Home until
@@ -1655,7 +1739,8 @@ never invents enabled state.
 | Previous file ([[BPR-1328]]) | `Ctrl+Alt+Up` (⌥⌘↑) |
 | Next file ([[BPR-1328]]) | `Ctrl+Alt+Down` (⌥⌘↓) |
 | View > Go to header/source ([[BPR-1416]]) | `Alt+O` (⌥O) |
-| View > Find > Find ([[BPR-1422]]) | `Ctrl+F` (⌘F) |
+| View > Find > Find ([[BPR-1422]]); on Home, Filter Home ([[BPR-1865]]) | `Ctrl+F` (⌘F) |
+| Filter Home from one of its lists ([[BPR-1865]]) | `/`, or start typing |
 | View > Find > Next / Previous Match ([[BPR-1422]]) | `F3` / `Shift+F3`; macOS also ⌘G / ⌘⇧G |
 | In the pane Find query ([[BPR-1422]], [[BPR-1503]]) | `Enter` / `Shift+Enter` navigate; `Ctrl+Enter` inserts a newline; `Escape` closes; `Alt+W` (⌥W) toggles Whole Word and `Alt+L` (⌥L) Find in Selection, claimed only while the query has focus; `Alt+C` and `Alt+R` stay Comment and Compose review (owner, 2026-10-14) |
 | Previous review change ([[BPR-1328]]) | `Alt+Up` (⌥↑), or `Alt+PgUp` |
@@ -2219,9 +2304,12 @@ choice between a real menu bar and a checkable entry in the existing toolbar
 popup, chose the menu bar. On macOS it merges into the system menu bar and
 costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
-popup keeps the private progress actions it already had. **File** holds Quit,
-and **Profiles** lists the profiles by name with the current one checked, then
-New Window and Manage Profiles…. Home's Open Review in New Window
+popup keeps the private progress actions it already had. **File** opens with
+**New Window** (`Ctrl+N`, ⌘N on macOS), which opens another window of this
+window's profile at Home, then Open Project…, Quit and Close Tab
+([[BPR-1863]]: the owner asked for New Window in File, where every desktop
+application keeps it, and it left Profiles). **Profiles** lists the profiles
+by name with the current one checked, then Manage Profiles…. Home's Open Review in New Window
 ([[BPR-1342]]) is the same New Window, carrying one pull request. On Windows the strip's application menu
 lists the same menus, Pull Request among them. There the bar is hidden, so
 its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
@@ -2394,8 +2482,8 @@ for itself, so both answers are drivable on one host:
 
   **The menu bar the close leaves behind.** The application's own menu bar
   carries the same menus a window's bar carries, so the close subtracts nothing
-  a reviewer can see: a File menu holding Quit, a Profiles menu listing the
-  profiles and then New Window and Manage Profiles…, and the window's own
+  a reviewer can see: a File menu holding New Window, Quit, Open Project… and Close Tab, a
+  Profiles menu listing the profiles and then Manage Profiles…, and the window's own
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS
   applications offer with no document open, and Settings keeping the
@@ -2563,11 +2651,15 @@ have not run since the application started, counts as finished. A turn's finding
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the
-suggested comment, **Save as note** a private note on them, and **Dismiss**
+suggested comment, opening with the Conventional Comments label the agent
+wrote already chosen in the label control ([[BPR-1861]]; an answer's
+**Draft comment** does the same, and no label is invented), **Save as note** a private note on them, and **Dismiss**
 rules it out; the card then says Drafted, Saved as a private note, or
 Dismissed with **Undo**, and a refusal says why (for another file: open it,
 then try again). A reply offers **Save as note** for the whole of it, or the
-part selected. The reply is shown without its `bpr-findings` block. Findings
+part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
+shown whole as a code block after the reply, never as loose text
+([[BPR-1861]]). Findings
 delivered with no turn come after the thread, as cards of their own. The question field
 closes the tab (owner look v003, after the Claude Code and Codex
 composers): one rounded field holding any added context, the words, a thin
@@ -2644,7 +2736,16 @@ under one collapsed disclosure. History
 adds Reset agents… (owner look v006): it asks first, then clears every agent
 setting, the clone folders and links and an edited review skill, forgets
 which agent each pull request was last asked with (its turns stay), and the
-setup starts again at Agent; there is no other way back into the setup. At
+setup starts again at Agent; there is no other way back into the setup.
+[[BPR-1859]]. Settings › Agents & context has Check agent under the agent
+list: the setup's own check of the chosen agent, through the same host, with
+the workspace made and removed once while a pull request is open and left
+unchecked otherwise. Beside it one line says what runs, or why it cannot
+(no agent added, several found and none chosen, the open pull request's host
+forbids it, or a check already running, which shows progress and Stop). Its
+rows, a failure's words and remedy (the sign-in command with Copy) and Show
+details appear on the page; it becomes Check again, and a pass after a fix
+moves the setup on exactly as Check it works does. At
 full width the tray's tabs are their names alone, the Agent tab's as well;
 its glyph shows only in the narrow row (the owner's accept of look v007). A new window with a saved
 agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I
@@ -3031,11 +3132,16 @@ selection change dismisses a stale dialog. Cancellation after preparation does
 not restart the profile, and an irreversible failure can require recovery.
 
 **Troubleshooting** ([[BPR-1602]]) closes the page: Clear caches, Reset
-settings, Reset review data and Reset everything, each a name, one short line and
+settings, Reset review data, Reset connections and Reset everything, each a name, one short line and
 a button. Its confirmation lists Removes and Keeps side by side, gates the two
 destructive resets on an acknowledgement, and offers a copy of the removed data
 first. A confirmed reset closes and reopens the profile's windows; the reopened
-status bar says what was reset. A profile that cannot open offers the same
+status bar says what was reset. Reset connections, above Reset everything,
+signs the profile out and stops it using GitHub CLI while keeping its other
+data; Reset everything signs out too ([[BPR-1858]]). Each names the app's
+sign-ins with their saved tokens and "This profile’s GitHub CLI connection" in
+Removes and GitHub CLI's own sign-in in Keeps, asks no acknowledgement for
+Reset connections, and reopens at Sign in to GitHub. A profile that cannot open offers the same
 resets in a start-up dialog.
 
 The terminal distinguishes local export, cleared diagnostics, purged/stopped

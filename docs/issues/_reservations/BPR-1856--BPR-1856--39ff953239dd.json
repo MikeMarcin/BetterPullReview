@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1856"
+  ],
+  "reserve_for": "settings-repo-order",
+  "purpose": "Settings Repositories: Add repository above clone folders",
+  "created": "2026-11-04T20:14:08.343939+00:00",
+  "base": "8a1f897e4e665c3afcd0dcb58e452f8c2a2271e5"
+}

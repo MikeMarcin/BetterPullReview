@@ -631,6 +631,11 @@ namespace bpr::qt {
 
 	void settings_window::adopt_panel(const settings_page aPage, QWidget* const aPanel)
 	{
+		adopt_panel_below(aPage, aPanel, nullptr);
+	}
+
+	void settings_window::adopt_panel_below(const settings_page aPage, QWidget* const aPanel, const QWidget* const aAbove)
+	{
 		auto* const surface = page_widget(aPage);
 		if (surface == nullptr || aPanel == nullptr) {
 			return;
@@ -644,9 +649,14 @@ namespace bpr::qt {
 			notice != nullptr) {
 			notice->hide();
 		}
+		// Reparenting appends the panel to the page's children and its focus
+		// chain, so a panel adopted later is reached later by Tab and by the
+		// accessibility tree; placing it under the earlier panel keeps the
+		// drawn order the same.
 		aPanel->setParent(surface);
+		const auto above = aAbove != nullptr ? column->indexOf(aAbove) : -1;
 		// Between the title and the trailing stretch.
-		column->insertWidget(1, aPanel);
+		column->insertWidget(above >= 0 ? above + 1 : 1, aPanel);
 		aPanel->show();
 		refresh_search();
 	}

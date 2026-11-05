@@ -481,6 +481,25 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_description_edit_core_tests
 )
 
+# [[BPR-1864]]. The words a workbench window's title says.
+bpr_add_executable(
+    test_better_pull_review_window_title_core_tests
+    window_title_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_window_title_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_window_title_core_tests)
+bpr_enable_warnings(test_better_pull_review_window_title_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_window_title
+    COMMAND test_better_pull_review_window_title_core_tests
+)
+
 # [[BPR-1852]]. Who may change the draft state, whether a change is written,
 # and what the window shows while reads catch up.
 bpr_add_executable(
@@ -988,6 +1007,20 @@ bpr_enable_hardening(test_feedback_header_edit)
 bpr_enable_warnings(test_feedback_header_edit)
 bpr_add_network_isolated_test(NAME core_feedback_header_edit COMMAND test_feedback_header_edit "${PROJECT_SOURCE_DIR}/docs/rfcs/assets/betterpullreview-conventional-comments-rfc-pack-v1")
 
+# [[BPR-1861]]. An agent's suggested comment read into the editor's Conventional Comments label model.
+bpr_add_executable(test_agent_comment_suggestion agent_comment_suggestion_tests.cpp)
+target_link_libraries(test_agent_comment_suggestion PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_comment_suggestion)
+bpr_enable_warnings(test_agent_comment_suggestion)
+bpr_add_network_isolated_test(NAME core_agent_comment_suggestion COMMAND test_agent_comment_suggestion)
+
+# [[BPR-1861]]. An agent's answer split into prose and its bpr-findings block, a fenced suggestion included.
+bpr_add_executable(test_agent_answer_findings agent_answer_findings_tests.cpp)
+target_link_libraries(test_agent_answer_findings PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_agent_answer_findings)
+bpr_enable_warnings(test_agent_answer_findings)
+bpr_add_network_isolated_test(NAME core_agent_answer_findings COMMAND test_agent_answer_findings)
+
 # [[BPR-1082]]. Header edits as commands of the existing revisioned comment draft and tour-stop owners.
 bpr_add_executable(test_feedback_draft_edit feedback_draft_edit_tests.cpp)
 target_link_libraries(test_feedback_draft_edit PRIVATE BetterPullReview::Core)
@@ -1330,6 +1363,13 @@ target_link_libraries(test_better_pull_review_fuzzy_match_tests PRIVATE BetterPu
 bpr_enable_hardening(test_better_pull_review_fuzzy_match_tests)
 bpr_enable_warnings(test_better_pull_review_fuzzy_match_tests)
 bpr_add_network_isolated_test(NAME core_fuzzy_match COMMAND test_better_pull_review_fuzzy_match_tests)
+
+# [[BPR-1865]]. Home's filter: number forms, tiers, ties and Unicode titles.
+bpr_add_executable(test_better_pull_review_home_filter_tests home_filter_tests.cpp)
+target_link_libraries(test_better_pull_review_home_filter_tests PRIVATE BetterPullReview::Core)
+bpr_enable_hardening(test_better_pull_review_home_filter_tests)
+bpr_enable_warnings(test_better_pull_review_home_filter_tests)
+bpr_add_network_isolated_test(NAME core_home_filter COMMAND test_better_pull_review_home_filter_tests)
 
 # [[BPR-1298]]. A body's line endings kept through the desktop editors.
 bpr_add_executable(test_better_pull_review_line_endings_tests line_endings_tests.cpp)

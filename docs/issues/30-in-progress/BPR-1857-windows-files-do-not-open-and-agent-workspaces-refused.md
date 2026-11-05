@@ -217,9 +217,19 @@ registered on Windows.
   which recovers.
 - `application_agent_crash_recovery` timed out at `crash-running` after 60 s.
   This card changes nothing on that path: no refusal is stricter, and the
-  account lookup runs only on a refusal. Whether main also fails there is
-  pending. `process_kill_support.py` now prints the fixture's output when a
+  account lookup runs only on a refusal. Base 33e1e088a fails there
+  identically (see the upstream follow-up below). `process_kill_support.py` now prints the fixture's output when a
   checkpoint is missed.
+
+## Follow-up: Windows crash-running course (pre-existing, not this card)
+
+`application_agent_crash_recovery` fails on Windows at `crash-running`, on this
+branch (83bb56cd9) and identically on base 33e1e088a. The child prints
+`agent-invocation-composition-failed:crash-running failed=agent-and-descendant-running agent-and-descendant-running=false`
+and exits 1 after about 59 s, before the kill checkpoint. On Windows the
+agent's panel output never shows both `process-id` and `descendant-id`, so the
+agent and its descendant are never seen running. macOS passes. It needs its own
+card.
 
 ## Pending
 

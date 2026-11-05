@@ -2678,6 +2678,34 @@ bpr_bound_automated_run(
     RESERVE_MS 5000
 )
 
+# [[BPR-1862]]. Delete comment deletes a draft, on a line in GitHub's diff,
+# outside every hunk, and from an agent answer, and it stays deleted after a
+# restart; the agent turn lets the deleted draft go.
+bpr_add_network_isolated_test(
+    NAME application_draft_delete_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/draft-delete-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_draft_delete_contract.cmake"
+)
+set_tests_properties(
+    application_draft_delete_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "DRAFT_DELETE_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_draft_delete_contract
+    TIMEOUT 300
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 4
+    RESERVE_MS 5000
+)
+
 # [[BPR-1331]]. The private progress button across a push: a changed file
 # reopens unread, an unchanged one keeps its mark, an excluded one stays out.
 bpr_add_network_isolated_test(
@@ -3128,6 +3156,36 @@ if(UNIX)
         TIMEOUT 60
         BUDGET_MS ${bpr_self_test_budget_ms}
         RUNS 1
+        RESERVE_MS 4000
+    )
+endif()
+
+# [[BPR-1868]]. A data root made beforehand, and one typed in another letter
+# case than its folders, each closed the application at startup as
+# `registry_unavailable`. The owner-private mode and the case-insensitive
+# spelling are POSIX questions; Windows keeps its own root rule.
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME application_startup_data_root
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/startup-data-root"
+            "-DBPR_RUN_BUDGET_MS=${bpr_self_test_budget_ms}"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/startup_data_root_contract.cmake"
+    )
+    set_tests_properties(
+        application_startup_data_root
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}"
+            PASS_REGULAR_EXPRESSION "STARTUP_DATA_ROOT_OK:"
+    )
+    bpr_bound_automated_run(
+        application_startup_data_root
+        TIMEOUT 120
+        BUDGET_MS ${bpr_self_test_budget_ms}
+        RUNS 4
         RESERVE_MS 4000
     )
 endif()
@@ -3893,6 +3951,12 @@ bpr_add_network_isolated_test(NAME application_home_waiting_public_path WINDOWS_
 set_tests_properties(application_home_waiting_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
+# [[BPR-1866]]. My own pull requests: my replies and pushes are not activity
+# for me, and opening then closing one leaves it in Waiting for others.
+bpr_add_network_isolated_test(NAME application_home_own_activity_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-own-activity)
+set_tests_properties(application_home_own_activity_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "home-own-activity-public-path:pass")
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
     set_tests_properties(application_home_waiting_cli_public_path PROPERTIES
@@ -4871,6 +4935,20 @@ set_tests_properties(application_home_return_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "home-return-public-path:pass")
 
+# [[BPR-1865]]. Home's fuzzy filter through the composed application: Command-F,
+# a number, a title word, an author, nothing, Escape twice, typing from the
+# list, and Return opening the current result; no filtering reads GitHub.
+bpr_add_executable(test_home_filter_public_path home_filter_public_path_tests.cpp)
+target_link_libraries(test_home_filter_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_home_filter_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_home_filter_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_home_filter_public_path)
+bpr_enable_warnings(test_home_filter_public_path)
+bpr_add_network_isolated_test(NAME application_home_filter_public_path WINDOWS_UNCONTAINED COMMAND test_home_filter_public_path)
+set_tests_properties(application_home_filter_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "home-filter-public-path:pass")
+
 # [[BPR-1575]]. Refresh made visible on the pull request and on Home, through
 # the composed application with slow, changed, unchanged, offline and
 # rate-limited refreshes on the fixture network.
@@ -4884,6 +4962,20 @@ bpr_add_network_isolated_test(NAME application_refresh_feedback_public_path WIND
 set_tests_properties(application_refresh_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
     PASS_REGULAR_EXPRESSION "refresh-feedback-public-path:pass")
+
+# [[BPR-1867]]. The open pull request picks up new activity by itself: an
+# activity poll's hand-off rereads the shown pull request in place, waits while
+# the reviewer writes, and coming back reads an aged one again.
+bpr_add_executable(test_open_pull_request_activity_public_path open_pull_request_activity_public_path_tests.cpp)
+target_link_libraries(test_open_pull_request_activity_public_path PRIVATE BetterPullReview::Composition BetterPullReview::SQLite3)
+target_compile_definitions(test_open_pull_request_activity_public_path PRIVATE BPR_BUILD_TESTING=1)
+target_compile_features(test_open_pull_request_activity_public_path PRIVATE cxx_std_23)
+bpr_enable_hardening(test_open_pull_request_activity_public_path)
+bpr_enable_warnings(test_open_pull_request_activity_public_path)
+bpr_add_network_isolated_test(NAME application_open_pull_request_activity_public_path WINDOWS_UNCONTAINED COMMAND test_open_pull_request_activity_public_path)
+set_tests_properties(application_open_pull_request_activity_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 300
+    PASS_REGULAR_EXPRESSION "open-pull-request-activity-public-path:pass")
 
 # [[BPR-1601]]. Singleton read state through Discuss, Threads, Status and restart.
 bpr_add_executable(test_conversation_read_public_path conversation_read_public_path_tests.cpp)

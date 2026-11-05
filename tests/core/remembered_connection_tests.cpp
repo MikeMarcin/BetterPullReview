@@ -135,6 +135,33 @@ namespace {
 		independent.BprProfile = bpr_profile_id{ 9U };
 		expect(independent.Connections.empty() && !valid_remembered_connection_update(independent, *disabled), "another BPR profile remains independent");
 	}
+	// [[BPR-1858]]. Reset everything forgets every GitHub CLI connection and
+	// nothing else, keeping identity high-water marks.
+	void reset_forgets_every_connection()
+	{
+		// A native selection with a retired identity on github.com, a native GHES
+		// selection and a signed-out CLI row.
+		auto state       = *remember_connection(remembered_connection_state{ }, 1U, native_sign_in(1U, 910001U));
+		state            = *disable_connection_reuse(state, state.Revision, "github.com");
+		state            = *remember_connection(state, state.Revision, native_sign_in(2U, 910002U));
+		auto native      = connection(3U, 2U, "ghe.example");
+		native.Transport = remembered_connection_transport::native_device;
+		state            = *remember_connection(state, state.Revision, native);
+		state            = *remember_connection(state, state.Revision, connection(4U, 3U, "ghe2.example"));
+		state            = *disable_connection_reuse(state, state.Revision, "ghe2.example");
+		expect(holds_remembered_connection(state) && !state.Retired.empty(), "the fixture holds rows and a retired identity");
+		const auto stale = forget_remembered_connections(state, state.Revision - 1U);
+		expect(!stale && stale.error() == remembered_connection_failure::stale, "a stale reset edit is refused");
+		const auto reset = forget_remembered_connections(state, state.Revision);
+		expect(reset && reset->Revision == state.Revision + 1U && !holds_remembered_connection(*reset) && reset->Retired.empty(), "every row and retired identity is forgotten in one revision");
+		expect(!select_remembered_connection(*reset) && !select_remembered_connection(*reset, "github.com"), "no connection is offered for reuse");
+		expect(reset->LastProfileId == state.LastProfileId && reset->LastHostId == state.LastHostId && reset->LastSelectedOrder == state.LastSelectedOrder,
+			   "identity high-water marks survive the reset");
+		expect(!remember_connection(*reset, reset->Revision, connection(4U, 3U, "ghe2.example")), "a forgotten identity cannot return as a new authority");
+		expect(!adopt_native_connection(*reset, native_sign_in(5U, 910001U)), "a returning account gets a fresh identity");
+		const auto again = forget_remembered_connections(*reset, reset->Revision);
+		expect(again && again->Connections.empty() && again->Revision == reset->Revision + 1U, "an empty state stays empty");
+	}
 	void malformed_and_limits()
 	{
 		const auto first = *remember_connection(remembered_connection_state{ }, 1U, connection(2U, 1U));
@@ -171,6 +198,7 @@ int main()
 	selection_and_replacement();
 	returning_native_account_rebinds();
 	disabling_and_stale_work();
+	reset_forgets_every_connection();
 	malformed_and_limits();
 	std::cout << "remembered-connection-policy-tests:pass\n";
 }

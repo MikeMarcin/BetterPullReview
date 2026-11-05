@@ -215,6 +215,22 @@ namespace bpr::core {
 		return next;
 	}
 
+	auto holds_remembered_connection(const remembered_connection_state& aState) noexcept -> bool
+	{
+		return !aState.Connections.empty() || !aState.Retired.empty();
+	}
+
+	auto forget_remembered_connections(const remembered_connection_state& aState, const std::uint64_t aExpectedRevision) -> remembered_connection_result
+	{
+		auto next = prepare(aState, aExpectedRevision);
+		if (!next) {
+			return next;
+		}
+		next->Connections.clear();
+		next->Retired.clear();
+		return valid_remembered_connection_update(aState, *next) ? std::move(next) : std::unexpected(remembered_connection_failure::invalid);
+	}
+
 	auto select_remembered_connection(const remembered_connection_state& aState, const std::optional<std::string_view> aHostname) -> std::optional<remembered_connection>
 	{
 		if (!valid(aState)) {

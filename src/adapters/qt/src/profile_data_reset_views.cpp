@@ -23,7 +23,8 @@ namespace bpr::qt {
 	namespace {
 		using reset = core::profile_data_reset;
 
-		constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::everything };
+		/// In the order Troubleshooting lists them; Reset everything is last.
+		constexpr std::array resets{ reset::caches, reset::settings, reset::review_data, reset::connections, reset::everything };
 
 		[[nodiscard]] auto index_of(const reset aReset) -> std::size_t
 		{
@@ -138,15 +139,27 @@ namespace bpr::qt {
 					   QStringLiteral("Diagnostic logs"), QStringLiteral("Files you saved or exported") },
 					 { },
 					 QStringLiteral("Reset review data") };
+		case reset::connections:
+			// [[BPR-1858]]. Signing out loses nothing that exists only here, so
+			// it asks no acknowledgement and offers no copy.
+			return { QStringLiteral("Reset connections for %1?").arg(name),
+					 QStringLiteral("This profile signs out of GitHub and stops using GitHub CLI, then reopens at Sign in to GitHub. It doesn’t sign you out of GitHub CLI itself."),
+					 { QStringLiteral("Sign-ins made in this app, and their saved tokens"), QStringLiteral("This profile’s GitHub CLI connection"),
+					   QStringLiteral("Which account each server uses") },
+					 { QStringLiteral("GitHub CLI’s own sign-in, which other tools use"), QStringLiteral("Notes, drafts and read marks"),
+					   QStringLiteral("Settings, saved repositories and servers"), QStringLiteral("Caches"), QStringLiteral("Diagnostic logs") },
+					 { },
+					 QStringLiteral("Reset connections") };
 		case reset::everything:
 			break;
 		}
 		return { QStringLiteral("Reset everything for %1?").arg(name),
-				 QStringLiteral("This profile starts again as on first launch. You stay signed in, and nothing on GitHub changes."),
-				 { QStringLiteral("Caches: repository data, images, summaries"), QStringLiteral("Settings: every choice, saved repositories, observer rules"),
-				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles"), QStringLiteral("Insights statistics and history") },
-				 { QStringLiteral("Sign-in to your accounts and hosts"), QStringLiteral("Everything posted on GitHub"), QStringLiteral("Diagnostic logs"),
-				   QStringLiteral("Other profiles"), QStringLiteral("Your Git checkouts and exported files") },
+				 QStringLiteral("This profile starts again as on first launch: it signs out and stops using GitHub CLI. It doesn’t sign you out of GitHub CLI itself, and nothing on GitHub changes."),
+				 { QStringLiteral("Caches: repository data, images, summaries"), QStringLiteral("Settings: every choice, saved repositories and servers, observer rules, filters, notifications, agent setup"),
+				   QStringLiteral("Review data: read marks, notes, unsent comments, tours, Review Cycles"), QStringLiteral("Insights statistics and history"),
+				   QStringLiteral("Connections: sign-ins made in this app and their saved tokens, this profile’s GitHub CLI connection") },
+				 { QStringLiteral("GitHub CLI’s own sign-in, which other tools use"),
+				   QStringLiteral("Everything posted on GitHub"), QStringLiteral("Diagnostic logs"), QStringLiteral("Other profiles"), QStringLiteral("Your Git checkouts and exported files") },
 				 { },
 				 QStringLiteral("Reset everything") };
 	}
@@ -170,9 +183,15 @@ namespace bpr::qt {
 		case reset::review_data:
 			notice = QStringLiteral("Review data reset.");
 			break;
-		case reset::everything:
-			notice = QStringLiteral("This profile was reset. You are still signed in.");
+		case reset::connections:
+		case reset::everything:  {
+			const auto lead = aOutcome.Reset == reset::connections ? QStringLiteral("Connections reset") : QStringLiteral("This profile was reset");
+			notice          = aOutcome.ConnectionsRetained
+				? QStringLiteral("%1, but its remembered connections could not be forgotten. Sign out in Accounts & hosts.").arg(lead)
+				: aOutcome.SignedOut ? QStringLiteral("%1 and signed out. GitHub CLI itself is still signed in; choose Sign in or Use GitHub CLI to connect again.").arg(lead)
+									 : QStringLiteral("%1.").arg(lead);
 			break;
+		}
 		}
 		if (aOutcome.Copied && !aCopyFolder.isEmpty()) {
 			notice += QStringLiteral(" A copy of the removed data is in “%1”.").arg(aCopyFolder);
@@ -357,7 +376,7 @@ namespace bpr::qt {
 	{
 		setObjectName(QStringLiteral("profileResetPanel"));
 		auto* const column = new QVBoxLayout{ this };
-		auto* const lead   = new QLabel{ QStringLiteral("Each reset keeps you signed in and reopens this profile’s windows."), this };
+		auto* const lead   = new QLabel{ QStringLiteral("Each reset reopens this profile’s windows. Reset connections and Reset everything sign you out."), this };
 		lead->setObjectName(QStringLiteral("profileResetLead"));
 		lead->setWordWrap(true);
 		lead->setForegroundRole(QPalette::PlaceholderText);
@@ -369,11 +388,12 @@ namespace bpr::qt {
 			std::pair{ QStringLiteral("Clear caches"), QStringLiteral("Downloaded data. It downloads again when needed.") },
 			std::pair{ QStringLiteral("Reset settings"), QStringLiteral("Every choice in Settings returns to its default.") },
 			std::pair{ QStringLiteral("Reset review data"), QStringLiteral("Read marks, notes, drafts, tours and Review Cycles.") },
-			std::pair{ QStringLiteral("Reset everything"), QStringLiteral("All three at once. You stay signed in.") },
+			std::pair{ QStringLiteral("Reset everything"), QStringLiteral("All of the above, as on first launch.") },
+			std::pair{ QStringLiteral("Reset connections"), QStringLiteral("Signs out and stops using GitHub CLI. Keeps the rest.") },
 		};
-		const std::array names{ QStringLiteral("Caches"), QStringLiteral("Settings"), QStringLiteral("ReviewData"), QStringLiteral("Everything") };
-		for (const auto each : resets) {
-			const auto  row   = static_cast<int>(index_of(each));
+		const std::array names{ QStringLiteral("Caches"), QStringLiteral("Settings"), QStringLiteral("ReviewData"), QStringLiteral("Everything"), QStringLiteral("Connections") };
+		for (auto position = 0; const auto each : resets) {
+			const auto  row   = position++;
 			const auto& words = rows[index_of(each)];
 			auto* const name  = new QLabel{ words.first, this };
 			name->setObjectName(QStringLiteral("profileReset%1Name").arg(names[index_of(each)]));

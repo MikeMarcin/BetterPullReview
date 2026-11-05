@@ -68,6 +68,7 @@ add_library(
         src/review_cycle_round_markdown.cpp
         src/review_cycle_share.cpp
         src/fuzzy_match.cpp
+        src/home_filter.cpp
         src/line_endings.cpp
         src/review_cycle_send.cpp
         src/review_cycle_zip.cpp
@@ -126,6 +127,8 @@ add_library(
         src/feedback_convention.cpp
         src/feedback_draft_edit.cpp
         src/feedback_header_edit.cpp
+        src/agent_comment_suggestion.cpp
+        src/agent_answer_findings.cpp
         src/feedback_conversation.cpp
         src/feedback_partition.cpp
         src/feedback_label_columns.cpp
@@ -146,6 +149,7 @@ add_library(
         src/tour_steps.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
+        src/window_title.cpp
         src/reviewer_request.cpp
         src/draft_state.cpp
     src/review_publication_policy.cpp

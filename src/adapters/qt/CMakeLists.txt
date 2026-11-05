@@ -53,6 +53,7 @@ add_library(
         src/home_row_delegate.cpp
         src/identity_avatar.cpp
         src/home_panel.cpp
+        src/home_filter_field.cpp
         src/home_list.cpp
         src/home_status_line.cpp
         src/pending_veil.cpp

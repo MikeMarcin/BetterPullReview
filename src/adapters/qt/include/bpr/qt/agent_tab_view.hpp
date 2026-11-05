@@ -361,9 +361,13 @@ namespace bpr::qt {
 		/// answer, beside Save as note: where a sent question's answer would
 		/// be drafted (asked when it is sent), where a press goes, and where
 		/// Go to draft goes once it is drafted.
-		void               set_answer_draft_target(std::function<agent_answer_draft_target()> aTarget);
-		void               set_answer_draft_dispatch(agent_answer_draft_dispatch aDispatch);
-		void               set_draft_navigation(agent_answer_draft_navigation aNavigate);
+		void set_answer_draft_target(std::function<agent_answer_draft_target()> aTarget);
+		void set_answer_draft_dispatch(agent_answer_draft_dispatch aDispatch);
+		void set_draft_navigation(agent_answer_draft_navigation aNavigate);
+		/// \brief [[BPR-1862]]. The draft the turn with this key wrote is gone:
+		/// its Go to draft becomes Draft comment again, and pressing it makes
+		/// a new draft.
+		void               release_answer_draft(const std::string& aKey);
 		[[nodiscard]] auto turn_draft_button(std::size_t aTurn) const -> QPushButton*;
 		/// \brief What a turn was asked about, as the line above its question
 		/// names it; empty for a turn about the pull request.

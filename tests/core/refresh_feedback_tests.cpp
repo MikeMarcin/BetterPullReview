@@ -155,6 +155,42 @@ namespace {
 		const auto updated = apply_refresh(reviewer, nothing);
 		expect(refresh_announcement_between(updated, updated) == refresh_announcement::none, "nothing changed, nothing said");
 	}
+
+	/// [[BPR-1867]]. Coming back to a pull request reads it again only once
+	/// its update has aged, and never into a rate limit's wait.
+	void test_a_return_reads_an_aged_pull_request()
+	{
+		const auto updated = apply_refresh(apply_refresh({ }, refresh_started{ }), refresh_succeeded{ .At = 1000 });
+		expect(!refresh_due_on_return({ }, 5000), "nothing read yet, nothing to read again");
+		expect(!refresh_due_on_return(updated, 1000 + refresh_return_seconds - 1), "a recent update is current");
+		expect(refresh_due_on_return(updated, 1000 + refresh_return_seconds), "an update five minutes old is read again");
+		expect(!refresh_due_on_return(updated, 900), "a clock that went back is not an age");
+		const auto opened = refresh_state{ .UpdatedAt = 1000 };
+		expect(refresh_due_on_return(opened, 1000 + refresh_return_seconds), "the first read ages as a refresh does");
+		const auto running = apply_refresh(updated, refresh_started{ .Trigger = refresh_trigger::reviewer });
+		expect(!refresh_due_on_return(running, 5000), "a read under way is not doubled");
+
+		const auto limited = apply_refresh(updated, refresh_failed{ .Failure = refresh_failure::rate_limited, .RetryAfterSeconds = 600U, .At = 2000 });
+		expect(!refresh_due_on_return(limited, 2599), "a rate limit's wait is waited out");
+		expect(refresh_due_on_return(limited, 2600), "and then the aged update is read again");
+		const auto unnamed = apply_refresh(updated, refresh_failed{ .Failure = refresh_failure::rate_limited, .At = 2000 });
+		expect(!refresh_due_on_return(unnamed, 2000 + refresh_rate_wait_seconds - 1) && refresh_due_on_return(unnamed, 2000 + refresh_rate_wait_seconds),
+			   "a rate limit without a wait is given a minute");
+		const auto offline = apply_refresh(updated, refresh_failed{ .Failure = refresh_failure::offline, .At = 2000 });
+		expect(refresh_due_on_return(offline, 2001), "an offline failure over an aged update tries again on return");
+	}
+
+	/// [[BPR-1867]]. An owed reread waits for a running read, and the
+	/// application's own news waits for the reviewer to stop writing.
+	void test_an_owed_reread_waits_its_turn()
+	{
+		expect(decide_reread({ }) == reread_step::none, "nothing owed, nothing read");
+		expect(decide_reread({ .Owed = true }) == reread_step::now, "an owed reread runs");
+		expect(decide_reread({ .Owed = true, .Reading = true }) == reread_step::wait, "after the read already running");
+		expect(decide_reread({ .Owed = true, .Quiet = true, .Composing = true }) == reread_step::wait, "news waits while the reviewer writes");
+		expect(decide_reread({ .Owed = true, .Quiet = false, .Composing = true }) == reread_step::now, "a publication's reread does not");
+		expect(decide_reread({ .Owed = true, .Quiet = true }) == reread_step::now, "news runs once the reviewer stops");
+	}
 } // namespace
 
 auto main() -> int
@@ -169,6 +205,8 @@ auto main() -> int
 	test_the_reviewer_outranks_the_application();
 	test_ages_read_as_words();
 	test_announcements();
+	test_a_return_reads_an_aged_pull_request();
+	test_an_owed_reread_waits_its_turn();
 	std::cout << "refresh feedback tests passed\n";
 	return EXIT_SUCCESS;
 }

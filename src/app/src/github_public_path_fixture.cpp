@@ -65,6 +65,12 @@ namespace bpr::app::detail {
 		/// Home is seen with a title that wraps beside its facts.
 		[[nodiscard]] auto discovered_title(const QString& aNumber) -> QString
 		{
+			// [[BPR-1865]]. Home's filter's rows say titles of their own.
+			for (const auto& row : home_filter_fixture_rows) {
+				if (aNumber == QString::number(row.Number)) {
+					return QString::fromUtf8(row.Title.data(), static_cast<qsizetype>(row.Title.size()));
+				}
+			}
 			return aNumber == QStringLiteral("4002")
 				? QStringLiteral("Keep the review queue's discovery cache warm across restarts so one slow repository never holds back the rows of every other saved repository")
 				: QStringLiteral("Discovered pull request ") + aNumber;
@@ -2230,6 +2236,17 @@ namespace bpr::app::detail {
 							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-14T16:20:00Z") },
 						});
 					}
+					if (const auto reply = found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
+						reviews.append(QJsonObject{
+							{ QStringLiteral("id"), 73000 + static_cast<qint64>(found->Number) },
+							{ QStringLiteral("node_id"), QStringLiteral("R_home_reply_%1").arg(found->Number) },
+							{ QStringLiteral("user"), QJsonObject{ { QStringLiteral("login"), QStringLiteral("octo-reviewer") }, { QStringLiteral("node_id"), QStringLiteral("U_fixture_viewer") } } },
+							{ QStringLiteral("state"), QStringLiteral("COMMENTED") },
+							{ QStringLiteral("commit_id"), reply == 1 ? head : QString{ 40, QLatin1Char('b') } },
+							{ QStringLiteral("body"), QString{ } },
+							{ QStringLiteral("submitted_at"), QStringLiteral("2026-10-04T15:12:00Z") },
+						});
+					}
 					response.Body = QJsonDocument{ reviews }.toJson(QJsonDocument::Compact).toStdString();
 					return response;
 				}
@@ -2371,6 +2388,10 @@ namespace bpr::app::detail {
 				auto       reviews = QJsonArray{ };
 				if (known && found->ReviewedByViewer && found->ReviewedByViewer->load()) {
 					reviews.append(QJsonObject{ { "databaseId", 71001 }, { "state", "APPROVED" }, { "submittedAt", "2026-10-14T16:20:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", head(waiting) } } }, { "comments", QJsonObject{ { "totalCount", 0 } } } });
+				}
+				// [[BPR-1866]]. The viewer's own reply, a month old.
+				if (const auto reply = known && found->ViewerReply ? found->ViewerReply->load() : 0; reply != 0) {
+					reviews.append(QJsonObject{ { "databaseId", 73000 + static_cast<qint64>(number) }, { "state", "COMMENTED" }, { "submittedAt", "2026-10-04T15:12:00Z" }, { "author", QJsonObject{ { "__typename", "User" }, { "login", "octo-reviewer" }, { "id", "U_fixture_viewer" } } }, { "commit", QJsonObject{ { "oid", reply == 1 ? head(waiting) : QString{ 40, QLatin1Char('b') } } } }, { "comments", QJsonObject{ { "totalCount", 1 } } } });
 				}
 				// The inline comments the REST pull request counts, on a review of their own.
 				const auto inlineComments = large ? 5 : small ? 0
@@ -2847,9 +2868,11 @@ namespace bpr::app::detail {
 					? QString{ }
 					: posts.at(0).toObject().value(QStringLiteral("id")).toString();
 				for (const auto& [identifier, body] : overlay->second.Replies) {
-					auto author = QJsonObject{ };
-					author.insert(QStringLiteral("login"), QStringLiteral("octo-reviewer"));
-					author.insert(QStringLiteral("id"), QStringLiteral("U_fixture_viewer"));
+					// [[BPR-1866]]. A refresh's foreign reply is another reviewer's.
+					const auto foreign = identifier.starts_with("PRRC_refresh_foreign_");
+					auto       author  = QJsonObject{ };
+					author.insert(QStringLiteral("login"), foreign ? QStringLiteral("fixture-other-reviewer") : QStringLiteral("octo-reviewer"));
+					author.insert(QStringLiteral("id"), foreign ? QStringLiteral("SYNTHETIC_USER_800099") : QStringLiteral("U_fixture_viewer"));
 					auto replyTo = QJsonObject{ };
 					replyTo.insert(QStringLiteral("id"), rootId);
 					auto post = QJsonObject{ };
@@ -3616,7 +3639,7 @@ namespace bpr::app::detail {
 						while (State->ReadDelay->RepliesOwed.load() != 0U) {
 							--State->ReadDelay->RepliesOwed;
 							const auto added = ++State->ReadDelay->RepliesAdded;
-							State->ThreadOverlays[thread].Replies.emplace_back("PRRC_refresh_reply_" + std::to_string(added),
+							State->ThreadOverlays[thread].Replies.emplace_back((State->ReadDelay->ForeignReplies.load() ? "PRRC_refresh_foreign_" : "PRRC_refresh_reply_") + std::to_string(added),
 																			   "A reply posted while you were reading (" + std::to_string(added) + ").");
 						}
 					}
@@ -6015,6 +6038,22 @@ namespace bpr::app::detail {
 		-> application::github_credential_vault_port&
 	{
 		return *Implementation->Vault;
+	}
+
+	auto make_github_fixture_reset_vault(application::effect_executor& aEffects, const github_public_path_fixture_options& aOptions)
+		-> std::unique_ptr<application::github_credential_vault_port>
+	{
+		return std::make_unique<fixture_credential_vault>(aEffects, aOptions.SharedDeviceVault ? aOptions.SharedDeviceVault : make_shared_github_fixture_vault(), true,
+														  aOptions.RegisteredDeviceCourse, aOptions.Profile, aOptions.LockedDeviceVault);
+	}
+
+	auto github_fixture_vault_holds_entry(const std::shared_ptr<github_fixture_vault_state>& aState) -> bool
+	{
+		if (!aState) {
+			return false;
+		}
+		const std::scoped_lock lock{ aState->Mutex };
+		return aState->Credential.has_value() || aState->Refresh.has_value();
 	}
 
 	auto github_public_path_fixture_components::take_enrollment_credential()

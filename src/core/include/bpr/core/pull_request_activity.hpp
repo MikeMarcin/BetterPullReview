@@ -244,9 +244,18 @@ namespace bpr::core {
 		std::vector<activity_notification> Notifications;
 		/// Threads that were new and are not notified: mine, read, focused or of another reason.
 		std::uint32_t Suppressed = 0U;
+		/// [[BPR-1867]]. Every pull request with a new thread, notified or not,
+		/// ascending and unique: a window showing one reads it again by itself.
+		/// None while a baseline is taken.
+		std::vector<pull_request_ref> Active;
 
 		auto operator<=>(const activity_decision&) const = default;
 	};
+
+	/// \brief [[BPR-1867]]. Whether \p aShown is among \p aActive. GitHub's host,
+	/// owner, repository and login names compare without case; a window may
+	/// name the pull request as a pasted link spelt it.
+	[[nodiscard]] auto activity_concerns(const std::vector<pull_request_ref>& aActive, const pull_request_ref& aShown) -> bool;
 
 	/// \brief Decides one poll's answer.
 	///

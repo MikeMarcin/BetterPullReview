@@ -141,6 +141,7 @@ namespace bpr::qt {
 	class dif_cue_router;
 	class dif_widget;
 	class home_list;
+	class home_filter_field;
 	class pending_veil;
 	class refresh_note;
 	class keyboard_shortcuts_window;
@@ -1047,6 +1048,9 @@ namespace bpr::qt {
 		/// \brief [[BPR-1345]] v002. The drawer draft's Delete question while
 		/// it is open, or null.
 		[[nodiscard]] auto delete_draft_confirmation() const noexcept -> destructive_question*;
+		/// \brief [[BPR-1862]]. Says that a confirmed Delete comment did not
+		/// delete the draft, and why. A delete never ends in silence.
+		void present_draft_delete_refusal(const QString& aReason);
 		/// \brief [[BPR-1345]] v002. Goes to a pending comment from Finish
 		/// your review: Review, its file, and its line selected once that
 		/// file's comparison shows. Navigation only.
@@ -1486,6 +1490,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto home_open_frame() const noexcept -> QWidget*;
 		/// \brief [[BPR-0775]]. Command-L: Home, with the bar focused and its text selected.
 		[[nodiscard]] auto home_focus_bar_action() const noexcept -> QAction*;
+		/// \brief [[BPR-1865]]. Home's filter, under the bar.
+		[[nodiscard]] auto home_filter_box() const noexcept -> home_filter_field*;
+		/// \brief [[BPR-1865]]. Command-F on Home: the filter, focused with its text selected.
+		[[nodiscard]] auto home_filter_action() const noexcept -> QAction*;
 		/// \brief The window's one status line; on Home it is the session line.
 		[[nodiscard]] auto status_label() const noexcept -> QLabel*;
 		/// \brief [[BPR-0669]]. Opens what the bar names; disabled until it names one.
@@ -1616,7 +1624,17 @@ namespace bpr::qt {
 		/// \brief [[BPR-1850]]. Brings the window forward on \p aRef: shown
 		/// already, it stays; otherwise it is opened on Overview. Never on
 		/// GitHub. None only brings the window forward on what it shows.
-		auto               open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool;
+		auto open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool;
+		/// \brief [[BPR-1867]]. The pull request this window shows under its
+		/// account session, in front or not; none for Home or a public preview.
+		[[nodiscard]] auto shown_pull_request() const -> std::optional<core::pull_request_ref>;
+		/// \brief [[BPR-1867]]. Whether the reviewer is writing: the keyboard
+		/// focus is in one of this window's multi-line editors (not a browser).
+		[[nodiscard]] auto composing() const -> bool;
+		/// \brief [[BPR-1867]]. Called when the window comes back in front on a
+		/// pull request it shows under its account session, with the refresh
+		/// clock's reading; the composition decides whether it is read again.
+		void               set_pull_request_return_dispatch(std::function<void(std::int64_t)> aDispatch);
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto queue_rule_exclusion() const noexcept -> QCheckBox*;
@@ -1855,6 +1873,8 @@ namespace bpr::qt {
 		bool                                                        GeometryReady    = false;
 		bool                                                        ApplyingGeometry = false;
 		QString                                                     ProfileLabel     = QStringLiteral("Default");
+		/// [[BPR-1864]]. How many profiles exist, from the profile projection.
+		std::size_t ProfileCount = 0U;
 		/// \brief Binds one primary action to its presentation wording.
 		///
 		/// \details `Name` is retained action wording for native menus and platform
@@ -1956,7 +1976,7 @@ namespace bpr::qt {
 		void apply_public_preview_availability();
 		/// \brief Presents the observed inline conversation, or says it was not.
 		void apply_public_preview_conversation();
-		void update_public_preview_title();
+		void update_window_title();
 		void announce_github_presentation_update();
 		void dispatch_navigation(std::size_t aIndex);
 		/// \brief [[BPR-1532]]. Binds First and Last change's keys unless the
@@ -2034,6 +2054,11 @@ namespace bpr::qt {
 		/// \brief [[BPR-0775]]. Puts the landing above the bar as the return row,
 		/// or under it as the first-launch card.
 		void place_home_landing();
+		/// \brief [[BPR-1865]]. Filters Home by the filter's query: the list, the
+		/// Active review card and Review Cycles.
+		void apply_home_filter();
+		/// \brief [[BPR-1865]]. Whether the open review's card matches the filter.
+		[[nodiscard]] auto home_landing_matches() const -> bool;
 		/// \brief [[BPR-0775]]. Home with the bar focused and its text selected.
 		void focus_home_bar();
 		void update_dif_presentation();
@@ -2728,6 +2753,8 @@ namespace bpr::qt {
 			QString Owner;
 			QString Repository;
 			QString Number;
+			/// [[BPR-1864]]. The title alone, for the window's title.
+			QString Title;
 			/// [[BPR-1852]]. GitHub's first answer named an open draft.
 			bool Draft = false;
 		};
@@ -3115,6 +3142,8 @@ namespace bpr::qt {
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
 		QAction*                                           HomeIgnoreAction = nullptr;
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
+		/// [[BPR-1867]]. Coming back in front on the pull request shown.
+		std::function<void(std::int64_t)>                  PullRequestReturnDispatch;
 		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;
 		/// [[BPR-1848]]. The pull request the review surface last showed, as the
 		/// queue names it, for the return to Home that leaves it.
@@ -3147,6 +3176,11 @@ namespace bpr::qt {
 		/// while a pull request asked for there is being opened, so the rows
 		/// under the pointer do not move when the review it named is let go.
 		int HomeLandingHold = 0;
+		/// [[BPR-1865]]. The filter under the bar, its Command-F, and whether
+		/// it hides the Active review card.
+		home_filter_field* HomeFilter          = nullptr;
+		QAction*           HomeFilterAction    = nullptr;
+		bool               HomeLandingFiltered = false;
 		/// [[BPR-1843]]. Set while Close review lets the review go: the card
 		/// then leaves at once, since nothing is being opened in its place.
 		bool                            ReleasingReview = false;

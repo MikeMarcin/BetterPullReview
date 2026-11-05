@@ -117,7 +117,8 @@ namespace bpr::application {
 			}
 		}
 
-		void publish()
+		/// The rows, choice and step from what was found and saved.
+		void derive()
 		{
 			auto& state              = Projection.State;
 			state.Rows               = core::agent_setup_rows(Found, Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
@@ -130,6 +131,11 @@ namespace bpr::application {
 				&& (entry == nullptr || entry->Preset);
 			Projection.Searched = core::searched_setup_agents(Dependencies.Profiles, Policy, Projection.Preferences.CodexProtocol);
 			Projection.Step     = core::current_setup_step(state);
+		}
+
+		void publish()
+		{
+			derive();
 			++Projection.Generation;
 			if (Dependencies.Publish) {
 				try {
@@ -195,11 +201,13 @@ namespace bpr::application {
 
 		void reset_checks()
 		{
-			// [[BPR-1828]]. A check still running is cancelled here.
-			if (Projection.Checking) {
+			// [[BPR-1828]]. A check still running is cancelled here; one
+			// still waiting for the agents to be looked for never began.
+			if (Projection.Checking && !PendingCheck) {
 				record_operation(Dependencies.Log.get(), { .Action = CheckAction, .Failure = core::operation_failure::cancelled, .DurationMilliseconds = CheckWatch.milliseconds() });
 			}
 			++CheckGeneration;
+			PendingCheck                = false;
 			Projection.State.AgentCheck = { };
 			Projection.Checking         = false;
 			Projection.CheckDetail.clear();
@@ -245,6 +253,9 @@ namespace bpr::application {
 			}
 			publish();
 		}
+
+		/// Runs Check it works' agent row on what was found.
+		void start_check();
 
 		void detect()
 		{
@@ -326,6 +337,15 @@ namespace bpr::application {
 					self->Found                = std::move(aFound);
 					self->Projection.Detecting = false;
 					self->Projection.Detected  = true;
+					// [[BPR-1859]]. A check asked for before the agents were
+					// looked for runs now, on what was found.
+					if (std::exchange(self->PendingCheck, false)) {
+						self->Projection.Checking         = false;
+						self->Projection.State.AgentCheck = { };
+						self->derive();
+						self->start_check();
+						return;
+					}
 					self->publish();
 				});
 		}
@@ -340,12 +360,32 @@ namespace bpr::application {
 		std::uint64_t                    CheckGeneration   = 0U;
 		std::uint64_t                    ProgramGeneration = 0U;
 		std::stop_source                 CheckStop;
+		/// [[BPR-1859]]. A check waits for the agents to be looked for.
+		bool PendingCheck = false;
 		/// [[BPR-1828]]. The running check's kind and when it started.
 		core::operation_action CheckAction = core::operation_action::agent_status_check;
 		operation_stopwatch    CheckWatch;
 		std::atomic_bool       Closing{ false };
 		std::atomic_size_t     Outstanding{ 0U };
 	};
+
+	auto agent_check_facts_of(const agent_setup_projection& aProjection, const bool aReviewOpen) -> core::agent_check_facts
+	{
+		const auto& state       = aProjection.State;
+		const auto  saved       = aProjection.Preferences.Chosen;
+		const auto  row         = [&state](const core::setup_agent aAgent) { return std::ranges::find(state.Rows, aAgent, &core::agent_setup_row::Agent); };
+		const auto  savedAt     = saved ? row(*saved) : state.Rows.end();
+		auto        facts       = core::agent_check_facts{ };
+		facts.AgentsAdded       = !aProjection.Preferences.Agents.empty();
+		facts.Detected          = aProjection.Detected;
+		facts.Chosen            = state.Chosen && row(*state.Chosen) != state.Rows.end() && row(*state.Chosen)->Verdict.Permitted;
+		facts.SavedChoice       = saved.has_value();
+		facts.SavedForbidden    = savedAt != state.Rows.end() && !savedAt->Verdict.Permitted;
+		facts.AgentChecking     = aProjection.Checking;
+		facts.WorkspaceChecking = state.WorkspaceCheck.State == core::setup_check_state::running;
+		facts.ReviewOpen        = aReviewOpen;
+		return facts;
+	}
 
 	agent_setup_host::agent_setup_host(agent_setup_dependencies aDependencies)
 		: Implementation{ std::make_shared<implementation>(std::move(aDependencies)) }
@@ -625,9 +665,44 @@ namespace bpr::application {
 
 	void agent_setup_host::check()
 	{
-		auto&             host = *Implementation;
+		auto& host = *Implementation;
+		if (host.Projection.Checking) {
+			return;
+		}
+		// [[BPR-1859]]. Settings may ask before the Agent tab looked for the
+		// agents: look first, then check what was found.
+		if (!host.Projection.Detected) {
+			++host.CheckGeneration;
+			host.PendingCheck                = true;
+			host.Projection.Checking         = true;
+			host.Projection.State.AgentCheck = { .State = core::setup_check_state::running };
+			host.Projection.CheckDetail.clear();
+			if (host.Projection.Detecting) {
+				host.publish();
+			} else {
+				host.detect();
+			}
+			return;
+		}
+		host.start_check();
+	}
+
+	void agent_setup_host::implementation::start_check()
+	{
+		auto&             host = *this;
 		const auto* const row  = host.chosen_row();
-		if (row == nullptr || host.Projection.Checking) {
+		if (row == nullptr) {
+			// [[BPR-1859]]. The saved agent is not found any more: the check
+			// says so, with what to do. Any other missing choice is the
+			// offer's to explain; nothing runs.
+			const auto saved = host.Picked ? host.Picked : host.Projection.Preferences.Chosen;
+			if (saved && std::ranges::find(host.Projection.State.Rows, *saved, &core::agent_setup_row::Agent) == host.Projection.State.Rows.end()) {
+				const auto generation = ++host.CheckGeneration;
+				host.begin_check(core::operation_action::agent_status_check);
+				host.settle_check(generation, *saved, core::fail_check(core::agent_setup_failure::agent_not_found), { });
+				return;
+			}
+			host.publish();
 			return;
 		}
 		const auto generation            = ++host.CheckGeneration;
@@ -676,7 +751,7 @@ namespace bpr::application {
 					}
 					return custom{ .Check = core::fail_check(unanswered(ran.Outcome).value_or(core::agent_setup_failure::status_unreadable)), .Detail = detail_of(ran), .Run = run_of(ran, 1U) };
 				},
-				[self = Implementation, generation, agent](custom aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
+				[self = shared_from_this(), generation, agent](custom aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
 			return;
 		}
 		if (agent == core::setup_agent::plain_text_harness) {
@@ -684,7 +759,7 @@ namespace bpr::application {
 			host.begin_check(core::operation_action::agent_program_check);
 			host.off_lane(
 				host.Dependencies.Effects, [inspect = host.Dependencies.Inspect, path] { return inspect ? inspect(path) : std::optional{ core::agent_wrapper_refusal::missing }; },
-				[self = Implementation, generation, agent](std::optional<core::agent_wrapper_refusal> aRefusal) {
+				[self = shared_from_this(), generation, agent](std::optional<core::agent_wrapper_refusal> aRefusal) {
 					self->settle_check(generation, agent, aRefusal ? core::fail_check(core::agent_setup_failure::program_refused) : core::setup_check{ .State = core::setup_check_state::passed },
 									   aRefusal ? std::string{ core::describe(*aRefusal) } : std::string{ });
 				});
@@ -726,7 +801,7 @@ namespace bpr::application {
 				}
 				return answer{ .Check = core::apply_status_check(decoded), .Detail = detail_of(status), .Run = run };
 			},
-			[self = Implementation, generation, agent](answer aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
+			[self = shared_from_this(), generation, agent](answer aAnswer) { self->settle_check(generation, agent, std::move(aAnswer.Check), std::move(aAnswer.Detail), aAnswer.Run); });
 	}
 
 	void agent_setup_host::stop()

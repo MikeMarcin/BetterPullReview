@@ -204,6 +204,10 @@ namespace bpr::app::detail {
 			std::shared_ptr<std::atomic<bool>> Draft;
 			bool                               WaitingDetails = false;
 			std::shared_ptr<std::atomic<bool>> RequiredReviewPresent, CheckFailed;
+			/// [[BPR-1866]]. The viewer's own comment-only review, as GitHub
+			/// records the author's reply in a review thread: 0 none, 1 on the
+			/// current head, 2 on an earlier commit (the author pushed after).
+			std::shared_ptr<std::atomic<int>> ViewerReply;
 		};
 		std::vector<pull_request> OpenPullRequests;
 		/// [[BPR-1681]]. While set, a personal search of any saved
@@ -211,6 +215,55 @@ namespace bpr::app::detail {
 		/// (a repository-scoped failure), so a refresh ends stale.
 		std::shared_ptr<std::atomic<bool>> OtherRepositoriesRefused;
 	};
+
+	/// \brief [[BPR-1865]]. One discovered pull request with a title and an
+	/// author of its own, for Home's filter.
+	struct home_filter_fixture_row
+	{
+		std::uint32_t    Number = 0U;
+		std::string_view Title;
+		std::string_view Author;
+	};
+
+	/// \brief [[BPR-1865]]. Sixteen pull requests a reviewer might be looking
+	/// for, so Home's filter has titles, authors and numbers to tell apart: its
+	/// attended look (`--attended-home-rows`) and its composed course. Every
+	/// title is served as written (`discovered_title`).
+	inline constexpr auto home_filter_fixture_rows = std::array{
+		home_filter_fixture_row{ .Number = 4010U, .Title = "Fix login redirect loop on expired sessions", .Author = "alice" },
+		home_filter_fixture_row{ .Number = 4011U, .Title = "Speed up the discovery cache on cold start", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4012U, .Title = "Teach the queue to wait for slow repositories", .Author = "bob" },
+		home_filter_fixture_row{ .Number = 4013U, .Title = "Render Zoë's résumé fixture without mojibake", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4014U, .Title = "Add keyboard shortcuts for the files drawer", .Author = "carol" },
+		home_filter_fixture_row{ .Number = 4015U, .Title = "Migrate settings storage to SQLite WAL mode", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4016U, .Title = "Bump Qt and replace deprecated proxy calls", .Author = "dmitri" },
+		home_filter_fixture_row{ .Number = 4017U, .Title = "Explore a fuzzy matcher for Home", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4018U, .Title = "Handle GitHub Enterprise rate-limit headers", .Author = "erin" },
+		home_filter_fixture_row{ .Number = 4019U, .Title = "Remove the legacy diff renderer", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4020U, .Title = "Make conventional comment labels translatable", .Author = "farah" },
+		home_filter_fixture_row{ .Number = 4021U, .Title = "Fix crash when a thread is deleted mid-reply", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4022U, .Title = "Cache avatars per account and host", .Author = "alice" },
+		home_filter_fixture_row{ .Number = 4023U, .Title = "Show line counts beside each changed file", .Author = "octo-reviewer" },
+		home_filter_fixture_row{ .Number = 4024U, .Title = "Document the attended review workflow", .Author = "bob" },
+		home_filter_fixture_row{ .Number = 4025U, .Title = "Split the GitHub read lane into smaller steps", .Author = "octo-reviewer" },
+	};
+
+	/// \brief [[BPR-1865]]. Those rows as discovery serves them: another
+	/// author's asks `aViewer` for a review (Needs me); the viewer's own waits
+	/// on alice (My pull requests and Waiting on others).
+	[[nodiscard]] inline auto home_filter_fixture_pull_requests(const std::string_view aViewer)
+		-> std::vector<github_personal_discovery_fixture::pull_request>
+	{
+		auto rows = std::vector<github_personal_discovery_fixture::pull_request>{ };
+		for (const auto& row : home_filter_fixture_rows) {
+			auto pull           = github_personal_discovery_fixture::pull_request{ };
+			pull.Number         = row.Number;
+			pull.Author         = std::string{ row.Author };
+			pull.RequestedUsers = { std::string{ row.Author == aViewer ? std::string_view{ "alice" } : aViewer } };
+			rows.push_back(std::move(pull));
+		}
+		return rows;
+	}
 
 	/// \brief Safe wire-level primary/secondary refusal control for BPR-0968.
 	struct github_rate_limit_fixture
@@ -274,8 +327,11 @@ namespace bpr::app::detail {
 		std::uint64_t                ScriptRead = 0U;
 		refresh_outcome              ScriptOutcome{ refresh_outcome::serve };
 		std::atomic<std::uint32_t>   RepliesOwed{ 0U };
-		std::atomic<std::uint32_t>   RepliesAdded{ 0U };
-		std::atomic<std::uint32_t>   RefreshesSeen{ 0U };
+		/// [[BPR-1866]]. While set, an owed reply is another reviewer's
+		/// rather than the viewer's own.
+		std::atomic<bool>          ForeignReplies{ false };
+		std::atomic<std::uint32_t> RepliesAdded{ 0U };
+		std::atomic<std::uint32_t> RefreshesSeen{ 0U };
 		/// [[BPR-1842]]. Holds every read a pull request's load makes this
 		/// long, before anything else answers it, as `gh`'s own launch and
 		/// round trip do (about 330 ms each on the owner's Mac), so a course
@@ -611,6 +667,15 @@ namespace bpr::app::detail {
 		/// [[BPR-1357]]. Delays a pull request's first reads; none when null.
 		std::shared_ptr<github_read_delay_fixture> ReadDelay;
 	};
+
+	/// \brief [[BPR-1858]]. The fixture vault a course's startup reset signs out
+	/// through: `SharedDeviceVault` (or an empty one) with the fixture
+	/// runtime's own refusals, on the caller's executor. Never a platform vault.
+	[[nodiscard]] auto make_github_fixture_reset_vault(application::effect_executor& aEffects, const github_public_path_fixture_options& aOptions)
+		-> std::unique_ptr<application::github_credential_vault_port>;
+	/// \brief [[BPR-1858]]. Whether the shared fixture vault still holds a
+	/// sign-in or refresh entry.
+	[[nodiscard]] auto github_fixture_vault_holds_entry(const std::shared_ptr<github_fixture_vault_state>& aState) -> bool;
 
 	struct queue_notification_fixture_evidence
 	{
@@ -1270,6 +1335,52 @@ namespace bpr::app::detail {
 		auto operator<=>(const refresh_pick_probe_evidence&) const = default;
 	};
 
+	/// [[BPR-1862]]. Delete comment on a draft, in the composed application
+	/// over `conventional-comments-v1`, on `src/engine/renderer.cpp`, with
+	/// the private store. `line` writes a draft on a line inside GitHub's
+	/// diff; `off_hunk` writes one on a line outside every hunk; `agent`
+	/// drafts an agent answer's Draft comment on such a line. Each presses
+	/// the draft's Delete comment, confirms it, and checks that the draft is
+	/// gone from the drawer, the notes and the store. `reopened`, over the
+	/// same data root after a restart, checks that none of the three came
+	/// back.
+	enum class draft_delete_course {
+		line,
+		off_hunk,
+		agent,
+		reopened,
+	};
+
+	enum class draft_delete_probe_result {
+		pending,
+		passed,
+		failed,
+	};
+
+	struct draft_delete_probe_evidence
+	{
+		/// The draft was saved with its words at its line: inside GitHub's
+		/// diff for `line`, outside it for `off_hunk` and `agent`.
+		bool Written = false;
+		/// Delete comment asked first, and its confirm was pressed.
+		bool Asked = false;
+		/// Neither the drawer nor the notes show the words afterwards.
+		bool ViewGone = false;
+		/// No active draft in the store holds the words afterwards.
+		bool StoreGone = false;
+		/// With the line chosen again, twenty ticks later, still gone.
+		bool Stayed = false;
+		// `agent` only.
+		/// Once its draft was deleted, the turn no longer holds it, so it
+		/// offers Draft comment again.
+		bool Released = false;
+		/// Draft comment pressed again makes a new draft; deleted from Finish
+		/// your review once it is pending, the turn lets it go too.
+		bool Fresh = false;
+
+		auto operator<=>(const draft_delete_probe_evidence&) const = default;
+	};
+
 	/// [[BPR-1345]]. Start a review in the composed application over
 	/// `conventional-comments-v1`, on `src/engine/renderer.cpp`. `pending`
 	/// starts a review on one line, adds a range to it, publishes a third
@@ -1856,6 +1967,11 @@ namespace bpr::app::detail {
 		static void               stale_base_numbering_question(github_application& aApplication);
 		[[nodiscard]] static auto device_binding_store_idle(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto device_binding_durable(const github_application& aApplication) noexcept -> bool;
+		/// \brief [[BPR-1858]]. The startup reset's report, for a course started without the desktop.
+		[[nodiscard]] static auto take_profile_data_reset_report(github_application& aApplication) -> std::optional<profile_data_reset_report>
+		{
+			return aApplication.take_profile_data_reset_report();
+		}
 		/// \brief [[BPR-1338]]. The last address the recording browser was handed; empty before any.
 		[[nodiscard]] static auto browser_last_address(const github_application& aApplication) -> std::string;
 		/// \brief [[BPR-1338]]. How many addresses the recording browser was handed.
@@ -1904,7 +2020,13 @@ namespace bpr::app::detail {
 		/// \brief [[BPR-1558]]. Holds, or releases, every syntax classifier
 		/// blob read at its start, as a slow read would hold it. A departure
 		/// from the comparison still ends a held read, as it ends a real one.
-		static void               hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		static void hold_syntax_blob_reads(github_application& aApplication, bool aHold);
+		/// \brief [[BPR-1867]]. Hands the profile's windows what an activity poll
+		/// found new activity on, as the activity host does after a poll (a
+		/// fixture profile never polls: its sign-in is native).
+		static void activity_arrived(github_application& aApplication, const std::vector<core::pull_request_ref>& aActive);
+		/// \brief [[BPR-1867]]. Whether the window still owes a reread.
+		[[nodiscard]] static auto reread_owed(const github_application& aApplication) noexcept -> bool;
 		[[nodiscard]] static auto held_syntax_blob_reads(const github_application& aApplication) -> std::size_t;
 		[[nodiscard]] static auto review_mutation_evidence(
 			const github_application& aApplication) noexcept
@@ -2196,6 +2318,13 @@ namespace bpr::app::detail {
 		[[nodiscard]] static auto refresh_pick_evidence(const github_application& aApplication)
 			-> refresh_pick_probe_evidence;
 		[[nodiscard]] static auto refresh_pick_diagnostic(const github_application& aApplication)
+			-> std::string;
+		/// \brief [[BPR-1862]]. One tick of the draft-delete course.
+		[[nodiscard]] static auto exercise_draft_delete(github_application& aApplication, draft_delete_course aCourse)
+			-> draft_delete_probe_result;
+		[[nodiscard]] static auto draft_delete_evidence(const github_application& aApplication)
+			-> draft_delete_probe_evidence;
+		[[nodiscard]] static auto draft_delete_diagnostic(const github_application& aApplication)
 			-> std::string;
 		/// \brief [[BPR-1345]]. One tick of the start-a-review course.
 		[[nodiscard]] static auto exercise_start_review(github_application& aApplication, start_review_course aCourse)

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1867"
+  ],
+  "reserve_for": "open-pr-picks-up-new-activity",
+  "purpose": "Open pull request picks up new comments on its own (owner, 2026-11-04, BPR-1850 wizard)",
+  "created": "2026-11-05T02:48:24.358146+00:00",
+  "base": "50e80b801b8d65c715a601bd23a4908f5afe069f"
+}
