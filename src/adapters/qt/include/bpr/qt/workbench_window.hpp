@@ -17,6 +17,7 @@
 #include "bpr/application/window_review_restoration_ports.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_model.hpp"
+#include "bpr/core/comparison_preparation.hpp"
 #include "bpr/core/diff_interaction.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/off_hunk_fact.hpp"
@@ -486,6 +487,12 @@ namespace bpr::qt {
 		void set_public_preview_now(std::uint64_t aNowUnixSeconds);
 		void fail(
 			const application::workbench_failure_publication& aFailure) override;
+		/// \brief [[BPR-1871]]. Presents the core's decision for a file the
+		/// reviewer opened that is not on screen yet: loading it by name
+		/// (`aHistory` while the pull request's history is still fetched), or
+		/// the sentence for `aFailure` in its place, or nothing waiting.
+		void present_opened_file(core::opened_file_wait aWait, const QString& aPath, bool aHistory,
+								 std::optional<application::workbench_host_failure> aFailure);
 		/// \brief Adopts the selected file's core-decided private receipt actions.
 		void publish(
 			const application::file_receipt_action_projection& aProjection);

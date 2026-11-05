@@ -2693,6 +2693,24 @@ namespace bpr::app::detail {
 						.Failure = application::git_smart_transport_failure::
 							invalid_request } };
 				}
+				// [[BPR-1871]]. A slow clone, held before any lock so nothing
+				// else waits on it.
+				if (State->ReadDelay && State->ReadDelay->GitFetchMilliseconds.load() != 0U) {
+					++State->ReadDelay->GitFetchesHeld;
+					const auto until = std::chrono::steady_clock::now() + std::chrono::milliseconds{ State->ReadDelay->GitFetchMilliseconds.load() };
+					while (std::chrono::steady_clock::now() < until && !aStop.stop_requested() && !revoked()) {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 10 });
+					}
+					if (aStop.stop_requested() || revoked()) {
+						return std::unexpected{ application::git_smart_transport_error{
+							.Failure = application::git_smart_transport_failure::cancelled } };
+					}
+					State->ReadDelay->GitFetchReleasedAt = std::chrono::steady_clock::now().time_since_epoch().count();
+					if (State->ReadDelay->GitFetchFails.load()) {
+						return std::unexpected{ application::git_smart_transport_error{
+							.Failure = application::git_smart_transport_failure::network } };
+					}
+				}
 				const auto requestBody = std::string{
 					reinterpret_cast<const char*>(aRequest.Body.data()), aRequest.Body.size()
 				};

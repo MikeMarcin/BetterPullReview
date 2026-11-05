@@ -328,8 +328,13 @@ namespace bpr::qt {
 		void               set_suggestions_shown(bool aShown);
 		void               set_suggestions_observer(std::function<void(bool aShown)> aObserver);
 		[[nodiscard]] auto suggestions_shown() const -> bool;
-		/// \brief Sends `aPrompt` as a chat turn, as if typed and asked.
+		/// \brief Sends `aPrompt` as a chat turn, as if typed and asked; words
+		/// the reviewer had in the field stay there ([[BPR-1872]]).
 		void send_prompt(const QString& aPrompt);
+		/// \brief [[BPR-1872]]. A press on a suggested prompt: sent, or with
+		/// `aEditFirst` (a Shift-click or Shift-Return) put in the field to
+		/// edit before sending. The core decides which.
+		void choose_prompt(const QString& aPrompt, bool aEditFirst);
 		/// \brief Reads the panels again and redraws.
 		void refresh();
 		/// \brief The question field takes the keyboard.
@@ -604,6 +609,13 @@ namespace bpr::qt {
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
+		/// [[BPR-1872]]. A suggested prompt was sent past the reviewer's own
+		/// words, which stay in the field when its turn begins.
+		bool PendingKeepsField = false;
+		bool KeepingDraft      = false;
+		/// [[BPR-1872]]. Shift was held on the press that is clicking a
+		/// suggested prompt now.
+		bool PressEditFirst = false;
 		/// [[BPR-1773]]. The conversation chip shown when it was sent.
 		std::optional<agent_conversation_chip>   PendingAbout;
 		std::optional<agent_answer_draft_target> PendingDraftTarget;

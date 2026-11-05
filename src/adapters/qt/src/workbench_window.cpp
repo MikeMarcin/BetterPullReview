@@ -7420,6 +7420,33 @@ namespace bpr::qt {
 		announce_update();
 	}
 
+	void workbench_window::present_opened_file(const core::opened_file_wait                             aWait,
+											   const QString&                                           aPath,
+											   const bool                                               aHistory,
+											   const std::optional<application::workbench_host_failure> aFailure)
+	{
+		if (ComparisonSurface == nullptr) {
+			return;
+		}
+		switch (aWait) {
+		case core::opened_file_wait::none:
+			// Only a wait this said is taken back; a comparison on screen or
+			// loading under its own request stays.
+			if (!ComparisonSurface->waiting_path().isEmpty() && !ComparisonSurface->current_context().has_value()) {
+				ComparisonSurface->clear();
+			}
+			return;
+		case core::opened_file_wait::loading:
+			ComparisonSurface->set_waiting(aPath, aHistory);
+			return;
+		case core::opened_file_wait::failed:
+			// [[BPR-1857]]. The sentence names the reason the file cannot open.
+			ComparisonSurface->set_waiting_failed(
+				aPath, failure_text(aFailure.value_or(application::workbench_host_failure::selected_file_comparison_unavailable), EpochSelectors));
+			return;
+		}
+	}
+
 	void workbench_window::publish(
 		const application::file_receipt_action_projection& aProjection)
 	{

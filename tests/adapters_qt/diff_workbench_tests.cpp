@@ -7,6 +7,7 @@
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/line_details_pane.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/type_preview.hpp"
 
 #include <QAbstractButton>
@@ -475,6 +476,49 @@ namespace {
 			}
 		}
 		return seen.size();
+	}
+
+	/// \brief [[BPR-1871]]. A file opened before its comparison can be read
+	/// is named on the panes' loading plate, never "No file open"; its diff
+	/// replaces the plate, and a failure says why in its place.
+	void test_an_opened_file_waits_by_name()
+	{
+		auto workbench = qt::diff_workbench{ };
+		workbench.resize(900, 600);
+		workbench.show();
+		process_events();
+		auto* const veil = workbench.comparison_veil();
+		expect(workbench.idle(), "nothing chosen: the direction to open a file");
+		workbench.set_waiting(QStringLiteral("src/engine/render.cpp"), true);
+		expect(!workbench.idle() && workbench.waiting_path() == QStringLiteral("src/engine/render.cpp"),
+			   "a file opened during the load leaves No file open for its wait");
+		expect(veil->busy() && veil->words().Loading == QStringLiteral("Loading render.cpp…"),
+			   "the plate names the file by its last part");
+		expect(veil->words().Waiting.contains(QStringLiteral("history")), "the slow line says the history is still on its way");
+		workbench.set_waiting(QStringLiteral("src/engine/render.cpp"), false);
+		expect(veil->words().Waiting == QStringLiteral("Still reading the file from the repository."),
+			   "once the history is here the slow line says the file is being read");
+		workbench.set_waiting(QStringLiteral("src/engine/audio.cpp"), true);
+		expect(veil->words().Loading == QStringLiteral("Loading audio.cpp…"), "another choice replaces the first");
+
+		const auto diff     = computed("a\n", "b\n", core::diff_options{ }, 0U);
+		const auto selected = context(diff, 1U, 1U);
+		workbench.set_loading(selected, QStringLiteral("src/engine/audio.cpp"));
+		expect(!workbench.idle() && veil->words().Loading == QStringLiteral("Loading audio.cpp…"),
+			   "the comparison's own wait keeps the name");
+		workbench.publish(bpr::qt::test::prepare_publication({
+			.Context = selected,
+			.Result  = std::make_shared<const core::computed_file_diff>(diff),
+		}));
+		expect(workbench.waiting_path().isEmpty() && !veil->busy(), "the diff replaces the plate");
+
+		workbench.set_waiting_failed(QStringLiteral("src/engine/audio.cpp"),
+									 QStringLiteral("No exact comparison is ready for this file. Check the connection, then refresh."));
+		expect(!workbench.idle() && veil->look() == core::pending_look::failed
+				   && veil->words().Failure.startsWith(QStringLiteral("No exact comparison is ready for this file.")),
+			   "a file that cannot open says why in its place");
+		workbench.clear();
+		expect(workbench.idle() && workbench.waiting_path().isEmpty() && !veil->busy(), "closing the file takes the wait away");
 	}
 
 	/// \brief Proves the panes number their own lines, visibly.
@@ -6363,6 +6407,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	test_source_overlay_scrollbar_keeps_viewport_extent();
+	test_an_opened_file_waits_by_name();
 
 	test_divider_drag_keeps_fractional_viewport();
 	if (argc > 1 && std::string_view{ argv[1] } == "--divider-resize-only") {
