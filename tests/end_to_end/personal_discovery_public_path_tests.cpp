@@ -350,7 +350,12 @@ try {
 	expect(siblingWithoutAccount("signed-out") == std::tuple{ core::github_status::no_profile, qt::landing_state::sign_in, false, QStringLiteral("Sign in") },
 		   "signed out, a new window lands on the sign-in card with no queue");
 	owner->activate_public_preview();
-	wait_for([&] { return owner->status().PublicPreviewSignedOut; }, "the profile enters public preview");
+	// The mode changes before the profile-resolution completion is delivered.
+	// BPR-1017 covers a window attached after the session is accepted: a
+	// window attached during activation receives that activation's broadcast.
+	// Wait on the first window's delivered terminal, not the eager mode bit.
+	wait_for([&] { return owner->status().PublicPreviewSignedOut && windowA->session_panel()->status() == core::github_status::session_ready; },
+			 "the first window accepts the public-preview session before a new window is opened", diagnose);
 	expect(siblingWithoutAccount("public-preview") == std::tuple{ core::github_status::no_profile, qt::landing_state::sign_in, false, QStringLiteral("Sign in") },
 		   "in public preview, a new window lands on the sign-in card with no queue");
 
