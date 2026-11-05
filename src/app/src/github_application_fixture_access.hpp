@@ -204,6 +204,10 @@ namespace bpr::app::detail {
 			std::shared_ptr<std::atomic<bool>> Draft;
 			bool                               WaitingDetails = false;
 			std::shared_ptr<std::atomic<bool>> RequiredReviewPresent, CheckFailed;
+			/// [[BPR-1866]]. The viewer's own comment-only review, as GitHub
+			/// records the author's reply in a review thread: 0 none, 1 on the
+			/// current head, 2 on an earlier commit (the author pushed after).
+			std::shared_ptr<std::atomic<int>> ViewerReply;
 		};
 		std::vector<pull_request> OpenPullRequests;
 		/// [[BPR-1681]]. While set, a personal search of any saved
@@ -274,8 +278,11 @@ namespace bpr::app::detail {
 		std::uint64_t                ScriptRead = 0U;
 		refresh_outcome              ScriptOutcome{ refresh_outcome::serve };
 		std::atomic<std::uint32_t>   RepliesOwed{ 0U };
-		std::atomic<std::uint32_t>   RepliesAdded{ 0U };
-		std::atomic<std::uint32_t>   RefreshesSeen{ 0U };
+		/// [[BPR-1866]]. While set, an owed reply is another reviewer's
+		/// rather than the viewer's own.
+		std::atomic<bool>          ForeignReplies{ false };
+		std::atomic<std::uint32_t> RepliesAdded{ 0U };
+		std::atomic<std::uint32_t> RefreshesSeen{ 0U };
 		/// [[BPR-1842]]. Holds every read a pull request's load makes this
 		/// long, before anything else answers it, as `gh`'s own launch and
 		/// round trip do (about 330 ms each on the owner's Mac), so a course
