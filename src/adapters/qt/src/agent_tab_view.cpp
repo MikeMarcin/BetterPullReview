@@ -1028,6 +1028,16 @@ namespace bpr::qt {
 			present_banner();
 			update_turn();
 		});
+		AnswerPacer = new QTimer{ this };
+		AnswerPacer->setSingleShot(true);
+		AnswerPacer->setInterval(100);
+		connect(AnswerPacer, &QTimer::timeout, this, [this] {
+			if (AnswerPending && panels_alive()) {
+				AnswerPending = false;
+				update_turn();
+				AnswerPacer->start();
+			}
+		});
 		refresh();
 	}
 
@@ -1190,11 +1200,18 @@ namespace bpr::qt {
 				begin_turn();
 			}
 			LastPhase = phase;
+			// A phase change renders now, through refresh, and owes nothing.
+			AnswerPending = false;
 			refresh();
 			return;
 		}
 		present_banner();
-		update_turn();
+		if (AnswerPacer->isActive()) {
+			AnswerPending = true;
+		} else {
+			update_turn();
+			AnswerPacer->start();
+		}
 		// [[BPR-1817]]. A refusal the host named after a send, before any
 		// turn began, is said beside the composer rather than only on the
 		// hidden launch panel. A refusal for some other surface's request is
