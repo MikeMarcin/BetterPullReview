@@ -11752,6 +11752,17 @@ namespace bpr::qt {
 		return DeleteDraftConfirmation.data();
 	}
 
+	void workbench_window::present_draft_delete_refusal(const QString& aReason)
+	{
+		// [[BPR-1862]]. Where the drawer's composer has closed, the status
+		// line is what still shows; the editor's own status keeps it too.
+		statusBar()->showMessage(aReason, 15000);
+		if (ReviewEditor != nullptr) {
+			ReviewEditor->present_publication_refusal(aReason);
+		}
+		present_inline_draft();
+	}
+
 	void workbench_window::set_comment_draft_unavailable(QString aReason)
 	{
 		CommentDraftUnavailable = std::move(aReason);
@@ -11872,11 +11883,18 @@ namespace bpr::qt {
 		DeleteDraftConfirmation = box;
 		const auto id           = shown.has_value() ? std::optional{ shown->Id } : std::nullopt;
 		connect(box, &QDialog::accepted, this, [this, id] {
-			// The draft asked about, and no other.
+			// The draft asked about, and no other. [[BPR-1862]]: a confirmed
+			// delete that cannot go ahead says so.
 			const auto& now = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
-			if (now.has_value() && std::optional{ now->Id } == id) {
-				leave_drawer_draft(true);
+			if (!now.has_value() || std::optional{ now->Id } != id) {
+				present_draft_delete_refusal(tr("Not deleted: the comment changed while you were asked. Delete it again."));
+				return;
 			}
+			if (!ReviewEditor->discard_action()->isEnabled()) {
+				present_draft_delete_refusal(tr("Not deleted: this comment cannot be deleted now. %1").arg(ReviewEditor->discard_action()->toolTip()));
+				return;
+			}
+			leave_drawer_draft(true);
 		});
 		box->open();
 	}
@@ -19158,17 +19176,22 @@ namespace bpr::qt {
 
 		auto* fileMenu = PrimaryMenuBar->addMenu(QStringLiteral("&File"));
 		fileMenu->setAccessibleName(QStringLiteral("File"));
-		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
-		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
-		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
-		NewBprWindowAction = ProfilesMenu->addAction(QStringLiteral("New Window"));
+		// [[BPR-1863]]. New Window opens another window of this window's profile,
+		// first in File as on every desktop; Profiles keeps the profiles and their
+		// management. Its key is the catalogue's, the one the windowless bar binds.
+		NewBprWindowAction = fileMenu->addAction(QStringLiteral("New Window"));
 		NewBprWindowAction->setObjectName(QStringLiteral("newBprWindowAction"));
+		NewBprWindowAction->setShortcuts(shortcut_keys(shortcut_command::new_window));
 		NewBprWindowAction->setEnabled(false);
 		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
 			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
 				ProfileManagementDispatch(application::new_bpr_window_intent{ CurrentBprProfile });
 			}
 		});
+		fileMenu->addSeparator();
+		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
+		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
+		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
 		ManageProfilesAction = ProfilesMenu->addAction(QStringLiteral("Manage Profiles…"));
 		ManageProfilesAction->setObjectName(QStringLiteral("manageProfilesAction"));
 		ManageProfilesAction->setEnabled(false);
@@ -19615,7 +19638,7 @@ namespace bpr::qt {
 				++iterator;
 			}
 		}
-		auto* before = NewBprWindowAction;
+		auto* before = ManageProfilesAction;
 		for (auto iterator = aProjection.Profiles.rbegin(); iterator != aProjection.Profiles.rend(); ++iterator) {
 			const auto& profile    = *iterator;
 			auto [entry, inserted] = ProfileActions.try_emplace(profile.Profile, nullptr);

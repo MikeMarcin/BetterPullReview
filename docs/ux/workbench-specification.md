@@ -1152,7 +1152,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Resume for a Recently viewed row, then a separator and Open on GitHub. Each
   item shows its key: ↩, ⌘↩, ⇧↩ and ⇧⌘O on macOS. The lists read the keys
   themselves; the menu's shortcuts never act from the window. Open Review in
-  New Window is offered exactly when Profiles › New Window is. It is that New
+  New Window is offered exactly when File › New Window is. It is that New
   Window, in the same profile under its one runtime owner, carrying the one
   pull request the window's host admitted: the new window opens Home, as
   every new window does, and then that pull request by its own bar's path, on
@@ -2242,9 +2242,12 @@ choice between a real menu bar and a checkable entry in the existing toolbar
 popup, chose the menu bar. On macOS it merges into the system menu bar and
 costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
-popup keeps the private progress actions it already had. **File** holds Quit,
-and **Profiles** lists the profiles by name with the current one checked, then
-New Window and Manage Profiles…. Home's Open Review in New Window
+popup keeps the private progress actions it already had. **File** opens with
+**New Window** (`Ctrl+N`, ⌘N on macOS), which opens another window of this
+window's profile at Home, then Open Project…, Quit and Close Tab
+([[BPR-1863]]: the owner asked for New Window in File, where every desktop
+application keeps it, and it left Profiles). **Profiles** lists the profiles
+by name with the current one checked, then Manage Profiles…. Home's Open Review in New Window
 ([[BPR-1342]]) is the same New Window, carrying one pull request. On Windows the strip's application menu
 lists the same menus, Pull Request among them. There the bar is hidden, so
 its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
@@ -2417,8 +2420,8 @@ for itself, so both answers are drivable on one host:
 
   **The menu bar the close leaves behind.** The application's own menu bar
   carries the same menus a window's bar carries, so the close subtracts nothing
-  a reviewer can see: a File menu holding Quit, a Profiles menu listing the
-  profiles and then New Window and Manage Profiles…, and the window's own
+  a reviewer can see: a File menu holding New Window, Quit, Open Project… and Close Tab, a
+  Profiles menu listing the profiles and then Manage Profiles…, and the window's own
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS
   applications offer with no document open, and Settings keeping the
