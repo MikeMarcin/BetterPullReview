@@ -28276,17 +28276,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// \brief [[BPR-0860]], [[BPR-0864]], [[BPR-1037]]. How long one phase
 		/// of a fixture probe may wait for an effect it does not control.
 		///
-		/// \details Every probe phase that waits is bounded by this, so a stall
-		/// names the condition it was waiting for rather than expiring the whole
-		/// run budget on a stage number. Five seconds is far longer than any
-		/// course's effects take on a loaded machine -- an observation, a file
-		/// selection, a selected diff through the Git and cache actors, a
-		/// store, a preview, a publication or an epoch change -- and every
-		/// phase is reached well inside its run budget. The bound is time
-		/// rather than ticks for the reason the run budget is: the event loop
-		/// stretches under load exactly when the clock does not. The floor of
-		/// calls keeps one long tick from reading as a stall, as the shared
-		/// modality step's does ([[BPR-0863]]).
+		/// \details A phase's bounded wait names its outstanding condition.
+		/// Five seconds remains the default; a course may supply its own finite
+		/// functional watchdog without changing the outer run budget. The bound
+		/// uses time rather than ticks because the event loop stretches under
+		/// load. The call floor keeps one long tick from reading as a stall
+		/// ([[BPR-0863]]).
 		inline constexpr auto        fixture_probe_wait_cap   = std::chrono::milliseconds{ 5'000 };
 		inline constexpr std::size_t fixture_probe_wait_floor = 16U;
 
@@ -28295,7 +28290,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		///
 		/// \details A refusal on one tick means "not yet" (`src/app/AGENTS.md`),
 		/// so a phase keeps waiting until its bound. Then this prints one line,
-		/// `TERM:waited_ms=... wait_cap_ms=5000 waits=... <facts> <modality facts>`.
+		/// `TERM:waited_ms=... wait_cap_ms=... waits=... <facts> <modality facts>`.
 		/// `aFacts` writes the inputs to the condition the phase waits on. The
 		/// line ends with the modality facts every course's failure ends with
 		/// ([[BPR-0863]]), which include the host's outstanding requests.
@@ -28304,10 +28299,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// stalled, and the caller fails the probe.
 		template <typename TFacts>
 		[[nodiscard]] auto keep_waiting(
-			const github_application&   aApplication,
-			detail::fixture_probe_wait& aWait,
-			const char* const           aTerm,
-			const TFacts&               aFacts) -> bool
+			const github_application&       aApplication,
+			detail::fixture_probe_wait&     aWait,
+			const char* const               aTerm,
+			const TFacts&                   aFacts,
+			const std::chrono::milliseconds aWaitCap = fixture_probe_wait_cap) -> bool
 		{
 			const auto now = std::chrono::steady_clock::now();
 			if (!aWait.Since.has_value()) {
@@ -28315,12 +28311,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			++aWait.Calls;
 			const auto waited = std::chrono::duration_cast<std::chrono::milliseconds>(now - *aWait.Since);
-			if (waited < fixture_probe_wait_cap || aWait.Calls < fixture_probe_wait_floor) {
+			if (waited < aWaitCap || aWait.Calls < fixture_probe_wait_floor) {
 				return true;
 			}
 			auto stream = QTextStream{ stdout };
 			stream << aTerm << ":waited_ms=" << static_cast<qlonglong>(waited.count())
-				   << " wait_cap_ms=" << static_cast<qlonglong>(fixture_probe_wait_cap.count())
+				   << " wait_cap_ms=" << static_cast<qlonglong>(aWaitCap.count())
 				   << " waits=" << static_cast<qulonglong>(aWait.Calls) << ' ';
 			aFacts(stream);
 			stream << ' ' << detail::github_application_fixture_access::course_modality_facts(aApplication) << '\n';
@@ -33511,7 +33507,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		// [[BPR-1037]]. Every phase that waits is bounded and names what it
 		// was waiting for; see `keep_waiting`.
 		const auto wait = [&](const char* const aTerm, const auto& aFacts) {
-			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts) ? result::pending : fail();
+			// [[BPR-1854]]. Native Ubuntu exceeded five seconds in distinct actor waits.
+			// This functional course keeps its outer 40s
+			// budget and all semantic predicates; only its phase watchdog grows.
+			return keep_waiting(aApplication, probe.Wait, aTerm, aFacts, std::chrono::milliseconds{ 15'000 }) ? result::pending : fail();
 		};
 		const auto advance = [&probe](const state_type::phase aPhase) {
 			enter_phase(probe.Phase, probe.Wait, aPhase);
@@ -33565,6 +33564,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					<< " workbench_host=" << present(implementation->WorkbenchHost != nullptr)
 					<< " mutation_host=" << present(implementation->ReviewMutationHost != nullptr)
 					<< " review_draft=" << draftState()
+					<< " off_hunk_anchor=" << present(probe.OffHunkAnchor.has_value())
 					<< " private_ready=" << present(implementation->PrivateDraftsReady)
 					<< " private_selection_pending=" << present(implementation->PrivateDraftSelectionPending)
 					<< " semantic_selection=" << present(implementation->SelectedSemanticSelection.has_value())
@@ -33723,6 +33723,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				probe.OffHunkAnchor = comparison->selection()->PreferredLine;
 				break;
 			}
+			// A refreshed comparison can still be arriving after its conversation.
+			// Stay here until the public gesture actually selected an off-hunk line.
+			if (!probe.OffHunkAnchor) {
+				return wait("REVIEW_ROUND_TRIP_OFF_HUNK_LINE_STALLED", [&](QTextStream& aStream) {
+					aStream << "left_blocks=" << left->blockCount() << " right_blocks=" << right->blockCount()
+							<< " result=" << present(comparison->current_result() != nullptr)
+							<< " geometry_pending=" << comparison->geometry_pending();
+				});
+			}
 			return advance(state_type::phase::awaiting_fallback_draft);
 		}
 		if (probe.Phase == state_type::phase::awaiting_fallback_draft) {
@@ -33736,7 +33745,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				(void)comparison->select_conversation_line(core::diff_side::right, probe.OffHunkAnchor->Line);
 			}
 			if (!probe.OffHunkAnchor || !editor->shown_draft() || editor->shown_draft()->Anchor != probe.OffHunkAnchor
-				|| implementation->ReviewDraft->State != core::review_draft_state::drafting) {
+				|| !implementation->ReviewDraft || implementation->ReviewDraft->State != core::review_draft_state::drafting) {
 				return wait("REVIEW_ROUND_TRIP_FALLBACK_DRAFT_STALLED", draftFacts);
 			}
 			editor->body_editor()->setPlainText(QStringLiteral("BPR-0571 off-hunk publication."));
