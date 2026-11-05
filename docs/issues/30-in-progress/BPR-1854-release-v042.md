@@ -395,3 +395,15 @@ manifest digests were printed and resealed under the recorded review; the
 mutation digest remains exact. The original early source-gate failure is
 preserved under `native-feedback19/macos-r1`; fresh gate and native checks
 remain required. This review is not qualification or acceptance.
+
+
+### Successor changed-source static analysis
+
+Fresh LLVM 22 analysis of nine changed production translation units retains
+its raw findings. The introduced prompt-handler local `to_end` now uses
+`toEnd`, with identical captures, calls and cursor behavior. Existing
+workbench queue-filter pointer and `finish_choice` findings, the app
+`go_on_to_reviewers` spelling and the public-fixture viewer pointer finding
+match the earlier precise dispositions in the external release ledger.
+No clean whole-gate result is claimed. A targeted analyzer recheck and final
+frozen native qualification remain required.

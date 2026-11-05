@@ -1755,7 +1755,7 @@ namespace bpr::qt {
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = Chat.send_action()->isEnabled() && State != agent_tab_state::working,
 		});
-		const auto  to_end   = [composer] {
+		const auto  toEnd    = [composer] {
 			auto cursor = composer->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			composer->setTextCursor(cursor);
@@ -1774,18 +1774,18 @@ namespace bpr::qt {
 			ask();
 			KeepingDraft = false;
 			composer->setPlainText(draft);
-			to_end();
+			toEnd();
 			return;
 		case core::agent_suggestion_press::edit: composer->setPlainText(aPrompt); break;
 		case core::agent_suggestion_press::edit_after_draft:
 			// Added, never replacing: on its own line after the words there,
 			// and undone in one step.
-			to_end();
+			toEnd();
 			composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + aPrompt);
 			break;
 		}
 		composer->setFocus(Qt::OtherFocusReason);
-		to_end();
+		toEnd();
 	}
 
 	void agent_tab_view::refresh_suggestions()
