@@ -196,6 +196,8 @@
 #include "bpr/core/github_transition.hpp"
 #include "bpr/core/home_open.hpp"
 #include "bpr/core/markdown_code.hpp"
+#include "bpr/core/pull_request_activity.hpp"
+#include "bpr/core/refresh_feedback.hpp"
 #include "bpr/core/reply_draft_standing.hpp"
 #include "bpr/core/review_comment_range.hpp"
 #include "bpr/core/sha256.hpp"
@@ -347,6 +349,9 @@ namespace bpr::app {
 	}
 
 	namespace {
+		/// [[BPR-1867]]. How soon a reread waiting for the reviewer to stop
+		/// writing asks again.
+		constexpr auto reread_writing_retry = std::chrono::milliseconds{ 2'000 };
 #if defined(BPR_AGENT_INTEGRATIONS)
 		/// [[BPR-1752]], RFC-BPR-0092 D1. Writes the edited review skill
 		/// to a new file in Downloads (else Documents or home) before Restore
@@ -4510,6 +4515,9 @@ namespace bpr::app {
 			std::function<std::optional<core::pull_request_ref>()>            FocusedPullRequest;
 			std::function<bool(const std::optional<core::pull_request_ref>&)> OpenNotified;
 			std::function<void(bool, const QString&)>                         PresentActivity;
+			/// [[BPR-1867]]. Pull requests a poll found new activity on: a
+			/// window showing one reads it again by itself.
+			std::function<void(const std::vector<core::pull_request_ref>&)> ActivityArrived;
 		};
 		// [[BPR-0733]]. The recently viewed list is profile state; every window
 		// projects its own view of it for the session it has.
@@ -4526,6 +4534,8 @@ namespace bpr::app {
 		void               set_activity_enabled(bool aEnabled);
 		void               activate_activity();
 		[[nodiscard]] auto activity_focus() -> std::vector<core::pull_request_ref>;
+		/// \brief [[BPR-1867]]. Hands a poll's active pull requests to every window.
+		void activity_arrived(const std::vector<core::pull_request_ref>& aActive);
 		/// \brief Home's discovery gives way while a window waits on a read, and
 		/// resumes once none does, as `core::home_loading_yields` decides.
 		void yield_discovery();
@@ -5947,6 +5957,7 @@ namespace bpr::app {
 					[this] { return activity_focus(); }, ActivityStore->load(), DiagnosticLog);
 				ActivitySink->set_activation([this] { activate_activity(); });
 				Activity->set_observer([this] { present_activity(); });
+				Activity->set_refresh([this](const std::vector<core::pull_request_ref>& aActive) { activity_arrived(aActive); });
 #if defined(BPR_BUILD_TESTING)
 				if (Fixture != nullptr) {
 					Activity->shutdown();
@@ -7038,6 +7049,18 @@ namespace bpr::app {
 			}
 		});
 		return focused;
+	}
+
+	void github_profile_runtime::activity_arrived(const std::vector<core::pull_request_ref>& aActive)
+	{
+		if (Closing || aActive.empty()) {
+			return;
+		}
+		for_each_window([&](const window_observer& aObserver) {
+			if (aObserver.ActivityArrived) {
+				aObserver.ActivityArrived(aActive);
+			}
+		});
 	}
 
 	void github_profile_runtime::activate_activity()
@@ -8535,6 +8558,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					Window->present_activity_notifications(aEnabled, aStatus);
 				}
 			};
+			// [[BPR-1867]]. New activity on the pull request this window shows,
+			// whether or not it is in front, and coming back to it once its
+			// update has aged: the window reads it again by itself.
+			Profile->Observers.at(DraftWindow).ActivityArrived = [this, weak](const std::vector<core::pull_request_ref>& aActive) {
+				if (weak.expired() || Closing || !Window) {
+					return;
+				}
+				if (const auto shown = Window->shown_pull_request(); shown && core::activity_concerns(aActive, *shown)) {
+					reread_for_news();
+				}
+			};
+			Window->set_pull_request_return_dispatch([this, weak](const std::int64_t aNow) {
+				if (!weak.expired() && !Closing && Window && core::refresh_due_on_return(Window->pull_request_refresh(), aNow)) {
+					reread_for_news();
+				}
+			});
 			Window->set_activity_notifications_dispatch([this, weak](const bool aEnabled) {
 				if (!weak.expired() && !Closing) {
 					Profile->set_activity_enabled(aEnabled);
@@ -20704,10 +20743,39 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// waits for it to settle rather than being dropped or stacked.
 		bool RereadOwed   = false;
 		bool RereadQueued = false;
+		/// [[BPR-1867]]. The reread owed is only the application's own news
+		/// (activity on GitHub, a return to an aged pull request): it waits
+		/// while the reviewer writes. A publication's reread clears it.
+		bool RereadQuiet = false;
+		/// A wait for the reviewer to stop writing is asked again after this.
+		bool RereadRetrying = false;
 		void reread_after_publication()
 		{
 			if (Closing) {
 				return;
+			}
+			RereadOwed  = true;
+			RereadQuiet = false;
+			schedule_publication_reread();
+		}
+		/// \brief [[BPR-1867]]. What the profile's activity host hands its
+		/// windows after a poll, for a course whose profile never polls.
+		void hand_on_activity(const std::vector<core::pull_request_ref>& aActive)
+		{
+			if (Profile) {
+				Profile->activity_arrived(aActive);
+			}
+		}
+		/// \brief [[BPR-1867]]. Something changed on GitHub that this window
+		/// shows, or it came back to an aged read: one reread is owed, as
+		/// after a publication, but it may wait while the reviewer writes.
+		void reread_for_news()
+		{
+			if (Closing) {
+				return;
+			}
+			if (!RereadOwed) {
+				RereadQuiet = true;
 			}
 			RereadOwed = true;
 			schedule_publication_reread();
@@ -20731,11 +20799,28 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (Closing || !RereadOwed || Window == nullptr || !WindowRead) {
 				return;
 			}
-			if (WindowRead->state().PendingPullRequest.has_value()) {
-				// Paid when that read settles: its update schedules this again.
+			const auto reading = WindowRead->state().PendingPullRequest.has_value();
+			const auto step    = core::decide_reread({ .Owed = RereadOwed, .Quiet = RereadQuiet, .Reading = reading, .Composing = Window->composing() });
+			if (step == core::reread_step::wait) {
+				// A read under way pays it when it settles: its update schedules
+				// this again. Writing is asked about again shortly.
+				if (!reading && !RereadRetrying) {
+					RereadRetrying = true;
+					QTimer::singleShot(reread_writing_retry, Window.get(), [this, weak = std::weak_ptr<const int>{ WindowLifetime }] {
+						if (weak.expired()) {
+							return;
+						}
+						RereadRetrying = false;
+						schedule_publication_reread();
+					});
+				}
 				return;
 			}
-			RereadOwed = false;
+			if (step == core::reread_step::none) {
+				return;
+			}
+			RereadOwed  = false;
+			RereadQuiet = false;
 			// The core's refresh of the shown pull request, as Refresh reads it,
 			// but not as a gesture: nothing the reviewer is doing (a pasted
 			// link waiting on sign-in, a restoration, the status line) is
@@ -27363,6 +27448,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		if (auto& blobs = aApplication.Implementation->SyntaxBlobs; blobs) {
 			blobs->hold_reads(aHold);
 		}
+	}
+	void detail::github_application_fixture_access::activity_arrived(github_application& aApplication, const std::vector<core::pull_request_ref>& aActive)
+	{
+		aApplication.Implementation->hand_on_activity(aActive);
+	}
+	auto detail::github_application_fixture_access::reread_owed(const github_application& aApplication) noexcept -> bool
+	{
+		const auto& implementation = *aApplication.Implementation;
+		return implementation.RereadOwed || implementation.RereadQueued || implementation.RereadRetrying;
 	}
 	auto detail::github_application_fixture_access::held_syntax_blob_reads(const github_application& aApplication) -> std::size_t
 	{

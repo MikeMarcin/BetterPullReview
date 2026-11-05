@@ -14,6 +14,10 @@
 // the pull request is focused, and prints one `ACTIVITY_LIVE:` line per
 // request with its status and `X-RateLimit-Remaining`, per diagnostics line,
 // per post, and a summary. It stops below the rate-limit floor.
+//
+// [[BPR-1867]]. It also prints each hand-off of active pull requests the host
+// makes for a window showing one to read it again, and requires one naming the
+// pull request after each comment: the focused one's too, which is not posted.
 #include "gh_cli_transport.hpp"
 #include "github_cli_process_runner.hpp"
 #include "github_host_profile.hpp"
@@ -296,6 +300,13 @@ int main(int aArgc, char** aArgv)
 									  first_comment,
 									  focused_comment,
 									  done };
+	auto handed = std::size_t{ 0U };
+	host->set_refresh([&](const std::vector<core::pull_request_ref>& aActive) {
+		const auto ours = std::ranges::find(aActive, target) != aActive.end();
+		handed += ours ? 1U : 0U;
+		std::cout << "ACTIVITY_LIVE:refresh:" << (ours ? "the-pull-request" : "other") << ":count=" << aActive.size() << '\n'
+				  << std::flush;
+	});
 	auto       stage    = phase::baseline;
 	auto       waited   = 0;
 	auto       before   = std::size_t{ 0U };
@@ -311,7 +322,7 @@ int main(int aArgc, char** aArgv)
 	const auto summary = [&] {
 		const auto stats = host->statistics();
 		std::cout << "ACTIVITY_LIVE:summary:polls=" << stats.Polls << ":requests=" << stats.Requests << ":unchanged=" << stats.Unchanged << ":changed=" << stats.Changed
-				  << ":failed=" << stats.Failed << ":rate-limited=" << stats.RateLimited << ":posted=" << stats.Posted << ":suppressed=" << stats.Suppressed << '\n'
+				  << ":failed=" << stats.Failed << ":rate-limited=" << stats.RateLimited << ":posted=" << stats.Posted << ":suppressed=" << stats.Suppressed << ":active=" << stats.Active << '\n'
 				  << std::flush;
 	};
 	host->set_observer([&] {
@@ -332,6 +343,10 @@ int main(int aArgc, char** aArgv)
 			if (ours == before + 1U) {
 				std::cout << "ACTIVITY_LIVE:first-comment-posted-after-polls:" << waited << '\n'
 						  << std::flush;
+				if (handed != 1U) {
+					summary();
+					fail("first-comment-not-handed-on-to-read-again");
+				}
 				emit sink.tray_icon()->messageClicked();
 				focused  = { target };
 				suppress = host->statistics().Suppressed;
@@ -353,6 +368,10 @@ int main(int aArgc, char** aArgv)
 			if (host->statistics().Suppressed > suppress) {
 				std::cout << "ACTIVITY_LIVE:focused-comment-suppressed-after-polls:" << waited << '\n'
 						  << std::flush;
+				if (handed != 2U) {
+					summary();
+					fail("focused-comment-not-handed-on-to-read-again");
+				}
 				stage = phase::done;
 				summary();
 				// Two more polls show the 304 path again before it stops.

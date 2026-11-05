@@ -216,6 +216,37 @@ namespace {
 		expect(bounded.Memory.Seen.size() == activity_seen_limit, "seen is bounded");
 		expect(std::ranges::is_sorted(bounded.Memory.Seen, { }, &activity_seen::Thread), "and ordered");
 	}
+	/// [[BPR-1867]]. Every pull request with new activity is named for a
+	/// window showing it to read again, whatever is posted about it.
+	void test_active()
+	{
+		const auto first = decide_activity({ }, { }, { thread("1", 900, 7) }, true, context(1000));
+		expect(first.Active.empty(), "a baseline names nothing to read again");
+
+		const auto memory  = first.Memory;
+		auto       mine    = thread("3", 1100, 9);
+		mine.Unread        = false;
+		const auto other   = thread("5", 1100, 11, activity_reason::review_requested);
+		const auto focused = decide_activity(memory, { }, { thread("1", 1100, 7), thread("2", 1101, 7), mine, other, thread("4", 1100, 13) }, true, context(1200, { ref(13) }));
+		expect(focused.Active == std::vector{ ref(7), ref(9), ref(11), ref(13) }, "new threads name their pull requests, once each and ascending: focused, read and of any reason too");
+		expect(focused.Suppressed == 3U && focused.Notifications.size() == 1U, "what is posted is unchanged");
+
+		const auto again = decide_activity(focused.Memory, focused.Session, { thread("1", 1100, 7), thread("4", 1100, 13) }, true, context(1260));
+		expect(again.Active.empty(), "threads already seen name nothing");
+		const auto unchanged = decide_activity(focused.Memory, focused.Session, { }, false, context(1300));
+		expect(unchanged.Active.empty(), "a 304 names nothing");
+
+		auto nameless = thread("8", 1400, 0);
+		nameless.Repository.clear();
+		const auto broken = decide_activity(focused.Memory, focused.Session, { nameless }, true, context(1500));
+		expect(broken.Active.empty(), "a thread without a pull request names none");
+
+		const auto spelt = pull_request_ref{ .Host = "GitHub.com", .Account = "Me", .Repository = "Octo/Widgets", .Number = 7 };
+		expect(activity_concerns(focused.Active, spelt), "names compare without case");
+		expect(!activity_concerns(focused.Active, ref(8)), "another number is not concerned");
+		expect(!activity_concerns(focused.Active, { .Host = "ghe.example", .Account = "me", .Repository = "octo/widgets", .Number = 7 }), "another host is not concerned");
+		expect(!activity_concerns({ }, ref(7)), "nothing active concerns nothing");
+	}
 } // namespace
 
 auto main() -> int
@@ -226,6 +257,7 @@ auto main() -> int
 	test_activation();
 	test_schedule();
 	test_memory();
+	test_active();
 	std::cout << "pull-request-activity:pass\n";
 	return EXIT_SUCCESS;
 }
