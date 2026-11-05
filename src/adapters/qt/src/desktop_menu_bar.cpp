@@ -27,6 +27,18 @@ namespace bpr::qt {
 		setAccessibleDescription(QStringLiteral("Profiles and application menus while no window is open"));
 		auto* fileMenu = addMenu(QStringLiteral("&File"));
 		fileMenu->setAccessibleName(QStringLiteral("File"));
+		// [[BPR-1863]]. First in File, as in the window's menu. Unlike the
+		// window's, it is offered while the named profile has no runtime.
+		NewBprWindowAction = fileMenu->addAction(QStringLiteral("New Window"));
+		NewBprWindowAction->setObjectName(QStringLiteral("desktopNewBprWindowAction"));
+		NewBprWindowAction->setShortcuts(shortcut_keys(shortcut_command::new_window));
+		NewBprWindowAction->setEnabled(false);
+		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
+			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
+				ProfileManagementDispatch(application::new_bpr_window_intent{ CurrentBprProfile });
+			}
+		});
+		fileMenu->addSeparator();
 		QuitProfilesAction = fileMenu->addAction(QStringLiteral("Quit"));
 		QuitProfilesAction->setObjectName(QStringLiteral("desktopQuitProfilesAction"));
 		QuitProfilesAction->setMenuRole(QAction::QuitRole);
@@ -51,15 +63,6 @@ namespace bpr::qt {
 		ProfilesMenu = addMenu(QStringLiteral("&Profiles"));
 		ProfilesMenu->setObjectName(QStringLiteral("desktopProfilesMenu"));
 		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
-		NewBprWindowAction = ProfilesMenu->addAction(QStringLiteral("New Window"));
-		NewBprWindowAction->setObjectName(QStringLiteral("desktopNewBprWindowAction"));
-		NewBprWindowAction->setShortcuts(shortcut_keys(shortcut_command::new_window));
-		NewBprWindowAction->setEnabled(false);
-		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
-			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
-				ProfileManagementDispatch(application::new_bpr_window_intent{ CurrentBprProfile });
-			}
-		});
 		ManageProfilesAction = ProfilesMenu->addAction(QStringLiteral("Manage Profiles…"));
 		ManageProfilesAction->setObjectName(QStringLiteral("desktopManageProfilesAction"));
 		ManageProfilesAction->setEnabled(false);
@@ -322,7 +325,7 @@ namespace bpr::qt {
 				++iterator;
 			}
 		}
-		auto* before = NewBprWindowAction;
+		auto* before = ManageProfilesAction;
 		for (auto iterator = aProjection.Profiles.rbegin(); iterator != aProjection.Profiles.rend(); ++iterator) {
 			const auto& profile    = *iterator;
 			auto [entry, inserted] = ProfileActions.try_emplace(profile.Profile, nullptr);

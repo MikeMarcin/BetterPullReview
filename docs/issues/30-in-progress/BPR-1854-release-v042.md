@@ -124,3 +124,19 @@ with unchanged CPU counters; it stopped none. They subsequently exited before
 Ubuntu's corrected run. Fresh app-TU LLVM22 analysis reports only the previously
 recorded `go_on_to_reviewers` naming debt (raw exit 1); no new finding is
 present. Final freeze and comprehensive qualification remain pending.
+
+
+### Authoritative main reconciliation before allocation
+
+After the affected checks passed, allocation refused because authoritative
+main advanced from the published build-9 source to `b9b9737a3`. The owner
+explicitly selected **Include updated main** in the release conversation.
+The reconciliation retains the release's Git request-boundary and clone
+admission fixes and the bounded round-trip fixture correction, and includes
+the upstream accepted UI, reset, activity-refresh and startup work. The startup
+case/spelling fix BPR-1868 is Mac/Linux; it does not qualify Windows startup.
+The app-manifest delta is reviewed and resealed with the production mutation
+branch unchanged. Previous early results remain bound to their earlier source;
+fresh relevant native checks and the final frozen comprehensive matrix are
+required for this broader source. The failed allocation created no build-13
+identity and changed neither the counter nor its receipts.

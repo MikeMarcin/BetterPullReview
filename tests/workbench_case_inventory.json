@@ -1,6 +1,6 @@
 {
   "schema": "bpr.workbench-cases.v1",
-  "source_sha256": "28a3728b9bfdce0609ea86bd28d45dbcf7c3e644a7632ffab78bba6fe712ae39",
+  "source_sha256": "a9b15ac2e7b9ed5b967534fb31586178b8e6c4d466db0caa3a96189e9ffae751",
   "baseline_source_sha256": "494549614119eb58a6236503e29b5a64b0e6649b4f1dfed6a7106d1a27510b91",
   "preconditions": "Each row retains its own QApplication lifetime, original case order, fresh widgets and its original scale. NDEBUG and MSVC iterator diagnostics are configuration preconditions, never interchangeable evidence. The default has no NDEBUG branch and no asserted latency budget; 100ms is exclusive --conversation-reveal only.",
   "selector_cases": {
@@ -115,6 +115,7 @@
     ],
     "--home-discovery": [
       "test_saved_repository_gestures_round_trip_through_the_dispatch",
+      "test_add_repository_comes_before_the_clone_folders",
       "test_home_strip_holds_view_and_refresh",
       "test_home_discovery_glyph_status_and_pull_request_menu",
       "test_home_view_menu_and_its_gestures"
@@ -257,6 +258,7 @@
       "test_queue_rule_gestures_wait_for_the_accepted_projection",
       "test_queue_rule_selection_survives_unrelated_projection",
       "test_saved_repository_gestures_round_trip_through_the_dispatch",
+      "test_add_repository_comes_before_the_clone_folders",
       "test_add_enterprise_server_opens_a_card_in_its_edit_state",
       "test_github_cli_discovery_is_a_separate_accounts_path",
       "test_a_kept_enterprise_server_remembers_and_forgets_on_its_card",

@@ -1,6 +1,7 @@
 #ifndef BPR_APP_PROFILE_DATA_RESET_HPP
 #define BPR_APP_PROFILE_DATA_RESET_HPP
 
+#include "bpr/application/github_credential_vault.hpp"
 #include "bpr/application/profile_runtime_lease.hpp"
 #include "bpr/core/profile_data_reset.hpp"
 #include "bpr/core/profile_window.hpp"
@@ -33,8 +34,16 @@ namespace bpr::app {
 	/// A requested copy goes to a new folder in Downloads (else Documents or
 	/// home); when none is available nothing is removed. Reset settings then
 	/// restores Home's queue display choices in the store it keeps.
+	///
+	/// [[BPR-1858]] Reset connections and Reset everything sign the profile
+	/// out: `aVault`, this profile's own vault on an executor the caller owns
+	/// and drains, deletes exactly the entries its device bindings name, under
+	/// the same journal as the files, and every remembered connection is then
+	/// forgotten in the store the reset keeps. Without a vault such a reset
+	/// refuses before removing anything when a binding exists. gh's own
+	/// sign-in is never touched.
 	[[nodiscard]] auto run_profile_data_reset(const std::filesystem::path& aRoot, std::shared_ptr<application::profile_runtime_lease> aLease,
 											  core::bpr_profile_id aProfile, const core::profile_data_reset_request& aRequest,
-											  std::stop_token aStop) -> profile_data_reset_report;
+											  application::github_credential_vault_port* aVault, std::stop_token aStop) -> profile_data_reset_report;
 }
 #endif

@@ -169,6 +169,43 @@ namespace {
 		expect(!sqlite_adapter::create_storage_root_owner_private(scratch / "trailing" / ""), "a root spelled with a trailing separator is refused");
 		expect(!exists_here(scratch / "trailing"), "a trailing-separator spelling creates nothing");
 
+		// [[BPR-1868]]. A root made beforehand owner-private is admitted as it is.
+		const auto premade = scratch / "premade";
+		expect(std::filesystem::create_directory(premade), "the pre-made private root is created");
+		std::filesystem::permissions(premade, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		expect(sqlite_adapter::create_storage_root_owner_private(premade), "a root made beforehand with mode 0700 is accepted");
+		expect(catalog_opens(premade), "the catalog accepts the pre-made private root");
+
+		// [[BPR-1868]]. The on-disk spelling: unchanged for a spelling that is
+		// already the file system's own, and for one through a link.
+		expect(sqlite_adapter::storage_root_on_disk_spelling(b) == b, "a canonical existing root keeps its spelling");
+		expect(sqlite_adapter::storage_root_on_disk_spelling(scratch / "absent" / "root") == scratch / "absent" / "root",
+			   "a missing root under a canonical folder keeps its spelling");
+		expect(sqlite_adapter::storage_root_on_disk_spelling(scratch / "link" / "child") == scratch / "link" / "child",
+			   "a root under a symbolic link keeps its spelling, so it is still refused");
+		expect(sqlite_adapter::storage_root_on_disk_spelling(scratch / "link") == scratch / "link",
+			   "a root that is a symbolic link keeps its spelling");
+		expect(sqlite_adapter::storage_root_on_disk_spelling(scratch / "fresh" / ".." / "spelled") == scratch / "fresh" / ".." / "spelled",
+			   "a spelling that is not lexically normal is returned unchanged");
+
+		// [[BPR-1868]]. On a case-insensitive volume, a root typed in another
+		// letter case names the same folder and is given the folder's spelling.
+		const auto cased = scratch / "Attended";
+		expect(std::filesystem::create_directory(cased), "the cased folder is created");
+		if (exists_here(scratch / "attended")) {
+			const auto typed = scratch / "attended" / "data";
+			expect(!sqlite_adapter::create_storage_root_owner_private(typed), "the stores still refuse a spelling that is not the file system's");
+			const auto spelled = sqlite_adapter::storage_root_on_disk_spelling(typed);
+			expect(spelled == cased / "data", "a missing root under a folder typed in another case takes the folder's spelling");
+			expect(sqlite_adapter::create_storage_root_owner_private(spelled), "the respelled root is created");
+			expect(catalog_opens(spelled), "the catalog accepts the respelled root");
+			expect(sqlite_adapter::storage_root_on_disk_spelling(scratch / "ATTENDED" / "DATA") == cased / "data",
+				   "an existing root typed in another case takes its own spelling");
+		} else {
+			expect(sqlite_adapter::storage_root_on_disk_spelling(scratch / "attended" / "data") == scratch / "attended" / "data",
+				   "on a case-sensitive volume another case names another folder and keeps its spelling");
+		}
+
 		std::error_code ignored;
 		(void)std::filesystem::remove_all(scratch, ignored);
 	}

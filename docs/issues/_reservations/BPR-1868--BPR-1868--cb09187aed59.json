@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1868"
+  ],
+  "reserve_for": "startup-data-root",
+  "purpose": "App exits at startup when the data root's letter case differs or the folder already exists",
+  "created": "2026-11-05T05:17:56.296594+00:00",
+  "base": "4000b3a2d8137f78419f3f38ad4541f3e57868a1"
+}

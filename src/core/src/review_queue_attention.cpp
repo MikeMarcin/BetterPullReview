@@ -5,7 +5,6 @@
 namespace bpr::core {
 	auto queue_membership_with_activity(queue_membership aMembership, std::optional<bool> aAuthored, bool aReviewedByMe) noexcept -> queue_membership
 	{
-		aMembership.Reviewed        = aMembership.Reviewed || aReviewedByMe;
 		aMembership.OwnsPullRequest = aAuthored.value_or(false);
 		if (aAuthored && !*aAuthored) {
 			aMembership.Authored = false;
@@ -13,7 +12,17 @@ namespace bpr::core {
 				aMembership.Role = github_role::none;
 			}
 		}
+		// [[BPR-1866]]. Decided after authorship: an author's own replies
+		// are comment-only reviews, and a reason retained from them before
+		// this rule must not make the author a reviewer either.
+		const auto authored  = aMembership.authored();
+		aMembership.Reviewed = !authored && (aMembership.Reviewed || reviewed_by_viewer(aReviewedByMe, authored));
 		return aMembership;
+	}
+
+	auto my_review_shown(const queue_membership& aMembership, const queue_my_review& aReview) noexcept -> queue_my_review
+	{
+		return aMembership.authored() ? queue_my_review{ } : aReview;
 	}
 
 	auto holds_role(const queue_item& aItem, const github_role aRole) noexcept -> bool
@@ -191,8 +200,10 @@ namespace bpr::core {
 		}
 
 		// A review you already gave against code that has since moved is a
-		// review that may no longer say what you meant.
-		if (aActivity.ReviewedByMe && aActivity.HeadMovedSinceMyReview) {
+		// review that may no longer say what you meant. [[BPR-1866]]. On a
+		// pull request you authored your "review" is a reply, and the code
+		// moved because you pushed: neither is news to you.
+		if (reviewed_by_viewer(aActivity.ReviewedByMe, aMembership.authored()) && aActivity.HeadMovedSinceMyReview) {
 			return attention_bucket::changed_since_my_review;
 		}
 

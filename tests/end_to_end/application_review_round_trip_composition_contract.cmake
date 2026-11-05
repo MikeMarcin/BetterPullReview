@@ -1,3 +1,19 @@
+# [[BPR-1854]] owner-selected authoritative-main reconciliation over
+# release 21cc7ea31 and upstream b9b9737a3 (2026-11-05). Scoped engineering
+# review covers every changed app-manifest file: the activity callback and
+# return refresh use the existing read host/core decision; Settings Check
+# agent uses the existing setup/workspace checks; agent comment labels and
+# discarded draft/turn release use existing private draft commands. Reset
+# connections/everything now delete exactly this profile's device-binding
+# vault entries through release_profile_credentials on an owned/drained
+# worker, never gh's sign-in. Startup uses the SQLite adapter's on-disk root
+# spelling and fixed-text refusal causes. main.cpp, fixture access and fixture
+# provider additions are tests-only courses/data and fixture-vault binding.
+# No app source inventory, provider selection, publication admission or
+# production compose_review_mutation branch change; that pin stays 70fe8a7e.
+# Windows Git's exact factory-bound directory, SystemRoot/single-PATH fixes,
+# Git-vs-gh.exe admission and the round-trip fixture correction are retained.
+# This content review/reseal does not supply native or security acceptance.
 # [[BPR-1854]] native Ubuntu functional probe repair, reviewed over 9cbff5c3c.
 # Only fixture code changes: keep_waiting accepts a finite optional cap (all
 # existing callers retain 5s); review-round-trip uses 15s phases inside its
@@ -16,6 +32,25 @@
 # from the merge's original manifest are excluded. Full and manifest pins bind
 # this reviewed release integration; mutation pin stays 70fe8a7e.
 # The original drift is retained externally; print-only mode is not acceptance.
+# [[BPR-1857]] merge reseal (coordinator, 2026-11-05): main 35a4a3df3 with
+# BPR-1857 merged. Pins rebound to the merged bytes; they also cover
+# BPR-1859 and the BPR-1861/1862/1863 app bytes as merged. Not a review.
+# [[BPR-1861]] reseal, 2026-11-04, over main b399051a2 merged into the
+# BPR-1861 branch (last matching: BPR-1854's e6eba9b8d). BPR-1861's own app
+# change: act_on_agent_card and draft_agent_answer pass an agent's suggested
+# comment or answer through core::read_agent_comment_suggestion before
+# drafting it, so its Conventional Comments header is written as the label
+# chip writes it; no provider, credential, grant, mutation branch,
+# publication or source-inventory change. The pins also bind main's
+# unresealed BPR-1862 (answer drafts remembered for delete) and BPR-1863
+# (New Window) app bytes, main.cpp and the fixture access header as merged;
+# this reseal does not review those changes.
+# [[BPR-1857]] reseal (2026-11-04), over 33e1e088a. github_application.cpp
+# only: startup agent-workspace recovery passes a refusal record, prints its
+# check name on the existing path-omitted terminal line, and hands each window
+# a sentence naming the check, folder and account (agent_workspace_refusal_text).
+# No provider, credential, grant, mutation branch or source-inventory change;
+# the production mutation-branch pin is unchanged.
 # [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
 # The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
 # profile activity store/timer/notification host and accepted-session adoption,
@@ -2624,8 +2659,17 @@ function(bpr_verify_full_application_digest source_variable)
 	# [[BPR-1811]]. Owner-authorized current-main restart combines canonical
 	# f737404e1 with release 5e52b0252. Both histories above are retained; the
 	# joint content pin is source evidence, not native acceptance.
+	# [[BPR-1858]] sign-out reset reseal (2026-11-04): the startup data reset
+	# step owns a vault worker and this profile's platform vault (a course's
+	# fixture vault under testing) only for Reset connections and Reset
+	# everything, passes it to run_profile_data_reset and drains it. No grant,
+	# provider, admission, mutation branch, publication or source-inventory
+	# change; the vault deletion is the purge's release_profile_credentials.
+	# [[BPR-1858]] main-merge reseal (2026-11-05): main a2e2ca244's
+	# github_application.cpp combined with the sign-out reset step above; both
+	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "dc7decab0df940f9659ef8f2f94ada737a6fcae7c6eda1f62fe188c09a07fd44"
+        "59cdcd3497bc0d66a7d4b037df4b0380be572fa905891a7e3505d11ebc620562"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2933,10 +2977,24 @@ function(bpr_verify_app_source_tree app_source_root)
 # [[BPR-1833]]. Only the fixture setup described at the full application
 # digest changes. The production mutation branch and source inventory stay
 # exact; this content reseal supplies no native acceptance by itself.
+# [[BPR-1858]] Reset everything reseal (2026-11-04): profile_data_reset.{hpp,cpp}
+# forget the profile's GitHub CLI connections in remembered-connections after
+# the reset's files go, and github_application_fixture_access.hpp hands a
+# course the startup reset report. No grant, credential, vault, gh process,
+# admission, mutation, publication or source-inventory change.
+# [[BPR-1858]] sign-out reset reseal (2026-11-04), owner decision 04ebe7a6:
+# Reset connections and Reset everything delete this profile's own vault
+# entries through the purge's release_profile_credentials and forget every
+# remembered connection (profile_data_reset.{hpp,cpp}, github_application.cpp,
+# main.cpp's option comment); the fixture accessor and fixture gain the
+# course's reset vault. No grant, provider, gh process, admission, mutation
+# branch, publication or source-inventory change.
+# [[BPR-1858]] main-merge reseal (2026-11-05): the production manifest over
+# main a2e2ca244 with the sign-out reset sources above; both sides kept.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "e9fc3c7b0e537fddc02661cfbd2ede377dc1c766947468f24abb7a4e376fd5e0"
+        "ac24835c276aba0ef75e78128f1695b4f7df83bc1d7dff2bc67bb9611bb3fe12"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

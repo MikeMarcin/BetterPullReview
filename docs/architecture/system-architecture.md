@@ -285,6 +285,16 @@ account read is the only bracket around it (the operation's one pinned
 credential cannot answer as another account). Nothing is ever marked read on
 GitHub. Notifications go through the desktop's tray (the macOS status item
 where there is one), so the system's Do Not Disturb applies.
+BPR-1867: every decision also names the pull requests with a new thread
+(`activity_decision::Active`, notified or not, never for a baseline), and the
+host hands them to the profile's windows after each answer. A window showing
+one (`core::activity_concerns`, names compared without case) owes the
+publication reread's one automatic reread; `core::decide_reread` makes that
+news wait for a read under way and for the reviewer to stop writing (Qt
+reports only that focus is in a multi-line editor). Coming back in front on a
+pull request whose update is `core::refresh_return_seconds` old owes the same
+reread (`core::refresh_due_on_return`, none into a rate limit's wait); it is
+the only news a native profile gets.
 The [bounded isolation evidence](../verification/BPR-0969-recent-identity-2026-09-25.md)
 does not establish durable PR snapshots or offline account authority.
 
@@ -1153,7 +1163,7 @@ catalog and is not published into the replacement identity.
 - Unified source text and line geometry are populated only while the one-pane presentation is active. Switching presentation captures the exact semantic reading anchor before rebuilding or clearing that content; two-pane publication leaves the hidden source document empty.
 - Custom diff widgets paint visible rows only and retain layout caches; comments remain in the conversation drawer. A conversation selection may reuse the semantic line transition and paint a narrow margin marker only after the application proves the selected comparison contains that exact endpoint revision. Source-line gestures reverse-filter the retained thread forest by exact file, side, and line; reply selection resolves through its root. An interactive non-line gesture clears the selected conversation with its marker rather than leaving a selected root that no longer owns the diff selection.
 - Dialogs, notifications, native menus, focus, accessibility, themes, layout, and high-DPI behavior belong to the Qt adapter.
-- RFC-BPR-0087's `button_surface` draws the palette-derived chip/focus treatment shared by Overview's Open/All and the opted-in `quiet_tool_button` and `quiet_push_button` choices and secondary actions. Each keeps its Qt base class, so input, dialog defaults, accessibility and command projection are unchanged; a default, menu or icon-only button falls back to native painting, and primary, destructive and other specialized controls remain explicit variants. The [migration inventory](../ux/shared-action-buttons.md) records every button surface as migrated or retained with its reason.
+- RFC-BPR-0087's `button_surface` draws the palette-derived chip/focus treatment shared by Overview's Open/All and the opted-in `quiet_tool_button` and `quiet_push_button` choices and secondary actions. Each keeps its Qt base class, so input, dialog defaults, accessibility and command projection are unchanged; a default, menu or icon-only button falls back to native painting, and primary, destructive and other specialized controls remain explicit variants. A chip's content geometry is its own: `chip_content_size` sizes it and `paint_button_label` draws in exactly that room, so a style's label margin cannot clip it ([[BPR-1855]]). The [migration inventory](../ux/shared-action-buttons.md) records every button surface as migrated or retained with its reason.
 - Reusable widgets do not invoke application persistence, global service registries, or unrelated windows.
 
 The RFC-BPR-0003 secondary local-history menu presents core-projected prune,

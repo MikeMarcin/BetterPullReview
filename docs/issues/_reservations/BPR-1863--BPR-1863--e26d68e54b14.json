@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1863"
+  ],
+  "reserve_for": "file-new-window",
+  "purpose": "File menu: New Window",
+  "created": "2026-11-04T23:47:35.307258+00:00",
+  "base": "8f56abd4c2922786b52518515e03cf9e45e000c1"
+}

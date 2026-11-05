@@ -22,6 +22,7 @@
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/core/window_title.hpp"
 #include "github_presentation_text.hpp"
 
 #include "bpr/qt/github_conversation_model.hpp"
@@ -30,6 +31,7 @@
 
 #include "bpr/core/file_progress_mark.hpp"
 
+#include "bpr/core/home_filter.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
@@ -44,6 +46,7 @@
 #include "bpr/qt/feedback_label_settings.hpp"
 #include "bpr/qt/finding_queue_view.hpp"
 #include "bpr/qt/generated_files_view.hpp"
+#include "bpr/qt/home_filter_field.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
 #include "bpr/qt/identity_avatar_pictures.hpp"
@@ -127,6 +130,7 @@
 #include <QStyleOption>
 #include <QTabBar>
 #include <QTextBlock>
+#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
@@ -3613,6 +3617,25 @@ namespace bpr::qt {
 			homeColumn->addLayout(setupRow);
 			// The first-launch card sits under this row (see place_home_landing).
 			HomeSetupRow = setupRow;
+			// [[BPR-1865]]. The owner, 2026-11-04: "I want to be able to fuzzy
+			// filter the home screen to quickly find a PR." One quiet line
+			// under the bar, above everything it filters: the Active review
+			// card, Review Cycles and every panel of the list. Command-F (the
+			// key moves here while Home shows, as Refresh does), "/" or a
+			// character typed in a list takes the keyboard to it.
+			HomeFilter = new home_filter_field{ HomePage };
+			HomeFilter->hide();
+			homeColumn->addWidget(HomeFilter);
+			HomeFilterAction = new QAction{ tr("Filter Home"), this };
+			HomeFilterAction->setObjectName(QStringLiteral("homeFilterAction"));
+			HomeFilterAction->setShortcutContext(Qt::WindowShortcut);
+			addAction(HomeFilterAction);
+			HomeFilter->set_shortcut(shortcut_key(shortcut_command::home_filter));
+			connect(HomeFilterAction, &QAction::triggered, this, [this] {
+				if (showing_home() && HomeFilter != nullptr && HomeFilter->isVisible()) {
+					HomeFilter->focus_field();
+				}
+			});
 			SetupContinueButton->hide();
 			SetupCancelButton->hide();
 			connect(SetupContinueButton, &QPushButton::clicked, this, [this] {
@@ -4573,6 +4596,23 @@ namespace bpr::qt {
 			}
 		});
 		HomeList->set_ignore_dispatch([this](const core::queue_item& aItem) { dispatch_home_ignore(aItem); });
+		// [[BPR-1865]]. The filter decides nothing: the core ranks, the list
+		// shows what it found, and these keys move through it.
+		if (HomeFilter != nullptr) {
+			HomeFilter->set_query_observer([this](const QString&) { apply_home_filter(); });
+			HomeFilter->set_step_dispatch([this](const int aStep) { return HomeList->step_filter(aStep); });
+			HomeFilter->set_open_dispatch([this](const bool aNewWindow) { HomeList->open_filter_result(aNewWindow); });
+			HomeFilter->set_leave_dispatch([this] { HomeList->focus_filter_result(); });
+			HomeList->set_filter_typing_dispatch([this](const QString& aText) {
+				if (HomeFilter->isVisible()) {
+					HomeFilter->take_typing(aText);
+				}
+			});
+			HomeList->set_filter_result_observer([this](QAbstractItemView* const aView) {
+				claim_home_selection(aView == HomeRecentList ? home_selection_list::recent : home_selection_list::queue);
+			});
+			HomeList->set_recent_open_dispatch([this](const int aRow) { dispatch_recent_review(aRow, false); });
+		}
 		OpenOnGithubAction->setShortcutVisibleInContextMenu(true);
 		HomeRowMenu = new QMenu{ this };
 		HomeRowMenu->setObjectName(QStringLiteral("homeRowMenu"));
@@ -4884,8 +4924,10 @@ namespace bpr::qt {
 		column->addSpacing(12);
 		column->addWidget(ReviewSkill);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
+		// [[BPR-1856]], owner 2026-11-04: Add repository comes first on
+		// Repositories; the clone folders and linked clones follow it.
 		CloneFolders = new clone_folders_panel;
-		SettingsWindow->adopt_panel(settings_page::repositories, CloneFolders);
+		SettingsWindow->adopt_panel_below(settings_page::repositories, CloneFolders, SavedRepositoriesEditor);
 
 		auto* const storage       = new QWidget;
 		auto* const storageColumn = new QVBoxLayout{ storage };
@@ -5021,6 +5063,9 @@ namespace bpr::qt {
 			"Notifications name the repository and number only, and nothing is marked read on GitHub. "
 			"It needs a GitHub CLI sign-in.");
 		ActivityInfo->setAccessibleDescription(activityDetail);
+		// Hover is answered by the application's anchored tooltips, which wrap
+		// long lines; a click or a key shows the same text anchored to the
+		// button and held while it has focus.
 		ActivityInfo->setToolTip(activityDetail);
 		connect(ActivityInfo, &QToolButton::clicked, this, [this] {
 			show_anchored_tooltip(*ActivityInfo, ActivityInfo->rect(), ActivityInfo->toolTip(), anchored_tooltip_hold::focus);
@@ -5113,6 +5158,31 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 		return open_queue_ref();
+	}
+
+	auto workbench_window::shown_pull_request() const -> std::optional<core::pull_request_ref>
+	{
+		return showing_home() ? std::nullopt : open_queue_ref();
+	}
+
+	auto workbench_window::composing() const -> bool
+	{
+		auto* const focus = focusWidget();
+		if (focus == nullptr || (focus != this && !isAncestorOf(focus))) {
+			return false;
+		}
+		// A draft's editor is read-only for a moment while each edit is saved,
+		// so a multi-line editor holding the focus counts whatever its state;
+		// only a browser, which is never written in, does not.
+		if (qobject_cast<const QTextBrowser*>(focus) != nullptr) {
+			return false;
+		}
+		return qobject_cast<const QTextEdit*>(focus) != nullptr || qobject_cast<const QPlainTextEdit*>(focus) != nullptr;
+	}
+
+	void workbench_window::set_pull_request_return_dispatch(std::function<void(std::int64_t)> aDispatch)
+	{
+		PullRequestReturnDispatch = std::move(aDispatch);
 	}
 
 	auto workbench_window::open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool
@@ -11777,6 +11847,17 @@ namespace bpr::qt {
 		return DeleteDraftConfirmation.data();
 	}
 
+	void workbench_window::present_draft_delete_refusal(const QString& aReason)
+	{
+		// [[BPR-1862]]. Where the drawer's composer has closed, the status
+		// line is what still shows; the editor's own status keeps it too.
+		statusBar()->showMessage(aReason, 15000);
+		if (ReviewEditor != nullptr) {
+			ReviewEditor->present_publication_refusal(aReason);
+		}
+		present_inline_draft();
+	}
+
 	void workbench_window::set_comment_draft_unavailable(QString aReason)
 	{
 		CommentDraftUnavailable = std::move(aReason);
@@ -11897,11 +11978,18 @@ namespace bpr::qt {
 		DeleteDraftConfirmation = box;
 		const auto id           = shown.has_value() ? std::optional{ shown->Id } : std::nullopt;
 		connect(box, &QDialog::accepted, this, [this, id] {
-			// The draft asked about, and no other.
+			// The draft asked about, and no other. [[BPR-1862]]: a confirmed
+			// delete that cannot go ahead says so.
 			const auto& now = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
-			if (now.has_value() && std::optional{ now->Id } == id) {
-				leave_drawer_draft(true);
+			if (!now.has_value() || std::optional{ now->Id } != id) {
+				present_draft_delete_refusal(tr("Not deleted: the comment changed while you were asked. Delete it again."));
+				return;
 			}
+			if (!ReviewEditor->discard_action()->isEnabled()) {
+				present_draft_delete_refusal(tr("Not deleted: this comment cannot be deleted now. %1").arg(ReviewEditor->discard_action()->toolTip()));
+				return;
+			}
+			leave_drawer_draft(true);
 		});
 		box->open();
 	}
@@ -13513,6 +13601,11 @@ namespace bpr::qt {
 		}
 		// [[BPR-0775]]. Focus goes back once the strip is settled, so a strip
 		// control that had it before Home is shown again to take it back.
+		if (leavingHome && HomeFilter != nullptr) {
+			// [[BPR-1865]]. A filter is for finding one pull request; coming
+			// back finds Home whole.
+			HomeFilter->clear_query();
+		}
 		if (leavingHome) {
 			if (FocusBeforeHome != nullptr && FocusBeforeHome->isVisible()) {
 				FocusBeforeHome->setFocus(Qt::OtherFocusReason);
@@ -13550,6 +13643,7 @@ namespace bpr::qt {
 			}
 		}
 		update_open_on_github_action();
+		update_window_title();
 	}
 
 	auto workbench_window::showing_ai_tools() const -> bool
@@ -13738,6 +13832,10 @@ namespace bpr::qt {
 			item->setToolTip(location);
 		}
 		HomeCyclesList->setVisible(!CycleRecents.empty());
+		update_home_surface();
+		if (HomeFilter != nullptr && !HomeFilter->query().isEmpty()) {
+			apply_home_filter();
+		}
 	}
 
 	void workbench_window::set_local_cycle_entry_dispatch(std::function<void()> aOpenProject, std::function<void(const core::local_cycle_subject&)> aResume)
@@ -13766,6 +13864,14 @@ namespace bpr::qt {
 		auto* const to   = aHome ? QueueRefreshAction : GithubRefreshAction;
 		from->setShortcuts({ });
 		to->setShortcuts(shortcut_keys(aHome ? shortcut_command::home_refresh : shortcut_command::refresh));
+		// [[BPR-1865]]. Find's key, the same way: Home's filter while Home
+		// shows, the file's Find otherwise.
+		if (HomeFilterAction != nullptr && SourceFindActions[0] != nullptr) {
+			auto* const findFrom = aHome ? SourceFindActions[0] : HomeFilterAction;
+			auto* const findTo   = aHome ? HomeFilterAction : SourceFindActions[0];
+			findFrom->setShortcuts({ });
+			findTo->setShortcuts(shortcut_keys(aHome ? shortcut_command::home_filter : shortcut_command::find));
+		}
 	}
 
 	auto workbench_window::showing_home() const -> bool
@@ -13779,11 +13885,18 @@ namespace bpr::qt {
 			return;
 		}
 		const auto state = HomeLanding->state();
-		HomeLanding->setVisible(state != landing_state::choose_pull_request || HomeLandingHold > 0);
+		// [[BPR-1865]]. Over a review the card is filtered with the lists; the
+		// sign-in and first-launch cards are not rows and always stand.
+		HomeLanding->setVisible((state != landing_state::choose_pull_request || HomeLandingHold > 0)
+								&& !(HomeLandingFiltered && state == landing_state::back_to_review));
 		// [[BPR-1843]]. Over a review the Active review card follows the bar
 		// and stands above every list, as the first-launch card does signed
 		// out. The bar keeps its whole width and never moves ([[BPR-1381]]).
-		const auto wanted = HomeColumn->indexOf(HomeSetupRow) + 1;
+		// [[BPR-1865]]. Under the filter, which stands above all it filters.
+		const auto anchor = [this] {
+			return HomeFilter != nullptr ? HomeColumn->indexOf(HomeFilter) : HomeColumn->indexOf(HomeSetupRow);
+		};
+		const auto wanted = anchor() + 1;
 		if (HomeColumn->indexOf(HomeLanding) == wanted) {
 			return;
 		}
@@ -13791,7 +13904,7 @@ namespace bpr::qt {
 			HomeOpenRow->removeWidget(HomeLanding);
 		}
 		HomeColumn->removeWidget(HomeLanding);
-		HomeColumn->insertWidget(HomeColumn->indexOf(HomeSetupRow) + 1, HomeLanding);
+		HomeColumn->insertWidget(anchor() + 1, HomeLanding);
 	}
 
 	void workbench_window::focus_home_bar()
@@ -13905,6 +14018,60 @@ namespace bpr::qt {
 	auto workbench_window::home_open_frame() const noexcept -> QWidget*
 	{
 		return HomeOpenFrame;
+	}
+
+	auto workbench_window::home_filter_box() const noexcept -> home_filter_field*
+	{
+		return HomeFilter;
+	}
+
+	auto workbench_window::home_filter_action() const noexcept -> QAction*
+	{
+		return HomeFilterAction;
+	}
+
+	auto workbench_window::home_landing_matches() const -> bool
+	{
+		if (HomeFilter == nullptr || IdentityOwner.isEmpty() || IdentityRepository.isEmpty()) {
+			return false;
+		}
+		const auto candidate = core::home_filter_candidate{
+			.Number     = IdentityNumber.toLongLong(),
+			.Title      = OpenQueueTitle,
+			.Repository = QStringLiteral("%1/%2").arg(IdentityOwner, IdentityRepository).toStdString(),
+		};
+		return core::match_home_filter(HomeFilter->query().toStdString(), candidate).has_value();
+	}
+
+	void workbench_window::apply_home_filter()
+	{
+		if (HomeFilter == nullptr || HomeList == nullptr) {
+			return;
+		}
+		const auto query  = HomeFilter->query();
+		const auto active = core::home_filter_active(query.toStdString());
+		HomeList->set_filter(query);
+		// The Active review card and Review Cycles are filtered with the list:
+		// each is shown while it matches, and counted as a match.
+		auto elsewhere      = 0;
+		HomeLandingFiltered = active && !home_landing_matches();
+		if (active && !HomeLandingFiltered && HomeLanding != nullptr && HomeLanding->state() == landing_state::back_to_review) {
+			++elsewhere;
+		}
+		if (HomeCyclesList != nullptr && HomeCycles != nullptr) {
+			auto cycles = 0;
+			for (auto row = 0; row < HomeCyclesList->count() && static_cast<std::size_t>(row) < CycleRecents.size(); ++row) {
+				const auto& recent  = CycleRecents[static_cast<std::size_t>(row)];
+				const auto  matched = !active || core::match_home_filter(query.toStdString(), core::home_filter_candidate{ .Title = std::string{ recent.Cycle.Title }, .Repository = recent.Location }).has_value();
+				HomeCyclesList->setRowHidden(row, !matched);
+				cycles += active && matched ? 1 : 0;
+			}
+			HomeCycles->setVisible(!active || cycles > 0);
+			elsewhere += cycles;
+		}
+		HomeList->set_filter_elsewhere(elsewhere);
+		HomeFilter->set_count(HomeList->filter_matches() + elsewhere);
+		update_home_landing();
 	}
 
 	auto workbench_window::home_focus_bar_action() const noexcept -> QAction*
@@ -14045,6 +14212,8 @@ namespace bpr::qt {
 
 	void workbench_window::update_strip_identity()
 	{
+		// [[BPR-1864]]. The window's title names what the strip names.
+		update_window_title();
 		if (IdentityLabel == nullptr) {
 			return;
 		}
@@ -14602,6 +14771,7 @@ namespace bpr::qt {
 					name.Owner      = QString::fromStdString(overview.Owner);
 					name.Repository = QString::fromStdString(overview.RepositoryName);
 					name.Number     = QString::number(overview.Number);
+					name.Title      = QString::fromStdString(overview.Title);
 					name.Text       = QStringLiteral("%1/%2  #%3 %4").arg(name.Owner, name.Repository, name.Number, QString::fromStdString(overview.Title));
 					name.Draft      = overview.Draft && overview.State == application::github_pull_request_state_projection::open;
 					LoadingIdentity = std::move(name);
@@ -15432,7 +15602,7 @@ namespace bpr::qt {
 		if (SessionPanel != nullptr) {
 			SessionPanel->apply_public_preview(aPresentation, PublicPreviewNow);
 		}
-		update_public_preview_title();
+		update_window_title();
 		apply_public_preview_conversation();
 		// Re-decides the commands from their projections first, then lets the
 		// mode have the last word over them.
@@ -15462,15 +15632,37 @@ namespace bpr::qt {
 		if (MountedSettings) {
 			MountedSettings->set_profile_label(aLabel);
 		}
-		update_public_preview_title();
+		update_window_title();
 	}
 
-	void workbench_window::update_public_preview_title()
+	void workbench_window::update_window_title()
 	{
-		const auto title = PublicPreviewSignedOut ? QStringLiteral("BetterPullReview — %1 — %2 profile").arg(public_preview_mode_text(), ProfileLabel)
-												  : QStringLiteral("BetterPullReview — %1 profile").arg(ProfileLabel);
-		setWindowTitle(title);
-		setAccessibleName(title);
+		// [[BPR-1864]]. The Dock's window list, the Window menu, Mission
+		// Control and the taskbars name the window by its title (macOS hides
+		// the title bar). The core words it from what the window shows: the
+		// pull request, accepted or named by GitHub's first answer, unless
+		// Home or a local cycle is in front of it.
+		const auto loading  = IdentityText.isEmpty() && LoadingIdentity.has_value();
+		const auto named    = !IdentityText.isEmpty() || loading;
+		const auto shown    = named && !showing_home() && !LocalCycleShown;
+		const auto owner    = (loading ? LoadingIdentity->Owner : IdentityOwner).toStdString();
+		const auto repo     = (loading ? LoadingIdentity->Repository : IdentityRepository).toStdString();
+		const auto number   = (loading ? LoadingIdentity->Number : IdentityNumber).toULongLong();
+		const auto pullName = loading ? LoadingIdentity->Title.toStdString() : OpenQueueTitle;
+		const auto profile  = ProfileLabel.toStdString();
+		const auto mode     = PublicPreviewSignedOut ? public_preview_mode_text().toStdString() : std::string{ };
+		auto       input    = core::window_title_input{ .Profile = profile, .Profiles = ProfileCount, .Mode = mode };
+		if (shown) {
+			input.PullRequest = core::window_title_pull_request{ .Owner = owner, .Repository = repo, .Number = number, .Title = pullName };
+		}
+		// Qt reads "[*]" in a title as the modified mark; doubled, it is
+		// shown literally.
+		auto title = QString::fromStdString(core::window_title(input));
+		title.replace(QStringLiteral("[*]"), QStringLiteral("[*][*]"));
+		if (windowTitle() != title || accessibleName() != title) {
+			setWindowTitle(title);
+			setAccessibleName(title);
+		}
 	}
 
 	void workbench_window::apply_public_preview_availability()
@@ -16529,6 +16721,14 @@ namespace bpr::qt {
 		if (HomeList != nullptr) {
 			HomeList->set_queue_status(QueueReady, HomeAccount);
 		}
+		// [[BPR-1865]]. The filter stands while Home has rows to filter.
+		if (HomeFilter != nullptr) {
+			const auto rows = HomeAccount || !RecentReviews.Entries.empty() || !CycleRecents.empty();
+			if (!rows && !HomeFilter->query().isEmpty()) {
+				HomeFilter->clear_query();
+			}
+			HomeFilter->setVisible(rows);
+		}
 	}
 
 	void workbench_window::update_recent_resume_action()
@@ -16658,6 +16858,13 @@ namespace bpr::qt {
 		}
 		if (aWatched == HomeCyclesList && aEvent != nullptr && aEvent->type() == QEvent::KeyPress) {
 			const auto* const key = static_cast<QKeyEvent*>(aEvent);
+			// [[BPR-1865]]. As in every Home list, "/" or a character typed
+			// goes to the filter.
+			if (const auto typed = key->text(); HomeFilter != nullptr && HomeFilter->isVisible() && !typed.isEmpty() && typed.front().isPrint() && !typed.front().isSpace()
+				&& (key->modifiers() & ~(Qt::ShiftModifier | Qt::KeypadModifier)) == Qt::NoModifier) {
+				HomeFilter->take_typing(typed == QStringLiteral("/") ? QString{ } : typed);
+				return true;
+			}
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter)
 				&& (key->modifiers() == Qt::NoModifier || key->modifiers() == Qt::KeypadModifier)) {
 				resume_home_cycle(HomeCyclesList->currentRow());
@@ -18526,6 +18733,10 @@ namespace bpr::qt {
 		// the two selectors on one grid row above their two exact OIDs, the row
 		// order the composed control already walks.
 		if (HomeLanding != nullptr) {
+			// [[BPR-1865]]. The filter, under the bar, before what it filters.
+			if (HomeFilter != nullptr) {
+				append(HomeFilter->line_edit());
+			}
 			append(HomeOnboardingButton);
 			append(HomeAddRepositoryButton);
 			append(HomeLanding->primary_button());
@@ -18977,6 +19188,11 @@ namespace bpr::qt {
 			if (isActiveWindow() && showing_home() && HomeAccount && QueueDiscoveryDispatch) {
 				QueueDiscoveryDispatch(application::queue_discovery_intent::activate);
 			}
+			// [[BPR-1867]]. Coming back to a pull request it shows: read again
+			// by itself once its update has aged.
+			if (isActiveWindow() && PullRequestReturnDispatch && shown_pull_request()) {
+				PullRequestReturnDispatch(refresh_clock());
+			}
 			break;
 		case QEvent::ApplicationPaletteChange:
 		case QEvent::PaletteChange:
@@ -19157,17 +19373,22 @@ namespace bpr::qt {
 
 		auto* fileMenu = PrimaryMenuBar->addMenu(QStringLiteral("&File"));
 		fileMenu->setAccessibleName(QStringLiteral("File"));
-		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
-		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
-		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
-		NewBprWindowAction = ProfilesMenu->addAction(QStringLiteral("New Window"));
+		// [[BPR-1863]]. New Window opens another window of this window's profile,
+		// first in File as on every desktop; Profiles keeps the profiles and their
+		// management. Its key is the catalogue's, the one the windowless bar binds.
+		NewBprWindowAction = fileMenu->addAction(QStringLiteral("New Window"));
 		NewBprWindowAction->setObjectName(QStringLiteral("newBprWindowAction"));
+		NewBprWindowAction->setShortcuts(shortcut_keys(shortcut_command::new_window));
 		NewBprWindowAction->setEnabled(false);
 		connect(NewBprWindowAction, &QAction::triggered, this, [this] {
 			if (ProfileManagementDispatch && CurrentBprProfile.value() != 0U) {
 				ProfileManagementDispatch(application::new_bpr_window_intent{ CurrentBprProfile });
 			}
 		});
+		fileMenu->addSeparator();
+		ProfilesMenu = PrimaryMenuBar->addMenu(QStringLiteral("&Profiles"));
+		ProfilesMenu->setObjectName(QStringLiteral("workbenchProfilesMenu"));
+		ProfilesMenu->setAccessibleName(QStringLiteral("Profiles"));
 		ManageProfilesAction = ProfilesMenu->addAction(QStringLiteral("Manage Profiles…"));
 		ManageProfilesAction->setObjectName(QStringLiteral("manageProfilesAction"));
 		ManageProfilesAction->setEnabled(false);
@@ -19593,6 +19814,10 @@ namespace bpr::qt {
 		ProfileStatusAction->setVisible(ProfileFailure.has_value());
 		ProfileStatusSeparator->setVisible(ProfileFailure.has_value());
 		update_status_text();
+		// [[BPR-1864]]. With more than one profile, a pull request's title
+		// names the profile too.
+		ProfileCount = aProjection.Profiles.size();
+		update_window_title();
 		if (aProjection.Profiles.size() > core::maximum_bpr_profiles) {
 			return;
 		}
@@ -19610,7 +19835,7 @@ namespace bpr::qt {
 				++iterator;
 			}
 		}
-		auto* before = NewBprWindowAction;
+		auto* before = ManageProfilesAction;
 		for (auto iterator = aProjection.Profiles.rbegin(); iterator != aProjection.Profiles.rend(); ++iterator) {
 			const auto& profile    = *iterator;
 			auto [entry, inserted] = ProfileActions.try_emplace(profile.Profile, nullptr);

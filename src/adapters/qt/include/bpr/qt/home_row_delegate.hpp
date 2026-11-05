@@ -15,6 +15,7 @@
 #include <QtTypes>
 
 #include <cstdint>
+#include <vector>
 
 class QAbstractItemView;
 class QHelpEvent;
@@ -86,6 +87,13 @@ namespace bpr::qt {
 			verdict_stale,
 			/// The chip's tooltip: "You approved this on 14 Oct 2026."
 			verdict_tip,
+			/// [[BPR-1865]]. What Home's filter matched, as a `QVariantList` of
+			/// `QPoint(start, length)` runs in UTF-16: of `title`, of
+			/// `identity` ("owner/name#123") and of `author`. Absent while
+			/// nothing is filtered.
+			title_marks,
+			identity_marks,
+			author_marks,
 		};
 	} // namespace home_row_role
 
@@ -291,6 +299,10 @@ namespace bpr::qt {
 		/// \brief Where the reason word is painted, in the option's coordinates.
 		[[nodiscard]] auto reason_rect(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QRect;
+		/// \brief [[BPR-1865]]. Where the filter's matched characters are
+		/// marked, in the option's coordinates: one rectangle per run and line.
+		[[nodiscard]] auto mark_rects(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
+			-> std::vector<QRect>;
 		/// \brief The laid-out lines of the row's text, first line group then second.
 		[[nodiscard]] auto line_texts(const QStyleOptionViewItem& aOption, const QModelIndex& aIndex) const
 			-> QStringList;

@@ -169,6 +169,22 @@ namespace {
 		expect(activated == 1 && queued == 1, "after the queue sink posts, the click is the queue's");
 	}
 
+	// The owner's banner wizard (v003, 2026-11-04): under Do Not Disturb a posted
+	// notification never reached Notification Center. Qt on macOS withdraws a
+	// delivered `NSUserNotification` once a nonzero display hint elapses, and
+	// the default hint is ten seconds. Both sinks submit through one function
+	// with this hint, so a notification stays listed until the reviewer clears it.
+	void test_a_notification_stays_in_notification_center()
+	{
+#if defined(Q_OS_MACOS)
+		expect(qt::desktop_notification_timeout_hint() == 0, "on macOS no display hint, so Qt does not withdraw the notification from Notification Center");
+#else
+		expect(qt::desktop_notification_timeout_hint() == 10'000, "elsewhere Qt's default display hint");
+#endif
+		auto tray = QSystemTrayIcon{ };
+		qt::show_desktop_notification(tray, QStringLiteral("octo/widgets #3"), QStringLiteral("New comment."));
+	}
+
 	void test_settings_switch()
 	{
 		auto window = qt::workbench_window{ };
@@ -200,6 +216,7 @@ int main(int aArgc, char** aArgv)
 	QApplication application{ aArgc, aArgv };
 	test_posted_click_opens_the_pull_request();
 	test_a_shared_tray_routes_to_the_last_poster();
+	test_a_notification_stays_in_notification_center();
 	test_settings_switch();
 	std::cout << "pull-request-activity-notifications:pass\n";
 	return EXIT_SUCCESS;

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1862"
+  ],
+  "reserve_for": "draft-delete",
+  "purpose": "Deleting a draft comment does not delete it",
+  "created": "2026-11-04T23:43:02.135532+00:00",
+  "base": "28f8d3619e1a2ee59f8c789456090007da803416"
+}

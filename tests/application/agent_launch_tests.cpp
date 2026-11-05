@@ -587,6 +587,19 @@ namespace {
 		expect(!application::decode_agent_review_findings("No block here.", session(), frozen), "an answer without the fence has no findings");
 		const auto empty = application::decode_agent_review_findings("Nothing.\n```bpr-findings\n[]\n```", session(), frozen);
 		expect(empty && empty->Findings.empty(), "an empty list is an answer with no finding");
+		// [[BPR-1861]]. A suggested comment holding a fenced code block puts
+		// backticks inside a JSON string; the block ends where its JSON does,
+		// so the finding is read whole. Synthetic text only.
+		const auto fencedAnswer = std::string{ "One finding.\n\n```bpr-findings\n"
+											   "{\"findings\": [{\"path\": \"src/retry.cpp\", \"startLine\": 42, \"claim\": \"A \\\"budget\\\" } ] resets.\", "
+											   "\"suggestedComment\": \"suggestion: guard it\\n\\n```cpp\\nauto* widget = make_widget();\\nreturn widget;\\n```\\n\\nIs [0] reached?\"}]}\n```\n" };
+		const auto fencedRead   = application::decode_agent_review_findings(fencedAnswer, session(), frozen);
+		expect(fencedRead && fencedRead->Findings.size() == 1U && fencedRead->Findings.front().Claim == "A \"budget\" } ] resets."
+				   && fencedRead->Findings.front().SuggestedComment
+					   == std::optional<std::string>{ "suggestion: guard it\n\n```cpp\nauto* widget = make_widget();\nreturn widget;\n```\n\nIs [0] reached?" },
+			   "a suggestion with a fenced code block, escaped quotes, braces and brackets is read whole");
+		const auto truncated = application::decode_agent_review_findings("Cut.\n```bpr-findings\n{\"findings\": [{\"path\": \"src/retry.cpp\", \"claim\": \"```cpp", session(), frozen);
+		expect(!truncated, "a truncated block yields no findings");
 	}
 
 	void test_the_complete_encoding_preserves_presence_and_exact_identity()

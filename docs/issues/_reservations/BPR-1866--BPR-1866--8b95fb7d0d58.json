@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1866"
+  ],
+  "reserve_for": "home-own-pr-status",
+  "purpose": "Own PRs show Changed/Commented new commits wrongly on Home",
+  "created": "2026-11-05T00:22:39.762391+00:00",
+  "base": "6bac6d202da794857b2dfbe6f778ca9ec428b2d9"
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1855"
+  ],
+  "reserve_for": "win-signin-clip",
+  "purpose": "Windows sign-in buttons clip their text",
+  "created": "2026-11-04T20:10:36.734488+00:00",
+  "base": "11b7ef90a84ff44c90bb08b6ea3c61ebc97af88d"
+}

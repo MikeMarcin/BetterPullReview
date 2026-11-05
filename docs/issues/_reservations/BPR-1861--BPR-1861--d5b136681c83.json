@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1861"
+  ],
+  "reserve_for": "agent-cc-labels",
+  "purpose": "Agent suggested comments use Conventional Comments labels",
+  "created": "2026-11-04T23:40:05.401593+00:00",
+  "base": "af99d1087a9c942bbbba92181b557ec76a9dc65b"
+}

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1859"
+  ],
+  "reserve_for": "agent-check-settings",
+  "purpose": "Run agent check from Agent settings page",
+  "created": "2026-11-04T21:55:13.938227+00:00",
+  "base": "9e348300db34abb79fab0b91a0e71146a9e438b9"
+}

@@ -164,7 +164,7 @@ namespace {
 		// [[BPR-1602]]. Opens the reset dialog before the profile loads.
 		bpr::app::command_line_option{ .Name = "reset-profile-data" },
 		// [[BPR-1602]]. Runs one named reset before the profile loads:
-		// caches, settings, review-data or everything; naming a destructive
+		// caches, settings, review-data, connections or everything; naming a destructive
 		// one on the command line is its acknowledgement.
 		bpr::app::command_line_option{ .Name = "reset-profile-data-scope", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "reset-profile-data-copy" },
@@ -203,6 +203,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "start-review-course", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "reply-draft-course", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "refresh-pick-course", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "draft-delete-course", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "device-authorization-browser-absent" },
 		bpr::app::command_line_option{ .Name = "device-authorization-panel-absent" },
 		bpr::app::command_line_option{ .Name = "epoch-fixture-root", .TakesValue = true },
@@ -261,6 +262,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-home-look" },
+		bpr::app::command_line_option{ .Name = "attended-home-rows" },
 		bpr::app::command_line_option{ .Name = "fixture-read-delay-ms", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-read-fail-number", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "fixture-refresh-delay-ms", .TakesValue = true },
@@ -1330,6 +1332,11 @@ namespace {
 		bool                                                 RefreshPickPassed = false;
 		bpr::app::detail::refresh_pick_probe_evidence        RefreshPickEvidence;
 		std::string                                          RefreshPickDiagnostic;
+		// [[BPR-1862]]. `--draft-delete-course line|off-hunk|agent|reopened`.
+		std::optional<bpr::app::detail::draft_delete_course> DraftDeleteCourse;
+		bool                                                 DraftDeletePassed = false;
+		bpr::app::detail::draft_delete_probe_evidence        DraftDeleteEvidence;
+		std::string                                          DraftDeleteDiagnostic;
 		// [[BPR-1331]]. `--review-progress-push-probe before|after`.
 		std::optional<bpr::app::detail::review_progress_push_course> ReviewProgressPushProbe;
 		bool                                                         ReviewProgressPushPassed = false;
@@ -3781,6 +3788,9 @@ namespace {
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::restart }
 					// [[BPR-1745]]. And the outdated-thread reply's restart.
 					|| aRun.ReplyDraftCourse == std::optional{ bpr::app::detail::reply_draft_course::outdated_restart }
+					// [[BPR-1862]]. Each draft-delete run after the first reads
+					// the head the data root already holds.
+					|| (aRun.DraftDeleteCourse.has_value() && aRun.DraftDeleteCourse != std::optional{ bpr::app::detail::draft_delete_course::line })
 				? 0
 				: aRun.MaintenanceProbe
 						== automated_run::epoch_maintenance_probe::verify_deleted
@@ -5102,6 +5112,16 @@ namespace {
 				   << "REFRESH_PICK_EVIDENCE:" << evidence.Raced << evidence.Kept << evidence.Stayed << '\n'
 				   << "REFRESH_PICK_DIAGNOSTIC:" << QString::fromStdString(aRun.RefreshPickDiagnostic) << '\n';
 		}
+		if (aRun.DraftDeleteCourse.has_value()) {
+			const auto& evidence = aRun.DraftDeleteEvidence;
+			stream << (aRun.DraftDeletePassed ? "DRAFT_DELETE_OK\n" : "DRAFT_DELETE_FAILED\n")
+				   << "DRAFT_DELETE_EVIDENCE:" << evidence.Written << evidence.Asked << evidence.ViewGone << evidence.StoreGone << evidence.Stayed;
+			if (aRun.DraftDeleteCourse == std::optional{ bpr::app::detail::draft_delete_course::agent }) {
+				stream << evidence.Released << evidence.Fresh;
+			}
+			stream << '\n'
+				   << "DRAFT_DELETE_DIAGNOSTIC:" << QString::fromStdString(aRun.DraftDeleteDiagnostic) << '\n';
+		}
 		if (aRun.StartReviewCourse.has_value()) {
 			const auto& evidence = aRun.StartReviewEvidence;
 			stream << (aRun.StartReviewPassed ? "START_REVIEW_OK\n" : "START_REVIEW_FAILED\n");
@@ -5206,6 +5226,7 @@ namespace {
 			&& !aRun.StartReviewCourse.has_value()
 			&& !aRun.ReplyDraftCourse.has_value()
 			&& !aRun.RefreshPickCourse.has_value()
+			&& !aRun.DraftDeleteCourse.has_value()
 			&& !aRun.ReviewProgressPushProbe.has_value()
 			&& !aRun.DefectCompositionProbe.has_value()) {
 			// After the render marker rather than inside its block: the
@@ -6540,6 +6561,27 @@ namespace {
 
 	// [[BPR-1478]]. One tick of the course in which a reread lands just
 	// after the reviewer picks another file.
+	// [[BPR-1862]]. One tick of the draft-delete course.
+	void advance_draft_delete_course(
+		bpr::app::github_application& aApplication,
+		automated_run&                aRun)
+	{
+		using access               = bpr::app::detail::github_application_fixture_access;
+		const auto result          = access::exercise_draft_delete(aApplication, *aRun.DraftDeleteCourse);
+		aRun.DraftDeleteDiagnostic = access::draft_delete_diagnostic(aApplication);
+		if (result == bpr::app::detail::draft_delete_probe_result::pending) {
+			return;
+		}
+		aRun.DraftDeleteEvidence = access::draft_delete_evidence(aApplication);
+		aRun.DraftDeletePassed   = result == bpr::app::detail::draft_delete_probe_result::passed;
+		if (!aRun.DraftDeletePassed) {
+			fail_automated_run(aApplication, aRun);
+			return;
+		}
+		aRun.PresentationPassed = true;
+		transition_to_shutdown(aApplication, aRun);
+	}
+
 	void advance_refresh_pick_course(
 		bpr::app::github_application& aApplication,
 		automated_run&                aRun)
@@ -7468,6 +7510,10 @@ namespace {
 				}
 				if (aRun->RefreshPickCourse.has_value()) {
 					advance_refresh_pick_course(aApplication, *aRun);
+					break;
+				}
+				if (aRun->DraftDeleteCourse.has_value()) {
+					advance_draft_delete_course(aApplication, *aRun);
 					break;
 				}
 				if (aRun->ReviewProgressPushProbe.has_value()) {
@@ -9606,6 +9652,18 @@ auto main(int argc, char** argv) -> int
 			refreshPickCourse = bpr::app::detail::refresh_pick_course::reread;
 		}
 		fixtureOptions.RepeatReadSessions = fixtureOptions.RepeatReadSessions || refreshPickCourse.has_value();
+		// [[BPR-1862]]. The draft-delete course.
+		const auto draftDeleteCourseName = launch.value("--draft-delete-course");
+		const auto draftDeleteCourse     = [&]() -> std::optional<bpr::app::detail::draft_delete_course> {
+			using course = bpr::app::detail::draft_delete_course;
+			for (const auto& [name, value] : std::array{ std::pair{ std::string_view{ "line" }, course::line }, std::pair{ std::string_view{ "off-hunk" }, course::off_hunk },
+														 std::pair{ std::string_view{ "agent" }, course::agent }, std::pair{ std::string_view{ "reopened" }, course::reopened } }) {
+				if (draftDeleteCourseName == std::optional{ name }) {
+					return value;
+				}
+			}
+			return std::nullopt;
+		}();
 		// [[BPR-1374]]. The unsent-reply course reads again on its Refresh.
 		const auto replyDraftCourseName = launch.value("--reply-draft-course");
 		const auto replyDraftCourse     = [&]() -> std::optional<bpr::app::detail::reply_draft_course> {
@@ -10409,6 +10467,9 @@ auto main(int argc, char** argv) -> int
 		// a pull request whose reads fail after it; with `--attended-home-look`
 		// it is armed only once Home is ready for the person.
 		const auto attendedHomeLook = launch.has("--attended-home-look");
+		// [[BPR-1865]]. With the home look, sixteen more rows with titles and
+		// authors of their own, for judging Home's filter.
+		const auto attendedHomeRows = launch.has("--attended-home-rows");
 		const auto parseCount       = [](const std::optional<std::string_view> aText) -> std::optional<std::uint32_t> {
 			if (!aText.has_value()) {
 				return std::nullopt;
@@ -10423,6 +10484,7 @@ auto main(int argc, char** argv) -> int
 		const auto readFailNumber   = parseCount(readFailText);
 		auto       readDelayFixture = std::shared_ptr<bpr::app::detail::github_read_delay_fixture>{ };
 		if ((readDelayText.has_value() && !readDelay.has_value()) || (readFailText.has_value() && !readFailNumber.has_value())
+			|| (attendedHomeRows && !attendedHomeLook)
 			|| (attendedHomeLook && (!attendedLaunch || attendedOpenPullRequest || attendedOpenSettings || attendedPreflightLook.has_value() || attendedTourStop || attendedWorkshopAgent.has_value() || attendedReadState))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
 			return EXIT_FAILURE;
@@ -10487,6 +10549,11 @@ auto main(int argc, char** argv) -> int
 					{ .Number = 4003U, .Author = "octo-reviewer", .Draft = std::make_shared<std::atomic<bool>>(true) },
 				},
 			};
+			if (attendedHomeRows) {
+				for (auto& row : bpr::app::detail::home_filter_fixture_pull_requests("octo-reviewer")) {
+					fixtureOptions.PersonalDiscovery->OpenPullRequests.push_back(std::move(row));
+				}
+			}
 		}
 		if ((attendedOpenFile.has_value() && (!attendedLaunch || attendedOpenFile->empty()))
 			|| (attendedOpenPullRequest && (!attendedLaunch || attendedOpenFile.has_value()))
@@ -10917,6 +10984,7 @@ auto main(int argc, char** argv) -> int
 																																																																		  : std::nullopt,
 								.ReplyDraftCourse                = replyDraftCourse,
 								.RefreshPickCourse               = refreshPickCourse,
+								.DraftDeleteCourse               = draftDeleteCourse,
 								.ReviewProgressPushProbe         = reviewProgressPushProbe == std::optional<std::string_view>{ "before" } ? std::optional{ bpr::app::detail::review_progress_push_course::before } : reviewProgressPushProbe == std::optional<std::string_view>{ "after" } ? std::optional{ bpr::app::detail::review_progress_push_course::after }
 																																																																						   : std::nullopt,
 								.LineDraftCourse                 = lineDraftCourse,

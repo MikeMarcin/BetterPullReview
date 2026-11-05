@@ -115,6 +115,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextLayout>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -14946,7 +14947,7 @@ namespace {
 			auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
 			expect(agent->state() == qt::agent_tab_state::working && suggestionsShown->isHidden() && agent->suggestions_toggle()->isChecked(),
 				   "while the agent works the suggestions are hidden, though the toggle still shows them");
-			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": []}\n```" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": [{\"path\": \"src/engine/renderer.cpp\", \"startLine\": 3, \"claim\": \"A } ] brace.\", \"suggestedComment\": \"suggestion: guard it\\n\\n```cpp\\nreturn budget;\\n```\\n\\nIs it reset?\"}]}\n```" });
 			process_events();
 			expect(suggestionsShown->isHidden(), "and stay hidden while it writes");
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
@@ -14956,6 +14957,11 @@ namespace {
 			expect(!suggestionsShown->isHidden() && agent->state() != qt::agent_tab_state::working, "once the turn has finished the suggestions return");
 			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
 				   "the reply is shown without its findings block, which is for the cards");
+			// [[BPR-1861]]. A suggestion holding a fenced code block does not
+			// cut the block short: none of the payload reaches the reply.
+			for (const auto* const fragment : { "cpp", "\\n", "]}", "Is it reset", "```" }) {
+				expect(!agent->turn_answer(2U).contains(QString::fromUtf8(fragment)), std::string{ "no fragment of the findings block is shown: " } + fragment);
+			}
 
 			// [[BPR-1773]]. Ask agent on a conversation: its chip in the
 			// question field, prompts about it, and a turn whose asked line
@@ -15124,6 +15130,72 @@ namespace {
 			agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```"), .Footer = QStringLiteral("answered") } });
 			process_events();
 			expect(codeAsks > 0U, "a reply's fenced code asks the code host for its colours");
+			// [[BPR-1860]] ("Reopening a pr and going back to an agent comment
+			// it doesn't have its syntax highlights"): the code host answers a
+			// text it has classified before from its cache, inside the ask.
+			// A kept thread shown again asks while it builds each turn, so
+			// that answer has to find the turn: its code is coloured exactly
+			// as when the spans came back later, as they do the first time.
+			{
+				const auto keptAnswer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```");
+				const auto spansFor   = [](const application::markdown_code_syntax_request& aRequest) {
+					return application::markdown_code_syntax_publication{
+						.Selector = aRequest.Selector,
+						.Text     = aRequest.Text,
+						.Spans    = std::make_shared<const application::token_span_list>(application::token_span_list{
+							{ .Line = 0U, .Column = 0U, .Length = 2U, .Role = core::appearance_role::syntax_keyword },
+							{ .Line = 0U, .Column = 5U, .Length = 8U, .Role = core::appearance_role::syntax_function },
+						}),
+					};
+				};
+				const auto colours = [&agent] {
+					auto        runs = std::vector<std::pair<QString, QRgb>>{ };
+					auto* const view = agent->turn_answer_view(0U);
+					if (view == nullptr) {
+						return runs;
+					}
+					// The code's colours are layout formats over its text.
+					for (auto block = view->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+						for (const auto& range : block.layout()->formats()) {
+							if (range.format.hasProperty(QTextFormat::ForegroundBrush)) {
+								runs.emplace_back(block.text().mid(range.start, range.length), range.format.foreground().color().rgba());
+							}
+						}
+					}
+					return runs;
+				};
+				// Live: the spans come back after the turn is shown.
+				auto later = std::vector<application::markdown_code_syntax_request>{ };
+				agent->set_code_syntax_dispatch([&later](std::vector<application::markdown_code_syntax_request> aRequests) {
+					later.insert(later.end(), aRequests.begin(), aRequests.end());
+				});
+				agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = keptAnswer, .Footer = QStringLiteral("answered") } });
+				process_events();
+				const auto liveAsks = later;
+				for (const auto& request : liveAsks) {
+					agent->apply_code_syntax(spansFor(request));
+				}
+				process_events();
+				const auto live = colours();
+				// Reopened: the host answers from its cache inside the ask.
+				agent->set_code_syntax_dispatch([&agent, &spansFor](std::vector<application::markdown_code_syntax_request> aRequests) {
+					for (const auto& request : aRequests) {
+						agent->apply_code_syntax(spansFor(request));
+					}
+				});
+				agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = keptAnswer, .Footer = QStringLiteral("answered") } });
+				process_events();
+				const auto reopened = colours();
+				const auto colourOf = [](const std::vector<std::pair<QString, QRgb>>& aRuns, const QString& aText) -> std::optional<QRgb> {
+					const auto found = std::ranges::find(aRuns, aText, &std::pair<QString, QRgb>::first);
+					return found == aRuns.end() ? std::nullopt : std::optional{ found->second };
+				};
+				const auto keyword = colourOf(live, QStringLiteral("if"));
+				const auto called  = colourOf(live, QStringLiteral("validate"));
+				expect(!liveAsks.empty() && keyword && called && *keyword != *called, "live, the reply's code is coloured by the spans that came back");
+				expect(reopened == live, "a kept thread shown again from the code host's cache is coloured exactly as it was live");
+				agent->set_code_syntax_dispatch({ });
+			}
 			// Owner look v004 ("Not drawing inline comment with syntax
 			// highlighing"): inline code is asked for as the pull request's
 			// language, and coloured when its spans come back.
@@ -17847,6 +17919,79 @@ namespace {
 		expect_no_server_combo_editor(window, page, "the Add enterprise server draft is open");
 		window.settings()->hide();
 		window.hide();
+	}
+
+	/// \brief [[BPR-1856]]. Settings › Repositories puts the saved repositories
+	/// and Add repository first and the clone folders under them (owner,
+	/// 2026-11-04), and Tab and the accessibility tree read the page in the
+	/// order it is drawn.
+	void test_add_repository_comes_before_the_clone_folders()
+	{
+		qt::workbench_window window;
+		auto                 projection = application::queue_landing_projection{
+			.Status            = application::queue_landing_status::ready,
+			.Session           = { .Host = "github.com", .Account = "reviewer", .Generation = 1U },
+			.SavedRepositories = { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
+								   { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" } }
+		};
+		window.set_saved_repository_dispatch([](auto) { });
+		window.set_repository_addition_dispatch([](auto) { });
+		window.publish(projection);
+		window.clone_folders()->present(application::clone_link_projection{
+			.Folders = { "/Users/reviewer/Documents/GitHub", "/Users/reviewer/src" },
+			.Links   = { { .Host = "github.com", .Owner = "octo", .Name = "app", .Path = "/Users/reviewer/Documents/GitHub/app" } },
+			.Loaded  = true });
+		window.show();
+		window.settings()->present(qt::settings_page::repositories);
+		window.settings()->resize(760, 820);
+		process_events();
+		const auto rendered = window.settings()->grab();
+		expect(!rendered.isNull(), "the Repositories page renders");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(QStringLiteral("%1/%2-repositories-page.png").arg(file.path(), file.completeBaseName()), "PNG"),
+				   "the Repositories page render is saved for inspection");
+		}
+		auto* const page    = window.settings()->page_widget(qt::settings_page::repositories);
+		auto* const editor  = window.saved_repositories_editor();
+		auto* const folders = window.clone_folders();
+		auto* const add     = window.settings()->findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"));
+		auto* const list    = window.saved_repository_list();
+		auto* const column  = qobject_cast<QVBoxLayout*>(page->layout());
+		expect(page != nullptr && column != nullptr && page->isAncestorOf(editor) && page->isAncestorOf(folders) && page->isAncestorOf(add),
+			   "the saved repositories and the clone folders share the Repositories page");
+		expect(column->indexOf(editor) >= 0 && column->indexOf(editor) < column->indexOf(folders),
+			   "the saved repositories come before the clone folders in the page's column");
+		const auto addBottom  = add->mapTo(page, QPoint{ 0, add->height() }).y();
+		const auto foldersTop = folders->mapTo(page, QPoint{ 0, 0 }).y();
+		expect(editor->mapTo(page, QPoint{ 0, 0 }).y() < foldersTop && addBottom <= foldersTop,
+			   "Add repository is drawn above the Clone folders heading");
+		expect(foldersTop - addBottom <= 64, "the clone folders follow Add repository without an empty gap");
+		// Tab: the list, Add repository, then the clone folders' own controls.
+		auto order = std::vector<QWidget*>{ };
+		for (auto* widget = page->nextInFocusChain(); widget != nullptr && widget != page; widget = widget->nextInFocusChain()) {
+			if (page->isAncestorOf(widget) && widget->isVisibleTo(page) && (widget->focusPolicy() & Qt::TabFocus) != 0) {
+				order.push_back(widget);
+			}
+		}
+		const auto position = [&](const QWidget* aWidget) {
+			return std::distance(order.begin(), std::find(order.begin(), order.end(), aWidget));
+		};
+		const auto firstFolder = std::find_if(order.begin(), order.end(), [&](const QWidget* aWidget) { return folders->isAncestorOf(aWidget); });
+		expect(firstFolder != order.end() && position(list) < position(add) && position(add) < std::distance(order.begin(), firstFolder)
+				   && std::none_of(firstFolder, order.end(), [&](const QWidget* aWidget) { return editor->isAncestorOf(aWidget); }),
+			   "Tab reaches the saved repositories and Add repository before any clone folder control");
+		add->setFocus(Qt::TabFocusReason);
+		process_events();
+		auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(add, &tab);
+		process_events();
+		expect(folders->isAncestorOf(QApplication::focusWidget()), "Tab from Add repository moves into the clone folders");
+		auto* const accessiblePage = QAccessible::queryAccessibleInterface(page);
+		const auto  editorIndex    = accessiblePage != nullptr ? accessiblePage->indexOfChild(QAccessible::queryAccessibleInterface(editor)) : -1;
+		const auto  foldersIndex   = accessiblePage != nullptr ? accessiblePage->indexOfChild(QAccessible::queryAccessibleInterface(folders)) : -1;
+		expect(editorIndex >= 0 && foldersIndex >= 0 && editorIndex < foldersIndex,
+			   "the accessibility tree presents the saved repositories before the clone folders");
 	}
 
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
@@ -21357,6 +21502,101 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1864]]. The window's title, which the Dock, the Window menu,
+	/// Mission Control and the taskbars show, names the pull request in front
+	/// of the window, and the application and profile otherwise.
+	void test_the_window_title_names_the_open_pull_request()
+	{
+		const auto           dash = QString{ QChar{ 0x2014 } };
+		const auto           home = QStringLiteral("BetterPullReview %1 Work profile").arg(dash);
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.set_profile_label(QStringLiteral("Work"));
+		const auto profiles = [&window](const std::size_t aCount) {
+			auto projection = application::profile_management_projection{ .Ready = true };
+			auto names      = std::vector<std::string>{ "Work", "Personal", "Third" };
+			for (std::size_t index = 0U; index < aCount; ++index) {
+				projection.Profiles.push_back({ core::bpr_profile_id{ index + 1U }, names[index], application::profile_management_runtime::open });
+			}
+			window.adopt_profile_management(projection, core::bpr_profile_id{ 1U });
+		};
+		profiles(1U);
+		window.show();
+		process_events();
+		const auto title = [&window] { return window.windowTitle(); };
+		expect(title() == home && window.accessibleName() == home, "nothing open: the application and the profile");
+
+		// A read names its pull request before it is accepted.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } } });
+		window.publish(application::github_presentation_update{
+			.LoadingOverview = application::github_loading_overview_projection{
+				.Title = "Add the Flow Control panel", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U, .Owner = "MikeMarcin", .RepositoryName = "BPR-Test", .Number = 188875U } });
+		process_events();
+		const auto named = QStringLiteral("#188875 Add the Flow Control panel %1 MikeMarcin/BPR-Test").arg(dash);
+		expect(window.showing_home() || title() == named, "a loading read is named as GitHub named it, once it is in front");
+
+		auto accepted = application::github_pull_request_projection{
+			.Repository      = core::repository_id{ 10U },
+			.PullRequest     = core::pull_request_id{ 11U },
+			.Owner           = "MikeMarcin",
+			.RepositoryName  = "BPR-Test",
+			.Number          = core::pull_request_number{ 188875U },
+			.Title           = "Add the Flow Control panel",
+			.MarkdownContext = page_context(1U),
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready } },
+			.PullRequest = accepted,
+		});
+		process_events();
+		expect(!window.showing_home() && title() == named && window.accessibleName() == named, "open: number, title, repository; one profile is not named");
+
+		// A title changed on GitHub arrives with a refresh's republication.
+		accepted.Title = "Add the Flow Control panel to the review workbench and keep its state per window";
+		window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+		process_events();
+		const auto shortened = QStringLiteral("#188875 Add the Flow Control panel to the review%1 %2 MikeMarcin/BPR-Test").arg(QChar{ 0x2026 }).arg(dash);
+		expect(title() == shortened, "a retitle is followed, shortened at a word with the repository kept");
+
+		profiles(2U);
+		process_events();
+		expect(title() == shortened + QStringLiteral(" %1 Work profile").arg(dash), "with a second profile, the profile follows");
+
+		// Home in front of the review is the application's, and back again
+		// the pull request's.
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home() && title() == home, "Home over the review: the application and the profile");
+		window.choose_home(false);
+		process_events();
+		expect(!window.showing_home() && title().startsWith(QStringLiteral("#188875 ")), "back on the review: the pull request again");
+
+		window.show_local_cycle(QStringLiteral("A local cycle"));
+		process_events();
+		expect(title() == home, "a local cycle in front is not the pull request");
+		window.leave_local_cycle();
+		process_events();
+		expect(title().startsWith(QStringLiteral("#188875 ")), "leaving the cycle names the pull request again");
+
+		// Qt's modified mark is shown literally.
+		accepted.Title = "Keep [*] literal";
+		window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+		process_events();
+		expect(window.windowTitle().contains(QStringLiteral("[*][*]")) && window.accessibleName().contains(QStringLiteral("[*][*]")), "a title's [*] is escaped for Qt");
+
+		// Closed, nothing is named.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::session_ready },
+				.PullRequest = core::pull_request_summary_delta{ .Summary = std::nullopt } } });
+		process_events();
+		expect(title() == home, "closed: the application and the profile");
+		window.hide();
+	}
+
 	/// [[BPR-1418]]. Content arriving after the loading surface settles the
 	/// title row at its current width; navigation and geometry are not repairs.
 	void test_title_row_settles_on_content_publication()
@@ -23131,9 +23371,20 @@ namespace {
 		expect(window.showing_home() && refreshKeys == qt::shortcut_keys(qt::shortcut_command::refresh) && !refreshKeys.isEmpty()
 				   && window.queue_refresh_action()->shortcuts() == refreshKeys && bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshQueueAction") },
 			   "on Home the Refresh key is bound once, on Home's refresh: " + bound(refreshKeys.front()).join(QLatin1Char{ ',' }).toStdString());
+		// [[BPR-1865]]. Find's key filters Home while Home shows, bound once in
+		// this window (Settings, another top-level window, has its own).
+		const auto findKeys = qt::shortcut_keys(qt::shortcut_command::home_filter);
+		const auto finding  = [&bound](const QKeySequence& aKey) {
+			auto names = bound(aKey);
+			names.removeAll(QStringLiteral("settingsFindShortcut"));
+			return names;
+		};
+		expect(!findKeys.isEmpty() && findKeys == qt::shortcut_keys(qt::shortcut_command::find) && finding(findKeys.front()) == QStringList{ QStringLiteral("homeFilterAction") },
+			   "on Home the Find key is bound once, on Home's filter: " + finding(findKeys.front()).join(QLatin1Char{ ',' }).toStdString());
 		window.choose_home(false);
 		process_events();
 		expect(bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshPullRequestAction") }, "and back in the review, once, on the pull request's");
+		expect(finding(findKeys.front()) == QStringList{ QStringLiteral("sourceFindAction") }, "and Find's key is the file's Find again, once");
 
 		// Negative control: each kind of drift is reported, by name.
 		qt::workbench_window drifted;
@@ -24057,6 +24308,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
+		runCase("test_the_window_title_names_the_open_pull_request", &test_the_window_title_names_the_open_pull_request);
 		runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
 		runCase("test_compact_icon_row_preserves_exact_order_and_edges", &test_compact_icon_row_preserves_exact_order_and_edges);
 		runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
@@ -24096,6 +24348,7 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
 		runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+		runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
 		runCase("test_home_strip_holds_view_and_refresh", &test_home_strip_holds_view_and_refresh);
 		runCase("test_home_discovery_glyph_status_and_pull_request_menu", &test_home_discovery_glyph_status_and_pull_request_menu);
 		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.
@@ -24198,6 +24451,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_one_pane_places_threads_on_their_own_changed_rows", &test_one_pane_places_threads_on_their_own_changed_rows);
 	runCase("test_collapsing_a_drawer_returns_space_to_the_centre", &test_collapsing_a_drawer_returns_space_to_the_centre);
 	runCase("test_strip_modalities_positions_and_account", &test_strip_modalities_positions_and_account);
+	runCase("test_the_window_title_names_the_open_pull_request", &test_the_window_title_names_the_open_pull_request);
 	runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
 	runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
 	runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
@@ -24260,6 +24514,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_queue_rule_gestures_wait_for_the_accepted_projection", &test_queue_rule_gestures_wait_for_the_accepted_projection);
 	runCase("test_queue_rule_selection_survives_unrelated_projection", &test_queue_rule_selection_survives_unrelated_projection);
 	runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+	runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
 	runCase("test_add_enterprise_server_opens_a_card_in_its_edit_state", &test_add_enterprise_server_opens_a_card_in_its_edit_state);
 	runCase("test_github_cli_discovery_is_a_separate_accounts_path", &test_github_cli_discovery_is_a_separate_accounts_path);
 	runCase("test_a_kept_enterprise_server_remembers_and_forgets_on_its_card", &test_a_kept_enterprise_server_remembers_and_forgets_on_its_card);

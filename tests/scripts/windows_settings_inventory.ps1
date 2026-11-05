@@ -17,7 +17,7 @@
 # is sent only while one of the image's windows is in front.
 #
 #   course     AC2 and AC3. View > Settings..., modeless focus, the Ctrl+comma
-#              singleton, Escape, Ctrl+comma reopen, Profiles > New Window, the
+#              singleton, Escape, Ctrl+comma reopen, File > New Window, the
 #              sibling's menu reuses Settings, caption close, the sibling's
 #              shortcut, closing the first window keeps Settings, the seven
 #              pages, then File > Quit, which must exit 0.
@@ -364,7 +364,7 @@ try {
         Wait-For 'Ctrl-comma did not reopen Settings' { (Settings).Count -eq 1 }
         $identity = Handle (Settings)[0]
         $record.native_checks += 'escape-and-shortcut-reopen'
-        Menu-Command $first 'Profiles' 'New Window'
+        Menu-Command $first 'File' 'New Window'
         Wait-For 'New Window did not create same-profile sibling' { (Workbenches).Count -eq 2 } 60
         $second = @(Workbenches | Where-Object { (Handle $_) -ne (Handle $first) })[0]
         Menu-Command $second 'View' ('Settings' + [char]0x2026)
