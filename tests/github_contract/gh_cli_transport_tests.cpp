@@ -2718,6 +2718,23 @@ namespace {
 
 	/// [[BPR-1791]]. Where each platform looks for gh after PATH, and which
 	/// canonical candidate it takes. Pure, so all three run on every host.
+	/// [[BPR-1857]]. Every platform that offers GitHub CLI has a clone root
+	/// parent that exists: a literal `/private/tmp` names nothing on Windows,
+	/// which left every Windows CLI session without a comparison.
+	void test_clone_root_parent_exists_on_every_platform()
+	{
+		const auto      parent = gh_cli_git_temporary_parent();
+		std::error_code error;
+		expect(!parent.empty() && parent.is_absolute() && std::filesystem::is_directory(parent, error) && !error
+				   && std::filesystem::canonical(parent, error) == parent && !error,
+			   "the clone root parent is an existing canonical directory");
+#if defined(__APPLE__)
+		expect(parent == std::filesystem::path{ "/private/tmp" }, "macOS keeps the write-denial's /private/tmp");
+#else
+		expect(parent == std::filesystem::canonical(std::filesystem::temp_directory_path()), "Windows and Linux use the user's temporary directory");
+#endif
+	}
+
 	void test_executable_search_locations_and_selection()
 	{
 		expect(gh_cli_executable_file_name(gh_cli_host_platform::windows) == "gh.exe"
@@ -2778,6 +2795,7 @@ try {
 	test_full_inventory_lists_every_account();
 	test_pinned_launch_gets_a_private_configuration();
 	test_executable_search_locations_and_selection();
+	test_clone_root_parent_exists_on_every_platform();
 	test_auth_status_inventory_is_token_free_bounded_and_fail_closed();
 	for (const std::string_view host : { "github.com", "sub.github.com", "github.localhost", "sub.github.localhost", "tenant.ghe.com", "api.tenant.ghe.com" }) {
 		expect(gh_cli_credential_environment(host) == cli_credential_environment::github, "stock-gh public/tenancy host classes use the selected GH_TOKEN");

@@ -3501,7 +3501,11 @@ namespace {
 				}
 				expect(!value.Host->state().AcceptedComparison && std::ranges::count(value.State.Calls, "catalog.commit-authorized") == 0, "failed preparation cannot accept comparison or commit regardless of logging availability");
 
-				const auto expectedReason = mode == 5U ? core::epoch_reason_code::repair_required : core::epoch_reason_code::unavailable;
+				// [[BPR-1857]]. A refused sign-in and a network failure keep their own reasons.
+				const auto expectedReason = mode == 5U ? core::epoch_reason_code::repair_required
+					: mode == 2U                       ? core::epoch_reason_code::fetch_sign_in_refused
+					: mode == 3U                       ? core::epoch_reason_code::fetch_network
+													   : core::epoch_reason_code::unavailable;
 				expect(std::ranges::any_of(value.State.Updates, [&](const auto& aUpdate) { return aUpdate.Transition && std::ranges::any_of(aUpdate.Transition->Diagnostics, [&](const auto& aDiagnostic) { return aDiagnostic.Code == expectedReason; }); }), "logging status preserves the original core diagnostic");
 				if (mode == 3U) {
 					expect(std::ranges::any_of(log->Events, [](const auto& aEvent) { return aEvent.EpochStage == stage::protocol_acquire && aEvent.GitStep == application::git_smart_transport_step::identity_before; }), "protocol acquisition preserves the closed transport step without affecting the core failure");

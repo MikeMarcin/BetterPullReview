@@ -410,6 +410,46 @@ namespace bpr::application {
 			case git_smart_transport_step::cli_qualification:
 				return core::epoch_failure::gh_tool_unsupported;
 			default:
+				break;
+			}
+			// [[BPR-1857]]. Every other failure used to collapse into
+			// `unavailable`, so a Windows clone root that could not exist read
+			// "the exact comparison is unavailable" and nothing more. The kind
+			// says which of five things to look at; a step that only touches
+			// local storage says it was the folder.
+			switch (aFailure.Failure) {
+			case git_smart_transport_failure::authentication:
+			case git_smart_transport_failure::permission:
+				return core::epoch_failure::fetch_sign_in_refused;
+			case git_smart_transport_failure::network:
+			case git_smart_transport_failure::certificate:
+			case git_smart_transport_failure::proxy:
+			case git_smart_transport_failure::redirect:
+			case git_smart_transport_failure::timeout:
+				return core::epoch_failure::fetch_network;
+			case git_smart_transport_failure::request_limit:
+			case git_smart_transport_failure::response_limit:
+				return core::epoch_failure::fetch_limit;
+			case git_smart_transport_failure::collision_detected:
+				return core::epoch_failure::unsupported_object;
+			case git_smart_transport_failure::invalid_request:
+			case git_smart_transport_failure::unavailable:
+			case git_smart_transport_failure::cancelled:
+			case git_smart_transport_failure::malformed_response:
+			case git_smart_transport_failure::consumer_rejected:
+				break;
+			}
+			if (aFailure.Failure == git_smart_transport_failure::cancelled) {
+				return core::epoch_failure::unavailable;
+			}
+			switch (aFailure.Step) {
+			case git_smart_transport_step::temporary_store:
+			case git_smart_transport_step::process_runner:
+			case git_smart_transport_step::local_store:
+				return core::epoch_failure::fetch_storage;
+			case git_smart_transport_step::clone:
+				return core::epoch_failure::fetch_failed;
+			default:
 				return core::epoch_failure::unavailable;
 			}
 		}
