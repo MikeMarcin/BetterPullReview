@@ -66,6 +66,24 @@ quickly find a PR. Probably needs frontend design."
   addressed by position); only the queue's panels are re-ranked.
 - The Active review card is shown or hidden, not marked.
 
-## Owner look
+## Owner look — prepared 2026-11-04
 
-Pending; filled in when the session is prepared.
+- Frozen build of `296c9fb22` with `scripts/freeze_attended_build.py freeze`
+  (root `/Users/jaeger/.codex/attended-builds/bpr1865-home-filter-v001.ip_qsfgd`;
+  executable SHA-256
+  `9a5ed7f77f21f45aaa0523265e3db52e8427c65be0b18aefcd2c6edf9c7e5c0d`), fixture
+  `github-com`, `--attended-home-look --attended-home-rows`: the fixture
+  account signs in, opens `#17` once, saves its repository and returns to
+  Home with 19 rows (sixteen titled ones from `home_filter_fixture_rows`).
+  The launcher's own offscreen check reached
+  `ATTENDED_HOME_SHOWN:rows=19:delay=0ms`. Launch:
+  `python3 /Users/jaeger/.codex/attended-builds/bpr1865-home-filter-v001.ip_qsfgd/launch.py`.
+- New short session `8a1fb0fdb47d4fcecf5ab4db5ef01444`, state
+  `/Users/jaeger/.codex/attended-review/bpr1865-v001-68jNhO/state`, repo root
+  the implementing worktree, host started with `serve --tailscale`. Two
+  Accept/Reject candidates, ready at event cursor 6:
+  `BPR-1865-filter-field-v001` (AC8, fingerprint `aae770ae58ba…`) and
+  `BPR-1865-matches-v001` (AC9, fingerprint `050223aa3d32…`), each with
+  offscreen renders of the composed course.
+- Next: on hand-back, read `status --after 6`. Each Accept closes its
+  criterion; a Reject's note is the next round's change.
