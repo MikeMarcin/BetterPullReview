@@ -1,3 +1,22 @@
+# [[BPR-1857]] merge reseal (coordinator, 2026-11-05): main 35a4a3df3 with
+# BPR-1857 merged. Pins rebound to the merged bytes; they also cover
+# BPR-1859 and the BPR-1861/1862/1863 app bytes as merged. Not a review.
+# [[BPR-1861]] reseal, 2026-11-04, over main b399051a2 merged into the
+# BPR-1861 branch (last matching: BPR-1854's e6eba9b8d). BPR-1861's own app
+# change: act_on_agent_card and draft_agent_answer pass an agent's suggested
+# comment or answer through core::read_agent_comment_suggestion before
+# drafting it, so its Conventional Comments header is written as the label
+# chip writes it; no provider, credential, grant, mutation branch,
+# publication or source-inventory change. The pins also bind main's
+# unresealed BPR-1862 (answer drafts remembered for delete) and BPR-1863
+# (New Window) app bytes, main.cpp and the fixture access header as merged;
+# this reseal does not review those changes.
+# [[BPR-1857]] reseal (2026-11-04), over 33e1e088a. github_application.cpp
+# only: startup agent-workspace recovery passes a refusal record, prints its
+# check name on the existing path-omitted terminal line, and hands each window
+# a sentence naming the check, folder and account (agent_workspace_refusal_text).
+# No provider, credential, grant, mutation branch or source-inventory change;
+# the production mutation-branch pin is unchanged.
 # [[BPR-1854]] release reseal, 2026-11-04, reviewed 3272aeb3a..9d279d1fc.
 # The pinned app delta composes BPR-1844's profile filter store/host, BPR-1850's
 # profile activity store/timer/notification host and accepted-session adoption,
@@ -2612,8 +2631,11 @@ function(bpr_verify_full_application_digest source_variable)
 	# everything, passes it to run_profile_data_reset and drains it. No grant,
 	# provider, admission, mutation branch, publication or source-inventory
 	# change; the vault deletion is the purge's release_profile_credentials.
+	# [[BPR-1858]] main-merge reseal (2026-11-05): main a2e2ca244's
+	# github_application.cpp combined with the sign-out reset step above; both
+	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "722bf01ab34a36e72cab18e7d45f83cbf432a94853bbd5ae2ca03eb20acc7187"
+        "4fd7d9db0164dc8e0f61ef7cf51dec1bfcd5b52a365583b6b9aef176df87db9c"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2933,10 +2955,12 @@ function(bpr_verify_app_source_tree app_source_root)
 # main.cpp's option comment); the fixture accessor and fixture gain the
 # course's reset vault. No grant, provider, gh process, admission, mutation
 # branch, publication or source-inventory change.
+# [[BPR-1858]] main-merge reseal (2026-11-05): the production manifest over
+# main a2e2ca244 with the sign-out reset sources above; both sides kept.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "ede5334819848fc4ee218978ec18c2de3911e13cbbd8f1b2dbff3657ce5380fc"
+        "b5c738599f9c3828c92c5bd0895bea1ca3c034810c9ffd76127de3cc380a1ffb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

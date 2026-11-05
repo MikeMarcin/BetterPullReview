@@ -476,7 +476,7 @@ def drive(app, x, pid, inventory_only, bound_refused_activation, categories, che
         wait("Ctrl-comma did not reopen Settings", lambda: len(settings()) == 1)
         shared = x.window(settings()[0].get_name())
         checks.append("escape-and-shortcut-reopen")
-        menu(first, "Profiles", "New Window")
+        menu(first, "File", "New Window")
         wait("New Window did not create sibling", lambda: len(workbenches()) == 2)
         second = next(wid for wid, title in x.windows().items() if x.title_matches(title, workbenches()[0].get_name()) and wid != first)
         menu(second, "View", "Settings…")

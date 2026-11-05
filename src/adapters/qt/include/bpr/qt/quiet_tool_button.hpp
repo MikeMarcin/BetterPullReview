@@ -23,6 +23,7 @@ namespace bpr::qt {
 
 	private:
 		[[nodiscard]] auto uses_chip() const -> bool;
+		[[nodiscard]] auto shows_icon() const -> bool;
 		bool               KeyboardFocus = false;
 	};
 } // namespace bpr::qt

@@ -375,6 +375,9 @@ namespace bpr::application {
 			membership = core::queue_membership_with_activity(membership, facts.Authored, activity.ReviewedByMe);
 			// [[BPR-1780]]. The bucket reads the draft status the facts carry.
 			activity.Draft = facts.Draft;
+			// [[BPR-1866]]. A verdict restored or read for a pull request I
+			// authored is my own reply, never a verdict.
+			facts.MyReview = core::my_review_shown(membership, facts.MyReview);
 			items.push_back(core::queue_item{
 				.Ref        = record.Ref,
 				.Membership = membership,
@@ -1449,7 +1452,9 @@ namespace bpr::application {
 			const auto membership = core::queue_membership_with_activity(aRecord.Membership, aReport.Facts.Authored, aReport.Observation.ReviewedByMe);
 			auto       activity   = aReport.Observation;
 			activity.Draft        = aReport.Facts.Draft;
-			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, activity), .Facts = aReport.Facts, .Ignored = Ignored.contains(aRecord.Ref) };
+			auto facts            = aReport.Facts;
+			facts.MyReview        = core::my_review_shown(membership, facts.MyReview);
+			return { .Ref = aRecord.Ref, .Membership = membership, .Bucket = core::bucket_for(membership, activity), .Facts = std::move(facts), .Ignored = Ignored.contains(aRecord.Ref) };
 		}
 
 		/// \brief [[BPR-1683]]. Where the queue's retained record puts one pull request.
@@ -1659,7 +1664,10 @@ namespace bpr::application {
 			// [[BPR-0989]]. A review the reviewer is seen to have given keeps a
 			// discovered pull request here after its request goes. A rule's
 			// item still leaves with its rule, as RFC-BPR-0010 decided.
-			membership.Reviewed = existing.has_value() && existing->present() && aActivity.ReviewedByMe
+			// [[BPR-1866]]. My own replies on a pull request I authored are
+			// not a review of it.
+			membership.Reviewed = existing.has_value() && existing->present()
+				&& core::reviewed_by_viewer(aActivity.ReviewedByMe, aActivity.Authored.value_or(false) || existing->Membership.authored())
 				&& (existing->Membership.discovered() || existing->Membership.Reviewed);
 			if (existing && existing->present()) {
 				auto candidate = queue_enrollment_register{ };
@@ -1834,7 +1842,7 @@ namespace bpr::application {
 			const auto factsChanged = Enrollments.observe_facts(aAnswer.Ref, Activity[ActivityIndex.at(aAnswer.Ref)].Facts, aAnswer.Session.ViewerAccount);
 			// Read the submitted review before discovery can withdraw the old
 			// request: it keeps a discovered PR in Following when that request goes.
-			if (aAnswer.Activity.ReviewedByMe && !existing->Membership.Reviewed
+			if (core::reviewed_by_viewer(aAnswer.Activity.ReviewedByMe, aAnswer.Authored.value_or(false) || existing->Membership.authored()) && !existing->Membership.Reviewed
 				&& (existing->Membership.discovered() || existing->Membership.Role == core::github_role::requested_reviewer)) {
 				Enrollments.enroll(aAnswer.Ref, { .Reviewed = true });
 				persist_record(aAnswer.Ref, std::move(prior), true);

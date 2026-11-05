@@ -115,6 +115,7 @@
 #include <QTextCursor>
 #include <QTextDocument>
 #include <QTextEdit>
+#include <QTextLayout>
 #include <QThread>
 #include <QTimer>
 #include <QToolBar>
@@ -7873,6 +7874,19 @@ namespace {
 				   && stale.contains(QStringLiteral("selected file changed"))
 				   && unavailable != stale,
 			   "an unavailable comparison gives actionable recovery without claiming the selected file changed");
+
+		// [[BPR-1857]]. When review history failed for a stated reason, the
+		// file's own sentence says that reason instead of only pointing there.
+		window.epoch_selectors()->publish(application::epoch_presentation_update{
+			.Transition = application::epoch_transition_projection{
+				.Status      = core::epoch_status_delta{ .Status = core::epoch_status::failed },
+				.Diagnostics = { core::epoch_diagnostic{ .Code = core::epoch_reason_code::fetch_storage } },
+			},
+		});
+		window.fail({ .Failure = application::workbench_host_failure::selected_file_comparison_unavailable });
+		expect(window.status_text().contains(QStringLiteral("No exact comparison is ready for this file."))
+				   && window.status_text().contains(QStringLiteral("A temporary folder for the pull request's commits could not be made or written.")),
+			   "a file that cannot open names review history's failure reason");
 	}
 
 	/// [[BPR-0742]]. An unavailable saved layout is retained window state, not a
@@ -14933,7 +14947,7 @@ namespace {
 			auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
 			expect(agent->state() == qt::agent_tab_state::working && suggestionsShown->isHidden() && agent->suggestions_toggle()->isChecked(),
 				   "while the agent works the suggestions are hidden, though the toggle still shows them");
-			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": []}\n```" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": [{\"path\": \"src/engine/renderer.cpp\", \"startLine\": 3, \"claim\": \"A } ] brace.\", \"suggestedComment\": \"suggestion: guard it\\n\\n```cpp\\nreturn budget;\\n```\\n\\nIs it reset?\"}]}\n```" });
 			process_events();
 			expect(suggestionsShown->isHidden(), "and stay hidden while it writes");
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
@@ -14943,6 +14957,11 @@ namespace {
 			expect(!suggestionsShown->isHidden() && agent->state() != qt::agent_tab_state::working, "once the turn has finished the suggestions return");
 			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
 				   "the reply is shown without its findings block, which is for the cards");
+			// [[BPR-1861]]. A suggestion holding a fenced code block does not
+			// cut the block short: none of the payload reaches the reply.
+			for (const auto* const fragment : { "cpp", "\\n", "]}", "Is it reset", "```" }) {
+				expect(!agent->turn_answer(2U).contains(QString::fromUtf8(fragment)), std::string{ "no fragment of the findings block is shown: " } + fragment);
+			}
 
 			// [[BPR-1773]]. Ask agent on a conversation: its chip in the
 			// question field, prompts about it, and a turn whose asked line
@@ -15111,6 +15130,72 @@ namespace {
 			agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```"), .Footer = QStringLiteral("answered") } });
 			process_events();
 			expect(codeAsks > 0U, "a reply's fenced code asks the code host for its colours");
+			// [[BPR-1860]] ("Reopening a pr and going back to an agent comment
+			// it doesn't have its syntax highlights"): the code host answers a
+			// text it has classified before from its cache, inside the ask.
+			// A kept thread shown again asks while it builds each turn, so
+			// that answer has to find the turn: its code is coloured exactly
+			// as when the spans came back later, as they do the first time.
+			{
+				const auto keptAnswer = QStringLiteral("```cpp\nif (!validate(scale)) {\n```");
+				const auto spansFor   = [](const application::markdown_code_syntax_request& aRequest) {
+					return application::markdown_code_syntax_publication{
+						.Selector = aRequest.Selector,
+						.Text     = aRequest.Text,
+						.Spans    = std::make_shared<const application::token_span_list>(application::token_span_list{
+							{ .Line = 0U, .Column = 0U, .Length = 2U, .Role = core::appearance_role::syntax_keyword },
+							{ .Line = 0U, .Column = 5U, .Length = 8U, .Role = core::appearance_role::syntax_function },
+						}),
+					};
+				};
+				const auto colours = [&agent] {
+					auto        runs = std::vector<std::pair<QString, QRgb>>{ };
+					auto* const view = agent->turn_answer_view(0U);
+					if (view == nullptr) {
+						return runs;
+					}
+					// The code's colours are layout formats over its text.
+					for (auto block = view->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+						for (const auto& range : block.layout()->formats()) {
+							if (range.format.hasProperty(QTextFormat::ForegroundBrush)) {
+								runs.emplace_back(block.text().mid(range.start, range.length), range.format.foreground().color().rgba());
+							}
+						}
+					}
+					return runs;
+				};
+				// Live: the spans come back after the turn is shown.
+				auto later = std::vector<application::markdown_code_syntax_request>{ };
+				agent->set_code_syntax_dispatch([&later](std::vector<application::markdown_code_syntax_request> aRequests) {
+					later.insert(later.end(), aRequests.begin(), aRequests.end());
+				});
+				agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = keptAnswer, .Footer = QStringLiteral("answered") } });
+				process_events();
+				const auto liveAsks = later;
+				for (const auto& request : liveAsks) {
+					agent->apply_code_syntax(spansFor(request));
+				}
+				process_events();
+				const auto live = colours();
+				// Reopened: the host answers from its cache inside the ask.
+				agent->set_code_syntax_dispatch([&agent, &spansFor](std::vector<application::markdown_code_syntax_request> aRequests) {
+					for (const auto& request : aRequests) {
+						agent->apply_code_syntax(spansFor(request));
+					}
+				});
+				agent->present_thread({ { .Question = QStringLiteral("Show it"), .Answer = keptAnswer, .Footer = QStringLiteral("answered") } });
+				process_events();
+				const auto reopened = colours();
+				const auto colourOf = [](const std::vector<std::pair<QString, QRgb>>& aRuns, const QString& aText) -> std::optional<QRgb> {
+					const auto found = std::ranges::find(aRuns, aText, &std::pair<QString, QRgb>::first);
+					return found == aRuns.end() ? std::nullopt : std::optional{ found->second };
+				};
+				const auto keyword = colourOf(live, QStringLiteral("if"));
+				const auto called  = colourOf(live, QStringLiteral("validate"));
+				expect(!liveAsks.empty() && keyword && called && *keyword != *called, "live, the reply's code is coloured by the spans that came back");
+				expect(reopened == live, "a kept thread shown again from the code host's cache is coloured exactly as it was live");
+				agent->set_code_syntax_dispatch({ });
+			}
 			// Owner look v004 ("Not drawing inline comment with syntax
 			// highlighing"): inline code is asked for as the pull request's
 			// language, and coloured when its spans come back.
@@ -17834,6 +17919,79 @@ namespace {
 		expect_no_server_combo_editor(window, page, "the Add enterprise server draft is open");
 		window.settings()->hide();
 		window.hide();
+	}
+
+	/// \brief [[BPR-1856]]. Settings › Repositories puts the saved repositories
+	/// and Add repository first and the clone folders under them (owner,
+	/// 2026-11-04), and Tab and the accessibility tree read the page in the
+	/// order it is drawn.
+	void test_add_repository_comes_before_the_clone_folders()
+	{
+		qt::workbench_window window;
+		auto                 projection = application::queue_landing_projection{
+			.Status            = application::queue_landing_status::ready,
+			.Session           = { .Host = "github.com", .Account = "reviewer", .Generation = 1U },
+			.SavedRepositories = { { .Host = "github.com", .Account = "reviewer", .Repository = "octo/app" },
+								   { .Host = "github.com", .Account = "reviewer", .Repository = "octo/tools" } }
+		};
+		window.set_saved_repository_dispatch([](auto) { });
+		window.set_repository_addition_dispatch([](auto) { });
+		window.publish(projection);
+		window.clone_folders()->present(application::clone_link_projection{
+			.Folders = { "/Users/reviewer/Documents/GitHub", "/Users/reviewer/src" },
+			.Links   = { { .Host = "github.com", .Owner = "octo", .Name = "app", .Path = "/Users/reviewer/Documents/GitHub/app" } },
+			.Loaded  = true });
+		window.show();
+		window.settings()->present(qt::settings_page::repositories);
+		window.settings()->resize(760, 820);
+		process_events();
+		const auto rendered = window.settings()->grab();
+		expect(!rendered.isNull(), "the Repositories page renders");
+		if (const auto path = qEnvironmentVariable("BPR_QT_RENDER_PATH"); !path.isEmpty()) {
+			const QFileInfo file{ path };
+			expect(rendered.save(QStringLiteral("%1/%2-repositories-page.png").arg(file.path(), file.completeBaseName()), "PNG"),
+				   "the Repositories page render is saved for inspection");
+		}
+		auto* const page    = window.settings()->page_widget(qt::settings_page::repositories);
+		auto* const editor  = window.saved_repositories_editor();
+		auto* const folders = window.clone_folders();
+		auto* const add     = window.settings()->findChild<QPushButton*>(QStringLiteral("addSavedRepositoryButton"));
+		auto* const list    = window.saved_repository_list();
+		auto* const column  = qobject_cast<QVBoxLayout*>(page->layout());
+		expect(page != nullptr && column != nullptr && page->isAncestorOf(editor) && page->isAncestorOf(folders) && page->isAncestorOf(add),
+			   "the saved repositories and the clone folders share the Repositories page");
+		expect(column->indexOf(editor) >= 0 && column->indexOf(editor) < column->indexOf(folders),
+			   "the saved repositories come before the clone folders in the page's column");
+		const auto addBottom  = add->mapTo(page, QPoint{ 0, add->height() }).y();
+		const auto foldersTop = folders->mapTo(page, QPoint{ 0, 0 }).y();
+		expect(editor->mapTo(page, QPoint{ 0, 0 }).y() < foldersTop && addBottom <= foldersTop,
+			   "Add repository is drawn above the Clone folders heading");
+		expect(foldersTop - addBottom <= 64, "the clone folders follow Add repository without an empty gap");
+		// Tab: the list, Add repository, then the clone folders' own controls.
+		auto order = std::vector<QWidget*>{ };
+		for (auto* widget = page->nextInFocusChain(); widget != nullptr && widget != page; widget = widget->nextInFocusChain()) {
+			if (page->isAncestorOf(widget) && widget->isVisibleTo(page) && (widget->focusPolicy() & Qt::TabFocus) != 0) {
+				order.push_back(widget);
+			}
+		}
+		const auto position = [&](const QWidget* aWidget) {
+			return std::distance(order.begin(), std::find(order.begin(), order.end(), aWidget));
+		};
+		const auto firstFolder = std::find_if(order.begin(), order.end(), [&](const QWidget* aWidget) { return folders->isAncestorOf(aWidget); });
+		expect(firstFolder != order.end() && position(list) < position(add) && position(add) < std::distance(order.begin(), firstFolder)
+				   && std::none_of(firstFolder, order.end(), [&](const QWidget* aWidget) { return editor->isAncestorOf(aWidget); }),
+			   "Tab reaches the saved repositories and Add repository before any clone folder control");
+		add->setFocus(Qt::TabFocusReason);
+		process_events();
+		auto tab = QKeyEvent{ QEvent::KeyPress, Qt::Key_Tab, Qt::NoModifier };
+		QApplication::sendEvent(add, &tab);
+		process_events();
+		expect(folders->isAncestorOf(QApplication::focusWidget()), "Tab from Add repository moves into the clone folders");
+		auto* const accessiblePage = QAccessible::queryAccessibleInterface(page);
+		const auto  editorIndex    = accessiblePage != nullptr ? accessiblePage->indexOfChild(QAccessible::queryAccessibleInterface(editor)) : -1;
+		const auto  foldersIndex   = accessiblePage != nullptr ? accessiblePage->indexOfChild(QAccessible::queryAccessibleInterface(folders)) : -1;
+		expect(editorIndex >= 0 && foldersIndex >= 0 && editorIndex < foldersIndex,
+			   "the accessibility tree presents the saved repositories before the clone folders");
 	}
 
 	void test_saved_repository_gestures_round_trip_through_the_dispatch()
@@ -24083,6 +24241,7 @@ auto main(int argc, char** argv) -> int
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--home-discovery"))) {
 		runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+		runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
 		runCase("test_home_strip_holds_view_and_refresh", &test_home_strip_holds_view_and_refresh);
 		runCase("test_home_discovery_glyph_status_and_pull_request_menu", &test_home_discovery_glyph_status_and_pull_request_menu);
 		// RFC-BPR-0026 AC-04: the window's own filter beside the profile's.
@@ -24247,6 +24406,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_queue_rule_gestures_wait_for_the_accepted_projection", &test_queue_rule_gestures_wait_for_the_accepted_projection);
 	runCase("test_queue_rule_selection_survives_unrelated_projection", &test_queue_rule_selection_survives_unrelated_projection);
 	runCase("test_saved_repository_gestures_round_trip_through_the_dispatch", &test_saved_repository_gestures_round_trip_through_the_dispatch);
+	runCase("test_add_repository_comes_before_the_clone_folders", &test_add_repository_comes_before_the_clone_folders);
 	runCase("test_add_enterprise_server_opens_a_card_in_its_edit_state", &test_add_enterprise_server_opens_a_card_in_its_edit_state);
 	runCase("test_github_cli_discovery_is_a_separate_accounts_path", &test_github_cli_discovery_is_a_separate_accounts_path);
 	runCase("test_a_kept_enterprise_server_remembers_and_forgets_on_its_card", &test_a_kept_enterprise_server_remembers_and_forgets_on_its_card);

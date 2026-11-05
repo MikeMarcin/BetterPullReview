@@ -333,6 +333,26 @@ course reads the configuration each tree declares (BPR-0492) and the
 dependency provider builds only the configurations the tree selects
 (BPR-0495).
 
+### One test target on `windows-dev`
+
+[[BPR-1855]]'s station run of a single Qt test target needed four things
+beyond `cmake --preset`, `cmake --build --target` and `ctest -R`:
+
+1. Load `vcvars64.bat` first (step 2 above).
+2. Append Git for Windows' `usr\bin` to `PATH` for `perl`, which the
+   KSyntaxHighlighting nested configure wants (above).
+3. Build `tool_better_pull_review_network_sandbox` alongside the test
+   target: every `bpr_add_network_isolated_test` row runs through it, and a
+   target-only build does not make it.
+4. Pass `-C Debug` to `ctest`: the tree is multi-config, and the station's
+   run needed the configuration named on the command line.
+
+```powershell
+cmake --preset windows-dev
+cmake --build --preset windows-dev --target <test target> tool_better_pull_review_network_sandbox
+ctest --preset windows-dev -C Debug -R "<regex>" -V
+```
+
 ## Linux hosts: the Secret Service `login` collection must be unlocked
 
 The `linux_secret_service_native*` rows no longer need this. Since
