@@ -25872,7 +25872,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (!Config.DifCatalog) {
 				Config.DifCatalog = std::make_shared<qt::dif_catalog_provider>();
 			}
-			RegistryRoot = native_application_data_root(Config);
+			// [[BPR-1868]]. A root typed in another letter case than its folders
+			// have on a case-insensitive volume names the same folders; the
+			// stores admit only a root spelled as the file system spells it.
+			RegistryRoot = adapters::sqlite::storage_root_on_disk_spelling(native_application_data_root(Config));
 		}
 		~implementation() override
 		{
@@ -25897,8 +25900,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (aStop.stop_requested()) {
 				return std::unexpected(application::profile_registry_failure::cancelled);
 			}
-			if (RegistryRoot.empty() || !RegistryRoot.is_absolute() || RegistryRoot.lexically_normal() != RegistryRoot) {
+			// [[BPR-1868]]. Each refusal below names its own cause on the
+			// startup-failure-source line: every one of them reaches a reader as
+			// `registry_unavailable`, and a root that was only spelled in another
+			// letter case, and one that already existed with a shared mode, were
+			// told apart by nothing. The names are fixed text with no path.
+			const auto refuse = [](const std::string_view aSource) {
+				detail::note_startup_failure(aSource);
 				return std::unexpected(application::profile_registry_failure::unavailable);
+			};
+			if (RegistryRoot.empty() || !RegistryRoot.is_absolute() || RegistryRoot.lexically_normal() != RegistryRoot) {
+				return refuse("registry-root-path: the data root is not an absolute, normal path");
 			}
 			std::error_code error;
 			const auto      status = std::filesystem::symlink_status(RegistryRoot, error);
@@ -25908,17 +25920,37 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					ancestor = ancestor.parent_path();
 				}
 				if (error || ancestor.empty() || std::filesystem::canonical(ancestor, error) != ancestor || error) {
-					return std::unexpected(application::profile_registry_failure::unavailable);
+					return refuse("registry-root-ancestor: the data root's nearest existing folder resolves through a link or another spelling");
 				}
 				if (!adapters::sqlite::create_storage_root_owner_private(RegistryRoot)) {
-					return std::unexpected(application::profile_registry_failure::unavailable);
+					return refuse("registry-root-create: the data root could not be created owner-private");
 				}
+			} else if (std::filesystem::is_symlink(status)) {
+				return refuse("registry-root-link: the data root is a symbolic link");
+			} else if (!std::filesystem::is_directory(status)) {
+				return refuse("registry-root-not-directory: the data root exists and is not a folder");
 			}
 			// This only validates the registry base; it does not admit Default for runtime use.
 			const auto baseAuthority = application::profile_storage_authority::select(application::profile_registry_snapshot{ }, core::default_bpr_profile_id);
 			const auto base          = adapters::sqlite::resolve_profile_storage_root(RegistryRoot, *baseAuthority, aStop);
 			if (!base) {
-				return std::unexpected(aStop.stop_requested() ? application::profile_registry_failure::cancelled : application::profile_registry_failure::unavailable);
+				if (aStop.stop_requested()) {
+					return std::unexpected(application::profile_registry_failure::cancelled);
+				}
+				switch (base.error()) {
+				case adapters::sqlite::profile_storage_root_failure::invalid_permissions:
+					// A folder that already existed is never repaired: the
+					// application creates its root mode 0700 itself, and a folder
+					// made beforehand (`mkdir -p` gives 0755) has to be made so.
+					return refuse("registry-root-permissions: the data root folder already exists and is not owner-private (owned by this user, mode 0700); run chmod 700 on it, or name a folder that does not exist yet");
+				case adapters::sqlite::profile_storage_root_failure::invalid_path:
+					return refuse("registry-root-spelling: the data root resolves through a link or another spelling");
+				case adapters::sqlite::profile_storage_root_failure::cancelled:
+					return std::unexpected(application::profile_registry_failure::cancelled);
+				case adapters::sqlite::profile_storage_root_failure::unavailable:
+					break;
+				}
+				return refuse("registry-root-unavailable: the data root could not be opened, or is not on a supported local file system");
 			}
 			auto registryStore = adapters::sqlite::make_profile_registry_store(*base);
 			return registryStore->load(aStop);
