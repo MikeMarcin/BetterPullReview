@@ -171,3 +171,14 @@ has one unconditional construction assignment and is never cleared. The raw
 finding and full rationale remain external. Focused native, core-only and
 three-file analyzer rechecks are required for the corrections; this is not a
 whole Tidy pass or final qualification.
+
+
+### Updated-main Windows inventory measurement
+
+The first Windows build of updated main passes, but its mandatory manifest
+refuses four provisional unmeasured pins. All four actual direct registrations
+subsequently pass; exact zero-capability replays each refuse a private root.
+The observed finite reasons replace those provisional entries, as recorded in
+`docs/verification/release-v042-windows-containment.md`. Raw failures remain
+retained. The corrected native manifest and changed functional selection must
+pass on the successor source before release qualification proceeds.
