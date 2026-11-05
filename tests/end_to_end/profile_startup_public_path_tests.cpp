@@ -213,14 +213,19 @@ try {
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private desktop test root under the canonical storage policy");
 #if !defined(_WIN32)
-	const auto unsafeRoot = root / "unsafe-existing";
-	expect(std::filesystem::create_directory(unsafeRoot), "create designated unsafe fixture root");
+	// [[BPR-1870]]. An empty shared root of this user's is now narrowed and
+	// started (application_startup_data_root). A root that is a link is still
+	// refused, and the folder it names is neither narrowed nor written.
+	const auto unsafeTarget = root / "unsafe-target";
+	const auto unsafeRoot   = root / "unsafe-existing";
+	expect(std::filesystem::create_directory(unsafeTarget), "create designated unsafe fixture target");
 	const auto unsafePermissions = std::filesystem::perms::owner_all | std::filesystem::perms::group_read;
-	std::filesystem::permissions(unsafeRoot, unsafePermissions);
+	std::filesystem::permissions(unsafeTarget, unsafePermissions);
+	std::filesystem::create_directory_symlink(unsafeTarget, unsafeRoot);
 	expect_refusal(unsafeRoot, core::default_bpr_profile_id, false);
-	expect(std::filesystem::status(unsafeRoot).permissions() == unsafePermissions,
-		   "startup refuses existing shared root without permission repair");
-	expect(!std::filesystem::exists(unsafeRoot / "state"), "unsafe root creates no registry or domain store");
+	expect(std::filesystem::status(unsafeTarget).permissions() == unsafePermissions,
+		   "startup refuses a linked root without changing what it names");
+	expect(!std::filesystem::exists(unsafeTarget / "state"), "unsafe root creates no registry or domain store");
 	expect_fresh_install_under_group_umask(root);
 #endif
 	auto registry = adapters::sqlite::make_profile_registry_store(root);

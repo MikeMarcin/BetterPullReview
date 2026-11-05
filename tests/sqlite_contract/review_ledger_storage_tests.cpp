@@ -2538,10 +2538,12 @@ namespace {
 		}
 	}
 
-	// A directory anyone can read is not one private review state belongs in.
-	// The old ledger would have narrowed it and carried on; narrowing is not
-	// the same as refusing, because whoever set 0755 may already have looked.
-	void test_a_group_readable_state_directory_is_refused_by_either_store()
+	// [[BPR-1870]]. A group-readable `state/v1` of this user's is the stores'
+	// own folder, and either store, whichever comes first, narrows it to 0700
+	// through its descriptor and opens; the owner asked for the application to
+	// work rather than refuse (2026-11-04). Narrowing cannot undo a look that
+	// already happened, and neither could refusing; it does stop the next one.
+	void test_a_group_readable_state_directory_is_narrowed_by_either_store()
 	{
 		for (const auto ledgerFirst : { true, false }) {
 			const scratch_directory directory;
@@ -2558,19 +2560,23 @@ namespace {
 
 			if (ledgerFirst) {
 				expect(
-					!ledger_composes(directory.path()),
-					"the ledger refuses a group-readable state directory");
+					ledger_composes(directory.path()),
+					"the ledger narrows a group-readable state directory and opens");
 				expect(
-					!catalog_composes(directory.path()),
-					"and so does the catalog");
+					catalog_composes(directory.path()),
+					"and the catalog then opens too");
 			} else {
 				expect(
-					!catalog_composes(directory.path()),
-					"the catalog refuses a group-readable state directory");
+					catalog_composes(directory.path()),
+					"the catalog narrows a group-readable state directory and opens");
 				expect(
-					!ledger_composes(directory.path()),
-					"and so does the ledger");
+					ledger_composes(directory.path()),
+					"and the ledger then opens too");
 			}
+			const auto narrowed = mode_of(state);
+			expect(
+				narrowed && (*narrowed & 07777) == 0700,
+				"the state directory is exactly 0700");
 		}
 	}
 
@@ -2998,7 +3004,7 @@ try {
 #if !defined(_WIN32)
 	test_the_ledger_composing_first_hardens_the_state_directory();
 	test_a_symlinked_state_directory_is_refused_by_either_store();
-	test_a_group_readable_state_directory_is_refused_by_either_store();
+	test_a_group_readable_state_directory_is_narrowed_by_either_store();
 	test_a_public_storage_root_is_refused_by_either_store();
 #endif
 

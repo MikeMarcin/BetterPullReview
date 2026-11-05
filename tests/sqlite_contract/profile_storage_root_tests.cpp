@@ -108,10 +108,12 @@ namespace {
 		std::filesystem::permissions(container, std::filesystem::perms::owner_all);
 		const auto wide = std::filesystem::perms::owner_all | std::filesystem::perms::group_read;
 		std::filesystem::permissions(container / "profile-2", wide);
-		const auto refused = resolve_profile_storage_root(scratch.Path, work);
-		expect(!refused && refused.error() == profile_storage_root_failure::invalid_permissions
-				   && std::filesystem::status(container / "profile-2").permissions() == wide,
-			   "existing permissive profile root is refused without chmod repair");
+		// [[BPR-1870]]. A profile root is the adapter's own folder under its
+		// held private container: one of this user's with a wider mode is
+		// narrowed in place and admitted.
+		const auto narrowed = resolve_profile_storage_root(scratch.Path, work);
+		expect(narrowed && std::filesystem::symlink_status(container / "profile-2").permissions() == std::filesystem::perms::owner_all,
+			   "existing permissive profile root is narrowed to 0700 and admitted");
 		std::filesystem::permissions(scratch.Path, wide);
 		expect(!resolve_profile_storage_root(scratch.Path, work) && std::filesystem::status(scratch.Path).permissions() == wide, "existing permissive base is refused unchanged");
 		std::filesystem::permissions(scratch.Path, std::filesystem::perms::owner_all);
