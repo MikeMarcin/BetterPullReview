@@ -4270,6 +4270,52 @@ namespace bpr::adapters::sqlite {
 			return false;
 		}
 	}
+
+	auto storage_root_on_disk_spelling(const std::filesystem::path& aRoot) -> std::filesystem::path
+	{
+		try {
+			if (aRoot.empty() || !aRoot.is_absolute() || aRoot != aRoot.lexically_normal() || !aRoot.has_filename()) {
+				return aRoot;
+			}
+#if defined(_WIN32)
+			return aRoot;
+#else
+			const auto chain = find_storage_root_chain(aRoot);
+			if (!chain) {
+				return aRoot;
+			}
+			// A link anywhere in the existing part keeps the given spelling, so
+			// the stores' own refusal of a spelling that resolves elsewhere stands.
+			auto prefix = std::filesystem::path{ };
+			for (const auto& component : chain->Existing) {
+				prefix /= component;
+				struct stat status{ };
+				if (::lstat(prefix.c_str(), &status) != 0 || !S_ISDIR(status.st_mode)) {
+					return aRoot;
+				}
+			}
+			std::error_code error;
+			const auto      canonical = std::filesystem::canonical(chain->Existing, error);
+			if (error || canonical == chain->Existing
+				|| std::ranges::distance(canonical) != std::ranges::distance(chain->Existing)) {
+				return aRoot;
+			}
+			struct stat named{ };
+			struct stat resolved{ };
+			if (::lstat(chain->Existing.c_str(), &named) != 0 || ::lstat(canonical.c_str(), &resolved) != 0
+				|| !S_ISDIR(resolved.st_mode) || named.st_dev != resolved.st_dev || named.st_ino != resolved.st_ino) {
+				return aRoot;
+			}
+			auto result = canonical;
+			for (const auto& missing : chain->Missing | std::views::reverse) {
+				result /= missing.filename();
+			}
+			return result;
+#endif
+		} catch (...) {
+			return aRoot;
+		}
+	}
 } // namespace bpr::adapters::sqlite
 
 namespace bpr::adapters::sqlite::detail {

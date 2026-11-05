@@ -3160,6 +3160,36 @@ if(UNIX)
     )
 endif()
 
+# [[BPR-1868]]. A data root made beforehand, and one typed in another letter
+# case than its folders, each closed the application at startup as
+# `registry_unavailable`. The owner-private mode and the case-insensitive
+# spelling are POSIX questions; Windows keeps its own root rule.
+if(UNIX)
+    bpr_add_network_isolated_test(
+        NAME application_startup_data_root
+        COMMAND
+            "${CMAKE_COMMAND}"
+            "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/startup-data-root"
+            "-DBPR_RUN_BUDGET_MS=${bpr_self_test_budget_ms}"
+            -P
+            "${CMAKE_CURRENT_SOURCE_DIR}/startup_data_root_contract.cmake"
+    )
+    set_tests_properties(
+        application_startup_data_root
+        PROPERTIES
+            ENVIRONMENT "${bpr_public_path_fixture_environment}"
+            PASS_REGULAR_EXPRESSION "STARTUP_DATA_ROOT_OK:"
+    )
+    bpr_bound_automated_run(
+        application_startup_data_root
+        TIMEOUT 120
+        BUDGET_MS ${bpr_self_test_budget_ms}
+        RUNS 4
+        RESERVE_MS 4000
+    )
+endif()
+
 bpr_add_network_isolated_test(
     NAME application_epoch_maintenance_public_path
     WINDOWS_UNCONTAINED
