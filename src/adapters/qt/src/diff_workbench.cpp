@@ -4040,6 +4040,10 @@ namespace bpr::qt {
 			measured_geometry_change::accepted_diff,
 			diff_geometry_rebuild_trigger::accepted_diff);
 		ComparisonLoading = false;
+		// [[BPR-1871]]. The file the wait named is here.
+		WaitingPath.clear();
+		WaitingHistory = false;
+		WaitingFailure.clear();
 		apply_pending();
 		if (Interaction.Selection != previousSelection) {
 			emit_selection();
@@ -4058,6 +4062,9 @@ namespace bpr::qt {
 		clear_projection(reason_text(aFailure.Reason));
 		CurrentContext.reset();
 		ComparisonLoading = false;
+		// [[BPR-1871]]. A named file's failed read says why in its place.
+		WaitingHistory = false;
+		WaitingFailure = WaitingPath.isEmpty() ? QString{ } : reason_text(aFailure.Reason);
 		apply_pending();
 	}
 
@@ -4072,6 +4079,9 @@ namespace bpr::qt {
 		++Statistics.Invalidations;
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
+		WaitingPath.clear();
+		WaitingHistory = false;
+		WaitingFailure.clear();
 		set_idle(false);
 		clear_projection(QStringLiteral("Comparison invalidated"));
 		if (!hadSelection) {
@@ -4079,7 +4089,7 @@ namespace bpr::qt {
 		}
 	}
 
-	void diff_workbench::set_loading(const core::diff_request_context& aContext)
+	void diff_workbench::set_loading(const core::diff_request_context& aContext, QString aPath)
 	{
 		if (!core::valid(aContext)) {
 			return;
@@ -4087,7 +4097,10 @@ namespace bpr::qt {
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext          = aContext;
 		set_idle(false);
-		clear_projection(QStringLiteral("Loading selected file comparison…"));
+		clear_projection(aPath.isEmpty() ? QStringLiteral("Loading selected file comparison…") : QStringLiteral("Loading %1…").arg(aPath));
+		WaitingPath    = std::move(aPath);
+		WaitingHistory = false;
+		WaitingFailure.clear();
 		ComparisonLoading = true;
 		apply_pending();
 		if (!hadSelection) {
@@ -4095,10 +4108,68 @@ namespace bpr::qt {
 		}
 	}
 
+	void diff_workbench::set_waiting(QString aPath, const bool aHistory)
+	{
+		if (aPath.isEmpty()) {
+			return;
+		}
+		// Already saying so: the wait's clock keeps running and nothing flickers.
+		if (!Idle && !CurrentContext.has_value() && WaitingPath == aPath && WaitingFailure.isEmpty()) {
+			if (WaitingHistory != aHistory) {
+				WaitingHistory = aHistory;
+				apply_pending();
+			}
+			return;
+		}
+		const auto hadSelection = Interaction.Selection.has_value();
+		CurrentContext.reset();
+		set_idle(false);
+		auto status = QStringLiteral("Loading %1…").arg(aPath);
+		clear_projection(status);
+		WaitingPath    = std::move(aPath);
+		WaitingHistory = aHistory;
+		WaitingFailure.clear();
+		apply_pending();
+		announce_accessible_status(std::move(status));
+		if (!hadSelection) {
+			emit_selection_observer(false);
+		}
+	}
+
+	void diff_workbench::set_waiting_failed(QString aPath, QString aSentence)
+	{
+		if (aSentence.isEmpty()) {
+			return;
+		}
+		if (!Idle && !CurrentContext.has_value() && WaitingPath == aPath && WaitingFailure == aSentence) {
+			return;
+		}
+		const auto hadSelection = Interaction.Selection.has_value();
+		CurrentContext.reset();
+		set_idle(false);
+		clear_projection(aSentence);
+		WaitingPath    = std::move(aPath);
+		WaitingHistory = false;
+		WaitingFailure = aSentence;
+		apply_pending();
+		announce_accessible_status(std::move(aSentence));
+		if (!hadSelection) {
+			emit_selection_observer(false);
+		}
+	}
+
+	auto diff_workbench::waiting_path() const noexcept -> const QString&
+	{
+		return WaitingPath;
+	}
+
 	void diff_workbench::clear(QString aStatus)
 	{
 		const auto hadSelection = Interaction.Selection.has_value();
 		CurrentContext.reset();
+		WaitingPath.clear();
+		WaitingHistory = false;
+		WaitingFailure.clear();
 		// Only the plain "nothing chosen" is idle; a reason the host gives is
 		// shown as before.
 		const auto idle = aStatus.isEmpty();
@@ -6406,10 +6477,27 @@ namespace bpr::qt {
 		if (Veil == nullptr) {
 			return;
 		}
+		// [[BPR-1871]]. A file the reviewer opened is named by its last part,
+		// as the Overview's plate names one; the status line above says its
+		// whole path.
+		const auto name = WaitingPath.section(QLatin1Char('/'), -1);
+		if (!WaitingFailure.isEmpty() && !CurrentContext.has_value()) {
+			Veil->present(core::pending_activity::failed, false, false, { .Failure = WaitingFailure });
+			return;
+		}
 		if (ComparisonLoading && CurrentContext.has_value()) {
 			Veil->present(core::pending_activity::loading, false, false,
-						  { .Loading = QStringLiteral("Loading the comparison…"),
+						  { .Loading = name.isEmpty() ? QStringLiteral("Loading the comparison…") : QStringLiteral("Loading %1…").arg(name),
 							.Waiting = QStringLiteral("Still preparing the comparison: a large file takes longer.") });
+			return;
+		}
+		if (!WaitingPath.isEmpty() && !CurrentContext.has_value()) {
+			Veil->present(core::pending_activity::loading, false, false,
+						  { .Loading = QStringLiteral("Loading %1…").arg(name),
+							// Short enough for a narrow pane: the line above names the file.
+							.Waiting = WaitingHistory
+								? QStringLiteral("Still fetching the pull request's history.")
+								: QStringLiteral("Still reading the file from the repository.") });
 			return;
 		}
 		// The text is there to read; only its colours are still coming.
