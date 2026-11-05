@@ -51,8 +51,8 @@ endfunction()
 # once per script. whoami is named by path because Git for Windows' usr\bin,
 # on PATH for perl, carries a POSIX whoami that has no /user.
 function(_bpr_current_user_sid output_variable)
-    get_property(sid GLOBAL PROPERTY BPR_CURRENT_USER_SID)
-    if(sid STREQUAL "")
+    get_property(sid_known GLOBAL PROPERTY BPR_CURRENT_USER_SID SET)
+    if(NOT sid_known)
         file(TO_CMAKE_PATH "$ENV{SystemRoot}/System32/whoami.exe" whoami)
         execute_process(
             COMMAND "${whoami}" /user /fo csv /nh
@@ -73,6 +73,7 @@ function(_bpr_current_user_sid output_variable)
         set(sid "${CMAKE_MATCH_1}")
         set_property(GLOBAL PROPERTY BPR_CURRENT_USER_SID "${sid}")
     endif()
+    get_property(sid GLOBAL PROPERTY BPR_CURRENT_USER_SID)
     set(${output_variable} "${sid}" PARENT_SCOPE)
 endfunction()
 
