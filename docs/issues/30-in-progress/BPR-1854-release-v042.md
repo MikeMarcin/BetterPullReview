@@ -307,3 +307,43 @@ status, landing, hidden queue, account label and zero-account-read assertions
 remain unchanged. No product source, host broadcast, timing bound or acceptance
 criterion changes. Native focused feedback and a newly frozen comprehensive
 qualification are required; the earlier isolated passes do not accept build 15.
+
+### Build 16: observe both metadata frames before ending the course
+
+All nine build 16 native compilation graphs and both 100,000-iteration sanitizer
+courses pass. The corrected discovery course also passes in the full macOS and
+Windows Release suites. Windows Release then fails
+`application_large_review_responsiveness` before evaluating timing: its periodic
+observer never captured the provisional frame, leaving the title against which
+it checks the accepted frame empty. The required distinct-frame assertion fails;
+this is not covered by the permanent Debug timing policy. The separate held
+provider-cancellation course observes the provisional page on the same source.
+
+Build 16 is rejected for publication. Failed and interrupted results remain raw;
+only this release's owned macOS and Windows jobs were stopped, with empty owned
+process readback. No build 16 package, tag or release was produced.
+
+The fixture correction holds its first files page until the observer captures
+the provisional frame, then releases that page through the existing controlled
+provider seam. Its load-completion condition also waits for the accepted frame
+before stopping the observer. The provider gate remains bounded and cancellable;
+the cancellation course never releases it. Exact titles, distinct frames, source,
+interaction and numeric timing/resource assertions remain unchanged. No product
+source, default service behavior or budget changes.
+
+At `4918330e51`, macOS passes three complete optimized responsiveness courses:
+provisional frames appear at 16.8–18.3 ms and accepted frames at 92.4–97.4 ms,
+within the unchanged 100/250 ms limits. Provider cancellation passes in Release
+and Debug. Dedicated Debug responsiveness is omitted under the permanent policy,
+with no Debug credit for that branch. Windows and Ubuntu feedback remain required.
+
+The owner's subsequent instruction is to update the GitHub prerelease while the
+full release finishes. After correcting and qualifying the changed fixture, the
+successor's macOS and Windows packages therefore take publication priority over
+the next comprehensive matrix. That limited prerelease must still bind its exact
+frozen source and native compilation, focused feedback, sanitizer, package,
+signing, fresh security and anonymous native download evidence. Its notes must
+state that comprehensive three-platform qualification and stable publication are
+pending; no partial suite is a passing complete suite. The full matrix and Linux
+assets follow, then the separate stable-copy route. Main is rechecked locally and
+on GitHub before publication so all current main fixes are included.
