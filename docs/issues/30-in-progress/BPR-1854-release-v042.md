@@ -257,3 +257,26 @@ the unchanged no-read assertion; the final exact status, landing, queue and
 account-label checks remain. A timeout records the observed state. This is
 fixture synchronization, with native proof still pending, not a product fix or
 an acceptance of the original failure.
+
+### Corrected native feedback before the successor freeze
+
+At `f9551d35f7`, Windows and Ubuntu 26.04 WSL pass the four corrected
+composed-Qt CLI rows in Release and Debug. Each also passes three consecutive
+runs of all five discovery/Home modes in both configurations, with no account
+read permitted during signed-out sibling publication. macOS optimized feedback
+passes the four CLI rows and three runs of each discovery/Home mode. The two
+changed translation units pass clang-format 22 and documentation structure.
+These focused results do not replace final comprehensive qualification.
+
+The original Windows Git failure is separately traced to creation of the long
+fixture reference path under the qualification operator's temporary directory.
+An ordinary owner-private random directory on C:, without a reparse point,
+provides the shorter process-local temporary parent. Dependency modernization,
+Git process and Home-own-activity configured courses all pass in Release and
+Debug there at the unchanged build 14 source. The original long-root failures
+remain raw. The runtime configuration preserves that original binding and
+records the new root's creation session and diagnostic proof; no global Windows
+temporary-directory or Git policy setting changes. Build output remains on D:.
+The next frozen source still requires all-nine compilation and comprehensive
+native qualification, fresh artifact/source/security audits, signing and public
+download trust verification.
