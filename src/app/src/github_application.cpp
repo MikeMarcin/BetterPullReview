@@ -493,19 +493,21 @@ namespace bpr::app {
 				}
 				return lead + (account.isEmpty() ? QStringLiteral("another account can change %1, so a workspace kept in it could be replaced. Remove other accounts' write access to that folder, or ask your administrator, then restart.").arg(folder) : QStringLiteral("%2 can change %1, so a workspace kept in it could be replaced. Remove that account's write access to the folder, or ask your administrator, then restart.").arg(folder, account));
 			case check::neighbourhood_not_private:
-				return lead + QStringLiteral("%1 is not private to you. Rename it aside and restart; a new private folder is made in its place.").arg(folder);
+				// [[BPR-1870]]. One of this user's own is narrowed before this
+				// is reached; what is left is another account's, or a link.
+				return lead + QStringLiteral("%1 is not private to you and could not be made so: it belongs to another account, or is a link. Rename it aside and restart; a new private folder is made in its place.").arg(folder);
 			case check::neighbourhood_not_created:
 				return lead + QStringLiteral("%1 could not be created. Check that the folder above it exists and you can write to it, then restart.").arg(folder);
 			case check::data_folder_not_private:
-				return lead + QStringLiteral("the data folder %1 is not private to you.").arg(folder);
+				return lead + QStringLiteral("the data folder %1 is not private to you. Quit, then restart: startup makes the application's own data folder private.").arg(folder);
 			case check::registry_not_private:
-				return lead + QStringLiteral("their record folder %1 is not private to you or could not be made. Rename it aside and restart.").arg(folder);
+				return lead + QStringLiteral("their record folder %1 is not private to you and could not be made so: it belongs to another account, or is a link. Rename it aside and restart.").arg(folder);
 			case check::registry_unexpected_entry:
 				return lead + QStringLiteral("%1 is not a workspace record. Move it out of that folder, then restart.").arg(folder);
 			case check::unrecorded_leftover:
 				return lead + QStringLiteral("%1 is a workspace no record accounts for. It is kept, not deleted; move it out of that folder, then restart.").arg(folder);
 			case check::record_not_private:
-				return lead + QStringLiteral("the workspace record %1 is not private to you or cannot be opened. Move it out of its folder, then restart.").arg(folder);
+				return lead + QStringLiteral("the workspace record %1 is not private to you and could not be made so (another account's, a link, or a file with more than one name), or cannot be opened. Move it out of its folder, then restart.").arg(folder);
 			case check::record_unreadable:
 				return lead + QStringLiteral("the workspace that record %1 names could not be read back or cleaned up exactly, so it is kept. Move the record and its workspace out of their folders, then restart.").arg(folder);
 			case check::limit_reached:
@@ -6089,6 +6091,12 @@ namespace bpr::app {
 					auto recovered = adapters::git::recover_installed_agent_workspaces(registry, neighbourhood, { }, &found);
 					try {
 						DecisionLane.post([this, result = std::move(recovered), refusal = std::move(found)] {
+							// [[BPR-1870]]. One line per workspace folder or record
+							// that was narrowed in place rather than refused.
+							for (const auto check : refusal.Repaired) {
+								bpr::app::detail::terminal_text_stream{ } << "AGENT_WORKSPACE_PRIVATE_REPAIRED:path=omitted:check="
+																		  << QString::fromUtf8(adapters::git::workspace_refusal_check_name(check)) << '\n';
+							}
 							// [[BPR-0817]]. A refusal is decided here, at startup, and it
 							// is not a failure of the quit. So it no longer sets the
 							// cleanup flag that a real quit turns into exit 1. Every
@@ -25876,6 +25884,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// have on a case-insensitive volume names the same folders; the
 			// stores admit only a root spelled as the file system spells it.
 			RegistryRoot = adapters::sqlite::storage_root_on_disk_spelling(native_application_data_root(Config));
+			// [[BPR-1870]]. A named folder that holds other programs' files is
+			// never narrowed; the stores keep their data in a private folder
+			// the application makes inside it instead.
+			const auto placed  = adapters::sqlite::storage_root_placement(RegistryRoot);
+			RegistryRootNested = placed != RegistryRoot;
+			RegistryRoot       = placed;
 		}
 		~implementation() override
 		{
@@ -25929,6 +25943,27 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return refuse("registry-root-link: the data root is a symbolic link");
 			} else if (!std::filesystem::is_directory(status)) {
 				return refuse("registry-root-not-directory: the data root exists and is not a folder");
+			} else {
+				// [[BPR-1870]]. Owner, 2026-11-04: "I want the app to just work".
+				// A data root that is the application's own (empty, or holding
+				// its `state/v1`) and this user's is narrowed in place rather
+				// than refused, and says so on its own line.
+				switch (adapters::sqlite::tighten_existing_storage_root(RegistryRoot)) {
+				case adapters::sqlite::storage_root_tightening::already_private:
+					break;
+				case adapters::sqlite::storage_root_tightening::tightened:
+					detail::record_terminal_diagnostic("STORAGE_PRIVATE_REPAIRED:registry-root: the data root folder was not owner-private and was made so\n");
+					break;
+				case adapters::sqlite::storage_root_tightening::not_owned:
+					return refuse("registry-root-owner: the data root folder belongs to another account; name a folder you own, or one that does not exist yet");
+				case adapters::sqlite::storage_root_tightening::foreign_content:
+					return refuse("registry-root-foreign-content: other files appeared in the data root folder while it was being prepared; start again");
+				case adapters::sqlite::storage_root_tightening::refused:
+					break;
+				}
+			}
+			if (RegistryRootNested) {
+				detail::record_terminal_diagnostic("STORAGE_PRIVATE_NESTED:registry-root: the named data folder holds other files or is another account's, and is left unchanged; data is kept in its BetterPullReview/data folder\n");
 			}
 			// This only validates the registry base; it does not admit Default for runtime use.
 			const auto baseAuthority = application::profile_storage_authority::select(application::profile_registry_snapshot{ }, core::default_bpr_profile_id);
@@ -25939,10 +25974,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				}
 				switch (base.error()) {
 				case adapters::sqlite::profile_storage_root_failure::invalid_permissions:
-					// A folder that already existed is never repaired: the
-					// application creates its root mode 0700 itself, and a folder
-					// made beforehand (`mkdir -p` gives 0755) has to be made so.
-					return refuse("registry-root-permissions: the data root folder already exists and is not owner-private (owned by this user, mode 0700); run chmod 700 on it, or name a folder that does not exist yet");
+					// [[BPR-1870]]. The root itself was narrowed above when it
+					// could be; what is left could not be made private here.
+					return refuse("registry-root-permissions: a data folder is not owner-private and could not be made so (it belongs to another account, or its mode cannot be changed); name a folder you own, or one that does not exist yet");
 				case adapters::sqlite::profile_storage_root_failure::invalid_path:
 					return refuse("registry-root-spelling: the data root resolves through a link or another spelling");
 				case adapters::sqlite::profile_storage_root_failure::cancelled:
@@ -26158,6 +26192,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		std::optional<profile_data_reset_report>                                           DataResetReport;
 		github_application_startup_completion                                              Completion;
 		std::filesystem::path                                                              RegistryRoot;
+		bool                                                                               RegistryRootNested = false;
 		std::shared_ptr<void>                                                              Scratch;
 		std::optional<application::durable_queue_state>                                    SavedQueue;
 		std::unique_ptr<application::remembered_connection_store_port>                     ConnectionStore;

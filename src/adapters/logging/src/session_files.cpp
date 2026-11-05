@@ -111,6 +111,13 @@ namespace bpr::adapters::logging {
 					fail(failure::io_failure);
 				}
 				Directory = handle{ ::openat(Root.Value, "logs", O_RDONLY | O_DIRECTORY | O_NOFOLLOW | O_CLOEXEC) };
+				// [[BPR-1870]]. `logs` inside the private data root is the
+				// application's own folder; one of this user's with a wider mode
+				// (a copied data folder) is narrowed through the descriptor just
+				// opened without following a link.
+				if (Directory.valid() && ::fstat(Directory.Value, &admitted) == 0 && admitted.st_uid == ::geteuid() && (admitted.st_mode & 0077U) != 0) {
+					static_cast<void>(::fchmod(Directory.Value, S_IRWXU));
+				}
 				if (!Directory.valid() || ::fstat(Directory.Value, &admitted) != 0 || admitted.st_uid != ::geteuid() || (admitted.st_mode & 0077U) != 0) {
 					fail(failure::invalid_permissions);
 				}
@@ -120,6 +127,12 @@ namespace bpr::adapters::logging {
 				handle file{ ::openat(Directory.Value, aName.c_str(), O_RDWR | O_APPEND | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC | (aCreate ? O_CREAT : 0) | (aExclusive ? O_EXCL : 0), 0600) };
 				if (!file.valid()) {
 					fail(errno == ELOOP ? failure::invalid_permissions : failure::io_failure);
+				}
+				// [[BPR-1870]]. A log file of this user's with one name and a
+				// wider mode is narrowed through the opened descriptor.
+				if (struct stat loose{ }; ::fstat(file.Value, &loose) == 0 && S_ISREG(loose.st_mode) && loose.st_uid == ::geteuid()
+					&& loose.st_nlink == 1 && (loose.st_mode & 0077U) != 0) {
+					static_cast<void>(::fchmod(file.Value, S_IRUSR | S_IWUSR));
 				}
 				static_cast<void>(information(file));
 				verify(file, aName);

@@ -162,6 +162,47 @@ def check_neighbourhood_parent_rule(exe: Path, parent: Path) -> None:
         raise RuntimeError("the registry was not created as an exactly 0700 directory under umask 0002")
 
 
+def check_own_objects_narrowed(exe: Path, parent: Path) -> None:
+    """BPR-1870: the application's own workspace objects are narrowed, not refused.
+
+    A neighbourhood, registry or record of this user's that is wider than
+    private is set to 0700 or 0600 in place and recovery goes on, naming the
+    check it repaired. A neighbourhood that is a link is still refused and its
+    target keeps its mode; the folder that holds the neighbourhood is never
+    changed (check_neighbourhood_parent_rule).
+    """
+    root = create_root(parent, "narrow-neighbourhood")
+    (root / "neighbourhood").chmod(0o755)
+    check(exe, "recover-check", root, "recovered=0 live=0 repaired=neighbourhood-not-private")
+    if mode(root / "neighbourhood") != 0o700 or mode(root) != 0o700:
+        raise RuntimeError("the neighbourhood was not narrowed to 0700, or its parent was changed")
+    root = create_root(parent, "narrow-registry")
+    (root / "registry").mkdir(mode=0o700)
+    (root / "registry").chmod(0o755)
+    check(exe, "recover-check", root, "recovered=0 live=0 repaired=registry-not-private")
+    if mode(root / "registry") != 0o700:
+        raise RuntimeError("the registry was not narrowed to 0700")
+    root = create_root(parent, "narrow-record")
+    check(exe, "ready-abandon", root, "ready")
+    record = journal(root)
+    record.chmod(0o644)
+    check(exe, "recover-check", root, "recovered=1 live=0 repaired=record-not-private")
+    assert_empty(root)
+    root = create_root(parent, "linked-neighbourhood")
+    target = root / "elsewhere"
+    target.mkdir(mode=0o700)
+    target.chmod(0o755)
+    (root / "neighbourhood").rmdir()
+    (root / "neighbourhood").symlink_to(target, target_is_directory=True)
+    # The reported folder is relative to the root through the link, so only
+    # the check is compared.
+    linked = run(exe, "recover-check", root).strip()
+    if not linked.startswith("failure=1 check=neighbourhood-not-private folder=") or "repaired=" in linked:
+        raise RuntimeError(f"a linked neighbourhood was not refused as is: {linked!r}")
+    if mode(target) != 0o755:
+        raise RuntimeError("a linked neighbourhood's target was changed")
+
+
 def journal(root: Path) -> Path:
     records = list((root / "registry").glob("*.jsonl"))
     if len(records) != 1:
@@ -191,6 +232,7 @@ def main() -> None:
             # BPR-0817's mode-bit parent rule. Windows proves its own
             # untrusted-parent refusal through the DACL courses (BPR-0622).
             check_neighbourhood_parent_rule(exe, parent)
+            check_own_objects_narrowed(exe, parent)
         # [[BPR-1857]]. A workspace no record accounts for is refused by name,
         # and kept exactly as it was.
         root = create_root(parent, "unrecorded-leftover")
@@ -329,19 +371,17 @@ def main() -> None:
             if before != after:
                 raise RuntimeError(f"{kind}: refusal altered original or substitute artifacts")
         if os.name != "posix":
-            # [[BPR-0622]]. Windows privacy is the descriptor, not the mode: a
-            # journal readable by Everyone is refused and left exactly as found.
+            # [[BPR-0622]]. Windows privacy is the descriptor, not the mode.
+            # [[BPR-1870]]. A journal of this user's readable by Everyone is
+            # given the exact owner-private descriptor in place, and recovery
+            # goes on and names the repair.
             root = create_root(parent, "negative-acl")
             check(exe, "ready-abandon", root, "ready")
             record = journal(root)
             subprocess.run(["icacls", str(record), "/grant", "*S-1-1-0:(R)"], check=True,
                            stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-            before = {str(p.relative_to(root)): (p.lstat().st_ino, p.read_bytes() if p.is_file() and not p.is_symlink() else None) for p in root.rglob("*")}
-            check(exe, "recover", root, "failure=1")
-            check(exe, "abandon", root, "failure=1")
-            after = {str(p.relative_to(root)): (p.lstat().st_ino, p.read_bytes() if p.is_file() and not p.is_symlink() else None) for p in root.rglob("*")}
-            if before != after:
-                raise RuntimeError("acl: refusal altered original artifacts")
+            check(exe, "recover-check", root, "recovered=1 live=0 repaired=record-not-private")
+            assert_empty(root)
             # A neighbourhood is never created under a parent another principal can write.
             root = parent / "untrusted-parent"
             root.mkdir()
