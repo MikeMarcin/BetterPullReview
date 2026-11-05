@@ -35,12 +35,14 @@
     "session": "ee11f630d0bdb0f2e3a34e289413d051",
     "state": "/Users/jaeger/.codex/attended-review/bpr1859-v001-jPKCNC/state",
     "candidate": "BPR-1859-check-agent-look",
-    "cursor": 3,
-    "transport": "serve --tailscale, host left running for the owner",
-    "status": "prepared, awaiting owner"
+    "cursor": 10,
+    "transport": "host stopped; frozen root removed",
+    "status": "handed back 2026-11-05T00:24:58Z; accepted with no note (decision 8ffdccda)"
   },
-  "pending": [
-    "AC6 owner Accept/Reject of look and placement"
-  ],
-  "next_action": "Read status --after 3 on the session; on Accept record AC6 pass and move the card to 60-done; on Reject apply the note, freeze v002 in a new short session."
+  "pending": [],
+  "test_fixes": {
+    "command_correctness_registry_contract": "f469d75c3",
+    "application_start_review_contract": "b3f47ad57"
+  },
+  "next_action": "Coordinator merges the branch into main."
 }
