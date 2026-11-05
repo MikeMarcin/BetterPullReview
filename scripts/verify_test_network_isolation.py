@@ -282,8 +282,12 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1851]]. The file on screen refreshed first, same slow fixture network.
     "application_refresh_current_file_public_path": "private-desktop-root-refused",
     # [[BPR-1871]]. A file opened during a held clone, same fixture desktop root.
-    "application_file_open_while_loading_public_path": "unmeasured (registered on macOS)",
-    "application_file_open_while_loading_failure_public_path": "unmeasured (registered on macOS)",
+    # [[BPR-1854]] native Limited Interactive Release, source ced72d7fe,
+    # 2026-11-05: both exact direct controls pass; the zero-capability
+    # AppContainer replays each exit1 at the private desktop root under the
+    # canonical storage policy. No Win32 cause is inferred from that predicate.
+    "application_file_open_while_loading_public_path": "private-desktop-root-refused",
+    "application_file_open_while_loading_failure_public_path": "private-desktop-root-refused",
     # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.
     "sqlite_view_filter_memory_store": "fresh-view-filter-store-predicate-failed",
     # [[BPR-1850]]. Activity notifications' store, same SQLite profile root.

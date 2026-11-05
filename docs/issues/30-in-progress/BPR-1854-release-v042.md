@@ -431,3 +431,19 @@ finding. Only that callback parameter and its single use are renamed to
 `aStream`; captures, operations, predicates and budgets are unchanged.
 This tests-only review reseals full/app-manifest digests while preserving
 the exact production mutation pin. Raw analyzer output is retained.
+
+
+### Measured loading-course Windows containment
+
+On the approved Limited Interactive Windows producer at `ced72d7fe`,
+both configured file-loading courses pass directly (21.18 s together).
+Their exact zero-capability AppContainer replays each exit 1 in about
+0.31 s at `private desktop root under the canonical storage policy`.
+The two existing uncontained registrations now name that measured
+predicate instead of `unmeasured (registered on macOS)`. No new exemption,
+Win32 cause or contained functional passing credit is claimed. Exact
+configured commands, environment handling and both streams are retained
+in the external `successor19-containment-r1` record and collected receipt.
+The Windows layout correction separately passes three complete original
+courses in each Release and Debug configuration, with every layout and
+resource assertion intact. Original failures remain preserved.
