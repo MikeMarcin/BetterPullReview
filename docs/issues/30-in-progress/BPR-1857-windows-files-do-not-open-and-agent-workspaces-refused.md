@@ -8,7 +8,7 @@ depends_on: []
 priority: "P1"
 platforms: ["windows", "linux", "macos"]
 metadata: {"reservation": "docs/issues/_reservations/BPR-1857--BPR-1857--58190ccb501f.json", "kind": "defect", "found_by": "owner photos, 2026-11-04 (corporate Windows machine, release 0.4.x)", "related": ["BPR-1791", "BPR-1790", "BPR-1789"], "related_rfcs": ["RFC-BPR-0015", "RFC-BPR-0033"]}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "c5e77a2b55a6cad87b35ac7a12824e9ffb655617", "evidence": {"kind": "command", "detail": "Native affected-path evidence across Mac, Windows11 and Ubuntu26: original new-reason/Qt/ownership selection passes on Mac83b14/14 andWindows83b12/12; Git request boundary/clone correction tests pass on Mac,Windows9cb andUbuntu9cb(12/13 with retained composition failure). Fixture-only correction C5E passes round-trip composition on Mac4.14s, Windowsquietrerun15.48s andUbuntu26.70s, with unchanged semantics/40souterbudget. Current source gates pass on all3. Explicit unchanged-production bridge and all raw attempts live in external v0.4.2 run candidate12. Final frozen comprehensive qualification and corporateWindowsAC3 remain separate."}}, {"criterion": "AC2", "outcome": "pass", "revision": "9cbff5c3c209161eeb525288f368c3c8c33b17aa", "evidence": {"kind": "command", "detail": "Native Windows 11 limited interactive producer, real production composition using MikeMarcin GitHub CLI sign-in: read-only BPR-Test #40 parity course passed, 3/3 whole-PR files (removed, modified, added), exact blob IDs and actual changed lines recorded. Native exit0, same account before/after. External v0.4.2 release run candidate12/bpr1857-live-cli-r4 receipt and parity. Fresh-history previous-update interdiff was unavailable and is not claimed; corporate Windows AC3 and final release qualification remain pending."}}, {"criterion": "AC3", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: the owner's machine shows the named refusal (check, folder, account) or recovers."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "c5e77a2b55a6cad87b35ac7a12824e9ffb655617", "evidence": {"kind": "command", "detail": "Native affected-path evidence across Mac, Windows11 and Ubuntu26: original new-reason/Qt/ownership selection passes on Mac83b14/14 andWindows83b12/12; Git request boundary/clone correction tests pass on Mac,Windows9cb andUbuntu9cb(12/13 with retained composition failure). Fixture-only correction C5E passes round-trip composition on Mac4.14s, Windowsquietrerun15.48s andUbuntu26.70s, with unchanged semantics/40souterbudget. Current source gates pass on all3. Explicit unchanged-production bridge and all raw attempts live in external v0.4.2 run candidate12. Final frozen comprehensive qualification and corporateWindowsAC3 remain separate."}}, {"criterion": "AC2", "outcome": "pass", "revision": "2a8b6b1f514c8f867410b2edbe528488bce78bc5", "evidence": {"kind": "command", "detail": "Fresh Windows11 LimitedInteractive production-composition GitHub CLI parity on updated main: read-only MikeMarcin/BPR-Test#40 passes3/3 whole-PR files with exact left/right blob IDs and7actual changed lines; native exit0, same MikeMarcin account before/after, quota headers4994/4993/4915. External release run main-feedback/bpr1857-live-cli-r5 retains receipt, actual parity and comparison-evidence-review. Fresh history cannot offer previous-upload interdiff, which is not claimed passed. Corporate Windows AC3 and final frozen comprehensive release qualification remain separate."}}, {"criterion": "AC3", "outcome": "pending", "revision": "784f97eeaef843eb3a76e93bb51295ea5f159e86", "evidence": {"kind": "command", "detail": "Pending: the owner's machine shows the named refusal (check, folder, account) or recovers."}}]
 ---
 
 # BPR-1857: Windows files do not open; agent workspaces refused without a reason
@@ -231,13 +231,41 @@ agent's panel output never shows both `process-id` and `descendant-id`, so the
 agent and its descendant are never seen running. macOS passes. It needs its own
 card.
 
+Fixed by [[BPR-1869]] (done): the agent course's frame splitting and the
+streaming answer's redraw rate. At fefa2b983 `application_agent_crash_recovery`
+passes on bpr-main-win four times in a row (30.2 to 30.6 s).
+
 ## Pending
 
 - The owner: is the work machine's account **GitHub CLI** (Accounts shows the
   transport)? Is `%LOCALAPPDATA%`/`%APPDATA%` redirected (OneDrive, a network
   share, folder redirection)? And `icacls` of the folders below, which only
   their machine can give.
-- bpr-main-win: the build and courses below, then AC2 live on BPR-Test.
+- Historical AC2 attempt over OpenSSH (2026-11-05 at 54117c6ae). The
+  following limitations were found before the release coordinator completed
+  the native LimitedInteractive live course at 2a8b6b1f5:
+  - **The token.** gh on bpr-main-win is signed in as MikeMarcin, with the
+    token in Windows Credential Manager (`hosts.yml` has no `oauth_token`).
+    An OpenSSH session cannot read it: `gh auth token` prints
+    `no oauth token found for github.com`, and `gh auth status` says
+    `The token in default is invalid`. The app's GitHub CLI sign-in reads the
+    token the same way (`gh auth token --hostname --user` under its private
+    `GH_CONFIG_DIR`), so an OpenSSH run cannot sign in. Nothing here needs the
+    owner to sign in again. The run must start in the interactive session: the
+    `bpr-win` remote station, or an `InteractiveToken` scheduled task like the
+    `BPR-1525-*` ones. Creating that task was refused by the implementer's
+    permission policy.
+  - **The driver.** No product hook opens a live pull request offscreen.
+    `--attended-open-file` and `--attended-open-pull-request` need
+    `--attended-launch`, which refuses to start without `--github-fixture`.
+    An offscreen AC2 run needs a test-only live course (opt-in CMake option,
+    never a CTest row, like `tool_activity_live_course`). It would start
+    `profile_desktop::start` on a private data root, press
+    `use_github_cli_button()`, answer the read opt-in, open the BPR-Test pull
+    request from the Home bar, reveal a file through
+    `github_application_fixture_access::reveal_fixture_file`, and print
+    `epoch_selectors()->line_summary()->text()` (`pair ready`),
+    `problem_text()` and the status bar.
 - Not compiled here: every `_WIN32`/`Q_OS_WIN` line of this change
   (`windows_account_text`, the inherit-only skip, the Windows clone root).
 
@@ -341,3 +369,16 @@ Ubuntu failures and the Windows run overlapped by another build remain raw
 failures, not passing evidence. AC1 and AC2 are satisfied within that scope.
 The final frozen all-platform compilation, comprehensive qualification, package
 trust and the owner's corporate-machine criterion remain separate.
+
+
+### Release continuation of the live course
+
+The interactive station account is already signed in; no renewed sign-in is
+needed. The release coordinator used the existing manual live parity course
+with the production composition and Windows private-root/CLI factories, not a
+new shipped live-launch hook. At `2a8b6b1f5`, all three real whole-PR files
+compare with their exact blob identities and changed lines. The SSH-context
+limitations above remain historical observations; they do not invalidate that
+LimitedInteractive course. The corporate machine and previous-upload-history
+limitations are still explicit. No remote write or owner desktop capture was
+used.
