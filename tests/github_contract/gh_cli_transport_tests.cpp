@@ -651,6 +651,33 @@ namespace {
 			aMessage);
 	}
 
+	// [[BPR-1857]]. Local Git must carry the Windows launch prerequisite without
+	// borrowing the configured account, proxy or parent environment.
+	auto test_local_git_environment_is_closed() -> void
+	{
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		expect(configuration.has_value(), "local Git platform facts validate");
+		const auto git      = std::filesystem::canonical(layout.Executable);
+		const auto request  = compile_gh_cli_local_git_request(*configuration, git, layout.NeutralDirectory, { "--version" }, { }, 4096U);
+		auto       expected = std::vector<github_cli_process_environment_entry>{
+			{ "GIT_CONFIG_NOSYSTEM", "1" },
+			{ "GIT_CONFIG_GLOBAL", "/dev/null" },
+			{ "GIT_ALLOW_PROTOCOL", "" },
+			{ "GIT_NO_LAZY_FETCH", "1" },
+			{ "GIT_TERMINAL_PROMPT", "0" },
+			{ "GIT_ATTR_NOSYSTEM", "1" },
+			{ "PATH", path_bytes(git.parent_path()) },
+		};
+#if defined(_WIN32)
+		expected.push_back({ "SystemRoot", path_bytes(std::filesystem::canonical(layout.SystemRootDirectory)) });
+#endif
+		expect(request.Environment == expected, "local Git receives only fixed restrictions, its observed executable directory and the required platform fact");
+		expect(request.Executable == path_bytes(git) && request.Arguments == std::vector<std::string>{ "--version" }
+				   && request.WorkingDirectory == path_bytes(layout.NeutralDirectory),
+			   "local Git remains an exact executable and bounded argument request");
+	}
+
 	auto test_configuration_is_canonical_typed_and_closed() -> void
 	{
 		temporary_layout layout;
@@ -2787,6 +2814,7 @@ namespace {
 
 auto main() -> int
 try {
+	test_local_git_environment_is_closed();
 	test_configuration_is_canonical_typed_and_closed();
 	test_all_operations_compile_to_exact_closed_invocations();
 	test_configuration_rejects_ambient_and_unsafe_candidates();

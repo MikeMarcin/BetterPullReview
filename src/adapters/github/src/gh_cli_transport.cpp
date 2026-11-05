@@ -1714,6 +1714,9 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 		auto environment = aConfiguration.Environment;
+#if defined(_WIN32)
+		std::erase_if(environment, [](const auto& aEntry) { return aEntry.Name == "PATH"; });
+#endif
 		append_environment(environment, "PATH", path_bytes(aGit.parent_path()));
 		append_fixed_environment(environment, "GIT_CONFIG_NOSYSTEM=1");
 		append_fixed_environment(environment, "GIT_CONFIG_GLOBAL=/dev/null");
@@ -1781,6 +1784,7 @@ namespace bpr::adapters::github::detail {
 	}
 
 	auto compile_gh_cli_local_git_request(
+		[[maybe_unused]] const validated_gh_cli_configuration& aConfiguration,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
 		std::vector<std::string> aArguments, std::string aInput,
 		const std::size_t aStandardOutputLimit) -> github_cli_process_request
@@ -1793,6 +1797,15 @@ namespace bpr::adapters::github::detail {
 		append_fixed_environment(environment, "GIT_TERMINAL_PROMPT=0");
 		append_fixed_environment(environment, "GIT_ATTR_NOSYSTEM=1");
 		append_environment(environment, "PATH", path_bytes(aGit.parent_path()));
+#if defined(_WIN32)
+		// The runner requires this explicit native fact; never inherit it (or
+		// a search path) from the caller's process environment.
+		for (const auto& entry : aConfiguration.Environment) {
+			if (entry.Name == "SystemRoot") {
+				append_environment(environment, entry.Name, entry.Value);
+			}
+		}
+#endif
 		return github_cli_process_request{
 			.Executable          = path_bytes(aGit),
 			.Arguments           = std::move(aArguments),

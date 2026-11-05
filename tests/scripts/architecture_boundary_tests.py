@@ -3482,6 +3482,30 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     },
                 )
 
+    def test_cli_git_search_authority_stays_bound_to_its_factory(self) -> None:
+        runner = "src/adapters/github/src/github_cli_process_runner.cpp"
+        header = "src/adapters/github/src/github_cli_process_runner.hpp"
+        source = (REPOSITORY_ROOT / runner).read_text(encoding="utf-8")
+        interface = (REPOSITORY_ROOT / header).read_text(encoding="utf-8")
+        baseline = {runner: source, header: interface}
+        result = self.run_check(baseline)
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        mutations = (
+            ("entry.Value == aLocalGitDirectory", "true"),
+            ("LocalGitDirectory{ local_git_directory(aFileLimits.LocalGitExecutable) }",
+             "LocalGitDirectory{ local_git_directory({ }) }"),
+            ("!exact_canonical_file(std::string_view", "false && !exact_canonical_file(std::string_view"),
+            ("directory.find(u8';')", "directory.find(u8'|')"),
+            ("aExecutable.parent_path().generic_u8string()", "aExecutable.generic_u8string()"),
+        )
+        for before, after in mutations:
+            with self.subTest(search_authority=before):
+                self.assertIn(before, source)
+                self.assert_failure(
+                    "GitHub CLI bounded Git search authority must",
+                    {runner: source.replace(before, after, 1), header: interface},
+                )
+
     def test_cli_git_acquisition_factory_refusals_are_code_in_its_body(
         self,
     ) -> None:

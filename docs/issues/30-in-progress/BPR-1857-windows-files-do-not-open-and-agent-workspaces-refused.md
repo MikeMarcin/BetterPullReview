@@ -247,3 +247,45 @@ only for these reviewed combined bytes; the original drift result is retained
 in the external release run. Native affected-path checks, live CLI comparison,
 all-platform compilation and full qualification remain pending for the new
 release candidate. This integration does not close AC2 or AC3.
+
+### Live Windows release check: local Git launch prerequisites
+
+The release integration's native Windows affected-path checks at `83b60e919`
+passed both source gates and all 12 selected functional rows, including the
+Windows workspace-ownership cases. A subsequent actual GitHub CLI session as
+MikeMarcin on BPR-Test #40 reached the connected account and loaded the pull
+request, but its comparison failed at `protocol_acquire` / `git_version`,
+`git_tool_probe_failed`. This is not AC2 acceptance. The raw failed course and
+its anonymized diagnostic events remain in the external release run.
+
+The credential-free local Git request omitted the Windows `SystemRoot` fact
+and supplied a nonempty PATH, which the runner's allocation-free request
+validator deliberately refuses. The clone request also appended a second PATH
+to the validated Windows configuration, which already contains an empty one.
+The follow-up supplies only the validated configuration's `SystemRoot` to local
+Git and constructs its one observed Git search directory in the transport. On
+Windows the clone request removes the configuration's empty PATH before adding
+that directory, so no duplicate is sent. The ordinary nullary runner still
+requires an empty PATH. Only the bounded acquisition factory may admit a search
+path, matching exactly the parent of its observed canonical Git executable.
+Its worker caches that nonsecret directory before requests arrive, and both
+pre-copy and execution-time validation bind to the same factory input. The
+pre-copy validator remains allocation-free, and its existing argument,
+environment, stream and deadline limits still apply. A relative executable, a
+canonical-file mismatch or a directory containing the platform's PATH separator
+is refused. Credential accounting includes the complete request environment as
+before. Token handling, process ownership and the Windows standard-handle
+restriction remain unchanged. Local tree stores retain the nonsecret validated
+configuration needed for the same platform fact.
+
+Regression checks compare the complete local Git request environment and, on
+Windows, launch a real same-test child that checks its exact environment. The ordinary runner
+refuses even the bound directory; acquisition requests refuse extra directories,
+missing `SystemRoot`, relative executables and ambiguous search directories.
+The actual live comparison must pass after the fix; native checks and full
+release qualification for the corrected source are still pending.
+
+The architecture contract also rejects a widened directory comparison, a detached
+worker binding, a removed canonical-file check, an ambiguous PATH separator or
+a changed parent-directory derivation. These checks retain the older strict
+empty-PATH fixture and all pre-copy limits.
