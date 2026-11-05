@@ -161,6 +161,10 @@ namespace bpr::qt {
 		home_ignore,
 		/// [[BPR-1600]]. Home's refresh, on the Refresh key while Home shows.
 		home_refresh,
+		/// [[BPR-1865]]. Home's filter, on Find's key while Home shows.
+		home_filter,
+		/// [[BPR-1865]]. "/" in a Home list goes to the filter.
+		home_filter_from_list,
 
 		cycle_note,
 		cycle_suggest,

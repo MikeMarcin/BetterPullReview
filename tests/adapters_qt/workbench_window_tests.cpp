@@ -23371,9 +23371,20 @@ namespace {
 		expect(window.showing_home() && refreshKeys == qt::shortcut_keys(qt::shortcut_command::refresh) && !refreshKeys.isEmpty()
 				   && window.queue_refresh_action()->shortcuts() == refreshKeys && bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshQueueAction") },
 			   "on Home the Refresh key is bound once, on Home's refresh: " + bound(refreshKeys.front()).join(QLatin1Char{ ',' }).toStdString());
+		// [[BPR-1865]]. Find's key filters Home while Home shows, bound once in
+		// this window (Settings, another top-level window, has its own).
+		const auto findKeys = qt::shortcut_keys(qt::shortcut_command::home_filter);
+		const auto finding  = [&bound](const QKeySequence& aKey) {
+			auto names = bound(aKey);
+			names.removeAll(QStringLiteral("settingsFindShortcut"));
+			return names;
+		};
+		expect(!findKeys.isEmpty() && findKeys == qt::shortcut_keys(qt::shortcut_command::find) && finding(findKeys.front()) == QStringList{ QStringLiteral("homeFilterAction") },
+			   "on Home the Find key is bound once, on Home's filter: " + finding(findKeys.front()).join(QLatin1Char{ ',' }).toStdString());
 		window.choose_home(false);
 		process_events();
 		expect(bound(refreshKeys.front()) == QStringList{ QStringLiteral("refreshPullRequestAction") }, "and back in the review, once, on the pull request's");
+		expect(finding(findKeys.front()) == QStringList{ QStringLiteral("sourceFindAction") }, "and Find's key is the file's Find again, once");
 
 		// Negative control: each kind of drift is reported, by name.
 		qt::workbench_window drifted;
