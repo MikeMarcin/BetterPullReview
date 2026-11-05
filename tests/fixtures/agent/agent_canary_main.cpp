@@ -148,13 +148,21 @@ namespace {
 		return output;
 	}
 
+	/// \brief Writes one frame in pieces, a millisecond apart, so the host
+	/// reads it partially.
+	/// \details [[BPR-1869]]. Three-byte pieces up to 192 bytes; a longer
+	/// frame is cut into 64. Every frame is still split, but the echo of the
+	/// review context (about 15 KB, then 30 KB as hex) no longer takes
+	/// 15,000 sleeps: 25 s on macOS, and past every course's 30 s wait on
+	/// Windows, where a millisecond sleep costs more.
 	void write_partial(const std::string& aFrame)
 	{
-		for (auto offset = std::size_t{ 0U }; offset < aFrame.size(); offset += 3U) {
+		const auto piece = std::max<std::size_t>(3U, (aFrame.size() + 63U) / 64U);
+		for (auto offset = std::size_t{ 0U }; offset < aFrame.size(); offset += piece) {
 			std::cout.write(
 				aFrame.data() + offset,
 				static_cast<std::streamsize>(
-					std::min<std::size_t>(3U, aFrame.size() - offset)));
+					std::min<std::size_t>(piece, aFrame.size() - offset)));
 			std::cout.flush();
 			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 		}
@@ -589,6 +597,19 @@ namespace {
 		}
 		return (executable.parent_path() / ".bpr-descendant-heartbeat").string();
 	}
+
+	/// \brief The supervisor's and this process's identities, which a
+	/// course reads to pause the one and watch the other die.
+	void report_process_identity(const protocol aProtocol)
+	{
+#if defined(_WIN32)
+		emit(aProtocol, "supervisor-id\t" + std::to_string(parent_process_id()));
+		emit(aProtocol, "process-id\t" + std::to_string(::_getpid()));
+#else
+		emit(aProtocol, "supervisor-id\t" + std::to_string(::getppid()));
+		emit(aProtocol, "process-id\t" + std::to_string(::getpid()));
+#endif
+	}
 } // namespace
 
 namespace {
@@ -902,6 +923,12 @@ auto main(int argc, char** argv) -> int
 			|| executable_mode(argv, "crash-descendant-wait")) {
 			emit(protocol, "descendant-id\t" + std::to_string(childId));
 		}
+		// [[BPR-1869]]. The crash course's checkpoint waits for these. They go
+		// out here, before the echo of argv, environment and the review
+		// context, so the checkpoint does not wait on how long that echo is.
+		if (executable_mode(argv, "crash-descendant-wait")) {
+			report_process_identity(protocol);
+		}
 	}
 
 	for (auto index = 0; index < argc; ++index) {
@@ -988,14 +1015,8 @@ auto main(int argc, char** argv) -> int
 	} else if (has_argument(argc, argv, "--wait-forever")
 			   || executable_mode(argv, "wait")) {
 		if (has_argument(argc, argv, "--report-process-id")
-			|| executable_mode(argv, "crash-descendant-wait")) {
-#if defined(_WIN32)
-			emit(protocol, "supervisor-id\t" + std::to_string(parent_process_id()));
-			emit(protocol, "process-id\t" + std::to_string(::_getpid()));
-#else
-			emit(protocol, "supervisor-id\t" + std::to_string(::getppid()));
-			emit(protocol, "process-id\t" + std::to_string(::getpid()));
-#endif
+			&& !executable_mode(argv, "crash-descendant-wait")) {
+			report_process_identity(protocol);
 		}
 		while (true) {
 			std::this_thread::sleep_for(std::chrono::hours{ 1 });
