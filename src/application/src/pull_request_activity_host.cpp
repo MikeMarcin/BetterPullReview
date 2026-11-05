@@ -26,6 +26,7 @@ namespace bpr::application {
 		pull_request_activity_clock               Clock;
 		pull_request_activity_focus               Focus;
 		std::function<void()>                     Observer;
+		pull_request_activity_refresh             Refresh;
 		std::shared_ptr<diagnostic_log_port>      Log;
 		core::activity_memory                     Memory;
 		core::activity_session                    Session;
@@ -205,6 +206,7 @@ namespace bpr::application {
 					decision.Memory.LastModified = aAnswer.LastModified;
 				}
 				Statistics.Suppressed += decision.Suppressed;
+				auto active              = std::move(decision.Active);
 				Session                  = std::move(decision.Session);
 				const auto memoryChanged = decision.Memory != Memory;
 				Memory                   = std::move(decision.Memory);
@@ -226,6 +228,14 @@ namespace bpr::application {
 				}
 				if (memoryChanged) {
 					write();
+				}
+				if (!active.empty() && Refresh) {
+					// [[BPR-1867]]. Counts only: the log never names a repository.
+					Statistics.Active += active.size();
+					record_operation(Log.get(), { .Action = core::operation_action::activity_refresh, .Count = static_cast<std::uint32_t>(active.size()) });
+					try {
+						Refresh(active);
+					} catch (...) { }
 				}
 				break;
 			}
@@ -320,6 +330,11 @@ namespace bpr::application {
 	void pull_request_activity_host::set_observer(std::function<void()> aObserver)
 	{
 		Impl->Observer = std::move(aObserver);
+	}
+
+	void pull_request_activity_host::set_refresh(pull_request_activity_refresh aRefresh)
+	{
+		Impl->Refresh = std::move(aRefresh);
 	}
 
 	auto pull_request_activity_host::activate() -> core::activity_target

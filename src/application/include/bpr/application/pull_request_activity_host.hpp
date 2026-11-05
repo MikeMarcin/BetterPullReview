@@ -111,6 +111,8 @@ namespace bpr::application {
 		std::uint64_t Posted      = 0U;
 		std::uint64_t Suppressed  = 0U;
 		std::uint64_t Stale       = 0U;
+		/// [[BPR-1867]]. Pull requests handed on to be read again.
+		std::uint64_t Active = 0U;
 
 		auto operator<=>(const pull_request_activity_statistics&) const = default;
 	};
@@ -119,6 +121,9 @@ namespace bpr::application {
 	using pull_request_activity_clock = std::function<std::int64_t()>;
 	/// \brief The pull requests open and focused in a window now.
 	using pull_request_activity_focus = std::function<std::vector<core::pull_request_ref>()>;
+	/// \brief [[BPR-1867]]. The pull requests a poll found new activity on;
+	/// a window showing one reads it again.
+	using pull_request_activity_refresh = std::function<void(const std::vector<core::pull_request_ref>&)>;
 
 	class pull_request_activity_host final
 	{
@@ -153,6 +158,10 @@ namespace bpr::application {
 		/// \brief Called on the decision lane after each answered poll, so the
 		/// Settings line can follow `state()`.
 		void set_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1867]]. Called on the decision lane with every answer
+		/// that found new activity, before the observer, whether or not it was
+		/// posted: the open pull request picks it up by itself.
+		void set_refresh(pull_request_activity_refresh aRefresh);
 		/// \brief A notification was clicked: where it goes.
 		[[nodiscard]] auto activate() -> core::activity_target;
 

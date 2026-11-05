@@ -229,6 +229,52 @@ namespace bpr::core {
 	/// never interrupts a reader.
 	[[nodiscard]] auto refresh_announcement_between(const refresh_state& aBefore, const refresh_state& aAfter) noexcept
 		-> refresh_announcement;
+
+	/// \brief [[BPR-1867]]. How long the open pull request stays current for a
+	/// window that comes back to it: Home's discovery keeps the same five minutes.
+	inline constexpr std::int64_t refresh_return_seconds = 300;
+	/// \brief How long a rate limit is waited out when GitHub named no wait.
+	inline constexpr std::uint32_t refresh_rate_wait_seconds = 60U;
+
+	/// \brief [[BPR-1867]]. Whether a window coming back to the pull request it
+	/// shows reads it again by itself.
+	/// \details Only an update older than `refresh_return_seconds` is read
+	/// again, the first read's as any refresh's; nothing while a read runs or
+	/// before anything was read, and nothing
+	/// while a rate limit's wait lasts. This is the open pull request's only
+	/// news for a sign-in GitHub refuses the notification list, and catches
+	/// what the list does not carry (a push, a thread I take no part in).
+	[[nodiscard]] auto refresh_due_on_return(const refresh_state& aState, std::int64_t aNow) noexcept -> bool;
+
+	/// \brief [[BPR-1867]]. What a window owes its open pull request.
+	struct reread_facts
+	{
+		/// A reread is owed.
+		bool Owed = false;
+		/// Only the application's own news owes it (activity on GitHub, a
+		/// return): it may wait while the reviewer writes. A publication's
+		/// reread does not.
+		bool Quiet = false;
+		/// A read is running: it may predate the news, so the reread follows it.
+		bool Reading = false;
+		/// The reviewer is writing in one of the window's multi-line editors.
+		bool Composing = false;
+
+		auto operator<=>(const reread_facts&) const = default;
+	};
+
+	enum class reread_step : std::uint8_t {
+		/// Nothing is owed.
+		none,
+		/// Owed, but not now: asked again when the read settles or the
+		/// reviewer stops writing.
+		wait,
+		/// Read the pull request again now.
+		now,
+	};
+
+	/// \brief [[BPR-1867]]. Whether the owed reread runs now.
+	[[nodiscard]] auto decide_reread(const reread_facts& aFacts) noexcept -> reread_step;
 } // namespace bpr::core
 
 #endif // BPR_SRC_CORE_INCLUDE_BPR_CORE_REFRESH_FEEDBACK_HPP

@@ -1624,7 +1624,17 @@ namespace bpr::qt {
 		/// \brief [[BPR-1850]]. Brings the window forward on \p aRef: shown
 		/// already, it stays; otherwise it is opened on Overview. Never on
 		/// GitHub. None only brings the window forward on what it shows.
-		auto               open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool;
+		auto open_notified_pull_request(const std::optional<core::pull_request_ref>& aRef) -> bool;
+		/// \brief [[BPR-1867]]. The pull request this window shows under its
+		/// account session, in front or not; none for Home or a public preview.
+		[[nodiscard]] auto shown_pull_request() const -> std::optional<core::pull_request_ref>;
+		/// \brief [[BPR-1867]]. Whether the reviewer is writing: the keyboard
+		/// focus is in one of this window's multi-line editors (not a browser).
+		[[nodiscard]] auto composing() const -> bool;
+		/// \brief [[BPR-1867]]. Called when the window comes back in front on a
+		/// pull request it shows under its account session, with the refresh
+		/// clock's reading; the composition decides whether it is read again.
+		void               set_pull_request_return_dispatch(std::function<void(std::int64_t)> aDispatch);
 		[[nodiscard]] auto queue_rule_kind_selector() const noexcept -> QComboBox*;
 		[[nodiscard]] auto queue_rule_pattern_editor() const noexcept -> QLineEdit*;
 		[[nodiscard]] auto queue_rule_exclusion() const noexcept -> QCheckBox*;
@@ -3132,6 +3142,8 @@ namespace bpr::qt {
 		workbench_home_ignore_dispatch                     HomeIgnoreDispatch;
 		QAction*                                           HomeIgnoreAction = nullptr;
 		workbench_queue_discovery_dispatch                 QueueDiscoveryDispatch;
+		/// [[BPR-1867]]. Coming back in front on the pull request shown.
+		std::function<void(std::int64_t)>                  PullRequestReturnDispatch;
 		std::function<void(const core::pull_request_ref&)> HomeReturnDispatch;
 		/// [[BPR-1848]]. The pull request the review surface last showed, as the
 		/// queue names it, for the return to Home that leaves it.

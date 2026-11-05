@@ -1224,6 +1224,22 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   the reviewer picks while this reread or a Refresh is in flight is the one
   shown once the read lands ([[BPR-1478]]): the latest pick wins, and the
   read never takes the window back to the file it showed before.
+- **When someone else acts on it** ([[BPR-1867]], the owner, 2026-11-04:
+  another user commented on the open pull request and it did not show the
+  comment "on its own; I had to manually refresh"). When the profile's
+  activity poll ([[BPR-1850]]) finds new activity on the pull request a
+  window shows, in front or not and whether or not a notification was posted,
+  that window reads it again by itself, as after publishing: the same one
+  reread, presented as the application's own update ("Updated just now · 1
+  new comment"), the same place kept. It waits while the reviewer is writing
+  in one of the window's multi-line editors and runs once the focus leaves
+  it; the text written is untouched. A window that comes back in front on a
+  pull request last brought up to date five minutes ago or more
+  (`core::refresh_return_seconds`, Home's freshness window) reads it again
+  the same way, unless a rate limit's wait is still running. That return is
+  the only news a native sign-in gets, which GitHub refuses the notification
+  list; there is no periodic poll of the open pull request, because a read
+  of it is about eighteen requests and none of them is conditional.
 - **While a row opens** ([[BPR-1357]], the owner, 2026-10-09: "There's no
   obvious immediate indication you actually tried to open a review if there
   is real network latency on the action."). A first read stays on Home until

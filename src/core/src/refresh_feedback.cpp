@@ -172,4 +172,28 @@ namespace bpr::core {
 		}
 		return refresh_announcement::none;
 	}
+
+	auto refresh_due_on_return(const refresh_state& aState, const std::int64_t aNow) noexcept -> bool
+	{
+		if (aState.Phase == refresh_phase::refreshing || !aState.UpdatedAt) {
+			return false;
+		}
+		if (aState.Phase == refresh_phase::failed && aState.Failure == refresh_failure::rate_limited && aState.SettledAt
+			&& aNow < *aState.SettledAt + static_cast<std::int64_t>(aState.RetryAfterSeconds.value_or(refresh_rate_wait_seconds))) {
+			return false;
+		}
+		// A clock that went back is not an age.
+		return aNow - *aState.UpdatedAt >= refresh_return_seconds;
+	}
+
+	auto decide_reread(const reread_facts& aFacts) noexcept -> reread_step
+	{
+		if (!aFacts.Owed) {
+			return reread_step::none;
+		}
+		if (aFacts.Reading || (aFacts.Quiet && aFacts.Composing)) {
+			return reread_step::wait;
+		}
+		return reread_step::now;
+	}
 } // namespace bpr::core
