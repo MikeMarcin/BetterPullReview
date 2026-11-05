@@ -39,8 +39,12 @@ namespace bpr::qt {
 
 		/// Row lengths, as fractions of the width, that read as a list of
 		/// names rather than as a bar chart: no two neighbours alike.
-		constexpr auto row_lengths  = std::array{ 0.62, 0.44, 0.71, 0.53, 0.38, 0.66, 0.49, 0.58 };
-		constexpr auto text_lengths = std::array{ 0.94, 0.88, 0.97, 0.61, 0.0, 0.91, 0.83, 0.47 };
+		/// [[BPR-1871]]. How many lines a failure in place of the content may
+		/// wrap to: a reason such as a file's comparison failure names what
+		/// failed and what to do, which takes more than three in a narrow pane.
+		constexpr auto failure_lines = 6;
+		constexpr auto row_lengths   = std::array{ 0.62, 0.44, 0.71, 0.53, 0.38, 0.66, 0.49, 0.58 };
+		constexpr auto text_lengths  = std::array{ 0.94, 0.88, 0.97, 0.61, 0.0, 0.91, 0.83, 0.47 };
 		/// Code: an indent in characters and a length, line by line.
 		constexpr auto code_lines = std::array{
 			std::pair{ 0, 0.42 },
@@ -467,8 +471,8 @@ namespace bpr::qt {
 		// Under the sentence, however many lines it wraps to.
 		const auto line   = words_rect();
 		const auto left   = line.left() + line.height() + 8;
-		const auto said   = QFontMetrics{ font() }.boundingRect(QRect{ left, line.top(), std::max(1, line.right() - left), line.height() * 3 }, Qt::AlignTop | Qt::AlignLeft | Qt::TextWordWrap, Words.Failure);
-		const auto lowest = std::max(line.bottom(), std::min(said.bottom(), line.top() + (line.height() * 3)));
+		const auto said   = QFontMetrics{ font() }.boundingRect(QRect{ left, line.top(), std::max(1, line.right() - left), line.height() * failure_lines }, Qt::AlignTop | Qt::AlignLeft | Qt::TextWordWrap, Words.Failure);
+		const auto lowest = std::max(line.bottom(), std::min(said.bottom(), line.top() + (line.height() * failure_lines)));
 		RetryButton->setGeometry(QRect{ QPoint{ left, lowest + 8 }, hint });
 	}
 
@@ -672,7 +676,7 @@ namespace bpr::qt {
 		}
 		// A failure in place of the content may wrap: it is the only thing said.
 		if (failure) {
-			const auto wrapped = QRect{ textRect.left(), textRect.top(), textRect.width(), line.height() * 3 };
+			const auto wrapped = QRect{ textRect.left(), textRect.top(), textRect.width(), line.height() * failure_lines };
 			aPainter.drawText(wrapped, Qt::AlignTop | Qt::AlignLeft | Qt::TextWordWrap, said);
 			return;
 		}

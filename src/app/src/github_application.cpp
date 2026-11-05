@@ -8269,6 +8269,9 @@ namespace bpr::app {
 		void publish(const application::workbench_projection& aProjection) override
 		{
 			Window->publish(aProjection);
+			if (aProjection.Selection) {
+				present_opened_file();
+			}
 			if (aProjection.Files || aProjection.FilesDelta || aProjection.Selection) {
 				schedule_preparation();
 			}
@@ -8278,11 +8281,84 @@ namespace bpr::app {
 		}
 		void fail(const application::workbench_failure_publication& aFailure) override
 		{
-			Window->fail(aFailure);
+			// [[BPR-1871]]. "No exact comparison is ready" while the pull
+			// request is still loading only means "not yet": the comparison
+			// area says the file is loading, and the status line says nothing
+			// until the load stops without one.
+			const auto refusal = aFailure.Failure == application::workbench_host_failure::selected_file_comparison_unavailable;
+			if (refusal && WorkbenchHost != nullptr && WorkbenchHost->selected().has_value()) {
+				OpenedFileFailure         = aFailure;
+				OpenedFileFailed          = WorkbenchHost->selected();
+				OpenedFileFailureWithheld = opened_file_wait() == core::opened_file_wait::loading;
+			}
+			if (!refusal || !OpenedFileFailureWithheld) {
+				Window->fail(aFailure);
+			}
 			if (ReadingRestoration && aFailure.Failure != application::workbench_host_failure::settings_unavailable) {
 				ReadingFailed = true;
 				schedule_reading_restoration();
 			}
+			present_opened_file();
+		}
+		/// \brief [[BPR-1871]]. The facts the core decides the opened file's
+		/// wait from: whether a file is open and on screen, what its last
+		/// refusal or failure was, and where the review history stands.
+		[[nodiscard]] auto opened_file_facts() const -> core::opened_file_wait_facts
+		{
+			auto facts = core::opened_file_wait_facts{ };
+			if (Closing || Window == nullptr || WorkbenchHost == nullptr || EpochHost == nullptr || !WorkbenchHost->selected().has_value()
+				|| !WorkbenchHost->file_observation(*WorkbenchHost->selected()).has_value()) {
+				return facts;
+			}
+			const auto  selected = *WorkbenchHost->selected();
+			const auto& epoch    = EpochHost->state();
+			const auto* surface  = Window->comparison_surface();
+			facts.Opened         = true;
+			// Its own comparison is loading or shown under its request; the
+			// surface says that wait itself.
+			facts.Shown = surface != nullptr && surface->current_context().has_value() && SelectedDiffRequest.has_value() && SelectedDiffRequest->File.File == selected;
+			// Only this pull request's: a generation is one accepted authority.
+			const auto failed = OpenedFileFailure.has_value() && OpenedFileFailed == std::optional{ selected }
+				&& OpenedFileFailure->Context.Generation == WorkbenchHost->generation();
+			const auto refusal        = failed && OpenedFileFailure->Failure == application::workbench_host_failure::selected_file_comparison_unavailable;
+			facts.FileFailed          = failed && !refusal;
+			facts.ComparisonRefused   = refusal;
+			facts.ComparisonAvailable = epoch.AcceptedComparison.has_value() && core::available_for_diff(*epoch.AcceptedComparison);
+			facts.ComparisonPending   = epoch.PendingComparison.has_value();
+			facts.Epoch               = epoch.Status;
+			return facts;
+		}
+		[[nodiscard]] auto opened_file_wait() const -> core::opened_file_wait
+		{
+			return core::decide_opened_file_wait(opened_file_facts());
+		}
+		/// \brief [[BPR-1871]]. The owner, 2026-11-05: "if I try to open a
+		/// file while it's still loading the pr the tab shows the "no file
+		/// opened" screen instead it should indicate were loading that
+		/// file." The comparison area presents the core's decision for the
+		/// file the reviewer opened: loading it by name until it shows, or
+		/// the sentence that says why it cannot.
+		void present_opened_file()
+		{
+			if (Closing || Window == nullptr || WorkbenchHost == nullptr) {
+				return;
+			}
+			const auto facts = opened_file_facts();
+			const auto wait  = core::decide_opened_file_wait(facts);
+			auto       path  = QString{ };
+			if (facts.Opened) {
+				if (const auto entry = WorkbenchHost->file_observation(*WorkbenchHost->selected()); entry.has_value()) {
+					path = QString::fromStdString(entry->PresentationPath);
+				}
+			}
+			if (wait == core::opened_file_wait::failed && OpenedFileFailureWithheld && OpenedFileFailure.has_value()) {
+				// The load stopped without a comparison: now the status line
+				// says so too.
+				OpenedFileFailureWithheld = false;
+				Window->fail(*OpenedFileFailure);
+			}
+			Window->present_opened_file(wait, path, !facts.ComparisonAvailable,
+										facts.FileFailed || facts.ComparisonRefused ? std::optional{ OpenedFileFailure->Failure } : std::nullopt);
 		}
 		void restoration_notice(const QString& aText)
 		{
@@ -23012,6 +23088,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			retain_reading_position();
 			schedule_reading_restoration();
 			schedule_tab_presentation();
+			// [[BPR-1871]]. The history's progress or failure moves the
+			// opened file's wait.
+			present_opened_file();
 			schedule_link_location();
 		}
 
@@ -23163,6 +23242,28 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				Window->clear_review_ledger(!ReviewLedgerAvailable);
 			}
+			// [[BPR-1871]]. The file's comparison is being read: until it is
+			// asked of the diff host, the comparison area says so by name
+			// rather than "No file open".
+			OpenedFileFailure.reset();
+			OpenedFileFailed.reset();
+			OpenedFileFailureWithheld = false;
+			if (Window != nullptr) {
+				Window->comparison_surface()->set_waiting(QString::fromStdString(aRequest.File.PresentationPath), false);
+			}
+			// The opened file's reads go next: a preparation round of other
+			// files already running is stopped and starts again once the
+			// reviewer's own work is done ([[BPR-1344]]).
+			const auto prepared = std::ranges::any_of(PreparedWindow, [&aRequest](const application::workbench_selected_diff_request& aPrepared) {
+				return aPrepared.File.File == aRequest.File.File;
+			});
+			if (core::opening_preempts_preparation(PreparationsInFlight.load(std::memory_order_acquire) != 0U, prepared)) {
+				cancel_preparation();
+				PreparationDeferred = true;
+#if defined(BPR_BUILD_TESTING)
+				++PreparationsPreempted;
+#endif
+			}
 #if defined(BPR_BUILD_TESTING)
 			++SelectedDiffBegins;
 #endif
@@ -23243,6 +23344,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (Closing || Window == nullptr) {
 				return;
 			}
+			// [[BPR-1871]]. Only the opened file's current request fails it.
+			const auto current = SelectedDiffRequest == std::optional{ aFailure.Request };
 			if (SelectedDiffRequest == std::optional{ aFailure.Request }) {
 				SelectedDiffRequest.reset();
 				// RFC-BPR-0089 M3. A failed diff has no strip over it.
@@ -23287,6 +23390,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				.Context = aFailure.Request.Context,
 				.Failure = failure,
 			});
+			// [[BPR-1871]]. The opened file's own read failed: its sentence
+			// stands in its place.
+			if (current && WorkbenchHost != nullptr && WorkbenchHost->selected() == std::optional{ aFailure.Request.File.File }) {
+				auto publication          = application::workbench_failure_publication{ };
+				publication.Context       = aFailure.Request.Context;
+				publication.Failure       = failure;
+				OpenedFileFailure         = publication;
+				OpenedFileFailed          = aFailure.Request.File.File;
+				OpenedFileFailureWithheld = false;
+				present_opened_file();
+			}
 #if defined(BPR_BUILD_TESTING)
 			++SelectedDiffFailures;
 #endif
@@ -23412,6 +23526,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			const auto  generation = PreparationGeneration;
 			auto* const epoch      = EpochHost.get();
+#if defined(BPR_BUILD_TESTING)
+			// [[BPR-1871]]. A round started while the opened file is still
+			// waiting for its own comparison would have gone ahead of it.
+			if (WorkbenchHost->selected().has_value()
+				&& !(SelectedDiffPublication.has_value() && SelectedDiffPublication->Request.File.File == *WorkbenchHost->selected())) {
+				++PreparationsStartedBeforeOpenedFile;
+			}
+#endif
 			PreparationsInFlight.fetch_add(1U, std::memory_order_acq_rel);
 			try {
 				PrepareEffects.post([this, epoch, generation, requests = std::move(window), stop = PreparationStop.get_token()] {
@@ -23498,7 +23620,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// Clears the previous comparison's spans before the new ones are
 			// asked for, so a classification that lands first is not thrown
 			// away by the surface it was meant for.
-			Window->comparison_surface()->set_loading(pending);
+			Window->comparison_surface()->set_loading(pending, QString::fromUtf8(aPath.data(), static_cast<qsizetype>(aPath.size())));
 			classify_comparison(pending, aPath);
 		}
 
@@ -25673,7 +25795,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		bool                                                      PreparationScheduled  = false;
 		bool                                                      PreparationDeferred   = false;
 		std::atomic_size_t                                        PreparationsInFlight{ 0U };
+		/// [[BPR-1871]]. The opened file's last refusal or failure, and
+		/// whether a missing-comparison refusal was kept from the status
+		/// line because the pull request was still loading.
+		std::optional<application::workbench_failure_publication> OpenedFileFailure;
+		std::optional<core::workbench_file_id>                    OpenedFileFailed;
+		bool                                                      OpenedFileFailureWithheld = false;
 #if defined(BPR_BUILD_TESTING)
+		std::size_t PreparationsPreempted               = 0U;
+		std::size_t PreparationsStartedBeforeOpenedFile = 0U;
 		/// [[BPR-1212]]. Answers to turn into `cancelled` before they apply.
 		std::size_t ForcedBaseNumberingCancellations = 0U;
 		/// [[BPR-1570]]. The label-authoring course makes the kept base
@@ -27677,29 +27807,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		const auto& implementation = *aApplication.Implementation;
 		const auto& host           = *implementation.DiffHost;
 		return {
-			.OutstandingJobs              = host.outstanding_jobs(),
-			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
-			.EpochOutstandingJobs         = implementation.EpochHost->outstanding_jobs(),
-			.EpochReviewerJobs            = implementation.EpochHost->outstanding_reviewer_jobs(),
-			.EpochPreparationJobs         = implementation.EpochHost->outstanding_preparation_jobs(),
-			.PreparationPending           = implementation.PreparationScheduled || implementation.PreparationDeferred,
-			.EpochMaintenancePending      = implementation.EpochHost->state().PendingMaintenance.has_value(),
-			.CacheEntries                 = host.cache_entries(),
-			.CacheBytes                   = host.cache_bytes(),
-			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,
-			.Pending                      = host.state().Pending.has_value(),
-			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
-			.TabPresentationPending       = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
-			.Quiescent                    = host.is_quiescent(),
-			.PreparedEntries              = host.prepared_entries(),
-			.PreparedBytes                = host.prepared_bytes(),
-			.Preparing                    = host.preparing(),
-			.PreparationsInFlight         = implementation.PreparationsInFlight.load(std::memory_order_acquire),
-			.PreparationRounds            = implementation.PreparationRounds,
-			.PreparedResolutions          = implementation.PreparedResolutions,
-			.PreparedRemoteBlobs          = implementation.PreparedRemoteBlobs,
-			.PreparedRemoteBatches        = implementation.PreparedRemoteBatches,
-			.PreparedHits                 = host.prepared_hits(),
+			.OutstandingJobs                     = host.outstanding_jobs(),
+			.WorkbenchOutstandingRequests        = implementation.WorkbenchHost->outstanding_requests(),
+			.EpochOutstandingJobs                = implementation.EpochHost->outstanding_jobs(),
+			.EpochReviewerJobs                   = implementation.EpochHost->outstanding_reviewer_jobs(),
+			.EpochPreparationJobs                = implementation.EpochHost->outstanding_preparation_jobs(),
+			.PreparationPending                  = implementation.PreparationScheduled || implementation.PreparationDeferred,
+			.EpochMaintenancePending             = implementation.EpochHost->state().PendingMaintenance.has_value(),
+			.CacheEntries                        = host.cache_entries(),
+			.CacheBytes                          = host.cache_bytes(),
+			.FixtureDiffHelperInvocations        = implementation.FixtureDiffHelperInvocations,
+			.Pending                             = host.state().Pending.has_value(),
+			.NavigationReady                     = implementation.WorkbenchHost->state().Navigation.has_value(),
+			.TabPresentationPending              = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
+			.Quiescent                           = host.is_quiescent(),
+			.PreparedEntries                     = host.prepared_entries(),
+			.PreparedBytes                       = host.prepared_bytes(),
+			.Preparing                           = host.preparing(),
+			.PreparationsInFlight                = implementation.PreparationsInFlight.load(std::memory_order_acquire),
+			.PreparationRounds                   = implementation.PreparationRounds,
+			.PreparedResolutions                 = implementation.PreparedResolutions,
+			.PreparedRemoteBlobs                 = implementation.PreparedRemoteBlobs,
+			.PreparedRemoteBatches               = implementation.PreparedRemoteBatches,
+			.PreparedHits                        = host.prepared_hits(),
+			.PreparationsPreempted               = implementation.PreparationsPreempted,
+			.PreparationsStartedBeforeOpenedFile = implementation.PreparationsStartedBeforeOpenedFile,
 		};
 	}
 	auto detail::github_application_fixture_access::diff_blob_reads(const github_application& aApplication, const core::git_blob_oid& aBlob) -> std::uint64_t
@@ -27718,29 +27850,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		const auto& implementation = *found->second;
 		const auto& host           = *implementation.DiffHost;
 		return {
-			.OutstandingJobs              = host.outstanding_jobs(),
-			.WorkbenchOutstandingRequests = implementation.WorkbenchHost->outstanding_requests(),
-			.EpochOutstandingJobs         = implementation.EpochHost->outstanding_jobs(),
-			.EpochReviewerJobs            = implementation.EpochHost->outstanding_reviewer_jobs(),
-			.EpochPreparationJobs         = implementation.EpochHost->outstanding_preparation_jobs(),
-			.PreparationPending           = implementation.PreparationScheduled || implementation.PreparationDeferred,
-			.EpochMaintenancePending      = implementation.EpochHost->state().PendingMaintenance.has_value(),
-			.CacheEntries                 = host.cache_entries(),
-			.CacheBytes                   = host.cache_bytes(),
-			.FixtureDiffHelperInvocations = implementation.FixtureDiffHelperInvocations,
-			.Pending                      = host.state().Pending.has_value(),
-			.NavigationReady              = implementation.WorkbenchHost->state().Navigation.has_value(),
-			.TabPresentationPending       = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
-			.Quiescent                    = host.is_quiescent(),
-			.PreparedEntries              = host.prepared_entries(),
-			.PreparedBytes                = host.prepared_bytes(),
-			.Preparing                    = host.preparing(),
-			.PreparationsInFlight         = implementation.PreparationsInFlight.load(std::memory_order_acquire),
-			.PreparationRounds            = implementation.PreparationRounds,
-			.PreparedResolutions          = implementation.PreparedResolutions,
-			.PreparedRemoteBlobs          = implementation.PreparedRemoteBlobs,
-			.PreparedRemoteBatches        = implementation.PreparedRemoteBatches,
-			.PreparedHits                 = host.prepared_hits(),
+			.OutstandingJobs                     = host.outstanding_jobs(),
+			.WorkbenchOutstandingRequests        = implementation.WorkbenchHost->outstanding_requests(),
+			.EpochOutstandingJobs                = implementation.EpochHost->outstanding_jobs(),
+			.EpochReviewerJobs                   = implementation.EpochHost->outstanding_reviewer_jobs(),
+			.EpochPreparationJobs                = implementation.EpochHost->outstanding_preparation_jobs(),
+			.PreparationPending                  = implementation.PreparationScheduled || implementation.PreparationDeferred,
+			.EpochMaintenancePending             = implementation.EpochHost->state().PendingMaintenance.has_value(),
+			.CacheEntries                        = host.cache_entries(),
+			.CacheBytes                          = host.cache_bytes(),
+			.FixtureDiffHelperInvocations        = implementation.FixtureDiffHelperInvocations,
+			.Pending                             = host.state().Pending.has_value(),
+			.NavigationReady                     = implementation.WorkbenchHost->state().Navigation.has_value(),
+			.TabPresentationPending              = implementation.TabAdvanceQueued || implementation.TabLoad.has_value() || implementation.RefreshKeptTabView,
+			.Quiescent                           = host.is_quiescent(),
+			.PreparedEntries                     = host.prepared_entries(),
+			.PreparedBytes                       = host.prepared_bytes(),
+			.Preparing                           = host.preparing(),
+			.PreparationsInFlight                = implementation.PreparationsInFlight.load(std::memory_order_acquire),
+			.PreparationRounds                   = implementation.PreparationRounds,
+			.PreparedResolutions                 = implementation.PreparedResolutions,
+			.PreparedRemoteBlobs                 = implementation.PreparedRemoteBlobs,
+			.PreparedRemoteBatches               = implementation.PreparedRemoteBatches,
+			.PreparedHits                        = host.prepared_hits(),
+			.PreparationsPreempted               = implementation.PreparationsPreempted,
+			.PreparationsStartedBeforeOpenedFile = implementation.PreparationsStartedBeforeOpenedFile,
 		};
 	}
 
