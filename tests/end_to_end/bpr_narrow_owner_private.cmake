@@ -12,6 +12,10 @@
 # here: the Windows row `owner_private_descriptor_agreement` pins it, and fails
 # if this helper or the Python one stops removing a shared inherited grant
 # (BPR-0900).
+#
+# The grant names the token user's SID, not USERDOMAIN\USERNAME ([[BPR-1870]]):
+# an OpenSSH logon on a workgroup machine has USERDOMAIN=WORKGROUP, which
+# names no account, and icacls refused the grant with 1332 ([[BPR-1869]]).
 function(bpr_narrow_owner_private)
     file(
         CHMOD
@@ -21,6 +25,7 @@ function(bpr_narrow_owner_private)
     if(NOT WIN32)
         return()
     endif()
+    _bpr_current_user_sid(user_sid)
     foreach(directory IN LISTS ARGN)
         file(TO_NATIVE_PATH "${directory}" native_directory)
         execute_process(
@@ -29,7 +34,7 @@ function(bpr_narrow_owner_private)
                 "${native_directory}"
                 /inheritance:r
                 /grant:r
-                "$ENV{USERDOMAIN}\\$ENV{USERNAME}:(OI)(CI)F"
+                "*${user_sid}:(OI)(CI)F"
             RESULT_VARIABLE narrow_result
             OUTPUT_QUIET
             ERROR_VARIABLE narrow_error
@@ -40,6 +45,35 @@ function(bpr_narrow_owner_private)
             )
         endif()
     endforeach()
+endfunction()
+
+# Windows only: the current user's string SID, from System32's whoami, read
+# once per script. whoami is named by path because Git for Windows' usr\bin,
+# on PATH for perl, carries a POSIX whoami that has no /user.
+function(_bpr_current_user_sid output_variable)
+    get_property(sid GLOBAL PROPERTY BPR_CURRENT_USER_SID)
+    if(sid STREQUAL "")
+        file(TO_CMAKE_PATH "$ENV{SystemRoot}/System32/whoami.exe" whoami)
+        execute_process(
+            COMMAND "${whoami}" /user /fo csv /nh
+            RESULT_VARIABLE whoami_result
+            OUTPUT_VARIABLE whoami_output
+            ERROR_VARIABLE whoami_error
+        )
+        if(NOT whoami_result EQUAL 0)
+            message(FATAL_ERROR
+                "could not read the current user's SID: ${whoami_error}"
+            )
+        endif()
+        if(NOT whoami_output MATCHES "\"(S-1-[0-9-]+)\"")
+            message(FATAL_ERROR
+                "could not read the current user's SID from: ${whoami_output}"
+            )
+        endif()
+        set(sid "${CMAKE_MATCH_1}")
+        set_property(GLOBAL PROPERTY BPR_CURRENT_USER_SID "${sid}")
+    endif()
+    set(${output_variable} "${sid}" PARENT_SCOPE)
 endfunction()
 
 # Gives a course's application data root a parent this platform trusts, and
