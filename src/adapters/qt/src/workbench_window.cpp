@@ -133,7 +133,6 @@
 #include <QTimer>
 #include <QToolBar>
 #include <QToolButton>
-#include <QToolTip>
 #include <QTreeView>
 #include <QVBoxLayout>
 #include <QWidget>
@@ -5024,10 +5023,12 @@ namespace bpr::qt {
 			"Notifications name the repository and number only, and nothing is marked read on GitHub. "
 			"It needs a GitHub CLI sign-in.");
 		ActivityInfo->setAccessibleDescription(activityDetail);
-		// Rich text, so the tooltip wraps instead of running off the screen.
-		ActivityInfo->setToolTip(QStringLiteral("<p style='white-space:normal'>%1</p>").arg(activityDetail.toHtmlEscaped()));
+		// Hover is answered by the application's anchored tooltips, which wrap
+		// long lines; a click or a key shows the same text anchored to the
+		// button and held while it has focus.
+		ActivityInfo->setToolTip(activityDetail);
 		connect(ActivityInfo, &QToolButton::clicked, this, [this] {
-			QToolTip::showText(ActivityInfo->mapToGlobal(QPoint{ 0, ActivityInfo->height() }), ActivityInfo->toolTip(), ActivityInfo);
+			show_anchored_tooltip(*ActivityInfo, ActivityInfo->rect(), ActivityInfo->toolTip(), anchored_tooltip_hold::focus);
 		});
 		activityLayout->addWidget(ActivityInfo);
 		activityLayout->addStretch(1);
