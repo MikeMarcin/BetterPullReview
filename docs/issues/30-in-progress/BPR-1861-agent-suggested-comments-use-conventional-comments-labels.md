@@ -62,6 +62,28 @@ header the chip recognizes in the spelling the chip writes.
    the answer's three draft places draft the result; Save as note keeps the
    agent's text as written.
 
+## Owner bug, same day: a torn findings block in the reply
+
+Reported through the coordinator, 2026-11-04: at the end of an agent's
+answer the raw payload showed, with `\n` escapes literal, a suggestion's
+opening code fence lost and its closing fence kept, and the closing `"}`
+and `]}` visible. (The screenshot was of a private repository; nothing of it
+is used here. The tests use synthetic bodies only.)
+
+Cause: both the decoder (`decode_agent_review_findings`) and the reply
+(`agent_tab_view::set_answer`) ended the `bpr-findings` block at the first
+three backticks after its opening line. A suggested comment holding a fenced
+code block puts three backticks inside a JSON string, so the decoder parsed a
+torn half (no cards) and the reply showed everything after the inner fence as
+Markdown.
+
+Fix: `core::split_agent_answer` is the one splitter for both. The block ends
+where its JSON value ends, strings read with their escapes; then the closing
+fence (on its own line or the value's last line) or the end of the answer. A
+block without a complete value yields no findings and is shown whole after
+the prose as a `json` code block whose fence is longer than any backtick run
+inside it.
+
 ## Acceptance
 
 - **AC1:** Core parse cases: every catalog label in lowercase, title case,
@@ -81,5 +103,14 @@ header the chip recognizes in the spelling the chip writes.
   `suggestion (non-blocking): …` with the reply editor's label control on
   `suggestion` and non-blocking; without the composition's reading the same
   course fails.
-- **AC5:** Format, documentation gate, and the focused suites that read the
-  skill or the canary pass.
+- **AC5:** Core split cases with synthetic bodies: a suggestion holding a
+  fenced `cpp` block with `\n` escapes, escaped quotes, a trailing escaped
+  backslash, braces and brackets in strings, the closing fence on the value's
+  line, no closing fence, CRLF, an indented opener, the last of two blocks; a
+  truncated payload, mismatched brackets, text after the value and a non-JSON
+  body each shown whole as one closed code block. The decoder reads the
+  fenced suggestion whole and refuses the truncated one; the Agent tab's reply
+  shows no fragment of a block whose suggestion holds a fence.
+- **AC6:** Format, documentation gate, and the focused suites that read the
+  skill, the canary or the findings block pass; the composition digest pin
+  is resealed for `github_application.cpp`.

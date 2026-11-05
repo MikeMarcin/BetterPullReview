@@ -14934,7 +14934,7 @@ namespace {
 			auto* const suggestionsShown = agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"));
 			expect(agent->state() == qt::agent_tab_state::working && suggestionsShown->isHidden() && agent->suggestions_toggle()->isChecked(),
 				   "while the agent works the suggestions are hidden, though the toggle still shows them");
-			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": []}\n```" });
+			window.agent_panel()->stream(identity, application::agent_stream_event{ .Session = identity.Session.Id, .Sequence = 1U, .Text = "**Summary:** nothing outside the renderer calls `begin_frame`, so the change can break only:\n\n- a retry loop that relied on the budget resetting\n- the frame-time test, which counts resets\n\n```bpr-findings\n{\"findings\": [{\"path\": \"src/engine/renderer.cpp\", \"startLine\": 3, \"claim\": \"A } ] brace.\", \"suggestedComment\": \"suggestion: guard it\\n\\n```cpp\\nreturn budget;\\n```\\n\\nIs it reset?\"}]}\n```" });
 			process_events();
 			expect(suggestionsShown->isHidden(), "and stay hidden while it writes");
 			window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::success });
@@ -14944,6 +14944,11 @@ namespace {
 			expect(!suggestionsShown->isHidden() && agent->state() != qt::agent_tab_state::working, "once the turn has finished the suggestions return");
 			expect(!agent->turn_answer(2U).contains(QStringLiteral("bpr-findings")) && agent->turn_answer(2U).endsWith(QStringLiteral("which counts resets")),
 				   "the reply is shown without its findings block, which is for the cards");
+			// [[BPR-1861]]. A suggestion holding a fenced code block does not
+			// cut the block short: none of the payload reaches the reply.
+			for (const auto* const fragment : { "cpp", "\\n", "]}", "Is it reset", "```" }) {
+				expect(!agent->turn_answer(2U).contains(QString::fromUtf8(fragment)), std::string{ "no fragment of the findings block is shown: " } + fragment);
+			}
 
 			// [[BPR-1773]]. Ask agent on a conversation: its chip in the
 			// question field, prompts about it, and a turn whose asked line

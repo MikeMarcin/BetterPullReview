@@ -2572,7 +2572,9 @@ wrote already chosen in the label control ([[BPR-1861]]; an answer's
 rules it out; the card then says Drafted, Saved as a private note, or
 Dismissed with **Undo**, and a refusal says why (for another file: open it,
 then try again). A reply offers **Save as note** for the whole of it, or the
-part selected. The reply is shown without its `bpr-findings` block. Findings
+part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
+shown whole as a code block after the reply, never as loose text
+([[BPR-1861]]). Findings
 delivered with no turn come after the thread, as cards of their own. The question field
 closes the tab (owner look v003, after the Claude Code and Codex
 composers): one rounded field holding any added context, the words, a thin

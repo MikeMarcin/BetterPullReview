@@ -4,6 +4,7 @@
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/agent_workspace_lifetime_guard.hpp"
 #include "bpr/application/review_ledger_port.hpp"
+#include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_context_supplement.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_profile.hpp"
@@ -482,7 +483,7 @@ namespace bpr::application {
 		-> std::expected<agent_finding_payload, agent_protocol_failure>;
 
 	/// \brief The fence an agent's answer opens its review findings with.
-	inline constexpr std::string_view agent_review_findings_fence = "```bpr-findings";
+	inline constexpr std::string_view agent_review_findings_fence = core::agent_findings_fence;
 
 	/// \brief [[BPR-1753]], owner decision 2026-10-23 ("Yep build it
 	/// like that"). The review findings an agent wrote in its answer, as the
