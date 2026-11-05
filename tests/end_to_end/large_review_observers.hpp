@@ -192,9 +192,18 @@ namespace bpr::e2e::large_review {
 			const auto acknowledgement = std::stop_callback{ aStop, [this] { CancelledAt.store(now_ns()); } };
 			EnteredAt.store(now_ns());
 			auto lock = std::unique_lock{ Mutex };
-			Condition.wait_for(lock, aStop, std::chrono::seconds{ 10 }, [] { return false; });
+			Condition.wait_for(lock, aStop, std::chrono::seconds{ 10 }, [this] { return Released; });
 			Stopped.store(aStop.stop_requested());
 			ExitedAt.store(now_ns());
+		}
+
+		void release()
+		{
+			{
+				const auto lock = std::lock_guard{ Mutex };
+				Released        = true;
+			}
+			Condition.notify_all();
 		}
 
 		std::atomic<std::int64_t> EnteredAt{ 0 }, CancelledAt{ 0 }, ExitedAt{ 0 };
@@ -203,6 +212,7 @@ namespace bpr::e2e::large_review {
 	private:
 		std::mutex                  Mutex;
 		std::condition_variable_any Condition;
+		bool                        Released = false;
 	};
 }
 
