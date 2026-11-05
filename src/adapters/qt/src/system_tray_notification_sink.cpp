@@ -57,7 +57,7 @@ namespace bpr::qt {
 			-> system_notification_display_boundary
 		{
 			return [](QSystemTrayIcon& aTray, const QString& aTitle, const QString& aBody) {
-				aTray.showMessage(aTitle, aBody, QSystemTrayIcon::Information);
+				show_desktop_notification(aTray, aTitle, aBody);
 			};
 		}
 
@@ -99,6 +99,25 @@ namespace bpr::qt {
 				});
 		}
 	} // namespace
+
+	auto desktop_notification_timeout_hint() noexcept -> int
+	{
+#if defined(Q_OS_MACOS)
+		// Any nonzero hint makes Qt withdraw the notification from Notification
+		// Center once it elapses.
+		return 0;
+#else
+		return 10'000;
+#endif
+	}
+
+	void show_desktop_notification(
+		QSystemTrayIcon& aTray,
+		const QString&   aTitle,
+		const QString&   aBody)
+	{
+		aTray.showMessage(aTitle, aBody, QSystemTrayIcon::Information, desktop_notification_timeout_hint());
+	}
 
 	system_tray_notification_sink::system_tray_notification_sink(
 		QObject* const aParent)

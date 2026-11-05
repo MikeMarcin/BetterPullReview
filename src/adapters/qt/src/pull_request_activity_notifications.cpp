@@ -47,7 +47,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto native_display() -> system_notification_display_boundary
 		{
 			return [](QSystemTrayIcon& aTray, const QString& aTitle, const QString& aBody) {
-				aTray.showMessage(aTitle, aBody, QSystemTrayIcon::Information);
+				show_desktop_notification(aTray, aTitle, aBody);
 			};
 		}
 	} // namespace
