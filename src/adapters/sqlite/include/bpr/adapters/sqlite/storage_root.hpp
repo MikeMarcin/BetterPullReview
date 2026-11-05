@@ -56,6 +56,28 @@ namespace bpr::adapters::sqlite {
 	/// write. It returns `false` on any failure and throws nothing.
 	[[nodiscard]] auto create_storage_root_owner_private(
 		const std::filesystem::path& aRoot) -> bool;
+
+	/// \brief The spelling the file system itself gives a storage root's
+	/// existing folders, when it names the same folders through no link.
+	///
+	/// \details [[BPR-1868]]. Every store admits a root only when its canonical
+	/// spelling is its own, which is how a link anywhere in the path is
+	/// refused. On a case-insensitive volume (macOS APFS by default) a path
+	/// typed as `/Users/me/BPR-attended/data` opens the folder that is on disk
+	/// as `/Users/me/bpr-attended`, and its canonical spelling then differs in
+	/// letter case alone, so a root nothing was wrong with was refused and the
+	/// application exited at startup.
+	///
+	/// This returns the canonical spelling of the deepest existing ancestor,
+	/// with the missing components appended as given, only when every existing
+	/// component is a real directory and not a link, the canonical spelling has
+	/// as many components, and it names the same device and inode. Otherwise
+	/// it returns `aRoot` unchanged, so a root spelled through a link, or one
+	/// that is not absolute and lexically normal, still reaches the checks that
+	/// refuse it. On Windows it returns `aRoot` unchanged. It never creates,
+	/// changes or opens anything for writing, and throws nothing.
+	[[nodiscard]] auto storage_root_on_disk_spelling(
+		const std::filesystem::path& aRoot) -> std::filesystem::path;
 } // namespace bpr::adapters::sqlite
 
 #endif // BPR_SRC_ADAPTERS_SQLITE_INCLUDE_BPR_ADAPTERS_SQLITE_STORAGE_ROOT_HPP
