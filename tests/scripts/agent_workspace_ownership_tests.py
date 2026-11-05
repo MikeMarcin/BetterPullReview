@@ -142,6 +142,8 @@ def check_neighbourhood_parent_rule(exe: Path, parent: Path) -> None:
         root.mkdir(mode=0o700)
         root.chmod(shared_mode)
         check(exe, "recover", root, "failure=1")
+        # [[BPR-1857]]. The refusal names its check and the folder it refused.
+        check(exe, "recover-check", root, "failure=1 check=neighbourhood-parent-shared folder=.")
         if list(root.iterdir()):
             raise RuntimeError(f"{name}: refused recovery created an entry")
         if mode(root) != shared_mode:
@@ -189,6 +191,45 @@ def main() -> None:
             # BPR-0817's mode-bit parent rule. Windows proves its own
             # untrusted-parent refusal through the DACL courses (BPR-0622).
             check_neighbourhood_parent_rule(exe, parent)
+        # [[BPR-1857]]. A workspace no record accounts for is refused by name,
+        # and kept exactly as it was.
+        root = create_root(parent, "unrecorded-leftover")
+        check(exe, "recover", root, "recovered=0 live=0")
+        leftover = root / "neighbourhood" / ("betterpullreview-agent-" + "0" * 32)
+        leftover.mkdir(mode=0o700)
+        make_private(leftover)
+        (leftover / "keep").write_text("unowned")
+        check(exe, "recover-check", root,
+              "failure=1 check=unrecorded-leftover folder=neighbourhood/betterpullreview-agent-" + "0" * 32)
+        if (leftover / "keep").read_text() != "unowned":
+            raise RuntimeError("an unrecorded leftover was altered by its refusal")
+        if os.name != "posix":
+            # [[BPR-1857]]. An inherit-only entry grants nothing on the parent
+            # itself, so it does not refuse the neighbourhood; the same grant
+            # applying to the parent still does, and names the account.
+            #
+            # The split phases keep the registry in a private `data` folder, as
+            # the product does, so the holding folder is judged only as the
+            # neighbourhood's parent. In the plain layout that folder is also
+            # the registry's data folder, whose exact descriptor the extra
+            # entry rightly breaks, and the refusal says so.
+            root = parent / "inherit-only-parent"
+            root.mkdir()
+            make_private(root)
+            subprocess.run(["icacls", str(root), "/grant", "*S-1-1-0:(OI)(CI)(IO)(M)"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            check(exe, "recover-check", root, "failure=1 check=data-folder-not-private folder=.")
+            (root / "data").mkdir()
+            make_private(root / "data")
+            check(exe, "recover-split", root, "recovered=0 live=0")
+            root = parent / "shared-parent-named"
+            root.mkdir()
+            make_private(root)
+            subprocess.run(["icacls", str(root), "/grant", "*S-1-1-0:(OI)(CI)(M)"], check=True,
+                           stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+            (root / "data").mkdir()
+            make_private(root / "data")
+            check(exe, "recover-check-split", root, "failure=1 check=neighbourhood-parent-shared folder=.")
         # Real forced death (SIGKILL, TerminateProcess) between committed native
         # phases, including both renames.
         for point in [*(f"journal-{i}" for i in range(7)), "child-quarantined", "parent-quarantined"]:

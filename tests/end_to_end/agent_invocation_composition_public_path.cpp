@@ -817,7 +817,11 @@ auto main(int argc, char** argv) -> int
 					// [[BPR-0817]]. Also said in the window's status bar, whatever the
 					// window shows. application_profile_management_public_path proves it
 					// at Home, where the agent panel is not showing.
-					return aTerms.require("repair-visible", window.agent_panel()->status_text().contains("Disposable workspace recovery needs repair"))
+					// [[BPR-1857]]. The substituted workspace fails its exact
+					// cleanup, and both surfaces say so, naming the record.
+					return aTerms.require("repair-visible", window.agent_panel()->status_text().contains("Disposable agent workspaces are unavailable"))
+						&& aTerms.require("repair-names-check", window.agent_panel()->status_text().contains("could not be read back or cleaned up exactly"))
+						&& aTerms.require("repair-names-record", window.agent_panel()->status_text().contains(".jsonl"))
 						&& aTerms.require("status-says-it", window.status_text().contains("Disposable agent workspaces are unavailable"));
 				})) {
 				return fail(*application, "startup-repair-visible", repair.render());

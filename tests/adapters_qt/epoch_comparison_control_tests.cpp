@@ -713,7 +713,7 @@ namespace {
 				   && control.comparison_text().contains(QStringLiteral("pruned"))
 				   && control.comparison_text().contains(QStringLiteral("unavailable")),
 			   "an unavailable alias retains its exact selected candidate and reason");
-		for (const auto& [reason, expected] : std::array<std::pair<core::epoch_reason_code, QString>, 6U>{ {
+		for (const auto& [reason, expected] : std::array<std::pair<core::epoch_reason_code, QString>, 11U>{ {
 				 // [[BPR-1560]], [[BPR-1572]]. GitHub naming no merge base, and
 				 // GitHub's answers disagreeing, are told apart.
 				 { core::epoch_reason_code::merge_base_unavailable,
@@ -728,6 +728,17 @@ namespace {
 				   QStringLiteral("Configure GitHub CLI 2.96 or later with its api, repo clone and git credential commands, then retry.") },
 				 { core::epoch_reason_code::gh_tool_probe_failed,
 				   QStringLiteral("The configured GitHub CLI could not be checked. Check its executable and retry.") },
+				 // [[BPR-1857]]. A fetch failure says which of five things to look at.
+				 { core::epoch_reason_code::fetch_sign_in_refused,
+				   QStringLiteral("GitHub refused this account when fetching the pull request's commits.") },
+				 { core::epoch_reason_code::fetch_network,
+				   QStringLiteral("a network, proxy or certificate problem, or a timeout") },
+				 { core::epoch_reason_code::fetch_limit,
+				   QStringLiteral("larger than the local fetch limit") },
+				 { core::epoch_reason_code::fetch_failed,
+				   QStringLiteral("Cloning the pull request's commits failed.") },
+				 { core::epoch_reason_code::fetch_storage,
+				   QStringLiteral("A temporary folder for the pull request's commits could not be made or written.") },
 			 } }) {
 			control.publish(comparison_update(core::named_selection(
 												  core::named_comparison::previous_upload_to_latest),

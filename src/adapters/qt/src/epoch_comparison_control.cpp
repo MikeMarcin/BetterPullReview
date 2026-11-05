@@ -153,6 +153,23 @@ namespace bpr::qt {
 				// being rewritten.
 				return QStringLiteral(
 					"GitHub's answers about where this pull request branched disagree, so Whole PR cannot match its Files changed yet. Refresh in a moment, or compare two updates.");
+			// [[BPR-1857]]. What fetching the pull request's commits ran into,
+			// and what to do about it, instead of one sentence for all five.
+			case core::epoch_reason_code::fetch_sign_in_refused:
+				return QStringLiteral(
+					"GitHub refused this account when fetching the pull request's commits. Check that it can clone the repository; an organization with single sign-on may need the sign-in authorized. Then refresh.");
+			case core::epoch_reason_code::fetch_network:
+				return QStringLiteral(
+					"Fetching the pull request's commits did not reach GitHub: a network, proxy or certificate problem, or a timeout. Check the connection, then refresh.");
+			case core::epoch_reason_code::fetch_limit:
+				return QStringLiteral(
+					"The pull request's commits are larger than the local fetch limit, so they were not fetched.");
+			case core::epoch_reason_code::fetch_failed:
+				return QStringLiteral(
+					"Cloning the pull request's commits failed. The diagnostic log names the step; refresh to try again.");
+			case core::epoch_reason_code::fetch_storage:
+				return QStringLiteral(
+					"A temporary folder for the pull request's commits could not be made or written. Check that your temporary folder exists and has space, then refresh.");
 			}
 			return QStringLiteral("Review history is unavailable.");
 		}
@@ -995,6 +1012,21 @@ namespace bpr::qt {
 	auto epoch_comparison_control::comparison_text() const -> QString
 	{
 		return ComparisonLabel->text();
+	}
+
+	auto epoch_comparison_control::problem_text() const -> QString
+	{
+		// Only a failure explains a missing comparison; work in progress or a
+		// cancellation is not a reason the file cannot open.
+		if (Status != core::epoch_status::failed && Status != core::epoch_status::unavailable) {
+			return { };
+		}
+		for (const auto reason : { Comparison ? Comparison->Reason : core::epoch_reason_code::none, HistoryReason, DiagnosticReason }) {
+			if (auto text = reason_text(reason); !text.isEmpty()) {
+				return text;
+			}
+		}
+		return { };
 	}
 
 	auto epoch_comparison_control::statistics() const noexcept
