@@ -21502,6 +21502,101 @@ namespace {
 		window.hide();
 	}
 
+	/// [[BPR-1864]]. The window's title, which the Dock, the Window menu,
+	/// Mission Control and the taskbars show, names the pull request in front
+	/// of the window, and the application and profile otherwise.
+	void test_the_window_title_names_the_open_pull_request()
+	{
+		const auto           dash = QString{ QChar{ 0x2014 } };
+		const auto           home = QStringLiteral("BetterPullReview %1 Work profile").arg(dash);
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.set_profile_label(QStringLiteral("Work"));
+		const auto profiles = [&window](const std::size_t aCount) {
+			auto projection = application::profile_management_projection{ .Ready = true };
+			auto names      = std::vector<std::string>{ "Work", "Personal", "Third" };
+			for (std::size_t index = 0U; index < aCount; ++index) {
+				projection.Profiles.push_back({ core::bpr_profile_id{ index + 1U }, names[index], application::profile_management_runtime::open });
+			}
+			window.adopt_profile_management(projection, core::bpr_profile_id{ 1U });
+		};
+		profiles(1U);
+		window.show();
+		process_events();
+		const auto title = [&window] { return window.windowTitle(); };
+		expect(title() == home && window.accessibleName() == home, "nothing open: the application and the profile");
+
+		// A read names its pull request before it is accepted.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::loading_pull_request } } });
+		window.publish(application::github_presentation_update{
+			.LoadingOverview = application::github_loading_overview_projection{
+				.Title = "Add the Flow Control panel", .AuthorLogin = "octocat", .BaseRef = "main", .HeadRef = "topic", .ReportedFiles = 1U, .ReportedCommits = 1U, .Owner = "MikeMarcin", .RepositoryName = "BPR-Test", .Number = 188875U } });
+		process_events();
+		const auto named = QStringLiteral("#188875 Add the Flow Control panel %1 MikeMarcin/BPR-Test").arg(dash);
+		expect(window.showing_home() || title() == named, "a loading read is named as GitHub named it, once it is in front");
+
+		auto accepted = application::github_pull_request_projection{
+			.Repository      = core::repository_id{ 10U },
+			.PullRequest     = core::pull_request_id{ 11U },
+			.Owner           = "MikeMarcin",
+			.RepositoryName  = "BPR-Test",
+			.Number          = core::pull_request_number{ 188875U },
+			.Title           = "Add the Flow Control panel",
+			.MarkdownContext = page_context(1U),
+		};
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status = core::github_status_delta{ .Status = core::github_status::pull_request_ready } },
+			.PullRequest = accepted,
+		});
+		process_events();
+		expect(!window.showing_home() && title() == named && window.accessibleName() == named, "open: number, title, repository; one profile is not named");
+
+		// A title changed on GitHub arrives with a refresh's republication.
+		accepted.Title = "Add the Flow Control panel to the review workbench and keep its state per window";
+		window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+		process_events();
+		const auto shortened = QStringLiteral("#188875 Add the Flow Control panel to the review%1 %2 MikeMarcin/BPR-Test").arg(QChar{ 0x2026 }).arg(dash);
+		expect(title() == shortened, "a retitle is followed, shortened at a word with the repository kept");
+
+		profiles(2U);
+		process_events();
+		expect(title() == shortened + QStringLiteral(" %1 Work profile").arg(dash), "with a second profile, the profile follows");
+
+		// Home in front of the review is the application's, and back again
+		// the pull request's.
+		window.choose_home(true);
+		process_events();
+		expect(window.showing_home() && title() == home, "Home over the review: the application and the profile");
+		window.choose_home(false);
+		process_events();
+		expect(!window.showing_home() && title().startsWith(QStringLiteral("#188875 ")), "back on the review: the pull request again");
+
+		window.show_local_cycle(QStringLiteral("A local cycle"));
+		process_events();
+		expect(title() == home, "a local cycle in front is not the pull request");
+		window.leave_local_cycle();
+		process_events();
+		expect(title().startsWith(QStringLiteral("#188875 ")), "leaving the cycle names the pull request again");
+
+		// Qt's modified mark is shown literally.
+		accepted.Title = "Keep [*] literal";
+		window.publish(application::github_presentation_update{ .PullRequest = accepted, .PreserveWindowNavigation = true });
+		process_events();
+		expect(window.windowTitle().contains(QStringLiteral("[*][*]")) && window.accessibleName().contains(QStringLiteral("[*][*]")), "a title's [*] is escaped for Qt");
+
+		// Closed, nothing is named.
+		window.publish(application::github_presentation_update{
+			.Transition = application::github_transition_projection{
+				.Status      = core::github_status_delta{ .Status = core::github_status::session_ready },
+				.PullRequest = core::pull_request_summary_delta{ .Summary = std::nullopt } } });
+		process_events();
+		expect(title() == home, "closed: the application and the profile");
+		window.hide();
+	}
+
 	/// [[BPR-1418]]. Content arriving after the loading surface settles the
 	/// title row at its current width; navigation and geometry are not repairs.
 	void test_title_row_settles_on_content_publication()
@@ -24202,6 +24297,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	if (QCoreApplication::arguments().contains(QStringLiteral("--title-row"))) {
+		runCase("test_the_window_title_names_the_open_pull_request", &test_the_window_title_names_the_open_pull_request);
 		runCase("test_navigation_label_spacing", &test_navigation_label_spacing);
 		runCase("test_compact_icon_row_preserves_exact_order_and_edges", &test_compact_icon_row_preserves_exact_order_and_edges);
 		runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
@@ -24344,6 +24440,7 @@ auto main(int argc, char** argv) -> int
 	runCase("test_one_pane_places_threads_on_their_own_changed_rows", &test_one_pane_places_threads_on_their_own_changed_rows);
 	runCase("test_collapsing_a_drawer_returns_space_to_the_centre", &test_collapsing_a_drawer_returns_space_to_the_centre);
 	runCase("test_strip_modalities_positions_and_account", &test_strip_modalities_positions_and_account);
+	runCase("test_the_window_title_names_the_open_pull_request", &test_the_window_title_names_the_open_pull_request);
 	runCase("test_title_row_settles_on_content_publication", &test_title_row_settles_on_content_publication);
 	runCase("test_strip_identity_stays_at_every_width", &test_strip_identity_stays_at_every_width);
 	runCase("test_navigation_label_spacing", &test_navigation_label_spacing);

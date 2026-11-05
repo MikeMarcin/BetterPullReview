@@ -481,6 +481,25 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_description_edit_core_tests
 )
 
+# [[BPR-1864]]. The words a workbench window's title says.
+bpr_add_executable(
+    test_better_pull_review_window_title_core_tests
+    window_title_tests.cpp
+)
+
+target_link_libraries(
+    test_better_pull_review_window_title_core_tests
+    PRIVATE
+        BetterPullReview::Core
+)
+bpr_enable_hardening(test_better_pull_review_window_title_core_tests)
+bpr_enable_warnings(test_better_pull_review_window_title_core_tests)
+
+bpr_add_network_isolated_test(
+    NAME core_window_title
+    COMMAND test_better_pull_review_window_title_core_tests
+)
+
 # [[BPR-1852]]. Who may change the draft state, whether a change is written,
 # and what the window shows while reads catch up.
 bpr_add_executable(
