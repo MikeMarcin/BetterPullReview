@@ -905,7 +905,10 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   draft; returning requires a new Add after checking the destination. Cancel
   or Escape discards the draft. Long identities wrap; progress and refusal are
   announced politely. The open-PR shortcut saves its known repository directly
-  through the same host and durable store.
+  through the same host and durable store. On the page, the account's
+  repository card and Add repository come first and Clone folders and Linked
+  clones follow ([[BPR-1856]], the owner, 2026-11-04); Tab and the
+  accessibility tree reach them in that order.
 - **The bar**, alone in the first row: one bordered field labelled Open,
   with the placeholder "Paste a link, or write owner/name#123", its shortcut
   printed at the trailing edge (`Ctrl+L`, ⌘L on macOS), and Return to open.
@@ -1129,7 +1132,7 @@ a narrow column, and RFC-BPR-0032 gives it one job per row.
   Resume for a Recently viewed row, then a separator and Open on GitHub. Each
   item shows its key: ↩, ⌘↩, ⇧↩ and ⇧⌘O on macOS. The lists read the keys
   themselves; the menu's shortcuts never act from the window. Open Review in
-  New Window is offered exactly when Profiles › New Window is. It is that New
+  New Window is offered exactly when File › New Window is. It is that New
   Window, in the same profile under its one runtime owner, carrying the one
   pull request the window's host admitted: the new window opens Home, as
   every new window does, and then that pull request by its own bar's path, on
@@ -2219,9 +2222,12 @@ choice between a real menu bar and a checkable entry in the existing toolbar
 popup, chose the menu bar. On macOS it merges into the system menu bar and
 costs the window no height; on Windows and Linux it takes a row, which is the
 price of the same answer being true on every platform. The existing toolbar
-popup keeps the private progress actions it already had. **File** holds Quit,
-and **Profiles** lists the profiles by name with the current one checked, then
-New Window and Manage Profiles…. Home's Open Review in New Window
+popup keeps the private progress actions it already had. **File** opens with
+**New Window** (`Ctrl+N`, ⌘N on macOS), which opens another window of this
+window's profile at Home, then Open Project…, Quit and Close Tab
+([[BPR-1863]]: the owner asked for New Window in File, where every desktop
+application keeps it, and it left Profiles). **Profiles** lists the profiles
+by name with the current one checked, then Manage Profiles…. Home's Open Review in New Window
 ([[BPR-1342]]) is the same New Window, carrying one pull request. On Windows the strip's application menu
 lists the same menus, Pull Request among them. There the bar is hidden, so
 its Alt mnemonics are gone; instead `Alt` pressed and released alone, or
@@ -2394,8 +2400,8 @@ for itself, so both answers are drivable on one host:
 
   **The menu bar the close leaves behind.** The application's own menu bar
   carries the same menus a window's bar carries, so the close subtracts nothing
-  a reviewer can see: a File menu holding Quit, a Profiles menu listing the
-  profiles and then New Window and Manage Profiles…, and the window's own
+  a reviewer can see: a File menu holding New Window, Quit, Open Project… and Close Tab, a
+  Profiles menu listing the profiles and then Manage Profiles…, and the window's own
   **View** — Line numbers, One pane, Hide Drawers ([[BPR-1295]]) and Settings… — offered and disabled,
   because no window's presentation is theirs to change. That is what macOS
   applications offer with no document open, and Settings keeping the
@@ -2563,11 +2569,15 @@ have not run since the application started, counts as finished. A turn's finding
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
 **Add as draft comment** makes a private draft at its lines from the
-suggested comment, **Save as note** a private note on them, and **Dismiss**
+suggested comment, opening with the Conventional Comments label the agent
+wrote already chosen in the label control ([[BPR-1861]]; an answer's
+**Draft comment** does the same, and no label is invented), **Save as note** a private note on them, and **Dismiss**
 rules it out; the card then says Drafted, Saved as a private note, or
 Dismissed with **Undo**, and a refusal says why (for another file: open it,
 then try again). A reply offers **Save as note** for the whole of it, or the
-part selected. The reply is shown without its `bpr-findings` block. Findings
+part selected. The reply is shown without its `bpr-findings` block; one it cannot read is
+shown whole as a code block after the reply, never as loose text
+([[BPR-1861]]). Findings
 delivered with no turn come after the thread, as cards of their own. The question field
 closes the tab (owner look v003, after the Claude Code and Codex
 composers): one rounded field holding any added context, the words, a thin
@@ -2644,7 +2654,16 @@ under one collapsed disclosure. History
 adds Reset agents… (owner look v006): it asks first, then clears every agent
 setting, the clone folders and links and an edited review skill, forgets
 which agent each pull request was last asked with (its turns stay), and the
-setup starts again at Agent; there is no other way back into the setup. At
+setup starts again at Agent; there is no other way back into the setup.
+[[BPR-1859]]. Settings › Agents & context has Check agent under the agent
+list: the setup's own check of the chosen agent, through the same host, with
+the workspace made and removed once while a pull request is open and left
+unchecked otherwise. Beside it one line says what runs, or why it cannot
+(no agent added, several found and none chosen, the open pull request's host
+forbids it, or a check already running, which shows progress and Stop). Its
+rows, a failure's words and remedy (the sign-in command with Copy) and Show
+details appear on the page; it becomes Check again, and a pass after a fix
+moves the setup on exactly as Check it works does. At
 full width the tray's tabs are their names alone, the Agent tab's as well;
 its glyph shows only in the narrow row (the owner's accept of look v007). A new window with a saved
 agent and a serving link opens on the conversation. ⌥⇧A opens the drawer on the Agent tab; ⌘I

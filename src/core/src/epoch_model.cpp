@@ -250,6 +250,16 @@ namespace bpr::core {
 			return epoch_reason_code::gh_tool_unsupported;
 		case epoch_failure::gh_tool_probe_failed:
 			return epoch_reason_code::gh_tool_probe_failed;
+		case epoch_failure::fetch_sign_in_refused:
+			return epoch_reason_code::fetch_sign_in_refused;
+		case epoch_failure::fetch_network:
+			return epoch_reason_code::fetch_network;
+		case epoch_failure::fetch_limit:
+			return epoch_reason_code::fetch_limit;
+		case epoch_failure::fetch_failed:
+			return epoch_reason_code::fetch_failed;
+		case epoch_failure::fetch_storage:
+			return epoch_reason_code::fetch_storage;
 		}
 		return epoch_reason_code::invalid_observation;
 	}

@@ -2678,6 +2678,34 @@ bpr_bound_automated_run(
     RESERVE_MS 5000
 )
 
+# [[BPR-1862]]. Delete comment deletes a draft, on a line in GitHub's diff,
+# outside every hunk, and from an agent answer, and it stays deleted after a
+# restart; the agent turn lets the deleted draft go.
+bpr_add_network_isolated_test(
+    NAME application_draft_delete_contract
+    WINDOWS_UNCONTAINED
+    COMMAND
+        "${CMAKE_COMMAND}"
+        "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
+        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/draft-delete-contract"
+        "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
+        -P
+        "${CMAKE_CURRENT_SOURCE_DIR}/application_draft_delete_contract.cmake"
+)
+set_tests_properties(
+    application_draft_delete_contract
+    PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}"
+        PASS_REGULAR_EXPRESSION "DRAFT_DELETE_CONTRACT_OK"
+)
+bpr_bound_automated_run(
+    application_draft_delete_contract
+    TIMEOUT 300
+    BUDGET_MS ${bpr_fixture_run_budget_ms}
+    RUNS 4
+    RESERVE_MS 5000
+)
+
 # [[BPR-1331]]. The private progress button across a push: a changed file
 # reopens unread, an unchanged one keeps its mark, an excluded one stays out.
 bpr_add_network_isolated_test(
@@ -3893,6 +3921,12 @@ bpr_add_network_isolated_test(NAME application_home_waiting_public_path WINDOWS_
 set_tests_properties(application_home_waiting_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
     PASS_REGULAR_EXPRESSION "home-waiting-public-path:pass")
+# [[BPR-1866]]. My own pull requests: my replies and pushes are not activity
+# for me, and opening then closing one leaves it in Waiting for others.
+bpr_add_network_isolated_test(NAME application_home_own_activity_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-own-activity)
+set_tests_properties(application_home_own_activity_public_path PROPERTIES
+    ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 180
+    PASS_REGULAR_EXPRESSION "home-own-activity-public-path:pass")
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     bpr_add_network_isolated_test(NAME application_home_waiting_cli_public_path WINDOWS_UNCONTAINED COMMAND test_personal_discovery_public_path --home-waiting --gh-cli)
     set_tests_properties(application_home_waiting_cli_public_path PROPERTIES

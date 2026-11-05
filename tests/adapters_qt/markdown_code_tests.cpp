@@ -11,9 +11,11 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/markdown_code.hpp"
+#include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
+#include "bpr/qt/workbench_window.hpp"
 
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
@@ -498,6 +500,86 @@ namespace {
 		use_theme(aView, themes[0]);
 	}
 
+	/// \brief [[BPR-1860]] ("Reopening a pr and going back to an agent comment
+	/// it doesn't have its syntax highlights"). The window composed as the
+	/// application composes it: the packaged classifier, the readers' own
+	/// host, and that host's answers handed straight to the window. The host
+	/// answers a text it has classified from its cache inside the ask, so a
+	/// kept thread shown again is coloured during its own construction; its
+	/// code must look exactly as it did once classified the first time.
+	void check_reopened_agent_answer()
+	{
+		application::markdown_code_texts              texts;
+		held_texts                                    source{ texts };
+		adapters::syntax::packaged_definition_catalog catalog;
+		adapters::syntax::packaged_syntax_classifier  classifier{ catalog, source };
+		manual_executor                               effects;
+		manual_executor                               decisions;
+		qt::workbench_window                          window;
+		application::markdown_code_syntax_host        host{ classifier, texts, effects, decisions,
+															[&catalog](const std::string_view aSelector) -> std::optional<application::syntax_definition_version> {
+														 auto definition = catalog.definition_for_path(aSelector);
+														 if (definition.Name == adapters::syntax::plain_text_definition_name) {
+															 return std::nullopt;
+														 }
+														 return definition;
+													 },
+													 [&window](const application::markdown_code_syntax_publication& aSpans) { window.apply_markdown_code_syntax(aSpans); } };
+		window.set_markdown_code_dispatch([&host](std::vector<application::markdown_code_syntax_request> aRequests) { host.request(aRequests); });
+		window.resize(1'200, 800);
+		window.show();
+		settle();
+		const auto drain = [&effects, &decisions] {
+			while (!effects.Tasks.empty() || !decisions.Tasks.empty()) {
+				for (auto* lane : { &effects, &decisions }) {
+					while (!lane->Tasks.empty()) {
+						auto task = std::move(lane->Tasks.front());
+						lane->Tasks.pop_front();
+						task();
+					}
+				}
+			}
+			settle();
+		};
+		auto* const agent = window.agent_tab();
+		const auto  kept  = std::vector<qt::agent_thread_turn>{ {
+			.Question = QStringLiteral("Show the check"),
+			.Answer   = QStringLiteral("It returns early:\n\n```cpp\nif (!validate(scale)) {\n\treturn false;\n}\n```"),
+			.Footer   = QStringLiteral("answered"),
+		} };
+		// The answer's coloured runs: text and colour, in document order.
+		const auto runs = [agent] {
+			auto        found = std::vector<std::pair<QString, QRgb>>{ };
+			auto* const view  = agent->turn_count() == 1U ? agent->turn_answer_view(0U) : nullptr;
+			if (view == nullptr) {
+				return found;
+			}
+			for (auto block = view->rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+				for (const auto& range : formats_of(block)) {
+					if (range.format.hasProperty(QTextFormat::ForegroundBrush)) {
+						found.emplace_back(block.text().mid(range.start, range.length), range.format.foreground().color().rgba());
+					}
+				}
+			}
+			return found;
+		};
+		// First shown: classified on the lanes, then coloured.
+		agent->present_thread(kept);
+		settle();
+		drain();
+		const auto live       = runs();
+		const auto classified = host.classifications();
+		const auto hits       = host.cache_hits();
+		expect(classified > 0U && std::ranges::any_of(live, [](const auto& aRun) { return aRun.first == QStringLiteral("if"); }), "a kept answer's C++ is classified and its keyword coloured");
+		// The pull request opened again: the same thread, answered from the cache.
+		agent->present_thread(kept);
+		settle();
+		expect(host.classifications() == classified && host.cache_hits() > hits && effects.Tasks.empty(), "the thread shown again is answered from the cache, inside the ask");
+		expect(runs() == live, "the thread shown again is coloured exactly as it was the first time");
+		window.set_markdown_code_dispatch({ });
+		host.shutdown();
+	}
+
 	/// The preview budgets still bound the work: a body near 64 KiB of fenced
 	/// code in three kinds renders, is placed and is classified within the
 	/// reader's one-second local ceiling.
@@ -760,6 +842,7 @@ try {
 	check_languages(view, path);
 	check_arrival(view, path);
 	check_inline(path);
+	check_reopened_agent_answer();
 	check_diff(view);
 	check_suggestions(view);
 	check_bounds(view, path);

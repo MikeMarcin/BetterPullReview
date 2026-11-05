@@ -55,6 +55,11 @@ namespace bpr::application {
 
 	using agent_setup_sink = std::function<void(const agent_setup_projection&)>;
 
+	/// \brief [[BPR-1859]]. What Settings' Check agent is decided from,
+	/// read from a published projection; `aReviewOpen` says whether a review
+	/// is open whose workspace can be made.
+	[[nodiscard]] auto agent_check_facts_of(const agent_setup_projection& aProjection, bool aReviewOpen) -> core::agent_check_facts;
+
 	/// \brief The longest a status or version run may take, in milliseconds.
 	inline constexpr int agent_status_timeout_milliseconds = 15'000;
 

@@ -33,6 +33,13 @@ QMessageBox standard/default/destructive controls keep their platform behavior.
   push signals, dialog defaults, mnemonics, icons and accessibility; default,
   menu and icon-only controls fall back to native painting. A flat secondary
   retains its bare rest treatment. No push button becomes a tool button.
+- [[BPR-1855]]. Both chips measure and draw their own content in
+  `button_surface`: the words in the button's font with fractional advances
+  rounded up, an icon and its 4-pixel gap when shown, inside 6 pixels of
+  padding each side. The style's label elements are not used for chip
+  content: Windows 11 takes a further 6 pixels from each side of a push
+  button's label, so "Use GitHub CLI" was clipped at both ends under Segoe UI.
+  The style still draws the words, so mnemonics follow the platform.
 
 ## Surfaces
 

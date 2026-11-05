@@ -213,8 +213,10 @@ auto main(int aArgc, char** aArgv) -> int
 try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
-	const auto    cliCourse       = QApplication::arguments().contains(QStringLiteral("--gh-cli"));
-	const auto    homeWaiting     = QApplication::arguments().contains(QStringLiteral("--home-waiting"));
+	const auto cliCourse   = QApplication::arguments().contains(QStringLiteral("--gh-cli"));
+	const auto homeWaiting = QApplication::arguments().contains(QStringLiteral("--home-waiting"));
+	// [[BPR-1866]]. My own pull requests and my own activity on them.
+	const auto    ownActivity     = QApplication::arguments().contains(QStringLiteral("--home-own-activity"));
 	const auto    attended        = QApplication::arguments().contains(QStringLiteral("--attended"));
 	const auto    renderArgument  = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
 	const auto    renderDirectory = renderArgument >= 0 ? QApplication::arguments().value(renderArgument + 1) : QString{ };
@@ -231,8 +233,18 @@ try {
 	// macOS ships it, so the course forces it against the fixture, as the
 	// other composed public-preview courses do; otherwise Linux and Windows
 	// refuse the activation and never reach those steps.
-	options.PublicPreviewEnabledCourse               = true;
-	options.PersonalDiscovery                        = repository_with_unrelated_pull_requests();
+	options.PublicPreviewEnabledCourse = true;
+	options.PersonalDiscovery          = repository_with_unrelated_pull_requests();
+	// [[BPR-1866]]. Two more of mine, both asking alice and untouched since
+	// 4 October: on #4005 I replied in a review thread on the head that is
+	// still there; on #4006 I replied and then pushed. #4001 (below) is
+	// replied-then-pushed too, and is the one opened and closed.
+	const auto replyOnHead     = std::make_shared<std::atomic<int>>(1);
+	const auto replyBeforePush = std::make_shared<std::atomic<int>>(2);
+	if (ownActivity) {
+		options.PersonalDiscovery->OpenPullRequests.push_back({ .Number = 4'005U, .Author = viewer, .RequestedUsers = { "alice" }, .ViewerReply = replyOnHead });
+		options.PersonalDiscovery->OpenPullRequests.push_back({ .Number = 4'006U, .Author = viewer, .RequestedUsers = { "alice" }, .ViewerReply = replyBeforePush });
+	}
 	options.ReviewSubmissionServer                   = std::make_shared<app::detail::review_submission_fixture_state>();
 	options.ReviewSubmissionServer->DraftPullRequest = true;
 	const auto approved                              = std::make_shared<std::atomic<bool>>(false);
@@ -263,9 +275,15 @@ try {
 	options.Offline = std::make_shared<app::detail::github_offline_fixture>();
 	// [[BPR-1680]]. Holds the explicit Refresh's searches, to show whether
 	// they overlap; nothing is held otherwise.
-	options.ReadDelay    = std::make_shared<app::detail::github_read_delay_fixture>();
-	options.RateLimit    = std::make_shared<app::detail::github_rate_limit_fixture>();
-	const auto unrelated = options.PersonalDiscovery->OpenPullRequests.size() - 4U;
+	options.ReadDelay = std::make_shared<app::detail::github_read_delay_fixture>();
+	options.RateLimit = std::make_shared<app::detail::github_rate_limit_fixture>();
+	if (ownActivity) {
+		authoredRow->WaitingDetails = true;
+		authoredRow->ViewerReply    = replyBeforePush;
+		// Ready for review, so it waits on its reviewers when opened too.
+		options.ReviewSubmissionServer->DraftPullRequest = false;
+	}
+	const auto unrelated = options.PersonalDiscovery->OpenPullRequests.size() - (ownActivity ? 6U : 4U);
 	expect(unrelated >= 2'000U, "the saved repository holds at least 2,000 unrelated open pull requests");
 
 	app::github_application* owner    = nullptr;
@@ -383,6 +401,161 @@ try {
 		draft->findChild<QPushButton*>(QStringLiteral("repositoryAdditionCancel"))->click();
 		windowA->settings()->hide();
 	};
+	if (ownActivity) {
+		windowA->home_repository_onboarding_button()->click();
+		wait_for(draftReady, "own-activity course opens repository setup");
+		addDraft(QStringLiteral("octo-org/review-repository"));
+		const auto mine = std::array{ std::int64_t{ 4001 }, std::int64_t{ 4005 }, std::int64_t{ 4006 } };
+		wait_for([&] { return !draft->isVisible() && discovery().Quiescent && std::ranges::all_of(mine, [&](const std::int64_t aNumber) { const auto item = queue_item(*windowA, aNumber); return item && item->Membership.authored() && item->Facts.Waiting.Requests.value_or(0) > 0; }); },
+				 "discovery reads my three pull requests and who they ask", [&] {
+					 diagnose();
+					 for (const auto number : mine) {
+						 const auto item = queue_item(*windowA, number);
+						 std::cerr << number << ": present=" << item.has_value() << " authored=" << (item && item->Facts.Authored ? (*item->Facts.Authored ? 1 : 0) : -1)
+								   << " requests=" << (item && item->Facts.Waiting.Requests ? static_cast<int>(*item->Facts.Waiting.Requests) : -1) << " bucket=" << (item ? core::name(item->Bucket) : "none") << '\n';
+					 } });
+		windowA->settings()->hide();
+		windowA->home_action()->trigger();
+		QApplication::processEvents();
+		const auto identity  = [](const std::int64_t aNumber) { return "octo-org/review-repository#" + std::to_string(aNumber); };
+		const auto verdictOf = [&](const std::int64_t aNumber) {
+			for (const auto group : { qt::home_group::needs_you, qt::home_group::my_pull_requests, qt::home_group::waiting_on_others, qt::home_group::following }) {
+				auto* const model = windowA->home_list()->state_model(group);
+				for (auto row = 0; model != nullptr && row < model->rowCount(); ++row) {
+					const auto index = model->index(row, 0);
+					if (index.data(qt::home_row_role::identity).toString() == QString::fromStdString(identity(aNumber))) {
+						return index.data(qt::home_row_role::verdict).toString() + index.data(qt::home_row_role::verdict_tip).toString();
+					}
+				}
+			}
+			return QStringLiteral("<no row>");
+		};
+		const auto waitsOnOthers = [&](const std::int64_t aNumber, const char* aWhen) {
+			const auto item = queue_item(*windowA, aNumber);
+			const auto id   = identity(aNumber);
+			std::cerr << aWhen << ' ' << id << " bucket=" << (item ? core::name(item->Bucket) : "none") << " unseen=" << (item ? item->Facts.UnseenComments : 0U)
+					  << " verdict=" << (item ? core::name(item->Facts.MyReview.Verdict) : "none") << " new-commits=" << (item && item->Facts.MyReview.NewCommits)
+					  << " reviewed=" << (item && item->Membership.Reviewed) << " chip='" << verdictOf(aNumber).toStdString() << "'\n";
+			expect(item && item->Bucket == core::attention_bucket::authored_awaiting_reviewer_action && qt::home_reason_word(item->Bucket) == QStringLiteral("Waiting"),
+				   "my own reply and my own push leave my pull request waiting on its reviewers, never Changed");
+			expect(contains(state_rows(*windowA, qt::home_group::waiting_on_others), id.c_str()) && !contains(state_rows(*windowA, qt::home_group::my_pull_requests), id.c_str())
+					   && !contains(state_rows(*windowA, qt::home_group::needs_you), id.c_str()),
+				   "it is listed in Waiting for others");
+			expect(item->Facts.MyReview == core::queue_my_review{ } && verdictOf(aNumber).isEmpty() && !item->Membership.Reviewed,
+				   "my reply is no verdict: no Commented chip, no new commits, and I am not its reviewer");
+		};
+		// The first refresh reads who each asks; Home's Refresh reads every
+		// submitted review, my replies among them (the batched read).
+		for (const auto number : mine) {
+			waitsOnOthers(number, "discovered");
+		}
+		const auto refreshHome = [&](const char* aMessage) {
+			const auto before = discovery().Statistics.Refreshes;
+			windowA->queue_refresh_action()->trigger();
+			wait_for([&] { return discovery().Quiescent && discovery().Statistics.Refreshes > before; }, aMessage, diagnose);
+			QApplication::processEvents();
+		};
+		refreshHome("Home Refresh reads my replies");
+		// Untouched for a month (#4005), and my own new commit after my reply
+		// (#4001, #4006): Waiting for others, no Changed, no verdict.
+		for (const auto number : mine) {
+			waitsOnOthers(number, "refreshed");
+		}
+
+		// Open #4001 from Home, then close it: Home still says it waits on others.
+		const auto openAndClose = [&](const std::function<void()>& aWhileOpen) {
+			windowA->home_action()->trigger();
+			QApplication::processEvents();
+			expect(windowA->home_list()->select(queue_item(*windowA, 4001)->Ref, true), "my pull request selected on Home");
+			auto open = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+			QApplication::sendEvent(windowA->home_list()->current_view(), &open);
+			wait_for([&] { return windowA->showing_overview() && windowA->session_panel()->status() == core::github_status::pull_request_ready; }, "Home opens my pull request", diagnose);
+			if (aWhileOpen) {
+				aWhileOpen();
+			}
+			windowA->home_action()->trigger();
+			wait_for([&] { return windowA->showing_home() && windowA->home_landing()->state() == qt::landing_state::back_to_review; }, "Home over the open review", diagnose);
+			windowA->home_landing()->close_button()->click();
+			wait_for([&] { return windowA->showing_home() && windowA->home_landing()->state() != qt::landing_state::back_to_review; }, "Close review returns to Home", diagnose);
+			QApplication::processEvents();
+		};
+		openAndClose({ });
+		for (const auto number : mine) {
+			waitsOnOthers(number, "opened and closed");
+		}
+
+		// A refresh of my open pull request brings one new reply, mine or
+		// someone else's, and Home is told what the window read.
+		const auto replyWhileOpen = [&](const bool aForeign) {
+			return [&, aForeign] {
+				{
+					const std::scoped_lock script{ options.ReadDelay->ScriptMutex };
+					options.ReadDelay->ForeignReplies = aForeign;
+					options.ReadDelay->RefreshScript  = { app::detail::github_read_delay_fixture::refresh_outcome::new_reply };
+					options.ReadDelay->ScriptNext     = 0U;
+				}
+				const auto added = options.ReadDelay->RepliesAdded.load();
+				windowA->github_refresh_action()->trigger();
+				wait_for([&] { return windowA->pull_request_refresh().Phase == core::refresh_phase::updated && options.ReadDelay->RepliesAdded.load() == added + 1U; },
+						 "a refresh of my open pull request brings one new reply", diagnose);
+				{
+					const std::scoped_lock script{ options.ReadDelay->ScriptMutex };
+					options.ReadDelay->RefreshScript.clear();
+				}
+			};
+		};
+		// While it is open: someone else's reply, which I read; then my own
+		// new comment, which is nothing new for me; then someone else's
+		// reply, which is. Home counts what is newer than what I read, and
+		// hears of each from the refresh that brought it.
+		const auto settle = [] {
+			for (auto turn = 0; turn < 100; ++turn) {
+				QApplication::processEvents();
+				QThread::msleep(5);
+			}
+		};
+		openAndClose([&] {
+			replyWhileOpen(true)();
+			auto* const markAll = windowA->mark_all_comments_read_action();
+			wait_for([&] { return markAll->isEnabled(); }, "someone else's reply is unread", diagnose);
+			markAll->trigger();
+			wait_for([&] { return !markAll->isEnabled(); }, "every comment read", diagnose);
+			settle();
+			waitsOnOthers(4001, "read");
+			replyWhileOpen(false)();
+			settle();
+			waitsOnOthers(4001, "my own new comment");
+			expect(!markAll->isEnabled(), "my own comment is not unread to me");
+			replyWhileOpen(true)();
+			wait_for([&] { const auto item = queue_item(*windowA, 4001); return item && item->Facts.UnseenComments == 1U; }, "Home hears of someone else's new reply while it is open", diagnose);
+			settle();
+			expect(queue_item(*windowA, 4001)->Facts.UnseenComments == 1U && markAll->isEnabled(), "and it stays the one unread comment");
+		});
+		// Opening and closing it again does not unsay it: it is still unread.
+		openAndClose({ });
+		wait_for([&] { const auto item = queue_item(*windowA, 4001); return item && item->Facts.UnseenComments == 1U; }, "opened and closed again, it is still unread", diagnose, 5000);
+		const auto replied = queue_item(*windowA, 4001);
+		std::cerr << "someone replied: bucket=" << (replied ? core::name(replied->Bucket) : "none") << " unseen=" << (replied ? replied->Facts.UnseenComments : 0U) << " chip='" << verdictOf(4001).toStdString() << "'\n";
+		expect(replied && replied->Bucket == core::attention_bucket::new_comments_or_author_replies && replied->Facts.UnseenComments >= 1U
+				   && qt::home_reason_word(replied->Bucket) == QStringLiteral("Replied") && contains(state_rows(*windowA, qt::home_group::my_pull_requests), identity(4001).c_str())
+				   && !contains(state_rows(*windowA, qt::home_group::waiting_on_others), identity(4001).c_str()),
+			   "someone else's unread reply brings my pull request to My pull requests, as Replied");
+		expect(replied->Facts.MyReview == core::queue_my_review{ } && verdictOf(4001).isEmpty(), "and says no verdict of mine");
+		for (const auto number : { std::int64_t{ 4005 }, std::int64_t{ 4006 } }) {
+			waitsOnOthers(number, "after the reply");
+		}
+		refreshHome("Home Refresh after the reply");
+		for (const auto number : { std::int64_t{ 4005 }, std::int64_t{ 4006 } }) {
+			waitsOnOthers(number, "refreshed again");
+		}
+		expect(options.ReviewSubmissionServer->Submissions == 0 && options.ReviewSubmissionServer->StagedWrites == 0, "the own-activity course is read-only");
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "own-activity course drains every host");
+		desktop.reset();
+		expect(e2e::remove_course_root(temporary), "own-activity course removes its private root");
+		std::cout << "home-own-activity-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
 	if (homeWaiting) {
 		windowA->home_repository_onboarding_button()->click();
 		wait_for(draftReady, "waiting course opens repository setup");

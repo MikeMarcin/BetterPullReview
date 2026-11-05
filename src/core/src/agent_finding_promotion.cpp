@@ -1,5 +1,7 @@
 #include "bpr/core/agent_finding_promotion.hpp"
 
+#include "bpr/core/agent_comment_suggestion.hpp"
+
 namespace bpr::core {
 	namespace {
 		/// \brief A result carrying no command and the reason there is none.
@@ -148,11 +150,13 @@ namespace bpr::core {
 				return refuse(
 					agent_finding_promotion_refusal::no_suggested_comment);
 			}
+			// [[BPR-1861]]. The agent's own words, with the Conventional
+			// Comments label it wrote read into the editor's label model.
 			return {
 				.Draft = review_draft_command{
 					.Id   = aRequest.Draft->Id,
 					.Kind = review_draft_command_kind::edit,
-					.Body = *aRequest.Finding.SuggestedComment,
+					.Body = read_agent_comment_suggestion(*aRequest.Finding.SuggestedComment).Body,
 				},
 				.Refusal = agent_finding_promotion_refusal::none,
 			};

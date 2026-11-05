@@ -87,9 +87,9 @@ namespace bpr::qt::detail {
 		return QStringLiteral("Unknown transport");
 	}
 
-	// [[BPR-1791]]. What gh may write and whether full diffs run, which differ
-	// by platform: Windows and Linux have no write denial for gh, and gh's
-	// Git-object acquisition is qualified on macOS only.
+	// [[BPR-1791]]. What gh may write, which differs by platform: Windows and
+	// Linux have no write denial for gh. [[BPR-1857]]. Full diffs run through
+	// gh on all three; the clone store sits in the user's temporary directory.
 	[[nodiscard]] inline auto cli_platform_confinement_text() -> QString
 	{
 #if defined(__APPLE__)
@@ -100,7 +100,8 @@ namespace bpr::qt::detail {
 #else
 		return QStringLiteral(
 			"On this system CLI file writes are not denied; each call's private configuration is removed when it ends. "
-			"Full diffs through GitHub CLI are not yet available on this system. GitHub CLI reads require gh 2.96 or later. ");
+			"Full diffs may run Git and gh's shell credential helper with the same operation credential, in a temporary folder of yours that is removed afterwards. "
+			"They require gh 2.96 or later and Git 2.49 or later, checked locally, with a 32 MiB per-file limit. ");
 #endif
 	}
 
