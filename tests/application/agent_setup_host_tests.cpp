@@ -598,6 +598,78 @@ namespace {
 				   && f.state().Catalogs.empty() && f.Store.Stored->Agents.empty() && f.state().Step == core::setup_step::agent,
 			   "Reset agents clears every agent and setting, keeps the list from moving back in, and setup starts at Agent");
 	}
+	/// [[BPR-1859]]. Settings' Check agent runs the setup's own check:
+	/// before the Agent tab looked for agents it looks first; Stop ends it
+	/// while it waits; a saved agent no longer found says so; it is safe to
+	/// ask again, and a pass after a fix finishes the setup's agent row.
+	void test_check_from_settings()
+	{
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			f.Host->choose(setup_agent::claude_code);
+			f.settle();
+			expect(!f.state().Detected, "the Agent tab has not looked for agents");
+			auto facts = application::agent_check_facts_of(f.state(), false);
+			expect(core::decide_agent_check(facts).Offer == core::agent_check_offer::available, "Settings offers the check before looking");
+			f.Process.Answers = { said(application::agent_run_outcome::success, R"({"loggedIn": false})") };
+			f.Host->check();
+			expect(f.state().Checking && f.state().Detecting && f.state().State.AgentCheck.State == setup_check_state::running, "the check is running while it looks for the agent");
+			expect(core::decide_agent_check(application::agent_check_facts_of(f.state(), false)).Offer == core::agent_check_offer::running, "and is not offered again");
+			f.Host->check();
+			f.settle();
+			expect(f.Process.Requests.size() == 1U, "a second ask while it runs starts nothing more");
+			expect(f.state().Detected && !f.state().Checking && f.state().State.AgentCheck.Failure == core::agent_setup_failure::not_signed_in,
+				   "it looked, then ran the status check: not signed in");
+			const auto before = f.state().Step;
+			// The reviewer signs in and checks again.
+			f.Process.Answers = { said(application::agent_run_outcome::success, R"({"loggedIn": true})"), said(application::agent_run_outcome::success, "2.1.300 (Claude Code)") };
+			f.Host->check();
+			f.settle();
+			expect(f.state().State.AgentCheck.State == setup_check_state::passed && f.state().State.AgentCheck.Version == "2.1.300" && f.state().CheckDetail.empty(),
+				   "checking again after the fix passes");
+			expect(before == f.state().Step, "the step follows the rows exactly as in the setup");
+			f.Host->set_repository_chosen(true);
+			f.Host->set_workspace_check({ .State = setup_check_state::passed });
+			expect(f.state().Step == core::setup_step::ready, "with the workspace made too, the setup is Ready");
+		}
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			f.Host->choose(setup_agent::claude_code);
+			f.settle();
+			f.Host->check();
+			f.Host->stop();
+			expect(!f.state().Checking && f.state().State.AgentCheck.State == setup_check_state::not_run, "Stop ends a check still looking for the agent");
+			f.settle();
+			expect(f.Process.Requests.empty() && f.state().Detected && f.state().State.AgentCheck.State == setup_check_state::not_run, "and the search that answers later runs nothing");
+		}
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			f.Host->choose(setup_agent::claude_code);
+			f.Host->detect();
+			f.settle();
+			f.Claude = std::nullopt;
+			f.Host->detect();
+			f.settle();
+			const auto facts = application::agent_check_facts_of(f.state(), true);
+			expect(facts.SavedChoice && !facts.Chosen && core::decide_agent_check(facts).Offer == core::agent_check_offer::available, "a saved agent that is gone is still checked");
+			f.Host->check();
+			f.settle();
+			expect(f.Process.Requests.empty() && f.state().State.AgentCheck.Failure == core::agent_setup_failure::agent_not_found, "the check says it was not found, running nothing");
+		}
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.settle();
+			const auto facts = application::agent_check_facts_of(f.state(), true);
+			expect(core::decide_agent_check(facts).Offer == core::agent_check_offer::no_agent, "nothing added: no check");
+		}
+	}
 }
 
 auto main() -> int
@@ -613,6 +685,7 @@ auto main() -> int
 	test_check_diagnostics();
 	test_choice_and_steps();
 	test_the_agent_list();
+	test_check_from_settings();
 	std::cout << "agent-setup-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

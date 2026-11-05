@@ -3,6 +3,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
 
+#include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/defect_workflow.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -1480,10 +1481,14 @@ namespace bpr::qt {
 		}
 		aTurn.AnswerText = aText;
 		// The findings block is for the cards; the reply shows without it.
-		if (const auto fence = aTurn.AnswerText.lastIndexOf(QStringLiteral("```bpr-findings")); fence >= 0) {
-			const auto closed = aTurn.AnswerText.indexOf(QStringLiteral("```"), fence + 3);
-			aTurn.AnswerText.remove(fence, closed < 0 ? aTurn.AnswerText.size() - fence : closed + 3 - fence);
-			aTurn.AnswerText = aTurn.AnswerText.trimmed();
+		// [[BPR-1861]]. The core ends the block where its JSON ends, so a
+		// suggested comment's code fence cannot cut it in half, and shows a
+		// block it cannot read whole, as code, never as a torn Markdown tail.
+		if (aTurn.AnswerText.contains(QLatin1StringView{ core::agent_findings_fence.data(), static_cast<qsizetype>(core::agent_findings_fence.size()) })) {
+			const auto split = core::split_agent_answer(aTurn.AnswerText.toStdString());
+			if (split.Block != core::agent_findings_block::absent) {
+				aTurn.AnswerText = QString::fromStdString(split.Prose);
+			}
 		}
 		show_answer(aTurn);
 	}
@@ -2249,6 +2254,20 @@ namespace bpr::qt {
 	void agent_tab_view::set_answer_draft_dispatch(agent_answer_draft_dispatch aDispatch) { DraftDispatch = std::move(aDispatch); }
 
 	void agent_tab_view::set_draft_navigation(agent_answer_draft_navigation aNavigate) { DraftNavigate = std::move(aNavigate); }
+
+	void agent_tab_view::release_answer_draft(const std::string& aKey)
+	{
+		for (auto& turn : Turns) {
+			if (!turn.Drafted || !turn.DraftTarget || turn.DraftTarget->Key != aKey || turn.Draft == nullptr) {
+				continue;
+			}
+			turn.Drafted = false;
+			turn.Draft->setText(tr("Draft comment"));
+			turn.Draft->setToolTip(!turn.DraftTarget->Tip.isEmpty() ? turn.DraftTarget->Tip
+																	: tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+			turn.Draft->setEnabled(true);
+		}
+	}
 
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
 

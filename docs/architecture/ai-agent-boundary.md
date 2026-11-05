@@ -315,6 +315,36 @@ the session, and anchors a finding to its first line only on a file the
 turn's frozen snapshot holds; any other finding has no anchor, and
 `core::validate_agent_finding` delivers it unanchored. Nothing reaches a
 draft or a note without the reviewer's gesture on its card.
+`core::split_agent_answer` finds the block for both the decoder and the
+reply ([[BPR-1861]]): the last line that is the opening fence opens it, and
+it ends where its JSON object or array ends, read with string escapes
+honoured, then at the closing fence or the end of the answer. Backticks,
+quotes, braces and brackets inside a string, such as a suggested comment
+holding a fenced code block, are text; the block used to end at the first
+backticks after its opening and tore there. A block with no complete value
+(cut short, unbalanced, or with text after the value) yields no findings and
+is shown after the prose whole, as a `json` code block whose fence no
+backtick run inside it can close, so no fragment of it is read as Markdown.
+
+**Suggested comments carry Conventional Comments labels ([[BPR-1861]],
+owner 2026-11-04).** The review skill (version 3) asks every
+`suggestedComment`, and any reply written for the reviewer to post, to open
+with one plain `label (decorations): subject` header, naming the labels
+`praise`, `nitpick`, `suggestion`, `issue`, `todo`, `question`, `thought`,
+`chore` and `note` and the decorations `(blocking)`, `(non-blocking)` and
+`(if-minor)`. Whatever the agent wrote, `core::read_agent_comment_suggestion`
+reads its first line into the editor's label model: a catalog label in any
+case, wrapped in `**`, `__`, `*` or `_`, with spaces around its decoration
+list and colon, standard decorations in any case with `-`, `_` or a space
+between their words, and a subject on the next line when the header stands
+alone. It writes the header again through `decide_feedback_composition_edit`,
+the label chip's own edit, so the draft opens with the label in the chip and
+the decorations in the toggles. A missing label stays missing; an unknown one
+(`nit:`, `bug:`) and a header the serializer would have to restructure are
+kept as written, and no alias is read. Promotion, a finding card's **Add as
+draft comment** and an answer's **Draft comment** (to a thread reply, a line
+or the pull request) all draft the result; **Save as note** keeps the
+agent's text as written.
 
 **The review skill (owner decision D1, Q9 A).** The method ships as an Agent
 Skills package, `packaging/agent-skills/bpr-pr-review/SKILL.md`, built into
@@ -982,7 +1012,8 @@ Promotion is onto an existing local artifact, never a creation. The core's
 `review_draft_command` is `edit`/`discard`/`begin_publish`/… against a named
 draft and `defect_command_kind` has no "file a defect", so what a finding
 becomes is an `edit` of the reviewer's draft whose body is the suggested comment
-byte for byte, a `reclassify` of the reviewer's defect carrying the finding's
+byte for byte (its Conventional Comments header, when it has one, written in
+the editor's spelling: [[BPR-1861]]), a `reclassify` of the reviewer's defect carrying the finding's
 severity and category unmapped, or a `supplement_note` payload whose text is the
 claim byte for byte. **Nothing is composed**: evidence and consequence are
 deliberately not folded into the note, because the evidence bound alone equals
@@ -1252,6 +1283,7 @@ session (BPR-0500, `application_agent_invocation_host`).
 | One promotion yields exactly one local command, or a typed refusal | `core_agent_finding_promotion` |
 | No promotion result can carry a `review_publication_proposal` | `core_agent_finding_promotion` |
 | The suggested comment and the claim are carried byte for byte | `core_agent_finding_promotion` |
+| A suggested comment's Conventional Comments header is read into the label model and written as the label chip writes it; a missing or unknown label is not invented ([[BPR-1861]]) | `core_agent_comment_suggestion`, `core_agent_finding_promotion`, `application_agent_chat_conversation_contract` |
 | Every one of the eleven promotion refusals is separately reachable | `core_agent_finding_promotion` |
 | Seven entry points are legal only with their own explicit intent, and an eighth fails the count | `core_agent_chat_scope` |
 | Refresh, navigation, comment arrival, and revision update produce zero invocations | `core_agent_chat_scope`, `qt_side_chat_panel` |

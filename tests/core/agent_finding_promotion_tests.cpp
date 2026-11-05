@@ -267,6 +267,22 @@ namespace {
 			"copied from the finding rather than written here");
 	}
 
+	/// \brief [[BPR-1861]]. A suggestion that opens with a Conventional
+	/// Comments header drafts with the label the editor's chip writes; the
+	/// agent's subject and discussion are kept as written.
+	void test_a_labelled_suggestion_drafts_with_its_label()
+	{
+		auto labelled                     = request(core::agent_finding_promotion_choice::draft_comment);
+		labelled.Finding.SuggestedComment = std::string{ "**Suggestion (Non-Blocking):** increment `attempts` first.\n\nOtherwise the loop spins." };
+		const auto result                 = core::promote_agent_finding(labelled);
+		expect(result.promoted() && result.Draft && result.Draft->Body == "suggestion (non-blocking): increment `attempts` first.\n\nOtherwise the loop spins.",
+			   "the draft opens with the canonical header and the agent's own words");
+		auto unknown                     = labelled;
+		unknown.Finding.SuggestedComment = std::string{ "nit: rename `attempts`." };
+		const auto kept                  = core::promote_agent_finding(unknown);
+		expect(kept.Draft && kept.Draft->Body == *unknown.Finding.SuggestedComment, "an unknown label is not invented into one; the text stays as written");
+	}
+
 	/// \brief Promoting into a defect emits one reclassify, and moves no state.
 	void test_a_defect_promotion_yields_exactly_one_reclassify_command()
 	{
@@ -809,6 +825,7 @@ auto main() -> int
 {
 	test_a_draft_promotion_yields_exactly_one_edit_command();
 	test_the_suggested_comment_is_carried_byte_for_byte();
+	test_a_labelled_suggestion_drafts_with_its_label();
 	test_a_defect_promotion_yields_exactly_one_reclassify_command();
 	test_a_note_promotion_yields_exactly_one_payload();
 	test_each_choice_produces_exactly_one_artifact();
