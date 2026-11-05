@@ -289,3 +289,22 @@ The architecture contract also rejects a widened directory comparison, a detache
 worker binding, a removed canonical-file check, an ambiguous PATH separator or
 a changed parent-directory derivation. These checks retain the older strict
 empty-PATH fixture and all pre-copy limits.
+
+### Live Windows release check: Git is not gh.exe
+
+At `b48a49b63`, the actual live course passed Git's version and capability
+checks, but clone admission returned `invalid_request` before launching a
+clone. The shared Windows `executable_permissions` helper required the filename
+`gh.exe`; the newly enabled clone compiler reused it for `git.exe`. That helper
+now checks the Windows executable suffix case-insensitively. GitHub CLI's
+separate `executable_name` admission still requires `gh.exe`, and the Git path
+still needs its canonical regular-file identity and prior tool qualification.
+No shell or broader process entry point is added.
+
+The regression compiles an actual clone request with a valid authority and a
+fresh owner-private `bpr-cli-git-*` root on every platform. It requires qualified
+Git admission and exactly one observed search-directory entry, and separately
+proves that using Git as the GitHub CLI configuration is still refused. The
+Windows test target names the shared platform header dependency needed by its
+existing scratch-directory helper. The new Mac request course passes; native
+Windows and live comparison acceptance remain pending for this correction.

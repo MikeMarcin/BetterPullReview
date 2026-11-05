@@ -1,3 +1,4 @@
+#include "../support/scratch_directory.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/adapters/sqlite/review_mutation_recovery_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -649,6 +650,95 @@ namespace {
 		expect(
 			!result.has_value() && result.error() == aFailure,
 			aMessage);
+	}
+
+	template <typename Identity>
+	[[nodiscard]] constexpr auto opaque(const std::uint8_t aSeed) -> Identity
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		bytes[0]  = aSeed;
+		bytes[31] = static_cast<std::uint8_t>(aSeed ^ 0xA5U);
+		return Identity{ bytes };
+	}
+
+	template <typename Oid>
+	[[nodiscard]] constexpr auto oid(const std::uint8_t aSeed) -> Oid
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		for (std::size_t index = 0U; index < 20U; ++index) {
+			bytes[index] = static_cast<std::uint8_t>(aSeed + static_cast<std::uint8_t>(index));
+		}
+		return Oid{ core::git_hash_algorithm::sha1, bytes };
+	}
+
+	[[nodiscard]] auto clone_request_context()
+		-> application::git_smart_request_context
+	{
+		const auto baseRef = application::parse_git_base_branch_ref("refs/heads/main");
+		expect(baseRef.has_value(), "base-ref");
+		return {
+			.ApplicationSession = core::application_session_id{ 202U },
+			.Authority          = core::pull_request_authority{
+				.Profile         = core::host_profile_id{ 11U },
+				.ProfileRevision = core::github_profile_revision{ 31U },
+				.Host            = core::git_host_id{ 21U },
+				.HostAuthority   = opaque<core::host_authority_fingerprint>(1U),
+				.Account         = core::github_account_id{ 203U },
+				.Viewer          = core::github_viewer_actor_id{ 204U },
+				.Repository      = core::repository_id{ 205U },
+				.Cache           = opaque<core::repository_cache_scope_id>(2U),
+				.PullRequest     = core::pull_request_id{ 206U },
+				.Number          = core::pull_request_number{ 17U },
+				.Scope           = opaque<core::pull_request_authority_scope_id>(3U),
+			},
+			.Revision = core::accepted_pull_request_revision{
+				.Source = core::pull_request_source_revision{
+					.Observation           = opaque<core::epoch_source_observation_id>(9U),
+					.Snapshot              = core::provider_snapshot_id{ 301U },
+					.IdentityGeneration    = core::github_identity_generation{ 207U },
+					.PullRequestGeneration = core::request_generation{ 208U },
+				},
+				.Origin     = core::pull_request_revision_origin::live,
+				.BaseBranch = opaque<core::base_branch_id>(4U),
+				.Base       = oid<core::git_commit_oid>(10U),
+				.Head       = oid<core::git_commit_oid>(30U),
+			},
+			.Repository = core::repository_locator{
+				.Owner = "octo-org",
+				.Name  = "review-repository",
+			},
+			.BaseRef = *baseRef,
+		};
+	}
+
+	// [[BPR-1857]]. The first real Windows clone was refused because Git was
+	// checked with gh.exe's name predicate. Exercise the actual compiler on
+	// every platform, including a single, bounded Windows search-path entry.
+	auto test_clone_admits_qualified_git_without_reclassifying_gh() -> void
+	{
+		temporary_layout layout;
+		const auto       configuration = validate_gh_cli_configuration(configuration_candidate(layout));
+		const auto       profile       = validate_github_host_profile(cloud_candidate());
+		expect(configuration && profile, "clone configuration and authority validate");
+		const auto                 root = tests::make_scratch_directory(gh_cli_git_temporary_parent() / "bpr-cli-git");
+		const tests::scratch_guard owned{ root };
+#if defined(_WIN32)
+		const auto git = root / "git.exe";
+#else
+		const auto git = root / "git";
+#endif
+		create_regular_file(git, true);
+		const auto context = clone_request_context();
+		expect(application::valid(context), "clone authority fixture is valid");
+		const auto request = compile_gh_cli_git_clone_request(*configuration, *profile, context, context.Revision.Head, git, root, 0U);
+		expect(request.has_value(), "a canonical qualified Git is admitted without requiring it to be named gh");
+		expect(std::ranges::count_if(request->Environment, [](const auto& aEntry) { return aEntry.Name == "PATH"; }) == 1
+				   && std::ranges::any_of(request->Environment, [&](const auto& aEntry) { return aEntry.Name == "PATH" && aEntry.Value == path_bytes(git.parent_path()); }),
+			   "clone construction supplies exactly one observed Git search directory");
+		auto wrongRole       = configuration_candidate(layout);
+		wrongRole.Executable = git;
+		const auto wrong     = validate_gh_cli_configuration(wrongRole);
+		expect(!wrong && wrong.error() == gh_cli_configuration_failure::executable_name_mismatch, "the gh configuration still refuses a Git executable");
 	}
 
 	// [[BPR-1857]]. Local Git must carry the Windows launch prerequisite without
@@ -2814,6 +2904,7 @@ namespace {
 
 auto main() -> int
 try {
+	test_clone_admits_qualified_git_without_reclassifying_gh();
 	test_local_git_environment_is_closed();
 	test_configuration_is_canonical_typed_and_closed();
 	test_all_operations_compile_to_exact_closed_invocations();
