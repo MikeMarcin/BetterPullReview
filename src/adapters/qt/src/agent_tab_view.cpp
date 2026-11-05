@@ -2246,6 +2246,20 @@ namespace bpr::qt {
 
 	void agent_tab_view::set_draft_navigation(agent_answer_draft_navigation aNavigate) { DraftNavigate = std::move(aNavigate); }
 
+	void agent_tab_view::release_answer_draft(const std::string& aKey)
+	{
+		for (auto& turn : Turns) {
+			if (!turn.Drafted || !turn.DraftTarget || turn.DraftTarget->Key != aKey || turn.Draft == nullptr) {
+				continue;
+			}
+			turn.Drafted = false;
+			turn.Draft->setText(tr("Draft comment"));
+			turn.Draft->setToolTip(!turn.DraftTarget->Tip.isEmpty() ? turn.DraftTarget->Tip
+																	: tr("Draft this reply, or the part of it you selected, as a comment on the pull request. Nothing is posted until you post it."));
+			turn.Draft->setEnabled(true);
+		}
+	}
+
 	auto agent_tab_view::turn_draft_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Draft.data() : nullptr; }
 
 	auto agent_tab_view::turn_asked(const std::size_t aTurn) const -> QString

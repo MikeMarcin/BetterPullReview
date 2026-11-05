@@ -11751,6 +11751,17 @@ namespace bpr::qt {
 		return DeleteDraftConfirmation.data();
 	}
 
+	void workbench_window::present_draft_delete_refusal(const QString& aReason)
+	{
+		// [[BPR-1862]]. Where the drawer's composer has closed, the status
+		// line is what still shows; the editor's own status keeps it too.
+		statusBar()->showMessage(aReason, 15000);
+		if (ReviewEditor != nullptr) {
+			ReviewEditor->present_publication_refusal(aReason);
+		}
+		present_inline_draft();
+	}
+
 	void workbench_window::set_comment_draft_unavailable(QString aReason)
 	{
 		CommentDraftUnavailable = std::move(aReason);
@@ -11871,11 +11882,18 @@ namespace bpr::qt {
 		DeleteDraftConfirmation = box;
 		const auto id           = shown.has_value() ? std::optional{ shown->Id } : std::nullopt;
 		connect(box, &QDialog::accepted, this, [this, id] {
-			// The draft asked about, and no other.
+			// The draft asked about, and no other. [[BPR-1862]]: a confirmed
+			// delete that cannot go ahead says so.
 			const auto& now = ReviewEditor != nullptr ? ReviewEditor->shown_draft() : std::optional<core::review_comment_draft>{ };
-			if (now.has_value() && std::optional{ now->Id } == id) {
-				leave_drawer_draft(true);
+			if (!now.has_value() || std::optional{ now->Id } != id) {
+				present_draft_delete_refusal(tr("Not deleted: the comment changed while you were asked. Delete it again."));
+				return;
 			}
+			if (!ReviewEditor->discard_action()->isEnabled()) {
+				present_draft_delete_refusal(tr("Not deleted: this comment cannot be deleted now. %1").arg(ReviewEditor->discard_action()->toolTip()));
+				return;
+			}
+			leave_drawer_draft(true);
 		});
 		box->open();
 	}
