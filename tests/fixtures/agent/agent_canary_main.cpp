@@ -148,13 +148,21 @@ namespace {
 		return output;
 	}
 
+	/// \brief Writes one frame in pieces, a millisecond apart, so the host
+	/// reads it partially.
+	/// \details [[BPR-1869]]. Three-byte pieces up to 192 bytes; a longer
+	/// frame is cut into 64. Every frame is still split, but the echo of the
+	/// review context (about 15 KB, then 30 KB as hex) no longer takes
+	/// 15,000 sleeps: 25 s on macOS, and past every course's 30 s wait on
+	/// Windows, where a millisecond sleep costs more.
 	void write_partial(const std::string& aFrame)
 	{
-		for (auto offset = std::size_t{ 0U }; offset < aFrame.size(); offset += 3U) {
+		const auto piece = std::max<std::size_t>(3U, (aFrame.size() + 63U) / 64U);
+		for (auto offset = std::size_t{ 0U }; offset < aFrame.size(); offset += piece) {
 			std::cout.write(
 				aFrame.data() + offset,
 				static_cast<std::streamsize>(
-					std::min<std::size_t>(3U, aFrame.size() - offset)));
+					std::min<std::size_t>(piece, aFrame.size() - offset)));
 			std::cout.flush();
 			std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 		}
@@ -915,11 +923,9 @@ auto main(int argc, char** argv) -> int
 			|| executable_mode(argv, "crash-descendant-wait")) {
 			emit(protocol, "descendant-id\t" + std::to_string(childId));
 		}
-		// [[BPR-1869]]. The crash course's checkpoint waits for these, and the
-		// echo below is paced at three bytes a millisecond: with the review
-		// context on stdin, then again as hex, it is some 45 KB, which took
-		// 25 s on macOS and longer on Windows, past the course's 30 s wait.
-		// So the identities go out here, before the echo.
+		// [[BPR-1869]]. The crash course's checkpoint waits for these. They go
+		// out here, before the echo of argv, environment and the review
+		// context, so the checkpoint does not wait on how long that echo is.
 		if (executable_mode(argv, "crash-descendant-wait")) {
 			report_process_identity(protocol);
 		}
