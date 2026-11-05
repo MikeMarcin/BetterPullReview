@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1870"
+  ],
+  "reserve_for": "private-folder-autofix",
+  "purpose": "Tighten an existing data or workspace folder to owner-private instead of refusing it",
+  "created": "2026-11-05T05:50:43.111017+00:00",
+  "base": "b9b9737a34569179346f2e91e514d1129dd2b739"
+}
