@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1871"
+  ],
+  "reserve_for": "file-open-while-loading",
+  "purpose": "Opening a file while the PR loads shows No file open instead of loading it, and should prioritize that file",
+  "created": "2026-11-05T20:41:30.867897+00:00",
+  "base": "ac5613ca742ffc128ab56e3137096929e3cef90d"
+}
