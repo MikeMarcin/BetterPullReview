@@ -235,10 +235,10 @@ namespace {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "the macOS CLI card states its confinement and full-diff boundary: " } + phrase);
 		}
 #else
-		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs through GitHub CLI are not yet available" }) {
+		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs may run Git", "shell credential helper", "temporary folder of yours that is removed afterwards", "Git 2.49 or later", "checked locally", "32 MiB per-file limit" }) {
 			expect(warning->text().contains(QString::fromLatin1(phrase)), std::string{ "the CLI card states this platform's residual boundary: " } + phrase);
 		}
-		expect(!warning->text().contains(QStringLiteral("file writes are denied")) && !warning->text().contains(QStringLiteral("32 MiB")), "the CLI card does not promise macOS confinement or a full-diff limit on this platform");
+		expect(!warning->text().contains(QStringLiteral("file writes are denied")) && !warning->text().contains(QStringLiteral("supervised temporary-store cutoff")), "the CLI card does not promise macOS write denial or its supervised store cutoff on this platform");
 #endif
 		const auto host = QString::fromStdString(cliCard->hostname());
 		expect(!host.isEmpty() && cliCard->host_label()->text() == host
@@ -303,10 +303,10 @@ namespace {
 			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the macOS consent disclosure states its confinement and full-diff boundary: " } + phrase);
 		}
 #else
-		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs through GitHub CLI are not yet available" }) {
+		for (const auto* phrase : { "file writes are not denied", "private configuration is removed", "Full diffs may run Git", "shell credential helper", "temporary folder of yours that is removed afterwards", "Git 2.49 or later", "checked locally", "32 MiB per-file limit" }) {
 			expect(details.contains(QString::fromLatin1(phrase)), std::string{ "the consent disclosure states this platform's residual boundary: " } + phrase);
 		}
-		expect(!details.contains(QStringLiteral("file writes are denied")) && !details.contains(QStringLiteral("32 MiB")), "the consent disclosure does not promise macOS confinement or a full-diff limit on this platform");
+		expect(!details.contains(QStringLiteral("file writes are denied")) && !details.contains(QStringLiteral("supervised temporary-store cutoff")), "the consent disclosure does not promise macOS write denial or its supervised store cutoff on this platform");
 #endif
 
 		auto* const connect = question->button(QMessageBox::Yes);
