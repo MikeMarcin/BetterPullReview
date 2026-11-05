@@ -1,0 +1,37 @@
+{
+  "assignment": "BPR-1850",
+  "milestone": "notification-center-defect",
+  "mandate_revision": "owner-wizard-v003-2026-11-04",
+  "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview/.claude/worktrees/agent-a71e0caf0a4070490",
+  "branch": "worktree-agent-a71e0caf0a4070490",
+  "baseline": "2d7b3322e",
+  "source_candidate": "fa545a31e485f105c7d0db6d7764a9e2d07177be",
+  "changed_product_paths": [
+    "src/adapters/qt/include/bpr/qt/system_tray_notification_sink.hpp",
+    "src/adapters/qt/src/system_tray_notification_sink.cpp",
+    "src/adapters/qt/src/pull_request_activity_notifications.cpp",
+    "tests/adapters_qt/pull_request_activity_notifications_tests.cpp",
+    "cmake/VerifyArchitectureBoundaries.cmake"
+  ],
+  "cause": "Qt's Cocoa tray (6.11, pinned 6.12.0) submits showMessage as an NSUserNotification and schedules removeDeliveredNotification: after a nonzero display hint; both sinks used the 10 000 ms default, so every notification left Notification Center after ten seconds.",
+  "verification": {
+    "focused": "ctest (dev): qt_pull_request_activity_notifications, qt_system_tray_notification_sink, architecture_boundaries: pass",
+    "format": "_coding-standard/scripts/format.py with clang-format 22.1.8: no changes",
+    "documentation": "verify_documentation.py: DOCUMENTATION_OK",
+    "frozen_launcher": "freeze_attended_build.py freeze BPR-1850-v004 at fa545a31e: exit 0; CHECK_OK ATTENDED_FILE_SHOWN; root /Users/jaeger/bpr-attended/BPR-1850-v004.szh_czqj; executable sha256 a8742c4dfcec8d2ea2cdd91ff3efffc2054de0c0a257e763dcca4144d22eb955",
+    "live_data_smoke": "offscreen launch with --test-application-data-root to a nonexistent scratch root stayed up 12 s; a pre-created root exits STARTUP_FAILED registry_unavailable, so live-data must not be created in advance"
+  },
+  "review": {
+    "wizard": "bpr-1850-desktop-banner-v004",
+    "session": "1f4322ce-6d40-4e44-852d-4c1d0002db48",
+    "state": "/Users/jaeger/.codex/wizard/bpr1850-banner-v004-qduDtG/state",
+    "transport": "loopback host started 2026-11-04; URL kept in the external serve.log only",
+    "status": "served, not started"
+  },
+  "pending": [
+    "AC9: owner answers wizard v004 (banner on first comment; under Do Not Disturb silent and listed in Notification Center)",
+    "Wizard observation steps comment and comment-dnd: an agent comments on MikeMarcin/BPR-Test#148 as MikeMarcinTest and records them",
+    "After the wizard: close BPR-Test#148, delete branch bpr-1850-banner-1793845131, stop the v004 host, remove the v003 and v004 frozen roots with freeze_attended_build.py remove"
+  ],
+  "next_action": "Drive wizard v004's observation steps, then record AC9 and merge the branch into main."
+}
