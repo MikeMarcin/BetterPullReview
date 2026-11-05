@@ -225,7 +225,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::settings, .Group = application, .Binding = bound, .Title = "Settings", .Keys = "Ctrl+,", .Objects = "openSettingsAction;desktopOpenSettingsAction" },
 			shortcut_entry{ .Command = command::insights, .Group = application, .Binding = bound, .Title = "Insights", .Keys = "Ctrl+Alt+Shift+I", .Objects = "openInsightsAction;desktopOpenInsightsAction" },
 			shortcut_entry{ .Command = command::settings_find, .Group = application, .Binding = bound, .Title = "Search Settings", .Place = "In Settings", .Standard = QKeySequence::Find, .EveryBinding = true, .Shown = 1U, .Objects = "settingsFindShortcut" },
-			shortcut_entry{ .Command = command::new_window, .Group = application, .Binding = bound, .Title = "New window", .Place = "With no window open", .Standard = QKeySequence::New, .Objects = "desktopNewBprWindowAction" },
+			shortcut_entry{ .Command = command::new_window, .Group = application, .Binding = bound, .Title = "New window", .Standard = QKeySequence::New, .Objects = "newBprWindowAction;desktopNewBprWindowAction" },
 			shortcut_entry{ .Command = command::quit, .Group = application, .Binding = bound, .Title = "Quit", .Standard = QKeySequence::Quit, .Objects = "quitProfilesAction;desktopQuitProfilesAction" },
 			shortcut_entry{ .Command = command::connect, .Group = application, .Binding = bound, .Title = "Sign in to GitHub", .Keys = "Ctrl+Shift+C", .Objects = "connectGithubAction" },
 			shortcut_entry{ .Command = command::open_pull_request, .Group = application, .Binding = bound, .Title = "Open a pull request", .Standard = QKeySequence::Open, .Objects = "openPullRequestAction" },
