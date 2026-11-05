@@ -616,6 +616,11 @@ namespace bpr::qt {
 		void          update_turn();
 		void          progress();
 		QTimer*       Ticker = nullptr;
+		/// [[BPR-1869]]. Output lines re-render the running answer at most
+		/// once per interval: the first at once, the last when it ends. Each
+		/// render is the whole answer, so one per line was quadratic.
+		QTimer*       AnswerPacer   = nullptr;
+		bool          AnswerPending = false;
 		QElapsedTimer Started;
 		/// The last request ended well and nothing has run since.
 		bool         Finished   = false;
