@@ -328,7 +328,16 @@ try {
 		wait_for([&] { return owner->windows().size() == 2U; }, "New Window admits a window without an account");
 		const auto contexts = owner->windows();
 		auto*      sibling  = owner->window(contexts.front() == first ? contexts.back() : contexts.front());
-		QApplication::processEvents();
+		// Window admission precedes its asynchronous Home projection. Keep the
+		// no-account-read invariant while awaiting that public completion;
+		// one processEvents() call cannot establish that it was published.
+		wait_for([&] {
+			return evidence().AccountReadOperations.size() != before
+				|| (sibling->showing_home() && sibling->session_panel()->status() == core::github_status::no_profile
+					&& sibling->home_landing()->state() == qt::landing_state::sign_in && !sibling->home_list()->queue_shown()
+					&& sibling->account_action()->text() == QStringLiteral("Sign in"));
+		},
+				 "the new window publishes its signed-out Home without reading an account");
 		const auto observed = std::tuple{ sibling->session_panel()->status(), sibling->home_landing()->state(), sibling->home_list()->queue_shown(), sibling->account_action()->text() };
 		std::cerr << aVariant << " sibling: status=" << static_cast<int>(std::get<0>(observed)) << " landing=" << static_cast<int>(std::get<1>(observed))
 				  << " queue shown=" << std::get<2>(observed) << " account=" << std::get<3>(observed).toStdString() << '\n';
