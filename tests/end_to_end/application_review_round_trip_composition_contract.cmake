@@ -1,3 +1,10 @@
+# [[BPR-1854]] changed-surface LLVM22 correction over 3ccc4369e: the app
+# delta is only the draft-delete fixture passing its already-guarded optional
+# directly instead of unwrapping/reconstructing it. Every semantic assertion
+# stays. Core's label parser only renames a local lambda; the title shortener
+# allows the local string to move on return, with identical values. No app
+# inventory, provider, credential, grant or production mutation branch change.
+# Source pins below bind that reviewed fixture-only app delta, not acceptance.
 # [[BPR-1854]] owner-selected authoritative-main reconciliation over
 # release 21cc7ea31 and upstream b9b9737a3 (2026-11-05). Scoped engineering
 # review covers every changed app-manifest file: the activity callback and
@@ -2669,7 +2676,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "59cdcd3497bc0d66a7d4b037df4b0380be572fa905891a7e3505d11ebc620562"
+        "8adfe49e40c16888e9e06b583d90d15ea1d36c74dc9f0b4bcf89fe9e9e7176f6"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2994,7 +3001,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "ac24835c276aba0ef75e78128f1695b4f7df83bc1d7dff2bc67bb9611bb3fe12"
+        "b7b5e8923bb8c5a2a0ae915b3a2a842c1e359b64303b2e7c6b0b9c28cf6a4109"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
