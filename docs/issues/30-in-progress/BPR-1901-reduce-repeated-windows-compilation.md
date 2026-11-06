@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1901"
 title: "Reduce repeated Windows compilation"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
