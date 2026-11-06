@@ -132,8 +132,9 @@ is unfinished the tab's top says **Drafting help needs the agent.** with
 unfinished step, as its **Finish setup** does. Nothing opens the setup by
 itself. The agent features (the three drafting helpers, **Suggest an
 outline** and its insert, and the bottom bar) wear one agent accent,
-`agent_accent` in `bpr/qt/agent_feature.hpp`: a deep magenta in a light
-window and a soft one in a dark window, each at least 4.5:1 against the
+`agent_accent` in `bpr/qt/agent_feature.hpp`: a deep indigo in a light
+window and a soft one in a dark window (owner look v001: not red, which
+reads as an error; clear of the link blue and the fixed violet), each at least 4.5:1 against the
 window and base colours, with the agent's spark beside each button's words
 so colour is not the only sign. They keep it after setup. Until the setup
 has finished the helpers and the outline's buttons are disabled, and their
