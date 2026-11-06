@@ -1391,10 +1391,22 @@ auto main(int argc, char** argv) -> int
 			own.submit_action()->trigger();
 			QApplication::processEvents();
 			expect(submissions() == before && !own.submit_action()->isEnabled(), "no gesture sends Approve or Request changes on my own pull request");
+			const auto [reviewsBefore, postsBefore] = [&] {
+				std::scoped_lock lock{ server->Mutex };
+				return std::pair{ server->Reviews.size(), server->ReviewPosts.size() };
+			}();
 			comment->click();
 			submitted(own);
 			std::scoped_lock lock{ server->Mutex };
 			expect(server->Submissions == before + 1U, "Comment submits once");
+			if (server->Reviews.back().Proposal.Disposition != core::review_disposition::comment) {
+				std::cerr << "own-comment evidence: reviews " << reviewsBefore << " -> " << server->Reviews.size()
+						  << ", posts " << postsBefore << " -> " << server->ReviewPosts.size()
+						  << ", last draft disposition " << static_cast<int>(own.last_submitted()->Disposition)
+						  << ", last recorded direct disposition " << static_cast<int>(server->Reviews.back().Proposal.Disposition)
+						  << ", recorded direct body is own summary "
+						  << (server->Reviews.back().Proposal.Body == "A comment on my own pull request.") << '\n';
+			}
 			expect(server->Reviews.back().Proposal.Disposition == core::review_disposition::comment, "as a comment");
 		}
 		shutdown(*application);
