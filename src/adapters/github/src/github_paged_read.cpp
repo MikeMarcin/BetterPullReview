@@ -6024,23 +6024,38 @@ namespace bpr::adapters::github::detail {
 				aObserver->overview_observed({ aRequest.Context, result.Repository, result.PullRequest, expectedFiles, result.Files, std::nullopt });
 			}
 
-			if (const auto commits = read_rest_array_collection(
-					execution,
-					aProfile,
-					semantic_request_for(*server,
-										 aRequest.Context,
-										 read_operation::list_pull_request_commits),
-					result.Commits,
-					aLimits.Records.MaximumCommits,
-					aLimits.MaximumPageRecords,
-					[](const page_json_value& aValue) { return parse_commit(aValue); });
-				!commits.has_value()) {
-				return std::unexpected{ execution.enrich(commits.error()) };
-			}
-			if (result.Commits.size() != expectedCommits || result.Commits.empty()
-				|| result.Commits.back().Oid != result.PullRequest.HeadOid) {
-				return execution.terminal_failure(
-					application::github_provider_failure::malformed_response);
+			const auto readCommits = [&]() -> std::expected<void, github_paged_read_failure> {
+				if (const auto commits = read_rest_array_collection(
+						execution,
+						aProfile,
+						semantic_request_for(*server,
+											 aRequest.Context,
+											 read_operation::list_pull_request_commits),
+						result.Commits,
+						aLimits.Records.MaximumCommits,
+						aLimits.MaximumPageRecords,
+						[](const page_json_value& aValue) { return parse_commit(aValue); });
+					!commits.has_value()) {
+					return std::unexpected{ execution.enrich(commits.error()) };
+				}
+				if (result.Commits.size() != expectedCommits || result.Commits.empty()
+					|| result.Commits.back().Oid != result.PullRequest.HeadOid) {
+					return execution.terminal_failure(
+						application::github_provider_failure::malformed_response);
+				}
+				return { };
+			};
+			// [[BPR-1883]]. Only a refresh with observable threads can use its
+			// conversation early. Keep first-open and signed-out reads ordered
+			// as before, and keep commit validation mandatory in either order.
+			const auto prioritizeConversation = aObserver != nullptr
+				&& aReadAuthority == github_provider_read_authority::authenticated
+				&& aRequest.Context.ExpectedPullRequest.has_value()
+				&& aRequest.CapabilityEvidence.ReadShape.ReviewThreads;
+			if (!prioritizeConversation) {
+				if (const auto commits = readCommits(); !commits) {
+					return std::unexpected{ commits.error() };
+				}
 			}
 
 			if (const auto reviews = read_rest_array_collection(
@@ -6066,7 +6081,7 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(graphql.error()) };
 			}
 			// [[BPR-1851]]. The conversation a reviewer reads beside the file on
-			// screen is complete here, ahead of the comments, checks, policy and
+			// screen is complete here, ahead of commit pagination, comments, checks and
 			// history still to come, so a refresh can show it first. Observed only
 			// when the threads were read, after the file list, without authority,
 			// and only for a refresh: a first open has nothing to lay it over.
@@ -6082,6 +6097,12 @@ namespace bpr::adapters::github::detail {
 												   .ReviewThreadsAvailability = result.ReviewThreadsAvailability,
 												   .ReviewThreads             = result.ReviewThreads,
 												   .ConversationLock          = result.ConversationLock } });
+			}
+
+			if (prioritizeConversation) {
+				if (const auto commits = readCommits(); !commits) {
+					return std::unexpected{ commits.error() };
+				}
 			}
 
 			// The inline review conversation is read over REST only under the
