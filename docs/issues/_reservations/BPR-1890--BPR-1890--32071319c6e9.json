@@ -6,5 +6,5 @@
   "reserve_for": "responsiveness-latency",
   "purpose": "Show refreshed conversations before changed-file pagination",
   "created": "2026-11-06T17:37:09.449358+00:00",
-  "base": "dcdb476feb2dfc94ed6a3bd228942d9f69fea9e8"
+  "base": "e422466fbf5ce7c8ad7dab410d3ded5cc123c4d2"
 }
