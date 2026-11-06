@@ -2615,12 +2615,17 @@ offers one way back: **Agent settings…** for an answer this app cannot read,
 and **Resend** for any other ending, a start or workspace failure among
 them ([[BPR-1876]]; owner look v001 named it Resend, since a message is not
 always a question): it sends the same message again as a new run, which
-starts the agent and makes its workspace and so checks both as it goes. A
-message that never reached the agent (it did not start, its workspace could
-not be made, or private history could not record the run) also offers
-**Delete**, on any turn while nothing runs: the turn leaves the thread and
-the kept thread, and, if it was the stopped run's, the stopped banner goes
-with it. A message the agent received stays as part of its conversation. Once
+starts the agent and makes its workspace and so checks both as it goes.
+Every error also offers **Delete**, on any turn while nothing runs
+([[BPR-1876]] for a message that never reached the agent; [[BPR-1880]],
+owner 2026-11-06, for every other failed message): the turn leaves the
+thread and the kept thread, and, if it was the stopped run's, the stopped
+banner goes with it. A message the agent received is forgotten once deleted:
+an Agent tab run resumes no session of the agent's own, and what the agent
+knows of earlier turns is the kept thread the next message carries, so its
+tooltip says the agent won't be sent it again and won't remember it; a
+message that never reached the agent says so instead. An answer offers no
+Delete. Once
 the setup's check of what a start or workspace failure names has run again
 and passed, that error says so: its card leaves the danger look for the plain
 one and opens with a green check and "Fixed since: <agent> passed its check."

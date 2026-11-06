@@ -1384,10 +1384,10 @@ namespace bpr::qt {
 		footerRow->addWidget(recovery);
 		// [[BPR-1876]], owner look v001: "We should also be able to delete a
 		// message that was never sent to the agent instead of just resend."
+		// [[BPR-1880]]: on every error; its tooltip is set with its actions.
 		auto* const remove = new quiet_push_button{ tr("Delete"), reply };
 		remove->setObjectName(QStringLiteral("agentTurnDelete"));
 		remove->setFlat(true);
-		remove->setToolTip(tr("Remove this message from the conversation. It never reached the agent."));
 		remove->hide();
 		footerRow->addWidget(remove);
 		footerRow->addStretch(1);
@@ -2120,6 +2120,11 @@ namespace bpr::qt {
 				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
 			}
 			if (kept.Delete != nullptr) {
+				// [[BPR-1880]]. A message the agent received is forgotten once
+				// deleted: no agent session is resumed, and the next message
+				// carries the kept thread without it.
+				kept.Delete->setToolTip(core::agent_turn_never_sent(kept.Outcome) ? tr("Remove this message from the conversation. It never reached the agent.")
+																				  : tr("Remove this message from the conversation. The agent won't be sent it again, so it won't remember it."));
 				kept.Delete->setVisible(actions.Delete);
 			}
 			if (latest && LatestFixedSince != actions.FixedSince) {
@@ -2157,7 +2162,7 @@ namespace bpr::qt {
 
 	void agent_tab_view::delete_turn(const std::size_t aTurn)
 	{
-		if (!panels_alive() || aTurn >= Turns.size() || State == agent_tab_state::working || !Turns[aTurn].Done || !core::agent_turn_never_sent(Turns[aTurn].Outcome)) {
+		if (!panels_alive() || aTurn >= Turns.size() || State == agent_tab_state::working || !Turns[aTurn].Done || Turns[aTurn].Outcome == core::agent_turn_outcome::answered) {
 			return;
 		}
 		const auto latest = aTurn + 1U == Turns.size();

@@ -92,7 +92,7 @@ namespace bpr::core {
 		}
 		auto actions       = agent_turn_actions{ .Error = true, .Copy = aFacts.HasText };
 		actions.FixedSince = aFacts.CausePassedSince && agent_turn_cause_of(aFacts.Outcome) != agent_turn_cause::none;
-		actions.Delete     = !aFacts.Working && agent_turn_never_sent(aFacts.Outcome);
+		actions.Delete     = !aFacts.Working;
 		if (!aFacts.Latest || aFacts.Working) {
 			return actions;
 		}
