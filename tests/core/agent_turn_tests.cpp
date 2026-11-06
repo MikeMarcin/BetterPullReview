@@ -119,12 +119,22 @@ namespace {
 			for (const auto latest : { false, true }) {
 				for (const auto working : { false, true }) {
 					const auto actions = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
-					expect(actions.Delete == (unsent && !working), "a message never sent can be deleted, on any turn, while nothing runs; one the agent received cannot");
+					// [[BPR-1880]]: every error, sent or not.
+					expect(actions.Delete == (outcome != agent_turn_outcome::answered && !working), "every failed message can be deleted, on any turn, while nothing runs");
 				}
 			}
 		}
 		const auto unsent = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::failed_to_start, .HasText = true, .Latest = true });
 		expect(unsent.Delete && unsent.Recovery == agent_turn_recovery::resend, "a message never sent offers Delete beside Resend");
+		const auto stopped = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::stopped, .HasText = true, .Latest = true });
+		expect(stopped.Delete && stopped.Recovery == agent_turn_recovery::resend, "a message the agent received offers Delete beside Resend");
+		const auto unreadable = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::unreadable, .HasText = true, .Latest = true });
+		expect(unreadable.Delete && unreadable.Recovery == agent_turn_recovery::agent_settings, "an unreadable answer offers Delete beside Agent settings…");
+		for (const auto latest : { false, true }) {
+			for (const auto hasText : { false, true }) {
+				expect(!core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = hasText, .Latest = latest }).Delete, "an answer never offers Delete");
+			}
+		}
 	}
 
 	void test_suggestions()

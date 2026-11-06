@@ -88,7 +88,9 @@ namespace bpr::core {
 
 	/// \brief [[BPR-1876]]. Whether a turn that ended so never reached the
 	/// agent: it did not start, its workspace could not be made, or private
-	/// history could not record the run, so nothing was sent.
+	/// history could not record the run, so nothing was sent. [[BPR-1880]]:
+	/// Delete says which it removes, one the agent never had or one it will
+	/// not be sent again.
 	[[nodiscard]] auto agent_turn_never_sent(agent_turn_outcome aOutcome) noexcept -> bool;
 
 	/// \brief What the thread knows about one ended turn.
@@ -124,9 +126,10 @@ namespace bpr::core {
 		/// said as fixed since, not as how things stand.
 		bool FixedSince = false;
 		/// [[BPR-1876]], owner look v001: "We should also be able to delete a
-		/// message that was never sent to the agent". Delete removes the turn
-		/// from the thread; only a message that never reached the agent, on
-		/// any turn, while nothing runs.
+		/// message that was never sent to the agent". [[BPR-1880]], owner
+		/// 2026-11-06: "Put Delete on every failed message, not just unsent
+		/// ones". Delete removes the turn from the thread and from what is
+		/// kept; every error, on any turn, while nothing runs.
 		bool Delete = false;
 
 		auto operator<=>(const agent_turn_actions&) const = default;
@@ -143,9 +146,11 @@ namespace bpr::core {
 	/// the owner, 2026-11-05, read a failed answer's Check again, which re-ran
 	/// only the setup check and left the old error up, as the check failing.
 	/// A start or workspace failure whose check has passed since is fixed
-	/// since, on any turn. A message that never reached the agent
-	/// (`agent_turn_never_sent`) can be deleted, on any turn, while nothing
-	/// runs; one the agent received stays, as part of its conversation.
+	/// since, on any turn. Every error can be deleted, on any turn, while
+	/// nothing runs ([[BPR-1880]]). For a message the agent received, deleting
+	/// it is forgetting it: an Agent tab run resumes no session of the
+	/// agent's own, and what it remembers of earlier turns is the kept
+	/// thread its request carries, which no longer holds the deleted turn.
 	[[nodiscard]] auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions;
 
 	/// \brief What the Agent tab knows when it would show suggested prompts.
