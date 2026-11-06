@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1902"
+  ],
+  "reserve_for": "codex-windows-rebuilds",
+  "purpose": "Correct checked iterator deduction exposed by Windows rebuild measurements",
+  "created": "2026-11-06T23:02:27.136634+00:00",
+  "base": "438bba59c0b5264944a826613bf74d3a88bc2e75"
+}
