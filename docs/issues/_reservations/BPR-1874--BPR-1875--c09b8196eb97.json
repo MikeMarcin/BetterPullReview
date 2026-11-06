@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1874",
+    "BPR-1875"
+  ],
+  "reserve_for": "home-discovery",
+  "purpose": "Home discovery stale outcome diagnostic; PR open cancelled by discovery refresh",
+  "created": "2026-11-06T00:14:41.466142+00:00",
+  "base": "00f0fd8ec32fa9eb25ce6b9f00d3b979f6540280"
+}

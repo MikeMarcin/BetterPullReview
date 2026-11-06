@@ -5496,6 +5496,7 @@ namespace bpr::adapters::github::detail {
 				restNumbers = aRequest.Numbers;
 			}
 			auto firstFailure = std::optional<github_paged_read_failure>{ };
+			auto unread       = std::vector<application::personal_discovery_unread>{ };
 			for (const auto number : restNumbers) {
 				auto single    = aRequest;
 				single.Number  = number;
@@ -5506,8 +5507,12 @@ namespace bpr::adapters::github::detail {
 						return { .Read = std::unexpected{ read.error() }, .Unsupported = unsupported };
 					}
 					// This pull request alone could not be read: the host
-					// fails it and applies the rest.
+					// fails it and applies the rest. [[BPR-1874]]. It says
+					// why, for the diagnostics log.
 					firstFailure = firstFailure.value_or(read.error());
+					if (const auto* error = std::get_if<application::github_provider_error>(&read.error()); error != nullptr) {
+						unread.push_back({ .Number = number, .Error = *error });
+					}
 					continue;
 				}
 				for (auto& row : read->Rows) {
@@ -5519,7 +5524,7 @@ namespace bpr::adapters::github::detail {
 				return { .Read = std::unexpected{ *firstFailure }, .Unsupported = unsupported };
 			}
 			std::ranges::sort(rows, { }, &application::personal_discovery_row::Number);
-			return { .Read = github_personal_discovery_read{ .Rows = std::move(rows), .RateLimits = aRates }, .Unsupported = unsupported };
+			return { .Read = github_personal_discovery_read{ .Rows = std::move(rows), .RateLimits = aRates, .Unread = std::move(unread) }, .Unsupported = unsupported };
 		}
 	} // namespace
 
