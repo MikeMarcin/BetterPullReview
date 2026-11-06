@@ -317,6 +317,9 @@ namespace bpr::adapters::agent::detail {
 						}
 					} else if (message.Kind == application::agent_protocol_event_kind::usage_report) {
 						Result.ReportedCostUsd = message.Text;
+					} else if (message.Kind == application::agent_protocol_event_kind::plugins_reported) {
+						// [[BPR-1891]]. Named in diagnostics, never refused.
+						Result.ReportedPlugins = message.Text;
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;

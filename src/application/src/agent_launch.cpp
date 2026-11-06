@@ -656,6 +656,42 @@ namespace bpr::application {
 			} };
 		}
 
+		/// \brief [[BPR-1891]]. The plugins a Claude init frame says it
+		/// loaded, as one `plugins_reported` event; none when it names none.
+		///
+		/// \details Each plugin is named by its `source`, or its `name` when
+		/// the source is not a plain token, and `unnamed` when neither is.
+		/// A token is at most `maximum_reported_plugin_bytes` of letters,
+		/// digits and `._@+-`, so no path, space or separator reaches the
+		/// diagnostic line; the `path` member is never read. Past
+		/// `maximum_reported_plugins` names the rest are counted as `+N`.
+		[[nodiscard]] auto reported_plugins(const json_value& aRoot)
+			-> std::vector<agent_protocol_event>
+		{
+			const auto* plugins = member(aRoot, "plugins");
+			if (plugins == nullptr || plugins->Kind != json_kind::array_value || plugins->Elements.empty()) {
+				return no_protocol_events();
+			}
+			const auto token = [](const std::string* aText) {
+				return aText != nullptr && is_reported_plugin_token(*aText);
+			};
+			auto text = std::string{ };
+			for (std::size_t index = 0U; index < plugins->Elements.size() && index < maximum_reported_plugins; ++index) {
+				const auto& plugin = plugins->Elements[index];
+				const auto* source = string_member(plugin, "source");
+				const auto* name   = string_member(plugin, "name");
+				if (!text.empty()) {
+					text += ',';
+				}
+				text += token(source) ? *source : token(name) ? *name
+															  : std::string{ "unnamed" };
+			}
+			if (plugins->Elements.size() > maximum_reported_plugins) {
+				text += ",+" + std::to_string(plugins->Elements.size() - maximum_reported_plugins);
+			}
+			return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::plugins_reported, .Text = std::move(text) } };
+		}
+
 		[[nodiscard]] auto decode_app_server_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
@@ -932,24 +968,27 @@ namespace bpr::application {
 				};
 				// [[BPR-1375]]. A writing launch reads Claude's own account of
 				// what it loaded before anything is asked: no tool, no MCP
-				// server, no plugin and no auto-memory folder. A plugin a later
-				// Claude builds in, or memory turned back on, refuses the run
-				// here rather than riding along.
-				const auto* plugins = member(aRoot, "plugins");
-				const auto* memory  = member(aRoot, "memory_paths");
-				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers") || (plugins != nullptr && !empty("plugins")) || (memory != nullptr && memory->Kind != json_kind::null_value))) {
+				// server and no auto-memory folder. A plugin's tools and MCP
+				// servers would show in the first two.
+				// [[BPR-1891]]. Plugins are reported, not refused: Claude
+				// builds them in release by release and policy can hold one
+				// on (`cc-plugin-sec-default` on a managed machine), and no
+				// setting this app passes turns that off.
+				const auto* memory = member(aRoot, "memory_paths");
+				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers") || (memory != nullptr && memory->Kind != json_kind::null_value))) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
+				auto reported = aWritingOnly ? reported_plugins(aRoot) : std::vector<agent_protocol_event>{ };
 				if (aPhase == 0U) {
 					aSession = *session;
 					aPhase   = 1U;
-					return no_protocol_events();
+					return reported;
 				}
 				// [[BPR-1827]]. A wrapper that starts Claude again, or a
 				// Claude that re-initializes, repeats init under the same
 				// session; it changes nothing.
 				if (*session == aSession) {
-					return no_protocol_events();
+					return reported;
 				}
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
@@ -2813,7 +2852,8 @@ namespace bpr::application {
 		case agent_protocol_event_kind::output:
 		case agent_protocol_event_kind::finding_payload:
 		case agent_protocol_event_kind::usage_report:
-		case agent_protocol_event_kind::model_catalog:   break;
+		case agent_protocol_event_kind::plugins_reported:
+		case agent_protocol_event_kind::model_catalog:    break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}

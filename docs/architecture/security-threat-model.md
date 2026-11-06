@@ -1710,11 +1710,22 @@ person's own Claude account sign-in, never a paid API key
   slash commands, no session saved. The request starts in a fresh empty
   folder the agent adapter makes and removes, not the review workspace.
 - **Fail closed on drift.** The init frame is Claude's own account of what it
-  loaded. A writing request whose init reports any tool, MCP server, plugin or
-  auto-memory folder is refused before any output is read, so a plugin a later
-  Claude builds in, which the settings above do not name, stops the request.
+  loaded. A writing request whose init reports any tool, MCP server or
+  auto-memory folder is refused before any output is read, and every block of
+  the answer must be text. A plugin's tools and MCP servers would show in that
+  account.
+- **Plugins are reported, not refused ([[BPR-1891]]).** Turning the known
+  builtins off is hardening, not a gate. Claude adds builtins release by
+  release, and policy can hold one on that no setting BetterPullReview passes
+  turns off: Claude Code 2.1.314 holds `cc-plugin-sec-default@builtin` on
+  wherever managed settings apply, which refused every writing request on such
+  a machine. The run's `agent.run` diagnostic line names each plugin the init
+  frame reported, by `source` or `name`, bounded and never a path.
 - **Residual.** Managed (policy) settings still apply, as Claude's help says
-  for every mode. Claude's own bootstrap fetches to Anthropic run on the same
+  for every mode. A plugin Claude loads by default or by policy runs its own
+  code in the empty writing folder, as the same user, with the allowlisted
+  environment chat also gives Claude, and is named in diagnostics; refusing to
+  start would not contain a policy-held plugin, only refuse the run. Claude's own bootstrap fetches to Anthropic run on the same
   sign-in. Claude writes its state under `HOME` (`~/.claude.json`,
   `~/.claude/sessions`), and in print mode opens a same-user, token-guarded
   socket under `/tmp/cc-socks/` for its own messaging; a process running as
@@ -1745,8 +1756,9 @@ what a Claude launch can be, never what it receives:
   the built-in plugins off; [[BPR-1375]]) are Claude flags passed to the
   wrapper unchanged. A wrapper can drop them, so a writing run is only as
   tool-free as the wrapper keeps it. The decoder still refuses a run whose
-  init frame reports tools, MCP servers, plugins or an auto-memory folder, or
-  that answers with anything but text.
+  init frame reports tools, MCP servers or an auto-memory folder, or that
+  answers with anything but text; plugins it reports are named in diagnostics
+  ([[BPR-1891]]).
 - **Unchanged environment and handles.** The wrapper gets exactly Claude's
   arguments, working directory, stdin and allowlisted environment, through the
   same supervisor, process group, Job Object and three-handle list. No name is

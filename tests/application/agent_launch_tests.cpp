@@ -1509,11 +1509,58 @@ namespace {
 		const auto signedOut = decode(true, init + R"({"type":"assistant","session_id":"s","error":"authentication_failed","message":{"id":"x","model":"<synthetic>","role":"assistant","content":[{"type":"text","text":"Not logged in · Please run /login"}]}})" + "\n" + R"({"type":"result","subtype":"success","session_id":"s","is_error":true,"result":"Not logged in · Please run /login"})" + "\n");
 		expect(!signedOut && signedOut.error() == application::agent_protocol_failure::not_signed_in, "a signed-out Claude is not_signed_in, not a malformed frame");
 		const auto plugin = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
+		expect(plugin && *plugin == 1U, "[[BPR-1891]] a writing init frame that reports a plugin is read, not refused");
 		const auto memory = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);
 		const auto tools  = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[]})" } + "\n" + turn);
-		expect(!plugin && !memory && !tools, "a writing init frame with a plugin, an auto-memory folder or a tool refuses");
+		const auto mcp    = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[{"name":"m","status":"connected"}],"plugins":[]})" } + "\n" + turn);
+		expect(!memory && !tools && !mcp && memory.error() == application::agent_protocol_failure::malformed_frame && tools.error() == application::agent_protocol_failure::malformed_frame
+				   && mcp.error() == application::agent_protocol_failure::malformed_frame,
+			   "a writing init frame with an auto-memory folder, a tool or an MCP server refuses");
 		const auto review = decode(false, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
 		expect(review && *review == 1U, "an ordinary review run keeps its tools and plugins");
+	}
+
+	/// [[BPR-1891]]. Claude Code 2.1.314 on a machine with managed settings
+	/// holds `cc-plugin-sec-default` on; a writing run reads past it and names
+	/// it for diagnostics, bounded and without its path.
+	void test_claude_writing_reports_the_plugins_it_loaded()
+	{
+		const std::string init      = R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"}],"capabilities":["interrupt_receipt_v1","interrupt_cancel_queued_v1","interrupt_send_now_v1","interrupt_requeue_taken_v1","msg_lifecycle_v1","request_marker_lists_v1","ask_user_question_unanswered_v1","lifecycle_wakeup_source_v1","sdk_mcp_tools_list_changed","sdk_mcp_manifests","mcp_read_resource_v1","mcp_tool_ui_meta_v1","ui_surface_v1","mcp_call_result_not_for_model_v1"],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off","fast_mode_disabled_reason":"not_first_party","per_turn_effort_active":false,"view_mode":"default"})"
+									  "\n";
+		const std::string turn      = R"({"type":"assistant","session_id":"fixture","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"written"}]}})"
+									  "\n"
+									  R"({"type":"result","subtype":"success","session_id":"fixture","is_error":false,"result":"written"})"
+									  "\n";
+		const auto        pluginsOf = [](const bool aWriting, const std::string& aFrames) {
+			auto decoder  = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, aWriting };
+			auto reported = std::vector<std::string>{ };
+			auto pushed   = decoder.push(aFrames);
+			if (pushed) {
+				for (const auto& event : *pushed) {
+					if (event.Kind == application::agent_protocol_event_kind::plugins_reported) {
+						reported.push_back(event.Text);
+					}
+				}
+			}
+			const auto finished = pushed ? decoder.finish() : std::expected<std::vector<application::agent_protocol_event>, application::agent_protocol_failure>{ std::unexpect, pushed.error() };
+			return std::pair{ finished && decoder.assistant_items() == std::vector<std::string>{ "written" }, reported };
+		};
+		const auto [read, reported] = pluginsOf(true, init + turn);
+		expect(read && reported == std::vector<std::string>{ "cc-plugin-sec-default@builtin" }, "the 2.1.314 managed-settings init frame finishes with the text and names the plugin by source");
+		const auto [chatRead, chatReported] = pluginsOf(false, init + turn);
+		expect(chatRead && chatReported.empty(), "agent chat is unchanged: it reports no plugins");
+		const auto [noneRead, noneReported] = pluginsOf(true, std::string{ R"({"type":"system","subtype":"init","session_id":"fixture","tools":[],"mcp_servers":[],"plugins":[]})" } + "\n" + turn);
+		expect(noneRead && noneReported.empty(), "an empty plugin list reports nothing");
+
+		auto many = std::string{ R"({"type":"system","subtype":"init","session_id":"fixture","tools":[],"mcp_servers":[],"plugins":[)" };
+		many += R"({"name":"by-name","source":"/Users/someone/plugins/x"},{"name":"/abs/path","source":"has space"},{"name":")" + std::string(application::maximum_reported_plugin_bytes + 1U, 'n') + R"("})";
+		for (auto index = 0; index < 8; ++index) {
+			many += R"(,{"name":"p)" + std::to_string(index) + R"(","path":"/secret/path"})";
+		}
+		many += "]}\n";
+		const auto [manyRead, manyReported] = pluginsOf(true, many + turn);
+		expect(manyRead && manyReported == std::vector<std::string>{ "by-name,unnamed,unnamed,p0,p1,p2,p3,p4,+3" },
+			   "a source that is a path falls back to the name, an unusable name is unnamed, the list is bounded and no path is read");
 	}
 
 	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads
@@ -1587,6 +1634,12 @@ namespace {
 		const auto text  = application::describe(ended);
 		expect(text == "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0", "an ended line names its cause and counts");
 		expect(application::parse_agent_run_diagnosis(text) == std::optional{ ended }, "an ended line reads back exactly");
+		const auto writing = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::claude_stream_json, .Outcome = application::agent_run_outcome::success, .ExitCode = 0, .StandardOutputBytes = 1716U, .StandardErrorBytes = 0U, .Plugins = "cc-plugin-sec-default@builtin,+2" };
+		expect(application::describe(writing) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2", "[[BPR-1891]] a writing run names the plugins its Claude loaded");
+		expect(application::parse_agent_run_diagnosis(application::describe(writing)) == std::optional{ writing }, "a line naming plugins reads back exactly");
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=/Users/x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=a,,b", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "a plugin list that is not plain tokens is refused");
+		}
 		const auto started = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::codex_jsonl_exec };
 		expect(application::parse_agent_run_diagnosis(application::describe(started)) == std::optional{ started }, "a started line reads back exactly");
 		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 prompt=hello", "protocol=claude_stream_json outcome=protocol_failure failure=/Users/x stdout_bytes=1 stderr_bytes=0",
@@ -1663,6 +1716,7 @@ auto main() -> int
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_claude_decoder_reads_sign_in_and_benign_frames();
+	test_claude_writing_reports_the_plugins_it_loaded();
 	test_claude_decoder_reads_a_current_transcript();
 	test_agent_run_diagnosis_round_trips_exactly();
 	test_full_encoded_input_budget_and_private_raw_budget();

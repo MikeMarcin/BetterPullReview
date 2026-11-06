@@ -19,8 +19,10 @@ namespace bpr::application {
 	/// \details An agent reads a private review, so nothing here names a
 	/// program, profile, repository, path, prompt or answer. A started line
 	/// has no outcome; an ended line names the run's outcome, the decoder
-	/// failure when there was one, the exit code when the process exited, and
-	/// how many bytes the agent wrote to each stream.
+	/// failure when there was one, the exit code when the process exited,
+	/// how many bytes the agent wrote to each stream and, for a writing run
+	/// whose Claude reported loading plugins, their names ([[BPR-1891]]):
+	/// bounded tokens that are never a path.
 	struct agent_run_diagnosis
 	{
 		core::agent_protocol                  Protocol = core::agent_protocol::claude_stream_json;
@@ -29,13 +31,16 @@ namespace bpr::application {
 		std::optional<int>                    ExitCode;
 		std::uint64_t                         StandardOutputBytes = 0U;
 		std::uint64_t                         StandardErrorBytes  = 0U;
+		/// [[BPR-1891]]. As `agent_run_result::ReportedPlugins` carries them.
+		std::string Plugins;
 
 		auto operator<=>(const agent_run_diagnosis&) const = default;
 	};
 
 	/// \brief The line's exact text, e.g. `protocol=claude_stream_json
 	/// outcome=protocol_failure failure=frame_too_large exit=0
-	/// stdout_bytes=223211 stderr_bytes=0`.
+	/// stdout_bytes=223211 stderr_bytes=0`, then
+	/// `plugins=cc-plugin-sec-default@builtin` when plugins were reported.
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;

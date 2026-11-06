@@ -232,7 +232,11 @@ namespace bpr::application {
 	/// otherwise starts a shell in the working directory). Turning that
 	/// plugin off is the one use of its name the architecture boundary
 	/// admits here.
-	/// A plugin added by a later Claude is refused by the init frame instead.
+	/// [[BPR-1891]]. Turning them off is hardening, not a gate. A plugin a
+	/// later Claude builds in, or one policy holds on, still loads: the init
+	/// frame is still refused for any tool, MCP server or auto-memory folder
+	/// it brings, and the plugins it reports are named in the run's
+	/// diagnostics rather than refused.
 	inline constexpr std::string_view claude_writing_settings
 		= R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
 
@@ -311,6 +315,29 @@ namespace bpr::application {
 	/// \brief [[BPR-1827]]. How much of the first line the decoder refused it
 	/// keeps, for the reviewer's log; never written to diagnostics.
 	inline constexpr std::size_t maximum_agent_rejected_line_bytes = 512U;
+	/// \brief [[BPR-1891]]. How many plugins a writing run's diagnostics
+	/// name; the rest are counted.
+	inline constexpr std::size_t maximum_reported_plugins = 8U;
+	/// \brief [[BPR-1891]]. The longest plugin name a diagnostic carries.
+	inline constexpr std::size_t maximum_reported_plugin_bytes = 64U;
+
+	/// \brief [[BPR-1891]]. Whether a plugin name can be written to a
+	/// diagnostic as is: letters, digits and `._@+-`, so never a path, a
+	/// space or the list's own `,`.
+	[[nodiscard]] constexpr auto is_reported_plugin_token(const std::string_view aText) noexcept -> bool
+	{
+		if (aText.empty() || aText.size() > maximum_reported_plugin_bytes) {
+			return false;
+		}
+		for (const char character : aText) {
+			const auto plain = (character >= 'a' && character <= 'z') || (character >= 'A' && character <= 'Z') || (character >= '0' && character <= '9')
+				|| character == '.' || character == '_' || character == '@' || character == '+' || character == '-';
+			if (!plain) {
+				return false;
+			}
+		}
+		return true;
+	}
 
 	/// \brief The longest structured-finding payload one turn may return.
 	///
@@ -399,6 +426,11 @@ namespace bpr::application {
 		/// dollars as the decimal it wrote; Claude Code's result frame names
 		/// it `total_cost_usd`.
 		usage_report,
+		/// [[BPR-1891]]. The plugins a writing run's Claude init frame says
+		/// it loaded, as comma-separated tokens that pass
+		/// `is_reported_plugin_token`, ending `+N` when more were named
+		/// than `maximum_reported_plugins`. For diagnostics only.
+		plugins_reported,
 		/// Owner look v006. A catalog run's `model/list` result, its exact
 		/// bytes; the loop keeps it and closes the input.
 		model_catalog,
@@ -630,6 +662,9 @@ namespace bpr::application {
 		/// [[BPR-1753]]. The turn's cost as the harness reported it, a
 		/// decimal of US dollars; absent when it reported none.
 		std::optional<std::string> ReportedCostUsd;
+		/// [[BPR-1891]]. The plugins a writing run's Claude reported
+		/// loading, as `plugins_reported` carries them; empty when none.
+		std::string ReportedPlugins;
 		/// Owner look v006. A catalog run's `model/list` result, as written.
 		std::optional<std::string> ModelCatalog;
 		/// [[BPR-1827]]. Every byte the agent wrote to standard output,
