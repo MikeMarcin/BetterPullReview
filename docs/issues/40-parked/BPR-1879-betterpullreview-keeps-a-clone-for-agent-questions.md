@@ -152,6 +152,24 @@ the owner's 2026-11-05 decision asked to encourage either and the v004 brief
 asked for a strong default. `qt_agent_setup_view` asserts every label, line,
 figure, the default and the card switch.
 
+### v005 design (after the v004 reject)
+
+`frontend-design:frontend-design` loaded first. With no clone found, three
+cards in order of strength, one default button acting on the card chosen:
+
+1. **Use my clone**, first, chosen at first, "Recommended" in the accent
+   colour, "Full history already on this computer"; the button reads
+   **Choose its folder…**. Linking is the default again, as BPR-1873 had it.
+2. **Keep a clone for me**, second: its size, "Full history, kept in …";
+   the button reads **Keep a clone** (**Retry** after a failure).
+3. **This pull request only**, last: "Weaker answers: no callers, tests or
+   history"; the button reads **Use this pull request**.
+
+Once the kept clone downloads, its progress card (bytes, thin bar,
+**Cancel**) is the whole Repository step: no header, no other cards, no
+folder or search links. `qt_agent_setup_view` asserts the order, the
+default, each button and that nothing else shows while it downloads.
+
 ### Attended review
 
 - v001: session `fb4d6822d9af23fc7264361af7b46b53`
@@ -179,7 +197,10 @@ figure, the default and the card switch.
   the redesigned choice, with renders and a frozen build
   (`/Users/jaeger/BPR-1879-v004.w_2n9g3w`, `python3 .../launch.py`, checked
   ATTENDED_PULL_REQUEST_OPENED; its fixture review is not sparse, so it shows
-  the Storage row but not the cards); ready, Tailscale host started.
+  the Storage row but not the cards). **Rejected**: "That's much better but
+  choose a folder or find a clone or whatever needs to be the #1 option that
+  people see and strongly recommended. and onces the progress bar starts i
+  dont see the point of still showing other options." Host stopped.
 
 Offscreen renders of the setup view: the fixture-backed frozen build does
 not read its reviews sparsely through `gh`, so it cannot show this option.
