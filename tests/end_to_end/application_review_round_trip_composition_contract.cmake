@@ -3013,7 +3013,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "7eea37c00df96387b253965ee06baa11612f3c64d914f3fea1175274a6a611e8"
+        "a0e10acb66e2fb67552ae0d2004e4f752ca4fc1bff4081e2e6e69608c0f396bb"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
