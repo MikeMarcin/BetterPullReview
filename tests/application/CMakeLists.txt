@@ -98,6 +98,14 @@ bpr_add_network_isolated_test(
     COMMAND test_better_pull_review_application_github_host_tests
 )
 
+# [[BPR-1882]]. Parent identity and fallback semantics across reply graphs.
+bpr_add_executable(test_github_projection_mapping github_projection_mapping_tests.cpp)
+target_link_libraries(test_github_projection_mapping PRIVATE BetterPullReview::Application)
+target_include_directories(test_github_projection_mapping PRIVATE "${PROJECT_SOURCE_DIR}/src/application/src")
+bpr_enable_hardening(test_github_projection_mapping)
+bpr_enable_warnings(test_github_projection_mapping)
+bpr_add_network_isolated_test(NAME application_github_projection_mapping COMMAND test_github_projection_mapping)
+
 bpr_add_executable(
     test_better_pull_review_application_anonymous_read_host_tests
     github_anonymous_read_host_tests.cpp
