@@ -34,4 +34,69 @@ same-head refresh observation on pull requests with many changed files.
 
 ## Evidence
 
-Pending implementation and verification.
+Viewed-file loading is one local operation whose existing parsing, pagination
+and validation remain intact. Eligible refreshes finish review threads and
+publish the existing conversation observation before invoking it. The initial
+GraphQL response still carries the first pages together. First-open and
+unobserved reads retain their prior order; the existing host/core admission and
+partial-refresh UI remain the owners of authority and loading feedback.
+
+Release, Apple M4 Pro arm64, macOS 26.6.2, AppleClang 21.0.0, Qt 6.12.0,
+default test allocator. The provider fixture has 201 changed files, three
+viewed-file pages and a 101-comment thread. Only the two viewed-file
+continuations sleep for 330 ms each; all other reads are immediate synthetic
+responses. Baseline product source is round one's integrated `661981be0`.
+The same `github_paged_read --measure-viewed-files` harness runs three rounds
+before and after, without concurrent task-owned builds or tests. Times are ms:
+
+| Round | Conversation before | Conversation after | Settled before | Settled after |
+|---|---:|---:|---:|---:|
+| 1 | 669.976 | 34.210 | 670.194 | 700.970 |
+| 2 | 673.309 | 16.747 | 673.490 | 686.392 |
+| 3 | 673.210 | 12.987 | 673.373 | 685.528 |
+
+Median provider conversation observation improves by 656 ms, approximately
+the two independent page waits. Every round still makes 20 requests. This
+isolates provider observation latency; it is not a live-GitHub or whole-app
+17 ms claim, and full refresh completion is not faster in these samples.
+No Debug timing gate is run or claimed.
+
+- `github_paged_read` passes with the paginated viewed-file fixture: all 201
+  final viewed states, conversation records and request counts agree with
+  first-open and unobserved reads. Those paths retain viewed-file-before-thread
+  ordering. The new regression fails against the old pager at “complete
+  conversation is observable before viewed-file pagination returns.”
+- The same course rejects late head/count/cursor/duplicate/missing/state errors,
+  cancels between viewed-file pages, suppresses an observation when cancelled
+  during the last thread page, and retains the shared eight-page budget at the
+  conversation boundary. Early content never turns these into an accepted
+  replacement snapshot.
+- `github_provider` and `application_github_window_read_host` pass, retaining
+  exact request identity, same-head/base-only publication, unchanged snapshot
+  authority and epoch handoff.
+- clang-format 22.1.8, clang-tidy 22.1.8 with warnings as errors on both changed
+  translation units, `core_dependency_boundary` and `git diff --check` pass.
+
+The current-main `architecture_boundaries` course fails at the neutral working
+directory validation in `gh_cli_git_smart_transport.cpp`, added by BPR-1884.
+Running the same verifier directly against clean main `1aa7f4a9f` reproduces
+that refusal without this round's source changes. It is recorded as failed;
+this round changes neither that file nor its ownership allowlist. The earlier
+BPR-1883 architecture-fixture, network-manifest and whole-Qt lint failures
+remain recorded; those unrelated broad courses were not repeated here.
+
+The composed `refresh_current_file_public_path` passes with all assertions
+at 330 ms per read: its standard small fixture shows the fresh conversation
+at 1,665 ms, settles at 6,002 ms, makes 18 reads, and has zero blank comparison
+samples or renewed wash after freshness. The full-window offscreen render was
+inspected: the comparison and fresh comment count are visible alongside the
+“Loading commits…” stage and “Refreshing remaining details…” marker. This
+retains BPR-1883's loading feedback; it is not a native-style acceptance claim.
+No Qt surface changes are needed for this round.
+
+The final documentation gate passes; its unchanged 67-test regression course
+and the unchanged composition inventory/hostile-control check reuse the
+passing evidence from round-one integration. The source and journal are ready
+for the main landing recorded at closeout.
+The [journal](../../development/responsiveness-journal.md) records this round's
+one notable improvement.

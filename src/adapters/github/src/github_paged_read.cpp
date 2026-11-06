@@ -2851,7 +2851,9 @@ namespace bpr::adapters::github::detail {
 								   const core::pull_request_request_context&  aContext,
 								   const application::github_read_shape&      aShape,
 								   application::github_pull_request_snapshot& aSnapshot,
-								   const github_paged_read_limits&            aLimits)
+								   const github_paged_read_limits&            aLimits,
+								   const bool                                 aPrioritizeConversation,
+								   const auto&                                aObserveConversation)
 			-> std::expected<void, github_paged_read_failure>
 		{
 			if ((aShape.ResolvePermission || aShape.UnresolvePermission || aShape.ReplyPermission || aShape.ConversationLock)
@@ -2909,7 +2911,12 @@ namespace bpr::adapters::github::detail {
 					: application::github_conversation_lock::unlocked;
 			}
 
-			if (aShape.ViewedFileState) {
+			// [[BPR-1885]]. Viewed-state pages do not decide conversation
+			// content. Keep their validation intact and run them independently.
+			const auto readViewedFiles = [&]() -> std::expected<void, github_paged_read_failure> {
+				if (!aShape.ViewedFileState) {
+					return { };
+				}
 				auto files = parse_graphql_connection(
 					json_member(initialPullRequest, "files"), aLimits);
 				if (!files.has_value()) {
@@ -3025,6 +3032,12 @@ namespace bpr::adapters::github::detail {
 				if (!viewed.empty()) {
 					return failed(
 						application::github_provider_failure::malformed_response);
+				}
+				return { };
+			};
+			if (!aPrioritizeConversation) {
+				if (const auto files = readViewedFiles(); !files) {
+					return std::unexpected{ files.error() };
 				}
 			}
 
@@ -3248,6 +3261,10 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 			aSnapshot.ReviewThreadsAvailability = application::github_collection_availability::available;
+			if (aPrioritizeConversation) {
+				aObserveConversation();
+				return readViewedFiles();
+			}
 			return { };
 		}
 
@@ -6071,32 +6088,32 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(reviews.error()) };
 			}
 
+			// [[BPR-1851]], [[BPR-1885]]. Publish the complete refresh conversation
+			// before independent viewed-file status and remaining collections.
+			// It still carries no new snapshot authority.
+			const auto observeConversation = [&] {
+				if (aObserver != nullptr && !aStop.stop_requested() && aRequest.Context.ExpectedPullRequest.has_value()
+					&& result.ReviewThreadsAvailability == application::github_collection_availability::available) {
+					aObserver->overview_observed({ .Context       = aRequest.Context,
+												   .Repository    = result.Repository,
+												   .PullRequest   = result.PullRequest,
+												   .ReportedFiles = expectedFiles,
+												   .Files         = result.Files,
+												   .Conversation  = application::github_pull_request_overview_observation::conversation{
+													   .Reviews                   = result.Reviews,
+													   .ReviewThreadsAvailability = result.ReviewThreadsAvailability,
+													   .ReviewThreads             = result.ReviewThreads,
+													   .ConversationLock          = result.ConversationLock } });
+				}
+			};
 			if (const auto graphql = perform_graphql_projection(execution,
 																*server,
 																aRequest.Context,
 																aRequest.CapabilityEvidence.ReadShape,
 																result,
-																aLimits);
+																aLimits, prioritizeConversation, observeConversation);
 				!graphql.has_value()) {
 				return std::unexpected{ execution.enrich(graphql.error()) };
-			}
-			// [[BPR-1851]]. The conversation a reviewer reads beside the file on
-			// screen is complete here, ahead of commit pagination, comments, checks and
-			// history still to come, so a refresh can show it first. Observed only
-			// when the threads were read, after the file list, without authority,
-			// and only for a refresh: a first open has nothing to lay it over.
-			if (aObserver != nullptr && !aStop.stop_requested() && aRequest.Context.ExpectedPullRequest.has_value()
-				&& result.ReviewThreadsAvailability == application::github_collection_availability::available) {
-				aObserver->overview_observed({ .Context       = aRequest.Context,
-											   .Repository    = result.Repository,
-											   .PullRequest   = result.PullRequest,
-											   .ReportedFiles = expectedFiles,
-											   .Files         = result.Files,
-											   .Conversation  = application::github_pull_request_overview_observation::conversation{
-												   .Reviews                   = result.Reviews,
-												   .ReviewThreadsAvailability = result.ReviewThreadsAvailability,
-												   .ReviewThreads             = result.ReviewThreads,
-												   .ConversationLock          = result.ConversationLock } });
 			}
 
 			if (prioritizeConversation) {
