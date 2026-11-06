@@ -11,6 +11,7 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
+#include "bpr/qt/conversation_cards_view.hpp"
 #include "bpr/qt/diff_workbench.hpp"
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
@@ -28,6 +29,7 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QItemSelectionModel>
+#include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
 #include <QMouseEvent>
@@ -201,6 +203,16 @@ try {
 	wait_for([&] { return shown() && !surface->geometry_pending(); }, "the file's comparison shows");
 	auto* const conversation = window->conversation_panel()->model();
 	expect(conversation != nullptr && conversation->rowCount() > 0, "the file's conversation is listed");
+	// [[BPR-1887]]. Navigation must not be painted over a line-aligned note.
+	const auto checkConversationLink = [&] {
+		auto* const cards        = window->conversation_panel()->cards();
+		auto* const link         = cards->pull_request_comments_chip();
+		const auto  linkRect     = QRect{ link->mapTo(window, QPoint{ }), link->size() };
+		const auto  commentsRect = QRect{ cards->viewport()->mapTo(window, QPoint{ }), cards->viewport()->size() };
+		expect(link->isVisible() && !linkRect.intersects(commentsRect), "conversation navigation has layout space outside the comment viewport");
+		expect(link->width() >= link->sizeHint().width(), "the conversation link and its unread count fit in the toolbar");
+	};
+	checkConversationLink();
 
 	auto*      refresh = window->github_refresh_action();
 	const auto settle  = [&](const char* aMessage) {
@@ -277,6 +289,7 @@ try {
 				  << " blank-samples=" << blanks << " reads=" << reads << '\n';
 		expect(window->pull_request_refresh().Phase == core::refresh_phase::updated, "the refresh answered");
 		expect(holds_post(*conversation, reply), "the reply is on the file's conversation once the refresh ends");
+		checkConversationLink();
 		if (measureOnly || roundTrip == 0U) {
 			continue;
 		}
@@ -285,6 +298,31 @@ try {
 		expect(!washedAfterFresh, "once the file is up to date it is not washed over");
 		expect(plate.has_value(), "meanwhile the review's foot says the rest of the pull request is still coming");
 	}
+
+	// The relocated link follows the view's visibility and remains clear
+	// at a narrow window size, before navigating by keyboard.
+	auto* const cards      = window->conversation_panel()->cards();
+	auto* const link       = cards->pull_request_comments_chip();
+	auto* const loadedPage = cards->parentWidget();
+	loadedPage->hide();
+	QApplication::processEvents();
+	expect(!cards->isVisible() && !link->isVisible(), "the toolbar link follows a hidden comment page");
+	loadedPage->show();
+	window->resize(960, 640);
+	QApplication::processEvents();
+	checkConversationLink();
+	if (!renderDirectory.isEmpty()) {
+		expect(window->grab().save(renderDirectory + QStringLiteral("/review-narrow.png")), "the narrow Review render is saved");
+	}
+	expect(link->focusPolicy() == Qt::StrongFocus, "conversation navigation remains keyboard reachable");
+	link->setFocus(Qt::TabFocusReason);
+	auto press   = QKeyEvent{ QEvent::KeyPress, Qt::Key_Space, Qt::NoModifier };
+	auto release = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Space, Qt::NoModifier };
+	QApplication::sendEvent(link, &press);
+	QApplication::sendEvent(link, &release);
+	wait_for([&] { return window->current_modality() == qt::review_modality::overview && cards->pull_request_comments_shown(); },
+			 "Space on the conversation link opens Overview's Comments");
+	expect(!link->isVisible(), "Overview does not show navigation back to itself");
 
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
