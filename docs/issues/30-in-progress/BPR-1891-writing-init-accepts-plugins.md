@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1891"
 title: "Tool-free writing runs when Claude reports a plugin it loaded; the tools, MCP and memory checks stay"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
