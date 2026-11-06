@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1895"
 title: "Show Overview checks before remaining status"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1893"]
 priority: "P1"
