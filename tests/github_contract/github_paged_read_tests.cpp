@@ -3354,6 +3354,64 @@ namespace {
 			   "it holds exactly the reviews, threads and head the completed snapshot holds");
 	}
 
+	/// [[BPR-1883]]. Commit pagination is independent of the refresh's
+	/// conversation observation, but still required for snapshot acceptance.
+	auto test_refresh_conversation_precedes_commit_pages() -> void
+	{
+		for (const auto scenario : { fixture_scenario::success, fixture_scenario::commit_count_above_cap,
+									 fixture_scenario::commit_count_mismatch, fixture_scenario::commit_count_above_cap_wrong_head }) {
+			auto transport                      = paged_fixture_transport{ scenario };
+			auto request                        = provider_request();
+			request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+			request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+			recording_response_observer observer;
+			auto                        commitPages = 0U;
+			transport.RewriteResponse               = [&](const github_wire_request& aRequest, wire_response&) {
+				if (aRequest.Wire.Operation == read_operation::list_pull_request_commits) {
+					++commitPages;
+					expect(observer.Conversation.has_value(), "the complete conversation is observable before any commit page returns");
+				}
+			};
+			const auto result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 57U }, { }, { }, github_provider_read_authority::authenticated, &observer);
+			const auto valid  = scenario == fixture_scenario::success || scenario == fixture_scenario::commit_count_above_cap;
+			expect(result.has_value() == valid && commitPages != 0U, "commit count and final-head validation still govern the terminal snapshot");
+			expect(commitPages == (scenario == fixture_scenario::commit_count_above_cap || scenario == fixture_scenario::commit_count_above_cap_wrong_head ? 3U : 1U), "all required commit pages are still read once");
+		}
+	}
+
+	auto test_refresh_cancellation_after_early_conversation() -> void
+	{
+		auto transport                      = paged_fixture_transport{ fixture_scenario::commit_count_above_cap };
+		auto request                        = provider_request();
+		request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+		request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+		recording_response_observer observer;
+		auto                        stop = std::stop_source{ };
+		transport.RewriteResponse        = [&](const github_wire_request& aRequest, wire_response&) {
+			if (aRequest.Wire.Operation == read_operation::list_pull_request_commits) {
+				expect(observer.Conversation.has_value(), "conversation is already observed when commit pagination is cancelled");
+				stop.request_stop();
+			}
+		};
+		const auto result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 58U }, stop.get_token(), { }, github_provider_read_authority::authenticated, &observer);
+		expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()), "early conversation does not turn a cancelled refresh into an accepted snapshot");
+		expect(std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == read_operation::list_pull_request_commits; }) == 1,
+			   "cancellation prevents the remaining commit pages");
+	}
+
+	auto test_first_open_keeps_commit_read_order() -> void
+	{
+		auto                        transport = paged_fixture_transport{ fixture_scenario::success };
+		recording_response_observer observer;
+		const auto                  result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 59U }, { }, { }, github_provider_read_authority::authenticated, &observer);
+		const auto                  first  = [&](read_operation aOperation) {
+			return std::ranges::find_if(transport.Requests, [&](const auto& aRequest) { return aRequest.Wire.Operation == aOperation; });
+		};
+		expect(result && !observer.Conversation && first(read_operation::list_pull_request_commits) < first(read_operation::list_reviews)
+				   && first(read_operation::list_reviews) < first(read_operation::list_review_threads),
+			   "a first open retains its read order and publishes no early conversation");
+	}
+
 	auto test_ghes_actor_conflict_recreated_read() -> void
 	{
 		using origin = application::github_actor_observation_origin;
@@ -4224,7 +4282,8 @@ namespace {
 				}
 				auto parent = std::string{ "null" };
 				for (auto depth = 0; depth < 40; ++depth) {
-					parent = "{\"parent\":" + parent + "}";
+					parent.insert(0U, "{\"parent\":");
+					parent += '}';
 				}
 				return success_response("{\"users\":[],\"teams\":[" + parent + "]}");
 			};
@@ -5392,6 +5451,9 @@ auto main() -> int
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();
 	test_refresh_observes_conversation_after_threads();
+	test_refresh_conversation_precedes_commit_pages();
+	test_refresh_cancellation_after_early_conversation();
+	test_first_open_keeps_commit_read_order();
 	test_ghes_bot_actor_representation();
 	test_paged_response_observation();
 	test_timeline_read();

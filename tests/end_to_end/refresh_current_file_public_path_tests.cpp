@@ -238,7 +238,7 @@ try {
 				mark(washedAfterFresh, true, clock);
 			}
 			const auto plated = plate.has_value();
-			mark(plate, fresh && !settled && look == core::pending_look::partial && window->pending_veils().Content->shown_text().startsWith(QStringLiteral("Refreshing comments and checks")),
+			mark(plate, fresh && !settled && look == core::pending_look::partial && window->pending_veils().Content->shown_text().startsWith(QStringLiteral("Refreshing remaining details")),
 				 clock);
 			// Renders for a look: the washed review before its file is fresh,
 			// and the plate once it is.

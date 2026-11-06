@@ -17897,7 +17897,7 @@ namespace bpr::qt {
 			// refresh's already: they are not washed over while the rest comes,
 			// which the partial plate says at the review's foot.
 			PendingPanes.Content->present(core::pending_activity::loading, true, true,
-										  { .Waiting = waiting, .Coming = QStringLiteral("Refreshing comments and checks…") });
+										  { .Waiting = waiting, .Coming = QStringLiteral("Refreshing remaining details…") });
 		} else {
 			apply(PendingPanes.Content, refreshing, true, { .Waiting = waiting });
 		}
