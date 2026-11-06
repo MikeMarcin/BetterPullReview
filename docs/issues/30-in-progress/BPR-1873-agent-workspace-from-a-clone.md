@@ -254,9 +254,20 @@ delta path, failure words, `clone_needed`), `qt_agent_launch_panel`,
 `application_agent_invocation_host`, `application_release_maintenance`,
 `architecture_boundaries`, the format check and the documentation gate.
 
+Slice 1 is commit `32f789f59` on `worktree-agent-a5f29357fb73aecd5`, merged
+with `origin/main` at `67c681bb7`. Probe PR #150 is closed and its branch
+deleted.
+
+Until slice 2 lands, a sparse review with no linked clone cannot ask the
+agent at all (it says to link a clone); before slice 1 a small repository's
+head was downloaded whole. This is the owner's decision applied without its
+PR-only fallback yet.
+
 ### Left for slice 2
 
 Change 2: the no-clone choice in the agent panel (AC3), the
 BetterPullReview-managed clone with its stated size, progress, cancel, reuse,
 Storage and purge (AC4), and the PR-only workspace with its run header
-(AC5).
+(AC5). The choice is UX: load `frontend-design:frontend-design` before
+designing it, and its look goes to an attended Accept/Reject review. AC8 is
+met for slice 1's amendment and is rechecked with slice 2's.
