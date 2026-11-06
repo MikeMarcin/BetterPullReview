@@ -2,7 +2,8 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1875"
 title: "A pull request opened from Home is not cancelled by a discovery refresh"
-status: "Done"
+status: "Parked"
+parked_on: "awaiting-live-github"
 rfcs: []
 depends_on: []
 priority: "P1"
