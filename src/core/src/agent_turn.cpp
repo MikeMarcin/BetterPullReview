@@ -36,10 +36,36 @@ namespace bpr::core {
 		switch (aRecovery) {
 		case agent_turn_recovery::none:           return "none";
 		case agent_turn_recovery::ask_again:      return "ask_again";
-		case agent_turn_recovery::check_setup:    return "check_setup";
 		case agent_turn_recovery::agent_settings: return "agent_settings";
 		}
 		return { };
+	}
+
+	auto stable_name(const agent_turn_cause aCause) noexcept -> std::string_view
+	{
+		switch (aCause) {
+		case agent_turn_cause::none:            return "none";
+		case agent_turn_cause::agent_check:     return "agent_check";
+		case agent_turn_cause::workspace_check: return "workspace_check";
+		}
+		return { };
+	}
+
+	auto agent_turn_cause_of(const agent_turn_outcome aOutcome) noexcept -> agent_turn_cause
+	{
+		switch (aOutcome) {
+		case agent_turn_outcome::failed_to_start:       return agent_turn_cause::agent_check;
+		case agent_turn_outcome::workspace_unavailable: return agent_turn_cause::workspace_check;
+		case agent_turn_outcome::answered:
+		case agent_turn_outcome::unreadable:
+		case agent_turn_outcome::exited_with_error:
+		case agent_turn_outcome::history_unavailable:
+		case agent_turn_outcome::stopped:
+		case agent_turn_outcome::timed_out:
+		case agent_turn_outcome::set_aside:
+		case agent_turn_outcome::ended_without_answer:  return agent_turn_cause::none;
+		}
+		return agent_turn_cause::none;
 	}
 
 	auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions
@@ -47,14 +73,15 @@ namespace bpr::core {
 		if (aFacts.Outcome == agent_turn_outcome::answered) {
 			return { .Error = false, .Copy = aFacts.HasText, .SaveNote = aFacts.HasText, .DraftComment = aFacts.HasText, .Recovery = agent_turn_recovery::none };
 		}
-		auto actions = agent_turn_actions{ .Error = true, .Copy = aFacts.HasText };
+		auto actions       = agent_turn_actions{ .Error = true, .Copy = aFacts.HasText };
+		actions.FixedSince = aFacts.CausePassedSince && agent_turn_cause_of(aFacts.Outcome) != agent_turn_cause::none;
 		if (!aFacts.Latest || aFacts.Working) {
 			return actions;
 		}
 		switch (aFacts.Outcome) {
 		case agent_turn_outcome::unreadable:            actions.Recovery = agent_turn_recovery::agent_settings; break;
 		case agent_turn_outcome::failed_to_start:
-		case agent_turn_outcome::workspace_unavailable: actions.Recovery = agent_turn_recovery::check_setup; break;
+		case agent_turn_outcome::workspace_unavailable:
 		case agent_turn_outcome::exited_with_error:
 		case agent_turn_outcome::history_unavailable:
 		case agent_turn_outcome::stopped:

@@ -91,7 +91,8 @@
     "--agent-send-refusal": [
       "test_a_refused_send_says_why_beside_the_composer",
       "test_a_removed_agent_is_unavailable_in_the_composer",
-      "test_an_agent_error_is_an_error_and_suggestions_wait_for_setup"
+      "test_an_agent_error_is_an_error_and_suggestions_wait_for_setup",
+      "test_a_failed_answer_asks_again_and_says_when_fixed"
     ],
     "--title-row": [
       "test_the_window_title_names_the_open_pull_request",

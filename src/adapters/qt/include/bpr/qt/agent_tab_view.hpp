@@ -251,10 +251,10 @@ namespace bpr::qt {
 		/// \brief Set up an agent: Settings › Agents & context.
 		void set_setup_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1753]], RFC-BPR-0092. Shows `aSetup` in place
-		/// of the conversation while it is needed, adds **Set up agent…** and
-		/// **Change repository folder…** to History, and offers **Check
-		/// again** when an Ask ends for a setup reason (`aCheckAgain`).
-		void adopt_setup(agent_setup_view& aSetup, std::function<void()> aCheckAgain);
+		/// of the conversation while it is needed and adds **Reset agents…** to
+		/// History. [[BPR-1876]]: an Ask that ends for a setup reason is asked
+		/// again, not checked again, and says when its check has passed since.
+		void adopt_setup(agent_setup_view& aSetup);
 		/// \brief The ready line once setup finishes, and what the agent gets.
 		void present_ready(const QString& aTitle, const QString& aText, const QString& aGets);
 		/// \brief Called once, the first time the tab is shown: when setup
@@ -501,7 +501,6 @@ namespace bpr::qt {
 		QToolButton*                    History      = nullptr;
 		QMenu*                          HistoryMenu  = nullptr;
 		agent_setup_view*               SetupView    = nullptr;
-		std::function<void()>           CheckAgain;
 		std::function<void()>           FirstShown;
 		std::vector<agent_run_settings> RunSettingsShown;
 		/// The model each agent last reported running, by its profile.
@@ -563,6 +562,11 @@ namespace bpr::qt {
 			QPointer<QWidget>         Reply;
 			QPointer<QPushButton>     Recovery;
 			core::agent_turn_recovery RecoveryKind = core::agent_turn_recovery::none;
+			/// [[BPR-1876]]. The check its cause names was seen not passed
+			/// (running, failed or not run) after it ended, so a pass now is
+			/// one made since; and the line that says it is fixed since.
+			bool             CauseRechecked = false;
+			QPointer<QLabel> FixedNote;
 		};
 		std::vector<turn> Turns;
 		/// The question and the answer as shown, their references links.
@@ -654,6 +658,9 @@ namespace bpr::qt {
 		agent_answer_draft_navigation              DraftNavigate;
 		QLabel*                                    Log      = nullptr;
 		bool                                       LogShown = false;
+		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
+		/// the stopped banner stands down.
+		bool LatestFixedSince = false;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
 		/// The panels may go first when the window closes.
