@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1899"
 title: "Tool-free writing runs when Claude also writes a thinking block"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1896"]
 priority: "P1"
