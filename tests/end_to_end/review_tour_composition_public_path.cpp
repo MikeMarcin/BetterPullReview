@@ -16,6 +16,7 @@
 #include "bpr/qt/writing_hooks_panel.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
+#include "stub_claude_search.hpp"
 
 #include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/core/review_tour_reconciliation.hpp"
@@ -90,6 +91,39 @@ namespace {
 		window.prepare_tour_action()->trigger();
 		QApplication::processEvents();
 		expect(window.tray_tabs()->accessibleTabName(window.tray_tabs()->currentIndex()) == QStringLiteral("Tour") && window.tour_editor()->isVisible(), "Prepare review tour opens the composed Tour tray");
+	}
+	/// [[BPR-1894]]. The Tour tab's agent features wait on the Agent tab's
+	/// setup ([[BPR-1881]]). As a person does: the Tour tab, once shown, lets
+	/// the setup look for agents; it finds only the course's stub `claude`
+	/// and chooses it, and the review holds every file, so no clone is asked
+	/// for ([[BPR-1879]]). The Tour tab's Set up the agent opens the setup at
+	/// Check it works, Check runs the stub's `auth status --json` and
+	/// `--version` and makes the workspace, and the Tour tab is shown again.
+	void agent_ready(qt::workbench_window& aWindow)
+	{
+		auto&      editor = *aWindow.tour_editor();
+		const auto ready  = [&editor] { return editor.agent_readiness() == qt::agent_setup_readiness::ready; };
+		wait([&editor] { return editor.agent_readiness() != qt::agent_setup_readiness::checking; }, "the agent setup looks for agents once the Tour tab shows");
+		if (!ready()) {
+			expect(editor.agent_setup_call()->isVisible(), "the unfinished setup is offered from the Tour tab");
+			editor.findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+			const auto check = [&aWindow] {
+				auto* const button = aWindow.agent_setup()->findChild<QPushButton*>(QStringLiteral("agentSetupCheck"));
+				return button != nullptr && button->isVisible() && button->isEnabled() ? button : nullptr;
+			};
+			wait([&] { return aWindow.agent_setup()->projection().Step == core::setup_step::check && check() != nullptr; }, "the setup opens at Check it works with the stub claude chosen");
+			check()->click();
+			wait(ready, "Check it works passes on the course's stub claude");
+			const auto& setup = aWindow.agent_setup()->projection();
+			expect(setup.Step == core::setup_step::ready && setup.State.AgentCheck.State == core::setup_check_state::passed && setup.State.WorkspaceCheck.State == core::setup_check_state::passed,
+				   "both setup checks passed on the stub claude");
+			aWindow.open_review_tour();
+			QApplication::processEvents();
+			std::cout << "agent-setup:checked\n";
+		} else {
+			std::cout << "agent-setup:already-ready\n";
+		}
+		expect(editor.isVisible() && !editor.agent_setup_call()->isVisible(), "a finished setup leaves the Tour tab no call to set up the agent");
 	}
 	void shutdown(app::github_application& aApp)
 	{
@@ -428,12 +462,37 @@ auto main(int argc, char** argv) -> int
 	if (wrapperCourse) {
 		std::filesystem::create_directory(claudeSearch);
 	}
+	// [[BPR-1894]]. The writing courses, and the default course where agent
+	// integrations are built, finish the agent setup on a stub claude of
+	// their own, as a person's setup finishes on theirs. The wrapper course
+	// takes its stub away again once the setup has finished.
+	const auto defaultCourse = argc > 1 && !std::string_view{ argv[1] }.starts_with("--");
+	auto       stubAgent     = std::filesystem::path{ };
+	if (argc > 2 && (std::string_view{ argv[1] } == "--writing" || wrapperCourse)) {
+		stubAgent = argv[2];
+	} else if (const auto configured = qEnvironmentVariable("BPR_TOUR_COURSE_CLAUDE"); defaultCourse && !configured.isEmpty()) {
+		stubAgent = app::native_filesystem_path(configured);
+	}
+	auto stubSearch = std::optional<app::detail::claude_search_environment>{ };
+	if (!stubAgent.empty()) {
+		stubSearch = e2e::stub_claude_search(wrapperCourse ? claudeSearch : claudeSearch.parent_path() / "stub-claude-search", stubAgent);
+		if (!stubSearch) {
+			std::cerr << "stub claude search refused\n";
+			return EXIT_FAILURE;
+		}
+	}
 	auto make = [&] {
 		std::unique_ptr<app::github_application> started;
 		bool                                     terminal = false;
 		auto                                     options  = app::detail::github_public_path_fixture_options{ .ApplicationDataRoot = dataRoot, .ReviewTourCourse = argc > 1 && (std::string_view{ argv[1] } == "--cold" || std::string_view{ argv[1] } == "--writing" || std::string_view{ argv[1] } == "--writing-wrapper" || installedCourse), .ReviewSubmissionServer = server, .ClaudeAgentExecutable = argc > 2 && std::string_view{ argv[1] } == "--writing" ? std::optional{ std::filesystem::path{ argv[2] } } : std::nullopt };
-		if (wrapperCourse) {
-			options.ClaudeSearch = app::detail::claude_search_environment{ .PathVariable = claudeSearch.string() };
+		// [[BPR-1894]]. The default course offers the built-in Claude on its
+		// stub, as the writing course and BPR-1881's tour-authoring look do:
+		// with nothing offered the Agent tab counts as not set up.
+		if (defaultCourse && stubSearch) {
+			options.ClaudeAgentExecutable = stubAgent;
+		}
+		if (stubSearch) {
+			options.ClaudeSearch = stubSearch;
 		}
 		if (installedCourse) {
 			options.ClaudeSearch = app::detail::claude_search_environment{ .PathVariable = argv[2] };
@@ -755,6 +814,11 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == claude; }, "writing host ready");
 			window.open_review_tour();
 			editor.show_problem();
+			agent_ready(window);
+			// [[BPR-1894]]. The setup finished on the course's stub claude;
+			// it now goes from PATH, as a claude uninstalled after setup does,
+			// so the request below finds none.
+			std::filesystem::remove(claudeSearch / ("claude" + std::filesystem::path{ argv[2] }.extension().string()));
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
 			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
@@ -846,6 +910,7 @@ auto main(int argc, char** argv) -> int
 			wait([&] { return access::agent_invocation_evidence(*application).Quiescent && panel->selected_profile() == core::claude_stream_json_profile_id; }, "writing host ready");
 			window.open_review_tour();
 			editor.show_problem();
+			agent_ready(window);
 			auto* prose  = editor.writing_editor(core::writing_hook::problem);
 			auto* magic  = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
 			auto* status = editor.findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
@@ -1209,6 +1274,14 @@ auto main(int argc, char** argv) -> int
 		expect(agentBefore == 0U, "no agent configured or launched for authoring");
 		const auto problem = QStringLiteral("## Before\n\nLiteral <details><summary>why</summary>\n\n```cpp\nreturn 1;\n```\n</details>\n\n| A | B |\n| - | - |\n| x | y |\n");
 		tab_leaves(editor.problem_editor());
+#if defined(BPR_AGENT_INTEGRATIONS)
+		// [[BPR-1894]]. Tab reaches the assistance control once the setup has
+		// finished. The setup's check asks the stub for its status and
+		// version only: no agent request is launched.
+		expect(stubSearch.has_value(), "the default course is given a stub claude (BPR_TOUR_COURSE_CLAUDE)");
+		agent_ready(window);
+		expect(access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations == 0U, "finishing the setup launches no agent request");
+#endif
 		key(editor.problem_editor(), QKeyCombination{ Qt::Key_Tab });
 #if defined(BPR_AGENT_INTEGRATIONS)
 		expect(QApplication::focusWidget() == editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic")), "Problem Tab reaches the visible assistance control");

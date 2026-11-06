@@ -3464,11 +3464,17 @@ target_link_libraries(test_review_tour_composition_public_path PRIVATE BetterPul
 target_compile_definitions(test_review_tour_composition_public_path PRIVATE BPR_BUILD_TESTING=1)
 bpr_enable_hardening(test_review_tour_composition_public_path)
 bpr_enable_warnings(test_review_tour_composition_public_path)
+# [[BPR-1894]]. With agent integrations the course finishes the agent setup
+# on the scoped writing stub, put on a search PATH of its own as `claude`.
+set(bpr_review_tour_composition_environment "${bpr_public_path_fixture_environment}")
+if(BPR_BUILD_AGENT_INTEGRATIONS)
+    list(APPEND bpr_review_tour_composition_environment "BPR_TOUR_COURSE_CLAUDE=$<TARGET_FILE:test_scoped_writing_agent>")
+endif()
 bpr_add_network_isolated_test(NAME application_review_tour_composition_public_path
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path "${CMAKE_CURRENT_BINARY_DIR}/review-tour-composition.png")
 set_tests_properties(application_review_tour_composition_public_path PROPERTIES
-    ENVIRONMENT "${bpr_public_path_fixture_environment}"
+    ENVIRONMENT "${bpr_review_tour_composition_environment}"
     TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-composition:pass")
 foreach(scale IN ITEMS 125 200)
     if(scale EQUAL 125)
@@ -3480,7 +3486,7 @@ foreach(scale IN ITEMS 125 200)
         WINDOWS_UNCONTAINED
         COMMAND test_review_tour_composition_public_path "${CMAKE_CURRENT_BINARY_DIR}/review-tour-${scale}.png")
     set_tests_properties(application_review_tour_composition_scale_${scale} PROPERTIES
-        ENVIRONMENT "${bpr_public_path_fixture_environment};QT_SCALE_FACTOR=${tour_scale_factor}"
+        ENVIRONMENT "${bpr_review_tour_composition_environment};QT_SCALE_FACTOR=${tour_scale_factor}"
         TIMEOUT 90 PASS_REGULAR_EXPRESSION "review-tour-composition:pass")
 endforeach()
 

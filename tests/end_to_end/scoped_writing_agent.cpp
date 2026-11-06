@@ -52,6 +52,17 @@ int main(int argc, char** argv)
 	for (int i = 1; i < argc; ++i) {
 		actual.emplace_back(argv[i]);
 	}
+	// [[BPR-1894]]. The agent setup's Check it works asks a signed-in
+	// `claude` for its status and then its version, exactly so; it sends no
+	// question and no code.
+	if (actual == std::vector<std::string>{ "auth", "status", "--json" }) {
+		std::cout << R"({"loggedIn":true,"authMethod":"claude.ai","apiProvider":"firstParty"})" << '\n';
+		return EXIT_SUCCESS;
+	}
+	if (actual == std::vector<std::string>{ "--version" }) {
+		std::cout << "2.1.314 (Claude Code)\n";
+		return EXIT_SUCCESS;
+	}
 	std::string model;
 	if (actual.size() > 7U && actual[6] == "--model") {
 		model = actual[7];
