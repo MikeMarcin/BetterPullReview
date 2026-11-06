@@ -282,10 +282,10 @@ its own: see the amendment below.
 >   that question: it already shows, before any question, for a repository
 >   with no remembered choice, and Settings › Repositories › Linked clones
 >   changes or forgets the choice. For a sparse review its no-clone action is
->   **Ask about this pull request only**, offered after linking a clone (the
->   default action) with its cost said: "Without a clone the agent sees only
->   the files this pull request changes: no callers, tests or history, so its
->   answers are weaker."
+>   **This pull request only**, offered after linking a clone (the default
+>   action) with its cost in one line: "Weaker answers: no callers, tests or
+>   history." (Owner look on [[BPR-1879]] v002 asked for shorter copy; it was
+>   "Ask about this pull request only" with a two-sentence cost.)
 > - **This pull request only** ([[BPR-1873]] slice 2). The workspace holds
 >   exactly the pull request's files at the head: the head's side of
 >   base...head, deletions and submodules excepted. The host uses bytes the
@@ -310,12 +310,14 @@ its own: see the amendment below.
 >   a later card.
 >
 >   As built: the Repository step of a sparse review read through a `gh`
->   lease offers **Let BetterPullReview keep one** between linking a clone
->   (still the default action) and **Ask about this pull request only**,
->   saying "Downloads about SIZE from GitHub once, in the background, and
->   keeps it in LOCATION. Later questions fetch only what is new." SIZE is
->   GitHub's `size` from the review's repository read, in decimal units; the
->   whole repository is said when GitHub gave none. The review's own lease
+>   lease offers **Keep a clone for me** between linking a clone (still the
+>   default action) and **This pull request only**, with one line of facts:
+>   "About SIZE, kept in LOCATION" (the location shortened in the middle to
+>   fit, the whole path as its tooltip; "Kept in LOCATION" when GitHub gave no
+>   size). SIZE is GitHub's `size` from the review's repository read, in
+>   decimal units. The owner's look on v002 found the first wording "way too
+>   worded and verbose"; every state now has a short label and at most one
+>   short line. The review's own lease
 >   runs `gh repo clone URL STORE --no-upstream -- --no-checkout --quiet`
 >   with the same pinned private configuration, environment, hooks off, no
 >   fsmonitor, `core.sharedRepository=0600`, identity checks before and
@@ -328,14 +330,14 @@ its own: see the amendment below.
 >   one whose deadline is lifted. The store is
 >   checked to hold a commit at `HEAD`, made owner-private, and moved whole
 >   to `agent-clones-v1/HOST-REPOSITORY_ID` in the profile. While it runs the
->   step shows the bytes received, sampled twice a second, of about SIZE with
->   a progress bar and **Cancel**; past SIZE, or with no SIZE, the bar is busy
->   and the bytes go on counting ("X so far"). Objects and percent are not
+>   step is one row: a progress bar, the bytes received ("42 MB of 126 MB",
+>   sampled twice a second) and **Cancel**; past SIZE, or with no SIZE, the
+>   bar is busy and only the bytes received show. Objects and percent are not
 >   shown: they exist only in Git's standard error, which the adapter never
 >   exposes. Cancel is honoured at every step, from qualification to the
 >   final move; Cancel, a
 >   failure or another repository on screen leaves nothing in the profile. A
->   failure says why with **Try keeping one again**. When it is in place it
+>   failure is a few words ("No connection to GitHub.") and **Retry**. When it is in place it
 >   is linked as the repository's clone, so the setup moves on and later
 >   questions borrow it exactly as a linked clone: a head it holds is lent
 >   with no fetch, and a head it lacks is fetched as the delta above, into
