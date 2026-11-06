@@ -731,7 +731,10 @@ namespace bpr::qt {
 				case core::setup_step::check:      build_check(*bodyColumn); break;
 				case core::setup_step::ready:      break;
 				}
-				if (item.Step == core::setup_step::agent || item.Step == core::setup_step::repository) {
+				// [[BPR-1879]], owner look v004: while a kept clone downloads, its
+				// progress is the whole Repository step, with no search beside it.
+				const auto keeping = Facts.Sparse && Clones.Repository && Clones.Repository->CanKeep && Clones.Keeping.State == application::managed_clone_state::downloading;
+				if (item.Step == core::setup_step::agent || (item.Step == core::setup_step::repository && !keeping)) {
 					const auto  agents = item.Step == core::setup_step::agent;
 					auto* const rescan = link_button(agents ? tr("Find agents again") : tr("Find matching clones"), body,
 													 agents ? QStringLiteral("agentSetupFindAgents") : QStringLiteral("agentSetupFindClones"));
@@ -872,6 +875,10 @@ namespace bpr::qt {
 		const auto  name   = text_of(Facts.Repository);
 		if (!Clones.Repository || name.isEmpty()) {
 			aBody.addWidget(muted(tr("Open a pull request to choose the repository the agent reads."), parent));
+			return;
+		}
+		if (Facts.Sparse && Clones.Repository->CanKeep && Clones.Keeping.State == application::managed_clone_state::downloading) {
+			build_no_clone_choice(aBody, false, { });
 			return;
 		}
 		if (Clones.Problem != application::clone_link_problem::none && !Clones.Links.empty()) {
@@ -1085,24 +1092,35 @@ namespace bpr::qt {
 		withoutClone(tr("Use a private copy instead"));
 	}
 
-	/// [[BPR-1879]], owner looks v002 to v004. With no clone of a sparse
+	/// [[BPR-1879]], owner looks v002 to v005. With no clone of a sparse
 	/// review's repository, where the agent's code comes from is one choice
-	/// between two cards, the same cards a found clone is chosen from: Keep a
-	/// clone for me (chosen at first, the stronger answer) and This pull
-	/// request only (weaker, said in one line). One button acts on the card
-	/// chosen; linking a folder stays beside it. Each card is a label and
-	/// facts. While the clone downloads its card becomes the progress: the
-	/// bar, the bytes received and Cancel, in place. After a failure the card
-	/// says why in a few words and the button reads Retry.
+	/// between cards, the same cards a found clone is chosen from, in order
+	/// of strength. Owner look v004: "choose a folder or find a clone ...
+	/// needs to be the #1 option that people see and strongly recommended":
+	/// Use my clone comes first, chosen at first and marked Recommended
+	/// (offered when \p aChooseFolder is); Keep a clone for me second; This
+	/// pull request only last, its weaker answers in one line. One button acts
+	/// on the card chosen. Each card is a label and facts. Owner look v004:
+	/// "once the progress bar starts I don't see the point of still showing
+	/// other options": while the clone downloads, its progress card and Cancel
+	/// are the whole step. After a failure the card says why in a few words
+	/// and the button reads Retry.
 	///
 	/// \p aLead: the button is the step's default (no clone was found); else
 	/// another action leads (Add a folder, Use this clone) and it is quiet.
 	void agent_setup_view::build_no_clone_choice(QVBoxLayout& aBody, const bool aLead, const std::function<void()>& aChooseFolder)
 	{
-		auto* const parent  = aBody.parentWidget();
-		const auto  canKeep = Clones.Repository && Clones.Repository->CanKeep && !Clones.ManagedLocation.empty();
-		const auto  keep    = canKeep && !PickedPullRequestOnly;
-		const auto  locale  = QLocale{ };
+		auto* const parent    = aBody.parentWidget();
+		const auto  canKeep   = Clones.Repository && Clones.Repository->CanKeep && !Clones.ManagedLocation.empty();
+		const auto  offerLink = static_cast<bool>(aChooseFolder);
+		// Use my clone when offered, else keeping one, else the pull request.
+		const auto fallback = offerLink ? no_clone_pick::link : (canKeep ? no_clone_pick::keep : no_clone_pick::pull_request);
+		auto       pick     = NoClonePick.value_or(fallback);
+		if ((pick == no_clone_pick::link && !offerLink) || (pick == no_clone_pick::keep && !canKeep)) {
+			pick = fallback;
+		}
+		const auto keep   = pick == no_clone_pick::keep;
+		const auto locale = QLocale{ };
 		// Decimal units, as the Finder shows sizes on macOS.
 		const auto amount      = [&locale](const std::uint64_t aBytes) { return locale.formattedDataSize(static_cast<qint64>(std::min<std::uint64_t>(aBytes, std::numeric_limits<qint64>::max())), 0, QLocale::DataSizeSIFormat); };
 		const auto approximate = canKeep ? Clones.Repository->ApproximateBytes : std::optional<std::uint64_t>{ };
@@ -1147,9 +1165,23 @@ namespace bpr::qt {
 			return line;
 		};
 
+		if (offerLink && !downloading) {
+			// The strongest answer, first and recommended: the reviewer's own
+			// clone, whose history is already on this computer.
+			const auto choose = [this] {
+				NoClonePick = no_clone_pick::link;
+				rebuild();
+			};
+			auto [box, grid]    = card(QStringLiteral("agentSetupLinkCard"), tr("Use my clone"), tr("Recommended"), pick == no_clone_pick::link, choose);
+			auto* const advised = box->findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"));
+			advised->setForegroundRole(QPalette::Highlight);
+			grid->addWidget(fact(box, QStringLiteral("agentSetupLinkCost"), tr("Full history already on this computer")), 1, 1, 1, 2);
+			box->settle();
+			aBody.addWidget(box);
+		}
 		if (canKeep) {
 			const auto choose = [this] {
-				PickedPullRequestOnly = false;
+				NoClonePick = no_clone_pick::keep;
 				rebuild();
 			};
 			const auto received   = Clones.Keeping.Received;
@@ -1222,34 +1254,32 @@ namespace bpr::qt {
 		}
 		{
 			const auto choose = [this] {
-				PickedPullRequestOnly = true;
+				NoClonePick = no_clone_pick::pull_request;
 				rebuild();
 			};
-			auto [box, grid] = card(QStringLiteral("agentSetupPullRequestOnlyCard"), tr("This pull request only"), { }, !keep, choose);
+			auto [box, grid] = card(QStringLiteral("agentSetupPullRequestOnlyCard"), tr("This pull request only"), { }, pick == no_clone_pick::pull_request, choose);
 			grid->addWidget(fact(box, QStringLiteral("agentSetupPullRequestOnlyCost"), tr("Weaker answers: no callers, tests or history")), 1, 1, 1, 2);
 			box->settle();
 			aBody.addWidget(box);
 		}
 		auto* const row    = new QHBoxLayout{ };
-		const auto  label  = keep ? (failed ? tr("Retry") : tr("Keep a clone")) : tr("Use this pull request");
-		const auto  name   = keep ? QStringLiteral("agentSetupKeepClone") : QStringLiteral("agentSetupPullRequestOnly");
+		const auto  link   = pick == no_clone_pick::link;
+		const auto  label  = link ? tr("Choose its folder…") : keep ? (failed ? tr("Retry") : tr("Keep a clone"))
+																	: tr("Use this pull request");
+		const auto  name   = link ? QStringLiteral("agentSetupChooseFolder") : keep ? QStringLiteral("agentSetupKeepClone")
+																					: QStringLiteral("agentSetupPullRequestOnly");
 		auto* const action = aLead ? primary_button(label, parent, name) : static_cast<QPushButton*>(new quiet_push_button{ label, parent });
 		action->setObjectName(name);
-		connect(action, &QPushButton::clicked, this, [this, keep] {
-			if (keep && Intents.KeepClone) {
+		connect(action, &QPushButton::clicked, this, [this, link, keep, aChooseFolder] {
+			if (link && aChooseFolder) {
+				aChooseFolder();
+			} else if (keep && Intents.KeepClone) {
 				Intents.KeepClone();
-			} else if (!keep && Intents.UsePrivateCopy) {
+			} else if (!link && !keep && Intents.UsePrivateCopy) {
 				Intents.UsePrivateCopy();
 			}
 		});
 		row->addWidget(action);
-		if (aChooseFolder) {
-			auto* const choose = new quiet_push_button{ tr("Choose a folder…"), parent };
-			choose->setObjectName(QStringLiteral("agentSetupChooseFolder"));
-			choose->setFlat(true);
-			connect(choose, &QPushButton::clicked, this, aChooseFolder);
-			row->addWidget(choose);
-		}
 		row->addStretch(1);
 		aBody.addLayout(row);
 	}
