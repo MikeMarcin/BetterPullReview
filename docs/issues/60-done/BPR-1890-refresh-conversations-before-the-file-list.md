@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1890"
 title: "Refresh conversations before the file list"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1889"]
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1890--BPR-1890--32071319c6e9.json","milestone_plan":{"id":"responsiveness-latency-v7","path":"docs/rfcs/plans/responsiveness-latency-v7/milestone-plan.json"},"frontend_design":"frontend-design:frontend-design and desktop guidance applied; retain the existing partial loading plate and conversation layout."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"fda0636eccb4a0e5c3587357942cdcf9ed237393","evidence":{"kind":"observation","detail":"Observed authenticated refresh publishes reviews and complete threads before any changed-file page, leaving Files absent. Provider tests retain final records and request counts, first-open and unobserved behavior, catalogue record/count validation, shared page limits and cancellation. The full github_paged_read course passes."}},{"criterion":"AC2","outcome":"pass","revision":"fda0636eccb4a0e5c3587357942cdcf9ed237393","evidence":{"kind":"observation","detail":"Core and host tests pass with files/conversation in either order after metadata, at most once each. Exact request, accepted PR, head, base, mode, cancellation and terminal checks remain; the early conversation grants no new snapshot or epoch authority. Core-only and both architecture gates pass."}},{"criterion":"AC3","outcome":"pass","revision":"fda0636eccb4a0e5c3587357942cdcf9ed237393","evidence":{"kind":"observation","detail":"The composed offscreen application passes the held-catalogue course: exact comparison context and scrollbar are retained before an actual thread click opens the new reply body while the file read is still blocked. Refreshing remaining details remains visible. Its screenshot was inspected. The old-order negative control fails the intended reply-before-files assertion."}},{"criterion":"AC4","outcome":"pass","revision":"fda0636eccb4a0e5c3587357942cdcf9ed237393","evidence":{"kind":"observation","detail":"Optimized three-run local measurements show composed median reply visibility 1670 to 1336 ms with 18 reads, and provider observation 1009.18 to 2.92 ms with 20 reads. Full changed-TU tidy, format, documentation and focused functional checks pass. The card, evidence and one-line journal entry landed on main as fda0636eccb4a0e5c3587357942cdcf9ed237393. No total-duration or live-network timing claim is made."}}]
 ---
 
 # BPR-1890: Refresh conversations before the file list
@@ -138,3 +139,10 @@ Direct implementation and self-review found no additional mechanism necessary:
 the existing paged read, observation channel and loading presentation suffice.
 No extra requests, worker, provider dependency or product layout was introduced.
 No live GitHub or other-platform performance claim is made.
+
+## Landing
+
+Source and one-line journal entry landed on local `main` as
+`fda0636eccb4a0e5c3587357942cdcf9ed237393`. All four acceptance criteria have
+direct execution or observation evidence; no owner action remains for this
+round. No remote push or release was performed.
