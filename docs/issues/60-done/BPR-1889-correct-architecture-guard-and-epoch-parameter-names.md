@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1889"
 title: "Correct architecture guard and epoch parameter names"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1888"]
 priority: "P1"
 metadata: {"kind":"maintenance","reservation":"docs/issues/_reservations/BPR-1889--BPR-1889--426a20fdc16c.json","milestone_plan":{"id":"responsiveness-latency-v6","path":"docs/rfcs/plans/responsiveness-latency-v6/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"c544dd6eb29be7f7a9f5e6849f486ca0b6f4d4df","evidence":{"kind":"observation","detail":"Managed-clone paths use the existing transport helper with identical path composition. The real architecture gate and all 163 contract tests pass, including hostile checks retaining the exact owner and managed-clone restrictions; no production guard was loosened. The local Git smart-transport final course passes."}},{"criterion":"AC2","outcome":"pass","revision":"c544dd6eb29be7f7a9f5e6849f486ca0b6f4d4df","evidence":{"kind":"observation","detail":"The synthetic runner and transport fixtures now represent the existing managed-clone factory/deadline and depth-plus-filter policies. The full architecture contract passes all 163 tests, with positive coverage and new mutation refusals."}},{"criterion":"AC3","outcome":"pass","revision":"c544dd6eb29be7f7a9f5e6849f486ca0b6f4d4df","evidence":{"kind":"observation","detail":"Only three materialize_on_actor parameter identifiers and their uses changed. Inverse renaming produces the exact original function bytes. Full epoch-host clang-tidy 22 with warnings as errors and the application_epoch_host functional course pass; both other changed C++ translation units also pass tidy."}},{"criterion":"AC4","outcome":"pass","revision":"c544dd6eb29be7f7a9f5e6849f486ca0b6f4d4df","evidence":{"kind":"observation","detail":"Documentation and format checks pass. The one-line journal entry, implementation, full verification evidence and retained initial native failure are committed and landed on main as c544dd6eb29be7f7a9f5e6849f486ca0b6f4d4df. The baseline and final native Git comparison both pass; the earlier failure remains unconfirmed and no unrelated fix or repository-wide green claim is made."}}]
 ---
 
 # BPR-1889: Correct architecture guard and epoch parameter names
@@ -85,3 +86,6 @@ inverse-rename proof are external in
 as `gate-cleanup-*`. BPR-1888's separate network-isolation manifest gap and
 whole-workbench Qt lint warnings remain outside this card; this is focused
 acceptance, not a claim that every repository check passes.
+
+The verified source and journal entry landed on local main as
+`c544dd6eb29be7f7a9f5e6849f486ca0b6f4d4df`; card closeout follows in its own commit.
