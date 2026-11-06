@@ -357,6 +357,36 @@ namespace bpr::application {
 			return CycleProblem == queue_discovery_problem::none ? core::discovery_diagnosis_state::current : core::discovery_diagnosis_state::partial;
 		}
 
+		/// [[BPR-1874]]. A refresh that ended stale failed, as one a
+		/// session-wide failure stopped did: only one that read everything it
+		/// asked for succeeded.
+		[[nodiscard]] auto ended_outcome() const noexcept -> diagnostic_outcome
+		{
+			return CycleStopped || CycleFailed ? diagnostic_outcome::failed : diagnostic_outcome::succeeded;
+		}
+
+		/// [[BPR-1874]]. One of the host's checks refused part of \p aJob's
+		/// answer: the refresh fails, and its read's line says which check and
+		/// which of the pull requests it asked for (\p aRow, from 1; 0 for the
+		/// whole answer), with the adapter's failure when it gave one.
+		void reject(const job& aJob, const core::discovery_rejection aRejection, const std::uint32_t aRow = 0U, const github_provider_error* aError = nullptr)
+		{
+			auto diagnosis      = read_diagnosis(aJob);
+			diagnosis.Rejection = aRejection;
+			diagnosis.Row       = aRow;
+			record(diagnostic_outcome::failed, diagnosis, diagnostic_detail::standard, aError != nullptr ? std::optional{ aError->Failure } : std::nullopt, { }, aError);
+			fail(queue_discovery_problem::failed, false);
+		}
+
+		/// [[BPR-1874]]. \p aNumber's place among the pull requests \p aJob
+		/// asked for, from 1.
+		[[nodiscard]] static auto row_of(const job& aJob, const core::pull_request_number aNumber) -> std::uint32_t
+		{
+			const auto numbers = numbers_of(aJob);
+			const auto found   = std::ranges::find(numbers, aNumber);
+			return found == numbers.end() ? 0U : saturated(static_cast<std::uint64_t>(found - numbers.begin()) + 1U);
+		}
+
 		void cancel_all()
 		{
 			if (CycleRunning) {
@@ -523,7 +553,7 @@ namespace bpr::application {
 		{
 			CycleRunning = false;
 			Focused      = false;
-			record(CycleStopped ? diagnostic_outcome::failed : diagnostic_outcome::succeeded, refresh_diagnosis(ended_state()));
+			record(ended_outcome(), refresh_diagnosis(ended_state()));
 			const auto now = Clock.now_seconds();
 			if (backing_off(now)) {
 				OwedRefresh              = false;
@@ -1036,7 +1066,7 @@ namespace bpr::application {
 					using result_type = std::remove_cvref_t<decltype(aResult)>;
 					if (aResult.Request != finished.Request) {
 						++Statistics.StaleCompletions;
-						fail(queue_discovery_problem::failed, false);
+						reject(finished, core::discovery_rejection::mismatched_answer);
 						return;
 					}
 					if constexpr (std::is_same_v<result_type, personal_discovery_success>) {
@@ -1073,7 +1103,12 @@ namespace bpr::application {
 						fail(problem, stops_refresh(aResult.Error.Failure));
 					} else {
 						++Statistics.CancelledRequests;
-						fail(queue_discovery_problem::failed, false);
+						// What a session-wide failure cancelled has said why already.
+						if (CycleStopped) {
+							fail(queue_discovery_problem::failed, false);
+						} else {
+							reject(finished, core::discovery_rejection::unexpected_cancel);
+						}
 					}
 				},
 				aCompletion);
@@ -1101,7 +1136,7 @@ namespace bpr::application {
 			for (auto& row : aResult.Rows) {
 				const auto repository = repository_of(aJob, row);
 				if (!repository) {
-					fail(queue_discovery_problem::failed, false);
+					reject(aJob, core::discovery_rejection::unattributed_row);
 					continue;
 				}
 				if (ClosedThisCycle.contains(queue_ref(*repository, row.Number))) {
@@ -1152,15 +1187,24 @@ namespace bpr::application {
 		void apply_metadata(const job& aJob, const personal_discovery_success& aResult)
 		{
 			const auto numbers = numbers_of(aJob);
-			if (aResult.Completeness != personal_discovery_completeness::complete || aResult.Rows.size() > numbers.size()
+			if (aResult.Completeness != personal_discovery_completeness::complete) {
+				reject(aJob, core::discovery_rejection::incomplete_answer);
+				return;
+			}
+			if (aResult.Rows.size() > numbers.size()
 				|| std::ranges::any_of(aResult.Rows, [&numbers](const personal_discovery_row& aRow) { return std::ranges::find(numbers, aRow.Number) == numbers.end(); })) {
-				fail(queue_discovery_problem::failed, false);
+				reject(aJob, core::discovery_rejection::unasked_row);
 				return;
 			}
 			for (const auto number : numbers) {
 				const auto row = std::ranges::find(aResult.Rows, number, &personal_discovery_row::Number);
-				if (row == aResult.Rows.end() || std::ranges::count(aResult.Rows, number, &personal_discovery_row::Number) != 1) {
-					fail(queue_discovery_problem::failed, false);
+				if (row == aResult.Rows.end()) {
+					const auto unread = std::ranges::find(aResult.Unread, number, &personal_discovery_unread::Number);
+					reject(aJob, core::discovery_rejection::missing_row, row_of(aJob, number), unread == aResult.Unread.end() ? nullptr : &unread->Error);
+					continue;
+				}
+				if (std::ranges::count(aResult.Rows, number, &personal_discovery_row::Number) != 1) {
+					reject(aJob, core::discovery_rejection::duplicate_row, row_of(aJob, number));
 					continue;
 				}
 				if (numbers.size() == 1U || still_enrolled(aJob.Repository, number)) {
@@ -1171,9 +1215,13 @@ namespace bpr::application {
 
 		void apply_metadata_row(const job& aJob, const personal_discovery_row& aRow)
 		{
-			const auto& row = aRow;
-			if (!row.Detailed || !row.HeadOid || row.Reviews.size() > maximum_personal_discovery_reviews) {
-				fail(queue_discovery_problem::failed, false);
+			const auto& row      = aRow;
+			const auto  rejected = !row.Detailed                          ? core::discovery_rejection::undetailed_row
+				: !row.HeadOid                                            ? core::discovery_rejection::missing_head
+				: row.Reviews.size() > maximum_personal_discovery_reviews ? core::discovery_rejection::review_limit
+																		  : core::discovery_rejection::none;
+			if (rejected != core::discovery_rejection::none) {
+				reject(aJob, rejected, row_of(aJob, row.Number));
 				return;
 			}
 			if (row.WaitingLimited && CycleProblem == queue_discovery_problem::none) {
@@ -1181,7 +1229,7 @@ namespace bpr::application {
 			}
 			const auto head = core::parse_git_commit_oid(row.HeadOid->value());
 			if (!head) {
-				fail(queue_discovery_problem::failed, false);
+				reject(aJob, core::discovery_rejection::malformed_head, row_of(aJob, row.Number));
 				return;
 			}
 			const auto ref = queue_ref(aJob.Repository, row.Number);
@@ -1248,7 +1296,7 @@ namespace bpr::application {
 			publish();
 			auto ended           = refresh_diagnosis(ended_state());
 			ended.BackoffSeconds = Status.RetryAfterSeconds.value_or(0U);
-			record(CycleStopped ? diagnostic_outcome::failed : diagnostic_outcome::succeeded, ended);
+			record(ended_outcome(), ended);
 			// A repository saved while this refresh ran is searched now.
 			if (!backing_off(now) && unsearched(partition())) {
 				start_cycle();
