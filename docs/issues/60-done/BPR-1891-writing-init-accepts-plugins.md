@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1891"
 title: "Tool-free writing runs when Claude reports a plugin it loaded; the tools, MCP and memory checks stay"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-06: review tour messages stopped with 'my-agent answered in a form this app can't read' (malformed_frame) on the first init line, while agent chat on the same Claude worked","related_cards":["BPR-1375","BPR-1827"],"related_rfcs":[]}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0293ff604","evidence":{"kind":"command","detail":"application_agent_launch (test_claude_writing_reports_the_plugins_it_loaded): the 2.1.314 fixture init frame, verbatim from this card, finishes with the agent's text in a writing run. The end-to-end writing course now runs PLUGIN_CANARY with that init frame and expects the text. It passed only with an uncommitted diagnostic that forced the Tour editor's agent readiness to ready; as committed it stops earlier, see AC7."}},{"criterion":"AC2","outcome":"pass","revision":"0293ff604","evidence":{"kind":"command","detail":"application_agent_launch: writing init frames with tools [\"Read\"], mcp_servers [{...}] (new case) or memory_paths {\"auto\":...} are each refused as malformed_frame."}},{"criterion":"AC3","outcome":"pass","revision":"0293ff604","evidence":{"kind":"command","detail":"application_agent_launch: a non-writing run keeps its tools and plugins, and the 2.1.314 frame in chat emits no plugins_reported event. The decoder emits the event only when aWritingOnly is set."}},{"criterion":"AC4","outcome":"pass","revision":"0293ff604","evidence":{"kind":"command","detail":"application_agent_launch: plugins are named by source, falling back to name, then 'unnamed'. Each name is at most 64 bytes of [A-Za-z0-9._@+-] and the path member is never read. Past 8 names the rest are counted as +N. The agent.run line ends ' plugins=...' and parse_agent_run_diagnosis reads it back exactly and refuses a path, an empty token or an empty list. With readiness forced, the writing course read the profile log after shutdown and found 'stderr_bytes=0 plugins=cc-plugin-sec-default@builtin' and no '/fixture/'."}},{"criterion":"AC5","outcome":"pending","revision":"0293ff604","evidence":{"kind":"observation","detail":"Not reachable on this Mac. The installed Claude is 2.1.310 (Homebrew) with no managed settings. Evidence step 1, in an empty scratch folder with claude_writing_restrictions verbatim, reported plugins: [] and tools/mcp_servers/skills empty with no memory_paths. With the enabledPlugins entries removed it reported exactly cc-plugin-agents-md, cc-plugin-telemetry and cc-plugin-plugin-authoring (all @builtin). No cc-plugin-sec-default appeared, so the --installed-writing course was not run. A my-agent or managed-settings Mac is still needed."}},{"criterion":"AC6","outcome":"pass","revision":"0293ff604","evidence":{"kind":"command","detail":"ai-agent-boundary.md (the plugin table row and the decoder paragraph), security-threat-model.md ('Fail closed on drift', a new 'Plugins are reported, not refused' bullet, the residual, the wrapper bullet) and the claude_writing_settings comment in agent_launch.hpp now say plugins are reported, not refused, and state the residual. python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK (with PYTHONPATH at the main checkout's .agents/skills/implement-rfc/scripts, which the worktree lacks)."}},{"criterion":"AC7","outcome":"pending","revision":"0293ff604","evidence":{"kind":"command","detail":"application_agent_launch and architecture_boundaries pass. coding-format-check passes (clang-format 22.1.8). application_review_tour_writing and application_review_tour_writing_wrapper fail on this base before any changed code runs, at 'recovery gesture accepted' and 'tour saved through admitted SQLite store'. application_review_tour_composition_public_path fails the same way at 'Problem Tab reaches the visible assistance control'. A diagnostic print showed the Tour editor's agent readiness as unfinished in the fixture: since BPR-1881 (101c59fe2) agent features stay disabled until setup is ready, and these courses never reach ready. With an uncommitted diagnostic forcing readiness to ready, both writing courses pass, including the new plugin step and the diagnostic-log check. The course fixture needs its own fix."}}]
 ---
 
 # BPR-1891: Tool-free writing runs when Claude reports a plugin it loaded; the tools, MCP and memory checks stay
@@ -17,7 +17,7 @@ acceptance: []
 ## Observed
 
 The owner, 2026-11-06, on a Mac with my-agent (managed Claude Code settings).
-Claude Code 2.1.314 runs through my-agent's `vscode-wrapper`. Asking the
+Claude Code 2.1.314 runs through the wrapper's `vscode-wrapper`. Asking the
 review tour to write a message stopped at once:
 
 - Card: "my-agent answered in a form this app can't read."
@@ -28,7 +28,7 @@ review tour to write a message stopped at once:
 
 Agent chat on the same profile, Claude and wrapper worked.
 
-Reproduced by running the my-agent-bundled Claude 2.1.314 directly with
+Reproduced by running the wrapper-bundled Claude 2.1.314 directly with
 `claude_writing_restrictions` verbatim, in an empty folder. The init frame
 reports `tools: []`, `mcp_servers: []`, `skills: []` and no `memory_paths`,
 plus this:
@@ -206,5 +206,28 @@ Fixture init frame (Claude Code 2.1.314, captured 2026-11-06; `cwd`,
 ## Out of scope
 
 - Whether chat should also report the plugins it loaded in diagnostics.
-- my-agent's PTY handling of piped stdin (`my-agent` binary vs.
+- the wrapper's PTY handling of piped stdin (`my-agent` binary vs.
   `vscode-wrapper`), a separate my-agent defect.
+
+## Acceptance note (2026-11-06)
+
+Decision taken as recommended (the owner, through the coordinator: the app
+should just work, with no refusals). The blanket plugin refusal is gone. The
+`tools`, `mcp_servers`, `memory_paths` and text-only checks are unchanged.
+The three known builtins stay off as hardening.
+
+- Decoder: in writing runs, `decode_claude_frame` emits a new
+  `plugins_reported` event from init. It is consumed by the shared protocol
+  loop into `agent_run_result::ReportedPlugins`, and
+  `diagnosed_agent_process` writes it as `plugins=` on the `agent.run` ended
+  line. The card is unchanged.
+- Builtin survey (Evidence step 1): this Mac's Claude is 2.1.310. It loads by
+  default only `cc-plugin-agents-md`, `cc-plugin-telemetry` and
+  `cc-plugin-plugin-authoring`, all three already off, so
+  `claude_writing_settings` and the boundary exception are unchanged. Step 2,
+  and the 2.1.314 builtin list, need a machine with that release.
+- Still open: AC5 needs a managed-settings Mac. The writing courses in AC7
+  are blocked by BPR-1881's readiness gate in the course fixture. That needs
+  its own card. With readiness forced the courses pass.
+- Landed on the task branch as `0293ff604` (over `main` `667dfcd43`). Not
+  pushed or merged.

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1895"
+  ],
+  "reserve_for": "codex-responsiveness-latency",
+  "purpose": "Show overview check results before remaining status loads",
+  "created": "2026-11-06T18:45:36.507456+00:00",
+  "base": "6a8c4e457e2605ce835d38fd70eb93f74650f41f"
+}

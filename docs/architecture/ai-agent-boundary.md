@@ -1545,7 +1545,7 @@ planted `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json` (a hook) and
 |---|---|---|
 | `CLAUDE.md` auto-discovery | `--setting-sources ""`, and the empty folder below | Neither planted file reached the system prompt or messages |
 | Hooks | `disableAllHooks`, no settings source | The planted hook did not run |
-| Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no settings source names a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder |
+| Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no settings source names a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder. Hardening, not a gate: a builtin policy holds on still loads ([[BPR-1891]]) |
 | Auto-memory | `autoMemoryEnabled: false` | No memory section in the prompt; no `memory_paths` in the init frame |
 | MCP servers, claude.ai connectors | `--strict-mcp-config` with an empty configuration | `mcp_servers: []`, signed in with a Claude account too |
 | LSP | No plugin, no settings source | Zero LSP servers |
@@ -1557,8 +1557,14 @@ the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is
 where Claude starts and nothing left there outlives the request. The decoder
 refuses, before any text is read, an init frame that reports a tool, an MCP
-server, a plugin or an auto-memory folder, so a plugin a later Claude builds
-in stops the request rather than riding along. It reads past `system` frames
+server or an auto-memory folder; a plugin's tools and MCP servers would show in
+the first two. Plugins themselves are reported, not refused ([[BPR-1891]]):
+Claude builds them in release by release, and policy can hold one on that no
+setting a person passes turns off (Claude Code 2.1.314 holds
+`cc-plugin-sec-default@builtin` on wherever managed settings apply). The run's
+`agent.run` diagnostic line names each plugin the init frame reported by its
+`source`, or its `name`, at most eight plain tokens of 64 bytes and never a
+path, so drift is visible without stopping the request. It reads past `system` frames
 other than init and `rate_limit_event`, which 2.1.296 writes around a turn.
 For every Claude run ([[BPR-1827]], Claude Code 2.1.310) only init,
 `assistant`, `user` and `result` frames carry the turn; any other frame type
