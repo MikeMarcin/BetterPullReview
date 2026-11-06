@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1902"
 title: "Preserve checked cancellation-summary iterators"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
