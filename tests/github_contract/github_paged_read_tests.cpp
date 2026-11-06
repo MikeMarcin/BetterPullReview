@@ -3317,8 +3317,21 @@ namespace {
 		std::chrono::steady_clock::time_point                                ConversationObservedAt;
 		std::optional<application::github_pull_request_overview_observation> Discussion;
 		std::size_t                                                          DiscussionPageCount = 0U;
+		std::optional<application::github_pull_request_overview_observation> Checks;
+		std::size_t                                                          ChecksPageCount = 0U;
+		std::function<void()>                                                AfterChecks;
 		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 		{
+			if (aObservation.Checks) {
+				expect(Overview && !Checks && !aObservation.Files && !aObservation.Conversation && !aObservation.Discussion,
+					   "checks are independently observed once after metadata");
+				Checks          = std::move(aObservation);
+				ChecksPageCount = Count;
+				if (AfterChecks) {
+					AfterChecks();
+				}
+				return;
+			}
 			if (aObservation.Discussion) {
 				expect(Overview && !Discussion && !aObservation.Conversation && !aObservation.Files, "PR discussion is independently observed once after metadata");
 				Discussion          = std::move(aObservation);
@@ -3360,7 +3373,7 @@ namespace {
 		request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
 		recording_response_observer observer;
 		const auto                  result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 56U }, { }, { }, github_provider_read_authority::authenticated, &observer);
-		expect(result.has_value() && result->ReviewThreadsAvailability == application::github_collection_availability::available, "the refresh reads its threads");
+		expect(result.has_value() && result->ReviewThreadsAvailability == application::github_collection_availability::available && !observer.Checks, "the refresh reads its threads without adding first-open checks");
 		expect(observer.Conversation && observer.Conversation->Context == request.Context && observer.ConversationPageCount < observer.FileListPageCount
 				   && observer.Responses[observer.ConversationPageCount - 1U].first == read_operation::list_review_threads
 				   && observer.ConversationPageCount < observer.Count,
@@ -3721,6 +3734,50 @@ namespace {
 					  << std::chrono::duration<double, std::milli>{ observer.ConversationObservedAt - started }.count()
 					  << " settled-ms=" << std::chrono::duration<double, std::milli>{ finished - started }.count()
 					  << " reads=" << transport.Requests.size() << '\n';
+		}
+	}
+
+	void test_first_open_observes_checks_before_requirements()
+	{
+		for (const auto scenario : { "success", "runs_unavailable", "statuses_unavailable", "cancel" }) {
+			auto                        transport = paged_fixture_transport{ fixture_scenario::success };
+			recording_response_observer observer;
+			auto                        stop = std::stop_source{ };
+			const auto                  mode = std::string_view{ scenario };
+			transport.RewriteResponse        = [&](const auto& aRequest, auto& aResponse) {
+				if (aRequest.Wire.Operation == read_operation::list_checks || aRequest.Wire.Operation == read_operation::list_commit_statuses) {
+					expect(!observer.Checks, "a check observation waits for both collections to finish");
+				}
+				if ((mode == "runs_unavailable" && aRequest.Wire.Operation == read_operation::list_checks)
+					|| (mode == "statuses_unavailable" && aRequest.Wire.Operation == read_operation::list_commit_statuses)) {
+					aResponse.Status = 403;
+				}
+				if (aRequest.Wire.Operation == read_operation::get_merge_assessment) {
+					expect(observer.Checks.has_value(), "complete check results precede independent remaining status");
+				}
+			};
+			if (mode == "cancel") {
+				observer.AfterChecks = [&] { stop.request_stop(); };
+			}
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 79U }, stop.get_token(), { }, github_provider_read_authority::authenticated, &observer);
+			expect(observer.Checks && observer.ChecksPageCount > observer.FileListPageCount
+					   && observer.Responses[observer.ChecksPageCount - 1U].first == read_operation::list_commit_statuses,
+				   "checks publish after their final response with earlier catalogue unchanged");
+			if (mode == "cancel") {
+				expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()),
+					   "cancellation after provisional checks still cancels the whole read");
+				continue;
+			}
+			expect(result && observer.Checks->Checks->Records == result->Checks
+					   && observer.Checks->Checks->Runs == result->ChecksAvailability && observer.Checks->Checks->Statuses == result->StatusesAvailability,
+				   "early results and explicit availability match the completed snapshot");
+			if (mode == "success") {
+				auto       ordinary = paged_fixture_transport{ fixture_scenario::success };
+				const auto final    = perform_paged_github_read(ordinary, profile(), provider_request(), core::provider_snapshot_id{ 79U }, { }, { }, github_provider_read_authority::authenticated);
+				expect(final && final->Checks == result->Checks && ordinary.Requests.size() == transport.Requests.size()
+						   && std::ranges::equal(ordinary.Requests, transport.Requests, [](const auto& aLeft, const auto& aRight) { return aLeft.Wire == aRight.Wire; }),
+					   "independent check publication preserves the exact request sequence and final records");
+			}
 		}
 	}
 
@@ -5785,6 +5842,7 @@ auto main(int aArgc, char* aArgv[]) -> int
 	test_refresh_conversation_precedes_commit_pages();
 	test_refresh_conversation_precedes_file_pages();
 	test_refresh_cancellation_after_early_conversation();
+	test_first_open_observes_checks_before_requirements();
 	test_first_open_keeps_commit_read_order();
 	test_refresh_conversation_precedes_viewed_files();
 	test_late_viewed_file_validation_and_cancellation();

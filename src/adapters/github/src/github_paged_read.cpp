@@ -6248,6 +6248,13 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ statusRead.error() };
 			}
 
+			// [[BPR-1895]]. Completed results can be read before independent
+			// merge rules and reviewer details. This carries no review authority.
+			if (aObserver != nullptr && !aStop.stop_requested() && !aRequest.Context.ExpectedPullRequest
+				&& aReadAuthority == github_provider_read_authority::authenticated) {
+				aObserver->overview_observed({ .Context = aRequest.Context, .Repository = result.Repository, .PullRequest = result.PullRequest, .ReportedFiles = expectedFiles, .Files = std::nullopt, .Conversation = std::nullopt, .Discussion = std::nullopt, .Checks = application::github_pull_request_overview_observation::checks{ .Records = result.Checks, .Runs = result.ChecksAvailability, .Statuses = result.StatusesAvailability } });
+			}
+
 			if (aReadAuthority != github_provider_read_authority::anonymous_public) {
 				// Optional explanation has a separate small aggregate budget. It
 				// cannot exhaust essential PR reads or change their diagnostic origin.

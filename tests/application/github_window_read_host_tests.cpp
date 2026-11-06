@@ -378,6 +378,89 @@ namespace {
 		expect(!cached() && host.is_quiescent(), "shutdown drains cached read and prevents presentation");
 	}
 
+	void test_provisional_checks_are_independent_and_bounded()
+	{
+		for (auto scenario = 0; scenario < 10; ++scenario) {
+			reads                                               provider;
+			application::manual_executor                        lane;
+			epoch_handoffs                                      epochs;
+			std::vector<application::github_window_read_update> updates;
+			application::github_window_read_host                host{
+				{ core::default_bpr_profile_id, core::bpr_window_id{ 2U }, core::bpr_window_generation{ 1U } },
+				core::application_session_id{ 2U },
+				provider,
+				lane,
+				[&](const auto& aUpdate) { updates.push_back(aUpdate); },
+				&epochs
+			};
+			expect(host.adopt(session()), "checks fixture adopts its exact account");
+			host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
+			const auto call                      = provider.Calls.back();
+			auto       data                      = snapshot(call.Request);
+			data.PullRequest.ReportedCommitCount = 1U;
+			auto metadata                        = application::github_pull_request_overview_observation{ call.Request.Context, data.Repository, data.PullRequest, 0U, std::nullopt, std::nullopt };
+			auto check                           = application::github_check_record{ .Check = application::github_check_id{ "CI" }, .Name = "Build", .Status = application::github_check_status::completed, .Conclusion = application::github_check_conclusion::success };
+			check.EvaluatedOid                   = data.PullRequest.HeadOid;
+			auto observation                     = metadata;
+			observation.Checks                   = application::github_pull_request_overview_observation::checks{
+				.Records = { check }, .Runs = application::github_collection_availability::available, .Statuses = application::github_collection_availability::available
+			};
+			call.Overview(observation);
+			expect(lane.pending() == 0U, "checks before metadata are refused without consuming their observation");
+			call.Overview(metadata);
+			lane.drain();
+			auto files  = metadata;
+			files.Files = std::vector<application::github_file_record>{ };
+			if (scenario == 1) {
+				call.Overview(files);
+				lane.drain();
+			}
+			auto foreign               = observation;
+			foreign.Context.Generation = core::request_generation{ 900U };
+			call.Overview(foreign);
+			expect(lane.pending() == 0U, "foreign checks do not consume current publication");
+			auto& records = observation.Checks->Records;
+			switch (scenario) {
+			case 3:  records.front().EvaluatedOid = application::commit_oid{ std::string(40U, '9') }; break;
+			case 4:  records.push_back(records.front()); break;
+			case 5:  records.front().Status = static_cast<application::github_check_status>(255); break;
+			case 6:  records.front().Description.assign(application::github_read_limits{ }.MaximumBodyBytes + 1U, 'x'); break;
+			case 7:  records.resize(application::github_read_limits{ }.MaximumChecks + 1U, check); break;
+			case 8:  observation.Checks->Runs = static_cast<application::github_collection_availability>(255); break;
+			case 9:  observation.Files = std::vector<application::github_file_record>{ }; break;
+			default: break;
+			}
+			for (auto repeat = 0; repeat < (scenario < 2 ? 1000 : 1); ++repeat) {
+				call.Overview(observation);
+			}
+			expect(lane.pending() <= 1U, "check publications have one bounded lane task");
+			if (scenario == 2) {
+				host.cancel(application::pull_request_cancel_cause::reviewer);
+			}
+			lane.drain();
+			const auto early = std::ranges::find_if(updates, [](const auto& aUpdate) { return aUpdate.Presentation.LoadingOverview && aUpdate.Presentation.LoadingOverview->Checks; });
+			expect((early != updates.end()) == (scenario < 2), "only valid current results reach Overview");
+			if (early != updates.end()) {
+				const auto& shown = *early->Presentation.LoadingOverview->Checks;
+				expect(shown.Checks.Passed == 1U && shown.CheckRows.size() == 1U && shown.CheckRows.front().Name == "Build"
+						   && shown.CheckRows.front().Requirement == "Requirement still loading" && shown.ChecksComplete,
+					   "complete results keep requirement loading distinct from check outcome");
+				if (scenario == 0) {
+					call.Overview(files);
+					lane.drain();
+				}
+			}
+			expect(!host.accepted_snapshot() && !host.state().AcceptedSnapshot && epochs.AcceptCount == 0U,
+				   "provisional checks give no snapshot or epoch authority");
+			call.Complete(application::github_pull_request_cancelled{ call.Request });
+			lane.drain();
+			call.Overview(observation);
+			expect(lane.pending() == 0U, "late checks cannot revive terminal reads");
+			host.shutdown();
+			expect(host.is_quiescent(), "all check observation work drains");
+		}
+	}
+
 	void test_provisional_overview_is_bounded_and_never_authority()
 	{
 		reads                                               provider;
@@ -1565,6 +1648,7 @@ int main()
 	test_markdown_link_admission();
 	test_pull_request_page_admission();
 	test_reference_page_opening();
+	test_provisional_checks_are_independent_and_bounded();
 	test_provisional_overview_is_bounded_and_never_authority();
 	for (const auto filesFirst : { false, true }) {
 		for (const auto discussionFirst : { false, true }) {

@@ -5736,7 +5736,7 @@ namespace bpr::qt {
 			}
 		}
 		ApplyingHomeView = false;
-		if (QueueReady) {
+		if (QueueReady && QueueFilterModel != nullptr) {
 			// The queue's own sentence explains the rows Home is hiding, which
 			// the view may just have changed.
 			update_queue_status(QueueProjection);
@@ -13297,7 +13297,7 @@ namespace bpr::qt {
 
 	auto workbench_window::behaviour_from_controls() const -> application::review_behaviour_settings
 	{
-		const auto finish_choice = [](const QCheckBox* const aBox) {
+		const auto finishChoice = [](const QCheckBox* const aBox) {
 			return aBox->isChecked() ? core::review_finish_return::home : core::review_finish_return::pull_request;
 		};
 		const auto chosen = [this](const std::size_t aRow) -> std::size_t {
@@ -13324,9 +13324,9 @@ namespace bpr::qt {
 			.MarkdownImages    = BehaviourOptions[9].empty() ? Behaviour.MarkdownImages : static_cast<application::review_markdown_images>(chosen(9U)),
 			.ReadingWidth      = BehaviourOptions[10].empty() ? Behaviour.ReadingWidth : static_cast<core::reading_width>(chosen(10U)),
 			.FinishReview      = FinishReviewSwitches[0] == nullptr ? Behaviour.FinishReview : core::review_finish_settings{
-																								   .Comment        = finish_choice(FinishReviewSwitches[0]),
-																								   .Approve        = finish_choice(FinishReviewSwitches[1]),
-																								   .RequestChanges = finish_choice(FinishReviewSwitches[2]),
+																								   .Comment        = finishChoice(FinishReviewSwitches[0]),
+																								   .Approve        = finishChoice(FinishReviewSwitches[1]),
+																								   .RequestChanges = finishChoice(FinishReviewSwitches[2]),
 																							   },
 		};
 	}
@@ -14813,7 +14813,11 @@ namespace bpr::qt {
 		}
 		if (aUpdate.LoadingOverview && !HasGithubPullRequest
 			&& SessionPanel->status() == core::github_status::loading_pull_request) {
-			if (aUpdate.LoadingOverview->Files) {
+			if (aUpdate.LoadingOverview->Checks) {
+				if (LoadingOverviewShown) {
+					OverviewPage->present_observed_checks(*aUpdate.LoadingOverview->Checks);
+				}
+			} else if (aUpdate.LoadingOverview->Files) {
 				// [[BPR-1842]]. The file list, once its pages have arrived, to
 				// read while the rest of the review still loads.
 				if (LoadingOverviewShown) {
@@ -15038,7 +15042,11 @@ namespace bpr::qt {
 					LoadingIdentity.reset();
 					apply_strip_width();
 				}
-				OverviewPage->clear();
+				// [[BPR-1895]]. The accepted overview replaces these rows next;
+				// keep the check being read through that handoff.
+				if (aTransition.Status->Status != core::github_status::pull_request_ready || !OverviewPage->has_observed_checks()) {
+					OverviewPage->clear();
+				}
 			}
 			// [[BPR-1599]]. A load that ends without its pull request leaves
 			// no choice for the next one.

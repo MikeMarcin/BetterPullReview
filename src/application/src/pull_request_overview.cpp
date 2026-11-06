@@ -739,6 +739,26 @@ namespace bpr::application {
 		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails);
 	}
 
+	auto project_loading_overview_checks(const github_pull_request_record&       aPullRequest,
+										 const std::vector<github_check_record>& aChecks, const github_collection_availability aRuns,
+										 const github_collection_availability aStatuses) -> overview_checks_projection
+	{
+		auto snapshot                 = github_pull_request_snapshot{ };
+		snapshot.PullRequest          = aPullRequest;
+		snapshot.Checks               = aChecks;
+		snapshot.ChecksAvailability   = aRuns;
+		snapshot.StatusesAvailability = aStatuses;
+		auto       projection         = pull_request_overview_projection{ };
+		const auto policy             = overview_check_policy_index{ snapshot };
+		project_checks(snapshot, projection, policy);
+		sort_check_rows(projection);
+		for (auto& row : projection.CheckRows) {
+			row.Requirement = "Requirement still loading";
+		}
+		projection.ChecksNote += "\nMerge rules and required checks are still loading.";
+		return { .Checks = projection.Checks, .CheckRows = std::move(projection.CheckRows), .ChecksComplete = projection.ChecksComplete, .ChecksNote = std::move(projection.ChecksNote) };
+	}
+
 	auto project_pull_request_overview(
 		const github_pull_request_snapshot& aSnapshot,
 		const overview_context&             aContext)

@@ -6,11 +6,13 @@
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
+#include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/progress_mark.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/reviewer_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include <QTextEdit>
+#include <QTreeWidget>
 
 #include "../support/resize_cursor_hold_check.hpp"
 
@@ -149,6 +151,66 @@ namespace {
 		projection.Entry     = application::overview_entry_kind::continue_review;
 		projection.EntryPath = "Engine/Renderer/HairStrandsVoxelization.cpp";
 		return projection;
+	}
+
+	void test_checks_load_independently_of_remaining_status()
+	{
+		auto                           now = std::int64_t{ 0 };
+		qt::pull_request_overview_page page;
+		page.pending_veils().Side->set_clock([&now] { return now; });
+		page.resize(1000, 760);
+		page.show();
+		auto final    = projection();
+		auto metadata = application::github_loading_overview_projection{
+			.Title = final.Title, .Body = final.Body, .AuthorLogin = final.AuthorLogin, .BaseRef = final.BaseRef, .HeadRef = final.HeadRef, .ReportedFiles = 1U, .ReportedCommits = 4U, .Owner = final.Owner, .RepositoryName = final.RepositoryName, .Number = final.Number.value()
+		};
+		page.present_loading();
+		page.present_observation(metadata);
+		page.present_observed_files({ { .Path = "file.cpp", .Change = core::cached_file_change::modified } });
+		auto early = application::overview_checks_projection{
+			.Checks    = { .Passed = 2U },
+			.CheckRows = {
+				{ .Identity = "check:first", .Name = "First", .Outcome = "Passed", .Description = "First result", .DetailsUrl = "https://ci.example.invalid/first", .Requirement = "Requirement still loading", .LinkAvailable = true },
+				{ .Identity = "check:second", .Name = "Second", .Outcome = "Passed", .Description = "Second result", .DetailsUrl = "https://ci.example.invalid/second", .Requirement = "Requirement still loading", .LinkAvailable = true } },
+			.ChecksNote = "Merge rules and required checks are still loading."
+		};
+		page.present_observed_checks(early);
+		now = core::pending_reveal_milliseconds;
+		page.pending_veils().Side->advance();
+		QApplication::processEvents();
+		auto* const list       = page.findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
+		auto* const open       = page.findChild<QPushButton*>(QStringLiteral("overviewOpenCheck"));
+		auto* const disclosure = page.status_section_header(qt::overview_status_section::checks);
+		expect(!page.projection() && list->topLevelItemCount() == 2 && page.file_model()->rowCount() > 0
+				   && page.pending_veils().Side->look() == core::pending_look::partial,
+			   "independent check results retain the provisional catalogue with remaining status loading");
+		disclosure->click();
+		list->setCurrentItem(list->topLevelItem(1));
+		QApplication::processEvents();
+		expect(page.findChild<QLabel*>(QStringLiteral("overviewSelectedCheck"))->text().contains(QStringLiteral("Second"))
+				   && !open->isEnabled(),
+			   "early selected result is readable but has no accepted link authority");
+		final.Checks                       = early.Checks;
+		final.CheckRows                    = early.CheckRows;
+		final.CheckRows.back().Requirement = "Optional";
+		page.present(final);
+		expect(page.projection() && !page.pending_veils().Side->busy() && disclosure->isChecked()
+				   && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("check:second") && open->isEnabled(),
+			   "final status preserves selection and disclosure and admits the ordinary link");
+		page.clear();
+		page.present_loading();
+		++metadata.Number;
+		page.present_observation(metadata);
+		expect(list->topLevelItemCount() == 0 && page.status_section(qt::overview_status_section::checks)->isHidden(),
+			   "another PR waits for its own results");
+		page.present_observed_checks({ .ChecksComplete = false, .ChecksNote = "Check runs unavailable." });
+		expect(!page.status_section(qt::overview_status_section::checks)->isHidden() && list->topLevelItemCount() == 0
+				   && page.findChild<QLabel*>(QStringLiteral("overviewChecksNote"))->text().contains(QStringLiteral("unavailable")),
+			   "unavailable results are explicit and never reuse the previous PR");
+		page.clear();
+		page.present_observed_checks(early);
+		expect(list->topLevelItemCount() == 0 && page.status_section(qt::overview_status_section::checks)->isHidden(),
+			   "a cleared open cannot be revived by late provisional results");
 	}
 
 	auto test_page_presents_the_projection_and_reports_its_gestures() -> void
@@ -3984,6 +4046,7 @@ auto main(int argc, char** argv) -> int
 		std::cout << "pull-request-overview-read-marks:pass\n";
 		return EXIT_SUCCESS;
 	}
+	test_checks_load_independently_of_remaining_status();
 	test_history_publication_does_not_touch_file_rows();
 	test_cached_catalogue_availability_and_navigation();
 	test_column_sizing_measures_visible_files();

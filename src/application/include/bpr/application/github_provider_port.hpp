@@ -453,6 +453,13 @@ namespace bpr::application {
 			github_feedback_body_digests FeedbackBodyDigests;
 		};
 		std::optional<discussion> Discussion = std::nullopt;
+		struct checks
+		{
+			std::vector<github_check_record> Records;
+			github_collection_availability   Runs     = github_collection_availability::unavailable;
+			github_collection_availability   Statuses = github_collection_availability::unavailable;
+		};
+		std::optional<checks> Checks = std::nullopt;
 	};
 	using github_pull_request_overview_handler = std::function<void(github_pull_request_overview_observation)>;
 

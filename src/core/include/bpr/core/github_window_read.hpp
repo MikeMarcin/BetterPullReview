@@ -86,6 +86,10 @@ namespace bpr::core {
 														   const pull_request_request_context&          aRequest,
 														   const github_conversation_observation_facts& aFacts,
 														   github_conversation_observation_kind         aKind = github_conversation_observation_kind::review_threads) noexcept -> bool;
+		/// [[BPR-1895]]. At most one check result observation for this pending
+		/// read, after its metadata; no accepted snapshot or command authority.
+		[[nodiscard]] auto accept_checks_observation(bpr_window_context                  aWindow,
+													 const pull_request_request_context& aRequest) noexcept -> bool;
 		/// \brief What this lane presents for its adopted session, while nothing has moved it since.
 		/// \details [[BPR-1017]]. The session-ready projection adoption decided, for a
 		/// window attached after the profile accepted the session and so never shown
@@ -105,6 +109,7 @@ namespace bpr::core {
 		bool                                    FilesObserved          = false;
 		bool                                    ConversationObserved   = false;
 		bool                                    DiscussionObserved     = false;
+		bool                                    ChecksObserved         = false;
 		std::uint64_t                           SharedSnapshotSequence = 0U;
 	};
 }

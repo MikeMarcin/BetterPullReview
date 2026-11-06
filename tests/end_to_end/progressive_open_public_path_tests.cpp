@@ -10,9 +10,11 @@
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/diff_workbench.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/pull_request_overview_page.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
@@ -31,6 +33,9 @@
 #include <QPushButton>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTreeWidget>
+#include <atomic>
+#include <thread>
 
 #include <cstdlib>
 #include <functional>
@@ -93,7 +98,7 @@ namespace {
 	/// from the gesture.
 	struct opening_times
 	{
-		std::optional<qint64> Title, Identity, OverviewFiles, Accepted, DrawerFiles, Diff;
+		std::optional<qint64> Title, Identity, OverviewFiles, Checks, Accepted, DrawerFiles, Diff;
 		std::size_t           Reads = 0U;
 	};
 
@@ -116,6 +121,9 @@ try {
 	QApplication::setQuitOnLastWindowClosed(false);
 	const auto    roundTripArgument = QApplication::arguments().indexOf(QStringLiteral("--round-trip-ms"));
 	const auto    roundTrip         = roundTripArgument >= 0 ? QApplication::arguments().value(roundTripArgument + 1).toUInt() : 120U;
+	const auto    measureOnly       = QApplication::arguments().contains(QStringLiteral("--measure"));
+	const auto    renderIndex       = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
+	const auto    renderDirectory   = renderIndex >= 0 ? QApplication::arguments().value(renderIndex + 1) : QString{ };
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private progressive-open course root");
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
@@ -128,7 +136,16 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	options.ReadDelay              = delay;
-	options.PersonalDiscovery      = app::detail::github_personal_discovery_fixture{
+	std::atomic<bool> holdStatus{ false }, statusHeld{ false };
+	options.BeforeMergeAssessment = [&](const std::stop_token aStop) {
+		if (holdStatus.load()) {
+			statusHeld = true;
+			while (holdStatus.load() && !aStop.stop_requested()) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+			}
+		}
+	};
+	options.PersonalDiscovery = app::detail::github_personal_discovery_fixture{
 		.OpenPullRequests = {
 			{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" } },
 			{ .Number = 18U, .Author = "contributor-b", .RequestedUsers = { "octo-reviewer" } },
@@ -177,6 +194,13 @@ try {
 		auto clock                   = QElapsedTimer{ };
 		auto staleName               = false;
 		auto preparedWhileLoading    = false;
+		auto statusShown             = false;
+		statusHeld                   = false;
+		holdStatus                   = !measureOnly && roundTrip != 0U;
+		auto        statusReleased   = !holdStatus.load();
+		auto        selectedCheck    = QString{ };
+		auto* const checks           = overview->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
+		expect(checks != nullptr, "Overview has its check-result list");
 		clock.start();
 		double_click(row_of(*window, aIdentity));
 		while (!times.Accepted && clock.elapsed() < 120'000) {
@@ -192,9 +216,51 @@ try {
 			mark(times.OverviewFiles, overview->file_model()->rowCount() > 0, clock);
 			mark(times.DrawerFiles, drawer->model() != nullptr && drawer->model()->rowCount() > 0, clock);
 			mark(times.Accepted, accepted, clock);
+			if (!window->showing_home() && !statusShown) {
+				overview->status_drawer()->show_tab(qt::overview_drawer_tab::status);
+				statusShown = true;
+			}
+			const auto checksVisible = checks->topLevelItemCount() > 0 && overview->status_section(qt::overview_status_section::checks)->isVisibleTo(window);
+			mark(times.Checks, checksVisible, clock);
+			if (!statusReleased && statusHeld && (checksVisible || clock.elapsed() > 15'000)) {
+				const auto partial = overview->pending_veils().Side->look() == core::pending_look::partial;
+				if (!checksVisible || !partial) {
+					holdStatus = false;
+				}
+				expect(checksVisible && partial && !accepted, "check results and remaining-loading plate are visible while merge assessment is held");
+				expect(overview->pending_veils().Side->shown_text().contains(QStringLiteral("Loading reviewers")), "Status names its remaining loading");
+				auto* const header = overview->status_section_header(qt::overview_status_section::checks);
+				if (!header->isChecked()) {
+					header->click();
+				}
+				QApplication::processEvents();
+				auto* const item = checks->topLevelItem(checks->topLevelItemCount() - 1);
+				checks->scrollToItem(item);
+				const auto point   = QPointF{ checks->visualItemRect(item).center() };
+				const auto global  = checks->viewport()->mapToGlobal(point);
+				auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QApplication::sendEvent(checks->viewport(), &press);
+				QApplication::sendEvent(checks->viewport(), &release);
+				selectedCheck      = item->data(0, Qt::UserRole).toString();
+				auto* const detail = overview->findChild<QLabel*>(QStringLiteral("overviewSelectedCheck"));
+				expect(checks->currentItem() == item && detail != nullptr && detail->isVisibleTo(window) && !detail->text().isEmpty(), "an actual click reads the selected check while remaining status is held");
+				expect(!overview->findChild<QPushButton*>(QStringLiteral("overviewOpenCheck"))->isEnabled(), "check links wait for accepted review authority");
+				if (!renderDirectory.isEmpty() && aIdentity == first) {
+					expect(window->grab().save(renderDirectory + QStringLiteral("/status-checks-before-details.png")), "the early Status is rendered offscreen");
+				}
+				holdStatus     = false;
+				statusReleased = true;
+			}
 			QThread::msleep(1);
 		}
 		expect(times.Accepted.has_value(), "the review is accepted");
+		expect(statusReleased, "the independent status read is released");
+		if (!selectedCheck.isEmpty()) {
+			expect(checks->currentItem() != nullptr && checks->currentItem()->data(0, Qt::UserRole).toString() == selectedCheck
+					   && overview->status_section_header(qt::overview_status_section::checks)->isChecked(),
+				   "final acceptance retains the selected check and disclosure");
+		}
 		expect(!staleName, "while it loads, the title row never names the pull request the window showed before");
 		if (aIdentity == first && roundTrip != 0U) {
 			expect(preparedWhileLoading, "the composed first open prepares Git while the PR is still loading");
@@ -236,14 +302,14 @@ try {
 		std::cout << "progressive-open:timing " << aIdentity.toStdString() << " round-trip-ms=" << roundTrip
 				  << " title=" << text(times.Title) << " identity=" << text(times.Identity)
 				  << " overview-files=" << text(times.OverviewFiles) << " drawer-files=" << text(times.DrawerFiles)
-				  << " accepted=" << text(times.Accepted) << " first-diff=" << text(times.Diff) << " reads=" << times.Reads << '\n';
+				  << " checks=" << text(times.Checks) << " accepted=" << text(times.Accepted) << " first-diff=" << text(times.Diff) << " reads=" << times.Reads << '\n';
 		return times;
 	};
 
 	const auto opened = opens(first, QStringLiteral("#17"), QStringLiteral("#18"));
 	// With no round trip the whole read lands within one turn of the loop, so
 	// only the measurement is printed.
-	if (roundTrip == 0U) {
+	if (roundTrip == 0U || measureOnly) {
 		static_cast<void>(opens(second, QStringLiteral("#18"), QStringLiteral("#17")));
 		owner->begin_shutdown();
 		wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
