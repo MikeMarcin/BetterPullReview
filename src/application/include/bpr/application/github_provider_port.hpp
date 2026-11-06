@@ -390,11 +390,24 @@ namespace bpr::application {
 		auto operator<=>(const github_pull_request_error&) const = default;
 	};
 
+	/// \brief [[BPR-1875]]. Why the provider answered a pull request read as
+	/// cancelled.
+	enum class github_pull_request_cancel_source : std::uint8_t {
+		/// The read was asked to stop (`cancel_pull_request`).
+		stop_requested,
+		/// The provider was shutting down.
+		provider_closing,
+		/// The transport answered cancelled though nothing asked this read to
+		/// stop.
+		transport,
+	};
+
 	/// \brief Describes the github pull request cancelled record.
 	struct github_pull_request_cancelled
 	{
 		github_pull_request_provider_request      Request;
 		std::optional<diagnostic_paged_operation> LastReadOperation = std::nullopt;
+		github_pull_request_cancel_source         Source            = github_pull_request_cancel_source::stop_requested;
 
 		auto operator<=>(const github_pull_request_cancelled&) const = default;
 	};

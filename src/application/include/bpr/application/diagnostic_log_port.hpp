@@ -3,6 +3,7 @@
 #include "bpr/core/review_submission_unknown.hpp"
 
 #include <array>
+#include <cstddef>
 #include <cstdint>
 #include <optional>
 #include <string>
@@ -161,6 +162,53 @@ namespace bpr::application {
 	{
 		return (aValue.Detail == diagnostic_detail::standard || aValue.Detail == diagnostic_detail::verbose)
 			&& (aValue.Privacy == diagnostic_privacy::anonymized || aValue.Privacy == diagnostic_privacy::include_locally);
+	}
+	/// \brief [[BPR-1875]]. Why a pull request read ended cancelled. Every
+	/// `github.pull_request.cancelled` line names one in its detail, as
+	/// `cancel_cause=NAME`, and nothing else.
+	enum class pull_request_cancel_cause : std::uint8_t {
+		/// The reviewer pressed Cancel on Home's open.
+		reviewer,
+		/// The window gave up resuming a saved review, and its read with it.
+		restoration,
+		/// The reviewer closed the review.
+		review_closed,
+		/// The window's account session was retired or replaced.
+		session_retired,
+		/// The window was shut down.
+		window_closed,
+		/// The provider answered cancelled: its read was asked to stop, though
+		/// not by this window.
+		provider_stopped,
+		/// The provider answered cancelled because it was shutting down.
+		provider_closing,
+		/// The transport answered cancelled though nothing asked the read to
+		/// stop.
+		transport,
+	};
+	inline constexpr std::array<std::string_view, 8> pull_request_cancel_cause_names{
+		"reviewer", "restoration", "review_closed", "session_retired", "window_closed", "provider_stopped", "provider_closing", "transport"
+	};
+	inline constexpr std::string_view pull_request_cancel_detail_prefix = "cancel_cause=";
+	[[nodiscard]] constexpr auto      name(const pull_request_cancel_cause aCause) noexcept -> std::string_view
+	{
+		const auto index = static_cast<std::size_t>(aCause);
+		return index < pull_request_cancel_cause_names.size() ? pull_request_cancel_cause_names[index] : std::string_view{ };
+	}
+	/// \brief The cause a cancelled line's detail names, when it is exactly
+	/// `cancel_cause=NAME` for a known cause.
+	[[nodiscard]] constexpr auto parse_pull_request_cancel_detail(const std::string_view aDetail) noexcept -> std::optional<pull_request_cancel_cause>
+	{
+		if (!aDetail.starts_with(pull_request_cancel_detail_prefix)) {
+			return std::nullopt;
+		}
+		const auto value = aDetail.substr(pull_request_cancel_detail_prefix.size());
+		for (std::size_t index = 0U; index < pull_request_cancel_cause_names.size(); ++index) {
+			if (pull_request_cancel_cause_names[index] == value) {
+				return static_cast<pull_request_cancel_cause>(index);
+			}
+		}
+		return std::nullopt;
 	}
 	struct diagnostic_event
 	{
