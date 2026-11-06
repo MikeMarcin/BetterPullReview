@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1886"
+  ],
+  "reserve_for": "codex-responsiveness-latency",
+  "purpose": "Avoid repeated ancestry walks on the Qt conversation update lane",
+  "created": "2026-11-06T15:42:16.660020+00:00",
+  "base": "8e9f8e8b0a0f6b9c6650d43025a85eb3176416f0"
+}
