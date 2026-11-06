@@ -108,6 +108,12 @@ namespace bpr::application {
 		/// is copied and the cache answers `object_mismatch`. Requires
 		/// `HistoryClone`.
 		bool HeadFromClone = false;
+		/// [[BPR-1884]], RFC-BPR-0092. `HistoryClone` is the clone
+		/// BetterPullReview keeps in the profile, never a reviewer-linked one:
+		/// when it lacks the head, the host fetches the pull request's head and
+		/// base into it, then lends from it. A reviewer-linked clone is never
+		/// written.
+		bool HistoryCloneManaged = false;
 
 		auto operator<=>(const agent_workspace_materialization_request&) const
 			= default;
