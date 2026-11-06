@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1881"
 title: "Tour tab: a call to action to set up the agent, and agent features in one colour"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
