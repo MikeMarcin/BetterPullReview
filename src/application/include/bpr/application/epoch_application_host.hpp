@@ -89,6 +89,7 @@ namespace bpr::application {
 			-> epoch_application_host& = delete;
 
 		[[nodiscard]] auto read_cached_source(cached_review_source_request aRequest, std::stop_token aStop, cached_review_source_completion aCompletion) -> bool override;
+		void               prepare_runtime() override;
 		void               accept(accepted_pull_request_handoff aHandoff) override;
 		// The issuer revokes its lease before notification. The epoch host also
 		// revokes its retained handle idempotently before dispatching core

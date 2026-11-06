@@ -378,6 +378,11 @@ namespace bpr::application {
 	public:
 		virtual ~github_epoch_handoff_port() = default;
 
+		/// \brief [[BPR-1888]]. Starts optional local runtime preparation without
+		/// waiting or granting repository authority. Failure leaves the normal
+		/// accepted handoff responsible for reporting mandatory setup failures.
+		virtual void prepare_runtime() { }
+
 		virtual void accept(accepted_pull_request_handoff aHandoff) = 0;
 		virtual void invalidate(
 			pull_request_authority_invalidation aInvalidation) = 0;

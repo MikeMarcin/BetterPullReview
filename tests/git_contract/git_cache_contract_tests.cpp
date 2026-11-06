@@ -23,6 +23,7 @@
 
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <barrier>
 #include <chrono>
 #include <cstddef>
@@ -1821,8 +1822,86 @@ namespace {
 		return 22;
 	}
 
+	struct git_child_counter final : application::insights_observer
+	{
+		std::atomic<std::uint64_t> Children{ 0U };
+		void                       record(core::insights_event) noexcept override { }
+		void                       select(core::insights_scope) noexcept override { }
+		void                       record_energy(core::insights_energy_sample aSample) noexcept override
+		{
+			Children.fetch_add(aSample.Children[1]);
+		}
+	};
+
+	void verify_runtime_preparation()
+	{
+		const auto executable = std::filesystem::canonical(BPR_TEST_GIT_EXECUTABLE);
+		auto       root       = temporary_root{ };
+		auto       children   = std::make_shared<git_child_counter>();
+		auto       cache      = git_adapter::make_installed_git_cache({
+			.GitExecutable     = executable,
+			.StorageRoot       = root.Path,
+			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
+			.Insights          = children,
+		});
+		require(cache.has_value(), "construct cache for optional runtime preparation");
+		std::stop_source cancelled;
+		cancelled.request_stop();
+		(*cache)->prepare_runtime(cancelled.get_token());
+		require(children->Children.load() == 0U && std::filesystem::is_empty(root.Path),
+				"pre-cancelled preparation creates no child or isolation files");
+		(*cache)->prepare_runtime({ });
+		const auto admissionChildren = children->Children.load();
+		require(admissionChildren > 0U && std::filesystem::is_empty(root.Path / "repositories" / "v1")
+					&& !std::filesystem::exists(root.Path / "locks"),
+				"preparation admits real Git and cleans its probes without opening a review cache");
+		(*cache)->prepare_runtime({ });
+		require(children->Children.load() == admissionChildren, "repeated preparation launches no additional capability probes");
+		auto opened = (*cache)->open(request(0x31U, 0x41U), { });
+		require(opened.has_value(), "normal cache open succeeds after preparation");
+		const auto preparedOpenChildren = children->Children.load();
+		opened->reset();
+
+		auto coldRoot     = temporary_root{ };
+		auto coldChildren = std::make_shared<git_child_counter>();
+		auto coldCache    = git_adapter::make_installed_git_cache({
+			.GitExecutable     = executable,
+			.StorageRoot       = coldRoot.Path,
+			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
+			.Insights          = coldChildren,
+		});
+		require(coldCache.has_value(), "construct cold cache control");
+		auto coldOpened = (*coldCache)->open(request(0x31U, 0x41U), { });
+		require(coldOpened.has_value() && coldChildren->Children.load() == preparedOpenChildren,
+				"preparation plus open launches exactly the same Git commands as a cold open");
+		coldOpened->reset();
+
+		auto concurrentRoot     = temporary_root{ };
+		auto concurrentChildren = std::make_shared<git_child_counter>();
+		auto concurrentCache    = git_adapter::make_installed_git_cache({
+			.GitExecutable     = executable,
+			.StorageRoot       = concurrentRoot.Path,
+			.WindowsSystemRoot = bpr::tests::git_contract::windows_system_root(),
+			.Insights          = concurrentChildren,
+		});
+		require(concurrentCache.has_value(), "construct cache shared by concurrent preparations");
+		std::barrier start{ 3 };
+		const auto   prepare = [&] {
+			start.arrive_and_wait();
+			(*concurrentCache)->prepare_runtime({ });
+		};
+		std::thread first{ prepare };
+		std::thread second{ prepare };
+		start.arrive_and_wait();
+		first.join();
+		second.join();
+		require(concurrentChildren->Children.load() == admissionChildren,
+				"concurrent preparation requests perform one admission instead of duplicate probes");
+	}
+
 	auto run_cache_contract() -> void
 	{
+		verify_runtime_preparation();
 		{
 			auto diagnosticRoot  = temporary_root{ };
 			auto diagnosticCache = git_adapter::make_installed_git_cache({
@@ -1834,6 +1913,7 @@ namespace {
 			require(
 				diagnosticCache.has_value(),
 				"construct cache around deterministic diagnostic Git candidate");
+			(*diagnosticCache)->prepare_runtime({ });
 			const auto opened = (*diagnosticCache)->open(request(0x31U, 0x41U), { });
 			if (
 				opened.has_value()

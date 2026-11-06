@@ -12,6 +12,7 @@
 #include <algorithm>
 #include <array>
 #include <atomic>
+#include <barrier>
 #include <chrono>
 #include <condition_variable>
 #include <cstddef>
@@ -330,6 +331,8 @@ namespace {
 		std::vector<application::git_operation_recovery_request>
 																	RecoveryCompletionRequests;
 		std::vector<application::git_cache_open_request>            CacheOpenRequests;
+		std::size_t                                                 RuntimePreparations = 0U;
+		std::function<void(std::stop_token)>                        DuringRuntimePreparation;
 		std::function<void()>                                       DuringCacheDestruction;
 		std::vector<application::git_cache_blob_request>            BlobRequests;
 		std::vector<application::git_cache_changed_entries_request> CatalogueRequests;
@@ -2015,6 +2018,14 @@ namespace {
 		{
 		}
 
+		void prepare_runtime(const std::stop_token aStop) override
+		{
+			++State.RuntimePreparations;
+			if (State.DuringRuntimePreparation) {
+				State.DuringRuntimePreparation(aStop);
+			}
+		}
+
 		[[nodiscard]] auto open(
 			const application::git_cache_open_request& aRequest,
 			const std::stop_token                      aStop) -> application::git_cache_result<std::unique_ptr<application::git_cache_session>> override
@@ -2688,6 +2699,104 @@ namespace {
 				aValue.Decisions.run_next();
 			}
 		}
+	}
+
+	void runtime_preparation_is_optional_bounded_and_non_authoritative()
+	{
+		for (const bool throws : { false, true }) {
+			fixture value;
+			value.State.DuringRuntimePreparation = [throws](std::stop_token) {
+				if (throws) {
+					throw std::runtime_error{ "optional runtime preparation failed" };
+				}
+			};
+			value.Host->prepare_runtime();
+			value.Host->prepare_runtime();
+			expect(value.Effects.pending() == 1U && value.State.RuntimePreparations == 0U,
+				   "preparation queues one effect and never runs on the decision lane");
+			run_effect_completion(value);
+			expect(value.State.RuntimePreparations == 1U && value.State.CacheOpenRequests.empty()
+					   && value.State.CacheMutationCalls == 0U && value.State.ProjectionCalls == 0U
+					   && !value.Host->state().Authority && value.Host->is_running_idle(),
+				   "successful or failed preparation opens no review cache, publishes nothing and grants no authority");
+			value.Host->prepare_runtime();
+			expect(value.Effects.pending() == 0U, "later calls do not repeat optional preparation");
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			drain(value);
+			expect(value.Host->state().AcceptedComparison && !value.State.CacheOpenRequests.empty(),
+				   "normal handoff still opens its cache and delivers the comparison after either preparation result");
+		}
+
+		for (const std::size_t slots : { 1U, 2U, 3U }) {
+			fixture value{ application::epoch_host_limits{ .OutstandingJobs = slots } };
+			value.Host->prepare_runtime();
+			const auto preparationJobs = slots < 3U ? 0U : 1U;
+			expect(value.Effects.pending() == preparationJobs, "small hosts reserve both foreground slots instead of preparing Git early");
+			value.Host->accept(make_handoff(value.State, 1U, 20U, true));
+			expect(value.Effects.pending() == preparationJobs + 1U, "foreground handoff is admitted alongside preparation");
+			run_effect_completion(value, preparationJobs);
+			expect(value.Host->state().AcceptedRevision.has_value(), "foreground acceptance need not wait for preparation's terminal");
+			// Keep optional preparation pending while every foreground effect
+			// runs, including the newest history page and first comparison.
+			while (value.Effects.pending() > preparationJobs || value.Decisions.pending() != 0U) {
+				if (value.Effects.pending() > preparationJobs) {
+					value.Effects.run(preparationJobs);
+				}
+				if (value.Decisions.pending() != 0U) {
+					value.Decisions.run_next();
+				}
+			}
+			// A one-slot host already requires a manual comparison selection
+			// after its newest page; optional work must preserve that limit.
+			expect(value.Host->state().Catalog.has_value()
+					   && value.Host->state().AcceptedComparison.has_value() == (slots > 1U),
+				   "pending preparation preserves constrained foreground history and comparison admission");
+			drain(value);
+		}
+
+		fixture refused;
+		refused.Effects.reject_next();
+		refused.Host->prepare_runtime();
+		expect(refused.Host->is_running_idle() && refused.State.ProjectionCalls == 0U,
+			   "executor refusal retires optional work without an error projection");
+		refused.Host->accept(make_handoff(refused.State, 1U, 20U, true));
+		drain(refused);
+		expect(refused.Host->state().AcceptedComparison.has_value(), "foreground comparison survives optional executor refusal");
+	}
+
+	void runtime_preparation_drains_and_cancels_with_the_host()
+	{
+		fixture queued;
+		queued.Host->prepare_runtime();
+		queued.Host->shutdown();
+		expect(!queued.Host->is_quiescent(), "shutdown accounts for the queued preparation terminal");
+		drain(queued);
+		expect(queued.Host->is_quiescent() && queued.State.RuntimePreparations == 0U,
+			   "shutdown cancels preparation before it starts and drains its terminal");
+		queued.Host->prepare_runtime();
+		expect(queued.Effects.pending() == 0U, "closed hosts cannot start preparation");
+
+		fixture      running;
+		std::barrier reached{ 2 };
+		std::barrier released{ 2 };
+		bool         observedStop              = false;
+		running.State.DuringRuntimePreparation = [&](const std::stop_token aStop) {
+			reached.arrive_and_wait();
+			released.arrive_and_wait();
+			observedStop = aStop.stop_requested();
+		};
+		running.Host->prepare_runtime();
+		std::thread worker{ [&] { running.Effects.run_next(); } };
+		reached.arrive_and_wait();
+		running.Host->shutdown();
+		const auto waitsForWorker = !running.Host->is_quiescent();
+		released.arrive_and_wait();
+		worker.join();
+		expect(waitsForWorker && observedStop && !running.Host->is_quiescent(),
+			   "shutdown cancels an in-flight preparation and waits for its decision-lane terminal");
+		drain(running);
+		expect(running.Host->is_quiescent() && running.State.ProjectionCalls == 0U,
+			   "cancelled preparation drains without a late projection");
 	}
 
 	[[nodiscard]] auto force_push(const std::uint64_t aEvent, const std::uint8_t aHead,
@@ -9984,6 +10093,8 @@ namespace {
 int main(int argc, char** argv)
 {
 	parse_live_latencies(argc, argv);
+	runtime_preparation_is_optional_bounded_and_non_authoritative();
+	runtime_preparation_drains_and_cancels_with_the_host();
 	exact_historical_corpus_uses_its_pair_and_host_path();
 	corpus_sparse_read_coalesces_replacement_and_yields_to_navigation();
 	historical_source_does_not_accept_live_authority();
