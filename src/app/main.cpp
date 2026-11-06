@@ -6098,7 +6098,8 @@ namespace {
 	// failure beside it (ATTENDED_TOUR_AGENT_FAILURE_SHOWN). With
 	// BPR_ATTENDED_TOUR_RENDER it draws that, then presses Show on the Agent
 	// tab and draws where it goes.
-	void schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
+	constexpr const char* attended_failure_problem = "A second view drew over the first when both cleared in the same frame.";
+	void                  schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
 	{
 		const auto  failure = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-agent-failure"));
 		auto* const timer   = new QTimer{ &aApplication.window() };
@@ -6127,7 +6128,8 @@ namespace {
 				QTextStream{ stdout }.flush();
 			};
 			if (++*ticks > 1'000) {
-				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2").arg(*step).arg(static_cast<int>(editor->agent_readiness())));
+				const auto* const status = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
+				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2:writing=%3").arg(*step).arg(static_cast<int>(editor->agent_readiness())).arg(status != nullptr ? status->text() : QString{ }));
 				return;
 			}
 			if (*step == 0) {
@@ -6145,15 +6147,8 @@ namespace {
 						return;
 					}
 					editor->show_problem();
-					editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame."));
-					QCoreApplication::processEvents();
-					auto* const magic = editor->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
-					if (magic == nullptr || !magic->isEnabled()) {
-						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-enhance"));
-						return;
-					}
-					magic->click();
-					*step = 2;
+					editor->problem_editor()->setPlainText(QString::fromUtf8(attended_failure_problem));
+					*step = 3;
 					return;
 				}
 				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
@@ -6172,6 +6167,21 @@ namespace {
 				}
 				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
 				*step = 1;
+				return;
+			}
+			if (*step == 3) {
+				// The problem saved first: an edit still saving would cancel the request.
+				const auto& shown = editor->shown();
+				if (!shown.Draft || shown.Saving || shown.Draft->Problem != attended_failure_problem) {
+					return;
+				}
+				auto* const magic = editor->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+				if (magic == nullptr || !magic->isEnabled()) {
+					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-enhance"));
+					return;
+				}
+				magic->click();
+				*step = 2;
 				return;
 			}
 			if (*step == 2) {
