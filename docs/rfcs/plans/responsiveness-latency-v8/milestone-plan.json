@@ -1,0 +1,21 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v8",
+  "scope": { "issues": ["BPR-1893"] },
+  "milestones": [
+    {
+      "id": "discussion-before-details",
+      "outcome": "PR-wide comments become readable before independent refresh details finish, with visible remaining loading.",
+      "work": [{ "issue": "BPR-1893" }],
+      "depends_on": [],
+      "exit_criteria": [
+        "Verify independent collection admission and retained identity, authority, validation, limits and cancellation.",
+        "Demonstrate readable PR-wide comments during a held catalogue through the composed app and measure optimized latency.",
+        "Complete the card and one-line journal entry and land the verified round on main."
+      ],
+      "boundary": "Refresh loading order and earlier discussion projection only; no extra requests, new authority, layout, first-open or signed-out behavior."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
