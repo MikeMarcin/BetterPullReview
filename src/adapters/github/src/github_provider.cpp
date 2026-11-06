@@ -1071,6 +1071,13 @@ namespace bpr::adapters::github::detail {
 				{
 					return perform_guarded<std::shared_ptr<application::git_workspace_delta>>(aStop, [&] { return Inner->acquire_workspace_delta(aRequest, aStop); });
 				}
+				/// [[BPR-1879]]. The clone BetterPullReview keeps for a
+				/// repository's agent questions, under the same guard.
+				auto acquire_managed_clone(const application::git_smart_managed_clone_request& aRequest, const application::git_smart_clone_progress& aProgress, std::stop_token aStop)
+					-> application::git_smart_transport_result<void> override
+				{
+					return perform_guarded<void>(aStop, [&] { return Inner->acquire_managed_clone(aRequest, aProgress, aStop); });
+				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
 				{

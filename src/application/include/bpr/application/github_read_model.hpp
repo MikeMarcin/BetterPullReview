@@ -198,6 +198,9 @@ namespace bpr::application {
 		std::string         Name;
 		std::string         DefaultBranch;
 		bool                Private = false;
+		/// [[BPR-1879]]. GitHub's `size`, in kibibytes, when the read carried
+		/// it: roughly what a full clone downloads.
+		std::optional<std::uint64_t> SizeKilobytes;
 
 		auto operator<=>(const github_repository_record&) const = default;
 	};

@@ -13,6 +13,7 @@
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -26,6 +27,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -577,7 +579,9 @@ namespace bpr::qt {
 	auto agent_setup_view::workspace_words() const -> QString
 	{
 		if (Clones.Linked && !Clones.Linked->PrivateCopy) {
-			return tr("a workspace with the history of %1 at %2").arg(shown_path(Clones.Linked->Path), text_of(Facts.Head));
+			// [[BPR-1879]]. The clone BetterPullReview keeps is named as such.
+			return Clones.Linked->Managed ? tr("a workspace with the history of the clone BetterPullReview keeps, at %1").arg(text_of(Facts.Head))
+										  : tr("a workspace with the history of %1 at %2").arg(shown_path(Clones.Linked->Path), text_of(Facts.Head));
 		}
 		return Facts.Sparse ? tr("only this pull request's files at %1").arg(text_of(Facts.Head)) : tr("a private copy at %1").arg(text_of(Facts.Head));
 	}
@@ -634,7 +638,7 @@ namespace bpr::qt {
 			QString          Title;
 			QString          Summary;
 		};
-		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? (Facts.Sparse ? tr("This pull request only") : tr("A private copy")) : shown_path(Clones.Linked->Path)) : QString{ };
+		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? (Facts.Sparse ? tr("This pull request only") : tr("A private copy")) : (Clones.Linked->Managed ? tr("Kept by BetterPullReview") : shown_path(Clones.Linked->Path))) : QString{ };
 		const auto steps      = std::array{
 			step{ core::setup_step::agent, tr("Agent"), Setup.State.Chosen ? name_for(*Setup.State.Chosen) : QString{ } },
 			step{ core::setup_step::repository, tr("Repository"), repository },
@@ -910,6 +914,7 @@ namespace bpr::qt {
 				aBody.addWidget(privateCopy(aCopyText), 0, Qt::AlignLeft);
 				return;
 			}
+			build_kept_clone(aBody);
 			auto* const only = link_button(tr("Ask about this pull request only"), parent, QStringLiteral("agentSetupPullRequestOnly"));
 			connect(only, &QPushButton::clicked, this, [this] {
 				if (Intents.UsePrivateCopy) {
@@ -1081,6 +1086,93 @@ namespace bpr::qt {
 		row->addStretch(1);
 		aBody.addLayout(row);
 		withoutClone(tr("Use a private copy instead"));
+	}
+
+	/// [[BPR-1879]], owner decision 2026-11-05. The third choice beside
+	/// linking a clone: BetterPullReview downloads one, once, and keeps it.
+	/// Its cost is said before it starts, from GitHub's `size`, with where it
+	/// goes; while it runs, how much has arrived, with Cancel; when it fails,
+	/// why, with Try again.
+	void agent_setup_view::build_kept_clone(QVBoxLayout& aBody)
+	{
+		auto* const parent = aBody.parentWidget();
+		if (!Clones.Repository || !Clones.Repository->CanKeep || Clones.ManagedLocation.empty()) {
+			return;
+		}
+		const auto approximate = Clones.Repository->ApproximateBytes;
+		const auto locale      = QLocale{ };
+		// Decimal units, as the Finder shows sizes on macOS.
+		const auto amount = [&locale](const std::uint64_t aBytes) { return locale.formattedDataSize(static_cast<qint64>(std::min<std::uint64_t>(aBytes, std::numeric_limits<qint64>::max())), 0, QLocale::DataSizeSIFormat); };
+		if (Clones.Keeping.State == application::managed_clone_state::downloading) {
+			auto* const box = new QWidget{ parent };
+			box->setObjectName(QStringLiteral("agentSetupKeepProgress"));
+			auto* const lines = new QVBoxLayout{ box };
+			lines->setContentsMargins(0, 2, 0, 2);
+			lines->setSpacing(4);
+			const auto  received = Clones.Keeping.Received;
+			auto* const status   = words(approximate ? tr("Downloading %1 for the agent: %2 of about %3").arg(text_of(Facts.Repository), amount(received), amount(*approximate))
+													 : tr("Downloading %1 for the agent: %2").arg(text_of(Facts.Repository), amount(received)),
+										 box);
+			status->setObjectName(QStringLiteral("agentSetupKeepStatus"));
+			lines->addWidget(status);
+			auto* const row = new QHBoxLayout{ };
+			row->setSpacing(8);
+			auto* const bar = new QProgressBar{ box };
+			bar->setObjectName(QStringLiteral("agentSetupKeepBar"));
+			bar->setTextVisible(false);
+			bar->setAccessibleName(tr("Download of %1").arg(text_of(Facts.Repository)));
+			if (approximate && *approximate > 0U) {
+				// GitHub's size is approximate, so the bar stops short of full
+				// until the clone is in place.
+				bar->setRange(0, 1000);
+				bar->setValue(static_cast<int>(std::min<std::uint64_t>(990U, received * 1000U / *approximate)));
+			} else {
+				bar->setRange(0, 0);
+			}
+			row->addWidget(bar, 1);
+			auto* const cancel = new quiet_push_button{ tr("Cancel"), box };
+			cancel->setObjectName(QStringLiteral("agentSetupKeepCancel"));
+			connect(cancel, &QPushButton::clicked, this, [this] {
+				if (Intents.CancelKeeping) {
+					Intents.CancelKeeping();
+				}
+			});
+			row->addWidget(cancel);
+			lines->addLayout(row);
+			lines->addWidget(muted(tr("It goes to %1. The agent's question can wait; you can keep reviewing.").arg(shown_path(Clones.ManagedLocation)), box));
+			aBody.addWidget(box);
+			return;
+		}
+		if (Clones.Keeping.State == application::managed_clone_state::failed && Clones.Keeping.Failure) {
+			const auto why = [](const application::managed_clone_failure aFailure) -> QString {
+				switch (aFailure) {
+				case application::managed_clone_failure::sign_in_refused:   return tr("GitHub refused the signed-in account.");
+				case application::managed_clone_failure::connection_failed: return tr("GitHub could not be reached.");
+				case application::managed_clone_failure::too_large:         return tr("The repository is larger than BetterPullReview keeps.");
+				case application::managed_clone_failure::unavailable:       return tr("This review cannot download one: it is not read through GitHub CLI.");
+				case application::managed_clone_failure::cancelled:
+				case application::managed_clone_failure::failed:            break;
+				}
+				return tr("The download did not finish.");
+			}(*Clones.Keeping.Failure);
+			auto* const failed = words(tr("The clone was not kept. %1").arg(why), parent);
+			failed->setObjectName(QStringLiteral("agentSetupKeepFailed"));
+			aBody.addWidget(failed);
+		}
+		const auto  retry = Clones.Keeping.State == application::managed_clone_state::failed;
+		auto* const keep  = link_button(retry ? tr("Try keeping one again") : tr("Let BetterPullReview keep one"), parent, QStringLiteral("agentSetupKeepClone"));
+		connect(keep, &QPushButton::clicked, this, [this] {
+			if (Intents.KeepClone) {
+				Intents.KeepClone();
+			}
+		});
+		aBody.addWidget(keep, 0, Qt::AlignLeft);
+		const auto  where = shown_path(Clones.ManagedLocation);
+		auto* const cost  = muted(approximate ? tr("Downloads about %1 from GitHub once, in the background, and keeps it in %2. Later questions fetch only what is new.").arg(amount(*approximate), where)
+											  : tr("Downloads the whole repository from GitHub once, in the background, and keeps it in %1. Later questions fetch only what is new.").arg(where),
+								  parent);
+		cost->setObjectName(QStringLiteral("agentSetupKeepCost"));
+		aBody.addWidget(cost);
 	}
 
 	void agent_setup_view::build_check(QVBoxLayout& aBody)
