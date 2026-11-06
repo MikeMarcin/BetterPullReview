@@ -4671,8 +4671,8 @@ namespace bpr::application {
 			const auto unavailable = [](std::string aDetail) {
 				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable, std::move(aDetail), agent_workspace_unavailable_reason::copy_failed } };
 			};
-			using listed     = std::expected<std::vector<git_workspace_file>, git_cache_failure>;
-			const auto files = run_on_actor<listed>(
+			using listed = std::expected<std::vector<git_workspace_file>, git_cache_failure>;
+			auto files   = run_on_actor<listed>(
 				aActor, aExpected,
 				[aActor, aBinding](const std::stop_token aWorkStop) -> listed {
 					auto changes = aActor->Cache->changed_entries({ .Left = aBinding.BaseOid, .Right = aBinding.HeadOid }, aWorkStop);
