@@ -314,11 +314,12 @@ namespace {
 		expect(test.text().contains(QStringLiteral("None in ")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault() && test.button(QStringLiteral("agentSetupEditFolders")) != nullptr
 				   && test.button(QStringLiteral("agentSetupFindClones")) == nullptr,
 			   "none found: the card says so, its button chooses the folder, Edit clone folders is small beside, and there is no separate search link");
-		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupPrivateCopyCard")));
-		expect(test.button(QStringLiteral("agentSetupPrivateCopy"))->text() == QStringLiteral("Use a private copy"), "a complete review's weakest card is the private copy");
-		test.button(QStringLiteral("agentSetupPrivateCopy"))->click();
-		expect(test.Intents.back() == "private-copy", "the private copy is one choice and one press away");
-		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")));
+		// [[BPR-1879]], owner look v006. A review that holds every file needs
+		// no clone: only Link your clone is offered, as an improvement; there
+		// is no third card, and nothing names a private copy.
+		expect(test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr
+				   && !test.text().contains(QStringLiteral("private copy"), Qt::CaseInsensitive),
+			   "a review holding every file offers only Link your clone");
 		render(test.View, QStringLiteral("noclone"));
 
 		// [[BPR-1873]], [[BPR-1879]] owner look v005. A sparse review with no
@@ -336,16 +337,16 @@ namespace {
 		auto* const linkCard   = test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard"));
 		auto* const linkFigure = test.View.findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"));
 		auto* const onlyCard   = test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"));
-		auto* const cost       = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
+		auto* const cost       = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyFact"));
 		auto* const choose     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder"));
 		expect(linkCard != nullptr && linkFigure != nullptr && onlyCard != nullptr && cost != nullptr && choose != nullptr && linkFigure->text() == QStringLiteral("Recommended")
 				   && before(linkCard, onlyCard) && choose->text() == QStringLiteral("Choose its folder…") && choose->isDefault()
-				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
-				   && cost->text() == QStringLiteral("Weaker answers: no callers, tests or history"),
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) == nullptr
+				   && cost->text() == QStringLiteral("No callers, tests or history"),
 			   "the reviewer's own clone is the first card, chosen, recommended and the default button; the pull request only is last, its cost in one line");
 		click(*onlyCard);
 		auto* const only = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
-		expect(only != nullptr && only->text() == QStringLiteral("Use this pull request") && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder")) == nullptr,
+		expect(only != nullptr && only->text() == QStringLiteral("Use this pull request only") && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder")) == nullptr,
 			   "choosing the pull request only turns the button to it");
 		if (only != nullptr) {
 			only->click();

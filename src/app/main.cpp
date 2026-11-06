@@ -10596,6 +10596,11 @@ auto main(int argc, char** argv) -> int
 		const auto attendedAgentLook = launch.value("--attended-agent-look");
 		// [[BPR-1879]]. The Agent tab's Repository step, for a look at it.
 		const auto attendedRepositoryLook = launch.has("--attended-repository-look");
+		if (attendedRepositoryLook) {
+			// Every fixture review is read whole; the look shows the step as a
+			// review read through `gh` shows it, where the choice is.
+			fixtureOptions.SparseAgentSetupLook = true;
+		}
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
 		}

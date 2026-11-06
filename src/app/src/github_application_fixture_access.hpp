@@ -522,6 +522,9 @@ namespace bpr::app::detail {
 		/// on; the external terminal has none and refuses one by design.
 		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> ClaudeAgentExecutable;
+		/// [[BPR-1879]]. The agent setup treats the fixture review as one read
+		/// sparsely through `gh`, so a look shows the Repository step's choice.
+		bool SparseAgentSetupLook = false;
 		/// [[BPR-1301]]. Where the shipped bare `claude` is looked for, so a
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.
