@@ -2140,6 +2140,8 @@ namespace bpr::app::detail {
 		/// Holds only one exact window's ledger decision posts; sibling
 		/// storage and decision delivery keep running.
 		[[nodiscard]] static auto hold_review_ledger_terminals(github_application& aApplication, core::bpr_window_context aContext, bool aHold) -> bool;
+		/// [[BPR-1898]]. Deliver one completion while later local inputs stay held.
+		[[nodiscard]] static auto release_review_ledger_terminal(github_application& aApplication, core::bpr_window_context aContext) -> bool;
 		[[nodiscard]] static auto held_review_ledger_terminals(const github_application& aApplication, core::bpr_window_context aContext) -> std::size_t;
 		/// \brief [[BPR-1211]]. Holds the profile's review-ledger effect lane:
 		/// operations posted after this queue behind it until the returned

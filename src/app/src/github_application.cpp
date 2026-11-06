@@ -613,6 +613,21 @@ namespace bpr::app {
 				}
 			}
 
+			[[nodiscard]] auto release_next() -> bool
+			{
+				auto task = std::function<void()>{ };
+				{
+					const auto lock = std::scoped_lock{ Mutex };
+					if (Held.empty()) {
+						return false;
+					}
+					task = std::move(Held.front());
+					Held.pop_front();
+				}
+				Target.post(std::move(task));
+				return true;
+			}
+
 			[[nodiscard]] auto pending() const -> std::size_t
 			{
 				const auto lock = std::scoped_lock{ Mutex };
@@ -11245,11 +11260,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				Window->clear_review_ledger(!aAvailable);
 			}
 			if (!aAvailable) {
+				publish_overview(false);
 				return;
 			}
+			// [[BPR-1898]]. File progress need not queue behind conversation
+			// receipts or private records. Every operation stays on its store lane.
+			publish_overview();
 			publish_read_state();
 			reload_private_records(true);
-			publish_overview();
 		}
 
 		/// \brief Reads the private records again, off the decision lane.
@@ -11263,7 +11281,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			ReviewLedgerHost->load_private(ledger_answer([this, aCorrelate](const std::expected<void, application::ledger_store_failure>& aLoaded) {
+				PrivateRecordsFailed = !aLoaded.has_value();
 				if (!aLoaded) {
+					publish_overview(false);
 					return;
 				}
 				if (aCorrelate) {
@@ -17630,6 +17650,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			++ReviewLedgerGeneration;
 			ConversationReceiptsLoading = false;
 			OverviewReceiptsLoading     = false;
+			OverviewReceiptsFailed      = false;
+			PrivateRecordsFailed        = false;
 			PendingDefectWrites.clear();
 			ReviewLedgerHost.reset();
 #if defined(BPR_BUILD_TESTING)
@@ -19569,7 +19591,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}));
 		}
 
-		void publish_overview()
+		void publish_overview(const bool aLoadReceipts = true)
 		{
 			if (Closing || Window == nullptr || Host == nullptr) {
 				return;
@@ -19620,8 +19642,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			++OverviewBuilds;
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
-			auto context = application::overview_context{ };
-			auto missing = std::vector<core::file_identity>{ };
+			auto context    = application::overview_context{ };
+			using readiness = application::overview_readiness;
+			// The first accepted projection can precede attachment of its store.
+			const auto available      = ReviewLedgerHost != nullptr ? ReviewLedgerHost->available() : std::optional<bool>{ };
+			context.ReceiptsReadiness = available == false ? readiness::unavailable : readiness::loading;
+			context.PrivateReadiness  = context.ReceiptsReadiness;
+			auto missing              = std::vector<core::file_identity>{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
@@ -19657,26 +19684,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 						}
 					}
 					if (missing.empty()) {
-						OverviewReceiptRevision = revision;
+						OverviewReceiptRevision   = revision;
+						context.ReceiptsReadiness = readiness::ready;
+					} else if (OverviewReceiptsFailed) {
+						context.ReceiptsReadiness = readiness::unavailable;
 					}
 				}
 			}
 			// [[BPR-1211]]. Receipts the ledger does not hold yet are read off
 			// the decision lane, in one operation; the overview is published
 			// now from what is held and again when they arrive.
-			if (!missing.empty() && !OverviewReceiptsLoading) {
-				OverviewReceiptsLoading = true;
+			if (aLoadReceipts && !missing.empty() && !OverviewReceiptsLoading) {
+				OverviewReceiptsLoading   = true;
+				OverviewReceiptsFailed    = false;
+				context.ReceiptsReadiness = readiness::loading;
 				ReviewLedgerHost->load_receipts(std::move(missing), ledger_answer([this](const std::expected<void, application::ledger_store_failure>& aLoaded) {
 													OverviewReceiptsLoading = false;
-													if (aLoaded.has_value()) {
-														publish_overview();
-													}
+													OverviewReceiptsFailed  = !aLoaded.has_value();
+													// Publish failure without retrying this same failed load.
+													publish_overview(aLoaded.has_value());
 												}));
 			}
 			if (ReviewLedgerHost != nullptr) {
 				if (auto privateState = ReviewLedgerHost->private_observation();
 					privateState.has_value()) {
-					context.Private = std::move(*privateState);
+					context.Private          = std::move(*privateState);
+					context.PrivateReadiness = readiness::ready;
+				} else if (PrivateRecordsFailed) {
+					context.PrivateReadiness = readiness::unavailable;
 				}
 			}
 			OverviewReviewedHead = context.Private ? context.Private->LastReviewedHead : std::nullopt;
@@ -25634,6 +25669,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		bool ConversationReceiptsLoading = false;
 		/// The overview asked for receipts it does not hold.
 		bool OverviewReceiptsLoading = false;
+		bool OverviewReceiptsFailed  = false;
+		bool PrivateRecordsFailed    = false;
 
 		mutable std::mutex                                           ReviewLedgerStateMutex;
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
@@ -34855,7 +34892,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		};
-		const auto go_on_to_reviewers = [&probe, implementation, &goOnToDraftState] {
+		const auto goOnToReviewers = [&probe, implementation, &goOnToDraftState] {
 			if (implementation->ReviewMutationHost->capabilities().RequestsReviewers) {
 				probe.Phase = state_type::phase::awaiting_reviewer_offered;
 				return result::pending;
@@ -35214,7 +35251,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 					return result::pending;
 				}
-				return go_on_to_reviewers();
+				return goOnToReviewers();
 			}
 			cards->open_thread(std::string{ threadIdentity });
 			QCoreApplication::processEvents();
@@ -35410,7 +35447,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 				return result::pending;
 			}
-			return go_on_to_reviewers();
+			return goOnToReviewers();
 		}
 		// [[BPR-1774]]. Overview offers the author Edit; Save performs exactly
 		// one write, and the next read shows GitHub's body. A second edit
@@ -35511,7 +35548,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 				return result::pending;
 			}
-			return go_on_to_reviewers();
+			return goOnToReviewers();
 		}
 		// [[BPR-1775]]. My published reply offers Edit in Discuss and another's
 		// comment does not; Save performs exactly one write, and the next read
@@ -35645,7 +35682,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			cards->comment_edit_cancel_button()->click();
 			QCoreApplication::processEvents();
-			return go_on_to_reviewers();
+			return goOnToReviewers();
 		}
 		// [[BPR-1804]]. People offers Request review; the picker lists GitHub's
 		// suggestion, a typed query narrows it to one person, and choosing them
@@ -41310,6 +41347,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			gate.release();
 		}
 		return true;
+	}
+
+	auto detail::github_application_fixture_access::release_review_ledger_terminal(github_application& aApplication, const core::bpr_window_context aContext) -> bool
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		return found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReviewLedgerDecisionGate
+			&& found->second->ReviewLedgerDecisionGate->release_next();
 	}
 
 	auto detail::github_application_fixture_access::held_review_ledger_terminals(const github_application& aApplication, const core::bpr_window_context aContext) -> std::size_t

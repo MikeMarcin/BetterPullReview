@@ -3573,12 +3573,17 @@ namespace bpr::qt {
 		case attributes::objects_unavailable: heading += QStringLiteral(", linguist-generated not read: the head's .gitattributes are not available"); break;
 		case attributes::failed:              heading += QStringLiteral(", linguist-generated could not be read"); break;
 		}
-		if (since.Known && since.FilesChanged.has_value()) {
+		const auto historyReady = aProjection.Progress.NotesReadiness == application::overview_readiness::ready;
+		if (historyReady && since.Known && since.FilesChanged.has_value()) {
 			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
-		} else if (since.Known) {
+		} else if (historyReady && since.Known) {
 			heading += QStringLiteral(", changes since my last review not yet resolved");
 		}
-		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
+		switch (aProjection.Progress.FilesReadiness) {
+		case application::overview_readiness::ready:       heading += QStringLiteral(", %1 not read").arg(count_text(notRead)); break;
+		case application::overview_readiness::loading:     heading += QStringLiteral(", read progress loading…"); break;
+		case application::overview_readiness::unavailable: heading += QStringLiteral(", read progress unavailable"); break;
+		}
 		present_heading(*FilesHeading, heading);
 	}
 
@@ -3591,6 +3596,13 @@ namespace bpr::qt {
 		since.Known      = aUpdate.Known;
 		since.ReviewedAt = aUpdate.ReviewedAt;
 		since.Uploads    = aUpdate.Uploads;
+		if (Projection->Progress.NotesReadiness != application::overview_readiness::ready) {
+			SinceHeading->setText(Projection->Progress.NotesReadiness == application::overview_readiness::loading
+									  ? QStringLiteral("Since my last review: loading…")
+									  : QStringLiteral("Since my last review: unavailable"));
+			show_value(overview_value::uploads, false);
+			return;
+		}
 		if (!since.Known) {
 			SinceHeading->setText(QStringLiteral("Since my last review: none yet"));
 		} else if (since.ReviewedAt) {
@@ -5859,13 +5871,25 @@ namespace bpr::qt {
 			return;
 		}
 		const auto& progress = Projection->Progress;
-		set_value(overview_value::files_read, QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)), false);
-		show_value(overview_value::files_read, progress.FilesTotal != 0U);
+		using readiness      = application::overview_readiness;
+		const auto value     = [](const readiness aReadiness, const QString& aReady) {
+			switch (aReadiness) {
+			case readiness::loading:     return QStringLiteral("Loading…");
+			case readiness::unavailable: return QStringLiteral("Unavailable");
+			case readiness::ready:       return aReady;
+			}
+			return QStringLiteral("Unavailable");
+		};
+		const auto filesReady = progress.FilesReadiness == readiness::ready;
+		const auto notesReady = progress.NotesReadiness == readiness::ready;
+		const auto filesRead  = QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal));
+		set_value(overview_value::files_read, value(progress.FilesReadiness, filesRead), false);
+		show_value(overview_value::files_read, progress.FilesTotal != 0U || !filesReady);
 		ReadMeter->set_segments({ { static_cast<double>(progress.FilesRead), Colours.Accepted } }, static_cast<double>(progress.FilesTotal));
-		ReadMeter->setAccessibleName(QStringLiteral("%1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
-		ReadMeter->setVisible(progress.FilesTotal != 0U);
-		set_value(overview_value::private_notes, count_text(progress.PrivateNotes), false);
-		show_value(overview_value::private_notes, progress.PrivateNotes != 0U);
+		ReadMeter->setAccessibleName(filesReady ? filesRead + QStringLiteral(" files read") : QString{ });
+		ReadMeter->setVisible(filesReady && progress.FilesTotal != 0U);
+		set_value(overview_value::private_notes, value(progress.NotesReadiness, count_text(progress.PrivateNotes)), false);
+		show_value(overview_value::private_notes, progress.PrivateNotes != 0U || !notesReady);
 		set_value(overview_value::drafted_comments, count_text(progress.DraftedComments.value_or(0U)), false);
 		show_value(overview_value::drafted_comments, progress.DraftedComments.value_or(0U) != 0U);
 		NewThreadsText->setText(plural(NewThreads, QStringLiteral("1 thread with new posts"), QStringLiteral("%1 threads with new posts")));
@@ -5885,8 +5909,20 @@ namespace bpr::qt {
 		NewConversationGo->setAccessibleName(QStringLiteral("Go to the %1 in Discuss").arg(NewConversationText->text()));
 		NewConversationRow->setVisible(conversation != 0U);
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::my_review)].Header;
-		// The files-read row under it says the count; the header does not repeat it.
-		header->setAccessibleName(QStringLiteral("My review: %1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+		// Readiness stays visible even when the section is collapsed.
+		const auto loading = progress.FilesReadiness == readiness::loading || progress.NotesReadiness == readiness::loading;
+		if (loading) {
+			header->set_count(QStringLiteral("Loading…"));
+		} else if (!filesReady || !notesReady) {
+			header->set_count(QStringLiteral("Some data unavailable"));
+		} else {
+			header->set_count({ });
+		}
+		auto summary = filesReady ? filesRead + QStringLiteral(" files read") : QStringLiteral("File progress: %1").arg(value(progress.FilesReadiness, { }));
+		if (!notesReady) {
+			summary += QStringLiteral("; private notes: %1").arg(value(progress.NotesReadiness, { }));
+		}
+		header->setAccessibleName(QStringLiteral("My review: %1").arg(summary));
 	}
 
 	void pull_request_overview_page::present_request_rows()

@@ -124,6 +124,11 @@ namespace bpr::application {
 	[[nodiscard]] auto project_overview_history(std::span<const epoch_row_projection>      aUpdates,
 												const std::optional<core::git_commit_oid>& aReviewed) -> overview_history_update;
 
+	/// Readiness of one independent local input, not of the GitHub snapshot.
+	enum class overview_readiness : std::uint8_t { ready,
+												   loading,
+												   unavailable };
+
 	struct overview_review_progress
 	{
 		/// [[BPR-1339]]. Files read or accepted (`core::progress_done`).
@@ -131,6 +136,8 @@ namespace bpr::application {
 		std::size_t                FilesTotal   = 0U;
 		std::size_t                PrivateNotes = 0U;
 		std::optional<std::size_t> DraftedComments;
+		overview_readiness         FilesReadiness = overview_readiness::ready;
+		overview_readiness         NotesReadiness = overview_readiness::ready;
 
 		auto operator<=>(const overview_review_progress&) const = default;
 	};
@@ -250,6 +257,9 @@ namespace bpr::application {
 		/// the viewer's own change is held (`core::project_draft_state`); none
 		/// leaves the read's.
 		std::optional<core::projected_draft_state> ProjectedDraft;
+		/// [[BPR-1898]]. Composition supplies the local load outcomes separately.
+		overview_readiness ReceiptsReadiness = overview_readiness::ready;
+		overview_readiness PrivateReadiness  = overview_readiness::ready;
 	};
 
 	/// \brief Decides the overview from the snapshot and the context.

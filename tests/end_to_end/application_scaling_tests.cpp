@@ -250,7 +250,11 @@ try {
 			wait_for([&] { const auto queue = access::scaling_evidence(*owner);
 						   return queue.Queue.AppliedRefreshes > queueBefore.AppliedRefreshes && queue.QueueQuiescent
 							   && window->session_panel()->status() == core::github_status::pull_request_ready
-							   && owner->status().EpochStatus == core::epoch_status::ready; }, "refreshed public review updates its retained queue item");
+							   && owner->status().EpochStatus == core::epoch_status::ready; }, "refreshed public review updates its retained queue item", [&] {
+				const auto evidence = access::scaling_evidence(*owner);
+				std::cerr << "refresh status=" << window->session_panel()->status_text() << " reason=" << window->session_panel()->diagnostic_text()
+						  << " epoch=" << static_cast<int>(owner->status().EpochStatus) << " applied=" << evidence.Queue.AppliedRefreshes
+						  << " before=" << queueBefore.AppliedRefreshes << " quiet=" << evidence.QueueQuiescent << '\n'; });
 			const auto queueAfter        = access::scaling_evidence(*owner).Queue;
 			const auto repositoriesAfter = window->repositories_tree()->tree_model()->work();
 			report_allocations("queue-update-with-complete-PR-refresh", queueMeasurement);

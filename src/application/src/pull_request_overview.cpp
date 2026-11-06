@@ -983,6 +983,8 @@ namespace bpr::application {
 		});
 
 		projection.Progress.FilesTotal      = projection.Files.size();
+		projection.Progress.FilesReadiness  = aContext.ReceiptsReadiness;
+		projection.Progress.NotesReadiness  = aContext.PrivateReadiness;
 		projection.Progress.PrivateNotes    = aContext.Private.has_value() ? aContext.Private->Notes.size() : 0U;
 		projection.Progress.DraftedComments = aContext.DraftedComments;
 
