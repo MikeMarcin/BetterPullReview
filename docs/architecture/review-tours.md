@@ -103,8 +103,10 @@ places are the same controls, moved, so the model, publication and recovery
 below are unchanged. The section stack keeps its four pages (Problem,
 Solution, stops, preview) with no visible tabs.
 
-Since [[BPR-1878]] (owner look v001) the tab's bottom carries the Agent
-tab's own agent picker: a second `agent_run_settings_picker` over the
+Since [[BPR-1878]] (owner looks v001 and v002) the open step's drafting
+controls carry the Agent tab's own agent picker, directly under Draft from
+PR context (or the stop's Generate comment), while the draft's state and
+Preview and publish stay the tab's last row. It is a second `agent_run_settings_picker` over the
 Agent tab's `agent_run_settings_source`, so its pill ("agent · model ·
 effort"), its menu and its choice are the Agent tab's, and choosing in
 either shows in both. Its Model and Effort menus are the Agent tab's too,
