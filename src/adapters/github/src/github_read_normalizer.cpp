@@ -242,6 +242,8 @@ namespace bpr::adapters::github::detail {
 			json_owner    Owner;
 			std::string   DefaultBranch;
 			bool          Private = false;
+			/// [[BPR-1879]]. GitHub's `size`, in kibibytes.
+			std::optional<std::uint64_t> Size;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -251,7 +253,8 @@ namespace bpr::adapters::github::detail {
 					"full_name", &json_repository::FullName,
 					"owner", &json_repository::Owner,
 					"default_branch", &json_repository::DefaultBranch,
-					"private", &json_repository::Private);
+					"private", &json_repository::Private,
+					"size", &json_repository::Size);
 			};
 		};
 
@@ -1142,6 +1145,7 @@ namespace bpr::adapters::github::detail {
 					.Name          = aContext.PullRequestRequest.Repository.Name,
 					.DefaultBranch = repository.DefaultBranch,
 					.Private       = repository.Private,
+					.SizeKilobytes = repository.Size,
 				},
 				.PullRequest = {
 					.PullRequest = aContext.PullRequest,

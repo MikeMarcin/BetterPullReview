@@ -14,7 +14,9 @@
 #include <algorithm>
 #include <array>
 #include <charconv>
+#include <chrono>
 #include <cmath>
+#include <condition_variable>
 #include <cstddef>
 #include <cstdint>
 #include <expected>
@@ -24,6 +26,7 @@
 #include <optional>
 #include <span>
 #include <stdexcept>
+#include <thread>
 
 namespace bpr::adapters::github::detail {
 	namespace {
@@ -87,6 +90,23 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 			return false;
+		}
+
+		/// [[BPR-1879]]. The bytes of the regular files under \p aRoot, without
+		/// following a link: how much a kept clone has received so far.
+		[[nodiscard]] auto received_bytes(const std::filesystem::path& aRoot) -> std::uint64_t
+		{
+			auto            total = std::uint64_t{ 0U };
+			std::error_code error;
+			auto            entries = std::filesystem::recursive_directory_iterator{ aRoot, std::filesystem::directory_options::none, error };
+			for (std::size_t seen = 0U; !error && entries != std::filesystem::recursive_directory_iterator{ } && seen < 4096U; entries.increment(error), ++seen) {
+				std::error_code entryError;
+				if (entries->is_regular_file(entryError) && !entryError) {
+					const auto size = entries->file_size(entryError);
+					total += entryError ? 0U : size;
+				}
+			}
+			return total;
 		}
 
 		/// The canonical path of \p aDirectory, which a clone request admits
@@ -852,6 +872,35 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
+			/// \brief [[BPR-1879]]. Makes the full clone BetterPullReview keeps
+			/// for this repository, under the same qualification, identity
+			/// observations and write confinement as every sparse acquisition,
+			/// but outside its size limits.
+			auto acquire_managed_clone(const git_smart_managed_clone_request& aRequest, const git_smart_clone_progress& aProgress, std::stop_token aStop)
+				-> git_smart_transport_result<void> override
+			{
+				std::lock_guard lock{ Mutex };
+				auto            step = git_smart_transport_step::admission;
+				if (const auto error = admission(aRequest.Context, aStop)) {
+					return std::unexpected{ git_smart_transport_error{ *error, step } };
+				}
+				if (!application::valid(aRequest)) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				std::stop_source   stop;
+				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
+				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
+				try {
+					auto result = acquire_kept_clone(aRequest, aProgress, stop.get_token(), step);
+					if (!result) {
+						result.error().Step = step;
+					}
+					return result;
+				} catch (...) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable, step } };
+				}
+			}
+
 			auto fetch(const git_smart_fetch_request& aRequest, git_smart_wire_consumer& aConsumer, std::stop_token aStop)
 				-> git_smart_transport_result<void> override
 			{
@@ -1212,12 +1261,166 @@ namespace bpr::adapters::github::detail {
 				return std::make_shared<gh_cli_workspace_delta>(std::move(directory), aHead, spool, bytes);
 			}
 
+			/// \brief [[BPR-1879]]. The kept clone: `gh repo clone` of every
+			/// object, with no checkout, into a private temporary root, then
+			/// moved whole into the profile's folder of kept clones.
+			///
+			/// \details The clone writes only inside the temporary root, as every
+			/// acquisition does (on macOS `gh` may write nowhere else), so the
+			/// profile's folder is touched only by the final move. Its bounds
+			/// are the kept clone's runner's, sized from GitHub's `size`, not
+			/// the 32 MiB per file of a sparse read. Received bytes are sampled
+			/// from the root while it runs. A cancelled or failed clone leaves
+			/// nothing behind: the root is removed with its directory.
+			auto acquire_kept_clone(const git_smart_managed_clone_request& aRequest, const git_smart_clone_progress& aProgress, std::stop_token aStop,
+									git_smart_transport_step& aStep) -> git_smart_transport_result<void>
+			{
+				aStep = git_smart_transport_step::temporary_store;
+				std::error_code existing;
+				// Nothing, not even a link, may be at the destination yet.
+				if (std::filesystem::symlink_status(aRequest.Destination, existing).type() != std::filesystem::file_type::not_found) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
+				auto       directory = make_clone_root();
+				const auto root      = directory ? clone_root_path(*directory) : std::filesystem::path{ };
+				if (root.empty()) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				std::filesystem::create_directory(root / "empty");
+				constexpr auto least   = std::uint64_t{ 4U } * 1024U * 1024U * 1024U;
+				const auto     stated  = aRequest.ApproximateBytes.value_or(0U);
+				const auto     maximum = std::clamp(stated > github_cli_managed_clone_max_bytes / 4U ? github_cli_managed_clone_max_bytes : stated * 4U, least, github_cli_managed_clone_max_bytes);
+				aStep                  = git_smart_transport_step::process_runner;
+				auto process           = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false, Git });
+				if (!process) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				process->set_insights_channel(Insights);
+				if (auto qualified = qualify(*process, root, aStop, aStep, false, false, true); !qualified) {
+					return std::unexpected{ qualified.error() };
+				}
+				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
+				if (!credential) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : (credential.error().CredentialUnavailable ? failure::authentication : process_error(credential.error().Failure)) } };
+				}
+				{
+					gh_cli_transport identity{ Profile, Configuration, *process, *credential };
+					identity.set_insights_channel(Insights);
+					aStep             = git_smart_transport_step::identity_before;
+					const auto before = viewer(identity, aStop);
+					if (!before) {
+						return std::unexpected{ before.error() };
+					}
+					aStep = git_smart_transport_step::admission;
+					if (const auto error = admission(Context, aStop)) {
+						return std::unexpected{ git_smart_transport_error{ *error } };
+					}
+					aStep                 = git_smart_transport_step::clone;
+					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, Context.Revision.Head, Git, root, 0U, 0U, gh_cli_clone_content::managed);
+					if (!invocation) {
+						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+					}
+					auto cloneProcess = make_github_cli_managed_clone_process_runner(root, Git, maximum);
+					if (!cloneProcess) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					cloneProcess->set_insights_channel(Insights);
+					auto cloned = github_cli_process_result{ std::unexpected{ github_cli_process_failure::cancelled } };
+					{
+						// Received bytes, sampled while the clone runs; the
+						// sampler ends before the result is read.
+						auto sampler = std::jthread{ [&aProgress, root](const std::stop_token aSampling) {
+							std::mutex                  waiting;
+							std::condition_variable_any wake;
+							auto                        held = std::unique_lock{ waiting };
+							while (!aSampling.stop_requested()) {
+								// Woken early only by the stop, which ends the loop.
+								static_cast<void>(wake.wait_for(held, aSampling, std::chrono::milliseconds{ 500 }, [] { return false; }));
+								if (aProgress && !aSampling.stop_requested()) {
+									aProgress(received_bytes(root));
+								}
+							}
+						} };
+						cloned = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
+					}
+					if (!cloned) {
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(cloned.error()) } };
+					}
+					if (cloned->ExitCode != 0) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+					aStep            = git_smart_transport_step::identity_after;
+					const auto after = viewer(identity, aStop);
+					if (!after) {
+						return std::unexpected{ after.error() };
+					}
+					if (before->Account != after->Account || before->Login != after->Login) {
+						revoke();
+						return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::authentication } };
+					}
+				}
+				// The clone holds a commit at its HEAD: the repository's default
+				// branch, every object of it present.
+				aStep             = git_smart_transport_step::object_check;
+				const auto store  = gh_cli_git_clone_store(root, 0U);
+				const auto scope  = "--git-dir=" + git_path_text(gh_cli_git_kept_clone_directory(root, 0U));
+				const auto commit = process->run(local_request(root, { scope, "cat-file", "-t", "HEAD" }), aStop);
+				if (!commit) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : failure::malformed_response } };
+				}
+				if (commit->ExitCode != 0 || commit->StandardOutput != "commit\n") {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+				}
+				if (aStop.stop_requested()) {
+					return std::unexpected{ git_smart_transport_error{ failure::cancelled } };
+				}
+				// Owner-private, as everything in the profile is: the purge
+				// inventory refuses a file another account could read.
+				aStep = git_smart_transport_step::local_store;
+				{
+					std::error_code walked;
+					const auto      privateMode = [](const std::filesystem::path& aPath, std::error_code& aError) {
+						std::filesystem::permissions(aPath, std::filesystem::perms::group_all | std::filesystem::perms::others_all, std::filesystem::perm_options::remove | std::filesystem::perm_options::nofollow, aError);
+					};
+					privateMode(store, walked);
+					auto entries = std::filesystem::recursive_directory_iterator{ store, std::filesystem::directory_options::none, walked };
+					for (; !walked && entries != std::filesystem::recursive_directory_iterator{ }; entries.increment(walked)) {
+						if (entries->is_symlink(walked) || walked) {
+							return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
+						}
+						privateMode(entries->path(), walked);
+					}
+					if (walked) {
+						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+					}
+				}
+				// Moved whole into the profile's owner-private folder of kept
+				// clones; only then does it exist there.
+				std::error_code moved;
+				const auto      parent = aRequest.Destination.parent_path();
+				std::filesystem::create_directories(parent, moved);
+				if (!moved) {
+					std::filesystem::permissions(parent, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace, moved);
+				}
+				if (moved || std::filesystem::is_symlink(std::filesystem::symlink_status(parent, moved)) || moved) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				std::filesystem::rename(store, aRequest.Destination, moved);
+				if (moved) {
+					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				if (aProgress) {
+					aProgress(received_bytes(aRequest.Destination));
+				}
+				return { };
+			}
+
 			/// \brief Proves this `gh` and Git, by version and local help, before
 			/// any credentialed use: every operation either acquisition path
 			/// invokes, and the clone options its mode needs. [[BPR-1873]]. A
 			/// workspace delta also needs `--reference`.
 			auto qualify(github_cli_process_port& aProcess, const std::filesystem::path& aRoot, std::stop_token aStop,
-						 git_smart_transport_step& aStep, const bool aDeepen = false, const bool aReference = false) -> git_smart_transport_result<void>
+						 git_smart_transport_step& aStep, const bool aDeepen = false, const bool aReference = false, const bool aKept = false) -> git_smart_transport_result<void>
 			{
 				auto*       process  = &aProcess;
 				const auto& root     = aRoot;
@@ -1275,6 +1478,8 @@ namespace bpr::adapters::github::detail {
 					|| !clone_option_available(capability->StandardOutput, "template")
 					|| !clone_option_available(capability->StandardOutput, "config")
 					|| (aReference && !clone_option_available(capability->StandardOutput, "reference"))
+					// [[BPR-1879]]. A kept clone is made with no checkout.
+					|| (aKept && !clone_option_available(capability->StandardOutput, "no-checkout") && !clone_option_available(capability->StandardOutput, "checkout"))
 					|| ((Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees || aDeepen)
 						&& (!clone_option_available(capability->StandardOutput, "filter") || !clone_option_available(capability->StandardOutput, "depth")))) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };

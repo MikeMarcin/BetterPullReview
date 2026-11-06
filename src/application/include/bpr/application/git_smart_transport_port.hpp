@@ -10,6 +10,7 @@
 #include <cstdint>
 #include <expected>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <span>
@@ -314,6 +315,35 @@ namespace bpr::application {
 			&& aRequest.Clone == aRequest.Clone.lexically_normal();
 	}
 
+	/// \brief [[BPR-1879]], RFC-BPR-0092. A full clone of a sparse review's
+	/// repository that BetterPullReview keeps for its agent's questions.
+	///
+	/// \details Every object, no blob filter: a blobless clone would need lazy
+	/// fetches, and those must never run in the agent's sandbox. It is made
+	/// with no checkout, under the profile's application data, and later
+	/// questions borrow it as a linked clone. `Destination` is absolute,
+	/// normal and does not exist yet; its parent is the profile's folder of
+	/// kept clones, which the transport creates owner-private.
+	struct git_smart_managed_clone_request
+	{
+		git_smart_request_context Context;
+		std::filesystem::path     Destination;
+		/// GitHub's repository `size`, in bytes, when it said: the clone's
+		/// bounds grow with it and are never smaller than the defaults.
+		std::optional<std::uint64_t> ApproximateBytes;
+	};
+
+	/// \brief Checks the request's own shape; it does not check authority.
+	[[nodiscard]] inline auto valid(const git_smart_managed_clone_request& aRequest) noexcept -> bool
+	{
+		return aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees && aRequest.Destination.is_absolute()
+			&& aRequest.Destination == aRequest.Destination.lexically_normal() && aRequest.Destination.has_filename()
+			&& aRequest.Destination.parent_path().has_filename();
+	}
+
+	/// \brief How many bytes a kept clone has received so far, while it runs.
+	using git_smart_clone_progress = std::function<void(std::uint64_t)>;
+
 	/// \brief [[BPR-1873]]. A transient, self-contained pack of what a linked
 	/// clone lacks of one head, owned by the host until the workspace is made
 	/// from it.
@@ -397,6 +427,15 @@ namespace bpr::application {
 		/// head for an agent workspace; transports without this capability refuse.
 		[[nodiscard]] virtual auto acquire_workspace_delta(const git_smart_workspace_delta_request&, std::stop_token)
 			-> git_smart_transport_result<std::shared_ptr<git_workspace_delta>>
+		{
+			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
+
+		/// \brief [[BPR-1879]]. Makes the full clone BetterPullReview keeps
+		/// for a repository, reporting bytes received; transports without this
+		/// capability refuse.
+		[[nodiscard]] virtual auto acquire_managed_clone(const git_smart_managed_clone_request&, const git_smart_clone_progress&, std::stop_token)
+			-> git_smart_transport_result<void>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}
