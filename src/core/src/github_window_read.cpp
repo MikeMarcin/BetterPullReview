@@ -60,6 +60,7 @@ namespace bpr::core {
 		FilesObserved        = false;
 		ConversationObserved = false;
 		DiscussionObserved   = false;
+		ChecksObserved       = false;
 		return true;
 	}
 
@@ -82,6 +83,7 @@ namespace bpr::core {
 			FilesObserved        = false;
 			ConversationObserved = false;
 			DiscussionObserved   = false;
+			ChecksObserved       = false;
 		}
 		if (State != before) {
 			Adoption.reset();
@@ -139,6 +141,16 @@ namespace bpr::core {
 		FilesObserved = true;
 		return true;
 	}
+	auto github_window_read::accept_checks_observation(const bpr_window_context            aWindow,
+													   const pull_request_request_context& aRequest) noexcept -> bool
+	{
+		if (aWindow != Window || !Session || State.PendingPullRequest != aRequest || !OverviewObserved || ChecksObserved) {
+			return false;
+		}
+		ChecksObserved = true;
+		return true;
+	}
+
 	auto github_window_read::accept_conversation_observation(const bpr_window_context                     aWindow,
 															 const pull_request_request_context&          aRequest,
 															 const github_conversation_observation_facts& aFacts,

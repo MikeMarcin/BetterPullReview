@@ -531,6 +531,9 @@ namespace bpr::qt {
 		/// meanwhile is remembered (`pending_open`) for the window to open once
 		/// the review is accepted.
 		void present_observed_files(const std::vector<core::cached_review_file>& aFiles);
+		/// \brief [[BPR-1895]]. Show complete results while other Status data loads.
+		void               present_observed_checks(const application::overview_checks_projection& aChecks);
+		[[nodiscard]] auto has_observed_checks() const noexcept -> bool;
 		/// \brief [[BPR-1842]]. The file a reviewer chose before the review was
 		/// accepted; empty when none waits.
 		[[nodiscard]] auto pending_open() const -> const QString&;
@@ -822,6 +825,7 @@ namespace bpr::qt {
 
 		std::optional<application::pull_request_overview_projection> Projection;
 		void                                                         present_checks(bool aSamePullRequest);
+		void                                                         restore_status_sections(const QString& aKey);
 		void                                                         present_selected_check();
 		drawer_section_header*                                       ChecksDisclosure      = nullptr;
 		QLabel*                                                      MergeState            = nullptr;
@@ -963,7 +967,8 @@ namespace bpr::qt {
 		bool        Observing     = false;
 		std::size_t ReportedFiles = 0U;
 		/// [[BPR-1842]]. The provisional file list is shown.
-		bool ObservedFiles = false;
+		bool                                                   ObservedFiles = false;
+		std::optional<application::overview_checks_projection> ObservedChecks;
 		/// [[BPR-1842]]. The file to open once the review is accepted.
 		QString                PendingOpen;
 		QString                ReadWaiting;

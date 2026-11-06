@@ -73,11 +73,13 @@
 #include <QTextTable>
 #include <QToolButton>
 #include <QTreeView>
+#include <QTreeWidget>
 #include <QWidget>
 
 #include "bpr/qt/anchored_tooltip.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/github_conversation_panel.hpp"
 
 #include <QHelpEvent>
@@ -7408,6 +7410,56 @@ namespace {
 		QApplication::processEvents();
 	}
 
+	void test_early_check_selection_survives_acceptance()
+	{
+		qt::workbench_window window{
+			qt::workbench_intent_dispatch{ }, qt::workbench_change_dispatch{ },
+			qt::workbench_drawer_width_dispatch{ }, profiles(), [](application::github_intent) { }
+		};
+		publish_session_ready(window);
+		const auto checks = application::overview_checks_projection{
+			.Checks    = { .Passed = 2U },
+			.CheckRows = {
+				{ .Identity = "first", .Name = "First", .Outcome = "Passed" },
+				{ .Identity = "second", .Name = "Second", .Outcome = "Passed" } }
+		};
+		const auto metadata = application::github_loading_overview_projection{
+			.Title = "Early results", .Owner = "owner", .RepositoryName = "repo", .Number = 1U
+		};
+		auto* const page = window.overview_page();
+		auto* const list = required_child<QTreeWidget>(window, "overviewCheckList");
+		const auto  load = [&] {
+			publish_first_read(window);
+			expect(list->topLevelItemCount() == 0, "a replacement read clears earlier checks before its metadata");
+			window.publish(application::github_presentation_update{ .LoadingOverview = metadata });
+			auto results   = metadata;
+			results.Checks = checks;
+			window.publish(application::github_presentation_update{ .LoadingOverview = std::move(results) });
+			expect(list->topLevelItemCount() == 2 && !page->projection(), "the window presents independent checks before acceptance");
+		};
+		load();
+		load();
+		page->status_section_header(qt::overview_status_section::checks)->click();
+		list->setCurrentItem(list->topLevelItem(1));
+		publish_pull_request(window);
+		auto accepted           = application::pull_request_overview_projection{ };
+		accepted.Owner          = metadata.Owner;
+		accepted.RepositoryName = metadata.RepositoryName;
+		accepted.Number         = core::pull_request_number{ 1U };
+		accepted.Checks         = checks.Checks;
+		accepted.CheckRows      = checks.CheckRows;
+		window.publish(accepted);
+		expect(list->currentItem() != nullptr && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("second")
+				   && page->status_section_header(qt::overview_status_section::checks)->isChecked(),
+			   "acceptance through the window keeps the nondefault check selection and disclosure");
+		for (const auto status : { core::github_status::pull_request_failed, core::github_status::pull_request_cancelled }) {
+			load();
+			window.publish(application::github_presentation_update{
+				.Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = status } } });
+			expect(list->topLevelItemCount() == 0 && !page->projection(), "failed and cancelled opens clear independent results");
+		}
+	}
+
 	/// \brief [[BPR-1200]]. Saves the window as it is, beside the build, when asked.
 	void save_refusal_course_render(qt::workbench_window& aWindow, const QString& aName)
 	{
@@ -9515,6 +9567,7 @@ auto main(int argc, char** argv) -> int
 	test_conversation_model_is_stable_and_incremental();
 	test_intent_translation_is_narrow_and_account_is_output_only();
 	test_held_read_paints_loading();
+	test_early_check_selection_survives_acceptance();
 	test_presentation_states_disclosures_and_responsive_layout();
 	test_connection_diagnostics_can_be_copied();
 	test_capability_refusal_detail_is_copyable_and_cleared();

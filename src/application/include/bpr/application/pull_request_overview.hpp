@@ -4,6 +4,7 @@
 #include "bpr/application/commit_filter_projection.hpp"
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/github_read_model.hpp"
+#include "bpr/application/overview_checks_projection.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/epoch_model.hpp"
@@ -95,6 +96,11 @@ namespace bpr::application {
 		pending,
 	};
 
+	/// [[BPR-1895]]. Read-only results while merge requirements are still loading.
+	[[nodiscard]] auto project_loading_overview_checks(const github_pull_request_record&       aPullRequest,
+													   const std::vector<github_check_record>& aChecks, github_collection_availability aRuns,
+													   github_collection_availability aStatuses) -> overview_checks_projection;
+
 	struct overview_participant
 	{
 		std::string               Login;
@@ -104,33 +110,6 @@ namespace bpr::application {
 		bool Viewer = false;
 
 		auto operator<=>(const overview_participant&) const = default;
-	};
-
-	struct overview_check_summary
-	{
-		std::size_t Passed  = 0U;
-		std::size_t Failed  = 0U;
-		std::size_t Pending = 0U;
-		std::size_t Skipped = 0U;
-		std::size_t Other   = 0U;
-
-		auto operator<=>(const overview_check_summary&) const = default;
-
-		[[nodiscard]] auto total() const noexcept -> std::size_t
-		{
-			return Passed + Failed + Pending + Skipped + Other;
-		}
-	};
-
-	/// \brief A bounded, literal result row, in failure/waiting/settled order.
-	struct overview_check_row
-	{
-		std::string Identity, Name, Producer, Kind, Outcome, Description, DetailsUrl;
-		std::string Requirement                                  = "Requirement unknown";
-		bool        Failed                                       = false;
-		bool        Pending                                      = false;
-		bool        LinkAvailable                                = false;
-		auto        operator<=>(const overview_check_row&) const = default;
 	};
 
 	/// \brief How GitHub's merge assessment reads at a glance.

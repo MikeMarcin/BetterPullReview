@@ -3,6 +3,7 @@
 
 #include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/application/github_read_progress.hpp"
+#include "bpr/application/overview_checks_projection.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/diff_model.hpp"
@@ -176,7 +177,9 @@ namespace bpr::application {
 		/// [[BPR-1842]]. The changed files as GitHub listed them, once their
 		/// pages have arrived; absent before. Rows to read, not files to open.
 		std::optional<std::vector<core::cached_review_file>> Files;
-		auto                                                 operator<=>(const github_loading_overview_projection&) const = default;
+		/// [[BPR-1895]]. Complete check pages, before merge rules and people.
+		std::optional<overview_checks_projection> Checks                                                       = std::nullopt;
+		auto                                      operator<=>(const github_loading_overview_projection&) const = default;
 	};
 
 	enum class cached_source_status : std::uint8_t { loading,

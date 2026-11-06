@@ -984,15 +984,18 @@ namespace bpr::application {
 											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
 			-> github_pull_request_overview_handler
 		{
-			// [[BPR-1893]]. Four observations at most: metadata, then the
-			// independent files, review threads and PR-wide comments, once each.
+			// [[BPR-1895]]. Five observations at most: metadata, then the
+			// independent files, threads, PR-wide comments and checks, once each.
 			auto posted = std::make_shared<std::atomic<std::uint8_t>>(std::uint8_t{ 0U });
 			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted, digests = BodyDigests](github_pull_request_overview_observation aObservation) {
-				if (aObservation.Context != aContext || aTerminal->load() || (aObservation.Conversation && aObservation.Discussion)) {
+				if (aObservation.Context != aContext || aTerminal->load() || (aObservation.Conversation && aObservation.Discussion)
+					|| (aObservation.Checks && (aObservation.Files || aObservation.Conversation || aObservation.Discussion))) {
 					return;
 				}
 				auto stage = std::uint8_t{ 1U };
-				if (aObservation.Discussion) {
+				if (aObservation.Checks) {
+					stage = 16U;
+				} else if (aObservation.Discussion) {
 					stage = 8U;
 				} else if (aObservation.Conversation) {
 					stage = 4U;
@@ -1063,9 +1066,18 @@ namespace bpr::application {
 			}
 			try {
 				auto projection = project_github_loading_overview(aObservation);
-				if (!projection
-					|| !(aObservation.Files ? Policy.accept_files_observation(Policy.window(), aObservation.Context)
-											: Policy.accept_overview_observation(Policy.window(), aObservation.Context))) {
+				if (!projection) {
+					return;
+				}
+				auto admitted = false;
+				if (aObservation.Checks) {
+					admitted = Policy.accept_checks_observation(Policy.window(), aObservation.Context);
+				} else if (aObservation.Files) {
+					admitted = Policy.accept_files_observation(Policy.window(), aObservation.Context);
+				} else {
+					admitted = Policy.accept_overview_observation(Policy.window(), aObservation.Context);
+				}
+				if (!admitted) {
 					return;
 				}
 				Publish({ Policy.window(), { }, { }, PublicPreviewRefusal, github_presentation_update{ .LoadingOverview = std::move(projection) } });

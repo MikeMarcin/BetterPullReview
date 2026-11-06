@@ -3409,13 +3409,14 @@ namespace bpr::qt {
 		show_value(overview_value::replies_to_me, since.RepliesToMe != 0U);
 		set_value(overview_value::my_unresolved_threads, count_text(since.MyUnresolvedThreads), false);
 		show_value(overview_value::my_unresolved_threads, since.MyUnresolvedThreads != 0U);
-		present_checks(samePullRequest);
+		present_checks(samePullRequest || ObservedChecks.has_value());
 		present_merge(aProjection);
 		if (!samePullRequest) {
 			RequirementDisclosure->setChecked(false);
 		}
 		RequirementDetails->setVisible(RequirementDisclosure->isChecked());
 		present_status(samePullRequest);
+		ObservedChecks.reset();
 
 		apply_pending();
 	}
@@ -3427,16 +3428,18 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present_checks(const bool aSamePullRequest)
 	{
-		const auto& shown = *Projection;
+		const auto& rows     = Projection ? Projection->CheckRows : ObservedChecks->CheckRows;
+		const auto& tally    = Projection ? Projection->Checks : ObservedChecks->Checks;
+		const auto  complete = Projection ? Projection->ChecksComplete : ObservedChecks->ChecksComplete;
+		const auto& note     = Projection ? Projection->ChecksNote : ObservedChecks->ChecksNote;
 		// [[BPR-1589]]. One bar of passed, failed and skipped, and their counts;
 		// a pull request with no results draws no Checks at all.
-		Sections[static_cast<std::size_t>(overview_status_section::checks)].Frame->setVisible(!shown.CheckRows.empty() || shown.Checks.total() != 0U);
-		auto summary = shown.Checks.total() == 0U ? QStringLiteral("No results yet") : checks_text(shown.Checks);
-		if (!shown.ChecksComplete) {
+		Sections[static_cast<std::size_t>(overview_status_section::checks)].Frame->setVisible((Loading && ObservedChecks.has_value()) || !rows.empty() || tally.total() != 0U);
+		auto summary = tally.total() == 0U ? QStringLiteral("No results yet") : checks_text(tally);
+		if (!complete) {
 			summary += QStringLiteral(" (partial)");
 		}
 		set_value(overview_value::checks, summary, false);
-		const auto& tally = shown.Checks;
 		ChecksMeter->set_segments({ { static_cast<double>(tally.Passed), Colours.Accepted },
 									{ static_cast<double>(tally.Failed), Colours.Defect },
 									{ static_cast<double>(tally.Pending), Colours.Caution } },
@@ -3444,13 +3447,13 @@ namespace bpr::qt {
 		ChecksMeter->setAccessibleName(QStringLiteral("Checks: %1").arg(summary));
 		ChecksDisclosure->set_count(tally.total() == 0U ? QString{ } : count_text(tally.total()));
 		ChecksDisclosure->setAccessibleName(QStringLiteral("Checks: %1").arg(summary));
-		ChecksNote->setText(text(shown.ChecksNote));
+		ChecksNote->setText(text(note));
 		ChecksNote->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		const auto           selected = aSamePullRequest && CheckList->currentItem() ? CheckList->currentItem()->data(0, Qt::UserRole).toString() : QString{ };
 		const auto           scroll   = aSamePullRequest ? CheckList->verticalScrollBar()->value() : 0;
 		const QSignalBlocker blocked{ CheckList };
 		auto                 desired = QSet<QString>{ };
-		for (const auto& row : shown.CheckRows) {
+		for (const auto& row : rows) {
 			desired.insert(text(row.Identity));
 		}
 		for (auto it = CheckItems.begin(); it != CheckItems.end();) {
@@ -3462,7 +3465,7 @@ namespace bpr::qt {
 			}
 		}
 		int position = 0;
-		for (const auto& row : shown.CheckRows) {
+		for (const auto& row : rows) {
 			const auto key  = text(row.Identity);
 			auto*      item = CheckItems.value(key, nullptr);
 			if (!item) {
@@ -3496,9 +3499,15 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present_selected_check()
 	{
-		const auto identity = CheckList->currentItem() ? CheckList->currentItem()->data(0, Qt::UserRole).toString().toStdString() : std::string{ };
-		const auto row      = Projection ? std::ranges::find(Projection->CheckRows, identity, &application::overview_check_row::Identity) : std::vector<application::overview_check_row>::iterator{ };
-		if (!Projection || row == Projection->CheckRows.end()) {
+		const auto                                          identity = CheckList->currentItem() ? CheckList->currentItem()->data(0, Qt::UserRole).toString().toStdString() : std::string{ };
+		const std::vector<application::overview_check_row>* rows     = nullptr;
+		if (Projection) {
+			rows = &Projection->CheckRows;
+		} else if (ObservedChecks) {
+			rows = &ObservedChecks->CheckRows;
+		}
+		const auto row = rows != nullptr ? std::ranges::find(*rows, identity, &application::overview_check_row::Identity) : std::vector<application::overview_check_row>::const_iterator{ };
+		if (rows == nullptr || row == rows->end()) {
 			CheckHeading->clear();
 			CheckDescription->clear();
 			CheckOpen->setEnabled(false);
@@ -3518,8 +3527,11 @@ namespace bpr::qt {
 		// As tall as its explanation, up to 140 pixels, then it scrolls.
 		const auto lines = static_cast<int>(std::ceil(CheckDescription->document()->size().height()));
 		CheckDescription->setFixedHeight(std::clamp((std::max(lines, 2) * CheckDescription->fontMetrics().lineSpacing()) + (2 * CheckDescription->frameWidth()) + 12, 48, 140));
-		CheckOpen->setEnabled(row->LinkAvailable);
+		CheckOpen->setEnabled(Projection.has_value() && row->LinkAvailable);
 		CheckOpen->setToolTip(row->LinkAvailable ? QStringLiteral("Open the supplied destination in your browser") : QStringLiteral("No admitted detail destination"));
+		if (!Projection) {
+			CheckOpen->setToolTip(QStringLiteral("Available when the review has loaded"));
+		}
 	}
 
 	void pull_request_overview_page::present_files_heading(const application::pull_request_overview_projection& aProjection)
@@ -3611,6 +3623,7 @@ namespace bpr::qt {
 		NewConversation.reset();
 		set_description_expanded(false);
 		Projection.reset();
+		ObservedChecks.reset();
 		// [[BPR-1852]]. Nothing presented is a draft, and no change is under way.
 		ShownDraft        = false;
 		ShownOpen         = false;
@@ -3747,11 +3760,16 @@ namespace bpr::qt {
 			}
 			aVeil.present(core::pending_activity::loading, false, false, { .Loading = std::move(aLoading), .Waiting = waiting, .Done = std::move(aDone) });
 		};
-		// The read's provisional answer brings the title and the description
-		// first; the catalogue and the side column come with the accepted review.
+		// Provisional sections become readable independently; anything not
+		// received yet keeps its own loading presentation.
 		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
 		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
-		section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
+		if (Loading && ObservedChecks) {
+			Veils.Side->present(core::pending_activity::loading, true, true,
+								{ .Waiting = waiting, .Coming = QStringLiteral("Loading reviewers, merge rules and review progress…") });
+		} else {
+			section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
+		}
 		// As many placeholder rows as GitHub reported files, once it has.
 		Veils.Files->set_placeholder_count(Observed ? static_cast<int>(std::min<std::size_t>(std::max<std::size_t>(ReportedFiles, 1U), 40U)) : 6);
 		if (Loading && ObservedFiles) {
@@ -3791,6 +3809,7 @@ namespace bpr::qt {
 		Loading       = true;
 		Observed      = true;
 		ReportedFiles = aObservation.ReportedFiles;
+		restore_status_sections(QStringLiteral("%1/%2#%3").arg(text(aObservation.Owner), text(aObservation.RepositoryName), QString::number(aObservation.Number)));
 		Title->setText(text(aObservation.Title));
 		Summary->setToolTip({ });
 		Summary->setAccessibleDescription({ });
@@ -3822,6 +3841,21 @@ namespace bpr::qt {
 			none->setText(QStringLiteral("Loading participants…"));
 		}
 		apply_pending();
+	}
+
+	void pull_request_overview_page::present_observed_checks(const application::overview_checks_projection& aChecks)
+	{
+		if (!Loading || !Observed || Cached || Projection) {
+			return;
+		}
+		ObservedChecks = aChecks;
+		present_checks(false);
+		apply_pending();
+	}
+
+	auto pull_request_overview_page::has_observed_checks() const noexcept -> bool
+	{
+		return ObservedChecks.has_value();
 	}
 
 	void pull_request_overview_page::present_observed_files(const std::vector<core::cached_review_file>& aFiles)
@@ -5632,23 +5666,26 @@ namespace bpr::qt {
 		SectionMemory.insert(SectionKey, open);
 	}
 
+	void pull_request_overview_page::restore_status_sections(const QString& aKey)
+	{
+		SectionKey       = aKey;
+		const auto open  = SectionMemory.value(SectionKey, 0U);
+		const auto saved = SectionKey;
+		SectionKey.clear();
+		for (std::size_t index = 0U; index < overview_status_section_count; ++index) {
+			Sections[index].Header->setChecked((open & (1U << index)) != 0U);
+			Sections[index].Details->setVisible(Sections[index].Header->isChecked());
+		}
+		SectionKey = saved;
+	}
+
 	void pull_request_overview_page::present_status(const bool aSamePullRequest)
 	{
 		const auto& shown  = *Projection;
 		const auto& status = shown.Status;
 		StatusNote->hide();
 		if (!aSamePullRequest) {
-			// A disclosure remembers its state for the pull request in this
-			// window; another pull request opens as it was left, or closed.
-			SectionKey       = QStringLiteral("%1/%2#%3").arg(text(shown.Owner), text(shown.RepositoryName), QString::number(shown.Number.value()));
-			const auto open  = SectionMemory.value(SectionKey, 0U);
-			const auto saved = SectionKey;
-			SectionKey.clear();
-			for (std::size_t index = 0U; index < overview_status_section_count; ++index) {
-				Sections[index].Header->setChecked((open & (1U << index)) != 0U);
-				Sections[index].Details->setVisible(Sections[index].Header->isChecked());
-			}
-			SectionKey = saved;
+			restore_status_sections(QStringLiteral("%1/%2#%3").arg(text(shown.Owner), text(shown.RepositoryName), QString::number(shown.Number.value())));
 		}
 
 		// My role: the strongest leads, the others follow faintly.

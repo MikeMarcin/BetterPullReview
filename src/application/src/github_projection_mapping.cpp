@@ -1,6 +1,7 @@
 #include "github_projection_mapping.hpp"
 #include "bpr/application/github_provider_port.hpp"
 #include "bpr/application/pull_request_link_location.hpp"
+#include "bpr/application/pull_request_overview.hpp"
 
 #include <algorithm>
 #include <charconv>
@@ -8,6 +9,7 @@
 #include <string>
 #include <string_view>
 #include <unordered_map>
+#include <unordered_set>
 #include <utility>
 #include <vector>
 
@@ -258,6 +260,23 @@ namespace bpr::application {
 				return std::nullopt;
 			}
 		}
+		auto checks = std::optional<overview_checks_projection>{ };
+		if (aObservation.Checks) {
+			const auto& observed = *aObservation.Checks;
+			if (!detail::valid_enum(observed.Runs) || !detail::valid_enum(observed.Statuses)
+				|| observed.Records.size() > limits.MaximumChecks) {
+				return std::nullopt;
+			}
+			auto identities = std::unordered_set<std::string_view>{ };
+			for (const auto& check : observed.Records) {
+				if ((!check.EvaluatedOid.value().empty() && check.EvaluatedOid != pr.HeadOid)
+					|| detail::validate_check(check, budget, limits) != github_read_validation_error::none
+					|| !identities.insert(check.Check.value()).second) {
+					return std::nullopt;
+				}
+			}
+			checks = project_loading_overview_checks(pr, observed.Records, observed.Runs, observed.Statuses);
+		}
 		return github_loading_overview_projection{
 			.Title           = pr.Title,
 			.Body            = pr.Body,
@@ -272,6 +291,7 @@ namespace bpr::application {
 			.RepositoryName  = repository.Name,
 			.Number          = pr.Number.value(),
 			.Files           = std::move(files),
+			.Checks          = std::move(checks),
 		};
 	}
 
