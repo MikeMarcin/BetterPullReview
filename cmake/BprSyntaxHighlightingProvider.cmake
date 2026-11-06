@@ -364,6 +364,16 @@ function(bpr_acquire_syntax_highlighting)
         bpr_syntax_forward(forwarded "${name}")
     endforeach()
 
+    # [[BPR-1901]]. The parent re-stages this pinned dependency whenever its
+    # source or forwarded inputs change. Visual Studio's per-project CMake
+    # checks otherwise race on data/CMakeFiles/generate.stamp during parallel
+    # builds. Suppress only those nested checks; ordinary file dependencies
+    # and the parent project's automatic reconfiguration remain active. This
+    # argument joins the signature below, invalidating older staged builds.
+    if(CMAKE_GENERATOR MATCHES "^Visual Studio ")
+        list(APPEND forwarded "-DCMAKE_SUPPRESS_REGENERATION=ON")
+    endif()
+
     # A multi-configuration generator builds and installs the framework once
     # per configuration into this one prefix, and the framework names its
     # library identically in every one of them, so without a postfix the last

@@ -24,3 +24,20 @@ the separately paused release candidate and its historical evidence stay intact.
   and artifact identity; real changed inputs still rebuild correctly.
 - AC3: Pass focused native build/invalidation controls and relevant tooling checks.
 - AC4: Land the verified change, completed card and one-line journal entry on main.
+
+## Investigation
+
+The retained candidate-21 Windows Debug build took 2,619.375 seconds. Its log
+names nine compiled C++ sources twice (module scanning and compilation), not
+eighteen separate compilations. The recorded process lifetimes put `link.exe`
+on the wall-clock path for 2,301.28 seconds and `cl.exe` for 95.57 seconds;
+those intervals overlap and are not additive. Removing implicit vcpkg input
+is tracked separately by [[BPR-1903]] and did not reduce warm retry time.
+
+A fresh native syntax dependency build then failed after 76.969 seconds:
+parallel Visual Studio projects tried to restore the same CMake generation
+stamp and reran configuration concurrently. The parent deliberately discards
+an incomplete staging tree on retry, repeating completed compilation. The
+current fix removes nested regeneration checks for this pinned, parent-owned
+build; the existing source/option signature continues to own invalidation.
+Native fresh-build, repeat-build and changed-input verification is in progress.
