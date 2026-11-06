@@ -1,0 +1,19 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v5",
+  "scope": {"issues": ["BPR-1888"]},
+  "milestones": [{
+    "id": "overlap-git-runtime-preparation",
+    "outcome": "The first comparison reuses Git runtime setup performed while GitHub was loading, without early repository or snapshot authority.",
+    "work": [{"issue": "BPR-1888"}],
+    "depends_on": [],
+    "exit_criteria": [
+      "Verify bounded non-authoritative preparation, exact admission reuse, cancellation and quiescence.",
+      "Measure optimized composed first-diff latency and retain the progressive loading behavior and read shape.",
+      "Complete the card and journal entry and land the verified round on main."
+    ],
+    "boundary": "Overlap existing local runtime setup with PR reads; preserve snapshot acceptance, repository access, commands and existing presentation."
+  }],
+  "coverage": "complete",
+  "unplanned_work": []
+}
