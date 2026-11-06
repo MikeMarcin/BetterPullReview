@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1886"
 title: "Validate conversation-model ancestry without repeated walks"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1886--BPR-1886--6d72c0e26776.json","related_cards":["BPR-1882"],"milestone_plan":{"id":"responsiveness-latency-v3","path":"docs/rfcs/plans/responsiveness-latency-v3/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"1722ae93d8c0d198677d6e72dd1b141d7494a124","evidence":{"kind":"observation","detail":"Ancestry classification visits each node once before changing parent edges; the independent generated oracle and new deep/cyclic tests preserve duplicate, missing, self-parent, cyclic and descendant behavior."}},{"criterion":"AC2","outcome":"pass","revision":"1722ae93d8c0d198677d6e72dd1b141d7494a124","evidence":{"kind":"observation","detail":"qt_github_conversation_model_property, qt_composed_github_scale_100, qt_github_conversation_panel and application_refresh_current_file_public_path pass. Exact trees, row ordering, incremental signals and persistent indexes are retained. The separately identified navigation-link overlap is also present in the pre-change render and is not accepted as correct layout."}},{"criterion":"AC3","outcome":"pass","revision":"1722ae93d8c0d198677d6e72dd1b141d7494a124","evidence":{"kind":"observation","detail":"Optimized serial five-sample model fixture improves the 10,000-comment depth-250 unchanged update median from 39.580 to 9.014 ms; flat controls and their 0.786 ms largest-sample increase are recorded without a universal speedup claim. No Debug timings."}},{"criterion":"AC4","outcome":"pass","revision":"1722ae93d8c0d198677d6e72dd1b141d7494a124","evidence":{"kind":"observation","detail":"Both changed translation units pass clang-format/tidy 22; documentation and whitespace checks pass. Card and one-line journal are complete, source is landed on main, and inherited architecture/manifest/unrelated lint failures are explicitly retained."}}]
 ---
 
 # BPR-1886: Validate conversation-model ancestry without repeated walks
@@ -90,3 +91,5 @@ The final documentation gate and `git diff --check` pass. The unchanged document
 composition inventory checks reuse the passing round-one evidence. The
 [journal](../../development/responsiveness-journal.md) has one entry for this
 improvement; the closeout records the landed source revision.
+
+Source, tests and journal landed on main at `1722ae93d8c0d198677d6e72dd1b141d7494a124`.
