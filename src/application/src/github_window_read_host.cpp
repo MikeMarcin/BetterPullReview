@@ -422,8 +422,8 @@ namespace bpr::application {
 			};
 			const auto cause = name(aCause);
 			if (pull_request_cancel_detail_prefix.size() + cause.size() <= event.Summary.Text.size()) {
-				auto* const end     = std::ranges::copy(pull_request_cancel_detail_prefix, event.Summary.Text.begin()).out;
-				const auto  written = std::ranges::copy(cause, end).out;
+				const auto end      = std::ranges::copy(pull_request_cancel_detail_prefix, event.Summary.Text.begin()).out;
+				const auto written  = std::ranges::copy(cause, end).out;
 				event.Summary.Size  = static_cast<std::uint16_t>(written - event.Summary.Text.begin());
 				event.Summary.State = diagnostic_summary_state::sanitized;
 			}
