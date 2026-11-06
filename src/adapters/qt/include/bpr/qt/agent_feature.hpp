@@ -28,11 +28,13 @@ namespace bpr::qt {
 	/// feature wears, before and after setup, so the agentic stands apart
 	/// from the ordinary at a glance.
 	///
-	/// \details A deep magenta in a light window and a soft one in a dark
-	/// window, each at least 4.5:1 against the window and base colours of
-	/// either kind (macOS's own and the profiles'). The hue is one no state
-	/// in the application uses: blue is unread and focus, green accepted,
-	/// red a defect, violet fixed, teal verified and amber the tour's route.
+	/// \details An indigo, deep in a light window and soft in a dark one,
+	/// each at least 4.5:1 against the window and base colours of either
+	/// kind (macOS's own and the profiles'). Owner look v001 ("red looks like
+	/// an error"): purple, blue or green. The hue (about 243°) sits about
+	/// 30° from both the link, focus and unread blue (212°) and the violet
+	/// that means fixed and merged (261°); green would read as added or
+	/// accepted, and amber is the tour's route.
 	[[nodiscard]] auto agent_accent(const QPalette& aPalette) -> QColor;
 
 	/// \brief [[BPR-1881]]. The accent as a disabled control's words: the

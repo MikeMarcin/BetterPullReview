@@ -88,6 +88,13 @@ accent):
   the owner's real agent.
 - `docs/architecture/review-tours.md` describes it.
 
+v002 (frontend-design skill loaded again), after the owner's v001 reject:
+only the accent changes, to an indigo: #4A3FD6 in a light window (7.1:1 on
+white, 5.7:1 on #E7E7E7) and #A3A0FF in a dark one (8.1:1 on #0D1117,
+5.5:1 on #323232). Its hue, about 243°, is about 30° from both the link,
+focus and unread blue (212°) and the violet that means fixed and merged
+(261°); green was not chosen because it reads as added or accepted.
+
 ## Attended review (AC4)
 
 - v001: frozen build of `101c59fe2` at
@@ -105,4 +112,6 @@ accent):
   `/Users/jaeger/.codex/attended-review/bpr1881-v001-SLFlPX/state`, repo root
   the implementing worktree, host started with `serve --tailscale`. One
   candidate, `BPR-1881-tour-agent-setup` (revision `101c59fe2-v001`), with one
-  Accept/Reject question. Status: ready, awaiting the owner.
+  Accept/Reject question. Owner verdict 2026-11-06, relayed by the
+  coordinator: **reject**, "I would prefer purple blue or green for the
+  agent, red looks like na error." Host to be stopped and root removed.
