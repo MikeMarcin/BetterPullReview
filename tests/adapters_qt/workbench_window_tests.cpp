@@ -14325,6 +14325,10 @@ namespace {
 		// nothing to wait on and they show, as before.
 		auto* const suggestions = agent->suggestions_widget();
 		expect(shown(suggestions) && !shown(agent->setup_prompt()), "with nothing to wait on, the suggestions show");
+		// [[BPR-1881]]. The Tour tab follows the Agent tab's own verdict.
+		auto* const tour     = window.tour_editor();
+		auto* const tourCall = tour->agent_setup_call();
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden(), "with nothing to wait on, the Tour tab's agent features are ready and it asks for no setup");
 		agent->adopt_setup(*window.agent_setup());
 		auto setup                       = application::agent_setup_projection{ };
 		setup.Detected                   = true;
@@ -14345,10 +14349,18 @@ namespace {
 			QApplication::setPalette(light);
 			process_events();
 		}
-		agent->setup_prompt()->findChild<QPushButton*>(QStringLiteral("agentSuggestionsSetupFinish"))->click();
+		// [[BPR-1881]]. The same verdict: the Tour tab says to set the agent
+		// up and its agent features wait, and neither opens the setup.
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !tourCall->isHidden() && agent->state() != qt::agent_tab_state::setting_up,
+			   "an unfinished setup puts the call to action on the Tour tab, and the setup does not open by itself");
+		auto* const tourDraft = tour->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+		expect(tourDraft != nullptr && !tourDraft->isEnabled() && tourDraft->toolTip().contains(QStringLiteral("not set up")), "the Tour tab's drafting waits for the setup, saying why");
+		// Its Set up the agent opens the Agent tab's setup where Finish setup
+		// does: its first unfinished step.
+		tourCall->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
 		process_events();
 		expect(agent->state() == qt::agent_tab_state::setting_up && window.agent_setup()->open_step() == core::setup_step::check && !shown(suggestions),
-			   "Finish setup opens the setup at Check it works, with no suggestions");
+			   "the Tour tab's Set up the agent, like Finish setup, opens the setup at Check it works, with no suggestions");
 		// The check passes: the setup finishes on its Ready line.
 		// [[BPR-1877]], owner 2026-11-05: the suggestions do not wait for that
 		// line to be closed; they show and can be pressed beside it.
@@ -14361,6 +14373,8 @@ namespace {
 		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && shown(suggestions) && shown(agent->suggestions_toggle())
 				   && !shown(agent->setup_prompt()),
 			   "with the setup's Ready line up, the suggestions show beside it");
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden() && tourDraft->isEnabled() && !tourDraft->toolTip().contains(QStringLiteral("not set up")),
+			   "once set up, the Tour tab's call to action goes and its drafting can be pressed");
 		const auto beside = agent->suggestion_buttons();
 		expect(!beside.empty() && std::ranges::all_of(beside, [&shown](const QPushButton* aButton) { return shown(aButton) && aButton->isEnabled(); }),
 			   "every suggestion beside the Ready line can be pressed");

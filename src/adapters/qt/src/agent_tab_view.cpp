@@ -728,15 +728,7 @@ namespace bpr::qt {
 		auto* const finish = new quiet_push_button{ tr("Finish setup"), SetupPrompt };
 		finish->setObjectName(QStringLiteral("agentSuggestionsSetupFinish"));
 		finish->setFlat(true);
-		connect(finish, &QPushButton::clicked, this, [this] {
-			// At the setup's first unfinished step, not pinned to it, so the
-			// setup closes on its Ready line once that step is done.
-			if (SetupView != nullptr) {
-				SetupView->begin(core::setup_step::ready);
-			} else if (Setup) {
-				Setup();
-			}
-		});
+		connect(finish, &QPushButton::clicked, this, [this] { open_setup(); });
 		setupRow->addWidget(finish, 0, Qt::AlignTop);
 		SetupPrompt->hide();
 		contentCol->addWidget(SetupPrompt);
@@ -994,6 +986,33 @@ namespace bpr::qt {
 	}
 
 	void agent_tab_view::set_setup_dispatch(std::function<void()> aDispatch) { Setup = std::move(aDispatch); }
+
+	void agent_tab_view::open_setup()
+	{
+		// At the setup's first unfinished step, not pinned to it, so the
+		// setup closes on its Ready line once that step is done.
+		if (SetupView != nullptr) {
+			SetupView->begin(core::setup_step::ready);
+		} else if (Setup) {
+			Setup();
+		}
+	}
+
+	auto agent_tab_view::setup_readiness() const -> agent_setup_readiness
+	{
+		if (SetupView != nullptr && !SetupView->projection().Detected) {
+			return agent_setup_readiness::checking;
+		}
+		const auto verdict = suggestions_verdict();
+		return verdict == core::agent_suggestions_verdict::no_agent || verdict == core::agent_suggestions_verdict::setup_unfinished ? agent_setup_readiness::unfinished : agent_setup_readiness::ready;
+	}
+
+	void agent_tab_view::set_readiness_observer(std::function<void()> aObserver)
+	{
+		ReadinessObserver = std::move(aObserver);
+		ToldReadiness.reset();
+		refresh_suggestions();
+	}
 
 	void agent_tab_view::focus_question()
 	{
@@ -1840,6 +1859,11 @@ namespace bpr::qt {
 		// prompts are not there, whatever else is on screen.
 		const auto known = SetupView == nullptr || SetupView->projection().Detected;
 		SetupPrompt->setVisible(conversing && known && verdict == core::agent_suggestions_verdict::setup_unfinished);
+		// [[BPR-1881]]. The Tour tab's agent features follow the same verdict.
+		if (const auto readiness = setup_readiness(); ReadinessObserver && ToldReadiness != readiness) {
+			ToldReadiness = readiness;
+			ReadinessObserver();
+		}
 	}
 
 	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict
@@ -2975,6 +2999,14 @@ namespace bpr::qt {
 			observer();
 		}
 		refresh();
+	}
+
+	void agent_tab_view::look_for_agents()
+	{
+		if (FirstShown) {
+			const auto observer = std::exchange(FirstShown, { });
+			observer();
+		}
 	}
 
 	void agent_tab_view::set_first_shown(std::function<void()> aObserver)

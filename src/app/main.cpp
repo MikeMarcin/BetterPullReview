@@ -6081,6 +6081,83 @@ namespace {
 		timer->start();
 	}
 
+	// [[BPR-1881]]. After `--attended-tour-authoring` opens the tour, the
+	// look waits for the agent setup to say whether it has finished, and
+	// draws the Tour tab. A person's session finds their own agents and has
+	// chosen none, so it ends on the call to action
+	// (ATTENDED_TOUR_SETUP_CALL_SHOWN). With BPR_ATTENDED_TOUR_AGENT_PATH the
+	// setup finds only the `claude` there and counts as set up
+	// (ATTENDED_TOUR_AGENT_READY). With BPR_ATTENDED_TOUR_SETUP=open the call
+	// to action is then pressed, and the window drawn once the Agent tab
+	// shows its setup (ATTENDED_TOUR_SETUP_OPENED). BPR_ATTENDED_TOUR_THEME=dark
+	// draws in the dark appearance.
+	void schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(80);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		const auto open  = qEnvironmentVariable("BPR_ATTENDED_TOUR_SETUP") == QStringLiteral("open");
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const editor = window.tour_editor();
+			const auto  root   = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
+			const auto  theme  = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
+			const auto  draw   = [&window, &root, &theme](const QString& aName) {
+				if (!root.isEmpty()) {
+					QCoreApplication::processEvents();
+					static_cast<void>(window.grab().save(root + QStringLiteral("/") + aName + theme + QStringLiteral(".png"), "PNG"));
+				}
+			};
+			const auto done = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 1'000) {
+				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2").arg(*step).arg(static_cast<int>(editor->agent_readiness())));
+				return;
+			}
+			if (*step == 0) {
+				// Waiting on the setup to find the agents and say what is missing.
+				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::checking) {
+					return;
+				}
+				if (qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark")) {
+					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
+					QCoreApplication::processEvents();
+				}
+				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
+					draw(QStringLiteral("app-tour-set-up"));
+					done(editor->agent_setup_call()->isVisible() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
+					return;
+				}
+				if (!editor->agent_setup_call()->isVisible()) {
+					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-setup-call"));
+					return;
+				}
+				draw(QStringLiteral("app-tour-not-set-up"));
+				if (!open) {
+					done(QStringLiteral("ATTENDED_TOUR_SETUP_CALL_SHOWN"));
+					return;
+				}
+				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+				*step = 1;
+				return;
+			}
+			if (!static_cast<QWidget*>(window.agent_setup())->isVisible()) {
+				return;
+			}
+			draw(QStringLiteral("app-tour-setup-opened"));
+			done(QStringLiteral("ATTENDED_TOUR_SETUP_OPENED"));
+		});
+		timer->start();
+	}
+
 	// [[BPR-1593]]. `--attended-tour-look`: on conventional-comments-v1, once
 	// the file shows, Prepare review tour opens the Tour tab and a private
 	// tour is written through its own gestures: the brief, then three stops
@@ -6159,6 +6236,7 @@ namespace {
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_SHOWN\n";
 					QTextStream{ stdout }.flush();
+					schedule_attended_tour_setup_look(aApplication);
 					return;
 				}
 				editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame, and resizing to zero width stalled the frame."));
@@ -10572,6 +10650,13 @@ auto main(int argc, char** argv) -> int
 		const auto attendedTourAuthoring      = attendedTourAuthoringAgent.has_value() && !attendedTourAuthoringAgent->empty();
 		if (attendedTourAuthoring) {
 			fixtureOptions.ClaudeAgentExecutable = std::filesystem::path{ std::string{ *attendedTourAuthoringAgent } };
+			// [[BPR-1881]]. The look's offscreen evidence finishes the setup
+			// with the `claude` on a search path of its own, never the
+			// person's own agents; the person's session finds theirs.
+			if (const auto search = qEnvironmentVariable("BPR_ATTENDED_TOUR_AGENT_PATH"); !search.isEmpty()) {
+				fixtureOptions.AttendedAgentSearch = false;
+				fixtureOptions.ClaudeSearch        = bpr::app::detail::claude_search_environment{ .PathVariable = search.toStdString() };
+			}
 		}
 		const auto attendedConversationLook = launch.has("--attended-conversation-look");
 		if (attendedConversationLook) {
