@@ -281,6 +281,34 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1875]]. A cancelled pull request read's cause exports as itself;
+	/// any other word after `cancel_cause=` is omitted.
+	void test_pull_request_cancel_cause_export()
+	{
+		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
+			for (const std::string_view detail : { "cancel_cause=reviewer", "cancel_cause=transport", "cancel_cause=session_retired", "cancel_cause=PRIVATE_REPOSITORY", "cancel_cause=reviewer PRIVATE_LOGIN" }) {
+				auto       line    = structured_line(1U, true);
+				const auto replace = [&line](std::string_view aFrom, std::string_view aTo) {
+					const auto at = line.find(aFrom);
+					expect(at != std::string::npos, "pull request fixture field exists");
+					line.replace(at, aFrom.size(), aTo);
+				};
+				replace(R"("event":"github.capability.failed")", R"("event":"github.pull_request.cancelled")");
+				replace(R"("severity":"error")", R"("severity":"info")");
+				replace(R"("op":"github.capability","outcome":"failed")", R"("op":"github.pull_request","outcome":"cancelled")");
+				replace(R"("http_status":403)", R"("http_status":0)");
+				const auto start = line.find("\"detail\":\"") + std::string_view{ "\"detail\":\"" }.size();
+				line.replace(start, line.find("\",\"epoch_stage\"", start) - start, detail);
+				const application::diagnostic_export_capture capture{ std::string{ session }, 1U, { }, { } };
+				const auto                                   document = application::prepare_diagnostic_export(line, core::release_maintenance_revision{ 1U }, { policy }, capture, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+				const bool                                   exact    = !detail.contains("PRIVATE");
+				expect(document && document->Descriptor.Records == 1U, "a cancelled pull request record exports under either policy");
+				expect((document->Bytes.find(detail) != std::string::npos) == exact, "and keeps exactly a known cause");
+				expect(document->Bytes.find("PRIVATE_") == std::string::npos, "and nothing private");
+			}
+		}
+	}
+
 	/// [[BPR-1828]]. Agent setup, workspace and review mutation lines export
 	/// as their enums, counts, duration and exit code under the `agent` or
 	/// `github` category; one with anything else in it is omitted.
@@ -964,6 +992,7 @@ auto main() -> int
 	test_actor_conflict_export();
 	test_review_submission_reason_export();
 	test_discovery_export();
+	test_pull_request_cancel_cause_export();
 	test_operation_export();
 	test_host_operation_export();
 	test_git_capability_step_export();

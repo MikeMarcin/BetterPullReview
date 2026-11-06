@@ -256,6 +256,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
+		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
@@ -5589,7 +5590,7 @@ namespace {
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
-	void schedule_attended_tour_look(bpr::app::github_application& aApplication);
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
 	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
@@ -5684,6 +5685,8 @@ namespace {
 						schedule_attended_conversation_look(aApplication);
 					} else if (look == "tour") {
 						schedule_attended_tour_look(aApplication);
+					} else if (look == "tour-authoring") {
+						schedule_attended_tour_look(aApplication, true);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
@@ -6080,7 +6083,10 @@ namespace {
 	// on lines of renderer.cpp (select the line, Add stop, write), the first
 	// marked Ready. The route is left showing the second stop open, for the
 	// person. Nothing reaches GitHub.
-	void schedule_attended_tour_look(bpr::app::github_application& aApplication)
+	// [[BPR-1878]]. `--attended-tour-authoring AGENT`: only the opening, so
+	// the person meets a new tour as an author does: Problem empty and open,
+	// with its agent help offering the fixture agent.
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication, const bool aBriefOnly)
 	{
 		struct stop_text
 		{
@@ -6097,7 +6103,7 @@ namespace {
 		timer->setInterval(60);
 		const auto step  = std::make_shared<int>(0);
 		const auto ticks = std::make_shared<int>(0);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, aBriefOnly, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6125,6 +6131,25 @@ namespace {
 			}
 			if (*step == 1) {
 				if (!idle) {
+					return;
+				}
+				if (aBriefOnly) {
+					timer->stop();
+					timer->deleteLater();
+	#if defined(BPR_AGENT_INTEGRATIONS)
+					// The fixture agent drafts; the menu still offers the others.
+					auto* const agents = window.agent_panel()->profile_selector();
+					if (const auto row = agents->findData(QVariant::fromValue<qulonglong>(bpr::core::claude_stream_json_profile_id.value())); row >= 0) {
+						agents->setCurrentIndex(row);
+					}
+	#endif
+					editor->show_problem();
+					QCoreApplication::processEvents();
+					if (const auto root = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER"); !root.isEmpty()) {
+						static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-authoring.png"), "PNG"));
+					}
+					QTextStream{ stdout } << "ATTENDED_TOUR_SHOWN\n";
+					QTextStream{ stdout }.flush();
 					return;
 				}
 				editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame, and resizing to zero width stalled the frame."));
@@ -10435,7 +10460,14 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1592]]. Private notes written at their lines.
 		const auto attendedNotesLook = launch.has("--attended-notes-look");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
-		const auto attendedTourLook         = launch.has("--attended-tour-look");
+		const auto attendedTourLook = launch.has("--attended-tour-look");
+		// [[BPR-1878]]. The new tour's first step, with the Claude stream-JSON
+		// fixture agent named here offered for drafting.
+		const auto attendedTourAuthoringAgent = launch.value("--attended-tour-authoring");
+		const auto attendedTourAuthoring      = attendedTourAuthoringAgent.has_value() && !attendedTourAuthoringAgent->empty();
+		if (attendedTourAuthoring) {
+			fixtureOptions.ClaudeAgentExecutable = std::filesystem::path{ std::string{ *attendedTourAuthoringAgent } };
+		}
 		const auto attendedConversationLook = launch.has("--attended-conversation-look");
 		if (attendedConversationLook) {
 			fixtureOptions.ReviewSubmissionServer                        = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
@@ -10573,6 +10605,7 @@ auto main(int argc, char** argv) -> int
 			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
 			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedNotesLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
 			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
+			|| (attendedTourAuthoring && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -11043,6 +11076,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedTourLook) {
 						look = std::string{ "tour" };
+					}
+					if (attendedTourAuthoring) {
+						look = std::string{ "tour-authoring" };
 					}
 					if (attendedPreflightLook.has_value()) {
 						look = attendedPreflightLook;

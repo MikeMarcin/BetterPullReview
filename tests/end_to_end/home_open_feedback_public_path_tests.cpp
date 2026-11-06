@@ -8,6 +8,7 @@
 // again; the Home bar's opening is said in Home's status band, which also
 // carries Home's general status. Nothing reaches a live provider.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_mouse.hpp"
 #include "bpr/app/profile_desktop.hpp"
@@ -33,6 +34,7 @@
 #include <QLineEdit>
 #include <QListView>
 #include <QListWidget>
+#include <QMessageBox>
 #include <QMouseEvent>
 #include <QPoint>
 #include <QPointer>
@@ -40,6 +42,7 @@
 #include <QStatusBar>
 #include <QTemporaryDir>
 #include <QThread>
+#include <QTimer>
 #include <QToolButton>
 
 #include <array>
@@ -85,10 +88,45 @@ namespace {
 	constexpr auto delay_ms = 3000U;
 	/// [[BPR-1679]]. How long the slow network holds each of Home's searches.
 	constexpr auto discovery_hold_ms = 10'000U;
-	constexpr auto served_name       = "octo-org/review-repository#17";
-	constexpr auto failing_name      = "octo-org/review-repository#4001";
+	/// [[BPR-1875]]. How long the slow network holds a refresh's retained read.
+	constexpr auto retained_hold_ms = 15'000U;
+	constexpr auto served_name      = "octo-org/review-repository#17";
+	constexpr auto failing_name     = "octo-org/review-repository#4001";
 
 	std::vector<QString>* Announcements = nullptr;
+
+	/// \brief [[BPR-1875]]. The detail of every `github.pull_request.cancelled`
+	/// line the profile's diagnostics file holds.
+	[[nodiscard]] auto cancelled_details(const std::filesystem::path& aRoot) -> std::vector<std::string>
+	{
+		auto           result = std::vector<std::string>{ };
+		const auto     log    = bpr::tests::read_diagnostic_logs(aRoot);
+		constexpr auto event  = std::string_view{ "\"event\":\"github.pull_request.cancelled\"" };
+		constexpr auto key    = std::string_view{ "\"detail\":\"" };
+		for (auto at = log.find(event); at != std::string::npos; at = log.find(event, at + 1U)) {
+			const auto start = log.find(key, at);
+			const auto end   = start == std::string::npos ? std::string::npos : log.find('"', start + key.size());
+			if (end == std::string::npos) {
+				break;
+			}
+			result.emplace_back(log.substr(start + key.size(), end - start - key.size()));
+		}
+		return result;
+	}
+
+	/// \brief [[BPR-1875]]. Every cancelled read in the file names its cause,
+	/// and the causes it names.
+	[[nodiscard]] auto cancel_causes(const std::filesystem::path& aRoot) -> std::vector<application::pull_request_cancel_cause>
+	{
+		auto causes = std::vector<application::pull_request_cancel_cause>{ };
+		for (const auto& detail : cancelled_details(aRoot)) {
+			const auto cause = application::parse_pull_request_cancel_detail(detail);
+			std::cerr << "github.pull_request.cancelled detail=" << detail << '\n';
+			expect(cause.has_value(), "every github.pull_request.cancelled line names its cause");
+			causes.push_back(*cause);
+		}
+		return causes;
+	}
 
 	void capture(QAccessibleEvent* const aEvent)
 	{
@@ -283,8 +321,10 @@ auto main(int aArgc, char** aArgv) -> int
 try {
 	QApplication application{ aArgc, aArgv };
 	QApplication::setQuitOnLastWindowClosed(false);
-	const auto    renderArgument  = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
-	const auto    renderDirectory = renderArgument >= 0 ? QApplication::arguments().value(renderArgument + 1) : QString{ };
+	const auto renderArgument  = QApplication::arguments().indexOf(QStringLiteral("--render-directory"));
+	const auto renderDirectory = renderArgument >= 0 ? QApplication::arguments().value(renderArgument + 1) : QString{ };
+	// [[BPR-1875]]. A CLI account, whose discovery reads beside the window's.
+	const auto    cliCourse = QApplication::arguments().contains(QStringLiteral("--gh-cli"));
 	QTemporaryDir temporary;
 	expect(temporary.isValid(), "private home-open course root");
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
@@ -297,7 +337,10 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	options.ReadDelay              = delay;
-	options.PersonalDiscovery      = app::detail::github_personal_discovery_fixture{
+	if (cliCourse) {
+		options.GithubCliDiscoveryAccounts = std::vector<app::detail::github_public_path_fixture_options::github_cli_discovery_account>{ { .Hostname = "github.com", .Login = viewer } };
+	}
+	options.PersonalDiscovery = app::detail::github_personal_discovery_fixture{
 		.OpenPullRequests = {
 			{ .Number = served, .Author = "contributor-a", .RequestedUsers = { viewer } },
 			{ .Number = failing, .Author = viewer, .RequestedUsers = { "alice" } },
@@ -321,7 +364,19 @@ try {
 	window->resize(1100, 760);
 
 	// Signed in, with the repository saved, so Home lists both pull requests.
-	window->home_landing()->primary_button()->click();
+	if (cliCourse) {
+		QTimer consent;
+		QObject::connect(&consent, &QTimer::timeout, [] {
+			if (auto* prompt = qobject_cast<QMessageBox*>(QApplication::activeModalWidget())) {
+				prompt->button(QMessageBox::Yes)->click();
+			}
+		});
+		consent.start(1);
+		window->home_landing()->secondary_button()->click();
+		wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "Home accepts the selected CLI account");
+	} else {
+		window->home_landing()->primary_button()->click();
+	}
 	wait_for([&] { return window->session_panel()->status() == core::github_status::session_ready; }, "Home sign-in reaches an account session");
 	window->open_repository_addition();
 	wait_for([&] { return window->repository_addition_draft()->isVisible() && window->saved_repository_name()->isEnabled(); }, "Settings opens the new-repository card");
@@ -342,6 +397,72 @@ try {
 	QApplication::processEvents();
 	expect(window->showing_home() && window->home_status_line()->isHidden(), "a quiet Home shows no status band");
 	expect(!window->home_open().has_value(), "nothing is being opened");
+
+	// ---- [[BPR-1875]] an open from Home is not cancelled by a discovery refresh
+	// The owner, 2026-11-05: an open started from Home was cancelled a few
+	// seconds after a discovery refresh began, and began again only once that
+	// refresh's long retained read had finished. The open's first answers are
+	// held, and the refresh's batched read of retained pull requests is held
+	// far longer than the open; the refresh begins just after the open, or a
+	// few seconds before it.
+	const auto refreshBesideOpen = [&](const char* aName, const bool aRefreshFirst) {
+		const auto discovery = [&] { return app::detail::github_application_fixture_access::personal_discovery_evidence(*owner); };
+		window->choose_home(true);
+		QApplication::processEvents();
+		wait_for([&] { return window->queue_refresh_action()->isEnabled() && discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; },
+				 "Home is current before the open");
+		const auto before           = discovery().Statistics;
+		const auto cancelledBefore  = delay->Cancelled.load();
+		delay->RetainedMilliseconds = retained_hold_ms;
+		const auto refresh          = [&] {
+			expect(window->queue_refresh_action()->isEnabled(), "Home can refresh");
+			window->queue_refresh_action()->trigger();
+			wait_for([&] { return discovery().Status.State == application::queue_discovery_state::refreshing; }, "the refresh begins");
+		};
+		if (aRefreshFirst) {
+			refresh();
+			wait_for([&] { return discovery().Statistics.Submitted > before.Submitted; }, "the refresh's retained read is on the wire");
+			pause(2000);
+		}
+		delay->Milliseconds         = delay_ms;
+		auto          cancelledSeen = false;
+		QElapsedTimer opening;
+		opening.start();
+		double_click(row_of(*window, aName));
+		expect(phase(*window) == core::home_open_phase::opening, "the row opens");
+		if (!aRefreshFirst) {
+			pause(200);
+			refresh();
+		}
+		wait_for([&] {
+			cancelledSeen = cancelledSeen || window->session_panel()->status() == core::github_status::pull_request_cancelled;
+			return !window->showing_home() && window->session_panel()->status() == core::github_status::pull_request_ready; },
+				 "the pull request opens", [&] { std::cerr << "status=" << static_cast<int>(window->session_panel()->status()) << " cancelled=" << delay->Cancelled.load() - cancelledBefore << '\n'; },
+				 static_cast<int>(2U * retained_hold_ms));
+		std::cerr << "opened " << aName << (aRefreshFirst ? " after" : " before") << " a refresh in " << opening.elapsed() << " ms; refreshing="
+				  << (discovery().Status.State == application::queue_discovery_state::refreshing) << " submitted=" << discovery().Statistics.Submitted - before.Submitted
+				  << " answered=" << discovery().Statistics.Answered - before.Answered << " preempted=" << discovery().Statistics.Preempted - before.Preempted << '\n';
+		expect(!cancelledSeen && delay->Cancelled.load() == cancelledBefore, "the open was never cancelled");
+		expect(opening.elapsed() < static_cast<qint64>(4U * delay_ms + 1000U), "without waiting for the refresh's retained read");
+		delay->Milliseconds         = 0U;
+		delay->RetainedMilliseconds = 0U;
+		wait_for([&] { return discovery().Status.State == application::queue_discovery_state::current && discovery().Quiescent; }, "Home's refresh finishes", { }, 30000);
+	};
+	const auto refreshAfterOpen = [&] {
+		refreshBesideOpen(served_name, false);
+		refreshBesideOpen(failing_name, true);
+	};
+	if (cliCourse) {
+		// [[BPR-1875]]. A CLI account's discovery reads on lanes of its own.
+		refreshAfterOpen();
+		owner->begin_shutdown();
+		wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
+		desktop.reset();
+		expect(cancel_causes(root).empty(), "no pull request read was cancelled");
+		expect(e2e::remove_course_root(temporary), "the course removes its private root");
+		std::cout << "home-open-feedback-cli-public-path:pass\n";
+		return EXIT_SUCCESS;
+	}
 
 	std::vector<QString> announcements;
 	Announcements       = &announcements;
@@ -693,12 +814,21 @@ try {
 		expect(discovery().Quiescent, "and discovery is quiet once it has");
 	}
 
+	refreshAfterOpen();
+
 	static_cast<void>(QAccessible::installUpdateHandler(previous));
 	Announcements       = nullptr;
 	delay->Milliseconds = 0U;
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");
 	desktop.reset();
+	// [[BPR-1875]]. The reads this course cancelled were the ones Cancel
+	// stopped, and the file says so.
+	{
+		const auto causes = cancel_causes(root);
+		expect(!causes.empty() && std::ranges::all_of(causes, [](const auto aCause) { return aCause == application::pull_request_cancel_cause::reviewer; }),
+			   "the only reads cancelled were the ones Home's Cancel stopped, named as the reviewer's");
+	}
 	expect(e2e::remove_course_root(temporary), "the course removes its private root");
 	std::cout << "home-open-feedback-public-path:pass\n";
 	return EXIT_SUCCESS;

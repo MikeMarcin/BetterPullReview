@@ -3032,6 +3032,19 @@ namespace {
 				   && wire.Correlation.AuthenticationSession == request.AuthenticationSession
 				   && std::get<application::github_pull_request_cancelled>(completions.front()).Request == request,
 			   "wire and completion preserve original window context and explicit credential provenance");
+		// [[BPR-1875]]. A cancelled answer says why: here the transport said
+		// cancelled though nothing asked the read to stop.
+		expect(std::get<application::github_pull_request_cancelled>(completions.front()).Source == application::github_pull_request_cancel_source::transport,
+			   "a transport's own cancellation is named as the transport's");
+		{
+			auto stopped = std::vector<application::github_pull_request_completion>{ };
+			fixture.Provider->fetch_pull_request(request, [&](auto aResult) { stopped.push_back(std::move(aResult)); });
+			fixture.Provider->cancel_pull_request(request);
+			fixture.Effects.run_next();
+			expect(stopped.size() == 1U && std::holds_alternative<application::github_pull_request_cancelled>(stopped.front())
+					   && std::get<application::github_pull_request_cancelled>(stopped.front()).Source == application::github_pull_request_cancel_source::stop_requested,
+				   "a read asked to stop is named as stopped");
+		}
 		for (const auto variant : { 0, 1, 2, 3, 4 }) {
 			auto forged = request;
 			if (variant == 0) {
