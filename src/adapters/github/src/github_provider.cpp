@@ -909,6 +909,22 @@ namespace bpr::adapters::github::detail {
 			return wasCancelled;
 		}
 
+		/// \brief [[BPR-1875]]. Why a pull request read ends cancelled: asked
+		/// to stop, the provider closing, or the transport answering
+		/// cancelled with no stop asked of it.
+		[[nodiscard]] auto
+		pull_request_cancel_source(const std::shared_ptr<provider_state>& aState,
+								   const std::shared_ptr<provider_job>&   aJob) noexcept
+			-> application::github_pull_request_cancel_source
+		{
+			if (!aJob->Stop.stop_requested()) {
+				return application::github_pull_request_cancel_source::transport;
+			}
+			const std::scoped_lock lock{ aState->Mutex };
+			return aState->Closing ? application::github_pull_request_cancel_source::provider_closing
+								   : application::github_pull_request_cancel_source::stop_requested;
+		}
+
 		template <typename Request>
 		void cancel_jobs(const std::shared_ptr<provider_state>& aState,
 						 const provider_phase                   aPhase,
@@ -2573,6 +2589,7 @@ namespace bpr::adapters::github::detail {
 			if (jobResult.error() == make_job_failure::closing) {
 				delivery->deliver(application::github_pull_request_cancelled{
 					.Request = std::move(aRequest),
+					.Source  = application::github_pull_request_cancel_source::provider_closing,
 				});
 			} else {
 				delivery->deliver(application::github_pull_request_error{
@@ -2602,6 +2619,7 @@ namespace bpr::adapters::github::detail {
 							application::github_pull_request_cancelled{
 								.Request           = aRequest,
 								.LastReadOperation = observer.LastOperation,
+								.Source            = pull_request_cancel_source(state, job),
 							});
 					};
 					const auto failed =
@@ -2611,6 +2629,7 @@ namespace bpr::adapters::github::detail {
 									application::github_pull_request_cancelled{
 										.Request           = aRequest,
 										.LastReadOperation = observer.LastOperation,
+										.Source            = pull_request_cancel_source(state, job),
 									});
 								return;
 							}
@@ -2986,6 +3005,7 @@ namespace bpr::adapters::github::detail {
 								application::github_pull_request_cancelled{
 									.Request           = aRequest,
 									.LastReadOperation = observer.LastOperation,
+									.Source            = pull_request_cancel_source(state, job),
 								});
 							return;
 						}
@@ -3004,6 +3024,7 @@ namespace bpr::adapters::github::detail {
 			if (wasCancelled) {
 				delivery->deliver(application::github_pull_request_cancelled{
 					.Request = std::move(aRequest),
+					.Source  = pull_request_cancel_source(state, job),
 				});
 			} else {
 				delivery->deliver(application::github_pull_request_error{
