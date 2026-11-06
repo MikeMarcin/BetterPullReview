@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1892"
 title: "A Tour tab agent request shows its failure on the Tour tab"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-06, coordinator chat: 'It's also weird that I have to switch to the agent tab to see my tour agent errors'","related_cards":["BPR-1878","BPR-1881","BPR-1891"]}
-parked_on: "human-review"
 acceptance: [{"criterion": "AC1 A failed Tour tab agent request shows a notice next to its control on the Tour tab, without a tab switch: one line saying it failed, in the words the Agent tab uses for that failure", "outcome": "pass", "revision": "4bee6df0f", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_failure passes (notice hidden until a failure; 'Draft from PR context failed. ' + agent_tab_view::run_failure_words(nonzero_exit); sits in the helper's panel right under its row; Suggest an outline's under it). The frozen build's own offscreen look printed ATTENDED_TOUR_AGENT_FAILURE:Enhance problem statement failed. Claude Code exited with an error before answering.", "path": "docs/issues/40-parked/BPR-1892-tour-agent-errors-on-the-tour-tab.md#implementation-2026-11-06"}}, {"criterion": "AC2 The notice's button opens the Agent tab at the failed run's card", "outcome": "pass", "revision": "4bee6df0f", "evidence": {"kind": "observation", "detail": "Show on the Agent tab calls the window's dispatch (qt test: once per press); in the frozen build offscreen, pressing it showed the Agent tab with 'Claude Code stopped before answering / Claude Code exited with an error before answering.' at the top (app-tour-agent-failure-agent-tab-light.png).", "path": "docs/issues/40-parked/BPR-1892-tour-agent-errors-on-the-tour-tab.md#implementation-2026-11-06"}}, {"criterion": "AC3 The notice clears when its request is made again or succeeds, and Dismiss hides it. Successful requests show nothing new", "outcome": "pass", "revision": "4bee6df0f", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_failure: Dismiss hides; pressing the helper or Suggest an outline again hides; clear_agent_failure (called by finish_writing on success or a stop the person asked for) hides.", "path": "docs/issues/40-parked/BPR-1892-tour-agent-errors-on-the-tour-tab.md#implementation-2026-11-06"}}, {"criterion": "AC4 Owner look: attended Accept/Reject on a frozen build that opens on a Tour tab showing a failure", "outcome": "pending", "revision": "4bee6df0f", "evidence": {"kind": "observation", "detail": "Session 98d6a84cfc7b4047df21682ea387eb07, candidate BPR-1892-tour-agent-failure (revision 4bee6df0f-v001), ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1892-tour-agent-errors-on-the-tour-tab.md#attended-review-ac4"}}, {"criterion": "AC5 python3 scripts/verify_documentation.py --root . passes", "outcome": "pass", "revision": "4bee6df0f", "evidence": {"kind": "command", "detail": "DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1892-tour-agent-errors-on-the-tour-tab.md#implementation-2026-11-06"}}]
 ---
 
@@ -104,3 +103,7 @@ frontend-design skill loaded before the UI work.
   root the implementing worktree, host started with `serve --tailscale`. One
   candidate, `BPR-1892-tour-agent-failure` (revision `4bee6df0f-v001`), one
   Accept/Reject question. Status: ready, awaiting the owner.
+
+## Accepted
+
+The owner accepted v001 on 2026-11-06 (attended review, no note).
