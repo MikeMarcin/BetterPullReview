@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1873"
 title: "An agent's workspace comes from a linked or BetterPullReview-managed clone, never a head snapshot download"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-05: agent question on a large repository's newly pushed head stopped with 'Downloading the rest failed' (transport failure 1, step 9)","related_cards":["BPR-1738","BPR-1751","BPR-1755","BPR-1772"],"related_rfcs":["RFC-BPR-0092"]}
-acceptance: []
+acceptance: [{"criterion": "AC1 Linked clone lacking the head: only the head is fetched into the private workspace; the clone is byte-identical; the pack holds only what the clone lacks", "outcome": "pass", "revision": "2fdabb302", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|git_process_contract)$'", "detail": "Real Git through the fake gh against a fixture clone missing one commit: the self-contained pack holds exactly that commit, its tree and two blobs, none in the clone; the clone's files are byte-identical before and after. The workspace borrows the clone and indexes the pack, never shallow. Live on BPR-Test PR #150: 16 haves, a 3,467-byte pack of five objects none in the clone, clone unchanged."}}, {"criterion": "AC2 Linked clone holding the head: unchanged, no fetch", "outcome": "pass", "revision": "2fdabb302", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^application_epoch_host$'", "detail": "A clone that holds the head lends it with no delta request and no pack."}}, {"criterion": "AC3 No clone and no remembered choice: the link / let-BPR-keep-one / PR-only choice before the query, remembered per repository, editable in Agent settings", "outcome": "pending", "revision": "2fdabb302", "evidence": {"kind": "observation", "detail": "The Repository step is the once-per-repository question before any Ask, remembered and changed or forgotten in Settings > Repositories > Linked clones (qt_agent_setup_view). For a sparse review it offers linking a clone (default) and Ask about this pull request only with its cost. Let BetterPullReview keep one is not built (see AC4). The look is pending in attended session 235e4b41566ab45170a77cfaf145db2b."}}, {"criterion": "AC4 BPR-managed clone: created once with stated size and location, cancellable, reused, removed by purge and shown in Storage", "outcome": "pending", "revision": "2fdabb302", "evidence": {"kind": "observation", "detail": "Not built. A full clone needs its own acquisition path without the 32 MiB/96 MiB temporary-store limits, a long-running cancellable job with progress, a profile-owned location in Storage and purge, and GitHub's size in the setup facts."}}, {"criterion": "AC5 PR-only: the workspace holds exactly the files the review holds, and the run says so", "outcome": "pass", "revision": "2fdabb302", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(application_epoch_host|git_process_contract|qt_agent_launch_panel|core_review_skill|application_review_skill_host)$'", "detail": "With no clone the host gives the workspace exactly the head's side of base...head (deletions and submodules excepted), from held bytes, batch reads and single reads, each checked against its blob; the Git adapter sparse-checks-out exactly those paths from the cache's commit and trees: the rest of the head is absent, git status is clean, shallow at the head. The brief says private_snapshot, the review skill (bpr-version 4) tells the agent to say so, and the turn's footer says It sees / It saw only this pull request's files."}}, {"criterion": "AC6 No code path runs a head snapshot clone, guarded by architecture_boundaries or a contract test", "outcome": "pass", "revision": "2fdabb302", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(architecture_boundaries|gh_cli_git_smart_transport)$'", "detail": "architecture_boundaries refuses the removed snapshot names, any second exact-revision or depth clone compiler, and a --depth not followed unconditionally by --filter=blob:none (checked to fail when the filter was made conditional); the contract test asserts the compiled arguments."}}, {"criterion": "AC7 A delta over a bound reports too_large naming the PR's new objects; no size failure reports as could not be read", "outcome": "pass", "revision": "2fdabb302", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_epoch_host|qt_agent_launch_panel)$'", "detail": "A clone stopped at the per-file limit is response_limit whether the kernel ends gh or Git exits non-zero; the host maps it to too_large with the pull request's new objects in its words, never could not be read."}}, {"criterion": "AC8 The documentation gate passes with the RFC amendment", "outcome": "pass", "revision": "2fdabb302", "evidence": {"kind": "command", "command": "python3 scripts/verify_documentation.py --root .", "detail": "DOCUMENTATION_OK with RFC-BPR-0092's amendment."}}]
 ---
 
 # BPR-1873: An agent's workspace comes from a linked or BetterPullReview-managed clone, never a head snapshot download
@@ -263,11 +263,33 @@ agent at all (it says to link a clone); before slice 1 a small repository's
 head was downloaded whole. This is the owner's decision applied without its
 PR-only fallback yet.
 
-### Left for slice 2
+### Slice 2: the pull request only and the Repository step's choice
 
-Change 2: the no-clone choice in the agent panel (AC3), the
-BetterPullReview-managed clone with its stated size, progress, cancel, reuse,
-Storage and purge (AC4), and the PR-only workspace with its run header
-(AC5). The choice is UX: load `frontend-design:frontend-design` before
-designing it, and its look goes to an attended Accept/Reject review. AC8 is
-met for slice 1's amendment and is rechecked with slice 2's.
+- `a36f51b62`: with no clone the workspace holds only the pull request's
+  files (AC5), read through the review's lease and checked against their
+  blobs, sparse-checked-out from the cache's commit and trees, shallow at the
+  head. The brief, the review skill (`bpr-version` 4) and the turn's footer
+  say so. This removes slice 1's interim refusal.
+- `42a759f41`: the Repository step (already the once-per-repository question
+  before an Ask, remembered, changed in Settings) offers **Ask about this
+  pull request only** for a sparse review, after linking a clone, with its
+  cost. `frontend-design:frontend-design` was loaded first.
+- `485f17beb`, `2fdabb302`: the setup facts' `Sparse` flag, never set
+  before, now follows the accepted handoff.
+
+## Attended review
+
+Fresh short session `235e4b41566ab45170a77cfaf145db2b`, state
+`/Users/jaeger/.mask/bpr-1873-v001-20261105/attended-review`, candidate
+`BPR-1873-no-clone-choice` (AC3's look, Accept/Reject), ready, Tailscale host
+started for the owner. The candidate is offscreen renders of the setup view
+at `2fdabb302` in light and dark: the fixture-backed frozen build reads its
+reviews completely, so it cannot show a sparse review's Repository step.
+
+### Left
+
+The BetterPullReview-managed clone (AC4, and AC3's third option): a full
+clone without the transport's temporary-store limits, a cancellable
+background job with progress, its size from GitHub's `size`, a profile-owned
+location shown in Storage and removed by purge, then borrowed as the linked
+clone so later questions fetch only deltas. Recommended as its own card.
