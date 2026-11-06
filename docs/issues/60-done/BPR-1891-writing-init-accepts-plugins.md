@@ -17,7 +17,7 @@ acceptance: [{"criterion":"AC1","outcome":"pass","revision":"0293ff604","evidenc
 ## Observed
 
 The owner, 2026-11-06, on a Mac with my-agent (managed Claude Code settings).
-Claude Code 2.1.314 runs through my-agent's `vscode-wrapper`. Asking the
+Claude Code 2.1.314 runs through the wrapper's `vscode-wrapper`. Asking the
 review tour to write a message stopped at once:
 
 - Card: "my-agent answered in a form this app can't read."
@@ -28,7 +28,7 @@ review tour to write a message stopped at once:
 
 Agent chat on the same profile, Claude and wrapper worked.
 
-Reproduced by running the my-agent-bundled Claude 2.1.314 directly with
+Reproduced by running the wrapper-bundled Claude 2.1.314 directly with
 `claude_writing_restrictions` verbatim, in an empty folder. The init frame
 reports `tools: []`, `mcp_servers: []`, `skills: []` and no `memory_paths`,
 plus this:
@@ -206,7 +206,7 @@ Fixture init frame (Claude Code 2.1.314, captured 2026-11-06; `cwd`,
 ## Out of scope
 
 - Whether chat should also report the plugins it loaded in diagnostics.
-- my-agent's PTY handling of piped stdin (`my-agent` binary vs.
+- the wrapper's PTY handling of piped stdin (`my-agent` binary vs.
   `vscode-wrapper`), a separate my-agent defect.
 
 ## Acceptance note (2026-11-06)
