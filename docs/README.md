@@ -75,6 +75,7 @@ Engineering references behind the user guides:
 
 - [RFC index](rfcs/README.md): designs and their status
 - [Issue board](issues/README.md): work items; a card's folder is its status
+- [Responsiveness journal](development/responsiveness-journal.md): one line per verified improvement
 - [Master verification matrix](verification/master-verification-matrix.md)
 - [Release gates](verification/release-gates.md)
 - [Foundation security baseline](security/foundation-security.md)

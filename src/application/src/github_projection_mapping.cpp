@@ -9,6 +9,7 @@
 #include <string_view>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace bpr::application {
 	namespace {
@@ -149,55 +150,84 @@ namespace bpr::application {
 				: github_conversation_anchor_availability::missing_current_line;
 		}
 
-		using review_comments_by_id
-			= std::unordered_map<std::string_view, const github_review_comment_record*>;
-
-		/// \brief Resolves the parent identity of one review comment.
-		///
-		/// A reply's parent is the comment it replied to, so that the projected
-		/// forest carries the shape GitHub reported rather than one flattened
-		/// against the thread. Three inputs cannot produce that shape and each
-		/// falls back to the thread root, because a projection that drops a
-		/// comment is worse than one that under-nests it:
-		///
-		/// - no `ReplyTo`, which is what a thread's first comment carries;
-		/// - a `ReplyTo` naming a comment outside this thread, which happens
-		///   when the target was deleted or fell outside the fetched page;
-		/// - a chain that never reaches a comment without a `ReplyTo`, which a
-		///   cycle produces and which would otherwise leave every comment in
-		///   the cycle descending from no root at all.
-		[[nodiscard]] auto review_comment_parent(
-			const github_review_comment_record& aComment,
-			const review_comments_by_id&        aCommentsById,
-			const std::string_view              aThreadId) -> std::string
+		/// \brief Resolves each thread's ancestry once, without recursion.
+		/// \details Missing parents, cycles and descendants of cycles retain
+		/// the thread-root fallback. Every other reply keeps its immediate
+		/// parent, including a parent whose own parent is missing. [[BPR-1882]]
+		class review_comment_parents final
 		{
-			auto threadRoot = std::string{ aThreadId };
-			if (!aComment.ReplyTo.has_value()) {
-				return threadRoot;
-			}
-			const auto target = aCommentsById.find(aComment.ReplyTo->value());
-			if (target == aCommentsById.end()) {
-				return threadRoot;
+			enum class ancestry : std::uint8_t { unknown,
+												 visiting,
+												 rooted,
+												 cyclic };
+			struct node
+			{
+				const github_review_comment_record* Comment;
+				ancestry                            State = ancestry::unknown;
+			};
+
+		public:
+			explicit review_comment_parents(const std::vector<github_review_comment_record>& aComments)
+			{
+				Nodes.reserve(aComments.size());
+				for (const auto& comment : aComments) {
+					Nodes.try_emplace(comment.Comment.value(), node{ &comment });
+				}
 			}
 
-			// Walk upward from the target. Every comment in the thread can be
-			// visited at most once before a chain must have terminated, so a
-			// walk that outlives that bound is in a cycle.
-			const auto* walk = target->second;
-			for (auto remaining = aCommentsById.size(); remaining != 0U; --remaining) {
-				if (!walk->ReplyTo.has_value()) {
-					return prefixed_id("review-comment:", aComment.ReplyTo->value());
+			/// \brief Keeps the immediate parent unless its ancestry is cyclic.
+			[[nodiscard]] auto parent_of(const github_review_comment_record& aComment, std::string_view aThreadId) -> std::string
+			{
+				auto* target = parent_node(aComment);
+				if (target == nullptr || !rooted(*target)) {
+					return std::string{ aThreadId };
 				}
-				const auto next = aCommentsById.find(walk->ReplyTo->value());
-				if (next == aCommentsById.end()) {
-					// The chain leaves the thread, so the comment it leaves
-					// through takes the thread root and this one still descends
-					// from it.
-					return prefixed_id("review-comment:", aComment.ReplyTo->value());
-				}
-				walk = next->second;
+				return prefixed_id("review-comment:", aComment.ReplyTo->value());
 			}
-			return threadRoot;
+
+		private:
+			auto parent_node(const github_review_comment_record& aComment) -> node*
+			{
+				if (!aComment.ReplyTo) {
+					return nullptr;
+				}
+				const auto found = Nodes.find(aComment.ReplyTo->value());
+				return found == Nodes.end() ? nullptr : &found->second;
+			}
+
+			auto rooted(node& aStart) -> bool
+			{
+				if (aStart.State != ancestry::unknown) {
+					return aStart.State == ancestry::rooted;
+				}
+				Path.clear();
+				auto* current = &aStart;
+				while (current != nullptr && current->State == ancestry::unknown) {
+					current->State = ancestry::visiting;
+					Path.push_back(current);
+					current = parent_node(*current->Comment);
+				}
+				const auto state = current == nullptr || current->State == ancestry::rooted ? ancestry::rooted : ancestry::cyclic;
+				for (auto* entry : Path) {
+					entry->State = state;
+				}
+				return state == ancestry::rooted;
+			}
+
+			std::unordered_map<std::string_view, node> Nodes;
+			std::vector<node*>                         Path;
+		};
+
+		auto conversation_count(const github_pull_request_snapshot& aSnapshot) -> std::size_t
+		{
+			auto count = aSnapshot.Reviews.size() + aSnapshot.ReviewThreads.size() + aSnapshot.IssueComments.size();
+			for (const auto& thread : aSnapshot.ReviewThreads) {
+				count += thread.Comments.size();
+			}
+			for (const auto& group : aSnapshot.ReviewCommentGroups) {
+				count += 1U + group.Replies.size();
+			}
+			return count;
 		}
 	}
 
@@ -344,9 +374,7 @@ namespace bpr::application {
 		-> github_pull_request_projection
 	{
 		std::vector<github_conversation_projection> conversations;
-		conversations.reserve(
-			aSnapshot.Reviews.size() + aSnapshot.ReviewThreads.size()
-			+ aSnapshot.IssueComments.size());
+		conversations.reserve(conversation_count(aSnapshot));
 
 		for (const auto& review : aSnapshot.Reviews) {
 			conversations.push_back(github_conversation_projection{
@@ -391,17 +419,12 @@ namespace bpr::application {
 					? std::nullopt
 					: std::optional{ aSnapshot.ConversationLock == github_conversation_lock::locked },
 			});
-			auto commentsById = review_comments_by_id{ };
-			commentsById.reserve(thread.Comments.size());
-			for (const auto& comment : thread.Comments) {
-				commentsById.try_emplace(comment.Comment.value(), &comment);
-			}
+			auto parents = review_comment_parents{ thread.Comments };
 
 			for (const auto& comment : thread.Comments) {
 				conversations.push_back(github_conversation_projection{
-					.Id = prefixed_id("review-comment:", comment.Comment.value()),
-					.ParentId
-					= review_comment_parent(comment, commentsById, threadId),
+					.Id                 = prefixed_id("review-comment:", comment.Comment.value()),
+					.ParentId           = parents.parent_of(comment, threadId),
 					.Kind               = github_conversation_kind::review_comment,
 					.AuthorLogin        = author_login(comment.Author),
 					.Body               = reading_body(comment.Body, comment.Observation),

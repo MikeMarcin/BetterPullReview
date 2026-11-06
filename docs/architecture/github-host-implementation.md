@@ -344,9 +344,19 @@ Qt Open QAction
 
 Refresh submits the active immutable pull-request key under a new request
 generation. The old accepted snapshot may remain visibly marked as refreshing,
-but an incomplete, failed, canceled, or stale replacement never partially
-changes it. A successful accepted snapshot is compared by stable identity and
-published as bounded metadata and conversation changes.
+but an incomplete, failed, canceled, or stale replacement never takes over its
+snapshot identity or epoch authority. A successful accepted snapshot is compared
+by stable identity and published as bounded metadata and conversation changes.
+
+For an authenticated refresh with review-thread support, the provider reads
+reviews and complete review threads after the file catalogue and before commit
+pagination. The host can publish that bounded conversation observation early
+only when its request identity and base/head still match the accepted review
+(BPR-1851, BPR-1883). It grants no new snapshot or epoch authority. The existing
+comparison stays visible; Qt shows “Refreshing remaining details…” until the
+whole refresh settles. Commit validation and all remaining reads still govern
+final snapshot acceptance. First-open and signed-out reads keep their existing
+order.
 
 ## Staged snapshot acceptance
 
