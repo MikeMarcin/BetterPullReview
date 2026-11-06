@@ -103,6 +103,21 @@ places are the same controls, moved, so the model, publication and recovery
 below are unchanged. The section stack keeps its four pages (Problem,
 Solution, stops, preview) with no visible tabs.
 
+Since [[BPR-1878]] the tab opens with agent help: a **Drafting agent** menu
+that shares the Agent tab's menu model, so one choice shows in both, and one
+line saying what that agent will do for drafting (it cannot write tour text,
+another agent writes instead, it is busy). With no agent offered the menu
+gives way to that reason and **Set up an agent**, which opens Settings at
+Agents & context; a read-only draft shows no agent help. Each field's
+helper uses RFC-BPR-0043's labels: **Draft from PR context** on an empty
+Problem or Solution (the description's own section when it has one,
+otherwise the agent's draft), **Enhance problem statement**, **Enhance
+solution** or **Enhance comment** on written text, **Enhance selection** on
+a selection, and **Generate comment** on an empty stop. **Copy selected
+description text** copies the selection in the description's Source view
+into the field. Moving on is **Next: Solution** or **Next: Stops**, on its
+own row after the helpers. No notice names a control the tab lacks.
+
 The stop editor retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
 The context menu offers insert after, duplicate, merge selected adjacent stops,
