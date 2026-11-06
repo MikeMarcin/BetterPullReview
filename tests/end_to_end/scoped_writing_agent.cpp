@@ -156,6 +156,12 @@ int main(int argc, char** argv)
 		result = R"({"schema":"bpr.review-preparation.result.v1","kind":"rewrite","status":"ok","replacement_text":")" + std::string(40000, 'x') + R"(","notes":[]})";
 	}
 	const auto encoded = escape(result);
+	if (input.find("THINKING_CANARY") != std::string::npos) {
+		// [[BPR-1899]]. Thinking turned on over this app's settings: Claude
+		// Code writes each block as its own assistant frame under one id.
+		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"thought","role":"assistant","content":[{"type":"thinking","thinking":"THOUGHT_CONTENT_CANARY","signature":"THOUGHT_SIGNATURE_CANARY"}]}})" << '\n'
+				  << R"({"type":"assistant","session_id":"fixture","message":{"id":"thought","role":"assistant","content":[{"type":"redacted_thinking","data":"THOUGHT_REDACTED_CANARY"}]}})" << '\n';
+	}
 	std::cout << "{\"type\":\"assistant\",\"session_id\":\"fixture\",\"message\":{\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"" << encoded << "\"}]}}\n";
 	std::cout << "{\"type\":\"rate_limit_event\",\"session_id\":\"fixture\",\"rate_limit_info\":{}}\n";
 	std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"fixture\",\"is_error\":false,\"result\":\"" << encoded << "\"}\n";

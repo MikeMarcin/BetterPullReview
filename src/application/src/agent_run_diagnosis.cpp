@@ -67,6 +67,9 @@ namespace bpr::application {
 		if (aDiagnosis.AutoMemory) {
 			text += " memory=on";
 		}
+		if (aDiagnosis.Thinking) {
+			text += " thinking=on";
+		}
 		return text;
 	}
 
@@ -126,6 +129,11 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				result.AutoMemory = true;
+			} else if (key == "thinking") {
+				if (value != "on") {
+					return std::nullopt;
+				}
+				result.Thinking = true;
 			} else {
 				return std::nullopt;
 			}
@@ -171,6 +179,7 @@ namespace bpr::application {
 				   .StandardErrorBytes  = result.StandardError.size(),
 				   .Plugins             = result.ReportedPlugins,
 				   .AutoMemory          = result.ReportedAutoMemory,
+				   .Thinking            = result.ReportedThinking,
 			   });
 		return result;
 	}

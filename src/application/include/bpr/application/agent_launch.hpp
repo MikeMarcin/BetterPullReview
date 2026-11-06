@@ -452,6 +452,10 @@ namespace bpr::application {
 		/// auto-memory folder. Carries no text: the path holds the user's
 		/// home folder name. For diagnostics only.
 		auto_memory_reported,
+		/// [[BPR-1899]]. A writing run's Claude wrote a `thinking` or
+		/// `redacted_thinking` block. Carries no text: the block's content
+		/// is dropped unread. For diagnostics only.
+		thinking_reported,
 		/// Owner look v006. A catalog run's `model/list` result, its exact
 		/// bytes; the loop keeps it and closes the input.
 		model_catalog,
@@ -689,6 +693,9 @@ namespace bpr::application {
 		/// [[BPR-1896]]. Whether a writing run's Claude reported an
 		/// auto-memory folder, as `auto_memory_reported` says.
 		bool ReportedAutoMemory = false;
+		/// [[BPR-1899]]. Whether a writing run's Claude wrote a thinking
+		/// block, as `thinking_reported` says. Never its content.
+		bool ReportedThinking = false;
 		/// Owner look v006. A catalog run's `model/list` result, as written.
 		std::optional<std::string> ModelCatalog;
 		/// [[BPR-1827]]. Every byte the agent wrote to standard output,
