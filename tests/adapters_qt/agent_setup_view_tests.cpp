@@ -311,50 +311,63 @@ namespace {
 		expect(test.Intents.back() == "private-copy", "the private copy is one press away");
 		render(test.View, QStringLiteral("noclone"));
 
-		// [[BPR-1873]], [[BPR-1879]] owner look v004. A sparse review with no
-		// clone found: where the agent's code comes from is one choice between
-		// cards, with one button acting on the card chosen and choosing a
-		// folder beside it.
+		// [[BPR-1873]], [[BPR-1879]] owner look v005. A sparse review with no
+		// clone found: one choice between cards in order of strength, the
+		// reviewer's own clone first, chosen and recommended, and one button
+		// acting on the card chosen.
 		test.Facts.Sparse = true;
 		test.show();
-		auto* const onlyCard = test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"));
-		auto* const cost     = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
-		auto* const only     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
-		expect(onlyCard != nullptr && cost != nullptr && only != nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
-				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr && cost->text() == QStringLiteral("Weaker answers: no callers, tests or history")
-				   && only->text() == QStringLiteral("Use this pull request") && only->isDefault() && test.button(QStringLiteral("agentSetupChooseFolder")) != nullptr,
-			   "a review that cannot keep a clone offers the pull request only, its cost in one line, and choosing a folder beside");
+		// The step builds its widgets top to bottom, so creation order is the
+		// order shown.
+		const auto before = [&test](const QWidget* aFirst, const QWidget* aSecond) {
+			const auto all = test.View.findChildren<QWidget*>();
+			return aFirst != nullptr && aSecond != nullptr && all.indexOf(aFirst) < all.indexOf(aSecond);
+		};
+		auto* const linkCard   = test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard"));
+		auto* const linkFigure = test.View.findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"));
+		auto* const onlyCard   = test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"));
+		auto* const cost       = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
+		auto* const choose     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder"));
+		expect(linkCard != nullptr && linkFigure != nullptr && onlyCard != nullptr && cost != nullptr && choose != nullptr && linkFigure->text() == QStringLiteral("Recommended")
+				   && before(linkCard, onlyCard) && choose->text() == QStringLiteral("Choose its folder…") && choose->isDefault()
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
+				   && cost->text() == QStringLiteral("Weaker answers: no callers, tests or history"),
+			   "the reviewer's own clone is the first card, chosen, recommended and the default button; the pull request only is last, its cost in one line");
+		click(*onlyCard);
+		auto* const only = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
+		expect(only != nullptr && only->text() == QStringLiteral("Use this pull request") && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder")) == nullptr,
+			   "choosing the pull request only turns the button to it");
 		if (only != nullptr) {
 			only->click();
 			expect(test.Intents.back() == "private-copy", "the pull request only is remembered as this repository's no-clone choice");
 		}
+		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")));
 		render(test.View, QStringLiteral("noclone-sparse"));
-		// Keeping a clone is the stronger answer: its card is chosen first and
-		// the button keeps one. Its size is the card's figure; where it goes is
-		// its one line, the whole path in the tooltip.
+		// Keeping a clone is the second card: its size is the card's figure,
+		// where it goes its one line, the whole path in the tooltip.
 		test.Clones.Repository->CanKeep          = true;
 		test.Clones.Repository->ApproximateBytes = 126U * 1000U * 1000U;
 		test.Clones.ManagedLocation              = "/Users/me/Library/Application Support/BetterPullReview/agent-clones-v1/github.com-42";
 		test.show();
+		auto* const keepCard  = test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard"));
 		auto* const keepTitle = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCardTitle"));
 		auto* const keepSize  = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepSize"));
 		auto* const keepCost  = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCost"));
-		auto* const keep      = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
-		expect(keepTitle != nullptr && keepSize != nullptr && keepCost != nullptr && keep != nullptr && keepTitle->text() == QStringLiteral("Keep a clone for me")
-				   && keepSize->text() == QStringLiteral("126 MB") && keepCost->text().startsWith(QStringLiteral("Full history, kept in "))
-				   && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42")) && keep->text() == QStringLiteral("Keep a clone") && keep->isDefault()
-				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) == nullptr,
-			   "AC1: keeping a clone is the chosen card and the default button, with its size and where it goes");
+		expect(keepCard != nullptr && keepTitle != nullptr && keepSize != nullptr && keepCost != nullptr && keepTitle->text() == QStringLiteral("Keep a clone for me")
+				   && before(test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")), keepCard)
+				   && before(keepCard, test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"))) && keepSize->text() == QStringLiteral("126 MB")
+				   && keepCost->text().startsWith(QStringLiteral("Full history, kept in ")) && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42"))
+				   && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault(),
+			   "AC1: keeping a clone is the second card, with its size and where it goes; choosing a folder stays the default");
+		render(test.View, QStringLiteral("keep-offer"));
+		click(*keepCard);
+		auto* const keep = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
+		expect(keep != nullptr && keep->text() == QStringLiteral("Keep a clone") && keep->isDefault(), "choosing it turns the button to keeping one");
 		if (keep != nullptr) {
 			keep->click();
 			expect(test.Intents.back() == "keep", "the button asks the host to keep one");
 		}
-		render(test.View, QStringLiteral("keep-offer"));
-		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")));
-		auto* const switched = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
-		expect(switched != nullptr && switched->text() == QStringLiteral("Use this pull request") && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr,
-			   "choosing the other card turns the button to it");
-		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")));
+		render(test.View, QStringLiteral("keep-chosen"));
 		test.Clones.Keeping = { .State = application::managed_clone_state::downloading, .Received = 42U * 1000U * 1000U, .Failure = std::nullopt };
 		test.show();
 		auto* const bar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
@@ -362,8 +375,10 @@ namespace {
 		auto* const stop   = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel"));
 		expect(bar != nullptr && status != nullptr && stop != nullptr && bar->value() == 333 && status->text() == QStringLiteral("42 MB of 126 MB")
 				   && test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCardTitle"))->text() == QStringLiteral("Keeping a clone")
-				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr && test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr,
-			   "AC1: while it downloads its card is the progress, the bytes against GitHub's size, with Cancel");
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr && test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")) == nullptr && test.View.findChild<QLabel*>(QStringLiteral("agentSetupNoClone")) == nullptr
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupEditFolders")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFindClones")) == nullptr,
+			   "AC1, owner look v004: once it downloads, its progress and Cancel are the whole step");
 		if (stop != nullptr) {
 			stop->click();
 			expect(test.Intents.back() == "cancel-keep", "Cancel asks the host to stop");

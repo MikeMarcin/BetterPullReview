@@ -9,7 +9,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"feature","found_by":"split from BPR-1873 AC4 (owner decision 2026-11-05)","related_cards":["BPR-1873"],"builds_on":"BPR-1873 (merged to main at fbe94102e; parked only on its own look, accepted in session 235e4b41)"}
-acceptance: [{"criterion": "AC1 Choosing the option creates the clone once, with the stated size and location, cancellable, and the question continues when it finishes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host|qt_agent_setup_view)$'", "detail": "Real Git through the fake gh: the kept clone is made through the sparse lease with every object and no checkout, owner-private, moved into agent-clones-v1/github.com-42 in the profile; a second request for an existing folder is refused; Cancel during a running clone returns cancelled within seconds and leaves nothing. The host offers the location and GitHub's size before it starts, publishes bytes received, links the clone (Managed) when it is in place so the Repository step is done and the setup moves on, links one already in place without a download, and reports a failure or a review that cannot keep one. The view says about 126 MB and the location, shows 42 MB of about 126 MB with Cancel, and Try keeping one again after a failure."}}, {"criterion": "AC2 Later questions reuse it and fetch only deltas", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host)$'", "detail": "With the kept clone made at the base, the head's workspace delta borrowing it holds exactly the head's new commit, tree and two blobs; a new window over the same store links the kept clone with no download. The kept clone itself is not fetched into (see Left)."}}, {"criterion": "AC3 It is shown in Storage and removed by profile purge", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(sqlite_insights_storage|sqlite_release_maintenance_files)$'", "detail": "Storage reports Clones kept for the agent with the kept clone's bytes, inside an exact total; a purge inventory takes a kept clone (.git only, read-only pack included) and removes agent-clones-v1, refuses a checked-out file or a dot-named folder in it, and keeps the shared registry."}}, {"criterion": "AC4 The owner accepts the option's look (attended review)", "outcome": "pending", "revision": "04cb14e56", "evidence": {"kind": "observation", "detail": "Attended session 54e40ab50af1d9a57092243e0bfc26cc, candidate BPR-1879-keep-a-clone-v004 at 6f678a5b5 (two-card redesign; renders and frozen build BPR-1879-v004), one Accept/Reject question. v002 and v003 were rejected (too wordy; could do better). v001 (fb4d6822) holds a Reject that was a note misdirected from BPR-1878, not a verdict on this look."}}, {"criterion": "AC5 The documentation gate passes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "python3 scripts/verify_documentation.py --root .", "detail": "DOCUMENTATION_OK with the RFC-BPR-0092 amendment's as-built note."}}]
+acceptance: [{"criterion": "AC1 Choosing the option creates the clone once, with the stated size and location, cancellable, and the question continues when it finishes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host|qt_agent_setup_view)$'", "detail": "Real Git through the fake gh: the kept clone is made through the sparse lease with every object and no checkout, owner-private, moved into agent-clones-v1/github.com-42 in the profile; a second request for an existing folder is refused; Cancel during a running clone returns cancelled within seconds and leaves nothing. The host offers the location and GitHub's size before it starts, publishes bytes received, links the clone (Managed) when it is in place so the Repository step is done and the setup moves on, links one already in place without a download, and reports a failure or a review that cannot keep one. The view says about 126 MB and the location, shows 42 MB of about 126 MB with Cancel, and Try keeping one again after a failure."}}, {"criterion": "AC2 Later questions reuse it and fetch only deltas", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host)$'", "detail": "With the kept clone made at the base, the head's workspace delta borrowing it holds exactly the head's new commit, tree and two blobs; a new window over the same store links the kept clone with no download. The kept clone itself is not fetched into (see Left)."}}, {"criterion": "AC3 It is shown in Storage and removed by profile purge", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(sqlite_insights_storage|sqlite_release_maintenance_files)$'", "detail": "Storage reports Clones kept for the agent with the kept clone's bytes, inside an exact total; a purge inventory takes a kept clone (.git only, read-only pack included) and removes agent-clones-v1, refuses a checked-out file or a dot-named folder in it, and keeps the shared registry."}}, {"criterion": "AC4 The owner accepts the option's look (attended review)", "outcome": "pending", "revision": "04cb14e56", "evidence": {"kind": "observation", "detail": "Attended session 3d2b2f6ed08fa4981ce89f0bf9b23ada, candidate BPR-1879-keep-a-clone-v005 at 4c57e6083 (your own clone first and recommended; progress alone; renders and frozen build BPR-1879-v005), one Accept/Reject question. v002 to v004 were rejected. v001 (fb4d6822) holds a Reject that was a note misdirected from BPR-1878, not a verdict on this look."}}, {"criterion": "AC5 The documentation gate passes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "python3 scripts/verify_documentation.py --root .", "detail": "DOCUMENTATION_OK with the RFC-BPR-0092 amendment's as-built note."}}]
 ---
 
 # BPR-1879: BetterPullReview can keep its own clone for agent questions
@@ -152,6 +152,24 @@ the owner's 2026-11-05 decision asked to encourage either and the v004 brief
 asked for a strong default. `qt_agent_setup_view` asserts every label, line,
 figure, the default and the card switch.
 
+### v005 design (after the v004 reject)
+
+`frontend-design:frontend-design` loaded first. With no clone found, three
+cards in order of strength, one default button acting on the card chosen:
+
+1. **Use my clone**, first, chosen at first, "Recommended" in the accent
+   colour, "Full history already on this computer"; the button reads
+   **Choose its folder…**. Linking is the default again, as BPR-1873 had it.
+2. **Keep a clone for me**, second: its size, "Full history, kept in …";
+   the button reads **Keep a clone** (**Retry** after a failure).
+3. **This pull request only**, last: "Weaker answers: no callers, tests or
+   history"; the button reads **Use this pull request**.
+
+Once the kept clone downloads, its progress card (bytes, thin bar,
+**Cancel**) is the whole Repository step: no header, no other cards, no
+folder or search links. `qt_agent_setup_view` asserts the order, the
+default, each button and that nothing else shows while it downloads.
+
 ### Attended review
 
 - v001: session `fb4d6822d9af23fc7264361af7b46b53`
@@ -179,7 +197,16 @@ figure, the default and the card switch.
   the redesigned choice, with renders and a frozen build
   (`/Users/jaeger/BPR-1879-v004.w_2n9g3w`, `python3 .../launch.py`, checked
   ATTENDED_PULL_REQUEST_OPENED; its fixture review is not sparse, so it shows
-  the Storage row but not the cards); ready, Tailscale host started.
+  the Storage row but not the cards). **Rejected**: "That's much better but
+  choose a folder or find a clone or whatever needs to be the #1 option that
+  people see and strongly recommended. and onces the progress bar starts i
+  dont see the point of still showing other options." Host stopped.
+- v005: session `3d2b2f6ed08fa4981ce89f0bf9b23ada`
+  (`/Users/jaeger/.mask/bpr-1879-v005-20261105/attended-review`), candidate
+  `BPR-1879-keep-a-clone-v005` at `4c57e6083`, one Accept/Reject question,
+  renders of the choice and the progress, and a frozen build
+  (`/Users/jaeger/BPR-1879-v005.mcmxw26v`, checked ATTENDED_PULL_REQUEST_OPENED;
+  it shows the Storage row, not the cards); ready, Tailscale host started.
 
 Offscreen renders of the setup view: the fixture-backed frozen build does
 not read its reviews sparsely through `gh`, so it cannot show this option.

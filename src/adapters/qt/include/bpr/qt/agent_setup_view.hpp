@@ -131,15 +131,19 @@ namespace bpr::qt {
 		std::optional<core::setup_step>     Editing;
 		std::optional<core::setup_agent>    Picked;
 		std::optional<std::string>          PickedClone;
-		/// [[BPR-1879]]. This pull request only was chosen over keeping a clone.
-		bool             PickedPullRequestOnly = false;
-		core::setup_step Open                  = core::setup_step::agent;
-		bool             Active                = false;
-		bool             Ready                 = false;
-		bool             AgentDetailsOpen      = false;
-		bool             WorkspaceLogOpen      = false;
-		QVBoxLayout*     Steps                 = nullptr;
-		QLabel*          Intro                 = nullptr;
+		/// [[BPR-1879]]. Which no-clone card the reviewer chose; none chosen
+		/// is the first offered (Use my clone when it is).
+		enum class no_clone_pick : std::uint8_t { link,
+												  keep,
+												  pull_request };
+		std::optional<no_clone_pick> NoClonePick;
+		core::setup_step             Open             = core::setup_step::agent;
+		bool                         Active           = false;
+		bool                         Ready            = false;
+		bool                         AgentDetailsOpen = false;
+		bool                         WorkspaceLogOpen = false;
+		QVBoxLayout*                 Steps            = nullptr;
+		QLabel*                      Intro            = nullptr;
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review
