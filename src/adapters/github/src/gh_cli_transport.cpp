@@ -1697,7 +1697,9 @@ namespace bpr::adapters::github::detail {
 	{
 		// A complete clone takes no depth; a sparse one takes one generation
 		// for an epoch's commit, or the chain's (RFC-BPR-0089). [[BPR-1873]].
-		// A delta takes none: its history is the linked clone's.
+		// A delta takes none: its history is the linked clone's. [[BPR-1884]].
+		// A kept clone's maintenance fetches its head as clone 0 and its base
+		// as clone 1, each a delta.
 		const auto delta = aContent == gh_cli_clone_content::delta;
 		// [[BPR-1879]]. A kept clone takes every object: no depth, no
 		// filter, no reference and no revision, and no checkout.
@@ -1709,7 +1711,7 @@ namespace bpr::adapters::github::detail {
 		if ((aContent != gh_cli_clone_content::trees && !delta && !managed)
 			|| (!delta && !managed && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || !aReference.empty()))
 			|| (aDepth != 1U && !delta && !managed && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
-			|| (delta && (aDepth != 0U || aIndex != 0U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
+			|| (delta && (aDepth != 0U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
 			return std::nullopt;
 		}
 		std::error_code referenceError;

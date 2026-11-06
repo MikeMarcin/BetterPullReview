@@ -1816,6 +1816,97 @@ namespace {
 					expect(keptReceived == expected, "AC2: only the pull request's new objects are fetched, nothing the kept clone holds");
 					std::filesystem::remove_all(keptVerify);
 				}
+				{
+					// [[BPR-1884]]. The kept clone's maintenance fetch: the pull
+					// request's head and base, whichever it lacks, never the
+					// default branch, into a store that borrows it, then added to
+					// it whole and named by refs/bpr/pull/N/*.
+					const auto folderFiles = [](const std::filesystem::path& aFolder) {
+						auto files = std::map<std::string, std::string>{ };
+						for (const auto& entry : std::filesystem::recursive_directory_iterator{ aFolder }) {
+							if (entry.is_regular_file()) {
+								std::ifstream input{ entry.path(), std::ios::binary };
+								files.emplace(entry.path().generic_string(), std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } });
+							}
+						}
+						return files;
+					};
+					const auto refresh   = application::git_smart_managed_clone_refresh_request{ .Context = sparseContext, .Clone = kept };
+					const auto unfetched = folderFiles(kept);
+					// AC3: a failed or cancelled fetch leaves the clone as it was,
+					// and the question's delta still works.
+					write(root / "fail-clone", "1");
+					const auto failed = (*sparseTransport)->refresh_managed_clone(refresh, { });
+					std::filesystem::remove(root / "fail-clone");
+					expect(!failed && folderFiles(kept) == unfetched, "AC3: a maintenance fetch that fails leaves the kept clone byte-identical");
+					auto early = std::stop_source{ };
+					early.request_stop();
+					const auto stopped = (*sparseTransport)->refresh_managed_clone(refresh, early.get_token());
+					expect(!stopped && stopped.error().Failure == application::git_smart_transport_failure::cancelled && folderFiles(kept) == unfetched,
+						   "AC3: a cancelled maintenance fetch is a cancel and leaves the kept clone byte-identical");
+					auto stillDelta = (*sparseTransport)->acquire_workspace_delta(application::git_smart_workspace_delta_request{ .Context = sparseContext, .Head = commitOf(head), .Clone = kept }, { });
+					expect(stillDelta && *stillDelta, "AC3: after a failed maintenance fetch the question still gets its delta");
+					stillDelta = std::unexpected{ application::git_smart_transport_error{ } };
+					// AC2: a reviewer-linked clone is refused and untouched.
+					const auto linked = (*sparseTransport)->refresh_managed_clone({ .Context = sparseContext, .Clone = reviewer }, { });
+					expect(!linked && linked.error().Failure == application::git_smart_transport_failure::invalid_request && reviewerFiles() == before,
+						   "AC2: a reviewer-linked clone is never fetched into; its refs, objects and configuration are byte-identical");
+					const auto stray = keptRoot / "not-a-kept-clone";
+					std::filesystem::create_directories(stray);
+					const auto bare = (*sparseTransport)->refresh_managed_clone({ .Context = sparseContext, .Clone = stray }, { });
+					expect(!bare && bare.error().Failure == application::git_smart_transport_failure::invalid_request, "a folder that is not a kept clone is refused");
+					std::filesystem::remove_all(stray);
+					// AC1: the fetch brings the head into the kept clone.
+					const auto refreshed = (*sparseTransport)->refresh_managed_clone(refresh, { });
+					if (!refreshed) {
+						std::cerr << "refresh failure " << static_cast<int>(refreshed.error().Failure) << " step " << static_cast<int>(refreshed.error().Step) << '\n';
+					}
+					expect(refreshed.has_value(), "AC1: the kept clone is brought up to the pull request through the sparse lease");
+					expect(git(root, { keptScope, "cat-file", "-t", head }) == "commit" && git(root, { keptScope, "cat-file", "-p", head + ":file.txt" }) == "changed local contents",
+						   "the head and its files are in the kept clone");
+					const auto named = git(root, { keptScope, "for-each-ref", "--format=%(refname:lstrip=-1) %(objectname)", "refs/bpr/pull/" });
+					expect(named.contains("head " + head) && named.contains("base " + base), "refs/bpr/pull/N/head and base name the pull request's commits");
+					auto packsPrivate = true;
+					for (const auto& entry : std::filesystem::directory_iterator{ kept / ".git" / "objects" / "pack" }) {
+						packsPrivate = packsPrivate && !entry.path().filename().string().starts_with("tmp_bpr_")
+							&& (entry.symlink_status().permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) == std::filesystem::perms::none;
+					}
+					expect(packsPrivate, "the added pack is owner-private and no staged file is left");
+					expect(git(root, { keptScope, "rev-list", "--objects", "--missing=print", head }).contains("?") == false, "every object of the head is present in the kept clone");
+					// A clone already current is not fetched into again: with the
+					// clone refused, the maintenance still succeeds.
+					write(root / "fail-clone", "1");
+					const auto current = (*sparseTransport)->refresh_managed_clone(refresh, { });
+					std::filesystem::remove(root / "fail-clone");
+					expect(current.has_value(), "a kept clone that holds the head and base fetches nothing");
+					// AC1: the upstream advances; the next question's delta is only
+					// what is newer than the update.
+					const auto newerBlob = git(root, { scope, "hash-object", "-w", "--stdin" }, "newer contents");
+					const auto newerTree = git(root, { scope, "mktree" }, "100644 blob " + newerBlob + "\tfile.txt\n");
+					const auto newer     = git(root, { scope, "commit-tree", newerTree, "-p", head }, "newer\n");
+					git(root, { scope, "update-ref", QString::fromUtf8(defaultBranch), newer });
+					auto newerDelta = (*sparseTransport)->acquire_workspace_delta(application::git_smart_workspace_delta_request{ .Context = sparseContext, .Head = commitOf(newer), .Clone = kept }, { });
+					expect(newerDelta && *newerDelta, "the next question's delta is fetched against the updated clone");
+					if (newerDelta && *newerDelta) {
+						QFile newerPack{ QString::fromStdString((*newerDelta)->pack().string()) };
+						expect(newerPack.open(QIODevice::ReadOnly), "the newer delta can be read");
+						const auto newerVerify = root / "newer-verify.git";
+						git(root, { "init", "--bare", QString::fromStdString(newerVerify.string()) });
+						const auto newerScope = "--git-dir=" + QString::fromStdString(newerVerify.string());
+						git(root, { newerScope, "index-pack", "--stdin" }, newerPack.readAll());
+						auto newerReceived = QStringList{ };
+						for (const auto& line : git(root, { newerScope, "cat-file", "--batch-all-objects", "--batch-check=%(objectname) %(objecttype)" }).split('\n')) {
+							newerReceived << QString::fromUtf8(line);
+						}
+						newerReceived.sort();
+						auto newerExpected = QStringList{ QString::fromUtf8(newer + " commit"), QString::fromUtf8(newerTree + " tree"), QString::fromUtf8(newerBlob + " blob") };
+						newerExpected.sort();
+						expect(newerReceived == newerExpected, "AC1: the next delta holds only the commits newer than the update, nothing the clone already had");
+						std::filesystem::remove_all(newerVerify);
+					}
+					newerDelta = std::unexpected{ application::git_smart_transport_error{ } };
+					git(root, { scope, "update-ref", QString::fromUtf8(defaultBranch), head });
+				}
 				// Cancel stops the download and leaves nothing behind.
 				const auto cancelled = keptRoot / "github.com-43";
 				write(root / "wait-clone", "1");

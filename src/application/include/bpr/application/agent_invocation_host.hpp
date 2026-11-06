@@ -73,6 +73,9 @@ namespace bpr::application {
 		/// [[BPR-1751]], RFC-BPR-0092 Q7. The reviewer's linked clone,
 		/// whose history the session's workspace borrows read-only.
 		std::optional<std::filesystem::path> HistoryClone;
+		/// [[BPR-1884]]. `HistoryClone` is the clone BetterPullReview keeps,
+		/// which the host may bring up to the pull request before it lends.
+		bool HistoryCloneManaged = false;
 		/// [[BPR-1753]], owner decision 2026-10-23 ("I guess we can keep
 		/// a timeout as an option, but i wouldnt want it on by default for my
 		/// work"): the run's time limit when the reviewer set one; none runs

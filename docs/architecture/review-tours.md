@@ -124,6 +124,25 @@ description text** copies the selection in the description's Source view
 into the field. Moving on is **Next: Solution** or **Next: Stops**, on its
 own row after the helpers. No notice names a control the tab lacks.
 
+Since [[BPR-1881]] (owner, 2026-11-06) the tab follows the Agent tab's own
+setup verdict, the core's `decide_agent_suggestions` that also holds the
+suggested prompts back (`agent_tab_view::setup_readiness`). While the setup
+is unfinished the tab's top says **Drafting help needs the agent.** with
+**Set up the agent**, which shows the Agent tab at its setup's first
+unfinished step, as its **Finish setup** does. Nothing opens the setup by
+itself. The agent features (the three drafting helpers, **Suggest an
+outline** and its insert, and the bottom bar) wear one agent accent,
+`agent_accent` in `bpr/qt/agent_feature.hpp`: a deep indigo in a light
+window and a soft one in a dark window (owner look v001: not red, which
+reads as an error; clear of the link blue and the fixed violet), each at least 4.5:1 against the
+window and base colours, with the agent's spark beside each button's words
+so colour is not the only sign. They keep it after setup. Until the setup
+has finished the helpers and the outline's buttons are disabled, and their
+tooltips say the agent is not set up and where to set it up; the picker in
+the bar stays usable, since it runs nothing. Showing the Tour tab lets the
+setup look for agents, as showing the Agent tab does (RFC-BPR-0092 Q2), so
+the tab can tell which state it is in.
+
 The stop editor retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
 The context menu offers insert after, duplicate, merge selected adjacent stops,

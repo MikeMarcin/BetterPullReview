@@ -9581,6 +9581,24 @@ namespace bpr::qt {
 		// [[BPR-1878]], owner look v001. The Tour tab has the Agent tab's own
 		// agent picker at its bottom: the same component over the same source.
 		TourEditor->set_agent_picker(new agent_run_settings_picker{ AgentTab->run_settings_source(), TourEditor });
+		// [[BPR-1881]]. The Tour tab's agent features follow the Agent tab's
+		// own setup verdict, and its call to action shows that setup.
+		TourEditor->set_agent_setup_dispatch([this] {
+			if (AgentTab != nullptr) {
+				AgentTab->open_setup();
+				show_agent(false);
+			}
+		});
+		TourEditor->set_shown_observer([this] {
+			if (AgentTab != nullptr) {
+				AgentTab->look_for_agents();
+			}
+		});
+		AgentTab->set_readiness_observer([this] {
+			if (TourEditor != nullptr && AgentTab != nullptr) {
+				TourEditor->set_agent_readiness(AgentTab->setup_readiness());
+			}
+		});
 		TourEditor->set_expand_dispatch([this](const bool aPublication) { open_tour_page(aPublication); });
 		TourEditor->set_collapse_dispatch([this] { close_tour_page(); });
 		TourEditor->set_excerpt_source([this](const core::tour_source_range& aRange) -> std::optional<tour_excerpt> {
