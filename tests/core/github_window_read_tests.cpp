@@ -284,8 +284,8 @@ int main()
 	if (!load(closed, 7, 79) || closed.state().ActiveNumber != pull_request_number{ 7 }) {
 		return EXIT_FAILURE;
 	}
-	// [[BPR-1851]]. A refresh's conversation is accepted once, after its file
-	// list, only for a refresh of the accepted pull request whose head, base,
+	// [[BPR-1851]]. A refresh's conversation is accepted once, after its
+	// metadata, only for a refresh of the accepted pull request whose head, base,
 	// mode and threads the facts confirm, and never changes the conversed's state.
 	{
 		const bpr_window_context refreshing{ first.Profile, bpr_window_id{ 7 }, first.Generation };
@@ -309,9 +309,8 @@ int main()
 			return EXIT_FAILURE;
 		}
 		const auto& context = refresh.Fetch->Context;
-		// Before the file list, nothing.
-		if (conversed.accept_conversation_observation(refreshing, context, same) || !conversed.accept_overview_observation(refreshing, context)
-			|| conversed.accept_conversation_observation(refreshing, context, same) || !conversed.accept_files_observation(refreshing, context)) {
+		// Before metadata, nothing. Files need not arrive first.
+		if (conversed.accept_conversation_observation(refreshing, context, same) || !conversed.accept_overview_observation(refreshing, context)) {
 			return EXIT_FAILURE;
 		}
 		for (auto fact = 0; fact < 5; ++fact) {
@@ -331,6 +330,7 @@ int main()
 		const auto before    = conversed.state();
 		if (conversed.accept_conversation_observation(otherWindow, context, same) || conversed.accept_conversation_observation(refreshing, staleContext, same)
 			|| !conversed.accept_conversation_observation(refreshing, context, same) || conversed.accept_conversation_observation(refreshing, context, same)
+			|| !conversed.accept_files_observation(refreshing, context) || conversed.accept_files_observation(refreshing, context)
 			|| conversed.state() != before) {
 			return EXIT_FAILURE;
 		}

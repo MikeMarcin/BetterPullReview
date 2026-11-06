@@ -479,8 +479,8 @@ namespace {
 	/// lays its conversation over the accepted snapshot as soon as the threads
 	/// arrive and publishes it at once, without a new snapshot, an epoch
 	/// handoff or command authority; a moved head, a first open or a
-	/// conversation before its file list shows nothing early.
-	void test_refreshed_conversation_is_shown_before_the_refresh_ends()
+	/// conversation before its metadata shows nothing early.
+	void test_refreshed_conversation_is_shown_before_the_refresh_ends(const bool aFilesFirst)
 	{
 		reads                                               provider;
 		application::manual_executor                        lane;
@@ -532,7 +532,6 @@ namespace {
 			data.PullRequest.ReportedCommitCount = 5U;
 			auto observation                     = application::github_pull_request_overview_observation{ aCall.Request.Context, data.Repository, data.PullRequest, 0U, std::nullopt, std::nullopt };
 			if (aBodies) {
-				observation.Files                      = std::vector<application::github_file_record>{ };
 				auto conversation                      = application::github_pull_request_overview_observation::conversation{ };
 				conversation.ReviewThreadsAvailability = application::github_collection_availability::available;
 				conversation.ReviewThreads             = { thread(*aBodies) };
@@ -559,17 +558,19 @@ namespace {
 		host.dispatch(core::refresh_pull_request_intent{ });
 		const auto refresh = provider.Calls.back();
 		expect(refresh.Request.Context.ExpectedPullRequest.has_value(), "the refresh names the accepted pull request");
-		// Before its file list, a conversation is not admitted.
-		refresh.Overview(observe(refresh, std::nullopt, head));
+		// Before its metadata, a conversation is not admitted.
 		refresh.Overview(observe(refresh, std::vector<std::string>{ "Root", "Reply" }, head));
+		refresh.Overview(observe(refresh, std::nullopt, head));
 		lane.drain();
-		expect(std::ranges::none_of(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }), "no conversation before its file list");
+		expect(std::ranges::none_of(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }), "no conversation before its metadata");
 		host.dispatch(core::refresh_pull_request_intent{ });
 		const auto second = provider.Calls.back();
 		second.Overview(observe(second, std::nullopt, head));
 		auto files  = observe(second, std::nullopt, head);
 		files.Files = std::vector<application::github_file_record>{ };
-		second.Overview(files);
+		if (aFilesFirst) {
+			second.Overview(files);
+		}
 		const auto before = updates.size();
 		second.Overview(observe(second, std::vector<std::string>{ "Root", "Reply" }, head));
 		second.Overview(observe(second, std::vector<std::string>{ "Root", "Reply", "Again" }, head));
@@ -583,6 +584,14 @@ namespace {
 				   && host.state().PendingPullRequest == second.Request.Context,
 			   "the accepted snapshot holds the new reply, keeps its identity, hands nothing to the epoch, and the refresh is still pending");
 		expect(std::ranges::count_if(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }) == 1, "at most one conversation per refresh");
+		if (!aFilesFirst) {
+			second.Overview(files);
+			second.Overview(files);
+			lane.drain();
+			expect(host.accepted_snapshot()->ReviewThreads.front().Comments.size() == 2U
+					   && std::ranges::count_if(updates.begin() + static_cast<std::ptrdiff_t>(before), updates.end(), [](const auto& aUpdate) { return aUpdate.Presentation.LoadingOverview && aUpdate.Presentation.LoadingOverview->Files; }) == 1,
+				   "the independent file list is published once without replacing the early conversation");
+		}
 		auto completed          = accepted(second);
 		completed.Snapshot      = core::provider_snapshot_id{ 92U };
 		completed.ReviewThreads = { thread({ "Root", "Reply" }) };
@@ -1522,7 +1531,8 @@ int main()
 	test_pull_request_page_admission();
 	test_reference_page_opening();
 	test_provisional_overview_is_bounded_and_never_authority();
-	test_refreshed_conversation_is_shown_before_the_refresh_ends();
+	test_refreshed_conversation_is_shown_before_the_refresh_ends(false);
+	test_refreshed_conversation_is_shown_before_the_refresh_ends(true);
 	test_loading_budget_shape();
 	test_shared_backoff_lifecycle();
 	test_resource_and_account_admission();

@@ -18,6 +18,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/home_list.hpp"
 #include "bpr/qt/home_row_delegate.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/pending_veil.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
 #include "bpr/qt/workbench_landing.hpp"
@@ -34,9 +35,12 @@
 #include <QListView>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QScrollBar>
 #include <QTemporaryDir>
+#include <QTextEdit>
 #include <QThread>
 
+#include <atomic>
 #include <cstdlib>
 #include <functional>
 #include <iostream>
@@ -44,6 +48,7 @@
 #include <memory>
 #include <optional>
 #include <string>
+#include <thread>
 
 namespace {
 	using namespace bpr;
@@ -123,6 +128,43 @@ namespace {
 	{
 		return aLook == core::pending_look::refreshing || aLook == core::pending_look::refreshing_slow;
 	}
+
+	void open_reply(qt::conversation_cards_view& aCards, const QString& aReply)
+	{
+		auto thread = std::string{ };
+		auto body   = QString{ };
+		for (const auto& card : aCards.cards()) {
+			for (const auto& post : card.Posts) {
+				if (post.Id == aReply.toStdString()) {
+					thread = card.Id;
+					body   = post.Body;
+				}
+			}
+		}
+		expect(!thread.empty() && !body.isEmpty(), "the rendered conversation holds the new reply");
+		if (aCards.open_thread_id() != thread) {
+			const auto point = QPointF{ aCards.note_rect(thread).center() };
+			expect(aCards.viewport()->rect().contains(point.toPoint()), "the reply's thread can be clicked in the viewport");
+			const auto global  = aCards.viewport()->mapToGlobal(point);
+			auto       press   = QMouseEvent{ QEvent::MouseButtonPress, point, global, Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+			auto       release = QMouseEvent{ QEvent::MouseButtonRelease, point, global, Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+			QApplication::sendEvent(aCards.viewport(), &press);
+			QApplication::sendEvent(aCards.viewport(), &release);
+		}
+		wait_for([&] {
+			if (aCards.open_thread_id() != thread || aCards.open_card() == nullptr) {
+				return false;
+			}
+			for (auto* const widget : aCards.open_card()->findChildren<QWidget*>()) {
+				if (auto* const reader = dynamic_cast<qt::markdown_body_view*>(widget);
+					reader != nullptr && reader->isVisible() && reader->rendered_view()->toPlainText().contains(body)) {
+					return true;
+				}
+			}
+			return false;
+		},
+				 "the new reply's text can be read while the catalogue is held", 5'000);
+	}
 } // namespace
 
 auto main(int aArgc, char** aArgv) -> int
@@ -149,7 +191,19 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	options.ReadDelay              = delay;
-	options.PersonalDiscovery      = app::detail::github_personal_discovery_fixture{
+	// [[BPR-1890]]. Hold the independent catalogue until the new reply and
+	// its remaining-loading plate are visible through the real window.
+	std::atomic<bool> holdFiles{ false };
+	std::atomic<bool> filesHeld{ false };
+	options.BeforeFilesPage = [&](const std::stop_token aStop) {
+		if (holdFiles.load()) {
+			filesHeld = true;
+			while (holdFiles.load() && !aStop.stop_requested()) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
+			}
+		}
+	};
+	options.PersonalDiscovery = app::detail::github_personal_discovery_fixture{
 		.OpenPullRequests = { { .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" } } },
 	};
 	app::github_application* owner    = nullptr;
@@ -240,6 +294,11 @@ try {
 		auto washedRendered          = false;
 		auto clock                   = QElapsedTimer{ };
 		clock.start();
+		const auto heldContext = surface->current_context();
+		const auto heldScroll  = surface->shared_scrollbar()->value();
+		filesHeld              = false;
+		holdFiles              = !measureOnly;
+		auto releasedFiles     = measureOnly;
 		refresh->trigger();
 		while ((!settled || !fresh) && clock.elapsed() < 20'000) {
 			QApplication::processEvents();
@@ -265,9 +324,24 @@ try {
 			if (!shown()) {
 				++blanks;
 			}
+			if (!releasedFiles && filesHeld && (plate || clock.elapsed() > 10'000)) {
+				expect(fresh && plate, "the reply and remaining-loading plate appear while the changed-file read is held");
+				expect(surface->current_context() == heldContext && surface->shared_scrollbar()->value() == heldScroll,
+					   "early conversation preserves the exact comparison and reading position");
+				open_reply(*window->conversation_panel()->cards(), reply);
+				expect(window->pending_veils().Content->look() == core::pending_look::partial,
+					   "opening the reply retains the remaining-loading plate");
+				if (!renderDirectory.isEmpty() && round == 1) {
+					expect(window->grab().save(renderDirectory + QStringLiteral("/refresh-reply-readable.png")), "the readable reply is rendered before releasing the catalogue");
+				}
+				holdFiles     = false;
+				releasedFiles = true;
+			}
 			mark(settled, window->pull_request_refresh().Phase != core::refresh_phase::refreshing, clock);
 			QThread::msleep(1);
 		}
+		holdFiles = false;
+		expect(releasedFiles, "the refresh reaches its independent catalogue read");
 		settle("the refresh settles");
 		delay->EveryReadMilliseconds = 0U;
 		auto reads                   = std::size_t{ 0U };

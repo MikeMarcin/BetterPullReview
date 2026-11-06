@@ -69,7 +69,7 @@ namespace bpr::core {
 		[[nodiscard]] auto accept_files_observation(bpr_window_context                  aWindow,
 													const pull_request_request_context& aRequest) noexcept -> bool;
 		/// \brief [[BPR-1851]]. Accept at most one refreshed conversation for
-		/// this exact pending request, once its file list was observed, and only
+		/// this exact pending request, once its metadata was observed, and only
 		/// when the request refreshes the pull request this lane has accepted
 		/// and the facts show the accepted snapshot's pull request, head, base
 		/// and mode with threads read. The accepted snapshot's identity, the

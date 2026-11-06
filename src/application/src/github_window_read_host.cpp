@@ -984,21 +984,21 @@ namespace bpr::application {
 											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
 			-> github_pull_request_overview_handler
 		{
-			// [[BPR-1842]]. Three observations at most, in order: the metadata,
-			// the complete file list, and ([[BPR-1851]]) a refresh's conversation.
+			// [[BPR-1890]]. Three observations at most: metadata, then the
+			// independent file list and refresh conversation, once each.
 			auto posted = std::make_shared<std::atomic<std::uint8_t>>(std::uint8_t{ 0U });
 			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted, digests = BodyDigests](github_pull_request_overview_observation aObservation) {
 				if (aObservation.Context != aContext || aTerminal->load()) {
 					return;
 				}
-				const auto stage = aObservation.Conversation ? std::uint8_t{ 3U } : aObservation.Files ? std::uint8_t{ 2U }
+				const auto stage = aObservation.Conversation ? std::uint8_t{ 4U } : aObservation.Files ? std::uint8_t{ 2U }
 																									   : std::uint8_t{ 1U };
 				auto       prior = posted->load();
 				do {
-					if (prior + 1U != stage) {
+					if ((prior & stage) != 0U || (stage != 1U && (prior & 1U) == 0U)) {
 						return;
 					}
-				} while (!posted->compare_exchange_weak(prior, stage));
+				} while (!posted->compare_exchange_weak(prior, static_cast<std::uint8_t>(prior | stage)));
 				auto host = weak.lock();
 				if (!host) {
 					return;

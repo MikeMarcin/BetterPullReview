@@ -3308,17 +3308,17 @@ namespace {
 		std::size_t                                                          Count = 0U;
 		std::optional<application::github_pull_request_overview_observation> Overview;
 		std::size_t                                                          OverviewPageCount = 0U;
-		/// [[BPR-1842]]. The second observation: the complete file list.
+		/// [[BPR-1842]]. The independently observed complete file list.
 		std::optional<application::github_pull_request_overview_observation> FileList;
 		std::size_t                                                          FileListPageCount = 0U;
-		/// [[BPR-1851]]. The third observation, a refresh's conversation.
+		/// [[BPR-1851]]. The independently observed refresh conversation.
 		std::optional<application::github_pull_request_overview_observation> Conversation;
 		std::size_t                                                          ConversationPageCount = 0U;
 		std::chrono::steady_clock::time_point                                ConversationObservedAt;
 		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 		{
 			if (aObservation.Conversation) {
-				expect(Overview && FileList && !Conversation, "the conversation is observed once, after the file list");
+				expect(Overview && !Conversation, "the conversation is observed once, after the metadata");
 				Conversation           = std::move(aObservation);
 				ConversationPageCount  = Count;
 				ConversationObservedAt = std::chrono::steady_clock::now();
@@ -3353,7 +3353,7 @@ namespace {
 		recording_response_observer observer;
 		const auto                  result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 56U }, { }, { }, github_provider_read_authority::authenticated, &observer);
 		expect(result.has_value() && result->ReviewThreadsAvailability == application::github_collection_availability::available, "the refresh reads its threads");
-		expect(observer.Conversation && observer.Conversation->Context == request.Context && observer.ConversationPageCount > observer.FileListPageCount
+		expect(observer.Conversation && observer.Conversation->Context == request.Context && observer.ConversationPageCount < observer.FileListPageCount
 				   && observer.Responses[observer.ConversationPageCount - 1U].first == read_operation::list_review_threads
 				   && observer.ConversationPageCount < observer.Count,
 			   "the conversation is observed after the threads' last page, before the reads that follow");
@@ -3407,6 +3407,71 @@ namespace {
 		expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()), "early conversation does not turn a cancelled refresh into an accepted snapshot");
 		expect(std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == read_operation::list_pull_request_commits; }) == 1,
 			   "cancellation prevents the remaining commit pages");
+	}
+
+	/// [[BPR-1890]]. Even the catalogue's first page must not hold up
+	/// refreshed threads. Its own validation and cancellation remain required.
+	auto test_refresh_conversation_precedes_file_pages() -> void
+	{
+		for (const auto scenario : { fixture_scenario::success, fixture_scenario::file_count_mismatch,
+									 fixture_scenario::file_missing_required, fixture_scenario::file_wrong_required }) {
+			auto transport                      = paged_fixture_transport{ scenario };
+			auto request                        = provider_request();
+			request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+			request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+			recording_response_observer observer;
+			auto                        filePages = 0U;
+			transport.RewriteResponse             = [&](const auto& aRequest, auto&) {
+				if (aRequest.Wire.Operation == read_operation::list_pull_request_files) {
+					++filePages;
+					expect(observer.Conversation && !observer.Conversation->Files && !observer.FileList,
+						   "complete conversation arrives before the catalogue, without an empty file-list observation");
+				}
+			};
+			const auto result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 65U }, { }, { }, github_provider_read_authority::authenticated, &observer);
+			expect(result.has_value() == (scenario == fixture_scenario::success) && filePages != 0U,
+				   "the final snapshot still requires valid catalogue records and its reported count");
+			if (result) {
+				auto       ordinary = paged_fixture_transport{ scenario };
+				const auto complete = perform_paged_github_read(ordinary, profile(), request, core::provider_snapshot_id{ 65U }, { });
+				expect(complete && result->Files == complete->Files && result->Commits == complete->Commits
+						   && result->Reviews == complete->Reviews && result->ReviewThreads == complete->ReviewThreads
+						   && transport.Requests.size() == ordinary.Requests.size() && filePages == 2U,
+					   "independent catalogue loading preserves the final records and request count");
+			} else {
+				expect(provider_failure_of(result) == application::github_provider_failure::malformed_response,
+					   "late invalid catalogue data retains its failure category");
+			}
+		}
+		for (const auto pageBudget : { 5U, 6U }) {
+			auto transport                      = paged_fixture_transport{ fixture_scenario::success };
+			auto request                        = provider_request();
+			request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+			request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+			recording_response_observer observer;
+			auto                        limits = github_paged_read_limits{ };
+			limits.MaximumTotalPages           = pageBudget;
+			const auto result                  = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 66U }, { }, limits, github_provider_read_authority::authenticated, &observer);
+			expect(!result && observer.Conversation && !observer.FileList && transport.Requests.size() == pageBudget
+					   && provider_failure_of(result) == application::github_provider_failure::response_limit,
+				   "catalogue loading retains the shared budget, including exhaustion before or during its pages");
+		}
+		auto transport                      = paged_fixture_transport{ fixture_scenario::success };
+		auto request                        = provider_request();
+		request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+		request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+		recording_response_observer observer;
+		auto                        stop = std::stop_source{ };
+		transport.RewriteResponse        = [&](const auto& aRequest, auto&) {
+			if (aRequest.Wire.Operation == read_operation::list_pull_request_files) {
+				expect(observer.Conversation.has_value(), "the reply precedes cancellation of catalogue loading");
+				stop.request_stop();
+			}
+		};
+		const auto result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 67U }, stop.get_token(), { }, github_provider_read_authority::authenticated, &observer);
+		expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && !observer.FileList
+				   && std::ranges::count_if(transport.Requests, [](const auto& aRequest) { return aRequest.Wire.Operation == read_operation::list_pull_request_files; }) == 1,
+			   "cancellation stops the remaining catalogue pages and excludes a terminal snapshot");
 	}
 
 	/// [[BPR-1885]]. The catalogue has 201 files; viewed states arrive in
@@ -3559,10 +3624,10 @@ namespace {
 				}
 			};
 			auto limits = github_paged_read_limits{ };
-			// Repository, PR, three catalogue pages, reviews, then two thread pages.
+			// Repository, PR, reviews, two thread pages, then three catalogue pages.
 			limits.MaximumTotalPages = 8U;
 			const auto result        = perform_paged_github_read(transport, profile(), viewed_file_request(), core::provider_snapshot_id{ 64U }, stop.get_token(), limits, github_provider_read_authority::authenticated, &observer);
-			expect(!result && transport.Requests.size() == 8U, "independent viewed-file loading cannot reset the shared page budget");
+			expect(!result && transport.Requests.size() == (cancelBeforeObservation ? 5U : 8U), "independent viewed-file loading cannot reset the shared page budget");
 			if (cancelBeforeObservation) {
 				expect(!observer.Conversation && std::holds_alternative<github_paged_read_cancelled>(result.error()), "cancellation before the observation suppresses early conversation");
 			} else {
@@ -3571,13 +3636,14 @@ namespace {
 		}
 	}
 
-	auto measure_viewed_file_refresh() -> void
+	auto measure_independent_file_refresh(const bool aCatalogue) -> void
 	{
 		for (auto round = 1; round <= 3; ++round) {
 			auto                        transport = paged_fixture_transport{ fixture_scenario::viewed_file_pagination };
 			recording_response_observer observer;
-			transport.RewriteResponse = [](const auto& aRequest, auto& aResponse) {
-				if (serve_viewed_files(aRequest, aResponse)) {
+			transport.RewriteResponse = [aCatalogue](const auto& aRequest, auto& aResponse) {
+				const auto viewed = serve_viewed_files(aRequest, aResponse);
+				if (aCatalogue ? aRequest.Wire.Operation == read_operation::list_pull_request_files : viewed) {
 					std::this_thread::sleep_for(std::chrono::milliseconds{ 330 });
 				}
 			};
@@ -3588,7 +3654,7 @@ namespace {
 				std::cerr << "viewed fixture requests=" << transport.Requests.size() << " failure=" << static_cast<int>(provider_failure_of(result).value_or(application::github_provider_failure::malformed_response)) << '\n';
 			}
 			expect(result && observer.Conversation, "measured refresh completes its conversation and snapshot");
-			std::cout << "viewed-file-refresh: round=" << round << " viewed-page-delay-ms=330 conversation-ms="
+			std::cout << (aCatalogue ? "file-catalogue-refresh" : "viewed-file-refresh") << ": round=" << round << " page-delay-ms=330 conversation-ms="
 					  << std::chrono::duration<double, std::milli>{ observer.ConversationObservedAt - started }.count()
 					  << " settled-ms=" << std::chrono::duration<double, std::milli>{ finished - started }.count()
 					  << " reads=" << transport.Requests.size() << '\n';
@@ -5637,11 +5703,11 @@ namespace {
 
 auto main(int aArgc, char* aArgv[]) -> int
 {
-	if (aArgc == 2 && std::string_view{ aArgv[1] } == "--measure-viewed-files") {
-		measure_viewed_file_refresh();
+	if (aArgc == 2 && (std::string_view{ aArgv[1] } == "--measure-viewed-files" || std::string_view{ aArgv[1] } == "--measure-file-catalogue")) {
+		measure_independent_file_refresh(std::string_view{ aArgv[1] } == "--measure-file-catalogue");
 		return EXIT_SUCCESS;
 	}
-	expect(aArgc == 1, "only --measure-viewed-files is accepted");
+	expect(aArgc == 1, "only --measure-viewed-files or --measure-file-catalogue is accepted");
 	test_shared_http_helpers();
 	test_optional_explanations_preserve_account_authority();
 	test_review_request_pagination();
@@ -5653,6 +5719,7 @@ auto main(int aArgc, char* aArgv[]) -> int
 	test_ghes_actor_conflict_recreated_read();
 	test_refresh_observes_conversation_after_threads();
 	test_refresh_conversation_precedes_commit_pages();
+	test_refresh_conversation_precedes_file_pages();
 	test_refresh_cancellation_after_early_conversation();
 	test_first_open_keeps_commit_read_order();
 	test_refresh_conversation_precedes_viewed_files();

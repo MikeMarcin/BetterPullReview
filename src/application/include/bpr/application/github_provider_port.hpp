@@ -427,12 +427,12 @@ namespace bpr::application {
 		github_pull_request_record         PullRequest;
 		std::size_t                        ReportedFiles = 0U;
 		/// [[BPR-1842]]. The complete changed-file list once its pages have
-		/// arrived, in a second observation; absent from the first. Like the
+		/// arrived, in its own observation after metadata. Like the
 		/// metadata, it grants no snapshot authority.
 		std::optional<std::vector<github_file_record>> Files;
 		/// [[BPR-1851]]. The reviews and review threads once their pages have
-		/// arrived, in a third observation after the file list; absent from the
-		/// first two. Like the rest, it grants no snapshot authority: a refresh
+		/// arrived, in its own observation after metadata, independently of the
+		/// file list. Like the rest, it grants no snapshot authority: a refresh
 		/// of the accepted pull request at the same head may show it early.
 		struct conversation
 		{

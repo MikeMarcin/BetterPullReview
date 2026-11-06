@@ -2853,7 +2853,7 @@ namespace bpr::adapters::github::detail {
 								   application::github_pull_request_snapshot& aSnapshot,
 								   const github_paged_read_limits&            aLimits,
 								   const bool                                 aPrioritizeConversation,
-								   const auto&                                aObserveConversation)
+								   const auto&                                aBeforeViewedFiles)
 			-> std::expected<void, github_paged_read_failure>
 		{
 			if ((aShape.ResolvePermission || aShape.UnresolvePermission || aShape.ReplyPermission || aShape.ConversationLock)
@@ -3262,7 +3262,9 @@ namespace bpr::adapters::github::detail {
 			}
 			aSnapshot.ReviewThreadsAvailability = application::github_collection_availability::available;
 			if (aPrioritizeConversation) {
-				aObserveConversation();
+				if (const auto files = aBeforeViewedFiles(); !files) {
+					return files;
+				}
 				return readViewedFiles();
 			}
 			return { };
@@ -6018,27 +6020,41 @@ namespace bpr::adapters::github::detail {
 				.RateLimits = { },
 			};
 
-			if (const auto files = read_rest_array_collection(
-					execution,
-					aProfile,
-					semantic_request_for(*server,
-										 aRequest.Context,
-										 read_operation::list_pull_request_files),
-					result.Files,
-					aLimits.Records.MaximumFiles,
-					aLimits.MaximumPageRecords,
-					[](const page_json_value& aValue) { return parse_file(aValue); });
-				!files.has_value()) {
-				return std::unexpected{ execution.enrich(files.error()) };
-			}
-			if (result.Files.size() != expectedFiles) {
-				return execution.terminal_failure(
-					application::github_provider_failure::malformed_response);
-			}
-			// [[BPR-1842]]. The file list is the first part a reviewer reads, so
-			// it is observed as soon as it is complete, again without authority.
-			if (aObserver != nullptr && !aStop.stop_requested()) {
-				aObserver->overview_observed({ aRequest.Context, result.Repository, result.PullRequest, expectedFiles, result.Files, std::nullopt });
+			// [[BPR-1890]]. A refresh can use its conversation without waiting
+			// for the independent file catalogue. Other reads keep their order.
+			const auto prioritizeConversation = aObserver != nullptr
+				&& aReadAuthority == github_provider_read_authority::authenticated
+				&& aRequest.Context.ExpectedPullRequest.has_value()
+				&& aRequest.CapabilityEvidence.ReadShape.ReviewThreads;
+			const auto readFiles = [&]() -> std::expected<void, github_paged_read_failure> {
+				if (const auto files = read_rest_array_collection(
+						execution,
+						aProfile,
+						semantic_request_for(*server,
+											 aRequest.Context,
+											 read_operation::list_pull_request_files),
+						result.Files,
+						aLimits.Records.MaximumFiles,
+						aLimits.MaximumPageRecords,
+						[](const page_json_value& aValue) { return parse_file(aValue); });
+					!files.has_value()) {
+					return std::unexpected{ execution.enrich(files.error()) };
+				}
+				if (result.Files.size() != expectedFiles) {
+					return execution.terminal_failure(
+						application::github_provider_failure::malformed_response);
+				}
+				// [[BPR-1842]]. The file list is the first part a reviewer reads, so
+				// it is observed as soon as it is complete, again without authority.
+				if (aObserver != nullptr && !aStop.stop_requested()) {
+					aObserver->overview_observed({ aRequest.Context, result.Repository, result.PullRequest, expectedFiles, result.Files, std::nullopt });
+				}
+				return { };
+			};
+			if (!prioritizeConversation) {
+				if (const auto files = readFiles(); !files) {
+					return std::unexpected{ files.error() };
+				}
 			}
 
 			const auto readCommits = [&]() -> std::expected<void, github_paged_read_failure> {
@@ -6062,13 +6078,6 @@ namespace bpr::adapters::github::detail {
 				}
 				return { };
 			};
-			// [[BPR-1883]]. Only a refresh with observable threads can use its
-			// conversation early. Keep first-open and signed-out reads ordered
-			// as before, and keep commit validation mandatory in either order.
-			const auto prioritizeConversation = aObserver != nullptr
-				&& aReadAuthority == github_provider_read_authority::authenticated
-				&& aRequest.Context.ExpectedPullRequest.has_value()
-				&& aRequest.CapabilityEvidence.ReadShape.ReviewThreads;
 			if (!prioritizeConversation) {
 				if (const auto commits = readCommits(); !commits) {
 					return std::unexpected{ commits.error() };
@@ -6088,30 +6097,31 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(reviews.error()) };
 			}
 
-			// [[BPR-1851]], [[BPR-1885]]. Publish the complete refresh conversation
-			// before independent viewed-file status and remaining collections.
-			// It still carries no new snapshot authority.
-			const auto observeConversation = [&] {
+			// [[BPR-1890]]. Publish the complete refresh conversation before
+			// reading the catalogue. Viewed-state validation then has those
+			// files, under the same execution and budget. No new authority.
+			const auto beforeViewedFiles = [&]() -> std::expected<void, github_paged_read_failure> {
 				if (aObserver != nullptr && !aStop.stop_requested() && aRequest.Context.ExpectedPullRequest.has_value()
 					&& result.ReviewThreadsAvailability == application::github_collection_availability::available) {
 					aObserver->overview_observed({ .Context       = aRequest.Context,
 												   .Repository    = result.Repository,
 												   .PullRequest   = result.PullRequest,
 												   .ReportedFiles = expectedFiles,
-												   .Files         = result.Files,
+												   .Files         = std::nullopt,
 												   .Conversation  = application::github_pull_request_overview_observation::conversation{
 													   .Reviews                   = result.Reviews,
 													   .ReviewThreadsAvailability = result.ReviewThreadsAvailability,
 													   .ReviewThreads             = result.ReviewThreads,
 													   .ConversationLock          = result.ConversationLock } });
 				}
+				return readFiles();
 			};
 			if (const auto graphql = perform_graphql_projection(execution,
 																*server,
 																aRequest.Context,
 																aRequest.CapabilityEvidence.ReadShape,
 																result,
-																aLimits, prioritizeConversation, observeConversation);
+																aLimits, prioritizeConversation, beforeViewedFiles);
 				!graphql.has_value()) {
 				return std::unexpected{ execution.enrich(graphql.error()) };
 			}

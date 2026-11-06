@@ -144,7 +144,7 @@ namespace bpr::core {
 		// A refresh of the accepted pull request only: a first open has no
 		// accepted content to lay a conversation over, and another pull
 		// request's threads never stand for this one's.
-		if (aWindow != Window || !Session || State.PendingPullRequest != aRequest || !FilesObserved || ConversationObserved
+		if (aWindow != Window || !Session || State.PendingPullRequest != aRequest || !OverviewObserved || ConversationObserved
 			|| !State.AcceptedSnapshot || !aRequest.ExpectedPullRequest || State.PullRequest != aRequest.ExpectedPullRequest
 			|| State.Repository != aRequest.ExpectedRepository || !aFacts.ThreadsAvailable || !aFacts.SamePullRequest || !aFacts.SameHead
 			|| !aFacts.SameBase || !aFacts.SameMode) {
