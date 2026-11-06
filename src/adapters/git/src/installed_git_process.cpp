@@ -4607,29 +4607,28 @@ namespace bpr::adapters::git {
 
 				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
 				auto       arguments     = std::vector<std::string>{ };
-				auto       shallow       = false;
 				const auto baseText      = std::string{ core::canonical_hex(materialization.Session.Binding.BaseOid).view() };
 				if (borrowed && present(headText)) {
 					// The clone already holds the head: nothing to copy.
 				} else if (materialization.HeadFromClone) {
 					// [[BPR-1772]]. Asked for the clone's head only: the
 					// review's cache is not a fallback, because a sparse one
-					// cannot supply the head and the host downloads it next.
+					// cannot supply the head and the host fetches what the clone
+					// lacks next ([[BPR-1873]]).
 					return fail(git_process_error{ git_process_failure::object_unavailable, "The linked clone does not hold the head.\n" });
-				} else if (aRequest.Snapshot) {
-					// [[BPR-1738]]. A sparse review's cache holds the head's
-					// commit and trees but no blobs and no parents, so packing the
-					// head's closure out of it walks into the first missing
-					// parent. The snapshot carries exactly the head's commit, tree
-					// and blobs; it is indexed into the workspace, which is then
-					// shallow at the head, so nothing in it walks past the commit.
-					const auto&     snapshot = *aRequest.Snapshot;
-					std::error_code snapshotError;
+				} else if (aRequest.Delta) {
+					// [[BPR-1873]]. A sparse review's cache holds the head's
+					// commit and trees but no blobs and no parents. The delta
+					// holds what the borrowed clone lacks of the head: indexed
+					// here, the workspace reads the head's whole history through
+					// the clone and its own pack, and is never shallow.
+					const auto&     delta = *aRequest.Delta;
+					std::error_code deltaError;
 					if (
-						snapshot.Head != head || !snapshot.Pack.is_absolute() || snapshot.Bytes == 0U
-						|| snapshot.Bytes > application::maximum_git_pack_input_bytes
-						|| !std::filesystem::is_regular_file(snapshot.Pack, snapshotError) || snapshotError
-						|| std::filesystem::file_size(snapshot.Pack, snapshotError) != snapshot.Bytes || snapshotError) {
+						!borrowed || delta.Head != head || !delta.Pack.is_absolute() || delta.Bytes == 0U
+						|| delta.Bytes > application::maximum_git_pack_input_bytes
+						|| !std::filesystem::is_regular_file(delta.Pack, deltaError) || deltaError
+						|| std::filesystem::file_size(delta.Pack, deltaError) != delta.Bytes || deltaError) {
 						return fail(git_process_failure::invalid_request);
 					}
 					arguments = workspace_git_arguments(destination, HooksRoot);
@@ -4638,49 +4637,32 @@ namespace bpr::adapters::git {
 						"index-pack",
 						"--stdin",
 						sparse_fsck_argument(),
-						"--max-input-size=" + std::to_string(snapshot.Bytes),
+						"--max-input-size=" + std::to_string(delta.Bytes),
 						"--threads=1",
 						"--no-rev-index");
-					const auto indexedSnapshot = submitWorkspace(
+					const auto indexedDelta = submitWorkspace(
 						process_request{
 							.Arguments = std::move(arguments),
 							.Input     = file_input{
-								.Path  = snapshot.Pack,
-								.Bytes = snapshot.Bytes,
+								.Path  = delta.Pack,
+								.Bytes = delta.Bytes,
 							},
 							.Timeout = pack_process_timeout,
 						},
 						aStop);
-					if (!indexedSnapshot.has_value()) {
-						return fail(indexedSnapshot.error());
+					if (!indexedDelta.has_value()) {
+						return fail(indexedDelta.error());
 					}
-					// Borrowed history ends the snapshot's boundary only when the
-					// clone holds every parent of the head.
-					auto parentsBorrowed = false;
-					if (borrowed) {
-						auto read = workspace_git_arguments(destination, HooksRoot);
-						append_arguments(read, "cat-file", "commit", headText);
-						const auto commitText = submitWorkspace(process_request{ .Arguments = std::move(read) }, aStop);
-						if (commitText.has_value()) {
-							auto parents = std::vector<std::string>{ };
-							for (auto rest = std::string_view{ commitText->StandardOutput }; !rest.empty();) {
-								const auto end  = rest.find('\n');
-								const auto line = rest.substr(0U, end);
-								if (line.empty()) {
-									break;
-								}
-								if (line.starts_with("parent ")) {
-									parents.emplace_back(line.substr(7U));
-								}
-								rest = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
-							}
-							parentsBorrowed = !parents.empty() && std::ranges::all_of(parents, present);
-						}
+					// The head's commit and tree must now be readable.
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "cat-file", "--batch-check=%(objectname) %(objecttype)");
+					const auto held = submitWorkspace(
+						process_request{ .Arguments = std::move(arguments), .Input = memory_input{ headText + "\n" + headText + "^{tree}\n" } },
+						aStop);
+					if (!held.has_value() || !held->StandardOutput.starts_with(headText + " commit\n") || !held->StandardOutput.ends_with(" tree\n")
+						|| held->StandardOutput.find("missing") != std::string::npos) {
+						return fail(git_process_error{ git_process_failure::object_unavailable, "The fetched objects do not complete the head.\n" });
 					}
-					if (!parentsBorrowed && !write_private_file(destination / ".git" / "shallow", headText + "\n")) {
-						return fail(git_process_failure::invalid_repository);
-					}
-					shallow = !parentsBorrowed;
 				} else {
 					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
 					append_arguments(
@@ -4838,7 +4820,7 @@ namespace bpr::adapters::git {
 						.Path           = path_text(destination),
 						.Cleanliness    = application::checkout_cleanliness::clean,
 						.BorrowsHistory = borrowed.has_value(),
-						.Shallow        = shallow,
+						.Shallow        = false,
 					},
 					.ApplicationSession = materialization.ApplicationSession,
 					.Authority          = materialization.Authority,

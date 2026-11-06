@@ -1048,11 +1048,12 @@ namespace bpr::adapters::github::detail {
 				{
 					return perform_guarded<std::shared_ptr<application::git_chain_tree_store>>(aStop, [&] { return Inner->acquire_chain_trees(aRequest, aStop); });
 				}
-				/// [[BPR-1738]]. An agent workspace's snapshot, under the same guard.
-				auto acquire_workspace_snapshot(const application::git_smart_workspace_snapshot_request& aRequest, std::stop_token aStop)
-					-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_snapshot>> override
+				/// [[BPR-1873]]. What a linked clone lacks of an agent
+				/// workspace's head, under the same guard.
+				auto acquire_workspace_delta(const application::git_smart_workspace_delta_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_delta>> override
 				{
-					return perform_guarded<std::shared_ptr<application::git_workspace_snapshot>>(aStop, [&] { return Inner->acquire_workspace_snapshot(aRequest, aStop); });
+					return perform_guarded<std::shared_ptr<application::git_workspace_delta>>(aStop, [&] { return Inner->acquire_workspace_delta(aRequest, aStop); });
 				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override

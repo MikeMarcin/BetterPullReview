@@ -33,16 +33,19 @@ namespace bpr::qt {
 			switch (aReason) {
 			case reason::copy_failed:
 				return QStringLiteral("The agent's copy of this pull request could not be made. Reopen the pull request, then ask again.");
+			// [[BPR-1873]]. The agent's workspace borrows the linked clone and
+			// fetches only what the clone lacks; no step is asked of the
+			// reviewer's clone.
 			case reason::download_failed:
-				return QStringLiteral("The agent needs every file at this head, and this review holds only the files it shows. Downloading the rest failed. Ask again, or show the log for the cause.");
+				return QStringLiteral("Your clone doesn't have this head yet, and fetching the pull request's new objects for the agent failed. Ask again, or show the log for the cause.");
 			case reason::connection_failed:
-				return QStringLiteral("The agent needs every file at this head, and GitHub could not be reached to download them. Check the connection, then ask again.");
+				return QStringLiteral("Your clone doesn't have this head yet, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then ask again.");
 			case reason::sign_in_refused:
-				return QStringLiteral("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then ask again.");
+				return QStringLiteral("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then ask again.");
 			case reason::too_large:
-				return QStringLiteral("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
-			case reason::too_large_not_in_clone:
-				return QStringLiteral("This head is larger than the agent's private copy allows, and your clone doesn't have it yet. Fetch the pull request's branch in your clone, then ask again.");
+				return QStringLiteral("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, ask again.");
+			case reason::clone_needed:
+				return QStringLiteral("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone in Settings › Repositories, then ask again.");
 			}
 			return { };
 		}

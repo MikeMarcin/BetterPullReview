@@ -433,11 +433,11 @@ namespace {
 		std::function<void(std::stop_token)>        DuringTreeEntryLookup;
 		std::optional<application::git_cache_error> WorkspaceMaterializationFailure;
 		/// [[BPR-1738]]. What the cache was handed for each workspace, the
-		/// workspace it answers, and what the transport's snapshot was asked.
-		std::vector<std::optional<application::git_workspace_snapshot_pack>> WorkspaceSnapshots;
-		std::optional<application::owned_agent_workspace>                    WorkspaceResult;
-		std::vector<application::git_smart_workspace_snapshot_request>       SnapshotRequests;
-		std::optional<application::git_smart_transport_failure>              SnapshotFailure;
+		/// workspace it answers, and what the transport's delta was asked.
+		std::vector<std::optional<application::git_workspace_delta_pack>> WorkspaceDeltas;
+		std::optional<application::owned_agent_workspace>                 WorkspaceResult;
+		std::vector<application::git_smart_workspace_delta_request>       DeltaRequests;
+		std::optional<application::git_smart_transport_failure>           DeltaFailure;
 		/// [[BPR-1772]]. Whether each workspace asked for the linked clone's
 		/// head only, and whether the clone holds it.
 		std::vector<bool>                                   WorkspaceHeadFromClone;
@@ -1789,13 +1789,13 @@ namespace {
 		}
 
 		[[nodiscard]] auto materialize_agent_workspace(
-			const application::agent_workspace_materialization_request&    aRequest,
-			const std::optional<application::git_workspace_snapshot_pack>& aSnapshot,
-			const std::stop_token                                          aStop)
+			const application::agent_workspace_materialization_request& aRequest,
+			const std::optional<application::git_workspace_delta_pack>& aDelta,
+			const std::stop_token                                       aStop)
 			-> application::git_cache_result<application::owned_agent_workspace> override
 		{
 			State.Calls.emplace_back("cache.materialize-agent-workspace");
-			State.WorkspaceSnapshots.push_back(aSnapshot);
+			State.WorkspaceDeltas.push_back(aDelta);
 			State.WorkspaceHeadFromClone.push_back(aRequest.HeadFromClone);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
@@ -1811,7 +1811,7 @@ namespace {
 			// [[BPR-1738]]. A sparse cache holds no parent and no blob, so
 			// copying the head's closure out of it fails as installed Git does.
 			// A head the linked clone lends is not copied from it.
-			if (State.SparseObjects && !aSnapshot && !aRequest.HeadFromClone) {
+			if (State.SparseObjects && !aDelta && !aRequest.HeadFromClone) {
 				return std::unexpected{ application::git_cache_error{
 					application::git_cache_failure::process_failure,
 					"error: Could not read " + std::string{ core::canonical_hex(oid<core::git_commit_oid>(10U)).view() }
@@ -2078,11 +2078,11 @@ namespace {
 		std::vector<core::git_commit_oid> Held;
 	};
 
-	/// [[BPR-1738]]. A snapshot the host holds until the workspace is made.
-	class fake_workspace_snapshot final : public application::git_workspace_snapshot
+	/// [[BPR-1873]]. A delta the host holds until the workspace is made.
+	class fake_workspace_delta final : public application::git_workspace_delta
 	{
 	public:
-		explicit fake_workspace_snapshot(const core::git_commit_oid& aHead)
+		explicit fake_workspace_delta(const core::git_commit_oid& aHead)
 			: Head{ aHead }
 		{
 		}
@@ -2093,20 +2093,20 @@ namespace {
 
 	private:
 		core::git_commit_oid  Head;
-		std::filesystem::path Pack{ "/fixture/snapshot.pack" };
+		std::filesystem::path Pack{ "/fixture/delta.pack" };
 	};
 
 	class fake_transport final : public application::git_smart_transport_port
 	{
 	public:
-		[[nodiscard]] auto acquire_workspace_snapshot(const application::git_smart_workspace_snapshot_request& aRequest, std::stop_token)
-			-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_snapshot>> override
+		[[nodiscard]] auto acquire_workspace_delta(const application::git_smart_workspace_delta_request& aRequest, std::stop_token)
+			-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_delta>> override
 		{
-			State.SnapshotRequests.push_back(aRequest);
-			if (State.SnapshotFailure) {
-				return std::unexpected{ application::git_smart_transport_error{ *State.SnapshotFailure } };
+			State.DeltaRequests.push_back(aRequest);
+			if (State.DeltaFailure) {
+				return std::unexpected{ application::git_smart_transport_error{ *State.DeltaFailure } };
 			}
-			return std::make_shared<fake_workspace_snapshot>(aRequest.Head);
+			return std::make_shared<fake_workspace_delta>(aRequest.Head);
 		}
 
 		[[nodiscard]] auto acquire_chain_trees(const application::git_smart_chain_request& aRequest, std::stop_token)
@@ -7933,12 +7933,13 @@ namespace {
 			"workspace cleanup maps the code and preserves cache detail exactly");
 	}
 
-	/// [[BPR-1738]]. A sparse review's cache holds the head's commit and
-	/// trees, and no blob or parent. Its agent workspace used to be copied out
-	/// of the cache by walking the head's closure, which stopped at the first
-	/// missing parent ("Failed to traverse parents of commit"). It is now made
-	/// from the head's snapshot, fetched through the review's own lease.
-	void sparse_agent_workspace_is_made_from_the_heads_snapshot()
+	/// [[BPR-1873]]. A sparse review's cache holds the head's commit and
+	/// trees, and no blob or parent, so its agent workspace borrows the linked
+	/// clone. A clone that lacks the head gets only what it lacks, fetched
+	/// through the review's own lease into the workspace; the head is never
+	/// downloaded whole, and without a clone nothing is fetched at all
+	/// (owner, 2026-11-05).
+	void sparse_agent_workspace_borrows_the_clone_and_fetches_only_what_it_lacks()
 	{
 		const auto run = [](fixture& aValue, std::optional<std::filesystem::path> aClone = std::nullopt) {
 			auto materialized = std::optional<std::expected<application::owned_agent_workspace, application::agent_workspace_error>>{ };
@@ -7960,47 +7961,67 @@ namespace {
 			}
 			return *materialized;
 		};
+		const auto clone = workspace_parent_directory() / "reviewer-clone";
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			const auto materialized     = run(value);
+			expect(!materialized.has_value() && materialized.error() == application::agent_workspace_failure::unavailable
+					   && materialized.error().Reason == application::agent_workspace_unavailable_reason::clone_needed
+					   && value.State.DeltaRequests.empty() && value.State.WorkspaceDeltas.empty(),
+				   "a sparse review with no linked clone downloads nothing and says a clone is needed");
+		}
 		{
 			fixture value;
 			establish_sparse_three_files(value);
 			const auto workspace        = owned_workspace_for(value.Host->state());
 			value.State.WorkspaceResult = workspace;
 			const auto head             = workspace_request_for(value.Host->state()).Session.Binding.HeadOid;
-			const auto materialized     = run(value);
+			const auto materialized     = run(value, clone);
 			expect(materialized.has_value() && *materialized == workspace,
-				   "a sparse review's agent workspace is made, not refused at the head's first missing parent");
-			expect(value.State.SnapshotRequests.size() == 1U && value.State.SnapshotRequests.front().Head == head
-					   && value.State.SnapshotRequests.front().Context.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees,
-				   "the head's snapshot is asked for once, for the session's exact head, through the sparse lease");
-			expect(value.State.WorkspaceSnapshots.size() == 1U && value.State.WorkspaceSnapshots.front()
-					   && value.State.WorkspaceSnapshots.front()->Head == head
-					   && value.State.WorkspaceSnapshots.front()->Pack == std::filesystem::path{ "/fixture/snapshot.pack" }
-					   && value.State.WorkspaceSnapshots.front()->Bytes == 64U,
-				   "the cache makes the workspace from that snapshot's pack");
+				   "a sparse review's agent workspace is made from a clone that lacks the head");
+			expect(value.State.DeltaRequests.size() == 1U && value.State.DeltaRequests.front().Head == head
+					   && value.State.DeltaRequests.front().Clone == clone
+					   && value.State.DeltaRequests.front().Context.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees,
+				   "what the clone lacks is asked for once, for the session's exact head and the linked clone, through the sparse lease");
+			expect(value.State.WorkspaceHeadFromClone == std::vector{ true, false } && value.State.WorkspaceDeltas.size() == 2U
+					   && !value.State.WorkspaceDeltas.front() && value.State.WorkspaceDeltas.back()
+					   && value.State.WorkspaceDeltas.back()->Head == head
+					   && value.State.WorkspaceDeltas.back()->Pack == std::filesystem::path{ "/fixture/delta.pack" }
+					   && value.State.WorkspaceDeltas.back()->Bytes == 64U,
+				   "the clone is asked first, then the cache makes the workspace from the clone and the delta's pack");
 		}
 		for (const auto& [failure, reason] : std::array{
 				 std::pair{ application::git_smart_transport_failure::network, application::agent_workspace_unavailable_reason::connection_failed },
 				 std::pair{ application::git_smart_transport_failure::timeout, application::agent_workspace_unavailable_reason::connection_failed },
 				 std::pair{ application::git_smart_transport_failure::authentication, application::agent_workspace_unavailable_reason::sign_in_refused },
 				 std::pair{ application::git_smart_transport_failure::response_limit, application::agent_workspace_unavailable_reason::too_large },
+				 std::pair{ application::git_smart_transport_failure::request_limit, application::agent_workspace_unavailable_reason::too_large },
 				 std::pair{ application::git_smart_transport_failure::unavailable, application::agent_workspace_unavailable_reason::download_failed },
 			 }) {
 			fixture value;
 			establish_sparse_three_files(value);
-			value.State.SnapshotFailure = failure;
-			const auto materialized     = run(value);
+			value.State.DeltaFailure = failure;
+			const auto materialized  = run(value, clone);
 			expect(!materialized.has_value() && materialized.error() == application::agent_workspace_failure::unavailable
 					   && materialized.error().Reason == reason && !materialized.error().Detail.empty()
-					   && value.State.WorkspaceSnapshots.empty(),
-				   "a snapshot that cannot be fetched says why, keeps the transport's words for the log, and copies nothing");
+					   && value.State.WorkspaceHeadFromClone == std::vector{ true },
+				   "a delta that cannot be fetched says why, keeps the transport's words for the log, and copies nothing");
+			if (reason == application::agent_workspace_unavailable_reason::too_large) {
+				// AC7: a size wall names the pull request's new objects.
+				expect(materialized.error().Detail.find("new objects") != std::string::npos
+						   && materialized.error().Detail.find("could not be read") == std::string::npos,
+					   "a delta over a bound names the pull request's new objects, never an unreadable head");
+			}
 		}
 		{
 			fixture value;
 			establish_sparse_three_files(value);
 			value.State.MissingCommits.push_back(workspace_request_for(value.Host->state()).Session.Binding.HeadOid);
-			const auto materialized = run(value);
+			const auto materialized = run(value, clone);
 			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::copy_failed
-					   && value.State.SnapshotRequests.empty() && value.State.WorkspaceSnapshots.empty(),
+					   && value.State.DeltaRequests.empty(),
 				   "a head the review's cache does not hold is never fetched");
 		}
 		{
@@ -8008,43 +8029,23 @@ namespace {
 			establish_ready_comparison(value);
 			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
 			const auto materialized     = run(value);
-			expect(materialized.has_value() && value.State.SnapshotRequests.empty() && value.State.WorkspaceSnapshots.size() == 1U
-					   && !value.State.WorkspaceSnapshots.front(),
-				   "a complete review's workspace is still copied out of its cache, with no download");
+			expect(materialized.has_value() && value.State.DeltaRequests.empty() && value.State.WorkspaceDeltas.size() == 1U
+					   && !value.State.WorkspaceDeltas.front(),
+				   "a complete review's workspace is still copied out of its cache, with no fetch");
 		}
-		// [[BPR-1772]], owner photograph 2026-10-26: a large sparse head was
-		// refused for its size although the linked clone could lend it.
-		const auto clone = workspace_parent_directory() / "reviewer-clone";
+		// [[BPR-1772]], owner photograph 2026-10-26, AC2 of [[BPR-1873]]: a
+		// linked clone that holds the head lends it with no fetch.
 		{
 			fixture value;
 			establish_sparse_three_files(value);
 			const auto workspace        = owned_workspace_for(value.Host->state());
 			value.State.WorkspaceResult = workspace;
 			value.State.CloneHoldsHead  = true;
-			value.State.SnapshotFailure = application::git_smart_transport_failure::response_limit;
+			value.State.DeltaFailure    = application::git_smart_transport_failure::response_limit;
 			const auto materialized     = run(value, clone);
-			expect(materialized.has_value() && *materialized == workspace && value.State.SnapshotRequests.empty()
-					   && value.State.WorkspaceHeadFromClone == std::vector{ true } && !value.State.WorkspaceSnapshots.front(),
-				   "a sparse head the linked clone holds is taken from the clone, with no download to be too large");
-		}
-		{
-			fixture value;
-			establish_sparse_three_files(value);
-			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
-			const auto materialized     = run(value, clone);
-			expect(materialized.has_value() && value.State.SnapshotRequests.size() == 1U
-					   && value.State.WorkspaceHeadFromClone == std::vector{ true, false } && value.State.WorkspaceSnapshots.size() == 2U
-					   && value.State.WorkspaceSnapshots.back(),
-				   "a clone without the head is asked first, then the head's snapshot is downloaded as before");
-		}
-		{
-			fixture value;
-			establish_sparse_three_files(value);
-			value.State.SnapshotFailure = application::git_smart_transport_failure::response_limit;
-			const auto materialized     = run(value, clone);
-			expect(!materialized.has_value() && materialized.error().Reason == application::agent_workspace_unavailable_reason::too_large_not_in_clone
-					   && value.State.WorkspaceHeadFromClone == std::vector{ true },
-				   "a head too large to download that the clone lacks says to fetch it in the clone");
+			expect(materialized.has_value() && *materialized == workspace && value.State.DeltaRequests.empty()
+					   && value.State.WorkspaceHeadFromClone == std::vector{ true } && !value.State.WorkspaceDeltas.front(),
+				   "a sparse head the linked clone holds is taken from the clone, with nothing fetched");
 		}
 	}
 
@@ -9950,7 +9951,7 @@ int main(int argc, char** argv)
 	realignment_context_is_minted_scoped_and_never_assumed();
 	invalidated_authority_cannot_materialize_retained_cache();
 	agent_workspace_failures_preserve_the_cache_diagnostic();
-	sparse_agent_workspace_is_made_from_the_heads_snapshot();
+	sparse_agent_workspace_borrows_the_clone_and_fetches_only_what_it_lacks();
 	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();
 	stop_immediately_after_ponr_cannot_replace_committed_terminal();

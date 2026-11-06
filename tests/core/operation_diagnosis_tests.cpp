@@ -32,7 +32,7 @@ namespace {
 		expect(describe(mutation) == "action=request_reviewer failure=none process=none exit=none duration_ms=900 count=2 written=1 read_back=1", "a mutation's line carries its write flags");
 		expect(parse_operation_diagnosis(describe(mutation)) == mutation, "and reads back as itself");
 
-		const auto workspace = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Failure = operation_failure::too_large_not_in_clone, .DurationMilliseconds = 2400U };
+		const auto workspace = operation_diagnosis{ .Action = operation_action::workspace_materialize, .Failure = operation_failure::clone_needed, .DurationMilliseconds = 2400U };
 		expect(parse_operation_diagnosis(describe(workspace)) == workspace, "a workspace line reads back");
 		expect(family(operation_action::workspace_cleanup) == operation_diagnosis_family::agent_workspace && family(operation_action::agent_program_check) == operation_diagnosis_family::agent_setup
 				   && family(operation_action::resolve_thread) == operation_diagnosis_family::review_mutation,

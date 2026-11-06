@@ -6199,3 +6199,58 @@ foreach(source IN LISTS tray_submission_sources)
         )
     endif()
 endforeach()
+
+# [[BPR-1873]]. The agent workspace's head snapshot download is removed (owner,
+# 2026-11-05): a sparse review's agent borrows the linked clone and fetches only
+# what the clone lacks, and without a clone nothing is downloaded. No source may
+# name the snapshot surfaces again. The one exact-revision clone compiler emits
+# a depth only together with the blob filter, so no clone takes a head's blobs
+# without its history (`--revision=<head> --depth=1` without a filter).
+file(GLOB_RECURSE workspace_snapshot_sources "${BPR_ROOT}/src/*.cpp" "${BPR_ROOT}/src/*.hpp" "${BPR_ROOT}/src/*.mm")
+set(revision_clone_sources "")
+foreach(source IN LISTS workspace_snapshot_sources)
+    file(READ "${source}" contents)
+    file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source}")
+    foreach(removed_surface IN ITEMS
+        "acquire_workspace_snapshot"
+        "git_workspace_snapshot"
+        "workspace_snapshot_request"
+        "clone_content::snapshot"
+        "acquire_snapshot"
+    )
+        string(FIND "${contents}" "${removed_surface}" removed_position)
+        if(NOT removed_position EQUAL -1)
+            message(
+                FATAL_ERROR
+                "${relative_file} names ${removed_surface}: the agent workspace's head snapshot "
+                "download is removed. A sparse review's agent borrows the linked clone and fetches "
+                "only what it lacks ([[BPR-1873]])."
+            )
+        endif()
+    endforeach()
+    if(contents MATCHES "\"--revision=" OR contents MATCHES "\"--depth=")
+        list(APPEND revision_clone_sources "${relative_file}")
+    endif()
+endforeach()
+if(NOT revision_clone_sources STREQUAL "src/adapters/github/src/gh_cli_transport.cpp")
+    message(
+        FATAL_ERROR
+        "An exact-revision or depth-limited clone is compiled only by compile_gh_cli_git_clone_request "
+        "in src/adapters/github/src/gh_cli_transport.cpp ([[BPR-1873]]); found: ${revision_clone_sources}"
+    )
+endif()
+file(READ "${BPR_ROOT}/src/adapters/github/src/gh_cli_transport.cpp" clone_compiler_code)
+string(REGEX REPLACE "[ \t\r\n]+" " " clone_compiler_compact "${clone_compiler_code}")
+string(REGEX MATCHALL "\"--depth=" clone_depth_arguments "${clone_compiler_code}")
+list(LENGTH clone_depth_arguments clone_depth_count)
+string(FIND "${clone_compiler_compact}"
+    "arguments.emplace_back(\"--depth=\" + std::to_string(aDepth)); arguments.emplace_back(\"--filter=blob:none\");"
+    clone_depth_with_filter)
+if(NOT clone_depth_count EQUAL 1 OR clone_depth_with_filter EQUAL -1)
+    message(
+        FATAL_ERROR
+        "compile_gh_cli_git_clone_request must emit --depth only immediately followed, unconditionally, by "
+        "--filter=blob:none: a depth-limited clone of a head's blobs is the removed head snapshot download "
+        "([[BPR-1873]])."
+    )
+endif()

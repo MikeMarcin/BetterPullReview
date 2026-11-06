@@ -361,16 +361,18 @@ namespace bpr::qt {
 		switch (aReason) {
 		case reason::copy_failed:
 			return QObject::tr("The agent's copy of this pull request could not be made. Reopen the pull request, then check again.");
+		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing
+		// is asked of the reviewer's clone.
 		case reason::download_failed:
-			return QObject::tr("The agent needs every file at this head, and this review holds only the files it shows. Downloading the rest failed. Check again, or show the log for the cause.");
+			return QObject::tr("Your clone doesn't have this head yet, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.");
 		case reason::connection_failed:
-			return QObject::tr("The agent needs every file at this head, and GitHub could not be reached to download them. Check the connection, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.");
 		case reason::sign_in_refused:
-			return QObject::tr("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
 		case reason::too_large:
-			return QObject::tr("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
-		case reason::too_large_not_in_clone:
-			return QObject::tr("This head is larger than the agent's private copy allows, and your clone doesn't have it yet. Fetch the pull request's branch in your clone, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, check again.");
+		case reason::clone_needed:
+			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
 		}
 		return { };
 	}
@@ -889,7 +891,9 @@ namespace bpr::qt {
 		};
 		const auto privateCopy = [this, parent](const QString& aText) {
 			auto* const button = link_button(aText, parent, QStringLiteral("agentSetupPrivateCopy"));
-			button->setToolTip(Facts.Sparse ? tr("The head's files only, without history, branches, tags, LFS files or submodules")
+			// [[BPR-1873]]. A sparse review's head is never downloaded whole,
+			// so its agent works in a linked clone.
+			button->setToolTip(Facts.Sparse ? tr("This review holds only the files it shows, so the agent needs a linked clone to work in")
 											: tr("The head and its history, without your branches, tags, LFS files or submodules"));
 			connect(button, &QPushButton::clicked, this, [this] {
 				if (Intents.UsePrivateCopy) {

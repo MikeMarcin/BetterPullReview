@@ -56,8 +56,8 @@ namespace bpr::application {
 			return "sign_in_refused";
 		case agent_workspace_unavailable_reason::too_large:
 			return "too_large";
-		case agent_workspace_unavailable_reason::too_large_not_in_clone:
-			return "too_large_not_in_clone";
+		case agent_workspace_unavailable_reason::clone_needed:
+			return "clone_needed";
 		}
 		return { };
 	}
