@@ -44,8 +44,12 @@ namespace bpr::qt {
 		/// The whole ordered clone-folder list after an edit in the step.
 		std::function<void(std::vector<std::string>)> SetCloneFolders;
 		std::function<void()>                         UsePrivateCopy;
-		std::function<void()>                         Check;
-		std::function<void()>                         Stop;
+		/// [[BPR-1879]]. Let BetterPullReview keep a clone, and stop that
+		/// download.
+		std::function<void()> KeepClone;
+		std::function<void()> CancelKeeping;
+		std::function<void()> Check;
+		std::function<void()> Stop;
 		/// [[BPR-1753]], owner amendment 2026-10-23. A custom agent the
 		/// reviewer described in setup: added to the list and chosen.
 		std::function<void(core::agent_entry)> AddCustomAgent;
@@ -111,6 +115,7 @@ namespace bpr::qt {
 		void               build_agent(QVBoxLayout& aBody);
 		void               build_repository(QVBoxLayout& aBody);
 		void               build_check(QVBoxLayout& aBody);
+		void               build_no_clone_choice(QVBoxLayout& aBody);
 		[[nodiscard]] auto agent_name() const -> QString;
 		/// The chosen custom agent's own name for its kind, or the plain name.
 		[[nodiscard]] auto name_for(core::setup_agent aAgent) const -> QString;
@@ -126,13 +131,22 @@ namespace bpr::qt {
 		std::optional<core::setup_step>     Editing;
 		std::optional<core::setup_agent>    Picked;
 		std::optional<std::string>          PickedClone;
-		core::setup_step                    Open             = core::setup_step::agent;
-		bool                                Active           = false;
-		bool                                Ready            = false;
-		bool                                AgentDetailsOpen = false;
-		bool                                WorkspaceLogOpen = false;
-		QVBoxLayout*                        Steps            = nullptr;
-		QLabel*                             Intro            = nullptr;
+		/// [[BPR-1879]]. Which no-clone card the reviewer chose; none chosen
+		/// is the first offered (Use my clone when it is).
+		enum class no_clone_pick : std::uint8_t { link,
+												  keep,
+												  pull_request };
+		std::optional<no_clone_pick> NoClonePick;
+		/// [[BPR-1879]]. The repository whose clone folders the step last
+		/// searched by itself, so it searches once, not on every rebuild.
+		std::optional<std::string> AutoSearched;
+		core::setup_step           Open             = core::setup_step::agent;
+		bool                       Active           = false;
+		bool                       Ready            = false;
+		bool                       AgentDetailsOpen = false;
+		bool                       WorkspaceLogOpen = false;
+		QVBoxLayout*               Steps            = nullptr;
+		QLabel*                    Intro            = nullptr;
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review

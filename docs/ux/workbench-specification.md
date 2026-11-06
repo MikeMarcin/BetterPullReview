@@ -2612,8 +2612,27 @@ card is drawn in the danger look the stopped banner uses, it keeps Copy (the
 error's words and what the agent wrote to its error stream) and never offers
 Save as note or Draft comment. The thread's latest error, while nothing runs,
 offers one way back: **Agent settings…** for an answer this app cannot read,
-**Check again** for a start or workspace failure, and **Ask again** for any
-other ending. How each turn ended is kept with the thread, so a thread opened
+and **Resend** for any other ending, a start or workspace failure among
+them ([[BPR-1876]]; owner look v001 named it Resend, since a message is not
+always a question): it sends the same message again as a new run, which
+starts the agent and makes its workspace and so checks both as it goes.
+Every error also offers **Delete**, on any turn while nothing runs
+([[BPR-1876]] for a message that never reached the agent; [[BPR-1880]],
+owner 2026-11-06, for every other failed message): the turn leaves the
+thread and the kept thread, and, if it was the stopped run's, the stopped
+banner goes with it. A message the agent received is forgotten once deleted:
+an Agent tab run resumes no session of the agent's own, and what the agent
+knows of earlier turns is the kept thread the next message carries, so its
+tooltip says the agent won't be sent it again and won't remember it; a
+message that never reached the agent says so instead. An answer offers no
+Delete. Once
+the setup's check of what a start or workspace failure names has run again
+and passed, that error says so: its card leaves the danger look for the plain
+one and opens with a green check and "Fixed since: <agent> passed its check."
+(or "the workspace check passed."), with "Resend to try it now." on the
+latest, and the stopped banner stands down; while the check has
+not passed since, it shows its cause as before. The setup's own check keeps
+its Check and Check again in the setup. How each turn ended is kept with the thread, so a thread opened
 again presents its errors the same way. A file and line a
 question or an answer names (`path:34`, `path line 34`, `path lines 34–36`,
 "before the change" for the base, and in an answer a bare "line 34" when the
@@ -2643,10 +2662,12 @@ stay once the thread has turns, and the field's Suggestions toggle shows or
 hides them, kept for the profile (owner look v004); while the agent works
 they are hidden, and they return when its turn has finished (the owner's
 accept of look v007). They wait for the setup too ([[BPR-1847]]): none while
-an agent or repository is still to be chosen, a check failed or runs, the
-setup is on screen, or its Ready line is still shown; in their place "Suggested
-prompts appear once the agent is set up." with **Finish setup**, which opens
-the setup at its first unfinished step. A setup finished before, whose checks
+an agent or repository is still to be chosen, a check failed or runs, or the
+setup is on screen; in their place "Suggested prompts appear once the agent is
+set up." with **Finish setup**, which opens the setup at its first unfinished
+step, so an unfinished setup never leaves the prompt area blank. The setup's
+Ready line is a passed check and does not hold them back: they show, and can
+be pressed, while it is open ([[BPR-1877]]). A setup finished before, whose checks
 have not run since the application started, counts as finished. A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
@@ -2687,8 +2708,8 @@ agent is running, the time it has taken, its latest line, and Stop), finished
 (how many findings, or that its answer is below, or that it found nothing),
 head moved (Start
 a new session or Continue on the old head) and stopped (what happened, the
-question kept, Ask again and Show the log; Check again when the Ask ended
-because the workspace could not be made or the agent did not start).
+message kept, Resend and Show the log, whatever the cause; hidden once the
+latest turn says its cause is fixed since, or once that turn is deleted).
 A send asks the agent the pill shows, whatever agent the conversation used
 before; choosing another agent starts that agent's conversation
 ([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner

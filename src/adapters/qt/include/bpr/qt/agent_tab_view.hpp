@@ -12,12 +12,15 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -42,31 +45,6 @@ namespace bpr::qt {
 	class appearance_profile;
 	class side_chat_panel;
 
-	/// \brief [[BPR-1594]]. What the Agent tab says about its agent.
-	/// \brief [[BPR-1753]], owner look v002 ("I really have no clue
-	/// what my agent will be actually doing"). What one agent runs with, for
-	/// the tab's model and effort control.
-	struct agent_run_settings
-	{
-		/// The profile these settings are for.
-		std::uint64_t Profile = 0U;
-		/// The agent's plain name and the program that runs.
-		QString Agent;
-		QString Program;
-		bool    ModelChoosable  = false;
-		bool    EffortChoosable = false;
-		/// Empty: the agent's own default.
-		std::string Model;
-		std::string Effort;
-		/// Models to offer by name (value, label), besides Other….
-		std::vector<std::pair<std::string, QString>> Models;
-		std::vector<std::string>                     Efforts;
-		/// Why the settings cannot be chosen, when they cannot.
-		QString Note;
-		/// Owner look v006. The harness is being asked for its models.
-		bool Listing = false;
-	};
-
 	/// \brief [[BPR-1753]], owner decision (b) 2026-10-23. One finished
 	/// turn of the thread, as it is kept for its pull request and shown again.
 	struct agent_thread_turn
@@ -84,11 +62,8 @@ namespace bpr::qt {
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
 
-	/// \brief Owner look v004 ("The models aren't listing their version
-	/// numbers"). A model as a reviewer reads it: `claude-sonnet-5-5` is
-	/// "Sonnet 5.5", a bare alias such as `sonnet` is "Sonnet (newest)", and
-	/// any other name is shown as the agent reported it.
-	[[nodiscard]] auto agent_model_display_name(const QString& aModel) -> QString;
+	// agent_run_settings, agent_run_settings_dispatch and
+	// agent_model_display_name live in agent_run_settings_picker.hpp ([[BPR-1878]]).
 
 	/// \brief [[BPR-1753]], owner decision (a) 2026-10-23. What the
 	/// suggested prompts may name: the open file's path, and the selected
@@ -214,7 +189,6 @@ namespace bpr::qt {
 
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
-	using agent_run_settings_dispatch = std::function<bool(std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort)>;
 
 	enum class agent_tab_state : std::uint8_t {
 		/// No agent is set up: the tab offers Set up an agent.
@@ -227,7 +201,7 @@ namespace bpr::qt {
 		/// on the old head.
 		head_moved,
 		/// The last invocation did not finish: what happened, the question
-		/// kept, Ask again and Show the log.
+		/// kept, Resend and Show the log.
 		stopped,
 		/// [[BPR-1753]]. The setup is in place of the conversation.
 		setting_up,
@@ -251,10 +225,24 @@ namespace bpr::qt {
 		/// \brief Set up an agent: Settings › Agents & context.
 		void set_setup_dispatch(std::function<void()> aDispatch);
 		/// \brief [[BPR-1753]], RFC-BPR-0092. Shows `aSetup` in place
-		/// of the conversation while it is needed, adds **Set up agent…** and
-		/// **Change repository folder…** to History, and offers **Check
-		/// again** when an Ask ends for a setup reason (`aCheckAgain`).
-		void adopt_setup(agent_setup_view& aSetup, std::function<void()> aCheckAgain);
+		/// of the conversation while it is needed and adds **Reset agents…** to
+		/// History. [[BPR-1876]]: an Ask that ends for a setup reason is asked
+		/// again, not checked again, and says when its check has passed since.
+		void adopt_setup(agent_setup_view& aSetup);
+		/// \brief [[BPR-1881]]. Whether the setup has finished, from the
+		/// same core verdict that holds the suggested prompts back: the
+		/// setup's own state, not a second one.
+		[[nodiscard]] auto setup_readiness() const -> agent_setup_readiness;
+		/// \brief [[BPR-1881]]. Told when `setup_readiness()` changes.
+		void set_readiness_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1881]]. Shows the setup at its first unfinished
+		/// step, as **Finish setup** does. Only a reviewer's click calls it;
+		/// the setup never opens by itself.
+		void open_setup();
+		/// \brief [[BPR-1881]]. Another surface that presents the setup's
+		/// way in (the Tour tab) is shown: the setup may look for agents, as
+		/// it does the first time this tab shows. Once only, whichever first.
+		void look_for_agents();
 		/// \brief The ready line once setup finishes, and what the agent gets.
 		void present_ready(const QString& aTitle, const QString& aText, const QString& aGets);
 		/// \brief Called once, the first time the tab is shown: when setup
@@ -266,6 +254,9 @@ namespace bpr::qt {
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief [[BPR-1878]]. What the agent picker shows, for another
+		/// picker (the Tour tab's) that is the same choice.
+		[[nodiscard]] auto run_settings_source() const noexcept -> const std::shared_ptr<agent_run_settings_source>& { return RunSettingsSource; }
 		/// \brief `/model NAME`, `/effort LEVEL` (or `default`), and `/model`
 		/// or `/effort` alone to open the control. Answers whether the text
 		/// was such a command, which is then not sent to the agent.
@@ -404,9 +395,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_question_label(std::size_t aTurn) const -> QLabel*;
 		[[nodiscard]] auto turn_answer_view(std::size_t aTurn) const -> markdown_body_view*;
 		[[nodiscard]] auto turn_note_button(std::size_t aTurn) const -> QPushButton*;
-		/// \brief [[BPR-1847]]. An error turn's one way back (Ask again,
-		/// Check again or Agent settings…), its reply card, and how it ended.
+		/// \brief [[BPR-1847]]. An error turn's one way back (Resend or
+		/// Agent settings…), its reply card, and how it ended.
 		[[nodiscard]] auto turn_recovery_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief [[BPR-1876]], [[BPR-1880]]. Delete, on every error turn.
+		[[nodiscard]] auto turn_delete_button(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto turn_reply(std::size_t aTurn) const -> QWidget*;
 		[[nodiscard]] auto turn_outcome(std::size_t aTurn) const -> std::optional<core::agent_turn_outcome>;
 		/// \brief [[BPR-1847]]. What stands in for the suggestions while the
@@ -470,7 +463,6 @@ namespace bpr::qt {
 		agent_answer_note_dispatch         NoteDispatch;
 		agent_note_navigation              NoteNavigate;
 		std::function<void(std::uint64_t)> CatalogDispatch;
-		bool                               MenuStale = false;
 		std::function<void()>              ResetDispatch;
 		std::function<bool()>              ResetConfirm;
 		agent_file_resolver                LineResolve;
@@ -479,36 +471,33 @@ namespace bpr::qt {
 		void                               follow_link(const QString& aLink);
 		void                               present_banner();
 
-		agent_launch_panel&             Launch;
-		side_chat_panel&                Chat;
-		finding_queue_view&             Findings;
-		QWidget&                        HistoryPanel;
-		std::function<void()>           Setup;
-		agent_tab_state                 State        = agent_tab_state::not_set_up;
-		QStackedWidget*                 Pages        = nullptr;
-		drawer_empty_state*             Empty        = nullptr;
-		QWidget*                        Conversation = nullptr;
-		QWidget*                        HistoryPage  = nullptr;
-		QWidget*                        Banner       = nullptr;
-		QLabel*                         BannerTitle  = nullptr;
-		QLabel*                         BannerText   = nullptr;
-		QPushButton*                    BannerFirst  = nullptr;
-		QPushButton*                    BannerSecond = nullptr;
-		QWidget*                        Cards        = nullptr;
-		QWidget*                        Viewport     = nullptr;
-		QVBoxLayout*                    CardColumn   = nullptr;
-		QLabel*                         Head         = nullptr;
-		QToolButton*                    History      = nullptr;
-		QMenu*                          HistoryMenu  = nullptr;
-		agent_setup_view*               SetupView    = nullptr;
-		std::function<void()>           CheckAgain;
-		std::function<void()>           FirstShown;
-		std::vector<agent_run_settings> RunSettingsShown;
-		/// The model each agent last reported running, by its profile.
-		std::map<std::uint64_t, QString> ReportedModels;
-		agent_run_settings_dispatch      RunSettingsDispatch;
-		QToolButton*                     RunSettings = nullptr;
-		QLabel*                          Notice      = nullptr;
+		agent_launch_panel&                        Launch;
+		side_chat_panel&                           Chat;
+		finding_queue_view&                        Findings;
+		QWidget&                                   HistoryPanel;
+		std::function<void()>                      Setup;
+		agent_tab_state                            State        = agent_tab_state::not_set_up;
+		QStackedWidget*                            Pages        = nullptr;
+		drawer_empty_state*                        Empty        = nullptr;
+		QWidget*                                   Conversation = nullptr;
+		QWidget*                                   HistoryPage  = nullptr;
+		QWidget*                                   Banner       = nullptr;
+		QLabel*                                    BannerTitle  = nullptr;
+		QLabel*                                    BannerText   = nullptr;
+		QPushButton*                               BannerFirst  = nullptr;
+		QPushButton*                               BannerSecond = nullptr;
+		QWidget*                                   Cards        = nullptr;
+		QWidget*                                   Viewport     = nullptr;
+		QVBoxLayout*                               CardColumn   = nullptr;
+		QLabel*                                    Head         = nullptr;
+		QToolButton*                               History      = nullptr;
+		QMenu*                                     HistoryMenu  = nullptr;
+		agent_setup_view*                          SetupView    = nullptr;
+		std::function<void()>                      FirstShown;
+		agent_run_settings_dispatch                RunSettingsDispatch;
+		std::shared_ptr<agent_run_settings_source> RunSettingsSource;
+		agent_run_settings_picker*                 RunSettings = nullptr;
+		QLabel*                                    Notice      = nullptr;
 		/// [[BPR-1817]]. The refusal beside the composer.
 		QWidget*                 Refusal      = nullptr;
 		QLabel*                  RefusalText  = nullptr;
@@ -520,7 +509,6 @@ namespace bpr::qt {
 		/// or the chosen agent's that is no longer offered.
 		[[nodiscard]] auto agent_name() const -> QString;
 		/// [[BPR-1823]]. The pill when the chosen agent is unavailable.
-		void               present_unavailable_agent();
 		[[nodiscard]] auto current_run_settings() const -> const agent_run_settings*;
 		void               present_run_settings_button();
 		void               ask();
@@ -563,6 +551,14 @@ namespace bpr::qt {
 			QPointer<QWidget>         Reply;
 			QPointer<QPushButton>     Recovery;
 			core::agent_turn_recovery RecoveryKind = core::agent_turn_recovery::none;
+			/// [[BPR-1876]]. The check its cause names was seen not passed
+			/// (running, failed or not run) after it ended, so a pass now is
+			/// one made since; and the line that says it is fixed since.
+			bool             CauseRechecked = false;
+			QPointer<QLabel> FixedNote;
+			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
+			/// thread.
+			QPointer<QPushButton> Delete;
 		};
 		std::vector<turn> Turns;
 		/// The question and the answer as shown, their references links.
@@ -577,6 +573,9 @@ namespace bpr::qt {
 		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
 		void present_turn_actions();
 		void recover(const turn& aTurn);
+		/// [[BPR-1876]]. Removes a turn whose message never reached the agent
+		/// from the thread, and keeps the thread without it.
+		void delete_turn(std::size_t aTurn);
 		/// [[BPR-1847]]. Why the suggestions are not shown now, if not.
 		[[nodiscard]] auto                                                          suggestions_verdict() const -> core::agent_suggestions_verdict;
 		void                                                                        refresh_times();
@@ -585,7 +584,6 @@ namespace bpr::qt {
 		QLabel*                                                                     SessionTitle = nullptr;
 		QWidget*                                                                    EmptyIntro   = nullptr;
 		QWidget*                                                                    Field        = nullptr;
-		QString                                                                     RunSettingsTip;
 		std::optional<QFont>                                                        CodeFont;
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
@@ -602,10 +600,13 @@ namespace bpr::qt {
 		QToolButton*                                        SuggestionsMenu  = nullptr;
 		QLabel*                                             SuggestionsLine  = nullptr;
 		/// [[BPR-1847]]. In place of the suggestions while setup is unfinished.
-		QWidget*                           SetupPrompt = nullptr;
-		std::function<void(bool)>          SuggestionsObserver;
-		QStringList                        Prompts;
-		std::vector<QPointer<QPushButton>> PromptButtons;
+		QWidget* SetupPrompt = nullptr;
+		/// [[BPR-1881]]. The readiness last told, and who is told.
+		std::optional<agent_setup_readiness> ToldReadiness;
+		std::function<void()>                ReadinessObserver;
+		std::function<void(bool)>            SuggestionsObserver;
+		QStringList                          Prompts;
+		std::vector<QPointer<QPushButton>>   PromptButtons;
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
@@ -654,6 +655,12 @@ namespace bpr::qt {
 		agent_answer_draft_navigation              DraftNavigate;
 		QLabel*                                    Log      = nullptr;
 		bool                                       LogShown = false;
+		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
+		/// the stopped banner stands down.
+		bool LatestFixedSince = false;
+		/// [[BPR-1876]]. The stopped run's turn was deleted, so its banner
+		/// stands down until the next run.
+		bool StoppedDismissed = false;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
 		/// The panels may go first when the window closes.

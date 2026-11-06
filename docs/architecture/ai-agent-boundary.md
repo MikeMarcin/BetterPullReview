@@ -207,8 +207,17 @@ is copied, from the application's own cache and never through the reviewer's
 remote or credentials: nothing when the clone holds the head, the head's
 objects without the base's when it holds the base. Otherwise the private copy
 also holds the base its cache has, so the brief's named diff works when the
-base is not an ancestor of the head. A sparse review's workspace is shallow at
-the head unless the clone holds every parent of the head. This is in place of
+base is not an ancestor of the head. A sparse review's cache holds no blobs,
+so its workspace always borrows a linked clone ([[BPR-1873]]): when the clone
+lacks the head, the review's own `gh` lease fetches only what the clone lacks
+(`gh repo clone --revision=HEAD --reference=CLONE` into a private store, then
+the objects reachable from the head and from no ref of the clone), the
+workspace indexes that pack and is never shallow. The head is never
+downloaded whole; with no linked clone the workspace holds only the pull
+request's files at the head, read through the review's lease and checked
+against their blobs, sparse-checked-out from the cache's commit and trees and
+shallow at the head, and the brief, the review skill and the turn say so.
+This is in place of
 the `git worktree` the RFC first described, which the owner accepted on
 2026-10-22. Check it works makes and removes the same workspace through the
 agent host's `probe_workspace`, with a session identity from a reserved range,

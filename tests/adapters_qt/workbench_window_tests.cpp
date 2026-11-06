@@ -14289,8 +14289,8 @@ namespace {
 		expect(shown(agent->turn_note_button(1U)) && shown(agent->turn_draft_button(1U)) && shown(agent->turn_copy_button(1U)) && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
 			   "a kept answer keeps Save as note and Draft comment");
 		expect(!shown(agent->turn_note_button(2U)) && !shown(agent->turn_draft_button(2U)) && shown(agent->turn_recovery_button(2U))
-				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Ask again"),
-			   "the latest, an old stopped turn, offers Ask again");
+				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Resend"),
+			   "the latest, an old stopped turn, offers Resend");
 		{
 			auto kept = std::vector<qt::agent_thread_turn>{ };
 			agent->set_thread_observer([&kept](std::vector<qt::agent_thread_turn> aTurns) { kept = std::move(aTurns); });
@@ -14304,8 +14304,8 @@ namespace {
 			expect(kept.size() == 4U && kept[0].Outcome == core::agent_turn_outcome::unreadable && kept[1].Outcome == core::agent_turn_outcome::answered
 					   && kept[3].Outcome == core::agent_turn_outcome::failed_to_start,
 				   "the thread is kept with how each turn ended");
-			expect(shown(agent->turn_recovery_button(3U)) && agent->turn_recovery_button(3U)->text() == QStringLiteral("Check again") && !shown(agent->turn_recovery_button(2U)),
-				   "a start failure offers Check again, and the earlier error no longer offers anything");
+			expect(shown(agent->turn_recovery_button(3U)) && agent->turn_recovery_button(3U)->text() == QStringLiteral("Resend") && !shown(agent->turn_recovery_button(2U)),
+				   "a start failure offers Resend ([[BPR-1876]]), and the earlier error no longer offers anything");
 			agent->set_thread_observer({ });
 		}
 		agent->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("declawd answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
@@ -14325,8 +14325,11 @@ namespace {
 		// nothing to wait on and they show, as before.
 		auto* const suggestions = agent->suggestions_widget();
 		expect(shown(suggestions) && !shown(agent->setup_prompt()), "with nothing to wait on, the suggestions show");
-		auto checks = 0;
-		agent->adopt_setup(*window.agent_setup(), [&checks] { ++checks; });
+		// [[BPR-1881]]. The Tour tab follows the Agent tab's own verdict.
+		auto* const tour     = window.tour_editor();
+		auto* const tourCall = tour->agent_setup_call();
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden(), "with nothing to wait on, the Tour tab's agent features are ready and it asks for no setup");
+		agent->adopt_setup(*window.agent_setup());
 		auto setup                       = application::agent_setup_projection{ };
 		setup.Detected                   = true;
 		setup.Step                       = core::setup_step::check;
@@ -14346,23 +14349,61 @@ namespace {
 			QApplication::setPalette(light);
 			process_events();
 		}
-		agent->setup_prompt()->findChild<QPushButton*>(QStringLiteral("agentSuggestionsSetupFinish"))->click();
+		// [[BPR-1881]]. The same verdict: the Tour tab says to set the agent
+		// up and its agent features wait, and neither opens the setup.
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::unfinished && !tourCall->isHidden() && agent->state() != qt::agent_tab_state::setting_up,
+			   "an unfinished setup puts the call to action on the Tour tab, and the setup does not open by itself");
+		auto* const tourDraft = tour->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+		expect(tourDraft != nullptr && !tourDraft->isEnabled() && tourDraft->toolTip().contains(QStringLiteral("not set up")), "the Tour tab's drafting waits for the setup, saying why");
+		// Its Set up the agent opens the Agent tab's setup where Finish setup
+		// does: its first unfinished step.
+		tourCall->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
 		process_events();
 		expect(agent->state() == qt::agent_tab_state::setting_up && window.agent_setup()->open_step() == core::setup_step::check && !shown(suggestions),
-			   "Finish setup opens the setup at Check it works, with no suggestions");
-		// The check passes: the setup finishes on its Ready line, and the
-		// suggestions follow once that is read.
+			   "the Tour tab's Set up the agent, like Finish setup, opens the setup at Check it works, with no suggestions");
+		// The check passes: the setup finishes on its Ready line.
+		// [[BPR-1877]], owner 2026-11-05: the suggestions do not wait for that
+		// line to be closed; they show and can be pressed beside it.
 		setup.State.WorkspaceCheck.State = core::setup_check_state::passed;
 		setup.Step                       = core::setup_step::ready;
 		window.agent_setup()->present(setup, clones, { });
 		static_cast<void>(window.agent_setup()->take_ready());
 		agent->present_ready(QStringLiteral("declawd is ready"), QStringLiteral("Program check passed."), QString{ });
 		process_events();
-		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && !shown(suggestions) && !shown(agent->setup_prompt()),
-			   "while the setup's Ready line is up, it stands alone");
+		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && shown(suggestions) && shown(agent->suggestions_toggle())
+				   && !shown(agent->setup_prompt()),
+			   "with the setup's Ready line up, the suggestions show beside it");
+		expect(tour->agent_readiness() == qt::agent_setup_readiness::ready && tourCall->isHidden() && tourDraft->isEnabled() && !tourDraft->toolTip().contains(QStringLiteral("not set up")),
+			   "once set up, the Tour tab's call to action goes and its drafting can be pressed");
+		const auto beside = agent->suggestion_buttons();
+		expect(!beside.empty() && std::ranges::all_of(beside, [&shown](const QPushButton* aButton) { return shown(aButton) && aButton->isEnabled(); }),
+			   "every suggestion beside the Ready line can be pressed");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-ready-with-suggestions-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			QApplication::setPalette(dark_palette(light));
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-ready-with-suggestions-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		auto readySends = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&readySends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				readySends.push_back(*send);
+			}
+		});
+		const auto pressed = beside.empty() ? QString{ } : beside.front()->property("agentPrompt").toString();
+		if (!beside.empty()) {
+			beside.front()->click();
+		}
+		process_events();
+		expect(readySends.size() == 1U && QString::fromStdString(readySends.back().Text) == pressed && !pressed.isEmpty(),
+			   "a suggestion pressed while the Ready line is up is sent as written");
+		chat->set_dispatch([](qt::side_chat_intent) { });
 		agent->ready_card()->findChild<QToolButton*>(QStringLiteral("agentReadyDismiss"))->click();
 		process_events();
-		expect(shown(suggestions) && shown(agent->suggestions_toggle()) && !shown(agent->setup_prompt()), "read, the suggestions show");
+		expect(!shown(agent->ready_card()) && shown(suggestions) && !shown(agent->setup_prompt()), "closed, the Ready line leaves the suggestions as they were");
 		// A reopened application set up before stands at Check it works with
 		// neither check run, and is finished.
 		setup.Step                       = core::setup_step::check;
@@ -14371,7 +14412,248 @@ namespace {
 		window.agent_setup()->present(setup, clones, { });
 		process_events();
 		expect(shown(suggestions), "a setup finished before, whose checks have not run this session, shows them");
-		static_cast<void>(checks);
+		agent->set_setup_dispatch({ });
+		agent->present_thread({ });
+		chat->set_dispatch({ });
+		window.hide();
+	}
+
+	/// \brief [[BPR-1876]], owner 2026-11-05: a failed answer's Check again
+	/// re-ran the setup check, which passed, and left the red answer up with
+	/// its old cause, read as the check failing. A failed answer's action is
+	/// Resend (owner look v001), which sends the same message as a new run; once the check
+	/// its cause names has passed since, it says it is fixed since.
+	void test_a_failed_answer_asks_again_and_says_when_fixed()
+	{
+		const auto           root = qEnvironmentVariable("BPR_AGENT_RENDER_ROOT");
+		qt::workbench_window window;
+		window.resize(1'280, 820);
+		window.show();
+		auto opened    = both_files_enabled();
+		opened.Drawers = drawer_states(core::workbench_drawer_state::expanded, core::workbench_drawer_state::expanded);
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		process_events();
+		auto* const agent = window.agent_tab();
+		window.open_agent_action()->trigger();
+		process_events();
+		auto profile        = core::agent_profile{ };
+		profile.Id          = core::entry_profile_id(core::agent_protocol::claude_stream_json, 1U);
+		profile.Protocol    = core::agent_protocol::claude_stream_json;
+		profile.DisplayName = "declawd";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		process_events();
+		const auto binding = core::agent_revision_binding{ .Host = core::git_host_id{ 1 }, .Repository = core::repository_id{ 2 }, .PullRequest = core::pull_request_id{ 3 }, .BaseOid = *core::parse_git_commit_oid("1111111111111111111111111111111111111111"), .HeadOid = *core::parse_git_commit_oid("2222222222222222222222222222222222222222"), .LeftEpoch = core::epoch_ordinal{ 1 }, .RightEpoch = core::epoch_ordinal{ 2 } };
+		const auto session = core::agent_session{ .Id = core::agent_session_id{ 1U }, .Profile = profile.Id, .Binding = binding };
+		auto*      chat    = window.side_chat();
+		auto       sends   = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&sends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				sends.push_back(*send);
+			}
+		});
+		chat->present(qt::side_chat_projection{
+			.Session        = session,
+			.Continuations  = core::offer_agent_continuations(session, binding),
+			.Chat           = { .Scope = { .Kind = core::agent_chat_scope_kind::pull_request } },
+			.PrivateContext = { .Session = session.Id },
+		});
+		process_events();
+		// A setup that was checked and passed before the question failed.
+		agent->adopt_setup(*window.agent_setup());
+		auto setup                       = application::agent_setup_projection{ };
+		setup.Detected                   = true;
+		setup.Step                       = core::setup_step::check;
+		setup.State.AgentCheck.State     = core::setup_check_state::passed;
+		setup.State.WorkspaceCheck.State = core::setup_check_state::passed;
+		auto clones                      = application::clone_link_projection{ };
+		window.agent_setup()->present(setup, clones, { });
+		agent->refresh();
+		process_events();
+		auto setupOpened = 0;
+		agent->set_setup_dispatch([&setupOpened] { ++setupOpened; });
+		const auto shown     = [agent](const QWidget* aWidget) { return aWidget != nullptr && aWidget->isVisibleTo(agent); };
+		const auto fixedNote = [agent](const std::size_t aTurn) { return agent->turn_reply(aTurn) != nullptr ? agent->turn_reply(aTurn)->findChild<QLabel*>(QStringLiteral("agentTurnFixedSince")) : nullptr; };
+		const auto question  = QStringLiteral("What does the retry budget do?");
+
+		// Asked, and the agent did not start.
+		auto identity                 = application::agent_invocation_projection_identity{ };
+		identity.ApplicationSession   = core::application_session_id{ 1U };
+		identity.Session.Id           = core::agent_session_id{ 9U };
+		identity.InvocationGeneration = 1U;
+		chat->composer()->setPlainText(question);
+		agent->ask_button()->click();
+		process_events();
+		expect(sends.size() == 1U && sends.back().Text == question.toStdString(), "the question is sent");
+		window.agent_panel()->admit(identity);
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::failed_to_start });
+		process_events();
+		expect(agent->turn_count() == 1U && agent->turn_outcome(0U) == std::optional{ core::agent_turn_outcome::failed_to_start } && agent->turn_answer(0U).startsWith(QStringLiteral("declawd didn't start.")),
+			   "the turn ended as a start failure: " + agent->turn_answer(0U).toStdString());
+		// AC2, the cause holds: a check passed before the failure says nothing
+		// about it.
+		expect(shown(agent->turn_recovery_button(0U)) && agent->turn_recovery_button(0U)->text() == QStringLiteral("Resend"), "a failed answer's action is Resend, not Check again");
+		expect(agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error") && !shown(fixedNote(0U)), "while the cause holds it is shown as the error, not fixed");
+		expect(shown(agent->banner()) && agent->banner()->findChild<QPushButton*>(QStringLiteral("agentStateFirst"))->text() == QStringLiteral("Resend"),
+			   "the stopped banner resends too, never Check again");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-cause-light.png"), "PNG"), "render saved");
+		}
+
+		// AC1: Resend sends the same question again, as a new run; it
+		// opens no setup and runs no check by itself.
+		agent->turn_recovery_button(0U)->click();
+		process_events();
+		expect(sends.size() == 2U && sends.back().Text == question.toStdString() && sends.back().Session == sends.front().Session && sends.back().Scope == sends.front().Scope,
+			   "Resend sends the same message, in the same scope, again");
+		expect(setupOpened == 0 && agent->state() != qt::agent_tab_state::setting_up, "and opens no setup in its place");
+		identity.InvocationGeneration = 2U;
+		window.agent_panel()->admit(identity);
+		process_events();
+		expect(agent->turn_count() == 2U && agent->turn_question(1U) == question, "the new run is a new turn of the same question");
+		window.agent_panel()->start(identity, application::prepared_workspace{ .Path = "/tmp/workspace" });
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::failed_to_start });
+		process_events();
+
+		// The setup's check runs again: while it runs the cause still holds.
+		setup.State.AgentCheck.State = core::setup_check_state::running;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(!shown(fixedNote(1U)) && agent->turn_reply(1U)->accessibleDescription() == QStringLiteral("Error"), "while the check runs, the cause holds");
+		// It passes: both failed answers are fixed since; the latest offers
+		// Resend, and the stopped banner stands down.
+		setup.State.AgentCheck.State = core::setup_check_state::passed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(shown(fixedNote(1U)) && fixedNote(1U)->text().contains(QStringLiteral("Fixed since: declawd passed its check."))
+				   && fixedNote(1U)->text().contains(QStringLiteral("Resend to try it now.")),
+			   "after the check passes, the latest failed answer reads as fixed since, with Resend");
+		expect(shown(agent->turn_recovery_button(1U)) && agent->turn_recovery_button(1U)->text() == QStringLiteral("Resend")
+				   && agent->turn_reply(1U)->accessibleDescription() == QStringLiteral("Error, fixed since"),
+			   "it keeps Resend and is named fixed since");
+		expect(shown(fixedNote(0U)) && !fixedNote(0U)->text().contains(QStringLiteral("Resend")) && !shown(agent->turn_recovery_button(0U)), "an earlier failure is fixed since too, with no way back of its own");
+		expect(!shown(agent->banner()), "the stopped banner no longer says it stopped");
+		expect(!shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)), "fixed, it is still an error: no Save as note or Draft comment");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-fixed-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			QApplication::setPalette(dark_palette(light));
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-fixed-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		// The check fails again: the cause holds once more.
+		setup.State.AgentCheck.State = core::setup_check_state::failed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(!shown(fixedNote(1U)) && agent->turn_reply(1U)->accessibleDescription() == QStringLiteral("Error") && shown(agent->banner()), "a check that fails again shows the cause again");
+
+		// A workspace failure is fixed since by the workspace check, not the
+		// agent's.
+		setup.State.AgentCheck.State = core::setup_check_state::passed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		chat->composer()->setPlainText(question);
+		agent->ask_button()->click();
+		process_events();
+		identity.InvocationGeneration = 3U;
+		window.agent_panel()->admit(identity);
+		window.agent_panel()->finish(identity, application::agent_run_result{ .Session = identity.Session.Id, .Outcome = application::agent_run_outcome::workspace_unavailable });
+		process_events();
+		expect(agent->turn_count() == 3U && agent->turn_outcome(2U) == std::optional{ core::agent_turn_outcome::workspace_unavailable } && !shown(fixedNote(2U)), "a workspace failure shows its cause");
+		setup.State.AgentCheck.State = core::setup_check_state::running;
+		window.agent_setup()->present(setup, clones, { });
+		setup.State.AgentCheck.State = core::setup_check_state::passed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(!shown(fixedNote(2U)), "the agent check passing again does not clear a workspace cause");
+		setup.State.WorkspaceCheck.State = core::setup_check_state::running;
+		window.agent_setup()->present(setup, clones, { });
+		setup.State.WorkspaceCheck.State = core::setup_check_state::passed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		expect(shown(fixedNote(2U)) && fixedNote(2U)->text().contains(QStringLiteral("Fixed since: the workspace check passed.")), "the workspace check passing does");
+
+		// Owner look v001: a message that never reached the agent can be
+		// deleted, on any turn, beside Resend; the thread is kept without it.
+		setup.State.WorkspaceCheck.State = core::setup_check_state::failed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		for (auto turn = std::size_t{ 0U }; turn < 3U; ++turn) {
+			expect(shown(agent->turn_delete_button(turn)) && agent->turn_delete_button(turn)->text() == QStringLiteral("Delete"), "every message that never reached the agent offers Delete");
+		}
+		expect(shown(agent->turn_recovery_button(2U)) && agent->turn_recovery_button(2U)->text() == QStringLiteral("Resend"), "the latest keeps Resend beside Delete");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-delete-light.png"), "PNG"), "render saved");
+		}
+		{
+			auto kept = std::vector<qt::agent_thread_turn>{ };
+			auto told = 0;
+			agent->set_thread_observer([&kept, &told](std::vector<qt::agent_thread_turn> aTurns) {
+				kept = std::move(aTurns);
+				++told;
+			});
+			expect(shown(agent->banner()), "the stopped banner stands for the latest failure");
+			agent->turn_delete_button(2U)->click();
+			process_events();
+			expect(agent->turn_count() == 2U && told == 1 && kept.size() == 2U && kept[1].Outcome == core::agent_turn_outcome::failed_to_start,
+				   "Delete removes the latest message and the thread is kept without it");
+			expect(!shown(agent->banner()), "with its message gone, the stopped banner stands down");
+			expect(shown(agent->turn_recovery_button(1U)) && agent->turn_recovery_button(1U)->text() == QStringLiteral("Resend"), "the new latest offers Resend");
+			agent->turn_delete_button(0U)->click();
+			process_events();
+			expect(agent->turn_count() == 1U && told == 2 && kept.size() == 1U && agent->turn_question(0U) == question, "an earlier one is deleted the same way");
+			agent->set_thread_observer({ });
+		}
+		// [[BPR-1880]], owner 2026-11-06: "Put Delete on every failed
+		// message, not just unsent ones." AC1: every failed kind offers
+		// Delete, beside Agent settings… or Resend on the latest; an answer
+		// does not.
+		const auto never    = QStringLiteral("Remove this message from the conversation. It never reached the agent.");
+		const auto received = QStringLiteral("Remove this message from the conversation. The agent won't be sent it again, so it won't remember it.");
+		auto       failed   = std::vector<qt::agent_thread_turn>{ { .Question = QStringLiteral("Earlier question"), .Answer = QStringLiteral("It does."), .Footer = QStringLiteral("declawd answered in 0:09."), .Outcome = core::agent_turn_outcome::answered } };
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome = *core::agent_turn_outcome_of(ordinal);
+			if (outcome != core::agent_turn_outcome::answered) {
+				failed.push_back({ .Question = QString::fromUtf8(core::stable_name(outcome)), .Answer = QStringLiteral("It ended without an answer."), .Footer = QStringLiteral("Stopped after 0:04."), .Outcome = outcome });
+			}
+		}
+		agent->present_thread(failed);
+		process_events();
+		expect(agent->turn_count() == failed.size() && !shown(agent->turn_delete_button(0U)), "an answer offers no Delete");
+		for (auto turn = std::size_t{ 1U }; turn < failed.size(); ++turn) {
+			const auto* const remove = agent->turn_delete_button(turn);
+			expect(shown(remove) && remove->text() == QStringLiteral("Delete"), "every failed message offers Delete: " + std::string{ core::stable_name(failed[turn].Outcome) });
+			expect(remove->toolTip() == (core::agent_turn_never_sent(failed[turn].Outcome) ? never : received), "its tooltip says whether the agent had it and that it will not remember it");
+		}
+		expect(shown(agent->turn_recovery_button(failed.size() - 1U)), "the latest keeps its way back beside Delete");
+		// AC2: a message the agent received, once deleted, leaves the kept
+		// thread, which is all a later message carries of it: the Agent tab
+		// resumes no agent session of its own.
+		agent->present_thread({ { .Question = QStringLiteral("Earlier question"), .Answer = QStringLiteral("It does."), .Footer = QStringLiteral("declawd answered in 0:09."), .Outcome = core::agent_turn_outcome::answered },
+								{ .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("declawd answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
+								{ .Question = question, .Answer = QStringLiteral("Stopped before declawd answered."), .Footer = QStringLiteral("Stopped after 0:04."), .Outcome = core::agent_turn_outcome::stopped } });
+		process_events();
+		expect(shown(agent->turn_delete_button(1U)) && shown(agent->turn_delete_button(2U)) && shown(agent->turn_recovery_button(2U)), "a stopped and an unreadable message offer Delete too");
+		{
+			auto kept = std::vector<qt::agent_thread_turn>{ };
+			auto told = 0;
+			agent->set_thread_observer([&kept, &told](std::vector<qt::agent_thread_turn> aTurns) {
+				kept = std::move(aTurns);
+				++told;
+			});
+			agent->turn_delete_button(2U)->click();
+			process_events();
+			expect(agent->turn_count() == 2U && told == 1 && kept.size() == 2U && std::ranges::none_of(kept, [&question](const qt::agent_thread_turn& aTurn) { return aTurn.Question == question; }),
+				   "a deleted stopped message leaves the kept thread a later message carries");
+			agent->turn_delete_button(1U)->click();
+			process_events();
+			expect(agent->turn_count() == 1U && told == 2 && kept.size() == 1U && kept[0].Outcome == core::agent_turn_outcome::answered, "an earlier unreadable one is deleted the same way, and the answer stays");
+			agent->set_thread_observer({ });
+		}
 		agent->set_setup_dispatch({ });
 		agent->present_thread({ });
 		chat->set_dispatch({ });
@@ -15393,8 +15675,20 @@ namespace {
 			expect(agent->ready_card()->isVisible() && details != nullptr && !details->isChecked() && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyText"))->isVisible()
 					   && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(),
 				   "the ready card shows its line and keeps the details collapsed");
+			// [[BPR-1877]]. The prompts are there with it, pressable, under the
+			// Ready line in the empty tab's line's place.
+			expect(agent->suggestions_widget()->isVisible() && !agent->suggestion_buttons().empty()
+					   && std::ranges::all_of(agent->suggestion_buttons(), [](const QPushButton* aButton) { return aButton->isVisible() && aButton->isEnabled(); })
+					   && agent->suggestions_widget()->geometry().top() > agent->ready_card()->geometry().bottom(),
+				   "the suggested prompts show and can be pressed under the open Ready line");
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-ready.png"), "PNG"), "render saved");
+				const auto light = QApplication::palette();
+				QApplication::setPalette(dark_palette(light));
+				process_events();
+				expect(window.grab().save(root + QStringLiteral("/agent-ready-dark.png"), "PNG"), "render saved");
+				QApplication::setPalette(light);
+				process_events();
 			}
 			details->click();
 			process_events();
@@ -15425,7 +15719,7 @@ namespace {
 		// History offers Reset agents…, which asks first, then clears the
 		// agents and starts the setup again.
 		{
-			agent->adopt_setup(*window.agent_setup(), { });
+			agent->adopt_setup(*window.agent_setup());
 			const auto history = agent->history_button()->menu()->actions();
 			const auto named   = [&history](const char* aName) { return std::ranges::any_of(history, [aName](const QAction* aAction) { return aAction->objectName() == QString::fromLatin1(aName); }); };
 			expect(named("agentResetAgentsAction") && !named("agentSetUpAgainAction") && !named("agentChangeRepositoryAction"), "History has Reset agents… and no other way back into the setup");
@@ -24410,6 +24704,7 @@ auto main(int argc, char** argv) -> int
 		runCase("test_a_refused_send_says_why_beside_the_composer", &test_a_refused_send_says_why_beside_the_composer);
 		runCase("test_a_removed_agent_is_unavailable_in_the_composer", &test_a_removed_agent_is_unavailable_in_the_composer);
 		runCase("test_an_agent_error_is_an_error_and_suggestions_wait_for_setup", &test_an_agent_error_is_an_error_and_suggestions_wait_for_setup);
+		runCase("test_a_failed_answer_asks_again_and_says_when_fixed", &test_a_failed_answer_asks_again_and_says_when_fixed);
 		if (!listCases) {
 			std::cout << "workbench-agent-send-refusal:pass\n";
 		}

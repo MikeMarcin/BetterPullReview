@@ -195,8 +195,16 @@ namespace bpr::adapters::github::detail {
 	enum class gh_cli_clone_content : std::uint8_t {
 		/// Commits and trees, no blobs: an epoch's commit or the chain.
 		trees,
-		/// One commit, its tree and every blob: an agent workspace.
-		snapshot,
+		/// [[BPR-1873]]. What a linked clone lacks of one head, fetched
+		/// into a store that borrows the clone through `--reference`: an
+		/// agent workspace. There is no whole-head content: the head snapshot
+		/// download is removed.
+		delta,
+		/// [[BPR-1879]]. Every object of the repository, no filter, no depth
+		/// and no checkout: the clone BetterPullReview keeps for a
+		/// repository's agent questions, made once and then borrowed as a
+		/// linked clone.
+		managed,
 	};
 
 	class validated_gh_cli_configuration final
@@ -281,8 +289,8 @@ namespace bpr::adapters::github::detail {
 		friend auto compile_gh_cli_git_clone_request(
 			const validated_gh_cli_configuration&, const validated_github_host_profile&,
 			const application::git_smart_request_context&, core::git_commit_oid,
-			const std::filesystem::path&, const std::filesystem::path&, std::size_t, std::uint32_t, gh_cli_clone_content)
-			-> std::optional<github_cli_process_request>;
+			const std::filesystem::path&, const std::filesystem::path&, std::size_t, std::uint32_t, gh_cli_clone_content,
+			const std::filesystem::path&) -> std::optional<github_cli_process_request>;
 	};
 
 	using gh_cli_configuration_result = std::expected<
@@ -459,16 +467,20 @@ namespace bpr::adapters::github::detail {
 	/// \details A sparse clone takes \p aDepth generations of trees without
 	/// blobs: one for an epoch's commit, more for RFC-BPR-0089's first-parent
 	/// chain (at most `maximum_gh_cli_clone_depth`). A complete clone takes no
-	/// depth, and any other \p aDepth refuses it. [[BPR-1738]]. A sparse
-	/// review's `snapshot` clone takes one generation with every blob, for an
-	/// agent workspace; any other \p aDepth refuses it.
+	/// depth, and any other \p aDepth refuses it. Every depth comes with
+	/// `--filter=blob:none`: no clone takes a head's blobs without its history
+	/// ([[BPR-1873]] removed [[BPR-1738]]'s head snapshot). [[BPR-1873]]. A
+	/// sparse review's `delta` clone borrows \p aReference, the linked clone's
+	/// canonical folder, takes no depth (\p aDepth 0) and no filter, and so
+	/// receives only what the clone lacks of the head.
 	[[nodiscard]] auto compile_gh_cli_git_clone_request(
 		const validated_gh_cli_configuration&         aConfiguration,
 		const validated_github_host_profile&          aProfile,
 		const application::git_smart_request_context& aContext, core::git_commit_oid aCommit,
 		const std::filesystem::path& aGit, const std::filesystem::path& aRoot,
 		std::size_t aIndex, std::uint32_t aDepth = 1U,
-		gh_cli_clone_content aContent = gh_cli_clone_content::trees) -> std::optional<github_cli_process_request>;
+		gh_cli_clone_content         aContent   = gh_cli_clone_content::trees,
+		const std::filesystem::path& aReference = { }) -> std::optional<github_cli_process_request>;
 
 	/// \brief RFC-BPR-0089. The deepest sparse clone: 250 listed commits and
 	/// the commit the chain grew from.
@@ -482,6 +494,11 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
+		-> std::filesystem::path;
+
+	/// \brief [[BPR-1879]]. The Git directory of the kept clone that clone
+	/// \p aIndex writes under \p aRoot: a working folder with no checkout.
+	[[nodiscard]] auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aRoot, std::size_t aIndex)
 		-> std::filesystem::path;
 
 	/// \brief Compiles one credential-free local Git request over an owned store.

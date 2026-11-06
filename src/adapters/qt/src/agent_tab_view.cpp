@@ -132,81 +132,6 @@ namespace bpr::qt {
 		private:
 		};
 
-		/// \brief A tool button whose menu opens on a press and draws no
-		/// arrow: the word or the dots are the affordance in a narrow drawer.
-		class menu_word final : public QToolButton
-		{
-		public:
-			explicit menu_word(QWidget* aParent)
-				: QToolButton{ aParent }
-			{
-				setAutoRaise(true);
-				setPopupMode(QToolButton::InstantPopup);
-			}
-
-			/// Owner look v003: a word that may shorten, but never below a few
-			/// letters, so a narrow row keeps every other control whole.
-			[[nodiscard]] auto minimumSizeHint() const -> QSize override
-			{
-				const auto hint = QToolButton::sizeHint();
-				return { std::min(hint.width(), fontMetrics().horizontalAdvance(QStringLiteral("Mmmm…")) + 12), hint.height() };
-			}
-
-			/// Drawn as a rounded pill in the field's own colours, as the
-			/// agent drawers draw their model chip.
-			bool Pill = false;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				if (Pill) {
-					auto       painter = QPainter{ this };
-					const auto ink     = palette().color(QPalette::Active, QPalette::WindowText);
-					const auto base    = palette().color(QPalette::Active, QPalette::Base);
-					painter.setRenderHint(QPainter::Antialiasing, true);
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(mixed(base, ink, underMouse() || isDown() ? 0.16 : 0.08));
-					const auto box = QRectF{ rect() }.adjusted(0.5, 1.5, -0.5, -1.5);
-					painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
-					if (!icon().isNull() && text().isEmpty()) {
-						const auto side = std::min(16, height() - 6);
-						icon().paint(&painter, QRect{ (width() - side) / 2, (height() - side) / 2, side, side });
-						return;
-					}
-					painter.setPen(ink);
-					painter.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 20)));
-					return;
-				}
-				auto painter = QStylePainter{ this };
-				auto option  = QStyleOptionToolButton{ };
-				initStyleOption(&option);
-				option.features &= ~QStyleOptionToolButton::HasMenu;
-				option.text = fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 12));
-				painter.drawComplexControl(QStyle::CC_ToolButton, option);
-			}
-
-			[[nodiscard]] auto sizeHint() const -> QSize override
-			{
-				const auto hint = QToolButton::sizeHint();
-				if (!Pill) {
-					return hint;
-				}
-				const auto wide = text().isEmpty() ? 28 : fontMetrics().horizontalAdvance(text()) + 22;
-				return { wide, std::max(hint.height(), fontMetrics().height() + 8) };
-			}
-
-			void enterEvent(QEnterEvent* aEvent) override
-			{
-				QToolButton::enterEvent(aEvent);
-				update();
-			}
-			void leaveEvent(QEvent* aEvent) override
-			{
-				QToolButton::leaveEvent(aEvent);
-				update();
-			}
-		};
-
 		/// \brief A thin rule inside the question field, in its outline's colour.
 		class rule_line final : public QWidget
 		{
@@ -695,8 +620,9 @@ namespace bpr::qt {
 		dismiss->setText(QString{ QChar{ 0x2715 } });
 		dismiss->setAccessibleName(tr("Dismiss"));
 		connect(dismiss, &QToolButton::clicked, ReadyCard, &QWidget::hide);
-		// [[BPR-1847]]. The setup's Ready line read, the suggestions follow.
-		connect(dismiss, &QToolButton::clicked, this, [this] { refresh_suggestions(); });
+		// [[BPR-1877]]. The suggestions show beside the Ready line; closing it
+		// gives its place back to the empty tab's line.
+		connect(dismiss, &QToolButton::clicked, this, [this] { refresh(); });
 		readyTop->addWidget(dismiss, 0, Qt::AlignTop);
 		readyCol->addLayout(readyTop);
 		// Owner look v001: the ready line alone; the check's details and what
@@ -802,15 +728,7 @@ namespace bpr::qt {
 		auto* const finish = new quiet_push_button{ tr("Finish setup"), SetupPrompt };
 		finish->setObjectName(QStringLiteral("agentSuggestionsSetupFinish"));
 		finish->setFlat(true);
-		connect(finish, &QPushButton::clicked, this, [this] {
-			// At the setup's first unfinished step, not pinned to it, so the
-			// setup closes on its Ready line once that step is done.
-			if (SetupView != nullptr) {
-				SetupView->begin(core::setup_step::ready);
-			} else if (Setup) {
-				Setup();
-			}
-		});
+		connect(finish, &QPushButton::clicked, this, [this] { open_setup(); });
 		setupRow->addWidget(finish, 0, Qt::AlignTop);
 		SetupPrompt->hide();
 		contentCol->addWidget(SetupPrompt);
@@ -912,25 +830,27 @@ namespace bpr::qt {
 		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
 		// effort as a pill in the field; an icon alone when the field is narrow.
-		RunSettings = new menu_word{ field };
-		RunSettings->setObjectName(QStringLiteral("agentRunSettings"));
-		RunSettings->setAccessibleName(tr("Agent, model and effort"));
-		RunSettings->setMenu(new QMenu{ RunSettings });
-		RunSettings->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-		static_cast<menu_word*>(RunSettings)->Pill = true;
-		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] {
-			// Owner look v006: the harness is asked what it offers when the
-			// reviewer opens its menu, once per window.
-			if (const auto* const settings = current_run_settings(); settings != nullptr && CatalogDispatch) {
-				CatalogDispatch(settings->Profile);
+		// [[BPR-1878]]: one source behind this pill and the Tour tab's.
+		RunSettingsSource           = std::make_shared<agent_run_settings_source>(Launch);
+		RunSettingsSource->Choose   = [this](const std::uint64_t aProfile) { return choose_agent(aProfile); };
+		RunSettingsSource->Dispatch = [this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+			return RunSettingsDispatch && RunSettingsDispatch(aProfile, std::move(aModel), std::move(aEffort));
+		};
+		RunSettingsSource->Catalog = [this](const std::uint64_t aProfile) {
+			if (CatalogDispatch) {
+				CatalogDispatch(aProfile);
 			}
-			present_run_settings_button();
-		});
-		connect(RunSettings->menu(), &QMenu::aboutToHide, this, [this] {
-			if (MenuStale) {
-				QTimer::singleShot(0, this, [this] { present_run_settings_button(); });
+		};
+		RunSettingsSource->Setup = [this] {
+			if (Setup) {
+				Setup();
 			}
-		});
+		};
+		RunSettingsSource->Refused = [this](const QString& aWhy) {
+			Notice->setText(aWhy);
+			Notice->show();
+		};
+		RunSettings = new agent_run_settings_picker{ RunSettingsSource, field };
 		askRow->addWidget(RunSettings);
 		Ask = new QPushButton{ field };
 		Ask->setObjectName(QStringLiteral("agentAsk"));
@@ -1047,6 +967,14 @@ namespace bpr::qt {
 	agent_tab_view::~agent_tab_view()
 	{
 		Dying = true;
+		// [[BPR-1878]]. Another picker on this source may outlive the tab.
+		if (RunSettingsSource) {
+			RunSettingsSource->Choose   = { };
+			RunSettingsSource->Dispatch = { };
+			RunSettingsSource->Catalog  = { };
+			RunSettingsSource->Setup    = { };
+			RunSettingsSource->Refused  = { };
+		}
 		// The panels hold these controls by pointer and outlive this tab; the
 		// tab never deletes what it only shows.
 		for (auto& [widget, owner] : Borrowed) {
@@ -1058,6 +986,33 @@ namespace bpr::qt {
 	}
 
 	void agent_tab_view::set_setup_dispatch(std::function<void()> aDispatch) { Setup = std::move(aDispatch); }
+
+	void agent_tab_view::open_setup()
+	{
+		// At the setup's first unfinished step, not pinned to it, so the
+		// setup closes on its Ready line once that step is done.
+		if (SetupView != nullptr) {
+			SetupView->begin(core::setup_step::ready);
+		} else if (Setup) {
+			Setup();
+		}
+	}
+
+	auto agent_tab_view::setup_readiness() const -> agent_setup_readiness
+	{
+		if (SetupView != nullptr && !SetupView->projection().Detected) {
+			return agent_setup_readiness::checking;
+		}
+		const auto verdict = suggestions_verdict();
+		return verdict == core::agent_suggestions_verdict::no_agent || verdict == core::agent_suggestions_verdict::setup_unfinished ? agent_setup_readiness::unfinished : agent_setup_readiness::ready;
+	}
+
+	void agent_tab_view::set_readiness_observer(std::function<void()> aObserver)
+	{
+		ReadinessObserver = std::move(aObserver);
+		ToldReadiness.reset();
+		refresh_suggestions();
+	}
 
 	void agent_tab_view::focus_question()
 	{
@@ -1081,10 +1036,9 @@ namespace bpr::qt {
 																		   : Conversation);
 	}
 
-	void agent_tab_view::adopt_setup(agent_setup_view& aSetup, std::function<void()> aCheckAgain)
+	void agent_tab_view::adopt_setup(agent_setup_view& aSetup)
 	{
-		SetupView  = &aSetup;
-		CheckAgain = std::move(aCheckAgain);
+		SetupView = &aSetup;
 		Pages->addWidget(SetupView);
 		SetupView->set_change_observer([this] { refresh(); });
 		HistoryMenu->addSeparator();
@@ -1103,7 +1057,9 @@ namespace bpr::qt {
 		ReadyText->setText(aText);
 		ReadyGets->setText(aGets);
 		ReadyCard->setVisible(!aTitle.isEmpty());
-		refresh_suggestions();
+		// [[BPR-1877]]. The whole tab, so the Ready line takes the empty tab's
+		// line's place at once and the suggestions follow straight under it.
+		refresh();
 	}
 
 	void agent_tab_view::refresh()
@@ -1125,6 +1081,7 @@ namespace bpr::qt {
 			: failed                    ? agent_tab_state::stopped
 										: agent_tab_state::idle;
 		if (State == agent_tab_state::working && !wasWorking) {
+			StoppedDismissed = false;
 			Started.start();
 			Ticker->start();
 			ReadyCard->hide();
@@ -1315,6 +1272,15 @@ namespace bpr::qt {
 		auto* const replyColumn = new QVBoxLayout{ reply };
 		replyColumn->setContentsMargins(reply_left_margin, 8, reply_right_margin, 6);
 		replyColumn->setSpacing(6);
+		// [[BPR-1876]]. Over an error whose cause has cleared since: that it
+		// is fixed, ahead of the old cause, which then reads as history.
+		auto* const fixedNote = new QLabel{ reply };
+		fixedNote->setObjectName(QStringLiteral("agentTurnFixedSince"));
+		fixedNote->setTextFormat(Qt::RichText);
+		fixedNote->setWordWrap(true);
+		fixedNote->hide();
+		replyColumn->addWidget(fixedNote);
+		aTurn.FixedNote = fixedNote;
 		// Owner decision (a): the answer reads as the agent wrote it, its
 		// Markdown rendered in place, its code coloured as comments' are;
 		// links and images do nothing.
@@ -1370,6 +1336,14 @@ namespace bpr::qt {
 		recovery->setFlat(true);
 		recovery->hide();
 		footerRow->addWidget(recovery);
+		// [[BPR-1876]], owner look v001: "We should also be able to delete a
+		// message that was never sent to the agent instead of just resend."
+		// [[BPR-1880]]: on every error; its tooltip is set with its actions.
+		auto* const remove = new quiet_push_button{ tr("Delete"), reply };
+		remove->setObjectName(QStringLiteral("agentTurnDelete"));
+		remove->setFlat(true);
+		remove->hide();
+		footerRow->addWidget(remove);
 		footerRow->addStretch(1);
 		auto* const answeredTime = new QLabel{ reply };
 		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
@@ -1391,10 +1365,19 @@ namespace bpr::qt {
 		aTurn.Asked        = asked;
 		aTurn.Reply        = reply;
 		aTurn.Recovery     = recovery;
+		aTurn.Delete       = remove;
 		connect(recovery, &QPushButton::clicked, this, [this, recovery] {
 			for (const auto& kept : Turns) {
 				if (kept.Recovery == recovery) {
 					recover(kept);
+					return;
+				}
+			}
+		});
+		connect(remove, &QPushButton::clicked, this, [this, remove] {
+			for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
+				if (Turns[index].Delete == remove) {
+					delete_turn(index);
 					return;
 				}
 			}
@@ -1865,15 +1848,22 @@ namespace bpr::qt {
 		// [[BPR-1755]], the owner's accept of look v007 ("Hide
 		// suggestions until the the agent is done thinking"): none while a
 		// turn runs; they return when it has finished. [[BPR-1847]]: none
-		// before the setup has finished either; the core decides.
+		// before the setup has finished either; the core decides. A passed
+		// check's Ready line does not hold them back ([[BPR-1877]]).
 		const auto verdict = suggestions_verdict();
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
-		// The setup's way in, unless the setup or its Ready line is on screen.
-		// Only once the setup knows what is missing: not while agents are
-		// still being looked for.
+		// The setup's way in, unless the setup is on screen. Only once the
+		// setup knows what is missing: not while agents are still being
+		// looked for. [[BPR-1877]]: an unfinished setup always says why the
+		// prompts are not there, whatever else is on screen.
 		const auto known = SetupView == nullptr || SetupView->projection().Detected;
-		SetupPrompt->setVisible(conversing && known && verdict == core::agent_suggestions_verdict::setup_unfinished && ReadyCard->isHidden());
+		SetupPrompt->setVisible(conversing && known && verdict == core::agent_suggestions_verdict::setup_unfinished);
+		// [[BPR-1881]]. The Tour tab's agent features follow the same verdict.
+		if (const auto readiness = setup_readiness(); ReadinessObserver && ToldReadiness != readiness) {
+			ToldReadiness = readiness;
+			ReadinessObserver();
+		}
 	}
 
 	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict
@@ -1886,7 +1876,6 @@ namespace bpr::qt {
 			.SetupStep      = setup != nullptr ? setup->Step : core::setup_step::ready,
 			.AgentCheck     = setup != nullptr ? setup->State.AgentCheck.State : core::setup_check_state::passed,
 			.WorkspaceCheck = setup != nullptr ? setup->State.WorkspaceCheck.State : core::setup_check_state::passed,
-			.ReadyShowing   = !ReadyCard->isHidden(),
 			.Working        = State == agent_tab_state::working,
 			.Toggled        = SuggestionsMenu->isChecked(),
 		});
@@ -1926,6 +1915,10 @@ namespace bpr::qt {
 			if (const auto latest = Launch.latest_output_line(); written.isEmpty() && !latest.isEmpty()) {
 				line += QStringLiteral(" ") + latest.left(120);
 			}
+			// [[BPR-1873]]. A sparse review with no clone: said while it runs.
+			if (Launch.pull_request_files_only()) {
+				line += QStringLiteral(" ") + tr("It sees only this pull request's files.");
+			}
 			current.Footer->setText(QStringLiteral("● ") + line);
 			return;
 		}
@@ -1961,12 +1954,14 @@ namespace bpr::qt {
 		if (const auto reported = Launch.last_reported_model(); succeeded && !reported.isEmpty()) {
 			ran = tr("%1 (%2)").arg(agent, agent_model_display_name(reported));
 			if (const auto profile = Launch.selected_profile()) {
-				ReportedModels[profile->value()] = reported;
-				present_run_settings_button();
+				RunSettingsSource->report_model(profile->value(), reported);
 			}
 		}
 		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
 		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
+		if (succeeded && Launch.pull_request_files_only()) {
+			footer += QStringLiteral(" ") + tr("It saw only this pull request's files.");
+		}
 		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
 			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
 		}
@@ -1999,27 +1994,63 @@ namespace bpr::qt {
 	void agent_tab_view::present_turn_actions()
 	{
 		const auto working = State == agent_tab_state::working;
+		// [[BPR-1876]]. Where the setup's two checks stand now; none without
+		// a setup, so no cause is ever taken as cleared.
+		const auto* const setup      = SetupView != nullptr ? &SetupView->projection() : nullptr;
+		const auto        checkState = [setup](const core::agent_turn_cause aCause) -> std::optional<core::setup_check_state> {
+			if (setup == nullptr) {
+				return std::nullopt;
+			}
+			switch (aCause) {
+			case core::agent_turn_cause::none:            return std::nullopt;
+			case core::agent_turn_cause::agent_check:     return setup->State.AgentCheck.State;
+			case core::agent_turn_cause::workspace_check: return setup->State.WorkspaceCheck.State;
+			}
+			return std::nullopt;
+		};
 		for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
 			auto& kept = Turns[index];
 			if (!kept.Done) {
 				continue;
 			}
+			// A pass counts as made since the turn ended only once its check
+			// was seen not passed after it: a pass from before the failure
+			// says nothing about it.
+			const auto cause = core::agent_turn_cause_of(kept.Outcome);
+			const auto check = checkState(cause);
+			if (check && *check != core::setup_check_state::passed) {
+				kept.CauseRechecked = true;
+			}
+			const auto latest = index + 1U == Turns.size();
 			// [[BPR-1847]], owner 2026-11-03: "Agent wizard errors shouldn't
 			// get the save as note and draft comment treatment." The core
 			// decides from how the turn ended; this presents it.
 			const auto actions = core::decide_agent_turn_actions({
-				.Outcome = kept.Outcome,
-				.HasText = !kept.AnswerText.isEmpty(),
-				.Latest  = index + 1U == Turns.size(),
-				.Working = working,
+				.Outcome          = kept.Outcome,
+				.HasText          = !kept.AnswerText.isEmpty(),
+				.Latest           = latest,
+				.Working          = working,
+				.CausePassedSince = kept.CauseRechecked && check == std::optional{ core::setup_check_state::passed },
 			});
 			if (auto* const card = static_cast<rounded*>(kept.Reply.data()); card != nullptr) {
-				const auto look = actions.Error ? rounded::look::danger : rounded::look::card;
-				if (card->Look != look) {
+				// A fixed error is no longer drawn as one that holds now.
+				const auto look        = actions.Error && !actions.FixedSince ? rounded::look::danger : rounded::look::card;
+				const auto description = !actions.Error ? QString{ } : actions.FixedSince ? tr("Error, fixed since")
+																						  : tr("Error");
+				if (card->Look != look || card->accessibleDescription() != description) {
 					card->Look = look;
-					card->setAccessibleDescription(actions.Error ? tr("Error") : QString{ });
+					card->setAccessibleDescription(description);
 					card->update();
 				}
+			}
+			if (kept.FixedNote != nullptr) {
+				if (actions.FixedSince) {
+					const auto [glyph, colour] = setup_check_mark(core::setup_check_state::passed, palette());
+					const auto what            = cause == core::agent_turn_cause::workspace_check ? tr("Fixed since: the workspace check passed.") : tr("Fixed since: %1 passed its check.").arg(agent_name().toHtmlEscaped());
+					const auto next            = actions.Recovery == core::agent_turn_recovery::resend ? QStringLiteral(" ") + tr("Resend to try it now.") : QString{ };
+					kept.FixedNote->setText(QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp; <b>%3</b>%4").arg(colour.name(), glyph, what, next.toHtmlEscaped()));
+				}
+				kept.FixedNote->setVisible(actions.FixedSince);
 			}
 			if (kept.Copy != nullptr) {
 				kept.Copy->setVisible(actions.Copy);
@@ -2035,13 +2066,9 @@ namespace bpr::qt {
 			if (kept.Recovery != nullptr) {
 				switch (actions.Recovery) {
 				case core::agent_turn_recovery::none: break;
-				case core::agent_turn_recovery::ask_again:
-					kept.Recovery->setText(tr("Ask again"));
-					kept.Recovery->setToolTip(tr("Send this question again"));
-					break;
-				case core::agent_turn_recovery::check_setup:
-					kept.Recovery->setText(tr("Check again"));
-					kept.Recovery->setToolTip(tr("Check the agent and its workspace again"));
+				case core::agent_turn_recovery::resend:
+					kept.Recovery->setText(tr("Resend"));
+					kept.Recovery->setToolTip(tr("Send this message to the agent again"));
 					break;
 				case core::agent_turn_recovery::agent_settings:
 					kept.Recovery->setText(tr("Agent settings…"));
@@ -2050,6 +2077,22 @@ namespace bpr::qt {
 				}
 				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
 			}
+			if (kept.Delete != nullptr) {
+				// [[BPR-1880]]. A message the agent received is forgotten once
+				// deleted: no agent session is resumed, and the next message
+				// carries the kept thread without it.
+				kept.Delete->setToolTip(core::agent_turn_never_sent(kept.Outcome) ? tr("Remove this message from the conversation. It never reached the agent.")
+																				  : tr("Remove this message from the conversation. The agent won't be sent it again, so it won't remember it."));
+				kept.Delete->setVisible(actions.Delete);
+			}
+			if (latest && LatestFixedSince != actions.FixedSince) {
+				LatestFixedSince = actions.FixedSince;
+				present_banner();
+			}
+		}
+		if (Turns.empty() && LatestFixedSince) {
+			LatestFixedSince = false;
+			present_banner();
 		}
 	}
 
@@ -2060,19 +2103,11 @@ namespace bpr::qt {
 		}
 		switch (aTurn.RecoveryKind) {
 		case core::agent_turn_recovery::none: return;
-		case core::agent_turn_recovery::ask_again:
+		case core::agent_turn_recovery::resend:
 			if (aTurn.Review) {
 				Launch.start_action()->trigger();
 			} else {
 				send_prompt(aTurn.Question);
-			}
-			return;
-		case core::agent_turn_recovery::check_setup:
-			if (SetupView != nullptr && CheckAgain) {
-				SetupView->begin(core::setup_step::ready);
-				CheckAgain();
-			} else if (Setup) {
-				Setup();
 			}
 			return;
 		case core::agent_turn_recovery::agent_settings:
@@ -2080,6 +2115,35 @@ namespace bpr::qt {
 				Setup();
 			}
 			return;
+		}
+	}
+
+	void agent_tab_view::delete_turn(const std::size_t aTurn)
+	{
+		if (!panels_alive() || aTurn >= Turns.size() || State == agent_tab_state::working || !Turns[aTurn].Done || Turns[aTurn].Outcome == core::agent_turn_outcome::answered) {
+			return;
+		}
+		const auto latest = aTurn + 1U == Turns.size();
+		if (auto* const widget = Turns[aTurn].Widget.data(); widget != nullptr) {
+			widget->hide();
+			ThreadColumn->removeWidget(widget);
+			widget->deleteLater();
+		}
+		Turns.erase(Turns.begin() + static_cast<std::ptrdiff_t>(aTurn));
+		// The cards under later turns follow them down one place.
+		std::erase_if(CardEntries, [aTurn](const card_entry& aEntry) { return aEntry.Turn == std::optional{ aTurn }; });
+		for (auto& entry : CardEntries) {
+			if (entry.Turn && *entry.Turn > aTurn) {
+				--*entry.Turn;
+			}
+		}
+		// The stopped run was this message's: nothing is left to say it.
+		if (latest && State == agent_tab_state::stopped) {
+			StoppedDismissed = true;
+		}
+		refresh();
+		if (ThreadObserver) {
+			ThreadObserver(thread_turns());
 		}
 	}
 
@@ -2233,23 +2297,23 @@ namespace bpr::qt {
 			// [[BPR-1738]]. A stop with a reason says it and what to do;
 			// the log keeps the raw text.
 			// [[BPR-1817]]. Said in words, never as the outcome's stable name.
-			BannerText->setText(tr("%1 Your question is kept.")
+			BannerText->setText(tr("%1 Your message is kept.")
 									.arg(Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
 																			 : Launch.stop_reason_text()));
-			BannerFirst->setText(tr("Ask again"));
-			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
-			// [[BPR-1753]], RFC-BPR-0092 Partly set up. An Ask that ended
-			// for a setup reason offers that check again, then the setup's
-			// words, rather than only asking again. The question is kept.
-			if (SetupView != nullptr && CheckAgain
-				&& (Launch.last_outcome() == application::agent_run_outcome::workspace_unavailable || Launch.last_outcome() == application::agent_run_outcome::failed_to_start)) {
-				BannerFirst->disconnect();
-				BannerFirst->setText(tr("Check again"));
-				connect(BannerFirst, &QPushButton::clicked, this, [this] {
-					SetupView->begin(core::setup_step::check);
-					CheckAgain();
-				});
+			// [[BPR-1876]]. The latest turn says its cause is fixed since:
+			// a banner still saying it stopped would read as how things stand.
+			// [[BPR-1876]]. Nor once the stopped run's turn is deleted.
+			if (LatestFixedSince || StoppedDismissed) {
+				Banner->hide();
+				return;
 			}
+			// [[BPR-1876]], superseding [[BPR-1753]]'s Check again here: an
+			// Ask that ended for a setup reason is resent too, and the new run
+			// starts the agent and makes its workspace, which is the check. A
+			// Check again that re-ran only the setup check left this banner
+			// up, and the owner read it as the check failing.
+			BannerFirst->setText(tr("Resend"));
+			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;
@@ -2354,6 +2418,8 @@ namespace bpr::qt {
 	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
 
 	auto agent_tab_view::turn_recovery_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Recovery.data() : nullptr; }
+
+	auto agent_tab_view::turn_delete_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Delete.data() : nullptr; }
 
 	auto agent_tab_view::turn_reply(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].Reply.data() : nullptr; }
 
@@ -2787,216 +2853,22 @@ namespace bpr::qt {
 
 	auto agent_tab_view::send_refusal_text() const -> QString { return Refusal != nullptr && !Refusal->isHidden() ? RefusalText->text() : QString{ }; }
 
-	void agent_tab_view::present_run_settings(std::vector<agent_run_settings> aSettings)
-	{
-		RunSettingsShown = std::move(aSettings);
-		present_run_settings_button();
-	}
+	void agent_tab_view::present_run_settings(std::vector<agent_run_settings> aSettings) { RunSettingsSource->present(std::move(aSettings)); }
 
 	void agent_tab_view::set_run_settings_dispatch(agent_run_settings_dispatch aDispatch) { RunSettingsDispatch = std::move(aDispatch); }
 
-	auto agent_tab_view::current_run_settings() const -> const agent_run_settings*
-	{
-		const auto profile = Launch.selected_profile();
-		if (!profile) {
-			return nullptr;
-		}
-		const auto found = std::ranges::find_if(RunSettingsShown, [&profile](const agent_run_settings& aSettings) { return aSettings.Profile == profile->value(); });
-		return found == RunSettingsShown.end() ? nullptr : &*found;
-	}
+	auto agent_tab_view::current_run_settings() const -> const agent_run_settings* { return RunSettingsSource->current(); }
 
-	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->property("agentRunSettingsText").toString(); }
+	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->full_text(); }
 
 	void agent_tab_view::fit_run_settings()
 	{
 		// A narrow field keeps the pill as an icon with its words in the
 		// tooltip, as the Codex composer does.
-		const auto full   = RunSettings->property("agentRunSettingsText").toString();
-		const auto narrow = Field != nullptr && Field->width() > 0 && Field->width() < 300;
-		RunSettings->setText(narrow ? QString{ } : full);
-		RunSettings->setIcon(narrow ? drawer_icon(drawer_glyph::agent, palette()) : QIcon{ });
-		RunSettings->setToolTip(narrow ? tr("Choose the agent and model: %1").arg(full) + QStringLiteral("\n") + RunSettingsTip : RunSettingsTip);
-		RunSettings->updateGeometry();
+		RunSettings->set_narrow(Field != nullptr && Field->width() > 0 && Field->width() < 300);
 	}
 
-	void agent_tab_view::present_run_settings_button()
-	{
-		const auto* const settings = current_run_settings();
-		if (settings == nullptr && !Launch.unavailable_agent_name().isEmpty()) {
-			present_unavailable_agent();
-			return;
-		}
-		RunSettings->setVisible(settings != nullptr);
-		if (settings == nullptr) {
-			return;
-		}
-		// Short enough for the field's row: the model, or "Default model",
-		// and the effort when one is chosen.
-		// Owner look v004: a model by its name and version. The agent's own
-		// default is named by what it last reported running, when it did.
-		const auto reported = ReportedModels.find(settings->Profile);
-		const auto ranAs    = reported == ReportedModels.end() ? QString{ } : agent_model_display_name(reported->second);
-		const auto model    = settings->Model.empty() ? tr("default model") : agent_model_display_name(QString::fromStdString(settings->Model));
-		auto       shown    = !settings->Model.empty() ? model : ranAs.isEmpty() ? tr("Default model")
-																				 : ranAs;
-		if (!settings->Effort.empty()) {
-			shown += QStringLiteral(" · ") + tr("%1 effort").arg(QString::fromStdString(settings->Effort));
-		}
-		// Owner amendment 2026-10-23: agent · model · effort.
-		const auto full = settings->Agent + QStringLiteral(" · ") + (!(settings->ModelChoosable || settings->EffortChoosable) ? tr("its own model") : shown);
-		RunSettings->setProperty("agentRunSettingsText", full);
-		// The whole words, shortened when the row is narrow (menu_word).
-		RunSettings->setAccessibleName(tr("Agent, model and effort: %1").arg(full));
-		fit_run_settings();
-		auto tip = tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program);
-		if (settings->ModelChoosable) {
-			tip += QStringLiteral("\n") + (settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
-		}
-		if (settings->EffortChoosable) {
-			tip += QStringLiteral("\n") + (settings->Effort.empty() ? tr("Effort: the agent's own default") : tr("Effort: %1").arg(QString::fromStdString(settings->Effort)));
-		}
-		if (!settings->Note.isEmpty()) {
-			tip += QStringLiteral("\n") + settings->Note;
-		}
-		if (!ranAs.isEmpty()) {
-			tip += QStringLiteral("\n") + tr("Last answer ran %1 (%2)").arg(ranAs, reported->second);
-		}
-		RunSettingsTip = tip;
-		fit_run_settings();
-		auto* const menu = RunSettings->menu();
-		// A menu open now is rebuilt once it closes, never under the pointer.
-		if (menu->isVisible()) {
-			MenuStale = true;
-			return;
-		}
-		MenuStale = false;
-		// `clear` keeps the Model and Effort menus it made; each rebuild
-		// makes its own, so the old ones go.
-		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
-			submenu->deleteLater();
-		}
-		menu->clear();
-		// Every agent added, one press away; each keeps its own conversation
-		// about this pull request (owner decision 2026-10-23).
-		auto* const agents = new QActionGroup{ menu };
-		for (const auto& offered : RunSettingsShown) {
-			auto* const item = menu->addAction(offered.Agent);
-			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
-			item->setCheckable(true);
-			item->setChecked(offered.Profile == settings->Profile);
-			agents->addAction(item);
-			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
-		}
-		menu->addSeparator();
-		auto* const what = menu->addAction(tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program));
-		what->setEnabled(false);
-		if (!settings->Note.isEmpty()) {
-			menu->addAction(settings->Note)->setEnabled(false);
-		}
-		const auto profile = settings->Profile;
-		const auto apply   = [this, profile](std::optional<std::string> aModel, std::optional<std::string> aEffort) {
-			if (RunSettingsDispatch && !RunSettingsDispatch(profile, std::move(aModel), std::move(aEffort))) {
-				Notice->setText(tr("The agent doesn't take that setting."));
-				Notice->show();
-			}
-		};
-		if (settings->ModelChoosable) {
-			auto* const models = menu->addMenu(tr("Model"));
-			models->setObjectName(QStringLiteral("agentRunSettingsModels"));
-			auto* const group = new QActionGroup{ models };
-			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
-				auto* const action = models->addAction(aLabel);
-				action->setCheckable(true);
-				action->setChecked(settings->Model == aValue);
-				group->addAction(action);
-				connect(action, &QAction::triggered, this, [apply, aValue] { apply(aValue, std::nullopt); });
-			};
-			add({ }, ranAs.isEmpty() ? tr("Default (the agent's own setting)") : tr("Default (the agent's own; last ran %1)").arg(ranAs));
-			if (settings->Models.empty() && settings->Listing) {
-				models->addAction(tr("Asking %1 for its models…").arg(settings->Agent))->setEnabled(false);
-			}
-			for (const auto& [value, label] : settings->Models) {
-				add(value, label);
-			}
-			const auto known = settings->Model.empty() || std::ranges::any_of(settings->Models, [&settings](const auto& aModel) { return aModel.first == settings->Model; });
-			if (!known) {
-				add(settings->Model, agent_model_display_name(QString::fromStdString(settings->Model)));
-			}
-			connect(models->addAction(tr("Other…")), &QAction::triggered, this, [this, apply, current = settings->Model] {
-				auto       accepted = false;
-				const auto name     = QInputDialog::getText(this, tr("Model"), tr("The model's name, as the agent's --model takes it:"), QLineEdit::Normal, QString::fromStdString(current), &accepted).trimmed();
-				if (accepted) {
-					apply(name.toStdString(), std::nullopt);
-				}
-			});
-		}
-		if (settings->EffortChoosable) {
-			auto* const efforts = menu->addMenu(tr("Effort"));
-			efforts->setObjectName(QStringLiteral("agentRunSettingsEfforts"));
-			auto* const group = new QActionGroup{ efforts };
-			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
-				auto* const action = efforts->addAction(aLabel);
-				action->setCheckable(true);
-				action->setChecked(settings->Effort == aValue);
-				group->addAction(action);
-				connect(action, &QAction::triggered, this, [apply, aValue] { apply(std::nullopt, aValue); });
-			};
-			add({ }, tr("Default (the agent's own setting)"));
-			for (const auto& level : settings->Efforts) {
-				add(level, QString::fromStdString(level));
-			}
-		}
-		menu->addSeparator();
-		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
-		// Owner look v006 ("This model picker dropdown should have a link to
-		// open the agent settings page").
-		auto* const open = menu->addAction(tr("Agent settings…"));
-		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
-		connect(open, &QAction::triggered, this, [this] {
-			if (Setup) {
-				Setup();
-			}
-		});
-	}
-
-	void agent_tab_view::present_unavailable_agent()
-	{
-		// [[BPR-1823]], owner ruling 2026-10-29. The chosen agent went (removed
-		// in Settings, or not allowed here) and none was put in its place: the
-		// pill says so, state first so a narrow pill keeps it, and its menu is
-		// where another is chosen.
-		const auto name = Launch.unavailable_agent_name();
-		const auto full = tr("Unavailable: %1").arg(name);
-		RunSettings->setVisible(true);
-		RunSettings->setProperty("agentRunSettingsText", full);
-		RunSettings->setAccessibleName(tr("Agent: %1 is unavailable. Choose an agent.").arg(name));
-		RunSettingsTip = tr("%1 isn't in your agents, or this pull request's server doesn't allow it. Nothing is sent until you choose an agent.").arg(name);
-		fit_run_settings();
-		auto* const menu = RunSettings->menu();
-		if (menu->isVisible()) {
-			MenuStale = true;
-			return;
-		}
-		MenuStale = false;
-		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
-			submenu->deleteLater();
-		}
-		menu->clear();
-		menu->addAction(tr("%1 isn't available. Choose an agent:").arg(name))->setEnabled(false);
-		for (const auto& offered : RunSettingsShown) {
-			auto* const item = menu->addAction(offered.Agent);
-			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
-			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
-		}
-		menu->addSeparator();
-		auto* const open = menu->addAction(tr("Agent settings…"));
-		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
-		connect(open, &QAction::triggered, this, [this] {
-			if (Setup) {
-				Setup();
-			}
-		});
-	}
+	void agent_tab_view::present_run_settings_button() { RunSettingsSource->refresh(); }
 
 	auto agent_tab_view::choose_agent(const std::uint64_t aProfile) -> bool
 	{
@@ -3127,6 +2999,14 @@ namespace bpr::qt {
 			observer();
 		}
 		refresh();
+	}
+
+	void agent_tab_view::look_for_agents()
+	{
+		if (FirstShown) {
+			const auto observer = std::exchange(FirstShown, { });
+			observer();
+		}
 	}
 
 	void agent_tab_view::set_first_shown(std::function<void()> aObserver)

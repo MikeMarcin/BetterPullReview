@@ -392,6 +392,10 @@ namespace bpr::application {
 			if (aDetail.starts_with("protocol=")) {
 				return parse_agent_run_diagnosis(aDetail).has_value();
 			}
+			// [[BPR-1875]]. Exactly the cause a cancelled pull request read names.
+			if (aDetail.starts_with(pull_request_cancel_detail_prefix)) {
+				return parse_pull_request_cancel_detail(aDetail).has_value();
+			}
 			constexpr std::array<std::string_view, 19> codes{ "FORBIDDEN", "UNAUTHORIZED", "NOT_FOUND", "MAX_NODE_LIMIT_EXCEEDED", "INTERNAL", "SERVICE_UNAVAILABLE", "GRAPHQL_PARSE_FAILED", "GRAPHQL_VALIDATION_FAILED", "undefinedField", "argumentNotAccepted", "undefinedType", "selectionMismatch", "variableMismatch", "variableNotUsed", "variableRequiresValidType", "variableNotDefined", "RATE_LIMITED", "[omitted:unclassified-code]", "[omitted:unclassified-content]" };
 			if (aDetail.size() > 4096U) {
 				return false;

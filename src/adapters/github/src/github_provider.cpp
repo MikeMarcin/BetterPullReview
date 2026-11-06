@@ -909,6 +909,22 @@ namespace bpr::adapters::github::detail {
 			return wasCancelled;
 		}
 
+		/// \brief [[BPR-1875]]. Why a pull request read ends cancelled: asked
+		/// to stop, the provider closing, or the transport answering
+		/// cancelled with no stop asked of it.
+		[[nodiscard]] auto
+		pull_request_cancel_source(const std::shared_ptr<provider_state>& aState,
+								   const std::shared_ptr<provider_job>&   aJob) noexcept
+			-> application::github_pull_request_cancel_source
+		{
+			if (!aJob->Stop.stop_requested()) {
+				return application::github_pull_request_cancel_source::transport;
+			}
+			const std::scoped_lock lock{ aState->Mutex };
+			return aState->Closing ? application::github_pull_request_cancel_source::provider_closing
+								   : application::github_pull_request_cancel_source::stop_requested;
+		}
+
 		template <typename Request>
 		void cancel_jobs(const std::shared_ptr<provider_state>& aState,
 						 const provider_phase                   aPhase,
@@ -1048,11 +1064,19 @@ namespace bpr::adapters::github::detail {
 				{
 					return perform_guarded<std::shared_ptr<application::git_chain_tree_store>>(aStop, [&] { return Inner->acquire_chain_trees(aRequest, aStop); });
 				}
-				/// [[BPR-1738]]. An agent workspace's snapshot, under the same guard.
-				auto acquire_workspace_snapshot(const application::git_smart_workspace_snapshot_request& aRequest, std::stop_token aStop)
-					-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_snapshot>> override
+				/// [[BPR-1873]]. What a linked clone lacks of an agent
+				/// workspace's head, under the same guard.
+				auto acquire_workspace_delta(const application::git_smart_workspace_delta_request& aRequest, std::stop_token aStop)
+					-> application::git_smart_transport_result<std::shared_ptr<application::git_workspace_delta>> override
 				{
-					return perform_guarded<std::shared_ptr<application::git_workspace_snapshot>>(aStop, [&] { return Inner->acquire_workspace_snapshot(aRequest, aStop); });
+					return perform_guarded<std::shared_ptr<application::git_workspace_delta>>(aStop, [&] { return Inner->acquire_workspace_delta(aRequest, aStop); });
+				}
+				/// [[BPR-1879]]. The clone BetterPullReview keeps for a
+				/// repository's agent questions, under the same guard.
+				auto acquire_managed_clone(const application::git_smart_managed_clone_request& aRequest, const application::git_smart_clone_progress& aProgress, std::stop_token aStop)
+					-> application::git_smart_transport_result<void> override
+				{
+					return perform_guarded<void>(aStop, [&] { return Inner->acquire_managed_clone(aRequest, aProgress, aStop); });
 				}
 				auto discover(const application::git_smart_discovery_request& aRequest, std::stop_token aStop)
 					-> application::git_smart_transport_result<application::git_smart_discovery_response> override
@@ -2573,6 +2597,7 @@ namespace bpr::adapters::github::detail {
 			if (jobResult.error() == make_job_failure::closing) {
 				delivery->deliver(application::github_pull_request_cancelled{
 					.Request = std::move(aRequest),
+					.Source  = application::github_pull_request_cancel_source::provider_closing,
 				});
 			} else {
 				delivery->deliver(application::github_pull_request_error{
@@ -2602,6 +2627,7 @@ namespace bpr::adapters::github::detail {
 							application::github_pull_request_cancelled{
 								.Request           = aRequest,
 								.LastReadOperation = observer.LastOperation,
+								.Source            = pull_request_cancel_source(state, job),
 							});
 					};
 					const auto failed =
@@ -2611,6 +2637,7 @@ namespace bpr::adapters::github::detail {
 									application::github_pull_request_cancelled{
 										.Request           = aRequest,
 										.LastReadOperation = observer.LastOperation,
+										.Source            = pull_request_cancel_source(state, job),
 									});
 								return;
 							}
@@ -2986,6 +3013,7 @@ namespace bpr::adapters::github::detail {
 								application::github_pull_request_cancelled{
 									.Request           = aRequest,
 									.LastReadOperation = observer.LastOperation,
+									.Source            = pull_request_cancel_source(state, job),
 								});
 							return;
 						}
@@ -3004,6 +3032,7 @@ namespace bpr::adapters::github::detail {
 			if (wasCancelled) {
 				delivery->deliver(application::github_pull_request_cancelled{
 					.Request = std::move(aRequest),
+					.Source  = pull_request_cancel_source(state, job),
 				});
 			} else {
 				delivery->deliver(application::github_pull_request_error{
@@ -3168,6 +3197,7 @@ namespace bpr::adapters::github::detail {
 						.Completeness = result->Completeness,
 						.RateLimits   = std::move(result->RateLimits),
 						.Cost         = cost(),
+						.Unread       = std::move(result->Unread),
 					});
 				} catch (...) {
 					static_cast<void>(finish_job(state, job));

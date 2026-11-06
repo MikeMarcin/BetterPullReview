@@ -156,6 +156,8 @@ namespace {
 						Intents.push_back(std::move(joined));
 					},
 				.UsePrivateCopy = [this] { Intents.emplace_back("private-copy"); },
+				.KeepClone      = [this] { Intents.emplace_back("keep"); },
+				.CancelKeeping  = [this] { Intents.emplace_back("cancel-keep"); },
 				.Check          = [this] { Intents.emplace_back("check"); },
 				.Stop           = [this] { Intents.emplace_back("stop"); },
 				.AddCustomAgent = [this](core::agent_entry aEntry) { Intents.push_back("custom:" + aEntry.Name + ":" + aEntry.Program + (aEntry.Arguments.empty() ? std::string{ } : ":" + aEntry.Arguments.front())); },
@@ -268,7 +270,12 @@ namespace {
 		test.Setup.State.Chosen = core::setup_agent::claude_code;
 		test.Clones.Suggestions = { "/Users/me/Documents/GitHub" };
 		test.show();
-		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
+		// [[BPR-1879]] owner look v006: linking the reviewer's own clone is the
+		// first card, recommended; with no folder listed it holds the folder
+		// line and the button adds the folder.
+		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Link your clone")) && test.text().contains(QStringLiteral("Add the folder your clones are in"))
+				   && test.View.findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"))->text() == QStringLiteral("Recommended"),
+			   "with no clone folder the recommended card asks for the folder clones are in");
 		// Owner look v003: one folder line in setup, typed or browsed, then
 		// Add; the list editor is Settings' alone. Owner look v004: no "Or
 		// add" row; the folder found is the line's text, and Add takes it.
@@ -304,20 +311,132 @@ namespace {
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
 		test.Clones.Discovered = true;
 		test.show();
-		expect(test.text().contains(QStringLiteral("No clone of bpr-fixtures/engine in your clone folders")), "none found says so");
-		test.button(QStringLiteral("agentSetupPrivateCopy"))->click();
-		expect(test.Intents.back() == "private-copy", "the private copy is one press away");
+		expect(test.text().contains(QStringLiteral("None in ")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault() && test.button(QStringLiteral("agentSetupEditFolders")) != nullptr
+				   && test.button(QStringLiteral("agentSetupFindClones")) == nullptr,
+			   "none found: the card says so, its button chooses the folder, Edit clone folders is small beside, and there is no separate search link");
+		// [[BPR-1879]], owner look v006. A review that holds every file needs
+		// no clone: only Link your clone is offered, as an improvement; there
+		// is no third card, and nothing names a private copy.
+		expect(test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr
+				   && !test.text().contains(QStringLiteral("private copy"), Qt::CaseInsensitive),
+			   "a review holding every file offers only Link your clone");
 		render(test.View, QStringLiteral("noclone"));
+
+		// [[BPR-1873]], [[BPR-1879]] owner look v005. A sparse review with no
+		// clone found: one choice between cards in order of strength, the
+		// reviewer's own clone first, chosen and recommended, and one button
+		// acting on the card chosen.
+		test.Facts.Sparse = true;
+		test.show();
+		// The step builds its widgets top to bottom, so creation order is the
+		// order shown.
+		const auto before = [&test](const QWidget* aFirst, const QWidget* aSecond) {
+			const auto all = test.View.findChildren<QWidget*>();
+			return aFirst != nullptr && aSecond != nullptr && all.indexOf(aFirst) < all.indexOf(aSecond);
+		};
+		auto* const linkCard   = test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard"));
+		auto* const linkFigure = test.View.findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"));
+		auto* const onlyCard   = test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"));
+		auto* const cost       = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyFact"));
+		auto* const choose     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder"));
+		expect(linkCard != nullptr && linkFigure != nullptr && onlyCard != nullptr && cost != nullptr && choose != nullptr && linkFigure->text() == QStringLiteral("Recommended")
+				   && before(linkCard, onlyCard) && choose->text() == QStringLiteral("Choose its folder…") && choose->isDefault()
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) == nullptr
+				   && cost->text() == QStringLiteral("No callers, tests or history"),
+			   "the reviewer's own clone is the first card, chosen, recommended and the default button; the pull request only is last, its cost in one line");
+		click(*onlyCard);
+		auto* const only = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
+		expect(only != nullptr && only->text() == QStringLiteral("Use this pull request only") && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupChooseFolder")) == nullptr,
+			   "choosing the pull request only turns the button to it");
+		if (only != nullptr) {
+			only->click();
+			expect(test.Intents.back() == "private-copy", "the pull request only is remembered as this repository's no-clone choice");
+		}
+		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")));
+		render(test.View, QStringLiteral("noclone-sparse"));
+		// Keeping a clone is the second card: its size is the card's figure,
+		// where it goes its one line, the whole path in the tooltip.
+		test.Clones.Repository->CanKeep          = true;
+		test.Clones.Repository->ApproximateBytes = 126U * 1000U * 1000U;
+		test.Clones.ManagedLocation              = "/Users/me/Library/Application Support/BetterPullReview/agent-clones-v1/github.com-42";
+		test.show();
+		auto* const keepCard  = test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard"));
+		auto* const keepTitle = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCardTitle"));
+		auto* const keepSize  = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepSize"));
+		auto* const keepCost  = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCost"));
+		expect(keepCard != nullptr && keepTitle != nullptr && keepSize != nullptr && keepCost != nullptr && keepTitle->text() == QStringLiteral("Keep a clone for me")
+				   && before(test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")), keepCard)
+				   && before(keepCard, test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"))) && keepSize->text() == QStringLiteral("126 MB")
+				   && keepCost->text().startsWith(QStringLiteral("Full history, kept in ")) && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42"))
+				   && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault(),
+			   "AC1: keeping a clone is the second card, with its size and where it goes; choosing a folder stays the default");
+		render(test.View, QStringLiteral("keep-offer"));
+		click(*keepCard);
+		auto* const keep = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
+		expect(keep != nullptr && keep->text() == QStringLiteral("Keep a clone") && keep->isDefault(), "choosing it turns the button to keeping one");
+		if (keep != nullptr) {
+			keep->click();
+			expect(test.Intents.back() == "keep", "the button asks the host to keep one");
+		}
+		render(test.View, QStringLiteral("keep-chosen"));
+		test.Clones.Keeping = { .State = application::managed_clone_state::downloading, .Received = 42U * 1000U * 1000U, .Failure = std::nullopt };
+		test.show();
+		auto* const bar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
+		auto* const status = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
+		auto* const stop   = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel"));
+		expect(bar != nullptr && status != nullptr && stop != nullptr && bar->value() == 333 && status->text() == QStringLiteral("42 MB of 126 MB")
+				   && test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCardTitle"))->text() == QStringLiteral("Keeping a clone")
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr && test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")) == nullptr && test.View.findChild<QLabel*>(QStringLiteral("agentSetupNoClone")) == nullptr
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupEditFolders")) == nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupFindClones")) == nullptr,
+			   "AC1, owner look v004: once it downloads, its progress and Cancel are the whole step");
+		if (stop != nullptr) {
+			stop->click();
+			expect(test.Intents.back() == "cancel-keep", "Cancel asks the host to stop");
+		}
+		render(test.View, QStringLiteral("keep-downloading"));
+		// Owner decision 2026-11-05: no limit, so a download may run past
+		// GitHub's figure; the bar keeps moving and the bytes keep counting.
+		test.Clones.Keeping.Received = 131U * 1000U * 1000U;
+		test.show();
+		auto* const pastBar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
+		auto* const pastStatus = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
+		expect(pastBar != nullptr && pastStatus != nullptr && pastBar->maximum() == 0 && pastStatus->text() == QStringLiteral("131 MB")
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel")) != nullptr,
+			   "past GitHub's size the bar keeps moving, the bytes keep counting, and Cancel stays");
+		render(test.View, QStringLiteral("keep-downloading-past"));
+		test.Clones.Keeping = { .State = application::managed_clone_state::failed, .Received = 0U, .Failure = application::managed_clone_failure::connection_failed };
+		test.show();
+		auto* const keepFailed = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepFailed"));
+		expect(keepFailed != nullptr && keepFailed->text() == QStringLiteral("No connection to GitHub.") && test.button(QStringLiteral("agentSetupKeepClone"))->text() == QStringLiteral("Retry"),
+			   "a failed download says why on its card, and the button reads Retry");
+		render(test.View, QStringLiteral("keep-failed"));
+		test.Clones.Keeping = { };
+		test.Clones.Linked  = application::repository_link{ .Host = "github.com", .Repository = 42U, .Owner = "bpr-fixtures", .Name = "engine", .Path = test.Clones.ManagedLocation, .Remote = "origin", .PrivateCopy = false, .Managed = true };
+		test.show();
+		expect(test.View.ready_text().contains(QStringLiteral("the clone BetterPullReview keeps")), "a kept clone is named as such, not by its folder");
+		test.Clones.Linked.reset();
+		test.Clones.Repository->CanKeep = false;
+		test.Clones.ManagedLocation.clear();
+		test.Clones.Folders.clear();
+		test.show();
+		expect(test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) != nullptr && test.button(QStringLiteral("agentSetupFolderAdd")) != nullptr,
+			   "with no clone folder yet the same cards show, and the recommended one adds the folder");
+		render(test.View, QStringLiteral("nofolders-sparse"));
+		test.Clones.Folders = { "/Users/me/Documents/GitHub" };
+		test.Facts.Sparse   = false;
 
 		test.Clones.Matches = { core::clone_match{ .Path = "/Users/me/Documents/GitHub/engine", .Folder = "/Users/me/Documents/GitHub", .Remote = "origin", .Location = "github.com/bpr-fixtures/engine", .Branch = "main" },
 								core::clone_match{ .Path = "/Users/me/src/engine-old", .Folder = "/Users/me/src", .Remote = "upstream", .Location = "github.com/bpr-fixtures/engine", .Branch = "spike/retry" } };
 		test.show();
 		auto clones = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupCloneChoice"));
-		expect(clones.size() == 2 && !test.button(QStringLiteral("agentSetupUseClone"))->isEnabled(), "two clones: none is chosen until the reviewer picks one");
-		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupCloneRow"))[0]);
+		expect(clones.size() == 2 && test.button(QStringLiteral("agentSetupUseClone"))->text() == QStringLiteral("Link this clone") && test.button(QStringLiteral("agentSetupUseClone"))->isDefault()
+				   && test.button(QStringLiteral("agentSetupChooseOther")) != nullptr,
+			   "clones found are on the recommended card, the first chosen, and one press links it");
+		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupCloneRow"))[1]);
 		QApplication::processEvents();
 		test.button(QStringLiteral("agentSetupUseClone"))->click();
-		expect(test.Intents.back() == "clone:/Users/me/Documents/GitHub/engine", "Use this clone links the chosen one");
+		expect(test.Intents.back() == "clone:/Users/me/src/engine-old", "choosing another clone found and Link this clone links that one");
 		render(test.View, QStringLiteral("repo"));
 	}
 
@@ -419,11 +538,19 @@ namespace {
 		expect(gets.contains(QStringLiteral("bpr-fixtures/engine #22")) && gets.contains(QStringLiteral("git diff 51d2dad...7f3a9c1")) && gets.contains(QStringLiteral("6 review threads, 2 unresolved")),
 			   "What the agent gets states the brief");
 
+		// Owner look v006: the step searches the clone folders itself, once.
+		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
+		test.Clones.Discovered = false;
+		test.show();
 		test.View.begin(core::setup_step::repository);
 		expect(test.View.needed() && test.View.open_step() == core::setup_step::repository, "Change repository folder… opens that step again");
-		expect(test.button(QStringLiteral("agentSetupFindClones")) != nullptr && test.button(QStringLiteral("agentSetupFindAgents")) == nullptr, "the Repository step owns only its clone search");
-		test.button(QStringLiteral("agentSetupFindClones"))->click();
-		expect(test.Intents.back() == "find-clones", "Find matching clones only requests clone discovery");
+		QApplication::processEvents();
+		expect(test.button(QStringLiteral("agentSetupFindClones")) == nullptr && test.button(QStringLiteral("agentSetupFindAgents")) == nullptr && std::ranges::count(test.Intents, std::string{ "find-clones" }) >= 1,
+			   "the Repository step searches its clone folders without a link to press");
+		const auto searches = std::ranges::count(test.Intents, std::string{ "find-clones" });
+		test.View.begin(core::setup_step::repository);
+		QApplication::processEvents();
+		expect(std::ranges::count(test.Intents, std::string{ "find-clones" }) == searches, "and only once for the repository, not on every refresh");
 		render(test.View, QStringLiteral("repository-rescan"));
 	}
 
@@ -528,7 +655,7 @@ namespace {
 		const auto  srcFolder    = QDir::toNativeSeparators(QStringLiteral("/Users/me/src")).toStdString();
 		const auto  gitHubFolder = QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString();
 		const auto  workFolder   = QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString();
-		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
+		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral(": no clone")), "folders and links are listed");
 		editor->list()->setCurrentRow(1);
 		editor->up_button()->click();
 		expect(asked == std::vector<std::string>{ "set " + gitHubFolder + " " + srcFolder } && editor->folders() == std::vector<std::string>{ gitHubFolder, srcFolder }, "Move up reorders the list, which is the order clones are looked for in");

@@ -2,11 +2,14 @@
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_CLONE_LINK_HOST_HPP
 
 #include "bpr/application/diagnostic_log_port.hpp"
+#include "bpr/application/git_smart_transport_port.hpp"
+#include "bpr/application/managed_clone.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/core/clone_discovery.hpp"
 
 #include <algorithm>
 #include <cstdint>
+#include <expected>
 #include <functional>
 #include <memory>
 #include <optional>
@@ -36,6 +39,10 @@ namespace bpr::application {
 		/// The remote that names the repository.
 		std::string Remote;
 		bool        PrivateCopy = false;
+		/// [[BPR-1879]]. The clone is the one BetterPullReview keeps, in the
+		/// profile's folder of kept clones. Not stored: it is read from where
+		/// the path is, so a link can never claim a folder it does not own.
+		bool Managed = false;
 
 		auto operator<=>(const repository_link&) const = default;
 	};
@@ -74,8 +81,35 @@ namespace bpr::application {
 		std::uint64_t Repository = 0U;
 		std::string   Owner;
 		std::string   Name;
+		/// [[BPR-1879]]. GitHub's repository `size`, in bytes, when the review
+		/// read it: what keeping a clone downloads, approximately.
+		std::optional<std::uint64_t> ApproximateBytes;
+		/// [[BPR-1879]]. The review can keep a clone: it was read sparsely
+		/// through a `gh` lease, whose credential the clone uses.
+		bool CanKeep = false;
 
 		auto operator<=>(const clone_repository&) const = default;
+	};
+
+	/// \brief [[BPR-1879]]. Where the clone BetterPullReview keeps for the
+	/// observed repository stands.
+	enum class managed_clone_state : std::uint8_t {
+		/// None is being made; one may be linked.
+		none,
+		/// Downloading, with Cancel.
+		downloading,
+		/// The last attempt failed; `Failure` says why.
+		failed,
+	};
+
+	struct managed_clone_projection
+	{
+		managed_clone_state State = managed_clone_state::none;
+		/// Bytes received so far while downloading.
+		std::uint64_t                        Received = 0U;
+		std::optional<managed_clone_failure> Failure;
+
+		auto operator<=>(const managed_clone_projection&) const = default;
 	};
 
 	/// \brief Why a remembered clone no longer serves.
@@ -123,8 +157,12 @@ namespace bpr::application {
 		bool Loaded = false;
 		/// [[BPR-1753]]. The repository's link is being checked again;
 		/// until it answers, whether the Repository step is done is unknown.
-		bool          Verifying  = false;
-		std::uint64_t Generation = 0U;
+		bool Verifying = false;
+		/// [[BPR-1879]]. Where the observed repository's kept clone lives or
+		/// would live; empty with no repository or no folder of kept clones.
+		std::string              ManagedLocation;
+		managed_clone_projection Keeping;
+		std::uint64_t            Generation = 0U;
 
 		auto operator<=>(const clone_link_projection&) const = default;
 	};
@@ -150,6 +188,15 @@ namespace bpr::application {
 		/// [[BPR-1831]]. Where each scan, link check and store read records
 		/// its outcome and counts; never a folder, remote or repository.
 		std::shared_ptr<diagnostic_log_port> Log;
+		/// [[BPR-1879]]. The profile's folder of kept clones, absolute; empty
+		/// offers none.
+		std::string ManagedRoot;
+		/// [[BPR-1879]]. Prepares, on the decision lane, the download of the
+		/// kept clone for a repository at a destination, bound to the review
+		/// on screen; empty when that review cannot make one. The job it
+		/// returns runs on its own worker, long, reporting bytes received.
+		using keep_job = std::function<std::expected<void, managed_clone_error>(const git_smart_clone_progress&, std::stop_token)>;
+		std::function<keep_job(const clone_repository&, const std::string&)> Keep;
 	};
 
 	/// \brief [[BPR-1750]], RFC-BPR-0092 M3. Finds the reviewer's clone
@@ -184,6 +231,12 @@ namespace bpr::application {
 		void choose_clone(std::string aPath, std::function<void(clone_choice_answer)> aAnswered = { });
 		/// Records the private copy as this repository's choice.
 		void use_private_copy();
+		/// [[BPR-1879]]. Lets BetterPullReview keep a clone of the observed
+		/// repository: downloads it once, in the background, then links it.
+		/// A kept clone already in place is linked without a download.
+		void keep_clone();
+		/// [[BPR-1879]]. Stops the download; nothing is left behind.
+		void cancel_keeping();
 		void forget(const repository_link& aLink);
 
 		/// The observed repository has a link that serves or the private copy.

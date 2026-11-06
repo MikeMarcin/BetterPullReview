@@ -310,6 +310,9 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t> PageMilliseconds{ 0U };
 		/// [[BPR-1576]]. Holds personal discovery's searches this long.
 		std::atomic<std::uint32_t> DiscoveryMilliseconds{ 0U };
+		/// [[BPR-1875]]. Holds Home's batched read of retained pull requests
+		/// this long, as a large account's does.
+		std::atomic<std::uint32_t> RetainedMilliseconds{ 0U };
 		/// [[BPR-1575]]. What successive refreshes meet, one outcome a read,
 		/// in order and then round again; empty serves every refresh.
 		enum class refresh_outcome : std::uint8_t {
@@ -519,6 +522,9 @@ namespace bpr::app::detail {
 		/// on; the external terminal has none and refuses one by design.
 		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> ClaudeAgentExecutable;
+		/// [[BPR-1879]]. The agent setup treats the fixture review as one read
+		/// sparsely through `gh`, so a look shows the Repository step's choice.
+		bool SparseAgentSetupLook = false;
 		/// [[BPR-1301]]. Where the shipped bare `claude` is looked for, so a
 		/// course decides what is found and never finds the developer's own.
 		/// Absent, the application's environment is searched, as shipped.

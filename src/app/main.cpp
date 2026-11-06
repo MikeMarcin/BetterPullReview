@@ -256,8 +256,10 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-finish-review-look" },
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
+		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5589,10 +5591,11 @@ namespace {
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
-	void schedule_attended_tour_look(bpr::app::github_application& aApplication);
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
 	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
+	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
 
 	void schedule_attended_reveal(
@@ -5684,9 +5687,13 @@ namespace {
 						schedule_attended_conversation_look(aApplication);
 					} else if (look == "tour") {
 						schedule_attended_tour_look(aApplication);
+					} else if (look == "tour-authoring") {
+						schedule_attended_tour_look(aApplication, true);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
+					} else if (look == "repository") {
+						schedule_attended_repository_look(aApplication);
 	#endif
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
@@ -6074,13 +6081,93 @@ namespace {
 		timer->start();
 	}
 
+	// [[BPR-1881]]. After `--attended-tour-authoring` opens the tour, the
+	// look waits for the agent setup to say whether it has finished, and
+	// draws the Tour tab. A person's session finds their own agents and has
+	// chosen none, so it ends on the call to action
+	// (ATTENDED_TOUR_SETUP_CALL_SHOWN). With BPR_ATTENDED_TOUR_AGENT_PATH the
+	// setup finds only the `claude` there and counts as set up
+	// (ATTENDED_TOUR_AGENT_READY). With BPR_ATTENDED_TOUR_SETUP=open the call
+	// to action is then pressed, and the window drawn once the Agent tab
+	// shows its setup (ATTENDED_TOUR_SETUP_OPENED). BPR_ATTENDED_TOUR_THEME=dark
+	// draws in the dark appearance.
+	void schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(80);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		const auto open  = qEnvironmentVariable("BPR_ATTENDED_TOUR_SETUP") == QStringLiteral("open");
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const editor = window.tour_editor();
+			const auto  root   = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER");
+			const auto  theme  = qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark") ? QStringLiteral("-dark") : QStringLiteral("-light");
+			const auto  draw   = [&window, &root, &theme](const QString& aName) {
+				if (!root.isEmpty()) {
+					QCoreApplication::processEvents();
+					static_cast<void>(window.grab().save(root + QStringLiteral("/") + aName + theme + QStringLiteral(".png"), "PNG"));
+				}
+			};
+			const auto done = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 1'000) {
+				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2").arg(*step).arg(static_cast<int>(editor->agent_readiness())));
+				return;
+			}
+			if (*step == 0) {
+				// Waiting on the setup to find the agents and say what is missing.
+				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::checking) {
+					return;
+				}
+				if (qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark")) {
+					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
+					QCoreApplication::processEvents();
+				}
+				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
+					draw(QStringLiteral("app-tour-set-up"));
+					done(editor->agent_setup_call()->isVisible() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
+					return;
+				}
+				if (!editor->agent_setup_call()->isVisible()) {
+					done(QStringLiteral("ATTENDED_TOUR_FAILED:no-setup-call"));
+					return;
+				}
+				draw(QStringLiteral("app-tour-not-set-up"));
+				if (!open) {
+					done(QStringLiteral("ATTENDED_TOUR_SETUP_CALL_SHOWN"));
+					return;
+				}
+				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
+				*step = 1;
+				return;
+			}
+			if (!static_cast<QWidget*>(window.agent_setup())->isVisible()) {
+				return;
+			}
+			draw(QStringLiteral("app-tour-setup-opened"));
+			done(QStringLiteral("ATTENDED_TOUR_SETUP_OPENED"));
+		});
+		timer->start();
+	}
+
 	// [[BPR-1593]]. `--attended-tour-look`: on conventional-comments-v1, once
 	// the file shows, Prepare review tour opens the Tour tab and a private
 	// tour is written through its own gestures: the brief, then three stops
 	// on lines of renderer.cpp (select the line, Add stop, write), the first
 	// marked Ready. The route is left showing the second stop open, for the
 	// person. Nothing reaches GitHub.
-	void schedule_attended_tour_look(bpr::app::github_application& aApplication)
+	// [[BPR-1878]]. `--attended-tour-authoring AGENT`: only the opening, so
+	// the person meets a new tour as an author does: Problem empty and open,
+	// with its agent help offering the fixture agent.
+	void schedule_attended_tour_look(bpr::app::github_application& aApplication, const bool aBriefOnly)
 	{
 		struct stop_text
 		{
@@ -6097,7 +6184,7 @@ namespace {
 		timer->setInterval(60);
 		const auto step  = std::make_shared<int>(0);
 		const auto ticks = std::make_shared<int>(0);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, aBriefOnly, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6125,6 +6212,31 @@ namespace {
 			}
 			if (*step == 1) {
 				if (!idle) {
+					return;
+				}
+				if (aBriefOnly) {
+					timer->stop();
+					timer->deleteLater();
+	#if defined(BPR_AGENT_INTEGRATIONS)
+					// The fixture agent drafts; the menu still offers the others.
+					auto* const agents = window.agent_panel()->profile_selector();
+					if (const auto row = agents->findData(QVariant::fromValue<qulonglong>(bpr::core::claude_stream_json_profile_id.value())); row >= 0) {
+						agents->setCurrentIndex(row);
+					}
+					// Owner note on v002: an effort chosen, so the pill shows
+					// one; the person changes it from the pill's Effort menu.
+					if (const auto& source = window.agent_tab()->run_settings_source(); source && source->Dispatch) {
+						static_cast<void>(source->Dispatch(bpr::core::claude_stream_json_profile_id.value(), std::nullopt, std::string{ "high" }));
+					}
+	#endif
+					editor->show_problem();
+					QCoreApplication::processEvents();
+					if (const auto root = qEnvironmentVariable("BPR_ATTENDED_TOUR_RENDER"); !root.isEmpty()) {
+						static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-authoring.png"), "PNG"));
+					}
+					QTextStream{ stdout } << "ATTENDED_TOUR_SHOWN\n";
+					QTextStream{ stdout }.flush();
+					schedule_attended_tour_setup_look(aApplication);
 					return;
 				}
 				editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame, and resizing to zero width stalled the frame."));
@@ -6257,6 +6369,102 @@ namespace {
 				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
 			}
 			done(QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count()));
+		});
+		timer->start();
+	}
+	#endif
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-1879]]. `--attended-repository-look`: once the file shows, the
+	// Agent tab opens on its setup's Repository step, where no clone is
+	// linked, so the person sees the choice: Link your clone, Keep a clone for
+	// me and the weakest. A fixture course keeps a clone as a rehearsal.
+	// With BPR_ATTENDED_REPOSITORY_RENDER set (the look's own offscreen
+	// check), the window is drawn there, Keep a clone is chosen and pressed,
+	// and the window is drawn again while it downloads.
+	void schedule_attended_repository_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(100);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto root   = qEnvironmentVariable("BPR_ATTENDED_REPOSITORY_RENDER");
+			const auto done   = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 1'200) {
+				if (!root.isEmpty()) {
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-repository-timeout.png"), "PNG"));
+				}
+				done(QStringLiteral("ATTENDED_REPOSITORY_FAILED:timeout:step=%1").arg(*step));
+				return;
+			}
+			auto* const setup = static_cast<QWidget*>(window.agent_setup());
+			if (*step == 0) {
+				window.open_agent_action()->trigger();
+				*step = 1;
+				return;
+			}
+			if (*step == 1) {
+				if (setup->findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")) == nullptr) {
+					// A fresh fixture profile has no agent chosen yet: the first
+					// one found is chosen, so the look reaches the Repository step.
+					if (auto* const next = setup->findChild<QPushButton*>(QStringLiteral("agentSetupContinue")); next != nullptr && next->isEnabled()) {
+						next->click();
+					} else if (auto* const first = setup->findChild<QWidget*>(QStringLiteral("agentSetupAgentRow")); first != nullptr && *ticks % 10 == 0) {
+						const auto centre  = QPointF{ first->rect().center() };
+						auto       press   = QMouseEvent{ QEvent::MouseButtonPress, centre, first->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+						auto       release = QMouseEvent{ QEvent::MouseButtonRelease, centre, first->mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+						QCoreApplication::sendEvent(first, &press);
+						QCoreApplication::sendEvent(first, &release);
+					}
+					return;
+				}
+				QCoreApplication::processEvents();
+				if (root.isEmpty()) {
+					done(QStringLiteral("ATTENDED_REPOSITORY_SHOWN"));
+					return;
+				}
+				static_cast<void>(window.grab().save(root + QStringLiteral("/app-repository.png"), "PNG"));
+				auto* const keep = setup->findChild<QWidget*>(QStringLiteral("agentSetupKeepCard"));
+				if (keep == nullptr) {
+					done(QStringLiteral("ATTENDED_REPOSITORY_FAILED:no-keep-card"));
+					return;
+				}
+				const auto centre  = QPointF{ keep->rect().center() };
+				auto       press   = QMouseEvent{ QEvent::MouseButtonPress, centre, keep->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				auto       release = QMouseEvent{ QEvent::MouseButtonRelease, centre, keep->mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QCoreApplication::sendEvent(keep, &press);
+				QCoreApplication::sendEvent(keep, &release);
+				*step = 2;
+				return;
+			}
+			if (*step == 2) {
+				auto* const button = setup->findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
+				if (button == nullptr) {
+					return;
+				}
+				button->click();
+				*ticks = 0;
+				*step  = 3;
+				return;
+			}
+			// Bytes arrive about twice a second; draw once a few have.
+			if (setup->findChild<QWidget*>(QStringLiteral("agentSetupKeepBar")) == nullptr || *ticks < 25) {
+				return;
+			}
+			static_cast<void>(window.grab().save(root + QStringLiteral("/app-repository-downloading.png"), "PNG"));
+			const auto alone = setup->findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")) == nullptr && setup->findChild<QWidget*>(QStringLiteral("agentSetupPrivateCopyCard")) == nullptr
+				&& setup->findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr;
+			done(QStringLiteral("ATTENDED_REPOSITORY_DOWNLOADING:alone=%1").arg(alone ? 1 : 0));
 		});
 		timer->start();
 	}
@@ -10435,7 +10643,21 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1592]]. Private notes written at their lines.
 		const auto attendedNotesLook = launch.has("--attended-notes-look");
 		// [[BPR-1593]]. A private tour written on renderer.cpp.
-		const auto attendedTourLook         = launch.has("--attended-tour-look");
+		const auto attendedTourLook = launch.has("--attended-tour-look");
+		// [[BPR-1878]]. The new tour's first step, with the Claude stream-JSON
+		// fixture agent named here offered for drafting.
+		const auto attendedTourAuthoringAgent = launch.value("--attended-tour-authoring");
+		const auto attendedTourAuthoring      = attendedTourAuthoringAgent.has_value() && !attendedTourAuthoringAgent->empty();
+		if (attendedTourAuthoring) {
+			fixtureOptions.ClaudeAgentExecutable = std::filesystem::path{ std::string{ *attendedTourAuthoringAgent } };
+			// [[BPR-1881]]. The look's offscreen evidence finishes the setup
+			// with the `claude` on a search path of its own, never the
+			// person's own agents; the person's session finds theirs.
+			if (const auto search = qEnvironmentVariable("BPR_ATTENDED_TOUR_AGENT_PATH"); !search.isEmpty()) {
+				fixtureOptions.AttendedAgentSearch = false;
+				fixtureOptions.ClaudeSearch        = bpr::app::detail::claude_search_environment{ .PathVariable = search.toStdString() };
+			}
+		}
 		const auto attendedConversationLook = launch.has("--attended-conversation-look");
 		if (attendedConversationLook) {
 			fixtureOptions.ReviewSubmissionServer                        = std::make_shared<bpr::app::detail::review_submission_fixture_state>();
@@ -10457,6 +10679,13 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1594]]. After the file, the Agent tab and one review by the
 		// fixture agent named here.
 		const auto attendedAgentLook = launch.value("--attended-agent-look");
+		// [[BPR-1879]]. The Agent tab's Repository step, for a look at it.
+		const auto attendedRepositoryLook = launch.has("--attended-repository-look");
+		if (attendedRepositoryLook) {
+			// Every fixture review is read whole; the look shows the step as a
+			// review read through `gh` shows it, where the choice is.
+			fixtureOptions.SparseAgentSetupLook = true;
+		}
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
 		}
@@ -10573,6 +10802,7 @@ auto main(int argc, char** argv) -> int
 			|| (attendedNotesLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook))
 			|| (attendedConversationLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedNotesLook || attendedUnknownReviewLook || attendedFinishReviewLook || attendedPreflightLook.has_value()))
 			|| (attendedTourLook && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
+			|| (attendedTourAuthoring && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedTourLook || attendedPreflightLook.has_value() || attendedTourStop || attendedUnknownReviewLook || attendedFinishReviewLook || attendedNotesLook))
 			|| (attendedTourStop && (!attendedOpenFile.has_value() || fixtureName != "conventional-comments-v1" || attendedPreflightLook.has_value()))
 			|| (attendedWorkshopAgent.has_value() && (!attendedOpenFile.has_value() || attendedWorkshopAgent->empty() || attendedPreflightLook.has_value() || attendedTourStop))) {
 			QTextStream{ stdout } << "ATTENDED_LAUNCH_CONFIGURATION_FAILED\n";
@@ -11029,6 +11259,9 @@ auto main(int argc, char** argv) -> int
 					if (attendedAgentLook.has_value()) {
 						look = std::string{ "agent" };
 					}
+					if (attendedRepositoryLook) {
+						look = std::string{ "repository" };
+					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };
 					}
@@ -11043,6 +11276,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedTourLook) {
 						look = std::string{ "tour" };
+					}
+					if (attendedTourAuthoring) {
+						look = std::string{ "tour-authoring" };
 					}
 					if (attendedPreflightLook.has_value()) {
 						look = attendedPreflightLook;

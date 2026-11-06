@@ -4168,7 +4168,7 @@ if(
     OR NOT github_process_runner_compact
         MATCHES
             "return make_qprocess_github_cli_process_runner\\( ?nullptr, std::move\\(aFileLimits\\)\\); \\}"
-    OR NOT github_process_runner_construction_count EQUAL 4
+    OR NOT github_process_runner_construction_count EQUAL 5
 )
     message(
         FATAL_ERROR
@@ -4398,6 +4398,36 @@ if(
         "GitHub CLI Git-acquisition factory must refuse, in its own body, a "
         "spool outside its store or over an existing file, a zero or oversized "
         "per-file limit, a relative store, and missing store thresholds"
+    )
+endif()
+
+# [[BPR-1879]] The clone BetterPullReview keeps for agent questions is the one
+# acquisition with no byte or time limit (owner decision 2026-11-05: "a cancel
+# and a progress would be better"). Its runner has its own factory, whose body
+# is pinned here: no per-file ceiling, no store, no spool, the observed Git, no
+# test seam. It is the only code that sets `ManagedClone`, which alone lifts
+# the deadline; every other runner keeps its limits.
+string(
+    REGEX MATCHALL
+    "ManagedClone = true"
+    github_process_runner_managed_flags
+    "${github_process_runner_code_compact}"
+)
+list(LENGTH github_process_runner_managed_flags github_process_runner_managed_flag_count)
+if(
+    NOT github_process_runner_managed_flag_count EQUAL 1
+    OR NOT github_process_runner_code_compact
+        MATCHES
+            "auto make_github_cli_managed_clone_process_runner\\(const std::filesystem::path& aGit\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\(nullptr, \\{ \\.MaximumFileBytes = 0U, \\.Directory = \\{ \\}, \\.MaximumDirectoryBytes = 0U, \\.MaximumDirectoryEntries = 0U, \\.StandardOutputFile = \\{ \\}, \\.DiscardStandardOutput = true, \\.LocalGitExecutable = aGit, \\.ManagedClone = true \\}\\); \\}"
+    OR NOT github_process_runner_code_compact
+        MATCHES
+            "item->Deadline = clock::now\\(\\) \\+ aRequest\\.Timeout; if \\(ManagedClone\\) \\{ item->Deadline = clock::now\\(\\) \\+ std::chrono::duration_cast<clock::duration>\\(github_cli_managed_clone_no_deadline\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI kept-clone factory must take no limit, spool or seam and "
+        "be the only code that marks a runner as a kept clone's, and only that "
+        "mark may lift a launch's deadline"
     )
 endif()
 
@@ -6199,3 +6229,58 @@ foreach(source IN LISTS tray_submission_sources)
         )
     endif()
 endforeach()
+
+# [[BPR-1873]]. The agent workspace's head snapshot download is removed (owner,
+# 2026-11-05): a sparse review's agent borrows the linked clone and fetches only
+# what the clone lacks, and without a clone nothing is downloaded. No source may
+# name the snapshot surfaces again. The one exact-revision clone compiler emits
+# a depth only together with the blob filter, so no clone takes a head's blobs
+# without its history (`--revision=<head> --depth=1` without a filter).
+file(GLOB_RECURSE workspace_snapshot_sources "${BPR_ROOT}/src/*.cpp" "${BPR_ROOT}/src/*.hpp" "${BPR_ROOT}/src/*.mm")
+set(revision_clone_sources "")
+foreach(source IN LISTS workspace_snapshot_sources)
+    file(READ "${source}" contents)
+    file(RELATIVE_PATH relative_file "${BPR_ROOT}" "${source}")
+    foreach(removed_surface IN ITEMS
+        "acquire_workspace_snapshot"
+        "git_workspace_snapshot"
+        "workspace_snapshot_request"
+        "clone_content::snapshot"
+        "acquire_snapshot"
+    )
+        string(FIND "${contents}" "${removed_surface}" removed_position)
+        if(NOT removed_position EQUAL -1)
+            message(
+                FATAL_ERROR
+                "${relative_file} names ${removed_surface}: the agent workspace's head snapshot "
+                "download is removed. A sparse review's agent borrows the linked clone and fetches "
+                "only what it lacks ([[BPR-1873]])."
+            )
+        endif()
+    endforeach()
+    if(contents MATCHES "\"--revision=" OR contents MATCHES "\"--depth=")
+        list(APPEND revision_clone_sources "${relative_file}")
+    endif()
+endforeach()
+if(NOT revision_clone_sources STREQUAL "src/adapters/github/src/gh_cli_transport.cpp")
+    message(
+        FATAL_ERROR
+        "An exact-revision or depth-limited clone is compiled only by compile_gh_cli_git_clone_request "
+        "in src/adapters/github/src/gh_cli_transport.cpp ([[BPR-1873]]); found: ${revision_clone_sources}"
+    )
+endif()
+file(READ "${BPR_ROOT}/src/adapters/github/src/gh_cli_transport.cpp" clone_compiler_code)
+string(REGEX REPLACE "[ \t\r\n]+" " " clone_compiler_compact "${clone_compiler_code}")
+string(REGEX MATCHALL "\"--depth=" clone_depth_arguments "${clone_compiler_code}")
+list(LENGTH clone_depth_arguments clone_depth_count)
+string(FIND "${clone_compiler_compact}"
+    "arguments.emplace_back(\"--depth=\" + std::to_string(aDepth)); arguments.emplace_back(\"--filter=blob:none\");"
+    clone_depth_with_filter)
+if(NOT clone_depth_count EQUAL 1 OR clone_depth_with_filter EQUAL -1)
+    message(
+        FATAL_ERROR
+        "compile_gh_cli_git_clone_request must emit --depth only immediately followed, unconditionally, by "
+        "--filter=blob:none: a depth-limited clone of a head's blobs is the removed head snapshot download "
+        "([[BPR-1873]])."
+    )
+endif()

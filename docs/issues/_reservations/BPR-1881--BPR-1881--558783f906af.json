@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1881"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour tab agent setup call to action and agent colour",
+  "created": "2026-11-06T08:52:02.157058+00:00",
+  "base": "cdbe424d73cafe97962c38dd0d298d159c8c5fcb"
+}

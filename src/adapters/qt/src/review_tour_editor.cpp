@@ -2,7 +2,9 @@
 
 #include "bpr/core/tour_steps.hpp"
 
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/appearance_profile.hpp"
+#include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/keyboard_focus_ring.hpp"
 #include "bpr/qt/keyboard_shortcuts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -74,6 +76,48 @@ namespace bpr::qt {
 			return QColor::fromRgbF(static_cast<float>(aFrom.redF() * keep + aTo.redF() * aShare), static_cast<float>(aFrom.greenF() * keep + aTo.greenF() * aShare),
 									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
 		}
+
+		/// \brief [[BPR-1878]]. The Agent tab's question field, drawn as it
+		/// draws it: one rounded field on the base colour. [[BPR-1881]]: an
+		/// agent feature, so it is outlined in the agent accent.
+		class agent_bar_field final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto base = palette().color(QPalette::Active, QPalette::Base);
+				const auto box  = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				painter.setPen(QPen{ mixed(base, agent_accent(palette()), 0.6), 1.0 });
+				painter.setBrush(base);
+				painter.drawRoundedRect(box, 8.0, 8.0);
+			}
+		};
+
+		/// \brief [[BPR-1881]]. The call to action's ground: the window
+		/// washed with the agent accent, outlined in it.
+		class agent_setup_call_frame final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ground = palette().color(QPalette::Active, QPalette::Window);
+				const auto accent = agent_accent(palette());
+				const auto box    = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				painter.setPen(QPen{ mixed(ground, accent, 0.5), 1.0 });
+				painter.setBrush(mixed(ground, accent, 0.08));
+				painter.drawRoundedRect(box, 6.0, 6.0);
+			}
+		};
 
 		/// The route's amber: where you read, as the drawers draw it.
 		[[nodiscard]] auto route_amber(const QPalette& aPalette) -> QColor
@@ -847,6 +891,48 @@ namespace bpr::qt {
 		layout->setContentsMargins(0, 0, 0, 0);
 		layout->setSpacing(0);
 
+		// [[BPR-1881]], owner 2026-11-06. While the agent is not set up, the
+		// tab's top says so, and one click shows the Agent tab's setup. The
+		// setup never opens by itself, here or there.
+		AgentSetupCall = new QWidget{ this };
+		AgentSetupCall->setObjectName(QStringLiteral("tourAgentSetupCall"));
+		auto* const callMargin = new QVBoxLayout{ AgentSetupCall };
+		callMargin->setContentsMargins(10, 8, 10, 0);
+		auto* const callFrame = new agent_setup_call_frame{ AgentSetupCall };
+		callMargin->addWidget(callFrame);
+		// Compact, so the tab's bottom bar keeps its place: what is missing
+		// and the button on one row, what still works under it.
+		auto* const callColumn = new QVBoxLayout{ callFrame };
+		callColumn->setContentsMargins(10, 7, 7, 8);
+		callColumn->setSpacing(2);
+		auto* const callRow = new QHBoxLayout{ };
+		callRow->setSpacing(8);
+		auto* const callTitle = new QLabel{ tr("Drafting help needs the agent."), callFrame };
+		callTitle->setObjectName(QStringLiteral("tourAgentSetupTitle"));
+		callTitle->setWordWrap(true);
+		auto callFont = callTitle->font();
+		callFont.setWeight(QFont::DemiBold);
+		callTitle->setFont(callFont);
+		callRow->addWidget(callTitle, 1);
+		AgentSetupButton = new quiet_push_button{ tr("Set up the agent"), callFrame };
+		AgentSetupButton->setObjectName(QStringLiteral("tourAgentSetupOpen"));
+		AgentSetupButton->setToolTip(tr("Opens the Agent tab at its setup: the agent, the repository, and a check that it works."));
+		callRow->addWidget(AgentSetupButton, 0, Qt::AlignVCenter);
+		callColumn->addLayout(callRow);
+		auto* const callText = new QLabel{ tr("You can still write the tour yourself."), callFrame };
+		callText->setObjectName(QStringLiteral("tourAgentSetupText"));
+		callText->setWordWrap(true);
+		callText->setTextFormat(Qt::PlainText);
+		callText->setForegroundRole(QPalette::PlaceholderText);
+		callColumn->addWidget(callText);
+		connect(AgentSetupButton, &QPushButton::clicked, this, [this] {
+			if (AgentSetupDispatch) {
+				AgentSetupDispatch();
+			}
+		});
+		AgentSetupCall->hide();
+		layout->addWidget(AgentSetupCall);
+
 		// What needs saying before the tour: a GitHub tour to load, a save to
 		// retry, a conflict to settle, what changed on the website.
 		Notices           = new QWidget{ this };
@@ -966,8 +1052,9 @@ namespace bpr::qt {
 			editor->setTabChangesFocus(true);
 			editor->setMinimumHeight(110);
 			column->addWidget(editor, 1);
-			// [[BPR-1784]]. Next shares the assistance row, so the step fits the
-			// narrowest drawer.
+			// [[BPR-1878]]. The helpers first, each saying what it does, then
+			// moving on on its own row, named for where it goes: the owner
+			// read a bare Next among the helpers as one of them.
 			auto* const first = new QHBoxLayout{ };
 			first->setSpacing(6);
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, first);
@@ -975,19 +1062,23 @@ namespace bpr::qt {
 			column->addLayout(first);
 			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
-			auto* map = new quiet_push_button{ tr("Use selected description text"), panel };
+			auto* map = new quiet_push_button{ tr("Copy selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
-			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
+			map->setToolTip(tr("Copies the text you selected in the pull request description (Overview, Source view) into this field, replacing what is here."));
 			tools->addWidget(map);
 			tools->addStretch(1);
 			column->addLayout(tools);
 			// Moving on is explicit: Next, or the key that marks a stop Ready
 			// and goes on.
-			auto* const next = new QPushButton{ tr("Next"), panel };
+			auto* const onward = new QHBoxLayout{ };
+			onward->setContentsMargins(0, 4, 0, 0);
+			onward->addStretch(1);
+			auto* const next = new QPushButton{ aIndex == 0 ? tr("Next: Solution") : tr("Next: Stops"), panel };
 			next->setObjectName(aName + QStringLiteral("Next"));
 			next->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
-			next->setToolTip((aIndex == 0 ? tr("Go on to the solution (%1)") : tr("Go on to the stops (%1)")).arg(next->shortcut().toString(QKeySequence::NativeText)));
-			first->addWidget(next);
+			next->setToolTip((aIndex == 0 ? tr("Go on to step 2, the solution (%1). This text stays saved.") : tr("Go on to step 3, the stops (%1). This text stays saved.")).arg(next->shortcut().toString(QKeySequence::NativeText)));
+			onward->addWidget(next);
+			column->addLayout(onward);
 			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
 			connect(next, &QPushButton::clicked, this, [this, aIndex] { choose_step(aIndex == 0 ? 1 : -1); });
 			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind] { edit(aKind, editor->raw()); });
@@ -1134,6 +1225,25 @@ namespace bpr::qt {
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
+		// [[BPR-1878]], owner looks v002 and v003 ("How hard is it to put the
+		// agent picker at the bottom like i asked for"): the tab ends as the
+		// Agent tab does, with its question field's bottom bar: the same
+		// margins, the same rounded field, the agent · model · effort pill on
+		// the right. The draft's state and Preview and publish sit just above
+		// it, so nothing is below the picker.
+		AgentBar = new QWidget{ this };
+		AgentBar->setObjectName(QStringLiteral("tourAgentBar"));
+		auto* const barColumn = new QVBoxLayout{ AgentBar };
+		barColumn->setContentsMargins(10, 8, 10, 10);
+		AgentField = new agent_bar_field{ AgentBar };
+		AgentField->setObjectName(QStringLiteral("tourAgentField"));
+		AgentField->installEventFilter(this);
+		auto* const barRow = new QHBoxLayout{ AgentField };
+		barRow->setContentsMargins(8, 6, 6, 6);
+		barRow->setSpacing(2);
+		barRow->addStretch(1);
+		barColumn->addWidget(AgentField);
+		AgentBar->hide();
 		// The foot: the private draft's state, and Preview and publish.
 		Foot = new QWidget{ this };
 		Foot->setObjectName(QStringLiteral("tourFoot"));
@@ -1201,6 +1311,9 @@ namespace bpr::qt {
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
 		layout->addWidget(Foot);
+		layout->addWidget(AgentBar);
+		restyle_agent_features();
+		refresh_agent_features();
 
 		for (auto* widget : findChildren<QWidget*>()) {
 			widget->installEventFilter(this);
@@ -1500,10 +1613,32 @@ namespace bpr::qt {
 																																				: QStringLiteral("tourStopMagic"));
 		button->setFocusPolicy(Qt::TabFocus);
 		// [[BPR-1776]]. Raised, as the shared chip: flat it read as a label.
-		button->setToolTip(tr("Use the selected agent once. The result replaces only the captured text and can be undone."));
 		aLayout->addWidget(button, 0, Qt::AlignLeft);
-		const auto label = [aEditor, aHook, button] { button->setText(aEditor->textCursor().hasSelection() ? tr("Enhance selection") : core::writing_blank(aEditor->raw()) ? (aHook == core::writing_hook::comment ? tr("Generate comment") : tr("Recover explanation"))
-																																										   : tr("Enhance text")); };
+		// [[BPR-1878]]. RFC-BPR-0043's labels: each says what a click does to
+		// this field, and its tooltip says how, and that Undo restores it.
+		const auto label = [this, aEditor, aHook, button] {
+			const auto whole = aHook == core::writing_hook::problem ? tr("Enhance problem statement") : aHook == core::writing_hook::solution ? tr("Enhance solution")
+																																			  : tr("Enhance comment");
+			if (aEditor->textCursor().hasSelection()) {
+				button->setText(tr("Enhance selection"));
+				button->setToolTip(tr("Asks the drafting agent to rewrite only the selected text. Undo restores it."));
+			} else if (!core::writing_blank(aEditor->raw())) {
+				button->setText(whole);
+				button->setToolTip(tr("Asks the drafting agent to rewrite this whole field, keeping your meaning. Undo restores your text."));
+			} else if (aHook == core::writing_hook::comment) {
+				button->setText(tr("Generate comment"));
+				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));
+			} else {
+				button->setText(tr("Draft from PR context"));
+				button->setToolTip(aHook == core::writing_hook::problem ? tr("Fills this field from the pull request: the description's own Problem section if it has one, otherwise a draft by the drafting agent. Undo removes it.")
+																		: tr("Fills this field from the pull request: the description's own Solution section if it has one, otherwise a draft by the drafting agent. Undo removes it."));
+			}
+			// [[BPR-1881]]. Disabled until the agent is set up, saying why.
+			if (AgentReadiness != agent_setup_readiness::ready) {
+				button->setToolTip(agent_unavailable_reason());
+			}
+		};
+		AgentLabels.push_back(label);
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
 		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook] {
@@ -1575,6 +1710,14 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
+		// as the Agent tab's pill hides with none.
+		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
+			AgentBar->setVisible(AgentPicker->isVisibleTo(AgentBar));
+		}
+		if (aWatched == AgentField && aEvent->type() == QEvent::Resize) {
+			fit_agent_bar();
+		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -1621,6 +1764,103 @@ namespace bpr::qt {
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
 	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
+	void review_tour_editor::set_agent_picker(agent_run_settings_picker* aPicker)
+	{
+		if (aPicker == nullptr || AgentPicker == aPicker) {
+			return;
+		}
+		AgentPicker = aPicker;
+		aPicker->setParent(AgentField);
+		static_cast<QHBoxLayout*>(AgentField->layout())->addWidget(aPicker);
+		aPicker->installEventFilter(this);
+		aPicker->present();
+		AgentBar->setVisible(aPicker->isVisibleTo(AgentBar));
+		fit_agent_bar();
+		restyle_agent_features();
+	}
+	void review_tour_editor::set_agent_setup_dispatch(std::function<void()> aDispatch) { AgentSetupDispatch = std::move(aDispatch); }
+	void review_tour_editor::set_shown_observer(std::function<void()> aObserver) { ShownObserver = std::move(aObserver); }
+	void review_tour_editor::showEvent(QShowEvent* aEvent)
+	{
+		QWidget::showEvent(aEvent);
+		if (ShownObserver) {
+			ShownObserver();
+		}
+	}
+	void review_tour_editor::set_agent_readiness(const agent_setup_readiness aReadiness)
+	{
+		if (AgentReadiness == aReadiness) {
+			return;
+		}
+		AgentReadiness = aReadiness;
+		refresh_agent_features();
+	}
+	auto review_tour_editor::agent_features() const -> std::vector<QWidget*>
+	{
+		auto features = std::vector<QWidget*>{ };
+		for (const char* const name : { "tourProblemMagic", "tourSolutionMagic" }) {
+			if (auto* const button = findChild<QPushButton*>(QString::fromLatin1(name)); button != nullptr) {
+				features.push_back(button);
+			}
+		}
+		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(SuggestOutline), static_cast<QWidget*>(InsertOutline), AgentField }) {
+			if (widget != nullptr) {
+				features.push_back(widget);
+			}
+		}
+		return features;
+	}
+	auto review_tour_editor::agent_unavailable_reason() const -> QString
+	{
+		return AgentReadiness == agent_setup_readiness::checking ? tr("Waiting for the agent setup to find your agents and check this repository.")
+																 : tr("Needs the agent, which is not set up yet. Use Set up the agent at the top of this tab.");
+	}
+	void review_tour_editor::restyle_agent_features()
+	{
+		// [[BPR-1881]]. One accent for every agent feature, in every state,
+		// and the agent's spark beside its words, so the colour is never the
+		// only sign. Only the text roles are set: the rest follows the
+		// application's palette, and this runs again when it changes.
+		const auto ground = palette();
+		for (auto* const feature : agent_features()) {
+			apply_agent_accent(*feature, ground);
+			if (auto* const button = qobject_cast<QPushButton*>(feature); button != nullptr) {
+				button->setIcon(drawer_icon(drawer_glyph::agent, button->palette()));
+			}
+		}
+		if (AgentSetupButton != nullptr) {
+			apply_agent_accent(*AgentSetupButton, ground);
+			AgentSetupButton->setIcon(drawer_icon(drawer_glyph::agent, AgentSetupButton->palette()));
+			if (auto* const title = AgentSetupCall->findChild<QLabel*>(QStringLiteral("tourAgentSetupTitle")); title != nullptr) {
+				apply_agent_accent(*title, ground);
+			}
+		}
+	}
+	void review_tour_editor::refresh_agent_features()
+	{
+		const auto ready = AgentReadiness == agent_setup_readiness::ready;
+		AgentSetupCall->setVisible(AgentReadiness == agent_setup_readiness::unfinished);
+		// The agent bar keeps its picker usable: it chooses the agent the
+		// Agent tab chooses, and runs nothing.
+		for (auto* const feature : agent_features()) {
+			if (feature != AgentField) {
+				feature->setEnabled(ready);
+			}
+		}
+		for (const auto& label : AgentLabels) {
+			label();
+		}
+		SuggestOutline->setToolTip(ready ? tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops.") : agent_unavailable_reason());
+		InsertOutline->setToolTip(ready ? tr("Insert the checked suggestions as empty stops.") : agent_unavailable_reason());
+	}
+	void review_tour_editor::fit_agent_bar()
+	{
+		// The Agent tab's rule: a field narrower than 300 keeps the pill as
+		// an icon with its words in the tooltip.
+		if (AgentPicker != nullptr) {
+			AgentPicker->set_narrow(AgentField->width() > 0 && AgentField->width() < 300);
+		}
+	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
 	{
@@ -1740,7 +1980,8 @@ namespace bpr::qt {
 		add->setToolTip(tr("Add a stop on the lines selected in the code"));
 		toolsRow->addWidget(add);
 		connect(add, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::add_stop); });
-		auto* suggest = new quiet_push_button{ tr("Suggest an outline"), OutlineTools };
+		auto* suggest  = new quiet_push_button{ tr("Suggest an outline"), OutlineTools };
+		SuggestOutline = suggest;
 		suggest->setObjectName(QStringLiteral("tourSuggestOutline"));
 		suggest->setToolTip(tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops."));
 		toolsRow->addWidget(suggest);
@@ -2751,6 +2992,7 @@ namespace bpr::qt {
 		QWidget::resizeEvent(aEvent);
 		fit_page_columns();
 		place_stop_card();
+		fit_agent_bar();
 	}
 
 	void review_tour_editor::fit_page_columns()
@@ -2842,6 +3084,7 @@ namespace bpr::qt {
 		// [[BPR-1776]]. More's glyph is drawn in the palette's ink.
 		if (aEvent->type() == QEvent::PaletteChange) {
 			restyle_working();
+			restyle_agent_features();
 			if (auto* const more = qobject_cast<QToolButton*>(MoreButton); more != nullptr) {
 				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
 			}

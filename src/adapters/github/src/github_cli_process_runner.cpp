@@ -1059,6 +1059,7 @@ namespace bpr::adapters::github::detail {
 				std::shared_ptr<github_cli_process_runner_test_seam> aTestSeam,
 				github_cli_process_file_limits                       aFileLimits)
 				: LocalGitDirectory{ local_git_directory(aFileLimits.LocalGitExecutable) }
+				, ManagedClone{ aFileLimits.ManagedClone }
 				, Lane{ process_lane_traits{
 					  .TestSeam   = std::move(aTestSeam),
 					  .FileLimits = std::move(aFileLimits),
@@ -1091,7 +1092,12 @@ namespace bpr::adapters::github::detail {
 					item->Credential            = std::move(aCredential);
 					item->CredentialEnvironment = aCredentialEnvironment;
 					item->Stop                  = aStop;
-					item->Deadline              = clock::now() + aRequest.Timeout;
+					// [[BPR-1879]]. A kept clone's download, on its own runner,
+					// has no time limit; its request keeps the usual shape.
+					item->Deadline = clock::now() + aRequest.Timeout;
+					if (ManagedClone) {
+						item->Deadline = clock::now() + std::chrono::duration_cast<clock::duration>(github_cli_managed_clone_no_deadline);
+					}
 				} catch (...) {
 					return std::unexpected{
 						github_cli_process_failure::start_failure
@@ -1102,6 +1108,7 @@ namespace bpr::adapters::github::detail {
 
 		private:
 			const std::string                                             LocalGitDirectory;
+			const bool                                                    ManagedClone;
 			process_support::serialized_process_lane<process_lane_traits> Lane;
 		};
 
@@ -1245,6 +1252,14 @@ namespace bpr::adapters::github::detail {
 			return nullptr;
 		}
 		return make_qprocess_github_cli_process_runner(nullptr, std::move(aFileLimits));
+	}
+
+	auto make_github_cli_managed_clone_process_runner(const std::filesystem::path& aGit)
+		-> std::unique_ptr<github_cli_process_port>
+	{
+		// No per-file ceiling and no store: no byte limit, and nothing for the
+		// supervisor to walk. No deadline either (process_worker::submit).
+		return make_qprocess_github_cli_process_runner(nullptr, { .MaximumFileBytes = 0U, .Directory = { }, .MaximumDirectoryBytes = 0U, .MaximumDirectoryEntries = 0U, .StandardOutputFile = { }, .DiscardStandardOutput = true, .LocalGitExecutable = aGit, .ManagedClone = true });
 	}
 
 	auto make_github_cli_process_runner_for_test(

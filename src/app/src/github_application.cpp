@@ -5399,6 +5399,7 @@ namespace bpr::app {
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
+				SparseAgentSetupLook    = aFixtureOptions.SparseAgentSetupLook;
 				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 				ClaudeSearch            = aFixtureOptions.ClaudeSearch;
 				CodexSearch             = aFixtureOptions.CodexSearch;
@@ -6838,6 +6839,9 @@ namespace bpr::app {
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
 #endif
 #if defined(BPR_BUILD_TESTING)
+		/// [[BPR-1879]]. The attended Repository-step look shows a fixture
+		/// review's agent setup as a review read sparsely through `gh`.
+		bool                                             SparseAgentSetupLook = false;
 		std::optional<std::filesystem::path>             CodexAgentExecutable;
 		std::optional<std::filesystem::path>             ClaudeAgentExecutable;
 		std::optional<detail::claude_search_environment> ClaudeSearch;
@@ -8396,7 +8400,7 @@ namespace bpr::app {
 				Profile->ReviewRestoration->cancel_startup();
 			}
 			if (PendingRestoration && WindowRead) {
-				WindowRead->cancel();
+				WindowRead->cancel(application::pull_request_cancel_cause::restoration);
 			}
 			const auto suppressLateReading = ReadingRestoration.has_value() && !aStartup && !aReadingGesture;
 			PendingRestoration.reset();
@@ -8521,7 +8525,7 @@ namespace bpr::app {
 					// Admitted against the core's state: the read Home shows, still
 					// the lane's pending one.
 					if (HomeOpen->admit_cancel(cancel->Request, WindowRead->state())) {
-						WindowRead->cancel();
+						WindowRead->cancel(application::pull_request_cancel_cause::reviewer);
 					}
 					return;
 				}
@@ -9937,7 +9941,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				dependencies.Effects  = &WorkbenchEffects;
 				dependencies.Decision = &DecisionLane;
 				dependencies.Publish  = [this](const application::clone_link_projection& aProjection) { present_clone_links(aProjection); };
-				CloneLinks            = std::make_unique<application::clone_link_host>(std::move(dependencies));
+				// [[BPR-1879]]. The clones BetterPullReview keeps live in the
+				// profile beside its repository caches, shown in Storage and
+				// removed by profile purge.
+				{
+					std::error_code canonicalError;
+					const auto      root = std::filesystem::weakly_canonical(ApplicationDataRoot, canonicalError);
+					if (!canonicalError) {
+						dependencies.ManagedRoot = (root / std::string{ application::managed_clone_folder }).string();
+					}
+				}
+				dependencies.Keep = [this](const application::clone_repository& aRepository, const std::string& aDestination) -> application::clone_link_dependencies::keep_job {
+					return prepare_kept_clone(aRepository, aDestination);
+				};
+				CloneLinks = std::make_unique<application::clone_link_host>(std::move(dependencies));
 			}
 			CloneLinks->load();
 			observe_clone_repository();
@@ -12698,7 +12715,70 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			repository.Repository = AgentReview->Repository.value();
 			repository.Owner      = AgentReview->Locator.Owner;
 			repository.Name       = AgentReview->Locator.Name;
+			// [[BPR-1879]]. A sparse review's `gh` lease can keep a clone;
+			// GitHub's `size` says roughly what it downloads.
+			repository.CanKeep          = AgentReview->Sparse;
+			repository.ApproximateBytes = AgentReview->ApproximateBytes;
+	#if defined(BPR_BUILD_TESTING)
+			// [[BPR-1879]], owner look v005. A fixture course has no `gh` lease,
+			// so keeping a clone there is a rehearsal (see prepare_kept_clone):
+			// the frozen look can show the choice and its progress.
+			if (Fixture != nullptr) {
+				repository.ApproximateBytes = repository.ApproximateBytes.value_or(48'000'000U);
+			}
+	#endif
 			CloneLinks->observe_repository(std::move(repository));
+		}
+
+		/// [[BPR-1879]], RFC-BPR-0092. The download of the clone
+		/// BetterPullReview keeps for the review on screen, bound to that
+		/// review's authority, session and head now, on the decision lane; run
+		/// later on the clone link host's own worker. Nothing when the review
+		/// is not a sparse one of this repository.
+		[[nodiscard]] auto prepare_kept_clone(const application::clone_repository& aRepository, const std::string& aDestination) -> application::clone_link_dependencies::keep_job
+		{
+	#if defined(BPR_BUILD_TESTING)
+			// [[BPR-1879]], owner look v005. A fixture course rehearses the
+			// download: bytes arrive at about 2 MB a second, on past the stated
+			// size as a real clone with no limit may, until Cancel, which ends
+			// it as a cancel. Nothing is written; no clone is made.
+			if (Fixture != nullptr) {
+				if (Closing || !AgentReview || AgentReview->Repository.value() != aRepository.Repository) {
+					return { };
+				}
+				return [](const application::git_smart_clone_progress& aProgress, const std::stop_token aStop) -> std::expected<void, application::managed_clone_error> {
+					auto received = std::uint64_t{ 0U };
+					while (!aStop.stop_requested()) {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 250 });
+						received += 500'000U;
+						if (aProgress) {
+							aProgress(received);
+						}
+					}
+					return std::unexpected{ application::managed_clone_error { application::managed_clone_failure::cancelled,
+																			   { } } };
+				};
+			}
+	#endif
+			if (Closing || EpochHost == nullptr || !AgentReview || !AgentReview->Sparse || AgentReview->Repository.value() != aRepository.Repository) {
+				return { };
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority || !state.AcceptedRevision) {
+				return { };
+			}
+			auto request = application::managed_clone_request{
+				.ApplicationSession = state.ApplicationSession,
+				.Authority          = *state.Authority,
+				.Head               = state.AcceptedRevision->Head,
+				.Destination        = std::filesystem::path{ aDestination }.lexically_normal(),
+			};
+			if (!application::valid(request)) {
+				return { };
+			}
+			return [host = EpochHost.get(), bound = std::move(request)](const application::git_smart_clone_progress& aProgress, std::stop_token aStop) {
+				return host->keep_managed_clone(bound, aProgress, std::move(aStop));
+			};
 		}
 
 		/// [[BPR-1749]], RFC-BPR-0092. What setup decided reaches the
@@ -12718,6 +12798,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			return std::filesystem::path{ std::u8string { reinterpret_cast<const char8_t*>(view.Linked->Path.data()),
 														  view.Linked->Path.size() } };
+		}
+
+		/// [[BPR-1884]]. Whether that clone is the one BetterPullReview
+		/// keeps, which the host may fetch into; a reviewer's never is.
+		[[nodiscard]] auto linked_history_clone_managed(const bool aWritingOnly) const -> bool
+		{
+			if (!linked_history_clone(aWritingOnly)) {
+				return false;
+			}
+			const auto view = CloneLinks->projection();
+			return view.Linked && view.Linked->Managed;
 		}
 
 		/// [[BPR-1751]], RFC-BPR-0092 Check it works. One Check runs the
@@ -12843,7 +12934,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (Window != nullptr) {
 				Window->clone_folders()->present(aProjection);
 			}
-			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen());
+			// [[BPR-1879]], owner look v006. A review that holds every file needs
+			// no clone: its Repository step is done without one, never a question.
+			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen() || (AgentReview && !AgentReview->Sparse));
 			present_setup_view();
 		}
 
@@ -12856,7 +12949,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			auto* const tab = Window->agent_tab();
-			tab->adopt_setup(*Window->agent_setup(), [this] { check_agent_setup(); });
+			tab->adopt_setup(*Window->agent_setup());
 			tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 				return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
 			});
@@ -13038,6 +13131,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 							}
 						}
 					},
+				// [[BPR-1879]]. BetterPullReview keeps a clone, or stops.
+				.KeepClone =
+					[this] {
+						if (!Closing && CloneLinks) {
+							CloneLinks->keep_clone();
+						}
+					},
+				.CancelKeeping =
+					[this] {
+						if (!Closing && CloneLinks) {
+							CloneLinks->cancel_keeping();
+						}
+					},
 				.Check = [this] { check_agent_setup(); },
 				.Stop  = [this] { stop_agent_setup_check(); },
 				.AddCustomAgent =
@@ -13162,6 +13268,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			auto facts = qt::agent_setup_facts{ };
 			if (AgentReview) {
 				facts.Repository = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
+				facts.Sparse     = AgentReview->Sparse;
 			}
 			const auto* const state = EpochHost != nullptr ? &EpochHost->state() : nullptr;
 			if (state != nullptr && state->AcceptedRevision) {
@@ -13173,7 +13280,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (!setup->take_ready()) {
 				return;
 			}
-			auto gets = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
+			auto gets   = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
+			gets.Sparse = facts.Sparse;
 			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
 				gets.Number     = snapshot->PullRequest.Number.value();
 				gets.Title      = snapshot->PullRequest.Title;
@@ -13486,6 +13594,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 #endif
 		}
 
+		/// [[BPR-1878]]. An agent's name as the agent menus show it.
+		[[nodiscard]] auto agent_display_name(const core::agent_profile_id aProfile) const -> QString
+		{
+			const auto* const menu = Window->agent_panel()->profile_selector();
+			const auto        row  = menu->findData(QVariant::fromValue<qulonglong>(aProfile.value()));
+			return row >= 0 ? menu->itemText(row) : QStringLiteral("The agent");
+		}
 		/// Whether a profile may run tool-free writing: Claude's stream JSON.
 		[[nodiscard]] auto writes_tool_free(const core::agent_profile_id aProfile) const -> bool
 		{
@@ -13612,7 +13727,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			const auto target = writing_target(aHook, aCapture);
 			if (!target || !agent_idle()) {
-				Window->tour_editor()->show_writing_notice(QStringLiteral("Choose an available agent and wait for its current request. Manual editing is available."));
+				// [[BPR-1878]]. Says which it is, naming only what the tab shows:
+				// the agent picker at its bottom.
+				const auto agent = writing_agent();
+				Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or keep writing yourself.")
+															   : !agent                                ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+															   : !target                               ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
+																									   : QStringLiteral("%1 is busy with another request. Try again when it finishes, or keep writing yourself.").arg(agent_display_name(*agent)));
 				return;
 			}
 			const auto request = WritingState.begin(*target, std::move(aCapture.Raw), aCapture.Selection);
@@ -19927,7 +20048,22 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					.Number      = aHandoff.Number,
 					.Hostname    = std::string{ aHandoff.Hostname.value() },
 					.Locator     = aHandoff.Locator,
+					.Sparse      = application::object_loading_for(aHandoff.Shape) == application::pull_request_object_loading::selected_objects && aHandoff.SmartGit
+						&& !aHandoff.SmartGit->revoked() && aHandoff.SmartGit->supports_sparse_commit_trees(),
 				};
+#if defined(BPR_BUILD_TESTING)
+				// [[BPR-1879]]. The attended Repository-step look: the fixture
+				// review's agent setup reads as a sparse one, where the choice is.
+				if (SparseAgentSetupLook) {
+					AgentReview->Sparse = true;
+				}
+#endif
+				// [[BPR-1879]]. GitHub's `size` is in kibibytes.
+				if (Host != nullptr) {
+					if (const auto read = WindowRead->accepted_snapshot(); read && read->Repository.SizeKilobytes && *read->Repository.SizeKilobytes <= (std::numeric_limits<std::uint64_t>::max() / 1024U)) {
+						AgentReview->ApproximateBytes = *read->Repository.SizeKilobytes * 1024U;
+					}
+				}
 #if defined(BPR_AGENT_INTEGRATIONS)
 				observe_clone_repository();
 				observe_conversation();
@@ -22029,6 +22165,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				.RequestedSettings      = std::move(requested),
 				.PrivateRun             = std::move(privateRun),
 				.HistoryClone           = linked_history_clone(aWritingOnly),
+				.HistoryCloneManaged    = linked_history_clone_managed(aWritingOnly),
 				// Owner decision 2026-10-23: a time limit only when the reviewer set one.
 				.RunLimitMilliseconds = run_limit_milliseconds(),
 			});
@@ -25414,6 +25551,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		decltype(github_profile_runtime::DisableSideChatPanelComposition)&        DisableSideChatPanelComposition        = Profile->DisableSideChatPanelComposition;
 		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
+		decltype(github_profile_runtime::SparseAgentSetupLook)&                   SparseAgentSetupLook                   = Profile->SparseAgentSetupLook;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
@@ -25869,6 +26007,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			core::pull_request_number        Number;
 			std::string                      Hostname;
 			core::repository_locator         Locator;
+			/// [[BPR-1873]]. Read with selected objects through a lease that
+			/// can: the review holds no blobs, so without a clone its agent sees
+			/// only the pull request's files.
+			bool Sparse = false;
+			/// [[BPR-1879]]. GitHub's repository `size`, in bytes, when it said.
+			std::optional<std::uint64_t> ApproximateBytes;
 		};
 		std::optional<agent_review_facts>                   AgentReview;
 		decltype(github_profile_runtime::ExistingCheckout)& ExistingCheckout      = Profile->ExistingCheckout;

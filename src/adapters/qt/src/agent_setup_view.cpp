@@ -9,10 +9,14 @@
 #include <QFileDialog>
 #include <QFont>
 #include <QFontDatabase>
+#include <QFontMetrics>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QLineEdit>
+#include <QLocale>
+#include <QMetaObject>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -26,6 +30,7 @@
 
 #include <algorithm>
 #include <array>
+#include <limits>
 #include <tuple>
 #include <utility>
 
@@ -361,16 +366,18 @@ namespace bpr::qt {
 		switch (aReason) {
 		case reason::copy_failed:
 			return QObject::tr("The agent's copy of this pull request could not be made. Reopen the pull request, then check again.");
+		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing
+		// is asked of the reviewer's clone.
 		case reason::download_failed:
-			return QObject::tr("The agent needs every file at this head, and this review holds only the files it shows. Downloading the rest failed. Check again, or show the log for the cause.");
+			return QObject::tr("Your clone doesn't have this head yet, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.");
 		case reason::connection_failed:
-			return QObject::tr("The agent needs every file at this head, and GitHub could not be reached to download them. Check the connection, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.");
 		case reason::sign_in_refused:
-			return QObject::tr("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
 		case reason::too_large:
-			return QObject::tr("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
-		case reason::too_large_not_in_clone:
-			return QObject::tr("This head is larger than the agent's private copy allows, and your clone doesn't have it yet. Fetch the pull request's branch in your clone, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.");
+		case reason::clone_needed:
+			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
 		}
 		return { };
 	}
@@ -383,8 +390,9 @@ namespace bpr::qt {
 		lines << (aFacts.Sparse && !aFacts.Clone ? QObject::tr("Changes: %1 files; no base to compare with in its copy").arg(aFacts.Files)
 												 : QObject::tr("Changes: %1 files; the diff is git diff %2...%3 in its workspace").arg(aFacts.Files).arg(text_of(aFacts.Base), text_of(aFacts.Head)));
 		lines << QObject::tr("Threads: %1 review threads, %2 unresolved").arg(aFacts.Threads).arg(aFacts.Unresolved);
-		lines << (aFacts.Clone ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
-							   : QObject::tr("Workspace: a private copy at the head"));
+		lines << (aFacts.Clone        ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
+					  : aFacts.Sparse ? QObject::tr("Workspace: only this pull request's files, at the head")
+									  : QObject::tr("Workspace: the files BetterPullReview has, at the head"));
 		lines << QObject::tr("Review skill: bpr-pr-review, editable in Settings");
 		lines << QObject::tr("It may not: push, comment or change your checkout");
 		return lines.join(QLatin1Char{ '\n' });
@@ -574,9 +582,11 @@ namespace bpr::qt {
 	auto agent_setup_view::workspace_words() const -> QString
 	{
 		if (Clones.Linked && !Clones.Linked->PrivateCopy) {
-			return tr("a workspace with the history of %1 at %2").arg(shown_path(Clones.Linked->Path), text_of(Facts.Head));
+			// [[BPR-1879]]. The clone BetterPullReview keeps is named as such.
+			return Clones.Linked->Managed ? tr("a workspace with the history of the clone BetterPullReview keeps, at %1").arg(text_of(Facts.Head))
+										  : tr("a workspace with the history of %1 at %2").arg(shown_path(Clones.Linked->Path), text_of(Facts.Head));
 		}
-		return tr("a private copy at %1").arg(text_of(Facts.Head));
+		return Facts.Sparse ? tr("only this pull request's files at %1").arg(text_of(Facts.Head)) : tr("the files BetterPullReview has at %1").arg(text_of(Facts.Head));
 	}
 
 	auto agent_setup_view::ready_title() const -> QString { return tr("%1 is ready").arg(agent_name()); }
@@ -631,7 +641,11 @@ namespace bpr::qt {
 			QString          Title;
 			QString          Summary;
 		};
-		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? tr("A private copy") : shown_path(Clones.Linked->Path)) : QString{ };
+		// [[BPR-1879]], owner look v006. A review that holds every file needs
+		// no clone, so with none linked it says whose files the agent uses.
+		const auto unlinked   = Facts.Sparse ? tr("This pull request only") : tr("Files BetterPullReview has");
+		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? unlinked : (Clones.Linked->Managed ? tr("Kept by BetterPullReview") : shown_path(Clones.Linked->Path)))
+											  : (Facts.Sparse ? QString{ } : unlinked);
 		const auto steps      = std::array{
 			step{ core::setup_step::agent, tr("Agent"), Setup.State.Chosen ? name_for(*Setup.State.Chosen) : QString{ } },
 			step{ core::setup_step::repository, tr("Repository"), repository },
@@ -722,7 +736,9 @@ namespace bpr::qt {
 				case core::setup_step::check:      build_check(*bodyColumn); break;
 				case core::setup_step::ready:      break;
 				}
-				if (item.Step == core::setup_step::agent || item.Step == core::setup_step::repository) {
+				// [[BPR-1879]], owner look v006: the Repository step searches the
+				// clone folders itself, so only the Agent step has a search link.
+				if (item.Step == core::setup_step::agent) {
 					const auto  agents = item.Step == core::setup_step::agent;
 					auto* const rescan = link_button(agents ? tr("Find agents again") : tr("Find matching clones"), body,
 													 agents ? QStringLiteral("agentSetupFindAgents") : QStringLiteral("agentSetupFindClones"));
@@ -857,6 +873,24 @@ namespace bpr::qt {
 		aBody.addWidget(other, 0, Qt::AlignLeft);
 	}
 
+	/// [[BPR-1750]], [[BPR-1873]], [[BPR-1879]] owner looks v002 to v006. The
+	/// Repository step is one choice between cards in order of strength, the
+	/// same wherever no clone is linked, sparse or complete:
+	///
+	/// - **Link your clone**, first, chosen at first, marked Recommended. The
+	///   clone folders are searched without being asked (owner, v006: "Choose
+	///   its folder" and "Find matching clones" are one intent). Clones found
+	///   are offered on the card, the first chosen, and the button links it;
+	///   with none, the button is Choose its folder…, Edit clone folders… a
+	///   small link; with no folder listed yet, the folder line is on the card
+	///   and the button adds it.
+	/// - **Keep a clone for me**, second, when the review can (its size, where
+	///   it goes).
+	/// - The weakest last: a sparse review's This pull request only, or a
+	///   complete review's private copy.
+	///
+	/// One default button acts on the card chosen. Owner look v004: once the
+	/// kept clone downloads, its progress and Cancel are the whole step.
 	void agent_setup_view::build_repository(QVBoxLayout& aBody)
 	{
 		auto* const parent = aBody.parentWidget();
@@ -865,7 +899,7 @@ namespace bpr::qt {
 			aBody.addWidget(muted(tr("Open a pull request to choose the repository the agent reads."), parent));
 			return;
 		}
-		if (Clones.Problem != application::clone_link_problem::none && !Clones.Links.empty()) {
+		if (Clones.Problem != application::clone_link_problem::none && !Clones.Links.empty() && Clones.Keeping.State != application::managed_clone_state::downloading) {
 			const auto* const link = [this]() -> const application::repository_link* {
 				for (const auto& candidate : Clones.Links) {
 					if (candidate.Owner + "/" + candidate.Name == Facts.Repository && !candidate.PrivateCopy) {
@@ -881,64 +915,290 @@ namespace bpr::qt {
 			problem->setObjectName(QStringLiteral("agentSetupLinkProblem"));
 			aBody.addWidget(problem);
 		}
+		// The clone folders are searched once the step shows, without a press.
+		if (!Clones.Folders.empty() && !Clones.Discovered && !Clones.Discovering && Intents.FindClones && AutoSearched != Facts.Repository) {
+			AutoSearched = Facts.Repository;
+			QMetaObject::invokeMethod(
+				this,
+				[this] {
+					if (Intents.FindClones) {
+						Intents.FindClones();
+					}
+				},
+				Qt::QueuedConnection);
+		}
+		build_no_clone_choice(aBody);
+	}
+
+	void agent_setup_view::build_no_clone_choice(QVBoxLayout& aBody)
+	{
+		auto* const parent  = aBody.parentWidget();
+		const auto  canKeep = Clones.Repository && Clones.Repository->CanKeep && !Clones.ManagedLocation.empty();
+		const auto  locale  = QLocale{ };
+		// Decimal units, as the Finder shows sizes on macOS.
+		const auto amount      = [&locale](const std::uint64_t aBytes) { return locale.formattedDataSize(static_cast<qint64>(std::min<std::uint64_t>(aBytes, std::numeric_limits<qint64>::max())), 0, QLocale::DataSizeSIFormat); };
+		const auto approximate = canKeep ? Clones.Repository->ApproximateBytes : std::optional<std::uint64_t>{ };
+		const auto downloading = canKeep && Clones.Keeping.State == application::managed_clone_state::downloading;
+		const auto failed      = canKeep && Clones.Keeping.State == application::managed_clone_state::failed && Clones.Keeping.Failure;
+		auto       pick        = NoClonePick.value_or(no_clone_pick::link);
+		if ((pick == no_clone_pick::keep && !canKeep) || (pick == no_clone_pick::pull_request && !Facts.Sparse)) {
+			pick = no_clone_pick::link;
+		}
+		const auto keep         = pick == no_clone_pick::keep;
+		const auto link         = pick == no_clone_pick::link;
 		const auto chooseFolder = [this] {
 			const auto folder = QFileDialog::getExistingDirectory(this, tr("Choose the clone's folder"), QDir::homePath());
 			if (!folder.isEmpty() && Intents.ChooseClone) {
 				Intents.ChooseClone(QDir::toNativeSeparators(folder).toStdString());
 			}
 		};
-		const auto privateCopy = [this, parent](const QString& aText) {
-			auto* const button = link_button(aText, parent, QStringLiteral("agentSetupPrivateCopy"));
-			button->setToolTip(Facts.Sparse ? tr("The head's files only, without history, branches, tags, LFS files or submodules")
-											: tr("The head and its history, without your branches, tags, LFS files or submodules"));
-			connect(button, &QPushButton::clicked, this, [this] {
-				if (Intents.UsePrivateCopy) {
-					Intents.UsePrivateCopy();
-				}
-			});
-			return button;
+
+		// One card: a radio, a title, a figure at the right, and its lines.
+		const auto card = [parent](const QString& aName, const QString& aTitle, const QString& aFigure, const bool aChosen, std::function<void()> aActivate) {
+			auto* const box = new choice_card{ parent };
+			box->setObjectName(aName);
+			box->Chosen      = aChosen;
+			box->Activate    = std::move(aActivate);
+			auto* const grid = new QGridLayout{ box };
+			grid->setContentsMargins(12, 10, 12, 10);
+			grid->setHorizontalSpacing(10);
+			grid->setVerticalSpacing(4);
+			auto* const radio = new QRadioButton{ box };
+			radio->setChecked(aChosen);
+			radio->setAccessibleName(aTitle);
+			grid->addWidget(radio, 0, 0, Qt::AlignVCenter);
+			auto* const title = words(aTitle, box);
+			title->setObjectName(aName + QStringLiteral("Title"));
+			auto heavy = title->font();
+			heavy.setWeight(QFont::DemiBold);
+			title->setFont(heavy);
+			grid->addWidget(title, 0, 1);
+			auto* const figure = new QLabel{ aFigure, box };
+			figure->setObjectName(aName + QStringLiteral("Figure"));
+			figure->setTextFormat(Qt::PlainText);
+			auto tabular = figure->font();
+			tabular.setFeature(QFont::Tag{ "tnum" }, 1);
+			figure->setFont(tabular);
+			grid->addWidget(figure, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+			grid->setColumnStretch(1, 1);
+			box->setAccessibleName(aTitle);
+			return std::pair{ box, grid };
 		};
-		if (Clones.Folders.empty()) {
-			auto* const ask = words(tr("Where do your clones live?"), parent);
-			ask->setObjectName(QStringLiteral("agentSetupNoFolders"));
-			auto bold = ask->font();
-			bold.setWeight(QFont::DemiBold);
-			ask->setFont(bold);
-			aBody.addWidget(ask);
-			aBody.addWidget(muted(tr("The agent reads more than the diff: callers, tests, history. Add the folder your clones are in, and BetterPullReview looks there for a clone of %1. It reads only each clone's Git configuration and runs nothing.").arg(name), parent));
-			// Owner look v003 ("it's fine to just add a single folder line
-			// from there. The list editor was meant for settings page"): one
-			// folder, typed or browsed, then Add.
-			auto* const line = new QHBoxLayout{ };
-			line->setSpacing(6);
-			auto* const path = new QLineEdit{ parent };
-			path->setObjectName(QStringLiteral("agentSetupFolderPath"));
-			path->setPlaceholderText(QDir::toNativeSeparators(QStringLiteral("~/Documents/GitHub")));
-			path->setAccessibleName(tr("The folder your clones are in"));
-			line->addWidget(path, 1);
-			auto* const browse = new quiet_push_button{ tr("Browse…"), parent };
-			browse->setObjectName(QStringLiteral("agentSetupFolderBrowse"));
-			line->addWidget(browse);
-			auto* const add = primary_button(tr("Add"), parent, QStringLiteral("agentSetupFolderAdd"));
-			add->setEnabled(false);
-			line->addWidget(add);
-			aBody.addLayout(line);
-			auto* const status = muted({ }, parent);
-			status->setObjectName(QStringLiteral("agentSetupFolderStatus"));
-			status->hide();
-			aBody.addWidget(status);
-			connect(path, &QLineEdit::textChanged, add, [add, status](const QString& aText) {
-				add->setEnabled(!aText.trimmed().isEmpty());
-				status->hide();
-			});
-			connect(browse, &QPushButton::clicked, this, [this, path] {
-				const auto folder = QFileDialog::getExistingDirectory(this, tr("Choose the folder your clones are in"), QDir::homePath());
-				if (!folder.isEmpty()) {
-					path->setText(QDir::toNativeSeparators(folder));
+		const auto fact = [](QWidget* aBox, const QString& aName, const QString& aText) {
+			auto* const line = muted(aText, aBox);
+			line->setObjectName(aName);
+			// Wraps when the Agent tab is narrow, so a card never widens it.
+			line->setWordWrap(true);
+			return line;
+		};
+		auto looked = QStringList{ };
+		for (const auto& folder : Clones.Folders) {
+			looked << shown_path(folder);
+		}
+		const auto folders = QFontMetrics{ font() }.elidedText(looked.join(QStringLiteral(", ")), Qt::ElideMiddle, 220);
+
+		// 1. Link your clone: recommended, and the clone folders searched.
+		auto*      folderLine   = static_cast<QLineEdit*>(nullptr);
+		auto*      folderStatus = static_cast<QLabel*>(nullptr);
+		const auto noFolders    = Clones.Folders.empty();
+		const auto searching    = !noFolders && (Clones.Discovering || !Clones.Discovered);
+		const auto found        = !noFolders && !searching && !Clones.Matches.empty();
+		if (!downloading) {
+			const auto choose = [this] {
+				NoClonePick = no_clone_pick::link;
+				rebuild();
+			};
+			auto [box, grid]    = card(QStringLiteral("agentSetupLinkCard"), tr("Link your clone"), tr("Recommended"), link, choose);
+			auto* const advised = box->findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"));
+			advised->setForegroundRole(QPalette::Highlight);
+			auto row = 1;
+			if (noFolders) {
+				grid->addWidget(fact(box, QStringLiteral("agentSetupNoFolders"), tr("Add the folder your clones are in")), row++, 1, 1, 2);
+				// Owner looks v003 and v004 on BPR-1753: one folder, typed or
+				// browsed, the likeliest found already in the line.
+				auto* const line = new QHBoxLayout{ };
+				line->setSpacing(6);
+				folderLine = new QLineEdit{ box };
+				folderLine->setObjectName(QStringLiteral("agentSetupFolderPath"));
+				folderLine->setPlaceholderText(QDir::toNativeSeparators(QStringLiteral("~/Documents/GitHub")));
+				folderLine->setAccessibleName(tr("The folder your clones are in"));
+				if (!Clones.Suggestions.empty()) {
+					folderLine->setText(shown_path(Clones.Suggestions.front()));
+					folderLine->setToolTip(tr("Found on this computer: %1").arg(text_of(Clones.Suggestions.front())));
 				}
-			});
-			const auto submit = [this, path, status] {
-				auto typed = path->text().trimmed();
+				line->addWidget(folderLine, 1);
+				auto* const browse = new quiet_push_button{ tr("Browse…"), box };
+				browse->setObjectName(QStringLiteral("agentSetupFolderBrowse"));
+				connect(browse, &QPushButton::clicked, this, [this, edit = folderLine] {
+					const auto folder = QFileDialog::getExistingDirectory(this, tr("Choose the folder your clones are in"), QDir::homePath());
+					if (!folder.isEmpty()) {
+						edit->setText(QDir::toNativeSeparators(folder));
+					}
+				});
+				line->addWidget(browse);
+				grid->addLayout(line, row++, 1, 1, 2);
+				folderStatus = fact(box, QStringLiteral("agentSetupFolderStatus"), { });
+				folderStatus->hide();
+				grid->addWidget(folderStatus, row++, 1, 1, 2);
+			} else if (searching) {
+				grid->addWidget(fact(box, QStringLiteral("agentSetupSearching"), tr("Looking in %1…").arg(folders)), row++, 1, 1, 2);
+			} else if (found) {
+				if (!PickedClone || std::ranges::none_of(Clones.Matches, [this](const core::clone_match& aMatch) { return aMatch.Path == *PickedClone; })) {
+					PickedClone = Clones.Matches.front().Path;
+				}
+				for (const auto& match : Clones.Matches) {
+					// A clone found: its folder and remote, one click to choose.
+					auto* const clone = new choice_card{ box };
+					clone->setObjectName(QStringLiteral("agentSetupCloneRow"));
+					clone->Chosen     = link && PickedClone == match.Path;
+					auto* const lines = new QGridLayout{ clone };
+					lines->setContentsMargins(10, 6, 10, 6);
+					lines->setHorizontalSpacing(8);
+					lines->setVerticalSpacing(1);
+					auto* const radio = new QRadioButton{ clone };
+					radio->setObjectName(QStringLiteral("agentSetupCloneChoice"));
+					radio->setChecked(PickedClone == match.Path);
+					radio->setAccessibleName(shown_path(match.Path));
+					lines->addWidget(radio, 0, 0, 2, 1, Qt::AlignVCenter);
+					lines->addWidget(words(shown_path(match.Path), clone), 0, 1);
+					lines->addWidget(fact(clone, QStringLiteral("agentSetupCloneRemote"), match.Branch.empty() ? text_of(match.Remote) : tr("%1, on %2").arg(text_of(match.Remote), text_of(match.Branch))), 1, 1);
+					lines->setColumnStretch(1, 1);
+					const auto chosen = match.Path;
+					clone->Activate   = [this, chosen] {
+						NoClonePick = no_clone_pick::link;
+						PickedClone = chosen;
+						rebuild();
+					};
+					clone->setAccessibleName(shown_path(match.Path));
+					clone->settle();
+					grid->addWidget(clone, row++, 1, 1, 2);
+				}
+			} else {
+				grid->addWidget(fact(box, QStringLiteral("agentSetupNoClone"), tr("None in %1").arg(folders)), row++, 1, 1, 2);
+			}
+			if (!noFolders) {
+				// Secondary, small: the folders searched, and another folder.
+				auto* const extras = new QHBoxLayout{ };
+				extras->setSpacing(0);
+				auto* const edit = link_button(tr("Edit clone folders…"), box, QStringLiteral("agentSetupEditFolders"));
+				connect(edit, &QPushButton::clicked, this, [this] {
+					if (Intents.OpenRepositorySettings) {
+						Intents.OpenRepositorySettings();
+					}
+				});
+				extras->addWidget(edit);
+				if (found) {
+					auto* const other = link_button(tr("Choose another folder…"), box, QStringLiteral("agentSetupChooseOther"));
+					connect(other, &QPushButton::clicked, this, chooseFolder);
+					extras->addWidget(other);
+				}
+				extras->addStretch(1);
+				grid->addLayout(extras, row++, 1, 1, 2);
+			}
+			box->settle();
+			aBody.addWidget(box);
+		}
+
+		// 2. Keep a clone for me.
+		if (canKeep) {
+			const auto choose = [this] {
+				NoClonePick = no_clone_pick::keep;
+				rebuild();
+			};
+			const auto received   = Clones.Keeping.Received;
+			const auto within     = approximate && *approximate > 0U && received < *approximate;
+			const auto figure     = downloading ? (within ? tr("%1 of %2").arg(amount(received), amount(*approximate)) : amount(received)) : (approximate ? amount(*approximate) : QString{ });
+			auto [box, grid]      = card(QStringLiteral("agentSetupKeepCard"), downloading ? tr("Keeping a clone") : tr("Keep a clone for me"), figure, keep || downloading, downloading ? std::function<void()>{ } : std::function<void()>{ choose });
+			auto* const figureTag = box->findChild<QLabel*>(QStringLiteral("agentSetupKeepCardFigure"));
+			figureTag->setObjectName(downloading ? QStringLiteral("agentSetupKeepStatus") : QStringLiteral("agentSetupKeepSize"));
+			if (downloading) {
+				// Nothing to choose while it downloads: no radio. The card is the
+				// progress: a thin bar across it, the bytes at the right, Cancel.
+				box->findChild<QRadioButton*>()->hide();
+				auto* const row = new QHBoxLayout{ };
+				row->setSpacing(10);
+				auto* const bar = new QProgressBar{ box };
+				bar->setObjectName(QStringLiteral("agentSetupKeepBar"));
+				bar->setTextVisible(false);
+				bar->setFixedHeight(6);
+				bar->setAccessibleName(tr("Downloading %1").arg(text_of(Facts.Repository)));
+				if (within) {
+					// GitHub's size is approximate, so the bar stops short of
+					// full until the clone is in place.
+					bar->setRange(0, 1000);
+					bar->setValue(static_cast<int>(std::min<std::uint64_t>(990U, received * 1000U / *approximate)));
+				} else {
+					// No limit (owner decision 2026-11-05): past GitHub's figure,
+					// or with none, the bar is busy while the bytes go on counting.
+					bar->setRange(0, 0);
+				}
+				row->addWidget(bar, 1, Qt::AlignVCenter);
+				auto* const cancel = new quiet_push_button{ tr("Cancel"), box };
+				cancel->setObjectName(QStringLiteral("agentSetupKeepCancel"));
+				connect(cancel, &QPushButton::clicked, this, [this] {
+					if (Intents.CancelKeeping) {
+						Intents.CancelKeeping();
+					}
+				});
+				row->addWidget(cancel);
+				grid->addLayout(row, 1, 1, 1, 2);
+			} else if (failed) {
+				const auto why = [](const application::managed_clone_failure aFailure) -> QString {
+					switch (aFailure) {
+					case application::managed_clone_failure::sign_in_refused:   return tr("GitHub refused the sign-in.");
+					case application::managed_clone_failure::connection_failed: return tr("No connection to GitHub.");
+					case application::managed_clone_failure::too_large:         return tr("Too large to keep.");
+					case application::managed_clone_failure::unavailable:       return tr("Needs a GitHub CLI sign-in.");
+					case application::managed_clone_failure::cancelled:
+					case application::managed_clone_failure::failed:            break;
+					}
+					return tr("Download failed.");
+				}(*Clones.Keeping.Failure);
+				grid->addWidget(fact(box, QStringLiteral("agentSetupKeepFailed"), why), 1, 1, 1, 2);
+			} else {
+				// Where it goes, shortened in the middle; the whole path is the
+				// tooltip.
+				const auto  where = QFontMetrics{ font() }.elidedText(shown_path(Clones.ManagedLocation), Qt::ElideMiddle, 200);
+				auto* const line  = fact(box, QStringLiteral("agentSetupKeepCost"), tr("Full history, kept in %1").arg(where));
+				line->setToolTip(QDir::toNativeSeparators(text_of(Clones.ManagedLocation)));
+				grid->addWidget(line, 1, 1, 1, 2);
+			}
+			box->settle();
+			aBody.addWidget(box);
+			if (downloading) {
+				// Owner look v004: once it downloads, its progress and Cancel
+				// are the whole step.
+				return;
+			}
+		}
+
+		// 3. The weakest, only where it is a real choice: a review holding only
+		// the pull request's files. A review that holds every file needs no
+		// clone, per owner look v006: Link your clone is offered alone there, as
+		// an improvement, and the step is already done without it.
+		if (Facts.Sparse) {
+			const auto choose = [this] {
+				NoClonePick = no_clone_pick::pull_request;
+				rebuild();
+			};
+			// [[BPR-1879]], owner look v006: one name for it, This pull request
+			// only, which says what the agent gets.
+			auto [box, grid] = card(QStringLiteral("agentSetupPullRequestOnlyCard"), tr("This pull request only"), { }, pick == no_clone_pick::pull_request, choose);
+			grid->addWidget(fact(box, QStringLiteral("agentSetupPullRequestOnlyFact"), tr("No callers, tests or history")), 1, 1, 1, 2);
+			box->settle();
+			aBody.addWidget(box);
+		}
+
+		// One default button, for the card chosen.
+		auto* const row    = new QHBoxLayout{ };
+		auto        label  = QString{ };
+		auto        name   = QString{ };
+		auto        action = std::function<void()>{ };
+		if (link && noFolders) {
+			label  = tr("Add folder");
+			name   = QStringLiteral("agentSetupFolderAdd");
+			action = [this, edit = folderLine, status = folderStatus] {
+				auto typed = edit->text().trimmed();
 				if (typed == QStringLiteral("~") || typed.startsWith(QStringLiteral("~/")) || typed.startsWith(QStringLiteral("~\\"))) {
 					typed = QDir::homePath() + typed.mid(1);
 				}
@@ -954,108 +1214,48 @@ namespace bpr::qt {
 					Intents.AddCloneFolder(QDir::toNativeSeparators(QDir::cleanPath(typed)).toStdString());
 				}
 			};
-			connect(add, &QPushButton::clicked, this, submit);
-			connect(path, &QLineEdit::returnPressed, this, submit);
-			// Owner look v004 ("get rid of the or add it's just confusing.
-			// Just let the add button be clickable with the the prefilled
-			// text"): the folder found likeliest is the line's text, so Add
-			// takes it as it is; Browse… or typing changes it.
-			if (!Clones.Suggestions.empty()) {
-				path->setText(shown_path(Clones.Suggestions.front()));
-				path->setToolTip(tr("Found on this computer: %1").arg(text_of(Clones.Suggestions.front())));
-			}
-			aBody.addWidget(privateCopy(tr("Use a private copy instead")), 0, Qt::AlignLeft);
-			return;
-		}
-		if (Clones.Discovering || !Clones.Discovered) {
-			aBody.addWidget(muted(tr("Looking in your clone folders for %1…").arg(name), parent));
-			return;
-		}
-		if (Clones.Matches.empty()) {
-			auto* const none = words(tr("No clone of %1 in your clone folders").arg(name), parent);
-			none->setObjectName(QStringLiteral("agentSetupNoClone"));
-			auto bold = none->font();
-			bold.setWeight(QFont::DemiBold);
-			none->setFont(bold);
-			aBody.addWidget(none);
-			auto looked = QStringList{ };
-			for (const auto& folder : Clones.Folders) {
-				looked << shown_path(folder);
-			}
-			aBody.addWidget(muted(tr("Looked in %1, two levels down.").arg(looked.join(QStringLiteral(", "))), parent));
-			auto* const row    = new QHBoxLayout{ };
-			auto* const choose = primary_button(tr("Choose its folder…"), parent, QStringLiteral("agentSetupChooseFolder"));
-			connect(choose, &QPushButton::clicked, this, chooseFolder);
-			row->addWidget(choose);
-			row->addStretch(1);
-			aBody.addLayout(row);
-			aBody.addWidget(privateCopy(tr("Use a private copy")), 0, Qt::AlignLeft);
-			auto* const edit = link_button(tr("Edit clone folders…"), parent, QStringLiteral("agentSetupEditFolders"));
-			connect(edit, &QPushButton::clicked, this, [this] {
-				if (Intents.OpenRepositorySettings) {
-					Intents.OpenRepositorySettings();
+		} else if (link && found) {
+			label  = tr("Link this clone");
+			name   = QStringLiteral("agentSetupUseClone");
+			action = [this] {
+				if (PickedClone && Intents.ChooseClone) {
+					Intents.ChooseClone(*PickedClone);
 				}
-			});
-			aBody.addWidget(edit, 0, Qt::AlignLeft);
-			return;
-		}
-		const auto count = Clones.Matches.size();
-		aBody.addWidget(muted(count == 1U ? tr("The agent reads more than the diff: callers, tests, history. A clone of %1 is in your clone folders. It is remembered for this repository; the agent gets its own workspace at the head with that clone's history, and your checkout and branches are not touched.").arg(name)
-										  : tr("The agent reads more than the diff: callers, tests, history. %1 clones of %2 are in your clone folders. The one you choose is remembered for this repository; the agent gets its own workspace at the head with that clone's history, and your checkout and branches are not touched.").arg(count).arg(name),
-							  parent));
-		if (!PickedClone && count == 1U) {
-			PickedClone = Clones.Matches.front().Path;
-		}
-		for (const auto& match : Clones.Matches) {
-			auto* const card = new choice_card{ parent };
-			card->setObjectName(QStringLiteral("agentSetupCloneRow"));
-			card->Chosen     = PickedClone == match.Path;
-			auto* const grid = new QHBoxLayout{ card };
-			grid->setContentsMargins(12, 10, 12, 10);
-			grid->setSpacing(10);
-			auto* const radio = new QRadioButton{ card };
-			radio->setObjectName(QStringLiteral("agentSetupCloneChoice"));
-			radio->setChecked(card->Chosen);
-			radio->setAccessibleName(shown_path(match.Path));
-			grid->addWidget(radio, 0, Qt::AlignTop);
-			auto* const lines = new QVBoxLayout{ };
-			lines->setSpacing(2);
-			auto* const path = words(shown_path(match.Path), card);
-			auto        bold = path->font();
-			bold.setWeight(QFont::DemiBold);
-			path->setFont(bold);
-			lines->addWidget(path);
-			auto* const remote = words(text_of(match.Remote) + QStringLiteral("  ") + text_of(match.Location), card);
-			remote->setFont(code_font(font()));
-			lines->addWidget(remote);
-			lines->addWidget(muted(match.Branch.empty() ? tr("In %1.").arg(shown_path(match.Folder)) : tr("In %1. On branch %2.").arg(shown_path(match.Folder), text_of(match.Branch)), card));
-			grid->addLayout(lines, 1);
-			const auto chosen = match.Path;
-			card->Activate    = [this, chosen] {
-				PickedClone = chosen;
-				rebuild();
 			};
-			card->setAccessibleName(shown_path(match.Path));
-			card->settle();
-			aBody.addWidget(card);
+		} else if (link) {
+			label  = tr("Choose its folder…");
+			name   = QStringLiteral("agentSetupChooseFolder");
+			action = chooseFolder;
+		} else if (keep) {
+			label  = failed ? tr("Retry") : tr("Keep a clone");
+			name   = QStringLiteral("agentSetupKeepClone");
+			action = [this] {
+				if (Intents.KeepClone) {
+					Intents.KeepClone();
+				}
+			};
+		} else {
+			label  = tr("Use this pull request only");
+			name   = QStringLiteral("agentSetupPullRequestOnly");
+			action = [this] {
+				if (Intents.UsePrivateCopy) {
+					Intents.UsePrivateCopy();
+				}
+			};
 		}
-		auto* const row = new QHBoxLayout{ };
-		auto* const use = primary_button(tr("Use this clone"), parent, QStringLiteral("agentSetupUseClone"));
-		use->setEnabled(PickedClone.has_value());
-		connect(use, &QPushButton::clicked, this, [this] {
-			if (PickedClone && Intents.ChooseClone) {
-				Intents.ChooseClone(*PickedClone);
-			}
-		});
-		row->addWidget(use);
-		auto* const choose = new quiet_push_button{ tr("Choose a folder…"), parent };
-		choose->setObjectName(QStringLiteral("agentSetupChooseFolder"));
-		choose->setFlat(true);
-		connect(choose, &QPushButton::clicked, this, chooseFolder);
-		row->addWidget(choose);
+		auto* const button = primary_button(label, parent, name);
+		connect(button, &QPushButton::clicked, this, action);
+		row->addWidget(button);
 		row->addStretch(1);
 		aBody.addLayout(row);
-		aBody.addWidget(privateCopy(tr("Use a private copy instead")), 0, Qt::AlignLeft);
+		if (folderLine != nullptr) {
+			button->setEnabled(!folderLine->text().trimmed().isEmpty());
+			connect(folderLine, &QLineEdit::textChanged, button, [button, status = folderStatus](const QString& aText) {
+				button->setEnabled(!aText.trimmed().isEmpty());
+				status->hide();
+			});
+			connect(folderLine, &QLineEdit::returnPressed, button, &QPushButton::click);
+		}
 	}
 
 	void agent_setup_view::build_check(QVBoxLayout& aBody)
@@ -1161,7 +1361,7 @@ namespace bpr::qt {
 			});
 			buttons->addWidget(check);
 			if (failed(Setup.State.WorkspaceCheck) && !(Clones.Linked && Clones.Linked->PrivateCopy)) {
-				buttons->addWidget(link_button(tr("Use a private copy for now"), parent, QStringLiteral("agentSetupCheckPrivateCopy")));
+				buttons->addWidget(link_button(Facts.Sparse ? tr("This pull request only, for now") : tr("Use BetterPullReview's files for now"), parent, QStringLiteral("agentSetupCheckPrivateCopy")));
 				auto* const fallback = qobject_cast<QPushButton*>(buttons->itemAt(buttons->count() - 1)->widget());
 				connect(fallback, &QPushButton::clicked, this, [this] {
 					if (Intents.UsePrivateCopy) {

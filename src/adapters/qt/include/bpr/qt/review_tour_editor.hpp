@@ -4,6 +4,8 @@
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_view.hpp"
+#include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
 #include <QFont>
 #include <QPointer>
@@ -113,6 +115,33 @@ namespace bpr::qt {
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
+		/// \brief [[BPR-1878]], owner looks v001 to v003. The Agent tab's own
+		/// agent picker (a second `agent_run_settings_picker` on its source)
+		/// in the tab's bottom bar, styled as the Agent tab's and the last
+		/// thing in the tab, so choosing here chooses there.
+		void               set_agent_picker(agent_run_settings_picker* aPicker);
+		[[nodiscard]] auto agent_picker() const noexcept -> agent_run_settings_picker* { return AgentPicker; }
+		/// \brief [[BPR-1881]], owner 2026-11-06. The Agent tab's setup
+		/// readiness. Until it is `ready` the tab's top says to set the agent
+		/// up (only while `unfinished`), and every agent feature is disabled
+		/// with a tooltip saying why. Agent features wear `agent_accent`
+		/// in every state. Ready until told otherwise.
+		void               set_agent_readiness(agent_setup_readiness aReadiness);
+		[[nodiscard]] auto agent_readiness() const noexcept -> agent_setup_readiness { return AgentReadiness; }
+		/// \brief [[BPR-1881]]. Set up the agent, in the call to action:
+		/// asks the window for the Agent tab at its setup. The tab never
+		/// asks by itself.
+		void set_agent_setup_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1881]]. Told each time the tab shows, so the setup
+		/// may look for agents and say whether it has finished.
+		void set_shown_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1881]]. The call to action at the top of the tab.
+		[[nodiscard]] auto agent_setup_call() const noexcept -> QWidget* { return AgentSetupCall; }
+		/// \brief [[BPR-1881]]. Every agent feature on the tab: the drafting
+		/// helpers, Suggest an outline and its Insert, and the agent bar.
+		[[nodiscard]] auto agent_features() const -> std::vector<QWidget*>;
+		/// \brief [[BPR-1881]]. What a disabled agent feature's tooltip says.
+		[[nodiscard]] auto agent_unavailable_reason() const -> QString;
 		void               show_stops();
 		/// \brief [[BPR-1781]]. Shows the stops with `aStop` current, and goes
 		/// to its lines as choosing it on the route does.
@@ -156,6 +185,7 @@ namespace bpr::qt {
 
 	protected:
 		void hideEvent(QHideEvent* aEvent) override;
+		void showEvent(QShowEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
 		void restyle_working();
@@ -206,35 +236,51 @@ namespace bpr::qt {
 		QWidget*                                                                   BriefHosts[2]  = { nullptr, nullptr };
 		/// [[BPR-1784]]. The steps' headers, and the Stops step's body, which
 		/// holds the route in the drawer.
-		QWidget*            StepRows[3] = { nullptr, nullptr, nullptr };
-		QWidget*            StopsSlot   = nullptr;
-		core::tour_steps    Steps;
-		QWidget*            RouteColumn        = nullptr;
-		QWidget*            PageColumns        = nullptr;
-		QWidget*            PageLeft           = nullptr;
-		QWidget*            PageRight          = nullptr;
-		QWidget*            StopsHost          = nullptr;
-		QWidget*            StopHeader         = nullptr;
-		QLabel*             StopHeading        = nullptr;
-		QWidget*            Excerpt            = nullptr;
-		QWidget*            PublicationPanel   = nullptr;
-		QWidget*            OutlineTools       = nullptr;
-		QWidget*            Notices            = nullptr;
-		QWidget*            Foot               = nullptr;
-		QLabel*             FootState          = nullptr;
-		QPushButton*        PreviewPublish     = nullptr;
-		QLabel*             StopState          = nullptr;
-		QPushButton*        Reaffirm           = nullptr;
-		QPushButton*        Previous           = nullptr;
-		QPushButton*        Next               = nullptr;
-		QComboBox*          PublicationMode    = nullptr;
-		QCheckBox*          DescriptionEdit    = nullptr;
-		QLabel*             PublicationStatus  = nullptr;
-		markdown_body_view* PublicationPreview = nullptr;
-		QPushButton*        PublishTour        = nullptr;
-		QPushButton*        ResumeTour         = nullptr;
-		QPushButton*        ReconcileTour      = nullptr;
-		QPushButton*        StopTour           = nullptr;
+		QWidget*         StepRows[3] = { nullptr, nullptr, nullptr };
+		QWidget*         StopsSlot   = nullptr;
+		core::tour_steps Steps;
+		QWidget*         RouteColumn      = nullptr;
+		QWidget*         PageColumns      = nullptr;
+		QWidget*         PageLeft         = nullptr;
+		QWidget*         PageRight        = nullptr;
+		QWidget*         StopsHost        = nullptr;
+		QWidget*         StopHeader       = nullptr;
+		QLabel*          StopHeading      = nullptr;
+		QWidget*         Excerpt          = nullptr;
+		QWidget*         PublicationPanel = nullptr;
+		QWidget*         OutlineTools     = nullptr;
+		QWidget*         Notices          = nullptr;
+		/// [[BPR-1878]]. The tab's bottom bar, its field, and the picker in it.
+		QWidget*                   AgentBar    = nullptr;
+		QWidget*                   AgentField  = nullptr;
+		agent_run_settings_picker* AgentPicker = nullptr;
+		void                       fit_agent_bar();
+		/// [[BPR-1881]]. The call to action, its button, and the setup's
+		/// readiness; the helpers' labels, run again when it changes.
+		QWidget*                           AgentSetupCall   = nullptr;
+		QPushButton*                       AgentSetupButton = nullptr;
+		QPushButton*                       SuggestOutline   = nullptr;
+		std::function<void()>              AgentSetupDispatch;
+		std::function<void()>              ShownObserver;
+		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
+		std::vector<std::function<void()>> AgentLabels;
+		void                               refresh_agent_features();
+		void                               restyle_agent_features();
+		QWidget*                           Foot               = nullptr;
+		QLabel*                            FootState          = nullptr;
+		QPushButton*                       PreviewPublish     = nullptr;
+		QLabel*                            StopState          = nullptr;
+		QPushButton*                       Reaffirm           = nullptr;
+		QPushButton*                       Previous           = nullptr;
+		QPushButton*                       Next               = nullptr;
+		QComboBox*                         PublicationMode    = nullptr;
+		QCheckBox*                         DescriptionEdit    = nullptr;
+		QLabel*                            PublicationStatus  = nullptr;
+		markdown_body_view*                PublicationPreview = nullptr;
+		QPushButton*                       PublishTour        = nullptr;
+		QPushButton*                       ResumeTour         = nullptr;
+		QPushButton*                       ReconcileTour      = nullptr;
+		QPushButton*                       StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;

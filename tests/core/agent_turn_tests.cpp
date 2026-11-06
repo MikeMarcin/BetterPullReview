@@ -14,6 +14,7 @@ namespace {
 	using namespace bpr;
 	using core::agent_suggestion_facts;
 	using core::agent_suggestions_verdict;
+	using core::agent_turn_cause;
 	using core::agent_turn_facts;
 	using core::agent_turn_outcome;
 	using core::agent_turn_recovery;
@@ -74,11 +75,65 @@ namespace {
 			return core::decide_agent_turn_actions({ .Outcome = aOutcome, .HasText = true, .Latest = true }).Recovery;
 		};
 		expect(recovery(agent_turn_outcome::unreadable) == agent_turn_recovery::agent_settings, "an unreadable answer opens the agent's settings");
-		expect(recovery(agent_turn_outcome::failed_to_start) == agent_turn_recovery::check_setup, "a start failure checks the setup again");
-		expect(recovery(agent_turn_outcome::workspace_unavailable) == agent_turn_recovery::check_setup, "a workspace failure checks the setup again");
-		for (const auto outcome : { agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable, agent_turn_outcome::stopped, agent_turn_outcome::timed_out,
-									agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
-			expect(recovery(outcome) == agent_turn_recovery::ask_again, "any other ending asks again");
+		// [[BPR-1876]]. A start or workspace failure resends too: the new
+		// run starts the agent and makes its workspace, which is the check.
+		for (const auto outcome : { agent_turn_outcome::failed_to_start, agent_turn_outcome::workspace_unavailable, agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable,
+									agent_turn_outcome::stopped, agent_turn_outcome::timed_out, agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
+			expect(recovery(outcome) == agent_turn_recovery::resend, "any other ending resends");
+		}
+	}
+
+	void test_fixed_since()
+	{
+		expect(core::agent_turn_cause_of(agent_turn_outcome::failed_to_start) == agent_turn_cause::agent_check, "a start failure is the agent check's");
+		expect(core::agent_turn_cause_of(agent_turn_outcome::workspace_unavailable) == agent_turn_cause::workspace_check, "a workspace failure is the workspace check's");
+		auto names = std::set<std::string_view>{ };
+		for (const auto cause : { agent_turn_cause::none, agent_turn_cause::agent_check, agent_turn_cause::workspace_check }) {
+			names.insert(core::stable_name(cause));
+		}
+		expect(names.size() == 3U && !names.contains(std::string_view{ }), "every cause has its own stable name");
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome   = *core::agent_turn_outcome_of(ordinal);
+			const auto clearable = core::agent_turn_cause_of(outcome) != agent_turn_cause::none;
+			expect(clearable == (outcome == agent_turn_outcome::failed_to_start || outcome == agent_turn_outcome::workspace_unavailable), "only a start or workspace failure names a check");
+			for (const auto latest : { false, true }) {
+				for (const auto working : { false, true }) {
+					const auto held = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
+					expect(!held.FixedSince, "while its check has not passed since, the cause holds");
+					const auto cleared = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working, .CausePassedSince = true });
+					expect(cleared.FixedSince == clearable, "a cleared cause is fixed since, on any turn, and only one a check names");
+					expect(cleared.Recovery == held.Recovery && cleared.Error == held.Error && cleared.Copy == held.Copy, "fixed since changes nothing else");
+				}
+			}
+		}
+		const auto fixed = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::failed_to_start, .HasText = true, .Latest = true, .CausePassedSince = true });
+		expect(fixed.FixedSince && fixed.Recovery == agent_turn_recovery::resend, "the latest fixed failure offers Resend");
+	}
+
+	void test_delete_never_sent()
+	{
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome = *core::agent_turn_outcome_of(ordinal);
+			const auto unsent  = outcome == agent_turn_outcome::failed_to_start || outcome == agent_turn_outcome::workspace_unavailable || outcome == agent_turn_outcome::history_unavailable;
+			expect(core::agent_turn_never_sent(outcome) == unsent, "only a run that did not start, had no workspace or could not be recorded never reached the agent");
+			for (const auto latest : { false, true }) {
+				for (const auto working : { false, true }) {
+					const auto actions = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
+					// [[BPR-1880]]: every error, sent or not.
+					expect(actions.Delete == (outcome != agent_turn_outcome::answered && !working), "every failed message can be deleted, on any turn, while nothing runs");
+				}
+			}
+		}
+		const auto unsent = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::failed_to_start, .HasText = true, .Latest = true });
+		expect(unsent.Delete && unsent.Recovery == agent_turn_recovery::resend, "a message never sent offers Delete beside Resend");
+		const auto stopped = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::stopped, .HasText = true, .Latest = true });
+		expect(stopped.Delete && stopped.Recovery == agent_turn_recovery::resend, "a message the agent received offers Delete beside Resend");
+		const auto unreadable = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::unreadable, .HasText = true, .Latest = true });
+		expect(unreadable.Delete && unreadable.Recovery == agent_turn_recovery::agent_settings, "an unreadable answer offers Delete beside Agent settings…");
+		for (const auto latest : { false, true }) {
+			for (const auto hasText : { false, true }) {
+				expect(!core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::answered, .HasText = hasText, .Latest = latest }).Delete, "an answer never offers Delete");
+			}
 		}
 	}
 
@@ -97,9 +152,6 @@ namespace {
 		facts              = ready;
 		facts.SetupShowing = true;
 		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "the setup on screen: none");
-		facts              = ready;
-		facts.ReadyShowing = true;
-		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "the setup's Ready line still up: none");
 		// A reopened application that was set up before stands at Check it
 		// works with both checks not run, and is finished.
 		facts = { .AgentOffered = true, .SetupStep = setup_step::check };
@@ -151,6 +203,8 @@ auto main() -> int
 	test_names_and_ordinals();
 	test_answer_actions();
 	test_error_actions();
+	test_fixed_since();
+	test_delete_never_sent();
 	test_suggestions();
 	test_suggestion_press();
 	std::cout << "agent-turn-tests:pass\n";

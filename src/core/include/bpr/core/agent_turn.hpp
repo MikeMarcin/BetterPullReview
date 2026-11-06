@@ -58,15 +58,40 @@ namespace bpr::core {
 	/// \brief The one way back an error turn offers.
 	enum class agent_turn_recovery : std::uint8_t {
 		none,
-		/// Send the turn's question again.
-		ask_again,
-		/// Open the setup at Check it works and run the check.
-		check_setup,
+		/// Resend the turn's message, as a new run. The run starts the agent
+		/// and makes its workspace, so it checks both as it goes
+		/// ([[BPR-1876]]; owner look v001: "Resend", since a message is not
+		/// always a question).
+		resend,
 		/// Open the agent's settings: its program or protocol is wrong.
 		agent_settings,
 	};
 
 	[[nodiscard]] auto stable_name(agent_turn_recovery aRecovery) noexcept -> std::string_view;
+
+	/// \brief [[BPR-1876]]. The setup check whose passing says an error
+	/// turn's cause is gone.
+	enum class agent_turn_cause : std::uint8_t {
+		/// The ending names no cause a setup check can clear.
+		none,
+		/// The agent did not start: the setup's agent check.
+		agent_check,
+		/// The agent's workspace could not be made: the setup's workspace
+		/// check.
+		workspace_check,
+	};
+
+	[[nodiscard]] auto stable_name(agent_turn_cause aCause) noexcept -> std::string_view;
+
+	/// \brief The check that clears a turn's cause, for how it ended.
+	[[nodiscard]] auto agent_turn_cause_of(agent_turn_outcome aOutcome) noexcept -> agent_turn_cause;
+
+	/// \brief [[BPR-1876]]. Whether a turn that ended so never reached the
+	/// agent: it did not start, its workspace could not be made, or private
+	/// history could not record the run, so nothing was sent. [[BPR-1880]]:
+	/// Delete says which it removes, one the agent never had or one it will
+	/// not be sent again.
+	[[nodiscard]] auto agent_turn_never_sent(agent_turn_outcome aOutcome) noexcept -> bool;
 
 	/// \brief What the thread knows about one ended turn.
 	struct agent_turn_facts
@@ -78,6 +103,9 @@ namespace bpr::core {
 		bool Latest = false;
 		/// Another turn is running now.
 		bool Working = false;
+		/// [[BPR-1876]]. The check its cause names (`agent_turn_cause_of`)
+		/// has run again since the turn ended, and passed.
+		bool CausePassedSince = false;
 
 		auto operator<=>(const agent_turn_facts&) const = default;
 	};
@@ -94,6 +122,15 @@ namespace bpr::core {
 		bool                SaveNote     = false;
 		bool                DraftComment = false;
 		agent_turn_recovery Recovery     = agent_turn_recovery::none;
+		/// [[BPR-1876]]. The cause the error names is no longer true: it is
+		/// said as fixed since, not as how things stand.
+		bool FixedSince = false;
+		/// [[BPR-1876]], owner look v001: "We should also be able to delete a
+		/// message that was never sent to the agent". [[BPR-1880]], owner
+		/// 2026-11-06: "Put Delete on every failed message, not just unsent
+		/// ones". Delete removes the turn from the thread and from what is
+		/// kept; every error, on any turn, while nothing runs.
+		bool Delete = false;
 
 		auto operator<=>(const agent_turn_actions&) const = default;
 	};
@@ -104,8 +141,16 @@ namespace bpr::core {
 	/// comment and is not an error. Every other outcome is an error: it keeps
 	/// Copy when it has words, never offers Save as note or Draft comment,
 	/// and, on the latest turn while nothing runs, offers one recovery: an
-	/// unreadable answer opens the agent's settings, a start or workspace
-	/// failure checks the setup again, and any other ending asks again.
+	/// unreadable answer opens the agent's settings, and every other ending,
+	/// a start or workspace failure among them, resends. [[BPR-1876]]:
+	/// the owner, 2026-11-05, read a failed answer's Check again, which re-ran
+	/// only the setup check and left the old error up, as the check failing.
+	/// A start or workspace failure whose check has passed since is fixed
+	/// since, on any turn. Every error can be deleted, on any turn, while
+	/// nothing runs ([[BPR-1880]]). For a message the agent received, deleting
+	/// it is forgetting it: an Agent tab run resumes no session of the
+	/// agent's own, and what it remembers of earlier turns is the kept
+	/// thread its request carries, which no longer holds the deleted turn.
 	[[nodiscard]] auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions;
 
 	/// \brief What the Agent tab knows when it would show suggested prompts.
@@ -120,8 +165,6 @@ namespace bpr::core {
 		/// The setup's two checks as they stand this session.
 		setup_check_state AgentCheck     = setup_check_state::not_run;
 		setup_check_state WorkspaceCheck = setup_check_state::not_run;
-		/// The setup's Ready line is still shown above the conversation.
-		bool ReadyShowing = false;
 		/// A turn is running.
 		bool Working = false;
 		/// The reviewer's Suggestions toggle is on.
@@ -136,8 +179,7 @@ namespace bpr::core {
 		/// No agent is offered: the tab shows how to set one up.
 		no_agent,
 		/// The setup has not finished: an agent or repository is still to be
-		/// chosen, a check failed or runs, the setup is on screen, or its
-		/// Ready line has not been read yet.
+		/// chosen, a check failed or runs, or the setup is on screen.
 		setup_unfinished,
 		/// A turn is running ([[BPR-1755]]).
 		working,
@@ -155,7 +197,9 @@ namespace bpr::core {
 	/// \details The setup counts as finished at its Ready step, or at Check
 	/// it works when neither check has failed or is running this session: the
 	/// checks are not kept, so a reopened application that was set up before
-	/// stands at Check it works with both not run.
+	/// stands at Check it works with both not run. [[BPR-1877]]: the
+	/// setup's Ready line is a passed check, so it never holds them back;
+	/// they show beside it.
 	[[nodiscard]] auto decide_agent_suggestions(const agent_suggestion_facts& aFacts) noexcept -> agent_suggestions_verdict;
 
 	/// \brief [[BPR-1872]]. What the Agent tab knows when a suggested prompt

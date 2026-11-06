@@ -51,7 +51,9 @@ refresh and status-age timers. Refresh makes no provider request, Git operation
 or process launch.
 
 Storage groups each SQLite file in `state/v1` with its WAL, SHM and journal
-sidecars, lists diagnostic logs and Review Cycle publication objects, and uses
+sidecars, lists diagnostic logs, Review Cycle publication objects and the
+clones BetterPullReview keeps for agent questions ([[BPR-1879]], measured
+whole as `agent-clones-v1` and removed by profile purge), and uses
 the Git adapter’s existing inventory walk for each repository cache. It shows
 128 MiB for Markdown images, 768 MiB for the Review Cycles store, 50 MiB for
 logs and 64 GiB per repository cache. There is no aggregate Git cache quota.

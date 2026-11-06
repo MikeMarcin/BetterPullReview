@@ -190,6 +190,12 @@ namespace bpr::core {
 		/// [[BPR-1867]]. Pull requests with new activity handed on, so a window
 		/// showing one reads it again (`count`).
 		activity_refresh,
+		/// [[BPR-1879]]. The clone BetterPullReview keeps for a repository,
+		/// downloaded or found in place; a clone-scan line.
+		clone_keep,
+		/// [[BPR-1884]]. The kept clone brought up to a pull request before a
+		/// question; a clone-scan line.
+		clone_refresh,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -219,7 +225,7 @@ namespace bpr::core {
 		connection_failed,
 		sign_in_refused,
 		too_large,
-		too_large_not_in_clone,
+		clone_needed,
 		// Review mutation (application::review_mutation_failure).
 		refused_by_server,
 		undesignated_target,
@@ -367,6 +373,10 @@ namespace bpr::core {
 		wrong_target,
 		not_authorized,
 		read_failed,
+		// [[BPR-1879]]. A kept clone was not made (or not linked).
+		keep_failed,
+		// [[BPR-1884]].
+		refresh_failed,
 	};
 
 	/// \brief [[BPR-1831]]. Which SQLite store a storage line is about, by its

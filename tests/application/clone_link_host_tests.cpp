@@ -7,12 +7,17 @@
 #include "bpr/application/clone_link_host.hpp"
 #include "bpr/application/manual_executor.hpp"
 
+#include <atomic>
+#include <chrono>
 #include <cstdlib>
+#include <expected>
 #include <iostream>
 #include <map>
+#include <mutex>
 #include <optional>
 #include <string>
 #include <string_view>
+#include <thread>
 #include <vector>
 
 namespace {
@@ -89,7 +94,8 @@ namespace {
 				return found;
 			};
 			dependencies.Reads.Read = [this](const std::string& aPath) -> std::optional<core::clone_candidate> {
-				const auto found = Disk.find(aPath);
+				std::scoped_lock lock{ DiskMutex };
+				const auto       found = Disk.find(aPath);
 				if (found == Disk.end()) {
 					return std::nullopt;
 				}
@@ -110,10 +116,61 @@ namespace {
 			dependencies.Effects  = &Effects;
 			dependencies.Decision = &Decision;
 			dependencies.Publish  = [this](const application::clone_link_projection& aProjection) { Published.push_back(aProjection); };
-			Host                  = std::make_unique<application::clone_link_host>(std::move(dependencies));
+			// [[BPR-1879]]. The profile's folder of kept clones, and a scripted
+			// download that the test drives.
+			dependencies.ManagedRoot = "/profile/agent-clones-v1";
+			dependencies.Keep        = [this](const application::clone_repository&, const std::string& aDestination) -> application::clone_link_dependencies::keep_job {
+				++Prepared;
+				if (!CanPrepare) {
+					return { };
+				}
+				return [this, aDestination](const application::git_smart_clone_progress& aProgress, const std::stop_token aStop) -> std::expected<void, application::managed_clone_error> {
+					++Runs;
+					aProgress(1000U);
+					while (!Release && !aStop.stop_requested()) {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 2 });
+					}
+					if (aStop.stop_requested()) {
+						return std::unexpected{ application::managed_clone_error{ application::managed_clone_failure::cancelled, { } } };
+					}
+					if (Outcome) {
+						return std::unexpected{ application::managed_clone_error{ *Outcome, { } } };
+					}
+					std::scoped_lock lock{ DiskMutex };
+					Disk[aDestination] = clone(aDestination, { }, "https://github.com/bpr-fixtures/engine.git");
+					return { };
+				};
+			};
+			Host = std::make_unique<application::clone_link_host>(std::move(dependencies));
 		}
 
-		~fixture() { Host->shutdown(); }
+		~fixture()
+		{
+			Host->shutdown();
+			static_cast<void>(wait([this] { return Host->is_quiescent(); }));
+		}
+
+		/// [[BPR-1879]]. Drains the lanes until \p aDone, while a kept clone's
+		/// worker runs on its own thread; at most five seconds.
+		template <typename Done>
+		auto wait(Done aDone) -> bool
+		{
+			for (auto turns = 0; turns < 2500; ++turns) {
+				settle();
+				if (aDone()) {
+					return true;
+				}
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 2 });
+			}
+			return false;
+		}
+
+		std::mutex                                        DiskMutex;
+		std::atomic_bool                                  Release{ false };
+		std::atomic_bool                                  CanPrepare{ true };
+		std::optional<application::managed_clone_failure> Outcome;
+		std::atomic_int                                   Prepared{ 0 };
+		std::atomic_int                                   Runs{ 0 };
 
 		void settle()
 		{
@@ -134,6 +191,110 @@ namespace {
 		repository.Owner      = "bpr-fixtures";
 		repository.Name       = "engine";
 		return repository;
+	}
+
+	[[nodiscard]] auto keepable() -> application::clone_repository
+	{
+		auto repository             = engine();
+		repository.CanKeep          = true;
+		repository.ApproximateBytes = 4096U;
+		return repository;
+	}
+
+	/// \brief [[BPR-1879]]. Keep a clone for me: the location and
+	/// size are known before it starts, the download runs on its own worker
+	/// with progress, and once in place it is linked as the repository's clone,
+	/// marked as the one BetterPullReview keeps. Cancel, a failure, a review
+	/// that cannot keep one, one already in place, another repository.
+	void test_kept_clone()
+	{
+		{
+			auto f = fixture{ };
+			f.Host->load();
+			f.Host->observe_repository(engine());
+			f.settle();
+			expect(f.view().ManagedLocation.empty(), "a review that cannot keep a clone is offered none");
+			f.Host->keep_clone();
+			expect(f.Prepared == 0 && f.view().Keeping.State == application::managed_clone_state::none, "and pressing it does nothing");
+		}
+		auto f = fixture{ };
+		f.Host->load();
+		f.Host->observe_repository(keepable());
+		f.settle();
+		expect(f.view().ManagedLocation == "/profile/agent-clones-v1/github.com-42" && f.view().Repository->ApproximateBytes == 4096U,
+			   "AC1: where it would live and GitHub's size are known before it starts");
+		f.Host->keep_clone();
+		expect(f.view().Keeping.State == application::managed_clone_state::downloading, "it starts downloading at once");
+		f.Host->keep_clone();
+		expect(f.wait([&f] { return f.view().Keeping.Received == 1000U; }), "bytes received reach the projection");
+		expect(f.Prepared == 1 && !f.Host->repository_chosen(), "a second press starts no other; the step is not done while it runs");
+		f.Release = true;
+		expect(f.wait([&f] { return f.Host->repository_chosen(); }), "AC1: once it is in place the question can continue");
+		expect(f.view().Linked && f.view().Linked->Managed && f.view().Linked->Path == "/profile/agent-clones-v1/github.com-42" && f.view().Linked->Remote == "origin"
+				   && f.view().Keeping.State == application::managed_clone_state::none,
+			   "it is linked as the clone BetterPullReview keeps");
+		expect(f.Store.Links.size() == 1U && f.Store.Links.front().Path == "/profile/agent-clones-v1/github.com-42" && !f.Store.Links.front().PrivateCopy, "and remembered");
+
+		// AC2: a new window reuses it without a download.
+		auto again  = fixture{ };
+		again.Store = f.Store;
+		again.Disk  = f.Disk;
+		again.Host->load();
+		again.Host->observe_repository(keepable());
+		again.settle();
+		expect(again.Host->repository_chosen() && again.view().Linked->Managed && again.Runs == 0, "AC2: a later question reuses the kept clone and downloads nothing");
+
+		auto found = fixture{ };
+		found.Disk = f.Disk;
+		found.Host->load();
+		found.Host->observe_repository(keepable());
+		found.settle();
+		found.Host->keep_clone();
+		expect(found.wait([&found] { return found.Host->repository_chosen(); }) && found.Runs == 0, "a kept clone already in place is linked without a download");
+
+		auto cancel = fixture{ };
+		cancel.Host->load();
+		cancel.Host->observe_repository(keepable());
+		cancel.settle();
+		cancel.Host->keep_clone();
+		expect(cancel.wait([&cancel] { return cancel.Runs == 1; }), "the download runs");
+		cancel.Host->cancel_keeping();
+		expect(cancel.wait([&cancel] { return cancel.view().Keeping.State == application::managed_clone_state::none; }) && !cancel.Host->repository_chosen() && cancel.Store.Links.empty(),
+			   "AC1: Cancel stops it and links nothing");
+
+		auto failed    = fixture{ };
+		failed.Outcome = application::managed_clone_failure::connection_failed;
+		failed.Release = true;
+		failed.Host->load();
+		failed.Host->observe_repository(keepable());
+		failed.settle();
+		failed.Host->keep_clone();
+		expect(failed.wait([&failed] { return failed.view().Keeping.State == application::managed_clone_state::failed; })
+				   && failed.view().Keeping.Failure == application::managed_clone_failure::connection_failed && !failed.Host->repository_chosen(),
+			   "a failed download says why and links nothing");
+
+		auto refused       = fixture{ };
+		refused.CanPrepare = false;
+		refused.Host->load();
+		refused.Host->observe_repository(keepable());
+		refused.settle();
+		refused.Host->keep_clone();
+		expect(refused.view().Keeping.State == application::managed_clone_state::failed && refused.view().Keeping.Failure == application::managed_clone_failure::unavailable && refused.Runs == 0,
+			   "a review that cannot make one says so without starting");
+
+		auto moved = fixture{ };
+		moved.Host->load();
+		moved.Host->observe_repository(keepable());
+		moved.settle();
+		moved.Host->keep_clone();
+		expect(moved.wait([&moved] { return moved.Runs == 1; }), "the download runs again");
+		auto other       = keepable();
+		other.Repository = 43U;
+		other.Name       = "other";
+		moved.Host->observe_repository(other);
+		expect(moved.view().Keeping.State == application::managed_clone_state::none && moved.view().ManagedLocation == "/profile/agent-clones-v1/github.com-43",
+			   "another repository stops the download and has its own location");
+		expect(moved.wait([&moved] { return moved.Host->is_quiescent(); }) && moved.Store.Links.empty(), "and the stopped download links nothing");
 	}
 
 	void test_folders_and_discovery()
@@ -232,6 +393,7 @@ auto main() -> int
 {
 	test_folders_and_discovery();
 	test_choice_private_copy_and_checks();
+	test_kept_clone();
 	std::cout << "clone-link-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

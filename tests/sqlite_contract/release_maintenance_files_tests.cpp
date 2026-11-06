@@ -537,6 +537,37 @@ namespace {
 		expect(files.erase(erase, **candidate, { }, [] { return true; }).has_value(), "confirmed purge removes the publication isolation root");
 		expect(!fs::exists(isolation) && fs::exists(root.Path / "state/v1/profile-registry.sqlite3"), "the publication root is gone and shared registry state is kept");
 	}
+	/// \brief [[BPR-1879]]. The clones BetterPullReview keeps for agent
+	/// questions, one per repository with only its `.git` folder, are taken
+	/// by a profile purge; a checked-out file is not BetterPullReview's and
+	/// blocks it, so a developer's worktree is never adopted.
+	void test_kept_clone_inventory()
+	{
+		scratch    root;
+		const auto kept = root.Path / "agent-clones-v1/github.com-42";
+		seed(root.Path);
+		write(kept / ".git/HEAD", "ref: refs/heads/main\n");
+		write(kept / ".git/config", "[core]\n bare = false\n");
+		write(kept / ".git/packed-refs", "# pack-refs with: peeled fully-peeled sorted\n");
+		write(kept / ".git/objects/pack" / ("pack-" + std::string(40U, 'b') + ".pack"), "synthetic pack fixture");
+		fs::permissions(kept / ".git/objects/pack" / ("pack-" + std::string(40U, 'b') + ".pack"), fs::perms::owner_read, fs::perm_options::replace);
+		write(kept / ".git/refs/remotes/origin/main", std::string(40U, 'd'));
+		auto                                        owner = lease(root.Path);
+		adapters::sqlite::release_maintenance_files files{ root.Path, owner, core::bpr_profile_id{ 1U }, core::application_session_id{ 1U } };
+		auto                                        candidate = files.prepare(context(files, command::prepare_purge), { });
+		expect(candidate.has_value(), "a profile with a kept clone is inventoried for purge");
+		write(kept / "README.md", "a checked-out file");
+		const auto checkout = files.prepare(context(files, command::prepare_purge), { });
+		expect(!checkout && checkout.error() == reason::incomplete_inventory, "a checked-out file in a kept clone blocks purge");
+		fs::remove(kept / "README.md");
+		write(root.Path / "agent-clones-v1/.hidden/.git/HEAD", "ref: refs/heads/main\n");
+		expect(!files.prepare(context(files, command::prepare_purge), { }), "only the kept clones' own folders are taken");
+		fs::remove_all(root.Path / "agent-clones-v1/.hidden");
+		auto erase      = context(files, command::purge_profile);
+		erase.Selection = (*candidate)->selection();
+		expect(files.erase(erase, **candidate, { }, [] { return true; }).has_value(), "confirmed purge removes the kept clones");
+		expect(!fs::exists(root.Path / "agent-clones-v1") && fs::exists(root.Path / "state/v1/profile-registry.sqlite3"), "the kept clones are gone and shared registry state is kept");
+	}
 #if defined(_WIN32)
 	/// \brief [[BPR-1038]]. The installed Git owner makes its isolation
 	/// directories with `std::filesystem::create_directory`, and Git makes its
@@ -606,6 +637,7 @@ try {
 	test_credential_cleanup_and_recovery();
 	test_populated_cache_inventory();
 	test_publication_isolation_inventory();
+	test_kept_clone_inventory();
 #if defined(_WIN32)
 	test_inherited_git_isolation_directories();
 #endif

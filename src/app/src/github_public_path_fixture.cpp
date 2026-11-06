@@ -3263,6 +3263,10 @@ namespace bpr::app::detail {
 						&& !hold(delay.DiscoveryMilliseconds.load())) {
 						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 					}
+					if (aRequest.Wire.Operation == read_operation::list_home_pull_requests && delay.RetainedMilliseconds.load() != 0U
+						&& !hold(delay.RetainedMilliseconds.load())) {
+						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
+					}
 					if (parent != nullptr && !opening && delay.PageMilliseconds.load() != 0U && !hold(delay.PageMilliseconds.load())) {
 						return github_wire_cancelled{ .Correlation = aRequest.Correlation };
 					}

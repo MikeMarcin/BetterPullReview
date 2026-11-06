@@ -513,7 +513,7 @@ namespace bpr::qt {
 
 		column->addSpacing(8);
 		column->addWidget(heading(tr("Linked clones"), this));
-		column->addWidget(note(tr("The clone, or the private copy, each repository's agent works with. Forget it to choose again."), this));
+		column->addWidget(note(tr("The clone each repository's agent works with, or none. Forget it to choose again."), this));
 		Links = new QListWidget{ this };
 		Links->setObjectName(QStringLiteral("settingsLinkedClones"));
 		Links->setMaximumHeight(140);
@@ -539,7 +539,11 @@ namespace bpr::qt {
 		Folders->present(Shown.Folders);
 		Links->clear();
 		for (const auto& link : Shown.Links) {
-			const auto target = link.PrivateCopy ? tr("a private copy") : QDir::toNativeSeparators(text_of(link.Path));
+			// [[BPR-1873]]. No clone: a private copy, or for a review read
+			// without its blobs only the pull request's files.
+			// [[BPR-1879]]. The clone BetterPullReview keeps, and where.
+			const auto target = link.PrivateCopy ? tr("no clone") : link.Managed ? tr("kept by BetterPullReview in %1").arg(QDir::toNativeSeparators(text_of(link.Path)))
+																				 : QDir::toNativeSeparators(text_of(link.Path));
 			Links->addItem(tr("%1/%2 on %3: %4").arg(text_of(link.Owner), text_of(link.Name), text_of(link.Host), target));
 		}
 		Forget->setEnabled(Links->currentRow() >= 0);

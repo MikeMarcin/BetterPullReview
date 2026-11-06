@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1878"
+  ],
+  "reserve_for": "tour-tab-authoring",
+  "purpose": "Tour tab authoring redesign",
+  "created": "2026-11-06T01:01:08.687913+00:00",
+  "base": "e6c593dea12b3d47176d31fbcec42da766237afd"
+}
