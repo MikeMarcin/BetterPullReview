@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1892"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour agent errors on the Tour tab",
+  "created": "2026-11-06T18:15:56.826253+00:00",
+  "base": "030554f97806b8c0d7e759ff5555ee04f2328ddf"
+}
