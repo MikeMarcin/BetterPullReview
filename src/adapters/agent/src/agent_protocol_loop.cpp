@@ -323,6 +323,9 @@ namespace bpr::adapters::agent::detail {
 					} else if (message.Kind == application::agent_protocol_event_kind::auto_memory_reported) {
 						// [[BPR-1896]]. Named in diagnostics, never refused.
 						Result.ReportedAutoMemory = true;
+					} else if (message.Kind == application::agent_protocol_event_kind::thinking_reported) {
+						// [[BPR-1899]]. Named in diagnostics; the content was never kept.
+						Result.ReportedThinking = true;
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;

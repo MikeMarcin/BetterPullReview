@@ -1714,7 +1714,14 @@ person's own Claude account sign-in, never a paid API key
 - **Fail closed on drift.** The init frame is Claude's own account of what it
   loaded. A writing request whose init reports any tool or MCP server is
   refused before any output is read, no `user` frame or finding payload is
-  accepted, and every block of the answer must be text. A plugin's tools and
+  accepted, and every block of the answer must be text or thinking. A
+  `thinking` or `redacted_thinking` block is accepted and discarded unread
+  ([[BPR-1899]]): a wrapper, a model default or policy can turn thinking on
+  over this app's settings, only `text` blocks make the answer, no thinking
+  content reaches the answer, the log or stored state, and with no tool
+  present it can't act. The `agent.run` line reads `thinking=on`, with no
+  content. Any other block (`tool_use`, `server_tool_use`, an image) is
+  still refused. A plugin's tools and
   MCP servers would show in that account. These checks are read from Claude's
   output, so they hold whatever settings won.
 - **Auto-memory is reported, not refused ([[BPR-1896]]).** A wrapper's
@@ -1780,8 +1787,9 @@ what a Claude launch can be, never what it receives:
   only as tool-free as the wrapper keeps it; one that passes its own
   `--settings` replaces this app's whole settings argument ([[BPR-1896]]).
   The decoder still refuses a run whose init frame reports tools or MCP
-  servers, or that answers with anything but text; plugins and an auto-memory
-  folder it reports are named in diagnostics ([[BPR-1891]], [[BPR-1896]]).
+  servers, or that answers with anything but text and discarded thinking
+  ([[BPR-1899]]); plugins, an auto-memory folder and thinking it reports are
+  named in diagnostics ([[BPR-1891]], [[BPR-1896]], [[BPR-1899]]).
 - **Unchanged environment and handles.** The wrapper gets exactly Claude's
   arguments, working directory, stdin and allowlisted environment, through the
   same supervisor, process group, Job Object and three-handle list. No name is

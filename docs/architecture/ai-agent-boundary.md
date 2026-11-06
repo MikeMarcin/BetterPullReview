@@ -1571,7 +1571,15 @@ setting a person passes turns off (Claude Code 2.1.314 holds
 `cc-plugin-sec-default@builtin` on wherever managed settings apply). The run's
 `agent.run` diagnostic line names each plugin the init frame reported by its
 `source`, or its `name`, at most eight plain tokens of 64 bytes and never a
-path, so drift is visible without stopping the request. It reads past `system` frames
+path, so drift is visible without stopping the request. A writing answer is
+text only: an assistant `thinking` or `redacted_thinking` block is read past
+and its content dropped unread, never kept, logged or shown ([[BPR-1899]]); a
+wrapper, a model default or policy can turn thinking on over this app's
+settings, and with no tool present a thinking block can do nothing. The
+`agent.run` line reads `thinking=on` when one was written. Every other block
+that is not text (`tool_use`, `server_tool_use`, an image) still refuses the
+run, and a run whose assistant frames hold only thinking has no answer and
+fails. Agent chat reads its blocks as before. It reads past `system` frames
 other than init and `rate_limit_event`, which 2.1.296 writes around a turn.
 For every Claude run ([[BPR-1827]], Claude Code 2.1.310) only init,
 `assistant`, `user` and `result` frames carry the turn; any other frame type

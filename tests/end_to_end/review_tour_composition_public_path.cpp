@@ -573,6 +573,15 @@ auto main(int argc, char** argv) -> int
 				saved(editor);
 				aProse->moveCursor(QTextCursor::End);
 			};
+			// [[BPR-1899]]. Each ended run's agent.run line, enums and counts
+			// only (plugins=, memory=on, thinking=on), so a live run shows what
+			// its Claude wrote besides text without any of its content.
+			const auto runs = [&] {
+				const auto log = bpr::tests::read_diagnostic_logs(*dataRoot);
+				for (auto at = log.find("protocol=claude_stream_json outcome="); at != std::string::npos; at = log.find("protocol=claude_stream_json outcome=", at + 1U)) {
+					std::cout << "installed-writing agent.run " << log.substr(at, log.find('"', at) - at) << '\n';
+				}
+			};
 			// Undo returns the captured bytes and selection; redo replays without inference.
 			const auto history = [&](qt::scoped_prose_editor* aProse, const qt::prose_capture& aCaptured, const char* aStep) {
 				const auto after = aProse->raw();
@@ -657,6 +666,7 @@ auto main(int argc, char** argv) -> int
 			// for a minimal live run.
 			if (argc > 5 && std::string_view{ argv[5] } == "once") {
 				shutdown(*application);
+				runs();
 				std::cout << "review-tour-installed-writing:done\n";
 				return EXIT_SUCCESS;
 			}
@@ -777,6 +787,7 @@ auto main(int argc, char** argv) -> int
 			report("remote-mutation", { { QStringLiteral("unchanged"), mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions } });
 			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions, "writing leaves remote mutation counters unchanged");
 			shutdown(*application);
+			runs();
 			std::cout << "review-tour-installed-writing:done\n";
 			return EXIT_SUCCESS;
 		}
@@ -968,6 +979,17 @@ auto main(int argc, char** argv) -> int
 				expect(prose->raw() == memoryCapture.Raw.substr(0, memoryCapture.Selection.Begin) + "Rewritten 😀\r\nexact." + memoryCapture.Raw.substr(memoryCapture.Selection.End),
 					   "a writing run whose Claude reports an auto-memory folder finishes with the agent's text");
 			}
+			// [[BPR-1899]]. Thinking blocks before the text are read past and
+			// their content dropped.
+			{
+				set("THINKING_CANARY");
+				prose->selectAll();
+				const auto thinkingCapture = *prose->capture();
+				run();
+				expect(prose->raw() == thinkingCapture.Raw.substr(0, thinkingCapture.Selection.Begin) + "Rewritten 😀\r\nexact." + thinkingCapture.Raw.substr(thinkingCapture.Selection.End)
+						   && editor.shown().Draft->Problem.find("THOUGHT_") == std::string::npos,
+					   "a writing run whose Claude writes thinking blocks finishes with the agent's text only");
+			}
 			for (const auto* adversary : { "PROCESS_EXIT_CANARY", "TOOL_USE_CANARY", "UTF8_CANARY", "OVERSIZE_CANARY" }) {
 				set(adversary);
 				const auto history     = prose->document()->availableUndoSteps();
@@ -1138,8 +1160,9 @@ auto main(int argc, char** argv) -> int
 			if (const auto log = bpr::tests::read_diagnostic_logs(*dataRoot);
 				log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin\"") == std::string::npos
 				|| log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin memory=on\"") == std::string::npos
-				|| log.find("/fixture/") != std::string::npos) {
-				std::cerr << "review-tour-composition:fail the run's diagnostics name the plugins and memory=on its Claude reported, without a path\n";
+				|| log.find("stderr_bytes=0 thinking=on\"") == std::string::npos
+				|| log.find("/fixture/") != std::string::npos || log.find("THOUGHT_") != std::string::npos) {
+				std::cerr << "review-tour-composition:fail the run's diagnostics name the plugins, memory=on and thinking=on its Claude reported, without a path or thinking content\n";
 				return EXIT_FAILURE;
 			}
 			std::cout << "review-tour-writing:pass\n";

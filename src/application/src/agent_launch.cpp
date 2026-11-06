@@ -1042,13 +1042,31 @@ namespace bpr::application {
 				// Older envelopes omit id. Exact duplicate envelopes still coalesce.
 				const auto  identity   = messageId ? *messageId : hex_identity(core::private_digest(aFrame));
 				std::size_t blockIndex = 0;
+				auto        thought    = false;
+				auto        wroteText  = false;
 				for (const auto& block : content->Elements) {
 					const auto* blockType = string_member(block, "type");
-					if (blockType == nullptr || (aWritingOnly && *blockType != "text")) {
+					if (blockType == nullptr) {
+						return std::unexpected(
+							agent_protocol_failure::malformed_frame);
+					}
+					// [[BPR-1899]]. A wrapper, a model default or policy can
+					// turn thinking on over this app's settings. A writing
+					// run reads past a thinking block and drops its content
+					// unread: it is not the answer, and with no tool it can
+					// do nothing. Every other block that is not text is
+					// still refused.
+					if (aWritingOnly && (*blockType == "thinking" || *blockType == "redacted_thinking")) {
+						thought = true;
+						++blockIndex;
+						continue;
+					}
+					if (aWritingOnly && *blockType != "text") {
 						return std::unexpected(
 							agent_protocol_failure::malformed_frame);
 					}
 					if (*type == "assistant" && *blockType == "text") {
+						wroteText        = true;
 						const auto* text = string_member(block, "text");
 						if (text == nullptr) {
 							return std::unexpected(
@@ -1062,7 +1080,12 @@ namespace bpr::application {
 					}
 					++blockIndex;
 				}
-				if (*type == "assistant") {
+				if (thought) {
+					events.push_back({ .Kind = agent_protocol_event_kind::thinking_reported });
+				}
+				// [[BPR-1899]]. A writing frame that holds only thinking is
+				// no answer: a run with no text still fails at its result.
+				if (*type == "assistant" && (!aWritingOnly || !thought || wroteText)) {
 					aSawAssistant = true;
 				}
 				return events;
@@ -2876,6 +2899,7 @@ namespace bpr::application {
 		case agent_protocol_event_kind::usage_report:
 		case agent_protocol_event_kind::plugins_reported:
 		case agent_protocol_event_kind::auto_memory_reported:
+		case agent_protocol_event_kind::thinking_reported:
 		case agent_protocol_event_kind::model_catalog:        break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);

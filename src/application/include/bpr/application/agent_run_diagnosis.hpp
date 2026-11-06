@@ -23,7 +23,9 @@ namespace bpr::application {
 	/// how many bytes the agent wrote to each stream and, for a writing run
 	/// whose Claude reported loading plugins, their names ([[BPR-1891]]):
 	/// bounded tokens that are never a path; and `memory=on` when it
-	/// reported an auto-memory folder, never the folder ([[BPR-1896]]).
+	/// reported an auto-memory folder, never the folder ([[BPR-1896]]);
+	/// and `thinking=on` when it wrote a thinking block, never its content
+	/// ([[BPR-1899]]).
 	struct agent_run_diagnosis
 	{
 		core::agent_protocol                  Protocol = core::agent_protocol::claude_stream_json;
@@ -36,6 +38,8 @@ namespace bpr::application {
 		std::string Plugins;
 		/// [[BPR-1896]]. As `agent_run_result::ReportedAutoMemory` says.
 		bool AutoMemory = false;
+		/// [[BPR-1899]]. As `agent_run_result::ReportedThinking` says.
+		bool Thinking = false;
 
 		auto operator<=>(const agent_run_diagnosis&) const = default;
 	};
@@ -44,7 +48,8 @@ namespace bpr::application {
 	/// outcome=protocol_failure failure=frame_too_large exit=0
 	/// stdout_bytes=223211 stderr_bytes=0`, then
 	/// `plugins=cc-plugin-sec-default@builtin` when plugins were reported,
-	/// then `memory=on` when an auto-memory folder was.
+	/// then `memory=on` when an auto-memory folder was, then `thinking=on`
+	/// when a thinking block was.
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;

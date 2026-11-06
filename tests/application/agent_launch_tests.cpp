@@ -1650,6 +1650,78 @@ namespace {
 		expect(core::permitted_agent_environment_name("CLAUDE_CODE_DISABLE_AUTO_MEMORY"), "the credential-word filter admits the variable's name");
 	}
 
+	/// [[BPR-1899]]. A wrapper, a model default or policy can turn thinking
+	/// on. A writing run reads past a thinking or redacted_thinking block,
+	/// keeps none of its content and reports only that one was written; every
+	/// other block that is not text is still refused.
+	void test_claude_writing_reads_past_thinking_blocks()
+	{
+		const std::string init     = R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[]})"
+									 "\n";
+		const std::string thinking = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"thinking","thinking":"PRIVATE_THINKING_CANARY","signature":"PRIVATE_SIGNATURE_CANARY"}]}})"
+									 "\n";
+		const std::string redacted = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"redacted_thinking","data":"PRIVATE_REDACTED_CANARY"}]}})"
+									 "\n";
+		const std::string text     = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"written"}]}})"
+									 "\n";
+		const std::string result   = R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"written"})"
+									 "\n";
+		struct read_back
+		{
+			bool                                               Finished = false;
+			std::vector<std::string>                           Items;
+			std::size_t                                        Thinking = 0U;
+			std::string                                        Texts;
+			std::optional<application::agent_protocol_failure> Failure;
+		};
+		const auto readOf = [](const bool aWriting, const std::string& aFrames) {
+			auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, aWriting };
+			auto read    = read_back{ };
+			auto pushed  = decoder.push(aFrames);
+			if (!pushed) {
+				read.Failure = pushed.error();
+				return read;
+			}
+			for (const auto& event : *pushed) {
+				read.Texts += event.Text;
+				if (event.Kind == application::agent_protocol_event_kind::thinking_reported) {
+					++read.Thinking;
+				}
+			}
+			const auto finished = decoder.finish();
+			read.Finished       = finished.has_value();
+			read.Failure        = finished ? std::nullopt : std::optional{ finished.error() };
+			read.Items          = decoder.assistant_items();
+			return read;
+		};
+		const auto private_content = [](const read_back& aRead) {
+			return aRead.Texts.find("PRIVATE_") != std::string::npos
+				|| std::ranges::any_of(aRead.Items, [](const std::string& aItem) { return aItem.find("PRIVATE_") != std::string::npos; });
+		};
+		const auto thought = readOf(true, init + thinking + text + result);
+		expect(thought.Finished && thought.Items == std::vector<std::string>{ "written" } && thought.Thinking == 1U, "AC1: a thinking block before the text finishes with that text only");
+		const auto hidden = readOf(true, init + redacted + text + result);
+		expect(hidden.Finished && hidden.Items == std::vector<std::string>{ "written" } && hidden.Thinking == 1U, "AC1: a redacted_thinking block before the text finishes with that text only");
+		const auto mixed = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"thinking","thinking":"PRIVATE_THINKING_CANARY"},{"type":"text","text":"written"}]}})" + "\n" + result);
+		expect(mixed.Finished && mixed.Items == std::vector<std::string>{ "written" } && mixed.Thinking == 1U, "AC1: thinking and text in one frame keep only the text");
+		expect(!private_content(thought) && !private_content(hidden) && !private_content(mixed), "AC3: no event and no answer item carries thinking content");
+		const auto onlyThinking = readOf(true, init + thinking + result);
+		expect(!onlyThinking.Finished && onlyThinking.Failure == application::agent_protocol_failure::malformed_frame && onlyThinking.Items.empty(),
+			   "a writing run whose answer holds only thinking still fails");
+
+		const auto toolUse = readOf(true, init + thinking + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"tool_use","id":"t","name":"Bash","input":{}}]}})" + "\n" + text + result);
+		const auto server  = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"server_tool_use","id":"t","name":"web_search","input":{}}]}})" + "\n" + text + result);
+		const auto image   = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"image","source":{}}]}})" + "\n" + text + result);
+		const auto user    = readOf(true, init + thinking + R"({"type":"user","session_id":"s","message":{"role":"user","content":"x"}})" + "\n" + text + result);
+		const auto payload = readOf(true, init + thinking + text + R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"written","bprFindings":{}})" + "\n");
+		for (const auto* refused : { &toolUse, &server, &image, &user, &payload }) {
+			expect(refused->Failure == application::agent_protocol_failure::malformed_frame && refused->Items.empty(), "AC2: a tool_use, server_tool_use or image block, a user frame or a finding payload is still refused");
+		}
+
+		const auto chat = readOf(false, init + thinking + text + result);
+		expect(chat.Finished && chat.Items == std::vector<std::string>{ "written" } && chat.Thinking == 0U && !private_content(chat), "AC4: agent chat reads the same stream as before and reports nothing");
+	}
+
 	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads
 	/// files, as a wrapper prints it, and what the decoder keeps of a line it
 	/// refuses.
@@ -1729,6 +1801,14 @@ namespace {
 		expect(application::describe(remembering) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2 memory=on",
 			   "[[BPR-1896]] a writing run whose Claude reported an auto-memory folder reads memory=on");
 		expect(application::parse_agent_run_diagnosis(application::describe(remembering)) == std::optional{ remembering }, "a line reading memory=on reads back exactly");
+		auto thinking     = remembering;
+		thinking.Thinking = true;
+		expect(application::describe(thinking) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2 memory=on thinking=on",
+			   "[[BPR-1899]] a writing run whose Claude wrote a thinking block reads thinking=on");
+		expect(application::parse_agent_run_diagnosis(application::describe(thinking)) == std::optional{ thinking }, "a line reading thinking=on reads back exactly");
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=off", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=on memory=on" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "a thinking token describe would not write is refused");
+		}
 		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=/Users/x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=off", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=on plugins=a" }) {
 			expect(!application::parse_agent_run_diagnosis(bad), "a memory token describe would not write is refused");
 		}
@@ -1814,6 +1894,7 @@ auto main() -> int
 	test_claude_writing_reports_the_plugins_it_loaded();
 	test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on();
 	test_claude_writing_environment_turns_auto_memory_off();
+	test_claude_writing_reads_past_thinking_blocks();
 	test_claude_decoder_reads_a_current_transcript();
 	test_agent_run_diagnosis_round_trips_exactly();
 	test_full_encoded_input_budget_and_private_raw_budget();
