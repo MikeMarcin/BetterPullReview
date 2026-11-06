@@ -458,3 +458,12 @@ indentation in that C++ block, reviews/reseals its content pins, and will pass
 the pinned format check before any successor freeze. No operation, diagnostic
 text, predicate, resource budget or mutation branch changes. Build19 is not
 qualified for publication. Other Release results are still being collected.
+
+### Fixed-cutoff issue-ID high-water reconciliation
+
+Build20 stopped at the mandatory Mac bootstrap: fetching authoritative main
+exposed its newer issue-ID high-water, so the fixed release source’s old
+NEXT_ID could not pass the monotonicity check. Advance only NEXT_ID to the
+observed authoritative BPR-1881 floor, without importing later feature work.
+Keep both allocated build20 evidence and its true failed/stopped results.
+Run all three cheap bootstrap contracts before allocating the next identity.
