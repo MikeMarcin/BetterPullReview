@@ -9,10 +9,11 @@
 
 namespace bpr::core {
 	namespace {
-		constexpr std::array<std::string_view, 2> scope_names{ "refresh", "read" };
-		constexpr std::array<std::string_view, 4> reason_names{ "none", "retained", "authored", "requested" };
-		constexpr std::array<std::string_view, 8> completeness_names{ "none", "complete", "search_incomplete", "search_limit", "candidate_limit", "roster_limit", "summary_limit", "multiple_limits" };
-		constexpr std::array<std::string_view, 6> state_names{ "none", "current", "partial", "stale", "stopped", "cancelled" };
+		constexpr std::array<std::string_view, 2>  scope_names{ "refresh", "read" };
+		constexpr std::array<std::string_view, 4>  reason_names{ "none", "retained", "authored", "requested" };
+		constexpr std::array<std::string_view, 8>  completeness_names{ "none", "complete", "search_incomplete", "search_limit", "candidate_limit", "roster_limit", "summary_limit", "multiple_limits" };
+		constexpr std::array<std::string_view, 6>  state_names{ "none", "current", "partial", "stale", "stopped", "cancelled" };
+		constexpr std::array<std::string_view, 12> rejection_names{ "none", "incomplete_answer", "unasked_row", "missing_row", "duplicate_row", "undetailed_row", "missing_head", "review_limit", "malformed_head", "unattributed_row", "mismatched_answer", "unexpected_cancel" };
 
 		template <typename TEnum, std::size_t N>
 		[[nodiscard]] auto named(const std::array<std::string_view, N>& aNames, const TEnum aValue) noexcept -> std::string_view
@@ -110,14 +111,23 @@ namespace bpr::core {
 		return named(completeness_names, aReason);
 	}
 
+	auto name(const discovery_rejection aRejection) noexcept -> std::string_view
+	{
+		return named(rejection_names, aRejection);
+	}
+
 	auto valid(const discovery_diagnosis& aDiagnosis) noexcept -> bool
 	{
+		if (name(aDiagnosis.Rejection).empty() || (aDiagnosis.Rejection == discovery_rejection::none && aDiagnosis.Row != 0U)
+			|| aDiagnosis.Row > aDiagnosis.PullRequests) {
+			return false;
+		}
 		if (name(aDiagnosis.Work.Completeness).empty() || name(aDiagnosis.Scope).empty() || name(aDiagnosis.Reason).empty() || name(aDiagnosis.State).empty() || aDiagnosis.Refresh == 0U
 			|| aDiagnosis.Failed > aDiagnosis.Reads) {
 			return false;
 		}
 		if (aDiagnosis.Scope == discovery_diagnosis_scope::refresh) {
-			return aDiagnosis.Read == 0U && aDiagnosis.Reason == discovery_diagnosis_reason::none;
+			return aDiagnosis.Read == 0U && aDiagnosis.Reason == discovery_diagnosis_reason::none && aDiagnosis.Rejection == discovery_rejection::none;
 		}
 		return aDiagnosis.Read != 0U && aDiagnosis.Reason != discovery_diagnosis_reason::none && aDiagnosis.State == discovery_diagnosis_state::none
 			&& aDiagnosis.Reads == 0U && aDiagnosis.Failed == 0U && aDiagnosis.BackoffSeconds == 0U;
@@ -149,6 +159,11 @@ namespace bpr::core {
 		text += " roster_recoveries=" + std::to_string(aDiagnosis.Work.RosterRecoveries);
 		text += " completeness=";
 		text += name(aDiagnosis.Work.Completeness);
+		if (aDiagnosis.Rejection != discovery_rejection::none) {
+			text += " check=";
+			text += name(aDiagnosis.Rejection);
+			text += " row=" + std::to_string(aDiagnosis.Row);
+		}
 		return text;
 	}
 
@@ -189,6 +204,16 @@ namespace bpr::core {
 				return std::nullopt;
 			}
 			result.Work.Completeness = *completeness;
+			// [[BPR-1874]]. A rejection, when the line has one.
+			if (!aText.empty()) {
+				const auto rejection = enumerated<discovery_rejection>(aText, "check", rejection_names);
+				const auto row       = rejection ? number(aText, "row") : std::nullopt;
+				if (!row || *rejection == discovery_rejection::none) {
+					return std::nullopt;
+				}
+				result.Rejection = *rejection;
+				result.Row       = *row;
+			}
 		}
 
 		if (!aText.empty() || !valid(result)) {
