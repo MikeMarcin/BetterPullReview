@@ -278,11 +278,29 @@ its own: see the amendment below.
 >   never into the clone ([The agent's worktree](#the-agents-worktree)).
 > - **No linked clone:** the agent asks, once per repository, to **Link a
 >   clone…** or to **Let BetterPullReview keep one**, or to ask about the pull
->   request's files only, which it then says plainly. Until that choice
->   lands, a sparse review with no linked clone stops with "the agent works
->   in a clone of the repository" and **Link your clone** instead of
->   downloading the head.
-> - **A BetterPullReview-managed clone** is a full clone (every object), not
+>   request's files only, which it then says plainly. The Repository step is
+>   that question: it already shows, before any question, for a repository
+>   with no remembered choice, and Settings › Repositories › Linked clones
+>   changes or forgets the choice. For a sparse review its no-clone action is
+>   **Ask about this pull request only**, offered after linking a clone (the
+>   default action) with its cost said: "Without a clone the agent sees only
+>   the files this pull request changes: no callers, tests or history, so its
+>   answers are weaker."
+> - **This pull request only** ([[BPR-1873]] slice 2). The workspace holds
+>   exactly the pull request's files at the head: the head's side of
+>   base...head, deletions and submodules excepted. The host uses bytes the
+>   review already holds and reads the rest through the review's own lease
+>   (batches of 16, then single reads), checking every file against its blob;
+>   at most 1,000 files and 96 MiB. The Git adapter packs the head's commit
+>   and trees from the sparse cache, stores the blobs and sparse-checks-out
+>   exactly those paths, so the rest of the head is absent, `git status` is
+>   clean, and the workspace is shallow at the head. The brief names it
+>   `private_snapshot`; the review skill (`bpr-version` 4) tells the agent to
+>   say it saw only the pull request's files; and the turn's footer says "It
+>   sees only this pull request's files" while it runs and "It saw only this
+>   pull request's files" when it answers.
+> - **A BetterPullReview-managed clone** (not built yet; its own slice) is a
+>   full clone (every object), not
 >   a blobless one: a blobless clone would need lazy blob fetches, and those
 >   must never run inside the agent's sandbox or with its environment; a full
 >   clone's one-time cost is stated from GitHub's repository `size` before it

@@ -213,8 +213,11 @@ lacks the head, the review's own `gh` lease fetches only what the clone lacks
 (`gh repo clone --revision=HEAD --reference=CLONE` into a private store, then
 the objects reachable from the head and from no ref of the clone), the
 workspace indexes that pack and is never shallow. The head is never
-downloaded whole; with no linked clone a sparse review's agent does not start
-and says a clone is needed. This is in place of
+downloaded whole; with no linked clone the workspace holds only the pull
+request's files at the head, read through the review's lease and checked
+against their blobs, sparse-checked-out from the cache's commit and trees and
+shallow at the head, and the brief, the review skill and the turn say so.
+This is in place of
 the `git worktree` the RFC first described, which the owner accepted on
 2026-10-22. Check it works makes and removes the same workspace through the
 agent host's `probe_workspace`, with a session identity from a reserved range,
