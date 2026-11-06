@@ -349,9 +349,12 @@ snapshot identity or epoch authority. A successful accepted snapshot is compared
 by stable identity and published as bounded metadata and conversation changes.
 
 For an authenticated refresh with review-thread support, the provider reads
-reviews and complete review threads after the file catalogue and before commit
-pagination. The host can publish that bounded conversation observation early
-only when its request identity and base/head still match the accepted review
+reviews and complete review threads after the file catalogue and before the
+remaining viewed-file status pages and commit pagination. The initial GraphQL
+response still combines the first thread and viewed-file pages; further viewed
+states do not delay the conversation (BPR-1885). The host can publish that
+bounded conversation observation early only when its request identity and
+base/head still match the accepted review
 (BPR-1851, BPR-1883). It grants no new snapshot or epoch authority. The existing
 comparison stays visible; Qt shows “Refreshing remaining details…” until the
 whole refresh settles. Commit validation and all remaining reads still govern
