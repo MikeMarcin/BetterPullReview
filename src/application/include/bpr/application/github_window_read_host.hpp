@@ -139,8 +139,10 @@ namespace bpr::application {
 		void request_markdown_images(const core::markdown_image_intent& aIntent);
 		/// \brief [[BPR-1807]]. Admits the people's pictures a presentation drew and
 		/// starts their loads; results arrive as `github_presentation_update::Avatars`.
-		void               request_identity_avatars(std::span<const core::identity_avatar_intent> aIntents);
-		void               cancel();
+		void request_identity_avatars(std::span<const core::identity_avatar_intent> aIntents);
+		/// \brief Stops the read in flight; its cancelled line names \p aCause
+		/// ([[BPR-1875]]).
+		void               cancel(pull_request_cancel_cause aCause);
 		void               shutdown();
 		[[nodiscard]] auto state() const noexcept -> const core::github_state&;
 		[[nodiscard]] auto window() const noexcept -> core::bpr_window_context;

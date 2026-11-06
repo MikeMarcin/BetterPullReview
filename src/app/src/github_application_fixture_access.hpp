@@ -310,6 +310,9 @@ namespace bpr::app::detail {
 		std::atomic<std::uint32_t> PageMilliseconds{ 0U };
 		/// [[BPR-1576]]. Holds personal discovery's searches this long.
 		std::atomic<std::uint32_t> DiscoveryMilliseconds{ 0U };
+		/// [[BPR-1875]]. Holds Home's batched read of retained pull requests
+		/// this long, as a large account's does.
+		std::atomic<std::uint32_t> RetainedMilliseconds{ 0U };
 		/// [[BPR-1575]]. What successive refreshes meet, one outcome a read,
 		/// in order and then round again; empty serves every refresh.
 		enum class refresh_outcome : std::uint8_t {

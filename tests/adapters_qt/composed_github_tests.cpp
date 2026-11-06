@@ -1043,7 +1043,7 @@ namespace {
 		provider.Progress(wrongContext, { .Phase = application::github_read_phase::comments, .PagesReceived = 101U, .Sequence = 101U });
 		lane.drain();
 		expect(title->text() == currentProgress, "older and foreign progress cannot replace the current read");
-		host.cancel();
+		host.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		provider.Progress(provider.Request->Context, { .Phase = application::github_read_phase::commits, .PagesReceived = 101U, .Sequence = 102U });
 		provider.Complete(application::github_pull_request_cancelled{ *provider.Request });
 		lane.drain();

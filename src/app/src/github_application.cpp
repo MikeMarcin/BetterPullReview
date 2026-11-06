@@ -8396,7 +8396,7 @@ namespace bpr::app {
 				Profile->ReviewRestoration->cancel_startup();
 			}
 			if (PendingRestoration && WindowRead) {
-				WindowRead->cancel();
+				WindowRead->cancel(application::pull_request_cancel_cause::restoration);
 			}
 			const auto suppressLateReading = ReadingRestoration.has_value() && !aStartup && !aReadingGesture;
 			PendingRestoration.reset();
@@ -8521,7 +8521,7 @@ namespace bpr::app {
 					// Admitted against the core's state: the read Home shows, still
 					// the lane's pending one.
 					if (HomeOpen->admit_cancel(cancel->Request, WindowRead->state())) {
-						WindowRead->cancel();
+						WindowRead->cancel(application::pull_request_cancel_cause::reviewer);
 					}
 					return;
 				}

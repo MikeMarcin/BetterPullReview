@@ -406,6 +406,39 @@ namespace bpr::application {
 			}
 			static_cast<void>(DiagnosticLog->record(event));
 		}
+		/// \brief [[BPR-1875]]. A cancelled read's line, naming why it ended.
+		void record_cancelled(const core::request_id aRequest, const pull_request_cancel_cause aCause,
+							  const std::optional<diagnostic_paged_operation> aLastOperation = std::nullopt) const noexcept
+		{
+			if (DiagnosticLog == nullptr) {
+				return;
+			}
+			auto event = diagnostic_event{
+				.Operation      = diagnostic_operation::pull_request,
+				.Outcome        = diagnostic_outcome::cancelled,
+				.Request        = aRequest.value(),
+				.WindowSession  = DiagnosticWindowSession.value(),
+				.PagedOperation = aLastOperation.value_or(diagnostic_paged_operation::none),
+			};
+			const auto cause = name(aCause);
+			if (pull_request_cancel_detail_prefix.size() + cause.size() <= event.Summary.Text.size()) {
+				auto* const end     = std::ranges::copy(pull_request_cancel_detail_prefix, event.Summary.Text.begin()).out;
+				const auto  written = std::ranges::copy(cause, end).out;
+				event.Summary.Size  = static_cast<std::uint16_t>(written - event.Summary.Text.begin());
+				event.Summary.State = diagnostic_summary_state::sanitized;
+			}
+			static_cast<void>(DiagnosticLog->record(event));
+		}
+		/// \brief [[BPR-1875]]. The cause a provider's cancelled answer names.
+		[[nodiscard]] static auto cancel_cause(const github_pull_request_cancel_source aSource) noexcept -> pull_request_cancel_cause
+		{
+			switch (aSource) {
+			case github_pull_request_cancel_source::stop_requested:   return pull_request_cancel_cause::provider_stopped;
+			case github_pull_request_cancel_source::provider_closing: return pull_request_cancel_cause::provider_closing;
+			case github_pull_request_cancel_source::transport:        return pull_request_cancel_cause::transport;
+			}
+			return pull_request_cancel_cause::transport;
+		}
 		bool                           is_public_preview() const { return State.AccessMode == core::github_access_mode::public_preview; }
 		core::github_transition_output decide(const core::github_window_read_event& aEvent)
 		{
@@ -1490,9 +1523,7 @@ namespace bpr::application {
 
 			const auto& cancelled = std::get<github_pull_request_cancelled>(aCompletion);
 			PendingProvider.reset();
-			record_pull_request(diagnostic_outcome::cancelled,
-								cancelled.Request.Context.Request, std::nullopt, std::nullopt,
-								cancelled.LastReadOperation);
+			record_cancelled(cancelled.Request.Context.Request, cancel_cause(cancelled.Source), cancelled.LastReadOperation);
 			dispatch_core(core::pull_request_load_cancelled_event{
 				.Context = cancelled.Request.Context,
 			});
@@ -1580,7 +1611,7 @@ namespace bpr::application {
 				}
 			}
 		}
-		void cancel()
+		void cancel(const pull_request_cancel_cause aCause)
 		{
 			if (Images) {
 				Images->reset();
@@ -1596,8 +1627,7 @@ namespace bpr::application {
 			const auto request = *PendingProvider;
 			PendingProvider.reset();
 			++ProviderOperationToken;
-			record_pull_request(diagnostic_outcome::cancelled,
-								request.Context.Request);
+			record_cancelled(request.Context.Request, aCause);
 			try {
 				pull_request_port_for(request).cancel_pull_request(request);
 			} catch (...) { }
@@ -1630,7 +1660,7 @@ namespace bpr::application {
 				const auto request = *PendingProvider;
 				PendingProvider.reset();
 				++ProviderOperationToken;
-				record_pull_request(diagnostic_outcome::cancelled, request.Context.Request);
+				record_cancelled(request.Context.Request, pull_request_cancel_cause::review_closed);
 				try {
 					pull_request_port_for(request).cancel_pull_request(request);
 				} catch (...) { }
@@ -1641,9 +1671,9 @@ namespace bpr::application {
 			StagedSnapshot.reset();
 			publish_transition(output);
 		}
-		void release()
+		void release(const pull_request_cancel_cause aCause)
 		{
-			cancel();
+			cancel(aCause);
 			invalidate_epoch_authority();
 			revoke_review_mutation_transport();
 			AcceptedSnapshot.reset();
@@ -1981,7 +2011,7 @@ namespace bpr::application {
 		}
 		const auto retired    = host.Policy.retire(core_session(aSession));
 		const auto suppressed = std::exchange(host.SuppressPublication, true);
-		host.release();
+		host.release(pull_request_cancel_cause::session_retired);
 		host.SuppressPublication = suppressed;
 		return retired;
 	}
@@ -2011,7 +2041,7 @@ namespace bpr::application {
 			Implementation->Avatars->request(aIntents);
 		}
 	}
-	void github_window_read_host::cancel() { Implementation->cancel(); }
+	void github_window_read_host::cancel(const pull_request_cancel_cause aCause) { Implementation->cancel(aCause); }
 	void github_window_read_host::share_snapshot(
 		const std::span<const std::shared_ptr<github_window_read_host>> aWindows,
 		const std::uint64_t                                             aSequence)
@@ -2046,7 +2076,7 @@ namespace bpr::application {
 	void github_window_read_host::shutdown()
 	{
 		Implementation->Closing = true;
-		Implementation->release();
+		Implementation->release(pull_request_cancel_cause::window_closed);
 		if (Implementation->Images) {
 			Implementation->Images->shutdown();
 		}
