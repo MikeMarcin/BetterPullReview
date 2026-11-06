@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v6",
+  "scope": {
+    "issues": [
+      "BPR-1889"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "restore-focused-gates",
+      "outcome": "The architecture and epoch-host naming checks pass with managed-clone behavior and ownership protections preserved.",
+      "work": [
+        {
+          "issue": "BPR-1889"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Pass the real architecture gate and its positive/hostile contract suite.",
+        "Pass epoch-host lint and functional checks after behavior-preserving parameter renames.",
+        "Complete the card and journal entry and land the verified cleanup on main."
+      ],
+      "boundary": "Owner-requested architecture false-positive, stale contract fixture and three parameter-name corrections; no runtime behavior changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
