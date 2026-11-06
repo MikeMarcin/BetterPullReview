@@ -114,10 +114,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
-		/// \brief [[BPR-1878]], owner looks v001 and v002. The Agent tab's own
-		/// agent picker (a second `agent_run_settings_picker` on its source),
-		/// beside the open step's drafting controls, so choosing here chooses
-		/// there.
+		/// \brief [[BPR-1878]], owner looks v001 to v003. The Agent tab's own
+		/// agent picker (a second `agent_run_settings_picker` on its source)
+		/// in the tab's bottom bar, styled as the Agent tab's and the last
+		/// thing in the tab, so choosing here chooses there.
 		void               set_agent_picker(agent_run_settings_picker* aPicker);
 		[[nodiscard]] auto agent_picker() const noexcept -> agent_run_settings_picker* { return AgentPicker; }
 		void               show_stops();
@@ -227,11 +227,11 @@ namespace bpr::qt {
 		QWidget*         PublicationPanel = nullptr;
 		QWidget*         OutlineTools     = nullptr;
 		QWidget*         Notices          = nullptr;
-		/// [[BPR-1878]]. The agent picker, and the drafting rows it moves to
-		/// with the open step: Problem's, Solution's, the stop's.
-		agent_run_settings_picker* AgentPicker   = nullptr;
-		QBoxLayout*                AgentHomes[3] = { nullptr, nullptr, nullptr };
-		void                       place_agent_picker();
+		/// [[BPR-1878]]. The tab's bottom bar, its field, and the picker in it.
+		QWidget*                   AgentBar    = nullptr;
+		QWidget*                   AgentField  = nullptr;
+		agent_run_settings_picker* AgentPicker = nullptr;
+		void                       fit_agent_bar();
 		QWidget*                   Foot               = nullptr;
 		QLabel*                    FootState          = nullptr;
 		QPushButton*               PreviewPublish     = nullptr;

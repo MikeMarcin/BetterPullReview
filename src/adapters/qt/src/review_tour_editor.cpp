@@ -75,6 +75,28 @@ namespace bpr::qt {
 									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
 		}
 
+		/// \brief [[BPR-1878]]. The Agent tab's question field, drawn as it
+		/// draws it: one rounded field on the base colour, outlined in a
+		/// sixth of the text colour.
+		class agent_bar_field final : public QWidget
+		{
+		public:
+			using QWidget::QWidget;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ink  = palette().color(QPalette::Active, QPalette::WindowText);
+				const auto base = palette().color(QPalette::Active, QPalette::Base);
+				const auto box  = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				painter.setPen(QPen{ mixed(base, ink, 0.16), 1.0 });
+				painter.setBrush(base);
+				painter.drawRoundedRect(box, 8.0, 8.0);
+			}
+		};
+
 		/// The route's amber: where you read, as the drawers draw it.
 		[[nodiscard]] auto route_amber(const QPalette& aPalette) -> QColor
 		{
@@ -974,16 +996,7 @@ namespace bpr::qt {
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, first);
 			first->addStretch(1);
 			column->addLayout(first);
-			// [[BPR-1878]], owner look v002: the agent picker goes with the
-			// button that asks the agent, directly under it, as it goes with
-			// Send in the Agent tab. A row of its own keeps its whole words
-			// (agent, model, effort) in the narrowest drawer.
-			auto* const agentHome = new QHBoxLayout{ };
-			agentHome->setContentsMargins(0, 0, 0, 0);
-			agentHome->addStretch(1);
-			column->addLayout(agentHome);
-			AgentHomes[aIndex] = agentHome;
-			auto* const tools  = new QHBoxLayout{ };
+			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
 			auto* map = new quiet_push_button{ tr("Copy selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
@@ -1148,6 +1161,25 @@ namespace bpr::qt {
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
+		// [[BPR-1878]], owner looks v002 and v003 ("How hard is it to put the
+		// agent picker at the bottom like i asked for"): the tab ends as the
+		// Agent tab does, with its question field's bottom bar: the same
+		// margins, the same rounded field, the agent · model · effort pill on
+		// the right. The draft's state and Preview and publish sit just above
+		// it, so nothing is below the picker.
+		AgentBar = new QWidget{ this };
+		AgentBar->setObjectName(QStringLiteral("tourAgentBar"));
+		auto* const barColumn = new QVBoxLayout{ AgentBar };
+		barColumn->setContentsMargins(10, 8, 10, 10);
+		AgentField = new agent_bar_field{ AgentBar };
+		AgentField->setObjectName(QStringLiteral("tourAgentField"));
+		AgentField->installEventFilter(this);
+		auto* const barRow = new QHBoxLayout{ AgentField };
+		barRow->setContentsMargins(8, 6, 6, 6);
+		barRow->setSpacing(2);
+		barRow->addStretch(1);
+		barColumn->addWidget(AgentField);
+		AgentBar->hide();
 		// The foot: the private draft's state, and Preview and publish.
 		Foot = new QWidget{ this };
 		Foot->setObjectName(QStringLiteral("tourFoot"));
@@ -1215,6 +1247,7 @@ namespace bpr::qt {
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
 		layout->addWidget(Foot);
+		layout->addWidget(AgentBar);
 
 		for (auto* widget : findChildren<QWidget*>()) {
 			widget->installEventFilter(this);
@@ -1606,6 +1639,14 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
+		// as the Agent tab's pill hides with none.
+		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
+			AgentBar->setVisible(AgentPicker->isVisibleTo(AgentBar));
+		}
+		if (aWatched == AgentField && aEvent->type() == QEvent::Resize) {
+			fit_agent_bar();
+		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -1658,33 +1699,20 @@ namespace bpr::qt {
 			return;
 		}
 		AgentPicker = aPicker;
-		place_agent_picker();
+		aPicker->setParent(AgentField);
+		static_cast<QHBoxLayout*>(AgentField->layout())->addWidget(aPicker);
+		aPicker->installEventFilter(this);
+		aPicker->present();
+		AgentBar->setVisible(aPicker->isVisibleTo(AgentBar));
+		fit_agent_bar();
 	}
-	void review_tour_editor::place_agent_picker()
+	void review_tour_editor::fit_agent_bar()
 	{
-		// [[BPR-1878]], owner look v002 ("it seems weird for preview and
-		// publish to be below the model picker"). The picker goes with the
-		// open step's drafting controls: Problem's or Solution's Draft row, or
-		// the stop's actions. The draft's state and Preview and publish stay
-		// the tab's last row.
-		if (AgentPicker == nullptr) {
-			return;
+		// The Agent tab's rule: a field narrower than 300 keeps the pill as
+		// an icon with its words in the tooltip.
+		if (AgentPicker != nullptr) {
+			AgentPicker->set_narrow(AgentField->width() > 0 && AgentField->width() < 300);
 		}
-		const auto  home  = BriefOpen == 0 ? 0 : BriefOpen == 1 ? 1
-																: 2;
-		auto* const row   = AgentHomes[home];
-		auto* const owner = home == 2 ? StopFields : BriefPanels[home];
-		if (row == nullptr || owner == nullptr) {
-			return;
-		}
-		if (AgentPicker->parentWidget() != owner || row->indexOf(AgentPicker) < 0) {
-			AgentPicker->setParent(owner);
-			row->insertWidget(0, AgentPicker);
-		}
-		// Reparenting hides it: shown again as the source says (hidden while
-		// no agent is chosen, as in the Agent tab).
-		AgentPicker->present();
-		AgentPicker->set_narrow(width() > 0 && width() < 300);
 	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
@@ -1987,14 +2015,6 @@ namespace bpr::qt {
 		MoreButton    = more;
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
-		// [[BPR-1878]]. The stop's own agent row, under the actions whose
-		// Generate comment asks the agent, as under Draft from PR context; the
-		// actions row yields its words to More, so the picker has its own.
-		auto* const stopAgent = new QHBoxLayout{ };
-		stopAgent->setContentsMargins(0, 0, 0, 0);
-		stopAgent->addStretch(1);
-		fields->addLayout(stopAgent);
-		AgentHomes[2] = stopAgent;
 		// The first to stay is the first a stop is written with.
 		StopActions->yield(useLines, true);
 		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
@@ -2640,7 +2660,6 @@ namespace bpr::qt {
 			Roadmap->setCurrentIndex(2);
 		}
 		place_stop_card();
-		place_agent_picker();
 		fit_route();
 	}
 
@@ -2825,10 +2844,7 @@ namespace bpr::qt {
 		QWidget::resizeEvent(aEvent);
 		fit_page_columns();
 		place_stop_card();
-		if (AgentPicker != nullptr) {
-			// As in the Agent tab's field: an icon alone when narrow.
-			AgentPicker->set_narrow(width() < 300);
-		}
+		fit_agent_bar();
 	}
 
 	void review_tour_editor::fit_page_columns()
