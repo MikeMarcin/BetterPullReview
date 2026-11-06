@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1887"
 title: "Keep conversation navigation clear of line-aligned comments"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"bug","reservation":"docs/issues/_reservations/BPR-1887--BPR-1887--9c514ed2528a.json","related_cards":["BPR-1781","BPR-1886"],"milestone_plan":{"id":"responsiveness-latency-v4","path":"docs/rfcs/plans/responsiveness-latency-v4/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"6b29d074081d6399f0edf4883de5bd3485a1364c","evidence":{"kind":"observation","detail":"The existing conversation link is laid out in the Comments toolbar, outside the comment viewport. Label, unread badge, StrongFocus and Space activation to Overview Comments are retained; availability follows the card page show/hide lifecycle."}},{"criterion":"AC2","outcome":"pass","revision":"6b29d074081d6399f0edf4883de5bd3485a1364c","evidence":{"kind":"observation","detail":"Focused composed GitHub, conversation-panel and card-view courses pass. The public refresh course preserves the comparison, earlier conversation publication, 18 reads, visible remaining-details status, and zero blank samples or renewed wash. Geometry fits before/after refresh and at a narrow window."}},{"criterion":"AC3","outcome":"pass","revision":"6b29d074081d6399f0edf4883de5bd3485a1364c","evidence":{"kind":"observation","detail":"The new geometry assertion fails on pre-fix product 8b33cba9f and passes after the fix. Final 100%/200% offscreen courses and inspected full/narrow renders show separation. All changed C++ files pass clang-format 22; card-view source and end-to-end test pass clang-tidy 22; documentation and whitespace gates pass. The whole-window lint retains only the two documented existing diagnostics."}},{"criterion":"AC4","outcome":"pass","revision":"6b29d074081d6399f0edf4883de5bd3485a1364c","evidence":{"kind":"observation","detail":"Card evidence records inherited architecture/manifest/lint failures without passing credit. One journal line is added, and this source revision is landed on main."}}]
 ---
 
 # BPR-1887: Keep conversation navigation clear of line-aligned comments
@@ -80,3 +81,5 @@ Whole `workbench_window.cpp` clang-tidy was rerun and still reports only the
 previously recorded `QueueFilterModel` null-object diagnostic and
 `finish_choice` naming violation. Its diff contains only the four toolbar
 placement lines; neither diagnostic is in that change.
+
+Source, regression and journal landed on main at `6b29d074081d6399f0edf4883de5bd3485a1364c`.
