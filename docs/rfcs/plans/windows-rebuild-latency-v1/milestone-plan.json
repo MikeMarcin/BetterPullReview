@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "windows-rebuild-latency-v1",
+  "scope": {
+    "issues": [
+      "BPR-1901"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "candidate-rebuild",
+      "outcome": "Windows candidate retries avoid demonstrated redundant compilation while preserving required native coverage and configuration.",
+      "work": [
+        {
+          "issue": "BPR-1901"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Measure a representative native Windows retry before and after, with exact inputs and actual work counts.",
+        "Verify unchanged required test selection and that real input changes still rebuild and pass focused native checks.",
+        "Land the verified source, completed card and one-line journal entry on main."
+      ],
+      "boundary": "Direct implementation; isolated task-owned native measurement checkout; preserve release coverage, Debug diagnostics, artifact identity and the paused release candidate."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
