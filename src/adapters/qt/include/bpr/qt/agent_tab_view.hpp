@@ -227,7 +227,7 @@ namespace bpr::qt {
 		/// on the old head.
 		head_moved,
 		/// The last invocation did not finish: what happened, the question
-		/// kept, Ask again and Show the log.
+		/// kept, Resend and Show the log.
 		stopped,
 		/// [[BPR-1753]]. The setup is in place of the conversation.
 		setting_up,
@@ -404,9 +404,12 @@ namespace bpr::qt {
 		[[nodiscard]] auto turn_question_label(std::size_t aTurn) const -> QLabel*;
 		[[nodiscard]] auto turn_answer_view(std::size_t aTurn) const -> markdown_body_view*;
 		[[nodiscard]] auto turn_note_button(std::size_t aTurn) const -> QPushButton*;
-		/// \brief [[BPR-1847]]. An error turn's one way back (Ask again,
-		/// Check again or Agent settings…), its reply card, and how it ended.
+		/// \brief [[BPR-1847]]. An error turn's one way back (Resend or
+		/// Agent settings…), its reply card, and how it ended.
 		[[nodiscard]] auto turn_recovery_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief [[BPR-1876]]. Delete, on a turn whose message never reached
+		/// the agent.
+		[[nodiscard]] auto turn_delete_button(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto turn_reply(std::size_t aTurn) const -> QWidget*;
 		[[nodiscard]] auto turn_outcome(std::size_t aTurn) const -> std::optional<core::agent_turn_outcome>;
 		/// \brief [[BPR-1847]]. What stands in for the suggestions while the
@@ -567,6 +570,9 @@ namespace bpr::qt {
 			/// one made since; and the line that says it is fixed since.
 			bool             CauseRechecked = false;
 			QPointer<QLabel> FixedNote;
+			/// [[BPR-1876]]. Delete: a message that never reached the agent
+			/// leaves the thread.
+			QPointer<QPushButton> Delete;
 		};
 		std::vector<turn> Turns;
 		/// The question and the answer as shown, their references links.
@@ -581,6 +587,9 @@ namespace bpr::qt {
 		/// [[BPR-1847]]. Each ended turn's actions, as the core decides them.
 		void present_turn_actions();
 		void recover(const turn& aTurn);
+		/// [[BPR-1876]]. Removes a turn whose message never reached the agent
+		/// from the thread, and keeps the thread without it.
+		void delete_turn(std::size_t aTurn);
 		/// [[BPR-1847]]. Why the suggestions are not shown now, if not.
 		[[nodiscard]] auto                                                          suggestions_verdict() const -> core::agent_suggestions_verdict;
 		void                                                                        refresh_times();
@@ -661,6 +670,9 @@ namespace bpr::qt {
 		/// [[BPR-1876]]. The latest turn says its cause is fixed since, so
 		/// the stopped banner stands down.
 		bool LatestFixedSince = false;
+		/// [[BPR-1876]]. The stopped run's turn was deleted, so its banner
+		/// stands down until the next run.
+		bool StoppedDismissed = false;
 		/// The panels' controls this tab shows, and where each came from.
 		std::vector<std::pair<QPointer<QWidget>, QPointer<QWidget>>> Borrowed;
 		/// The panels may go first when the window closes.

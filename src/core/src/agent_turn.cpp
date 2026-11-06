@@ -35,7 +35,7 @@ namespace bpr::core {
 	{
 		switch (aRecovery) {
 		case agent_turn_recovery::none:           return "none";
-		case agent_turn_recovery::ask_again:      return "ask_again";
+		case agent_turn_recovery::resend:         return "resend";
 		case agent_turn_recovery::agent_settings: return "agent_settings";
 		}
 		return { };
@@ -68,6 +68,23 @@ namespace bpr::core {
 		return agent_turn_cause::none;
 	}
 
+	auto agent_turn_never_sent(const agent_turn_outcome aOutcome) noexcept -> bool
+	{
+		switch (aOutcome) {
+		case agent_turn_outcome::failed_to_start:
+		case agent_turn_outcome::workspace_unavailable:
+		case agent_turn_outcome::history_unavailable:   return true;
+		case agent_turn_outcome::answered:
+		case agent_turn_outcome::unreadable:
+		case agent_turn_outcome::exited_with_error:
+		case agent_turn_outcome::stopped:
+		case agent_turn_outcome::timed_out:
+		case agent_turn_outcome::set_aside:
+		case agent_turn_outcome::ended_without_answer:  return false;
+		}
+		return false;
+	}
+
 	auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions
 	{
 		if (aFacts.Outcome == agent_turn_outcome::answered) {
@@ -75,6 +92,7 @@ namespace bpr::core {
 		}
 		auto actions       = agent_turn_actions{ .Error = true, .Copy = aFacts.HasText };
 		actions.FixedSince = aFacts.CausePassedSince && agent_turn_cause_of(aFacts.Outcome) != agent_turn_cause::none;
+		actions.Delete     = !aFacts.Working && agent_turn_never_sent(aFacts.Outcome);
 		if (!aFacts.Latest || aFacts.Working) {
 			return actions;
 		}
@@ -87,7 +105,7 @@ namespace bpr::core {
 		case agent_turn_outcome::stopped:
 		case agent_turn_outcome::timed_out:
 		case agent_turn_outcome::set_aside:
-		case agent_turn_outcome::ended_without_answer:  actions.Recovery = agent_turn_recovery::ask_again; break;
+		case agent_turn_outcome::ended_without_answer:  actions.Recovery = agent_turn_recovery::resend; break;
 		case agent_turn_outcome::answered:              break;
 		}
 		return actions;
