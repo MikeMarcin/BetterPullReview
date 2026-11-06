@@ -5,6 +5,7 @@
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/github_read_model.hpp"
 #include "bpr/application/overview_checks_projection.hpp"
+#include "bpr/application/overview_status_sections.hpp"
 #include "bpr/application/review_ledger_port.hpp"
 #include "bpr/core/draft_state.hpp"
 #include "bpr/core/epoch_model.hpp"
@@ -78,65 +79,13 @@ namespace bpr::application {
 		auto operator<=>(const overview_file_row&) const = default;
 	};
 
-	enum class overview_participant_role : std::uint8_t {
-		author,
-		reviewer,
-		observer,
-	};
-
-	/// \brief A participant's standing on the pull request.
-	enum class overview_signoff : std::uint8_t {
-		none,
-		/// The author's own standing: the latest upload is theirs.
-		uploaded,
-		commented,
-		approved,
-		changes_requested,
-		dismissed,
-		pending,
-	};
-
 	/// [[BPR-1895]]. Read-only results while merge requirements are still loading.
 	[[nodiscard]] auto project_loading_overview_checks(const github_pull_request_record&       aPullRequest,
 													   const std::vector<github_check_record>& aChecks, github_collection_availability aRuns,
 													   github_collection_availability aStatuses) -> overview_checks_projection;
 
-	struct overview_participant
-	{
-		std::string               Login;
-		overview_participant_role Role    = overview_participant_role::observer;
-		overview_signoff          Signoff = overview_signoff::none;
-		/// True for the reviewer this overview is for.
-		bool Viewer = false;
-
-		auto operator<=>(const overview_participant&) const = default;
-	};
-
-	/// \brief How GitHub's merge assessment reads at a glance.
-	enum class overview_merge_tone : std::uint8_t {
-		/// Not observed, still being computed, or a draft.
-		unknown,
-		blocked,
-		/// Mergeable by GitHub's account, with something still not passing.
-		caution,
-		mergeable,
-	};
-
-	/// \brief [[BPR-1405]]. One outstanding review request, as one roster row.
-	struct overview_review_request
-	{
-		/// `login` or `organization/slug`; empty when the provider hid the actor.
-		std::string Name;
-		/// A team's readable name, when the provider supplied one.
-		std::string DisplayName;
-		bool        Team      = false;
-		bool        CodeOwner = false;
-		/// [[BPR-1849]]. The viewer just asked for it and GitHub has not
-		/// answered; the row is the core's projection, not the read's.
-		bool Pending = false;
-
-		auto operator<=>(const overview_review_request&) const = default;
-	};
+	[[nodiscard]] auto project_loading_overview_people(const github_pull_request_snapshot& aPeople) -> overview_people_projection;
+	[[nodiscard]] auto project_loading_overview_merge(const github_merge_observation& aMerge) -> overview_merge_projection;
 
 	/// \brief What happened since my last review.
 	///

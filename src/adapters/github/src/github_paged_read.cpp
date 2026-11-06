@@ -3640,7 +3640,7 @@ namespace bpr::adapters::github::detail {
 			return { };
 		}
 
-		[[nodiscard]] auto read_merge_requirements(production_read_execution& aExecution, const validated_github_host_profile& aProfile, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot, const github_paged_read_limits& aLimits) -> std::expected<void, github_paged_read_failure>
+		[[nodiscard]] auto read_merge_requirements(production_read_execution& aExecution, const validated_github_host_profile& aProfile, server_contract aServer, const core::pull_request_request_context& aContext, application::github_pull_request_snapshot& aSnapshot, const github_paged_read_limits& aLimits, const std::function<void()>& aAssessmentReady, const std::function<void()>& aPeopleReady) -> std::expected<void, github_paged_read_failure>
 		{
 			const auto assessment = read_merge_assessment(aExecution, aServer, aContext, aSnapshot);
 			if (!assessment) {
@@ -3649,6 +3649,7 @@ namespace bpr::adapters::github::detail {
 				}
 				aSnapshot.Merge.Availability = observation_failure(assessment.error());
 			}
+			aAssessmentReady();
 			const auto requests = read_pending_requests(aExecution, aServer, aContext, aSnapshot, aLimits);
 			if (!requests) {
 				if (fatal_optional_read_failure(requests.error())) {
@@ -3660,6 +3661,32 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ fallback.error() };
 				}
 			}
+			const auto validCollection = [&](const application::github_pull_request_snapshot& aRecords) {
+				auto budget = application::detail::github_text_budget{ aLimits.Records };
+				return application::detail::validate_merge_observations(aRecords, budget, aLimits.Records) == application::github_read_validation_error::none;
+			};
+			auto records                                = application::github_pull_request_snapshot{ };
+			records.ReviewRequestsAvailability          = observation::available;
+			records.BranchPolicy.RulesAvailability      = observation::available;
+			records.BranchPolicy.ProtectionAvailability = observation::available;
+
+			records.Viewer             = aSnapshot.Viewer;
+			records.PullRequest.Author = aSnapshot.PullRequest.Author;
+			// Only authors participate in review-request consistency; do not
+			// copy review bodies while the remaining policy reads are pending.
+			records.Reviews.reserve(aSnapshot.Reviews.size());
+			for (const auto& review : aSnapshot.Reviews) {
+				auto author   = application::github_review_record{ };
+				author.Author = review.Author;
+				records.Reviews.push_back(std::move(author));
+			}
+			records.ReviewRequests = aSnapshot.ReviewRequests;
+			if (!validCollection(records)) {
+				aSnapshot.ReviewRequests.clear();
+				aSnapshot.ReviewRequestsAvailability  = observation::incomplete;
+				aSnapshot.ReviewRequestActorsObserved = false;
+			}
+			aPeopleReady();
 			auto semantic      = semantic_request_for(aServer, aContext, read_operation::list_branch_rules);
 			semantic.BranchRef = aSnapshot.PullRequest.BaseRef;
 			auto       rules   = std::vector<application::github_branch_requirement>{ };
@@ -3679,24 +3706,6 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ protection.error() };
 				}
 				aSnapshot.BranchPolicy.ProtectionAvailability = observation_failure(protection.error());
-			}
-			const auto validCollection = [&](const application::github_pull_request_snapshot& aRecords) {
-				auto budget = application::detail::github_text_budget{ aLimits.Records };
-				return application::detail::validate_merge_observations(aRecords, budget, aLimits.Records) == application::github_read_validation_error::none;
-			};
-			auto records                                = application::github_pull_request_snapshot{ };
-			records.ReviewRequestsAvailability          = observation::available;
-			records.BranchPolicy.RulesAvailability      = observation::available;
-			records.BranchPolicy.ProtectionAvailability = observation::available;
-
-			records.Viewer             = aSnapshot.Viewer;
-			records.PullRequest.Author = aSnapshot.PullRequest.Author;
-			records.Reviews            = aSnapshot.Reviews;
-			records.ReviewRequests     = aSnapshot.ReviewRequests;
-			if (!validCollection(records)) {
-				aSnapshot.ReviewRequests.clear();
-				aSnapshot.ReviewRequestsAvailability  = observation::incomplete;
-				aSnapshot.ReviewRequestActorsObserved = false;
 			}
 			records.ReviewRequests.clear();
 			records.BranchPolicy.Rules = aSnapshot.BranchPolicy.Rules;
@@ -6265,7 +6274,47 @@ namespace bpr::adapters::github::detail {
 				if (!requirementExecution.bind_repository(result.Repository.Repository)) {
 					return execution.terminal_failure(application::github_provider_failure::malformed_response);
 				}
-				const auto requirements = read_merge_requirements(requirementExecution, aProfile, *server, aRequest.Context, result, requirementLimits);
+				const auto observe = [&](application::github_pull_request_overview_observation aObservation) {
+					if (aObserver != nullptr && !aStop.stop_requested() && !aRequest.Context.ExpectedPullRequest
+						&& aReadAuthority == github_provider_read_authority::authenticated) {
+						aObservation.Context       = aRequest.Context;
+						aObservation.Repository    = result.Repository;
+						aObservation.PullRequest   = result.PullRequest;
+						aObservation.ReportedFiles = expectedFiles;
+						aObserver->overview_observed(std::move(aObservation));
+					}
+				};
+				const auto assessmentReady = [&] {
+					auto observation  = application::github_pull_request_overview_observation{ };
+					observation.Merge = result.Merge;
+					observe(std::move(observation));
+				};
+				const auto peopleReady = [&] {
+					if (aObserver == nullptr || aStop.stop_requested() || aRequest.Context.ExpectedPullRequest
+						|| aReadAuthority != github_provider_read_authority::authenticated) {
+						return;
+					}
+					auto  observation   = application::github_pull_request_overview_observation{ };
+					auto& people        = observation.People.emplace();
+					people.Viewer       = result.Viewer;
+					people.Requests     = result.ReviewRequests;
+					people.Availability = result.ReviewRequestsAvailability;
+					if (result.ReviewThreadsAvailability == application::github_collection_availability::available) {
+						for (const auto& thread : result.ReviewThreads) {
+							for (const auto& comment : thread.Comments) {
+								people.Commenters.push_back({ comment.Comment, comment.Author });
+							}
+						}
+					}
+					for (const auto& comment : result.IssueComments) {
+						people.Commenters.push_back({ comment.Comment, comment.Author });
+					}
+					for (const auto& review : result.Reviews) {
+						people.Reviews.push_back({ review.DatabaseId, review.Review, review.Author, review.State });
+					}
+					observe(std::move(observation));
+				};
+				const auto requirements = read_merge_requirements(requirementExecution, aProfile, *server, aRequest.Context, result, requirementLimits, assessmentReady, peopleReady);
 				if (!requirements) {
 					return std::unexpected{ requirements.error() };
 				}

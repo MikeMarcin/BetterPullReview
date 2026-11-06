@@ -90,6 +90,9 @@ namespace bpr::core {
 		/// read, after its metadata; no accepted snapshot or command authority.
 		[[nodiscard]] auto accept_checks_observation(bpr_window_context                  aWindow,
 													 const pull_request_request_context& aRequest) noexcept -> bool;
+		/// [[BPR-1897]]. Independent first-open status, read-only and once each.
+		[[nodiscard]] auto accept_people_observation(bpr_window_context aWindow, const pull_request_request_context& aRequest) noexcept -> bool;
+		[[nodiscard]] auto accept_merge_observation(bpr_window_context aWindow, const pull_request_request_context& aRequest) noexcept -> bool;
 		/// \brief What this lane presents for its adopted session, while nothing has moved it since.
 		/// \details [[BPR-1017]]. The session-ready projection adoption decided, for a
 		/// window attached after the profile accepted the session and so never shown
@@ -110,6 +113,8 @@ namespace bpr::core {
 		bool                                    ConversationObserved   = false;
 		bool                                    DiscussionObserved     = false;
 		bool                                    ChecksObserved         = false;
+		bool                                    PeopleObserved         = false;
+		bool                                    MergeObserved          = false;
 		std::uint64_t                           SharedSnapshotSequence = 0U;
 	};
 }

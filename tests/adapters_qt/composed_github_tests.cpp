@@ -7437,10 +7437,30 @@ namespace {
 			window.publish(application::github_presentation_update{ .LoadingOverview = std::move(results) });
 			expect(list->topLevelItemCount() == 2 && !page->projection(), "the window presents independent checks before acceptance");
 		};
+		const auto people = application::overview_people_projection{
+			.Participants   = { { .Login = "reviewer", .Role = application::overview_participant_role::reviewer, .Signoff = application::overview_signoff::approved } },
+			.ReviewRequests = { { .Name = "next-reviewer" } }
+		};
+		const auto showSections = [&] {
+			auto partial   = metadata;
+			partial.People = people;
+			window.publish(application::github_presentation_update{ .LoadingOverview = partial });
+			partial.People.reset();
+			partial.Merge = application::overview_merge_projection{ "Mergeable", application::overview_merge_tone::mergeable, "Rules loading." };
+			window.publish(application::github_presentation_update{ .LoadingOverview = std::move(partial) });
+			expect(!page->status_section(qt::overview_status_section::people)->isHidden() && !page->status_section(qt::overview_status_section::attention)->isHidden()
+					   && page->participant_rows().size() == 1U && page->request_rows().size() == 1U,
+				   "independent status arrives through the window");
+		};
 		load();
+		showSections();
 		load();
+		expect(page->status_section(qt::overview_status_section::people)->isHidden() && page->status_section(qt::overview_status_section::attention)->isHidden(),
+			   "replacement clears people and merge before new observations");
 		page->status_section_header(qt::overview_status_section::checks)->click();
 		list->setCurrentItem(list->topLevelItem(1));
+		showSections();
+		expect(list->currentItem() != nullptr && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("second"), "people and merge preserve selected checks");
 		publish_pull_request(window);
 		auto accepted           = application::pull_request_overview_projection{ };
 		accepted.Owner          = metadata.Owner;
@@ -7448,15 +7468,20 @@ namespace {
 		accepted.Number         = core::pull_request_number{ 1U };
 		accepted.Checks         = checks.Checks;
 		accepted.CheckRows      = checks.CheckRows;
+		accepted.Participants   = people.Participants;
+		accepted.ReviewRequests = people.ReviewRequests;
 		window.publish(accepted);
 		expect(list->currentItem() != nullptr && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("second")
 				   && page->status_section_header(qt::overview_status_section::checks)->isChecked(),
 			   "acceptance through the window keeps the nondefault check selection and disclosure");
 		for (const auto status : { core::github_status::pull_request_failed, core::github_status::pull_request_cancelled }) {
 			load();
+			showSections();
 			window.publish(application::github_presentation_update{
 				.Transition = application::github_transition_projection{ .Status = core::github_status_delta{ .Status = status } } });
-			expect(list->topLevelItemCount() == 0 && !page->projection(), "failed and cancelled opens clear independent results");
+			expect(list->topLevelItemCount() == 0 && !page->projection() && !page->has_observed_status()
+					   && page->status_section(qt::overview_status_section::people)->isHidden() && page->status_section(qt::overview_status_section::attention)->isHidden(),
+				   "failed and cancelled opens clear independent results");
 		}
 	}
 

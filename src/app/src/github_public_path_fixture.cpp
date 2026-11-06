@@ -2083,6 +2083,7 @@ namespace bpr::app::detail {
 			std::function<void()>                HistoryCompileInterleave;
 			std::function<void(std::stop_token)> BeforeFilesPage;
 			std::function<void(std::stop_token)> BeforeMergeAssessment;
+			std::function<void(std::stop_token)> BeforeReviewRequests, BeforeBranchRules;
 			std::function<void(std::stop_token)> BeforeViewerIdentity;
 			fixture_replay                       BootstrapRecording;
 			fixture_replay                       Recording;
@@ -3219,6 +3220,12 @@ namespace bpr::app::detail {
 					}
 					append_rate_limit_headers(*summary, aRequest.Wire.Operation);
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(*summary) };
+				}
+				if (aRequest.Wire.Operation == read_operation::list_review_requests && State->BeforeReviewRequests) {
+					State->BeforeReviewRequests(aStop);
+				}
+				if (aRequest.Wire.Operation == read_operation::list_branch_rules && State->BeforeBranchRules) {
+					State->BeforeBranchRules(aStop);
 				}
 				if (aRequest.Wire.Operation == read_operation::get_merge_assessment && State->BeforeMergeAssessment) {
 					State->BeforeMergeAssessment(aStop);
@@ -5958,6 +5965,8 @@ namespace bpr::app::detail {
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->BeforeMergeAssessment   = aOptions.BeforeMergeAssessment;
+			Recording->BeforeReviewRequests    = aOptions.BeforeReviewRequests;
+			Recording->BeforeBranchRules       = aOptions.BeforeBranchRules;
 			Recording->BeforeViewerIdentity    = aOptions.BeforeViewerIdentity;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;

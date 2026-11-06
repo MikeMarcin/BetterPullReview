@@ -461,6 +461,116 @@ namespace {
 		}
 	}
 
+	void test_provisional_people_and_merge_are_bounded()
+	{
+		for (const auto showPeople : { false, true }) {
+			for (auto scenario = 0; scenario < 11; ++scenario) {
+				reads                                               provider;
+				application::manual_executor                        lane;
+				epoch_handoffs                                      epochs;
+				std::vector<application::github_window_read_update> updates;
+				application::github_window_read_host                host{
+					{ core::default_bpr_profile_id, core::bpr_window_id{ 2U }, core::bpr_window_generation{ 1U } },
+					core::application_session_id{ 2U },
+					provider,
+					lane,
+					[&](const auto& aUpdate) { updates.push_back(aUpdate); },
+					&epochs
+				};
+				expect(host.adopt(session()), "independent status adopts its account");
+				host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
+				const auto call                      = provider.Calls.back();
+				auto       data                      = snapshot(call.Request);
+				data.PullRequest.ReportedCommitCount = 1U;
+				auto metadata                        = application::github_pull_request_overview_observation{ call.Request.Context, data.Repository, data.PullRequest, 0U, std::nullopt, std::nullopt };
+				auto observation                     = metadata;
+				if (showPeople) {
+					auto& people        = observation.People.emplace();
+					people.Viewer       = data.Viewer;
+					people.Availability = application::github_observation_availability::available;
+					people.Commenters.push_back({ application::github_comment_id{ "comment" }, data.Viewer });
+					people.Reviews.push_back({ 1U, application::github_review_id{ "review" }, data.Viewer, application::github_review_state::approved });
+				} else {
+					auto& merge        = observation.Merge.emplace();
+					merge.Availability = application::github_observation_availability::available;
+					merge.Assessment   = application::github_merge_assessment::clean;
+				}
+				call.Overview(observation);
+				expect(lane.pending() == 0U, "each status part waits for metadata without spending its once-only publication");
+				call.Overview(metadata);
+				lane.drain();
+				if (scenario == 1) {
+					auto other = metadata;
+					if (showPeople) {
+						other.Merge.emplace();
+					} else {
+						other.People.emplace().Viewer = data.Viewer;
+					}
+					call.Overview(other);
+					lane.drain();
+				}
+				auto foreign               = observation;
+				foreign.Context.Generation = core::request_generation{ 99U };
+				call.Overview(foreign);
+				expect(lane.pending() == 0U, "foreign status observations are not queued");
+				if (showPeople) {
+					auto& people = *observation.People;
+					switch (scenario) {
+					case 3:  people.Commenters.push_back(people.Commenters.front()); break;
+					case 4:  people.Commenters.front().Author->Login = "conflicting-login"; break;
+					case 5:  people.Reviews.front().State = static_cast<application::github_review_state>(255); break;
+					case 6:  people.Viewer.Login.assign(application::github_read_limits{ }.MaximumLoginBytes + 1U, 'x'); break;
+					case 7:  people.Commenters.resize(application::github_read_limits{ }.MaximumTotalComments + 1U); break;
+					case 10: people.Viewer.Actor = application::github_actor_id{ "foreign-viewer" }; break;
+					case 8:  people.Availability = static_cast<application::github_observation_availability>(255); break;
+					default: break;
+					}
+				} else {
+					auto& merge = *observation.Merge;
+					switch (scenario) {
+					case 3:  merge.Assessment = static_cast<application::github_merge_assessment>(255); break;
+					case 4:  merge.Availability = application::github_observation_availability::unobserved; break;
+					case 5:  merge.Review = static_cast<application::github_review_decision>(255); break;
+					case 6:  merge.Stale = true; break;
+					case 7:  observation.PullRequest.Number = core::pull_request_number{ 999U }; break;
+					case 10: observation.Context.Mode = core::github_access_mode::public_preview; break;
+					case 8:  merge.Availability = static_cast<application::github_observation_availability>(255); break;
+					default: break;
+					}
+				}
+				if (scenario == 9) {
+					observation.Files.emplace();
+				}
+				for (auto repeat = 0; repeat < 100; ++repeat) {
+					call.Overview(observation);
+				}
+				expect(lane.pending() <= 1U, "independent status floods queue at most one task");
+				if (scenario == 2) {
+					host.cancel(application::pull_request_cancel_cause::reviewer);
+				}
+				lane.drain();
+				const auto early = std::ranges::find_if(updates, [&](const auto& aUpdate) {
+					const auto& shown = aUpdate.Presentation.LoadingOverview;
+					return shown && (showPeople ? shown->People.has_value() : shown->Merge.has_value());
+				});
+				expect((early != updates.end()) == (scenario < 2), "only valid current people or merge facts reach the window");
+				if (early != updates.end() && showPeople) {
+					const auto& people = *early->Presentation.LoadingOverview->People;
+					expect(people.Participants.size() == 1U && people.Participants.front().Viewer && people.Participants.front().Signoff == application::overview_signoff::approved,
+						   "comment and review authors share the final participant-role policy");
+				}
+				expect(!host.accepted_snapshot() && !host.state().AcceptedSnapshot && epochs.AcceptCount == 0U,
+					   "partial people and merge grant no snapshot, epoch or command authority");
+				call.Complete(application::github_pull_request_cancelled{ call.Request });
+				lane.drain();
+				call.Overview(observation);
+				expect(lane.pending() == 0U, "terminal status observations cannot revive a read");
+				host.shutdown();
+				expect(host.is_quiescent(), "status observations drain before shutdown");
+			}
+		}
+	}
+
 	void test_provisional_overview_is_bounded_and_never_authority()
 	{
 		reads                                               provider;
@@ -1649,6 +1759,7 @@ int main()
 	test_pull_request_page_admission();
 	test_reference_page_opening();
 	test_provisional_checks_are_independent_and_bounded();
+	test_provisional_people_and_merge_are_bounded();
 	test_provisional_overview_is_bounded_and_never_authority();
 	for (const auto filesFirst : { false, true }) {
 		for (const auto discussionFirst : { false, true }) {

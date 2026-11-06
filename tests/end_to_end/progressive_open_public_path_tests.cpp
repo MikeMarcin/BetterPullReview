@@ -98,7 +98,7 @@ namespace {
 	/// from the gesture.
 	struct opening_times
 	{
-		std::optional<qint64> Title, Identity, OverviewFiles, Checks, Accepted, DrawerFiles, Diff;
+		std::optional<qint64> Title, Identity, OverviewFiles, Checks, Merge, People, Accepted, DrawerFiles, Diff;
 		std::size_t           Reads = 0U;
 	};
 
@@ -136,16 +136,19 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	options.ReadDelay              = delay;
-	std::atomic<bool> holdStatus{ false }, statusHeld{ false };
-	options.BeforeMergeAssessment = [&](const std::stop_token aStop) {
-		if (holdStatus.load()) {
-			statusHeld = true;
-			while (holdStatus.load() && !aStop.stop_requested()) {
+	std::atomic<bool> holdStatus{ false }, statusHeld{ false }, holdPeople{ false }, peopleHeld{ false }, holdRules{ false }, rulesHeld{ false };
+	const auto        hold = [](std::atomic<bool>& aHold, std::atomic<bool>& aHeld, const std::stop_token aStop) {
+		if (aHold.load()) {
+			aHeld = true;
+			while (aHold.load() && !aStop.stop_requested()) {
 				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 			}
 		}
 	};
-	options.PersonalDiscovery = app::detail::github_personal_discovery_fixture{
+	options.BeforeMergeAssessment = [&](const std::stop_token aStop) { hold(holdStatus, statusHeld, aStop); };
+	options.BeforeReviewRequests  = [&](const std::stop_token aStop) { hold(holdPeople, peopleHeld, aStop); };
+	options.BeforeBranchRules     = [&](const std::stop_token aStop) { hold(holdRules, rulesHeld, aStop); };
+	options.PersonalDiscovery     = app::detail::github_personal_discovery_fixture{
 		.OpenPullRequests = {
 			{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" } },
 			{ .Number = 18U, .Author = "contributor-b", .RequestedUsers = { "octo-reviewer" } },
@@ -196,7 +199,11 @@ try {
 		auto preparedWhileLoading    = false;
 		auto statusShown             = false;
 		statusHeld                   = false;
+		peopleHeld                   = false;
+		rulesHeld                    = false;
 		holdStatus                   = !measureOnly && roundTrip != 0U;
+		holdPeople                   = holdStatus.load();
+		holdRules                    = holdStatus.load();
 		auto        statusReleased   = !holdStatus.load();
 		auto        selectedCheck    = QString{ };
 		auto* const checks           = overview->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
@@ -222,6 +229,9 @@ try {
 			}
 			const auto checksVisible = checks->topLevelItemCount() > 0 && overview->status_section(qt::overview_status_section::checks)->isVisibleTo(window);
 			mark(times.Checks, checksVisible, clock);
+			const auto* merge = overview->findChild<QLabel*>(QStringLiteral("overviewMergeState"));
+			mark(times.Merge, merge != nullptr && !merge->text().isEmpty() && overview->status_section(qt::overview_status_section::attention)->isVisibleTo(window), clock);
+			mark(times.People, overview->status_section(qt::overview_status_section::people)->isVisibleTo(window), clock);
 			if (!statusReleased && statusHeld && (checksVisible || clock.elapsed() > 15'000)) {
 				const auto partial = overview->pending_veils().Side->look() == core::pending_look::partial;
 				if (!checksVisible || !partial) {
@@ -251,6 +261,31 @@ try {
 				}
 				holdStatus     = false;
 				statusReleased = true;
+			}
+			if (holdPeople && peopleHeld && (times.Merge || clock.elapsed() > 15'000)) {
+				holdPeople = false;
+				expect(times.Merge && !times.People && !accepted && overview->pending_veils().Side->look() == core::pending_look::partial,
+					   "merge assessment is readable while reviewers remain explicitly loading");
+				auto* header = overview->status_section_header(qt::overview_status_section::attention);
+				if (!header->isChecked()) {
+					header->click();
+				}
+				expect(overview->findChild<QLabel*>(QStringLiteral("overviewRequirementDetails"))->text().contains(QStringLiteral("still loading")), "early assessment identifies unfinished merge rules");
+			}
+			if (holdRules && rulesHeld && (times.People || clock.elapsed() > 15'000)) {
+				holdRules = false;
+				expect(times.Merge && times.People && !accepted && !overview->participant_rows().empty(), "people and merge are readable before held rules finish");
+				expect(overview->pending_veils().Side->shown_text().contains(QStringLiteral("Loading merge rules and review progress")), "completed reviewers leave the remaining-loading plate");
+				auto* header = overview->status_section_header(qt::overview_status_section::people);
+				if (!header->isChecked()) {
+					header->click();
+				}
+				QApplication::processEvents();
+				expect(checks->currentItem() != nullptr && checks->currentItem()->data(0, Qt::UserRole).toString() == selectedCheck,
+					   "independent people and merge updates preserve check selection");
+				if (!renderDirectory.isEmpty() && aIdentity == first) {
+					expect(window->grab().save(renderDirectory + QStringLiteral("/status-people-before-rules.png")), "independent Status sections render in the composed app");
+				}
 			}
 			QThread::msleep(1);
 		}
@@ -302,7 +337,7 @@ try {
 		std::cout << "progressive-open:timing " << aIdentity.toStdString() << " round-trip-ms=" << roundTrip
 				  << " title=" << text(times.Title) << " identity=" << text(times.Identity)
 				  << " overview-files=" << text(times.OverviewFiles) << " drawer-files=" << text(times.DrawerFiles)
-				  << " checks=" << text(times.Checks) << " accepted=" << text(times.Accepted) << " first-diff=" << text(times.Diff) << " reads=" << times.Reads << '\n';
+				  << " checks=" << text(times.Checks) << " merge=" << text(times.Merge) << " people=" << text(times.People) << " accepted=" << text(times.Accepted) << " first-diff=" << text(times.Diff) << " reads=" << times.Reads << '\n';
 		return times;
 	};
 

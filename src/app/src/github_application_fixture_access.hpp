@@ -485,6 +485,7 @@ namespace bpr::app::detail {
 		std::function<void(std::stop_token)> BeforeFilesPage;
 		/// [[BPR-1895]]. Test-owned gate after check results, before remaining status.
 		std::function<void(std::stop_token)> BeforeMergeAssessment;
+		std::function<void(std::stop_token)> BeforeReviewRequests, BeforeBranchRules;
 		/// BPR-1514: controls the remembered connection validation on the fixture transport.
 		std::function<void(std::stop_token)> BeforeViewerIdentity;
 		/// [[BPR-0922]]. Refuses exactly the first valid smart-Git acquisition.

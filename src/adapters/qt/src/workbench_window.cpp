@@ -14812,7 +14812,15 @@ namespace bpr::qt {
 		}
 		if (aUpdate.LoadingOverview && !HasGithubPullRequest
 			&& SessionPanel->status() == core::github_status::loading_pull_request) {
-			if (aUpdate.LoadingOverview->Checks) {
+			if (aUpdate.LoadingOverview->People) {
+				if (LoadingOverviewShown) {
+					OverviewPage->present_observed_people(*aUpdate.LoadingOverview->People);
+				}
+			} else if (aUpdate.LoadingOverview->Merge) {
+				if (LoadingOverviewShown) {
+					OverviewPage->present_observed_merge(*aUpdate.LoadingOverview->Merge);
+				}
+			} else if (aUpdate.LoadingOverview->Checks) {
 				if (LoadingOverviewShown) {
 					OverviewPage->present_observed_checks(*aUpdate.LoadingOverview->Checks);
 				}
@@ -15043,7 +15051,7 @@ namespace bpr::qt {
 				}
 				// [[BPR-1895]]. The accepted overview replaces these rows next;
 				// keep the check being read through that handoff.
-				if (aTransition.Status->Status != core::github_status::pull_request_ready || !OverviewPage->has_observed_checks()) {
+				if (aTransition.Status->Status != core::github_status::pull_request_ready || !OverviewPage->has_observed_status()) {
 					OverviewPage->clear();
 				}
 			}

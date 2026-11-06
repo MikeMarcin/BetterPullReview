@@ -533,7 +533,9 @@ namespace bpr::qt {
 		void present_observed_files(const std::vector<core::cached_review_file>& aFiles);
 		/// \brief [[BPR-1895]]. Show complete results while other Status data loads.
 		void               present_observed_checks(const application::overview_checks_projection& aChecks);
-		[[nodiscard]] auto has_observed_checks() const noexcept -> bool;
+		void               present_observed_people(const application::overview_people_projection& aPeople);
+		void               present_observed_merge(const application::overview_merge_projection& aMerge);
+		[[nodiscard]] auto has_observed_status() const noexcept -> bool;
 		/// \brief [[BPR-1842]]. The file a reviewer chose before the review was
 		/// accepted; empty when none waits.
 		[[nodiscard]] auto pending_open() const -> const QString&;
@@ -788,6 +790,7 @@ namespace bpr::qt {
 		void refresh_folder_icons();
 		void rebuild_participants(const std::vector<application::overview_participant>& aParticipants);
 		void present_merge(const application::pull_request_overview_projection& aProjection);
+		void present_merge_details(const std::string& aState, application::overview_merge_tone aTone, const std::vector<std::string>& aConditions, const std::string& aDetails);
 		/// [[BPR-1589]]. My role, the sections' facts and their memory.
 		void present_status(bool aSamePullRequest);
 		void present_attention();
@@ -969,6 +972,8 @@ namespace bpr::qt {
 		/// [[BPR-1842]]. The provisional file list is shown.
 		bool                                                   ObservedFiles = false;
 		std::optional<application::overview_checks_projection> ObservedChecks;
+		std::optional<application::overview_people_projection> ObservedPeople;
+		std::optional<application::overview_merge_projection>  ObservedMerge;
 		/// [[BPR-1842]]. The file to open once the review is accepted.
 		QString                PendingOpen;
 		QString                ReadWaiting;

@@ -79,45 +79,47 @@ int main()
 	}
 	// [[BPR-1895]]. Checks are independent of the file catalogue and carry
 	// no accepted authority; metadata and exact pending identity still gate them.
-	for (const auto filesFirst : { false, true }) {
-		github_window_read observed{ first, application_session_id{ 70U } };
-		if (!observed.adopt(session)) {
-			return EXIT_FAILURE;
-		}
-		const auto opening = observed.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 1U } });
-		if (!opening.Fetch || observed.accept_checks_observation(first, opening.Fetch->Context)
-			|| !observed.accept_overview_observation(first, opening.Fetch->Context)) {
-			return EXIT_FAILURE;
-		}
-		const auto beforeChecks = observed.state();
-		auto       foreign      = opening.Fetch->Context;
-		foreign.Request         = request_id{ 900U };
-		auto otherWindow        = first;
-		otherWindow.Window      = bpr_window_id{ 900U };
-		if (filesFirst && !observed.accept_files_observation(first, opening.Fetch->Context)) {
-			return EXIT_FAILURE;
-		}
-		if (observed.accept_checks_observation(otherWindow, opening.Fetch->Context)
-			|| observed.accept_checks_observation(first, foreign)
-			|| !observed.accept_checks_observation(first, opening.Fetch->Context)
-			|| observed.accept_checks_observation(first, opening.Fetch->Context)
-			|| observed.state() != beforeChecks) {
-			return EXIT_FAILURE;
-		}
-		if (!filesFirst && !observed.accept_files_observation(first, opening.Fetch->Context)) {
-			return EXIT_FAILURE;
-		}
-		static_cast<void>(observed.apply(first, pull_request_load_cancelled_event{ opening.Fetch->Context }));
-		if (observed.accept_checks_observation(first, opening.Fetch->Context)) {
-			return EXIT_FAILURE;
-		}
-		const auto replacement = observed.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 2U } });
-		if (!replacement.Fetch || observed.accept_checks_observation(first, replacement.Fetch->Context)
-			|| !observed.accept_overview_observation(first, replacement.Fetch->Context)
-			|| observed.accept_checks_observation(first, opening.Fetch->Context)
-			|| !observed.accept_checks_observation(first, replacement.Fetch->Context)
-			|| !observed.retire(session) || observed.accept_checks_observation(first, replacement.Fetch->Context)) {
-			return EXIT_FAILURE;
+	for (const auto accept : { &github_window_read::accept_checks_observation, &github_window_read::accept_merge_observation, &github_window_read::accept_people_observation }) {
+		for (const auto filesFirst : { false, true }) {
+			github_window_read observed{ first, application_session_id{ 70U } };
+			if (!observed.adopt(session)) {
+				return EXIT_FAILURE;
+			}
+			const auto opening = observed.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 1U } });
+			if (!opening.Fetch || (observed.*accept)(first, opening.Fetch->Context)
+				|| !observed.accept_overview_observation(first, opening.Fetch->Context)) {
+				return EXIT_FAILURE;
+			}
+			const auto beforeObservation = observed.state();
+			auto       foreign           = opening.Fetch->Context;
+			foreign.Request              = request_id{ 900U };
+			auto otherWindow             = first;
+			otherWindow.Window           = bpr_window_id{ 900U };
+			if (filesFirst && !observed.accept_files_observation(first, opening.Fetch->Context)) {
+				return EXIT_FAILURE;
+			}
+			if ((observed.*accept)(otherWindow, opening.Fetch->Context)
+				|| (observed.*accept)(first, foreign)
+				|| !(observed.*accept)(first, opening.Fetch->Context)
+				|| (observed.*accept)(first, opening.Fetch->Context)
+				|| observed.state() != beforeObservation) {
+				return EXIT_FAILURE;
+			}
+			if (!filesFirst && !observed.accept_files_observation(first, opening.Fetch->Context)) {
+				return EXIT_FAILURE;
+			}
+			static_cast<void>(observed.apply(first, pull_request_load_cancelled_event{ opening.Fetch->Context }));
+			if ((observed.*accept)(first, opening.Fetch->Context)) {
+				return EXIT_FAILURE;
+			}
+			const auto replacement = observed.apply(first, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 2U } });
+			if (!replacement.Fetch || (observed.*accept)(first, replacement.Fetch->Context)
+				|| !observed.accept_overview_observation(first, replacement.Fetch->Context)
+				|| (observed.*accept)(first, opening.Fetch->Context)
+				|| !(observed.*accept)(first, replacement.Fetch->Context)
+				|| !observed.retire(session) || (observed.*accept)(first, replacement.Fetch->Context)) {
+				return EXIT_FAILURE;
+			}
 		}
 	}
 	// Catalogue identity is the complete atomic overview identity, never a separate lookup.
