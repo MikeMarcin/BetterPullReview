@@ -106,3 +106,43 @@ Corrected commands, exit codes, three-run samples and medians are in
 `discussion-corrected-final-commands.json` and `discussion-timing-summary.json`;
 logs are `discussion-corrected-{before,control,held,after}.log`, with the rendered
 comment in `discussion-corrected-renders/refresh-reply-readable.png`.
+
+## Verification
+
+- All six focused Release courses pass: `core_github_window_read`,
+  `application_github_window_read_host`, `github_paged_read`,
+  `application_progressive_open_public_path`,
+  `application_refresh_current_file_public_path` and
+  `application_conversation_read_public_path`
+  (`discussion-corrected-functional.log`, 6/6). The separate strict discussion
+  course also passes, including the actual comment click while files are held.
+- Core and host checks cover independent observation order, duplicate/stale
+  refusal, invalid records, cancellation and unchanged snapshot/epoch authority.
+  Provider checks retain final records and request counts, first-open and
+  unobserved order, complete pagination, shared budgets and cancellation.
+- Core-only configure, build and `core_github_window_read` pass; both
+  `architecture_boundaries` and `architecture_boundary_contract` pass
+  (`discussion-verification-commands.json`). No dedicated Debug timing course
+  was run or counted.
+- clang-format 22 passes for all ten changed C++ files. The documentation gate
+  passes (`discussion-docs-final.log`); its earlier failure was the branch's
+  issue counter falling behind concurrent reservations, resolved by merging
+  main. `git diff --check` passes.
+- Full clang-tidy 22 ran on all eight changed translation units. Seven passed;
+  the fixture exposed an existing analyzer warning at a comment-body pointer
+  whose non-null condition is guaranteed by an out-of-line core decision. A
+  local guard after that decision preserves its outcomes, including an
+  already-saved response without write permission. The correction and focused
+  recheck are recorded below.
+
+Direct implementation and a focused simplification review reuse the existing
+read execution, observation channel, projection and loading presentation. No
+new worker or product layout was necessary. All evidence is local; no live
+GitHub or other-platform latency claim is made.
+
+The corrected fixture passes clang-tidy 22 with warnings as errors and the
+rebuilt application's existing `application_comment_edit_contract` on both
+GitHub.com and GHES fixtures (`discussion-guard-tidy.log`,
+`discussion-guard-build.log`, `discussion-guard-functional.log`). Together with
+the seven unchanged passing translation units, all touched C++ is lint-clean.
+The final documentation gate passes (`discussion-closeout-docs.log`).

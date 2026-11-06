@@ -5649,6 +5649,9 @@ namespace bpr::app::detail {
 				case core::description_save_outcome::write:
 					break;
 				}
+				if (body == nullptr) {
+					return std::unexpected{ application::review_mutation_failure::refused_by_server };
+				}
 				*body = aRequest.Body;
 				++Evidence.CommentEditWrites;
 				return application::review_comment_edit_receipt{ .Body = aRequest.Body, .UpdatedAt = "2026-10-27T12:00:00Z", .Written = true };
