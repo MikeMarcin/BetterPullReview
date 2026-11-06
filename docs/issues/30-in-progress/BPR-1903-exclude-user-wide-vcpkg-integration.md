@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1903"
 title: "Exclude user-wide vcpkg integration from BPR builds"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
