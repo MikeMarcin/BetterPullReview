@@ -14350,19 +14350,47 @@ namespace {
 		process_events();
 		expect(agent->state() == qt::agent_tab_state::setting_up && window.agent_setup()->open_step() == core::setup_step::check && !shown(suggestions),
 			   "Finish setup opens the setup at Check it works, with no suggestions");
-		// The check passes: the setup finishes on its Ready line, and the
-		// suggestions follow once that is read.
+		// The check passes: the setup finishes on its Ready line.
+		// [[BPR-1877]], owner 2026-11-05: the suggestions do not wait for that
+		// line to be closed; they show and can be pressed beside it.
 		setup.State.WorkspaceCheck.State = core::setup_check_state::passed;
 		setup.Step                       = core::setup_step::ready;
 		window.agent_setup()->present(setup, clones, { });
 		static_cast<void>(window.agent_setup()->take_ready());
 		agent->present_ready(QStringLiteral("my-agent is ready"), QStringLiteral("Program check passed."), QString{ });
 		process_events();
-		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && !shown(suggestions) && !shown(agent->setup_prompt()),
-			   "while the setup's Ready line is up, it stands alone");
+		expect(agent->state() != qt::agent_tab_state::setting_up && shown(agent->ready_card()) && shown(suggestions) && shown(agent->suggestions_toggle())
+				   && !shown(agent->setup_prompt()),
+			   "with the setup's Ready line up, the suggestions show beside it");
+		const auto beside = agent->suggestion_buttons();
+		expect(!beside.empty() && std::ranges::all_of(beside, [&shown](const QPushButton* aButton) { return shown(aButton) && aButton->isEnabled(); }),
+			   "every suggestion beside the Ready line can be pressed");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-ready-with-suggestions-light.png"), "PNG"), "render saved");
+			const auto light = QApplication::palette();
+			QApplication::setPalette(dark_palette(light));
+			process_events();
+			expect(window.grab().save(root + QStringLiteral("/agent-ready-with-suggestions-dark.png"), "PNG"), "render saved");
+			QApplication::setPalette(light);
+			process_events();
+		}
+		auto readySends = std::vector<qt::send_chat_message_intent>{ };
+		chat->set_dispatch([&readySends](qt::side_chat_intent aIntent) {
+			if (const auto* const send = std::get_if<qt::send_chat_message_intent>(&aIntent)) {
+				readySends.push_back(*send);
+			}
+		});
+		const auto pressed = beside.empty() ? QString{ } : beside.front()->property("agentPrompt").toString();
+		if (!beside.empty()) {
+			beside.front()->click();
+		}
+		process_events();
+		expect(readySends.size() == 1U && QString::fromStdString(readySends.back().Text) == pressed && !pressed.isEmpty(),
+			   "a suggestion pressed while the Ready line is up is sent as written");
+		chat->set_dispatch([](qt::side_chat_intent) { });
 		agent->ready_card()->findChild<QToolButton*>(QStringLiteral("agentReadyDismiss"))->click();
 		process_events();
-		expect(shown(suggestions) && shown(agent->suggestions_toggle()) && !shown(agent->setup_prompt()), "read, the suggestions show");
+		expect(!shown(agent->ready_card()) && shown(suggestions) && !shown(agent->setup_prompt()), "closed, the Ready line leaves the suggestions as they were");
 		// A reopened application set up before stands at Check it works with
 		// neither check run, and is finished.
 		setup.Step                       = core::setup_step::check;
@@ -15393,8 +15421,20 @@ namespace {
 			expect(agent->ready_card()->isVisible() && details != nullptr && !details->isChecked() && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyText"))->isVisible()
 					   && !agent->ready_card()->findChild<QLabel*>(QStringLiteral("agentReadyGets"))->isVisible(),
 				   "the ready card shows its line and keeps the details collapsed");
+			// [[BPR-1877]]. The prompts are there with it, pressable, under the
+			// Ready line in the empty tab's line's place.
+			expect(agent->suggestions_widget()->isVisible() && !agent->suggestion_buttons().empty()
+					   && std::ranges::all_of(agent->suggestion_buttons(), [](const QPushButton* aButton) { return aButton->isVisible() && aButton->isEnabled(); })
+					   && agent->suggestions_widget()->geometry().top() > agent->ready_card()->geometry().bottom(),
+				   "the suggested prompts show and can be pressed under the open Ready line");
 			if (!root.isEmpty()) {
 				expect(window.grab().save(root + QStringLiteral("/agent-ready.png"), "PNG"), "render saved");
+				const auto light = QApplication::palette();
+				QApplication::setPalette(dark_palette(light));
+				process_events();
+				expect(window.grab().save(root + QStringLiteral("/agent-ready-dark.png"), "PNG"), "render saved");
+				QApplication::setPalette(light);
+				process_events();
 			}
 			details->click();
 			process_events();

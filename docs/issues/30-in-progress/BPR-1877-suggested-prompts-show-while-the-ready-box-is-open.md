@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1877"
 title: "Suggested prompts show while the agent-ready box is open"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
