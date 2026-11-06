@@ -5399,6 +5399,7 @@ namespace bpr::app {
 				ExternalAgentExecutable
 					= aFixtureOptions.ExternalAgentExecutable;
 				CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
+				SparseAgentSetupLook    = aFixtureOptions.SparseAgentSetupLook;
 				ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
 				ClaudeSearch            = aFixtureOptions.ClaudeSearch;
 				CodexSearch             = aFixtureOptions.CodexSearch;
@@ -6838,6 +6839,9 @@ namespace bpr::app {
 		std::optional<std::filesystem::path> ExternalAgentExecutable;
 #endif
 #if defined(BPR_BUILD_TESTING)
+		/// [[BPR-1879]]. The attended Repository-step look shows a fixture
+		/// review's agent setup as a review read sparsely through `gh`.
+		bool                                             SparseAgentSetupLook = false;
 		std::optional<std::filesystem::path>             CodexAgentExecutable;
 		std::optional<std::filesystem::path>             ClaudeAgentExecutable;
 		std::optional<detail::claude_search_environment> ClaudeSearch;
@@ -12720,7 +12724,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// so keeping a clone there is a rehearsal (see prepare_kept_clone):
 			// the frozen look can show the choice and its progress.
 			if (Fixture != nullptr) {
-				repository.CanKeep          = true;
 				repository.ApproximateBytes = repository.ApproximateBytes.value_or(48'000'000U);
 			}
 	#endif
@@ -12920,7 +12923,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (Window != nullptr) {
 				Window->clone_folders()->present(aProjection);
 			}
-			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen());
+			// [[BPR-1879]], owner look v006. A review that holds every file needs
+			// no clone: its Repository step is done without one, never a question.
+			AgentSetup->set_repository_chosen(CloneLinks->repository_chosen() || (AgentReview && !AgentReview->Sparse));
 			present_setup_view();
 		}
 
@@ -20035,6 +20040,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					.Sparse      = application::object_loading_for(aHandoff.Shape) == application::pull_request_object_loading::selected_objects && aHandoff.SmartGit
 						&& !aHandoff.SmartGit->revoked() && aHandoff.SmartGit->supports_sparse_commit_trees(),
 				};
+#if defined(BPR_BUILD_TESTING)
+				// [[BPR-1879]]. The attended Repository-step look: the fixture
+				// review's agent setup reads as a sparse one, where the choice is.
+				if (SparseAgentSetupLook) {
+					AgentReview->Sparse = true;
+				}
+#endif
 				// [[BPR-1879]]. GitHub's `size` is in kibibytes.
 				if (Host != nullptr) {
 					if (const auto read = WindowRead->accepted_snapshot(); read && read->Repository.SizeKilobytes && *read->Repository.SizeKilobytes <= (std::numeric_limits<std::uint64_t>::max() / 1024U)) {
@@ -25527,6 +25539,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		decltype(github_profile_runtime::DisableSideChatPanelComposition)&        DisableSideChatPanelComposition        = Profile->DisableSideChatPanelComposition;
 		decltype(github_profile_runtime::DisableFindingQueueComposition)&         DisableFindingQueueComposition         = Profile->DisableFindingQueueComposition;
 		decltype(github_profile_runtime::ExternalAgentExecutable)&                ExternalAgentExecutable                = Profile->ExternalAgentExecutable;
+		decltype(github_profile_runtime::SparseAgentSetupLook)&                   SparseAgentSetupLook                   = Profile->SparseAgentSetupLook;
 		decltype(github_profile_runtime::CodexAgentExecutable)&                   CodexAgentExecutable                   = Profile->CodexAgentExecutable;
 		decltype(github_profile_runtime::ClaudeAgentExecutable)&                  ClaudeAgentExecutable                  = Profile->ClaudeAgentExecutable;
 		decltype(github_profile_runtime::ClaudeSearch)&                           ClaudeSearch                           = Profile->ClaudeSearch;
