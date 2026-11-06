@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1888"
+  ],
+  "reserve_for": "responsiveness-latency",
+  "purpose": "Prepare the Git runtime while a pull request loads",
+  "created": "2026-11-06T16:34:37.082237+00:00",
+  "base": "9c96d7a6afd4c30c5b7eefdf2ca67105981d69c0"
+}
