@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1887"
 title: "Keep conversation navigation clear of line-aligned comments"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
