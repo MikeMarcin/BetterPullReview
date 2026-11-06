@@ -439,8 +439,6 @@ namespace bpr::adapters::github::detail {
 		[[nodiscard]] auto perform(const wire_request& aRequest)
 			-> response_result override;
 
-		[[nodiscard]] auto perform_refresh(const wire_request& aRequest) -> response_result;
-
 		[[nodiscard]] auto consumed_all() const noexcept -> bool;
 
 		// Restarts the script at its first exchange. A recording describes one
@@ -455,8 +453,6 @@ namespace bpr::adapters::github::detail {
 		void skip_until(read_operation aOperation) noexcept;
 
 	private:
-		[[nodiscard]] auto             perform_ordered(const wire_request& aRequest, bool aRefresh) -> response_result;
-		std::optional<std::size_t>     ConversationFirst;
 		std::vector<recorded_exchange> Exchanges;
 		std::size_t                    NextExchange = 0;
 	};
