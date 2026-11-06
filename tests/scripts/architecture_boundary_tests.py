@@ -389,6 +389,8 @@ auto make_github_cli_process_runner()
 auto make_github_cli_git_acquisition_process_runner(
     github_cli_process_file_limits aFileLimits)
     -> std::unique_ptr<github_cli_process_port>;
+auto make_github_cli_managed_clone_process_runner(const std::filesystem::path& aGit)
+    -> std::unique_ptr<github_cli_process_port>;
 auto make_github_cli_process_runner_for_test(
     std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
     -> std::unique_ptr<github_cli_process_port>;
@@ -807,9 +809,9 @@ public:
         : Lane{process_lane_traits{.TestSeam = std::move(test_seam)}} {}
 
     github_cli_process_result submit(
-        const github_cli_process_request& request,
+        const github_cli_process_request& aRequest,
         std::stop_token stop) {
-        if(!valid_request_shape(request)) {
+        if(!valid_request_shape(aRequest)) {
             return std::unexpected{
                 github_cli_process_failure::invalid_request};
         }
@@ -820,19 +822,23 @@ public:
         std::shared_ptr<process_work_item> item;
         try {
             item = std::make_shared<process_work_item>();
-            item->Request = request;
+            item->Request = aRequest;
             item->Stop = stop;
-            item->Deadline = clock::now() + request.Timeout;
+            item->Deadline = clock::now() + aRequest.Timeout;
+            if (ManagedClone) {
+                item->Deadline = clock::now() + std::chrono::duration_cast<clock::duration>(github_cli_managed_clone_no_deadline);
+            }
         }
         catch(...) {
             return std::unexpected{
                 github_cli_process_failure::start_failure};
         }
-        return Lane.submit(item, request.ReapTimeout);
+        return Lane.submit(item, aRequest.ReapTimeout);
     }
 
 private:
     process_support::serialized_process_lane<process_lane_traits> Lane;
+    bool ManagedClone = false;
 };
 
 class qprocess_github_cli_process_runner final {
@@ -891,6 +897,20 @@ auto make_github_cli_git_acquisition_process_runner(
     return make_qprocess_github_cli_process_runner(nullptr, std::move(aFileLimits));
 }
 
+auto make_github_cli_managed_clone_process_runner(const std::filesystem::path& aGit)
+    -> std::unique_ptr<github_cli_process_port> {
+    return make_qprocess_github_cli_process_runner(nullptr, {
+        .MaximumFileBytes = 0U,
+        .Directory = { },
+        .MaximumDirectoryBytes = 0U,
+        .MaximumDirectoryEntries = 0U,
+        .StandardOutputFile = { },
+        .DiscardStandardOutput = true,
+        .LocalGitExecutable = aGit,
+        .ManagedClone = true
+    });
+}
+
 auto
 make_github_cli_process_runner_for_test(
     std::shared_ptr<github_cli_process_runner_test_seam> test_seam)
@@ -934,6 +954,12 @@ constexpr const char* environment[] = {
     "SSL_CERT_FILE",
     "SSL_CERT_DIR",
 };
+
+void compile_gh_cli_git_clone_request(unsigned aDepth) {
+    std::vector<std::string> arguments;
+    arguments.emplace_back("--depth=" + std::to_string(aDepth));
+    arguments.emplace_back("--filter=blob:none");
+}
 """
 
 NATIVE_HTTPS_TRANSPORT_INTERFACE = """\
@@ -3482,6 +3508,36 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     },
                 )
 
+    def test_managed_clone_factory_retains_its_exact_exemption(self) -> None:
+        runner = "src/adapters/github/src/github_cli_process_runner.cpp"
+        mutations = (
+            (".MaximumFileBytes = 0U", ".MaximumFileBytes = 1U"),
+            (".LocalGitExecutable = aGit", ".LocalGitExecutable = {}"),
+            (".ManagedClone = true", ".ManagedClone = false"),
+            ("if (ManagedClone)", "if (true)"),
+            ("github_cli_managed_clone_no_deadline", "another_deadline"),
+        )
+        for before, after in mutations:
+            with self.subTest(managed_clone=before):
+                self.assertEqual(GITHUB_CLI_PROCESS_RUNNER_SOURCE.count(before), 1)
+                self.assert_failure(
+                    "kept-clone factory must take no limit, spool or seam",
+                    {runner: GITHUB_CLI_PROCESS_RUNNER_SOURCE.replace(before, after)},
+                )
+
+    def test_depth_limited_clone_keeps_its_filter_and_owner(self) -> None:
+        transport = "src/adapters/github/src/gh_cli_transport.cpp"
+        filter_argument = '    arguments.emplace_back("--filter=blob:none");'
+        self.assertIn(filter_argument, GH_CLI_TRANSPORT_SOURCE)
+        self.assert_failure(
+            "must emit --depth only immediately",
+            {transport: GH_CLI_TRANSPORT_SOURCE.replace(filter_argument, "")},
+        )
+        self.assert_failure(
+            "An exact-revision or depth-limited clone is compiled only",
+            {"src/adapters/github/src/other.cpp": 'const char* depth = "--depth=1";'},
+        )
+
     def test_cli_git_search_authority_stays_bound_to_its_factory(self) -> None:
         runner = "src/adapters/github/src/github_cli_process_runner.cpp"
         header = "src/adapters/github/src/github_cli_process_runner.hpp"
@@ -3755,7 +3811,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
 
         shape_guard = """\
-        if(!valid_request_shape(request)) {
+        if(!valid_request_shape(aRequest)) {
             return std::unexpected{
                 github_cli_process_failure::invalid_request};
         }
@@ -3784,8 +3840,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 guard,
                 "",
             ).replace(
-                "            item->Request = request;\n",
-                "            item->Request = request;\n" + guard,
+                "            item->Request = aRequest;\n",
+                "            item->Request = aRequest;\n" + guard,
             )
             with self.subTest(reordered_pre_copy_guard=guard.splitlines()[0]):
                 self.assert_failure(
@@ -3801,7 +3857,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             {
                 "src/adapters/github/src/github_cli_process_runner.cpp":
                     GITHUB_CLI_PROCESS_RUNNER_SOURCE
-                    + "\nvoid duplicate_copy() { item->Request = request; }\n"
+                    + "\nvoid duplicate_copy() { item->Request = aRequest; }\n"
             },
         )
 
@@ -4016,8 +4072,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
         worker_fragments = (
             "class process_worker final",
-            "Lane.submit(item, request.ReapTimeout)",
-            "item->Deadline = clock::now() + request.Timeout;",
+            "Lane.submit(item, aRequest.ReapTimeout)",
+            "item->Deadline = clock::now() + aRequest.Timeout;",
             "std::unique_ptr<process_worker> Worker;",
             "Worker = std::make_unique<process_worker>(",
             "std::mutex WorkerMutex;",
@@ -4516,13 +4572,13 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     },
                 )
 
-        self.assert_failure(
-            "neutral working-directory validation ownership violation",
-            {
-                "src/adapters/github/src/other.cpp":
-                    'const char* repository_marker = ".git";\n'
-            },
-        )
+        for source in ("other.cpp", "gh_cli_git_smart_transport.cpp"):
+            with self.subTest(git_directory_owner=source):
+                self.assert_failure(
+                    "neutral working-directory validation ownership violation",
+                    {"src/adapters/github/src/" + source:
+                        'const char* repository_marker = ".git";\n'},
+                )
 
     def test_cli_runner_rejects_raw_errors_and_logging(self) -> None:
         hostile_surfaces = (

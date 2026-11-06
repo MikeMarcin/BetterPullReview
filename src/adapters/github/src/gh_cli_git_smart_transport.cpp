@@ -1473,10 +1473,10 @@ namespace bpr::adapters::github::detail {
 				// Only a kept clone, in its working-folder form: never a link,
 				// and never a folder outside the profile's folder of kept clones.
 				if (cloneError || clone != aRequest.Clone || std::filesystem::is_symlink(std::filesystem::symlink_status(aRequest.Clone, cloneError)) || cloneError
-					|| std::filesystem::symlink_status(clone / ".git", cloneError).type() != std::filesystem::file_type::directory || cloneError) {
+					|| std::filesystem::symlink_status(gh_cli_git_kept_clone_directory(clone), cloneError).type() != std::filesystem::file_type::directory || cloneError) {
 					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 				}
-				const auto gitDirectory = clone / ".git";
+				const auto gitDirectory = gh_cli_git_kept_clone_directory(clone);
 				auto       directory    = make_clone_root();
 				const auto root         = directory ? clone_root_path(*directory) : std::filesystem::path{ };
 				if (root.empty()) {
@@ -1614,7 +1614,7 @@ namespace bpr::adapters::github::detail {
 				// reverse index under temporary names, then renamed, the index
 				// last, so Git sees a pack only once all of it is there.
 				aStep             = git_smart_transport_step::local_pack;
-				const auto target = aClone / ".git" / "objects" / "pack";
+				const auto target = gh_cli_git_kept_clone_directory(aClone) / "objects" / "pack";
 				for (std::size_t index = 0U; index < aWanted.size(); ++index) {
 					if (aStop.stop_requested()) {
 						return std::unexpected{ git_smart_transport_error{ failure::cancelled } };

@@ -496,6 +496,10 @@ namespace bpr::adapters::github::detail {
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
 		-> std::filesystem::path;
 
+	/// \brief Names the Git directory inside a managed clone working folder.
+	[[nodiscard]] auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aClone)
+		-> std::filesystem::path;
+
 	/// \brief [[BPR-1879]]. The Git directory of the kept clone that clone
 	/// \p aIndex writes under \p aRoot: a working folder with no checkout.
 	[[nodiscard]] auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aRoot, std::size_t aIndex)

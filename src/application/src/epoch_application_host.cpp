@@ -7718,10 +7718,10 @@ namespace bpr::application {
 		/// \details `aCloneLacksHead` is set when the request asked for the
 		/// clone's head only and the clone does not hold it.
 		[[nodiscard]] auto materialize_on_actor(
-			const std::shared_ptr<authority_effect_actor>& actor,
-			const blob_authority&                          authorization,
+			const std::shared_ptr<authority_effect_actor>& aActor,
+			const blob_authority&                          aAuthorization,
 			const std::uint64_t                            aGeneration,
-			const git_cache_open_request&                  expected,
+			const git_cache_open_request&                  aExpected,
 			const agent_workspace_materialization_request& aRequest,
 			std::shared_ptr<git_workspace_delta>           aDelta,
 			bool&                                          aCloneLacksHead,
@@ -7756,12 +7756,12 @@ namespace bpr::application {
 			auto control = std::move(*admitted);
 			try {
 				enqueue_actor_work(
-					actor,
+					aActor,
 					[this,
-					 actor,
-					 authorization,
+					 aActor,
+					 aAuthorization,
 					 admittedGeneration = aGeneration,
-					 expected,
+					 aExpected,
 					 aRequest,
 					 aStop,
 					 waiter,
@@ -7790,28 +7790,28 @@ namespace bpr::application {
 									agent_workspace_failure::cancelled
 								};
 							} else if (
-								blob_authorization_generation(actor, authorization)
+								blob_authorization_generation(aActor, aAuthorization)
 								!= admittedGeneration) {
 								result = std::unexpected{ agent_workspace_failure::stale };
 							} else if (
-								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
-								auto materialized = actor->Cache->materialize_agent_workspace(
+								open_actor_cache(*aActor, Caches, aExpected, workStop).has_value()) {
+								auto materialized = aActor->Cache->materialize_agent_workspace(
 									aRequest,
 									*source,
 									workStop);
 								if (materialized.has_value()) {
 									std::scoped_lock authorityLock{
-										actor->BlobAuthorityMutex
+										aActor->BlobAuthorityMutex
 									};
 									if (
 										workStop.stop_requested()
 										|| !Consumer->active()
-										|| actor->BlobAuthority
-											!= std::optional{ authorization }
-										|| actor->BlobAuthorityGeneration
+										|| aActor->BlobAuthority
+											!= std::optional{ aAuthorization }
+										|| aActor->BlobAuthorityGeneration
 											!= admittedGeneration) {
 										static_cast<void>(
-											actor->Cache->cleanup_agent_workspace(
+											aActor->Cache->cleanup_agent_workspace(
 												*materialized,
 												{ }));
 										result = std::unexpected{
@@ -7855,8 +7855,8 @@ namespace bpr::application {
 						// contends for it once the caller is gone. BPR-0397.
 						if (
 							waiter->Abandoned && result.has_value()
-							&& actor->Cache != nullptr) {
-							static_cast<void>(actor->Cache->cleanup_agent_workspace(
+							&& aActor->Cache != nullptr) {
+							static_cast<void>(aActor->Cache->cleanup_agent_workspace(
 								*result,
 								{ }));
 							result = std::unexpected{

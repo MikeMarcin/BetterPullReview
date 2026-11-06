@@ -1827,10 +1827,16 @@ namespace bpr::adapters::github::detail {
 		return aRoot / ("clone-" + std::to_string(aIndex) + ".git");
 	}
 
+	auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aClone)
+		-> std::filesystem::path
+	{
+		return aClone / ".git";
+	}
+
 	auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aRoot, const std::size_t aIndex)
 		-> std::filesystem::path
 	{
-		return gh_cli_git_clone_store(aRoot, aIndex) / ".git";
+		return gh_cli_git_kept_clone_directory(gh_cli_git_clone_store(aRoot, aIndex));
 	}
 
 	auto compile_gh_cli_local_git_request(
