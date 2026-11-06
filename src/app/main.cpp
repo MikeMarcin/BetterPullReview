@@ -6132,7 +6132,9 @@ namespace {
 				QTextStream{ stdout } << aLine << '\n';
 				QTextStream{ stdout }.flush();
 			};
-			if (++*ticks > 1'000) {
+			// [[BPR-1900]]. A real agent drafting a whole tour takes minutes,
+			// not the stub's seconds: the drafting look waits up to ten.
+			if (++*ticks > (drafting ? 7'500 : 1'000)) {
 				const auto* const status = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
 				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2:writing=%3").arg(*step).arg(static_cast<int>(editor->agent_readiness())).arg(status != nullptr ? status->text() : QString{ }));
 				return;

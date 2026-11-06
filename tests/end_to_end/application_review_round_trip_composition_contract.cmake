@@ -1,3 +1,6 @@
+# [[BPR-1900]] reseal over 438bba59c: main.cpp's tests-on drafting look
+# (--attended-tour-drafting) waits up to ten minutes, for an installed agent.
+# No provider, credential, grant, mutation or inventory change.
 # [[BPR-1888]] Reviewed against 650099b71: github_application.cpp only adds
 # the current-window handoff forwarding optional runtime preparation to its
 # epoch host. The host owns effect scheduling and keeps accepted repository
@@ -3018,7 +3021,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "eaebbbf0dfe807c15566cef63a078bd137d0367ed7060a12ae95015e7ce21a59"
+        "316a3b3380ae746e9b7bb09912e888efb367338f56d8bc4f6e117731444278a8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

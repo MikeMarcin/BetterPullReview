@@ -196,3 +196,32 @@ Settle and record in an RFC-BPR-0092 amendment:
   the read-only tool check in `decode_claude_frame`); the focused tests, the
   format check, the documentation gate and the offscreen look pass again on
   the rebased commit.
+
+## Installed Claude check (2026-11-06, coordinator request before the look)
+
+- `/opt/homebrew/bin/claude` 2.1.310, with the exact read-only drafting
+  arguments and environment, in an empty scratch folder outside the
+  repository: the init frame's `tools` were `["Bash","Glob","Grep","Read"]`,
+  `mcp_servers` `[]`, `plugins` `[]`. Init passes the app's check.
+- The offscreen course against that Claude (`--attended-tour-authoring
+  /opt/homebrew/bin/claude --attended-tour-drafting`) on v001 ended as
+  `tool_refused` every time: Claude chains read-only commands
+  (`git diff --stat c58160c b20cb44; git diff c58160c b20cb44 | head -400`),
+  writes grep alternations as `"a\|b"`, runs `cd` into the workspace and
+  `sed -n` itself, and tries `for` loops that its own allowlist then denies.
+  v001's check refused `;`, `&&`, a backslash in double quotes, `cd` and
+  `sed`, and ended the run at the first tool use it refused, even one Claude
+  was about to deny.
+- Fixed on branch `bpr1900-installed-claude-course`: the check reads a
+  command as plain commands joined by `|`, `&&`, `||` or `;` (redirection only
+  to `/dev/null`), keeps a backslash's character literal, admits the
+  read-only programs Claude runs on its own (`cd`, `pwd`, `echo`, `printf`,
+  `cut`, `tr`, `diff`, `file`, `stat`, `du`, `tree`, `basename`, `dirname`,
+  `realpath`, print-only `sed`, and `git status|rev-parse|shortlog|describe|cat-file|ls-tree|merge-base|name-rev`),
+  and holds a shell command it refuses until its result: denied by Claude, the
+  transcript says "(not run, outside the read-only list)" and the run goes on;
+  ran, the run ends as `tool_refused`. A tool outside the four still ends the
+  run at once. The drafting look waits up to ten minutes for a real agent.
+- After the fix the same course ran twice to `ATTENDED_TOUR_DRAFTING_SHOWN`
+  with a Problem, a Solution and 12 stops on the fixture's own files, all
+  anchored, and `ATTENDED_AGENT_TAB_TURNS:0`.

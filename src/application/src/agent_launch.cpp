@@ -948,10 +948,14 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 
-		/// [[BPR-1900]]. One `tool_use` block of a read-only run: refused
-		/// unless `core::decide_read_only_tool` permits it, otherwise named
-		/// for the transcript with what it was asked.
-		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock) -> std::expected<agent_protocol_event, agent_protocol_failure>
+		/// [[BPR-1900]]. One `tool_use` block of a read-only run, named for
+		/// the transcript with what it was asked. A tool other than the four
+		/// is refused at once: it was never loaded. A shell command
+		/// `core::decide_read_only_tool` refuses is held by its `id` in
+		/// `aHeld`: Claude's own allowlist denies most such commands, and the
+		/// model reads the denial and goes on, so the run is refused only if
+		/// the command's result says it ran (`read_only_tool_result`).
+		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock, std::vector<std::string>& aHeld) -> std::expected<agent_protocol_event, agent_protocol_failure>
 		{
 			const auto* name  = string_member(aBlock, "name");
 			const auto* input = object_member(aBlock, "input");
@@ -960,13 +964,26 @@ namespace bpr::application {
 			}
 			const auto text    = [input](const std::string_view aKey) { const auto* value = input == nullptr ? nullptr : string_member(*input, aKey); return value == nullptr ? std::string{ } : *value; };
 			const auto command = text("command");
-			if (core::decide_read_only_tool(*name, command) != core::tour_tool_refusal::none) {
+			auto       held    = false;
+			if (const auto refusal = core::decide_read_only_tool(*name, command); refusal == core::tour_tool_refusal::tool) {
 				return std::unexpected(agent_protocol_failure::tool_refused);
+			} else if (refusal != core::tour_tool_refusal::none) {
+				const auto* id = string_member(aBlock, "id");
+				if (id == nullptr || id->empty() || aHeld.size() >= maximum_agent_tool_activity) {
+					return std::unexpected(agent_protocol_failure::tool_refused);
+				}
+				aHeld.push_back(*id);
+				held = true;
 			}
 			auto asked = *name == "Bash" ? command : *name == "Read" ? text("file_path")
 																	 : text("pattern");
 			if (*name == "Grep" && !text("path").empty()) {
 				asked += " in " + text("path");
+			}
+			// A held command is shown as asked and not run: had it run, the
+			// run would have ended here.
+			if (held) {
+				asked = "(not run, outside the read-only list) " + asked;
 			}
 			if (asked.size() > maximum_agent_tool_activity_bytes) {
 				asked.resize(maximum_agent_tool_activity_bytes);
@@ -974,12 +991,32 @@ namespace bpr::application {
 			return agent_protocol_event{ .Kind = agent_protocol_event_kind::tool_activity, .Text = *name, .Item = std::move(asked) };
 		}
 
+		/// [[BPR-1900]]. A held command's result: denied (`is_error`), it is
+		/// let go; anything else means it ran, and the run is refused.
+		[[nodiscard]] auto read_only_tool_result(const json_value& aBlock, std::vector<std::string>& aHeld) -> std::expected<void, agent_protocol_failure>
+		{
+			const auto* id = string_member(aBlock, "tool_use_id");
+			if (id == nullptr) {
+				return { };
+			}
+			const auto held = std::ranges::find(aHeld, *id);
+			if (held == aHeld.end()) {
+				return { };
+			}
+			const auto* error = member(aBlock, "is_error");
+			if (error == nullptr || error->Kind != json_kind::boolean_value || !error->Boolean) {
+				return std::unexpected(agent_protocol_failure::tool_refused);
+			}
+			aHeld.erase(held);
+			return { };
+		}
+
 		[[nodiscard]] auto decode_claude_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, std::vector<std::string>* aHeld = nullptr)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type    = string_member(aRoot, "type");
@@ -1109,12 +1146,17 @@ namespace bpr::application {
 						return std::unexpected(
 							agent_protocol_failure::malformed_frame);
 					}
-					if (aReadOnly && *type == "assistant" && *blockType == "tool_use") {
-						auto used = read_only_tool_use(block);
+					if (aReadOnly && aHeld != nullptr && *type == "assistant" && *blockType == "tool_use") {
+						auto used = read_only_tool_use(block, *aHeld);
 						if (!used) {
 							return std::unexpected(used.error());
 						}
 						events.push_back(std::move(*used));
+					}
+					if (aReadOnly && aHeld != nullptr && *type == "user" && *blockType == "tool_result") {
+						if (const auto checked = read_only_tool_result(block, *aHeld); !checked) {
+							return std::unexpected(checked.error());
+						}
 					}
 					if (*type == "assistant" && *blockType == "text") {
 						wroteText        = true;
@@ -1633,7 +1675,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::string>* aHeld)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1679,7 +1721,7 @@ namespace bpr::application {
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -3051,7 +3093,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;
