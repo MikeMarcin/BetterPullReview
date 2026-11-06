@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1885"
 title: "Refresh conversations before viewed-file status pagination"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
