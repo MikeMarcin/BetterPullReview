@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "windows-vcpkg-exclusion-v1",
+  "scope": {
+    "issues": [
+      "BPR-1903"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "project-opt-out",
+      "outcome": "BPR Visual Studio builds use declared dependencies without the machine-wide vcpkg integration.",
+      "work": [
+        {
+          "issue": "BPR-1903"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Verify generated properties and actual native compiler/link commands without ambient vcpkg input.",
+        "Preserve Debug/Release diagnostics and selection; pass native functional and policy checks.",
+        "Land the verified project-local change, completed card and one-line journal on main."
+      ],
+      "boundary": "No machine-wide configuration, installed dependency, distribution policy or test coverage change."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
