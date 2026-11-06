@@ -375,7 +375,7 @@ namespace bpr::qt {
 		case reason::sign_in_refused:
 			return QObject::tr("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
 		case reason::too_large:
-			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent may fetch. Once your clone has the head, check again.");
 		case reason::clone_needed:
 			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
 		}
@@ -392,7 +392,7 @@ namespace bpr::qt {
 		lines << QObject::tr("Threads: %1 review threads, %2 unresolved").arg(aFacts.Threads).arg(aFacts.Unresolved);
 		lines << (aFacts.Clone        ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
 					  : aFacts.Sparse ? QObject::tr("Workspace: only this pull request's files, at the head")
-									  : QObject::tr("Workspace: a private copy at the head"));
+									  : QObject::tr("Workspace: the files BetterPullReview has, at the head"));
 		lines << QObject::tr("Review skill: bpr-pr-review, editable in Settings");
 		lines << QObject::tr("It may not: push, comment or change your checkout");
 		return lines.join(QLatin1Char{ '\n' });
@@ -586,7 +586,7 @@ namespace bpr::qt {
 			return Clones.Linked->Managed ? tr("a workspace with the history of the clone BetterPullReview keeps, at %1").arg(text_of(Facts.Head))
 										  : tr("a workspace with the history of %1 at %2").arg(shown_path(Clones.Linked->Path), text_of(Facts.Head));
 		}
-		return Facts.Sparse ? tr("only this pull request's files at %1").arg(text_of(Facts.Head)) : tr("a private copy at %1").arg(text_of(Facts.Head));
+		return Facts.Sparse ? tr("only this pull request's files at %1").arg(text_of(Facts.Head)) : tr("the files BetterPullReview has at %1").arg(text_of(Facts.Head));
 	}
 
 	auto agent_setup_view::ready_title() const -> QString { return tr("%1 is ready").arg(agent_name()); }
@@ -641,7 +641,11 @@ namespace bpr::qt {
 			QString          Title;
 			QString          Summary;
 		};
-		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? (Facts.Sparse ? tr("This pull request only") : tr("A private copy")) : (Clones.Linked->Managed ? tr("Kept by BetterPullReview") : shown_path(Clones.Linked->Path))) : QString{ };
+		// [[BPR-1879]], owner look v006. A review that holds every file needs
+		// no clone, so with none linked it says whose files the agent uses.
+		const auto unlinked   = Facts.Sparse ? tr("This pull request only") : tr("Files BetterPullReview has");
+		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? unlinked : (Clones.Linked->Managed ? tr("Kept by BetterPullReview") : shown_path(Clones.Linked->Path)))
+											  : (Facts.Sparse ? QString{ } : unlinked);
 		const auto steps      = std::array{
 			step{ core::setup_step::agent, tr("Agent"), Setup.State.Chosen ? name_for(*Setup.State.Chosen) : QString{ } },
 			step{ core::setup_step::repository, tr("Repository"), repository },
@@ -937,7 +941,7 @@ namespace bpr::qt {
 		const auto downloading = canKeep && Clones.Keeping.State == application::managed_clone_state::downloading;
 		const auto failed      = canKeep && Clones.Keeping.State == application::managed_clone_state::failed && Clones.Keeping.Failure;
 		auto       pick        = NoClonePick.value_or(no_clone_pick::link);
-		if (pick == no_clone_pick::keep && !canKeep) {
+		if ((pick == no_clone_pick::keep && !canKeep) || (pick == no_clone_pick::pull_request && !Facts.Sparse)) {
 			pick = no_clone_pick::link;
 		}
 		const auto keep         = pick == no_clone_pick::keep;
@@ -1168,18 +1172,19 @@ namespace bpr::qt {
 			}
 		}
 
-		// 3. The weakest: the pull request only, or a private copy.
-		{
+		// 3. The weakest, only where it is a real choice: a review holding only
+		// the pull request's files. A review that holds every file needs no
+		// clone, per owner look v006: Link your clone is offered alone there, as
+		// an improvement, and the step is already done without it.
+		if (Facts.Sparse) {
 			const auto choose = [this] {
 				NoClonePick = no_clone_pick::pull_request;
 				rebuild();
 			};
-			const auto sparse = Facts.Sparse;
-			auto [box, grid]  = card(sparse ? QStringLiteral("agentSetupPullRequestOnlyCard") : QStringLiteral("agentSetupPrivateCopyCard"), sparse ? tr("This pull request only") : tr("A private copy"), { },
-									 pick == no_clone_pick::pull_request, choose);
-			grid->addWidget(fact(box, sparse ? QStringLiteral("agentSetupPullRequestOnlyCost") : QStringLiteral("agentSetupPrivateCopyCost"),
-								 sparse ? tr("Weaker answers: no callers, tests or history") : tr("The head and its history, no branches or tags")),
-							1, 1, 1, 2);
+			// [[BPR-1879]], owner look v006: one name for it, This pull request
+			// only, which says what the agent gets.
+			auto [box, grid] = card(QStringLiteral("agentSetupPullRequestOnlyCard"), tr("This pull request only"), { }, pick == no_clone_pick::pull_request, choose);
+			grid->addWidget(fact(box, QStringLiteral("agentSetupPullRequestOnlyFact"), tr("No callers, tests or history")), 1, 1, 1, 2);
 			box->settle();
 			aBody.addWidget(box);
 		}
@@ -1230,8 +1235,8 @@ namespace bpr::qt {
 				}
 			};
 		} else {
-			label  = Facts.Sparse ? tr("Use this pull request") : tr("Use a private copy");
-			name   = Facts.Sparse ? QStringLiteral("agentSetupPullRequestOnly") : QStringLiteral("agentSetupPrivateCopy");
+			label  = tr("Use this pull request only");
+			name   = QStringLiteral("agentSetupPullRequestOnly");
 			action = [this] {
 				if (Intents.UsePrivateCopy) {
 					Intents.UsePrivateCopy();
@@ -1356,7 +1361,7 @@ namespace bpr::qt {
 			});
 			buttons->addWidget(check);
 			if (failed(Setup.State.WorkspaceCheck) && !(Clones.Linked && Clones.Linked->PrivateCopy)) {
-				buttons->addWidget(link_button(Facts.Sparse ? tr("This pull request only, for now") : tr("Use a private copy for now"), parent, QStringLiteral("agentSetupCheckPrivateCopy")));
+				buttons->addWidget(link_button(Facts.Sparse ? tr("This pull request only, for now") : tr("Use BetterPullReview's files for now"), parent, QStringLiteral("agentSetupCheckPrivateCopy")));
 				auto* const fallback = qobject_cast<QPushButton*>(buttons->itemAt(buttons->count() - 1)->widget());
 				connect(fallback, &QPushButton::clicked, this, [this] {
 					if (Intents.UsePrivateCopy) {

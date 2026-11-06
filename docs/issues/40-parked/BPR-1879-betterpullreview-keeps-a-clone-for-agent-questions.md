@@ -197,6 +197,26 @@ folder and finding a clone into one card:
   for me, presses it and draws the downloading state, printing
   `ATTENDED_REPOSITORY_DOWNLOADING:alone=1` when only the progress shows.
 
+### v007 (after the v006 reject)
+
+`frontend-design:frontend-design` loaded first. Owner direction, after two
+intermediate proposals ("Without a clone") were withdrawn:
+
+- The third option is **This pull request only** ("No callers, tests or
+  history", button **Use this pull request only**), and only a review read
+  sparsely through `gh` shows it. That is every real review once `gh` is
+  connected.
+- A review that holds every file (in practice only fixtures) skips the
+  question quietly: its Repository step is done without a clone
+  (`set_repository_chosen` also holds when the review is not sparse), and
+  opened it offers Link your clone alone. Its summary is "Files
+  BetterPullReview has". No wording anywhere names a private copy; the UI
+  never names sparse or complete.
+- The frozen look shows the real choice: `--attended-repository-look` sets
+  the fixture option `SparseAgentSetupLook`, so the fixture review's agent
+  setup reads as a sparse one (setup facts and the keep rehearsal only; the
+  workspace is still made from the review's own files).
+
 ### Attended review
 
 - v001: session `fb4d6822d9af23fc7264361af7b46b53`
@@ -246,7 +266,10 @@ folder and finding a clone into one card:
   with `BPR_ATTENDED_REPOSITORY_RENDER`, showed the three cards and, after
   Keep a clone, only the progress and Cancel
   (`ATTENDED_REPOSITORY_DOWNLOADING:alone=1`); those two pictures lead the
-  review page. Ready, Tailscale host started.
+  review page. **Rejected**: "This first image makes sens to me so what is
+  going on in this second one. What is "A private copy" about where did
+  "this pull request only" come from?" The third card's name switched on
+  the review kind, and neither name said what the agent gets. Host stopped.
 
 Offscreen renders of the setup view: the fixture-backed frozen build does
 not read its reviews sparsely through `gh`, so it cannot show this option.

@@ -282,9 +282,9 @@ its own: see the amendment below.
 >   that question: it already shows, before any question, for a repository
 >   with no remembered choice, and Settings › Repositories › Linked clones
 >   changes or forgets the choice. For a sparse review its no-clone choice is
->   a card, **This pull request only**, with its cost in one line: "Weaker
->   answers: no callers, tests or history" (see the managed clone below for
->   the choice as a whole; owner looks on [[BPR-1879]] v002 to v004 asked for
+>   a card, **This pull request only**, with its cost in one line: "No
+>   callers, tests or history" (see the managed clone below for
+>   the choice as a whole; owner looks on [[BPR-1879]] v002 to v007 asked for
 >   shorter copy and a clearer default).
 > - **This pull request only** ([[BPR-1873]] slice 2). The workspace holds
 >   exactly the pull request's files at the head: the head's side of
@@ -309,26 +309,30 @@ its own: see the amendment below.
 >   Whether it also replaces that repository's sparse review cache is left to
 >   a later card.
 >
->   As built (owner looks v005 and v006): wherever no clone is linked, sparse
->   review or complete, the Repository step is one choice between cards in
->   order of strength, one default button acting on the card chosen.
->   **Link your clone** is first, chosen at first and marked "Recommended" in
->   the accent colour. The step searches the clone folders itself once it
->   shows (no separate search link): clones found are offered on the card,
->   the first chosen, and the button is **Link this clone** (with **Choose
+>   As built (owner looks v005 to v007): with no clone linked, a review read
+>   sparsely through `gh` (every real review once `gh` is connected) asks
+>   one question, cards in order of strength with one default button for
+>   the card chosen. **Link your clone** is first, chosen at first and marked
+>   "Recommended". The step searches the clone folders itself once it shows
+>   (no separate search link): clones found are offered on the card, the
+>   first chosen, and the button is **Link this clone** (with **Choose
 >   another folder…** and **Edit clone folders…** small on the card); with
 >   none it says "None in FOLDERS" and the button is **Choose its folder…**
 >   (with **Edit clone folders…**); with no folder listed yet the card holds
->   the folder line, the likeliest folder in it, and the button is **Add
->   folder**. **Keep a clone for me** is second, when the review can: its
->   figure is SIZE, its line "Full history, kept in LOCATION" (shortened in
->   the middle, the whole path as its tooltip); its button **Keep a clone**.
->   The weakest is last: a sparse review's **This pull request only**
->   ("Weaker answers: no callers, tests or history", button **Use this pull
->   request**) or a complete review's **A private copy** ("The head and its
->   history, no branches or tags", button **Use a private copy**). A fixture
->   course (tests-on builds) keeps a clone as a rehearsal, bytes arriving
->   until Cancel and nothing written, so a frozen look shows the choice and
+>   the folder line and the button is **Add folder**. **Keep a clone for me**
+>   is second: its figure is SIZE, its line "Full history, kept in LOCATION"
+>   (shortened in the middle, the whole path as its tooltip); its button
+>   **Keep a clone**. **This pull request only** is last, "No callers, tests
+>   or history", its button **Use this pull request only**; it has that one
+>   name everywhere (the step's summary, the check's fallback **This pull
+>   request only, for now**). A review that holds every file (in practice a
+>   fixture) needs no clone: its Repository step is done without one and
+>   never asks; opened, it offers Link your clone alone, as an improvement,
+>   and its summary is "Files BetterPullReview has". No wording names a
+>   private copy. A fixture course (tests-on builds) keeps a clone as a
+>   rehearsal, bytes arriving until Cancel and nothing written, and the
+>   attended look `--attended-repository-look` shows a fixture review's
+>   setup as a sparse review's, so a frozen look shows the choice and
 >   its progress. SIZE is GitHub's `size` from the review's repository
 >   read, in decimal units. The review's own lease
 >   runs `gh repo clone URL STORE --no-upstream -- --no-checkout --quiet`

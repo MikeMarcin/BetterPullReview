@@ -513,7 +513,7 @@ namespace bpr::qt {
 
 		column->addSpacing(8);
 		column->addWidget(heading(tr("Linked clones"), this));
-		column->addWidget(note(tr("The clone, or the private copy, each repository's agent works with. Forget it to choose again."), this));
+		column->addWidget(note(tr("The clone each repository's agent works with, or none. Forget it to choose again."), this));
 		Links = new QListWidget{ this };
 		Links->setObjectName(QStringLiteral("settingsLinkedClones"));
 		Links->setMaximumHeight(140);
