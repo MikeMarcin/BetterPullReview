@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1878"
 title: "The Tour tab lets an author pick an agent and says plainly what each control does"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
