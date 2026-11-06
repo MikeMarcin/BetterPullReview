@@ -3,6 +3,8 @@
 #include "sqlite_connection.hpp"
 #include "storage_internal.hpp"
 
+#include "bpr/application/managed_clone.hpp"
+
 #include <sqlite3.h>
 
 #include <algorithm>
@@ -103,6 +105,9 @@ namespace bpr::adapters::sqlite {
 			}
 			result.push_back({ "Diagnostic logs", directory_bytes(aRoot / "logs"), 50U * mib, false });
 			result.push_back({ "Review Cycle publication objects", directory_bytes(aRoot / "publication-git-v1"), std::nullopt, false });
+			// [[BPR-1879]]. The clones BetterPullReview keeps for agent
+			// questions, measured whole; profile purge removes them.
+			result.push_back({ "Clones kept for the agent", directory_bytes(aRoot / application::managed_clone_folder), std::nullopt, false });
 			return result;
 		}
 

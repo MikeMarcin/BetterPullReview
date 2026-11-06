@@ -156,6 +156,8 @@ namespace {
 						Intents.push_back(std::move(joined));
 					},
 				.UsePrivateCopy = [this] { Intents.emplace_back("private-copy"); },
+				.KeepClone      = [this] { Intents.emplace_back("keep"); },
+				.CancelKeeping  = [this] { Intents.emplace_back("cancel-keep"); },
 				.Check          = [this] { Intents.emplace_back("check"); },
 				.Stop           = [this] { Intents.emplace_back("stop"); },
 				.AddCustomAgent = [this](core::agent_entry aEntry) { Intents.push_back("custom:" + aEntry.Name + ":" + aEntry.Program + (aEntry.Arguments.empty() ? std::string{ } : ":" + aEntry.Arguments.front())); },
@@ -324,6 +326,51 @@ namespace {
 			expect(test.Intents.back() == "private-copy", "asking about the pull request only is remembered as this repository's no-clone choice");
 		}
 		render(test.View, QStringLiteral("noclone-sparse"));
+		// [[BPR-1879]]. A sparse review read through a `gh` lease can let
+		// BetterPullReview keep a clone: the third choice, beside linking one,
+		// with GitHub's size and where it goes said before it starts.
+		test.Clones.Repository->CanKeep          = true;
+		test.Clones.Repository->ApproximateBytes = 126U * 1000U * 1000U;
+		test.Clones.ManagedLocation              = "/Users/me/Library/Application Support/BetterPullReview/agent-clones-v1/github.com-42";
+		test.show();
+		auto* const keep     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
+		auto* const keepCost = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCost"));
+		expect(keep != nullptr && keepCost != nullptr && keep->text() == QStringLiteral("Let BetterPullReview keep one") && keepCost->text().contains(QStringLiteral("126 MB"))
+				   && keepCost->text().contains(QStringLiteral("agent-clones-v1")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault()
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) != nullptr,
+			   "AC1: keeping a clone is offered beside linking one, with its approximate download and its location; linking stays the default");
+		if (keep != nullptr) {
+			keep->click();
+			expect(test.Intents.back() == "keep", "the press asks the host to keep one");
+		}
+		render(test.View, QStringLiteral("keep-offer"));
+		test.Clones.Keeping = { .State = application::managed_clone_state::downloading, .Received = 42U * 1000U * 1000U, .Failure = std::nullopt };
+		test.show();
+		auto* const bar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
+		auto* const status = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
+		auto* const stop   = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel"));
+		expect(bar != nullptr && status != nullptr && stop != nullptr && bar->value() == 333 && status->text().contains(QStringLiteral("42 MB of about 126 MB"))
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr,
+			   "AC1: while it downloads, how much has arrived of about how much, with Cancel");
+		if (stop != nullptr) {
+			stop->click();
+			expect(test.Intents.back() == "cancel-keep", "Cancel asks the host to stop");
+		}
+		render(test.View, QStringLiteral("keep-downloading"));
+		test.Clones.Keeping = { .State = application::managed_clone_state::failed, .Received = 0U, .Failure = application::managed_clone_failure::connection_failed };
+		test.show();
+		auto* const keepFailed = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepFailed"));
+		expect(keepFailed != nullptr && keepFailed->text().contains(QStringLiteral("GitHub could not be reached"))
+				   && test.button(QStringLiteral("agentSetupKeepClone"))->text() == QStringLiteral("Try keeping one again"),
+			   "a failed download says why and offers to try again");
+		render(test.View, QStringLiteral("keep-failed"));
+		test.Clones.Keeping = { };
+		test.Clones.Linked  = application::repository_link{ .Host = "github.com", .Repository = 42U, .Owner = "bpr-fixtures", .Name = "engine", .Path = test.Clones.ManagedLocation, .Remote = "origin", .PrivateCopy = false, .Managed = true };
+		test.show();
+		expect(test.View.ready_text().contains(QStringLiteral("the clone BetterPullReview keeps")), "a kept clone is named as such, not by its folder");
+		test.Clones.Linked.reset();
+		test.Clones.Repository->CanKeep = false;
+		test.Clones.ManagedLocation.clear();
 		test.Clones.Folders.clear();
 		test.show();
 		expect(test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) != nullptr, "and with no clone folder yet too");

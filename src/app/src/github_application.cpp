@@ -9937,7 +9937,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				dependencies.Effects  = &WorkbenchEffects;
 				dependencies.Decision = &DecisionLane;
 				dependencies.Publish  = [this](const application::clone_link_projection& aProjection) { present_clone_links(aProjection); };
-				CloneLinks            = std::make_unique<application::clone_link_host>(std::move(dependencies));
+				// [[BPR-1879]]. The clones BetterPullReview keeps live in the
+				// profile beside its repository caches, shown in Storage and
+				// removed by profile purge.
+				{
+					std::error_code canonicalError;
+					const auto      root = std::filesystem::weakly_canonical(ApplicationDataRoot, canonicalError);
+					if (!canonicalError) {
+						dependencies.ManagedRoot = (root / std::string{ application::managed_clone_folder }).string();
+					}
+				}
+				dependencies.Keep = [this](const application::clone_repository& aRepository, const std::string& aDestination) -> application::clone_link_dependencies::keep_job {
+					return prepare_kept_clone(aRepository, aDestination);
+				};
+				CloneLinks = std::make_unique<application::clone_link_host>(std::move(dependencies));
 			}
 			CloneLinks->load();
 			observe_clone_repository();
@@ -12706,7 +12719,40 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			repository.Repository = AgentReview->Repository.value();
 			repository.Owner      = AgentReview->Locator.Owner;
 			repository.Name       = AgentReview->Locator.Name;
+			// [[BPR-1879]]. A sparse review's `gh` lease can keep a clone;
+			// GitHub's `size` says roughly what it downloads.
+			repository.CanKeep          = AgentReview->Sparse;
+			repository.ApproximateBytes = AgentReview->ApproximateBytes;
 			CloneLinks->observe_repository(std::move(repository));
+		}
+
+		/// [[BPR-1879]], RFC-BPR-0092. The download of the clone
+		/// BetterPullReview keeps for the review on screen, bound to that
+		/// review's authority, session and head now, on the decision lane; run
+		/// later on the clone link host's own worker. Nothing when the review
+		/// is not a sparse one of this repository.
+		[[nodiscard]] auto prepare_kept_clone(const application::clone_repository& aRepository, const std::string& aDestination) -> application::clone_link_dependencies::keep_job
+		{
+			if (Closing || EpochHost == nullptr || !AgentReview || !AgentReview->Sparse || AgentReview->Repository.value() != aRepository.Repository) {
+				return { };
+			}
+			const auto& state = EpochHost->state();
+			if (!state.Authority || !state.AcceptedRevision) {
+				return { };
+			}
+			auto request = application::managed_clone_request{
+				.ApplicationSession = state.ApplicationSession,
+				.Authority          = *state.Authority,
+				.Head               = state.AcceptedRevision->Head,
+				.Destination        = std::filesystem::path{ aDestination }.lexically_normal(),
+				.ApproximateBytes   = aRepository.ApproximateBytes,
+			};
+			if (!application::valid(request)) {
+				return { };
+			}
+			return [host = EpochHost.get(), bound = std::move(request)](const application::git_smart_clone_progress& aProgress, std::stop_token aStop) {
+				return host->keep_managed_clone(bound, aProgress, std::move(aStop));
+			};
 		}
 
 		/// [[BPR-1749]], RFC-BPR-0092. What setup decided reaches the
@@ -13044,6 +13090,19 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 							if (retry && linked && linked->PrivateCopy) {
 								check_agent_setup();
 							}
+						}
+					},
+				// [[BPR-1879]]. BetterPullReview keeps a clone, or stops.
+				.KeepClone =
+					[this] {
+						if (!Closing && CloneLinks) {
+							CloneLinks->keep_clone();
+						}
+					},
+				.CancelKeeping =
+					[this] {
+						if (!Closing && CloneLinks) {
+							CloneLinks->cancel_keeping();
 						}
 					},
 				.Check = [this] { check_agent_setup(); },
@@ -19978,6 +20037,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					.Sparse      = application::object_loading_for(aHandoff.Shape) == application::pull_request_object_loading::selected_objects && aHandoff.SmartGit
 						&& !aHandoff.SmartGit->revoked() && aHandoff.SmartGit->supports_sparse_commit_trees(),
 				};
+				// [[BPR-1879]]. GitHub's `size` is in kibibytes.
+				if (Host != nullptr) {
+					if (const auto read = WindowRead->accepted_snapshot(); read && read->Repository.SizeKilobytes && *read->Repository.SizeKilobytes <= (std::numeric_limits<std::uint64_t>::max() / 1024U)) {
+						AgentReview->ApproximateBytes = *read->Repository.SizeKilobytes * 1024U;
+					}
+				}
 #if defined(BPR_AGENT_INTEGRATIONS)
 				observe_clone_repository();
 				observe_conversation();
@@ -25923,6 +25988,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			/// can: the review holds no blobs, so without a clone its agent sees
 			/// only the pull request's files.
 			bool Sparse = false;
+			/// [[BPR-1879]]. GitHub's repository `size`, in bytes, when it said.
+			std::optional<std::uint64_t> ApproximateBytes;
 		};
 		std::optional<agent_review_facts>                   AgentReview;
 		decltype(github_profile_runtime::ExistingCheckout)& ExistingCheckout      = Profile->ExistingCheckout;

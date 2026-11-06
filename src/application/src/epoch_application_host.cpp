@@ -4520,6 +4520,106 @@ namespace bpr::application {
 			return std::move(*delta);
 		}
 
+		/// \brief [[BPR-1879]]. Makes the clone BetterPullReview keeps for a
+		/// sparse review's repository, through the review's own lease.
+		///
+		/// \details Only for the review whose authority and session the request
+		/// names, and only when it was read sparsely through a `gh` lease that
+		/// can: that is the lease whose credential and pinned private Git
+		/// configuration every sparse acquisition already uses. Runs off the
+		/// repository's actor; the cache is never touched.
+		[[nodiscard]] auto keep_managed_clone(const managed_clone_request& aRequest, const git_smart_clone_progress& aProgress, const std::stop_token aStop)
+			-> std::expected<void, managed_clone_error>
+		{
+			if (!application::valid(aRequest)) {
+				return std::unexpected{ managed_clone_error{ managed_clone_failure::unavailable, "The request does not name a review.\n" } };
+			}
+			if (!begin_blob_call()) {
+				return std::unexpected{ managed_clone_error{ managed_clone_failure::cancelled, { } } };
+			}
+			struct clone_call_guard final
+			{
+				implementation& Host;
+
+				~clone_call_guard()
+				{
+					Host.finish_blob_call();
+				}
+			} call{ *this };
+			const auto key = cache_actor_key{
+				.Profile         = aRequest.Authority.Profile,
+				.ProfileRevision = aRequest.Authority.ProfileRevision,
+				.Host            = aRequest.Authority.Host,
+				.HostAuthority   = aRequest.Authority.HostAuthority,
+				.Account         = aRequest.Authority.Account,
+				.Repository      = aRequest.Authority.Repository,
+				.ObjectFormat    = aRequest.Head.algorithm(),
+				.Mode            = aRequest.Authority.Mode,
+			};
+			auto actor = std::shared_ptr<authority_effect_actor>{ };
+			{
+				std::scoped_lock lock{ CacheActorsMutex };
+				const auto       found = std::ranges::find(CacheActors, key, &decltype(CacheActors)::value_type::first);
+				if (found != CacheActors.end()) {
+					actor = found->second;
+				}
+			}
+			auto context = std::shared_ptr<authority_context>{ };
+			if (actor) {
+				std::scoped_lock lock{ actor->BlobAuthorityMutex };
+				context = actor->BlobContext.lock();
+			}
+			const auto authorization = blob_authority{ .ApplicationSession = aRequest.ApplicationSession, .Authority = aRequest.Authority };
+			if (!context || blob_authority_for(*context) != authorization || !sparse_review(*context)) {
+				return std::unexpected{ managed_clone_error{ managed_clone_failure::unavailable, "The review on screen cannot keep a clone: it is not read through GitHub CLI's sparse reads.\n" } };
+			}
+			const auto transportContext = git_smart_request_context{
+				.ApplicationSession = context->Handoff.ApplicationSession,
+				.Authority          = context->Authority,
+				.Revision           = context->Revision,
+				.Repository         = context->Handoff.Locator,
+				.BaseRef            = context->Handoff.BaseRef,
+				.AcquisitionMode    = git_smart_acquisition_mode::sparse_commit_trees,
+			};
+			const auto request   = git_smart_managed_clone_request{ .Context = transportContext, .Destination = aRequest.Destination, .ApproximateBytes = aRequest.ApproximateBytes };
+			auto       transport = context->Handoff.SmartGit->acquire(transportContext);
+			if (!transport || !*transport) {
+				return std::unexpected{ managed_clone_error{ managed_clone_failure::unavailable, "GitHub CLI's Git transport could not be acquired for this review.\n" } };
+			}
+			auto made = (*transport)->acquire_managed_clone(request, aProgress, aStop);
+			if (made) {
+				return { };
+			}
+			using failure = git_smart_transport_failure;
+			auto error    = managed_clone_error{ };
+			switch (made.error().Failure) {
+			case failure::cancelled:
+				error.Failure = managed_clone_failure::cancelled;
+				break;
+			case failure::authentication:
+			case failure::permission:
+				error.Failure = managed_clone_failure::sign_in_refused;
+				break;
+			case failure::network:
+			case failure::timeout:
+			case failure::certificate:
+			case failure::proxy:
+			case failure::redirect:
+				error.Failure = managed_clone_failure::connection_failed;
+				break;
+			case failure::request_limit:
+			case failure::response_limit:
+				error.Failure = managed_clone_failure::too_large;
+				break;
+			default:
+				error.Failure = aStop.stop_requested() ? managed_clone_failure::cancelled : managed_clone_failure::failed;
+				break;
+			}
+			error.Detail = "The clone BetterPullReview keeps was not made (transport failure " + std::to_string(static_cast<unsigned>(made.error().Failure)) + ", step "
+				+ std::to_string(static_cast<unsigned>(made.error().Step)) + ").\n";
+			return std::unexpected{ std::move(error) };
+		}
+
 		/// \brief [[BPR-1873]]. Reads the pull request's files at the head for a
 		/// sparse review with no clone, so its agent sees only those (owner,
 		/// 2026-11-05: "the agent runs on the PR only, and says so").
@@ -11210,6 +11310,14 @@ namespace bpr::application {
 		auto result = Implementation->materialize_agent_workspace(aRequest, aStop);
 		record_operation(log, { .Action = core::operation_action::workspace_materialize, .Failure = result ? core::operation_failure::none : operation_failure_of(result.error()), .DurationMilliseconds = watch.milliseconds() });
 		return result;
+	}
+
+	auto epoch_application_host::keep_managed_clone(
+		const managed_clone_request&    aRequest,
+		const git_smart_clone_progress& aProgress,
+		const std::stop_token           aStop) -> std::expected<void, managed_clone_error>
+	{
+		return Implementation->keep_managed_clone(aRequest, aProgress, aStop);
 	}
 
 	auto epoch_application_host::cleanup_agent_workspace(
