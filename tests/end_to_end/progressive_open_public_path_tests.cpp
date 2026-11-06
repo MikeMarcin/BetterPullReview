@@ -176,13 +176,17 @@ try {
 		auto times                   = opening_times{ };
 		auto clock                   = QElapsedTimer{ };
 		auto staleName               = false;
+		auto preparedWhileLoading    = false;
 		clock.start();
 		double_click(row_of(*window, aIdentity));
 		while (!times.Accepted && clock.elapsed() < 120'000) {
 			QApplication::processEvents();
 			const auto accepted = overview->projection().has_value();
-			const auto shown    = identity != nullptr && identity->isVisibleTo(window) && identity->text().contains(aNumber);
-			staleName           = staleName || (identity != nullptr && identity->isVisibleTo(window) && identity->text().contains(aOther));
+			if (aIdentity == first && !accepted && !preparedWhileLoading) {
+				preparedWhileLoading = access::diff_work_evidence(*owner).EpochOutstandingJobs != 0U;
+			}
+			const auto shown = identity != nullptr && identity->isVisibleTo(window) && identity->text().contains(aNumber);
+			staleName        = staleName || (identity != nullptr && identity->isVisibleTo(window) && identity->text().contains(aOther));
 			mark(times.Title, !overview->pending_veils().Header->busy() && !window->showing_home(), clock);
 			mark(times.Identity, shown, clock);
 			mark(times.OverviewFiles, overview->file_model()->rowCount() > 0, clock);
@@ -192,6 +196,9 @@ try {
 		}
 		expect(times.Accepted.has_value(), "the review is accepted");
 		expect(!staleName, "while it loads, the title row never names the pull request the window showed before");
+		if (aIdentity == first && roundTrip != 0U) {
+			expect(preparedWhileLoading, "the composed first open prepares Git while the PR is still loading");
+		}
 		// The first file a reviewer would open, read as soon as the drawer can
 		// open it, in Review, which shows the comparison and the drawer.
 		auto step  = app::detail::course_modality_step{ };

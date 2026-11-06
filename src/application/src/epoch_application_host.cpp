@@ -8680,6 +8680,31 @@ namespace bpr::application {
 				aIntent);
 		}
 
+		void prepare_runtime()
+		{
+			// [[BPR-1888]]. Best effort before this window's first epoch. Leave
+			// two slots free for the first comparison and its newest history
+			// page; constrained or already-busy hosts keep demand-driven setup.
+			// The normal job ledger owns
+			// cancellation, completion delivery and shutdown accounting.
+			if (!Consumer->current() || Closing || DeferredShutdown || TurnActive || deferred_work_pending()
+				|| RuntimePreparationStarted || Active || job_count() != 0U || Limits.OutstandingJobs < 3U) {
+				return;
+			}
+			run_turn([this] {
+				RuntimePreparationStarted = true;
+				submit_effect(
+					[caches = &Caches](const std::stop_token aStop) -> worker_completion {
+						if (!aStop.stop_requested()) {
+							caches->prepare_runtime(aStop);
+						}
+						return [](implementation&) { };
+					},
+					[](implementation&) { },
+					[](implementation&, core::epoch_failure) { });
+			});
+		}
+
 		void shutdown()
 		{
 			Consumer->retire();
@@ -11256,13 +11281,14 @@ namespace bpr::application {
 		std::array<std::optional<pull_request_authority_invalidation>, 2U>
 											   DeferredInvalidations;
 		std::optional<core::epoch_reason_code> DeferredDiagnostic;
-		std::uint64_t                          OfferToken               = 0U;
-		bool                                   TurnActive               = false;
-		bool                                   DeferredIngressScheduled = false;
-		bool                                   DeferredShutdown         = false;
-		bool                                   Closing                  = false;
-		bool                                   ProjectionDeliveryFailed = false;
-		std::atomic_bool                       BlobIngressClosing       = false;
+		std::uint64_t                          OfferToken                = 0U;
+		bool                                   TurnActive                = false;
+		bool                                   DeferredIngressScheduled  = false;
+		bool                                   DeferredShutdown          = false;
+		bool                                   Closing                   = false;
+		bool                                   RuntimePreparationStarted = false;
+		bool                                   ProjectionDeliveryFailed  = false;
+		std::atomic_bool                       BlobIngressClosing        = false;
 	};
 
 	epoch_application_host::epoch_application_host(
@@ -11314,6 +11340,11 @@ namespace bpr::application {
 	void epoch_application_host::accept(accepted_pull_request_handoff aHandoff)
 	{
 		Implementation->accept(std::move(aHandoff));
+	}
+
+	void epoch_application_host::prepare_runtime()
+	{
+		Implementation->prepare_runtime();
 	}
 
 	void epoch_application_host::invalidate(

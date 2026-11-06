@@ -985,6 +985,10 @@ namespace bpr::application {
 		auto operator=(git_cache_port&&) -> git_cache_port&      = delete;
 		virtual ~git_cache_port()                                = default;
 
+		/// \brief Optional repository-independent setup, on an effect worker. This
+		/// opens no cache session; open() still performs every mandatory check.
+		virtual void prepare_runtime(std::stop_token) { }
+
 		[[nodiscard]] virtual auto open(
 			const git_cache_open_request& aRequest,
 			std::stop_token               aStop)

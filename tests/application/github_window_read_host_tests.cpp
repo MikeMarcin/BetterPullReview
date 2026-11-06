@@ -56,11 +56,20 @@ namespace {
 		std::vector<application::epoch_force_push_observation> ForcePushes;
 		application::epoch_timeline_availability               Availability
 			= application::epoch_timeline_availability::unavailable;
-		std::size_t                                             AcceptCount = 0U;
+		std::size_t                                             AcceptCount      = 0U;
+		std::size_t                                             PrepareCount     = 0U;
+		bool                                                    ThrowPreparation = false;
 		std::optional<application::accepted_pull_request_shape> Shape;
 		core::git_commit_oid                                    Base;
 		core::comparison_base_basis                             Basis = core::comparison_base_basis::merge_base;
 
+		void prepare_runtime() override
+		{
+			++PrepareCount;
+			if (ThrowPreparation) {
+				throw std::runtime_error{ "optional preparation refused" };
+			}
+		}
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			Base         = aHandoff.Base;
@@ -789,6 +798,37 @@ namespace {
 		expect(!host.projection_delivery_failed(), "mapping and delivery stay inside the successful host boundary");
 	}
 
+	void test_runtime_preparation_does_not_accept_or_refuse_the_read()
+	{
+		for (const bool throws : { false, true }) {
+			reads                        provider;
+			application::manual_executor lane;
+			epoch_handoffs               epochs;
+			epochs.ThrowPreparation = throws;
+			application::github_window_read_host host{
+				{ core::default_bpr_profile_id, core::bpr_window_id{ 7 }, core::bpr_window_generation{ 1 } },
+				core::application_session_id{ 2 },
+				provider,
+				lane,
+				[](const auto&) { },
+				&epochs
+			};
+			expect(host.adopt(session()) && epochs.PrepareCount == 0U, "adopting an account does not prepare Git");
+			host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1 } });
+			expect(epochs.PrepareCount == 1U && epochs.AcceptCount == 0U && provider.Calls.size() == 1U
+					   && !host.accepted_snapshot(),
+				   "preparation starts alongside the read without accepting snapshot authority");
+			const auto call = provider.Calls.back();
+			call.Complete(application::github_pull_request_success{ call.Request, snapshot(call.Request) });
+			lane.drain();
+			expect(host.accepted_snapshot() && epochs.AcceptCount == 1U,
+				   "optional preparation failure cannot change the accepted read or its normal handoff");
+			host.shutdown();
+			lane.drain();
+			expect(host.is_quiescent(), "prepared read drains normally");
+		}
+	}
+
 	void test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read()
 	{
 		reads                                provider;
@@ -1262,12 +1302,13 @@ namespace {
 		auto                                                admission = std::make_shared<application::github_read_admission>([&] { return now; });
 		reads                                               provider;
 		application::manual_executor                        lane;
+		epoch_handoffs                                      epochs;
 		std::vector<application::github_window_read_update> updates;
 		application::github_window_read_host                first{
 			{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 2 }, provider, lane, [&](const auto& aUpdate) { updates.push_back(aUpdate); }, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, admission
 		};
 		application::github_window_read_host second{
-			{ core::default_bpr_profile_id, core::bpr_window_id{ 3 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 3 }, provider, lane, [](const auto&) { }, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, admission
+			{ core::default_bpr_profile_id, core::bpr_window_id{ 3 }, core::bpr_window_generation{ 1 } }, core::application_session_id{ 3 }, provider, lane, [](const auto&) { }, &epochs, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, admission
 		};
 		auto identity = session();
 		expect(first.adopt(identity) && second.adopt(identity), "two windows share accepted session and admission");
@@ -1286,6 +1327,7 @@ namespace {
 			second.dispatch(open);
 		}
 		expect(provider.Calls.size() == 2 && second.is_quiescent(), "Refresh and sibling Open cannot bypass primary reset");
+		expect(epochs.PrepareCount == 0U, "refused PR reads do not start optional Git preparation");
 		expect(updates.back().Presentation.HostDiagnostics.back().RetryAfterSeconds == 5U, "blocked explicit retry projects actual remaining primary delay");
 		first.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		now.MonotonicMilliseconds = 5999;
@@ -1473,6 +1515,7 @@ namespace {
 
 int main()
 {
+	test_runtime_preparation_does_not_accept_or_refuse_the_read();
 	test_merge_observation_freshness();
 	test_durable_overview_lifecycle();
 	test_markdown_link_admission();
