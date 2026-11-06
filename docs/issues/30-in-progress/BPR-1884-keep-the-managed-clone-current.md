@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1884"
 title: "Keep the BetterPullReview-managed clone current, so agent deltas stay small"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P2"
@@ -28,8 +28,10 @@ eventually exceeds the 32 MiB per-file bound, and the question fails as
 - Fetch into the **managed** clone only, never into a reviewer-linked clone,
   which stays untouched (BPR-1755 Q2, RFC-BPR-0092 Q8). Use the transport's
   existing gh credential path with the same pinned private configuration.
-  Fetch the default branch, plus the PR head when there is one, so later
-  workspaces need almost no delta.
+  Fetch only what the pull request needs: its head OID and its base OID,
+  each when the clone lacks it. Never fetch the default branch: a head fetch
+  already brings in every ancestor the clone lacks (owner, 2026-11-06,
+  superseding "fetch the default branch, plus the PR head").
 - Choose when to fetch, and record the choice in the RFC amendment. Options:
   before an agent question when the clone is older than some threshold; in
   the background after a question; or on its own idle schedule while a review

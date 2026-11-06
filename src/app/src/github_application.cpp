@@ -12800,6 +12800,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 														  view.Linked->Path.size() } };
 		}
 
+		/// [[BPR-1884]]. Whether that clone is the one BetterPullReview
+		/// keeps, which the host may fetch into; a reviewer's never is.
+		[[nodiscard]] auto linked_history_clone_managed(const bool aWritingOnly) const -> bool
+		{
+			if (!linked_history_clone(aWritingOnly)) {
+				return false;
+			}
+			const auto view = CloneLinks->projection();
+			return view.Linked && view.Linked->Managed;
+		}
+
 		/// [[BPR-1751]], RFC-BPR-0092 Check it works. One Check runs the
 		/// agent's own status command and makes, then removes, the workspace an
 		/// Ask would make for the review on screen.
@@ -22154,6 +22165,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				.RequestedSettings      = std::move(requested),
 				.PrivateRun             = std::move(privateRun),
 				.HistoryClone           = linked_history_clone(aWritingOnly),
+				.HistoryCloneManaged    = linked_history_clone_managed(aWritingOnly),
 				// Owner decision 2026-10-23: a time limit only when the reviewer set one.
 				.RunLimitMilliseconds = run_limit_milliseconds(),
 			});

@@ -4520,6 +4520,41 @@ namespace bpr::application {
 			return std::move(*delta);
 		}
 
+		/// \brief [[BPR-1884]]. Fetches the pull request's head and base
+		/// into the clone BetterPullReview keeps, when it lacks them, through
+		/// the review's own lease, off the actor; records the outcome.
+		///
+		/// \details Never inside the agent's sandbox or with its environment:
+		/// it runs here, before the workspace exists, on the transport's own
+		/// pinned configuration. The transport refuses any folder outside the
+		/// profile's folder of kept clones.
+		[[nodiscard]] auto refresh_managed_clone(const authority_context& aContext, const std::filesystem::path& aClone, const std::stop_token aStop) -> bool
+		{
+			const auto watch = operation_stopwatch{ };
+			record_operation(DiagnosticLog.get(), { .Action = core::operation_action::clone_refresh }, true);
+			const auto context = git_smart_request_context{
+				.ApplicationSession = aContext.Handoff.ApplicationSession,
+				.Authority          = aContext.Authority,
+				.Revision           = aContext.Revision,
+				.Repository         = aContext.Handoff.Locator,
+				.BaseRef            = aContext.Handoff.BaseRef,
+				.AcquisitionMode    = git_smart_acquisition_mode::sparse_commit_trees,
+			};
+			const auto request = git_smart_managed_clone_refresh_request{ .Context = context, .Clone = aClone };
+			auto       outcome = git_smart_transport_result<void>{ std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::invalid_request } } };
+			if (application::valid(request) && aContext.Handoff.SmartGit) {
+				auto transport = aContext.Handoff.SmartGit->acquire(context);
+				outcome        = !transport ? git_smart_transport_result<void>{ std::unexpected{ transport.error() } }
+					: !*transport           ? git_smart_transport_result<void>{ std::unexpected{ git_smart_transport_error{ } } }
+											: (*transport)->refresh_managed_clone(request, aStop);
+			}
+			const auto failure = outcome                                                                      ? core::operation_failure::none
+				: outcome.error().Failure == git_smart_transport_failure::cancelled || aStop.stop_requested() ? core::operation_failure::cancelled
+																											  : core::operation_failure::refresh_failed;
+			record_operation(DiagnosticLog.get(), { .Action = core::operation_action::clone_refresh, .Failure = failure, .DurationMilliseconds = watch.milliseconds() });
+			return outcome.has_value();
+		}
+
 		/// \brief [[BPR-1879]]. Makes the clone BetterPullReview keeps for a
 		/// sparse review's repository, through the review's own lease.
 		///
@@ -7645,6 +7680,22 @@ namespace bpr::application {
 				auto lent               = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, aStop);
 				if (lent.has_value() || !cloneLacksHead) {
 					return lent;
+				}
+				// [[BPR-1884]], RFC-BPR-0092. The clone BetterPullReview keeps
+				// is brought up to the pull request instead, with no per-file
+				// bound, and lends the head; the next question's fetch is only
+				// what is newer. A fetch that fails leaves the clone as it was
+				// and the question goes on through the delta below.
+				if (aRequest.HistoryCloneManaged) {
+					if (refresh_managed_clone(*context, *aRequest.HistoryClone, aStop)) {
+						auto again = materialize_on_actor(actor, authorization, *authorizationGeneration, expected, fromClone, nullptr, cloneLacksHead, aStop);
+						if (again.has_value() || !cloneLacksHead) {
+							return again;
+						}
+					}
+					if (aStop.stop_requested()) {
+						return std::unexpected{ agent_workspace_failure::cancelled };
+					}
 				}
 				// [[BPR-1873]]. The clone lacks the head: only what it lacks is
 				// fetched, off the actor, under the review's own lease, into a
