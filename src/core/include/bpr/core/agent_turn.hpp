@@ -58,15 +58,32 @@ namespace bpr::core {
 	/// \brief The one way back an error turn offers.
 	enum class agent_turn_recovery : std::uint8_t {
 		none,
-		/// Send the turn's question again.
+		/// Send the turn's question again, as a new run. The run starts the
+		/// agent and makes its workspace, so it checks both as it goes
+		/// ([[BPR-1876]]).
 		ask_again,
-		/// Open the setup at Check it works and run the check.
-		check_setup,
 		/// Open the agent's settings: its program or protocol is wrong.
 		agent_settings,
 	};
 
 	[[nodiscard]] auto stable_name(agent_turn_recovery aRecovery) noexcept -> std::string_view;
+
+	/// \brief [[BPR-1876]]. The setup check whose passing says an error
+	/// turn's cause is gone.
+	enum class agent_turn_cause : std::uint8_t {
+		/// The ending names no cause a setup check can clear.
+		none,
+		/// The agent did not start: the setup's agent check.
+		agent_check,
+		/// The agent's workspace could not be made: the setup's workspace
+		/// check.
+		workspace_check,
+	};
+
+	[[nodiscard]] auto stable_name(agent_turn_cause aCause) noexcept -> std::string_view;
+
+	/// \brief The check that clears a turn's cause, for how it ended.
+	[[nodiscard]] auto agent_turn_cause_of(agent_turn_outcome aOutcome) noexcept -> agent_turn_cause;
 
 	/// \brief What the thread knows about one ended turn.
 	struct agent_turn_facts
@@ -78,6 +95,9 @@ namespace bpr::core {
 		bool Latest = false;
 		/// Another turn is running now.
 		bool Working = false;
+		/// [[BPR-1876]]. The check its cause names (`agent_turn_cause_of`)
+		/// has run again since the turn ended, and passed.
+		bool CausePassedSince = false;
 
 		auto operator<=>(const agent_turn_facts&) const = default;
 	};
@@ -94,6 +114,9 @@ namespace bpr::core {
 		bool                SaveNote     = false;
 		bool                DraftComment = false;
 		agent_turn_recovery Recovery     = agent_turn_recovery::none;
+		/// [[BPR-1876]]. The cause the error names is no longer true: it is
+		/// said as fixed since, not as how things stand.
+		bool FixedSince = false;
 
 		auto operator<=>(const agent_turn_actions&) const = default;
 	};
@@ -104,8 +127,12 @@ namespace bpr::core {
 	/// comment and is not an error. Every other outcome is an error: it keeps
 	/// Copy when it has words, never offers Save as note or Draft comment,
 	/// and, on the latest turn while nothing runs, offers one recovery: an
-	/// unreadable answer opens the agent's settings, a start or workspace
-	/// failure checks the setup again, and any other ending asks again.
+	/// unreadable answer opens the agent's settings, and every other ending,
+	/// a start or workspace failure among them, asks again. [[BPR-1876]]:
+	/// the owner, 2026-11-05, read a failed answer's Check again, which re-ran
+	/// only the setup check and left the old error up, as the check failing.
+	/// A start or workspace failure whose check has passed since is fixed
+	/// since, on any turn.
 	[[nodiscard]] auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions;
 
 	/// \brief What the Agent tab knows when it would show suggested prompts.

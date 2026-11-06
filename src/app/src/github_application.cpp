@@ -12856,7 +12856,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			auto* const tab = Window->agent_tab();
-			tab->adopt_setup(*Window->agent_setup(), [this] { check_agent_setup(); });
+			tab->adopt_setup(*Window->agent_setup());
 			tab->set_run_settings_dispatch([this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
 				return apply_run_settings(aProfile, std::move(aModel), std::move(aEffort));
 			});
