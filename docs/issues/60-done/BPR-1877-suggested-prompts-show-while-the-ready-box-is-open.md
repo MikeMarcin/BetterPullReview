@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1877"
 title: "Suggested prompts show while the agent-ready box is open"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind": "defect", "found_by": "owner, 2026-11-05: suggested prompts don't come up until the green '<agent> is ready' box is closed, which is confusing", "frontend_design": "frontend-design:frontend-design loaded before the change; no new visual language: the existing Ready card and prompt buttons, with the prompts placed straight under the card in the empty tab's line's place. Offscreen renders inspected light and dark."}
-parked_on: "human-review"
 acceptance: [{"criterion": "AC1 With a passing check and the ready box open, suggested prompts are visible and clickable; covered by a Qt test", "outcome": "pass", "revision": "4856202af", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(core_agent_turn|qt_workbench_window_scale_100|qt_workbench_agent_send_refusal)$'", "detail": "core: decide_agent_suggestions no longer takes a Ready fact (agent_turn_tests). Qt test_an_agent_error_is_an_error_and_suggestions_wait_for_setup: setup adopted, check passed, present_ready: the Ready card, the suggestions and their toggle are shown, Finish setup is not, every prompt button is visible and enabled, and clicking the first sends exactly its prompt as a chat message while the card stays open. test_the_agent_is_a_drawer_tab: with the Ready card open the suggestions show, enabled, below the card. A failing check still shows 'Suggested prompts appear once the agent is set up.' with Finish setup (unchanged assertion), now whatever else is on screen."}}, {"criterion": "AC2 The owner accepts the look (attended review)", "outcome": "pending", "revision": "4856202af", "evidence": {"kind": "observation", "detail": "Pending: attended session 02b279f80e5efa9486ed9be5d25ee4d5 (state /Users/jaeger/.codex/attended-review/bpr1877-v001-3DK7bz), candidate BPR-1877-prompts-beside-ready-v001, frozen root /Users/jaeger/BPR-attended/BPR-1877-v001.ccivjr31 (launcher --check passed)."}}, {"criterion": "AC3 python3 scripts/verify_documentation.py --root . passes", "outcome": "pass", "revision": "4856202af", "evidence": {"kind": "command", "command": "python3 scripts/verify_documentation.py --root .", "detail": "DOCUMENTATION_OK."}}]
 ---
 
@@ -76,3 +75,7 @@ Session `02b279f80e5efa9486ed9be5d25ee4d5`, state
 `/Users/jaeger/BPR-attended/BPR-1877-v001.ccivjr31` at 4856202af, launched with
 `python3 /Users/jaeger/BPR-attended/BPR-1877-v001.ccivjr31/launch.py`.
 Status: open, waiting on the owner.
+
+## Owner acceptance (2026-11-06)
+
+AC2 passed: the owner accepted `BPR-1877-prompts-beside-ready-v001` (session `02b279f80e5efa9486ed9be5d25ee4d5`, revision 4856202af) with no note.

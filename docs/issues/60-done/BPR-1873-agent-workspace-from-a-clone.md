@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1873"
 title: "An agent's workspace comes from a linked or BetterPullReview-managed clone, never a head snapshot download"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -294,3 +293,7 @@ clone without the transport's temporary-store limits, a cancellable
 background job with progress, its size from GitHub's `size`, a profile-owned
 location shown in Storage and removed by purge, then borrowed as the linked
 clone so later questions fetch only deltas. Recommended as its own card.
+
+## Owner acceptance (2026-11-06)
+
+The owner accepted `BPR-1873-no-clone-choice` (session `235e4b41566ab45170a77cfaf145db2b`, revision 2fdabb302) with no note. AC3 is met for the link and PR-only options; AC4 and the managed-clone option moved to BPR-1879.
