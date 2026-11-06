@@ -361,16 +361,18 @@ namespace bpr::qt {
 		switch (aReason) {
 		case reason::copy_failed:
 			return QObject::tr("The agent's copy of this pull request could not be made. Reopen the pull request, then check again.");
+		// [[BPR-1873]]. Only what the linked clone lacks is fetched; nothing
+		// is asked of the reviewer's clone.
 		case reason::download_failed:
-			return QObject::tr("The agent needs every file at this head, and this review holds only the files it shows. Downloading the rest failed. Check again, or show the log for the cause.");
+			return QObject::tr("Your clone doesn't have this head yet, and fetching the pull request's new objects for the agent failed. Check again, or show the log for the cause.");
 		case reason::connection_failed:
-			return QObject::tr("The agent needs every file at this head, and GitHub could not be reached to download them. Check the connection, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and GitHub could not be reached to fetch the pull request's new objects. Check the connection, then check again.");
 		case reason::sign_in_refused:
-			return QObject::tr("The agent needs every file at this head, and GitHub refused to send them to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and GitHub refused to send the pull request's new objects to the signed-in account. Check that gh is signed in with access to this repository, then check again.");
 		case reason::too_large:
-			return QObject::tr("The agent needs every file at this head, and this head is larger than the agent's private copy allows.");
-		case reason::too_large_not_in_clone:
-			return QObject::tr("This head is larger than the agent's private copy allows, and your clone doesn't have it yet. Fetch the pull request's branch in your clone, then check again.");
+			return QObject::tr("Your clone doesn't have this head yet, and the pull request's new objects are larger than the agent's private copy may fetch. Once your clone has the head, check again.");
+		case reason::clone_needed:
+			return QObject::tr("This review holds only the files it shows, and the agent works in a clone of the repository. Link your clone, then check again.");
 		}
 		return { };
 	}
@@ -383,8 +385,9 @@ namespace bpr::qt {
 		lines << (aFacts.Sparse && !aFacts.Clone ? QObject::tr("Changes: %1 files; no base to compare with in its copy").arg(aFacts.Files)
 												 : QObject::tr("Changes: %1 files; the diff is git diff %2...%3 in its workspace").arg(aFacts.Files).arg(text_of(aFacts.Base), text_of(aFacts.Head)));
 		lines << QObject::tr("Threads: %1 review threads, %2 unresolved").arg(aFacts.Threads).arg(aFacts.Unresolved);
-		lines << (aFacts.Clone ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
-							   : QObject::tr("Workspace: a private copy at the head"));
+		lines << (aFacts.Clone        ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
+					  : aFacts.Sparse ? QObject::tr("Workspace: only this pull request's files, at the head")
+									  : QObject::tr("Workspace: a private copy at the head"));
 		lines << QObject::tr("Review skill: bpr-pr-review, editable in Settings");
 		lines << QObject::tr("It may not: push, comment or change your checkout");
 		return lines.join(QLatin1Char{ '\n' });
@@ -576,7 +579,7 @@ namespace bpr::qt {
 		if (Clones.Linked && !Clones.Linked->PrivateCopy) {
 			return tr("a workspace with the history of %1 at %2").arg(shown_path(Clones.Linked->Path), text_of(Facts.Head));
 		}
-		return tr("a private copy at %1").arg(text_of(Facts.Head));
+		return Facts.Sparse ? tr("only this pull request's files at %1").arg(text_of(Facts.Head)) : tr("a private copy at %1").arg(text_of(Facts.Head));
 	}
 
 	auto agent_setup_view::ready_title() const -> QString { return tr("%1 is ready").arg(agent_name()); }
@@ -631,7 +634,7 @@ namespace bpr::qt {
 			QString          Title;
 			QString          Summary;
 		};
-		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? tr("A private copy") : shown_path(Clones.Linked->Path)) : QString{ };
+		const auto repository = Clones.Linked ? (Clones.Linked->PrivateCopy ? (Facts.Sparse ? tr("This pull request only") : tr("A private copy")) : shown_path(Clones.Linked->Path)) : QString{ };
 		const auto steps      = std::array{
 			step{ core::setup_step::agent, tr("Agent"), Setup.State.Chosen ? name_for(*Setup.State.Chosen) : QString{ } },
 			step{ core::setup_step::repository, tr("Repository"), repository },
@@ -889,14 +892,36 @@ namespace bpr::qt {
 		};
 		const auto privateCopy = [this, parent](const QString& aText) {
 			auto* const button = link_button(aText, parent, QStringLiteral("agentSetupPrivateCopy"));
-			button->setToolTip(Facts.Sparse ? tr("The head's files only, without history, branches, tags, LFS files or submodules")
-											: tr("The head and its history, without your branches, tags, LFS files or submodules"));
+			button->setToolTip(tr("The head and its history, without your branches, tags, LFS files or submodules"));
 			connect(button, &QPushButton::clicked, this, [this] {
 				if (Intents.UsePrivateCopy) {
 					Intents.UsePrivateCopy();
 				}
 			});
 			return button;
+		};
+		// [[BPR-1873]], owner decision 2026-11-05. A sparse review's head is
+		// never downloaded whole, so with no clone its agent sees only the
+		// pull request's files. That is the weaker answer, offered last and
+		// quietly, with its cost said plainly; linking a clone stays the
+		// default. The choice is remembered for the repository.
+		const auto withoutClone = [this, parent, &aBody, privateCopy](const QString& aCopyText) {
+			if (!Facts.Sparse) {
+				aBody.addWidget(privateCopy(aCopyText), 0, Qt::AlignLeft);
+				return;
+			}
+			auto* const only = link_button(tr("Ask about this pull request only"), parent, QStringLiteral("agentSetupPullRequestOnly"));
+			connect(only, &QPushButton::clicked, this, [this] {
+				if (Intents.UsePrivateCopy) {
+					Intents.UsePrivateCopy();
+				}
+			});
+			aBody.addWidget(only, 0, Qt::AlignLeft);
+			auto* const cost = muted(tr("Without a clone the agent sees only the files this pull request changes: no callers, tests or history, so its answers are weaker. "
+										"It is remembered for this repository; Settings \u203a Repositories changes it."),
+									 parent);
+			cost->setObjectName(QStringLiteral("agentSetupPullRequestOnlyCost"));
+			aBody.addWidget(cost);
 		};
 		if (Clones.Folders.empty()) {
 			auto* const ask = words(tr("Where do your clones live?"), parent);
@@ -964,7 +989,7 @@ namespace bpr::qt {
 				path->setText(shown_path(Clones.Suggestions.front()));
 				path->setToolTip(tr("Found on this computer: %1").arg(text_of(Clones.Suggestions.front())));
 			}
-			aBody.addWidget(privateCopy(tr("Use a private copy instead")), 0, Qt::AlignLeft);
+			withoutClone(tr("Use a private copy instead"));
 			return;
 		}
 		if (Clones.Discovering || !Clones.Discovered) {
@@ -989,7 +1014,7 @@ namespace bpr::qt {
 			row->addWidget(choose);
 			row->addStretch(1);
 			aBody.addLayout(row);
-			aBody.addWidget(privateCopy(tr("Use a private copy")), 0, Qt::AlignLeft);
+			withoutClone(tr("Use a private copy"));
 			auto* const edit = link_button(tr("Edit clone folders…"), parent, QStringLiteral("agentSetupEditFolders"));
 			connect(edit, &QPushButton::clicked, this, [this] {
 				if (Intents.OpenRepositorySettings) {
@@ -1055,7 +1080,7 @@ namespace bpr::qt {
 		row->addWidget(choose);
 		row->addStretch(1);
 		aBody.addLayout(row);
-		aBody.addWidget(privateCopy(tr("Use a private copy instead")), 0, Qt::AlignLeft);
+		withoutClone(tr("Use a private copy instead"));
 	}
 
 	void agent_setup_view::build_check(QVBoxLayout& aBody)
@@ -1161,7 +1186,7 @@ namespace bpr::qt {
 			});
 			buttons->addWidget(check);
 			if (failed(Setup.State.WorkspaceCheck) && !(Clones.Linked && Clones.Linked->PrivateCopy)) {
-				buttons->addWidget(link_button(tr("Use a private copy for now"), parent, QStringLiteral("agentSetupCheckPrivateCopy")));
+				buttons->addWidget(link_button(Facts.Sparse ? tr("Ask about this pull request only for now") : tr("Use a private copy for now"), parent, QStringLiteral("agentSetupCheckPrivateCopy")));
 				auto* const fallback = qobject_cast<QPushButton*>(buttons->itemAt(buttons->count() - 1)->widget());
 				connect(fallback, &QPushButton::clicked, this, [this] {
 					if (Intents.UsePrivateCopy) {

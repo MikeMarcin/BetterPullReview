@@ -38,8 +38,8 @@ namespace {
 		std::ifstream input{ BPR_TEST_REVIEW_SKILL, std::ios::binary };
 		const auto    text  = std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } };
 		const auto    facts = core::inspect_review_skill(text);
-		expect(!text.empty() && facts.has_value() && facts->Version == 3U && facts->Description.starts_with("Review one GitHub pull request"),
-			   "the shipped bpr-pr-review is a review skill of version 3");
+		expect(!text.empty() && facts.has_value() && facts->Version == 4U && facts->Description.starts_with("Review one GitHub pull request"),
+			   "the shipped bpr-pr-review is a review skill of version 4");
 		// [[BPR-1753]], owner decision (a) 2026-10-23: every review
 		// prompt answers with a summary, even with no finding; and decision
 		// (b): the conversation so far is the agent's to continue.

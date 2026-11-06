@@ -426,6 +426,7 @@ namespace {
 				&& panel.output_text().contains("partial result")
 				&& !panel.output_text().contains("foreign result"),
 			"the visible status discloses the accepted workspace and streams output");
+		expect(!panel.pull_request_files_only(), "a full workspace is not reported as the pull request's files only [[BPR-1873]]");
 		panel.finish(
 			foreignIdentity,
 			application::agent_run_result{
@@ -517,11 +518,11 @@ namespace {
 				&& panel.stop_reason_text().contains(QStringLiteral("ask again")),
 			"a workspace stop with no reason says the copy failed and what to do [[BPR-1738]]");
 		for (const auto& [reason, phrase] : std::array{
-				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("Downloading the rest failed.") },
+				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("fetching the pull request's new objects for the agent failed") },
 				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then ask again.") },
 				 std::pair{ application::agent_workspace_unavailable_reason::sign_in_refused, QStringLiteral("Check that gh is signed in") },
-				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("larger than the agent's private copy allows") },
-				 std::pair{ application::agent_workspace_unavailable_reason::too_large_not_in_clone, QStringLiteral("Fetch the pull request's branch in your clone") },
+				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("the pull request's new objects are larger") },
+				 std::pair{ application::agent_workspace_unavailable_reason::clone_needed, QStringLiteral("Link your clone") },
 			 }) {
 			const auto reasoned = identity(40U + static_cast<std::uint64_t>(reason));
 			panel.admit(reasoned);
@@ -554,7 +555,8 @@ namespace {
 			"foreign generations cannot replace, start, or finish the admitted invocation");
 		panel.start(
 			active,
-			application::prepared_workspace{ .Path = "/tmp/exact" });
+			application::prepared_workspace{ .Path = "/tmp/exact", .Shallow = true });
+		expect(panel.pull_request_files_only(), "a shallow workspace is the pull request's files only, which the turn then says [[BPR-1873]]");
 		finish(active, application::agent_run_outcome::cancelled);
 		expect(
 			panel.status_text() == "Finished: cancelled",

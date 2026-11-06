@@ -23,6 +23,7 @@
 #include <future>
 #include <iostream>
 #include <iterator>
+#include <map>
 #include <optional>
 #include <random>
 #include <semaphore.h>
@@ -537,9 +538,10 @@ namespace {
 			if (aArguments.size() == 21 && ((!chainDepth && aArguments[19] != "--depth=1") || aArguments[20] != "--filter=blob:none")) {
 				return 6;
 			}
-			// [[BPR-1738]]. A workspace snapshot asks for one generation
-			// with every blob.
-			if (aArguments.size() == 20 && aArguments[19] != "--depth=1") {
+			// [[BPR-1873]]. A workspace delta borrows the reviewer's clone and
+			// asks for no depth; no other twenty-argument clone exists.
+			const auto delta = aArguments.size() == 20 && aArguments[19].startsWith("--reference=/");
+			if (aArguments.size() == 20 && !delta) {
 				return 6;
 			}
 			if (chainDepth) {
@@ -563,6 +565,32 @@ namespace {
 					out << block;
 				}
 				return 4;
+			}
+			if (delta) {
+				// As stock gh does when Git dies at the per-file limit: a pack
+				// at the limit is left behind and the clone exits non-zero.
+				if (std::filesystem::exists(root / "limit-exit")) {
+					std::ofstream     out(target.parent_path() / "oversize", std::ios::binary);
+					const std::string block(65536, 'x');
+					for (int i = 0; i < 512; ++i) {
+						out << block;
+					}
+					return 1;
+				}
+				// Real Git clones the fixture source with the same flags, so the
+				// negotiation and the objects received are Git's own.
+				auto arguments = QStringList{ "clone" };
+				arguments << aArguments.mid(7);
+				arguments << QStringLiteral("file://%1").arg(QString::fromStdString((root / "source.git").string())) << aArguments[4];
+				auto environment = QProcessEnvironment::systemEnvironment();
+				environment.insert("GIT_ALLOW_PROTOCOL", "file");
+				QProcess process;
+				process.setProcessEnvironment(environment);
+				process.start("/usr/bin/git", arguments);
+				if (!process.waitForFinished(30000) || process.exitStatus() != QProcess::NormalExit) {
+					return 7;
+				}
+				return process.exitCode() == 0 ? 0 : 8;
 			}
 			std::error_code error;
 			std::filesystem::copy(root / "source.git", target, std::filesystem::copy_options::recursive, error);
@@ -1567,47 +1595,119 @@ namespace {
 			std::filesystem::remove(root / "chain-omitted");
 		}
 		{
-			// [[BPR-1738]]. An agent workspace's snapshot: one generation
-			// with every blob, packed with the head as its shallow boundary.
+			// [[BPR-1873]]. An agent workspace's delta: a clone of the head
+			// that borrows the reviewer's linked clone, so only what the clone
+			// lacks is received; the pack handed on holds exactly that, and the
+			// clone is not written. The fake runs real Git for this clone.
 			const auto commitOf = [](const QString& aHex) { return *core::parse_git_commit_oid(aHex.toStdString()); };
-			const auto request  = application::git_smart_workspace_snapshot_request{ .Context = sparseContext, .Head = commitOf(head) };
+			const auto reviewer = std::filesystem::canonical(root) / "reviewer";
+			git(root, { "init", "--quiet", QString::fromStdString(reviewer.string()) });
+			const auto reviewerScope = "--git-dir=" + QString::fromStdString((reviewer / ".git").string());
+			git(root, { scope, "pack-objects", "--revs", "--quiet", QString::fromStdString((reviewer / ".git" / "objects" / "pack" / "pack").string()) }, base + "\n");
+			git(root, { reviewerScope, "update-ref", "refs/heads/main", base });
+			const auto reviewerFiles = [&reviewer] {
+				auto files = std::map<std::string, std::string>{ };
+				for (const auto& entry : std::filesystem::recursive_directory_iterator{ reviewer }) {
+					if (entry.is_regular_file()) {
+						std::ifstream input{ entry.path(), std::ios::binary };
+						files.emplace(entry.path().generic_string(), std::string{ std::istreambuf_iterator<char>{ input }, std::istreambuf_iterator<char>{ } });
+					}
+				}
+				return files;
+			};
+			const auto before = reviewerFiles();
+			// Git's `clone --revision` names a commit the source advertises, as
+			// GitHub advertises a pull request's head; the fixture's default
+			// branch points at the head while the delta is cloned.
+			const auto defaultBranch = git(root, { scope, "symbolic-ref", "HEAD" });
+			git(root, { scope, "update-ref", QString::fromUtf8(defaultBranch), head });
+			const auto request = application::git_smart_workspace_delta_request{ .Context = sparseContext, .Head = commitOf(head), .Clone = reviewer };
 			{
 				QTemporaryDir cloneTemporary{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
 				const auto    cloneRoot = std::filesystem::canonical(cloneTemporary.path().toStdString());
-				const auto    clone     = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U,
-																		   gh_cli_clone_content::snapshot);
-				const auto    deep      = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 2U,
-																		   gh_cli_clone_content::snapshot);
-				const auto    complete  = compile_gh_cli_git_clone_request(*configuration, *profile, context, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U,
-																		   gh_cli_clone_content::snapshot);
-				expect(clone && std::ranges::find(clone->Arguments, std::string{ "--depth=1" }) != clone->Arguments.end()
-						   && std::ranges::find(clone->Arguments, std::string{ "--filter=blob:none" }) == clone->Arguments.end() && !deep && !complete,
-					   "the snapshot clone asks for one generation with blobs; deeper, or for a complete review, it is refused");
+				const auto    delta     = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 0U,
+																		   gh_cli_clone_content::delta, reviewer);
+				const auto    deep      = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U,
+																		   gh_cli_clone_content::delta, reviewer);
+				const auto    complete  = compile_gh_cli_git_clone_request(*configuration, *profile, context, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 0U,
+																		   gh_cli_clone_content::delta, reviewer);
+				const auto    relative  = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 0U,
+																		   gh_cli_clone_content::delta, "reviewer");
+				const auto    borrowed  = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U,
+																		   gh_cli_clone_content::trees, reviewer);
+				const auto    has       = [](const auto& aRequest, std::string_view aPrefix) {
+					return std::ranges::any_of(aRequest->Arguments, [aPrefix](const std::string& aArgument) { return aArgument.starts_with(aPrefix); });
+				};
+				expect(delta && has(delta, "--reference=" + reviewer.string()) && !has(delta, "--depth") && !has(delta, "--filter") && !deep && !complete && !relative
+						   && !borrowed,
+					   "the delta clone borrows the linked clone with no depth and no filter; with a depth, for a complete review, a relative clone, or on a trees clone, it is refused");
+				// AC6: no clone takes a head's blobs without its history.
+				for (const auto depth : { 1U, 3U, 251U }) {
+					const auto trees = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, depth);
+					expect(trees && has(trees, "--depth=") && has(trees, "--filter=blob:none"), "every clone with a depth leaves the blobs out");
+				}
+				const auto whole = compile_gh_cli_git_clone_request(*configuration, *profile, context, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U);
+				expect(whole && !has(whole, "--depth") && !has(whole, "--reference"), "a complete review's clone takes the whole history, as before");
 			}
-			auto snapshot = (*sparseTransport)->acquire_workspace_snapshot(request, { });
-			expect(snapshot && *snapshot && (*snapshot)->head() == commitOf(head), "the head's snapshot is acquired through the sparse lease");
-			const auto snapshotPack = (*snapshot)->pack();
-			expect(snapshotPack.is_absolute() && std::filesystem::file_size(snapshotPack) == (*snapshot)->pack_bytes()
-					   && (std::filesystem::status(snapshotPack).permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all))
+			auto acquired = (*sparseTransport)->acquire_workspace_delta(request, { });
+			if (!acquired) {
+				std::cerr << "delta failure " << static_cast<int>(acquired.error().Failure) << " step " << static_cast<int>(acquired.error().Step) << '\n';
+			}
+			expect(acquired && *acquired && (*acquired)->head() == commitOf(head), "what the clone lacks of the head is acquired through the sparse lease");
+			const auto deltaPack = (*acquired)->pack();
+			expect(deltaPack.is_absolute() && std::filesystem::file_size(deltaPack) == (*acquired)->pack_bytes()
+					   && (std::filesystem::status(deltaPack).permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all))
 						   == std::filesystem::perms::none,
-				   "the snapshot is one owner-private pack of the size it states");
-			QFile packFile{ QString::fromStdString(snapshotPack.string()) };
-			expect(packFile.open(QIODevice::ReadOnly), "the snapshot pack can be read");
-			const auto snapshotBytes  = packFile.readAll();
-			const auto snapshotVerify = root / "snapshot-verify.git";
-			git(root, { "init", "--bare", QString::fromStdString(snapshotVerify.string()) });
-			const auto snapshotScope = "--git-dir=" + QString::fromStdString(snapshotVerify.string());
-			git(root, { snapshotScope, "index-pack", "--stdin" }, snapshotBytes);
-			const auto snapshotInventory = git(root, { snapshotScope, "cat-file", "--batch-all-objects", "--batch-check=%(objecttype)" });
-			expect(snapshotInventory.count("commit") == 1 && snapshotInventory.contains("blob"), "the snapshot carries the head and its blobs, and no ancestor");
-			expect(git(root, { snapshotScope, "cat-file", "-p", QString::fromUtf8(head) + ":file.txt" }) == "changed local contents"
-					   && git(root, { snapshotScope, "cat-file", "-p", QString::fromUtf8(head) + ":secondary.txt" }) == "secondary head contents",
-				   "every file at the head is in the snapshot");
+				   "the delta is one owner-private pack of the size it states");
+			const auto    store = deltaPack.parent_path() / "clone-0.git";
+			std::ifstream alternates{ store / "objects" / "info" / "alternates" };
+			auto          borrowedObjects = std::string{ };
+			std::getline(alternates, borrowedObjects);
+			expect(std::filesystem::path{ borrowedObjects } == reviewer / ".git" / "objects", "the private store borrows the linked clone's objects");
+			QFile packFile{ QString::fromStdString(deltaPack.string()) };
+			expect(packFile.open(QIODevice::ReadOnly), "the delta pack can be read");
+			const auto deltaBytes  = packFile.readAll();
+			const auto deltaVerify = root / "delta-verify.git";
+			git(root, { "init", "--bare", QString::fromStdString(deltaVerify.string()) });
+			const auto deltaScope = "--git-dir=" + QString::fromStdString(deltaVerify.string());
+			git(root, { deltaScope, "index-pack", "--stdin" }, deltaBytes);
+			const auto deltaInventory = git(root, { deltaScope, "cat-file", "--batch-all-objects", "--batch-check=%(objectname) %(objecttype)" });
+			auto       received       = QStringList{ };
+			for (const auto& line : deltaInventory.split('\n')) {
+				received << QString::fromUtf8(line);
+			}
+			received.sort();
+			auto expected = QStringList{ QString::fromUtf8(head + " commit"), QString::fromUtf8(tree + " tree"), QString::fromUtf8(changedBlob + " blob"),
+										 QString::fromUtf8(changedSecondaryBlob + " blob") };
+			expected.sort();
+			expect(received == expected, "AC1: the self-contained pack holds exactly the head's new commit, tree and blobs, and nothing the clone holds");
+			expect(git(root, { deltaScope, "cat-file", "-p", QString::fromUtf8(head) + ":file.txt" }) == "changed local contents",
+				   "the head's changed file is in the delta");
+			expect(reviewerFiles() == before, "AC1: the linked clone's refs, objects and configuration are byte-identical before and after");
 			auto completeRequest    = request;
 			completeRequest.Context = context;
-			expect(!(*sparseTransport)->acquire_workspace_snapshot(completeRequest, { }), "a complete review never asks for a snapshot");
-			snapshot = std::unexpected{ application::git_smart_transport_error{ } };
-			expect(!std::filesystem::exists(snapshotPack), "the snapshot's pack goes with it");
+			expect(!(*sparseTransport)->acquire_workspace_delta(completeRequest, { }), "a complete review never asks for a delta");
+			auto relativeRequest  = request;
+			relativeRequest.Clone = "reviewer";
+			expect(!(*sparseTransport)->acquire_workspace_delta(relativeRequest, { }), "a clone that is not an absolute folder is refused");
+			auto absentRequest  = request;
+			absentRequest.Clone = reviewer.parent_path() / "absent-clone";
+			const auto absent   = (*sparseTransport)->acquire_workspace_delta(absentRequest, { });
+			expect(!absent && absent.error().Failure == application::git_smart_transport_failure::invalid_request, "a clone folder that does not exist is refused");
+			acquired = std::unexpected{ application::git_smart_transport_error{ } };
+			expect(!std::filesystem::exists(deltaPack), "the delta's pack goes with it");
+			// AC7: a clone that stopped at the per-file limit is a size wall,
+			// whether the kernel ends the process or Git exits non-zero.
+			for (const auto* mode : { "overflow", "limit-exit" }) {
+				write(root / mode, "1");
+				const auto walled = (*sparseTransport)->acquire_workspace_delta(request, { });
+				std::filesystem::remove(root / mode);
+				expect(!walled && walled.error().Failure == application::git_smart_transport_failure::response_limit
+						   && walled.error().Step == application::git_smart_transport_step::clone,
+					   "a delta over the per-file limit is reported as a size limit at the clone, never as unreadable");
+			}
+			expect(reviewerFiles() == before, "and the clone is still untouched");
+			git(root, { scope, "update-ref", "-d", QString::fromUtf8(defaultBranch) });
 		}
 		const auto expectCliRefusal = [&](std::string_view aWhy, application::git_smart_transport_step aStep, application::git_smart_transport_failure aFailure) {
 			// The sandboxed fake cannot record calls, so a viewer read or clone

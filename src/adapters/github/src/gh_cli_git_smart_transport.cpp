@@ -72,6 +72,23 @@ namespace bpr::adapters::github::detail {
 			return directory;
 		}
 
+		/// [[BPR-1873]]. Whether a file under \p aRoot reached the runner's
+		/// per-file limit: Git stopped by `RLIMIT_FSIZE` dies with its pack
+		/// unfinished, and its clone then only exits non-zero. Said apart so a
+		/// size wall is reported as one, never as an unreadable head.
+		[[nodiscard]] auto reached_file_limit(const std::filesystem::path& aRoot) -> bool
+		{
+			std::error_code error;
+			auto            entries = std::filesystem::recursive_directory_iterator{ aRoot, std::filesystem::directory_options::none, error };
+			for (std::size_t seen = 0U; !error && entries != std::filesystem::recursive_directory_iterator{ } && seen < 4096U; entries.increment(error), ++seen) {
+				std::error_code entryError;
+				if (entries->is_regular_file(entryError) && !entryError && entries->file_size(entryError) >= pack_limit && !entryError) {
+					return true;
+				}
+			}
+			return false;
+		}
+
 		/// The canonical path of \p aDirectory, which a clone request admits
 		/// only when it is already canonical; empty when it cannot be resolved.
 		[[nodiscard]] auto clone_root_path(const QTemporaryDir& aDirectory) -> std::filesystem::path
@@ -445,13 +462,14 @@ namespace bpr::adapters::github::detail {
 			std::mutex                               Mutex;
 		};
 
-		/// \brief [[BPR-1738]]. One commit's snapshot pack, kept in the
-		/// transport's private temporary root until the host lets it go.
-		class gh_cli_workspace_snapshot final : public git_workspace_snapshot
+		/// \brief [[BPR-1873]]. What a linked clone lacks of one head, as a
+		/// pack kept in the transport's private temporary root until the host
+		/// lets it go.
+		class gh_cli_workspace_delta final : public git_workspace_delta
 		{
 		public:
-			gh_cli_workspace_snapshot(std::unique_ptr<QTemporaryDir> aDirectory, const core::git_commit_oid& aHead, std::filesystem::path aPack,
-									  const std::uint64_t aBytes)
+			gh_cli_workspace_delta(std::unique_ptr<QTemporaryDir> aDirectory, const core::git_commit_oid& aHead, std::filesystem::path aPack,
+								   const std::uint64_t aBytes)
 				: Directory{ std::move(aDirectory) }
 				, Head{ aHead }
 				, Pack{ std::move(aPack) }
@@ -805,12 +823,12 @@ namespace bpr::adapters::github::detail {
 				}
 			}
 
-			/// \brief [[BPR-1738]]. Clones one commit with every blob and no
-			/// ancestor, under the same qualification, identity observations and
-			/// bounds as an epoch's sparse acquisition, and packs it for an agent
-			/// workspace.
-			auto acquire_workspace_snapshot(const git_smart_workspace_snapshot_request& aRequest, std::stop_token aStop)
-				-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>> override
+			/// \brief [[BPR-1873]]. Fetches what a linked clone lacks of one
+			/// head, under the same qualification, identity observations and
+			/// bounds as an epoch's sparse acquisition, and packs exactly that
+			/// for an agent workspace.
+			auto acquire_workspace_delta(const git_smart_workspace_delta_request& aRequest, std::stop_token aStop)
+				-> git_smart_transport_result<std::shared_ptr<git_workspace_delta>> override
 			{
 				std::lock_guard lock{ Mutex };
 				auto            step = git_smart_transport_step::admission;
@@ -824,7 +842,7 @@ namespace bpr::adapters::github::detail {
 				std::stop_callback external{ aStop, [&] { stop.request_stop(); } };
 				std::stop_callback revoked{ Revocation.get_token(), [&] { stop.request_stop(); } };
 				try {
-					auto result = acquire_snapshot(aRequest.Head, stop.get_token(), step);
+					auto result = acquire_delta(aRequest.Head, aRequest.Clone, stop.get_token(), step);
 					if (!result) {
 						result.error().Step = step;
 					}
@@ -1053,14 +1071,26 @@ namespace bpr::adapters::github::detail {
 				return std::make_shared<gh_cli_chain_tree_store>(std::move(directory), root, Configuration, Git, std::move(process), aRequest.Commits);
 			}
 
-			/// \brief [[BPR-1738]]. A sparse review's cache holds no blobs, so
-			/// an agent workspace's files come from this one-generation clone.
-			/// The pack names the commit as a shallow boundary: its parents are
-			/// never sent, and nothing that reads it walks past the commit.
-			auto acquire_snapshot(const core::git_commit_oid& aHead, std::stop_token aStop, git_smart_transport_step& aStep)
-				-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>>
+			/// \brief [[BPR-1873]]. A sparse review's cache holds no blobs, so
+			/// an agent workspace borrows the linked clone, and this fetches only
+			/// what the clone lacks of the head.
+			///
+			/// \details `gh repo clone` with `--reference` makes a private store
+			/// that borrows the clone through one alternates line, so Git's
+			/// negotiation offers the clone's refs as haves and the server sends
+			/// only the missing objects. Nothing is written to the clone: on macOS
+			/// the clone's `gh` may write only inside the temporary root. The pack
+			/// handed on holds exactly the objects reachable from the head and
+			/// from no ref of the clone, and is self-contained.
+			auto acquire_delta(const core::git_commit_oid& aHead, const std::filesystem::path& aClone, std::stop_token aStop,
+							   git_smart_transport_step& aStep) -> git_smart_transport_result<std::shared_ptr<git_workspace_delta>>
 			{
-				aStep                = git_smart_transport_step::temporary_store;
+				aStep = git_smart_transport_step::temporary_store;
+				std::error_code cloneError;
+				const auto      clone = std::filesystem::canonical(aClone, cloneError);
+				if (cloneError || clone != aClone || !std::filesystem::is_directory(clone, cloneError) || cloneError) {
+					return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
+				}
 				auto       directory = make_clone_root();
 				const auto root      = directory ? clone_root_path(*directory) : std::filesystem::path{ };
 				if (root.empty()) {
@@ -1073,7 +1103,7 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				process->set_insights_channel(Insights);
-				if (auto qualified = qualify(*process, root, aStop, aStep, true); !qualified) {
+				if (auto qualified = qualify(*process, root, aStop, aStep, false, true); !qualified) {
 					return std::unexpected{ qualified.error() };
 				}
 				auto credential = acquire_gh_cli_credential(*process, Configuration, aStop);
@@ -1093,7 +1123,7 @@ namespace bpr::adapters::github::detail {
 						return std::unexpected{ git_smart_transport_error{ *error } };
 					}
 					aStep                 = git_smart_transport_step::clone;
-					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aHead, Git, root, 0U, 1U, gh_cli_clone_content::snapshot);
+					const auto invocation = compile_gh_cli_git_clone_request(Configuration, Profile, Context, aHead, Git, root, 0U, 0U, gh_cli_clone_content::delta, clone);
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
@@ -1104,10 +1134,12 @@ namespace bpr::adapters::github::detail {
 					cloneProcess->set_insights_channel(Insights);
 					const auto cloned = run_gh_cli(*cloneProcess, Configuration, *invocation, aStop, *credential);
 					if (!cloned) {
-						return std::unexpected{ git_smart_transport_error{ process_error(cloned.error()) } };
+						const auto ended = process_error(cloned.error());
+						return std::unexpected{ git_smart_transport_error{ ended == failure::unavailable && reached_file_limit(root) ? failure::response_limit : ended } };
 					}
 					if (cloned->ExitCode != 0) {
-						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+						// A pack stopped at the per-file limit is a size wall.
+						return std::unexpected{ git_smart_transport_error{ reached_file_limit(root) ? failure::response_limit : failure::unavailable } };
 					}
 					aStep            = git_smart_transport_step::identity_after;
 					const auto after = viewer(identity, aStop);
@@ -1131,24 +1163,29 @@ namespace bpr::adapters::github::detail {
 				if (commit->ExitCode != 0 || tree->ExitCode != 0 || commit->StandardOutput != "commit\n" || tree->StandardOutput != "tree\n") {
 					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
 				}
-				// The commit is the boundary whatever the clone recorded, so the
-				// pack below carries no parent even where the clone has one.
-				aStep = git_smart_transport_step::local_store;
-				{
-					std::ofstream shallow{ store / "shallow", std::ios::binary | std::ios::trunc };
-					shallow << hex << '\n';
-					shallow.close();
-					if (!shallow) {
-						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
-					}
+				// What the clone lacks: the objects reachable from the head and
+				// from no ref of the clone. The received pack is not handed on
+				// as it is, because completing its thin deltas copied in bases
+				// the clone already holds.
+				aStep                              = git_smart_transport_step::local_store;
+				auto missingRequest                = local_request(root, { scope, "rev-list", "--objects", "--no-object-names", hex, "--not", "--alternate-refs" });
+				missingRequest.StandardOutputLimit = github_cli_process_max_standard_input_bytes;
+				const auto missing                 = process->run(missingRequest, aStop);
+				if (!missing) {
+					return std::unexpected{ git_smart_transport_error{ aStop.stop_requested() ? failure::cancelled : process_error(missing.error()) } };
+				}
+				if (missing->ExitCode != 0 || !missing->StandardOutput.starts_with(hex + "\n")) {
+					return std::unexpected{ git_smart_transport_error{ failure::malformed_response } };
 				}
 				aStep                  = git_smart_transport_step::local_pack;
-				const auto spool       = root / "snapshot.pack";
+				const auto spool       = root / "delta.pack";
 				auto       packProcess = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, spool, false, Git });
 				if (!packProcess) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				const auto      packed = packProcess->run(local_request(root, { scope, "pack-objects", "--stdout", "--revs", "--quiet" }, hex + "\n"), aStop);
+				auto packRequest               = local_request(root, { scope, "pack-objects", "--stdout", "--quiet" }, missing->StandardOutput);
+				packRequest.StandardInputLimit = github_cli_process_max_standard_input_bytes;
+				const auto      packed         = packProcess->run(packRequest, aStop);
 				std::error_code sizeError;
 				const auto      bytes = std::filesystem::file_size(spool, sizeError);
 				if (!packed || packed->ExitCode != 0) {
@@ -1172,14 +1209,15 @@ namespace bpr::adapters::github::detail {
 				if (sizeError) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
-				return std::make_shared<gh_cli_workspace_snapshot>(std::move(directory), aHead, spool, bytes);
+				return std::make_shared<gh_cli_workspace_delta>(std::move(directory), aHead, spool, bytes);
 			}
 
 			/// \brief Proves this `gh` and Git, by version and local help, before
 			/// any credentialed use: every operation either acquisition path
-			/// invokes, and the clone options its mode needs.
+			/// invokes, and the clone options its mode needs. [[BPR-1873]]. A
+			/// workspace delta also needs `--reference`.
 			auto qualify(github_cli_process_port& aProcess, const std::filesystem::path& aRoot, std::stop_token aStop,
-						 git_smart_transport_step& aStep, const bool aDeepen = false) -> git_smart_transport_result<void>
+						 git_smart_transport_step& aStep, const bool aDeepen = false, const bool aReference = false) -> git_smart_transport_result<void>
 			{
 				auto*       process  = &aProcess;
 				const auto& root     = aRoot;
@@ -1236,6 +1274,7 @@ namespace bpr::adapters::github::detail {
 					|| !clone_option_available(capability->StandardOutput, "bare")
 					|| !clone_option_available(capability->StandardOutput, "template")
 					|| !clone_option_available(capability->StandardOutput, "config")
+					|| (aReference && !clone_option_available(capability->StandardOutput, "reference"))
 					|| ((Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees || aDeepen)
 						&& (!clone_option_available(capability->StandardOutput, "filter") || !clone_option_available(capability->StandardOutput, "depth")))) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
