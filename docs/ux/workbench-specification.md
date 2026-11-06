@@ -2612,8 +2612,16 @@ card is drawn in the danger look the stopped banner uses, it keeps Copy (the
 error's words and what the agent wrote to its error stream) and never offers
 Save as note or Draft comment. The thread's latest error, while nothing runs,
 offers one way back: **Agent settings…** for an answer this app cannot read,
-**Check again** for a start or workspace failure, and **Ask again** for any
-other ending. How each turn ended is kept with the thread, so a thread opened
+and **Ask again** for any other ending, a start or workspace failure among
+them ([[BPR-1876]]): it sends the same question again as a new run, which
+starts the agent and makes its workspace and so checks both as it goes. Once
+the setup's check of what a start or workspace failure names has run again
+and passed, that error says so: its card leaves the danger look for the plain
+one and opens with a green check and "Fixed since: <agent> passed its check."
+(or "the workspace check passed."), with "Ask again to send this question
+now." on the latest, and the stopped banner stands down; while the check has
+not passed since, it shows its cause as before. The setup's own check keeps
+its Check and Check again in the setup. How each turn ended is kept with the thread, so a thread opened
 again presents its errors the same way. A file and line a
 question or an answer names (`path:34`, `path line 34`, `path lines 34–36`,
 "before the change" for the base, and in an answer a bare "line 34" when the
@@ -2687,8 +2695,8 @@ agent is running, the time it has taken, its latest line, and Stop), finished
 (how many findings, or that its answer is below, or that it found nothing),
 head moved (Start
 a new session or Continue on the old head) and stopped (what happened, the
-question kept, Ask again and Show the log; Check again when the Ask ended
-because the workspace could not be made or the agent did not start).
+question kept, Ask again and Show the log, whatever the cause; hidden once
+the latest turn says its cause is fixed since).
 A send asks the agent the pill shows, whatever agent the conversation used
 before; choosing another agent starts that agent's conversation
 ([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner

@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1876"
 title: "A failed agent answer offers Ask again, and says when its cause is fixed"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
