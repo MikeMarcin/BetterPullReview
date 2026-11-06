@@ -4092,7 +4092,7 @@ namespace {
 					},
 					.ParentDirectory = workspaceParent.Path,
 				},
-				.Delta = std::move(aDelta),
+				.Source = { .Delta = std::move(aDelta), .PullRequestFiles = std::nullopt },
 			};
 			if (aBorrow) {
 				made.Materialization.HistoryClone = clone;
@@ -4132,6 +4132,35 @@ namespace {
 		require(cloneFiles() == cloneBefore, "the linked clone's files are byte-identical before and after");
 		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the workspace cleans up normally");
 		require(cloneFiles() == cloneBefore, "and cleaning it up leaves the clone untouched");
+
+		// [[BPR-1873]]. No clone: the workspace holds only the pull request's
+		// files, from the cache's commit and trees and the bytes the host read.
+		const auto codeBytes = std::string{ "int main() { return 0; }\n" };
+		auto       prFile    = application::git_workspace_file{ };
+		prFile.Path          = "src/main.cpp";
+		prFile.Mode          = 0100644U;
+		prFile.Blob          = core::git_blob_oid{ core::git_hash_algorithm::sha1, object<application::git_blob_id>(code, application::git_hash_algorithm::sha1).Digest };
+		prFile.Bytes         = std::vector<std::uint8_t>{ codeBytes.begin(), codeBytes.end() };
+		const auto prOnly    = [&](const std::uint64_t aSession, std::vector<application::git_workspace_file> aFiles, const bool aBorrow = false) {
+			auto asked                    = request(aSession, std::nullopt, aBorrow);
+			asked.Source.PullRequestFiles = std::move(aFiles);
+			return asked;
+		};
+		auto wrongBytes = prFile;
+		wrongBytes.Bytes.push_back('x');
+		require(!adapter->materialize_agent_workspace(prOnly(6U, { wrongBytes }), { }).has_value(), "a file whose bytes are not its blob is refused");
+		require(!adapter->materialize_agent_workspace(prOnly(7U, { prFile }, true), { }).has_value(), "pull request files with a clone to borrow are refused");
+		require(std::filesystem::is_empty(workspaceParent.Path), "the refused pull-request-only workspaces leave nothing behind");
+		const auto pullRequestOnly = adapter->materialize_agent_workspace(prOnly(8U, { prFile }), { });
+		require(pullRequestOnly.has_value(), "a sparse review with no clone gets a workspace of the pull request's files");
+		const auto onlyPath = std::filesystem::path{ pullRequestOnly->Workspace.Path };
+		require(read_text(onlyPath / "src" / "main.cpp") == codeBytes && !std::filesystem::exists(onlyPath / "README.md"),
+				"AC5: it holds exactly the pull request's files at the head");
+		require(pullRequestOnly->Workspace.Shallow && !pullRequestOnly->Workspace.BorrowsHistory && read_text(onlyPath / ".git" / "shallow") == head + "\n",
+				"it is shallow at the head and borrows nothing, so the brief says it holds the pull request's files only");
+		require(run_fixture_git(onlyPath / ".git", { "rev-parse", "HEAD" }) == head && run_fixture_git(onlyPath / ".git", { "status", "--porcelain" }, { }, false).empty(),
+				"its HEAD is the head and git status is clean, though the rest of the head is absent");
+		require(adapter->cleanup_agent_workspace(*pullRequestOnly, { }).has_value() && !std::filesystem::exists(onlyPath), "and it cleans up");
 	}
 
 	/// [[BPR-1751]], RFC-BPR-0092 Q7. A workspace that borrows a linked

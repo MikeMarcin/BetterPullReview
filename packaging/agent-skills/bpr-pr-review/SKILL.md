@@ -3,7 +3,7 @@ name: bpr-pr-review
 description: "Review one GitHub pull request that BetterPullReview hands you with a review brief and a workspace at its exact head: read the brief, follow the change through the code, verify each finding before reporting it, say whether the pull request introduced it, and say what you could not verify. Use when a BetterPullReview review request names this skill."
 compatibility: Works in any harness BetterPullReview starts (Claude Code, Codex or a plain-text harness). Needs only the brief on standard input and the workspace as the working directory; no BetterPullReview command, network access or credential.
 metadata:
-  bpr-version: 3
+  bpr-version: 4
   role: review-method
 ---
 
@@ -58,7 +58,7 @@ The brief names the pull request, its title and description, the base branch and
 
 - `linked_clone_history`: the head's files, with the history of the reviewer's own clone readable through Git. `git log`, `git blame` and `git diff BASE...HEAD` work.
 - `private_copy`: the head's files and history from BetterPullReview's own copy. The same commands work.
-- `private_snapshot`: the head's files only, without history, branches, tags, LFS files or submodules. There is no base to compare with; say so when a comparison would have mattered.
+- `private_snapshot`: only the files this pull request changes, at the head. The rest of the repository, its history, branches, tags, LFS files and submodules are absent, and there is no base to compare with. Say plainly at the start of your answer that you saw only the pull request's files, and say what a clone of the repository would have let you check, such as callers and history.
 
 ## Follow the change through the code
 

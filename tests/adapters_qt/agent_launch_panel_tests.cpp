@@ -426,6 +426,7 @@ namespace {
 				&& panel.output_text().contains("partial result")
 				&& !panel.output_text().contains("foreign result"),
 			"the visible status discloses the accepted workspace and streams output");
+		expect(!panel.pull_request_files_only(), "a full workspace is not reported as the pull request's files only [[BPR-1873]]");
 		panel.finish(
 			foreignIdentity,
 			application::agent_run_result{
@@ -554,7 +555,8 @@ namespace {
 			"foreign generations cannot replace, start, or finish the admitted invocation");
 		panel.start(
 			active,
-			application::prepared_workspace{ .Path = "/tmp/exact" });
+			application::prepared_workspace{ .Path = "/tmp/exact", .Shallow = true });
+		expect(panel.pull_request_files_only(), "a shallow workspace is the pull request's files only, which the turn then says [[BPR-1873]]");
 		finish(active, application::agent_run_outcome::cancelled);
 		expect(
 			panel.status_text() == "Finished: cancelled",

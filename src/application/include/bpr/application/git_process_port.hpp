@@ -205,17 +205,32 @@ namespace bpr::application {
 		auto operator<=>(const git_workspace_delta_pack&) const = default;
 	};
 
+	/// \brief [[BPR-1873]]. What a workspace is made from besides the cache.
+	///
+	/// \details `Delta`: what a linked clone lacks of the head. `PullRequestFiles`:
+	/// a sparse review with no clone, whose agent sees only the pull request's
+	/// files; the workspace holds the head's commit and trees from the cache
+	/// and checks out exactly these files. At most one is set.
+	struct git_workspace_source
+	{
+		std::optional<git_workspace_delta_pack> Delta;
+		std::optional<git_workspace_files>      PullRequestFiles;
+
+		auto operator<=>(const git_workspace_source&) const = default;
+	};
+
 	/// \brief Materializes one exact commit from an owned bare cache repository.
 	///
-	/// \details Without `Delta`, the workspace takes the head's reachable
+	/// \details With neither source, the workspace takes the head's reachable
 	/// closure from the cache and any linked clone, which together must hold
-	/// it. With one, it borrows the linked clone and indexes the delta for what
-	/// the clone lacks; it is never shallow.
+	/// it. With a delta, it borrows the linked clone and indexes the delta for
+	/// what the clone lacks; it is never shallow. With pull request files, it
+	/// is shallow at the head and holds only those files.
 	struct git_agent_workspace_request
 	{
 		std::filesystem::path                   Repository;
 		agent_workspace_materialization_request Materialization;
-		std::optional<git_workspace_delta_pack> Delta;
+		git_workspace_source                    Source;
 
 		auto operator<=>(const git_agent_workspace_request&) const = default;
 	};

@@ -16,6 +16,7 @@
 #include <string>
 #include <string_view>
 #include <utility>
+#include <vector>
 
 namespace bpr::application {
 	/// \brief Whether an existing checkout has uncommitted work in it.
@@ -73,7 +74,8 @@ namespace bpr::application {
 		/// reviewer's linked clone.
 		bool BorrowsHistory = false;
 		/// [[BPR-1752]]. The workspace holds the head without its
-		/// history: a sparse review's snapshot whose parents no clone lent.
+		/// history. [[BPR-1873]]: only a sparse review with no linked clone,
+		/// whose workspace holds just the pull request's files.
 		bool Shallow = false;
 
 		auto operator<=>(const prepared_workspace&) const = default;
@@ -149,6 +151,24 @@ namespace bpr::application {
 			&& (aIdentity.Opaque[1] != 0U || aIdentity.Opaque[2] != 0U
 				|| aIdentity.Opaque[3] != 0U);
 	}
+
+	/// \brief [[BPR-1873]]. One file of a pull request at its head, with the
+	/// blob bytes the host read and checked against `Blob`, for a sparse
+	/// review whose agent sees only the pull request's files.
+	struct git_workspace_file
+	{
+		std::string               Path;
+		std::uint32_t             Mode = 0U;
+		core::git_blob_oid        Blob;
+		std::vector<std::uint8_t> Bytes;
+
+		auto operator<=>(const git_workspace_file&) const = default;
+	};
+	using git_workspace_files = std::vector<git_workspace_file>;
+
+	/// The most files and bytes a pull-request-only workspace holds.
+	inline constexpr std::size_t maximum_pull_request_workspace_files = 1000U;
+	inline constexpr std::size_t maximum_pull_request_workspace_bytes = 96U * 1024U * 1024U;
 
 	enum class agent_workspace_failure : std::uint8_t {
 		invalid_request,

@@ -481,7 +481,8 @@ namespace bpr::qt {
 		Status->setText(
 			QStringLiteral("Running in %1")
 				.arg(QString::fromStdString(aWorkspace.Path)));
-		Phase = phase::running;
+		PullRequestFilesOnly = aWorkspace.Shallow;
+		Phase                = phase::running;
 		set_running(true);
 		progressed();
 	}
