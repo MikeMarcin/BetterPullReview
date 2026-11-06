@@ -602,6 +602,17 @@ parses back. It names no host, repository, account, path or comment. A
 refused or unsent review counts as an Insights publishing problem, as an
 unknown one already did.
 
+**Cancelled pull request reads.** Every `github.pull_request.cancelled`
+record names why the read ended, as the line `cancel_cause=CAUSE`
+([[BPR-1875]], `application::pull_request_cancel_cause`). CAUSE is
+`reviewer` (Home's Cancel), `restoration` (the window gave up resuming a
+saved review), `review_closed`, `session_retired` (the window's account
+session was retired or replaced), `window_closed`, `provider_stopped` (the
+provider's read was asked to stop, though not by this window),
+`provider_closing`, or `transport` (the transport answered cancelled though
+nothing asked the read to stop). The export admits the line only when it is
+exactly one of those causes.
+
 The native output admission and exclusive atomic publication above are unchanged.
 Public tests traverse the actual profile Settings, native logs and save chooser,
 compare preview/output bytes after later appends, confirm/cancel identifying saves,
