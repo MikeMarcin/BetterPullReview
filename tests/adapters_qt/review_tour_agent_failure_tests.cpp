@@ -8,6 +8,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 #include <QApplication>
 #include <QLabel>
 #include <QPalette>
@@ -100,9 +101,18 @@ auto main(int argc, char** argv) -> int
 	expect(show->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()) && !show->icon().isNull(), "the way to the Agent tab wears the agent accent and spark");
 	render(editor, prefix, "failure-light");
 
-	// AC2. Show on the Agent tab asks the window for the run's card.
+	// AC2, [[BPR-1900]] AC5. The run is the tour session's: Show the run
+	// opens the session's transcript on this tab, and the Agent tab is not
+	// asked for.
+	auto       session = core::tour_agent_session{ };
+	const auto run     = core::begin_tour_run(session, core::tour_agent_request::draft_field, core::tour_agent_tools::read_only, "Draft from PR context");
+	static_cast<void>(core::finish_tour_run(session, *run, core::tour_agent_run_state::failed, why.toStdString()));
+	editor.present_tour_session(session, std::nullopt);
+	expect(show->text() == QStringLiteral("Show the run"), "the notice's way is to the run");
+	expect(!editor.tour_agent()->transcript()->isVisibleTo(&editor), "the transcript is never shown by itself");
 	show->click();
-	expect(opened == 1, "Show on the Agent tab asks for the Agent tab once");
+	expect(opened == 0 && editor.tour_agent()->transcript()->isVisibleTo(&editor), "Show the run opens the tour session's transcript, not the Agent tab");
+	expect(editor.tour_agent()->transcript_text().contains(why), "the transcript says how the run ended, in the same words");
 	expect(notice->isVisible(), "following it leaves the notice until it is dismissed or the request is made again");
 
 	// AC3. Dismiss hides it; making the request again clears it.

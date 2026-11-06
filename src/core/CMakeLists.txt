@@ -147,6 +147,7 @@ add_library(
         src/comment_edit.cpp
         src/overview_tour.cpp
         src/tour_steps.cpp
+        src/tour_agent_session.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
         src/window_title.cpp
