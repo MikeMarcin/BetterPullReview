@@ -1,0 +1,11 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1882",
+    "BPR-1883"
+  ],
+  "reserve_for": "codex-responsiveness-latency",
+  "purpose": "Reduce conversation projection and refresh latency without unrelated behavior changes",
+  "created": "2026-11-06T09:30:11.651235+00:00",
+  "base": "3dd3be89faa56af76449355a973e64366802b335"
+}
