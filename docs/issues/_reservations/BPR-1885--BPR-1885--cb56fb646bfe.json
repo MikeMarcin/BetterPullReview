@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1885"
+  ],
+  "reserve_for": "codex-responsiveness-latency",
+  "purpose": "Decouple refreshed review conversations from viewed-file status pagination",
+  "created": "2026-11-06T15:10:19.842423+00:00",
+  "base": "661981be0062711cf413b8aecfa77ed5d66c71e2"
+}
