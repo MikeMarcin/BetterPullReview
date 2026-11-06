@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v2",
+  "scope": {
+    "issues": [
+      "BPR-1885"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "independent-viewed-file-loading",
+      "outcome": "Refresh conversations become usable before independent viewed-file status pagination, while final validation and visible pending work remain intact.",
+      "work": [
+        {
+          "issue": "BPR-1885"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Verify earlier conversation observation and retained terminal validation with regression and negative-control evidence.",
+        "Measure optimized before/after latency and retain the composed loading/comparison behavior.",
+        "Complete the card and one-line journal entry, pass focused checks, and land the verified round on main."
+      ],
+      "boundary": "Independent refresh loading only; preserve first-open ordering, request counts, authority, cancellation and unrelated behavior."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
