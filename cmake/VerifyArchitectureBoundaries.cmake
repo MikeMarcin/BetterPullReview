@@ -4402,11 +4402,11 @@ if(
 endif()
 
 # [[BPR-1879]] The clone BetterPullReview keeps for agent questions is the one
-# acquisition outside the sparse read's 32 MiB per-file and 96 MiB store
-# limits. Its runner has its own factory, whose body is pinned here: an
-# absolute store, a nonzero per-file and store limit no larger than the kept
-# clone's ceiling, no spool, the observed Git, no test seam. It is the only
-# code that sets `ManagedClone`, which alone admits the longer deadline.
+# acquisition with no byte or time limit (owner decision 2026-11-05: "a cancel
+# and a progress would be better"). Its runner has its own factory, whose body
+# is pinned here: no per-file ceiling, no store, no spool, the observed Git, no
+# test seam. It is the only code that sets `ManagedClone`, which alone lifts
+# the deadline; every other runner keeps its limits.
 string(
     REGEX MATCHALL
     "ManagedClone = true"
@@ -4418,13 +4418,16 @@ if(
     NOT github_process_runner_managed_flag_count EQUAL 1
     OR NOT github_process_runner_code_compact
         MATCHES
-            "auto make_github_cli_managed_clone_process_runner\\(const std::filesystem::path& aDirectory, const std::filesystem::path& aGit, const std::uint64_t aMaximumBytes\\) -> std::unique_ptr<github_cli_process_port> \\{ if \\(!aDirectory\\.is_absolute\\(\\) \\|\\| aMaximumBytes == 0U \\|\\| aMaximumBytes > github_cli_managed_clone_max_bytes\\) \\{ return nullptr; \\} return make_qprocess_github_cli_process_runner\\(nullptr, \\{ \\.MaximumFileBytes = aMaximumBytes, \\.Directory = aDirectory, \\.MaximumDirectoryBytes = aMaximumBytes, \\.MaximumDirectoryEntries = 4096U, \\.StandardOutputFile = \\{ \\}, \\.DiscardStandardOutput = true, \\.LocalGitExecutable = aGit, \\.ManagedClone = true \\}\\); \\}"
+            "auto make_github_cli_managed_clone_process_runner\\(const std::filesystem::path& aGit\\) -> std::unique_ptr<github_cli_process_port> \\{ return make_qprocess_github_cli_process_runner\\(nullptr, \\{ \\.MaximumFileBytes = 0U, \\.Directory = \\{ \\}, \\.MaximumDirectoryBytes = 0U, \\.MaximumDirectoryEntries = 0U, \\.StandardOutputFile = \\{ \\}, \\.DiscardStandardOutput = true, \\.LocalGitExecutable = aGit, \\.ManagedClone = true \\}\\); \\}"
+    OR NOT github_process_runner_code_compact
+        MATCHES
+            "item->Deadline = clock::now\\(\\) \\+ aRequest\\.Timeout; if \\(ManagedClone\\) \\{ item->Deadline = clock::now\\(\\) \\+ std::chrono::duration_cast<clock::duration>\\(github_cli_managed_clone_no_deadline\\); \\}"
 )
     message(
         FATAL_ERROR
-        "GitHub CLI kept-clone factory must refuse, in its own body, a "
-        "relative store and a zero or oversized limit, take no spool or seam, "
-        "and be the only code that marks a runner as a kept clone's"
+        "GitHub CLI kept-clone factory must take no limit, spool or seam and "
+        "be the only code that marks a runner as a kept clone's, and only that "
+        "mark may lift a launch's deadline"
     )
 endif()
 

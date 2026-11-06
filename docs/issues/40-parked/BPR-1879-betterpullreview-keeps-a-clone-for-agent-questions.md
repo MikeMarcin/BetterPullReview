@@ -9,7 +9,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"feature","found_by":"split from BPR-1873 AC4 (owner decision 2026-11-05)","related_cards":["BPR-1873"],"builds_on":"BPR-1873 (merged to main at fbe94102e; parked only on its own look, accepted in session 235e4b41)"}
-acceptance: [{"criterion": "AC1 Choosing the option creates the clone once, with the stated size and location, cancellable, and the question continues when it finishes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host|qt_agent_setup_view)$'", "detail": "Real Git through the fake gh: the kept clone is made through the sparse lease with every object and no checkout, owner-private, moved into agent-clones-v1/github.com-42 in the profile; a second request for an existing folder is refused; Cancel during a running clone returns cancelled within seconds and leaves nothing. The host offers the location and GitHub's size before it starts, publishes bytes received, links the clone (Managed) when it is in place so the Repository step is done and the setup moves on, links one already in place without a download, and reports a failure or a review that cannot keep one. The view says about 126 MB and the location, shows 42 MB of about 126 MB with Cancel, and Try keeping one again after a failure."}}, {"criterion": "AC2 Later questions reuse it and fetch only deltas", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host)$'", "detail": "With the kept clone made at the base, the head's workspace delta borrowing it holds exactly the head's new commit, tree and two blobs; a new window over the same store links the kept clone with no download. The kept clone itself is not fetched into (see Left)."}}, {"criterion": "AC3 It is shown in Storage and removed by profile purge", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(sqlite_insights_storage|sqlite_release_maintenance_files)$'", "detail": "Storage reports Clones kept for the agent with the kept clone's bytes, inside an exact total; a purge inventory takes a kept clone (.git only, read-only pack included) and removes agent-clones-v1, refuses a checked-out file or a dot-named folder in it, and keeps the shared registry."}}, {"criterion": "AC4 The owner accepts the option's look (attended review)", "outcome": "pending", "revision": "04cb14e56", "evidence": {"kind": "observation", "detail": "Attended session fb4d6822d9af23fc7264361af7b46b53, candidate BPR-1879-keep-a-clone (offscreen renders: offer, downloading, failed; light and dark), one Accept/Reject question."}}, {"criterion": "AC5 The documentation gate passes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "python3 scripts/verify_documentation.py --root .", "detail": "DOCUMENTATION_OK with the RFC-BPR-0092 amendment's as-built note."}}]
+acceptance: [{"criterion": "AC1 Choosing the option creates the clone once, with the stated size and location, cancellable, and the question continues when it finishes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host|qt_agent_setup_view)$'", "detail": "Real Git through the fake gh: the kept clone is made through the sparse lease with every object and no checkout, owner-private, moved into agent-clones-v1/github.com-42 in the profile; a second request for an existing folder is refused; Cancel during a running clone returns cancelled within seconds and leaves nothing. The host offers the location and GitHub's size before it starts, publishes bytes received, links the clone (Managed) when it is in place so the Repository step is done and the setup moves on, links one already in place without a download, and reports a failure or a review that cannot keep one. The view says about 126 MB and the location, shows 42 MB of about 126 MB with Cancel, and Try keeping one again after a failure."}}, {"criterion": "AC2 Later questions reuse it and fetch only deltas", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(gh_cli_git_smart_transport|application_clone_link_host)$'", "detail": "With the kept clone made at the base, the head's workspace delta borrowing it holds exactly the head's new commit, tree and two blobs; a new window over the same store links the kept clone with no download. The kept clone itself is not fetched into (see Left)."}}, {"criterion": "AC3 It is shown in Storage and removed by profile purge", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "ctest --preset dev -R '^(sqlite_insights_storage|sqlite_release_maintenance_files)$'", "detail": "Storage reports Clones kept for the agent with the kept clone's bytes, inside an exact total; a purge inventory takes a kept clone (.git only, read-only pack included) and removes agent-clones-v1, refuses a checked-out file or a dot-named folder in it, and keeps the shared registry."}}, {"criterion": "AC4 The owner accepts the option's look (attended review)", "outcome": "pending", "revision": "04cb14e56", "evidence": {"kind": "observation", "detail": "Attended session 68223c0c601a899da1ced7ad64b1476f, candidate BPR-1879-keep-a-clone-v002 at cf7c7bdde (offscreen renders: offer, downloading, past GitHub's size, failed; light and dark), one Accept/Reject question. v001 (fb4d6822) holds a Reject that was a note misdirected from BPR-1878, not a verdict on this look."}}, {"criterion": "AC5 The documentation gate passes", "outcome": "pass", "revision": "04cb14e56", "evidence": {"kind": "command", "command": "python3 scripts/verify_documentation.py --root .", "detail": "DOCUMENTATION_OK with the RFC-BPR-0092 amendment's as-built note."}}]
 ---
 
 # BPR-1879: BetterPullReview can keep its own clone for agent questions
@@ -69,24 +69,58 @@ agent-tab tests the merges touched pass.
   lease; the transport's `acquire_managed_clone` runs `gh repo clone
   --no-checkout` of every object into a private temporary root with the
   pinned private configuration and identity checks, on a runner outside the
-  32 MiB / 96 MiB limits (ceilings from the size, 4 to 64 GiB, two hours),
-  checks `HEAD`, makes it owner-private and moves it to
-  `agent-clones-v1/HOST-ID`. `architecture_boundaries` pins the new
-  runner factory.
+  32 MiB / 96 MiB limits, checks `HEAD`, makes it owner-private and moves it
+  to `agent-clones-v1/HOST-ID`. `architecture_boundaries` pins the new
+  runner factory. (First built with ceilings of 4 to 64 GiB and two hours;
+  see below.)
 - **Reuse.** The kept clone is linked as the repository's clone (marked
   `Managed` from its location, not stored), so later questions borrow it as
   BPR-1873's linked clone does. Settings names it "kept by BetterPullReview".
 - **Storage and purge.** Insights › Storage measures `agent-clones-v1`;
   profile purge removes it; the resets keep it.
 
+### No download limit (owner decision 2026-11-05)
+
+"I don't really care about a limit, a cancel and a progress would be
+better." The kept clone's runner now has no byte or time limit: no per-file
+ceiling, no store threshold, no deadline (`make_github_cli_managed_clone_process_runner(aGit)`;
+`ManagedClone` lifts the deadline, and `architecture_boundaries` pins both
+and keeps every other runner's limits). The qualification, identity and
+`HEAD` check launches keep the usual bounds over their own empty folder, so
+supervising them never counts the clone. GitHub's size no longer reaches the
+transport; it is only what the step says.
+
+- Progress: bytes received, sampled twice a second, of about SIZE; past
+  SIZE, or with no SIZE, the bar is busy and the step says "X so far (GitHub
+  said about SIZE)". Objects and percent are not shown: they exist only in
+  Git's standard error, which the adapter never exposes.
+- Cancel is honoured before it starts, during qualification, during the
+  clone and before the final move; each leaves nothing in the profile.
+- Evidence: `gh_cli_git_smart_transport` (the fake writes 40 MiB, past a
+  sparse read's 32 MiB, over two seconds before cloning: the clone succeeds
+  and at least three progress reports reach 40 MiB; a stop before it starts,
+  one 30 ms in, and one during the clone are each a cancel that leaves
+  nothing), `qt_agent_setup_view` (the past-the-size state),
+  `architecture_boundaries`. Its ctest timeout is 120 s, up from 90 s, for the
+  kept clone's course.
+
 ### Attended review
 
-Fresh short session `fb4d6822d9af23fc7264361af7b46b53`, state
-`/Users/jaeger/.mask/bpr-1879-v001-20261105/attended-review`, candidate
-`BPR-1879-keep-a-clone` (AC4, Accept/Reject), ready, Tailscale host started.
-Offscreen renders of the setup view at `04cb14e56`: the fixture-backed
-frozen build does not read its reviews sparsely through `gh`, so it cannot
-show this option.
+- v001: session `fb4d6822d9af23fc7264361af7b46b53`
+  (`/Users/jaeger/.mask/bpr-1879-v001-20261105/attended-review`), candidate
+  `BPR-1879-keep-a-clone` at `04cb14e56`. Its recorded Reject ("still not
+  enough, i need the ability to pick effort level. It needs to bottom setting
+  picker from agents tab too.") was a misdirected note meant for BPR-1878
+  (owner, via the coordinator, 2026-11-05); it is not a verdict on this
+  look, and the owner asked for the look to be put up again. Host stopped.
+- v002: session `68223c0c601a899da1ced7ad64b1476f`
+  (`/Users/jaeger/.mask/bpr-1879-v002-20261105/attended-review`), candidate
+  `BPR-1879-keep-a-clone-v002` at `cf7c7bdde`, the same single
+  Accept/Reject question with fresh renders including the past-the-size
+  progress state; ready, Tailscale host started.
+
+Offscreen renders of the setup view: the fixture-backed frozen build does
+not read its reviews sparsely through `gh`, so it cannot show this option.
 
 ### Left
 

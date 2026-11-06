@@ -357,6 +357,16 @@ namespace {
 			expect(test.Intents.back() == "cancel-keep", "Cancel asks the host to stop");
 		}
 		render(test.View, QStringLiteral("keep-downloading"));
+		// Owner decision 2026-11-05: no limit, so a download may run past
+		// GitHub's figure; the bar keeps moving and the bytes keep counting.
+		test.Clones.Keeping.Received = 131U * 1000U * 1000U;
+		test.show();
+		auto* const pastBar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
+		auto* const pastStatus = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
+		expect(pastBar != nullptr && pastStatus != nullptr && pastBar->maximum() == 0 && pastStatus->text().contains(QStringLiteral("131 MB so far (GitHub said about 126 MB)"))
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel")) != nullptr,
+			   "past GitHub's size the bar keeps moving, the bytes keep counting, and Cancel stays");
+		render(test.View, QStringLiteral("keep-downloading-past"));
 		test.Clones.Keeping = { .State = application::managed_clone_state::failed, .Received = 0U, .Failure = application::managed_clone_failure::connection_failed };
 		test.show();
 		auto* const keepFailed = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepFailed"));

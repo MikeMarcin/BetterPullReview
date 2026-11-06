@@ -320,13 +320,20 @@ its own: see the amendment below.
 >   with the same pinned private configuration, environment, hooks off, no
 >   fsmonitor, `core.sharedRepository=0600`, identity checks before and
 >   after, and the same write confinement to a private temporary root as
->   every sparse acquisition, but on its own runner outside the 32 MiB
->   per-file and 96 MiB store limits (its ceilings grow with the stated size,
->   at least 4 GiB, at most 64 GiB, and it may run two hours);
->   `architecture_boundaries` pins that runner's factory. The store is
+>   every sparse acquisition, but on its own runner with no byte or time
+>   limit (owner decision 2026-11-05: "I don't really care about a limit, a
+>   cancel and a progress would be better"): no per-file ceiling, no store
+>   threshold and no deadline; every other runner keeps its limits, and
+>   `architecture_boundaries` pins that runner's factory and makes it the only
+>   one whose deadline is lifted. The store is
 >   checked to hold a commit at `HEAD`, made owner-private, and moved whole
 >   to `agent-clones-v1/HOST-REPOSITORY_ID` in the profile. While it runs the
->   step shows the bytes received of about SIZE with **Cancel**; Cancel, a
+>   step shows the bytes received, sampled twice a second, of about SIZE with
+>   a progress bar and **Cancel**; past SIZE, or with no SIZE, the bar is busy
+>   and the bytes go on counting ("X so far"). Objects and percent are not
+>   shown: they exist only in Git's standard error, which the adapter never
+>   exposes. Cancel is honoured at every step, from qualification to the
+>   final move; Cancel, a
 >   failure or another repository on screen leaves nothing in the profile. A
 >   failure says why with **Try keeping one again**. When it is in place it
 >   is linked as the repository's clone, so the setup moves on and later

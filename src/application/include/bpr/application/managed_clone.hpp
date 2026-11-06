@@ -58,8 +58,6 @@ namespace bpr::application {
 		core::git_commit_oid Head;
 		/// Absolute; directly inside the profile's folder of kept clones.
 		std::filesystem::path Destination;
-		/// GitHub's repository `size`, in bytes, when it said.
-		std::optional<std::uint64_t> ApproximateBytes;
 
 		auto operator<=>(const managed_clone_request&) const = default;
 	};
