@@ -4816,6 +4816,26 @@ namespace {
 			expect(result && result->Rows.size() == 2U && transport.count(read_operation::get_pull_request) == 2U,
 				   "an alias that is not the pull request asked for sends every pull request the REST way");
 		}
+		{
+			// [[BPR-1874]]. One pull request GitHub no longer has: the other is
+			// read, and the read says which one it could not read, and why.
+			auto transport = discovery_fixture_transport{ };
+			rest(transport);
+			const auto metadata = transport.Metadata;
+			transport.Metadata  = [metadata](const github_wire_request& aRequest) {
+				if (aRequest.Wire.Semantic.PullRequestNumber == 18U) {
+					auto response   = success_response(R"({"message":"Not Found"})");
+					response.Status = 404;
+					return response;
+				}
+				return metadata(aRequest);
+			};
+			transport.Home    = [](const github_wire_request&) { return home_response({ home_pull(18U), home_pull(17U) }); };
+			const auto result = perform_personal_discovery_read(transport, profile(), request(), { });
+			expect(result && result->Rows.size() == 1U && result->Rows.front().Number.value() == 17U && result->Unread.size() == 1U
+					   && result->Unread.front().Number.value() == 18U && result->Unread.front().Error.Failure == application::github_provider_failure::permission,
+				   "a pull request that cannot be read alone is left out and named, with its failure");
+		}
 		for (const auto& numbers : { std::vector<std::uint32_t>{ 18U, 17U }, std::vector<std::uint32_t>{ 17U }, std::vector<std::uint32_t>{ 17U, 17U },
 									 std::vector<std::uint32_t>{ 17U, 18U, 19U, 20U, 21U, 22U, 23U, 24U, 25U, 26U, 27U } }) {
 			auto transport = discovery_fixture_transport{ };

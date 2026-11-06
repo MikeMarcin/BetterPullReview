@@ -260,6 +260,9 @@ namespace bpr::adapters::github::detail {
 		/// [[BPR-1680]]. A batched retained read found the server without a
 		/// field Home's GraphQL query asks for, and read the REST way instead.
 		bool BatchUnsupported = false;
+		/// [[BPR-1874]]. A batched retained read's pull requests that failed
+		/// alone while the rest were read.
+		std::vector<application::personal_discovery_unread> Unread;
 	};
 
 	using github_personal_discovery_read_result = std::expected<github_personal_discovery_read, github_paged_read_failure>;
