@@ -173,6 +173,16 @@ namespace bpr::application {
 		auto operator<=>(const personal_discovery_cost&) const = default;
 	};
 
+	/// \brief [[BPR-1874]]. A pull request a batched retained read asked for
+	/// and could not read, and why.
+	struct personal_discovery_unread
+	{
+		core::pull_request_number Number;
+		github_provider_error     Error;
+
+		auto operator<=>(const personal_discovery_unread&) const = default;
+	};
+
 	struct personal_discovery_success
 	{
 		personal_discovery_request          Request;
@@ -180,6 +190,9 @@ namespace bpr::application {
 		personal_discovery_completeness     Completeness = personal_discovery_completeness::complete;
 		github_rate_limit_state             RateLimits;
 		personal_discovery_cost             Cost;
+		/// [[BPR-1874]]. A batched retained read's pull requests that could
+		/// not be read on their own, with why, while the rest were read.
+		std::vector<personal_discovery_unread> Unread;
 
 		auto operator<=>(const personal_discovery_success&) const = default;
 	};
