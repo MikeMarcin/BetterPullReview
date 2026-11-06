@@ -1082,10 +1082,9 @@ namespace bpr::qt {
 																		   : Conversation);
 	}
 
-	void agent_tab_view::adopt_setup(agent_setup_view& aSetup, std::function<void()> aCheckAgain)
+	void agent_tab_view::adopt_setup(agent_setup_view& aSetup)
 	{
-		SetupView  = &aSetup;
-		CheckAgain = std::move(aCheckAgain);
+		SetupView = &aSetup;
 		Pages->addWidget(SetupView);
 		SetupView->set_change_observer([this] { refresh(); });
 		HistoryMenu->addSeparator();
@@ -1318,6 +1317,15 @@ namespace bpr::qt {
 		auto* const replyColumn = new QVBoxLayout{ reply };
 		replyColumn->setContentsMargins(reply_left_margin, 8, reply_right_margin, 6);
 		replyColumn->setSpacing(6);
+		// [[BPR-1876]]. Over an error whose cause has cleared since: that it
+		// is fixed, ahead of the old cause, which then reads as history.
+		auto* const fixedNote = new QLabel{ reply };
+		fixedNote->setObjectName(QStringLiteral("agentTurnFixedSince"));
+		fixedNote->setTextFormat(Qt::RichText);
+		fixedNote->setWordWrap(true);
+		fixedNote->hide();
+		replyColumn->addWidget(fixedNote);
+		aTurn.FixedNote = fixedNote;
 		// Owner decision (a): the answer reads as the agent wrote it, its
 		// Markdown rendered in place, its code coloured as comments' are;
 		// links and images do nothing.
@@ -2003,27 +2011,63 @@ namespace bpr::qt {
 	void agent_tab_view::present_turn_actions()
 	{
 		const auto working = State == agent_tab_state::working;
+		// [[BPR-1876]]. Where the setup's two checks stand now; none without
+		// a setup, so no cause is ever taken as cleared.
+		const auto* const setup      = SetupView != nullptr ? &SetupView->projection() : nullptr;
+		const auto        checkState = [setup](const core::agent_turn_cause aCause) -> std::optional<core::setup_check_state> {
+			if (setup == nullptr) {
+				return std::nullopt;
+			}
+			switch (aCause) {
+			case core::agent_turn_cause::none:            return std::nullopt;
+			case core::agent_turn_cause::agent_check:     return setup->State.AgentCheck.State;
+			case core::agent_turn_cause::workspace_check: return setup->State.WorkspaceCheck.State;
+			}
+			return std::nullopt;
+		};
 		for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
 			auto& kept = Turns[index];
 			if (!kept.Done) {
 				continue;
 			}
+			// A pass counts as made since the turn ended only once its check
+			// was seen not passed after it: a pass from before the failure
+			// says nothing about it.
+			const auto cause = core::agent_turn_cause_of(kept.Outcome);
+			const auto check = checkState(cause);
+			if (check && *check != core::setup_check_state::passed) {
+				kept.CauseRechecked = true;
+			}
+			const auto latest = index + 1U == Turns.size();
 			// [[BPR-1847]], owner 2026-11-03: "Agent wizard errors shouldn't
 			// get the save as note and draft comment treatment." The core
 			// decides from how the turn ended; this presents it.
 			const auto actions = core::decide_agent_turn_actions({
-				.Outcome = kept.Outcome,
-				.HasText = !kept.AnswerText.isEmpty(),
-				.Latest  = index + 1U == Turns.size(),
-				.Working = working,
+				.Outcome          = kept.Outcome,
+				.HasText          = !kept.AnswerText.isEmpty(),
+				.Latest           = latest,
+				.Working          = working,
+				.CausePassedSince = kept.CauseRechecked && check == std::optional{ core::setup_check_state::passed },
 			});
 			if (auto* const card = static_cast<rounded*>(kept.Reply.data()); card != nullptr) {
-				const auto look = actions.Error ? rounded::look::danger : rounded::look::card;
-				if (card->Look != look) {
+				// A fixed error is no longer drawn as one that holds now.
+				const auto look        = actions.Error && !actions.FixedSince ? rounded::look::danger : rounded::look::card;
+				const auto description = !actions.Error ? QString{ } : actions.FixedSince ? tr("Error, fixed since")
+																						  : tr("Error");
+				if (card->Look != look || card->accessibleDescription() != description) {
 					card->Look = look;
-					card->setAccessibleDescription(actions.Error ? tr("Error") : QString{ });
+					card->setAccessibleDescription(description);
 					card->update();
 				}
+			}
+			if (kept.FixedNote != nullptr) {
+				if (actions.FixedSince) {
+					const auto [glyph, colour] = setup_check_mark(core::setup_check_state::passed, palette());
+					const auto what            = cause == core::agent_turn_cause::workspace_check ? tr("Fixed since: the workspace check passed.") : tr("Fixed since: %1 passed its check.").arg(agent_name().toHtmlEscaped());
+					const auto next            = actions.Recovery == core::agent_turn_recovery::ask_again ? QStringLiteral(" ") + tr("Ask again to send this question now.") : QString{ };
+					kept.FixedNote->setText(QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp; <b>%3</b>%4").arg(colour.name(), glyph, what, next.toHtmlEscaped()));
+				}
+				kept.FixedNote->setVisible(actions.FixedSince);
 			}
 			if (kept.Copy != nullptr) {
 				kept.Copy->setVisible(actions.Copy);
@@ -2043,10 +2087,6 @@ namespace bpr::qt {
 					kept.Recovery->setText(tr("Ask again"));
 					kept.Recovery->setToolTip(tr("Send this question again"));
 					break;
-				case core::agent_turn_recovery::check_setup:
-					kept.Recovery->setText(tr("Check again"));
-					kept.Recovery->setToolTip(tr("Check the agent and its workspace again"));
-					break;
 				case core::agent_turn_recovery::agent_settings:
 					kept.Recovery->setText(tr("Agent settings…"));
 					kept.Recovery->setToolTip(tr("Check the agent's program and the form it answers in"));
@@ -2054,6 +2094,14 @@ namespace bpr::qt {
 				}
 				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
 			}
+			if (latest && LatestFixedSince != actions.FixedSince) {
+				LatestFixedSince = actions.FixedSince;
+				present_banner();
+			}
+		}
+		if (Turns.empty() && LatestFixedSince) {
+			LatestFixedSince = false;
+			present_banner();
 		}
 	}
 
@@ -2069,14 +2117,6 @@ namespace bpr::qt {
 				Launch.start_action()->trigger();
 			} else {
 				send_prompt(aTurn.Question);
-			}
-			return;
-		case core::agent_turn_recovery::check_setup:
-			if (SetupView != nullptr && CheckAgain) {
-				SetupView->begin(core::setup_step::ready);
-				CheckAgain();
-			} else if (Setup) {
-				Setup();
 			}
 			return;
 		case core::agent_turn_recovery::agent_settings:
@@ -2240,20 +2280,19 @@ namespace bpr::qt {
 			BannerText->setText(tr("%1 Your question is kept.")
 									.arg(Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
 																			 : Launch.stop_reason_text()));
+			// [[BPR-1876]]. The latest turn says its cause is fixed since:
+			// a banner still saying it stopped would read as how things stand.
+			if (LatestFixedSince) {
+				Banner->hide();
+				return;
+			}
+			// [[BPR-1876]], superseding [[BPR-1753]]'s Check again here: an
+			// Ask that ended for a setup reason is asked again too, and the
+			// new run starts the agent and makes its workspace, which is the
+			// check. A Check again that re-ran only the setup check left this
+			// banner up, and the owner read it as the check failing.
 			BannerFirst->setText(tr("Ask again"));
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
-			// [[BPR-1753]], RFC-BPR-0092 Partly set up. An Ask that ended
-			// for a setup reason offers that check again, then the setup's
-			// words, rather than only asking again. The question is kept.
-			if (SetupView != nullptr && CheckAgain
-				&& (Launch.last_outcome() == application::agent_run_outcome::workspace_unavailable || Launch.last_outcome() == application::agent_run_outcome::failed_to_start)) {
-				BannerFirst->disconnect();
-				BannerFirst->setText(tr("Check again"));
-				connect(BannerFirst, &QPushButton::clicked, this, [this] {
-					SetupView->begin(core::setup_step::check);
-					CheckAgain();
-				});
-			}
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
 				LogShown = !LogShown;

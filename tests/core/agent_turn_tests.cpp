@@ -14,6 +14,7 @@ namespace {
 	using namespace bpr;
 	using core::agent_suggestion_facts;
 	using core::agent_suggestions_verdict;
+	using core::agent_turn_cause;
 	using core::agent_turn_facts;
 	using core::agent_turn_outcome;
 	using core::agent_turn_recovery;
@@ -74,12 +75,39 @@ namespace {
 			return core::decide_agent_turn_actions({ .Outcome = aOutcome, .HasText = true, .Latest = true }).Recovery;
 		};
 		expect(recovery(agent_turn_outcome::unreadable) == agent_turn_recovery::agent_settings, "an unreadable answer opens the agent's settings");
-		expect(recovery(agent_turn_outcome::failed_to_start) == agent_turn_recovery::check_setup, "a start failure checks the setup again");
-		expect(recovery(agent_turn_outcome::workspace_unavailable) == agent_turn_recovery::check_setup, "a workspace failure checks the setup again");
-		for (const auto outcome : { agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable, agent_turn_outcome::stopped, agent_turn_outcome::timed_out,
-									agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
+		// [[BPR-1876]]. A start or workspace failure asks again too: the new
+		// run starts the agent and makes its workspace, which is the check.
+		for (const auto outcome : { agent_turn_outcome::failed_to_start, agent_turn_outcome::workspace_unavailable, agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable,
+									agent_turn_outcome::stopped, agent_turn_outcome::timed_out, agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
 			expect(recovery(outcome) == agent_turn_recovery::ask_again, "any other ending asks again");
 		}
+	}
+
+	void test_fixed_since()
+	{
+		expect(core::agent_turn_cause_of(agent_turn_outcome::failed_to_start) == agent_turn_cause::agent_check, "a start failure is the agent check's");
+		expect(core::agent_turn_cause_of(agent_turn_outcome::workspace_unavailable) == agent_turn_cause::workspace_check, "a workspace failure is the workspace check's");
+		auto names = std::set<std::string_view>{ };
+		for (const auto cause : { agent_turn_cause::none, agent_turn_cause::agent_check, agent_turn_cause::workspace_check }) {
+			names.insert(core::stable_name(cause));
+		}
+		expect(names.size() == 3U && !names.contains(std::string_view{ }), "every cause has its own stable name");
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome   = *core::agent_turn_outcome_of(ordinal);
+			const auto clearable = core::agent_turn_cause_of(outcome) != agent_turn_cause::none;
+			expect(clearable == (outcome == agent_turn_outcome::failed_to_start || outcome == agent_turn_outcome::workspace_unavailable), "only a start or workspace failure names a check");
+			for (const auto latest : { false, true }) {
+				for (const auto working : { false, true }) {
+					const auto held = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
+					expect(!held.FixedSince, "while its check has not passed since, the cause holds");
+					const auto cleared = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working, .CausePassedSince = true });
+					expect(cleared.FixedSince == clearable, "a cleared cause is fixed since, on any turn, and only one a check names");
+					expect(cleared.Recovery == held.Recovery && cleared.Error == held.Error && cleared.Copy == held.Copy, "fixed since changes nothing else");
+				}
+			}
+		}
+		const auto fixed = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::failed_to_start, .HasText = true, .Latest = true, .CausePassedSince = true });
+		expect(fixed.FixedSince && fixed.Recovery == agent_turn_recovery::ask_again, "the latest fixed failure offers Ask again");
 	}
 
 	void test_suggestions()
@@ -148,6 +176,7 @@ auto main() -> int
 	test_names_and_ordinals();
 	test_answer_actions();
 	test_error_actions();
+	test_fixed_since();
 	test_suggestions();
 	test_suggestion_press();
 	std::cout << "agent-turn-tests:pass\n";
