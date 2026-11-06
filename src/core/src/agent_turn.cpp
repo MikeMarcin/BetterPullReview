@@ -86,7 +86,7 @@ namespace bpr::core {
 		const auto unsettled = [](const setup_check_state aState) { return aState == setup_check_state::failed || aState == setup_check_state::running; };
 		const auto finished  = aFacts.SetupStep == setup_step::ready
 			|| (aFacts.SetupStep == setup_step::check && !unsettled(aFacts.AgentCheck) && !unsettled(aFacts.WorkspaceCheck));
-		if (aFacts.SetupShowing || aFacts.ReadyShowing || !finished) {
+		if (aFacts.SetupShowing || !finished) {
 			return agent_suggestions_verdict::setup_unfinished;
 		}
 		if (aFacts.Working) {

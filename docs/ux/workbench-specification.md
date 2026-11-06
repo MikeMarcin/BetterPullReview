@@ -2643,10 +2643,12 @@ stay once the thread has turns, and the field's Suggestions toggle shows or
 hides them, kept for the profile (owner look v004); while the agent works
 they are hidden, and they return when its turn has finished (the owner's
 accept of look v007). They wait for the setup too ([[BPR-1847]]): none while
-an agent or repository is still to be chosen, a check failed or runs, the
-setup is on screen, or its Ready line is still shown; in their place "Suggested
-prompts appear once the agent is set up." with **Finish setup**, which opens
-the setup at its first unfinished step. A setup finished before, whose checks
+an agent or repository is still to be chosen, a check failed or runs, or the
+setup is on screen; in their place "Suggested prompts appear once the agent is
+set up." with **Finish setup**, which opens the setup at its first unfinished
+step, so an unfinished setup never leaves the prompt area blank. The setup's
+Ready line is a passed check and does not hold them back: they show, and can
+be pressed, while it is open ([[BPR-1877]]). A setup finished before, whose checks
 have not run since the application started, counts as finished. A turn's findings are cards under its answer (owner decision,
 2026-10-23): severity, likelihood and category, its `file:lines`, the claim,
 the evidence and the suggested comment; choosing a card shows its lines.
