@@ -9,6 +9,8 @@
 #include <QStringList>
 
 #include <algorithm>
+#include <array>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstdlib>
@@ -1044,6 +1046,84 @@ namespace {
 			aModel, expected_for(aDesired), aSuite, aCaseNumber);
 	}
 
+	/// [[BPR-1886]]. Long identities exercise the same string ownership as
+	/// projected GitHub node IDs. Keep each valid chain at a bounded depth.
+	auto ancestry_rows(std::size_t aCount, std::size_t aDepth, bool aCycle = false) -> std::vector<conversation>
+	{
+		const auto commentId = [](std::size_t aIndex) { return "review-comment:PRRC_ancestry_" + std::to_string(aIndex); };
+		auto       rows      = std::vector<conversation>{ };
+		rows.reserve(aCount + 1U);
+		auto thread = conversation{ };
+		thread.Id   = "review-thread:PRRT_ancestry";
+		thread.Kind = conversation_kind::review_thread;
+		rows.push_back(std::move(thread));
+		for (std::size_t index = 0U; index < aCount; ++index) {
+			auto comment = conversation{ };
+			comment.Id   = commentId(index);
+			comment.Kind = conversation_kind::review_comment;
+			comment.Body = "A retained review comment.";
+			if (aCycle && index == 0U) {
+				comment.ParentId = commentId(aDepth - 1U);
+			} else if (index != 0U && (aCycle || (aDepth != 0U && index % aDepth != 0U))) {
+				comment.ParentId = commentId(index - 1U);
+			} else {
+				comment.ParentId = rows.front().Id;
+			}
+			rows.push_back(std::move(comment));
+		}
+		return rows;
+	}
+
+	auto test_long_ancestry() -> void
+	{
+		for (const bool cycle : { false, true }) {
+			auto                          rows = ancestry_rows(1'000U, 250U, cycle);
+			qt::github_conversation_model model;
+			signal_audit                  audit;
+			observe(model, audit);
+			model.apply(rows);
+			validate_model(model, expected_for(rows), "long-ancestry", cycle);
+			const QPersistentModelIndex thread{ model.index(0, 0) };
+			audit.clear_operations();
+			model.apply(rows);
+			expect(audit.InsertedRows == 0U && audit.RemovedRows == 0U && audit.MovedRows == 0U && audit.ChangedRows == 0U && audit.ModelResets == 0U,
+				   "long-ancestry", cycle, "an unchanged deep or cyclic conversation emits no model changes");
+			std::ranges::reverse(rows);
+			model.apply(rows);
+			validate_model(model, expected_for(rows), "reversed-long-ancestry", cycle);
+			expect(thread.isValid() && thread.data(qt::github_conversation_model::identity_role).toString() == QStringLiteral("review-thread:PRRT_ancestry"),
+				   "reversed-long-ancestry", cycle, "reordering preserves the thread's persistent index");
+		}
+	}
+
+	auto measure_ancestry() -> void
+	{
+		for (const auto count : { 1'000U, 5'000U, 10'000U }) {
+			for (const auto shape : { 0U, 1U, 2U }) {
+				if (shape == 2U && count != 1'000U) {
+					continue;
+				}
+				const auto                    rows = ancestry_rows(count, shape == 0U ? 0U : 250U, shape == 2U);
+				qt::github_conversation_model model;
+				model.apply(rows);
+				const auto before  = model.statistics();
+				auto       samples = std::array<double, 5U>{ };
+				for (auto& elapsed : samples) {
+					const auto started = std::chrono::steady_clock::now();
+					model.apply(rows);
+					elapsed = std::chrono::duration<double, std::milli>{ std::chrono::steady_clock::now() - started }.count();
+				}
+				const auto after = model.statistics();
+				expect(after.RowsInserted == before.RowsInserted && after.RowsRemoved == before.RowsRemoved && after.RowsMoved == before.RowsMoved
+						   && after.RowsChanged == before.RowsChanged && after.ModelResets == before.ModelResets,
+					   "measure-ancestry", count, "measured unchanged updates retain every row without model churn");
+				std::ranges::sort(samples);
+				std::cout << "model-ancestry: comments=" << count << " shape=" << shape << " median-ms=" << samples[2]
+						  << " min-ms=" << samples.front() << " max-ms=" << samples.back() << '\n';
+			}
+		}
+	}
+
 	auto test_large_rotations() -> void
 	{
 		constexpr std::size_t         rowCount = 50'000U;
@@ -1100,10 +1180,16 @@ auto main(int argc, char** argv) -> int
 	QCoreApplication application{ argc, argv };
 	QCoreApplication::setApplicationName(
 		QStringLiteral("BetterPullReviewConversationModelPropertyTests"));
+	if (argc == 2 && std::string_view{ argv[1] } == "--measure-ancestry") {
+		measure_ancestry();
+		return EXIT_SUCCESS;
+	}
+	expect(argc == 1, "arguments", 0U, "only --measure-ancestry is accepted");
 
 	test_mixed_cases();
 	test_arbitrary_permutations();
 	test_large_rotations();
+	test_long_ancestry();
 
 	std::cout << "github-conversation-model-property-tests:pass\n";
 	return EXIT_SUCCESS;
