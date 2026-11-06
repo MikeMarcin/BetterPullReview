@@ -1806,6 +1806,36 @@ namespace bpr::app::detail {
 			return exchanges;
 		}
 
+		/// [[BPR-1893]]. Preserve exact exchanges while replaying an observed
+		/// refresh in the production conversation-first order, within each PR read.
+		[[nodiscard]] auto refresh_recording(std::vector<recorded_exchange> aExchanges) -> std::vector<recorded_exchange>
+		{
+			const auto repository = [](const auto& aExchange) { return aExchange.Request.Operation == read_operation::get_repository; };
+			const auto rank       = [](const auto& aExchange) {
+				switch (aExchange.Request.Operation) {
+				case read_operation::get_repository:            return 0;
+				case read_operation::get_pull_request:          return 1;
+				case read_operation::list_reviews:              return 2;
+				case read_operation::list_review_threads:       return 3;
+				case read_operation::list_issue_comments:       return 4;
+				case read_operation::list_pull_request_files:   return 5;
+				case read_operation::list_pull_request_commits: return 6;
+				default:                                        return 7;
+				}
+			};
+			for (auto first = std::ranges::find_if(aExchanges, repository); first != aExchanges.end();) {
+				const auto last     = std::find_if(std::next(first), aExchanges.end(), repository);
+				const auto threaded = std::any_of(first, last, [](const auto& aExchange) {
+					return aExchange.Request.Operation == read_operation::list_review_threads;
+				});
+				if (threaded) {
+					std::stable_sort(first, last, [&](const auto& aLeft, const auto& aRight) { return rank(aLeft) < rank(aRight); });
+				}
+				first = last;
+			}
+			return aExchanges;
+		}
+
 		/// \brief Keeps legacy strict single-page validation behind an explicit replay choice.
 		class fixture_replay final
 		{
@@ -1814,6 +1844,7 @@ namespace bpr::app::detail {
 				: Timeline{ aPaged ? std::optional<recorded_exchange>{ }
 								   : take_timeline(aExchanges) }
 				, TimelineCourse{ std::move(aTimelineCourse) }
+				, Refresh{ aPaged ? std::vector<recorded_exchange>{ } : refresh_recording(aExchanges) }
 				, Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::exchange(aExchanges, { }) }
 			{
 				if (aPaged) {
@@ -1829,7 +1860,7 @@ namespace bpr::app::detail {
 						!valid.has_value()) {
 						return std::unexpected{ valid.error() };
 					}
-					if (!Timeline || TimelineConsumed || !Strict.consumed_all()) {
+					if (!Timeline || TimelineConsumed || !strict().consumed_all()) {
 						return std::unexpected{ contract_failure{
 							.Code = contract_failure_code::unexpected_operation } };
 					}
@@ -1863,7 +1894,7 @@ namespace bpr::app::detail {
 					}
 					return response;
 				}
-				auto response = Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
+				auto response = Paged ? Paged->perform(aRequest) : strict().perform(aRequest);
 				if (TimelineCourse == "ordinary" && response && aRequest.Operation == read_operation::list_pull_request_commits) {
 					QTextStream{ stdout } << "ORDINARY_SURVIVING_COMMITS:" << QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).array().size() << '\n';
 				}
@@ -1872,7 +1903,7 @@ namespace bpr::app::detail {
 			[[nodiscard]] auto consumed_all() const noexcept -> bool
 			{
 				return Paged ? Paged->consumed_all()
-							 : Strict.consumed_all() && (!Timeline || TimelineConsumed);
+							 : (Refreshing ? Refresh : Strict).consumed_all() && (!Timeline || TimelineConsumed);
 			}
 			void replace_completed_paged_script(std::vector<recorded_exchange> aExchanges)
 			{
@@ -1883,6 +1914,7 @@ namespace bpr::app::detail {
 			}
 			void rewind() noexcept
 			{
+				Refreshing       = false;
 				TimelineConsumed = false;
 				TimelinePages    = 0U;
 				if (Paged) {
@@ -1895,7 +1927,7 @@ namespace bpr::app::detail {
 			/// operation starts at, for a refresh; a paged script has its own
 			/// history and is left alone unless the rate-limit course explicitly
 			/// repeats that same head.
-			void replay_from(const read_operation aOperation, const bool aRepeatPaged = false) noexcept
+			void replay_from(const read_operation aOperation, const bool aRepeatPaged = false, const bool aRefresh = false) noexcept
 			{
 				if (Paged) {
 					if (aRepeatPaged) {
@@ -1903,13 +1935,15 @@ namespace bpr::app::detail {
 					}
 					return;
 				}
-				Strict.rewind();
+				Refreshing = aRefresh;
+				strict().rewind();
 				TimelineConsumed = false;
 				TimelinePages    = 0U;
-				Strict.skip_until(aOperation);
+				strict().skip_until(aOperation);
 			}
 
 		private:
+			[[nodiscard]] auto        strict() noexcept -> strict_recorded_transport& { return Refreshing ? Refresh : Strict; }
 			[[nodiscard]] static auto take_timeline(std::vector<recorded_exchange>& aExchanges)
 				-> std::optional<recorded_exchange>
 			{
@@ -1924,6 +1958,8 @@ namespace bpr::app::detail {
 			bool                                                   TimelineConsumed = false;
 			std::size_t                                            TimelinePages    = 0U;
 			std::string                                            TimelineCourse;
+			strict_recorded_transport                              Refresh;
+			bool                                                   Refreshing = false;
 			strict_recorded_transport                              Strict;
 			std::optional<large_review_fixture::sequential_replay> Paged;
 		};
@@ -3510,7 +3546,9 @@ namespace bpr::app::detail {
 				// replay still validates the complete exact recorded request below.
 				if (Role != fixture_transport_role::bootstrap && State->RepeatReads
 					&& aRequest.Wire.Operation == read_operation::get_repository) {
-					recording.replay_from(read_operation::get_repository, State->RateLimit != nullptr || State->LargeReviewRepeatReads);
+					const auto* context = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+					recording.replay_from(read_operation::get_repository, State->RateLimit != nullptr || State->LargeReviewRepeatReads,
+										  Role == fixture_transport_role::account && context != nullptr && context->ExpectedPullRequest.has_value());
 				}
 				// [[BPR-1200]]. Signed out, the inaccessible repository is refused
 				// as GitHub refuses a reader without an account: not found. The

@@ -6097,6 +6097,30 @@ namespace bpr::adapters::github::detail {
 				return std::unexpected{ execution.enrich(reviews.error()) };
 			}
 
+			const auto readDiscussion = [&]() -> std::expected<void, github_paged_read_failure> {
+				if (const auto comments = read_rest_array_collection(
+						execution, aProfile,
+						semantic_request_for(*server, aRequest.Context, read_operation::list_issue_comments),
+						result.IssueComments, aLimits.Records.MaximumIssueComments,
+						aLimits.MaximumPageRecords,
+						[](const page_json_value& aValue) { return parse_issue_comment(aValue); });
+					!comments.has_value()) {
+					return std::unexpected{ execution.enrich(comments.error()) };
+				}
+				// [[BPR-1893]]. PR-wide comments are independently readable too;
+				// their observation neither repeats nor delays the inline threads.
+				if (prioritizeConversation && !aStop.stop_requested()) {
+					aObserver->overview_observed({ .Context       = aRequest.Context,
+												   .Repository    = result.Repository,
+												   .PullRequest   = result.PullRequest,
+												   .ReportedFiles = expectedFiles,
+												   .Files         = std::nullopt,
+												   .Conversation  = std::nullopt,
+												   .Discussion    = application::github_pull_request_overview_observation::discussion{ .IssueComments = result.IssueComments } });
+				}
+				return { };
+			};
+
 			// [[BPR-1890]]. Publish the complete refresh conversation before
 			// reading the catalogue. Viewed-state validation then has those
 			// files, under the same execution and budget. No new authority.
@@ -6113,6 +6137,9 @@ namespace bpr::adapters::github::detail {
 													   .ReviewThreadsAvailability = result.ReviewThreadsAvailability,
 													   .ReviewThreads             = result.ReviewThreads,
 													   .ConversationLock          = result.ConversationLock } });
+				}
+				if (const auto discussion = readDiscussion(); !discussion) {
+					return discussion;
 				}
 				return readFiles();
 			};
@@ -6165,18 +6192,10 @@ namespace bpr::adapters::github::detail {
 				result.ReviewCommentsAvailability = application::github_collection_availability::available;
 			}
 
-			if (const auto comments = read_rest_array_collection(
-					execution,
-					aProfile,
-					semantic_request_for(*server,
-										 aRequest.Context,
-										 read_operation::list_issue_comments),
-					result.IssueComments,
-					aLimits.Records.MaximumIssueComments,
-					aLimits.MaximumPageRecords,
-					[](const page_json_value& aValue) { return parse_issue_comment(aValue); });
-				!comments.has_value()) {
-				return std::unexpected{ execution.enrich(comments.error()) };
+			if (!prioritizeConversation) {
+				if (const auto discussion = readDiscussion(); !discussion) {
+					return std::unexpected{ discussion.error() };
+				}
 			}
 
 			// Finish mandatory content before optional results can spend the

@@ -480,7 +480,7 @@ namespace {
 	/// arrive and publishes it at once, without a new snapshot, an epoch
 	/// handoff or command authority; a moved head, a first open or a
 	/// conversation before its metadata shows nothing early.
-	void test_refreshed_conversation_is_shown_before_the_refresh_ends(const bool aFilesFirst)
+	void test_refreshed_conversation_is_shown_before_the_refresh_ends(const bool aFilesFirst, const bool aDiscussionFirst)
 	{
 		reads                                               provider;
 		application::manual_executor                        lane;
@@ -539,6 +539,15 @@ namespace {
 			}
 			return observation;
 		};
+		const auto discussion = [&](const reads::call& aCall, const std::string& aHead) {
+			auto observation = observe(aCall, std::nullopt, aHead);
+			auto comment     = application::github_issue_comment_record{ };
+			comment.Comment  = application::github_comment_id{ "IC_1" };
+			comment.Body     = "A PR-wide comment";
+			observation.Discussion.emplace();
+			observation.Discussion->IssueComments.push_back(std::move(comment));
+			return observation;
+		};
 		const auto head = std::string(40U, '2');
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 1U } });
 		const auto opening = provider.Calls.back();
@@ -548,6 +557,7 @@ namespace {
 		openingFiles.Files = std::vector<application::github_file_record>{ };
 		opening.Overview(openingFiles);
 		opening.Overview(observe(opening, std::vector<std::string>{ "Root", "Early" }, head));
+		opening.Overview(discussion(opening, head));
 		lane.drain();
 		expect(std::ranges::none_of(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }), "a first open shows no early conversation");
 		opening.Complete(application::github_pull_request_success{ opening.Request, accepted(opening) });
@@ -560,6 +570,7 @@ namespace {
 		expect(refresh.Request.Context.ExpectedPullRequest.has_value(), "the refresh names the accepted pull request");
 		// Before its metadata, a conversation is not admitted.
 		refresh.Overview(observe(refresh, std::vector<std::string>{ "Root", "Reply" }, head));
+		refresh.Overview(discussion(refresh, head));
 		refresh.Overview(observe(refresh, std::nullopt, head));
 		lane.drain();
 		expect(std::ranges::none_of(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }), "no conversation before its metadata");
@@ -572,8 +583,13 @@ namespace {
 			second.Overview(files);
 		}
 		const auto before = updates.size();
+		if (aDiscussionFirst) {
+			second.Overview(discussion(second, head));
+		}
 		second.Overview(observe(second, std::vector<std::string>{ "Root", "Reply" }, head));
 		second.Overview(observe(second, std::vector<std::string>{ "Root", "Reply", "Again" }, head));
+		second.Overview(discussion(second, head));
+		second.Overview(discussion(second, head));
 		lane.drain();
 		const auto refreshed = std::ranges::find_if(updates.begin() + static_cast<std::ptrdiff_t>(before), updates.end(), [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; });
 		expect(refreshed != updates.end() && refreshed->Presentation.PullRequest && refreshed->Presentation.PreserveWindowNavigation
@@ -581,9 +597,10 @@ namespace {
 			   "the refresh's conversation is published once, over the accepted snapshot, before the refresh ends");
 		expect(host.accepted_snapshot() && host.accepted_snapshot()->Snapshot == snapshotId && host.accepted_snapshot()->ReviewThreads.size() == 1U
 				   && host.accepted_snapshot()->ReviewThreads.front().Comments.size() == 2U && epochs.AcceptCount == 1U
-				   && host.state().PendingPullRequest == second.Request.Context,
+				   && host.state().PendingPullRequest == second.Request.Context && host.accepted_snapshot()->IssueComments.size() == 1U
+				   && host.accepted_snapshot()->IssueComments.front().Body == "A PR-wide comment",
 			   "the accepted snapshot holds the new reply, keeps its identity, hands nothing to the epoch, and the refresh is still pending");
-		expect(std::ranges::count_if(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }) == 1, "at most one conversation per refresh");
+		expect(std::ranges::count_if(updates, [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }) == 2, "at most one observation for each independent conversation collection per refresh");
 		if (!aFilesFirst) {
 			second.Overview(files);
 			second.Overview(files);
@@ -595,9 +612,25 @@ namespace {
 		auto completed          = accepted(second);
 		completed.Snapshot      = core::provider_snapshot_id{ 92U };
 		completed.ReviewThreads = { thread({ "Root", "Reply" }) };
+		completed.IssueComments = host.accepted_snapshot()->IssueComments;
 		second.Complete(application::github_pull_request_success{ second.Request, completed });
 		lane.drain();
 		expect(host.accepted_snapshot() && host.accepted_snapshot()->Snapshot == core::provider_snapshot_id{ 92U }, "the refresh's own acceptance follows as before");
+		const auto afterCompletion = updates.size();
+		second.Overview(discussion(second, head));
+		lane.drain();
+		expect(updates.size() == afterCompletion, "a terminal refresh admits no late PR discussion");
+
+		host.dispatch(core::refresh_pull_request_intent{ });
+		const auto invalid = provider.Calls.back();
+		invalid.Overview(observe(invalid, std::nullopt, head));
+		auto malformed                                      = discussion(invalid, head);
+		malformed.Discussion->IssueComments.front().Comment = application::github_comment_id{ };
+		const auto beforeInvalid                            = updates.size();
+		invalid.Overview(malformed);
+		lane.drain();
+		expect(std::none_of(updates.begin() + static_cast<std::ptrdiff_t>(beforeInvalid), updates.end(), [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; }),
+			   "an invalid PR comment never reaches the early projection");
 
 		// A head that moved shows nothing early: the diff on screen is the old head's.
 		host.dispatch(core::refresh_pull_request_intent{ });
@@ -608,6 +641,8 @@ namespace {
 		moved.Overview(movedFiles);
 		const auto beforeMoved = updates.size();
 		moved.Overview(observe(moved, std::vector<std::string>{ "Root", "Reply", "Moved" }, std::string(40U, '3')));
+		moved.Overview(discussion(moved, std::string(40U, '3')));
+		invalid.Overview(discussion(invalid, head));
 		lane.drain();
 		expect(std::none_of(updates.begin() + static_cast<std::ptrdiff_t>(beforeMoved), updates.end(), [](const auto& aUpdate) { return aUpdate.Presentation.ConversationRefreshed; })
 				   && host.accepted_snapshot()->ReviewThreads.front().Comments.size() == 2U,
@@ -1531,8 +1566,11 @@ int main()
 	test_pull_request_page_admission();
 	test_reference_page_opening();
 	test_provisional_overview_is_bounded_and_never_authority();
-	test_refreshed_conversation_is_shown_before_the_refresh_ends(false);
-	test_refreshed_conversation_is_shown_before_the_refresh_ends(true);
+	for (const auto filesFirst : { false, true }) {
+		for (const auto discussionFirst : { false, true }) {
+			test_refreshed_conversation_is_shown_before_the_refresh_ends(filesFirst, discussionFirst);
+		}
+	}
 	test_loading_budget_shape();
 	test_shared_backoff_lifecycle();
 	test_resource_and_account_admission();

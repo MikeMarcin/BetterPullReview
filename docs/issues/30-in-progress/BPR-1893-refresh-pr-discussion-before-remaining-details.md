@@ -22,7 +22,7 @@ before the catalogue, without delaying the existing early inline reply.
 
 ## Acceptance
 
-- AC1: An observed authenticated refresh publishes complete PR-wide comments
+- AC1: An observed authenticated refresh with review-thread support publishes complete PR-wide comments
   before file pagination and remaining details. Inline conversation remains
   earlier; first-open, signed-out and unobserved reads keep their order. Final
   validation, record/request counts, budgets, failure and cancellation remain.
@@ -44,3 +44,65 @@ body digests. Share exact refresh admission with inline conversations, while
 tracking their one-time acceptance separately. Reuse the existing conversation
 projection and partial loading plate. Exercise both orders, invalid/stale data,
 shared limits and held-catalogue interaction through the real composition.
+
+## Implementation
+
+The same authenticated refresh path that publishes inline conversations early
+now publishes complete PR-wide comments next, before catalogue and remaining
+detail reads. Inline replies keep their earlier position. Other reads retain
+their existing order; all paths still use the same execution and shared bounds,
+with mandatory validation before terminal snapshot acceptance.
+
+One optional discussion observation carries the complete collection and its
+body digests, computed off the window thread. The serialized host bounds posts
+to metadata and one of each independent collection. The core shares the exact
+refresh, PR, head, base and access-mode admission rules between the two kinds of
+conversation, tracking each acceptance separately. The early projection keeps
+the existing snapshot identity and grants no epoch handoff or new authority.
+
+The current conversation view and "Refreshing remaining details…" plate are
+reused; no widget/layout, transport, worker or request was added. The
+frontend-design skill and desktop guidance apply to the offscreen interaction
+and render check. The public-path course changes only its fake server's
+comments, opens them through the real Review link while catalogue loading is
+held, and returns to the retained comparison and exact reading position.
+
+## Measurements and interaction
+
+Optimized `qualification-release`, macOS arm64, AppleClang 21, Qt 6.12,
+three serialized local fixture runs per side with 330 ms per simulated read:
+
+| Median | Old reader | Independent discussion |
+|---|---:|---:|
+| Comment available to open | 6,006 ms | 1,672 ms |
+| Full refresh settled | 6,006 ms | 5,999 ms |
+| Requests | 18 | 18 |
+
+No total-duration or live-network improvement is claimed. Each measured run
+retained the comparison with zero blank samples. The strict held-catalogue
+course opens the PR conversation through Review's link, clicks the new comment,
+reads its rendered body with “Refreshing remaining details…” visible, then
+returns to the exact comparison context and scroll position. Its offscreen
+screenshot was inspected; the owner's desktop was never accessed.
+
+The corrected old-reader control fails the intended before-catalogue assertion.
+An earlier test sampled Review's intentionally file-scoped model for a PR-wide
+comment and incorrectly reported no early content. It now observes the shared
+cards' retained content and proves actual readability by clicking through the
+public interface; all timings and the negative control were rerun. The first
+pagination test also supplied a one-record nonterminal page where the contract
+requires 100; the fixture was corrected. Both original failures remain in the
+external logs. No product behavior was changed to accommodate either test.
+
+The legacy strict transport fixture now reorders its exact recorded exchanges
+for authenticated refreshes; first-open and signed-out recordings keep their
+order. This repairs the conversation read course exposed by the earlier
+conversation-first rounds, retaining request validation and complete consumption.
+
+Evidence root:
+`/var/folders/k7/43dlvy3n3v969dd3_xqz8w4m0000gn/T/bpr-responsiveness-vvxyjjsj`.
+Corrected commands, exit codes, three-run samples and medians are in
+`discussion-corrected-baseline-commands.json`,
+`discussion-corrected-final-commands.json` and `discussion-timing-summary.json`;
+logs are `discussion-corrected-{before,control,held,after}.log`, with the rendered
+comment in `discussion-corrected-renders/refresh-reply-readable.png`.

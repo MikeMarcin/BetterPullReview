@@ -31,18 +31,24 @@ namespace bpr::core {
 	/// \brief [[BPR-1851]]. What the host observed of a refresh's conversation
 	/// against the snapshot this lane has accepted.
 	/// \details The host compares; the lane decides. Each fact is true only
-	/// when the refresh's own answers say it: the review threads were read
+	/// when the refresh's own answers say it: the selected collection was read
 	/// (not unavailable), and the pull request, its head, its recorded base
 	/// and the read's access mode are the accepted snapshot's.
 	struct github_conversation_observation_facts
 	{
-		bool ThreadsAvailable = false;
+		bool ContentAvailable = false;
 		bool SamePullRequest  = false;
 		bool SameHead         = false;
 		bool SameBase         = false;
 		bool SameMode         = false;
 
 		auto operator<=>(const github_conversation_observation_facts&) const = default;
+	};
+
+	/// \brief Independently observed, complete conversation collections.
+	enum class github_conversation_observation_kind : std::uint8_t {
+		review_threads,
+		issue_comments,
 	};
 
 	class github_window_read
@@ -72,12 +78,14 @@ namespace bpr::core {
 		/// this exact pending request, once its metadata was observed, and only
 		/// when the request refreshes the pull request this lane has accepted
 		/// and the facts show the accepted snapshot's pull request, head, base
-		/// and mode with threads read. The accepted snapshot's identity, the
+		/// and mode with the selected collection read. Each kind is accepted
+		/// independently, at most once. The accepted snapshot's identity, the
 		/// pending request and every command authority are unchanged: the host
 		/// may then lay the conversation over the accepted snapshot's content.
 		[[nodiscard]] auto accept_conversation_observation(bpr_window_context                           aWindow,
 														   const pull_request_request_context&          aRequest,
-														   const github_conversation_observation_facts& aFacts) noexcept -> bool;
+														   const github_conversation_observation_facts& aFacts,
+														   github_conversation_observation_kind         aKind = github_conversation_observation_kind::review_threads) noexcept -> bool;
 		/// \brief What this lane presents for its adopted session, while nothing has moved it since.
 		/// \details [[BPR-1017]]. The session-ready projection adoption decided, for a
 		/// window attached after the profile accepted the session and so never shown
@@ -96,6 +104,7 @@ namespace bpr::core {
 		bool                                    OverviewObserved       = false;
 		bool                                    FilesObserved          = false;
 		bool                                    ConversationObserved   = false;
+		bool                                    DiscussionObserved     = false;
 		std::uint64_t                           SharedSnapshotSequence = 0U;
 	};
 }

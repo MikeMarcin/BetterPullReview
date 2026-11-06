@@ -287,10 +287,10 @@ int main()
 	// [[BPR-1851]]. A refresh's conversation is accepted once, after its
 	// metadata, only for a refresh of the accepted pull request whose head, base,
 	// mode and threads the facts confirm, and never changes the conversed's state.
-	{
+	for (const auto kind : { github_conversation_observation_kind::review_threads, github_conversation_observation_kind::issue_comments }) {
 		const bpr_window_context refreshing{ first.Profile, bpr_window_id{ 7 }, first.Generation };
 		github_window_read       conversed{ refreshing, application_session_id{ 70 } };
-		const auto               same = github_conversation_observation_facts{ .ThreadsAvailable = true, .SamePullRequest = true, .SameHead = true, .SameBase = true, .SameMode = true };
+		const auto               same = github_conversation_observation_facts{ .ContentAvailable = true, .SamePullRequest = true, .SameHead = true, .SameBase = true, .SameMode = true };
 		if (!conversed.adopt(session)) {
 			return EXIT_FAILURE;
 		}
@@ -298,7 +298,7 @@ int main()
 		const auto opening = conversed.apply(refreshing, open_pull_request_intent{ { "owner", "repo" }, pull_request_number{ 9 } });
 		if (!opening.Fetch || !conversed.accept_overview_observation(refreshing, opening.Fetch->Context)
 			|| !conversed.accept_files_observation(refreshing, opening.Fetch->Context)
-			|| conversed.accept_conversation_observation(refreshing, opening.Fetch->Context, same)) {
+			|| conversed.accept_conversation_observation(refreshing, opening.Fetch->Context, same, kind)) {
 			return EXIT_FAILURE;
 		}
 		if (!conversed.apply(refreshing, pull_request_loaded_event{ opening.Fetch->Context, repository_id{ 1 }, pull_request_id{ 9 }, provider_snapshot_id{ 90 } }).Projection.AcceptedSnapshot) {
@@ -310,16 +310,16 @@ int main()
 		}
 		const auto& context = refresh.Fetch->Context;
 		// Before metadata, nothing. Files need not arrive first.
-		if (conversed.accept_conversation_observation(refreshing, context, same) || !conversed.accept_overview_observation(refreshing, context)) {
+		if (conversed.accept_conversation_observation(refreshing, context, same, kind) || !conversed.accept_overview_observation(refreshing, context)) {
 			return EXIT_FAILURE;
 		}
 		for (auto fact = 0; fact < 5; ++fact) {
 			auto denied                         = same;
-			(fact == 0 ? denied.ThreadsAvailable : fact == 1 ? denied.SamePullRequest
+			(fact == 0 ? denied.ContentAvailable : fact == 1 ? denied.SamePullRequest
 				 : fact == 2                                 ? denied.SameHead
 				 : fact == 3                                 ? denied.SameBase
 															 : denied.SameMode) = false;
-			if (conversed.accept_conversation_observation(refreshing, context, denied)) {
+			if (conversed.accept_conversation_observation(refreshing, context, denied, kind)) {
 				return EXIT_FAILURE;
 			}
 		}
@@ -328,21 +328,24 @@ int main()
 		auto otherWindow     = refreshing;
 		otherWindow.Window   = bpr_window_id{ 99U };
 		const auto before    = conversed.state();
-		if (conversed.accept_conversation_observation(otherWindow, context, same) || conversed.accept_conversation_observation(refreshing, staleContext, same)
-			|| !conversed.accept_conversation_observation(refreshing, context, same) || conversed.accept_conversation_observation(refreshing, context, same)
+		const auto otherKind = kind == github_conversation_observation_kind::review_threads ? github_conversation_observation_kind::issue_comments : github_conversation_observation_kind::review_threads;
+		if (conversed.accept_conversation_observation(otherWindow, context, same, kind) || conversed.accept_conversation_observation(refreshing, staleContext, same, kind)
+			|| !conversed.accept_conversation_observation(refreshing, context, same, kind) || conversed.accept_conversation_observation(refreshing, context, same, kind)
+			|| !conversed.accept_conversation_observation(refreshing, context, same, otherKind)
+			|| conversed.accept_conversation_observation(refreshing, context, same, otherKind)
 			|| !conversed.accept_files_observation(refreshing, context) || conversed.accept_files_observation(refreshing, context)
 			|| conversed.state() != before) {
 			return EXIT_FAILURE;
 		}
 		// The next refresh may be accepted again; a cancelled one may not.
 		static_cast<void>(conversed.apply(refreshing, pull_request_load_cancelled_event{ context }));
-		if (conversed.accept_conversation_observation(refreshing, context, same)) {
+		if (conversed.accept_conversation_observation(refreshing, context, same, kind)) {
 			return EXIT_FAILURE;
 		}
 		const auto again = conversed.apply(refreshing, refresh_pull_request_intent{ });
 		if (!again.Fetch || !conversed.accept_overview_observation(refreshing, again.Fetch->Context)
 			|| !conversed.accept_files_observation(refreshing, again.Fetch->Context)
-			|| !conversed.accept_conversation_observation(refreshing, again.Fetch->Context, same)) {
+			|| !conversed.accept_conversation_observation(refreshing, again.Fetch->Context, same, kind)) {
 			return EXIT_FAILURE;
 		}
 	}

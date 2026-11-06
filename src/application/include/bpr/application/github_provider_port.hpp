@@ -444,6 +444,15 @@ namespace bpr::application {
 			github_feedback_body_digests FeedbackBodyDigests;
 		};
 		std::optional<conversation> Conversation;
+		/// \brief [[BPR-1893]]. Complete PR-wide comments, independently observed
+		/// after metadata. The same exact-refresh restrictions apply as to threads.
+		struct discussion
+		{
+			std::vector<github_issue_comment_record> IssueComments;
+			/// The bodies' digests, taken by the host off the window thread.
+			github_feedback_body_digests FeedbackBodyDigests;
+		};
+		std::optional<discussion> Discussion = std::nullopt;
 	};
 	using github_pull_request_overview_handler = std::function<void(github_pull_request_overview_observation)>;
 

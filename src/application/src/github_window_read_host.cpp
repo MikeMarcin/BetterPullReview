@@ -984,16 +984,22 @@ namespace bpr::application {
 											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
 			-> github_pull_request_overview_handler
 		{
-			// [[BPR-1890]]. Three observations at most: metadata, then the
-			// independent file list and refresh conversation, once each.
+			// [[BPR-1893]]. Four observations at most: metadata, then the
+			// independent files, review threads and PR-wide comments, once each.
 			auto posted = std::make_shared<std::atomic<std::uint8_t>>(std::uint8_t{ 0U });
 			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted, digests = BodyDigests](github_pull_request_overview_observation aObservation) {
-				if (aObservation.Context != aContext || aTerminal->load()) {
+				if (aObservation.Context != aContext || aTerminal->load() || (aObservation.Conversation && aObservation.Discussion)) {
 					return;
 				}
-				const auto stage = aObservation.Conversation ? std::uint8_t{ 4U } : aObservation.Files ? std::uint8_t{ 2U }
-																									   : std::uint8_t{ 1U };
-				auto       prior = posted->load();
+				auto stage = std::uint8_t{ 1U };
+				if (aObservation.Discussion) {
+					stage = 8U;
+				} else if (aObservation.Conversation) {
+					stage = 4U;
+				} else if (aObservation.Files) {
+					stage = 2U;
+				}
+				auto prior = posted->load();
 				do {
 					if ((prior & stage) != 0U || (stage != 1U && (prior & 1U) == 0U)) {
 						return;
@@ -1019,12 +1025,23 @@ namespace bpr::application {
 						return;
 					}
 				}
+				if (auto& discussion = aObservation.Discussion; discussion && digests != nullptr) {
+					try {
+						auto bodies                     = github_pull_request_snapshot{ };
+						bodies.IssueComments            = std::move(discussion->IssueComments);
+						auto taken                      = digest_feedback_bodies(bodies, *digests);
+						discussion->IssueComments       = std::move(bodies.IssueComments);
+						discussion->FeedbackBodyDigests = std::move(taken);
+					} catch (...) {
+						return;
+					}
+				}
 				++host->Outstanding;
 				try {
 					lane->post([weak, aToken, observation = std::move(aObservation)] {
 						if (auto current = weak.lock()) {
 							--current->Outstanding;
-							if (observation.Conversation) {
+							if (observation.Conversation || observation.Discussion) {
 								current->publish_conversation(aToken, observation);
 							} else {
 								current->publish_overview(aToken, observation);
@@ -1060,22 +1077,21 @@ namespace bpr::application {
 		/// \brief [[BPR-1851]]. A refresh's conversation, laid over the accepted
 		/// snapshot when the lane admits it, and published at once.
 		/// \details The accepted snapshot keeps its identity, its files, commits,
-		/// comments, checks and everything else the refresh has not reached yet;
-		/// only its reviews and review threads become this refresh's. Its
+		/// checks and everything else the refresh has not reached yet; only the
+		/// observed collection becomes this refresh's. Its
 		/// command and epoch authority are unchanged, so nothing is handed to
 		/// the epoch or to sibling windows: the refresh's own acceptance does
 		/// that, as before.
 		void publish_conversation(const std::uint64_t aToken, const github_pull_request_overview_observation& aObservation)
 		{
 			if (Closing || !Publish || SuppressPublication || aToken != ProviderOperationToken || !PendingProvider
-				|| PendingProvider->Context != aObservation.Context || !AcceptedSnapshot || !aObservation.Conversation) {
+				|| PendingProvider->Context != aObservation.Context || !AcceptedSnapshot || (!aObservation.Conversation && !aObservation.Discussion)) {
 				return;
 			}
 			try {
-				const auto& accepted     = *AcceptedSnapshot;
-				const auto& conversation = *aObservation.Conversation;
-				const auto  facts        = core::github_conversation_observation_facts{
-					.ThreadsAvailable = conversation.ReviewThreadsAvailability == github_collection_availability::available,
+				const auto& accepted = *AcceptedSnapshot;
+				const auto  facts    = core::github_conversation_observation_facts{
+					.ContentAvailable = aObservation.Discussion.has_value() || aObservation.Conversation->ReviewThreadsAvailability == github_collection_availability::available,
 					.SamePullRequest  = accepted.Repository.Repository == aObservation.Repository.Repository
 						&& accepted.PullRequest.PullRequest == aObservation.PullRequest.PullRequest,
 					.SameHead = accepted.PullRequest.HeadOid == aObservation.PullRequest.HeadOid,
@@ -1083,15 +1099,22 @@ namespace bpr::application {
 						&& accepted.PullRequest.BaseRef == aObservation.PullRequest.BaseRef,
 					.SameMode = accepted.Mode == aObservation.Context.Mode,
 				};
-				auto refreshed                      = accepted;
-				refreshed.Reviews                   = conversation.Reviews;
-				refreshed.ReviewThreadsAvailability = conversation.ReviewThreadsAvailability;
-				refreshed.ReviewThreads             = conversation.ReviewThreads;
-				refreshed.ConversationLock          = conversation.ConversationLock;
-				const std::array<const github_feedback_body_digests*, 2> known{ &conversation.FeedbackBodyDigests, &accepted.FeedbackBodyDigests };
+				auto refreshed = accepted;
+				if (aObservation.Discussion) {
+					refreshed.IssueComments = aObservation.Discussion->IssueComments;
+				} else {
+					const auto& conversation            = *aObservation.Conversation;
+					refreshed.Reviews                   = conversation.Reviews;
+					refreshed.ReviewThreadsAvailability = conversation.ReviewThreadsAvailability;
+					refreshed.ReviewThreads             = conversation.ReviewThreads;
+					refreshed.ConversationLock          = conversation.ConversationLock;
+				}
+				const auto                                               kind    = aObservation.Discussion ? core::github_conversation_observation_kind::issue_comments : core::github_conversation_observation_kind::review_threads;
+				const auto&                                              digests = aObservation.Discussion ? aObservation.Discussion->FeedbackBodyDigests : aObservation.Conversation->FeedbackBodyDigests;
+				const std::array<const github_feedback_body_digests*, 2> known{ &digests, &accepted.FeedbackBodyDigests };
 				refreshed.FeedbackBodyDigests = assemble_feedback_body_digests(refreshed, known);
 				if (!validate(refreshed, aObservation.Context).valid()
-					|| !Policy.accept_conversation_observation(Policy.window(), aObservation.Context, facts)) {
+					|| !Policy.accept_conversation_observation(Policy.window(), aObservation.Context, facts, kind)) {
 					return;
 				}
 				AcceptedSnapshot = std::move(refreshed);

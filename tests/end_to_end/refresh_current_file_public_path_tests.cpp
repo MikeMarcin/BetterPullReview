@@ -9,6 +9,7 @@
 // the file was fresh, when the refresh ended, and how the review looked
 // meanwhile.
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../../src/app/src/review_submission_fixture.hpp"
 #include "../support/test_expectation.hpp"
 #include "bpr/app/profile_desktop.hpp"
 #include "bpr/qt/conversation_cards_view.hpp"
@@ -30,6 +31,9 @@
 #include <QApplication>
 #include <QElapsedTimer>
 #include <QItemSelectionModel>
+#include <QJsonArray>
+#include <QJsonDocument>
+#include <QJsonObject>
 #include <QKeyEvent>
 #include <QLineEdit>
 #include <QListView>
@@ -175,6 +179,7 @@ try {
 	const auto    roundTripArgument = arguments.indexOf(QStringLiteral("--round-trip-ms"));
 	const auto    roundTrip         = roundTripArgument >= 0 ? arguments.value(roundTripArgument + 1).toUInt() : 120U;
 	const auto    measureOnly       = arguments.contains(QStringLiteral("--measure"));
+	const auto    discussion        = arguments.contains(QStringLiteral("--discussion"));
 	const auto    roundsArgument    = arguments.indexOf(QStringLiteral("--rounds"));
 	const auto    rounds            = roundsArgument >= 0 ? std::max(1, arguments.value(roundsArgument + 1).toInt()) : 1;
 	const auto    renderArgument    = arguments.indexOf(QStringLiteral("--render-directory"));
@@ -184,6 +189,7 @@ try {
 	const auto root = e2e::private_data_root(temporary).value_or(std::filesystem::path{ });
 	expect(!root.empty(), "private desktop root under the canonical storage policy");
 	auto delay                     = std::make_shared<app::detail::github_read_delay_fixture>();
+	auto server                    = std::make_shared<app::detail::review_submission_fixture_state>();
 	auto options                   = app::detail::github_public_path_fixture_options{ };
 	options.ApplicationDataRoot    = root;
 	options.RegisteredDeviceCourse = true;
@@ -191,6 +197,9 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	options.ReadDelay              = delay;
+	if (discussion) {
+		options.ReviewSubmissionServer = server;
+	}
 	// [[BPR-1890]]. Hold the independent catalogue until the new reply and
 	// its remaining-loading plate are visible through the real window.
 	std::atomic<bool> holdFiles{ false };
@@ -282,8 +291,25 @@ try {
 			const std::scoped_lock lock{ delay->ReadLogMutex };
 			delay->ReadLog.clear();
 		}
-		const auto reply = QStringLiteral("review-comment:PRRC_refresh_reply_%1").arg(delay->RepliesAdded.load() + 1U);
-		expect(!holds_post(*conversation, reply), "the reply is not there before the refresh");
+		const auto reply = discussion ? QStringLiteral("issue-comment:PRIC_refresh_discussion_%1").arg(round)
+									  : QStringLiteral("review-comment:PRRC_refresh_reply_%1").arg(delay->RepliesAdded.load() + 1U);
+		if (discussion) {
+			const auto comment = QJsonObject{
+				{ "id", 5000 + round },
+				{ "node_id", QStringLiteral("PRIC_refresh_discussion_%1").arg(round) },
+				{ "body", QStringLiteral("A PR-wide comment posted while you were reading (%1).").arg(round) },
+				{ "user", QJsonObject{ { "node_id", "U_other" }, { "login", "other-reviewer" }, { "type", "User" } } },
+			};
+			const std::scoped_lock lock{ server->Mutex };
+			server->ConversationComments = QJsonDocument{ QJsonArray{ comment } }.toJson(QJsonDocument::Compact).toStdString();
+		}
+		// Review's tree is scoped to its file. The cards retain the PR-wide
+		// posts that the conversation link opens, even while Review is shown.
+		const auto hasReply = [&] {
+			return discussion ? std::ranges::any_of(window->conversation_panel()->cards()->retained(), [&](const auto& aPost) { return aPost.Id == reply.toStdString(); })
+							  : holds_post(*conversation, reply);
+		};
+		expect(!hasReply(), "the reply is not there before the refresh");
 		delay->EveryReadMilliseconds = roundTrip;
 		auto fresh                   = std::optional<qint64>{ };
 		auto settled                 = std::optional<qint64>{ };
@@ -303,7 +329,7 @@ try {
 		while ((!settled || !fresh) && clock.elapsed() < 20'000) {
 			QApplication::processEvents();
 			const auto look = window->pending_veils().Content->look();
-			mark(fresh, holds_post(*conversation, reply), clock);
+			mark(fresh, hasReply(), clock);
 			mark(firstWash, washed(look), clock);
 			if (fresh && washed(look)) {
 				mark(washedAfterFresh, true, clock);
@@ -328,11 +354,22 @@ try {
 				expect(fresh && plate, "the reply and remaining-loading plate appear while the changed-file read is held");
 				expect(surface->current_context() == heldContext && surface->shared_scrollbar()->value() == heldScroll,
 					   "early conversation preserves the exact comparison and reading position");
+				if (discussion) {
+					window->conversation_panel()->cards()->pull_request_comments_chip()->click();
+					wait_for([&] { return window->showing_overview() && window->conversation_panel()->cards()->pull_request_comments_shown(); },
+							 "the updated PR discussion opens through the Review link while the catalogue is held");
+				}
 				open_reply(*window->conversation_panel()->cards(), reply);
 				expect(window->pending_veils().Content->look() == core::pending_look::partial,
 					   "opening the reply retains the remaining-loading plate");
 				if (!renderDirectory.isEmpty() && round == 1) {
 					expect(window->grab().save(renderDirectory + QStringLiteral("/refresh-reply-readable.png")), "the readable reply is rendered before releasing the catalogue");
+				}
+				if (discussion) {
+					window->choose_modality(qt::review_modality::review);
+					wait_for([&] { return surface->isVisible() && shown() && !surface->geometry_pending(); }, "Review remains readable while the catalogue is held");
+					expect(surface->current_context() == heldContext && surface->shared_scrollbar()->value() == heldScroll,
+						   "reading the early PR comment retains the comparison and reading position");
 				}
 				holdFiles     = false;
 				releasedFiles = true;
@@ -358,11 +395,11 @@ try {
 			}
 			std::cout << '\n';
 		}
-		std::cout << "refresh-current-file:timing round=" << round << " round-trip-ms=" << roundTrip << " file-fresh=" << text(fresh)
+		std::cout << (discussion ? "refresh-discussion:timing round=" : "refresh-current-file:timing round=") << round << " round-trip-ms=" << roundTrip << (discussion ? " conversation-fresh=" : " file-fresh=") << text(fresh)
 				  << " refresh-settled=" << text(settled) << " first-wash=" << text(firstWash) << " washed-after-fresh=" << text(washedAfterFresh) << " plate=" << text(plate)
 				  << " blank-samples=" << blanks << " reads=" << reads << '\n';
 		expect(window->pull_request_refresh().Phase == core::refresh_phase::updated, "the refresh answered");
-		expect(holds_post(*conversation, reply), "the reply is on the file's conversation once the refresh ends");
+		expect(hasReply(), "the reply is in the conversation once the refresh ends");
 		checkConversationLink();
 		if (measureOnly || roundTrip == 0U) {
 			continue;

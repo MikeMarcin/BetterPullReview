@@ -3315,8 +3315,16 @@ namespace {
 		std::optional<application::github_pull_request_overview_observation> Conversation;
 		std::size_t                                                          ConversationPageCount = 0U;
 		std::chrono::steady_clock::time_point                                ConversationObservedAt;
+		std::optional<application::github_pull_request_overview_observation> Discussion;
+		std::size_t                                                          DiscussionPageCount = 0U;
 		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 		{
+			if (aObservation.Discussion) {
+				expect(Overview && !Discussion && !aObservation.Conversation && !aObservation.Files, "PR discussion is independently observed once after metadata");
+				Discussion          = std::move(aObservation);
+				DiscussionPageCount = Count;
+				return;
+			}
 			if (aObservation.Conversation) {
 				expect(Overview && !Conversation, "the conversation is observed once, after the metadata");
 				Conversation           = std::move(aObservation);
@@ -3362,6 +3370,61 @@ namespace {
 				   && conversation->ReviewThreads == result->ReviewThreads && conversation->Reviews == result->Reviews
 				   && conversation->ConversationLock == result->ConversationLock && observer.Conversation->PullRequest.HeadOid == result->PullRequest.HeadOid,
 			   "it holds exactly the reviews, threads and head the completed snapshot holds");
+		expect(observer.Discussion && observer.Discussion->Discussion->IssueComments == result->IssueComments
+				   && observer.ConversationPageCount < observer.DiscussionPageCount && observer.DiscussionPageCount < observer.FileListPageCount,
+			   "PR-wide comments are published independently after inline threads and before the catalogue");
+	}
+
+	/// [[BPR-1893]]. A partial or invalid discussion is never published early.
+	auto test_refresh_discussion_exhausts_its_own_pages() -> void
+	{
+		for (const auto outcome : { "success", "invalid", "cancel", "limit" }) {
+			auto transport                      = paged_fixture_transport{ fixture_scenario::success };
+			auto request                        = provider_request();
+			request.Context.ExpectedRepository  = core::repository_id{ 2001U };
+			request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
+			recording_response_observer observer;
+			auto                        stop     = std::stop_source{ };
+			auto                        pages    = 0U;
+			const auto                  scenario = std::string_view{ outcome };
+			transport.RewriteResponse            = [&](const auto& aRequest, auto& aResponse) {
+				if (aRequest.Wire.Operation != read_operation::list_issue_comments) {
+					return;
+				}
+				++pages;
+				expect(observer.Conversation && !observer.Discussion && !observer.FileList, "inline replies remain earlier while discussion pages are incomplete");
+				if (aRequest.Wire.Semantic.Page == 1U) {
+					const auto link     = "<https://api.github.com" + aRequest.Wire.Path + "?per_page=100&page=2>; rel=\"next\"";
+					auto       comments = fixture_array{ };
+					for (auto index = 0U; index < 100U; ++index) {
+						comments.emplace_back(fixture_object{ { "node_id", "IC_first_" + std::to_string(index) }, { "body", "A first-page PR comment" }, { "user", nullptr } });
+					}
+					aResponse = success_response(fixture_json(comments), link, page_completeness::has_next_page);
+				} else {
+					expect(aRequest.Wire.Semantic.Page == 2U, "the exact discussion continuation is exhausted once");
+					aResponse.Body = scenario == "invalid" ? "[{\"node_id\":\"IC_second\"}]"
+														   : R"([{"node_id":"IC_second","body":"A second-page PR comment","user":null}])";
+					if (scenario == "cancel") {
+						stop.request_stop();
+					}
+				}
+			};
+			auto limits = github_paged_read_limits{ };
+			if (scenario == "limit") {
+				limits.MaximumTotalPages = 6U;
+			}
+			const auto result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 68U }, stop.get_token(), limits, github_provider_read_authority::authenticated, &observer);
+			if (scenario == "success") {
+				expect(result && pages == 2U && observer.Discussion && observer.Discussion->Discussion->IssueComments == result->IssueComments
+						   && result->IssueComments.size() == 101U && observer.DiscussionPageCount < observer.FileListPageCount,
+					   "only the complete discussion is published before independent files");
+			} else {
+				expect(!result && !observer.Discussion && !observer.FileList && pages == (scenario == "limit" ? 1U : 2U), "partial discussion grants no early observation or final snapshot");
+				expect(scenario == "cancel" ? std::holds_alternative<github_paged_read_cancelled>(result.error())
+											: provider_failure_of(result) == (scenario == "limit" ? application::github_provider_failure::response_limit : application::github_provider_failure::malformed_response),
+					   "discussion pagination preserves its cancellation, validation and shared-limit outcomes");
+			}
+		}
 	}
 
 	/// [[BPR-1883]]. Commit pagination is independent of the refresh's
@@ -3424,7 +3487,7 @@ namespace {
 			transport.RewriteResponse             = [&](const auto& aRequest, auto&) {
 				if (aRequest.Wire.Operation == read_operation::list_pull_request_files) {
 					++filePages;
-					expect(observer.Conversation && !observer.Conversation->Files && !observer.FileList,
+					expect(observer.Conversation && observer.Discussion && !observer.Conversation->Files && !observer.FileList,
 						   "complete conversation arrives before the catalogue, without an empty file-list observation");
 				}
 			};
@@ -3435,7 +3498,7 @@ namespace {
 				auto       ordinary = paged_fixture_transport{ scenario };
 				const auto complete = perform_paged_github_read(ordinary, profile(), request, core::provider_snapshot_id{ 65U }, { });
 				expect(complete && result->Files == complete->Files && result->Commits == complete->Commits
-						   && result->Reviews == complete->Reviews && result->ReviewThreads == complete->ReviewThreads
+						   && result->Reviews == complete->Reviews && result->ReviewThreads == complete->ReviewThreads && result->IssueComments == complete->IssueComments
 						   && transport.Requests.size() == ordinary.Requests.size() && filePages == 2U,
 					   "independent catalogue loading preserves the final records and request count");
 			} else {
@@ -3443,7 +3506,7 @@ namespace {
 					   "late invalid catalogue data retains its failure category");
 			}
 		}
-		for (const auto pageBudget : { 5U, 6U }) {
+		for (const auto pageBudget : { 6U, 7U }) {
 			auto transport                      = paged_fixture_transport{ fixture_scenario::success };
 			auto request                        = provider_request();
 			request.Context.ExpectedRepository  = core::repository_id{ 2001U };
@@ -3452,7 +3515,7 @@ namespace {
 			auto                        limits = github_paged_read_limits{ };
 			limits.MaximumTotalPages           = pageBudget;
 			const auto result                  = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 66U }, { }, limits, github_provider_read_authority::authenticated, &observer);
-			expect(!result && observer.Conversation && !observer.FileList && transport.Requests.size() == pageBudget
+			expect(!result && observer.Conversation && observer.Discussion && !observer.FileList && transport.Requests.size() == pageBudget
 					   && provider_failure_of(result) == application::github_provider_failure::response_limit,
 				   "catalogue loading retains the shared budget, including exhaustion before or during its pages");
 		}
@@ -3464,7 +3527,7 @@ namespace {
 		auto                        stop = std::stop_source{ };
 		transport.RewriteResponse        = [&](const auto& aRequest, auto&) {
 			if (aRequest.Wire.Operation == read_operation::list_pull_request_files) {
-				expect(observer.Conversation.has_value(), "the reply precedes cancellation of catalogue loading");
+				expect(observer.Conversation && observer.Discussion, "both conversation collections precede cancellation of catalogue loading");
 				stop.request_stop();
 			}
 		};
@@ -3558,7 +3621,7 @@ namespace {
 			const auto                  first     = [&](github_graphql_page_kind aKind) {
 				return std::ranges::find_if(ordinary.Requests, [&](const auto& aRequest) { return aRequest.Wire.Semantic.GraphqlPage && aRequest.Wire.Semantic.GraphqlPage->Kind == aKind; });
 			};
-			expect(unchanged && !opening.Conversation && first(github_graphql_page_kind::files) < first(github_graphql_page_kind::comments),
+			expect(unchanged && !opening.Conversation && !opening.Discussion && first(github_graphql_page_kind::files) < first(github_graphql_page_kind::comments),
 				   "first-open and unobserved reads retain viewed-file-before-comments order");
 			expect(unchanged->Files == result->Files && unchanged->ReviewThreads == result->ReviewThreads && unchanged->Reviews == result->Reviews
 					   && ordinary.Requests.size() == transport.Requests.size(),
@@ -3624,10 +3687,10 @@ namespace {
 				}
 			};
 			auto limits = github_paged_read_limits{ };
-			// Repository, PR, reviews, two thread pages, then three catalogue pages.
-			limits.MaximumTotalPages = 8U;
+			// Repository, PR, reviews, two thread pages, discussion, then three catalogue pages.
+			limits.MaximumTotalPages = 9U;
 			const auto result        = perform_paged_github_read(transport, profile(), viewed_file_request(), core::provider_snapshot_id{ 64U }, stop.get_token(), limits, github_provider_read_authority::authenticated, &observer);
-			expect(!result && transport.Requests.size() == (cancelBeforeObservation ? 5U : 8U), "independent viewed-file loading cannot reset the shared page budget");
+			expect(!result && transport.Requests.size() == (cancelBeforeObservation ? 5U : 9U), "independent viewed-file loading cannot reset the shared page budget");
 			if (cancelBeforeObservation) {
 				expect(!observer.Conversation && std::holds_alternative<github_paged_read_cancelled>(result.error()), "cancellation before the observation suppresses early conversation");
 			} else {
@@ -3669,8 +3732,8 @@ namespace {
 		const auto                  first  = [&](read_operation aOperation) {
 			return std::ranges::find_if(transport.Requests, [&](const auto& aRequest) { return aRequest.Wire.Operation == aOperation; });
 		};
-		expect(result && !observer.Conversation && first(read_operation::list_pull_request_commits) < first(read_operation::list_reviews)
-				   && first(read_operation::list_reviews) < first(read_operation::list_review_threads),
+		expect(result && !observer.Conversation && !observer.Discussion && first(read_operation::list_pull_request_commits) < first(read_operation::list_reviews)
+				   && first(read_operation::list_reviews) < first(read_operation::list_review_threads) && first(read_operation::list_review_threads) < first(read_operation::list_issue_comments),
 			   "a first open retains its read order and publishes no early conversation");
 	}
 
@@ -5718,6 +5781,7 @@ auto main(int aArgc, char* aArgv[]) -> int
 	test_raw_tour_import();
 	test_ghes_actor_conflict_recreated_read();
 	test_refresh_observes_conversation_after_threads();
+	test_refresh_discussion_exhausts_its_own_pages();
 	test_refresh_conversation_precedes_commit_pages();
 	test_refresh_conversation_precedes_file_pages();
 	test_refresh_cancellation_after_early_conversation();
