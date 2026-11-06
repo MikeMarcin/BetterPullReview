@@ -20028,6 +20028,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			return !Closing && Profile->current_window(DraftWindow) && EpochHost
 				&& EpochHost->read_cached_source(std::move(aRequest), aStop, std::move(aCompletion));
 		}
+		void prepare_runtime() override
+		{
+			if (!Closing && Profile->current_window(DraftWindow) && EpochHost) {
+				EpochHost->prepare_runtime();
+			}
+		}
 		void accept(application::accepted_pull_request_handoff aHandoff) override
 		{
 			if (!Closing && EpochHost != nullptr) {

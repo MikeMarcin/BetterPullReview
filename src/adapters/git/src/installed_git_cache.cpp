@@ -17,6 +17,7 @@
 #include <array>
 #include <atomic>
 #include <cerrno>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <cstring>
@@ -6063,6 +6064,15 @@ namespace bpr::adapters::git {
 			{
 			}
 
+			void prepare_runtime(const std::stop_token aStop) override
+			{
+				const auto storage = canonical_existing(Configuration.StorageRoot);
+				if (aStop.stop_requested() || !storage || !private_directory(*storage)) {
+					return;
+				}
+				static_cast<void>(make_process(*storage, aStop));
+			}
+
 			[[nodiscard]] auto open(
 				const application::git_cache_open_request& aRequest,
 				const std::stop_token                      aStop)
@@ -6136,16 +6146,7 @@ namespace bpr::adapters::git {
 						};
 					}
 				}
-				auto process = make_installed_git_process(
-					{
-						.GitExecutable              = Configuration.GitExecutable,
-						.IsolationRoot              = *storage,
-						.WindowsSystemRoot          = Configuration.WindowsSystemRoot,
-						.WorkspaceOwnershipRegistry = Configuration.WorkspaceOwnershipRegistry,
-						.Insights                   = Configuration.Insights,
-						.Admissions                 = Admissions,
-					},
-					aStop);
+				auto process = make_process(*storage, aStop);
 				if (!process.has_value()) {
 					const auto failure = process.error()
 							== application::git_process_failure::cancelled
@@ -6769,6 +6770,30 @@ namespace bpr::adapters::git {
 
 		private:
 			installed_git_cache_configuration Configuration;
+			// A foreground open reuses an overlapping preparation instead of
+			// launching a second admission. Waiting remains cancellable.
+			std::timed_mutex RuntimeMutex;
+
+			[[nodiscard]] auto make_process(const std::filesystem::path& aStorage, const std::stop_token aStop)
+				-> std::expected<std::unique_ptr<application::git_process_port>, application::git_process_error>
+			{
+				auto lock = std::unique_lock{ RuntimeMutex, std::defer_lock };
+				while (!aStop.stop_requested()) {
+					if (lock.try_lock_for(std::chrono::milliseconds{ 10 })) {
+						return make_installed_git_process({
+															  .GitExecutable              = Configuration.GitExecutable,
+															  .IsolationRoot              = aStorage,
+															  .WindowsSystemRoot          = Configuration.WindowsSystemRoot,
+															  .WorkspaceOwnershipRegistry = Configuration.WorkspaceOwnershipRegistry,
+															  .Insights                   = Configuration.Insights,
+															  .Admissions                 = Admissions,
+														  },
+														  aStop);
+					}
+				}
+				return std::unexpected{ application::git_process_failure::cancelled };
+			}
+
 			/// [[BPR-1842]]. Every review this cache opens shares one admission
 			/// of its Git, rather than admitting it again for each.
 			std::shared_ptr<installed_git_admissions> Admissions = make_installed_git_admissions();

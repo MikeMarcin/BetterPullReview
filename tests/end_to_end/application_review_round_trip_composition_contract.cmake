@@ -17,6 +17,11 @@
 # No production action, host effect, provider, grant, credential or mutation
 # branch changes. Full/app-manifest pins bind that exact observer correction;
 # native qualification and original failed measurements remain separate.
+# [[BPR-1888]] Reviewed against 650099b71: github_application.cpp only adds
+# the current-window handoff forwarding optional runtime preparation to its
+# epoch host. The host owns effect scheduling and keeps accepted repository
+# authority unchanged. No provider, credential, grant, mutation branch or
+# source inventory change; the production mutation digest stays 70fe8a7e.
 # [[BPR-1854]] BPR-1870 release merge review over 468cfe20c/e61ad029a.
 # github_application.cpp places a user-named foreign-content root in a private
 # BetterPullReview/data child and narrows an existing application-owned root
@@ -2707,7 +2712,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "bd8afdc4c4249cbec8d74d8b8df695ad79977e86ee3ab9c274102327d664f6c1"
+        "e730d9aac8bafc08cfdac2823170b5b375e67c903146572795f199ecd295dab4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3032,7 +3037,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "e08394318d3ab1a41d2bca1277004e4290009769e4a408c51f2f528bdc6302ec"
+        "2f3c80d028613328de6bf00b0238a1eeae55e824dc16991aa5c684792cfc8678"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

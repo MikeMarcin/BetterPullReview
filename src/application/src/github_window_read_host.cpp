@@ -926,6 +926,15 @@ namespace bpr::application {
 			}
 			PendingProvider  = aRequest;
 			ProgressSequence = 0U;
+			// [[BPR-1888]]. Local Git setup can overlap the provider read. It
+			// grants no authority and cannot turn a readable PR into a failure.
+			if (Epochs != nullptr) {
+				try {
+					Epochs->prepare_runtime();
+				} catch (...) {
+					// The accepted handoff retains the ordinary setup/error path.
+				}
+			}
 			const auto token = ++ProviderOperationToken;
 			auto       weak  = weak_from_this();
 			auto*      lane  = &DecisionLane;
