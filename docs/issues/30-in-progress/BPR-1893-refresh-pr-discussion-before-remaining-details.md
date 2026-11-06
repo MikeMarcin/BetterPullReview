@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1893"
 title: "Refresh PR discussion before remaining details"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1890"]
 priority: "P1"
