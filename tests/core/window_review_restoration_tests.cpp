@@ -52,7 +52,10 @@ namespace {
 		expect(actions.Startup.has_value(), "retained position participates in existing startup");
 		static_cast<void>(policy.mark_window_ready(context(2)));
 		expect(policy.complete_startup(actions.Startup->Request, window_review_authority{ github_access_mode::authenticated, "github.com" }).Opens.empty(), "[[BPR-0733]] startup alone opens nothing");
-		const auto opened = policy.open_recent(context(2), 0);
+		expect(policy.recent().size() == 2 && policy.recent()[0].Destination == other
+				   && policy.recent()[1].Destination == destination(),
+			   "initial load keeps the two visits made before it");
+		const auto opened = policy.open_recent(context(2), 1);
 		expect(opened.Opens.size() == 1 && opened.Opens[0].Position == saved && opened.Opens[0].Destination == destination(), "exact recent payload carried to the asking ready window");
 		auto invalid                                = saved;
 		invalid.Comparison.Right.Identity.Authority = identity<pull_request_authority_scope_id>(9);
@@ -196,6 +199,25 @@ namespace {
 		const auto                refused = corrupt.load({ }, { { first, { }, 0, { } }, { first, { }, 0, { } } });
 		expect(!refused.Startup && refused.Failures.size() == 1 && refused.Failures[0].Reason == window_review_failure::corrupt, "a corrupt list fails the load");
 	}
+	void test_recent_reads_before_initial_load()
+	{
+		window_review_restoration policy{ default_bpr_profile_id, { context(1) }, { "github.com" } };
+		const auto                opened = destination();
+		auto                      older  = opened;
+		older.Number                     = pull_request_number{ 42 };
+		expect(policy.accepted_read(context(1), opened, 20) && policy.accepted_title(opened, "New title"),
+			   "the first review may open before the store responds");
+		static_cast<void>(policy.load({ }, { { older, "Older review", 10 }, { opened, "Old title", 5, position() } }));
+		expect(policy.recent().size() == 2 && policy.recent()[0].Destination == opened
+				   && policy.recent()[0].Title == "New title" && policy.recent()[0].ViewedAt == 20
+				   && policy.recent()[0].Position == position() && policy.recent()[1].Destination == older,
+			   "the initial load keeps the new visit and merges older stored entries");
+		window_review_restoration removed{ default_bpr_profile_id, { context(1) }, { "github.com" } };
+		expect(removed.accepted_read(context(1), opened, 20) && removed.forget_recent(opened),
+			   "the new visit can be removed before the store responds");
+		static_cast<void>(removed.load({ }, { { opened, "Old title", 5 } }));
+		expect(removed.recent().empty(), "the initial load does not restore a removed entry");
+	}
 	void test_recent_account_identity()
 	{
 		auto first           = destination();
@@ -322,6 +344,7 @@ int main()
 {
 	test_filters_follow_the_review();
 	test_recently_viewed_list();
+	test_recent_reads_before_initial_load();
 	test_recent_account_identity();
 	test_selection_and_exact_readiness();
 	test_home_does_not_cancel_sibling_and_missing_host_no_fallback();

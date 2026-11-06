@@ -234,6 +234,13 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # "private desktop root under the canonical storage policy" before any
     # course step.
     "application_home_open_feedback_public_path": "dos-volume-name",
+    # [[BPR-1875]]. Measured on JaegAW 2026-11-06 at frozen 4c54c5b91,
+    # native Release: the unchanged --gh-cli course reaches the same
+    # "private desktop root under the canonical storage policy" refusal
+    # before any CLI or Home step; AppContainer child exit 3. The original
+    # uncontained --gh-cli control passes in 32.43 s; its registration and
+    # every assertion remain unchanged.
+    "application_home_open_feedback_cli_public_path": "dos-volume-name",
     "application_setup_destination_public_path": "dos-volume-name",
     # [[BPR-1089]]. Measured on bpr-main-win 2026-10-07 at e31a3f357, each
     # registered contained for the measurement: the courses stop at "FAILED:

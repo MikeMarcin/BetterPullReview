@@ -230,10 +230,37 @@ namespace bpr::core {
 			actions.Failures.push_back({ { }, window_review_failure::corrupt });
 			return actions;
 		}
-		// The store's list is the durable truth until this process views
-		// something; afterwards the in-memory list is newer than any reload.
+		// A review can open before the initial store read completes. Keep
+		// those newer visits first, then fill in older durable history.
 		if (!Loaded) {
-			Recent = aRecent;
+			for (const auto& saved : aRecent) {
+				if (std::ranges::find(RecentRemovedBeforeLoad, saved.Destination) != RecentRemovedBeforeLoad.end()) {
+					continue;
+				}
+				const auto current = std::ranges::find(Recent, saved.Destination, &window_recent_review::Destination);
+				if (current == Recent.end()) {
+					if (Recent.size() < maximum_recent_reviews) {
+						Recent.push_back(saved);
+					}
+					continue;
+				}
+				if (current->Title.empty()) {
+					current->Title = saved.Title;
+				}
+				if (!current->Position) {
+					current->Position = saved.Position;
+				}
+				if (!current->Tabs) {
+					current->Tabs = saved.Tabs;
+				}
+				if (!current->Filters) {
+					current->Filters = saved.Filters;
+				}
+				if (!current->Draft) {
+					current->Draft = saved.Draft;
+				}
+			}
+			RecentRemovedBeforeLoad.clear();
 		}
 		auto merged = aRecords;
 		std::erase_if(merged, [this](const auto& aRecord) { return std::ranges::none_of(Slots, [&aRecord](const auto& aSlot) { return aSlot.Context.Window == aRecord.Window; }); });
@@ -353,6 +380,9 @@ namespace bpr::core {
 		const auto found = std::ranges::find(Recent, aDestination, &window_recent_review::Destination);
 		if (found == Recent.end()) {
 			return false;
+		}
+		if (!Loaded) {
+			RecentRemovedBeforeLoad.push_back(aDestination);
 		}
 		Recent.erase(found);
 		return true;

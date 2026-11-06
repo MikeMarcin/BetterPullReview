@@ -247,6 +247,7 @@ namespace bpr::core {
 		std::vector<std::string>               ConfiguredHosts;
 		std::vector<window_review_record>      Records;
 		std::vector<window_recent_review>      Recent;
+		std::vector<window_review_destination> RecentRemovedBeforeLoad;
 		std::optional<request_id>              Startup;
 		std::optional<window_review_authority> Chosen;
 		std::uint64_t                          NextRequest       = 1;

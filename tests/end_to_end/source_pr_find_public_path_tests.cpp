@@ -1,4 +1,5 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
+#include "../support/source_find_event_turns.hpp"
 #include "../support/test_expectation.hpp"
 #include "../support/window_system_keys.hpp"
 #include "../support/window_system_mouse.hpp"
@@ -182,9 +183,7 @@ int main(int aArgc, char** aArgv)
 
 	const auto  beforeTraversal = panel->projection().Statistics;
 	const auto* comparison      = surface->current_result().get();
-	for (int step = 0; step < 1000; ++step) {
-		nextAction->trigger();
-	}
+	tests::dispatch_source_find_navigation([&] { nextAction->trigger(); });
 	settle();
 	expect(panel->projection().Statistics.Compilations == beforeTraversal.Compilations && panel->projection().Statistics.ReadCalls == beforeTraversal.ReadCalls && panel->projection().Statistics.Scans == beforeTraversal.Scans, "1000 PR result traversals perform no compile scan or source read");
 	expect(surface->current_result().get() == comparison, "same-file PR traversal reuses ordinary accepted diff");

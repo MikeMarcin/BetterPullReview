@@ -1802,9 +1802,10 @@ namespace bpr::qt {
 		CaptionButtons = new windows_caption_buttons{ PrimaryToolbar };
 		rowWidget(PrimaryToolbar, CaptionButtons->reserve(), QStringLiteral("workbenchCaptionButtonsAction"));
 		// The menu bar's row is the strip's menu control on Windows. The bar
-		// stays the menus' owner, hidden, so the Quit shortcut it carried is
-		// the window's to keep live.
+		// still owns the menus while hidden. Keep the File shortcuts active
+		// on the window itself.
 		PrimaryMenuBar->setVisible(false);
+		addAction(NewBprWindowAction);
 		addAction(QuitProfilesAction);
 #endif
 
