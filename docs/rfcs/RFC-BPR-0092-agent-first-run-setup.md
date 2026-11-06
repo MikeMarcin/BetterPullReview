@@ -309,18 +309,27 @@ its own: see the amendment below.
 >   Whether it also replaces that repository's sparse review cache is left to
 >   a later card.
 >
->   As built (owner look v005): with no clone found, the Repository step of a
->   sparse review read through a `gh` lease is one choice between three
->   cards, the same cards a found clone is chosen from, in order of strength.
->   **Use my clone** is first, chosen at first and marked "Recommended" in the
->   accent colour: "Full history already on this computer". **Keep a clone
->   for me** is second: its figure is SIZE, its line "Full history, kept in
->   LOCATION" (the location shortened in the middle, the whole path as its
->   tooltip). **This pull request only** is last, "Weaker answers: no callers,
->   tests or history". One default button acts on the card chosen: **Choose
->   its folder…**, **Keep a clone** or **Use this pull request**. When
->   another action leads (no clone folder yet, or clones found), the keep and
->   pull-request cards follow it with a quiet button. SIZE is GitHub's `size` from the review's repository
+>   As built (owner looks v005 and v006): wherever no clone is linked, sparse
+>   review or complete, the Repository step is one choice between cards in
+>   order of strength, one default button acting on the card chosen.
+>   **Link your clone** is first, chosen at first and marked "Recommended" in
+>   the accent colour. The step searches the clone folders itself once it
+>   shows (no separate search link): clones found are offered on the card,
+>   the first chosen, and the button is **Link this clone** (with **Choose
+>   another folder…** and **Edit clone folders…** small on the card); with
+>   none it says "None in FOLDERS" and the button is **Choose its folder…**
+>   (with **Edit clone folders…**); with no folder listed yet the card holds
+>   the folder line, the likeliest folder in it, and the button is **Add
+>   folder**. **Keep a clone for me** is second, when the review can: its
+>   figure is SIZE, its line "Full history, kept in LOCATION" (shortened in
+>   the middle, the whole path as its tooltip); its button **Keep a clone**.
+>   The weakest is last: a sparse review's **This pull request only**
+>   ("Weaker answers: no callers, tests or history", button **Use this pull
+>   request**) or a complete review's **A private copy** ("The head and its
+>   history, no branches or tags", button **Use a private copy**). A fixture
+>   course (tests-on builds) keeps a clone as a rehearsal, bytes arriving
+>   until Cancel and nothing written, so a frozen look shows the choice and
+>   its progress. SIZE is GitHub's `size` from the review's repository
 >   read, in decimal units. The review's own lease
 >   runs `gh repo clone URL STORE --no-upstream -- --no-checkout --quiet`
 >   with the same pinned private configuration, environment, hooks off, no
