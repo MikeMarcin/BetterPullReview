@@ -103,12 +103,13 @@ places are the same controls, moved, so the model, publication and recovery
 below are unchanged. The section stack keeps its four pages (Problem,
 Solution, stops, preview) with no visible tabs.
 
-Since [[BPR-1878]] the tab opens with agent help: a **Drafting agent** menu
-that shares the Agent tab's menu model, so one choice shows in both, and one
-line saying what that agent will do for drafting (it cannot write tour text,
-another agent writes instead, it is busy). With no agent offered the menu
-gives way to that reason and **Set up an agent**, which opens Settings at
-Agents & context; a read-only draft shows no agent help. Each field's
+Since [[BPR-1878]] (owner look v001) the tab's bottom carries the Agent
+tab's own agent picker: a second `agent_run_settings_picker` over the
+Agent tab's `agent_run_settings_source`, so its pill ("agent · model ·
+effort"), its menu and its choice are the Agent tab's, and choosing in
+either shows in both. As in the Agent tab it is hidden while no agent is
+chosen; a helper clicked then says why in the tab's notice (no agent set
+up, none chosen, not this window's draft, or the agent busy). Each field's
 helper uses RFC-BPR-0043's labels: **Draft from PR context** on an empty
 Problem or Solution (the description's own section when it has one,
 otherwise the agent's draft), **Enhance problem statement**, **Enhance

@@ -12,7 +12,6 @@
 #include "waiting_panel.hpp"
 
 #include <QAbstractButton>
-#include <QAbstractItemModel>
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
@@ -36,7 +35,6 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
-#include <QShowEvent>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -855,41 +853,6 @@ namespace bpr::qt {
 		auto* const notes = new QVBoxLayout{ Notices };
 		notes->setContentsMargins(10, 8, 10, 4);
 		notes->setSpacing(6);
-		// [[BPR-1878]]. Agent help: the agent drafts and rewrites use, chosen
-		// here as in the Agent tab (one shared menu), and one line saying what
-		// it will do. With no agent the line says why and offers setup; manual
-		// writing never waits on it.
-		AgentHelp = new QWidget{ Notices };
-		AgentHelp->setObjectName(QStringLiteral("tourAgentHelp"));
-		auto* const help = new QVBoxLayout{ AgentHelp };
-		help->setContentsMargins(0, 0, 0, 2);
-		help->setSpacing(2);
-		auto* const agentRow = new QHBoxLayout{ };
-		agentRow->setSpacing(6);
-		auto* const agentLabel = new QLabel{ tr("Drafting agent"), AgentHelp };
-		agentLabel->setObjectName(QStringLiteral("tourAgentLabel"));
-		agentRow->addWidget(agentLabel);
-		AgentPicker = new QComboBox{ AgentHelp };
-		AgentPicker->setObjectName(QStringLiteral("tourAgentPicker"));
-		AgentPicker->setAccessibleName(tr("Drafting agent"));
-		AgentPicker->setToolTip(tr("The agent that drafts and rewrites tour text when you ask. It is the same choice as the Agent tab."));
-		AgentPicker->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
-		AgentPicker->setMinimumContentsLength(12);
-		agentLabel->setBuddy(AgentPicker);
-		agentRow->addWidget(AgentPicker, 1);
-		AgentSetUp = new quiet_push_button{ tr("Set up an agent"), AgentHelp };
-		AgentSetUp->setObjectName(QStringLiteral("tourAgentSetUp"));
-		AgentSetUp->setToolTip(tr("Open Settings at Agents & context to add an agent that can draft tour text."));
-		connect(AgentSetUp, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::set_up_agent); });
-		agentRow->addWidget(AgentSetUp);
-		// Holds Set up an agent beside its label while the menu gives way.
-		agentRow->addStretch(0);
-		help->addLayout(agentRow);
-		AgentHint = paragraph({ }, AgentHelp);
-		AgentHint->setObjectName(QStringLiteral("tourAgentHint"));
-		AgentHint->setForegroundRole(QPalette::PlaceholderText);
-		help->addWidget(AgentHint);
-		notes->addWidget(AgentHelp);
 		Imports = new QComboBox{ Notices };
 		Imports->setObjectName(QStringLiteral("tourImportChoices"));
 		Imports->setAccessibleName(tr("GitHub tour index and list"));
@@ -1176,6 +1139,15 @@ namespace bpr::qt {
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
+		// [[BPR-1878]], owner look v001 ("we should just have the bottom agent
+		// picker the same one from the agent tab"): the Agent tab's picker,
+		// at the bottom, right-aligned as it sits in the question field.
+		AgentRow = new QWidget{ this };
+		AgentRow->setObjectName(QStringLiteral("tourAgentRow"));
+		auto* const agentRow = new QHBoxLayout{ AgentRow };
+		agentRow->setContentsMargins(10, 4, 10, 0);
+		agentRow->addStretch(1);
+		AgentRow->hide();
 		// The foot: the private draft's state, and Preview and publish.
 		Foot = new QWidget{ this };
 		Foot->setObjectName(QStringLiteral("tourFoot"));
@@ -1242,6 +1214,7 @@ namespace bpr::qt {
 		rightColumn->addWidget(PublicationPanel, 1);
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
+		layout->addWidget(AgentRow);
 		layout->addWidget(Foot);
 
 		for (auto* widget : findChildren<QWidget*>()) {
@@ -1384,10 +1357,7 @@ namespace bpr::qt {
 		Import->setVisible(!aProjection.ImportChoices.empty());
 		Shown               = aProjection;
 		const bool editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly;
-		// [[BPR-1878]]. Agent help is for writing a draft; a read-only or
-		// absent one has nothing to draft.
-		AgentHelp->setVisible(editable);
-		const bool bounded = same && Shown.Refusal == core::tour_refusal::bounds;
+		const bool bounded  = same && Shown.Refusal == core::tour_refusal::bounds;
 		Problem->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::problem));
 		Solution->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::solution));
 		Title->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::edit_stop));
@@ -1637,6 +1607,10 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		// [[BPR-1878]]. The row shows while its picker does (an agent chosen).
+		if (aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
+			AgentRow->setVisible(AgentPicker->isVisibleTo(AgentRow));
+		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -1683,69 +1657,18 @@ namespace bpr::qt {
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
 	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
-	void review_tour_editor::share_agent_choices(QComboBox* aSource)
+	void review_tour_editor::set_agent_picker(agent_run_settings_picker* aPicker)
 	{
-		if (aSource == nullptr || AgentSource == aSource) {
+		if (aPicker == nullptr || AgentPicker == aPicker) {
 			return;
 		}
-		AgentSource = aSource;
-		AgentPicker->setModel(aSource->model());
-		const auto follow = [this] {
-			if (AgentSource) {
-				const auto block = QSignalBlocker{ AgentPicker };
-				AgentPicker->setCurrentIndex(AgentSource->currentIndex());
-			}
-			refresh_agent_help();
-		};
-		// The source settles its own choice (core decides the pick); this menu
-		// only mirrors it, and hands a choice made here to the source.
-		connect(aSource, &QComboBox::currentIndexChanged, this, follow);
-		auto* const model = aSource->model();
-		connect(model, &QAbstractItemModel::rowsInserted, this, follow);
-		connect(model, &QAbstractItemModel::rowsRemoved, this, follow);
-		connect(model, &QAbstractItemModel::modelReset, this, follow);
-		connect(AgentPicker, &QComboBox::activated, this, [this](const int aIndex) {
-			if (AgentSource && AgentSource->currentIndex() != aIndex) {
-				AgentSource->setCurrentIndex(aIndex);
-			}
-			refresh_agent_help();
-		});
-		follow();
-	}
-	void review_tour_editor::set_agent_help_source(std::function<QString()> aSource)
-	{
-		AgentHelpSource = std::move(aSource);
-		refresh_agent_help();
-	}
-	auto review_tour_editor::agents_offered() const -> bool
-	{
-		// The source's unavailable entry (a chosen agent that went) is disabled
-		// and carries no agent: it is not one offered.
-		for (int row = 0; row < AgentPicker->count(); ++row) {
-			if (AgentPicker->itemData(row).isValid()) {
-				return true;
-			}
-		}
-		return false;
-	}
-	void review_tour_editor::refresh_agent_help()
-	{
-		const bool offered = agents_offered();
-		AgentPicker->setVisible(offered);
-		AgentSetUp->setVisible(!offered);
-		auto hint = AgentHelpSource ? AgentHelpSource() : QString{ };
-		if (hint.isEmpty()) {
-			hint = !offered                       ? tr("No agent is set up, so drafting is off. You can write the text yourself.")
-				: AgentPicker->currentIndex() < 0 ? tr("Choose an agent to draft or rewrite text. You can always write it yourself.")
-												  : tr("Drafts and rewrites use this agent. Choosing here also chooses it in the Agent tab.");
-		}
-		AgentHint->setText(hint);
-	}
-	auto review_tour_editor::agent_help_text() const -> QString { return AgentHint->text(); }
-	void review_tour_editor::showEvent(QShowEvent* aEvent)
-	{
-		QWidget::showEvent(aEvent);
-		refresh_agent_help();
+		AgentPicker = aPicker;
+		aPicker->setParent(AgentRow);
+		static_cast<QHBoxLayout*>(AgentRow->layout())->addWidget(aPicker);
+		aPicker->installEventFilter(this);
+		aPicker->present();
+		AgentRow->setVisible(aPicker->isVisibleTo(AgentRow));
+		aPicker->set_narrow(width() > 0 && width() < 300);
 	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
@@ -2877,6 +2800,10 @@ namespace bpr::qt {
 		QWidget::resizeEvent(aEvent);
 		fit_page_columns();
 		place_stop_card();
+		if (AgentPicker != nullptr) {
+			// As in the Agent tab's field: an icon alone when narrow.
+			AgentPicker->set_narrow(width() < 300);
+		}
 	}
 
 	void review_tour_editor::fit_page_columns()

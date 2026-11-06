@@ -4,8 +4,8 @@
 #include "bpr/application/review_tour_projection.hpp"
 #include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_view.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
-#include <QComboBox>
 #include <QFont>
 #include <QPointer>
 #include <QWidget>
@@ -16,6 +16,7 @@
 #include <vector>
 class QAction;
 class QCheckBox;
+class QComboBox;
 class QListWidget;
 class QLineEdit;
 class QTextDocument;
@@ -50,8 +51,7 @@ namespace bpr::qt {
 												   reconcile_publication,
 												   stop_publication,
 												   suggest_outline,
-												   insert_outline,
-												   set_up_agent };
+												   insert_outline };
 	/// \brief [[BPR-1593]]. Where the tour is shown: the route in the drawer's
 	/// Tour tab (RFC-BPR-0085 D4, layout A), or the tour page in the main pane
 	/// (layout C).
@@ -114,20 +114,11 @@ namespace bpr::qt {
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
-		/// \brief [[BPR-1878]]. Agent help at the top of the tab: a menu of
-		/// the agents `aSource` offers, sharing its model and its choice, so
-		/// picking here picks in the Agent tab and back. With none offered the
-		/// menu gives way to one line saying why and Set up an agent.
-		void share_agent_choices(QComboBox* aSource);
-		/// \brief [[BPR-1878]]. What the chosen agent will do for drafting,
-		/// in one line, asked whenever the choice or the tab changes. Without
-		/// one the line says only what the menu shows.
-		void set_agent_help_source(std::function<QString()> aSource);
-		/// \brief [[BPR-1878]]. Asks the help line again (a request started,
-		/// ended or was refused).
-		void               refresh_agent_help();
-		[[nodiscard]] auto agent_picker() const noexcept -> QComboBox* { return AgentPicker; }
-		[[nodiscard]] auto agent_help_text() const -> QString;
+		/// \brief [[BPR-1878]], owner look v001. The Agent tab's own agent
+		/// picker (a second `agent_run_settings_picker` on its source), at the
+		/// bottom of the tab, so choosing here chooses there.
+		void               set_agent_picker(agent_run_settings_picker* aPicker);
+		[[nodiscard]] auto agent_picker() const noexcept -> agent_run_settings_picker* { return AgentPicker; }
 		void               show_stops();
 		/// \brief [[BPR-1781]]. Shows the stops with `aStop` current, and goes
 		/// to its lines as choosing it on the route does.
@@ -171,7 +162,6 @@ namespace bpr::qt {
 
 	protected:
 		void hideEvent(QHideEvent* aEvent) override;
-		void showEvent(QShowEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void changeEvent(QEvent* aEvent) override;
 		void restyle_working();
@@ -206,7 +196,6 @@ namespace bpr::qt {
 		void                                                                       fit_page_columns();
 		void                                                                       refresh_excerpt();
 		void                                                                       refresh_foot();
-		[[nodiscard]] auto                                                         agents_offered() const -> bool;
 		tour_editor_mode                                                           Mode = tour_editor_mode::route;
 		QPointer<QWidget>                                                          RefocusStop;
 		stop_action_row*                                                           StopActions   = nullptr;
@@ -237,28 +226,24 @@ namespace bpr::qt {
 		QWidget*         PublicationPanel = nullptr;
 		QWidget*         OutlineTools     = nullptr;
 		QWidget*         Notices          = nullptr;
-		/// [[BPR-1878]]. Agent help: the shared menu, its line, and Set up.
-		QWidget*                 AgentHelp   = nullptr;
-		QComboBox*               AgentPicker = nullptr;
-		QPointer<QComboBox>      AgentSource;
-		QLabel*                  AgentHint  = nullptr;
-		QPushButton*             AgentSetUp = nullptr;
-		std::function<QString()> AgentHelpSource;
-		QWidget*                 Foot               = nullptr;
-		QLabel*                  FootState          = nullptr;
-		QPushButton*             PreviewPublish     = nullptr;
-		QLabel*                  StopState          = nullptr;
-		QPushButton*             Reaffirm           = nullptr;
-		QPushButton*             Previous           = nullptr;
-		QPushButton*             Next               = nullptr;
-		QComboBox*               PublicationMode    = nullptr;
-		QCheckBox*               DescriptionEdit    = nullptr;
-		QLabel*                  PublicationStatus  = nullptr;
-		markdown_body_view*      PublicationPreview = nullptr;
-		QPushButton*             PublishTour        = nullptr;
-		QPushButton*             ResumeTour         = nullptr;
-		QPushButton*             ReconcileTour      = nullptr;
-		QPushButton*             StopTour           = nullptr;
+		/// [[BPR-1878]]. The bottom row and the agent picker in it.
+		QWidget*                   AgentRow           = nullptr;
+		agent_run_settings_picker* AgentPicker        = nullptr;
+		QWidget*                   Foot               = nullptr;
+		QLabel*                    FootState          = nullptr;
+		QPushButton*               PreviewPublish     = nullptr;
+		QLabel*                    StopState          = nullptr;
+		QPushButton*               Reaffirm           = nullptr;
+		QPushButton*               Previous           = nullptr;
+		QPushButton*               Next               = nullptr;
+		QComboBox*                 PublicationMode    = nullptr;
+		QCheckBox*                 DescriptionEdit    = nullptr;
+		QLabel*                    PublicationStatus  = nullptr;
+		markdown_body_view*        PublicationPreview = nullptr;
+		QPushButton*               PublishTour        = nullptr;
+		QPushButton*               ResumeTour         = nullptr;
+		QPushButton*               ReconcileTour      = nullptr;
+		QPushButton*               StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;
