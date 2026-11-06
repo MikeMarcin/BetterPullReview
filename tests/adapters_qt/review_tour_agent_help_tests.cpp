@@ -123,31 +123,29 @@ auto main(int argc, char** argv) -> int
 	// AC1. The Agent tab's picker, at the bottom of the tab, showing its choice.
 	expect(picker != nullptr && picker->objectName() == QStringLiteral("agentRunSettings") && picker->source() == agentTab.source(), "the Tour tab's picker is the Agent tab's component over its source");
 	expect(picker->isVisible() && picker->full_text() == agentTab.full_text() && picker->full_text().startsWith(QStringLiteral("Claude Code")), "the picker shows the chosen agent, as the Agent tab's does");
-	// Owner look v002 ("it seems weird for preview and publish to be below
-	// the model picker"): the picker goes with Draft from PR context, directly
-	// under it, as with Send in the Agent tab, and the draft's state with
-	// Preview and publish stays the tab's last row.
-	const auto top   = [&editor](const QWidget* aWidget) { return aWidget->mapTo(&editor, QPoint{ 0, 0 }).y(); };
-	const auto under = [&top, &editor](const QWidget* aPicker, const QWidget* aButton) {
-		const auto gap = top(aPicker) - (top(aButton) + aButton->height());
-		return gap >= 0 && gap <= 12 && aPicker->mapTo(&editor, QPoint{ 0, 0 }).x() == aButton->mapTo(&editor, QPoint{ 0, 0 }).x();
-	};
-	expect(picker->parentWidget()->isAncestorOf(magic) && under(picker, magic), "the picker sits directly under the button that asks the agent");
+	// Owner looks v002 and v003 ("How hard is it to put the agent picker at
+	// the bottom like i asked for"): the picker is the tab's bottom bar, the
+	// last thing in the tab, laid out as the Agent tab's (its field inset 10
+	// at the sides and bottom, the pill on the right); the draft's state and
+	// Preview and publish sit just above it, never below.
+	const auto  top   = [&editor](const QWidget* aWidget) { return aWidget->mapTo(&editor, QPoint{ 0, 0 }).y(); };
+	auto* const bar   = child<QWidget>(editor, "tourAgentBar");
+	auto* const field = child<QWidget>(editor, "tourAgentField");
+	expect(bar->isVisible() && field->isAncestorOf(picker) && top(bar) + bar->height() >= editor.height() - 1, "the agent bar is the last thing in the tab");
+	expect(field->mapTo(&editor, QPoint{ 0, 0 }).x() == 10 && editor.width() - (field->mapTo(&editor, QPoint{ 0, 0 }).x() + field->width()) == 10 && editor.height() - (top(field) + field->height()) == 10,
+		   "the bar's field sits as the Agent tab's question field does, 10 in from the sides and bottom");
+	expect(field->width() - (picker->mapTo(field, QPoint{ 0, 0 }).x() + picker->width()) <= 8, "the pill sits at the bar's right, as in the Agent tab");
+	expect(top(foot) + foot->height() <= top(bar) && top(foot) > top(next), "Preview and publish sits above the agent bar, below the steps");
 	expect(picker->width() >= picker->sizeHint().width(), "the picker keeps its whole words in the drawer");
-	expect(top(picker) + picker->height() < top(map) && top(foot) > top(next) && top(foot) + foot->height() >= editor.height() - 1, "Preview and publish stays the tab's last row, below the drafting controls");
-	render(editor, prefix, "agent-offered");
-	// The Solution step takes the picker to its own Draft row.
+	// It stays the bar whatever step is open.
 	next->click();
 	QApplication::processEvents();
-	auto* const solutionMagic = child<QPushButton>(editor, "tourSolutionMagic");
-	expect(picker->isVisible() && under(picker, solutionMagic), "the open Solution step has the picker under its Draft button");
-	// The Stops step takes it to the stop, with Generate comment.
 	editor.open_step(core::tour_step::stops);
 	QApplication::processEvents();
-	expect(picker->parentWidget()->isAncestorOf(child<QPushButton>(editor, "tourStopMagic")), "the Stops step has the picker with the stop's Generate comment");
+	expect(field->isAncestorOf(picker) && picker->isVisible() && top(bar) + bar->height() >= editor.height() - 1, "the bar stays at the bottom on every step");
 	editor.open_step(core::tour_step::problem);
 	QApplication::processEvents();
-	expect(picker->isVisible() && under(picker, magic), "back on Problem, the picker follows");
+	render(editor, prefix, "agent-offered");
 
 	// Choosing in the Tour tab's menu chooses in the Agent tab, and back.
 	const auto choose = [](qt::agent_run_settings_picker& aPicker, const QString& aAgent) {
@@ -218,7 +216,7 @@ auto main(int argc, char** argv) -> int
 	panel.forget_choice();
 	source->present({ });
 	QApplication::processEvents();
-	expect(!picker->isVisible() && agentTab.isHidden(), "with no agent the picker is hidden in both tabs");
+	expect(!picker->isVisible() && agentTab.isHidden() && !child<QWidget>(editor, "tourAgentBar")->isVisible(), "with no agent the picker is hidden in both tabs");
 	expect(!editor.problem_editor()->isReadOnly(), "writing by hand stays open without an agent");
 	expect_plain_labels(editor, "no agent");
 	render(editor, prefix, "no-agent");
