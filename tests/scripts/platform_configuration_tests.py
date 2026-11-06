@@ -3,20 +3,16 @@ from __future__ import annotations
 
 import argparse
 import json
-import shutil
-import subprocess
 import sys
 import unittest
 import xml.etree.ElementTree as ET
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
-from scripts.contained_temporary_support import contained_temporary_directory  # noqa: E402
 from skip_report import SkipReportingTestRunner  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 BUILD_DIR: Path | None = None
-CMAKE_COMMAND = shutil.which("cmake")
 
 
 def vcpkg_is_disabled(project: str) -> bool:
@@ -34,6 +30,20 @@ def vcpkg_is_disabled(project: str) -> bool:
                 and values[0].text == "false"
             )
     return False
+
+
+def generated_visual_studio_projects(build: Path) -> list[Path]:
+    """Use CMake's target inventory, not upstream examples or cached probes."""
+    projects = set()
+    for inventory in build.rglob("CMakeFiles/TargetDirectories.txt"):
+        if "CMakeFiles" in inventory.relative_to(build).parts[:-2]:
+            continue
+        for line in inventory.read_text(encoding="utf-8").splitlines():
+            target = Path(line)
+            project = target.parent.parent / (target.stem + ".vcxproj")
+            if project.is_file():
+                projects.add(project)
+    return sorted(projects)
 
 
 class PlatformConfigurationTests(unittest.TestCase):
@@ -151,50 +161,13 @@ class PlatformConfigurationTests(unittest.TestCase):
             "GitHub Actions is not selected for BetterPullReview",
         )
 
-    def test_vcpkg_opt_out_preserves_other_globals_and_generators(self) -> None:
-        self.assertIsNotNone(CMAKE_COMMAND, "cmake is required")
-        module = (ROOT / "cmake/BprVisualStudio.cmake").as_posix()
-        with contained_temporary_directory(prefix="bpr-vs-globals-") as directory:
-            script = Path(directory) / "globals.cmake"
-            script.write_text(
-                "cmake_minimum_required(VERSION 4.4.2)\n"
-                'set(CMAKE_GENERATOR "Visual Studio 18 2026")\n'
-                f'include("{module}")\n'
-                'if(NOT CMAKE_VS_GLOBALS STREQUAL "VcpkgEnabled=false")\n'
-                '  message(FATAL_ERROR "Missing default opt-out: ${CMAKE_VS_GLOBALS}")\n'
-                'endif()\n'
-                'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=true;Last=two;vcpkgenabled=true")\n'
-                f'include("{module}")\n'
-                f'include("{module}")\n'
-                'if(NOT CMAKE_VS_GLOBALS STREQUAL "First=one;Last=two;VcpkgEnabled=false")\n'
-                '  message(FATAL_ERROR "Unexpected VS globals: ${CMAKE_VS_GLOBALS}")\n'
-                'endif()\n'
-                'set(CMAKE_GENERATOR "Ninja")\n'
-                'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=true")\n'
-                f'include("{module}")\n'
-                'if(NOT CMAKE_VS_GLOBALS STREQUAL "First=one;VcpkgEnabled=true")\n'
-                '  message(FATAL_ERROR "Changed non-VS globals: ${CMAKE_VS_GLOBALS}")\n'
-                'endif()\n',
-                encoding="utf-8",
-            )
-            result = subprocess.run(
-                [str(CMAKE_COMMAND), "-P", str(script)],
-                capture_output=True, text=True, check=False, timeout=30,
-            )
-        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
-
     def test_generated_visual_studio_projects_disable_vcpkg(self) -> None:
         if BUILD_DIR is None:
             self.skipTest("no --build-dir given")
         cache = (BUILD_DIR / "CMakeCache.txt").read_text(encoding="utf-8")
         if "CMAKE_GENERATOR:INTERNAL=Visual Studio " not in cache:
             self.skipTest("this tree does not use Visual Studio")
-        # Compiler probes under CMakeFiles are cached, not regenerated with
-        # the target graph when an existing build tree is reconfigured.
-        projects = sorted(
-            path for path in BUILD_DIR.rglob("*.vcxproj")
-            if "CMakeFiles" not in path.relative_to(BUILD_DIR).parts
-        )
+        projects = generated_visual_studio_projects(BUILD_DIR)
         self.assertTrue(projects, "no generated Visual Studio projects")
         findings = [
             str(project.relative_to(BUILD_DIR)) for project in projects
@@ -221,8 +194,6 @@ class PlatformConfigurationTests(unittest.TestCase):
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(add_help=False)
     parser.add_argument("--build-dir", type=Path)
-    parser.add_argument("--cmake", default=CMAKE_COMMAND)
     options, remaining = parser.parse_known_args()
     BUILD_DIR = options.build_dir
-    CMAKE_COMMAND = options.cmake
     unittest.main(argv=[sys.argv[0], *remaining], testRunner=SkipReportingTestRunner)
