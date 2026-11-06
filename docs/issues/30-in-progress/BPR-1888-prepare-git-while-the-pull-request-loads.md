@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1888"
 title: "Prepare Git while the pull request loads"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
