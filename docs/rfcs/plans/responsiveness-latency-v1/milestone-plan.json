@@ -1,0 +1,21 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v1",
+  "scope": {"issues": ["BPR-1882", "BPR-1883"]},
+  "milestones": [
+    {
+      "id": "conversation-latency",
+      "outcome": "Large conversations project with bounded ancestry work and refresh independently of commit pagination, preserving behavior outside explicitly authorized loading improvements.",
+      "work": [{"issue": "BPR-1882"}, {"issue": "BPR-1883"}],
+      "depends_on": [],
+      "exit_criteria": [
+        "Both cards have direct functional evidence and optimized before/after measurements.",
+        "The existing composed refresh keeps unfinished loading visible and retains exact comparison and authority behavior.",
+        "Every notable landed improvement has one journal line and an accepted card; source and documentation checks pass."
+      ],
+      "boundary": "Commit the verified conversation latency improvements and journal; no unrelated behavior, dependency, release or publication changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
