@@ -104,6 +104,26 @@ transport; it is only what the step says.
   `architecture_boundaries`. Its ctest timeout is 120 s, up from 90 s, for the
   kept clone's course.
 
+### Shorter copy (after the v002 reject)
+
+`frontend-design:frontend-design` loaded again. Every state of the
+Repository step's no-clone options now has a short label and at most one
+short line:
+
+- Offer: **Keep a clone for me**, then "About 126 MB, kept in ~/Li…/github.com-42"
+  (the location shortened in the middle to one line; the full path is the
+  tooltip; "Kept in …" when GitHub gave no size).
+- Downloading: one row, a bar, "42 MB of 126 MB" and **Cancel**; past the
+  size or with none, a busy bar and only the bytes ("131 MB").
+- Failed: "No connection to GitHub." (or "GitHub refused the sign-in.",
+  "Too large to keep.", "Needs a GitHub CLI sign-in.", "Download failed.")
+  and **Retry**.
+- Neighbours (BPR-1873's): **This pull request only** with "Weaker answers:
+  no callers, tests or history."; the check's fallback is **This pull
+  request only, for now**.
+
+`qt_agent_setup_view` asserts each label and line exactly.
+
 ### Attended review
 
 - v001: session `fb4d6822d9af23fc7264361af7b46b53`
@@ -117,7 +137,8 @@ transport; it is only what the step says.
   (`/Users/jaeger/.mask/bpr-1879-v002-20261105/attended-review`), candidate
   `BPR-1879-keep-a-clone-v002` at `cf7c7bdde`, the same single
   Accept/Reject question with fresh renders including the past-the-size
-  progress state; ready, Tailscale host started.
+  progress state. **Rejected** by the owner: "Those frontend ux designs are
+  way too worded and verbose". Host stopped.
 
 Offscreen renders of the setup view: the fixture-backed frozen build does
 not read its reviews sparsely through `gh`, so it cannot show this option.
