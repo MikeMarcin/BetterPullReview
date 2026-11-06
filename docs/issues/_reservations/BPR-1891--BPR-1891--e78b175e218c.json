@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1891"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Writing init accepts plugins",
+  "created": "2026-11-06T18:15:14.044442+00:00",
+  "base": "f4291a5d8b254d6ddd2e485c0cabb3e93a2cd438"
+}
