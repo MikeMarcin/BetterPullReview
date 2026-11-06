@@ -170,6 +170,33 @@ Once the kept clone downloads, its progress card (bytes, thin bar,
 folder or search links. `qt_agent_setup_view` asserts the order, the
 default, each button and that nothing else shows while it downloads.
 
+### v006 (after the v005 reject)
+
+`frontend-design:frontend-design` loaded first. Why the build differed: the
+cards were built only for a sparse review read through `gh`; a complete
+review (every fixture review) kept the old layout. Now one design applies
+wherever no clone is linked, and the owner's follow-up merged choosing a
+folder and finding a clone into one card:
+
+- **Link your clone**, first, chosen, Recommended. The step searches the
+  clone folders itself (once per repository); clones found are on the card
+  with **Link this clone**, small **Choose another folder…** and **Edit
+  clone folders…**; none found is "None in …" with **Choose its folder…**;
+  no folder yet puts the folder line on the card with **Add folder**. No
+  separate "Find matching clones" link.
+- **Keep a clone for me**, second.
+- The weakest last: **This pull request only** (sparse) or **A private
+  copy** (complete).
+- While the kept clone downloads, its progress and Cancel are the whole step.
+- Facts wrap when the Agent tab is narrow, so a card never widens it.
+- A fixture course keeps a clone as a rehearsal (tests-on builds only):
+  bytes arrive at about 2 MB a second until Cancel; nothing is written.
+- `--attended-repository-look` opens the Agent tab on the Repository step
+  (choosing the first agent found in a fresh fixture profile). With
+  `BPR_ATTENDED_REPOSITORY_RENDER` it draws the window, chooses Keep a clone
+  for me, presses it and draws the downloading state, printing
+  `ATTENDED_REPOSITORY_DOWNLOADING:alone=1` when only the progress shows.
+
 ### Attended review
 
 - v001: session `fb4d6822d9af23fc7264361af7b46b53`
@@ -206,7 +233,11 @@ default, each button and that nothing else shows while it downloads.
   `BPR-1879-keep-a-clone-v005` at `4c57e6083`, one Accept/Reject question,
   renders of the choice and the progress, and a frozen build
   (`/Users/jaeger/BPR-1879-v005.mcmxw26v`, checked ATTENDED_PULL_REQUEST_OPENED;
-  it shows the Storage row, not the cards); ready, Tailscale host started.
+  it shows the Storage row, not the cards). **Rejected**: the owner launched
+  the frozen build and its Repository step looked nothing like the renders
+  (the old "No clone … found", Choose its folder… and three links): its
+  fixture review is complete, not sparse, and v005's cards were only on the
+  sparse path. Host stopped.
 
 Offscreen renders of the setup view: the fixture-backed frozen build does
 not read its reviews sparsely through `gh`, so it cannot show this option.
