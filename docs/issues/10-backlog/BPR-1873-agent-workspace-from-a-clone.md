@@ -13,7 +13,6 @@ acceptance: []
 
 # BPR-1873: An agent's workspace comes from a linked or BetterPullReview-managed clone, never a head snapshot download
 
-`BPR-1873` (file name, front matter, heading).
 
 ## Observed
 
