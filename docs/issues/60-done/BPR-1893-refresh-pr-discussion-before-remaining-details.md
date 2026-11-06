@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1893"
 title: "Refresh PR discussion before remaining details"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1890"]
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1893--BPR-1893--901ac9044cbf.json","milestone_plan":{"id":"responsiveness-latency-v8","path":"docs/rfcs/plans/responsiveness-latency-v8/milestone-plan.json"},"frontend_design":"frontend-design:frontend-design and desktop guidance applied; reuse existing discussion layout and remaining-loading plate."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3a709d42239b4f6a305129db67e31103dbcd2e86","evidence":{"kind":"observation","detail":"Observed authenticated refresh with review-thread support publishes complete PR-wide comments after inline threads and before catalogue pages. Provider tests pass for pagination, invalid data, shared budgets, cancellation, equal terminal records and request counts, unchanged first-open/signed-out/unobserved behavior."}},{"criterion":"AC2","outcome":"pass","revision":"3a709d42239b4f6a305129db67e31103dbcd2e86","evidence":{"kind":"observation","detail":"Core and host courses pass for both conversation collection orders, exact current request/PR/head/base/mode, one-time independent admission, invalid/stale/terminal rejection and no new snapshot or epoch authority. Core-only and both architecture tests pass."}},{"criterion":"AC3","outcome":"pass","revision":"3a709d42239b4f6a305129db67e31103dbcd2e86","evidence":{"kind":"observation","detail":"Corrected old-reader control fails the intended held-catalogue assertion. Final composed strict course opens the PR conversation, clicks and reads the new comment with remaining-loading visible while files are held, then returns to the exact comparison and scroll position. Offscreen screenshot inspected."}},{"criterion":"AC4","outcome":"pass","revision":"3a709d42239b4f6a305129db67e31103dbcd2e86","evidence":{"kind":"observation","detail":"Release medians from three serialized runs per side: comment availability 6006 to 1672 ms, completion 6006 to 5999 ms, same 18 reads and zero blank samples. All six focused courses, separate strict discussion course, core-only, architecture, format, documentation and all eight changed TUs tidy pass; the final guard also passes the composed comment-edit contract. Source and journal landed on local main."}}]
 ---
 
 # BPR-1893: Refresh PR discussion before remaining details
@@ -146,3 +147,10 @@ GitHub.com and GHES fixtures (`discussion-guard-tidy.log`,
 `discussion-guard-build.log`, `discussion-guard-functional.log`). Together with
 the seven unchanged passing translation units, all touched C++ is lint-clean.
 The final documentation gate passes (`discussion-closeout-docs.log`).
+
+## Landing
+
+Source, verified evidence and the one-line journal entry landed on local `main`
+as `3a709d42239b4f6a305129db67e31103dbcd2e86`. All four acceptance criteria are satisfied; no
+owner action remains for this round. The owner authorized this landing before
+the coordinated history rewrite. No remote push or release was performed.
