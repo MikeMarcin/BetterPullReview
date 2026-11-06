@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1873"
 title: "An agent's workspace comes from a linked or BetterPullReview-managed clone, never a head snapshot download"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -202,3 +202,61 @@ fetch and BPR-1772's manual-fetch wording.
   refresh starts. It restarts only when that refresh's long retained read
   finishes, despite `home_loading_yields` / `yield_discovery`. Find who
   cancels it, and log the cancelling cause on `github.pull_request.cancelled`.
+
+## Progress
+
+### Evidence gathered first (2026-11-05, scratch outside the repository)
+
+On `MikeMarcin/BPR-Test` (public), a scratch clone taken before a probe
+commit was pushed to `bpr-1873/delta-probe` (PR #150, opened for this probe):
+
+1. A plain `git fetch --no-tags --no-write-fetch-head URL HEAD_OID` into a
+   bare repository whose `objects/info/alternates` names the clone's objects:
+   accepted by OID over protocol v2, 16 `have` lines (the clone's ref tips),
+   five new objects received.
+2. `gh repo clone URL STORE --no-upstream -- --bare --revision=HEAD_OID
+   --reference=CLONE …` (gh's own credential helper, as the transport runs
+   it): the same 16 haves, a 3,467-byte pack of five objects, none of them in
+   the clone; the clone's files byte-identical before and after.
+3. A second commit that edited a file the clone held: the received pack
+   carried four new objects plus one delta base the clone already had (index
+   `--fix-thin`); `rev-list --objects HEAD --not --alternate-refs` and
+   `pack-objects` gave exactly the four new objects. The transport therefore
+   repacks that list instead of handing the received pack on.
+
+`X-RateLimit-Remaining` was 4,994 before the run.
+
+### Slice 1: change 1, change 3, AC6 and AC7
+
+- The sparse workspace borrows the linked clone; when the clone lacks the
+  head, `acquire_workspace_delta` fetches only what it lacks (above) into a
+  private store, and the workspace indexes that pack (never shallow).
+- The head snapshot download is gone: `acquire_workspace_snapshot`,
+  `snapshot_failure`, `acquire_snapshot`, `git_workspace_snapshot`,
+  `git_smart_workspace_snapshot_request`, `git_workspace_snapshot_pack` and
+  `gh_cli_clone_content::snapshot`. `too_large_not_in_clone` became
+  `clone_needed`: a sparse review with no linked clone stops with "the agent
+  works in a clone of the repository" until change 2's choice lands.
+- `architecture_boundaries` refuses the removed names and any depth-limited
+  clone without `--filter=blob:none` (checked to fail when the filter is made
+  conditional).
+- RFC-BPR-0092 is amended (The private copy, the BPR-1751 note, Check it
+  works) with the owner's decision and the open questions' answers: a full
+  managed clone, the sparse cache left as it is, the managed clone in Storage
+  and removed by purge.
+
+Focused checks, all passing on the slice: `gh_cli_git_smart_transport`
+(AC1's exact object set and clone inventory, AC7's two size walls, AC6's
+compiled arguments), `git_process_contract` (the workspace from the clone
+plus the delta, the clone unchanged), `application_epoch_host` (AC2, the
+delta path, failure words, `clone_needed`), `qt_agent_launch_panel`,
+`qt_agent_setup_view`, `core_operation_diagnosis`,
+`application_agent_invocation_host`, `application_release_maintenance`,
+`architecture_boundaries`, the format check and the documentation gate.
+
+### Left for slice 2
+
+Change 2: the no-clone choice in the agent panel (AC3), the
+BetterPullReview-managed clone with its stated size, progress, cancel, reuse,
+Storage and purge (AC4), and the PR-only workspace with its run header
+(AC5).

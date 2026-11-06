@@ -190,31 +190,32 @@ namespace bpr::application {
 		git_commit_id         Commit;
 	};
 
-	/// \brief [[BPR-1738]]. A pack holding one commit, its tree and every
-	/// blob it names, with no ancestor.
+	/// \brief [[BPR-1873]]. A self-contained pack of what a linked clone
+	/// lacks of one head.
 	///
 	/// \details A sparse review's cache holds the head's commit and trees and
-	/// none of its blobs or parents, so its workspace is made from this pack
-	/// instead. The workspace records `Head` as a shallow boundary.
-	struct git_workspace_snapshot_pack
+	/// none of its blobs or parents, so its workspace borrows the linked clone
+	/// and indexes this pack for the objects the clone does not hold yet.
+	struct git_workspace_delta_pack
 	{
 		std::filesystem::path Pack;
 		std::uint64_t         Bytes = 0U;
 		core::git_commit_oid  Head;
 
-		auto operator<=>(const git_workspace_snapshot_pack&) const = default;
+		auto operator<=>(const git_workspace_delta_pack&) const = default;
 	};
 
 	/// \brief Materializes one exact commit from an owned bare cache repository.
 	///
-	/// \details Without `Snapshot`, the workspace takes the head's whole
-	/// reachable closure from the cache, which must hold it. With one, it
-	/// takes the snapshot's objects alone and is shallow at the head.
+	/// \details Without `Delta`, the workspace takes the head's reachable
+	/// closure from the cache and any linked clone, which together must hold
+	/// it. With one, it borrows the linked clone and indexes the delta for what
+	/// the clone lacks; it is never shallow.
 	struct git_agent_workspace_request
 	{
-		std::filesystem::path                      Repository;
-		agent_workspace_materialization_request    Materialization;
-		std::optional<git_workspace_snapshot_pack> Snapshot;
+		std::filesystem::path                   Repository;
+		agent_workspace_materialization_request Materialization;
+		std::optional<git_workspace_delta_pack> Delta;
 
 		auto operator<=>(const git_agent_workspace_request&) const = default;
 	};

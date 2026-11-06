@@ -288,44 +288,51 @@ namespace bpr::application {
 			-> git_smart_transport_result<std::optional<core::git_blob_oid>> = 0;
 	};
 
-	/// \brief [[BPR-1738]]. Asks for one commit's complete snapshot: the
-	/// commit, its tree and every blob it names, and no ancestor.
+	/// \brief [[BPR-1873]]. Asks for what a linked clone lacks of one head:
+	/// the objects reachable from the head and from no ref of the clone.
 	///
-	/// \details A sparse review holds its commits' trees and no blobs, so a
-	/// disposable agent workspace cannot be checked out of the cache. The host
-	/// names a commit the review's cache already holds; only a sparse
-	/// acquisition asks, because a complete one already holds every blob.
-	struct git_smart_workspace_snapshot_request
+	/// \details A sparse review holds its commits' trees and no blobs, so an
+	/// agent workspace borrows the reviewer's linked clone. When the clone does
+	/// not hold the head yet, only what it lacks is fetched, into a private
+	/// store that borrows the clone; nothing is written to the clone. The host
+	/// names a commit the review's cache already holds. Nothing asks for a
+	/// whole head without a clone: [[BPR-1738]]'s head snapshot download is
+	/// removed, and `architecture_boundaries` keeps it out.
+	struct git_smart_workspace_delta_request
 	{
 		git_smart_request_context Context;
 		core::git_commit_oid      Head;
+		/// The linked clone's absolute folder, read and never written.
+		std::filesystem::path Clone;
 	};
 
 	/// \brief Checks the request's own shape; it does not check authority.
-	[[nodiscard]] inline auto valid(const git_smart_workspace_snapshot_request& aRequest) noexcept -> bool
+	[[nodiscard]] inline auto valid(const git_smart_workspace_delta_request& aRequest) noexcept -> bool
 	{
 		return aRequest.Head.valid() && aRequest.Head.algorithm() == core::git_hash_algorithm::sha1
-			&& aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees;
+			&& aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees && aRequest.Clone.is_absolute()
+			&& aRequest.Clone == aRequest.Clone.lexically_normal();
 	}
 
-	/// \brief [[BPR-1738]]. A transient pack holding one commit's
-	/// snapshot, owned by the host until the workspace is made from it.
+	/// \brief [[BPR-1873]]. A transient, self-contained pack of what a linked
+	/// clone lacks of one head, owned by the host until the workspace is made
+	/// from it.
 	///
-	/// \details The pack names the commit as a shallow boundary: it carries
-	/// no parent, and a reader that walks history from it must treat the
-	/// commit as having none. Removed with the object.
-	class git_workspace_snapshot
+	/// \details Every object in it is reachable from the head and from no ref
+	/// of the clone; the workspace reads the rest through the clone. Removed
+	/// with the object.
+	class git_workspace_delta
 	{
 	public:
-		virtual ~git_workspace_snapshot() = default;
+		virtual ~git_workspace_delta() = default;
 
-		git_workspace_snapshot()                                                 = default;
-		git_workspace_snapshot(const git_workspace_snapshot&)                    = delete;
-		auto operator=(const git_workspace_snapshot&) -> git_workspace_snapshot& = delete;
-		git_workspace_snapshot(git_workspace_snapshot&&)                         = delete;
-		auto operator=(git_workspace_snapshot&&) -> git_workspace_snapshot&      = delete;
+		git_workspace_delta()                                              = default;
+		git_workspace_delta(const git_workspace_delta&)                    = delete;
+		auto operator=(const git_workspace_delta&) -> git_workspace_delta& = delete;
+		git_workspace_delta(git_workspace_delta&&)                         = delete;
+		auto operator=(git_workspace_delta&&) -> git_workspace_delta&      = delete;
 
-		/// \brief The commit the pack is a snapshot of.
+		/// \brief The head the pack completes.
 		[[nodiscard]] virtual auto head() const noexcept -> const core::git_commit_oid& = 0;
 		/// \brief The absolute path of the pack file.
 		[[nodiscard]] virtual auto pack() const noexcept -> const std::filesystem::path& = 0;
@@ -386,10 +393,10 @@ namespace bpr::application {
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}
 
-		/// \brief [[BPR-1738]]. Acquires one commit's complete snapshot
-		/// for an agent workspace; transports without this capability refuse.
-		[[nodiscard]] virtual auto acquire_workspace_snapshot(const git_smart_workspace_snapshot_request&, std::stop_token)
-			-> git_smart_transport_result<std::shared_ptr<git_workspace_snapshot>>
+		/// \brief [[BPR-1873]]. Acquires what a linked clone lacks of one
+		/// head for an agent workspace; transports without this capability refuse.
+		[[nodiscard]] virtual auto acquire_workspace_delta(const git_smart_workspace_delta_request&, std::stop_token)
+			-> git_smart_transport_result<std::shared_ptr<git_workspace_delta>>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
 		}

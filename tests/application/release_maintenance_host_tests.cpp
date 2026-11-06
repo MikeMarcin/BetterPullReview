@@ -295,7 +295,7 @@ namespace {
 		for (const auto policy : { core::diagnostic_export_policy::anonymized, core::diagnostic_export_policy::identifying }) {
 			for (const auto& [op, category, detail] : { row{ "agent.setup_check", "agent", "action=agent_status_check failure=not_signed_in process=nonzero_exit exit=1 duration_ms=812 count=1 written=0 read_back=0" },
 														row{ "agent.setup_check", "agent", "action=agent_custom_check failure=timed_out process=timeout exit=-9 duration_ms=15000 count=1 written=0 read_back=0" },
-														row{ "agent.workspace", "agent", "action=workspace_materialize failure=too_large_not_in_clone process=none exit=none duration_ms=2400 count=0 written=0 read_back=0" },
+														row{ "agent.workspace", "agent", "action=workspace_materialize failure=clone_needed process=none exit=none duration_ms=2400 count=0 written=0 read_back=0" },
 														row{ "github.review_mutation", "github", "action=resolve_thread failure=refused_by_server process=none exit=none duration_ms=640 count=0 written=0 read_back=0" },
 														row{ "github.review_mutation", "github", "action=request_reviewer failure=not_confirmed process=none exit=none duration_ms=900 count=2 written=1 read_back=1" },
 														row{ "github.review_mutation", "github", "action=resolve_thread failure=refused_by_server process=none exit=none duration_ms=640 count=0 written=0 read_back=0 thread=PRIVATE_THREAD" },

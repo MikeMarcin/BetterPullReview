@@ -166,20 +166,22 @@ namespace bpr::application {
 	enum class agent_workspace_unavailable_reason : std::uint8_t {
 		/// The review's local copy could not be copied into a workspace.
 		copy_failed,
-		/// The review holds only the files it reads, and the complete head
-		/// the agent needs could not be downloaded.
+		/// [[BPR-1873]]. The review holds only the files it reads, the linked
+		/// clone does not hold the head yet, and what it lacks could not be
+		/// fetched.
 		download_failed,
 		/// As `download_failed`, because GitHub could not be reached.
 		connection_failed,
 		/// As `download_failed`, because the account was refused.
 		sign_in_refused,
-		/// As `download_failed`, because the head is larger than a
-		/// workspace's snapshot may be.
+		/// As `download_failed`, because the pull request's new objects are
+		/// larger than a workspace's fetch may be. Never reported as
+		/// `download_failed`.
 		too_large,
-		/// [[BPR-1772]]. As `too_large`, and the reviewer's linked clone,
-		/// which would have lent the head without a download, does not hold
-		/// it yet: fetching it there is the way on.
-		too_large_not_in_clone,
+		/// [[BPR-1873]]. The review holds only the files it reads and no clone
+		/// is linked, so there is nothing for the workspace to borrow: the head
+		/// is never downloaded whole.
+		clone_needed,
 	};
 
 	[[nodiscard]] auto stable_name(agent_workspace_unavailable_reason aReason) noexcept

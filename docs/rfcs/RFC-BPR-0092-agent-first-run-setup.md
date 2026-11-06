@@ -97,7 +97,9 @@ Observed on `b69b82c9b`, a tests-on release build rendered offscreen on the
     workspace is the head's snapshot alone: a `--depth=1` clone of the head
     through the review's lease, with the head as its shallow boundary. It has
     every file at the head and no history, so no blame, no `git log` and no
-    comparison with base beyond the two trees.
+    comparison with base beyond the two trees. ([[BPR-1873]] removed that
+    snapshot: see the amendment under
+    [Repository](#repository-the-reviewers-clone-remembered).)
 
   Either way it has no branches, tags or remotes, no LFS content (filters
   are off) and no submodules. Neither it nor a clone carries untracked build
@@ -261,8 +263,37 @@ repository the same way and is changeable there.
 **The private copy** is today's disposable workspace, kept as the fallback
 (Q7 accepted). Its row states its limits in one line, by how the review was
 read: "the head and its history, without your branches, tags, LFS files or
-submodules" for a complete review, and "the head's files only, without
-history, branches, tags, LFS files or submodules" for a sparse one.
+submodules" for a complete review. A sparse review has no private copy of
+its own: see the amendment below.
+
+> **Amendment [[BPR-1873]] (owner decision, 2026-11-05).** The head snapshot
+> download of [[BPR-1738]] is removed, never run automatically and not
+> offered behind a prompt. It cloned every file of the head for every agent
+> question, under the acquisition runner's 32 MiB per-file limit, so a real
+> head of a large repository failed in seconds and was reported as "could not
+> be read". A sparse review's agent now works in a clone:
+>
+> - **A linked clone** is borrowed as before ([[BPR-1751]]). When it lacks the
+>   head, only what it lacks is fetched into the agent's private workspace,
+>   never into the clone ([The agent's worktree](#the-agents-worktree)).
+> - **No linked clone:** the agent asks, once per repository, to **Link a
+>   clone…** or to **Let BetterPullReview keep one**, or to ask about the pull
+>   request's files only, which it then says plainly. Until that choice
+>   lands, a sparse review with no linked clone stops with "the agent works
+>   in a clone of the repository" and **Link your clone** instead of
+>   downloading the head.
+> - **A BetterPullReview-managed clone** is a full clone (every object), not
+>   a blobless one: a blobless clone would need lazy blob fetches, and those
+>   must never run inside the agent's sandbox or with its environment; a full
+>   clone's one-time cost is stated from GitHub's repository `size` before it
+>   starts. It lives under the profile's application data next to the
+>   repository cache, is shown in Storage and is removed by profile purge.
+>   Whether it also replaces that repository's sparse review cache is left to
+>   a later card.
+>
+> The sparse row's former text, "the head's files only, without history,
+> branches, tags, LFS files or submodules", described the snapshot and is
+> retired with it.
 
 ### The agent's worktree
 
@@ -281,6 +312,52 @@ at the session's head (Q7 accepted):
 > workspace has no remote. The fetch, `worktree remove`, limit of three and
 > sparse **Copy** command below have nothing to govern under this form. On
 > Reject, a later card builds the form below.
+
+> **Amendment [[BPR-1873]] (2026-11-05): a clone that lacks the head.** It
+> supersedes [[BPR-1738]]'s snapshot fetch and [[BPR-1772]]'s manual step
+> ("Fetch the pull request's branch in your clone, then ask again"), and
+> step 3 of **Getting the head** below with its `git -C CLONE fetch REMOTE
+> pull/N/head` **Copy** command. BetterPullReview fetches what the clone
+> lacks itself, without touching the clone:
+>
+> - The review's own `gh` lease runs `gh repo clone --bare
+>   --revision=HEAD_OID --reference=CLONE` into a private temporary store,
+>   under the same pinned private configuration, environment
+>   (`GIT_CONFIG_NOSYSTEM`, `GIT_CONFIG_GLOBAL=/dev/null`,
+>   `GIT_ALLOW_PROTOCOL=https`), hooks off, no fsmonitor, identity checks and
+>   bounds as every sparse acquisition, through `gh`'s own credential helper.
+>   `--reference` writes one alternates line naming the clone's objects, so
+>   Git's negotiation offers the clone's refs as haves (the default
+>   `core.alternateRefsCommand`) and the server sends only the objects the
+>   clone lacks. On macOS the `gh` launch may write only inside the temporary
+>   store, so the clone cannot be written.
+> - The store's head commit and tree are checked, then
+>   `rev-list --objects HEAD_OID --not --alternate-refs` names exactly the
+>   objects reachable from the head and from no ref of the clone, and
+>   `pack-objects` packs those, self-contained. The received pack is not
+>   handed on as it is: completing its thin deltas copied in bases the clone
+>   already holds.
+> - The workspace borrows the clone through its alternates line, indexes that
+>   pack, checks the head's commit and tree (`cat-file --batch-check`), and
+>   is never shallow. It keeps no remote and no refs beyond its detached
+>   `HEAD`.
+> - A delta past a bound (the 32 MiB per-file limit, the 96 MiB store, or the
+>   4 MiB object list) is `too_large`, worded as the pull request's new
+>   objects being larger than the agent's private copy may fetch, never "could
+>   not be read". A clone that `RLIMIT_FSIZE` stopped is recognized by a file
+>   at the limit, whether `gh` exits non-zero or is ended.
+>
+> Measured on `MikeMarcin/BPR-Test` (PR #150, 2026-11-05) with a clone that
+> lacked one new commit: GitHub accepted the head OID as a want (protocol
+> v2, the head being the tip of `refs/pull/150/head`), the client sent the
+> clone's ref tips as haves (16 `have` lines), the received pack was 3,467 bytes
+> and five objects, none of them in the clone, and the clone's files were
+> byte-identical before and after. On a second commit that edited a file the
+> clone held, the received pack carried one base the clone already had; the
+> `--not --alternate-refs` pack carried only the four new objects. Because
+> GitHub advertises every pull request's head as `refs/pull/N/head`, no
+> separate fallback to fetching that ref is needed: a head that is not
+> advertised any more is refused like any other unavailable head.
 
 - **Getting the head** (Q8 A: from the application's own copy, never
   through the reviewer's remote or credentials).
@@ -460,7 +537,9 @@ row's failure does not hide the other row's result.
 - **The worktree or copy cannot be made:** what failed in the reviewer's
   terms and the recovery the host actually offers, then **Check again**. A
   head the clone lacks on a sparse review: the fetch command to copy, and
-  **Use the private copy for now**. A linked clone that moved or no longer
+  **Use the private copy for now** (superseded by [[BPR-1873]]: what the
+  clone lacks is fetched into the workspace, and a failed fetch says why in
+  the same words as an Ask). A linked clone that moved or no longer
   matches: **Choose its folder…**. The private copy failing, with
   [[BPR-1738]]'s closed reason in words (the owner's case read "This Mac's
   saved copy of the repository is missing commit 984772c, which comes before

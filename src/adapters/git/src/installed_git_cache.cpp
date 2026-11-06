@@ -4697,9 +4697,9 @@ namespace bpr::adapters::git {
 			}
 
 			[[nodiscard]] auto materialize_agent_workspace(
-				const application::agent_workspace_materialization_request&    aRequest,
-				const std::optional<application::git_workspace_snapshot_pack>& aSnapshot,
-				const std::stop_token                                          aStop)
+				const application::agent_workspace_materialization_request& aRequest,
+				const std::optional<application::git_workspace_delta_pack>& aDelta,
+				const std::stop_token                                       aStop)
 				-> application::git_cache_result<
 					application::owned_agent_workspace> override
 			{
@@ -4726,7 +4726,7 @@ namespace bpr::adapters::git {
 					application::git_agent_workspace_request{
 						.Repository      = State->Repository,
 						.Materialization = aRequest,
-						.Snapshot        = aSnapshot,
+						.Delta           = aDelta,
 					},
 					aStop);
 				if (!State->active_boundary_still_owned()) {
@@ -4741,7 +4741,8 @@ namespace bpr::adapters::git {
 				}
 				if (!materialized.has_value()) {
 					// [[BPR-1772]]. The clone lacks the head the host asked
-					// it for: said apart, so the host downloads it instead.
+					// it for: said apart, so the host fetches what the clone
+					// lacks ([[BPR-1873]]).
 					if (aRequest.HeadFromClone && materialized.error() == application::git_process_failure::object_unavailable) {
 						return std::unexpected{ application::git_cache_error{ application::git_cache_failure::object_mismatch, materialized.error().Detail } };
 					}
