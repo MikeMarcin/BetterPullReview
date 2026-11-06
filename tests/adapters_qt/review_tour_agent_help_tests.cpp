@@ -145,6 +145,41 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(picker->full_text().startsWith(QStringLiteral("Claude Code")), "a choice in the Agent tab shows in the Tour tab");
 
+	// Owner note on v002 ("i need the ability to pick effort level"): the
+	// Tour tab's picker carries the Agent tab's Model and Effort menus, and an
+	// effort chosen there goes where the Agent tab's does and shows in both.
+	std::optional<std::pair<std::uint64_t, std::string>> effortChosen;
+	source->Dispatch = [&](const std::uint64_t aProfile, std::optional<std::string>, std::optional<std::string> aEffort) {
+		if (aEffort) {
+			effortChosen = std::pair{ aProfile, *aEffort };
+		}
+		return true;
+	};
+	Q_EMIT picker->menu()->aboutToShow();
+	QMenu* efforts = nullptr;
+	QMenu* models  = nullptr;
+	for (auto* const submenu : picker->menu()->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
+		if (submenu->objectName() == QStringLiteral("agentRunSettingsEfforts")) {
+			efforts = submenu;
+		} else if (submenu->objectName() == QStringLiteral("agentRunSettingsModels")) {
+			models = submenu;
+		}
+	}
+	expect(efforts != nullptr && models != nullptr, "the Tour tab's picker offers Model and Effort, as the Agent tab's does");
+	auto tookHigh = false;
+	for (auto* const action : efforts->actions()) {
+		if (action->text() == QStringLiteral("high")) {
+			action->trigger();
+			tookHigh = true;
+		}
+	}
+	expect(tookHigh && effortChosen == std::pair{ std::uint64_t{ 1U }, std::string{ "high" } }, "an effort chosen in the Tour tab goes where the Agent tab's goes");
+	claude.Effort = "high";
+	source->present({ claude, codex });
+	QApplication::processEvents();
+	expect(picker->full_text().contains(QStringLiteral("high effort")) && agentTab.full_text() == picker->full_text(), "the chosen effort shows in both pickers");
+	render(editor, prefix, "effort");
+
 	// Starting help: the empty Problem's button drafts it, and says so.
 	expect(magic->text() == QStringLiteral("Draft from PR context") && magic->toolTip().contains(QStringLiteral("drafting agent")), "an empty field's helper says it drafts from the pull request");
 	magic->click();

@@ -107,8 +107,10 @@ Since [[BPR-1878]] (owner look v001) the tab's bottom carries the Agent
 tab's own agent picker: a second `agent_run_settings_picker` over the
 Agent tab's `agent_run_settings_source`, so its pill ("agent · model ·
 effort"), its menu and its choice are the Agent tab's, and choosing in
-either shows in both. As in the Agent tab it is hidden while no agent is
-chosen; a helper clicked then says why in the tab's notice (no agent set
+either shows in both. Its Model and Effort menus are the Agent tab's too,
+and a tour drafting request runs with the chosen agent's model and effort
+(`--model`, `--effort` for Claude Code), as a question in the Agent tab
+does. As in the Agent tab it is hidden while no agent is chosen; a helper clicked then says why in the tab's notice (no agent set
 up, none chosen, not this window's draft, or the agent busy). Each field's
 helper uses RFC-BPR-0043's labels: **Draft from PR context** on an empty
 Problem or Solution (the description's own section when it has one,
