@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1898"
 title: "Separate Overview progress readiness from network status"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1897"]
 priority: "P1"
