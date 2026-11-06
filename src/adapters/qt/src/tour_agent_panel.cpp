@@ -4,6 +4,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
+#include <QAbstractTextDocumentLayout>
 #include <QFontDatabase>
 #include <QHBoxLayout>
 #include <QLabel>
@@ -11,10 +12,14 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QTextBlock>
+#include <QTextDocument>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 
 #include <algorithm>
+#include <cmath>
 
 namespace bpr::qt {
 	namespace {
@@ -80,7 +85,9 @@ namespace bpr::qt {
 			}
 			return { };
 		}
-		auto small(QLabel* aLabel) -> QLabel*
+		/// The proposal fields' edge, focused or not.
+		constexpr int proposal_edge = 1;
+		auto          small(QLabel* aLabel) -> QLabel*
 		{
 			auto font = aLabel->font();
 			font.setPointSizeF(font.pointSizeF() * 0.92);
@@ -164,6 +171,10 @@ namespace bpr::qt {
 		ProposalTitle->setTextFormat(Qt::RichText);
 		proposalColumn->addWidget(ProposalTitle);
 		auto* const proposalScroll = new QScrollArea{ ProposalBox };
+		// [[BPR-1900]] owner look v001: a click in the proposal never parks
+		// the keyboard on the pane itself (which drew a box around it and
+		// took the first click); the wheel and the scroll bar still scroll.
+		proposalScroll->setFocusPolicy(Qt::NoFocus);
 		proposalScroll->setWidgetResizable(true);
 		proposalScroll->setFrameShape(QFrame::NoFrame);
 		proposalScroll->setMinimumHeight(300);
@@ -192,6 +203,7 @@ namespace bpr::qt {
 		transcriptTitle->setForegroundRole(QPalette::PlaceholderText);
 		transcriptColumn->addWidget(transcriptTitle);
 		TranscriptScroll = new QScrollArea{ TranscriptBox };
+		TranscriptScroll->setFocusPolicy(Qt::NoFocus);
 		TranscriptScroll->setWidgetResizable(true);
 		TranscriptScroll->setFrameShape(QFrame::NoFrame);
 		TranscriptScroll->setMinimumHeight(220);
@@ -283,6 +295,22 @@ namespace bpr::qt {
 				apply_agent_accent(*widget, aGround);
 			}
 		}
+		// The proposal's fields: the base colour, a quiet one-pixel edge with
+		// rounded corners, the accent edge while focused. Same width in both
+		// states, so focusing never shrinks the text.
+		const auto base   = aGround.color(QPalette::Active, QPalette::Base);
+		const auto quiet  = mixed(base, aGround.color(QPalette::Active, QPalette::WindowText), 0.22);
+		const auto accent = agent_accent(aGround);
+		const auto sheet  = QStringLiteral("QPlainTextEdit#tourProposalText { background: %1; border: %4px solid %2; border-radius: 6px; }"
+										   "QPlainTextEdit#tourProposalText:focus { border: %4px solid %3; }"
+										   "QPlainTextEdit#tourProposalText:disabled { border: %4px solid %2; }")
+								.arg(base.name(), quiet.name(), accent.name())
+								.arg(proposal_edge);
+		for (const auto& field : Fields) {
+			if (field) {
+				field->setStyleSheet(sheet);
+			}
+		}
 		ProposalBox->update();
 	}
 
@@ -326,6 +354,7 @@ namespace bpr::qt {
 		Editors.clear();
 		Accepts.clear();
 		Accented.erase(std::remove_if(Accented.begin(), Accented.end(), [](const QPointer<QWidget>& aWidget) { return aWidget.isNull(); }), Accented.end());
+		Fields.clear();
 		if (!Proposal || Proposal->Items.empty()) {
 			ProposalBox->hide();
 			return;
@@ -393,8 +422,35 @@ namespace bpr::qt {
 			editor->setAccessibleName(heading);
 			editor->setPlainText(Edited.contains(index) ? Edited[index] : QString::fromStdString(item.Text));
 			editor->setTabChangesFocus(true);
+			// [[BPR-1900]] owner look v001 ("that box makes the text feel
+			// cramped"): no native focus ring drawn inside the field; room
+			// around the words; focus shown by the field's own edge turning
+			// the agent accent, the same width, so nothing moves or shrinks.
+			editor->setAttribute(Qt::WA_MacShowFocusRect, false);
+			editor->setFrameShape(QFrame::NoFrame);
+			editor->document()->setDocumentMargin(8);
 			const auto metrics = editor->fontMetrics();
-			editor->setFixedHeight(std::clamp(static_cast<int>(item.Text.size() / 38U + 2U), 3, 8) * metrics.lineSpacing() + 12);
+			// The field is as tall as its text (three to twelve lines), so no
+			// scroll bar eats into the words; past twelve it scrolls.
+			editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+			const auto fit = [editor, lineSpacing = metrics.lineSpacing()] {
+				// The text's own laid-out height, block by block, in pixels.
+				auto text = 0.0;
+				for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
+					text += editor->document()->documentLayout()->blockBoundingRect(block).height();
+				}
+				const auto margins = 2.0 * editor->document()->documentMargin() + 2 * proposal_edge + 2;
+				const auto height  = static_cast<int>(std::ceil(std::clamp(text, 3.0 * lineSpacing, 12.0 * lineSpacing) + margins));
+				editor->setVerticalScrollBarPolicy(text > 12.0 * lineSpacing ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
+				if (editor->height() != height) {
+					editor->setFixedHeight(height);
+				}
+			};
+			editor->setFixedHeight(std::clamp(static_cast<int>(item.Text.size() / 38U + 2U), 3, 12) * metrics.lineSpacing() + 16 + 2 * proposal_edge);
+			connect(editor->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged, editor, fit);
+			QTimer::singleShot(0, editor, fit);
+			Fields.emplace_back(editor);
 			editor->setEnabled(core::acceptable(item));
 			itemColumn->addWidget(editor);
 			Editors[index]      = editor;
@@ -407,6 +463,12 @@ namespace bpr::qt {
 			auto* const discard = new quiet_push_button{ tr("Discard"), box };
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
 			discard->setFlat(true);
+			// [[BPR-1900]] owner look v001: the first click acts. Neither
+			// button takes the keyboard on a press, so a field losing focus
+			// mid-click can't move the tab under the pointer; Tab still
+			// reaches both.
+			accept->setFocusPolicy(Qt::TabFocus);
+			discard->setFocusPolicy(Qt::TabFocus);
 			buttons->addWidget(accept);
 			buttons->addWidget(discard);
 			buttons->addStretch(1);

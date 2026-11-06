@@ -6229,6 +6229,13 @@ namespace {
 				const auto  fixedWidth = items->width();
 				items->resize(fixedWidth, items->sizeHint().height());
 				closeUp(items, QStringLiteral("tour-proposal-items"));
+				// Owner look v001: a proposed field with the keyboard in it.
+				if (auto* const field = panel->proposal_editor(0); field != nullptr) {
+					window.activateWindow();
+					field->setFocus(Qt::MouseFocusReason);
+					QCoreApplication::processEvents();
+					closeUp(panel->proposal(), QStringLiteral("tour-proposal-focused"));
+				}
 				panel->open_transcript();
 				QCoreApplication::processEvents();
 				draw(QStringLiteral("app-tour-drafting-transcript"));

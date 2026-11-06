@@ -93,6 +93,7 @@ namespace bpr::qt {
 		QScrollArea*                           TranscriptScroll = nullptr;
 		QScrollArea*                           ProposalScroll   = nullptr;
 		std::vector<QPointer<QWidget>>         Accented;
+		std::vector<QPointer<QWidget>>         Fields;
 	};
 }
 
