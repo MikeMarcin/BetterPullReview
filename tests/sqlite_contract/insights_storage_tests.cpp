@@ -60,7 +60,7 @@ int main()
 	};
 	expect(named("repository-canary.sqlite3").Bytes == fs::file_size(state / "repository-canary.sqlite3") + 1234 + 4321, "WAL and SHM bytes belong to their store");
 	expect(named("markdown-images.sqlite3").Budget == 128ULL * 1024 * 1024 && named("review-cycles.sqlite3").Budget == 768ULL * 1024 * 1024 && named("Diagnostic logs").Budget == 50ULL * 1024 * 1024, "every existing fixed budget is shown");
-	expect(named("Clones kept for the agent").Bytes == 5678U, "Storage shows the clones BetterPullReview keeps, measured whole");
+	expect(named("Agent clones").Bytes == 5678U, "Storage shows the clones BetterPullReview keeps, measured whole");
 	const auto exported = adapters::sqlite::insights_storage_export(scratch.path());
 	expect(exported.find("\"section\":\"insights\"") != std::string::npos && exported.find("local_store_bytes") != std::string::npos, "anonymized export has the byte section");
 	for (const auto canary : { "repository-canary", "ACCOUNT_CANARY", "PR_CANARY", "PATH_CANARY", "BODY_CANARY", "state/v1" }) {

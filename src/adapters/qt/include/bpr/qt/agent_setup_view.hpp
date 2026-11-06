@@ -115,7 +115,7 @@ namespace bpr::qt {
 		void               build_agent(QVBoxLayout& aBody);
 		void               build_repository(QVBoxLayout& aBody);
 		void               build_check(QVBoxLayout& aBody);
-		void               build_kept_clone(QVBoxLayout& aBody);
+		void               build_no_clone_choice(QVBoxLayout& aBody, bool aLead, const std::function<void()>& aChooseFolder);
 		[[nodiscard]] auto agent_name() const -> QString;
 		/// The chosen custom agent's own name for its kind, or the plain name.
 		[[nodiscard]] auto name_for(core::setup_agent aAgent) const -> QString;
@@ -131,13 +131,15 @@ namespace bpr::qt {
 		std::optional<core::setup_step>     Editing;
 		std::optional<core::setup_agent>    Picked;
 		std::optional<std::string>          PickedClone;
-		core::setup_step                    Open             = core::setup_step::agent;
-		bool                                Active           = false;
-		bool                                Ready            = false;
-		bool                                AgentDetailsOpen = false;
-		bool                                WorkspaceLogOpen = false;
-		QVBoxLayout*                        Steps            = nullptr;
-		QLabel*                             Intro            = nullptr;
+		/// [[BPR-1879]]. This pull request only was chosen over keeping a clone.
+		bool             PickedPullRequestOnly = false;
+		core::setup_step Open                  = core::setup_step::agent;
+		bool             Active                = false;
+		bool             Ready                 = false;
+		bool             AgentDetailsOpen      = false;
+		bool             WorkspaceLogOpen      = false;
+		QVBoxLayout*     Steps                 = nullptr;
+		QLabel*          Intro                 = nullptr;
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review
