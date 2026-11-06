@@ -9,7 +9,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-05: 'I see absolutely no way to pick an agent on the tour tab … This whole tab is a disaster.'"}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "042d6b6c2", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help (tests/adapters_qt/review_tour_agent_help_tests.cpp, v002): the Tour tab's set_agent_picker holds an agent_run_settings_picker (objectName agentRunSettings) on the same agent_run_settings_source as an Agent-tab picker; v003: it sits directly under Draft from PR context in Problem, moves under Solution's Draft button and to the stop's Generate comment row with the open step, keeps its whole words in a 380-pixel drawer, and the draft's state with Preview and publish stays the tab's last row; it shows the same 'Claude Code \u00b7 ...' words; choosing Codex in the Tour tab's menu changes the launch panel's selected_profile and the Agent-tab pill, and choosing in the Agent-tab menu shows in the Tour tab; the Tour tab's picker carries the Model and Effort menus, an effort chosen there reaches the shared run-settings dispatch and shows as 'high effort' in both pickers; Draft from PR context asks for Problem help; with no agent both pickers and the tour's agent row are hidden, as in the Agent tab, and manual writing stays open. The host's refusal notice says why on a click (no agent set up, none chosen, not this window's draft, or busy). Passes; qt_workbench_window_scale_100 (Agent tab pill, unavailable agent, placement in the question field) passes on the refactored picker."}}, {"criterion": "AC2", "outcome": "pass", "revision": "042d6b6c2", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help asserts in the agent and no-agent states that no visible button reads Next, Recover explanation, Use selected description text or Enhance text, that the Problem helpers and Next carry tooltips, and that no notice says 'Choose an available agent'. qt_review_tour_steps, qt_scoped_prose_editor, qt_review_tour_publication_working, qt_review_tour_stop_view, qt_drawer_parts_scale_{100,125,200}, qt_drawer_surfaces_fit_scale_{100,125,200}, application_review_tour_composition_public_path, application_review_tour_writing and application_review_tour_writing_wrapper pass. v003: the same set passes again (application_review_tour_writing passed on a rerun after one loaded-machine failure)."}}, {"criterion": "AC4", "outcome": "pass", "revision": "042d6b6c2", "evidence": {"kind": "command", "detail": "python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK; coding-format-check passed (clang-format 22.1.8)."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d2ff143bd", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help (tests/adapters_qt/review_tour_agent_help_tests.cpp, v002): the Tour tab's set_agent_picker holds an agent_run_settings_picker (objectName agentRunSettings) on the same agent_run_settings_source as an Agent-tab picker; v004: it sits in the tab's bottom bar (tourAgentBar), the last thing in the tab, its field inset 10 from the sides and bottom as the Agent tab's question field, the pill at the bar's right with its whole words in a 380-pixel drawer; the draft's state with Preview and publish sits above the bar; the bar stays on every step; it shows the same 'Claude Code \u00b7 ...' words; choosing Codex in the Tour tab's menu changes the launch panel's selected_profile and the Agent-tab pill, and choosing in the Agent-tab menu shows in the Tour tab; the Tour tab's picker carries the Model and Effort menus, an effort chosen there reaches the shared run-settings dispatch and shows as 'high effort' in both pickers; Draft from PR context asks for Problem help; with no agent both pickers and the tour's agent row are hidden, as in the Agent tab, and manual writing stays open. The host's refusal notice says why on a click (no agent set up, none chosen, not this window's draft, or busy). Passes; qt_workbench_window_scale_100 (Agent tab pill, unavailable agent, placement in the question field) passes on the refactored picker."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d2ff143bd", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help asserts in the agent and no-agent states that no visible button reads Next, Recover explanation, Use selected description text or Enhance text, that the Problem helpers and Next carry tooltips, and that no notice says 'Choose an available agent'. qt_review_tour_steps, qt_scoped_prose_editor, qt_review_tour_publication_working, qt_review_tour_stop_view, qt_drawer_parts_scale_{100,125,200}, qt_drawer_surfaces_fit_scale_{100,125,200}, application_review_tour_composition_public_path, application_review_tour_writing and application_review_tour_writing_wrapper pass. v003: the same set passes again (application_review_tour_writing passed on a rerun after one loaded-machine failure). v004: qt_review_tour_agent_help, qt_review_tour_steps, qt_review_tour_stop_view, qt_drawer_surfaces_fit_scale_100, application_review_tour_composition_public_path and application_review_tour_writing pass."}}, {"criterion": "AC4", "outcome": "pass", "revision": "d2ff143bd", "evidence": {"kind": "command", "detail": "python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK; coding-format-check passed (clang-format 22.1.8)."}}]
 ---
 
 # BPR-1878: The Tour tab lets an author pick an agent and says plainly what each control does
@@ -122,6 +122,15 @@ Draft from PR context in Problem or Solution and under the stop's actions
 (`review_tour_editor::place_agent_picker`). A row of its own keeps agent,
 model and effort whole in a 380-pixel drawer. The draft's state and Preview
 and publish are the tab's last row again.
+
+v004, commit `d2ff143bd` (frontend-design skill loaded first, before any
+layout work), after the owner's v003 reject: the tab ends with the Agent
+tab's bottom bar, the same rounded field (`agent_bar_field`, drawn as the
+Agent tab's question field) inset 10 at the sides and bottom, holding the
+Agent tab's own agent · model · effort picker on the right. The draft's
+state and Preview and publish sit just above the bar, so nothing is below
+the picker (v002's reject). The bar shows on every step and hides with the
+pill when no agent is chosen.
 - `docs/architecture/review-tours.md` describes the shared picker.
 
 ## Attended review (AC3)
@@ -152,4 +161,15 @@ and publish are the tab's last row again.
 - New short session `d2b4b651462d7fe67f5ab0ba0cc1a6da`, state `/Users/jaeger/.codex/attended-review/bpr1878-v003-aVdKyZ/state`, repo root the
   implementing worktree, host started with `serve --tailscale`. One
   candidate, `BPR-1878-tour-authoring-v003` (revision `042d6b6c2-v003`), with
-  one Accept/Reject question. Status: ready, awaiting the owner.
+  one Accept/Reject question. Host stopped and frozen root removed after
+  the owner's verdict 2026-11-06: **reject**, "How hard is it to put the
+  agent picker at the bottom like i asked for", with the instruction that
+  `frontend-design:frontend-design` be used.
+- v004: frozen build of `d2ff143bd` at `/Users/jaeger/.codex/attended-builds/bpr1878-tour-authoring-v004.qk_w94rz` (executable SHA-256 `3707b488b62f1974b33b20fb8a9ce160878621369283b13c7b5d8f9f6b391468`),
+  same fixture and arguments. The launcher's own offscreen check reached
+  `ATTENDED_TOUR_SHOWN`. Launch: `python3 /Users/jaeger/.codex/attended-builds/bpr1878-tour-authoring-v004.qk_w94rz/launch.py`.
+- New short session `e368bab6b8bfddacc659926f77ec7623`, state `/Users/jaeger/.codex/attended-review/bpr1878-v004-Shxb5E/state`, repo root the
+  implementing worktree, host started with `serve --tailscale`. One
+  candidate, `BPR-1878-tour-authoring-v004` (revision `d2ff143bd-v004`), asking
+  "The agent picker is the Tour tab's bottom bar, like the Agent tab's, and
+  Preview and publish sits above it." Status: ready, awaiting the owner.
