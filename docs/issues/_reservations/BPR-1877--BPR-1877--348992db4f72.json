@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1877"
+  ],
+  "reserve_for": "agent-prompts-with-ready",
+  "purpose": "Suggested prompts show alongside the ready box",
+  "created": "2026-11-06T00:43:17.564197+00:00",
+  "base": "c6c5ef96858edb15cc9caf94a9d69dcea08bd63b"
+}

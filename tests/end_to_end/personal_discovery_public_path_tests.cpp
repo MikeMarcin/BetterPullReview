@@ -187,6 +187,10 @@ namespace {
 			expect(line.has_value() && detail.contains(" credential_ms=") && detail.contains(" backoff_s=")
 					   && (line->Scope == core::discovery_diagnosis_scope::refresh || line->WireMilliseconds <= line->RunMilliseconds),
 				   "the composed profile writes each discovery line in full");
+			// [[BPR-1874]]. Which check refused which retained row, if any did.
+			if (line && line->Rejection != core::discovery_rejection::none) {
+				std::cerr << aLabel << " refresh=" << line->Refresh << " read=" << line->Read << " check=" << core::name(line->Rejection) << " row=" << line->Row << '\n';
+			}
 			if (line && line->Scope == core::discovery_diagnosis_scope::refresh && line->State != core::discovery_diagnosis_state::none) {
 				std::cerr << aLabel << " refresh=" << line->Refresh << " state=" << core::name(line->State) << " repositories=" << line->Repositories
 						  << " retained=" << line->PullRequests << " reads=" << line->Reads << " failed=" << line->Failed << " requests=" << line->Requests
