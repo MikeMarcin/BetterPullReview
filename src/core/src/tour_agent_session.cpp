@@ -1,6 +1,7 @@
 #include "bpr/core/tour_agent_session.hpp"
 
 #include <algorithm>
+#include <array>
 
 namespace bpr::core {
 	namespace {
@@ -15,19 +16,33 @@ namespace bpr::core {
 			return aText;
 		}
 		auto contains(const auto& aList, const std::string_view aValue) -> bool { return std::ranges::find(aList, aValue) != aList.end(); }
-		/// One shell command read as a pipeline of word lists with its quotes
-		/// removed; nullopt for anything a shell would read as more than one
-		/// plain pipeline (a redirection, sequence, substitution, expansion,
-		/// glob, background job, subshell, comment or second line). Not a
-		/// shell: a deliberately small admission check that refuses whatever
-		/// it does not read plainly.
+		/// One shell command read as a list of commands (joined by `|`, `&&`,
+		/// `||` or `;`), each a word list with its quotes removed; nullopt for
+		/// anything a shell would read as more than plain commands: a
+		/// redirection other than to `/dev/null` (or `2>&1`), a background
+		/// job, a substitution or expansion, a subshell or a second line. A
+		/// glob only lists file names, so it is admitted. Not a shell: a
+		/// deliberately small admission check that refuses whatever it does
+		/// not read plainly. Claude Code splits a compound command the same
+		/// way before it matches each part against its allowed prefixes, so a
+		/// chain it allows is read here too ([[BPR-1900]], installed Claude
+		/// 2.1.310 chains `git show --stat HEAD && git show HEAD | head`).
 		auto pipeline_of(const std::string_view aCommand) -> std::optional<std::vector<std::vector<std::string>>>
 		{
-			auto pipeline = std::vector<std::vector<std::string>>{ std::vector<std::string>{ } };
-			auto word     = std::string{ };
-			bool inWord   = false;
-			char quote    = '\0';
-			for (const char character : aCommand) {
+			static constexpr std::array<std::string_view, 9> silenced = { "2>&1", "2>/dev/null", "1>/dev/null", "&>/dev/null", ">/dev/null", "2> /dev/null", "1> /dev/null", "&> /dev/null", "> /dev/null" };
+			auto                                             pipeline = std::vector<std::vector<std::string>>{ std::vector<std::string>{ } };
+			auto                                             word     = std::string{ };
+			bool                                             inWord   = false;
+			char                                             quote    = '\0';
+			const auto                                       close    = [&] {
+				if (inWord) {
+					pipeline.back().push_back(std::move(word));
+					word.clear();
+					inWord = false;
+				}
+			};
+			for (std::size_t at = 0U; at < aCommand.size(); ++at) {
+				const char character = aCommand[at];
 				if (quote == '\'') {
 					if (character == '\'') {
 						quote = '\0';
@@ -37,6 +52,16 @@ namespace bpr::core {
 					continue;
 				}
 				if (quote == '"') {
+					// A backslash keeps the next character literal (`"a\|b"` is
+					// a grep alternation); `$` and a backquote still expand.
+					if (character == '\\' && at + 1U < aCommand.size() && aCommand[at + 1U] != '\n') {
+						const auto next = aCommand[++at];
+						if (next != '$' && next != '`' && next != '"' && next != '\\') {
+							word += '\\';
+						}
+						word += next;
+						continue;
+					}
 					if (character == '$' || character == '`' || character == '\\') {
 						return std::nullopt;
 					}
@@ -52,19 +77,43 @@ namespace bpr::core {
 					inWord = true;
 					continue;
 				}
-				if (character == ' ' || character == '\t' || character == '|') {
-					if (inWord) {
-						pipeline.back().push_back(std::move(word));
-						word.clear();
-						inWord = false;
-					}
-					if (character == '|') {
-						pipeline.emplace_back();
-					}
+				// Outside quotes a backslash makes the next character literal.
+				if (character == '\\' && at + 1U < aCommand.size() && aCommand[at + 1U] != '\n' && aCommand[at + 1U] != '\r') {
+					word += aCommand[++at];
+					inWord = true;
 					continue;
 				}
-				// A `~` only expands at the start of a word (`HEAD~1` is a revision).
-				if ((character == '~' && !inWord) || std::string_view{ ";&<>`$(){}\n\r\\*?[]!#" }.find(character) != std::string_view::npos) {
+				if (!inWord) {
+					const auto rest  = aCommand.substr(at);
+					const auto found = std::ranges::find_if(silenced, [&rest](const std::string_view aRedirection) {
+						return rest.starts_with(aRedirection) && (rest.size() == aRedirection.size() || std::string_view{ " \t|;&" }.find(rest[aRedirection.size()]) != std::string_view::npos);
+					});
+					if (found != silenced.end()) {
+						at += found->size() - 1U;
+						continue;
+					}
+				}
+				if (character == ' ' || character == '\t') {
+					close();
+					continue;
+				}
+				if (character == '|' || character == ';' || character == '&') {
+					close();
+					const auto doubled = at + 1U < aCommand.size() && aCommand[at + 1U] == character;
+					if (character == '&' && !doubled) {
+						// A background job.
+						return std::nullopt;
+					}
+					if (doubled && character != ';') {
+						++at;
+					}
+					if (pipeline.back().empty()) {
+						return std::nullopt;
+					}
+					pipeline.emplace_back();
+					continue;
+				}
+				if (std::string_view{ "<>`$(){}\n\r\\!#" }.find(character) != std::string_view::npos) {
 					return std::nullopt;
 				}
 				word += character;
@@ -73,8 +122,10 @@ namespace bpr::core {
 			if (quote != '\0') {
 				return std::nullopt;
 			}
-			if (inWord) {
-				pipeline.back().push_back(std::move(word));
+			close();
+			// A trailing `;` ends the last command; nothing else may.
+			if (pipeline.size() > 1U && pipeline.back().empty() && !aCommand.empty() && aCommand.find_last_not_of(" \t") != std::string_view::npos && aCommand[aCommand.find_last_not_of(" \t")] == ';') {
+				pipeline.pop_back();
 			}
 			return pipeline;
 		}
@@ -100,6 +151,28 @@ namespace bpr::core {
 					return tour_tool_refusal::argument;
 				}
 				if ((program == "rg" || program == "grep") && (word.starts_with("--pre") || word == "--hostname-bin")) {
+					return tour_tool_refusal::argument;
+				}
+				if (program == "diff" && word.starts_with("--to-file")) {
+					return tour_tool_refusal::argument;
+				}
+			}
+			if (program == "sed") {
+				// Print only: `-n`, and a script of line addresses ending in `p`.
+				auto quiet  = false;
+				auto script = std::string_view{ };
+				for (std::size_t index = 1U; index < aList.size(); ++index) {
+					const std::string_view word = aList[index];
+					if (word == "-n" || word == "--quiet") {
+						quiet = true;
+					} else if (word.starts_with('-')) {
+						return tour_tool_refusal::argument;
+					} else if (script.empty()) {
+						script = word;
+					}
+				}
+				const auto lines = !script.empty() && script.back() == 'p' && std::ranges::all_of(script.substr(0U, script.size() - 1U), [](const char aCharacter) { return (aCharacter >= '0' && aCharacter <= '9') || aCharacter == ',' || aCharacter == '$'; });
+				if (!quiet || !lines) {
 					return tour_tool_refusal::argument;
 				}
 			}

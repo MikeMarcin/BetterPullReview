@@ -1533,7 +1533,27 @@ namespace {
 		};
 		expect(refused(init + use("Edit", R"({"file_path":"a","old_string":"x","new_string":"y"})")), "an edit is refused");
 		expect(refused(init + use("Write", R"({"file_path":"a","content":"x"})")), "a write is refused");
-		expect(refused(init + use("Bash", R"({"command":"rm -rf src"})")), "a shell command that writes is refused");
+		// [[BPR-1900]]. A shell command the app does not admit is held: Claude's
+		// own allowlist denies it (installed 2.1.310 answers `is_error`), and the
+		// run goes on; a result that says it ran refuses the run.
+		const auto bash = [](const std::string& aCommand) {
+			return R"({"type":"assistant","session_id":"s","message":{"id":"m-b","role":"assistant","content":[{"type":"tool_use","id":"tb","name":"Bash","input":{"command":")" + aCommand + R"("}}]}})" + "\n";
+		};
+		const auto outcome = [](const bool aDenied) {
+			return R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done","is_error":)" + std::string{ aDenied ? "true" : "false" } + "}]}}\n";
+		};
+		{
+			auto       held = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto read = held.push(init + bash("touch made.txt") + outcome(true) + answer);
+			expect(read.has_value() && held.finish().has_value(), "a write Claude denied lets the run answer");
+			expect(read && std::ranges::any_of(*read, [](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::tool_activity && aEvent.Item == "(not run, outside the read-only list) touch made.txt"; }), "the transcript says it was not run");
+		}
+		expect(refused(init + bash("touch made.txt") + outcome(false)), "a write that ran is refused");
+		expect(refused(init + bash("rm -rf src") + R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done"}]}})" + "\n"), "a result that does not say it was denied is refused");
+		{
+			auto chained = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			expect(chained.push(init + bash("git show --stat HEAD && git show HEAD | head -400") + outcome(false) + answer).has_value(), "a read-only chain runs");
+		}
 		expect(refused(init + use("WebFetch", R"({"url":"https://example.com"})")), "the network is refused");
 		expect(refused(R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Edit"],"mcp_servers":[],"plugins":[]})"
 					   "\n"),

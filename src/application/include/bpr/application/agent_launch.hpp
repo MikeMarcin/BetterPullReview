@@ -664,14 +664,17 @@ namespace bpr::application {
 		bool                         WritingOnly   = false;
 		agent_launch_purpose         Purpose       = agent_launch_purpose::conversation;
 		bool                         ReadOnlyTools = false;
-		std::string                  Pending;
-		std::size_t                  TotalBytes   = 0U;
-		bool                         Failed       = false;
-		std::uint8_t                 Phase        = 0U;
-		bool                         SawAssistant = false;
-		std::string                  RemoteSession;
-		std::string                  RemoteThread;
-		std::string                  RemoteTurn;
+		/// [[BPR-1900]]. Shell commands of a read-only run awaiting their
+		/// result: refused if it says they ran.
+		std::vector<std::string> HeldTools;
+		std::string              Pending;
+		std::size_t              TotalBytes   = 0U;
+		bool                     Failed       = false;
+		std::uint8_t             Phase        = 0U;
+		bool                     SawAssistant = false;
+		std::string              RemoteSession;
+		std::string              RemoteThread;
+		std::string              RemoteTurn;
 	};
 
 	/// \brief Every terminal condition the host exposes distinctly.
