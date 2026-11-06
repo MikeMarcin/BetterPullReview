@@ -9,7 +9,7 @@ depends_on: []
 priority: "P1"
 platforms: ["mac"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-05: 'I see absolutely no way to pick an agent on the tour tab … This whole tab is a disaster.'"}
-acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "d1ea88005476da7f1a4ce705dfc083a65996dce9", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help (tests/adapters_qt/review_tour_agent_help_tests.cpp): with two agents offered by an agent_launch_panel, the Tour tab's Drafting agent menu shares its model and shows its choice; choosing in the Tour tab changes the Agent tab's selected_profile and a choice in the Agent tab shows in the Tour tab; Draft from PR context asks for Problem help; with no agent offered the menu gives way to 'No agent is set up, so drafting is off' and Set up an agent, which dispatches set_up_agent (Settings, Agents & context); manual writing stays open; a read-only draft shows no agent help. Passes. The app supplies the line's reasons (tour_agent_help: cannot write tour text, another agent writes instead, busy) and refreshes it on agent progress."}}, {"criterion": "AC2", "outcome": "pass", "revision": "d1ea88005476da7f1a4ce705dfc083a65996dce9", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help asserts in both the agent and no-agent states that no visible button reads Next, Recover explanation, Use selected description text or Enhance text, that the Problem helpers and Next carry tooltips, and that no notice says 'Choose an available agent'. Labels now: Draft from PR context, Enhance problem statement / solution / comment, Enhance selection, Generate comment (RFC-BPR-0043 names), Copy selected description text, Next: Solution / Next: Stops. request_writing's refusal names its real cause and only controls the tab shows. qt_review_tour_steps, qt_scoped_prose_editor, qt_review_tour_publication_working, qt_review_tour_stop_view, qt_drawer_parts_scale_{100,125,200}, qt_drawer_surfaces_fit_scale_{100,125,200}, application_review_tour_composition_public_path, application_review_tour_writing and application_review_tour_writing_wrapper pass."}}, {"criterion": "AC4", "outcome": "pass", "revision": "d1ea88005476da7f1a4ce705dfc083a65996dce9", "evidence": {"kind": "command", "detail": "python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK; coding-format-check passed (clang-format 22.1.8)."}}]
+acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "769c87f57", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help (tests/adapters_qt/review_tour_agent_help_tests.cpp, v002): the Tour tab's set_agent_picker holds an agent_run_settings_picker (objectName agentRunSettings) on the same agent_run_settings_source as an Agent-tab picker; it sits at the bottom of the tab, above the draft's state, showing the same 'Claude Code \u00b7 ...' words; choosing Codex in the Tour tab's menu changes the launch panel's selected_profile and the Agent-tab pill, and choosing in the Agent-tab menu shows in the Tour tab; the Tour tab's picker carries the Model and Effort menus, an effort chosen there reaches the shared run-settings dispatch and shows as 'high effort' in both pickers; Draft from PR context asks for Problem help; with no agent both pickers and the tour's agent row are hidden, as in the Agent tab, and manual writing stays open. The host's refusal notice says why on a click (no agent set up, none chosen, not this window's draft, or busy). Passes; qt_workbench_window_scale_100 (Agent tab pill, unavailable agent, placement in the question field) passes on the refactored picker."}}, {"criterion": "AC2", "outcome": "pass", "revision": "769c87f57", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_help asserts in the agent and no-agent states that no visible button reads Next, Recover explanation, Use selected description text or Enhance text, that the Problem helpers and Next carry tooltips, and that no notice says 'Choose an available agent'. qt_review_tour_steps, qt_scoped_prose_editor, qt_review_tour_publication_working, qt_review_tour_stop_view, qt_drawer_parts_scale_{100,125,200}, qt_drawer_surfaces_fit_scale_{100,125,200}, application_review_tour_composition_public_path, application_review_tour_writing and application_review_tour_writing_wrapper pass."}}, {"criterion": "AC4", "outcome": "pass", "revision": "769c87f57", "evidence": {"kind": "command", "detail": "python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK; coding-format-check passed (clang-format 22.1.8)."}}]
 ---
 
 # BPR-1878: The Tour tab lets an author pick an agent and says plainly what each control does
@@ -78,40 +78,61 @@ time author understands it without reading docs:
 
 ## Implementation
 
-Commit `d1ea88005` (frontend-design skill loaded for the redesign):
+v001, commit `d1ea88005` (frontend-design skill loaded): a Drafting agent
+menu at the top of the tab sharing the Agent tab's menu model, a help line
+and Set up an agent; RFC-BPR-0043 helper labels and tooltips; Copy selected
+description text; Next: Solution / Next: Stops on their own row;
+`--attended-tour-authoring AGENT` for the owner look.
 
-- `review_tour_editor`: agent help at the top of the tab. A Drafting agent
-  menu shares the Agent tab's model (`share_agent_choices`) and hands a
-  choice to that menu, which still decides the pick in core (BPR-1823). The
-  line under it comes from the host (`set_agent_help_source`), with defaults
-  when the host has nothing to add. With no agent offered: the reason and
-  Set up an agent (`tour_editor_action::set_up_agent`). It is hidden on a
-  read-only draft. Helper labels and tooltips follow RFC-BPR-0043. The copy
-  helper is renamed. Next is named for its destination and sits on its own
-  row.
-- `github_application`: `tour_agent_help()` says when the chosen agent
-  cannot write tour text, when another agent writes instead, or when it is
-  busy, refreshed on agent progress. The refusal notice names its real
-  cause. `set_up_agent` opens Settings at Agents & context.
-- `workbench_window`: shares the Agent tab's menu with the Tour tab.
-- `main.cpp`: `--attended-tour-authoring AGENT` opens a new tour's first
-  step with a Claude stream-JSON fixture agent chosen.
-- `docs/architecture/review-tours.md` describes the agent help and labels.
+v002, commit `ebcfad9ba` (frontend-design skill loaded again), after the
+owner's v001 reject:
+
+- The Agent tab's agent · model · effort pill moved out of
+  `agent_tab_view` into `agent_run_settings_picker`
+  (`src/adapters/qt/src/agent_run_settings_picker.cpp`) over an
+  `agent_run_settings_source` that the Agent tab owns: the settings, the
+  model each agent last reported, and where a choice, a model or effort, the
+  catalogue request and Agent settings… go. The Agent tab's question field
+  shows one picker on it; `workbench_window` gives the Tour tab a second one,
+  which `review_tour_editor::set_agent_picker` places at the bottom,
+  right-aligned above the draft's state as in the question field. Same
+  menu, same choice; hidden while no agent is chosen, "Unavailable: …" when
+  the chosen agent went, an icon alone when narrow.
+- v001's top agent help, its hint line, Set up an agent and the host's
+  `tour_agent_help()` are gone. The Agent tab's picker shows no
+  "set up" state, so the Tour tab follows it; a helper clicked without a
+  usable agent says why in the tab's notice.
+- Owner note on v002 ("i need the ability to pick effort level. It needs
+  the bottom setting picker from agents tab too"), commit `769c87f57`: the
+  pill is that settings picker, with its Model and Effort menus; the test
+  chooses an effort in the Tour tab and sees it reach the shared dispatch
+  and show in both pills. Tour drafting requests already run with the
+  chosen agent's model and effort (`dispatch_agent_invocation` with
+  writing-only still applies Claude's and added agents' model and effort;
+  `agent_launch` passes `--model`/`--effort`). The look chooses high effort
+  so the pill shows one. The Agent tab bar's other controls (add context,
+  suggested prompts, read scope, Send) are about chat questions and do not
+  apply to drafting, so the Tour tab does not carry them.
+- The helper labels, copy helper and Next from v001 stay.
+- `docs/architecture/review-tours.md` describes the shared picker.
 
 ## Attended review (AC3)
 
-- Frozen build of `d1ea88005` at
-  `/Users/jaeger/.codex/attended-builds/bpr1878-tour-authoring-v001.30yciz1v`
-  (executable SHA-256
-  `bd3bc6b2f3ad88d7d1f3b15b9750a80e9bfe663e3e9254d6634f0e41871033f6`),
-  fixture `conventional-comments-v1`, `--attended-open-file
+- v001: frozen build of `d1ea88005` (root removed with
+  `scripts/freeze_attended_build.py remove`), session
+  `3c2a6241b7bf337b8ac749c89d496abd` (state
+  `/Users/jaeger/.codex/attended-review/bpr1878-v001-99RcVJ/state`, host
+  stopped). Owner verdict 2026-11-06 on `BPR-1878-tour-authoring`
+  (`d1ea88005-v001`): **reject**, "That agent picker is no where near good
+  enough, we should just have the bottom agent picker the same one from the
+  agent tab."
+- v002: frozen build of `769c87f57` at `/Users/jaeger/.codex/attended-builds/bpr1878-tour-authoring-v002.9doad7pi` (executable SHA-256
+  `183a651e0cb86fc372a0a4f204ca56fe7fb965ceae191ad5dded6160d441ba94`), fixture `conventional-comments-v1`, `--attended-open-file
   src/engine/renderer.cpp --attended-tour-authoring
   {build}/tests/end_to_end/scoped_writing_agent`. The launcher's own
   offscreen check reached `ATTENDED_TOUR_SHOWN`. Launch:
-  `python3 /Users/jaeger/.codex/attended-builds/bpr1878-tour-authoring-v001.30yciz1v/launch.py`.
-- New short session `3c2a6241b7bf337b8ac749c89d496abd`, state
-  `/Users/jaeger/.codex/attended-review/bpr1878-v001-99RcVJ/state`, repo
-  root the implementing worktree, host started with `serve --tailscale`.
-  One candidate, `BPR-1878-tour-authoring` (revision `d1ea88005-v001`), with
-  one Accept/Reject question. Status: ready, awaiting the owner.
-
+  `python3 /Users/jaeger/.codex/attended-builds/bpr1878-tour-authoring-v002.9doad7pi/launch.py`.
+- New short session `252f6102a3bb6fdd18933a745a5e1a43`, state `/Users/jaeger/.codex/attended-review/bpr1878-v002-v11vbl/state`, repo root the
+  implementing worktree, host started with `serve --tailscale`. One
+  candidate, `BPR-1878-tour-authoring-v002` (revision `769c87f57-v002`),
+  with one Accept/Reject question. Status: ready, awaiting the owner.

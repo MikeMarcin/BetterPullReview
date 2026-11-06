@@ -9578,9 +9578,9 @@ namespace bpr::qt {
 		escape->setContext(Qt::WidgetWithChildrenShortcut);
 		connect(escape, &QShortcut::activated, this, [this] { close_tour_page(); });
 		CentreStack->addWidget(TourPage);
-		// [[BPR-1878]]. The Tour tab picks its drafting agent from the Agent
-		// tab's own menu: one choice, shown in both.
-		TourEditor->share_agent_choices(AgentPanel->profile_selector());
+		// [[BPR-1878]], owner look v001. The Tour tab has the Agent tab's own
+		// agent picker at its bottom: the same component over the same source.
+		TourEditor->set_agent_picker(new agent_run_settings_picker{ AgentTab->run_settings_source(), TourEditor });
 		TourEditor->set_expand_dispatch([this](const bool aPublication) { open_tour_page(aPublication); });
 		TourEditor->set_collapse_dispatch([this] { close_tour_page(); });
 		TourEditor->set_excerpt_source([this](const core::tour_source_range& aRange) -> std::optional<tour_excerpt> {

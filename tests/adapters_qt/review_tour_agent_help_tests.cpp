@@ -1,15 +1,18 @@
-// [[BPR-1878]]. The Tour tab offers the agent it drafts with: a Drafting agent
-// menu sharing the Agent tab's, so a choice made in either shows in both, and
-// one line saying what that agent will do. With no agent offered the menu
-// gives way to the reason and Set up an agent. Every helper's label says what
-// a click does; no label names something the tab does not show. Pass a path
-// prefix to save renders.
+// [[BPR-1878]], owner look v001 ("we should just have the bottom agent picker
+// the same one from the agent tab"). The Tour tab has the Agent tab's own
+// agent picker (agent_run_settings_picker over the same source) at its
+// bottom: an agent chosen in either shows in both, and with no agent it is
+// hidden, as in the Agent tab. Every helper's label says what a click does; no
+// label names something the tab does not show. Pass a path prefix to save
+// renders.
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include <QAction>
 #include <QApplication>
 #include <QComboBox>
 #include <QLabel>
+#include <QMenu>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <array>
@@ -75,16 +78,35 @@ auto main(int argc, char** argv) -> int
 	};
 	panel.offer_profiles(profiles);
 	panel.prefer_profile(std::nullopt);
+	// The source the Agent tab keeps; a choice goes to the launch panel.
+	auto source    = std::make_shared<qt::agent_run_settings_source>(panel);
+	source->Choose = [&panel](const std::uint64_t aProfile) {
+		const auto row = panel.profile_selector()->findData(QVariant::fromValue<qulonglong>(aProfile));
+		panel.profile_selector()->setCurrentIndex(row);
+		return row >= 0;
+	};
+	auto claude            = qt::agent_run_settings{ };
+	claude.Profile         = 1U;
+	claude.Agent           = QStringLiteral("Claude Code");
+	claude.ModelChoosable  = true;
+	claude.EffortChoosable = true;
+	claude.Efforts         = { "low", "high" };
+	auto codex             = qt::agent_run_settings{ };
+	codex.Profile          = 2U;
+	codex.Agent            = QStringLiteral("Codex");
+	codex.ModelChoosable   = true;
+	source->present({ claude, codex });
+	// The Agent tab's own pill, standing in for its question field's.
+	qt::agent_run_settings_picker agentTab{ source };
 
 	auto draft     = tests::review_tour_fixture();
 	draft.Problem  = { };
 	draft.Solution = { };
-	qt::review_tour_editor                editor;
-	std::optional<qt::tour_editor_action> acted;
-	editor.set_dispatch([](core::tour_command) { }, [&](const qt::tour_editor_action aAction) { acted = aAction; });
+	qt::review_tour_editor editor;
+	editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
 	std::optional<core::writing_hook> asked;
 	editor.set_writing_dispatch([&](const core::writing_hook aHook, qt::prose_capture) { asked = aHook; }, [] { });
-	editor.share_agent_choices(panel.profile_selector());
+	editor.set_agent_picker(new qt::agent_run_settings_picker{ source, &editor });
 	editor.resize(380, 760);
 	editor.show();
 	editor.activateWindow();
@@ -93,31 +115,70 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 
 	auto* const picker = editor.agent_picker();
-	auto* const setUp  = child<QPushButton>(editor, "tourAgentSetUp");
 	auto* const magic  = child<QPushButton>(editor, "tourProblemMagic");
 	auto* const map    = child<QPushButton>(editor, "tourProblemMap");
 	auto* const next   = child<QPushButton>(editor, "tourProblemNext");
+	auto* const foot   = editor.foot();
 
-	// AC1. With agents offered, the tab shows them, the Agent tab's choice current.
-	expect(picker->isVisible() && !setUp->isVisible() && picker->model() == panel.profile_selector()->model() && picker->count() == 2,
-		   "the Tour tab offers the Agent tab's agents in its own menu");
-	expect(picker->currentIndex() == panel.profile_selector()->currentIndex() && picker->currentIndex() >= 0, "the menu shows the agent already chosen");
-	expect(editor.agent_help_text().contains(QStringLiteral("Agent tab")), "the line says the choice is the Agent tab's too");
+	// AC1. The Agent tab's picker, at the bottom of the tab, showing its choice.
+	expect(picker != nullptr && picker->objectName() == QStringLiteral("agentRunSettings") && picker->source() == agentTab.source(), "the Tour tab's picker is the Agent tab's component over its source");
+	expect(picker->isVisible() && picker->full_text() == agentTab.full_text() && picker->full_text().startsWith(QStringLiteral("Claude Code")), "the picker shows the chosen agent, as the Agent tab's does");
+	const auto pickerTop = picker->mapTo(&editor, QPoint{ 0, 0 }).y();
+	expect(pickerTop > editor.problem_editor()->mapTo(&editor, QPoint{ 0, 0 }).y() && pickerTop + picker->height() <= foot->mapTo(&editor, QPoint{ 0, 0 }).y() + 1, "the picker sits at the bottom, just above the draft's state");
 	render(editor, prefix, "agent-offered");
 
-	// Choosing here chooses in the Agent tab; choosing there shows here.
-	picker->setCurrentIndex(1);
-	emit picker->activated(1);
+	// Choosing in the Tour tab's menu chooses in the Agent tab, and back.
+	const auto choose = [](qt::agent_run_settings_picker& aPicker, const QString& aAgent) {
+		Q_EMIT aPicker.menu()->aboutToShow();
+		for (auto* const action : aPicker.menu()->actions()) {
+			if (action->objectName() == QStringLiteral("agentRunSettingsAgent") && action->text() == aAgent) {
+				action->trigger();
+				return true;
+			}
+		}
+		return false;
+	};
+	expect(choose(*picker, QStringLiteral("Codex")), "the Tour tab's menu offers every agent");
 	QApplication::processEvents();
-	expect(panel.selected_profile() == profiles[1].Id, "an agent chosen in the Tour tab is the Agent tab's choice");
-	panel.profile_selector()->setCurrentIndex(0);
+	expect(panel.selected_profile() == profiles[1].Id && agentTab.full_text().startsWith(QStringLiteral("Codex")) && picker->full_text().startsWith(QStringLiteral("Codex")), "an agent chosen in the Tour tab is the Agent tab's choice");
+	expect(choose(agentTab, QStringLiteral("Claude Code")), "the Agent tab's menu offers every agent");
 	QApplication::processEvents();
-	expect(picker->currentIndex() == 0 && panel.selected_profile() == profiles[0].Id, "a choice in the Agent tab shows in the Tour tab");
+	expect(picker->full_text().startsWith(QStringLiteral("Claude Code")), "a choice in the Agent tab shows in the Tour tab");
 
-	// The help the line offers is the host's, when it has more to say.
-	editor.set_agent_help_source([] { return QStringLiteral("Codex can't draft tour text, so drafts and rewrites use Claude Code."); });
-	expect(editor.agent_help_text().startsWith(QStringLiteral("Codex can't")), "the host's reason replaces the default line");
-	editor.set_agent_help_source({ });
+	// Owner note on v002 ("i need the ability to pick effort level"): the
+	// Tour tab's picker carries the Agent tab's Model and Effort menus, and an
+	// effort chosen there goes where the Agent tab's does and shows in both.
+	std::optional<std::pair<std::uint64_t, std::string>> effortChosen;
+	source->Dispatch = [&](const std::uint64_t aProfile, std::optional<std::string>, std::optional<std::string> aEffort) {
+		if (aEffort) {
+			effortChosen = std::pair{ aProfile, *aEffort };
+		}
+		return true;
+	};
+	Q_EMIT picker->menu()->aboutToShow();
+	QMenu* efforts = nullptr;
+	QMenu* models  = nullptr;
+	for (auto* const submenu : picker->menu()->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
+		if (submenu->objectName() == QStringLiteral("agentRunSettingsEfforts")) {
+			efforts = submenu;
+		} else if (submenu->objectName() == QStringLiteral("agentRunSettingsModels")) {
+			models = submenu;
+		}
+	}
+	expect(efforts != nullptr && models != nullptr, "the Tour tab's picker offers Model and Effort, as the Agent tab's does");
+	auto tookHigh = false;
+	for (auto* const action : efforts->actions()) {
+		if (action->text() == QStringLiteral("high")) {
+			action->trigger();
+			tookHigh = true;
+		}
+	}
+	expect(tookHigh && effortChosen == std::pair{ std::uint64_t{ 1U }, std::string{ "high" } }, "an effort chosen in the Tour tab goes where the Agent tab's goes");
+	claude.Effort = "high";
+	source->present({ claude, codex });
+	QApplication::processEvents();
+	expect(picker->full_text().contains(QStringLiteral("high effort")) && agentTab.full_text() == picker->full_text(), "the chosen effort shows in both pickers");
+	render(editor, prefix, "effort");
 
 	// Starting help: the empty Problem's button drafts it, and says so.
 	expect(magic->text() == QStringLiteral("Draft from PR context") && magic->toolTip().contains(QStringLiteral("drafting agent")), "an empty field's helper says it drafts from the pull request");
@@ -129,23 +190,16 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(magic->text() == QStringLiteral("Enhance problem statement"), "a written field's helper says it rewrites the problem statement");
 
-	// AC1. With none offered, the menu gives way to why, and setup.
+	// AC1. With no agent the picker is hidden, as the Agent tab's is; writing
+	// by hand stays open (the host's notice on a click says why).
 	panel.offer_profiles({ });
 	panel.forget_choice();
+	source->present({ });
 	QApplication::processEvents();
-	expect(!picker->isVisible() && setUp->isVisible() && editor.agent_help_text().contains(QStringLiteral("No agent is set up")), "with no agent the tab says why and offers setup");
-	setUp->click();
-	expect(acted == qt::tour_editor_action::set_up_agent, "Set up an agent asks the window for agent settings");
+	expect(!picker->isVisible() && agentTab.isHidden() && !child<QWidget>(editor, "tourAgentRow")->isVisible(), "with no agent the picker is hidden in both tabs");
 	expect(!editor.problem_editor()->isReadOnly(), "writing by hand stays open without an agent");
 	expect_plain_labels(editor, "no agent");
 	render(editor, prefix, "no-agent");
-
-	// A draft that cannot be written has nothing to draft: no agent help.
-	auto readOnly     = draft;
-	readOnly.ReadOnly = true;
-	editor.present({ .Draft = std::make_shared<const core::review_tour>(readOnly) });
-	QApplication::processEvents();
-	expect(!child<QWidget>(editor, "tourAgentHelp")->isVisible(), "a read-only tour shows no agent help");
 
 	std::cout << "review-tour-agent-help:pass\n";
 	return EXIT_SUCCESS;
