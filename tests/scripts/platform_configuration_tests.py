@@ -159,6 +159,10 @@ class PlatformConfigurationTests(unittest.TestCase):
             script.write_text(
                 "cmake_minimum_required(VERSION 4.4.2)\n"
                 'set(CMAKE_GENERATOR "Visual Studio 18 2026")\n'
+                f'include("{module}")\n'
+                'if(NOT CMAKE_VS_GLOBALS STREQUAL "VcpkgEnabled=false")\n'
+                '  message(FATAL_ERROR "Missing default opt-out: ${CMAKE_VS_GLOBALS}")\n'
+                'endif()\n'
                 'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=true;Last=two;vcpkgenabled=true")\n'
                 f'include("{module}")\n'
                 f'include("{module}")\n'
@@ -185,7 +189,12 @@ class PlatformConfigurationTests(unittest.TestCase):
         cache = (BUILD_DIR / "CMakeCache.txt").read_text(encoding="utf-8")
         if "CMAKE_GENERATOR:INTERNAL=Visual Studio " not in cache:
             self.skipTest("this tree does not use Visual Studio")
-        projects = sorted(BUILD_DIR.rglob("*.vcxproj"))
+        # Compiler probes under CMakeFiles are cached, not regenerated with
+        # the target graph when an existing build tree is reconfigured.
+        projects = sorted(
+            path for path in BUILD_DIR.rglob("*.vcxproj")
+            if "CMakeFiles" not in path.relative_to(BUILD_DIR).parts
+        )
         self.assertTrue(projects, "no generated Visual Studio projects")
         findings = [
             str(project.relative_to(BUILD_DIR)) for project in projects
