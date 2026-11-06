@@ -257,6 +257,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-notes-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
@@ -6091,14 +6092,21 @@ namespace {
 	// to action is then pressed, and the window drawn once the Agent tab
 	// shows its setup (ATTENDED_TOUR_SETUP_OPENED). BPR_ATTENDED_TOUR_THEME=dark
 	// draws in the dark appearance.
+	// [[BPR-1892]]. With `--attended-tour-agent-failure` the agent is a
+	// `claude` that fails every writing request: once set up, the look writes
+	// a problem statement, presses Enhance problem statement, and ends on the
+	// failure beside it (ATTENDED_TOUR_AGENT_FAILURE_SHOWN). With
+	// BPR_ATTENDED_TOUR_RENDER it draws that, then presses Show on the Agent
+	// tab and draws where it goes.
 	void schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
 	{
-		auto* const timer = new QTimer{ &aApplication.window() };
+		const auto  failure = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-agent-failure"));
+		auto* const timer   = new QTimer{ &aApplication.window() };
 		timer->setInterval(80);
 		const auto step  = std::make_shared<int>(0);
 		const auto ticks = std::make_shared<int>(0);
 		const auto open  = qEnvironmentVariable("BPR_ATTENDED_TOUR_SETUP") == QStringLiteral("open");
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6131,6 +6139,23 @@ namespace {
 					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
 					QCoreApplication::processEvents();
 				}
+				if (failure) {
+					if (editor->agent_readiness() != bpr::qt::agent_setup_readiness::ready) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:failure-agent-not-ready:readiness=%1").arg(static_cast<int>(editor->agent_readiness())));
+						return;
+					}
+					editor->show_problem();
+					editor->problem_editor()->setPlainText(QStringLiteral("A second view drew over the first when both cleared in the same frame."));
+					QCoreApplication::processEvents();
+					auto* const magic = editor->findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
+					if (magic == nullptr || !magic->isEnabled()) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-enhance"));
+						return;
+					}
+					magic->click();
+					*step = 2;
+					return;
+				}
 				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
 					draw(QStringLiteral("app-tour-set-up"));
 					done(editor->agent_setup_call()->isVisible() ? QStringLiteral("ATTENDED_TOUR_FAILED:setup-call-after-setup") : QStringLiteral("ATTENDED_TOUR_AGENT_READY"));
@@ -6147,6 +6172,23 @@ namespace {
 				}
 				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
 				*step = 1;
+				return;
+			}
+			if (*step == 2) {
+				// Waiting for the failure beside Enhance problem statement.
+				if (editor->agent_failure_text(bpr::core::writing_hook::problem).isEmpty()) {
+					return;
+				}
+				draw(QStringLiteral("app-tour-agent-failure"));
+				if (!root.isEmpty()) {
+					if (auto* const show = editor->agent_failure_notice(bpr::core::writing_hook::problem)->findChild<QPushButton*>(QStringLiteral("tourAgentFailureOpen")); show != nullptr) {
+						show->click();
+						QCoreApplication::processEvents();
+						draw(QStringLiteral("app-tour-agent-failure-agent-tab"));
+					}
+				}
+				QTextStream{ stdout } << "ATTENDED_TOUR_AGENT_FAILURE:" << editor->agent_failure_text(bpr::core::writing_hook::problem) << '\n';
+				done(QStringLiteral("ATTENDED_TOUR_AGENT_FAILURE_SHOWN"));
 				return;
 			}
 			if (!static_cast<QWidget*>(window.agent_setup())->isVisible()) {
@@ -10656,6 +10698,13 @@ auto main(int argc, char** argv) -> int
 			if (const auto search = qEnvironmentVariable("BPR_ATTENDED_TOUR_AGENT_PATH"); !search.isEmpty()) {
 				fixtureOptions.AttendedAgentSearch = false;
 				fixtureOptions.ClaudeSearch        = bpr::app::detail::claude_search_environment{ .PathVariable = search.toStdString() };
+			}
+			// [[BPR-1892]]. The failing agent is a `claude` in a folder of its
+			// own, and the setup finds only it, so the person's own agents
+			// are never run.
+			if (launch.has("--attended-tour-agent-failure")) {
+				fixtureOptions.AttendedAgentSearch = false;
+				fixtureOptions.ClaudeSearch        = bpr::app::detail::claude_search_environment{ .PathVariable = std::filesystem::path{ std::string{ *attendedTourAuthoringAgent } }.parent_path().string() };
 			}
 		}
 		const auto attendedConversationLook = launch.has("--attended-conversation-look");

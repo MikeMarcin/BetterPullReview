@@ -72,6 +72,13 @@ int main(int argc, char** argv)
 	if (input.size() > 100000 || input.find("PRIVATE_UNUSED_CANARY") != std::string::npos || input.find("note.count\\t0") == std::string::npos || input.find("draft.count\\t0") == std::string::npos) {
 		return 4;
 	}
+	// [[BPR-1892]]. Run as the `claude` in `attended-failing-claude`, every
+	// writing request fails as a crashed agent does: a line on its error
+	// stream and a nonzero exit, nothing on its output.
+	if (argc > 0 && std::filesystem::path{ argv[0] }.parent_path().filename() == "attended-failing-claude") {
+		std::cerr << "fixture: the drafting agent stopped before answering\n";
+		return 1;
+	}
 	// Claude 2.1.296 can write a `ui_invalidate` system frame before init.
 	std::cout << "{\"type\":\"system\",\"subtype\":\"ui_invalidate\",\"session_id\":\"fixture\"}\n";
 	if (input.find("PLUGIN_CANARY") != std::string::npos) {

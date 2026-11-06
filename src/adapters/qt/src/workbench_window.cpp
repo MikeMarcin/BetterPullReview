@@ -9593,6 +9593,14 @@ namespace bpr::qt {
 				show_agent(false);
 			}
 		});
+		// [[BPR-1892]]. A failed request's notice sends the person to the
+		// Agent tab's card for the run; nothing switches tabs by itself.
+		TourEditor->set_agent_failure_dispatch([this] {
+			if (AgentTab != nullptr) {
+				show_agent(false);
+				AgentTab->reveal_run_failure();
+			}
+		});
 		TourEditor->set_shown_observer([this] {
 			if (AgentTab != nullptr) {
 				AgentTab->look_for_agents();

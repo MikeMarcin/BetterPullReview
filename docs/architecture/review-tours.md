@@ -143,6 +143,19 @@ the bar stays usable, since it runs nothing. Showing the Tour tab lets the
 setup look for agents, as showing the Agent tab does (RFC-BPR-0092 Q2), so
 the tab can tell which state it is in.
 
+Since [[BPR-1892]] (owner, 2026-11-06: "make the tour error a) stand out
+more and b) send you there") a drafting request whose agent run fails says
+so on the Tour tab, right under the control that made it (the Problem or
+Solution helper, the stop's helper, or **Suggest an outline**). The notice
+is a red card with a red edge and a warning mark, the Agent tab's stopped
+card's red: one line, the control's own words and "failed.", then the
+Agent tab's words for that outcome (`agent_tab_view::run_failure_words`,
+the one copy). **Show on the Agent tab** opens the Agent tab at the run's
+stopped card, which keeps the whole story, its log and **Resend**; nothing
+switches tabs by itself. The notice clears when its request is made again
+or succeeds, and its close button dismisses it. A stop the person asked
+for says nothing there.
+
 The stop editor retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
 The context menu offers insert after, duplicate, merge selected adjacent stops,
