@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1896"
 title: "Tool-free writing runs when a wrapper's settings turn Claude's auto-memory back on"
-status: "Backlog"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1891"]
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-06: after BPR-1891 shipped (0.4.2 build 26), review tour messages through a Claude wrapper still stopped with 'answered in a form this app can't read' (malformed_frame) on the init line; agent chat worked","related_cards":["BPR-1375","BPR-1827","BPR-1891"],"related_rfcs":[]}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"application_agent_launch (test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on): the card's fixture init frame, then one text assistant frame and a success result, finishes with the agent's text in a writing run. application_review_tour_writing runs MEMORY_CANARY, whose fixture writes that init frame, and the tour message finishes with the text."}},{"criterion":"AC2","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"application_agent_launch: with memory on, an init frame that reports a tool or an MCP server is refused before any output is read, and a user frame, a tool_use block or a finding payload is refused. The BPR-1375 tool and MCP refusals still hold."}},{"criterion":"AC3","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"application_agent_launch: the same stream in chat reads unchanged and reports neither plugins nor memory, and a chat launch's environment does not carry CLAUDE_CODE_DISABLE_AUTO_MEMORY; the writing launch's environment is the chat environment plus that one entry."}},{"criterion":"AC4","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"application_agent_launch: describe writes ' memory=on' after plugins= and parse_agent_run_diagnosis reads it back exactly, refusing memory=off, a path value or a reordered token. The event carries no text. application_review_tour_writing finds the agent.run line '... plugins=cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin memory=on' and no '/fixture/' path in any log line."}},{"criterion":"AC5","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"application_agent_launch: a writing launch's environment carries CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 exactly once, and permitted_agent_environment_name admits the name. The end-to-end writing fixture exits 7 unless the variable is set, and application_review_tour_writing and application_review_tour_writing_wrapper pass."}},{"criterion":"AC6","outcome":"pending","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"observation","detail":"Offscreen half passed: review_tour_composition_public_path --installed-writing /opt/homebrew/bin <settings-replacing test wrapper> claude-sonnet-5-5 once, on this Mac's Claude Code 2.1.310, wrote the Problem message three times out of three (Finished: success, text changed, one undo restored bytes and selection, redo ran no inference). A variant that also drops CLAUDE_CODE_DISABLE_AUTO_MEMORY had init report memory_paths, which the decoder read past; it wrote in two of three runs. The third ended protocol_failure on an assistant thinking block that the text-only check refuses. That refusal is unrelated to memory. The owner's half is pending: the owner confirms on the next prerelease, through their own wrapper (owner, 2026-11-06: no attended review, no frozen build)."}},{"criterion":"AC7","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"ai-agent-boundary.md (Auto-memory row, decoder paragraph) and security-threat-model.md (Fail closed on drift, a new auto-memory bullet, Authority, the wrapper bullets) describe plugins and auto-memory as reported, not refused, with the wrapper residual and the evidence below. The comments above claude_writing_settings and claude_writing_restrictions match. python3 scripts/verify_documentation.py --root . passes after rebasing onto main."}},{"criterion":"AC8","outcome":"pass","revision":"fbf97e60fce65b90da5d5ef8d1700d745dd60968","evidence":{"kind":"command","detail":"ctest --preset dev: architecture_boundaries, application_agent_launch, application_review_tour_writing and application_review_tour_writing_wrapper pass (4/4). coding-format-check passes. Owner direction 'dont wait for tests': no other suite was run."}}]
 ---
 
 # BPR-1896: Tool-free writing runs when a wrapper's settings turn Claude's auto-memory back on
@@ -212,3 +212,48 @@ for AC6 on any machine with Claude Code installed.
 
 - Whether BPR can get its writing settings past a wrapper that replaces them.
   That is up to the wrapper's maintainers.
+
+## Evidence (2026-11-06)
+
+Gathered on this Mac's Claude Code 2.1.310 in an empty scratch folder outside
+the repository, with the card's writing arguments and a test wrapper that
+swaps this app's `--settings` value for `{"autoMemoryEnabled":true}`. Only
+frame fields were recorded.
+
+| Run | Init `memory_paths` | Init plugins |
+|---|---|---|
+| Direct, this app's settings | absent | none |
+| Test wrapper | set | the three builtins |
+| Test wrapper, `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` | absent | the three builtins |
+| Direct, `{"autoMemoryEnabled":true}` and the variable | absent | the three builtins |
+| Direct, this app's settings then `{"autoMemoryEnabled":true}` | set | the three builtins |
+| Direct, `{"autoMemoryEnabled":true}` then this app's settings | absent | none |
+
+1. The variable wins over a settings value that turns memory on, so it keeps
+   memory off through a wrapper that replaces the settings, as long as the
+   wrapper passes the environment through. The threat model records this.
+2. Claude keeps only the last `--settings` it is given and does not merge the
+   two: with this app's first, its plugin switches were lost too. The threat
+   model states this as fact for 2.1.310. The 2.1.314 behaviour behind the
+   managed launcher is inferred from the same symptoms.
+
+## Result
+
+- The decoder's writing init check refuses only tools and MCP servers. Plugins
+  and an auto-memory folder come out as one init report (`reported_init`).
+  The new `auto_memory_reported` event carries no text. It becomes
+  `agent_run_result::ReportedAutoMemory` and `memory=on` on the `agent.run`
+  line.
+- `build_agent_launch` appends `claude_writing_environment`
+  (`CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`) to a writing launch only.
+- The `--installed-writing` course now finishes the agent setup before
+  writing, as the writing course has since BPR-1894. Without that it stopped
+  at its first save.
+- Pending: the owner confirms on the next prerelease that a review tour
+  message writes through their own wrapper (AC6). No attended review or frozen
+  build was made, on the owner's instruction.
+- Follow-up candidate, not filed: a writing run whose Claude writes an
+  assistant `thinking` block is refused by the unchanged text-only check. Seen
+  once in three memory-on runs, and on both runs with the default model.
+- Landed on the task branch as `fbf97e60f`, over `main` `f1ab0c5e6`. Not
+  pushed or merged.

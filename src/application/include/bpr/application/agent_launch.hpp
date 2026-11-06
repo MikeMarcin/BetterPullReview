@@ -234,9 +234,14 @@ namespace bpr::application {
 	/// admits here.
 	/// [[BPR-1891]]. Turning them off is hardening, not a gate. A plugin a
 	/// later Claude builds in, or one policy holds on, still loads: the init
-	/// frame is still refused for any tool, MCP server or auto-memory folder
-	/// it brings, and the plugins it reports are named in the run's
-	/// diagnostics rather than refused.
+	/// frame is still refused for any tool or MCP server it brings, and the
+	/// plugins it reports are named in the run's diagnostics rather than
+	/// refused.
+	/// [[BPR-1896]]. A wrapper may replace these settings outright: Claude
+	/// keeps only the last `--settings` it is given, so a wrapper that adds
+	/// its own drops all of this one (hooks, auto-memory and the plugins come
+	/// back on). The init check enforces only tools and MCP servers; an
+	/// auto-memory folder is reported as `memory=on`, not refused.
 	inline constexpr std::string_view claude_writing_settings
 		= R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
 
@@ -253,10 +258,22 @@ namespace bpr::application {
 	/// no skills or slash commands, no session saved, and
 	/// `claude_writing_settings`. The process also starts in an empty
 	/// folder of its own rather than the review workspace.
+	/// [[BPR-1896]]. A wrapper can drop or replace any of these, so a writing
+	/// run is only as tool-free as the wrapper keeps it. What is enforced is
+	/// read back from Claude's init frame: no tool and no MCP server.
 	inline constexpr std::array<std::string_view, 13> claude_writing_restrictions = {
 		"--tools", "", "--disallowedTools", "*", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})", "--setting-sources", "",
 		"--disable-slash-commands", "--no-session-persistence", "--settings", claude_writing_settings
 	};
+
+	/// \brief [[BPR-1896]]. The variable a tool-free writing launch adds to
+	/// Claude's environment; a chat launch never carries it.
+	///
+	/// \details Claude Code reads it over any settings value, so auto-memory
+	/// stays off when a wrapper replaces `claude_writing_settings` but passes
+	/// the environment through. Hardening, not a gate: a wrapper that drops
+	/// it turns memory back on, and the init frame then reports it.
+	inline constexpr std::pair<std::string_view, std::string_view> claude_writing_environment{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" };
 
 	/// \brief Builds one protocol-specific process request.
 	[[nodiscard]] auto build_agent_launch(
@@ -431,6 +448,10 @@ namespace bpr::application {
 		/// `is_reported_plugin_token`, ending `+N` when more were named
 		/// than `maximum_reported_plugins`. For diagnostics only.
 		plugins_reported,
+		/// [[BPR-1896]]. A writing run's Claude init frame named an
+		/// auto-memory folder. Carries no text: the path holds the user's
+		/// home folder name. For diagnostics only.
+		auto_memory_reported,
 		/// Owner look v006. A catalog run's `model/list` result, its exact
 		/// bytes; the loop keeps it and closes the input.
 		model_catalog,
@@ -665,6 +686,9 @@ namespace bpr::application {
 		/// [[BPR-1891]]. The plugins a writing run's Claude reported
 		/// loading, as `plugins_reported` carries them; empty when none.
 		std::string ReportedPlugins;
+		/// [[BPR-1896]]. Whether a writing run's Claude reported an
+		/// auto-memory folder, as `auto_memory_reported` says.
+		bool ReportedAutoMemory = false;
 		/// Owner look v006. A catalog run's `model/list` result, as written.
 		std::optional<std::string> ModelCatalog;
 		/// [[BPR-1827]]. Every byte the agent wrote to standard output,

@@ -64,6 +64,9 @@ namespace bpr::application {
 		if (!aDiagnosis.Plugins.empty()) {
 			text += " plugins=" + aDiagnosis.Plugins;
 		}
+		if (aDiagnosis.AutoMemory) {
+			text += " memory=on";
+		}
 		return text;
 	}
 
@@ -118,6 +121,11 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				result.Plugins = std::string{ value };
+			} else if (key == "memory") {
+				if (value != "on") {
+					return std::nullopt;
+				}
+				result.AutoMemory = true;
 			} else {
 				return std::nullopt;
 			}
@@ -162,6 +170,7 @@ namespace bpr::application {
 				   .StandardOutputBytes = result.StandardOutputBytes,
 				   .StandardErrorBytes  = result.StandardError.size(),
 				   .Plugins             = result.ReportedPlugins,
+				   .AutoMemory          = result.ReportedAutoMemory,
 			   });
 		return result;
 	}

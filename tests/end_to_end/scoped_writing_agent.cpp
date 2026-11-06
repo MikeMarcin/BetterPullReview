@@ -72,6 +72,11 @@ int main(int argc, char** argv)
 	if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
 		return 3;
 	}
+	// [[BPR-1896]]. A writing launch turns auto-memory off in the
+	// environment too, where a wrapper's settings cannot reach it.
+	if (!environment_present("CLAUDE_CODE_DISABLE_AUTO_MEMORY")) {
+		return 7;
+	}
 	// [[BPR-1375]]. The request starts in an empty folder of its own, never
 	// the review workspace.
 	std::error_code folderError;
@@ -96,6 +101,11 @@ int main(int argc, char** argv)
 		// [[BPR-1891]]. Claude Code 2.1.314 on a machine with managed
 		// settings, which holds this builtin on; the writing run reads past it.
 		std::cout << R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"}],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off"})"
+				  << '\n';
+	} else if (input.find("MEMORY_CANARY") != std::string::npos) {
+		// [[BPR-1896]]. Claude Code 2.1.314 through a wrapper whose own
+		// `--settings` replaced this app's: auto-memory and the builtins on.
+		std::cout << R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"},{"name":"cc-plugin-agents-md","path":"builtin","source":"cc-plugin-agents-md@builtin"},{"name":"cc-plugin-plugin-authoring","path":"builtin","source":"cc-plugin-plugin-authoring@builtin"}],"memory_paths":{"auto":"/fixture/home/.claude/projects/-fixture-bpr-writing/memory/"},"capabilities":[],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off","fast_mode_disabled_reason":"not_first_party","per_turn_effort_active":false,"view_mode":"default"})"
 				  << '\n';
 	} else {
 		std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"fixture\",\"tools\":[],\"mcp_servers\":[],\"plugins\":[],\"model\":\"" << (model.empty() ? "default" : model) << "\"}\n";

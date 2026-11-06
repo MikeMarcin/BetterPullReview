@@ -1511,11 +1511,11 @@ namespace {
 		const auto plugin = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
 		expect(plugin && *plugin == 1U, "[[BPR-1891]] a writing init frame that reports a plugin is read, not refused");
 		const auto memory = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);
-		const auto tools  = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[]})" } + "\n" + turn);
-		const auto mcp    = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[{"name":"m","status":"connected"}],"plugins":[]})" } + "\n" + turn);
-		expect(!memory && !tools && !mcp && memory.error() == application::agent_protocol_failure::malformed_frame && tools.error() == application::agent_protocol_failure::malformed_frame
-				   && mcp.error() == application::agent_protocol_failure::malformed_frame,
-			   "a writing init frame with an auto-memory folder, a tool or an MCP server refuses");
+		expect(memory && *memory == 1U, "[[BPR-1896]] a writing init frame that reports an auto-memory folder is read, not refused");
+		const auto tools = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);
+		const auto mcp   = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[{"name":"m","status":"connected"}],"plugins":[]})" } + "\n" + turn);
+		expect(!tools && !mcp && tools.error() == application::agent_protocol_failure::malformed_frame && mcp.error() == application::agent_protocol_failure::malformed_frame,
+			   "a writing init frame with a tool or an MCP server still refuses");
 		const auto review = decode(false, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
 		expect(review && *review == 1U, "an ordinary review run keeps its tools and plugins");
 	}
@@ -1561,6 +1561,93 @@ namespace {
 		const auto [manyRead, manyReported] = pluginsOf(true, many + turn);
 		expect(manyRead && manyReported == std::vector<std::string>{ "by-name,unnamed,unnamed,p0,p1,p2,p3,p4,+3" },
 			   "a source that is a path falls back to the name, an unusable name is unnamed, the list is bounded and no path is read");
+	}
+
+	/// [[BPR-1896]]. A wrapper whose own `--settings` replaces this app's
+	/// turns auto-memory and the built-in plugins back on. The three frames
+	/// it wrote are read, the folder is reported without its path, and the
+	/// refusals that make the run tool-free still hold.
+	void test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on()
+	{
+		const std::string init = R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"},{"name":"cc-plugin-agents-md","path":"builtin","source":"cc-plugin-agents-md@builtin"},{"name":"cc-plugin-plugin-authoring","path":"builtin","source":"cc-plugin-plugin-authoring@builtin"}],"memory_paths":{"auto":"/fixture/home/.claude/projects/-fixture-bpr-writing/memory/"},"capabilities":[],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off","fast_mode_disabled_reason":"not_first_party","per_turn_effort_active":false,"view_mode":"default"})"
+								 "\n";
+		const std::string turn = R"({"type":"assistant","session_id":"fixture","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"written"}]}})"
+								 "\n"
+								 R"({"type":"result","subtype":"success","session_id":"fixture","is_error":false,"result":"written"})"
+								 "\n";
+		struct read_back
+		{
+			bool                                               Finished = false;
+			std::vector<std::string>                           Items;
+			std::vector<std::string>                           Plugins;
+			std::size_t                                        Memory = 0U;
+			std::string                                        Texts;
+			std::optional<application::agent_protocol_failure> Failure;
+		};
+		const auto readOf = [](const bool aWriting, const std::string& aFrames) {
+			auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, aWriting };
+			auto result  = read_back{ };
+			auto pushed  = decoder.push(aFrames);
+			if (!pushed) {
+				result.Failure = pushed.error();
+				return result;
+			}
+			for (const auto& event : *pushed) {
+				result.Texts += event.Text;
+				if (event.Kind == application::agent_protocol_event_kind::plugins_reported) {
+					result.Plugins.push_back(event.Text);
+				} else if (event.Kind == application::agent_protocol_event_kind::auto_memory_reported) {
+					++result.Memory;
+				}
+			}
+			const auto finished = decoder.finish();
+			result.Finished     = finished.has_value();
+			result.Failure      = finished ? std::nullopt : std::optional{ finished.error() };
+			result.Items        = decoder.assistant_items();
+			return result;
+		};
+		const auto writing = readOf(true, init + turn);
+		expect(writing.Finished && writing.Items == std::vector<std::string>{ "written" }, "AC1: the wrapper stream finishes with the agent's text");
+		expect(writing.Memory == 1U && writing.Plugins == std::vector<std::string>{ "cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin" },
+			   "AC4: the run reports auto-memory on and names the three plugins");
+		expect(writing.Texts.find("/fixture/") == std::string::npos && writing.Texts.find("memory/") == std::string::npos, "AC4: no event carries the memory folder's path");
+		const auto chat = readOf(false, init + turn);
+		expect(chat.Finished && chat.Items == std::vector<std::string>{ "written" } && chat.Memory == 0U && chat.Plugins.empty(), "AC3: agent chat reads the same stream unchanged and reports nothing");
+		const auto nullMemory = readOf(true, std::string{ R"({"type":"system","subtype":"init","session_id":"fixture","tools":[],"mcp_servers":[],"memory_paths":null})" } + "\n" + turn);
+		expect(nullMemory.Finished && nullMemory.Memory == 0U, "a null memory folder reports nothing");
+
+		const auto replace = [&init](const std::string_view aFrom, const std::string_view aTo) {
+			auto text = init;
+			text.replace(text.find(aFrom), aFrom.size(), aTo);
+			return text;
+		};
+		const auto tool = readOf(true, replace(R"("tools":[])", R"("tools":["Bash"])") + turn);
+		const auto mcp  = readOf(true, replace(R"("mcp_servers":[])", R"("mcp_servers":[{"name":"m","status":"connected"}])") + turn);
+		expect(tool.Failure == application::agent_protocol_failure::malformed_frame && tool.Items.empty() && mcp.Failure == application::agent_protocol_failure::malformed_frame && mcp.Items.empty(),
+			   "AC2: with memory on, a tool or an MCP server in init is still refused before any output");
+		const auto userFrame = readOf(true, init + R"({"type":"user","session_id":"fixture","message":{"role":"user","content":"x"}})" + "\n" + turn);
+		const auto toolUse   = readOf(true, init + R"({"type":"assistant","session_id":"fixture","message":{"id":"m","role":"assistant","content":[{"type":"tool_use","id":"t","name":"Bash","input":{}}]}})" + "\n" + turn);
+		const auto payload   = readOf(true, init + R"({"type":"result","subtype":"success","session_id":"fixture","is_error":false,"result":"written","bprFindings":{}})" + "\n");
+		expect(userFrame.Failure == application::agent_protocol_failure::malformed_frame && toolUse.Failure == application::agent_protocol_failure::malformed_frame
+				   && payload.Failure == application::agent_protocol_failure::malformed_frame,
+			   "AC2: with memory on, a user frame, a non-text block or a finding payload is still refused");
+	}
+
+	/// [[BPR-1896]]. Only a writing launch carries the auto-memory switch.
+	void test_claude_writing_environment_turns_auto_memory_off()
+	{
+		const auto carries = [](const application::agent_launch_request& aRequest) {
+			return std::ranges::count(aRequest.Environment, std::pair<std::string, std::string>{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" });
+		};
+		const auto names = [](const application::agent_launch_request& aRequest) {
+			return std::ranges::count(aRequest.Environment, std::string{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY" }, &std::pair<std::string, std::string>::first);
+		};
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
+		const auto writing = application::build_agent_launch(claude, built_supplement(), reader(), { .WritingOnly = true });
+		const auto chat    = application::build_agent_launch(claude, built_supplement(), reader(), { });
+		expect(writing && carries(*writing) == 1 && names(*writing) == 1, "AC5: a writing launch's environment carries CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 once");
+		expect(chat && names(*chat) == 0 && writing && chat->Environment.size() + 1U == writing->Environment.size(), "AC3: a chat launch's environment is unchanged");
+		expect(core::permitted_agent_environment_name("CLAUDE_CODE_DISABLE_AUTO_MEMORY"), "the credential-word filter admits the variable's name");
 	}
 
 	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads
@@ -1637,6 +1724,14 @@ namespace {
 		const auto writing = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::claude_stream_json, .Outcome = application::agent_run_outcome::success, .ExitCode = 0, .StandardOutputBytes = 1716U, .StandardErrorBytes = 0U, .Plugins = "cc-plugin-sec-default@builtin,+2" };
 		expect(application::describe(writing) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2", "[[BPR-1891]] a writing run names the plugins its Claude loaded");
 		expect(application::parse_agent_run_diagnosis(application::describe(writing)) == std::optional{ writing }, "a line naming plugins reads back exactly");
+		auto remembering       = writing;
+		remembering.AutoMemory = true;
+		expect(application::describe(remembering) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2 memory=on",
+			   "[[BPR-1896]] a writing run whose Claude reported an auto-memory folder reads memory=on");
+		expect(application::parse_agent_run_diagnosis(application::describe(remembering)) == std::optional{ remembering }, "a line reading memory=on reads back exactly");
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=/Users/x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=off", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=on plugins=a" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "a memory token describe would not write is refused");
+		}
 		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=/Users/x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=a,,b", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=" }) {
 			expect(!application::parse_agent_run_diagnosis(bad), "a plugin list that is not plain tokens is refused");
 		}
@@ -1717,6 +1812,8 @@ auto main() -> int
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_claude_decoder_reads_sign_in_and_benign_frames();
 	test_claude_writing_reports_the_plugins_it_loaded();
+	test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on();
+	test_claude_writing_environment_turns_auto_memory_off();
 	test_claude_decoder_reads_a_current_transcript();
 	test_agent_run_diagnosis_round_trips_exactly();
 	test_full_encoded_input_budget_and_private_raw_budget();

@@ -692,6 +692,20 @@ namespace bpr::application {
 			return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::plugins_reported, .Text = std::move(text) } };
 		}
 
+		/// \brief [[BPR-1896]]. What a writing run's Claude init frame says
+		/// it loaded: its plugins, then `auto_memory_reported` when it
+		/// names an auto-memory folder. The folder's path is never read.
+		[[nodiscard]] auto reported_init(const json_value& aRoot)
+			-> std::vector<agent_protocol_event>
+		{
+			auto        events = reported_plugins(aRoot);
+			const auto* memory = member(aRoot, "memory_paths");
+			if (memory != nullptr && memory->Kind != json_kind::null_value) {
+				events.push_back({ .Kind = agent_protocol_event_kind::auto_memory_reported });
+			}
+			return events;
+		}
+
 		[[nodiscard]] auto decode_app_server_frame(
 			const json_value&      aRoot,
 			const std::string_view aFrame,
@@ -967,18 +981,19 @@ namespace bpr::application {
 					return value != nullptr && value->Kind == json_kind::array_value && value->Elements.empty();
 				};
 				// [[BPR-1375]]. A writing launch reads Claude's own account of
-				// what it loaded before anything is asked: no tool, no MCP
-				// server and no auto-memory folder. A plugin's tools and MCP
-				// servers would show in the first two.
-				// [[BPR-1891]]. Plugins are reported, not refused: Claude
-				// builds them in release by release and policy can hold one
-				// on (`cc-plugin-sec-default` on a managed machine), and no
-				// setting this app passes turns that off.
-				const auto* memory = member(aRoot, "memory_paths");
-				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers") || (memory != nullptr && memory->Kind != json_kind::null_value))) {
+				// what it loaded before anything is asked: no tool and no MCP
+				// server. A plugin's tools and MCP servers would show there.
+				// [[BPR-1891]], [[BPR-1896]]. Plugins and an auto-memory
+				// folder are reported, not refused: Claude builds plugins in
+				// release by release, policy can hold one on, and a wrapper's
+				// or policy's settings can replace this app's and turn both
+				// back on. The memory folder is keyed to the run's own fresh
+				// folder, so it starts empty, and with no tool nothing in the
+				// run can write it.
+				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers"))) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
-				auto reported = aWritingOnly ? reported_plugins(aRoot) : std::vector<agent_protocol_event>{ };
+				auto reported = aWritingOnly ? reported_init(aRoot) : std::vector<agent_protocol_event>{ };
 				if (aPhase == 0U) {
 					aSession = *session;
 					aPhase   = 1U;
@@ -2530,6 +2545,13 @@ namespace bpr::application {
 			.Input       = frame_agent_input(aProfile.Protocol, payload),
 			.WritingOnly = aOptions.WritingOnly,
 		};
+		// [[BPR-1896]]. Hardening next to `autoMemoryEnabled: false`: Claude
+		// reads this variable over any settings value, so auto-memory stays
+		// off even when a wrapper replaces this app's `--settings`, unless
+		// the wrapper also drops the variable. Never a chat launch.
+		if (aOptions.WritingOnly) {
+			request.Environment.emplace_back(claude_writing_environment.first, claude_writing_environment.second);
+		}
 		request.Profile = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;
@@ -2853,7 +2875,8 @@ namespace bpr::application {
 		case agent_protocol_event_kind::finding_payload:
 		case agent_protocol_event_kind::usage_report:
 		case agent_protocol_event_kind::plugins_reported:
-		case agent_protocol_event_kind::model_catalog:    break;
+		case agent_protocol_event_kind::auto_memory_reported:
+		case agent_protocol_event_kind::model_catalog:        break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}

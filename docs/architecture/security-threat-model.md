@@ -1699,7 +1699,9 @@ person's own Claude account sign-in, never a paid API key
   no credential-bearing environment name. The one added name, `USER`, is the
   login name the keychain item is filed under; without it a signed-in person
   read as signed out. It is not secret, and the credential-word filter on
-  allowlisted names is unchanged.
+  allowlisted names is unchanged. A writing launch also sets the fixed
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` ([[BPR-1896]]), which carries nothing
+  from the parent and passes that filter.
 - **What `--bare` used to shut, shut another way.** Dropping `--bare` lets
   Claude read the account sign-in, and also lets it load what `--bare`
   skipped. Each is closed explicitly and checked on Claude Code 2.1.296: no
@@ -1710,10 +1712,30 @@ person's own Claude account sign-in, never a paid API key
   slash commands, no session saved. The request starts in a fresh empty
   folder the agent adapter makes and removes, not the review workspace.
 - **Fail closed on drift.** The init frame is Claude's own account of what it
-  loaded. A writing request whose init reports any tool, MCP server or
-  auto-memory folder is refused before any output is read, and every block of
-  the answer must be text. A plugin's tools and MCP servers would show in that
-  account.
+  loaded. A writing request whose init reports any tool or MCP server is
+  refused before any output is read, no `user` frame or finding payload is
+  accepted, and every block of the answer must be text. A plugin's tools and
+  MCP servers would show in that account. These checks are read from Claude's
+  output, so they hold whatever settings won.
+- **Auto-memory is reported, not refused ([[BPR-1896]]).** A wrapper's
+  settings can replace this app's. Observed 2026-11-06 through a managed
+  launcher on Claude Code 2.1.314: auto-memory on although this app passes
+  `autoMemoryEnabled: false`, the builtins it turns off loaded, and sign-in
+  from an `apiKeyHelper` this app never passed; hooks very likely ran too.
+  Claude keeps only the last `--settings` it is given and does not merge
+  them (checked on 2.1.310: this app's settings followed by
+  `{"autoMemoryEnabled":true}` loaded memory and all three builtins; the
+  reverse order loaded neither), so a wrapper that adds its own drops all of
+  this app's. Refusing every such run protected little: the memory folder is
+  keyed to the run's fresh empty working folder, so nothing from another run
+  or project loads; with no tool nothing in the run can write it; at most an
+  empty folder is left under `~/.claude/projects/`. The `agent.run` line
+  reads `memory=on`, never the path. A writing launch also sets
+  `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, which Claude reads over any settings
+  value (2.1.310: through a wrapper that replaced the settings with
+  `{"autoMemoryEnabled":true}`, and with that settings value given directly,
+  init reported no memory folder). So memory stays off unless the wrapper
+  also drops the environment variable; it is hardening, not a gate.
 - **Plugins are reported, not refused ([[BPR-1891]]).** Turning the known
   builtins off is hardening, not a gate. Claude adds builtins release by
   release, and policy can hold one on that no setting BetterPullReview passes
@@ -1754,17 +1776,20 @@ what a Claude launch can be, never what it receives:
 - **Tool-free writing.** Its restrictions (`--tools ""`, `--disallowedTools
   "*"`, an empty MCP configuration, no settings source, hooks, auto-memory and
   the built-in plugins off; [[BPR-1375]]) are Claude flags passed to the
-  wrapper unchanged. A wrapper can drop them, so a writing run is only as
-  tool-free as the wrapper keeps it. The decoder still refuses a run whose
-  init frame reports tools, MCP servers or an auto-memory folder, or that
-  answers with anything but text; plugins it reports are named in diagnostics
-  ([[BPR-1891]]).
+  wrapper unchanged. A wrapper can drop or replace them, so a writing run is
+  only as tool-free as the wrapper keeps it; one that passes its own
+  `--settings` replaces this app's whole settings argument ([[BPR-1896]]).
+  The decoder still refuses a run whose init frame reports tools or MCP
+  servers, or that answers with anything but text; plugins and an auto-memory
+  folder it reports are named in diagnostics ([[BPR-1891]], [[BPR-1896]]).
 - **Unchanged environment and handles.** The wrapper gets exactly Claude's
   arguments, working directory, stdin and allowlisted environment, through the
   same supervisor, process group, Job Object and three-handle list. No name is
   added for it; provider settings come from `~/.claude/settings.json` through
   `HOME` or from the wrapper itself. The Claude profile's allowlist gained
-  `USER` for every Claude launch ([[BPR-1375]]; see below).
+  `USER` for every Claude launch ([[BPR-1375]]; see below), and a writing
+  launch, wrapped or not, adds `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1`, a fixed
+  value read from no parent environment ([[BPR-1896]]).
 - **No wrapper: the `claude` on `PATH`.** Owner amendment, 2026-10-07 ("Yes,
   search PATH (Recommended)"); see "Resolve executables explicitly" and
   [AI agent boundary](ai-agent-boundary.md#claude-process-wrapper). The search
