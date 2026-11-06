@@ -1699,9 +1699,16 @@ namespace bpr::adapters::github::detail {
 		// for an epoch's commit, or the chain's (RFC-BPR-0089). [[BPR-1873]].
 		// A delta takes none: its history is the linked clone's.
 		const auto delta = aContent == gh_cli_clone_content::delta;
-		if ((aContent != gh_cli_clone_content::trees && !delta)
-			|| (!delta && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || !aReference.empty()))
-			|| (aDepth != 1U && !delta && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
+		// [[BPR-1879]]. A kept clone takes every object: no depth, no
+		// filter, no reference and no revision, and no checkout.
+		const auto managed = aContent == gh_cli_clone_content::managed;
+		if (managed
+			&& (aDepth != 0U || aIndex != 0U || !aReference.empty() || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)) {
+			return std::nullopt;
+		}
+		if ((aContent != gh_cli_clone_content::trees && !delta && !managed)
+			|| (!delta && !managed && (aDepth == 0U || aDepth > maximum_gh_cli_clone_depth || !aReference.empty()))
+			|| (aDepth != 1U && !delta && !managed && aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees)
 			|| (delta && (aDepth != 0U || aIndex != 0U || aContext.AcquisitionMode != application::git_smart_acquisition_mode::sparse_commit_trees))) {
 			return std::nullopt;
 		}
@@ -1742,30 +1749,47 @@ namespace bpr::adapters::github::detail {
 			return std::nullopt;
 		}
 		std::vector<std::string> arguments = { "repo", "clone", "https://" + std::string{ aProfile.hostname() } + "/" + aContext.Repository.Owner + "/" + aContext.Repository.Name + ".git",
-											   path_bytes(gh_cli_git_clone_store(root, aIndex)), "--no-upstream", "--",
-											   "--bare", "--quiet", "--revision=" + std::string{ core::canonical_hex(aCommit).view() },
-											   "--template=" + path_bytes(root / "empty"), "--config", "transfer.unpackLimit=0",
-											   "--config", "fetch.unpackLimit=0", "--config", "core.hooksPath=/dev/null",
-											   "--config", "core.fsmonitor=false" };
+											   path_bytes(gh_cli_git_clone_store(root, aIndex)), "--no-upstream", "--" };
+		if (managed) {
+			// [[BPR-1879]]. A working folder with no files checked out: the
+			// form a linked clone has, so it is borrowed exactly as one is,
+			// and every branch and tag the repository offers.
+			arguments.emplace_back("--no-checkout");
+			arguments.emplace_back("--quiet");
+			// Kept in the profile, it stays owner-private as Git adds to it.
+			arguments.emplace_back("--config");
+			arguments.emplace_back("core.sharedRepository=0600");
+		} else {
+			arguments.emplace_back("--bare");
+			arguments.emplace_back("--quiet");
+			arguments.emplace_back("--revision=" + std::string{ core::canonical_hex(aCommit).view() });
+		}
+		for (auto argument : { "--template=" + path_bytes(root / "empty"), std::string{ "--config" }, std::string{ "transfer.unpackLimit=0" },
+							   std::string{ "--config" }, std::string{ "fetch.unpackLimit=0" }, std::string{ "--config" }, std::string{ "core.hooksPath=/dev/null" },
+							   std::string{ "--config" }, std::string{ "core.fsmonitor=false" } }) {
+			arguments.push_back(std::move(argument));
+		}
 		if (delta) {
 			// [[BPR-1873]]. Borrowed, the linked clone's refs are the haves:
 			// only what it lacks is sent, and nothing is written to it.
 			arguments.emplace_back("--reference=" + path_bytes(aReference));
-		} else if (aContext.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees) {
+		} else if (!managed && aContext.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees) {
 			// No depth without the blob filter: a head's blobs are never
 			// cloned without their history ([[BPR-1873]]).
 			arguments.emplace_back("--depth=" + std::to_string(aDepth));
 			arguments.emplace_back("--filter=blob:none");
 		}
 		return constrain_gh_writes(github_cli_process_request{
-									   .Executable              = path_bytes(aConfiguration.Executable),
-									   .Arguments               = std::move(arguments),
-									   .Environment             = std::move(environment),
-									   .WorkingDirectory        = path_bytes(aConfiguration.NeutralWorkingDirectory),
-									   .StandardInput           = { },
-									   .StandardInputLimit      = 1U,
-									   .StandardOutputLimit     = 4096U,
-									   .StandardErrorLimit      = maximum_standard_error_bytes,
+									   .Executable          = path_bytes(aConfiguration.Executable),
+									   .Arguments           = std::move(arguments),
+									   .Environment         = std::move(environment),
+									   .WorkingDirectory    = path_bytes(aConfiguration.NeutralWorkingDirectory),
+									   .StandardInput       = { },
+									   .StandardInputLimit  = 1U,
+									   .StandardOutputLimit = 4096U,
+									   .StandardErrorLimit  = maximum_standard_error_bytes,
+									   // [[BPR-1879]]. A kept clone runs on its own runner,
+									   // whose deadline is the kept clone's longer bound.
 									   .Timeout                 = std::chrono::minutes{ 2 },
 									   .ReapTimeout             = process_reap_timeout,
 									   .PreserveCompletedOutput = true,
@@ -1799,6 +1823,12 @@ namespace bpr::adapters::github::detail {
 		-> std::filesystem::path
 	{
 		return aRoot / ("clone-" + std::to_string(aIndex) + ".git");
+	}
+
+	auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aRoot, const std::size_t aIndex)
+		-> std::filesystem::path
+	{
+		return gh_cli_git_clone_store(aRoot, aIndex) / ".git";
 	}
 
 	auto compile_gh_cli_local_git_request(

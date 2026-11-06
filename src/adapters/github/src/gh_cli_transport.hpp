@@ -200,6 +200,11 @@ namespace bpr::adapters::github::detail {
 		/// agent workspace. There is no whole-head content: the head snapshot
 		/// download is removed.
 		delta,
+		/// [[BPR-1879]]. Every object of the repository, no filter, no depth
+		/// and no checkout: the clone BetterPullReview keeps for a
+		/// repository's agent questions, made once and then borrowed as a
+		/// linked clone.
+		managed,
 	};
 
 	class validated_gh_cli_configuration final
@@ -489,6 +494,11 @@ namespace bpr::adapters::github::detail {
 
 	/// \brief Names the bare store that clone \p aIndex writes under \p aRoot.
 	[[nodiscard]] auto gh_cli_git_clone_store(const std::filesystem::path& aRoot, std::size_t aIndex)
+		-> std::filesystem::path;
+
+	/// \brief [[BPR-1879]]. The Git directory of the kept clone that clone
+	/// \p aIndex writes under \p aRoot: a working folder with no checkout.
+	[[nodiscard]] auto gh_cli_git_kept_clone_directory(const std::filesystem::path& aRoot, std::size_t aIndex)
 		-> std::filesystem::path;
 
 	/// \brief Compiles one credential-free local Git request over an owned store.

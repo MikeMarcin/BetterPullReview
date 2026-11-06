@@ -9,6 +9,8 @@
 #include "bpr/core/sha256.hpp"
 #include "storage_internal.hpp"
 
+#include "bpr/application/managed_clone.hpp"
+
 #include <algorithm>
 #include <array>
 #include <atomic>
@@ -18,6 +20,7 @@
 #include <iterator>
 #include <limits>
 #include <memory>
+#include <optional>
 #include <random>
 #include <string>
 #include <tuple>
@@ -269,6 +272,27 @@ namespace bpr::adapters::sqlite {
 			}
 			return false;
 		}
+		/// \brief [[BPR-1879]]. Whether a purge removes an entry of the folder of
+		/// clones BetterPullReview keeps; nothing when \p aPath is outside it.
+		/// \details Its closed layout: one folder per repository, each holding
+		/// only its `.git` folder (a kept clone has no checkout), and whatever
+		/// Git keeps there. A checked-out file is not BetterPullReview's and
+		/// refuses the purge, so a developer's worktree is never adopted.
+		auto kept_clone_artifact(std::string_view aPath, bool aDirectory) -> std::optional<bool>
+		{
+			const auto root = application::managed_clone_folder;
+			if (aPath == root) {
+				return aDirectory;
+			}
+			if (!aPath.starts_with(root) || aPath.size() <= root.size() || aPath[root.size()] != '/') {
+				return std::nullopt;
+			}
+			const auto path = parts(aPath);
+			if (path.size() == 2U) {
+				return aDirectory && !path[1].empty() && path[1].front() != '.';
+			}
+			return path[2] == ".git" && (path.size() > 3U || aDirectory);
+		}
 		/// \brief What one inventory covers. Its value is the journal's scope
 		/// field: 0 and 1 are the original clear and purge, so their journals
 		/// read as before; 11-14 are [[BPR-1602]]'s resets.
@@ -445,6 +469,9 @@ namespace bpr::adapters::sqlite {
 			}
 			if (aPath.starts_with("publication-git-v1/")) {
 				return publication_artifact(aPath.substr(19U), aDirectory);
+			}
+			if (const auto kept = kept_clone_artifact(aPath, aDirectory)) {
+				return *kept;
 			}
 			return cache_artifact(aPath, aDirectory);
 		}

@@ -3246,7 +3246,7 @@ namespace {
 				},
 				.ParentDirectory = workspaceParent,
 			},
-			std::nullopt, { });
+			application::git_workspace_source{ }, { });
 		require(
 			!unavailableWorkspace.has_value()
 				&& unavailableWorkspace.error()

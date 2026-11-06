@@ -15,6 +15,7 @@
 #include <QTextStream>
 #include <algorithm>
 #include <array>
+#include <atomic>
 #include <cstdlib>
 #include <deque>
 #include <fcntl.h>
@@ -28,6 +29,7 @@
 #include <random>
 #include <semaphore.h>
 #include <span>
+#include <stop_token>
 #include <sys/stat.h>
 #include <thread>
 #include <utility>
@@ -541,7 +543,13 @@ namespace {
 			// [[BPR-1873]]. A workspace delta borrows the reviewer's clone and
 			// asks for no depth; no other twenty-argument clone exists.
 			const auto delta = aArguments.size() == 20 && aArguments[19].startsWith("--reference=/");
-			if (aArguments.size() == 20 && !delta) {
+			// [[BPR-1879]]. The kept clone: every object, no checkout, kept
+			// owner-private; its only other twenty-argument shape.
+			const auto kept = aArguments.size() == 20 && aArguments[7] == "--no-checkout" && aArguments[9] == "--config" && aArguments[10] == "core.sharedRepository=0600"
+				&& std::ranges::none_of(aArguments, [](const QString& aArgument) {
+								  return aArgument.startsWith("--depth") || aArgument.startsWith("--filter") || aArgument.startsWith("--revision") || aArgument.startsWith("--reference") || aArgument == "--bare";
+							  });
+			if (aArguments.size() == 20 && !delta && !kept) {
 				return 6;
 			}
 			if (chainDepth) {
@@ -566,7 +574,7 @@ namespace {
 				}
 				return 4;
 			}
-			if (delta) {
+			if (delta || kept) {
 				// As stock gh does when Git dies at the per-file limit: a pack
 				// at the limit is left behind and the clone exits non-zero.
 				if (std::filesystem::exists(root / "limit-exit")) {
@@ -1707,6 +1715,98 @@ namespace {
 					   "a delta over the per-file limit is reported as a size limit at the clone, never as unreadable");
 			}
 			expect(reviewerFiles() == before, "and the clone is still untouched");
+			{
+				// [[BPR-1879]]. The clone BetterPullReview keeps: every object,
+				// no checkout, made in a temporary root under the sparse lease and
+				// moved whole into the profile's folder; later questions borrow it
+				// and fetch only what it lacks. The fake runs real Git.
+				QTemporaryDir profileTemporary{ QStringLiteral("/private/tmp/bpr-kept-XXXXXX") };
+				const auto    profileRoot = std::filesystem::canonical(profileTemporary.path().toStdString());
+				const auto    keptRoot    = profileRoot / "agent-clones-v1";
+				const auto    kept        = keptRoot / "github.com-42";
+				{
+					QTemporaryDir cloneTemporary{ QStringLiteral("/private/tmp/bpr-cli-git-XXXXXX") };
+					const auto    cloneRoot = std::filesystem::canonical(cloneTemporary.path().toStdString());
+					const auto    whole     = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 0U, gh_cli_clone_content::managed);
+					const auto    deep      = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 1U, gh_cli_clone_content::managed);
+					const auto    borrowed  = compile_gh_cli_git_clone_request(*configuration, *profile, sparseContext, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 0U, gh_cli_clone_content::managed, reviewer);
+					const auto    complete  = compile_gh_cli_git_clone_request(*configuration, *profile, context, commitOf(head), "/usr/bin/git", cloneRoot, 0U, 0U, gh_cli_clone_content::managed);
+					const auto    has       = [](const auto& aRequest, std::string_view aPrefix) {
+						return std::ranges::any_of(aRequest->Arguments, [aPrefix](const std::string& aArgument) { return aArgument.starts_with(aPrefix); });
+					};
+					expect(whole && has(whole, "--no-checkout") && !has(whole, "--bare") && !has(whole, "--depth") && !has(whole, "--filter") && !has(whole, "--revision")
+							   && !has(whole, "--reference") && !deep && !borrowed && !complete,
+						   "the kept clone takes every object with no checkout, depth, filter, revision or reference; any of those, or a complete review, is refused");
+				}
+				// The kept clone is made while the default branch is at the base,
+				// so the pull request's head is what it lacks later.
+				git(root, { scope, "update-ref", QString::fromUtf8(defaultBranch), base });
+				auto       reported = std::atomic_uint64_t{ 0U };
+				auto       reports  = std::atomic_size_t{ 0U };
+				const auto progress = [&reported, &reports](const std::uint64_t aBytes) {
+					reported = aBytes;
+					++reports;
+				};
+				auto keptRequest = application::git_smart_managed_clone_request{ .Context = sparseContext, .Destination = kept, .ApproximateBytes = 4096U };
+				auto made        = (*sparseTransport)->acquire_managed_clone(keptRequest, progress, { });
+				if (!made) {
+					std::cerr << "kept clone failure " << static_cast<int>(made.error().Failure) << " step " << static_cast<int>(made.error().Step) << '\n';
+				}
+				expect(made.has_value(), "AC1: the kept clone is made through the sparse lease");
+				auto names = std::vector<std::string>{ };
+				for (const auto& entry : std::filesystem::directory_iterator{ kept }) {
+					names.push_back(entry.path().filename().string());
+				}
+				expect(names == std::vector<std::string>{ ".git" }, "it is a clone with no files checked out");
+				auto isPrivate = (std::filesystem::status(keptRoot).permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) == std::filesystem::perms::none;
+				for (const auto& entry : std::filesystem::recursive_directory_iterator{ kept }) {
+					isPrivate = isPrivate && !entry.is_symlink()
+						&& (entry.symlink_status().permissions() & (std::filesystem::perms::group_all | std::filesystem::perms::others_all)) == std::filesystem::perms::none;
+				}
+				expect(isPrivate, "the kept clone and its folder are owner-private, as the purge inventory requires");
+				const auto keptScope = "--git-dir=" + QString::fromStdString((kept / ".git").string());
+				expect(git(root, { keptScope, "cat-file", "-t", base }) == "commit" && git(root, { keptScope, "cat-file", "-p", base + ":file.txt" }) == "complete local contents",
+					   "every object of the default branch is present, blobs included");
+				expect(reported > 0U && reports >= 1U, "bytes received are reported");
+				const auto again = (*sparseTransport)->acquire_managed_clone(keptRequest, progress, { });
+				expect(!again && again.error().Failure == application::git_smart_transport_failure::invalid_request, "a kept clone is made once: an existing folder is never replaced");
+				auto completeKept    = keptRequest;
+				completeKept.Context = context;
+				expect(!(*sparseTransport)->acquire_managed_clone(completeKept, progress, { }), "a complete review keeps no clone");
+				// AC2: a later question borrows it and fetches only the deltas.
+				git(root, { scope, "update-ref", QString::fromUtf8(defaultBranch), head });
+				auto keptDelta = (*sparseTransport)->acquire_workspace_delta(application::git_smart_workspace_delta_request{ .Context = sparseContext, .Head = commitOf(head), .Clone = kept }, { });
+				expect(keptDelta && *keptDelta, "a later question fetches what the kept clone lacks");
+				if (keptDelta && *keptDelta) {
+					QFile keptPack{ QString::fromStdString((*keptDelta)->pack().string()) };
+					expect(keptPack.open(QIODevice::ReadOnly), "the kept clone's delta can be read");
+					const auto keptVerify = root / "kept-verify.git";
+					git(root, { "init", "--bare", QString::fromStdString(keptVerify.string()) });
+					const auto keptVerifyScope = "--git-dir=" + QString::fromStdString(keptVerify.string());
+					git(root, { keptVerifyScope, "index-pack", "--stdin" }, keptPack.readAll());
+					auto keptReceived = QStringList{ };
+					for (const auto& line : git(root, { keptVerifyScope, "cat-file", "--batch-all-objects", "--batch-check=%(objectname) %(objecttype)" }).split('\n')) {
+						keptReceived << QString::fromUtf8(line);
+					}
+					keptReceived.sort();
+					expect(keptReceived == expected, "AC2: only the pull request's new objects are fetched, nothing the kept clone holds");
+					std::filesystem::remove_all(keptVerify);
+				}
+				// Cancel stops the download and leaves nothing behind.
+				const auto cancelled = keptRoot / "github.com-43";
+				write(root / "wait-clone", "1");
+				auto stop    = std::stop_source{ };
+				auto stopper = std::jthread{ [&stop] {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 1500 });
+					stop.request_stop();
+				} };
+				const auto started = std::chrono::steady_clock::now();
+				const auto stopped = (*sparseTransport)->acquire_managed_clone({ .Context = sparseContext, .Destination = cancelled, .ApproximateBytes = std::nullopt }, progress, stop.get_token());
+				std::filesystem::remove(root / "wait-clone");
+				expect(!stopped && stopped.error().Failure == application::git_smart_transport_failure::cancelled && !std::filesystem::exists(cancelled)
+						   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 9 },
+					   "AC1: Cancel stops the download promptly and nothing is left in the profile");
+			}
 			git(root, { scope, "update-ref", "-d", QString::fromUtf8(defaultBranch) });
 		}
 		const auto expectCliRefusal = [&](std::string_view aWhy, application::git_smart_transport_step aStep, application::git_smart_transport_failure aFailure) {
