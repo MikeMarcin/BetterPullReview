@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_SMART_TRANSPORT_PORT_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_GIT_SMART_TRANSPORT_PORT_HPP
 
+#include "bpr/application/managed_clone.hpp"
 #include "bpr/core/epoch_model.hpp"
 
 #include <algorithm>
@@ -338,6 +339,35 @@ namespace bpr::application {
 			&& aRequest.Destination.parent_path().has_filename();
 	}
 
+	/// \brief [[BPR-1884]], RFC-BPR-0092. Brings the clone BetterPullReview
+	/// keeps up to the review's pull request: its head and its base, each
+	/// only when the clone lacks it.
+	///
+	/// \details A head fetch brings every ancestor the clone lacks, so the
+	/// default branch is never fetched (owner, 2026-11-06). `Clone` is the
+	/// kept clone's working folder, absolute and normal, directly inside the
+	/// profile's folder of kept clones; a reviewer-linked clone is never named
+	/// here and the transport refuses any other folder. The objects are fetched
+	/// into a private temporary store that borrows the clone, as a workspace
+	/// delta is, then its self-contained pack is added to the clone and the
+	/// clone's `refs/bpr/pull/N/head` and `.../base` name them, so the next
+	/// question's delta and the next maintenance offer them as haves. No
+	/// per-file bound applies: it is the clone's own maintenance.
+	struct git_smart_managed_clone_refresh_request
+	{
+		git_smart_request_context Context;
+		std::filesystem::path     Clone;
+	};
+
+	/// \brief Checks the request's own shape; it does not check authority.
+	[[nodiscard]] inline auto valid(const git_smart_managed_clone_refresh_request& aRequest) noexcept -> bool
+	{
+		return aRequest.Context.AcquisitionMode == git_smart_acquisition_mode::sparse_commit_trees && aRequest.Context.Revision.Head.valid()
+			&& aRequest.Context.Revision.Head.algorithm() == core::git_hash_algorithm::sha1 && aRequest.Clone.is_absolute()
+			&& aRequest.Clone == aRequest.Clone.lexically_normal() && aRequest.Clone.has_filename()
+			&& aRequest.Clone.parent_path().filename() == std::filesystem::path{ managed_clone_folder };
+	}
+
 	/// \brief How many bytes a kept clone has received so far, while it runs.
 	using git_smart_clone_progress = std::function<void(std::uint64_t)>;
 
@@ -432,6 +462,15 @@ namespace bpr::application {
 		/// for a repository, reporting bytes received; transports without this
 		/// capability refuse.
 		[[nodiscard]] virtual auto acquire_managed_clone(const git_smart_managed_clone_request&, const git_smart_clone_progress&, std::stop_token)
+			-> git_smart_transport_result<void>
+		{
+			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
+		}
+
+		/// \brief [[BPR-1884]]. Fetches the pull request's head and base
+		/// into the clone BetterPullReview keeps, when it lacks them;
+		/// transports without this capability refuse.
+		[[nodiscard]] virtual auto refresh_managed_clone(const git_smart_managed_clone_refresh_request&, std::stop_token)
 			-> git_smart_transport_result<void>
 		{
 			return std::unexpected{ git_smart_transport_error{ git_smart_transport_failure::unavailable } };
