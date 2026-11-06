@@ -4608,7 +4608,94 @@ namespace bpr::adapters::git {
 				const auto packHashBytes = algorithm == git_hash_algorithm::sha1 ? 40U : 64U;
 				auto       arguments     = std::vector<std::string>{ };
 				const auto baseText      = std::string{ core::canonical_hex(materialization.Session.Binding.BaseOid).view() };
-				if (borrowed && present(headText)) {
+				auto       shallow       = false;
+				auto       checkedOut    = false;
+				if (aRequest.Source.PullRequestFiles) {
+					// [[BPR-1873]]. A sparse review with no clone: the agent sees
+					// only the pull request's files. The head's commit and trees
+					// come from the cache, the files' blobs from the host; a
+					// sparse checkout of exactly those paths leaves the rest of
+					// the head absent and `git status` clean. Shallow at the head.
+					const auto& files = *aRequest.Source.PullRequestFiles;
+					if (borrowed || aRequest.Source.Delta || files.size() > application::maximum_pull_request_workspace_files) {
+						return fail(git_process_failure::invalid_request);
+					}
+					auto rootTree = common_git_arguments(aRequest.Repository, HooksRoot);
+					append_arguments(rootTree, "rev-parse", "--verify", headText + "^{tree}");
+					const auto root = submitWorkspace(process_request{ .Arguments = std::move(rootTree), .StandardOutputLimit = 128U }, aStop);
+					if (!root.has_value()) {
+						return fail(root.error());
+					}
+					auto listTrees = common_git_arguments(aRequest.Repository, HooksRoot);
+					append_arguments(listTrees, "ls-tree", "-r", "-d", "--format=%(objectname)", headText);
+					const auto trees = submitWorkspace(
+						process_request{ .Arguments = std::move(listTrees), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+					if (!trees.has_value()) {
+						return fail(trees.error());
+					}
+					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+					append_arguments(arguments, "pack-objects", "--delta-base-offset", "--non-empty", "--",
+									 path_text(destination / ".git" / "objects" / "pack" / "pack"));
+					const auto packed = submitWorkspace(
+						process_request{
+							.Arguments = std::move(arguments),
+							.Input     = memory_input{ headText + "\n" + root->StandardOutput + trees->StandardOutput },
+							.Timeout   = pack_process_timeout,
+						},
+						aStop);
+					if (!packed.has_value()) {
+						return fail(packed.error());
+					}
+					auto total    = std::size_t{ 0U };
+					auto patterns = std::string{ };
+					for (const auto& file : files) {
+						total += file.Bytes.size();
+						const auto blobText = std::string{ core::canonical_hex(file.Blob).view() };
+						if (total > application::maximum_pull_request_workspace_bytes || file.Path.empty() || file.Path.find('\n') != std::string::npos
+							|| (file.Mode != 0100644U && file.Mode != 0100755U && file.Mode != 0120000U)) {
+							return fail(git_process_failure::invalid_request);
+						}
+						auto store = workspace_git_arguments(destination, HooksRoot);
+						append_arguments(store, "hash-object", "-w", "--stdin");
+						const auto stored = submitWorkspace(
+							process_request{ .Arguments = std::move(store), .Input = memory_input{ std::string{ file.Bytes.begin(), file.Bytes.end() } }, .StandardOutputLimit = 128U },
+							aStop);
+						if (!stored.has_value() || stored->StandardOutput != blobText + "\n") {
+							return fail(stored.has_value() ? git_process_error{ git_process_failure::object_unavailable, "A pull request file does not match its blob.\n" }
+														   : stored.error());
+						}
+						// One literal path per line: anchored, with every pattern
+						// character escaped.
+						patterns += '/';
+						for (const auto character : file.Path) {
+							if (character == '\\' || character == '*' || character == '?' || character == '[' || character == ']' || character == '!' || character == '#'
+								|| character == ' ') {
+								patterns += '\\';
+							}
+							patterns += character;
+						}
+						patterns += '\n';
+					}
+					std::error_code infoError;
+					const auto      info = destination / ".git" / "info";
+					if ((!std::filesystem::is_directory(info, infoError) && !make_private_directory(info)) || !private_directory(info)
+						|| !write_private_file(info / "sparse-checkout", patterns)
+						|| !write_private_file(destination / ".git" / "shallow", headText + "\n")) {
+						return fail(git_process_failure::invalid_repository);
+					}
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "config", "--local", "core.sparseCheckout", "true");
+					if (const auto configured = submitWorkspace(process_request{ .Arguments = std::move(arguments) }, aStop); !configured.has_value()) {
+						return fail(configured.error());
+					}
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "read-tree", "--reset", "-u", headText);
+					if (const auto read = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout }, aStop); !read.has_value()) {
+						return fail(read.error());
+					}
+					shallow    = true;
+					checkedOut = true;
+				} else if (borrowed && present(headText)) {
 					// The clone already holds the head: nothing to copy.
 				} else if (materialization.HeadFromClone) {
 					// [[BPR-1772]]. Asked for the clone's head only: the
@@ -4616,13 +4703,13 @@ namespace bpr::adapters::git {
 					// cannot supply the head and the host fetches what the clone
 					// lacks next ([[BPR-1873]]).
 					return fail(git_process_error{ git_process_failure::object_unavailable, "The linked clone does not hold the head.\n" });
-				} else if (aRequest.Delta) {
+				} else if (aRequest.Source.Delta) {
 					// [[BPR-1873]]. A sparse review's cache holds the head's
 					// commit and trees but no blobs and no parents. The delta
 					// holds what the borrowed clone lacks of the head: indexed
 					// here, the workspace reads the head's whole history through
 					// the clone and its own pack, and is never shallow.
-					const auto&     delta = *aRequest.Delta;
+					const auto&     delta = *aRequest.Source.Delta;
 					std::error_code deltaError;
 					if (
 						!borrowed || delta.Head != head || !delta.Pack.is_absolute() || delta.Bytes == 0U
@@ -4713,27 +4800,29 @@ namespace bpr::adapters::git {
 					}
 				}
 
-				arguments = workspace_git_arguments(destination, HooksRoot);
-				append_arguments(arguments, "read-tree", "--reset", headText);
-				const auto indexed = submitWorkspace(
-					process_request{
-						.Arguments = std::move(arguments),
-						.Timeout   = pack_process_timeout,
-					},
-					aStop);
-				if (!indexed.has_value()) {
-					return fail(indexed.error());
-				}
-				arguments = workspace_git_arguments(destination, HooksRoot);
-				append_arguments(arguments, "checkout-index", "--all", "--force");
-				const auto materialized = submitWorkspace(
-					process_request{
-						.Arguments = std::move(arguments),
-						.Timeout   = pack_process_timeout,
-					},
-					aStop);
-				if (!materialized.has_value()) {
-					return fail(materialized.error());
+				if (!checkedOut) {
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "read-tree", "--reset", headText);
+					const auto indexed = submitWorkspace(
+						process_request{
+							.Arguments = std::move(arguments),
+							.Timeout   = pack_process_timeout,
+						},
+						aStop);
+					if (!indexed.has_value()) {
+						return fail(indexed.error());
+					}
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "checkout-index", "--all", "--force");
+					const auto materialized = submitWorkspace(
+						process_request{
+							.Arguments = std::move(arguments),
+							.Timeout   = pack_process_timeout,
+						},
+						aStop);
+					if (!materialized.has_value()) {
+						return fail(materialized.error());
+					}
 				}
 				if (!write_private_file(destination / ".git" / "HEAD", headText + "\n")) {
 					return fail(git_process_failure::invalid_repository);
@@ -4820,7 +4909,7 @@ namespace bpr::adapters::git {
 						.Path           = path_text(destination),
 						.Cleanliness    = application::checkout_cleanliness::clean,
 						.BorrowsHistory = borrowed.has_value(),
-						.Shallow        = false,
+						.Shallow        = shallow,
 					},
 					.ApplicationSession = materialization.ApplicationSession,
 					.Authority          = materialization.Authority,

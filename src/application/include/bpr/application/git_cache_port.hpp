@@ -884,17 +884,19 @@ namespace bpr::application {
 		}
 
 		/// \brief Copies one exact accepted head into an isolated owned workspace.
-		/// \details [[BPR-1873]]. A sparse review whose linked clone lacks the
-		/// head supplies `aDelta`, what the clone lacks of it, because its cache
-		/// holds no blobs or parents to copy; the workspace borrows the clone.
+		/// \details [[BPR-1873]]. A sparse review's cache holds no blobs or
+		/// parents to copy. Whose linked clone lacks the head supplies
+		/// `aSource.Delta`, what the clone lacks of it, and the workspace
+		/// borrows the clone; one with no clone supplies
+		/// `aSource.PullRequestFiles`, and the workspace holds only those.
 		[[nodiscard]] virtual auto materialize_agent_workspace(
 			const agent_workspace_materialization_request& aRequest,
-			const std::optional<git_workspace_delta_pack>& aDelta,
+			const git_workspace_source&                    aSource,
 			std::stop_token                                aStop)
 			-> git_cache_result<owned_agent_workspace>
 		{
 			static_cast<void>(aRequest);
-			static_cast<void>(aDelta);
+			static_cast<void>(aSource);
 			static_cast<void>(aStop);
 			return std::unexpected{ git_cache_failure::invalid_request };
 		}

@@ -385,8 +385,9 @@ namespace bpr::qt {
 		lines << (aFacts.Sparse && !aFacts.Clone ? QObject::tr("Changes: %1 files; no base to compare with in its copy").arg(aFacts.Files)
 												 : QObject::tr("Changes: %1 files; the diff is git diff %2...%3 in its workspace").arg(aFacts.Files).arg(text_of(aFacts.Base), text_of(aFacts.Head)));
 		lines << QObject::tr("Threads: %1 review threads, %2 unresolved").arg(aFacts.Threads).arg(aFacts.Unresolved);
-		lines << (aFacts.Clone ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
-							   : QObject::tr("Workspace: a private copy at the head"));
+		lines << (aFacts.Clone        ? QObject::tr("Workspace: its own, at the head, with the history of %1").arg(shown_path(*aFacts.Clone))
+					  : aFacts.Sparse ? QObject::tr("Workspace: only this pull request's files, at the head")
+									  : QObject::tr("Workspace: a private copy at the head"));
 		lines << QObject::tr("Review skill: bpr-pr-review, editable in Settings");
 		lines << QObject::tr("It may not: push, comment or change your checkout");
 		return lines.join(QLatin1Char{ '\n' });
@@ -891,9 +892,9 @@ namespace bpr::qt {
 		};
 		const auto privateCopy = [this, parent](const QString& aText) {
 			auto* const button = link_button(aText, parent, QStringLiteral("agentSetupPrivateCopy"));
-			// [[BPR-1873]]. A sparse review's head is never downloaded whole,
-			// so its agent works in a linked clone.
-			button->setToolTip(Facts.Sparse ? tr("This review holds only the files it shows, so the agent needs a linked clone to work in")
+			// [[BPR-1873]]. A sparse review's head is never downloaded whole:
+			// without a clone its agent sees only the pull request's files.
+			button->setToolTip(Facts.Sparse ? tr("Only this pull request's files, at the head, without the rest of the repository or its history")
 											: tr("The head and its history, without your branches, tags, LFS files or submodules"));
 			connect(button, &QPushButton::clicked, this, [this] {
 				if (Intents.UsePrivateCopy) {

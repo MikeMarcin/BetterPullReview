@@ -243,7 +243,8 @@ namespace bpr::core {
 		linked_clone_history,
 		/// The head's files and history from the application's own copy.
 		private_copy,
-		/// The head's files only: a sparse review's snapshot.
+		/// [[BPR-1873]]. Only the pull request's files at the head: a sparse
+		/// review with no linked clone. The name is kept for the brief's wire.
 		private_snapshot,
 	};
 	[[nodiscard]] auto stable_name(brief_workspace aWorkspace) noexcept -> std::string_view;

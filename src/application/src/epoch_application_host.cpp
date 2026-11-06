@@ -4520,6 +4520,153 @@ namespace bpr::application {
 			return std::move(*delta);
 		}
 
+		/// \brief [[BPR-1873]]. Reads the pull request's files at the head for a
+		/// sparse review with no clone, so its agent sees only those (owner,
+		/// 2026-11-05: "the agent runs on the PR only, and says so").
+		///
+		/// \details The files are the head's side of the base...head change, as
+		/// the review lists them; deletions and submodules have none. Bytes the
+		/// review already holds are used; the rest are read through the
+		/// review's own lease, in batches and then one at a time, and every one
+		/// is checked against its blob before it is used.
+		[[nodiscard]] auto read_pull_request_files(const std::shared_ptr<authority_effect_actor>& aActor, const authority_context& aContext,
+												   const git_cache_open_request& aExpected, const core::agent_revision_binding& aBinding,
+												   const std::stop_token aStop) -> std::expected<std::vector<git_workspace_file>, agent_workspace_error>
+		{
+			const auto unavailable = [](std::string aDetail) {
+				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable, std::move(aDetail), agent_workspace_unavailable_reason::copy_failed } };
+			};
+			using listed     = std::expected<std::vector<git_workspace_file>, git_cache_failure>;
+			const auto files = run_on_actor<listed>(
+				aActor, aExpected,
+				[aActor, aBinding](const std::stop_token aWorkStop) -> listed {
+					auto changes = aActor->Cache->changed_entries({ .Left = aBinding.BaseOid, .Right = aBinding.HeadOid }, aWorkStop);
+					if (!changes) {
+						return std::unexpected{ changes.error().Code };
+					}
+					auto result = std::vector<git_workspace_file>{ };
+					for (const auto& change : *changes) {
+						if (change.Right && (change.Right->Mode == 0100644U || change.Right->Mode == 0100755U || change.Right->Mode == 0120000U)) {
+							result.push_back(git_workspace_file{ .Path = change.Right->Path, .Mode = change.Right->Mode, .Blob = change.Right->Object, .Bytes = { } });
+						}
+					}
+					std::scoped_lock lock{ aActor->BlobAuthorityMutex };
+					for (auto& file : result) {
+						const auto retained = std::ranges::find(aActor->RetainedBlobs, file.Blob, &retained_sparse_blob::Blob);
+						if (retained != aActor->RetainedBlobs.end()) {
+							file.Bytes = retained->Bytes;
+						}
+					}
+					return result;
+				},
+				aStop);
+			if (aStop.stop_requested()) {
+				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::cancelled } };
+			}
+			if (!files || !*files) {
+				return unavailable("The pull request's files could not be listed from the review's copy.\n");
+			}
+			auto result = std::move(**files);
+			if (result.size() > maximum_pull_request_workspace_files) {
+				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable,
+															   "The pull request changes more files than the agent's private copy holds.\n",
+															   agent_workspace_unavailable_reason::copy_failed } };
+			}
+			const auto smartContext = git_smart_request_context{
+				.ApplicationSession = aContext.Handoff.ApplicationSession,
+				.Authority          = aContext.Authority,
+				.Revision           = aContext.Revision,
+				.Repository         = aContext.Handoff.Locator,
+				.BaseRef            = aContext.Handoff.BaseRef,
+			};
+			const auto missing = [&result] {
+				auto indices = std::vector<std::size_t>{ };
+				for (std::size_t index = 0U; index < result.size(); ++index) {
+					if (result[index].Bytes.empty() && blob_matches(result[index].Blob, { }) != blob_check::matches) {
+						indices.push_back(index);
+					}
+				}
+				return indices;
+			};
+			auto wanted = missing();
+			if (!wanted.empty()) {
+				auto transport = aContext.Handoff.SmartGit->acquire(smartContext);
+				if (!transport || !*transport) {
+					return std::unexpected{ pull_request_files_failure(transport ? git_smart_transport_error{ } : transport.error()) };
+				}
+				// Batches first: a transport that cannot batch answers none, and
+				// every file is then read on its own.
+				for (std::size_t offset = 0U; offset < wanted.size() && !aStop.stop_requested(); offset += maximum_git_exact_blob_batch) {
+					const auto count   = std::min(maximum_git_exact_blob_batch, wanted.size() - offset);
+					auto       request = git_smart_exact_blobs_request{ .Context = smartContext, .ExpectedBlobs = { }, .MaximumBytes = maximum_git_exact_blob_batch_bytes };
+					for (std::size_t index = 0U; index < count; ++index) {
+						request.ExpectedBlobs.push_back(result[wanted[offset + index]].Blob);
+					}
+					const auto read = (*transport)->read_exact_blobs(request, aStop);
+					if (!read || read->size() != count) {
+						break;
+					}
+					for (std::size_t index = 0U; index < count; ++index) {
+						if (const auto& answer = (*read)[index]; answer) {
+							auto bytes = std::vector<std::uint8_t>{ };
+							bytes.reserve(answer->size());
+							for (const auto byte : *answer) {
+								bytes.push_back(std::to_integer<std::uint8_t>(byte));
+							}
+							if (blob_matches(request.ExpectedBlobs[index], bytes) == blob_check::matches) {
+								result[wanted[offset + index]].Bytes = std::move(bytes);
+							}
+						}
+					}
+				}
+				auto total = std::size_t{ 0U };
+				for (const auto index : missing()) {
+					if (aStop.stop_requested()) {
+						return std::unexpected{ agent_workspace_error{ agent_workspace_failure::cancelled } };
+					}
+					auto read = (*transport)->read_exact_blob(git_smart_exact_blob_request{ .Context = smartContext, .ExpectedBlob = result[index].Blob, .MaximumBytes = maximum_git_exact_blob_bytes }, aStop);
+					if (!read) {
+						return std::unexpected{ pull_request_files_failure(read.error()) };
+					}
+					auto bytes = std::vector<std::uint8_t>{ };
+					bytes.reserve(read->size());
+					for (const auto byte : *read) {
+						bytes.push_back(std::to_integer<std::uint8_t>(byte));
+					}
+					if (blob_matches(result[index].Blob, bytes) != blob_check::matches) {
+						return std::unexpected{ pull_request_files_failure(git_smart_transport_error{ git_smart_transport_failure::malformed_response }) };
+					}
+					result[index].Bytes = std::move(bytes);
+				}
+				for (const auto& file : result) {
+					total += file.Bytes.size();
+				}
+				if (total > maximum_pull_request_workspace_bytes) {
+					return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable,
+																   "The pull request's files are larger than the agent's private copy holds.\n",
+																   agent_workspace_unavailable_reason::copy_failed } };
+				}
+			}
+			if (aStop.stop_requested()) {
+				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::cancelled } };
+			}
+			return result;
+		}
+
+		/// \brief [[BPR-1873]]. Why the pull request's files could not be read:
+		/// the agent's copy could not be made, with the transport's words for
+		/// the log. The delta's reasons speak of a clone, which there is none of.
+		[[nodiscard]] static auto pull_request_files_failure(const git_smart_transport_error& aError) -> agent_workspace_error
+		{
+			if (aError.Failure == git_smart_transport_failure::cancelled) {
+				return agent_workspace_error{ agent_workspace_failure::cancelled };
+			}
+			return agent_workspace_error{ agent_workspace_failure::unavailable,
+										  "The pull request's files were not read for the agent (transport failure " + std::to_string(static_cast<unsigned>(aError.Failure))
+											  + ", step " + std::to_string(static_cast<unsigned>(aError.Step)) + ").\n",
+										  agent_workspace_unavailable_reason::copy_failed };
+		}
+
 		/// \brief RFC-BPR-0089 M2. See `epoch_application_host::resolve_generated_attributes`.
 		[[nodiscard]] auto resolve_generated_attributes(
 			generated_attributes_request    aRequest,
@@ -7378,9 +7525,14 @@ namespace bpr::application {
 			}
 			const auto sparse = context && blob_authority_for(*context) == authorization && sparse_review(*context);
 			if (sparse && !aRequest.HistoryClone) {
-				return std::unexpected{ agent_workspace_error{ agent_workspace_failure::unavailable,
-															   "This review holds only the files it shows and no clone is linked for the agent to work in.\n",
-															   agent_workspace_unavailable_reason::clone_needed } };
+				// [[BPR-1873]]. No clone: the agent sees only the pull
+				// request's files, and the brief and the turn say so.
+				auto files = read_pull_request_files(actor, *context, expected, aRequest.Session.Binding, aStop);
+				if (!files) {
+					return std::unexpected{ std::move(files.error()) };
+				}
+				auto cloneLacksHead = false;
+				return materialize_on_actor(actor, authorization, *authorizationGeneration, expected, aRequest, nullptr, cloneLacksHead, aStop, std::move(*files));
 			}
 			// [[BPR-1772]]. A linked clone that already holds the head lends
 			// every file of it, so a sparse review asks the clone first. A
@@ -7409,7 +7561,8 @@ namespace bpr::application {
 		}
 
 		/// \brief Makes one workspace on the review's actor, from its cache,
-		/// the linked clone, or the clone and `aDelta`, and waits for it.
+		/// the linked clone, the clone and `aDelta`, or the cache's trees and
+		/// `aPullRequestFiles`, and waits for it.
 		///
 		/// \details `aCloneLacksHead` is set when the request asked for the
 		/// clone's head only and the clone does not hold it.
@@ -7421,18 +7574,20 @@ namespace bpr::application {
 			const agent_workspace_materialization_request& aRequest,
 			std::shared_ptr<git_workspace_delta>           aDelta,
 			bool&                                          aCloneLacksHead,
-			const std::stop_token                          aStop)
+			const std::stop_token                          aStop,
+			std::optional<std::vector<git_workspace_file>> aPullRequestFiles = std::nullopt)
 			-> std::expected<owned_agent_workspace, agent_workspace_error>
 		{
-			auto deltaPack = std::optional<git_workspace_delta_pack>{ };
+			auto source = std::make_shared<git_workspace_source>();
 			if (aDelta) {
-				deltaPack = git_workspace_delta_pack{
+				source->Delta = git_workspace_delta_pack{
 					.Pack  = aDelta->pack(),
 					.Bytes = aDelta->pack_bytes(),
 					.Head  = aDelta->head(),
 				};
 			}
-			auto waiter = std::shared_ptr<workspace_waiter>{ };
+			source->PullRequestFiles = std::move(aPullRequestFiles);
+			auto waiter              = std::shared_ptr<workspace_waiter>{ };
 			try {
 				waiter = std::make_shared<workspace_waiter>();
 			} catch (...) {
@@ -7461,7 +7616,7 @@ namespace bpr::application {
 					 waiter,
 					 control,
 					 aDelta,
-					 deltaPack] {
+					 source] {
 						auto result = std::expected<
 							owned_agent_workspace,
 							agent_workspace_error>{
@@ -7491,7 +7646,7 @@ namespace bpr::application {
 								open_actor_cache(*actor, Caches, expected, workStop).has_value()) {
 								auto materialized = actor->Cache->materialize_agent_workspace(
 									aRequest,
-									deltaPack,
+									*source,
 									workStop);
 								if (materialized.has_value()) {
 									std::scoped_lock authorityLock{

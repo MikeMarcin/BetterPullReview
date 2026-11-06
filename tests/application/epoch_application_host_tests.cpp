@@ -435,9 +435,11 @@ namespace {
 		/// [[BPR-1738]]. What the cache was handed for each workspace, the
 		/// workspace it answers, and what the transport's delta was asked.
 		std::vector<std::optional<application::git_workspace_delta_pack>> WorkspaceDeltas;
-		std::optional<application::owned_agent_workspace>                 WorkspaceResult;
-		std::vector<application::git_smart_workspace_delta_request>       DeltaRequests;
-		std::optional<application::git_smart_transport_failure>           DeltaFailure;
+		/// [[BPR-1873]]. The pull request's files each workspace was given.
+		std::vector<std::optional<std::vector<application::git_workspace_file>>> WorkspacePullRequestFiles;
+		std::optional<application::owned_agent_workspace>                        WorkspaceResult;
+		std::vector<application::git_smart_workspace_delta_request>              DeltaRequests;
+		std::optional<application::git_smart_transport_failure>                  DeltaFailure;
 		/// [[BPR-1772]]. Whether each workspace asked for the linked clone's
 		/// head only, and whether the clone holds it.
 		std::vector<bool>                                   WorkspaceHeadFromClone;
@@ -1790,12 +1792,13 @@ namespace {
 
 		[[nodiscard]] auto materialize_agent_workspace(
 			const application::agent_workspace_materialization_request& aRequest,
-			const std::optional<application::git_workspace_delta_pack>& aDelta,
+			const application::git_workspace_source&                    aSource,
 			const std::stop_token                                       aStop)
 			-> application::git_cache_result<application::owned_agent_workspace> override
 		{
 			State.Calls.emplace_back("cache.materialize-agent-workspace");
-			State.WorkspaceDeltas.push_back(aDelta);
+			State.WorkspaceDeltas.push_back(aSource.Delta);
+			State.WorkspacePullRequestFiles.push_back(aSource.PullRequestFiles);
 			State.WorkspaceHeadFromClone.push_back(aRequest.HeadFromClone);
 			if (aStop.stop_requested()) {
 				return std::unexpected{ application::git_cache_failure::cancelled };
@@ -1811,7 +1814,7 @@ namespace {
 			// [[BPR-1738]]. A sparse cache holds no parent and no blob, so
 			// copying the head's closure out of it fails as installed Git does.
 			// A head the linked clone lends is not copied from it.
-			if (State.SparseObjects && !aDelta && !aRequest.HeadFromClone) {
+			if (State.SparseObjects && !aSource.Delta && !aSource.PullRequestFiles && !aRequest.HeadFromClone) {
 				return std::unexpected{ application::git_cache_error{
 					application::git_cache_failure::process_failure,
 					"error: Could not read " + std::string{ core::canonical_hex(oid<core::git_commit_oid>(10U)).view() }
@@ -7963,14 +7966,44 @@ namespace {
 		};
 		const auto clone = workspace_parent_directory() / "reviewer-clone";
 		{
+			// No clone: the agent sees only the pull request's files, read
+			// through the review's lease and checked against their blobs.
 			fixture value;
 			establish_sparse_three_files(value);
 			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
-			const auto materialized     = run(value);
+			const auto side             = [](const char* aPath, const std::string_view aText, const std::uint32_t aMode = 0100644U) {
+				return application::git_cache_changed_side{ .Path = aPath, .Object = sha1_blob(aText), .Mode = aMode };
+			};
+			value.State.CatalogueEntries = {
+				{ .Left = side("a", "left a\n"), .Right = side("a", "right a\n"), .Change = 'M' },
+				{ .Left = std::nullopt, .Right = side("b", "right b\n", 0100755U), .Change = 'A' },
+				{ .Left = side("c", "left c\n"), .Right = std::nullopt, .Change = 'D' },
+				{ .Left = std::nullopt, .Right = side("large", "exact selected blob"), .Change = 'A' },
+				{ .Left = std::nullopt, .Right = application::git_cache_changed_side{ .Path = "module", .Object = sha1_blob("x"), .Mode = 0160000U }, .Change = 'A' },
+			};
+			const auto materialized = run(value);
+			expect(materialized.has_value() && value.State.DeltaRequests.empty() && value.State.WorkspaceDeltas.size() == 1U && !value.State.WorkspaceDeltas.front(),
+				   "a sparse review with no linked clone makes its workspace without a clone or a download of the head");
+			const auto& given = value.State.WorkspacePullRequestFiles;
+			expect(given.size() == 1U && given.front() && given.front()->size() == 3U, "AC5: the workspace is given exactly the pull request's files at the head");
+			if (given.size() == 1U && given.front() && given.front()->size() == 3U) {
+				const auto& files = *given.front();
+				const auto  text  = [](const application::git_workspace_file& aFile) { return std::string{ aFile.Bytes.begin(), aFile.Bytes.end() }; };
+				expect(files[0].Path == "a" && text(files[0]) == "right a\n" && files[1].Path == "b" && files[1].Mode == 0100755U && text(files[1]) == "right b\n"
+						   && files[2].Path == "large" && text(files[2]) == "exact selected blob",
+					   "each file carries the head's bytes, from a batch or, when the batch has none, its own read; deletions and submodules have none");
+			}
+		}
+		{
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.CatalogueEntries = { { .Left = std::nullopt, .Right = application::git_cache_changed_side{ .Path = "large", .Object = sha1_blob("exact selected blob"), .Mode = 0100644U }, .Change = 'A' } };
+			value.State.ExactBlobFailure = application::git_smart_transport_failure::network;
+			const auto materialized      = run(value);
 			expect(!materialized.has_value() && materialized.error() == application::agent_workspace_failure::unavailable
-					   && materialized.error().Reason == application::agent_workspace_unavailable_reason::clone_needed
-					   && value.State.DeltaRequests.empty() && value.State.WorkspaceDeltas.empty(),
-				   "a sparse review with no linked clone downloads nothing and says a clone is needed");
+					   && materialized.error().Reason == application::agent_workspace_unavailable_reason::copy_failed
+					   && materialized.error().Detail.find("pull request's files") != std::string::npos && value.State.WorkspacePullRequestFiles.empty(),
+				   "a pull request file that cannot be read says the agent's copy could not be made, with the cause in the log, and makes nothing");
 		}
 		{
 			fixture value;
