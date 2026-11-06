@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1896"
 title: "Tool-free writing runs when a wrapper's settings turn Claude's auto-memory back on"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1891"]
 priority: "P1"
