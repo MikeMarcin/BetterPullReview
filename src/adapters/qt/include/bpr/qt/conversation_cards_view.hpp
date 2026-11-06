@@ -912,6 +912,7 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 		void resizeEvent(QResizeEvent* aEvent) override;
 		void showEvent(QShowEvent* aEvent) override;
+		void hideEvent(QHideEvent* aEvent) override;
 		void mousePressEvent(QMouseEvent* aEvent) override;
 		void mouseMoveEvent(QMouseEvent* aEvent) override;
 		void keyPressEvent(QKeyEvent* aEvent) override;

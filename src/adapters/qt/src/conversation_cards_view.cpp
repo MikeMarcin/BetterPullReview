@@ -29,6 +29,7 @@
 #include <QFont>
 #include <QFontMetrics>
 #include <QHelpEvent>
+#include <QHideEvent>
 #include <QKeyEvent>
 #include <QLayout>
 #include <QLinearGradient>
@@ -2129,7 +2130,11 @@ namespace bpr::qt {
 		const auto [count, unread] = *PullRequestCounts;
 		auto* const chip           = static_cast<pull_request_chip*>(PullRequestChip);
 		chip->Colours              = note_colours_of(palette(), Accent, Marker);
+		const auto badgeChanged    = (chip->New > 0U) != (unread > 0U);
 		chip->New                  = unread;
+		if (badgeChanged) {
+			chip->updateGeometry();
+		}
 		// [[BPR-1781]]. One quiet link to Overview's Comments tab, offered
 		// whether or not the conversation has comments yet (a new one is
 		// written there); its new comments are counted on it.
@@ -2137,8 +2142,12 @@ namespace bpr::qt {
 		chip->setAccessibleName(unread > 0U ? tr("Pull request conversation: %1 comments, %2 new").arg(count).arg(unread) : tr("Pull request conversation: %1 comments").arg(count));
 		chip->setAccessibleDescription(tr("Opens the pull request's comments and reviews on Overview's Comments tab"));
 		chip->setToolTip(tr("The pull request's comments and reviews, on Overview"));
-		chip->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, chip->sizeHint().width()), chip_height);
-		chip->setVisible(!Feed && !PullRequestComments && PullRequestLinkDispatch);
+		// [[BPR-1887]]. The composed window places this link in its toolbar.
+		// Only a standalone view positions it within its own viewport.
+		if (chip->parentWidget() == viewport()) {
+			chip->setGeometry(note_margin, 5, std::min(viewport()->width() - 2 * note_margin, chip->sizeHint().width()), chip_height);
+		}
+		chip->setVisible(isVisible() && !Feed && !PullRequestComments && PullRequestLinkDispatch);
 		chip->raise();
 		chip->update();
 	}
@@ -2864,6 +2873,14 @@ namespace bpr::qt {
 			measure_cards();
 			notify_marks();
 		}
+		sync_pull_request_edge();
+	}
+
+	void conversation_cards_view::hideEvent(QHideEvent* const aEvent)
+	{
+		QAbstractScrollArea::hideEvent(aEvent);
+		// The toolbar-owned link follows the availability of its card view.
+		PullRequestChip->hide();
 	}
 
 	void conversation_cards_view::rebuild_open_card()

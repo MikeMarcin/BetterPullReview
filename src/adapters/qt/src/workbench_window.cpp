@@ -3319,6 +3319,10 @@ namespace bpr::qt {
 		auto* const commentsToolsRow = new QHBoxLayout{ CommentsTools };
 		commentsToolsRow->setContentsMargins(0, 0, 0, 0);
 		commentsToolsRow->setSpacing(1);
+		// [[BPR-1887]]. Navigation belongs with the tools, outside the
+		// viewport where a note can hang from any code line.
+		commentsToolsRow->addWidget(ConversationPanel->cards()->pull_request_comments_chip(), 0, Qt::AlignVCenter);
+		commentsToolsRow->addSpacing(4);
 		commentsToolsRow->addWidget(ConversationPanel->read_tools());
 		NextNewCommentButton->setParent(CommentsTools);
 		commentsToolsRow->addWidget(NextNewCommentButton);

@@ -1,0 +1,19 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v4",
+  "scope": {"issues": ["BPR-1887"]},
+  "milestones": [{
+    "id": "conversation-link-layout",
+    "outcome": "Conversation navigation remains legible without overlapping line-aligned review comments.",
+    "work": [{"issue": "BPR-1887"}],
+    "depends_on": [],
+    "exit_criteria": [
+      "Verify separate navigation and comment geometry through the composed application with a failing baseline regression.",
+      "Inspect corrected renders and retain navigation, alignment and partial-refresh behavior.",
+      "Complete the card and journal entry and land the verified fix on main."
+    ],
+    "boundary": "Correct the owner-reported overlap; retain established controls, wording, comment content and actions."
+  }],
+  "coverage": "complete",
+  "unplanned_work": []
+}
