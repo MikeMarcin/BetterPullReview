@@ -124,6 +124,34 @@ short line:
 
 `qt_agent_setup_view` asserts each label and line exactly.
 
+### v004 design (after the v003 reject)
+
+`frontend-design:frontend-design` loaded first. With no clone found, the
+Repository step is one choice between two cards, the same cards a found
+clone is chosen from:
+
+- **Keep a clone for me**, chosen at first (the stronger answer): its figure
+  is the size ("126 MB", tabular), its line "Full history, kept in …" (the
+  path shortened in the middle, whole in the tooltip).
+- **This pull request only**: "Weaker answers: no callers, tests or history".
+- One default button acts on the card chosen, **Keep a clone** or **Use this
+  pull request**; **Choose a folder…** sits beside it. Where another action
+  leads (no clone folder yet, clones found), the cards follow it with a
+  quiet button.
+- Downloading: the keep card alone becomes the progress, "Keeping a clone",
+  "42 MB of 126 MB", a thin bar and **Cancel**; past the size, a busy bar
+  and "131 MB".
+- Failed: the card's line says why ("No connection to GitHub.") and the
+  button reads **Retry**.
+- The header is "No clone of OWNER/NAME found" / "Looked in FOLDERS".
+- Insights › Storage names the row "Agent clones".
+
+Linking a folder was the default button when no clone was found (BPR-1873);
+with keeping a clone available it is now the secondary action beside it, as
+the owner's 2026-11-05 decision asked to encourage either and the v004 brief
+asked for a strong default. `qt_agent_setup_view` asserts every label, line,
+figure, the default and the card switch.
+
 ### Attended review
 
 - v001: session `fb4d6822d9af23fc7264361af7b46b53`
@@ -142,7 +170,9 @@ short line:
 - v003: session `61dbe08bf42882ecd3cf30ee2845bc1f`
   (`/Users/jaeger/.mask/bpr-1879-v003-20261105/attended-review`), candidate
   `BPR-1879-keep-a-clone-v003` at `73c2a8412`, one Accept/Reject question on
-  the shorter copy with fresh renders; ready, Tailscale host started.
+  the shorter copy with fresh renders. **Rejected**: "I mean it's better but
+  I'm sure you can do better", with "/frontend-design:frontend-design needs
+  to be used". Host stopped.
 
 Offscreen renders of the setup view: the fixture-backed frozen build does
 not read its reviews sparsely through `gh`, so it cannot show this option.

@@ -306,52 +306,64 @@ namespace {
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
 		test.Clones.Discovered = true;
 		test.show();
-		expect(test.text().contains(QStringLiteral("No clone of bpr-fixtures/engine in your clone folders")), "none found says so");
+		expect(test.text().contains(QStringLiteral("No clone of bpr-fixtures/engine found")), "none found says so");
 		test.button(QStringLiteral("agentSetupPrivateCopy"))->click();
 		expect(test.Intents.back() == "private-copy", "the private copy is one press away");
 		render(test.View, QStringLiteral("noclone"));
 
-		// [[BPR-1873]]. A sparse review with no clone: linking stays the
-		// default, and asking about the pull request only says what it costs.
+		// [[BPR-1873]], [[BPR-1879]] owner look v004. A sparse review with no
+		// clone found: where the agent's code comes from is one choice between
+		// cards, with one button acting on the card chosen and choosing a
+		// folder beside it.
 		test.Facts.Sparse = true;
 		test.show();
-		auto* const only = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
-		auto* const cost = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
-		expect(only != nullptr && cost != nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
-				   && cost->text() == QStringLiteral("Weaker answers: no callers, tests or history.") && only->text() == QStringLiteral("This pull request only")
-				   && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault(),
-			   "a sparse review offers the pull request only, after linking a clone, with its weaker result said");
+		auto* const onlyCard = test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"));
+		auto* const cost     = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
+		auto* const only     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
+		expect(onlyCard != nullptr && cost != nullptr && only != nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
+				   && test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")) == nullptr && cost->text() == QStringLiteral("Weaker answers: no callers, tests or history")
+				   && only->text() == QStringLiteral("Use this pull request") && only->isDefault() && test.button(QStringLiteral("agentSetupChooseFolder")) != nullptr,
+			   "a review that cannot keep a clone offers the pull request only, its cost in one line, and choosing a folder beside");
 		if (only != nullptr) {
 			only->click();
-			expect(test.Intents.back() == "private-copy", "asking about the pull request only is remembered as this repository's no-clone choice");
+			expect(test.Intents.back() == "private-copy", "the pull request only is remembered as this repository's no-clone choice");
 		}
 		render(test.View, QStringLiteral("noclone-sparse"));
-		// [[BPR-1879]]. A sparse review read through a `gh` lease can let
-		// BetterPullReview keep a clone: the third choice, beside linking one,
-		// with GitHub's size and where it goes said before it starts.
+		// Keeping a clone is the stronger answer: its card is chosen first and
+		// the button keeps one. Its size is the card's figure; where it goes is
+		// its one line, the whole path in the tooltip.
 		test.Clones.Repository->CanKeep          = true;
 		test.Clones.Repository->ApproximateBytes = 126U * 1000U * 1000U;
 		test.Clones.ManagedLocation              = "/Users/me/Library/Application Support/BetterPullReview/agent-clones-v1/github.com-42";
 		test.show();
-		auto* const keep     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
-		auto* const keepCost = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCost"));
-		expect(keep != nullptr && keepCost != nullptr && keep->text() == QStringLiteral("Keep a clone for me") && keepCost->text().startsWith(QStringLiteral("About 126 MB, kept in "))
-				   && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault()
-				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) != nullptr,
-			   "AC1: keeping a clone is offered beside linking one, with its approximate download and its location; linking stays the default");
+		auto* const keepTitle = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCardTitle"));
+		auto* const keepSize  = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepSize"));
+		auto* const keepCost  = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCost"));
+		auto* const keep      = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
+		expect(keepTitle != nullptr && keepSize != nullptr && keepCost != nullptr && keep != nullptr && keepTitle->text() == QStringLiteral("Keep a clone for me")
+				   && keepSize->text() == QStringLiteral("126 MB") && keepCost->text().startsWith(QStringLiteral("Full history, kept in "))
+				   && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42")) && keep->text() == QStringLiteral("Keep a clone") && keep->isDefault()
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) == nullptr,
+			   "AC1: keeping a clone is the chosen card and the default button, with its size and where it goes");
 		if (keep != nullptr) {
 			keep->click();
-			expect(test.Intents.back() == "keep", "the press asks the host to keep one");
+			expect(test.Intents.back() == "keep", "the button asks the host to keep one");
 		}
 		render(test.View, QStringLiteral("keep-offer"));
+		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")));
+		auto* const switched = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
+		expect(switched != nullptr && switched->text() == QStringLiteral("Use this pull request") && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr,
+			   "choosing the other card turns the button to it");
+		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupKeepCard")));
 		test.Clones.Keeping = { .State = application::managed_clone_state::downloading, .Received = 42U * 1000U * 1000U, .Failure = std::nullopt };
 		test.show();
 		auto* const bar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
 		auto* const status = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
 		auto* const stop   = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel"));
 		expect(bar != nullptr && status != nullptr && stop != nullptr && bar->value() == 333 && status->text() == QStringLiteral("42 MB of 126 MB")
-				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr,
-			   "AC1: while it downloads, how much has arrived of about how much, with Cancel");
+				   && test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCardTitle"))->text() == QStringLiteral("Keeping a clone")
+				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr && test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr,
+			   "AC1: while it downloads its card is the progress, the bytes against GitHub's size, with Cancel");
 		if (stop != nullptr) {
 			stop->click();
 			expect(test.Intents.back() == "cancel-keep", "Cancel asks the host to stop");
@@ -370,9 +382,8 @@ namespace {
 		test.Clones.Keeping = { .State = application::managed_clone_state::failed, .Received = 0U, .Failure = application::managed_clone_failure::connection_failed };
 		test.show();
 		auto* const keepFailed = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepFailed"));
-		expect(keepFailed != nullptr && keepFailed->text() == QStringLiteral("No connection to GitHub.")
-				   && test.button(QStringLiteral("agentSetupKeepClone"))->text() == QStringLiteral("Retry"),
-			   "a failed download says why and offers to try again");
+		expect(keepFailed != nullptr && keepFailed->text() == QStringLiteral("No connection to GitHub.") && test.button(QStringLiteral("agentSetupKeepClone"))->text() == QStringLiteral("Retry"),
+			   "a failed download says why on its card, and the button reads Retry");
 		render(test.View, QStringLiteral("keep-failed"));
 		test.Clones.Keeping = { };
 		test.Clones.Linked  = application::repository_link{ .Host = "github.com", .Repository = 42U, .Owner = "bpr-fixtures", .Name = "engine", .Path = test.Clones.ManagedLocation, .Remote = "origin", .PrivateCopy = false, .Managed = true };
@@ -383,7 +394,8 @@ namespace {
 		test.Clones.ManagedLocation.clear();
 		test.Clones.Folders.clear();
 		test.show();
-		expect(test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) != nullptr, "and with no clone folder yet too");
+		expect(test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) != nullptr && !test.button(QStringLiteral("agentSetupPullRequestOnly"))->isDefault(),
+			   "with no clone folder yet the choice is there too, quiet, as adding a folder leads");
 		render(test.View, QStringLiteral("nofolders-sparse"));
 		test.Clones.Folders = { "/Users/me/Documents/GitHub" };
 		test.Facts.Sparse   = false;
