@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1889"
 title: "Correct architecture guard and epoch parameter names"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1888"]
 priority: "P1"
