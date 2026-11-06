@@ -2693,7 +2693,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "445516a7d6b4113148f63ab068ae014fecae75d16a30f7611cbae35094789376"
+        "d13147f16149d620ec99cfa8bb3e35ebe770c0c706f68c4e35b5295af1259725"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3018,7 +3018,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "6afc650f6c3320711520ad72b1adc2bcd70c22864c51777835960a15371128db"
+        "eaebbbf0dfe807c15566cef63a078bd137d0367ed7060a12ae95015e7ce21a59"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
