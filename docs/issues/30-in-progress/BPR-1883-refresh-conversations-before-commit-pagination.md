@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1883"
 title: "Refresh conversations before waiting for commit pagination"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
