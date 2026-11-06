@@ -4168,7 +4168,7 @@ if(
     OR NOT github_process_runner_compact
         MATCHES
             "return make_qprocess_github_cli_process_runner\\( ?nullptr, std::move\\(aFileLimits\\)\\); \\}"
-    OR NOT github_process_runner_construction_count EQUAL 4
+    OR NOT github_process_runner_construction_count EQUAL 5
 )
     message(
         FATAL_ERROR
@@ -4398,6 +4398,33 @@ if(
         "GitHub CLI Git-acquisition factory must refuse, in its own body, a "
         "spool outside its store or over an existing file, a zero or oversized "
         "per-file limit, a relative store, and missing store thresholds"
+    )
+endif()
+
+# [[BPR-1879]] The clone BetterPullReview keeps for agent questions is the one
+# acquisition outside the sparse read's 32 MiB per-file and 96 MiB store
+# limits. Its runner has its own factory, whose body is pinned here: an
+# absolute store, a nonzero per-file and store limit no larger than the kept
+# clone's ceiling, no spool, the observed Git, no test seam. It is the only
+# code that sets `ManagedClone`, which alone admits the longer deadline.
+string(
+    REGEX MATCHALL
+    "ManagedClone = true"
+    github_process_runner_managed_flags
+    "${github_process_runner_code_compact}"
+)
+list(LENGTH github_process_runner_managed_flags github_process_runner_managed_flag_count)
+if(
+    NOT github_process_runner_managed_flag_count EQUAL 1
+    OR NOT github_process_runner_code_compact
+        MATCHES
+            "auto make_github_cli_managed_clone_process_runner\\(const std::filesystem::path& aDirectory, const std::filesystem::path& aGit, const std::uint64_t aMaximumBytes\\) -> std::unique_ptr<github_cli_process_port> \\{ if \\(!aDirectory\\.is_absolute\\(\\) \\|\\| aMaximumBytes == 0U \\|\\| aMaximumBytes > github_cli_managed_clone_max_bytes\\) \\{ return nullptr; \\} return make_qprocess_github_cli_process_runner\\(nullptr, \\{ \\.MaximumFileBytes = aMaximumBytes, \\.Directory = aDirectory, \\.MaximumDirectoryBytes = aMaximumBytes, \\.MaximumDirectoryEntries = 4096U, \\.StandardOutputFile = \\{ \\}, \\.DiscardStandardOutput = true, \\.LocalGitExecutable = aGit, \\.ManagedClone = true \\}\\); \\}"
+)
+    message(
+        FATAL_ERROR
+        "GitHub CLI kept-clone factory must refuse, in its own body, a "
+        "relative store and a zero or oversized limit, take no spool or seam, "
+        "and be the only code that marks a runner as a kept clone's"
     )
 endif()
 

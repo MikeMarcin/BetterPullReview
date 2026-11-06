@@ -24,7 +24,18 @@ namespace bpr::adapters::github::detail {
 		/// this acquisition may search. Empty keeps the ordinary empty-PATH rule
 		/// on Windows; no ambient search path is ever admitted.
 		std::filesystem::path LocalGitExecutable = { };
+		/// [[BPR-1879]]. A kept clone's runner: its launches may run up to
+		/// `github_cli_managed_clone_max_timeout` instead of the usual ceiling.
+		bool ManagedClone = false;
 	};
+
+	/// \brief [[BPR-1879]]. The longest a kept clone's download may run. It
+	/// is cancellable throughout; a large repository takes minutes, not hours.
+	inline constexpr auto github_cli_managed_clone_max_timeout = std::chrono::hours{ 2 };
+	/// \brief [[BPR-1879]]. The kept clone's kernel per-file ceiling and store
+	/// abort threshold, whatever GitHub's `size` says: far above any real
+	/// repository a review opens, and never the 32 MiB a sparse read uses.
+	inline constexpr std::uint64_t github_cli_managed_clone_max_bytes = 64ULL * 1024U * 1024U * 1024U;
 	class github_cli_process_runner_test_seam
 	{
 	public:
@@ -73,6 +84,18 @@ namespace bpr::adapters::github::detail {
 	/// never takes a test seam.
 	[[nodiscard]] auto make_github_cli_git_acquisition_process_runner(
 		github_cli_process_file_limits aFileLimits)
+		-> std::unique_ptr<github_cli_process_port>;
+
+	/// \brief [[BPR-1879]]. Makes the runner for one kept clone's download
+	/// into the owned temporary store \p aDirectory.
+	/// \details Outside the sparse acquisition's 32 MiB per-file and 96 MiB
+	/// store limits: the kernel ceiling and the abort threshold are
+	/// \p aMaximumBytes (at most `github_cli_managed_clone_max_bytes`), and
+	/// a launch may run for `github_cli_managed_clone_max_timeout`. The same
+	/// supervision, write confinement, credential handling and Git search
+	/// path as every acquisition runner. Never takes a test seam.
+	[[nodiscard]] auto make_github_cli_managed_clone_process_runner(
+		const std::filesystem::path& aDirectory, const std::filesystem::path& aGit, std::uint64_t aMaximumBytes)
 		-> std::unique_ptr<github_cli_process_port>;
 
 	[[nodiscard]] auto make_github_cli_process_runner_for_test(

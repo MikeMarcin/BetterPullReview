@@ -4,6 +4,8 @@
 #include <algorithm>
 #include <atomic>
 #include <cstddef>
+#include <filesystem>
+#include <thread>
 #include <utility>
 
 namespace bpr::application {
@@ -34,6 +36,36 @@ namespace bpr::application {
 		[[nodiscard]] auto target_of(const clone_repository& aRepository) -> core::clone_target
 		{
 			return { .Host = aRepository.Host, .Owner = aRepository.Owner, .Name = aRepository.Name };
+		}
+
+		/// [[BPR-1879]]. Whether \p aPath is a folder directly inside the
+		/// profile's folder of kept clones.
+		[[nodiscard]] auto kept_path(const std::string& aRoot, const std::string& aPath) -> bool
+		{
+			if (aRoot.empty() || aPath.empty()) {
+				return false;
+			}
+			const auto path = std::filesystem::path{ aPath }.lexically_normal();
+			return path.has_filename() && path.parent_path() == std::filesystem::path{ aRoot }.lexically_normal();
+		}
+
+		/// [[BPR-1879]]. The kept clone's folder name: the host and the
+		/// repository's identity, so a renamed repository keeps its clone, or
+		/// its owner and name while the identity is unknown. Only letters,
+		/// digits, `.`, `-` and `_`.
+		[[nodiscard]] auto kept_name(const clone_repository& aRepository) -> std::string
+		{
+			auto name = aRepository.Host + "-" + (aRepository.Repository != 0U ? std::to_string(aRepository.Repository) : aRepository.Owner + "-" + aRepository.Name);
+			for (auto& character : name) {
+				const auto byte = static_cast<unsigned char>(character);
+				if (!((byte >= 'a' && byte <= 'z') || (byte >= 'A' && byte <= 'Z') || (byte >= '0' && byte <= '9') || byte == '.' || byte == '-' || byte == '_')) {
+					character = '_';
+				}
+			}
+			while (name.starts_with('.')) {
+				name.front() = '_';
+			}
+			return name;
 		}
 	} // namespace
 
@@ -220,8 +252,49 @@ namespace bpr::application {
 				});
 		}
 
+		/// [[BPR-1879]]. The kept clone's folder for the observed repository.
+		[[nodiscard]] auto kept_location() const -> std::string
+		{
+			if (!Projection.Repository || Dependencies.ManagedRoot.empty()) {
+				return { };
+			}
+			return (std::filesystem::path{ Dependencies.ManagedRoot }.lexically_normal() / kept_name(*Projection.Repository)).string();
+		}
+
+		/// [[BPR-1879]]. A link is the kept clone when its folder is in the
+		/// profile's folder of kept clones.
+		void mark_kept(repository_link& aLink) const { aLink.Managed = !aLink.PrivateCopy && kept_path(Dependencies.ManagedRoot, aLink.Path); }
+
+		/// [[BPR-1879]]. Links the kept clone at \p aPath, as Choose does a
+		/// folder: it must be a clone whose remote names the repository.
+		[[nodiscard]] auto link_kept(const clone_repository& aRepository, const core::clone_candidate& aRead) -> bool
+		{
+			const auto candidates = std::vector{ aRead };
+			const auto matches    = core::match_clones(candidates, target_of(aRepository), Projection.Folders, aRead.Path);
+			if (matches.empty()) {
+				return false;
+			}
+			auto link       = repository_link{ };
+			link.Host       = aRepository.Host;
+			link.Repository = aRepository.Repository;
+			link.Owner      = aRepository.Owner;
+			link.Name       = aRepository.Name;
+			link.Path       = matches.front().Path;
+			link.Remote     = matches.front().Remote;
+			mark_kept(link);
+			if (!valid(link) || !link.Managed) {
+				return false;
+			}
+			store_link(std::move(link));
+			return true;
+		}
+
 		clone_link_dependencies  Dependencies;
 		clone_link_projection    Projection;
+		std::stop_source         Keeping;
+		std::uint64_t            KeepGeneration = 0U;
+		std::atomic_bool         ProgressPending{ false };
+		std::atomic_uint64_t     ProgressBytes{ 0U };
 		std::vector<std::string> Existing;
 		std::uint64_t            VerifyGeneration   = 0U;
 		std::uint64_t            DiscoverGeneration = 0U;
@@ -267,6 +340,9 @@ namespace bpr::application {
 				}
 				if (aLoaded.Links) {
 					self->Projection.Links = std::move(*aLoaded.Links);
+					for (auto& link : self->Projection.Links) {
+						self->mark_kept(link);
+					}
 				}
 				self->Existing          = std::move(aLoaded.Existing);
 				self->Projection.Loaded = true;
@@ -280,10 +356,134 @@ namespace bpr::application {
 		if (host.Projection.Repository == aRepository) {
 			return;
 		}
-		host.Projection.Repository = std::move(aRepository);
+		// [[BPR-1879]]. A kept clone is downloaded for the repository on
+		// screen; another repository stops it.
+		const auto sameRepository = host.Projection.Repository && aRepository && host.Projection.Repository->Host == aRepository->Host
+			&& host.Projection.Repository->Repository == aRepository->Repository && host.Projection.Repository->Owner == aRepository->Owner
+			&& host.Projection.Repository->Name == aRepository->Name;
+		if (!sameRepository) {
+			host.Keeping.request_stop();
+			++host.KeepGeneration;
+			host.Projection.Keeping = { };
+		}
+		host.Projection.Repository      = std::move(aRepository);
+		host.Projection.ManagedLocation = host.Projection.Repository && host.Projection.Repository->CanKeep ? host.kept_location() : std::string{ };
 		host.Projection.Matches.clear();
 		host.Projection.Discovered = false;
 		host.verify();
+	}
+
+	void clone_link_host::keep_clone()
+	{
+		auto& host = *Implementation;
+		if (host.Closing || !host.Projection.Repository || !host.Projection.Repository->CanKeep || host.Projection.ManagedLocation.empty() || !host.Dependencies.Keep
+			|| host.Dependencies.Decision == nullptr || host.Projection.Keeping.State == managed_clone_state::downloading) {
+			return;
+		}
+		auto prepared = host.Dependencies.Keep(*host.Projection.Repository, host.Projection.ManagedLocation);
+		if (!prepared) {
+			host.Projection.Keeping = { .State = managed_clone_state::failed, .Received = 0U, .Failure = managed_clone_failure::unavailable };
+			host.publish();
+			return;
+		}
+		host.Keeping            = std::stop_source{ };
+		const auto generation   = ++host.KeepGeneration;
+		host.Projection.Keeping = { .State = managed_clone_state::downloading, .Received = 0U, .Failure = std::nullopt };
+		host.ProgressPending    = false;
+		host.ProgressBytes      = 0U;
+		auto       kept         = *host.Projection.Repository;
+		auto       location     = host.Projection.ManagedLocation;
+		const auto stop         = host.Keeping.get_token();
+		const auto watch        = operation_stopwatch{ };
+		record_operation(host.Dependencies.Log.get(), { .Action = core::operation_action::clone_keep }, true);
+		host.publish();
+		++host.Outstanding;
+		struct finished
+		{
+			std::optional<core::clone_candidate> Read;
+			std::optional<managed_clone_error>   Error;
+		};
+		try {
+			// Its own worker: a large repository's download takes minutes, and
+			// neither the decision lane nor the shared effect lane may wait on it.
+			std::thread{ [self = Implementation, generation, repository = std::move(kept), destination = std::move(location), stop, watch, job = std::move(prepared)]() mutable {
+				auto outcome = finished{ };
+				try {
+					// A kept clone already in place is linked as it is.
+					auto read = self->Dependencies.Reads.Read ? self->Dependencies.Reads.Read(destination) : std::optional<core::clone_candidate>{ };
+					if (!read) {
+						const auto progress = [weak = std::weak_ptr{ self }, generation](const std::uint64_t aBytes) {
+							const auto owner = weak.lock();
+							if (!owner || owner->Closing) {
+								return;
+							}
+							owner->ProgressBytes = aBytes;
+							if (owner->ProgressPending.exchange(true)) {
+								return;
+							}
+							++owner->Outstanding;
+							try {
+								owner->Dependencies.Decision->post([owner, generation] {
+									--owner->Outstanding;
+									owner->ProgressPending = false;
+									if (owner->Closing || generation != owner->KeepGeneration || owner->Projection.Keeping.State != managed_clone_state::downloading) {
+										return;
+									}
+									owner->Projection.Keeping.Received = owner->ProgressBytes;
+									owner->publish();
+								});
+							} catch (...) {
+								--owner->Outstanding;
+								owner->ProgressPending = false;
+							}
+						};
+						auto made = job(progress, stop);
+						if (!made) {
+							outcome.Error = std::move(made.error());
+						} else {
+							read = self->Dependencies.Reads.Read ? self->Dependencies.Reads.Read(destination) : std::optional<core::clone_candidate>{ };
+						}
+					}
+					outcome.Read = std::move(read);
+				} catch (...) {
+					outcome.Error = managed_clone_error{ managed_clone_failure::failed, { } };
+				}
+				const auto failure = outcome.Error ? outcome.Error->Failure : (outcome.Read ? std::optional<managed_clone_failure>{ } : std::optional{ managed_clone_failure::failed });
+				record_operation(self->Dependencies.Log.get(), { .Action = core::operation_action::clone_keep, .Failure = !failure ? core::operation_failure::none : *failure == managed_clone_failure::cancelled ? core::operation_failure::cancelled
+																																																				  : core::operation_failure::keep_failed,
+																 .DurationMilliseconds = watch.milliseconds() });
+				try {
+					self->Dependencies.Decision->post([self, generation, linked = std::move(repository), ended = std::move(outcome), failure]() mutable {
+						--self->Outstanding;
+						if (self->Closing || generation != self->KeepGeneration) {
+							return;
+						}
+						if (!failure && ended.Read && self->link_kept(linked, *ended.Read)) {
+							self->Projection.Keeping = { };
+							self->publish();
+							return;
+						}
+						const auto why           = failure.value_or(managed_clone_failure::failed);
+						self->Projection.Keeping = why == managed_clone_failure::cancelled ? managed_clone_projection{ } : managed_clone_projection{ .State = managed_clone_state::failed, .Received = 0U, .Failure = why };
+						self->publish();
+					});
+				} catch (...) {
+					--self->Outstanding;
+				}
+			} }.detach();
+		} catch (...) {
+			--host.Outstanding;
+			host.Projection.Keeping = { .State = managed_clone_state::failed, .Received = 0U, .Failure = managed_clone_failure::failed };
+			host.publish();
+		}
+	}
+
+	void clone_link_host::cancel_keeping()
+	{
+		auto& host = *Implementation;
+		if (host.Projection.Keeping.State == managed_clone_state::downloading) {
+			host.Keeping.request_stop();
+		}
 	}
 
 	void clone_link_host::look_again() { Implementation->discover(); }
@@ -410,7 +610,12 @@ namespace bpr::application {
 
 	auto clone_link_host::projection() const -> clone_link_projection { return Implementation->Projection; }
 
-	void clone_link_host::shutdown() noexcept { Implementation->Closing = true; }
+	void clone_link_host::shutdown() noexcept
+	{
+		Implementation->Closing = true;
+		// [[BPR-1879]]. A download stops; quiescence waits for its worker.
+		Implementation->Keeping.request_stop();
+	}
 
 	auto clone_link_host::is_quiescent() const noexcept -> bool { return Implementation->Outstanding == 0U; }
 } // namespace bpr::application

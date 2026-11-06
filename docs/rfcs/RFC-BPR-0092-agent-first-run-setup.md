@@ -299,7 +299,7 @@ its own: see the amendment below.
 >   say it saw only the pull request's files; and the turn's footer says "It
 >   sees only this pull request's files" while it runs and "It saw only this
 >   pull request's files" when it answers.
-> - **A BetterPullReview-managed clone** (not built yet; its own slice) is a
+> - **A BetterPullReview-managed clone** ([[BPR-1879]]) is a
 >   full clone (every object), not
 >   a blobless one: a blobless clone would need lazy blob fetches, and those
 >   must never run inside the agent's sandbox or with its environment; a full
@@ -308,6 +308,37 @@ its own: see the amendment below.
 >   repository cache, is shown in Storage and is removed by profile purge.
 >   Whether it also replaces that repository's sparse review cache is left to
 >   a later card.
+>
+>   As built: the Repository step of a sparse review read through a `gh`
+>   lease offers **Let BetterPullReview keep one** between linking a clone
+>   (still the default action) and **Ask about this pull request only**,
+>   saying "Downloads about SIZE from GitHub once, in the background, and
+>   keeps it in LOCATION. Later questions fetch only what is new." SIZE is
+>   GitHub's `size` from the review's repository read, in decimal units; the
+>   whole repository is said when GitHub gave none. The review's own lease
+>   runs `gh repo clone URL STORE --no-upstream -- --no-checkout --quiet`
+>   with the same pinned private configuration, environment, hooks off, no
+>   fsmonitor, `core.sharedRepository=0600`, identity checks before and
+>   after, and the same write confinement to a private temporary root as
+>   every sparse acquisition, but on its own runner outside the 32 MiB
+>   per-file and 96 MiB store limits (its ceilings grow with the stated size,
+>   at least 4 GiB, at most 64 GiB, and it may run two hours);
+>   `architecture_boundaries` pins that runner's factory. The store is
+>   checked to hold a commit at `HEAD`, made owner-private, and moved whole
+>   to `agent-clones-v1/HOST-REPOSITORY_ID` in the profile. While it runs the
+>   step shows the bytes received of about SIZE with **Cancel**; Cancel, a
+>   failure or another repository on screen leaves nothing in the profile. A
+>   failure says why with **Try keeping one again**. When it is in place it
+>   is linked as the repository's clone, so the setup moves on and later
+>   questions borrow it exactly as a linked clone: a head it holds is lent
+>   with no fetch, and a head it lacks is fetched as the delta above, into
+>   the workspace. The kept clone itself is not fetched into again; keeping
+>   it current that way is left to a later card. A kept clone already in
+>   place is linked without a download. Settings › Repositories › Linked
+>   clones names it "kept by BetterPullReview". Insights › Storage measures
+>   `agent-clones-v1` as "Clones kept for the agent"; profile purge removes
+>   it (each kept clone may hold only its `.git` folder, so a checked-out
+>   file blocks the purge); the resets keep it.
 >
 > The sparse row's former text, "the head's files only, without history,
 > branches, tags, LFS files or submodules", described the snapshot and is

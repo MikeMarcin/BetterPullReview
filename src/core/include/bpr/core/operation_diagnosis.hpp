@@ -190,6 +190,9 @@ namespace bpr::core {
 		/// [[BPR-1867]]. Pull requests with new activity handed on, so a window
 		/// showing one reads it again (`count`).
 		activity_refresh,
+		/// [[BPR-1879]]. The clone BetterPullReview keeps for a repository,
+		/// downloaded or found in place; a clone-scan line.
+		clone_keep,
 	};
 
 	/// \brief [[BPR-1828]]. Why an operation did not succeed: a closed set
@@ -367,6 +370,8 @@ namespace bpr::core {
 		wrong_target,
 		not_authorized,
 		read_failed,
+		// [[BPR-1879]]. A kept clone was not made (or not linked).
+		keep_failed,
 	};
 
 	/// \brief [[BPR-1831]]. Which SQLite store a storage line is about, by its
