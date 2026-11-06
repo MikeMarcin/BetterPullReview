@@ -3987,6 +3987,14 @@ bpr_add_network_isolated_test(NAME application_home_open_feedback_public_path WI
 set_tests_properties(application_home_open_feedback_public_path PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240
     PASS_REGULAR_EXPRESSION "home-open-feedback-public-path:pass")
+# [[BPR-1875]]. A CLI account, whose discovery reads on lanes of its own: an
+# open from Home and a discovery refresh beside it, in either order.
+if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
+    bpr_add_network_isolated_test(NAME application_home_open_feedback_cli_public_path WINDOWS_UNCONTAINED COMMAND test_home_open_feedback_public_path --gh-cli)
+    set_tests_properties(application_home_open_feedback_cli_public_path PROPERTIES
+        ENVIRONMENT "${bpr_public_path_fixture_environment}" TIMEOUT 240
+        PASS_REGULAR_EXPRESSION "home-open-feedback-cli-public-path:pass")
+endif()
 
 # [[BPR-0978]]. Two concurrent profiles, two accounts on one fixture server.
 bpr_add_executable(test_profile_two_account_isolation_public_path profile_two_account_isolation_public_path_tests.cpp)

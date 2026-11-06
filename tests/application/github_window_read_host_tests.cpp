@@ -269,7 +269,7 @@ namespace {
 		sources.complete(1, true);
 		expect(updates.back().Presentation.CachedSource->Status == application::cached_source_status::unavailable && !updates.back().Presentation.CachedSource->HeadText, "foreign head completion cannot publish content");
 		host.read_cached_source("src/renamed.cpp");
-		host.cancel();
+		host.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		const auto cancelledCount = updates.size();
 		sources.complete(2);
 		expect(sources.Stops[2].stop_requested() && updates.size() == cancelledCount && host.is_quiescent(), "cancelled historical source completion drains without publication");
@@ -289,7 +289,7 @@ namespace {
 		expect(!cached() && effects.pending() == 0, "permission failure cannot expose historical metadata");
 		open();
 		fail();
-		host.cancel();
+		host.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		effects.drain();
 		lane.drain();
 		expect(!cached() && host.is_quiescent(), "cancelled cache completion drains without publishing");
@@ -434,7 +434,7 @@ namespace {
 		host.dispatch(core::open_pull_request_intent{ { "owner", "other" }, core::pull_request_number{ 2U } });
 		const auto second = provider.Calls.back();
 		second.Overview(observation(second));
-		host.cancel();
+		host.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		const auto afterCancel = updates.size();
 		lane.drain();
 		expect(updates.size() == afterCancel, "queued observations cannot revive a cancelled target");
@@ -598,6 +598,71 @@ namespace {
 		moved.Complete(application::github_pull_request_cancelled{ moved.Request });
 		lane.drain();
 		expect(host.is_quiescent(), "the refreshed conversation accounts for all queued work");
+	}
+
+	/// [[BPR-1875]]. Every cancelled read's line names why it ended, and
+	/// nothing else.
+	void test_cancelled_read_names_its_cause()
+	{
+		reads                                               provider;
+		application::manual_executor                        lane;
+		diagnostics                                         log;
+		std::vector<application::github_window_read_update> updates;
+		auto                                                host = std::make_unique<application::github_window_read_host>(
+			core::bpr_window_context{ core::default_bpr_profile_id, core::bpr_window_id{ 2 }, core::bpr_window_generation{ 1 } },
+			core::application_session_id{ 2 }, provider, lane, [&updates](const auto& aUpdate) { updates.push_back(aUpdate); }, nullptr, nullptr, nullptr, &log);
+		const auto identity = session();
+		expect(host->adopt(identity), "cause fixture adopts authenticated session");
+		auto       number = 0U;
+		const auto open   = [&] {
+			host->dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ ++number } });
+			lane.drain();
+			return provider.Calls.back();
+		};
+		const auto named = [&](const application::pull_request_cancel_cause aCause) {
+			const auto& event = log.Events.back();
+			return event.Operation == application::diagnostic_operation::pull_request && event.Outcome == application::diagnostic_outcome::cancelled
+				&& event.Summary.State == application::diagnostic_summary_state::sanitized
+				&& event.Summary.text() == "cancel_cause=" + std::string{ application::name(aCause) }
+			&& application::parse_pull_request_cancel_detail(event.Summary.text()) == aCause;
+		};
+		static_cast<void>(open());
+		host->cancel(application::pull_request_cancel_cause::reviewer);
+		expect(named(application::pull_request_cancel_cause::reviewer), "Home's Cancel is named as the reviewer's");
+		static_cast<void>(open());
+		host->cancel(application::pull_request_cancel_cause::restoration);
+		expect(named(application::pull_request_cancel_cause::restoration), "giving up a restoration is named as that");
+		for (const auto source : { application::github_pull_request_cancel_source::stop_requested, application::github_pull_request_cancel_source::provider_closing,
+								   application::github_pull_request_cancel_source::transport }) {
+			const auto call = open();
+			call.Complete(application::github_pull_request_cancelled{ .Request = call.Request, .Source = source });
+			lane.drain();
+			const auto expected = source == application::github_pull_request_cancel_source::stop_requested ? application::pull_request_cancel_cause::provider_stopped
+				: source == application::github_pull_request_cancel_source::provider_closing               ? application::pull_request_cancel_cause::provider_closing
+																										   : application::pull_request_cancel_cause::transport;
+			expect(named(expected), "a provider's cancelled answer is named by its source");
+		}
+		static_cast<void>(open());
+		host->dispatch(core::close_pull_request_intent{ });
+		lane.drain();
+		expect(named(application::pull_request_cancel_cause::review_closed), "closing the review is named as that");
+		static_cast<void>(open());
+		expect(host->retire(identity), "the session is retired while a read is in flight");
+		expect(named(application::pull_request_cancel_cause::session_retired), "a retired session is named as that");
+		auto replacement       = session();
+		replacement.Generation = core::github_identity_generation{ 2 };
+		expect(host->adopt(replacement), "a replacement session is adopted");
+		static_cast<void>(open());
+		host->shutdown();
+		expect(named(application::pull_request_cancel_cause::window_closed), "a window shut down is named as that");
+		for (const auto& event : log.Events) {
+			if (event.Outcome == application::diagnostic_outcome::cancelled) {
+				expect(application::parse_pull_request_cancel_detail(event.Summary.text()).has_value(), "every cancelled line names a cause");
+			}
+		}
+		expect(!application::parse_pull_request_cancel_detail("cancel_cause=").has_value() && !application::parse_pull_request_cancel_detail("cancel_cause=elsewhere").has_value()
+				   && !application::parse_pull_request_cancel_detail("reviewer").has_value(),
+			   "only an exact known cause parses");
 	}
 
 	void test_safe_read_presentation_matches_accepted_state()
@@ -941,8 +1006,8 @@ namespace {
 		expect(log.Events.size() == 2U && log.Events[0].Request == log.Events[1].Request
 				   && log.Events[0].WindowSession == 12U && log.Events[1].WindowSession == 13U,
 			   "window-local request ids remain distinct in the shared diagnostic stream");
-		first.cancel();
-		second.cancel();
+		first.cancel(bpr::application::pull_request_cancel_cause::reviewer);
+		second.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		firstReads.Calls.front().Complete(application::github_pull_request_cancelled{ firstReads.Calls.front().Request });
 		secondReads.Calls.front().Complete(application::github_pull_request_cancelled{ secondReads.Calls.front().Request });
 		lane.drain();
@@ -1222,7 +1287,7 @@ namespace {
 		}
 		expect(provider.Calls.size() == 2 && second.is_quiescent(), "Refresh and sibling Open cannot bypass primary reset");
 		expect(updates.back().Presentation.HostDiagnostics.back().RetryAfterSeconds == 5U, "blocked explicit retry projects actual remaining primary delay");
-		first.cancel();
+		first.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		now.MonotonicMilliseconds = 5999;
 		second.dispatch(open);
 		expect(provider.Calls.size() == 2, "one millisecond before deadline remains refused");
@@ -1232,7 +1297,7 @@ namespace {
 		second.dispatch(open);
 		expect(provider.Calls.size() == 3, "explicit retry at deadline gets one request");
 		call = provider.Calls.back();
-		second.cancel();
+		second.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		call.Complete(application::github_pull_request_error{ call.Request, limited_error(true) });
 		lane.drain();
 		expect(second.is_quiescent() && !second.accepted_snapshot(), "cancelled request's late rate failure cannot publish");
@@ -1253,7 +1318,7 @@ namespace {
 		second.dispatch(open);
 		expect(provider.Calls.size() == 5, "other account does not inherit cooldown");
 		call = provider.Calls.back();
-		second.cancel();
+		second.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		call.Complete(application::github_pull_request_cancelled{ call.Request });
 		lane.drain();
 		expect(first.retire(identity), "retire rate-limited session");
@@ -1387,7 +1452,7 @@ namespace {
 		expect(host.accepted_snapshot()->ReviewRequests.empty() && !host.accepted_snapshot()->ReviewRequestsStale && !host.accepted_snapshot()->Merge.Stale, "accepted removal and approval replace retained stale requests");
 		host.dispatch(core::refresh_pull_request_intent{ });
 		const auto late = provider.Calls.back();
-		host.cancel();
+		host.cancel(bpr::application::pull_request_cancel_cause::reviewer);
 		lane.drain();
 		host.dispatch(core::open_pull_request_intent{ { "owner", "repo" }, core::pull_request_number{ 2 } });
 		late.Complete(application::github_pull_request_success{ late.Request, accepted });
@@ -1419,6 +1484,7 @@ int main()
 	test_shared_backoff_lifecycle();
 	test_resource_and_account_admission();
 	test_reentrant_read_publication();
+	test_cancelled_read_names_its_cause();
 	test_safe_read_presentation_matches_accepted_state();
 	test_two_windows_have_distinct_diagnostic_courses();
 	test_timeline_evidence_reaches_epoch_handoff_without_blocking_live_read();

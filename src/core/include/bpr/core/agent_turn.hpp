@@ -120,8 +120,6 @@ namespace bpr::core {
 		/// The setup's two checks as they stand this session.
 		setup_check_state AgentCheck     = setup_check_state::not_run;
 		setup_check_state WorkspaceCheck = setup_check_state::not_run;
-		/// The setup's Ready line is still shown above the conversation.
-		bool ReadyShowing = false;
 		/// A turn is running.
 		bool Working = false;
 		/// The reviewer's Suggestions toggle is on.
@@ -136,8 +134,7 @@ namespace bpr::core {
 		/// No agent is offered: the tab shows how to set one up.
 		no_agent,
 		/// The setup has not finished: an agent or repository is still to be
-		/// chosen, a check failed or runs, the setup is on screen, or its
-		/// Ready line has not been read yet.
+		/// chosen, a check failed or runs, or the setup is on screen.
 		setup_unfinished,
 		/// A turn is running ([[BPR-1755]]).
 		working,
@@ -155,7 +152,9 @@ namespace bpr::core {
 	/// \details The setup counts as finished at its Ready step, or at Check
 	/// it works when neither check has failed or is running this session: the
 	/// checks are not kept, so a reopened application that was set up before
-	/// stands at Check it works with both not run.
+	/// stands at Check it works with both not run. [[BPR-1877]]: the
+	/// setup's Ready line is a passed check, so it never holds them back;
+	/// they show beside it.
 	[[nodiscard]] auto decide_agent_suggestions(const agent_suggestion_facts& aFacts) noexcept -> agent_suggestions_verdict;
 
 	/// \brief [[BPR-1872]]. What the Agent tab knows when a suggested prompt
