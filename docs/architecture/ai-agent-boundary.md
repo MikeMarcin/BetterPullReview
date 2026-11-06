@@ -1546,7 +1546,7 @@ planted `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json` (a hook) and
 | `CLAUDE.md` auto-discovery | `--setting-sources ""`, and the empty folder below | Neither planted file reached the system prompt or messages |
 | Hooks | `disableAllHooks`, no settings source | The planted hook did not run |
 | Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no settings source names a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder. Hardening, not a gate: a builtin policy holds on still loads ([[BPR-1891]]) |
-| Auto-memory | `autoMemoryEnabled: false` | No memory section in the prompt; no `memory_paths` in the init frame |
+| Auto-memory | `autoMemoryEnabled: false`, and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in the environment ([[BPR-1896]]) | No memory section in the prompt; no `memory_paths` in the init frame. Hardening, not a gate: a wrapper whose own settings replace these can turn it back on, and the init frame then reports a memory folder ([[BPR-1896]]) |
 | MCP servers, claude.ai connectors | `--strict-mcp-config` with an empty configuration | `mcp_servers: []`, signed in with a Claude account too |
 | LSP | No plugin, no settings source | Zero LSP servers |
 | Background prefetches | Not held off | Claude still fetches its own bootstrap from Anthropic, on the same sign-in |
@@ -1556,9 +1556,16 @@ The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is
 where Claude starts and nothing left there outlives the request. The decoder
-refuses, before any text is read, an init frame that reports a tool, an MCP
-server or an auto-memory folder; a plugin's tools and MCP servers would show in
-the first two. Plugins themselves are reported, not refused ([[BPR-1891]]):
+refuses, before any text is read, an init frame that reports a tool or an MCP
+server; a plugin's tools and MCP servers would show there. An auto-memory
+folder is reported, not refused ([[BPR-1896]]): a wrapper that passes its own
+`--settings` replaces this app's, since Claude keeps only the last one, and
+turns auto-memory and the builtins back on. The folder is keyed to the run's
+fresh `bpr-writing-XXXXXX` folder, so it is new and empty and nothing from
+another run or project loads, and with no tool nothing in the run can write
+it; at most an empty folder is left under Claude's own state. The `agent.run`
+line reads `memory=on`, never the path, which holds the home folder name.
+Plugins themselves are reported, not refused ([[BPR-1891]]):
 Claude builds them in release by release, and policy can hold one on that no
 setting a person passes turns off (Claude Code 2.1.314 holds
 `cc-plugin-sec-default@builtin` on wherever managed settings apply). The run's
