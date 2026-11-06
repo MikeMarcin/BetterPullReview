@@ -3,6 +3,7 @@ schema: "implement-rfc.card.v1"
 id: "BPR-1873"
 title: "An agent's workspace comes from a linked or BetterPullReview-managed clone, never a head snapshot download"
 status: "Parked"
+parked_on: "human-review"
 rfcs: []
 depends_on: []
 priority: "P1"
