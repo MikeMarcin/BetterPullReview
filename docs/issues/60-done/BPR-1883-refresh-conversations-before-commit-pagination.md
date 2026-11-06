@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1883"
 title: "Refresh conversations before waiting for commit pagination"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1882--BPR-1883--c940b7c58a89.json","related_cards":["BPR-1851"],"milestone_plan":{"id":"responsiveness-latency-v1","path":"docs/rfcs/plans/responsiveness-latency-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"be0adddd06d5a5b697e015dbeaea42f950c405df","evidence":{"kind":"observation","detail":"github_paged_read passes one- and three-page refresh ordering, before any commit response; commit pages are still read exactly once. First-open order and existing anonymous public-preview courses pass. Three composed rounds retain exactly the same 18 requests."}},{"criterion":"AC2","outcome":"pass","revision":"be0adddd06d5a5b697e015dbeaea42f950c405df","evidence":{"kind":"observation","detail":"Provider contract cases retain wrong-head and commit-count refusals and cancellation between pages. application_github_window_read_host passes same-head/base admission, unchanged snapshot identity, one early publication and unchanged epoch handoff. github_provider and github_read_contract pass."}},{"criterion":"AC3","outcome":"pass","revision":"be0adddd06d5a5b697e015dbeaea42f950c405df","evidence":{"kind":"observation","detail":"Composed Release refresh_current_file_public_path passes at 330 ms/read with all assertions enabled. Full-window offscreen render inspected: comparison visible, fresh conversation count, Loading commits stage and Refreshing remaining details marker; no blank sample or wash after freshness. application_refresh_feedback_public_path passes."}},{"criterion":"AC4","outcome":"pass","revision":"be0adddd06d5a5b697e015dbeaea42f950c405df","evidence":{"kind":"observation","detail":"Three measured rounds improve conversation median from 1999 to 1673 ms, leaving terminal completion about 6 s and request count unchanged. Journal and host contract updated. Focused source/test format and tidy, production architecture guards, documentation gate and 67 documentation regressions pass. Broader pre-existing architecture-fixture, network-manifest and whole-Qt tidy failures are explicitly recorded with unchanged-source evidence; none is claimed as passing."}}]
 ---
 
 # BPR-1883: Refresh conversations before waiting for commit pagination
