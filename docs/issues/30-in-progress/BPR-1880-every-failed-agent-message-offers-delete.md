@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1880"
 title: "Every failed agent message offers Delete"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1876"]
 priority: "P2"

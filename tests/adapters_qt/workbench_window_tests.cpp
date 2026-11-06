@@ -14594,12 +14594,52 @@ namespace {
 			expect(agent->turn_count() == 1U && told == 2 && kept.size() == 1U && agent->turn_question(0U) == question, "an earlier one is deleted the same way");
 			agent->set_thread_observer({ });
 		}
-		// A message the agent received stays: a stopped or unreadable turn
-		// offers no Delete.
-		agent->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("declawd answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
+		// [[BPR-1880]], owner 2026-11-06: "Put Delete on every failed
+		// message, not just unsent ones." AC1: every failed kind offers
+		// Delete, beside Agent settings… or Resend on the latest; an answer
+		// does not.
+		const auto never    = QStringLiteral("Remove this message from the conversation. It never reached the agent.");
+		const auto received = QStringLiteral("Remove this message from the conversation. The agent won't be sent it again, so it won't remember it.");
+		auto       failed   = std::vector<qt::agent_thread_turn>{ { .Question = QStringLiteral("Earlier question"), .Answer = QStringLiteral("It does."), .Footer = QStringLiteral("declawd answered in 0:09."), .Outcome = core::agent_turn_outcome::answered } };
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome = *core::agent_turn_outcome_of(ordinal);
+			if (outcome != core::agent_turn_outcome::answered) {
+				failed.push_back({ .Question = QString::fromUtf8(core::stable_name(outcome)), .Answer = QStringLiteral("It ended without an answer."), .Footer = QStringLiteral("Stopped after 0:04."), .Outcome = outcome });
+			}
+		}
+		agent->present_thread(failed);
+		process_events();
+		expect(agent->turn_count() == failed.size() && !shown(agent->turn_delete_button(0U)), "an answer offers no Delete");
+		for (auto turn = std::size_t{ 1U }; turn < failed.size(); ++turn) {
+			const auto* const remove = agent->turn_delete_button(turn);
+			expect(shown(remove) && remove->text() == QStringLiteral("Delete"), "every failed message offers Delete: " + std::string{ core::stable_name(failed[turn].Outcome) });
+			expect(remove->toolTip() == (core::agent_turn_never_sent(failed[turn].Outcome) ? never : received), "its tooltip says whether the agent had it and that it will not remember it");
+		}
+		expect(shown(agent->turn_recovery_button(failed.size() - 1U)), "the latest keeps its way back beside Delete");
+		// AC2: a message the agent received, once deleted, leaves the kept
+		// thread, which is all a later message carries of it: the Agent tab
+		// resumes no agent session of its own.
+		agent->present_thread({ { .Question = QStringLiteral("Earlier question"), .Answer = QStringLiteral("It does."), .Footer = QStringLiteral("declawd answered in 0:09."), .Outcome = core::agent_turn_outcome::answered },
+								{ .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("declawd answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
 								{ .Question = question, .Answer = QStringLiteral("Stopped before declawd answered."), .Footer = QStringLiteral("Stopped after 0:04."), .Outcome = core::agent_turn_outcome::stopped } });
 		process_events();
-		expect(!shown(agent->turn_delete_button(0U)) && !shown(agent->turn_delete_button(1U)) && shown(agent->turn_recovery_button(1U)), "a message the agent received offers no Delete");
+		expect(shown(agent->turn_delete_button(1U)) && shown(agent->turn_delete_button(2U)) && shown(agent->turn_recovery_button(2U)), "a stopped and an unreadable message offer Delete too");
+		{
+			auto kept = std::vector<qt::agent_thread_turn>{ };
+			auto told = 0;
+			agent->set_thread_observer([&kept, &told](std::vector<qt::agent_thread_turn> aTurns) {
+				kept = std::move(aTurns);
+				++told;
+			});
+			agent->turn_delete_button(2U)->click();
+			process_events();
+			expect(agent->turn_count() == 2U && told == 1 && kept.size() == 2U && std::ranges::none_of(kept, [&question](const qt::agent_thread_turn& aTurn) { return aTurn.Question == question; }),
+				   "a deleted stopped message leaves the kept thread a later message carries");
+			agent->turn_delete_button(1U)->click();
+			process_events();
+			expect(agent->turn_count() == 1U && told == 2 && kept.size() == 1U && kept[0].Outcome == core::agent_turn_outcome::answered, "an earlier unreadable one is deleted the same way, and the answer stays");
+			agent->set_thread_observer({ });
+		}
 		agent->set_setup_dispatch({ });
 		agent->present_thread({ });
 		chat->set_dispatch({ });

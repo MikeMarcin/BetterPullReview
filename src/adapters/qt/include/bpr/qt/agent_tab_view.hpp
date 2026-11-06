@@ -407,8 +407,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1847]]. An error turn's one way back (Resend or
 		/// Agent settings…), its reply card, and how it ended.
 		[[nodiscard]] auto turn_recovery_button(std::size_t aTurn) const -> QPushButton*;
-		/// \brief [[BPR-1876]]. Delete, on a turn whose message never reached
-		/// the agent.
+		/// \brief [[BPR-1876]], [[BPR-1880]]. Delete, on every error turn.
 		[[nodiscard]] auto turn_delete_button(std::size_t aTurn) const -> QPushButton*;
 		[[nodiscard]] auto turn_reply(std::size_t aTurn) const -> QWidget*;
 		[[nodiscard]] auto turn_outcome(std::size_t aTurn) const -> std::optional<core::agent_turn_outcome>;
@@ -570,8 +569,8 @@ namespace bpr::qt {
 			/// one made since; and the line that says it is fixed since.
 			bool             CauseRechecked = false;
 			QPointer<QLabel> FixedNote;
-			/// [[BPR-1876]]. Delete: a message that never reached the agent
-			/// leaves the thread.
+			/// [[BPR-1876]], [[BPR-1880]]. Delete: an error turn leaves the
+			/// thread.
 			QPointer<QPushButton> Delete;
 		};
 		std::vector<turn> Turns;
