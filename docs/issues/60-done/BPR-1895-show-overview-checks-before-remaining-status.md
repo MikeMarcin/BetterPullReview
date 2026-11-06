@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1895"
 title: "Show Overview checks before remaining status"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1893"]
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1895--BPR-1895--a728bb8ad4fb.json","milestone_plan":{"id":"responsiveness-latency-v9","path":"docs/rfcs/plans/responsiveness-latency-v9/milestone-plan.json"},"frontend_design":"frontend-design:frontend-design and desktop guidance applied; retain the existing Checks section and partial loading plate."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3abe45e3638496d62e5746db763ae6281a2a8e1d","evidence":{"kind":"observation","detail":"Observed authenticated first opens publish both complete check collections before remaining merge/reviewer policy. The provider course proves availability/final records, cancellation and identical request sequence/counts; refresh checks remain absent and the read-authority guard excludes signed-out reads. Existing final validation and shared budgets remain."}},{"criterion":"AC2","outcome":"pass","revision":"3abe45e3638496d62e5746db763ae6281a2a8e1d","evidence":{"kind":"observation","detail":"Core and host courses pass exact window/request admission after metadata, once-only independent file/check order, stale/cancelled/terminal refusal, malformed/head/duplicate/text/record/availability validation, bounded posting and unchanged snapshot/epoch authority. Core-only and both architecture tests pass."}},{"criterion":"AC3","outcome":"pass","revision":"3abe45e3638496d62e5746db763ae6281a2a8e1d","evidence":{"kind":"observation","detail":"The strict composed offscreen app selects and reads check details while merge assessment is held, with the remaining-loading plate visible; final render inspected. Old-reader control fails the intended assertion. The two-check window control exposed and verifies the acceptance handoff fix at 1.0/1.25/2.0 scale, including replacement/failure/cancellation clearing."}},{"criterion":"AC4","outcome":"pass","revision":"3abe45e3638496d62e5746db763ae6281a2a8e1d","evidence":{"kind":"observation","detail":"Three serialized Release samples per side: first-open checks median 6355 to 3339 ms, completion 6355 to 6355 ms and 19 reads; second-open checks 6040 to 3357 ms with the same 21 reads. Eleven focused courses, core-only, both architecture checks, all 14 changed translation units tidy, format, documentation plus 67 documentation tests pass. Two existing window warnings are corrected and three affected functional courses re-pass. Source and journal landed on rewritten local main."}}]
 ---
 
 # BPR-1895: Show Overview checks before remaining status
@@ -160,3 +161,10 @@ corrections change neither acquisition nor fully constructed-window behavior.
 The corrected window passes full clang-tidy 22 with warnings as errors
 (`status-window-tidy-final.log`). Together with the other thirteen unchanged
 passing translation units, all touched C++ is lint-clean.
+
+## Landing
+
+Source, verified evidence and the one-line journal entry landed on rewritten
+local `main` as `3abe45e3638496d62e5746db763ae6281a2a8e1d`. All four acceptance criteria are satisfied;
+no owner action remains for this round. No old history was merged back, and no
+remote push or release was performed.
