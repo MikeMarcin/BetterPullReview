@@ -9,6 +9,7 @@
 #include <QVariant>
 
 #include <algorithm>
+#include <cstdint>
 #include <functional>
 #include <optional>
 #include <unordered_map>
@@ -429,7 +430,18 @@ namespace bpr::qt {
 			}
 		}
 
-		std::unordered_map<std::string, std::optional<std::string>> desiredParent;
+		enum class ancestry : std::uint8_t {
+			unknown,
+			visiting,
+			rooted,
+			cyclic
+		};
+		struct parent_link
+		{
+			std::optional<std::string> ParentId;
+			ancestry                   State = ancestry::unknown;
+		};
+		std::unordered_map<std::string, parent_link> desiredParent;
 		desiredParent.reserve(desiredByIdentity.size());
 		for (const auto& [identity, value] : desiredByIdentity) {
 			std::optional<std::string> parentIdentity;
@@ -449,39 +461,41 @@ namespace bpr::qt {
 					parentIdentity = *value->ParentId;
 				}
 			}
-			desiredParent.emplace(identity, std::move(parentIdentity));
+			desiredParent.emplace(identity, parent_link{ .ParentId = std::move(parentIdentity) });
 		}
 
-		// A parent chain that never terminates descends from no root, so the
-		// rows in it would be built and then attached to nothing. Promote every
-		// node on such a chain to a root instead: an unexpected shape should
-		// cost nesting, never a row. The projection resolves reply edges so
-		// this cannot arise from GitHub, but the model is fed by whoever calls
-		// it.
-		//
-		// The decision reads the parent map and never writes it, so it does not
-		// depend on the order an unordered container happens to iterate in.
-		// Breaking a cycle in place does: whichever member was visited first
-		// became the root, and the same input could produce two different
-		// trees.
-		std::unordered_set<std::string> promoteToRoot;
-		for (const auto& [identity, parentIdentity] : desiredParent) {
-			auto walk = parentIdentity;
-			for (auto remaining = desiredParent.size(); walk.has_value();
-				 --remaining) {
-				if (remaining == 0U) {
-					promoteToRoot.insert(identity);
-					break;
-				}
-				const auto next = desiredParent.find(*walk);
+		// [[BPR-1886]]. Classify every parent chain once without changing its
+		// edges. Cycles and all descendants become roots together, independent
+		// of map iteration order. Unexpected input may lose nesting, never rows.
+		std::vector<parent_link*> path;
+		for (auto& entry : desiredParent) {
+			if (entry.second.State != ancestry::unknown) {
+				continue;
+			}
+			path.clear();
+			auto* current = &entry.second;
+			while (true) {
+				const auto next = current->ParentId ? desiredParent.find(*current->ParentId) : desiredParent.end();
 				if (next == desiredParent.end()) {
+					current->State = ancestry::rooted;
 					break;
 				}
-				walk = next->second;
+				if (next->second.State != ancestry::unknown) {
+					current->State = next->second.State == ancestry::rooted ? ancestry::rooted : ancestry::cyclic;
+					break;
+				}
+				current->State = ancestry::visiting;
+				path.push_back(current);
+				current = &next->second;
+			}
+			for (auto* link : path) {
+				link->State = current->State;
 			}
 		}
-		for (const auto& identity : promoteToRoot) {
-			desiredParent.at(identity).reset();
+		for (auto& entry : desiredParent) {
+			if (entry.second.State == ancestry::cyclic) {
+				entry.second.ParentId.reset();
+			}
 		}
 
 		std::vector<const conversation*> desiredRoots;
@@ -498,7 +512,7 @@ namespace bpr::qt {
 				|| selected->second != &value || !ordered.insert(value.Id).second) {
 				continue;
 			}
-			const auto& parentIdentity = desiredParent.at(value.Id);
+			const auto& parentIdentity = desiredParent.at(value.Id).ParentId;
 			if (parentIdentity.has_value()) {
 				desiredChildren[*parentIdentity].push_back(&value);
 			} else {
@@ -522,7 +536,7 @@ namespace bpr::qt {
 					const auto  desired = desiredParent.find(value->Value.Id);
 					if (
 						desired == desiredParent.end()
-						|| desired->second != aActualParent) {
+						|| desired->second.ParentId != aActualParent) {
 						beginRemoveRows(
 							aParentIndex,
 							static_cast<int>(row),
