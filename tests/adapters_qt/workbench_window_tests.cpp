@@ -14289,8 +14289,8 @@ namespace {
 		expect(shown(agent->turn_note_button(1U)) && shown(agent->turn_draft_button(1U)) && shown(agent->turn_copy_button(1U)) && agent->turn_reply(1U)->accessibleDescription().isEmpty(),
 			   "a kept answer keeps Save as note and Draft comment");
 		expect(!shown(agent->turn_note_button(2U)) && !shown(agent->turn_draft_button(2U)) && shown(agent->turn_recovery_button(2U))
-				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Ask again"),
-			   "the latest, an old stopped turn, offers Ask again");
+				   && agent->turn_recovery_button(2U)->text() == QStringLiteral("Resend"),
+			   "the latest, an old stopped turn, offers Resend");
 		{
 			auto kept = std::vector<qt::agent_thread_turn>{ };
 			agent->set_thread_observer([&kept](std::vector<qt::agent_thread_turn> aTurns) { kept = std::move(aTurns); });
@@ -14304,8 +14304,8 @@ namespace {
 			expect(kept.size() == 4U && kept[0].Outcome == core::agent_turn_outcome::unreadable && kept[1].Outcome == core::agent_turn_outcome::answered
 					   && kept[3].Outcome == core::agent_turn_outcome::failed_to_start,
 				   "the thread is kept with how each turn ended");
-			expect(shown(agent->turn_recovery_button(3U)) && agent->turn_recovery_button(3U)->text() == QStringLiteral("Ask again") && !shown(agent->turn_recovery_button(2U)),
-				   "a start failure offers Ask again ([[BPR-1876]]), and the earlier error no longer offers anything");
+			expect(shown(agent->turn_recovery_button(3U)) && agent->turn_recovery_button(3U)->text() == QStringLiteral("Resend") && !shown(agent->turn_recovery_button(2U)),
+				   "a start failure offers Resend ([[BPR-1876]]), and the earlier error no longer offers anything");
 			agent->set_thread_observer({ });
 		}
 		agent->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("my-agent answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
@@ -14407,7 +14407,7 @@ namespace {
 	/// \brief [[BPR-1876]], owner 2026-11-05: a failed answer's Check again
 	/// re-ran the setup check, which passed, and left the red answer up with
 	/// its old cause, read as the check failing. A failed answer's action is
-	/// Ask again, which sends the same question as a new run; once the check
+	/// Resend (owner look v001), which sends the same message as a new run; once the check
 	/// its cause names has passed since, it says it is fixed since.
 	void test_a_failed_answer_asks_again_and_says_when_fixed()
 	{
@@ -14480,20 +14480,20 @@ namespace {
 			   "the turn ended as a start failure: " + agent->turn_answer(0U).toStdString());
 		// AC2, the cause holds: a check passed before the failure says nothing
 		// about it.
-		expect(shown(agent->turn_recovery_button(0U)) && agent->turn_recovery_button(0U)->text() == QStringLiteral("Ask again"), "a failed answer's action is Ask again, not Check again");
+		expect(shown(agent->turn_recovery_button(0U)) && agent->turn_recovery_button(0U)->text() == QStringLiteral("Resend"), "a failed answer's action is Resend, not Check again");
 		expect(agent->turn_reply(0U)->accessibleDescription() == QStringLiteral("Error") && !shown(fixedNote(0U)), "while the cause holds it is shown as the error, not fixed");
-		expect(shown(agent->banner()) && agent->banner()->findChild<QPushButton*>(QStringLiteral("agentStateFirst"))->text() == QStringLiteral("Ask again"),
-			   "the stopped banner asks again too, never Check again");
+		expect(shown(agent->banner()) && agent->banner()->findChild<QPushButton*>(QStringLiteral("agentStateFirst"))->text() == QStringLiteral("Resend"),
+			   "the stopped banner resends too, never Check again");
 		if (!root.isEmpty()) {
 			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-cause-light.png"), "PNG"), "render saved");
 		}
 
-		// AC1: Ask again sends the same question again, as a new run; it
+		// AC1: Resend sends the same question again, as a new run; it
 		// opens no setup and runs no check by itself.
 		agent->turn_recovery_button(0U)->click();
 		process_events();
 		expect(sends.size() == 2U && sends.back().Text == question.toStdString() && sends.back().Session == sends.front().Session && sends.back().Scope == sends.front().Scope,
-			   "Ask again sends the same question, in the same scope, again");
+			   "Resend sends the same message, in the same scope, again");
 		expect(setupOpened == 0 && agent->state() != qt::agent_tab_state::setting_up, "and opens no setup in its place");
 		identity.InvocationGeneration = 2U;
 		window.agent_panel()->admit(identity);
@@ -14509,17 +14509,17 @@ namespace {
 		process_events();
 		expect(!shown(fixedNote(1U)) && agent->turn_reply(1U)->accessibleDescription() == QStringLiteral("Error"), "while the check runs, the cause holds");
 		// It passes: both failed answers are fixed since; the latest offers
-		// Ask again, and the stopped banner stands down.
+		// Resend, and the stopped banner stands down.
 		setup.State.AgentCheck.State = core::setup_check_state::passed;
 		window.agent_setup()->present(setup, clones, { });
 		process_events();
 		expect(shown(fixedNote(1U)) && fixedNote(1U)->text().contains(QStringLiteral("Fixed since: my-agent passed its check."))
-				   && fixedNote(1U)->text().contains(QStringLiteral("Ask again to send this question now.")),
-			   "after the check passes, the latest failed answer reads as fixed since, with Ask again");
-		expect(shown(agent->turn_recovery_button(1U)) && agent->turn_recovery_button(1U)->text() == QStringLiteral("Ask again")
+				   && fixedNote(1U)->text().contains(QStringLiteral("Resend to try it now.")),
+			   "after the check passes, the latest failed answer reads as fixed since, with Resend");
+		expect(shown(agent->turn_recovery_button(1U)) && agent->turn_recovery_button(1U)->text() == QStringLiteral("Resend")
 				   && agent->turn_reply(1U)->accessibleDescription() == QStringLiteral("Error, fixed since"),
-			   "it keeps Ask again and is named fixed since");
-		expect(shown(fixedNote(0U)) && !fixedNote(0U)->text().contains(QStringLiteral("Ask again")) && !shown(agent->turn_recovery_button(0U)), "an earlier failure is fixed since too, with no way back of its own");
+			   "it keeps Resend and is named fixed since");
+		expect(shown(fixedNote(0U)) && !fixedNote(0U)->text().contains(QStringLiteral("Resend")) && !shown(agent->turn_recovery_button(0U)), "an earlier failure is fixed since too, with no way back of its own");
 		expect(!shown(agent->banner()), "the stopped banner no longer says it stopped");
 		expect(!shown(agent->turn_note_button(1U)) && !shown(agent->turn_draft_button(1U)), "fixed, it is still an error: no Save as note or Draft comment");
 		if (!root.isEmpty()) {
@@ -14562,6 +14562,44 @@ namespace {
 		window.agent_setup()->present(setup, clones, { });
 		process_events();
 		expect(shown(fixedNote(2U)) && fixedNote(2U)->text().contains(QStringLiteral("Fixed since: the workspace check passed.")), "the workspace check passing does");
+
+		// Owner look v001: a message that never reached the agent can be
+		// deleted, on any turn, beside Resend; the thread is kept without it.
+		setup.State.WorkspaceCheck.State = core::setup_check_state::failed;
+		window.agent_setup()->present(setup, clones, { });
+		process_events();
+		for (auto turn = std::size_t{ 0U }; turn < 3U; ++turn) {
+			expect(shown(agent->turn_delete_button(turn)) && agent->turn_delete_button(turn)->text() == QStringLiteral("Delete"), "every message that never reached the agent offers Delete");
+		}
+		expect(shown(agent->turn_recovery_button(2U)) && agent->turn_recovery_button(2U)->text() == QStringLiteral("Resend"), "the latest keeps Resend beside Delete");
+		if (!root.isEmpty()) {
+			expect(window.grab().save(root + QStringLiteral("/agent-failed-answer-delete-light.png"), "PNG"), "render saved");
+		}
+		{
+			auto kept = std::vector<qt::agent_thread_turn>{ };
+			auto told = 0;
+			agent->set_thread_observer([&kept, &told](std::vector<qt::agent_thread_turn> aTurns) {
+				kept = std::move(aTurns);
+				++told;
+			});
+			expect(shown(agent->banner()), "the stopped banner stands for the latest failure");
+			agent->turn_delete_button(2U)->click();
+			process_events();
+			expect(agent->turn_count() == 2U && told == 1 && kept.size() == 2U && kept[1].Outcome == core::agent_turn_outcome::failed_to_start,
+				   "Delete removes the latest message and the thread is kept without it");
+			expect(!shown(agent->banner()), "with its message gone, the stopped banner stands down");
+			expect(shown(agent->turn_recovery_button(1U)) && agent->turn_recovery_button(1U)->text() == QStringLiteral("Resend"), "the new latest offers Resend");
+			agent->turn_delete_button(0U)->click();
+			process_events();
+			expect(agent->turn_count() == 1U && told == 2 && kept.size() == 1U && agent->turn_question(0U) == question, "an earlier one is deleted the same way");
+			agent->set_thread_observer({ });
+		}
+		// A message the agent received stays: a stopped or unreadable turn
+		// offers no Delete.
+		agent->present_thread({ { .Question = QStringLiteral("Review this pull request"), .Answer = QStringLiteral("my-agent answered in a form this app can't read."), .Footer = QStringLiteral("Stopped after 0:15."), .Outcome = core::agent_turn_outcome::unreadable },
+								{ .Question = question, .Answer = QStringLiteral("Stopped before my-agent answered."), .Footer = QStringLiteral("Stopped after 0:04."), .Outcome = core::agent_turn_outcome::stopped } });
+		process_events();
+		expect(!shown(agent->turn_delete_button(0U)) && !shown(agent->turn_delete_button(1U)) && shown(agent->turn_recovery_button(1U)), "a message the agent received offers no Delete");
 		agent->set_setup_dispatch({ });
 		agent->present_thread({ });
 		chat->set_dispatch({ });

@@ -1127,6 +1127,7 @@ namespace bpr::qt {
 			: failed                    ? agent_tab_state::stopped
 										: agent_tab_state::idle;
 		if (State == agent_tab_state::working && !wasWorking) {
+			StoppedDismissed = false;
 			Started.start();
 			Ticker->start();
 			ReadyCard->hide();
@@ -1381,6 +1382,14 @@ namespace bpr::qt {
 		recovery->setFlat(true);
 		recovery->hide();
 		footerRow->addWidget(recovery);
+		// [[BPR-1876]], owner look v001: "We should also be able to delete a
+		// message that was never sent to the agent instead of just resend."
+		auto* const remove = new quiet_push_button{ tr("Delete"), reply };
+		remove->setObjectName(QStringLiteral("agentTurnDelete"));
+		remove->setFlat(true);
+		remove->setToolTip(tr("Remove this message from the conversation. It never reached the agent."));
+		remove->hide();
+		footerRow->addWidget(remove);
 		footerRow->addStretch(1);
 		auto* const answeredTime = new QLabel{ reply };
 		answeredTime->setObjectName(QStringLiteral("agentTurnAnsweredTime"));
@@ -1402,10 +1411,19 @@ namespace bpr::qt {
 		aTurn.Asked        = asked;
 		aTurn.Reply        = reply;
 		aTurn.Recovery     = recovery;
+		aTurn.Delete       = remove;
 		connect(recovery, &QPushButton::clicked, this, [this, recovery] {
 			for (const auto& kept : Turns) {
 				if (kept.Recovery == recovery) {
 					recover(kept);
+					return;
+				}
+			}
+		});
+		connect(remove, &QPushButton::clicked, this, [this, remove] {
+			for (auto index = std::size_t{ 0U }; index < Turns.size(); ++index) {
+				if (Turns[index].Delete == remove) {
+					delete_turn(index);
 					return;
 				}
 			}
@@ -2071,7 +2089,7 @@ namespace bpr::qt {
 				if (actions.FixedSince) {
 					const auto [glyph, colour] = setup_check_mark(core::setup_check_state::passed, palette());
 					const auto what            = cause == core::agent_turn_cause::workspace_check ? tr("Fixed since: the workspace check passed.") : tr("Fixed since: %1 passed its check.").arg(agent_name().toHtmlEscaped());
-					const auto next            = actions.Recovery == core::agent_turn_recovery::ask_again ? QStringLiteral(" ") + tr("Ask again to send this question now.") : QString{ };
+					const auto next            = actions.Recovery == core::agent_turn_recovery::resend ? QStringLiteral(" ") + tr("Resend to try it now.") : QString{ };
 					kept.FixedNote->setText(QStringLiteral("<span style=\"color:%1\">%2</span>&nbsp; <b>%3</b>%4").arg(colour.name(), glyph, what, next.toHtmlEscaped()));
 				}
 				kept.FixedNote->setVisible(actions.FixedSince);
@@ -2090,9 +2108,9 @@ namespace bpr::qt {
 			if (kept.Recovery != nullptr) {
 				switch (actions.Recovery) {
 				case core::agent_turn_recovery::none: break;
-				case core::agent_turn_recovery::ask_again:
-					kept.Recovery->setText(tr("Ask again"));
-					kept.Recovery->setToolTip(tr("Send this question again"));
+				case core::agent_turn_recovery::resend:
+					kept.Recovery->setText(tr("Resend"));
+					kept.Recovery->setToolTip(tr("Send this message to the agent again"));
 					break;
 				case core::agent_turn_recovery::agent_settings:
 					kept.Recovery->setText(tr("Agent settings…"));
@@ -2100,6 +2118,9 @@ namespace bpr::qt {
 					break;
 				}
 				kept.Recovery->setVisible(actions.Recovery != core::agent_turn_recovery::none);
+			}
+			if (kept.Delete != nullptr) {
+				kept.Delete->setVisible(actions.Delete);
 			}
 			if (latest && LatestFixedSince != actions.FixedSince) {
 				LatestFixedSince = actions.FixedSince;
@@ -2119,7 +2140,7 @@ namespace bpr::qt {
 		}
 		switch (aTurn.RecoveryKind) {
 		case core::agent_turn_recovery::none: return;
-		case core::agent_turn_recovery::ask_again:
+		case core::agent_turn_recovery::resend:
 			if (aTurn.Review) {
 				Launch.start_action()->trigger();
 			} else {
@@ -2131,6 +2152,35 @@ namespace bpr::qt {
 				Setup();
 			}
 			return;
+		}
+	}
+
+	void agent_tab_view::delete_turn(const std::size_t aTurn)
+	{
+		if (!panels_alive() || aTurn >= Turns.size() || State == agent_tab_state::working || !Turns[aTurn].Done || !core::agent_turn_never_sent(Turns[aTurn].Outcome)) {
+			return;
+		}
+		const auto latest = aTurn + 1U == Turns.size();
+		if (auto* const widget = Turns[aTurn].Widget.data(); widget != nullptr) {
+			widget->hide();
+			ThreadColumn->removeWidget(widget);
+			widget->deleteLater();
+		}
+		Turns.erase(Turns.begin() + static_cast<std::ptrdiff_t>(aTurn));
+		// The cards under later turns follow them down one place.
+		std::erase_if(CardEntries, [aTurn](const card_entry& aEntry) { return aEntry.Turn == std::optional{ aTurn }; });
+		for (auto& entry : CardEntries) {
+			if (entry.Turn && *entry.Turn > aTurn) {
+				--*entry.Turn;
+			}
+		}
+		// The stopped run was this message's: nothing is left to say it.
+		if (latest && State == agent_tab_state::stopped) {
+			StoppedDismissed = true;
+		}
+		refresh();
+		if (ThreadObserver) {
+			ThreadObserver(thread_turns());
 		}
 	}
 
@@ -2284,21 +2334,22 @@ namespace bpr::qt {
 			// [[BPR-1738]]. A stop with a reason says it and what to do;
 			// the log keeps the raw text.
 			// [[BPR-1817]]. Said in words, never as the outcome's stable name.
-			BannerText->setText(tr("%1 Your question is kept.")
+			BannerText->setText(tr("%1 Your message is kept.")
 									.arg(Launch.stop_reason_text().isEmpty() ? run_failure_words(Launch.last_outcome().value_or(application::agent_run_outcome::failed_to_start), Launch.profile_selector()->currentText())
 																			 : Launch.stop_reason_text()));
 			// [[BPR-1876]]. The latest turn says its cause is fixed since:
 			// a banner still saying it stopped would read as how things stand.
-			if (LatestFixedSince) {
+			// [[BPR-1876]]. Nor once the stopped run's turn is deleted.
+			if (LatestFixedSince || StoppedDismissed) {
 				Banner->hide();
 				return;
 			}
 			// [[BPR-1876]], superseding [[BPR-1753]]'s Check again here: an
-			// Ask that ended for a setup reason is asked again too, and the
-			// new run starts the agent and makes its workspace, which is the
-			// check. A Check again that re-ran only the setup check left this
-			// banner up, and the owner read it as the check failing.
-			BannerFirst->setText(tr("Ask again"));
+			// Ask that ended for a setup reason is resent too, and the new run
+			// starts the agent and makes its workspace, which is the check. A
+			// Check again that re-ran only the setup check left this banner
+			// up, and the owner read it as the check failing.
+			BannerFirst->setText(tr("Resend"));
 			connect(BannerFirst, &QPushButton::clicked, Launch.start_action(), &QAction::trigger);
 			BannerSecond->setText(LogShown ? tr("Hide the log") : tr("Show the log"));
 			connect(BannerSecond, &QPushButton::clicked, this, [this] {
@@ -2404,6 +2455,8 @@ namespace bpr::qt {
 	auto agent_tab_view::turn_note_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].SaveNote.data() : nullptr; }
 
 	auto agent_tab_view::turn_recovery_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Recovery.data() : nullptr; }
+
+	auto agent_tab_view::turn_delete_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Turns.size() ? Turns[aTurn].Delete.data() : nullptr; }
 
 	auto agent_tab_view::turn_reply(const std::size_t aTurn) const -> QWidget* { return aTurn < Turns.size() ? Turns[aTurn].Reply.data() : nullptr; }
 

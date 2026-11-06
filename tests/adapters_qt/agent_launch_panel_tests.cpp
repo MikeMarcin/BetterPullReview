@@ -515,11 +515,11 @@ namespace {
 			"a failed workspace terminal visibly renders its bounded diagnostic");
 		expect(
 			panel.stop_reason_text().startsWith(QStringLiteral("The agent's copy of this pull request could not be made."))
-				&& panel.stop_reason_text().contains(QStringLiteral("ask again")),
+				&& panel.stop_reason_text().contains(QStringLiteral("resend")),
 			"a workspace stop with no reason says the copy failed and what to do [[BPR-1738]]");
 		for (const auto& [reason, phrase] : std::array{
 				 std::pair{ application::agent_workspace_unavailable_reason::download_failed, QStringLiteral("fetching the pull request's new objects for the agent failed") },
-				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then ask again.") },
+				 std::pair{ application::agent_workspace_unavailable_reason::connection_failed, QStringLiteral("Check the connection, then resend.") },
 				 std::pair{ application::agent_workspace_unavailable_reason::sign_in_refused, QStringLiteral("Check that gh is signed in") },
 				 std::pair{ application::agent_workspace_unavailable_reason::too_large, QStringLiteral("the pull request's new objects are larger") },
 				 std::pair{ application::agent_workspace_unavailable_reason::clone_needed, QStringLiteral("Link your clone") },

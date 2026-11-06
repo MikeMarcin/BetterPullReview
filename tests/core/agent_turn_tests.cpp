@@ -75,11 +75,11 @@ namespace {
 			return core::decide_agent_turn_actions({ .Outcome = aOutcome, .HasText = true, .Latest = true }).Recovery;
 		};
 		expect(recovery(agent_turn_outcome::unreadable) == agent_turn_recovery::agent_settings, "an unreadable answer opens the agent's settings");
-		// [[BPR-1876]]. A start or workspace failure asks again too: the new
+		// [[BPR-1876]]. A start or workspace failure resends too: the new
 		// run starts the agent and makes its workspace, which is the check.
 		for (const auto outcome : { agent_turn_outcome::failed_to_start, agent_turn_outcome::workspace_unavailable, agent_turn_outcome::exited_with_error, agent_turn_outcome::history_unavailable,
 									agent_turn_outcome::stopped, agent_turn_outcome::timed_out, agent_turn_outcome::set_aside, agent_turn_outcome::ended_without_answer }) {
-			expect(recovery(outcome) == agent_turn_recovery::ask_again, "any other ending asks again");
+			expect(recovery(outcome) == agent_turn_recovery::resend, "any other ending resends");
 		}
 	}
 
@@ -107,7 +107,24 @@ namespace {
 			}
 		}
 		const auto fixed = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::failed_to_start, .HasText = true, .Latest = true, .CausePassedSince = true });
-		expect(fixed.FixedSince && fixed.Recovery == agent_turn_recovery::ask_again, "the latest fixed failure offers Ask again");
+		expect(fixed.FixedSince && fixed.Recovery == agent_turn_recovery::resend, "the latest fixed failure offers Resend");
+	}
+
+	void test_delete_never_sent()
+	{
+		for (auto ordinal = std::uint8_t{ 0U }; ordinal < core::agent_turn_outcome_count; ++ordinal) {
+			const auto outcome = *core::agent_turn_outcome_of(ordinal);
+			const auto unsent  = outcome == agent_turn_outcome::failed_to_start || outcome == agent_turn_outcome::workspace_unavailable || outcome == agent_turn_outcome::history_unavailable;
+			expect(core::agent_turn_never_sent(outcome) == unsent, "only a run that did not start, had no workspace or could not be recorded never reached the agent");
+			for (const auto latest : { false, true }) {
+				for (const auto working : { false, true }) {
+					const auto actions = core::decide_agent_turn_actions({ .Outcome = outcome, .HasText = true, .Latest = latest, .Working = working });
+					expect(actions.Delete == (unsent && !working), "a message never sent can be deleted, on any turn, while nothing runs; one the agent received cannot");
+				}
+			}
+		}
+		const auto unsent = core::decide_agent_turn_actions({ .Outcome = agent_turn_outcome::failed_to_start, .HasText = true, .Latest = true });
+		expect(unsent.Delete && unsent.Recovery == agent_turn_recovery::resend, "a message never sent offers Delete beside Resend");
 	}
 
 	void test_suggestions()
@@ -177,6 +194,7 @@ auto main() -> int
 	test_answer_actions();
 	test_error_actions();
 	test_fixed_since();
+	test_delete_never_sent();
 	test_suggestions();
 	test_suggestion_press();
 	std::cout << "agent-turn-tests:pass\n";
