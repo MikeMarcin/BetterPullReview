@@ -13162,6 +13162,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			auto facts = qt::agent_setup_facts{ };
 			if (AgentReview) {
 				facts.Repository = AgentReview->Locator.Owner + "/" + AgentReview->Locator.Name;
+				facts.Sparse     = AgentReview->Sparse;
 			}
 			const auto* const state = EpochHost != nullptr ? &EpochHost->state() : nullptr;
 			if (state != nullptr && state->AcceptedRevision) {
@@ -13174,6 +13175,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			auto gets = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
+			gets.Sparse = facts.Sparse;
 			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
 				gets.Number     = snapshot->PullRequest.Number.value();
 				gets.Title      = snapshot->PullRequest.Title;
@@ -19927,6 +19929,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					.Number      = aHandoff.Number,
 					.Hostname    = std::string{ aHandoff.Hostname.value() },
 					.Locator     = aHandoff.Locator,
+					.Sparse      = application::object_loading_for(aHandoff.Shape) == application::pull_request_object_loading::selected_objects && aHandoff.SmartGit
+						&& !aHandoff.SmartGit->revoked() && aHandoff.SmartGit->supports_sparse_commit_trees(),
 				};
 #if defined(BPR_AGENT_INTEGRATIONS)
 				observe_clone_repository();
@@ -25869,6 +25873,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			core::pull_request_number        Number;
 			std::string                      Hostname;
 			core::repository_locator         Locator;
+			/// [[BPR-1873]]. Read with selected objects through a lease that
+			/// can: the review holds no blobs, so without a clone its agent sees
+			/// only the pull request's files.
+			bool Sparse = false;
 		};
 		std::optional<agent_review_facts>                   AgentReview;
 		decltype(github_profile_runtime::ExistingCheckout)& ExistingCheckout      = Profile->ExistingCheckout;
