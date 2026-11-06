@@ -4581,7 +4581,7 @@ namespace bpr::application {
 				.BaseRef            = context->Handoff.BaseRef,
 				.AcquisitionMode    = git_smart_acquisition_mode::sparse_commit_trees,
 			};
-			const auto request   = git_smart_managed_clone_request{ .Context = transportContext, .Destination = aRequest.Destination, .ApproximateBytes = aRequest.ApproximateBytes };
+			const auto request   = git_smart_managed_clone_request{ .Context = transportContext, .Destination = aRequest.Destination };
 			auto       transport = context->Handoff.SmartGit->acquire(transportContext);
 			if (!transport || !*transport) {
 				return std::unexpected{ managed_clone_error{ managed_clone_failure::unavailable, "GitHub CLI's Git transport could not be acquired for this review.\n" } };

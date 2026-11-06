@@ -1335,9 +1335,11 @@ if(APPLE)
     # Mac (macOS, 2026-10-13, load 13 to 21). Its two ten-second probe
     # deadlines run beside it on their own root. Before they did, the course
     # took 95 s at load 97 and timed out at 60 s in the full gate; 90 s leaves
-    # room for a loaded gate.
+    # room for a loaded gate. [[BPR-1879]] adds the kept clone's course: four
+    # more qualified acquisitions and a 40 MiB write held for the progress
+    # sampler, about 25 s more at load, so 120 s.
     add_test(NAME gh_cli_git_smart_transport COMMAND test_better_pull_review_gh_cli_git_smart_transport_tests)
-    set_tests_properties(gh_cli_git_smart_transport PROPERTIES TIMEOUT 90 LABELS bpr_local_only_fixture)
+    set_tests_properties(gh_cli_git_smart_transport PROPERTIES TIMEOUT 120 LABELS bpr_local_only_fixture)
     bpr_apply_automated_test_environment(gh_cli_git_smart_transport)
 endif()
 

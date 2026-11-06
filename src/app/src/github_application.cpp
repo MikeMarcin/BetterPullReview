@@ -12745,7 +12745,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				.Authority          = *state.Authority,
 				.Head               = state.AcceptedRevision->Head,
 				.Destination        = std::filesystem::path{ aDestination }.lexically_normal(),
-				.ApproximateBytes   = aRepository.ApproximateBytes,
 			};
 			if (!application::valid(request)) {
 				return { };

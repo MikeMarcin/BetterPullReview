@@ -328,9 +328,6 @@ namespace bpr::application {
 	{
 		git_smart_request_context Context;
 		std::filesystem::path     Destination;
-		/// GitHub's repository `size`, in bytes, when it said: the clone's
-		/// bounds grow with it and are never smaller than the defaults.
-		std::optional<std::uint64_t> ApproximateBytes;
 	};
 
 	/// \brief Checks the request's own shape; it does not check authority.
