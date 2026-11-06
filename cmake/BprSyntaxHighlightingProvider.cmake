@@ -354,6 +354,7 @@ function(bpr_acquire_syntax_highlighting)
             CMAKE_BUILD_TYPE
             CMAKE_CONFIGURATION_TYPES
             CMAKE_MSVC_RUNTIME_LIBRARY
+            CMAKE_VS_GLOBALS
             CMAKE_OSX_ARCHITECTURES
             CMAKE_OSX_DEPLOYMENT_TARGET
             CMAKE_OSX_SYSROOT
@@ -469,6 +470,7 @@ function(bpr_acquire_syntax_highlighting)
         endif()
         set(ecm_generator_arguments ${generator_arguments})
         bpr_syntax_forward(ecm_generator_arguments CMAKE_MAKE_PROGRAM)
+        bpr_syntax_forward(ecm_generator_arguments CMAKE_VS_GLOBALS)
         set(ecm_build "${root}/extra-cmake-modules-build")
         file(REMOVE_RECURSE "${ecm_build}")
         bpr_syntax_execute(

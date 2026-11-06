@@ -39,6 +39,13 @@ Qt 6.12.0 into the shared dependency cache. To use a Qt you already have, pass
 or pass `-DBPR_QT_PROVIDER=OFF` to require a caller-installed Qt 6.8 or newer
 including CoreTools (`rcc`). On Windows, Qt acquisition needs Git on `PATH`.
 
+**Visual Studio.** BPR uses its declared dependency providers, not vcpkg.
+Generated Visual Studio projects set `VcpkgEnabled=false`, including the
+separately configured syntax-highlighting dependencies, so user-wide vcpkg
+integration cannot add include paths, libraries or DLL-copy steps. Other
+`CMAKE_VS_GLOBALS` settings are preserved. Reconfigure an existing build tree
+to apply the opt-out; no machine-wide vcpkg change is needed.
+
 **Linux only:**
 
 - Stable `libsecret-1>=0.20.0` and its development metadata

@@ -378,8 +378,9 @@ class DependencyModernizationTests(unittest.TestCase):
                 'set(CMAKE_CXX_FLAGS "/W4 /EHsc")\n'
                 'set(CMAKE_CONFIGURATION_TYPES "Debug;Release;MinSizeRel;RelWithDebInfo")\n'
                 'set(CMAKE_PREFIX_PATH "first;second")\n'
+                'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=false")\n'
                 "set(forwarded)\n"
-                "foreach(name IN ITEMS CMAKE_CXX_FLAGS CMAKE_CONFIGURATION_TYPES CMAKE_PREFIX_PATH)\n"
+                "foreach(name IN ITEMS CMAKE_CXX_FLAGS CMAKE_CONFIGURATION_TYPES CMAKE_PREFIX_PATH CMAKE_VS_GLOBALS)\n"
                 '    bpr_syntax_forward(forwarded "${name}")\n'
                 "endforeach()\n"
                 "list(LENGTH forwarded count)\n"
@@ -398,13 +399,14 @@ class DependencyModernizationTests(unittest.TestCase):
         output = completed.stdout + completed.stderr
         self.assertEqual(completed.returncode, 0, output)
         elements = re.findall(r"FORWARDED_ELEMENT=(.*)", output)
-        self.assertIn("FORWARDED_COUNT=3", output, output)
+        self.assertIn("FORWARDED_COUNT=4", output, output)
         self.assertEqual(
             elements,
             [
                 "-DCMAKE_CXX_FLAGS=/W4 /EHsc",
                 "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
                 "-DCMAKE_PREFIX_PATH=first;second",
+                "-DCMAKE_VS_GLOBALS=First=one;VcpkgEnabled=false",
             ],
             output,
         )
