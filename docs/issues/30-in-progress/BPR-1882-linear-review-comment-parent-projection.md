@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1882"
 title: "Project review comment parents without repeated ancestry walks"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
