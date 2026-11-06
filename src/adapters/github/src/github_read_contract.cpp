@@ -2508,6 +2508,7 @@ namespace bpr::adapters::github::detail {
 	void strict_recorded_transport::rewind() noexcept
 	{
 		NextExchange = 0U;
+		ConversationFirst.reset();
 	}
 
 	void strict_recorded_transport::skip_until(const read_operation aOperation) noexcept
@@ -2521,6 +2522,16 @@ namespace bpr::adapters::github::detail {
 	auto strict_recorded_transport::perform(const wire_request& aRequest)
 		-> response_result
 	{
+		return perform_ordered(aRequest, false);
+	}
+
+	auto strict_recorded_transport::perform_refresh(const wire_request& aRequest) -> response_result
+	{
+		return perform_ordered(aRequest, true);
+	}
+
+	auto strict_recorded_transport::perform_ordered(const wire_request& aRequest, const bool aRefresh) -> response_result
+	{
 		if (const auto validation = validate_outbound_read_request(aRequest);
 			!validation.has_value()) {
 			return std::unexpected{ validation.error() };
@@ -2529,7 +2540,21 @@ namespace bpr::adapters::github::detail {
 			return failure(contract_failure_code::recording_exhausted);
 		}
 
-		const auto& expected = Exchanges[NextExchange];
+		// The authenticated refresh can read the two conversation exchanges
+		// before the commit list. Keep the complete recorded request checks
+		// and require all three exchanges before advancing beyond this group.
+		auto conversationFirst = ConversationFirst;
+		if (aRefresh && !conversationFirst && Exchanges.size() - NextExchange >= 3U
+			&& aRequest.Operation == read_operation::list_reviews
+			&& Exchanges[NextExchange].Request.Operation == read_operation::list_pull_request_commits
+			&& Exchanges[NextExchange + 1U].Request.Operation == read_operation::list_reviews
+			&& Exchanges[NextExchange + 2U].Request.Operation == read_operation::list_review_threads) {
+			conversationFirst = NextExchange;
+		}
+		const auto  exchangeIndex = conversationFirst
+			? *conversationFirst + (NextExchange - *conversationFirst + 1U) % 3U
+			: NextExchange;
+		const auto& expected      = Exchanges[exchangeIndex];
 		if (aRequest.Operation != expected.Request.Operation) {
 			return failure(contract_failure_code::unexpected_operation);
 		}
@@ -2559,6 +2584,9 @@ namespace bpr::adapters::github::detail {
 			return std::unexpected{ validation.error() };
 		}
 		++NextExchange;
+		ConversationFirst = conversationFirst && NextExchange - *conversationFirst < 3U
+			? conversationFirst
+			: std::nullopt;
 		return expected.Response;
 	}
 

@@ -1820,7 +1820,7 @@ namespace bpr::app::detail {
 					Paged.emplace(std::move(aExchanges));
 				}
 			}
-			[[nodiscard]] auto perform(const adapters::github::detail::wire_request& aRequest)
+			[[nodiscard]] auto perform(const adapters::github::detail::wire_request& aRequest, const bool aRefresh = false)
 				-> adapters::github::detail::response_result
 			{
 				if (!Paged && aRequest.Operation == read_operation::list_pull_request_timeline) {
@@ -1863,7 +1863,8 @@ namespace bpr::app::detail {
 					}
 					return response;
 				}
-				auto response = Paged ? Paged->perform(aRequest) : Strict.perform(aRequest);
+				auto response = Paged ? Paged->perform(aRequest) : aRefresh ? Strict.perform_refresh(aRequest)
+																			: Strict.perform(aRequest);
 				if (TimelineCourse == "ordinary" && response && aRequest.Operation == read_operation::list_pull_request_commits) {
 					QTextStream{ stdout } << "ORDINARY_SURVIVING_COMMITS:" << QJsonDocument::fromJson(QByteArray::fromStdString(response->Body)).array().size() << '\n';
 				}
@@ -3518,11 +3519,14 @@ namespace bpr::app::detail {
 				const auto deniedSignedOut = State->IndependentWindowReads && Role == fixture_transport_role::anonymous
 					&& aRequest.Wire.Operation == read_operation::get_repository
 					&& aRequest.Wire.Path == "/repos/octo-org/inaccessible-repository";
+				const auto* read    = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+				const auto  refresh = Role == fixture_transport_role::account
+					&& read != nullptr && read->ExpectedPullRequest.has_value();
 				auto response = deniedSignedOut
 					? perform_independent_read(State->IndependentRecording, aRequest.Wire)
 					: State->IndependentWindowReads && Role != fixture_transport_role::anonymous
 					? perform_independent_read(Role == fixture_transport_role::bootstrap ? State->IndependentBootstrap : State->IndependentRecording, aRequest.Wire)
-					: recording.perform(aRequest.Wire);
+					: recording.perform(aRequest.Wire, refresh);
 				if (deniedSignedOut && response) {
 					response->Status = 404;
 					response->Body   = R"({"message":"Not Found"})";
