@@ -1,4 +1,5 @@
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 
 #include "bpr/core/tour_steps.hpp"
 
@@ -114,9 +115,11 @@ namespace bpr::qt {
 				Dismiss->setAccessibleName(tr("Dismiss"));
 				top->addWidget(Dismiss, 0, Qt::AlignTop);
 				column->addLayout(top);
-				Open = new quiet_push_button{ tr("Show on the Agent tab"), this };
+				// [[BPR-1900]]. The run is the tour session's, so the way to it
+				// is the session's transcript on this tab.
+				Open = new quiet_push_button{ tr("Show the run"), this };
 				Open->setObjectName(QStringLiteral("tourAgentFailureOpen"));
-				Open->setToolTip(tr("Opens the Agent tab at this run's card: what happened, its log, and Resend."));
+				Open->setToolTip(tr("Opens the tour session's transcript at this run: what it read and how it ended."));
 				column->addWidget(Open, 0, Qt::AlignLeft);
 				connect(Dismiss, &QToolButton::clicked, this, &QWidget::hide);
 				hide();
@@ -972,7 +975,8 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("reviewTourEditor"));
 		setAccessibleName(tr("Prepare review tour"));
 		connect(qApp, &QGuiApplication::focusWindowChanged, this, [this](QWindow* aWindow) {
-			if (aWindow != window()->windowHandle() && WritingCancel) {
+			// [[BPR-1900]]. A drafting run goes on in the background.
+			if (aWindow != window()->windowHandle() && WritingCancel && !RunningHook && !RunningDraft) {
 				WritingCancel();
 			}
 		});
@@ -1024,6 +1028,14 @@ namespace bpr::qt {
 		});
 		AgentSetupCall->hide();
 		layout->addWidget(AgentSetupCall);
+
+		// [[BPR-1900]]. The tour's own agent session: Draft the tour, its
+		// proposal, and the transcript, which opens only when asked.
+		TourAgentPanel = new tour_agent_panel{ this };
+		DraftFailure   = new failure_notice_card{ TourAgentPanel };
+		connect(static_cast<failure_notice_card*>(DraftFailure)->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
+		TourAgentPanel->set_failure_notice(DraftFailure);
+		layout->addWidget(TourAgentPanel);
 
 		// What needs saying before the tour: a GitHub tour to load, a save to
 		// retry, a conflict to settle, what changed on the website.
@@ -1727,6 +1739,11 @@ namespace bpr::qt {
 				button->setToolTip(aHook == core::writing_hook::problem ? tr("Fills this field from the pull request: the description's own Problem section if it has one, otherwise a draft by the drafting agent. Undo removes it.")
 																		: tr("Fills this field from the pull request: the description's own Solution section if it has one, otherwise a draft by the drafting agent. Undo removes it."));
 			}
+			// [[BPR-1900]]. Its drafting run in the background, stopped here.
+			if (RunningHook == aHook) {
+				button->setText(tr("Stop drafting"));
+				button->setToolTip(tr("Drafting in the background from the repository. Stop it; your text is unchanged."));
+			}
 			// [[BPR-1881]]. Disabled until the agent is set up, saying why.
 			if (AgentReadiness != agent_setup_readiness::ready) {
 				button->setToolTip(agent_unavailable_reason());
@@ -1736,6 +1753,12 @@ namespace bpr::qt {
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
 		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook, button] {
+			if (RunningHook == aHook) {
+				if (WritingCancel) {
+					WritingCancel();
+				}
+				return;
+			}
 			if (!aEditor->isReadOnly() && WritingRequest) {
 				// [[BPR-1892]]. Made again: the last failure no longer stands.
 				RequestNames[aHook] = button->text();
@@ -1865,11 +1888,7 @@ namespace bpr::qt {
 	{
 		auto* const notice    = new failure_notice_card{ aParent };
 		FailureNotices[aHook] = notice;
-		connect(notice->Open, &QPushButton::clicked, this, [this] {
-			if (AgentFailureDispatch) {
-				AgentFailureDispatch();
-			}
-		});
+		connect(notice->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
 		return notice;
 	}
 	void review_tour_editor::show_agent_failure(const core::writing_hook aHook, const QString& aWhy)
@@ -1891,6 +1910,52 @@ namespace bpr::qt {
 		}
 	}
 	void review_tour_editor::set_agent_failure_dispatch(std::function<void()> aDispatch) { AgentFailureDispatch = std::move(aDispatch); }
+	void review_tour_editor::set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide)
+	{
+		TourAgentPanel->set_dispatch(
+			[this, draft = std::move(aDraft)] {
+				clear_tour_draft_failure();
+				if (draft) {
+					draft();
+				}
+			},
+			std::move(aStop), std::move(aDecide));
+	}
+	void review_tour_editor::present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal)
+	{
+		TourAgentPanel->present(aSession, aProposal);
+		restyle_agent_features();
+	}
+	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour)
+	{
+		RunningHook  = aHook;
+		RunningDraft = aDraftTour;
+		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour);
+		refresh_agent_features();
+	}
+	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
+	{
+		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft the tour"), aWhy);
+		restyle_agent_features();
+	}
+	void review_tour_editor::clear_tour_draft_failure() { DraftFailure->hide(); }
+	auto review_tour_editor::request_name(const core::writing_hook aHook) const -> QString
+	{
+		const auto named = RequestNames.find(aHook);
+		return named != RequestNames.end() && !named->second.isEmpty() ? named->second : tr("The agent request");
+	}
+	void review_tour_editor::open_failed_run()
+	{
+		// [[BPR-1892]]'s notice, [[BPR-1900]]: the newest run that did not
+		// finish, in the tour session's transcript. Nothing switches tabs.
+		auto run = std::optional<core::tour_agent_run_id>{ };
+		for (const auto& each : TourAgentPanel->session().Runs) {
+			if (each.State == core::tour_agent_run_state::failed) {
+				run = each.Id;
+			}
+		}
+		TourAgentPanel->open_transcript(run);
+	}
 	auto review_tour_editor::agent_failure_notice(const core::writing_hook aHook) const -> QWidget*
 	{
 		const auto found = FailureNotices.find(aHook);
@@ -1940,7 +2005,7 @@ namespace bpr::qt {
 				features.push_back(button);
 			}
 		}
-		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(SuggestOutline), static_cast<QWidget*>(InsertOutline), AgentField }) {
+		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(SuggestOutline), static_cast<QWidget*>(InsertOutline), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr), AgentField }) {
 			if (widget != nullptr) {
 				features.push_back(widget);
 			}
@@ -1970,6 +2035,12 @@ namespace bpr::qt {
 			apply_agent_accent(*open, ground);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
+		if (TourAgentPanel != nullptr) {
+			TourAgentPanel->restyle(ground);
+			auto* const open = static_cast<failure_notice_card*>(DraftFailure)->Open;
+			apply_agent_accent(*open, ground);
+			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
+		}
 		if (AgentSetupButton != nullptr) {
 			apply_agent_accent(*AgentSetupButton, ground);
 			AgentSetupButton->setIcon(drawer_icon(drawer_glyph::agent, AgentSetupButton->palette()));
@@ -1993,6 +2064,13 @@ namespace bpr::qt {
 			label();
 		}
 		SuggestOutline->setToolTip(ready ? tr("Ask once for titles and source destinations. Review the suggestions before inserting empty stops.") : agent_unavailable_reason());
+		if (RunningHook == core::writing_hook::outline) {
+			SuggestOutline->setText(tr("Stop drafting"));
+			SuggestOutline->setToolTip(tr("Suggesting an outline in the background from the repository. Stop it; the tour is unchanged."));
+		} else {
+			SuggestOutline->setText(tr("Suggest an outline"));
+		}
+		TourAgentPanel->set_available(ready, agent_unavailable_reason());
 		InsertOutline->setToolTip(ready ? tr("Insert the checked suggestions as empty stops.") : agent_unavailable_reason());
 	}
 	void review_tour_editor::fit_agent_bar()
@@ -2134,7 +2212,16 @@ namespace bpr::qt {
 		toolsRow->addStretch(1);
 		toolsColumn->addLayout(toolsRow);
 		toolsColumn->addWidget(add_failure_notice(core::writing_hook::outline, OutlineTools));
-		connect(suggest, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::suggest_outline); });
+		connect(suggest, &QPushButton::clicked, this, [this] {
+			// [[BPR-1900]]. While it drafts in the background, it stops it.
+			if (RunningHook == core::writing_hook::outline) {
+				if (WritingCancel) {
+					WritingCancel();
+				}
+				return;
+			}
+			trigger(tour_editor_action::suggest_outline);
+		});
 		SuggestedOutline = new QListWidget{ OutlineTools };
 		SuggestedOutline->setObjectName(QStringLiteral("tourSuggestedOutline"));
 		SuggestedOutline->setAccessibleName(tr("Suggested skeletons; check the stops to insert"));

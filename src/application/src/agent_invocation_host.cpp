@@ -1,8 +1,10 @@
 #include "bpr/application/agent_invocation_host.hpp"
 
 #include <algorithm>
+#include <array>
 #include <condition_variable>
 #include <cstdint>
+#include <fstream>
 #include <map>
 #include <mutex>
 #include <ranges>
@@ -371,7 +373,15 @@ namespace bpr::application {
 				project_refuse("selected_agent_has_no_qualified_writing_protocol");
 				return;
 			}
-			if (aRequest.WritingOnly ? aRequest.PrivateRun.has_value() : ((PrivateRuns != nullptr) != aRequest.PrivateRun.has_value())) {
+			// [[BPR-1900]]. A tour drafting run reads the workspace with
+			// read-only tools, for the two agents whose allowlist is recorded.
+			if (aRequest.ReadOnlyTools
+				&& (aRequest.WritingOnly || aRequest.ExistingCheckoutChosen || aRequest.ContinuedSession || aRequest.MeasurePaths.size() > maximum_measured_paths
+					|| (profile->Protocol != core::agent_protocol::claude_stream_json && profile->Protocol != core::agent_protocol::codex_jsonl_exec))) {
+				project_refuse("selected_agent_has_no_qualified_read_only_protocol");
+				return;
+			}
+			if (aRequest.WritingOnly || aRequest.ReadOnlyTools ? aRequest.PrivateRun.has_value() : ((PrivateRuns != nullptr) != aRequest.PrivateRun.has_value())) {
 				project_refuse("private_run_admission_unavailable");
 				return;
 			}
@@ -761,7 +771,7 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
-				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly };
+				auto options = aInvocation->PrivateAdmission ? aInvocation->PrivateAdmission->Launch : agent_launch_options{ .Requested = aRequest.RequestedSettings, .EntryPoint = aRequest.Context.EntryPoint, .WritingOnly = aRequest.WritingOnly, .ReadOnlyTools = aRequest.ReadOnlyTools };
 				// [[BPR-1752]]. The brief says what the workspace that
 				// was just made is, so the agent knows whether history and the
 				// base are there to compare with.
@@ -802,6 +812,9 @@ namespace bpr::application {
 					}
 					launch->PrivateInputClaim = std::move(*claim);
 				}
+				// [[BPR-1900]]. The head lines a proposed stop is checked
+				// against, counted before the agent can touch anything.
+				auto measured = aRequest.MeasurePaths.empty() ? std::vector<std::pair<std::string, std::uint32_t>>{ } : measure_workspace_lines(std::filesystem::path{ workspace->Path }, aRequest.MeasurePaths);
 				post_start(aInvocation, *workspace);
 				++ProcessStarts;
 				const auto weak = weak_from_this();
@@ -819,6 +832,7 @@ namespace bpr::application {
 				if (launch->PrivateInputClaim) {
 					launch->PrivateInputClaim->release();
 				}
+				result.MeasuredLines = std::move(measured);
 				finish_run(std::move(result), aInvocation, true);
 			} catch (...) {
 				finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = agent_run_outcome::failed_to_start }, aInvocation);
@@ -1360,5 +1374,52 @@ namespace bpr::application {
 			.SessionAdmissions        = implementation->SessionAdmissions.load(),
 			.SessionAdmissionFailures = implementation->SessionAdmissionFailures.load(),
 		};
+	}
+
+	auto measure_workspace_lines(const std::filesystem::path& aRoot, const std::vector<std::string>& aPaths) -> std::vector<std::pair<std::string, std::uint32_t>>
+	{
+		auto measured = std::vector<std::pair<std::string, std::uint32_t>>{ };
+		for (const auto& given : aPaths | std::views::take(maximum_measured_paths)) {
+			const auto relative = std::filesystem::path{ given }.lexically_normal();
+			if (given.empty() || relative.is_absolute() || relative.has_root_name() || std::ranges::any_of(relative, [](const auto& aPart) { return aPart == ".."; })) {
+				continue;
+			}
+			// Every component is looked at without following it.
+			auto       at        = aRoot;
+			auto       error     = std::error_code{ };
+			bool       reachable = true;
+			const auto parts     = std::vector<std::filesystem::path>{ relative.begin(), relative.end() };
+			for (std::size_t index = 0U; index < parts.size() && reachable; ++index) {
+				at               = at / parts[index];
+				const auto state = std::filesystem::symlink_status(at, error);
+				reachable        = !error && (index + 1U == parts.size() ? std::filesystem::is_regular_file(state) : std::filesystem::is_directory(state));
+			}
+			if (!reachable) {
+				continue;
+			}
+			const auto size = std::filesystem::file_size(at, error);
+			if (error || size > maximum_measured_bytes) {
+				continue;
+			}
+			auto file = std::ifstream{ at, std::ios::binary };
+			if (!file) {
+				continue;
+			}
+			auto lines  = std::uint32_t{ 0U };
+			auto last   = '\n';
+			auto buffer = std::array<char, 65536>{ };
+			while (file) {
+				file.read(buffer.data(), static_cast<std::streamsize>(buffer.size()));
+				const auto read = static_cast<std::size_t>(file.gcount());
+				for (std::size_t index = 0U; index < read; ++index) {
+					lines += buffer[index] == '\n' ? 1U : 0U;
+				}
+				if (read > 0U) {
+					last = buffer[read - 1U];
+				}
+			}
+			measured.emplace_back(given, lines + (last != '\n' ? 1U : 0U));
+		}
+		return measured;
 	}
 } // namespace bpr::application

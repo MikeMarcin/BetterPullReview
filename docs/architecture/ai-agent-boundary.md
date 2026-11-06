@@ -1621,6 +1621,50 @@ need individual visible author completion. See the
 and [tour operator guide](../development/review-tours.md) for the user-facing
 behaviour.
 
+### The tour session's read-only drafting (BPR-1900)
+
+Owner, 2026-11-06: "to me the tour itself is much more of a second agent
+session, separate and mostly background from my main agent chat session".
+Tour authoring runs through its own `agent_invocation_host` (the tour
+session) with its own process launcher, effect lane and projection, so a tour
+run never reaches the Agent tab's launch panel or chat, a chat run never
+reaches the tour, and Stop on a tour control stops only the tour's run. It uses
+the same Claude wrapper, program and added-agent ports, and the agent, model
+and effort the Tour tab's agent bar shows.
+
+`core::tools_for` records the split ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)):
+**Draft the tour**, **Draft from PR context** on an empty Problem or Solution,
+and **Suggest an outline** run in the review's private workspace (BPR-1873's,
+from the linked or kept clone, or "This pull request only") with read-only
+tools; Enhance, Enhance selection, Generate comment and the Settings test stay
+tool-free as above. A read-only Claude launch adds
+`claude_read_only_restrictions`: `--tools Read,Grep,Glob,Bash`, an
+`--allowedTools` list of Read, Grep, Glob and the shell programs `rg`, `grep`,
+`ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find` and `git log|show|blame|diff|grep|ls-files`,
+`--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`,
+an empty strict MCP configuration, no setting sources, no slash commands, no
+saved session, `claude_writing_settings` and auto-memory off. In print mode a
+tool use outside the allowed list is denied without a prompt. The decoder then
+holds the run to the list itself: an init frame that loads another tool or any
+MCP server, or a `tool_use` that `core::decide_read_only_tool` refuses (a tool
+outside the four, or a shell command that is not one plain pipeline of the
+admitted programs, or one with an argument that writes or runs something such
+as `find -delete`, `sort -o`, `rg --pre`, Git's `-c`, `--output` or
+`--ext-diff`), ends the run as `tool_refused`. A read-only Codex launch is
+`codex exec --json --sandbox read-only -c approval_policy="never" -c mcp_servers={} -c tools.web_search=false -`:
+Codex's own sandbox holds it to reading with no network; its commands are
+shown in the transcript and not re-checked. The App Server and the plain-text
+harness have no recorded read-only mode and are refused.
+
+Before a whole-tour run starts the host counts the head lines of the pull
+request's files in the new workspace (`measure_workspace_lines`: regular
+files reached without following a link, inside the workspace, at most 8 MiB
+each, at most 512 paths). The core anchors every proposed stop against those
+counts and the pull request's file list (`core::anchor_tour_stop`); a stop on a
+file outside the pull request, a deleted file, lines past the end or an
+uncounted file is flagged and cannot be accepted. Nothing the agent proposes is
+applied until the author accepts that part.
+
 ### Writing request and result bounds
 
 Moved from the Settings guide. Writing hooks hold text instructions only and

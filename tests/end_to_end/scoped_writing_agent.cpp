@@ -2,8 +2,10 @@
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
+#include <fstream>
 #include <iostream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <thread>
 #include <vector>
@@ -35,9 +37,127 @@ namespace {
 				r += "\\r";
 				continue;
 			}
+			if (c == '\t') {
+				r += "\\t";
+				continue;
+			}
 			r += c;
 		}
 		return r;
+	}
+	const std::string writing_settings = R"({"disableAllHooks":true,"autoMemoryEnabled":false,"enabledPlugins":{"cc-plugin-agents-md@builtin":false,"cc-plugin-telemetry@builtin":false,"cc-plugin-plugin-authoring@builtin":false}})";
+	auto              read_only_restrictions() -> const std::vector<std::string>&
+	{
+		static const std::vector<std::string> restrictions = { "--tools", "Read,Grep,Glob,Bash", "--allowedTools",
+															   "Read,Grep,Glob,Bash(rg:*),Bash(grep:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(nl:*),Bash(find:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git diff:*),Bash(git grep:*),Bash(git ls-files:*)",
+															   "--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task", "--permission-mode", "default", "--strict-mcp-config", "--mcp-config", "{\"mcpServers\":{}}",
+															   "--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--settings", writing_settings };
+		return restrictions;
+	}
+	void emit_tool(const std::string& aId, const std::string& aName, const std::string& aInput, const std::string& aResult)
+	{
+		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-)" << aId << R"(","role":"assistant","content":[{"type":"tool_use","id":")" << aId << R"(","name":")" << aName << R"(","input":)" << aInput << "}]}}\n";
+		std::cout << R"({"type":"user","session_id":"fixture","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" << aId << R"(","content":")" << escape(aResult) << "\"}]}}\n"
+				  << std::flush;
+	}
+	/// [[BPR-1900]]. A drafting run in the review's workspace: it really looks
+	/// at the files there, says what it searched and read the way Claude Code
+	/// does (tool uses and their results), and answers. Run as the `claude` in
+	/// `attended-drafting-claude` it takes a few seconds, so a look sees it
+	/// running in the background.
+	auto draft_in_workspace(const std::string& aModel, const bool aSlow, std::string& aInput) -> std::optional<int>
+	{
+		if (!environment_present("CLAUDE_CODE_DISABLE_AUTO_MEMORY")) {
+			return 7;
+		}
+		std::error_code error;
+		const auto      folder = std::filesystem::current_path(error);
+		if (error || folder.filename().string().rfind("bpr-writing-", 0) == 0) {
+			return 6;
+		}
+		aInput.assign(std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ });
+		const auto& input = aInput;
+		if (input.size() > 400000 || input.find("note.count\\t0") == std::string::npos) {
+			return 4;
+		}
+		// The workspace's files, and which of them the request names: the
+		// pull request's.
+		struct file
+		{
+			std::string Relative;
+			std::size_t Lines = 0U;
+		};
+		std::vector<file> named;
+		std::size_t       seen = 0U;
+		for (auto it = std::filesystem::recursive_directory_iterator{ folder, std::filesystem::directory_options::none, error }; !error && it != std::filesystem::recursive_directory_iterator{ } && seen < 4000U; it.increment(error)) {
+			++seen;
+			if (it->path().filename() == ".git") {
+				it.disable_recursion_pending();
+				continue;
+			}
+			if (!it->is_regular_file(error) || it->is_symlink(error)) {
+				continue;
+			}
+			const auto relative = std::filesystem::relative(it->path(), folder, error).generic_string();
+			if (relative.empty() || input.find(relative) == std::string::npos) {
+				continue;
+			}
+			std::ifstream stream{ it->path(), std::ios::binary };
+			std::string   text{ std::istreambuf_iterator<char>{ stream }, std::istreambuf_iterator<char>{ } };
+			auto          lines = static_cast<std::size_t>(std::count(text.begin(), text.end(), '\n'));
+			if (!text.empty() && text.back() != '\n') {
+				++lines;
+			}
+			if (lines > 0U) {
+				named.push_back({ relative, lines });
+			}
+		}
+		// Code before documents, as a reader would visit them.
+		std::ranges::sort(named, [](const file& aLeft, const file& aRight) {
+			const auto code = [](const std::string& aPath) { return aPath.ends_with(".cpp") || aPath.ends_with(".hpp") || aPath.ends_with(".h"); };
+			return code(aLeft.Relative) != code(aRight.Relative) ? code(aLeft.Relative) : aLeft.Relative < aRight.Relative;
+		});
+		std::cout << R"({"type":"system","subtype":"init","session_id":"fixture","tools":["Read","Grep","Glob","Bash"],"mcp_servers":[],"plugins":[],"model":")" << (aModel.empty() ? "default" : aModel) << "\"}\n"
+				  << std::flush;
+		const auto pause = [aSlow] {
+			if (aSlow) {
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 900 });
+			}
+		};
+		pause();
+		const auto first = named.empty() ? std::string{ "." } : named.front().Relative;
+		emit_tool("t1", "Grep", R"({"pattern":"draw","path":"."})", std::to_string(named.size()) + " files of this pull request found");
+		pause();
+		emit_tool("t2", "Bash", R"({"command":"rg -n \"clear|present\" )" + escape(first) + R"("})", "matches in " + first);
+		pause();
+		emit_tool("t3", "Read", R"({"file_path":")" + escape((folder / first).generic_string()) + R"("})", "read " + first);
+		emit_tool("t4", "Bash", R"({"command":"git log --oneline -3"})", "three commits");
+		if (input.find("WRITE_CANARY") != std::string::npos) {
+			// A run that tries to write: the app must stop it here.
+			emit_tool("t5", "Edit", R"({"file_path":"README.md","old_string":"a","new_string":"b"})", "edited");
+		}
+		pause();
+		// Any other request is answered as a tool-free one is.
+		if (input.find("bpr.tour-draft.v1") == std::string::npos) {
+			return std::nullopt;
+		}
+		std::string result;
+		{
+			std::string stops;
+			const char* titles[]       = { "Where the change starts", "What it calls next", "How it ends" };
+			const char* explanations[] = { "Start here: this is where the new behaviour enters. Read these lines first.", "These lines carry the change through. Check that every caller sees the new order.", "This is where the change finishes. Notice what happens when it fails." };
+			for (std::size_t index = 0U; index < named.size() && index < 3U; ++index) {
+				const auto last = std::min<std::size_t>(named[index].Lines, 4U);
+				stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":")" } + escape(named[index].Relative) + R"(","first_line":1,"last_line":)" + std::to_string(last) + R"(,"title":")" + titles[index] + R"(","explanation":")" + explanations[index] + "\"}";
+			}
+			// One stop the core has to flag: not a file of this pull request.
+			stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":"src/not_in_this_pull_request.cpp","first_line":3,"last_line":9,"title":"A file it imagined","explanation":"This file is not part of the change."})" };
+			result = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.","stops":[)" + stops + "]}";
+		}
+		const auto encoded = escape(result);
+		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-answer","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
+		std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"fixture\",\"is_error\":false,\"result\":\"" << encoded << "\"}\n";
+		return 0;
 	}
 }
 int main(int argc, char** argv)
@@ -68,8 +188,23 @@ int main(int argc, char** argv)
 		model = actual[7];
 		expected.insert(expected.end(), { "--model", model });
 	}
+	// [[BPR-1900]]. A read-only tour drafting run: the review's workspace,
+	// read, search and read-only git, nothing that writes.
+	auto readOnly = expected;
+	readOnly.insert(readOnly.end(), read_only_restrictions().begin(), read_only_restrictions().end());
 	expected.insert(expected.end(), restrictions.begin(), restrictions.end());
-	if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
+	// The effort the reviewer chose rides after the model.
+	auto withoutEffort = actual;
+	if (const auto effort = std::ranges::find(withoutEffort, std::string{ "--effort" }); effort != withoutEffort.end() && effort + 1 != withoutEffort.end()) {
+		withoutEffort.erase(effort, effort + 2);
+	}
+	std::string input;
+	const auto  readOnlyRun = withoutEffort == readOnly && !environment_present("GITHUB_TOKEN") && !environment_present("GH_TOKEN");
+	if (readOnlyRun) {
+		if (const auto ended = draft_in_workspace(model, argc > 0 && std::filesystem::path{ argv[0] }.parent_path().filename() == "attended-drafting-claude", input)) {
+			return *ended;
+		}
+	} else if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {
 		return 3;
 	}
 	// [[BPR-1896]]. A writing launch turns auto-memory off in the
@@ -78,14 +213,16 @@ int main(int argc, char** argv)
 		return 7;
 	}
 	// [[BPR-1375]]. The request starts in an empty folder of its own, never
-	// the review workspace.
+	// the review workspace; [[BPR-1900]] a read-only run in the workspace.
 	std::error_code folderError;
 	const auto      folder = std::filesystem::current_path(folderError);
-	if (folderError || folder.filename().string().rfind("bpr-writing-", 0) != 0 || std::filesystem::directory_iterator{ folder, folderError } != std::filesystem::directory_iterator{ } || folderError) {
+	if (!readOnlyRun && (folderError || folder.filename().string().rfind("bpr-writing-", 0) != 0 || std::filesystem::directory_iterator{ folder, folderError } != std::filesystem::directory_iterator{ } || folderError)) {
 		return 6;
 	}
-	std::string input{ std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ } };
-	if (input.size() > 100000 || input.find("PRIVATE_UNUSED_CANARY") != std::string::npos || input.find("note.count\\t0") == std::string::npos || input.find("draft.count\\t0") == std::string::npos) {
+	if (!readOnlyRun) {
+		input.assign(std::istreambuf_iterator<char>{ std::cin }, std::istreambuf_iterator<char>{ });
+	}
+	if (input.size() > 400000 || input.find("PRIVATE_UNUSED_CANARY") != std::string::npos || input.find("note.count\\t0") == std::string::npos || input.find("draft.count\\t0") == std::string::npos) {
 		return 4;
 	}
 	// [[BPR-1892]]. Run as the `claude` in `attended-failing-claude`, every
@@ -96,8 +233,9 @@ int main(int argc, char** argv)
 		return 1;
 	}
 	// Claude 2.1.296 can write a `ui_invalidate` system frame before init.
-	std::cout << "{\"type\":\"system\",\"subtype\":\"ui_invalidate\",\"session_id\":\"fixture\"}\n";
-	if (input.find("PLUGIN_CANARY") != std::string::npos) {
+	if (readOnlyRun) {
+		// The read-only run already said init and searched.
+	} else if (std::cout << "{\"type\":\"system\",\"subtype\":\"ui_invalidate\",\"session_id\":\"fixture\"}\n"; input.find("PLUGIN_CANARY") != std::string::npos) {
 		// [[BPR-1891]]. Claude Code 2.1.314 on a machine with managed
 		// settings, which holds this builtin on; the writing run reads past it.
 		std::cout << R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"}],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off"})"

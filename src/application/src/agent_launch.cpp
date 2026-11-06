@@ -5,6 +5,7 @@
 #include "bpr/core/agent_wrapper.hpp"
 #include "bpr/core/hex.hpp"
 #include "bpr/core/review_cycle_send.hpp"
+#include "bpr/core/tour_agent_session.hpp"
 #include "bpr/core/utf8.hpp"
 
 #include <algorithm>
@@ -883,7 +884,7 @@ namespace bpr::application {
 			const json_value&      aRoot,
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
-			std::string&           aThread)
+			std::string& aThread, const bool aReadOnly = false)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type = string_member(aRoot, "type");
@@ -934,9 +935,43 @@ namespace bpr::application {
 						.Item = *itemId,
 					} };
 				}
+				// [[BPR-1900]]. A read-only tour run's commands, for its
+				// transcript. Codex's own read-only sandbox is what holds
+				// them to reading; the command is shown as Codex wrote it.
+				if (aReadOnly && *type == "item.started" && *itemType == "command_execution") {
+					if (const auto* command = string_member(*item, "command"); command != nullptr) {
+						return std::vector<agent_protocol_event>{ { .Kind = agent_protocol_event_kind::tool_activity, .Text = "Bash", .Item = command->substr(0U, maximum_agent_tool_activity_bytes) } };
+					}
+				}
 				return no_protocol_events();
 			}
 			return std::unexpected(agent_protocol_failure::malformed_frame);
+		}
+
+		/// [[BPR-1900]]. One `tool_use` block of a read-only run: refused
+		/// unless `core::decide_read_only_tool` permits it, otherwise named
+		/// for the transcript with what it was asked.
+		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock) -> std::expected<agent_protocol_event, agent_protocol_failure>
+		{
+			const auto* name  = string_member(aBlock, "name");
+			const auto* input = object_member(aBlock, "input");
+			if (name == nullptr) {
+				return std::unexpected(agent_protocol_failure::malformed_frame);
+			}
+			const auto text    = [input](const std::string_view aKey) { const auto* value = input == nullptr ? nullptr : string_member(*input, aKey); return value == nullptr ? std::string{ } : *value; };
+			const auto command = text("command");
+			if (core::decide_read_only_tool(*name, command) != core::tour_tool_refusal::none) {
+				return std::unexpected(agent_protocol_failure::tool_refused);
+			}
+			auto asked = *name == "Bash" ? command : *name == "Read" ? text("file_path")
+																	 : text("pattern");
+			if (*name == "Grep" && !text("path").empty()) {
+				asked += " in " + text("path");
+			}
+			if (asked.size() > maximum_agent_tool_activity_bytes) {
+				asked.resize(maximum_agent_tool_activity_bytes);
+			}
+			return agent_protocol_event{ .Kind = agent_protocol_event_kind::tool_activity, .Text = *name, .Item = std::move(asked) };
 		}
 
 		[[nodiscard]] auto decode_claude_frame(
@@ -944,7 +979,7 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type    = string_member(aRoot, "type");
@@ -992,6 +1027,15 @@ namespace bpr::application {
 				// run can write it.
 				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers"))) {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
+				}
+				// [[BPR-1900]]. A read-only run loads only the read-only tools
+				// and no MCP server.
+				if (aReadOnly) {
+					const auto* tools = member(aRoot, "tools");
+					if (tools == nullptr || tools->Kind != json_kind::array_value || !empty("mcp_servers")
+						|| !std::ranges::all_of(tools->Elements, [](const json_value& aTool) { return aTool.Kind == json_kind::string_value && std::ranges::find(core::read_only_claude_tools, std::string_view{ aTool.Text }) != core::read_only_claude_tools.end(); })) {
+						return std::unexpected(agent_protocol_failure::tool_refused);
+					}
 				}
 				auto reported = aWritingOnly ? reported_init(aRoot) : std::vector<agent_protocol_event>{ };
 				if (aPhase == 0U) {
@@ -1064,6 +1108,13 @@ namespace bpr::application {
 					if (aWritingOnly && *blockType != "text") {
 						return std::unexpected(
 							agent_protocol_failure::malformed_frame);
+					}
+					if (aReadOnly && *type == "assistant" && *blockType == "tool_use") {
+						auto used = read_only_tool_use(block);
+						if (!used) {
+							return std::unexpected(used.error());
+						}
+						events.push_back(std::move(*used));
 					}
 					if (*type == "assistant" && *blockType == "text") {
 						wroteText        = true;
@@ -1582,7 +1633,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool                          aWritingOnly)
+			bool aWritingOnly, const bool aReadOnly)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1624,11 +1675,11 @@ namespace bpr::application {
 				events = decode_app_server_frame(*parsed, aFrame, aPhase, aThread, aTurn);
 				break;
 			case core::agent_protocol::codex_jsonl_exec:
-				events = decode_codex_jsonl_frame(*parsed, aFrame, aPhase, aThread);
+				events = decode_codex_jsonl_frame(*parsed, aFrame, aPhase, aThread, aReadOnly);
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -2510,6 +2561,11 @@ namespace bpr::application {
 		if (aOptions.WritingOnly && aProfile.Protocol != core::agent_protocol::claude_stream_json) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
+		// [[BPR-1900]]. Read-only drafting has a recorded allowlist for
+		// Claude's stream JSON and Codex's `exec --json`, and for nothing else.
+		if (aOptions.ReadOnlyTools && (aOptions.WritingOnly || (aProfile.Protocol != core::agent_protocol::claude_stream_json && aProfile.Protocol != core::agent_protocol::codex_jsonl_exec))) {
+			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
 		const auto metadata = core::agent_runtime_metadata{ .Requested = aOptions.Requested, .Configured = aProfile.DefaultSettings };
 		if (!core::inspect_runtime_metadata(metadata)) {
 			return std::unexpected(agent_launch_failure::invalid_runtime_settings);
@@ -2540,6 +2596,9 @@ namespace bpr::application {
 			arguments.emplace_back("exec");
 			arguments.emplace_back("--json");
 			append_codex_exec_settings(arguments, settings);
+			if (aOptions.ReadOnlyTools) {
+				arguments.insert(arguments.end(), codex_read_only_arguments.begin(), codex_read_only_arguments.end());
+			}
 			arguments.emplace_back("-");
 			break;
 		case core::agent_protocol::claude_stream_json:
@@ -2557,6 +2616,9 @@ namespace bpr::application {
 		if (aOptions.WritingOnly) {
 			arguments.insert(arguments.end(), claude_writing_restrictions.begin(), claude_writing_restrictions.end());
 		}
+		if (aOptions.ReadOnlyTools && aProfile.Protocol == core::agent_protocol::claude_stream_json) {
+			arguments.insert(arguments.end(), claude_read_only_restrictions.begin(), claude_read_only_restrictions.end());
+		}
 		auto payload = encode_agent_supplement(aSupplement);
 		encode_private_into(payload, aOptions);
 		auto request = agent_launch_request{
@@ -2572,10 +2634,11 @@ namespace bpr::application {
 		// reads this variable over any settings value, so auto-memory stays
 		// off even when a wrapper replaces this app's `--settings`, unless
 		// the wrapper also drops the variable. Never a chat launch.
-		if (aOptions.WritingOnly) {
+		if (aOptions.WritingOnly || (aOptions.ReadOnlyTools && aProfile.Protocol == core::agent_protocol::claude_stream_json)) {
 			request.Environment.emplace_back(claude_writing_environment.first, claude_writing_environment.second);
 		}
-		request.Profile = aProfile.Id;
+		request.ReadOnlyTools = aOptions.ReadOnlyTools;
+		request.Profile       = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;
 		}
@@ -2900,16 +2963,18 @@ namespace bpr::application {
 		case agent_protocol_event_kind::plugins_reported:
 		case agent_protocol_event_kind::auto_memory_reported:
 		case agent_protocol_event_kind::thinking_reported:
-		case agent_protocol_event_kind::model_catalog:        break;
+		case agent_protocol_event_kind::model_catalog:
+		case agent_protocol_event_kind::tool_activity:        break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
 
 	agent_protocol_decoder::agent_protocol_decoder(
-		const core::agent_protocol aProtocol, bool aWritingOnly, const agent_launch_purpose aPurpose)
+		const core::agent_protocol aProtocol, bool aWritingOnly, const agent_launch_purpose aPurpose, const bool aReadOnlyTools)
 		: Protocol{ aProtocol }
 		, WritingOnly{ aWritingOnly }
 		, Purpose{ aPurpose }
+		, ReadOnlyTools{ aReadOnlyTools }
 	{
 	}
 
@@ -2986,7 +3051,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;
@@ -3218,6 +3283,7 @@ namespace bpr::application {
 		case agent_protocol_failure::invalid_runtime_metadata:      return "invalid_runtime_metadata";
 		case agent_protocol_failure::input_too_large:               return "input_too_large";
 		case agent_protocol_failure::not_signed_in:                 return "not_signed_in";
+		case agent_protocol_failure::tool_refused:                  return "tool_refused";
 		}
 		return "unknown";
 	}

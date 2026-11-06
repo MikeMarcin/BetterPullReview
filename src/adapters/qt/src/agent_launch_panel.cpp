@@ -70,6 +70,7 @@ namespace bpr::qt {
 			case failure::invalid_runtime_metadata:      return QStringLiteral("What it reported about its model or session isn't readable.");
 			case failure::input_too_large:               return QStringLiteral("The question and its context are larger than an agent may be sent.");
 			case failure::not_signed_in:                 return QStringLiteral("It isn't signed in.");
+			case failure::tool_refused:                  return QStringLiteral("It tried a tool a drafting run may not use, so the run was stopped.");
 			}
 			return QStringLiteral("Its output couldn't be read.");
 		}
