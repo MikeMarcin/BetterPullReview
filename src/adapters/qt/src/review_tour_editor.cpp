@@ -974,7 +974,16 @@ namespace bpr::qt {
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, first);
 			first->addStretch(1);
 			column->addLayout(first);
-			auto* const tools = new QHBoxLayout{ };
+			// [[BPR-1878]], owner look v002: the agent picker goes with the
+			// button that asks the agent, directly under it, as it goes with
+			// Send in the Agent tab. A row of its own keeps its whole words
+			// (agent, model, effort) in the narrowest drawer.
+			auto* const agentHome = new QHBoxLayout{ };
+			agentHome->setContentsMargins(0, 0, 0, 0);
+			agentHome->addStretch(1);
+			column->addLayout(agentHome);
+			AgentHomes[aIndex] = agentHome;
+			auto* const tools  = new QHBoxLayout{ };
 			tools->setSpacing(6);
 			auto* map = new quiet_push_button{ tr("Copy selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
@@ -1139,15 +1148,6 @@ namespace bpr::qt {
 		connect(DescriptionEdit, &QCheckBox::toggled, this, [this] { PublishTour->setEnabled(false); });
 		present_publication({ });
 
-		// [[BPR-1878]], owner look v001 ("we should just have the bottom agent
-		// picker the same one from the agent tab"): the Agent tab's picker,
-		// at the bottom, right-aligned as it sits in the question field.
-		AgentRow = new QWidget{ this };
-		AgentRow->setObjectName(QStringLiteral("tourAgentRow"));
-		auto* const agentRow = new QHBoxLayout{ AgentRow };
-		agentRow->setContentsMargins(10, 4, 10, 0);
-		agentRow->addStretch(1);
-		AgentRow->hide();
 		// The foot: the private draft's state, and Preview and publish.
 		Foot = new QWidget{ this };
 		Foot->setObjectName(QStringLiteral("tourFoot"));
@@ -1214,7 +1214,6 @@ namespace bpr::qt {
 		rightColumn->addWidget(PublicationPanel, 1);
 		pageRow->addWidget(right);
 		layout->addWidget(PageColumns, 1);
-		layout->addWidget(AgentRow);
 		layout->addWidget(Foot);
 
 		for (auto* widget : findChildren<QWidget*>()) {
@@ -1607,10 +1606,6 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
-		// [[BPR-1878]]. The row shows while its picker does (an agent chosen).
-		if (aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
-			AgentRow->setVisible(AgentPicker->isVisibleTo(AgentRow));
-		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -1663,12 +1658,33 @@ namespace bpr::qt {
 			return;
 		}
 		AgentPicker = aPicker;
-		aPicker->setParent(AgentRow);
-		static_cast<QHBoxLayout*>(AgentRow->layout())->addWidget(aPicker);
-		aPicker->installEventFilter(this);
-		aPicker->present();
-		AgentRow->setVisible(aPicker->isVisibleTo(AgentRow));
-		aPicker->set_narrow(width() > 0 && width() < 300);
+		place_agent_picker();
+	}
+	void review_tour_editor::place_agent_picker()
+	{
+		// [[BPR-1878]], owner look v002 ("it seems weird for preview and
+		// publish to be below the model picker"). The picker goes with the
+		// open step's drafting controls: Problem's or Solution's Draft row, or
+		// the stop's actions. The draft's state and Preview and publish stay
+		// the tab's last row.
+		if (AgentPicker == nullptr) {
+			return;
+		}
+		const auto  home  = BriefOpen == 0 ? 0 : BriefOpen == 1 ? 1
+																: 2;
+		auto* const row   = AgentHomes[home];
+		auto* const owner = home == 2 ? StopFields : BriefPanels[home];
+		if (row == nullptr || owner == nullptr) {
+			return;
+		}
+		if (AgentPicker->parentWidget() != owner || row->indexOf(AgentPicker) < 0) {
+			AgentPicker->setParent(owner);
+			row->insertWidget(0, AgentPicker);
+		}
+		// Reparenting hides it: shown again as the source says (hidden while
+		// no agent is chosen, as in the Agent tab).
+		AgentPicker->present();
+		AgentPicker->set_narrow(width() > 0 && width() < 300);
 	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
@@ -1971,6 +1987,14 @@ namespace bpr::qt {
 		MoreButton    = more;
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
+		// [[BPR-1878]]. The stop's own agent row, under the actions whose
+		// Generate comment asks the agent, as under Draft from PR context; the
+		// actions row yields its words to More, so the picker has its own.
+		auto* const stopAgent = new QHBoxLayout{ };
+		stopAgent->setContentsMargins(0, 0, 0, 0);
+		stopAgent->addStretch(1);
+		fields->addLayout(stopAgent);
+		AgentHomes[2] = stopAgent;
 		// The first to stay is the first a stop is written with.
 		StopActions->yield(useLines, true);
 		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
@@ -2616,6 +2640,7 @@ namespace bpr::qt {
 			Roadmap->setCurrentIndex(2);
 		}
 		place_stop_card();
+		place_agent_picker();
 		fit_route();
 	}
 
