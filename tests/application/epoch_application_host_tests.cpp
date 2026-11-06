@@ -440,6 +440,10 @@ namespace {
 		std::optional<application::owned_agent_workspace>                        WorkspaceResult;
 		std::vector<application::git_smart_workspace_delta_request>              DeltaRequests;
 		std::optional<application::git_smart_transport_failure>                  DeltaFailure;
+		/// [[BPR-1884]]. What the kept clone's maintenance fetch was asked, and
+		/// how it ends; a fetch that succeeds leaves the clone holding the head.
+		std::vector<application::git_smart_managed_clone_refresh_request> RefreshRequests;
+		std::optional<application::git_smart_transport_failure>           RefreshFailure;
 		/// [[BPR-1772]]. Whether each workspace asked for the linked clone's
 		/// head only, and whether the clone holds it.
 		std::vector<bool>                                   WorkspaceHeadFromClone;
@@ -2110,6 +2114,17 @@ namespace {
 				return std::unexpected{ application::git_smart_transport_error{ *State.DeltaFailure } };
 			}
 			return std::make_shared<fake_workspace_delta>(aRequest.Head);
+		}
+
+		[[nodiscard]] auto refresh_managed_clone(const application::git_smart_managed_clone_refresh_request& aRequest, std::stop_token)
+			-> application::git_smart_transport_result<void> override
+		{
+			State.RefreshRequests.push_back(aRequest);
+			if (State.RefreshFailure) {
+				return std::unexpected{ application::git_smart_transport_error{ *State.RefreshFailure } };
+			}
+			State.CloneHoldsHead = true;
+			return { };
 		}
 
 		[[nodiscard]] auto acquire_chain_trees(const application::git_smart_chain_request& aRequest, std::stop_token)
@@ -8082,6 +8097,96 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1884]], RFC-BPR-0092. The clone BetterPullReview keeps is
+	/// brought up to the pull request when it lacks the head, then lends it;
+	/// a fetch that fails or is cancelled leaves the question to the delta. A
+	/// reviewer-linked clone is never fetched into.
+	void kept_clone_is_brought_up_to_the_pull_request_before_it_lends()
+	{
+		const auto run = [](fixture& aValue, const std::filesystem::path& aClone, const bool aManaged) {
+			auto materialized = std::optional<std::expected<application::owned_agent_workspace, application::agent_workspace_error>>{ };
+			auto done         = std::atomic_bool{ false };
+			{
+				auto caller = std::jthread{ [&] {
+					auto request                = workspace_request_for(aValue.Host->state());
+					request.HistoryClone        = aClone;
+					request.HistoryCloneManaged = aManaged;
+					materialized                = aValue.Host->materialize_agent_workspace(request, { });
+					done.store(true);
+				} };
+				while (!done.load()) {
+					if (aValue.Effects.pending() != 0U) {
+						aValue.Effects.run_next();
+					} else {
+						std::this_thread::yield();
+					}
+				}
+			}
+			return *materialized;
+		};
+		const auto kept     = workspace_parent_directory() / "agent-clones-v1" / "github.com-42";
+		const auto reviewer = workspace_parent_directory() / "reviewer-clone";
+		{
+			// AC1: the kept clone is fetched into, then lends the head; no delta.
+			fixture value;
+			establish_sparse_three_files(value);
+			const auto workspace        = owned_workspace_for(value.Host->state());
+			value.State.WorkspaceResult = workspace;
+			const auto binding          = workspace_request_for(value.Host->state()).Session.Binding;
+			const auto materialized     = run(value, kept, true);
+			expect(materialized.has_value() && *materialized == workspace && value.State.DeltaRequests.empty()
+					   && value.State.WorkspaceHeadFromClone == std::vector{ true, true } && !value.State.WorkspaceDeltas.back(),
+				   "AC1: a kept clone that lacks the head is brought up to the pull request and lends it, with no workspace delta");
+			expect(value.State.RefreshRequests.size() == 1U && value.State.RefreshRequests.front().Clone == kept
+					   && value.State.RefreshRequests.front().Context.Revision.Head == binding.HeadOid
+					   && value.State.RefreshRequests.front().Context.AcquisitionMode == application::git_smart_acquisition_mode::sparse_commit_trees,
+				   "the maintenance fetch names the kept clone and the review's exact revision, through the sparse lease");
+			// The next question on the same head finds it in the clone.
+			const auto again = run(value, kept, true);
+			expect(again.has_value() && value.State.RefreshRequests.size() == 1U && value.State.DeltaRequests.empty(),
+				   "a head the kept clone now holds is lent with nothing fetched");
+		}
+		for (const auto failure : { application::git_smart_transport_failure::network, application::git_smart_transport_failure::cancelled,
+									application::git_smart_transport_failure::unavailable }) {
+			// AC3: a failed or cancelled maintenance fetch leaves the delta.
+			auto    log = std::make_shared<recording_epoch_log>();
+			fixture value{ { }, log };
+			establish_sparse_three_files(value);
+			const auto workspace        = owned_workspace_for(value.Host->state());
+			value.State.WorkspaceResult = workspace;
+			value.State.RefreshFailure  = failure;
+			const auto materialized     = run(value, kept, true);
+			expect(materialized.has_value() && *materialized == workspace && value.State.RefreshRequests.size() == 1U && value.State.DeltaRequests.size() == 1U
+					   && value.State.DeltaRequests.front().Clone == kept && value.State.WorkspaceHeadFromClone == std::vector{ true, false },
+				   "AC3: a maintenance fetch that fails or is cancelled still lets the question succeed through the delta");
+			const auto expectedLine = std::string{ "action=clone_refresh failure=" }
+				+ (failure == application::git_smart_transport_failure::cancelled ? "cancelled" : "refresh_failed");
+			expect(std::ranges::any_of(log->Events, [&expectedLine](const application::diagnostic_event& aEvent) {
+					   return std::string_view{ aEvent.Summary.Text.data(), aEvent.Summary.Size }.starts_with(expectedLine);
+				   }),
+				   "and the fetch's failure is recorded in diagnostics");
+		}
+		{
+			// AC2: a reviewer-linked clone is never fetched into.
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			const auto materialized     = run(value, reviewer, false);
+			expect(materialized.has_value() && value.State.RefreshRequests.empty() && value.State.DeltaRequests.size() == 1U,
+				   "AC2: a reviewer-linked clone that lacks the head gets a private delta and is never fetched into");
+		}
+		{
+			// A kept clone that holds the head is not fetched into.
+			fixture value;
+			establish_sparse_three_files(value);
+			value.State.WorkspaceResult = owned_workspace_for(value.Host->state());
+			value.State.CloneHoldsHead  = true;
+			const auto materialized     = run(value, kept, true);
+			expect(materialized.has_value() && value.State.RefreshRequests.empty() && value.State.DeltaRequests.empty(),
+				   "a kept clone that holds the head lends it with no fetch");
+		}
+	}
+
 	void invalidated_inflight_blob_cannot_publish_bytes()
 	{
 		fixture value;
@@ -9985,6 +10090,7 @@ int main(int argc, char** argv)
 	invalidated_authority_cannot_materialize_retained_cache();
 	agent_workspace_failures_preserve_the_cache_diagnostic();
 	sparse_agent_workspace_borrows_the_clone_and_fetches_only_what_it_lacks();
+	kept_clone_is_brought_up_to_the_pull_request_before_it_lends();
 	invalidated_inflight_blob_cannot_publish_bytes();
 	cancellation_before_ponr_aborts_without_publication();
 	stop_immediately_after_ponr_cannot_replace_committed_terminal();
