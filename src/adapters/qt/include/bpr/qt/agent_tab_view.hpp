@@ -12,12 +12,14 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <cstddef>
 #include <cstdint>
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <string>
 #include <utility>
@@ -42,31 +44,6 @@ namespace bpr::qt {
 	class appearance_profile;
 	class side_chat_panel;
 
-	/// \brief [[BPR-1594]]. What the Agent tab says about its agent.
-	/// \brief [[BPR-1753]], owner look v002 ("I really have no clue
-	/// what my agent will be actually doing"). What one agent runs with, for
-	/// the tab's model and effort control.
-	struct agent_run_settings
-	{
-		/// The profile these settings are for.
-		std::uint64_t Profile = 0U;
-		/// The agent's plain name and the program that runs.
-		QString Agent;
-		QString Program;
-		bool    ModelChoosable  = false;
-		bool    EffortChoosable = false;
-		/// Empty: the agent's own default.
-		std::string Model;
-		std::string Effort;
-		/// Models to offer by name (value, label), besides Other….
-		std::vector<std::pair<std::string, QString>> Models;
-		std::vector<std::string>                     Efforts;
-		/// Why the settings cannot be chosen, when they cannot.
-		QString Note;
-		/// Owner look v006. The harness is being asked for its models.
-		bool Listing = false;
-	};
-
 	/// \brief [[BPR-1753]], owner decision (b) 2026-10-23. One finished
 	/// turn of the thread, as it is kept for its pull request and shown again.
 	struct agent_thread_turn
@@ -84,11 +61,8 @@ namespace bpr::qt {
 		auto operator==(const agent_thread_turn&) const -> bool = default;
 	};
 
-	/// \brief Owner look v004 ("The models aren't listing their version
-	/// numbers"). A model as a reviewer reads it: `claude-sonnet-5-5` is
-	/// "Sonnet 5.5", a bare alias such as `sonnet` is "Sonnet (newest)", and
-	/// any other name is shown as the agent reported it.
-	[[nodiscard]] auto agent_model_display_name(const QString& aModel) -> QString;
+	// agent_run_settings, agent_run_settings_dispatch and
+	// agent_model_display_name live in agent_run_settings_picker.hpp ([[BPR-1878]]).
 
 	/// \brief [[BPR-1753]], owner decision (a) 2026-10-23. What the
 	/// suggested prompts may name: the open file's path, and the selected
@@ -214,7 +188,6 @@ namespace bpr::qt {
 
 	/// \brief A change to the model, the effort, or both; empty is the
 	/// agent's own default. Answers whether the host took it.
-	using agent_run_settings_dispatch = std::function<bool(std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort)>;
 
 	enum class agent_tab_state : std::uint8_t {
 		/// No agent is set up: the tab offers Set up an agent.
@@ -266,6 +239,9 @@ namespace bpr::qt {
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief [[BPR-1878]]. What the agent picker shows, for another
+		/// picker (the Tour tab's) that is the same choice.
+		[[nodiscard]] auto run_settings_source() const noexcept -> const std::shared_ptr<agent_run_settings_source>& { return RunSettingsSource; }
 		/// \brief `/model NAME`, `/effort LEVEL` (or `default`), and `/model`
 		/// or `/effort` alone to open the control. Answers whether the text
 		/// was such a command, which is then not sent to the agent.
@@ -472,7 +448,6 @@ namespace bpr::qt {
 		agent_answer_note_dispatch         NoteDispatch;
 		agent_note_navigation              NoteNavigate;
 		std::function<void(std::uint64_t)> CatalogDispatch;
-		bool                               MenuStale = false;
 		std::function<void()>              ResetDispatch;
 		std::function<bool()>              ResetConfirm;
 		agent_file_resolver                LineResolve;
@@ -481,35 +456,33 @@ namespace bpr::qt {
 		void                               follow_link(const QString& aLink);
 		void                               present_banner();
 
-		agent_launch_panel&             Launch;
-		side_chat_panel&                Chat;
-		finding_queue_view&             Findings;
-		QWidget&                        HistoryPanel;
-		std::function<void()>           Setup;
-		agent_tab_state                 State        = agent_tab_state::not_set_up;
-		QStackedWidget*                 Pages        = nullptr;
-		drawer_empty_state*             Empty        = nullptr;
-		QWidget*                        Conversation = nullptr;
-		QWidget*                        HistoryPage  = nullptr;
-		QWidget*                        Banner       = nullptr;
-		QLabel*                         BannerTitle  = nullptr;
-		QLabel*                         BannerText   = nullptr;
-		QPushButton*                    BannerFirst  = nullptr;
-		QPushButton*                    BannerSecond = nullptr;
-		QWidget*                        Cards        = nullptr;
-		QWidget*                        Viewport     = nullptr;
-		QVBoxLayout*                    CardColumn   = nullptr;
-		QLabel*                         Head         = nullptr;
-		QToolButton*                    History      = nullptr;
-		QMenu*                          HistoryMenu  = nullptr;
-		agent_setup_view*               SetupView    = nullptr;
-		std::function<void()>           FirstShown;
-		std::vector<agent_run_settings> RunSettingsShown;
-		/// The model each agent last reported running, by its profile.
-		std::map<std::uint64_t, QString> ReportedModels;
-		agent_run_settings_dispatch      RunSettingsDispatch;
-		QToolButton*                     RunSettings = nullptr;
-		QLabel*                          Notice      = nullptr;
+		agent_launch_panel&                        Launch;
+		side_chat_panel&                           Chat;
+		finding_queue_view&                        Findings;
+		QWidget&                                   HistoryPanel;
+		std::function<void()>                      Setup;
+		agent_tab_state                            State        = agent_tab_state::not_set_up;
+		QStackedWidget*                            Pages        = nullptr;
+		drawer_empty_state*                        Empty        = nullptr;
+		QWidget*                                   Conversation = nullptr;
+		QWidget*                                   HistoryPage  = nullptr;
+		QWidget*                                   Banner       = nullptr;
+		QLabel*                                    BannerTitle  = nullptr;
+		QLabel*                                    BannerText   = nullptr;
+		QPushButton*                               BannerFirst  = nullptr;
+		QPushButton*                               BannerSecond = nullptr;
+		QWidget*                                   Cards        = nullptr;
+		QWidget*                                   Viewport     = nullptr;
+		QVBoxLayout*                               CardColumn   = nullptr;
+		QLabel*                                    Head         = nullptr;
+		QToolButton*                               History      = nullptr;
+		QMenu*                                     HistoryMenu  = nullptr;
+		agent_setup_view*                          SetupView    = nullptr;
+		std::function<void()>                      FirstShown;
+		agent_run_settings_dispatch                RunSettingsDispatch;
+		std::shared_ptr<agent_run_settings_source> RunSettingsSource;
+		agent_run_settings_picker*                 RunSettings = nullptr;
+		QLabel*                                    Notice      = nullptr;
 		/// [[BPR-1817]]. The refusal beside the composer.
 		QWidget*                 Refusal      = nullptr;
 		QLabel*                  RefusalText  = nullptr;
@@ -521,7 +494,6 @@ namespace bpr::qt {
 		/// or the chosen agent's that is no longer offered.
 		[[nodiscard]] auto agent_name() const -> QString;
 		/// [[BPR-1823]]. The pill when the chosen agent is unavailable.
-		void               present_unavailable_agent();
 		[[nodiscard]] auto current_run_settings() const -> const agent_run_settings*;
 		void               present_run_settings_button();
 		void               ask();
@@ -597,7 +569,6 @@ namespace bpr::qt {
 		QLabel*                                                                     SessionTitle = nullptr;
 		QWidget*                                                                    EmptyIntro   = nullptr;
 		QWidget*                                                                    Field        = nullptr;
-		QString                                                                     RunSettingsTip;
 		std::optional<QFont>                                                        CodeFont;
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;

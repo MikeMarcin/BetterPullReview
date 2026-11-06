@@ -6142,6 +6142,11 @@ namespace {
 					if (const auto row = agents->findData(QVariant::fromValue<qulonglong>(bpr::core::claude_stream_json_profile_id.value())); row >= 0) {
 						agents->setCurrentIndex(row);
 					}
+					// Owner note on v002: an effort chosen, so the pill shows
+					// one; the person changes it from the pill's Effort menu.
+					if (const auto& source = window.agent_tab()->run_settings_source(); source && source->Dispatch) {
+						static_cast<void>(source->Dispatch(bpr::core::claude_stream_json_profile_id.value(), std::nullopt, std::string{ "high" }));
+					}
 	#endif
 					editor->show_problem();
 					QCoreApplication::processEvents();
