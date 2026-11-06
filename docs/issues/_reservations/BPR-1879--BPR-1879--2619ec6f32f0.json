@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1879"
+  ],
+  "reserve_for": "managed-clone",
+  "purpose": "BetterPullReview-managed clone for agent workspaces",
+  "created": "2026-11-06T02:13:35.736922+00:00",
+  "base": "628efb91d4b0037b41d6831b327bad7375b1cc31"
+}
