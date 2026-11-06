@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1888"
 title: "Prepare Git while the pull request loads"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1888--BPR-1888--c401c5ea9d04.json","related_cards":["BPR-1842"],"milestone_plan":{"id":"responsiveness-latency-v5","path":"docs/rfcs/plans/responsiveness-latency-v5/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8e0e5ec722d8479d3c04382f62a64d8aaf336e21","evidence":{"kind":"observation","detail":"The admitted read starts non-authoritative Git preparation through the composed handoff, on the existing epoch effect lane. No review cache opens early; unit and composed negative/positive controls pass."}},{"criterion":"AC2","outcome":"pass","revision":"8e0e5ec722d8479d3c04382f62a64d8aaf336e21","evidence":{"kind":"observation","detail":"Native Git contract checks prove admission reuse, exact child-count preservation, concurrent preparation coalescing, pre-cancel absence of effects and ordinary failure diagnostics; host exception and executor-refusal fallback pass."}},{"criterion":"AC3","outcome":"pass","revision":"8e0e5ec722d8479d3c04382f62a64d8aaf336e21","evidence":{"kind":"observation","detail":"Host tests cover once-only work, one/two/three-slot foreground behavior, queued and in-flight shutdown cancellation and terminal quiescence. Composed opening and refresh preserve loading feedback, stale-result exclusion and first-file rendering."}},{"criterion":"AC4","outcome":"pass","revision":"8e0e5ec722d8479d3c04382f62a64d8aaf336e21","evidence":{"kind":"observation","detail":"Release three-run first-diff medians improve 7521 to 7116 ms and post-accept medians 1179 to 761 ms with the same 19 reads; the 9408 ms outlier and inherited gate failures remain recorded. Documentation, format and composition inventory controls pass; this source and its journal line are on main."}}]
 ---
 
 # BPR-1888: Prepare Git while the pull request loads
@@ -124,3 +125,5 @@ Evidence is external at
 `warmup-wired-after-{1,2,3}.log`, and `warmup-timing-summary.json`.
 The explicit v5 milestone binding is valid; global checkpoint discovery still
 encounters an unrelated historical plan's unsupported `amendments` field.
+
+Source revision `8e0e5ec722d8479d3c04382f62a64d8aaf336e21` is landed on local `main`. The final documentation gate passes; the one-line journal entry is committed with the implementation.
