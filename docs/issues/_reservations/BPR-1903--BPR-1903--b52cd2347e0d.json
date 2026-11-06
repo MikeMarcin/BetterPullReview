@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1903"
+  ],
+  "reserve_for": "codex-windows-rebuilds",
+  "purpose": "Disable user-wide vcpkg integration for BPR Visual Studio projects as explicitly requested by owner",
+  "created": "2026-11-06T23:16:49.856133+00:00",
+  "base": "5e6e27cf93e2562742619394e54ffc5af0a4f4fb"
+}
