@@ -13174,7 +13174,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (!setup->take_ready()) {
 				return;
 			}
-			auto gets = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
+			auto gets   = qt::agent_ready_facts{ .Repository = facts.Repository, .Head = facts.Head };
 			gets.Sparse = facts.Sparse;
 			if (const auto& snapshot = WindowRead->accepted_snapshot(); snapshot) {
 				gets.Number     = snapshot->PullRequest.Number.value();
