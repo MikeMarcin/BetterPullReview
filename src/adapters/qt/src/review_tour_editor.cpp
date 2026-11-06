@@ -77,6 +77,98 @@ namespace bpr::qt {
 									static_cast<float>(aFrom.blueF() * keep + aTo.blueF() * aShare));
 		}
 
+		/// \brief [[BPR-1892]], owner 2026-11-06 ("make the tour error a)
+		/// stand out more and b) send you there"). A failed agent request,
+		/// beside the control that made it: a red card with a red edge and a
+		/// warning mark, one line in the Agent tab's own words, the way to
+		/// the Agent tab's card for the run, and Dismiss. The red is the
+		/// Agent tab's stopped card's, so the two read as one failure; the
+		/// button wears the agent accent, as every agent feature does.
+		class failure_notice_card final : public QWidget
+		{
+		public:
+			explicit failure_notice_card(QWidget* aParent)
+				: QWidget{ aParent }
+			{
+				setObjectName(QStringLiteral("tourAgentFailure"));
+				setAccessibleName(tr("Agent request failed"));
+				// The line and Dismiss on top, the way to the Agent tab under
+				// the line, so a narrow drawer keeps the line whole.
+				auto* const column = new QVBoxLayout{ this };
+				// Room on the left for the edge and the mark.
+				column->setContentsMargins(mark_left + mark_size + 10, 8, 6, 10);
+				column->setSpacing(6);
+				auto* const top = new QHBoxLayout{ };
+				top->setSpacing(8);
+				Line = new QLabel{ this };
+				Line->setObjectName(QStringLiteral("tourAgentFailureLine"));
+				Line->setTextFormat(Qt::RichText);
+				Line->setWordWrap(true);
+				Line->setTextInteractionFlags(Qt::TextSelectableByMouse);
+				top->addWidget(Line, 1);
+				Dismiss = new QToolButton{ this };
+				Dismiss->setObjectName(QStringLiteral("tourAgentFailureDismiss"));
+				Dismiss->setAutoRaise(true);
+				Dismiss->setText(QStringLiteral("\u2715"));
+				Dismiss->setToolTip(tr("Dismiss"));
+				Dismiss->setAccessibleName(tr("Dismiss"));
+				top->addWidget(Dismiss, 0, Qt::AlignTop);
+				column->addLayout(top);
+				Open = new quiet_push_button{ tr("Show on the Agent tab"), this };
+				Open->setObjectName(QStringLiteral("tourAgentFailureOpen"));
+				Open->setToolTip(tr("Opens the Agent tab at this run's card: what happened, its log, and Resend."));
+				column->addWidget(Open, 0, Qt::AlignLeft);
+				connect(Dismiss, &QToolButton::clicked, this, &QWidget::hide);
+				hide();
+			}
+			void say(const QString& aRequest, const QString& aWhy)
+			{
+				Text = tr("%1 failed.").arg(aRequest) + (aWhy.isEmpty() ? QString{ } : QStringLiteral(" ") + aWhy);
+				Line->setText(QStringLiteral("<b>%1</b>%2").arg(tr("%1 failed.").arg(aRequest).toHtmlEscaped(), aWhy.isEmpty() ? QString{ } : QStringLiteral(" ") + aWhy.toHtmlEscaped()));
+				Line->setAccessibleName(Text);
+				setAccessibleDescription(Text);
+				show();
+				update();
+			}
+			[[nodiscard]] auto text() const -> const QString& { return Text; }
+			QLabel*            Line    = nullptr;
+			QPushButton*       Open    = nullptr;
+			QToolButton*       Dismiss = nullptr;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto ground = palette().color(QPalette::Active, QPalette::Window);
+				const auto night  = ground.lightness() < 128;
+				const auto red    = night ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E };
+				const auto box    = QRectF{ QWidget::rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+				painter.setPen(QPen{ mixed(ground, red, 0.55), 1.0 });
+				painter.setBrush(mixed(ground, red, night ? 0.16 : 0.10));
+				painter.drawRoundedRect(box, 8.0, 8.0);
+				// The edge, solid, so the card reads as a failure at a glance.
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(red);
+				painter.drawRoundedRect(QRectF{ box.left(), box.top(), 4.0, box.height() }, 2.0, 2.0);
+				// The mark: a red disc with an exclamation, on the line's first row.
+				const auto first = Line->geometry().top() + (Line->fontMetrics().height() - mark_size) / 2;
+				const auto disc  = QRectF{ static_cast<qreal>(mark_left), static_cast<qreal>(first), static_cast<qreal>(mark_size), static_cast<qreal>(mark_size) };
+				painter.drawEllipse(disc);
+				auto pen = QPen{ night ? ground : QColor{ Qt::white }, 2.0 };
+				pen.setCapStyle(Qt::RoundCap);
+				painter.setPen(pen);
+				const auto middle = disc.center().x();
+				painter.drawLine(QPointF{ middle, disc.top() + 4.0 }, QPointF{ middle, disc.bottom() - 7.0 });
+				painter.drawPoint(QPointF{ middle, disc.bottom() - 4.0 });
+			}
+
+		private:
+			static constexpr int mark_left = 12;
+			static constexpr int mark_size = 16;
+			QString              Text;
+		};
+
 		/// \brief [[BPR-1878]]. The Agent tab's question field, drawn as it
 		/// draws it: one rounded field on the base colour. [[BPR-1881]]: an
 		/// agent feature, so it is outlined in the agent accent.
@@ -1057,9 +1149,11 @@ namespace bpr::qt {
 			// read a bare Next among the helpers as one of them.
 			auto* const first = new QHBoxLayout{ };
 			first->setSpacing(6);
-			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, first);
+			const auto hook = aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution;
+			add_writing_button(editor, hook, first);
 			first->addStretch(1);
 			column->addLayout(first);
+			column->addWidget(add_failure_notice(hook, panel));
 			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
 			auto* map = new quiet_push_button{ tr("Copy selected description text"), panel };
@@ -1641,8 +1735,11 @@ namespace bpr::qt {
 		AgentLabels.push_back(label);
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
-		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook] {
+		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook, button] {
 			if (!aEditor->isReadOnly() && WritingRequest) {
+				// [[BPR-1892]]. Made again: the last failure no longer stands.
+				RequestNames[aHook] = button->text();
+				clear_agent_failure(aHook);
 				if (auto captured = aEditor->capture()) {
 					WritingRequest(aHook, std::move(*captured));
 				}
@@ -1764,6 +1861,46 @@ namespace bpr::qt {
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
 	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
+	auto review_tour_editor::add_failure_notice(const core::writing_hook aHook, QWidget* aParent) -> QWidget*
+	{
+		auto* const notice    = new failure_notice_card{ aParent };
+		FailureNotices[aHook] = notice;
+		connect(notice->Open, &QPushButton::clicked, this, [this] {
+			if (AgentFailureDispatch) {
+				AgentFailureDispatch();
+			}
+		});
+		return notice;
+	}
+	void review_tour_editor::show_agent_failure(const core::writing_hook aHook, const QString& aWhy)
+	{
+		const auto found = FailureNotices.find(aHook);
+		if (found == FailureNotices.end()) {
+			return;
+		}
+		const auto  named   = RequestNames.find(aHook);
+		const auto  request = named != RequestNames.end() && !named->second.isEmpty() ? named->second : tr("The agent request");
+		auto* const notice  = static_cast<failure_notice_card*>(found->second);
+		notice->say(request, aWhy);
+		restyle_agent_features();
+	}
+	void review_tour_editor::clear_agent_failure(const core::writing_hook aHook)
+	{
+		if (const auto found = FailureNotices.find(aHook); found != FailureNotices.end()) {
+			found->second->hide();
+		}
+	}
+	void review_tour_editor::set_agent_failure_dispatch(std::function<void()> aDispatch) { AgentFailureDispatch = std::move(aDispatch); }
+	auto review_tour_editor::agent_failure_notice(const core::writing_hook aHook) const -> QWidget*
+	{
+		const auto found = FailureNotices.find(aHook);
+		return found == FailureNotices.end() ? nullptr : found->second;
+	}
+	auto review_tour_editor::agent_failure_text(const core::writing_hook aHook) const -> QString
+	{
+		const auto* const notice = agent_failure_notice(aHook);
+		return notice != nullptr && !notice->isHidden() ? static_cast<const failure_notice_card*>(notice)->text() : QString{ };
+	}
 	void review_tour_editor::set_agent_picker(agent_run_settings_picker* aPicker)
 	{
 		if (aPicker == nullptr || AgentPicker == aPicker) {
@@ -1828,6 +1965,11 @@ namespace bpr::qt {
 				button->setIcon(drawer_icon(drawer_glyph::agent, button->palette()));
 			}
 		}
+		for (const auto& [hook, notice] : FailureNotices) {
+			auto* const open = static_cast<failure_notice_card*>(notice)->Open;
+			apply_agent_accent(*open, ground);
+			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
+		}
 		if (AgentSetupButton != nullptr) {
 			apply_agent_accent(*AgentSetupButton, ground);
 			AgentSetupButton->setIcon(drawer_icon(drawer_glyph::agent, AgentSetupButton->palette()));
@@ -1867,6 +2009,10 @@ namespace bpr::qt {
 		if (Shown.Refusal == core::tour_refusal::bounds && aAction != tour_editor_action::retry_save && aAction != tour_editor_action::use_saved_copy && aAction != tour_editor_action::navigate_stop && aAction != tour_editor_action::navigate_related) {
 			show_notice(tr("Shorten the unsaved text or use native Undo before changing the tour. Your full text is retained."));
 			return;
+		}
+		if (aAction == tour_editor_action::suggest_outline) {
+			RequestNames[core::writing_hook::outline] = tr("Suggest an outline");
+			clear_agent_failure(core::writing_hook::outline);
 		}
 		if (Action) {
 			Action(aAction);
@@ -1987,6 +2133,7 @@ namespace bpr::qt {
 		toolsRow->addWidget(suggest);
 		toolsRow->addStretch(1);
 		toolsColumn->addLayout(toolsRow);
+		toolsColumn->addWidget(add_failure_notice(core::writing_hook::outline, OutlineTools));
 		connect(suggest, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::suggest_outline); });
 		SuggestedOutline = new QListWidget{ OutlineTools };
 		SuggestedOutline->setObjectName(QStringLiteral("tourSuggestedOutline"));
@@ -2163,6 +2310,7 @@ namespace bpr::qt {
 		MoreButton    = more;
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
+		fields->addWidget(add_failure_notice(core::writing_hook::comment, StopFields));
 		// The first to stay is the first a stop is written with.
 		StopActions->yield(useLines, true);
 		StopActions->yield(addRelated, Mode == tour_editor_mode::page);

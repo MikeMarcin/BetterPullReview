@@ -13894,6 +13894,20 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				Window->writing_hooks()->show_notice(message);
 			} else {
 				Window->tour_editor()->show_writing_notice(QString::fromStdString(message));
+				// [[BPR-1892]]. A run that failed says so beside its control,
+				// in the Agent tab's own words, and offers the way to that
+				// tab's card for it. A success, or a stop the person asked
+				// for, leaves nothing there.
+				const auto hook = operation.Request.Target.Hook;
+				if (aResult.Outcome == application::agent_run_outcome::success || aResult.Outcome == application::agent_run_outcome::cancelled) {
+					Window->tour_editor()->clear_agent_failure(hook);
+				} else {
+#if defined(BPR_AGENT_INTEGRATIONS)
+					Window->tour_editor()->show_agent_failure(hook, qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(operation.Request.Target.Agent)));
+#else
+					Window->tour_editor()->show_agent_failure(hook, { });
+#endif
+				}
 			}
 		}
 		auto current_outline_target() const -> std::optional<core::writing_target>

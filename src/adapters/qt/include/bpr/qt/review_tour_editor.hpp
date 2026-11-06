@@ -115,6 +115,21 @@ namespace bpr::qt {
 		[[nodiscard]] auto import_choice() const -> std::size_t;
 		void               show_notice(const QString& aText);
 		void               show_writing_notice(const QString& aText);
+		/// \brief [[BPR-1892]], owner 2026-11-06. A failed agent request,
+		/// beside the control that made it: "<request> failed." and
+		/// `aWhy`, the Agent tab's own words for the failure, with the way
+		/// to the Agent tab's card for the run. Nothing switches tabs.
+		void show_agent_failure(core::writing_hook aHook, const QString& aWhy);
+		/// \brief [[BPR-1892]]. Clears it: its request made again, or
+		/// succeeded.
+		void clear_agent_failure(core::writing_hook aHook);
+		/// \brief [[BPR-1892]]. Show on the Agent tab: asks the window for
+		/// the Agent tab at the failed run's card.
+		void set_agent_failure_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1892]]. The notice for a request's control, shown or
+		/// not, and the line it says.
+		[[nodiscard]] auto agent_failure_notice(core::writing_hook aHook) const -> QWidget*;
+		[[nodiscard]] auto agent_failure_text(core::writing_hook aHook) const -> QString;
 		/// \brief [[BPR-1878]], owner looks v001 to v003. The Agent tab's own
 		/// agent picker (a second `agent_run_settings_picker` on its source)
 		/// in the tab's bottom bar, styled as the Agent tab's and the last
@@ -264,23 +279,29 @@ namespace bpr::qt {
 		std::function<void()>              ShownObserver;
 		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
 		std::vector<std::function<void()>> AgentLabels;
-		void                               refresh_agent_features();
-		void                               restyle_agent_features();
-		QWidget*                           Foot               = nullptr;
-		QLabel*                            FootState          = nullptr;
-		QPushButton*                       PreviewPublish     = nullptr;
-		QLabel*                            StopState          = nullptr;
-		QPushButton*                       Reaffirm           = nullptr;
-		QPushButton*                       Previous           = nullptr;
-		QPushButton*                       Next               = nullptr;
-		QComboBox*                         PublicationMode    = nullptr;
-		QCheckBox*                         DescriptionEdit    = nullptr;
-		QLabel*                            PublicationStatus  = nullptr;
-		markdown_body_view*                PublicationPreview = nullptr;
-		QPushButton*                       PublishTour        = nullptr;
-		QPushButton*                       ResumeTour         = nullptr;
-		QPushButton*                       ReconcileTour      = nullptr;
-		QPushButton*                       StopTour           = nullptr;
+		/// [[BPR-1892]]. Each request's failure notice, what its control
+		/// said when it was pressed, and where Show on the Agent tab goes.
+		std::map<core::writing_hook, QWidget*> FailureNotices;
+		std::map<core::writing_hook, QString>  RequestNames;
+		std::function<void()>                  AgentFailureDispatch;
+		auto                                   add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
+		void                                   refresh_agent_features();
+		void                                   restyle_agent_features();
+		QWidget*                               Foot               = nullptr;
+		QLabel*                                FootState          = nullptr;
+		QPushButton*                           PreviewPublish     = nullptr;
+		QLabel*                                StopState          = nullptr;
+		QPushButton*                           Reaffirm           = nullptr;
+		QPushButton*                           Previous           = nullptr;
+		QPushButton*                           Next               = nullptr;
+		QComboBox*                             PublicationMode    = nullptr;
+		QCheckBox*                             DescriptionEdit    = nullptr;
+		QLabel*                                PublicationStatus  = nullptr;
+		markdown_body_view*                    PublicationPreview = nullptr;
+		QPushButton*                           PublishTour        = nullptr;
+		QPushButton*                           ResumeTour         = nullptr;
+		QPushButton*                           ReconcileTour      = nullptr;
+		QPushButton*                           StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;
