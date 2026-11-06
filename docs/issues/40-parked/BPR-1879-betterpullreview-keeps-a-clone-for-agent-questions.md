@@ -69,24 +69,56 @@ agent-tab tests the merges touched pass.
   lease; the transport's `acquire_managed_clone` runs `gh repo clone
   --no-checkout` of every object into a private temporary root with the
   pinned private configuration and identity checks, on a runner outside the
-  32 MiB / 96 MiB limits (ceilings from the size, 4 to 64 GiB, two hours),
-  checks `HEAD`, makes it owner-private and moves it to
-  `agent-clones-v1/HOST-ID`. `architecture_boundaries` pins the new
-  runner factory.
+  32 MiB / 96 MiB limits, checks `HEAD`, makes it owner-private and moves it
+  to `agent-clones-v1/HOST-ID`. `architecture_boundaries` pins the new
+  runner factory. (First built with ceilings of 4 to 64 GiB and two hours;
+  see below.)
 - **Reuse.** The kept clone is linked as the repository's clone (marked
   `Managed` from its location, not stored), so later questions borrow it as
   BPR-1873's linked clone does. Settings names it "kept by BetterPullReview".
 - **Storage and purge.** Insights › Storage measures `agent-clones-v1`;
   profile purge removes it; the resets keep it.
 
+### No download limit (owner decision 2026-11-05)
+
+"I don't really care about a limit, a cancel and a progress would be
+better." The kept clone's runner now has no byte or time limit: no per-file
+ceiling, no store threshold, no deadline (`make_github_cli_managed_clone_process_runner(aGit)`;
+`ManagedClone` lifts the deadline, and `architecture_boundaries` pins both
+and keeps every other runner's limits). The qualification, identity and
+`HEAD` check launches keep the usual bounds over their own empty folder, so
+supervising them never counts the clone. GitHub's size no longer reaches the
+transport; it is only what the step says.
+
+- Progress: bytes received, sampled twice a second, of about SIZE; past
+  SIZE, or with no SIZE, the bar is busy and the step says "X so far (GitHub
+  said about SIZE)". Objects and percent are not shown: they exist only in
+  Git's standard error, which the adapter never exposes.
+- Cancel is honoured before it starts, during qualification, during the
+  clone and before the final move; each leaves nothing in the profile.
+- Evidence: `gh_cli_git_smart_transport` (the fake writes 40 MiB, past a
+  sparse read's 32 MiB, over two seconds before cloning: the clone succeeds
+  and at least three progress reports reach 40 MiB; a stop before it starts,
+  one 30 ms in, and one during the clone are each a cancel that leaves
+  nothing), `qt_agent_setup_view` (the past-the-size state),
+  `architecture_boundaries`. Its ctest timeout is 120 s, up from 90 s, for the
+  kept clone's course.
+
 ### Attended review
 
-Fresh short session `fb4d6822d9af23fc7264361af7b46b53`, state
-`/Users/jaeger/.mask/bpr-1879-v001-20261105/attended-review`, candidate
-`BPR-1879-keep-a-clone` (AC4, Accept/Reject), ready, Tailscale host started.
-Offscreen renders of the setup view at `04cb14e56`: the fixture-backed
-frozen build does not read its reviews sparsely through `gh`, so it cannot
-show this option.
+- v001: session `fb4d6822d9af23fc7264361af7b46b53`
+  (`/Users/jaeger/.mask/bpr-1879-v001-20261105/attended-review`), candidate
+  `BPR-1879-keep-a-clone` at `04cb14e56`. Its recorded Reject ("still not
+  enough, i need the ability to pick effort level. It needs to bottom setting
+  picker from agents tab too.") was a misdirected note meant for BPR-1878
+  (owner, via the coordinator, 2026-11-05); it is not a verdict on this
+  look, and the owner asked for the look to be put up again. Host stopped.
+- v002: a new short session at the current revision with the same single
+  Accept/Reject question, with fresh renders including the past-the-size
+  progress state (see the coordinator's report for its identity).
+
+Offscreen renders of the setup view: the fixture-backed frozen build does
+not read its reviews sparsely through `gh`, so it cannot show this option.
 
 ### Left
 

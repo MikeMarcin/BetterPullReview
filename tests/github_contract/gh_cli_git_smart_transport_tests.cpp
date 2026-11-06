@@ -574,6 +574,20 @@ namespace {
 				}
 				return 4;
 			}
+			// [[BPR-1879]]. A kept clone has no per-file limit: this writes a
+			// file past the 32 MiB a sparse read allows, slowly enough to be
+			// seen by the progress sampler, before cloning.
+			if (kept && std::filesystem::exists(root / "large-kept")) {
+				std::ofstream     out(target.parent_path() / "large", std::ios::binary);
+				const std::string block(1024U * 1024U, 'x');
+				for (int i = 0; i < 40; ++i) {
+					out << block;
+					out.flush();
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 40 });
+				}
+				out.close();
+				std::this_thread::sleep_for(std::chrono::milliseconds{ 1200 });
+			}
 			if (delta || kept) {
 				// As stock gh does when Git dies at the per-file limit: a pack
 				// at the limit is left behind and the clone exits non-zero.
@@ -1742,13 +1756,19 @@ namespace {
 				// so the pull request's head is what it lacks later.
 				git(root, { scope, "update-ref", QString::fromUtf8(defaultBranch), base });
 				auto       reported = std::atomic_uint64_t{ 0U };
+				auto       largest  = std::atomic_uint64_t{ 0U };
 				auto       reports  = std::atomic_size_t{ 0U };
-				const auto progress = [&reported, &reports](const std::uint64_t aBytes) {
+				const auto progress = [&reported, &largest, &reports](const std::uint64_t aBytes) {
 					reported = aBytes;
+					largest  = std::max<std::uint64_t>(largest, aBytes);
 					++reports;
 				};
-				auto keptRequest = application::git_smart_managed_clone_request{ .Context = sparseContext, .Destination = kept, .ApproximateBytes = 4096U };
+				// Owner decision 2026-11-05: no limit. The fake writes 40 MiB, past
+				// a sparse read's 32 MiB per file, over about two seconds first.
+				write(root / "large-kept", "1");
+				auto keptRequest = application::git_smart_managed_clone_request{ .Context = sparseContext, .Destination = kept };
 				auto made        = (*sparseTransport)->acquire_managed_clone(keptRequest, progress, { });
+				std::filesystem::remove(root / "large-kept");
 				if (!made) {
 					std::cerr << "kept clone failure " << static_cast<int>(made.error().Failure) << " step " << static_cast<int>(made.error().Step) << '\n';
 				}
@@ -1767,7 +1787,11 @@ namespace {
 				const auto keptScope = "--git-dir=" + QString::fromStdString((kept / ".git").string());
 				expect(git(root, { keptScope, "cat-file", "-t", base }) == "commit" && git(root, { keptScope, "cat-file", "-p", base + ":file.txt" }) == "complete local contents",
 					   "every object of the default branch is present, blobs included");
-				expect(reported > 0U && reports >= 1U, "bytes received are reported");
+				if (largest < 40U * 1024U * 1024U || reports < 3U) {
+					std::cerr << "kept progress largest=" << largest << " reports=" << reports << '\n';
+				}
+				expect(reported > 0U && reports >= 3U && largest >= 40U * 1024U * 1024U,
+					   "no byte limit stops it, and bytes received keep being reported while it runs, past 32 MiB");
 				const auto again = (*sparseTransport)->acquire_managed_clone(keptRequest, progress, { });
 				expect(!again && again.error().Failure == application::git_smart_transport_failure::invalid_request, "a kept clone is made once: an existing folder is never replaced");
 				auto completeKept    = keptRequest;
@@ -1801,11 +1825,24 @@ namespace {
 					stop.request_stop();
 				} };
 				const auto started = std::chrono::steady_clock::now();
-				const auto stopped = (*sparseTransport)->acquire_managed_clone({ .Context = sparseContext, .Destination = cancelled, .ApproximateBytes = std::nullopt }, progress, stop.get_token());
+				const auto stopped = (*sparseTransport)->acquire_managed_clone({ .Context = sparseContext, .Destination = cancelled }, progress, stop.get_token());
 				std::filesystem::remove(root / "wait-clone");
 				expect(!stopped && stopped.error().Failure == application::git_smart_transport_failure::cancelled && !std::filesystem::exists(cancelled)
 						   && std::chrono::steady_clock::now() - started < std::chrono::seconds{ 9 },
 					   "AC1: Cancel stops the download promptly and nothing is left in the profile");
+				// Cancel at any stage: before it starts, and during qualification.
+				auto early = std::stop_source{ };
+				early.request_stop();
+				const auto unstarted = (*sparseTransport)->acquire_managed_clone({ .Context = sparseContext, .Destination = cancelled }, progress, early.get_token());
+				expect(!unstarted && unstarted.error().Failure == application::git_smart_transport_failure::cancelled && !std::filesystem::exists(cancelled), "a stop before it starts is a cancel");
+				auto soon        = std::stop_source{ };
+				auto soonStopper = std::jthread{ [&soon] {
+					std::this_thread::sleep_for(std::chrono::milliseconds{ 30 });
+					soon.request_stop();
+				} };
+				const auto quickly = (*sparseTransport)->acquire_managed_clone({ .Context = sparseContext, .Destination = cancelled }, progress, soon.get_token());
+				expect(!quickly && quickly.error().Failure == application::git_smart_transport_failure::cancelled && !std::filesystem::exists(cancelled),
+					   "a stop during its first steps is a cancel, and nothing is left");
 			}
 			git(root, { scope, "update-ref", "-d", QString::fromUtf8(defaultBranch) });
 		}

@@ -1110,8 +1110,9 @@ namespace bpr::qt {
 			lines->setContentsMargins(0, 2, 0, 2);
 			lines->setSpacing(4);
 			const auto  received = Clones.Keeping.Received;
-			auto* const status   = words(approximate ? tr("Downloading %1 for the agent: %2 of about %3").arg(text_of(Facts.Repository), amount(received), amount(*approximate))
-													 : tr("Downloading %1 for the agent: %2").arg(text_of(Facts.Repository), amount(received)),
+			auto* const status   = words(approximate && received < *approximate ? tr("Downloading %1 for the agent: %2 of about %3").arg(text_of(Facts.Repository), amount(received), amount(*approximate))
+											 : approximate                      ? tr("Downloading %1 for the agent: %2 so far (GitHub said about %3)").arg(text_of(Facts.Repository), amount(received), amount(*approximate))
+																				: tr("Downloading %1 for the agent: %2 so far").arg(text_of(Facts.Repository), amount(received)),
 										 box);
 			status->setObjectName(QStringLiteral("agentSetupKeepStatus"));
 			lines->addWidget(status);
@@ -1121,12 +1122,16 @@ namespace bpr::qt {
 			bar->setObjectName(QStringLiteral("agentSetupKeepBar"));
 			bar->setTextVisible(false);
 			bar->setAccessibleName(tr("Download of %1").arg(text_of(Facts.Repository)));
-			if (approximate && *approximate > 0U) {
+			if (approximate && *approximate > 0U && received < *approximate) {
 				// GitHub's size is approximate, so the bar stops short of full
 				// until the clone is in place.
 				bar->setRange(0, 1000);
 				bar->setValue(static_cast<int>(std::min<std::uint64_t>(990U, received * 1000U / *approximate)));
 			} else {
+				// [[BPR-1879]], owner decision 2026-11-05: no limit, so the
+				// download may run past GitHub's figure, and Git then indexes
+				// what it received without writing more. The bar keeps moving
+				// (busy) while the bytes received go on counting.
 				bar->setRange(0, 0);
 			}
 			row->addWidget(bar, 1);
