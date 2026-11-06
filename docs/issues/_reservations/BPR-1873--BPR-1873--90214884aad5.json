@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1873"
+  ],
+  "reserve_for": "agent-workspace-from-clone",
+  "purpose": "Agent workspace from linked or managed clone, no head snapshot",
+  "created": "2026-11-06T00:13:19.743990+00:00",
+  "base": "6b68d0f476acc656fab03c6d9f086b1963fef519"
+}
