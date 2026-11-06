@@ -11,6 +11,26 @@
 namespace bpr::application {
 	namespace {
 		inline constexpr std::size_t agent_run_outcome_count = static_cast<std::size_t>(agent_run_outcome::stale_result) + 1U;
+		/// The longest line `describe` writes: the counts, and every plugin
+		/// token with its separator.
+		inline constexpr std::size_t maximum_agent_run_diagnosis_bytes = 256U + (maximum_reported_plugins + 1U) * (maximum_reported_plugin_bytes + 1U);
+
+		/// [[BPR-1891]]. Exactly the list a `plugins_reported` event carries.
+		[[nodiscard]] auto plugin_list(std::string_view aText) -> bool
+		{
+			auto count = std::size_t{ 0U };
+			while (true) {
+				const auto comma = aText.find(',');
+				const auto token = aText.substr(0U, comma);
+				if (!is_reported_plugin_token(token) || ++count > maximum_reported_plugins + 1U) {
+					return false;
+				}
+				if (comma == std::string_view::npos) {
+					return true;
+				}
+				aText.remove_prefix(comma + 1U);
+			}
+		}
 
 		template <typename Value>
 		[[nodiscard]] auto read_number(const std::string_view aText) -> std::optional<Value>
@@ -41,12 +61,15 @@ namespace bpr::application {
 		}
 		text += " stdout_bytes=" + std::to_string(aDiagnosis.StandardOutputBytes);
 		text += " stderr_bytes=" + std::to_string(aDiagnosis.StandardErrorBytes);
+		if (!aDiagnosis.Plugins.empty()) {
+			text += " plugins=" + aDiagnosis.Plugins;
+		}
 		return text;
 	}
 
 	auto parse_agent_run_diagnosis(const std::string_view aText) -> std::optional<agent_run_diagnosis>
 	{
-		if (aText.size() > 256U) {
+		if (aText.size() > maximum_agent_run_diagnosis_bytes) {
 			return std::nullopt;
 		}
 		auto result      = agent_run_diagnosis{ };
@@ -90,6 +113,11 @@ namespace bpr::application {
 				result.StandardOutputBytes = read_number<std::uint64_t>(value).value_or(~std::uint64_t{ });
 			} else if (key == "stderr_bytes") {
 				result.StandardErrorBytes = read_number<std::uint64_t>(value).value_or(~std::uint64_t{ });
+			} else if (key == "plugins") {
+				if (!plugin_list(value)) {
+					return std::nullopt;
+				}
+				result.Plugins = std::string{ value };
 			} else {
 				return std::nullopt;
 			}
@@ -133,6 +161,7 @@ namespace bpr::application {
 				   .ExitCode            = result.ExitCode,
 				   .StandardOutputBytes = result.StandardOutputBytes,
 				   .StandardErrorBytes  = result.StandardError.size(),
+				   .Plugins             = result.ReportedPlugins,
 			   });
 		return result;
 	}

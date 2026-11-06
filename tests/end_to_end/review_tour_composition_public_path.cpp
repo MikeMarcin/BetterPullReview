@@ -1,5 +1,6 @@
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "../../src/app/src/review_submission_fixture.hpp"
+#include "../support/diagnostic_files.hpp"
 #include "bpr/adapters/sqlite/review_ledger_store.hpp"
 #include "bpr/adapters/sqlite/workbench_settings_store.hpp"
 #include "bpr/qt/agent_launch_panel.hpp"
@@ -878,7 +879,17 @@ auto main(int argc, char** argv) -> int
 			const auto invalidSteps = prose->document()->availableUndoSteps();
 			run();
 			expect(prose->raw() == injection && prose->document()->availableUndoSteps() == invalidSteps && status->text().contains("invalid"), "extra publish field rejected without text/history mutation");
-			for (const auto* adversary : { "PROCESS_EXIT_CANARY", "TOOL_USE_CANARY", "UTF8_CANARY", "OVERSIZE_CANARY", "PLUGIN_CANARY" }) {
+			// [[BPR-1891]]. A plugin Claude reports loading is named in the
+			// run's diagnostics, not refused: the request finishes with text.
+			{
+				set("PLUGIN_CANARY");
+				prose->selectAll();
+				const auto pluginCapture = *prose->capture();
+				run();
+				expect(prose->raw() == pluginCapture.Raw.substr(0, pluginCapture.Selection.Begin) + "Rewritten 😀\r\nexact." + pluginCapture.Raw.substr(pluginCapture.Selection.End),
+					   "a writing run whose Claude reports cc-plugin-sec-default finishes with the agent's text");
+			}
+			for (const auto* adversary : { "PROCESS_EXIT_CANARY", "TOOL_USE_CANARY", "UTF8_CANARY", "OVERSIZE_CANARY" }) {
 				set(adversary);
 				const auto history     = prose->document()->availableUndoSteps();
 				const auto beforeCalls = access::agent_invocation_evidence(*application).AgentProcessLauncherInvocations;
@@ -1040,6 +1051,16 @@ auto main(int argc, char** argv) -> int
 			const auto mutationAfter = access::review_mutation_evidence(*application);
 			expect(mutationAfter.Submissions == mutationBefore.Submissions && mutationAfter.StoredComments == mutationBefore.StoredComments && mutationAfter.Replies == mutationBefore.Replies && mutationAfter.Resolutions == mutationBefore.Resolutions, "all writing responses leave remote mutation counters unchanged");
 			shutdown(*application);
+			application.reset();
+			// [[BPR-1891]]. The plugin run's agent.run line names the plugin
+			// by source, and no line names the path the init frame carried.
+			// The application is gone, so this reports here rather than
+			// through the handler below, which reads its window.
+			if (const auto log = bpr::tests::read_diagnostic_logs(*dataRoot);
+				log.find("stderr_bytes=0 plugins=cc-plugin-sec-default@builtin\"") == std::string::npos || log.find("/fixture/") != std::string::npos) {
+				std::cerr << "review-tour-composition:fail the run's diagnostics name the plugin its Claude reported, without a path\n";
+				return EXIT_FAILURE;
+			}
 			std::cout << "review-tour-writing:pass\n";
 			return EXIT_SUCCESS;
 		}

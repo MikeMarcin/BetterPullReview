@@ -75,7 +75,10 @@ int main(int argc, char** argv)
 	// Claude 2.1.296 can write a `ui_invalidate` system frame before init.
 	std::cout << "{\"type\":\"system\",\"subtype\":\"ui_invalidate\",\"session_id\":\"fixture\"}\n";
 	if (input.find("PLUGIN_CANARY") != std::string::npos) {
-		std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"fixture\",\"tools\":[],\"mcp_servers\":[],\"plugins\":[{\"name\":\"late-builtin\"}]}\n";
+		// [[BPR-1891]]. Claude Code 2.1.314 on a machine with managed
+		// settings, which holds this builtin on; the writing run reads past it.
+		std::cout << R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"}],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off"})"
+				  << '\n';
 	} else {
 		std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"fixture\",\"tools\":[],\"mcp_servers\":[],\"plugins\":[],\"model\":\"" << (model.empty() ? "default" : model) << "\"}\n";
 	}
