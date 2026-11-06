@@ -541,7 +541,9 @@ namespace bpr::qt {
 		for (const auto& link : Shown.Links) {
 			// [[BPR-1873]]. No clone: a private copy, or for a review read
 			// without its blobs only the pull request's files.
-			const auto target = link.PrivateCopy ? tr("no clone") : QDir::toNativeSeparators(text_of(link.Path));
+			// [[BPR-1879]]. The clone BetterPullReview keeps, and where.
+			const auto target = link.PrivateCopy ? tr("no clone") : link.Managed ? tr("kept by BetterPullReview in %1").arg(QDir::toNativeSeparators(text_of(link.Path)))
+																				 : QDir::toNativeSeparators(text_of(link.Path));
 			Links->addItem(tr("%1/%2 on %3: %4").arg(text_of(link.Owner), text_of(link.Name), text_of(link.Host), target));
 		}
 		Forget->setEnabled(Links->currentRow() >= 0);

@@ -8,7 +8,9 @@
 #include "bpr/application/epoch_projection.hpp"
 #include "bpr/application/epoch_runtime_ports.hpp"
 #include "bpr/application/git_cache_port.hpp"
+#include "bpr/application/git_smart_transport_port.hpp"
 #include "bpr/application/github_epoch_handoff.hpp"
+#include "bpr/application/managed_clone.hpp"
 #include "bpr/application/port.hpp"
 #include "bpr/application/profile_epoch_actor_registry.hpp"
 #include "bpr/application/source_corpus_port.hpp"
@@ -117,6 +119,15 @@ namespace bpr::application {
 			const owned_agent_workspace& aWorkspace,
 			std::stop_token              aStop)
 			-> std::expected<void, agent_workspace_error> override;
+		/// \brief [[BPR-1879]], RFC-BPR-0092. Makes the full clone
+		/// BetterPullReview keeps for the repository of a sparse review on
+		/// screen, through that review's own `gh` lease, reporting bytes
+		/// received. Synchronous and long: run it on its own worker, with a
+		/// stop the reviewer's Cancel and shutdown request.
+		[[nodiscard]] auto keep_managed_clone(
+			const managed_clone_request&    aRequest,
+			const git_smart_clone_progress& aProgress,
+			std::stop_token                 aStop) -> std::expected<void, managed_clone_error>;
 		[[nodiscard]] auto context(
 			const workbench_pull_request_authority& aAuthority) const
 			-> std::optional<workbench_selected_diff_context> override;
