@@ -270,7 +270,12 @@ namespace {
 		test.Setup.State.Chosen = core::setup_agent::claude_code;
 		test.Clones.Suggestions = { "/Users/me/Documents/GitHub" };
 		test.show();
-		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Where do your clones live?")), "with no clone folder it asks where clones live");
+		// [[BPR-1879]] owner look v006: linking the reviewer's own clone is the
+		// first card, recommended; with no folder listed it holds the folder
+		// line and the button adds the folder.
+		expect(test.View.open_step() == core::setup_step::repository && test.text().contains(QStringLiteral("Link your clone")) && test.text().contains(QStringLiteral("Add the folder your clones are in"))
+				   && test.View.findChild<QLabel*>(QStringLiteral("agentSetupLinkCardFigure"))->text() == QStringLiteral("Recommended"),
+			   "with no clone folder the recommended card asks for the folder clones are in");
 		// Owner look v003: one folder line in setup, typed or browsed, then
 		// Add; the list editor is Settings' alone. Owner look v004: no "Or
 		// add" row; the folder found is the line's text, and Add takes it.
@@ -306,9 +311,14 @@ namespace {
 		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
 		test.Clones.Discovered = true;
 		test.show();
-		expect(test.text().contains(QStringLiteral("No clone of bpr-fixtures/engine found")), "none found says so");
+		expect(test.text().contains(QStringLiteral("None in ")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault() && test.button(QStringLiteral("agentSetupEditFolders")) != nullptr
+				   && test.button(QStringLiteral("agentSetupFindClones")) == nullptr,
+			   "none found: the card says so, its button chooses the folder, Edit clone folders is small beside, and there is no separate search link");
+		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupPrivateCopyCard")));
+		expect(test.button(QStringLiteral("agentSetupPrivateCopy"))->text() == QStringLiteral("Use a private copy"), "a complete review's weakest card is the private copy");
 		test.button(QStringLiteral("agentSetupPrivateCopy"))->click();
-		expect(test.Intents.back() == "private-copy", "the private copy is one press away");
+		expect(test.Intents.back() == "private-copy", "the private copy is one choice and one press away");
+		click(*test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")));
 		render(test.View, QStringLiteral("noclone"));
 
 		// [[BPR-1873]], [[BPR-1879]] owner look v005. A sparse review with no
@@ -409,8 +419,8 @@ namespace {
 		test.Clones.ManagedLocation.clear();
 		test.Clones.Folders.clear();
 		test.show();
-		expect(test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) != nullptr && !test.button(QStringLiteral("agentSetupPullRequestOnly"))->isDefault(),
-			   "with no clone folder yet the choice is there too, quiet, as adding a folder leads");
+		expect(test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) != nullptr && test.button(QStringLiteral("agentSetupFolderAdd")) != nullptr,
+			   "with no clone folder yet the same cards show, and the recommended one adds the folder");
 		render(test.View, QStringLiteral("nofolders-sparse"));
 		test.Clones.Folders = { "/Users/me/Documents/GitHub" };
 		test.Facts.Sparse   = false;
@@ -419,11 +429,13 @@ namespace {
 								core::clone_match{ .Path = "/Users/me/src/engine-old", .Folder = "/Users/me/src", .Remote = "upstream", .Location = "github.com/bpr-fixtures/engine", .Branch = "spike/retry" } };
 		test.show();
 		auto clones = test.View.findChildren<QRadioButton*>(QStringLiteral("agentSetupCloneChoice"));
-		expect(clones.size() == 2 && !test.button(QStringLiteral("agentSetupUseClone"))->isEnabled(), "two clones: none is chosen until the reviewer picks one");
-		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupCloneRow"))[0]);
+		expect(clones.size() == 2 && test.button(QStringLiteral("agentSetupUseClone"))->text() == QStringLiteral("Link this clone") && test.button(QStringLiteral("agentSetupUseClone"))->isDefault()
+				   && test.button(QStringLiteral("agentSetupChooseOther")) != nullptr,
+			   "clones found are on the recommended card, the first chosen, and one press links it");
+		click(*test.View.findChildren<QWidget*>(QStringLiteral("agentSetupCloneRow"))[1]);
 		QApplication::processEvents();
 		test.button(QStringLiteral("agentSetupUseClone"))->click();
-		expect(test.Intents.back() == "clone:/Users/me/Documents/GitHub/engine", "Use this clone links the chosen one");
+		expect(test.Intents.back() == "clone:/Users/me/src/engine-old", "choosing another clone found and Link this clone links that one");
 		render(test.View, QStringLiteral("repo"));
 	}
 
@@ -525,11 +537,19 @@ namespace {
 		expect(gets.contains(QStringLiteral("bpr-fixtures/engine #22")) && gets.contains(QStringLiteral("git diff 51d2dad...7f3a9c1")) && gets.contains(QStringLiteral("6 review threads, 2 unresolved")),
 			   "What the agent gets states the brief");
 
+		// Owner look v006: the step searches the clone folders itself, once.
+		test.Clones.Folders    = { "/Users/me/Documents/GitHub" };
+		test.Clones.Discovered = false;
+		test.show();
 		test.View.begin(core::setup_step::repository);
 		expect(test.View.needed() && test.View.open_step() == core::setup_step::repository, "Change repository folder… opens that step again");
-		expect(test.button(QStringLiteral("agentSetupFindClones")) != nullptr && test.button(QStringLiteral("agentSetupFindAgents")) == nullptr, "the Repository step owns only its clone search");
-		test.button(QStringLiteral("agentSetupFindClones"))->click();
-		expect(test.Intents.back() == "find-clones", "Find matching clones only requests clone discovery");
+		QApplication::processEvents();
+		expect(test.button(QStringLiteral("agentSetupFindClones")) == nullptr && test.button(QStringLiteral("agentSetupFindAgents")) == nullptr && std::ranges::count(test.Intents, std::string{ "find-clones" }) >= 1,
+			   "the Repository step searches its clone folders without a link to press");
+		const auto searches = std::ranges::count(test.Intents, std::string{ "find-clones" });
+		test.View.begin(core::setup_step::repository);
+		QApplication::processEvents();
+		expect(std::ranges::count(test.Intents, std::string{ "find-clones" }) == searches, "and only once for the repository, not on every refresh");
 		render(test.View, QStringLiteral("repository-rescan"));
 	}
 
