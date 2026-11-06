@@ -32329,24 +32329,24 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				// existing bounded effect wait, keeping every layout assertion.
 				return wait("UIFORETW_FOCUSED_LAYOUT_STALLED", [&](QTextStream& aStream) {
 					aStream << "rail="
-						   << qt::workbench_drawer_rail::width_pixels
-						   << " files=" << window->files_drawer()->width()
-						   << " conversations=" << window->conversations_drawer()->width()
-						   << " repositories=" << window->repositories_drawer()->width()
-						   << " files_checked="
-						   << window->files_drawer_toggle_action()->isChecked()
-						   << " repositories_checked="
-						   << window->repositories_drawer_toggle_action()->isChecked()
-						   << " conversations_checked="
-						   << window->conversations_drawer_toggle_action()->isChecked()
-						   << " details_checked="
-						   << window->review_details_toggle_action()->isChecked()
-						   << " selector_details="
-						   << window->epoch_selectors()->details_visible()
-						   << " line_details_checked="
-						   << window->line_details_action()->isChecked()
-						   << " detail_shown="
-						   << (detail != nullptr && detail->isVisible());
+							<< qt::workbench_drawer_rail::width_pixels
+							<< " files=" << window->files_drawer()->width()
+							<< " conversations=" << window->conversations_drawer()->width()
+							<< " repositories=" << window->repositories_drawer()->width()
+							<< " files_checked="
+							<< window->files_drawer_toggle_action()->isChecked()
+							<< " repositories_checked="
+							<< window->repositories_drawer_toggle_action()->isChecked()
+							<< " conversations_checked="
+							<< window->conversations_drawer_toggle_action()->isChecked()
+							<< " details_checked="
+							<< window->review_details_toggle_action()->isChecked()
+							<< " selector_details="
+							<< window->epoch_selectors()->details_visible()
+							<< " line_details_checked="
+							<< window->line_details_action()->isChecked()
+							<< " detail_shown="
+							<< (detail != nullptr && detail->isVisible());
 				});
 			}
 			probe.Evidence.FocusedReviewLayout = true;

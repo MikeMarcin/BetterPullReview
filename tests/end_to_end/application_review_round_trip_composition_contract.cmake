@@ -1,3 +1,9 @@
+# [[BPR-1854]] successor formatting review over frozen build19 ca78b1cd1:
+# only indentation of the tests-on layout diagnostic stream continuation changes.
+# git diff --ignore-all-space is empty for github_application.cpp; operations,
+# captures, predicates, diagnostics and budgets are unchanged. Full/app-manifest
+# pins bind the formatted bytes; mutation pin stays70fe8a7e. This is source review,
+# not native qualification or permission to publish failed build19.
 # [[BPR-1854]] over ced72d7fe, the diagnostic callback parameter is
 # renamed stream to aStream for the pinned naming rule; no operation, capture,
 # predicate or budget changes. This exact tests-only delta is reviewed below.
@@ -2701,7 +2707,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "8b5563e88b1499312f5f9912bbbe721de3cec29efaa3fd8ad9813402406c128c"
+        "1733fb93dd99ac1c08c204d9a3b501f4a198cde06ac2391a597f81f6001d6db1"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3026,7 +3032,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "dd084d48b4cde531d37238f92e11d1eb18e52e5bd84f692b459de7c34933ed54"
+        "33f8b228f3dd17db1daf104c4af01fe4dcf9cbc815ae8e0580e25768553e1486"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -447,3 +447,14 @@ in the external `successor19-containment-r1` record and collected receipt.
 The Windows layout correction separately passes three complete original
 courses in each Release and Debug configuration, with every layout and
 resource assertion intact. Original failures remain preserved.
+
+### Build19 format gate correction
+
+All nine build graphs passed. Comprehensive Mac and Windows Release exposed
+a formatting failure in the tests-on selected-diff diagnostic stream after its
+parameter naming correction. Raw build19 failures and in-flight results remain
+external evidence; they are not waived. The isolated successor changes only
+indentation in that C++ block, reviews/reseals its content pins, and will pass
+the pinned format check before any successor freeze. No operation, diagnostic
+text, predicate, resource budget or mutation branch changes. Build19 is not
+qualified for publication. Other Release results are still being collected.
