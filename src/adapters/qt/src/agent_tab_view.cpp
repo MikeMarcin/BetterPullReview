@@ -695,8 +695,9 @@ namespace bpr::qt {
 		dismiss->setText(QString{ QChar{ 0x2715 } });
 		dismiss->setAccessibleName(tr("Dismiss"));
 		connect(dismiss, &QToolButton::clicked, ReadyCard, &QWidget::hide);
-		// [[BPR-1847]]. The setup's Ready line read, the suggestions follow.
-		connect(dismiss, &QToolButton::clicked, this, [this] { refresh_suggestions(); });
+		// [[BPR-1877]]. The suggestions show beside the Ready line; closing it
+		// gives its place back to the empty tab's line.
+		connect(dismiss, &QToolButton::clicked, this, [this] { refresh(); });
 		readyTop->addWidget(dismiss, 0, Qt::AlignTop);
 		readyCol->addLayout(readyTop);
 		// Owner look v001: the ready line alone; the check's details and what
@@ -1102,7 +1103,9 @@ namespace bpr::qt {
 		ReadyText->setText(aText);
 		ReadyGets->setText(aGets);
 		ReadyCard->setVisible(!aTitle.isEmpty());
-		refresh_suggestions();
+		// [[BPR-1877]]. The whole tab, so the Ready line takes the empty tab's
+		// line's place at once and the suggestions follow straight under it.
+		refresh();
 	}
 
 	void agent_tab_view::refresh()
@@ -1873,15 +1876,17 @@ namespace bpr::qt {
 		// [[BPR-1755]], the owner's accept of look v007 ("Hide
 		// suggestions until the the agent is done thinking"): none while a
 		// turn runs; they return when it has finished. [[BPR-1847]]: none
-		// before the setup has finished either; the core decides.
+		// before the setup has finished either; the core decides. A passed
+		// check's Ready line does not hold them back ([[BPR-1877]]).
 		const auto verdict = suggestions_verdict();
 		Suggestions->setVisible(verdict == core::agent_suggestions_verdict::shown);
 		SuggestionsMenu->setVisible(conversing && verdict != core::agent_suggestions_verdict::setup_unfinished);
-		// The setup's way in, unless the setup or its Ready line is on screen.
-		// Only once the setup knows what is missing: not while agents are
-		// still being looked for.
+		// The setup's way in, unless the setup is on screen. Only once the
+		// setup knows what is missing: not while agents are still being
+		// looked for. [[BPR-1877]]: an unfinished setup always says why the
+		// prompts are not there, whatever else is on screen.
 		const auto known = SetupView == nullptr || SetupView->projection().Detected;
-		SetupPrompt->setVisible(conversing && known && verdict == core::agent_suggestions_verdict::setup_unfinished && ReadyCard->isHidden());
+		SetupPrompt->setVisible(conversing && known && verdict == core::agent_suggestions_verdict::setup_unfinished);
 	}
 
 	auto agent_tab_view::suggestions_verdict() const -> core::agent_suggestions_verdict
@@ -1894,7 +1899,6 @@ namespace bpr::qt {
 			.SetupStep      = setup != nullptr ? setup->Step : core::setup_step::ready,
 			.AgentCheck     = setup != nullptr ? setup->State.AgentCheck.State : core::setup_check_state::passed,
 			.WorkspaceCheck = setup != nullptr ? setup->State.WorkspaceCheck.State : core::setup_check_state::passed,
-			.ReadyShowing   = !ReadyCard->isHidden(),
 			.Working        = State == agent_tab_state::working,
 			.Toggled        = SuggestionsMenu->isChecked(),
 		});

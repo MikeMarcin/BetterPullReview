@@ -125,9 +125,6 @@ namespace {
 		facts              = ready;
 		facts.SetupShowing = true;
 		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "the setup on screen: none");
-		facts              = ready;
-		facts.ReadyShowing = true;
-		expect(core::decide_agent_suggestions(facts) == agent_suggestions_verdict::setup_unfinished, "the setup's Ready line still up: none");
 		// A reopened application that was set up before stands at Check it
 		// works with both checks not run, and is finished.
 		facts = { .AgentOffered = true, .SetupStep = setup_step::check };

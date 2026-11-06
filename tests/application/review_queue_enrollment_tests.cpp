@@ -2253,8 +2253,8 @@ namespace {
 		expect(events[5].PagedOperation == application::diagnostic_paged_operation::list_requested_reviewers && events[5].HttpStatus == 403U, "discovery preserves only the typed last operation and observed HTTP status");
 		expect(lines[6].Read == 4U && lines[7].Read == 3U && lines[8].Read == 4U, "the later reads start as earlier ones end");
 		expect(lines[9] == core::discovery_diagnosis{ .Scope = scope::refresh, .Refresh = 1U, .State = state::stale, .Repositories = 2U, .Reads = 4U, .Failed = 1U, .Requests = 7U, .WaitMilliseconds = 10U, .RunMilliseconds = 2'000U, .CredentialMilliseconds = 110U, .WireMilliseconds = 1'000U, .Forbidden = 1U, .Throttled = 1U, .ServerErrors = 1U, .Timeouts = 1U, .Work = { .SearchCandidates = 39U, .RetainedReuse = 9U, .DirectMatches = 2U, .Rejected = 28U, .RosterRecoveries = 1U, .Completeness = core::discovery_completeness_reason::candidate_limit } }
-				   && events[9].Outcome == application::diagnostic_outcome::succeeded,
-			   "the refresh's end says how it ended, its reads, failures, requests, lane wait, duration, timing split and answer counts");
+				   && events[9].Outcome == application::diagnostic_outcome::failed,
+			   "the refresh's end says how it ended, its reads, failures, requests, lane wait, duration, timing split and answer counts; ended stale, it failed ([[BPR-1874]])");
 		expect(fixture.Discovery.statistics().Requests == 7U, "the statistics count the requests the reads reported");
 
 		fixture.Discovery.refresh();
@@ -2500,7 +2500,12 @@ namespace {
 		const auto diagnostics = fixture.Diagnostics.lines();
 		expect(diagnostics.size() == 2U && diagnostics[1].Scope == core::discovery_diagnosis_scope::read && diagnostics[1].PullRequests == 3U,
 			   "the read is logged as one read of three pull requests");
-		provider.answer(provider.rows({ metadata_row(5U), metadata_row(9U) }));
+		{
+			auto answer = provider.rows({ metadata_row(5U), metadata_row(9U) });
+			std::get<application::personal_discovery_success>(answer).Unread.push_back(
+				{ .Number = core::pull_request_number{ 7U }, .Error = { .Failure = application::github_provider_failure::permission, .HttpStatus = 404U } });
+			provider.answer(std::move(answer));
+		}
 		fixture.settle();
 		expect(fixture.item(5) && fixture.item(5)->Facts.Title == "Pull request 5" && fixture.item(9) && fixture.item(9)->Facts.Title == "Pull request 9" && fixture.item(7) && fixture.item(7)->Facts.Title.empty(),
 			   "each answered row is applied; the one left out keeps what it had");
@@ -2509,6 +2514,45 @@ namespace {
 			fixture.settle();
 		}
 		expect(fixture.Discovery.status().State == application::queue_discovery_state::stale, "the pull request left out fails the refresh alone");
+		// [[BPR-1874]]. The log names the check and the row it refused, by
+		// its place in the read, with the adapter's failure; the refresh's
+		// end is failed, not succeeded.
+		{
+			const auto  lines   = fixture.Diagnostics.lines();
+			const auto& events  = fixture.Diagnostics.Events;
+			const auto  refused = std::ranges::find_if(lines, [](const core::discovery_diagnosis& aLine) { return aLine.Rejection != core::discovery_rejection::none; });
+			const auto  index   = static_cast<std::size_t>(refused - lines.begin());
+			expect(refused != lines.end() && refused->Scope == core::discovery_diagnosis_scope::read && refused->Read == 1U
+					   && refused->Reason == core::discovery_diagnosis_reason::retained && refused->PullRequests == 3U
+					   && refused->Rejection == core::discovery_rejection::missing_row && refused->Row == 2U
+					   && events[index].Outcome == application::diagnostic_outcome::failed
+					   && events[index].GithubFailure == application::diagnostic_github_failure{ core::github_failure::permission } && events[index].HttpStatus == 404U,
+				   "the row a batched read left out is named by the check, its read and its place, with why the adapter could not read it");
+			expect(std::ranges::count_if(lines, [](const core::discovery_diagnosis& aLine) { return aLine.Rejection != core::discovery_rejection::none; }) == 1,
+				   "one refused row is one rejection line");
+			expect(events[index].Summary.text().find(" check=missing_row row=2") != std::string_view::npos && events[index].Summary.text().find("octo") == std::string_view::npos,
+				   "the rejection line names the check and the row's place, and nothing private");
+			expect(lines.back().Scope == core::discovery_diagnosis_scope::refresh && lines.back().State == core::discovery_diagnosis_state::stale && lines.back().Failed == 0U
+					   && events.back().Outcome == application::diagnostic_outcome::failed,
+				   "a refresh that refused a retained row with no failed read ends stale and failed");
+		}
+		const auto rejectedEnd = fixture.Diagnostics.Events.size();
+
+		// A clean refresh: every row answered, so it ends current and succeeded.
+		fixture.Discovery.refresh();
+		provider.answer(provider.rows({ metadata_row(5U), metadata_row(7U), metadata_row(9U) }));
+		fixture.settle();
+		while (provider.Answered < provider.Requests.size()) {
+			provider.answer(provider.rows({ }));
+			fixture.settle();
+		}
+		{
+			const auto lines = fixture.Diagnostics.lines();
+			expect(fixture.Discovery.status().State == application::queue_discovery_state::current
+					   && std::none_of(lines.begin() + static_cast<std::ptrdiff_t>(rejectedEnd), lines.end(), [](const core::discovery_diagnosis& aLine) { return aLine.Rejection != core::discovery_rejection::none; })
+					   && lines.back().State == core::discovery_diagnosis_state::current && fixture.Diagnostics.Events.back().Outcome == application::diagnostic_outcome::succeeded,
+				   "a clean refresh refuses nothing and ends current and succeeded");
+		}
 
 		fixture.Discovery.refresh();
 		provider.answer(provider.rows({ metadata_row(5U), metadata_row(6U) }));
@@ -2519,6 +2563,9 @@ namespace {
 		}
 		expect(!fixture.item(6) && fixture.Discovery.status().State == application::queue_discovery_state::stale,
 			   "a row the read did not ask for fails its answer and enrolls nothing");
+		expect(fixture.Diagnostics.lines().back().State == core::discovery_diagnosis_state::stale && fixture.Diagnostics.Events.back().Outcome == application::diagnostic_outcome::failed
+				   && std::ranges::any_of(fixture.Diagnostics.lines(), [](const core::discovery_diagnosis& aLine) { return aLine.Rejection == core::discovery_rejection::unasked_row && aLine.Row == 0U; }),
+			   "an answer naming a pull request it did not ask for is refused whole, row 0");
 		fixture.Discovery.shutdown();
 		fixture.Queue.shutdown();
 	}

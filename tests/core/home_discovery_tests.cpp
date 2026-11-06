@@ -65,6 +65,37 @@ namespace {
 		const auto oldTiming = describe(timed).substr(0, describe(timed).find(" candidates="));
 		expect(parse_discovery_diagnosis(oldTiming) == timed, "historical timing form still exports");
 		expect(!parse_discovery_diagnosis(describe(counted) + " repository=private"), "extra private fields are refused");
+		// [[BPR-1874]]. A read line can name the check that refused part of
+		// its answer and the row by its place; nothing else carries one.
+		auto refused         = read;
+		refused.Reason       = discovery_diagnosis_reason::retained;
+		refused.PullRequests = 3U;
+		refused.Rejection    = discovery_rejection::missing_row;
+		refused.Row          = 2U;
+		expect(describe(refused).ends_with(" completeness=none check=missing_row row=2") && parse_discovery_diagnosis(describe(refused)) == refused,
+			   "a rejection is named after the counts and reads back");
+		for (const auto rejection : { discovery_rejection::incomplete_answer, discovery_rejection::unasked_row, discovery_rejection::duplicate_row, discovery_rejection::undetailed_row,
+									  discovery_rejection::missing_head, discovery_rejection::review_limit, discovery_rejection::malformed_head, discovery_rejection::unattributed_row,
+									  discovery_rejection::mismatched_answer, discovery_rejection::unexpected_cancel }) {
+			auto other      = refused;
+			other.Rejection = rejection;
+			expect(!name(rejection).empty() && parse_discovery_diagnosis(describe(other)) == other, "every rejection round-trips");
+		}
+		auto whole = refused;
+		whole.Row  = 0U;
+		expect(parse_discovery_diagnosis(describe(whole)) == whole, "a rejection of the whole answer is row 0");
+		auto past = refused;
+		past.Row  = 4U;
+		expect(describe(past).empty(), "no row past the pull requests the read asked for");
+		auto rowless = read;
+		rowless.Row  = 1U;
+		expect(describe(rowless).empty(), "a row only with a rejection");
+		auto unknownCheck      = refused;
+		unknownCheck.Rejection = static_cast<discovery_rejection>(200);
+		expect(describe(unknownCheck).empty() && name(unknownCheck.Rejection).empty(), "an unknown check has no name and no line");
+		expect(!parse_discovery_diagnosis(describe(read) + " check=none row=0"), "a written rejection is never none");
+		expect(!parse_discovery_diagnosis(describe(read) + " check=missing_row"), "a rejection has its row");
+		expect(!parse_discovery_diagnosis(describe(refused) + " number=7"), "the row is never named by its number");
 		counted.Work.Completeness = static_cast<discovery_completeness_reason>(255);
 		expect(describe(counted).empty(), "unknown completeness reason cannot be logged");
 
@@ -113,6 +144,10 @@ namespace {
 		invalid      = refresh;
 		invalid.Read = 1U;
 		expect(describe(invalid).empty(), "a refresh line has no read ordinal");
+		invalid           = refresh;
+		invalid.Rejection = discovery_rejection::missing_row;
+		invalid.Row       = 1U;
+		expect(describe(invalid).empty(), "a refresh line names no rejection ([[BPR-1874]])");
 		invalid        = refresh;
 		invalid.Failed = 31U;
 		expect(describe(invalid).empty(), "no more failures than reads");
