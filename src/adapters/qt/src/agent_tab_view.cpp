@@ -132,81 +132,6 @@ namespace bpr::qt {
 		private:
 		};
 
-		/// \brief A tool button whose menu opens on a press and draws no
-		/// arrow: the word or the dots are the affordance in a narrow drawer.
-		class menu_word final : public QToolButton
-		{
-		public:
-			explicit menu_word(QWidget* aParent)
-				: QToolButton{ aParent }
-			{
-				setAutoRaise(true);
-				setPopupMode(QToolButton::InstantPopup);
-			}
-
-			/// Owner look v003: a word that may shorten, but never below a few
-			/// letters, so a narrow row keeps every other control whole.
-			[[nodiscard]] auto minimumSizeHint() const -> QSize override
-			{
-				const auto hint = QToolButton::sizeHint();
-				return { std::min(hint.width(), fontMetrics().horizontalAdvance(QStringLiteral("Mmmm…")) + 12), hint.height() };
-			}
-
-			/// Drawn as a rounded pill in the field's own colours, as the
-			/// agent drawers draw their model chip.
-			bool Pill = false;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				if (Pill) {
-					auto       painter = QPainter{ this };
-					const auto ink     = palette().color(QPalette::Active, QPalette::WindowText);
-					const auto base    = palette().color(QPalette::Active, QPalette::Base);
-					painter.setRenderHint(QPainter::Antialiasing, true);
-					painter.setPen(Qt::NoPen);
-					painter.setBrush(mixed(base, ink, underMouse() || isDown() ? 0.16 : 0.08));
-					const auto box = QRectF{ rect() }.adjusted(0.5, 1.5, -0.5, -1.5);
-					painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
-					if (!icon().isNull() && text().isEmpty()) {
-						const auto side = std::min(16, height() - 6);
-						icon().paint(&painter, QRect{ (width() - side) / 2, (height() - side) / 2, side, side });
-						return;
-					}
-					painter.setPen(ink);
-					painter.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 20)));
-					return;
-				}
-				auto painter = QStylePainter{ this };
-				auto option  = QStyleOptionToolButton{ };
-				initStyleOption(&option);
-				option.features &= ~QStyleOptionToolButton::HasMenu;
-				option.text = fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 12));
-				painter.drawComplexControl(QStyle::CC_ToolButton, option);
-			}
-
-			[[nodiscard]] auto sizeHint() const -> QSize override
-			{
-				const auto hint = QToolButton::sizeHint();
-				if (!Pill) {
-					return hint;
-				}
-				const auto wide = text().isEmpty() ? 28 : fontMetrics().horizontalAdvance(text()) + 22;
-				return { wide, std::max(hint.height(), fontMetrics().height() + 8) };
-			}
-
-			void enterEvent(QEnterEvent* aEvent) override
-			{
-				QToolButton::enterEvent(aEvent);
-				update();
-			}
-			void leaveEvent(QEvent* aEvent) override
-			{
-				QToolButton::leaveEvent(aEvent);
-				update();
-			}
-		};
-
 		/// \brief A thin rule inside the question field, in its outline's colour.
 		class rule_line final : public QWidget
 		{
@@ -913,25 +838,27 @@ namespace bpr::qt {
 		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
 		// effort as a pill in the field; an icon alone when the field is narrow.
-		RunSettings = new menu_word{ field };
-		RunSettings->setObjectName(QStringLiteral("agentRunSettings"));
-		RunSettings->setAccessibleName(tr("Agent, model and effort"));
-		RunSettings->setMenu(new QMenu{ RunSettings });
-		RunSettings->setSizePolicy(QSizePolicy::Preferred, QSizePolicy::Fixed);
-		static_cast<menu_word*>(RunSettings)->Pill = true;
-		connect(RunSettings->menu(), &QMenu::aboutToShow, this, [this] {
-			// Owner look v006: the harness is asked what it offers when the
-			// reviewer opens its menu, once per window.
-			if (const auto* const settings = current_run_settings(); settings != nullptr && CatalogDispatch) {
-				CatalogDispatch(settings->Profile);
+		// [[BPR-1878]]: one source behind this pill and the Tour tab's.
+		RunSettingsSource           = std::make_shared<agent_run_settings_source>(Launch);
+		RunSettingsSource->Choose   = [this](const std::uint64_t aProfile) { return choose_agent(aProfile); };
+		RunSettingsSource->Dispatch = [this](const std::uint64_t aProfile, std::optional<std::string> aModel, std::optional<std::string> aEffort) {
+			return RunSettingsDispatch && RunSettingsDispatch(aProfile, std::move(aModel), std::move(aEffort));
+		};
+		RunSettingsSource->Catalog = [this](const std::uint64_t aProfile) {
+			if (CatalogDispatch) {
+				CatalogDispatch(aProfile);
 			}
-			present_run_settings_button();
-		});
-		connect(RunSettings->menu(), &QMenu::aboutToHide, this, [this] {
-			if (MenuStale) {
-				QTimer::singleShot(0, this, [this] { present_run_settings_button(); });
+		};
+		RunSettingsSource->Setup = [this] {
+			if (Setup) {
+				Setup();
 			}
-		});
+		};
+		RunSettingsSource->Refused = [this](const QString& aWhy) {
+			Notice->setText(aWhy);
+			Notice->show();
+		};
+		RunSettings = new agent_run_settings_picker{ RunSettingsSource, field };
 		askRow->addWidget(RunSettings);
 		Ask = new QPushButton{ field };
 		Ask->setObjectName(QStringLiteral("agentAsk"));
@@ -1048,6 +975,14 @@ namespace bpr::qt {
 	agent_tab_view::~agent_tab_view()
 	{
 		Dying = true;
+		// [[BPR-1878]]. Another picker on this source may outlive the tab.
+		if (RunSettingsSource) {
+			RunSettingsSource->Choose   = { };
+			RunSettingsSource->Dispatch = { };
+			RunSettingsSource->Catalog  = { };
+			RunSettingsSource->Setup    = { };
+			RunSettingsSource->Refused  = { };
+		}
 		// The panels hold these controls by pointer and outlive this tab; the
 		// tab never deletes what it only shows.
 		for (auto& [widget, owner] : Borrowed) {
@@ -1995,8 +1930,7 @@ namespace bpr::qt {
 		if (const auto reported = Launch.last_reported_model(); succeeded && !reported.isEmpty()) {
 			ran = tr("%1 (%2)").arg(agent, agent_model_display_name(reported));
 			if (const auto profile = Launch.selected_profile()) {
-				ReportedModels[profile->value()] = reported;
-				present_run_settings_button();
+				RunSettingsSource->report_model(profile->value(), reported);
 			}
 		}
 		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
@@ -2890,216 +2824,22 @@ namespace bpr::qt {
 
 	auto agent_tab_view::send_refusal_text() const -> QString { return Refusal != nullptr && !Refusal->isHidden() ? RefusalText->text() : QString{ }; }
 
-	void agent_tab_view::present_run_settings(std::vector<agent_run_settings> aSettings)
-	{
-		RunSettingsShown = std::move(aSettings);
-		present_run_settings_button();
-	}
+	void agent_tab_view::present_run_settings(std::vector<agent_run_settings> aSettings) { RunSettingsSource->present(std::move(aSettings)); }
 
 	void agent_tab_view::set_run_settings_dispatch(agent_run_settings_dispatch aDispatch) { RunSettingsDispatch = std::move(aDispatch); }
 
-	auto agent_tab_view::current_run_settings() const -> const agent_run_settings*
-	{
-		const auto profile = Launch.selected_profile();
-		if (!profile) {
-			return nullptr;
-		}
-		const auto found = std::ranges::find_if(RunSettingsShown, [&profile](const agent_run_settings& aSettings) { return aSettings.Profile == profile->value(); });
-		return found == RunSettingsShown.end() ? nullptr : &*found;
-	}
+	auto agent_tab_view::current_run_settings() const -> const agent_run_settings* { return RunSettingsSource->current(); }
 
-	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->property("agentRunSettingsText").toString(); }
+	auto agent_tab_view::run_settings_text() const -> QString { return RunSettings->full_text(); }
 
 	void agent_tab_view::fit_run_settings()
 	{
 		// A narrow field keeps the pill as an icon with its words in the
 		// tooltip, as the Codex composer does.
-		const auto full   = RunSettings->property("agentRunSettingsText").toString();
-		const auto narrow = Field != nullptr && Field->width() > 0 && Field->width() < 300;
-		RunSettings->setText(narrow ? QString{ } : full);
-		RunSettings->setIcon(narrow ? drawer_icon(drawer_glyph::agent, palette()) : QIcon{ });
-		RunSettings->setToolTip(narrow ? tr("Choose the agent and model: %1").arg(full) + QStringLiteral("\n") + RunSettingsTip : RunSettingsTip);
-		RunSettings->updateGeometry();
+		RunSettings->set_narrow(Field != nullptr && Field->width() > 0 && Field->width() < 300);
 	}
 
-	void agent_tab_view::present_run_settings_button()
-	{
-		const auto* const settings = current_run_settings();
-		if (settings == nullptr && !Launch.unavailable_agent_name().isEmpty()) {
-			present_unavailable_agent();
-			return;
-		}
-		RunSettings->setVisible(settings != nullptr);
-		if (settings == nullptr) {
-			return;
-		}
-		// Short enough for the field's row: the model, or "Default model",
-		// and the effort when one is chosen.
-		// Owner look v004: a model by its name and version. The agent's own
-		// default is named by what it last reported running, when it did.
-		const auto reported = ReportedModels.find(settings->Profile);
-		const auto ranAs    = reported == ReportedModels.end() ? QString{ } : agent_model_display_name(reported->second);
-		const auto model    = settings->Model.empty() ? tr("default model") : agent_model_display_name(QString::fromStdString(settings->Model));
-		auto       shown    = !settings->Model.empty() ? model : ranAs.isEmpty() ? tr("Default model")
-																				 : ranAs;
-		if (!settings->Effort.empty()) {
-			shown += QStringLiteral(" · ") + tr("%1 effort").arg(QString::fromStdString(settings->Effort));
-		}
-		// Owner amendment 2026-10-23: agent · model · effort.
-		const auto full = settings->Agent + QStringLiteral(" · ") + (!(settings->ModelChoosable || settings->EffortChoosable) ? tr("its own model") : shown);
-		RunSettings->setProperty("agentRunSettingsText", full);
-		// The whole words, shortened when the row is narrow (menu_word).
-		RunSettings->setAccessibleName(tr("Agent, model and effort: %1").arg(full));
-		fit_run_settings();
-		auto tip = tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program);
-		if (settings->ModelChoosable) {
-			tip += QStringLiteral("\n") + (settings->Model.empty() ? tr("Model: the agent's own default") : tr("Model: %1").arg(model));
-		}
-		if (settings->EffortChoosable) {
-			tip += QStringLiteral("\n") + (settings->Effort.empty() ? tr("Effort: the agent's own default") : tr("Effort: %1").arg(QString::fromStdString(settings->Effort)));
-		}
-		if (!settings->Note.isEmpty()) {
-			tip += QStringLiteral("\n") + settings->Note;
-		}
-		if (!ranAs.isEmpty()) {
-			tip += QStringLiteral("\n") + tr("Last answer ran %1 (%2)").arg(ranAs, reported->second);
-		}
-		RunSettingsTip = tip;
-		fit_run_settings();
-		auto* const menu = RunSettings->menu();
-		// A menu open now is rebuilt once it closes, never under the pointer.
-		if (menu->isVisible()) {
-			MenuStale = true;
-			return;
-		}
-		MenuStale = false;
-		// `clear` keeps the Model and Effort menus it made; each rebuild
-		// makes its own, so the old ones go.
-		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
-			submenu->deleteLater();
-		}
-		menu->clear();
-		// Every agent added, one press away; each keeps its own conversation
-		// about this pull request (owner decision 2026-10-23).
-		auto* const agents = new QActionGroup{ menu };
-		for (const auto& offered : RunSettingsShown) {
-			auto* const item = menu->addAction(offered.Agent);
-			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
-			item->setCheckable(true);
-			item->setChecked(offered.Profile == settings->Profile);
-			agents->addAction(item);
-			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
-		}
-		menu->addSeparator();
-		auto* const what = menu->addAction(tr("%1 runs %2").arg(settings->Agent, settings->Program.isEmpty() ? tr("the program setup found") : settings->Program));
-		what->setEnabled(false);
-		if (!settings->Note.isEmpty()) {
-			menu->addAction(settings->Note)->setEnabled(false);
-		}
-		const auto profile = settings->Profile;
-		const auto apply   = [this, profile](std::optional<std::string> aModel, std::optional<std::string> aEffort) {
-			if (RunSettingsDispatch && !RunSettingsDispatch(profile, std::move(aModel), std::move(aEffort))) {
-				Notice->setText(tr("The agent doesn't take that setting."));
-				Notice->show();
-			}
-		};
-		if (settings->ModelChoosable) {
-			auto* const models = menu->addMenu(tr("Model"));
-			models->setObjectName(QStringLiteral("agentRunSettingsModels"));
-			auto* const group = new QActionGroup{ models };
-			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
-				auto* const action = models->addAction(aLabel);
-				action->setCheckable(true);
-				action->setChecked(settings->Model == aValue);
-				group->addAction(action);
-				connect(action, &QAction::triggered, this, [apply, aValue] { apply(aValue, std::nullopt); });
-			};
-			add({ }, ranAs.isEmpty() ? tr("Default (the agent's own setting)") : tr("Default (the agent's own; last ran %1)").arg(ranAs));
-			if (settings->Models.empty() && settings->Listing) {
-				models->addAction(tr("Asking %1 for its models…").arg(settings->Agent))->setEnabled(false);
-			}
-			for (const auto& [value, label] : settings->Models) {
-				add(value, label);
-			}
-			const auto known = settings->Model.empty() || std::ranges::any_of(settings->Models, [&settings](const auto& aModel) { return aModel.first == settings->Model; });
-			if (!known) {
-				add(settings->Model, agent_model_display_name(QString::fromStdString(settings->Model)));
-			}
-			connect(models->addAction(tr("Other…")), &QAction::triggered, this, [this, apply, current = settings->Model] {
-				auto       accepted = false;
-				const auto name     = QInputDialog::getText(this, tr("Model"), tr("The model's name, as the agent's --model takes it:"), QLineEdit::Normal, QString::fromStdString(current), &accepted).trimmed();
-				if (accepted) {
-					apply(name.toStdString(), std::nullopt);
-				}
-			});
-		}
-		if (settings->EffortChoosable) {
-			auto* const efforts = menu->addMenu(tr("Effort"));
-			efforts->setObjectName(QStringLiteral("agentRunSettingsEfforts"));
-			auto* const group = new QActionGroup{ efforts };
-			const auto  add   = [&](const std::string& aValue, const QString& aLabel) {
-				auto* const action = efforts->addAction(aLabel);
-				action->setCheckable(true);
-				action->setChecked(settings->Effort == aValue);
-				group->addAction(action);
-				connect(action, &QAction::triggered, this, [apply, aValue] { apply(std::nullopt, aValue); });
-			};
-			add({ }, tr("Default (the agent's own setting)"));
-			for (const auto& level : settings->Efforts) {
-				add(level, QString::fromStdString(level));
-			}
-		}
-		menu->addSeparator();
-		menu->addAction(tr("Type /model NAME or /effort LEVEL in the question field"))->setEnabled(false);
-		// Owner look v006 ("This model picker dropdown should have a link to
-		// open the agent settings page").
-		auto* const open = menu->addAction(tr("Agent settings…"));
-		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
-		connect(open, &QAction::triggered, this, [this] {
-			if (Setup) {
-				Setup();
-			}
-		});
-	}
-
-	void agent_tab_view::present_unavailable_agent()
-	{
-		// [[BPR-1823]], owner ruling 2026-10-29. The chosen agent went (removed
-		// in Settings, or not allowed here) and none was put in its place: the
-		// pill says so, state first so a narrow pill keeps it, and its menu is
-		// where another is chosen.
-		const auto name = Launch.unavailable_agent_name();
-		const auto full = tr("Unavailable: %1").arg(name);
-		RunSettings->setVisible(true);
-		RunSettings->setProperty("agentRunSettingsText", full);
-		RunSettings->setAccessibleName(tr("Agent: %1 is unavailable. Choose an agent.").arg(name));
-		RunSettingsTip = tr("%1 isn't in your agents, or this pull request's server doesn't allow it. Nothing is sent until you choose an agent.").arg(name);
-		fit_run_settings();
-		auto* const menu = RunSettings->menu();
-		if (menu->isVisible()) {
-			MenuStale = true;
-			return;
-		}
-		MenuStale = false;
-		for (auto* const submenu : menu->findChildren<QMenu*>(Qt::FindDirectChildrenOnly)) {
-			submenu->deleteLater();
-		}
-		menu->clear();
-		menu->addAction(tr("%1 isn't available. Choose an agent:").arg(name))->setEnabled(false);
-		for (const auto& offered : RunSettingsShown) {
-			auto* const item = menu->addAction(offered.Agent);
-			item->setObjectName(QStringLiteral("agentRunSettingsAgent"));
-			connect(item, &QAction::triggered, this, [this, profile = offered.Profile] { choose_agent(profile); });
-		}
-		menu->addSeparator();
-		auto* const open = menu->addAction(tr("Agent settings…"));
-		open->setObjectName(QStringLiteral("agentRunSettingsOpenSettings"));
-		connect(open, &QAction::triggered, this, [this] {
-			if (Setup) {
-				Setup();
-			}
-		});
-	}
+	void agent_tab_view::present_run_settings_button() { RunSettingsSource->refresh(); }
 
 	auto agent_tab_view::choose_agent(const std::uint64_t aProfile) -> bool
 	{

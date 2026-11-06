@@ -9975,14 +9975,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
-			// [[BPR-1878]]. The Tour tab's agent help says what the chosen agent
-			// will do for drafting, and follows the agent's requests.
-			Window->tour_editor()->set_agent_help_source([this] { return tour_agent_help(); });
-			Window->agent_panel()->add_progress_observer([this] {
-				if (Window) {
-					Window->tour_editor()->refresh_agent_help();
-				}
-			});
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -13503,28 +13495,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			const auto        row  = menu->findData(QVariant::fromValue<qulonglong>(aProfile.value()));
 			return row >= 0 ? menu->itemText(row) : QStringLiteral("The agent");
 		}
-		/// [[BPR-1878]]. The Tour tab's agent help line: what the chosen agent
-		/// will do when the author asks for a draft, or why it cannot. Empty
-		/// when the tab's own line (no agent, none chosen, ready) says it.
-		[[nodiscard]] auto tour_agent_help() const -> QString
-		{
-			const auto selected = Window->agent_panel()->selected_profile();
-			const auto agent    = writing_agent();
-			if (!selected || !agent) {
-				return { };
-			}
-			if (!writes_tool_free(*agent)) {
-				return QStringLiteral("%1 can't draft tour text: drafting needs an agent that runs Claude Code. Add one in Settings, Agents & context, or write the text yourself.").arg(agent_display_name(*agent));
-			}
-			if (!agent_idle()) {
-				return QStringLiteral("%1 is busy with another request. Drafting works again when it finishes.").arg(agent_display_name(*agent));
-			}
-			if (*agent != *selected) {
-				return QStringLiteral("%1 can't draft tour text, so drafts and rewrites use %2.").arg(agent_display_name(*selected), agent_display_name(*agent));
-			}
-			return { };
-		}
-
 		/// Whether a profile may run tool-free writing: Claude's stream JSON.
 		[[nodiscard]] auto writes_tool_free(const core::agent_profile_id aProfile) const -> bool
 		{
@@ -13651,13 +13621,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			const auto target = writing_target(aHook, aCapture);
 			if (!target || !agent_idle()) {
-				// [[BPR-1878]]. Says which of the three it is, naming only what
-				// the tab shows: its Drafting agent menu, or Set up an agent.
-				Window->tour_editor()->refresh_agent_help();
+				// [[BPR-1878]]. Says which it is, naming only what the tab shows:
+				// the agent picker at its bottom.
 				const auto agent = writing_agent();
-				Window->tour_editor()->show_writing_notice(!agent        ? QStringLiteral("Choose a drafting agent at the top of this tab first, or keep writing yourself.")
-															   : !target ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
-																		 : QStringLiteral("%1 is busy with another request. Try again when it finishes, or keep writing yourself.").arg(agent_display_name(*agent)));
+				Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or keep writing yourself.")
+															   : !agent                                ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+															   : !target                               ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
+																									   : QStringLiteral("%1 is busy with another request. Try again when it finishes, or keep writing yourself.").arg(agent_display_name(*agent)));
 				return;
 			}
 			const auto request = WritingState.begin(*target, std::move(aCapture.Raw), aCapture.Selection);
@@ -13903,9 +13873,6 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			case qt::tour_editor_action::insert_outline:
 				insert_tour_outline();
-				return;
-			case qt::tour_editor_action::set_up_agent:
-				Window->open_settings(qt::settings_page::agents_and_context);
 				return;
 			case qt::tour_editor_action::preview_publication:
 			case qt::tour_editor_action::publish_publication:
