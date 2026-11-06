@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1879"
 title: "BetterPullReview can keep its own clone for agent questions"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"
@@ -297,3 +296,7 @@ not read its reviews sparsely through `gh`, so it cannot show this option.
 - Not exercised live on BPR-Test: the fake `gh` runs real Git against a
   local source. A live full clone of `MikeMarcin/BPR-Test` through the app
   is the remaining direct check.
+
+## Accepted
+
+The owner accepted v007 on 2026-11-06 (attended review, no note).
