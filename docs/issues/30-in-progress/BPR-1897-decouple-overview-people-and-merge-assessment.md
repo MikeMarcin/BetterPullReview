@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1897"
 title: "Decouple Overview people and merge assessment"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1895"]
 priority: "P1"
