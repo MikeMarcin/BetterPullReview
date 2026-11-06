@@ -361,13 +361,63 @@ its own: see the amendment below.
 >   is linked as the repository's clone, so the setup moves on and later
 >   questions borrow it exactly as a linked clone: a head it holds is lent
 >   with no fetch, and a head it lacks is fetched as the delta above, into
->   the workspace. The kept clone itself is not fetched into again; keeping
->   it current that way is left to a later card. A kept clone already in
+>   the workspace. [[BPR-1884]] amends this for the kept clone: a head it
+>   lacks is fetched into the kept clone itself first (below). A kept clone already in
 >   place is linked without a download. Settings › Repositories › Linked
 >   clones names it "kept by BetterPullReview". Insights › Storage measures
 >   `agent-clones-v1` as "Agent clones"; profile purge removes
 >   it (each kept clone may hold only its `.git` folder, so a checked-out
 >   file blocks the purge); the resets keep it.
+>
+> **Amendment [[BPR-1884]] (2026-11-06): keeping the kept clone current.**
+> Without maintenance a kept clone ages, each question's delta grows, and on
+> an active repository it reaches the delta's 32 MiB per-file bound and the
+> question fails as `too_large`. The policy is **fetch on miss, into the kept
+> clone, before the question**:
+>
+> - When a sparse review's question finds that its linked clone is the one
+>   BetterPullReview keeps (the link is `Managed`, so its folder is directly
+>   inside `agent-clones-v1`) and that clone lacks the head, the host first
+>   brings the kept clone up to the pull request, then lends the head from
+>   it. A head the clone holds is lent with nothing fetched, as before.
+> - Only what the pull request needs is fetched: its head OID and its base
+>   OID, each only when the clone lacks it. The default branch is never
+>   fetched (owner, 2026-11-06): a head fetch already brings in every
+>   ancestor the clone lacks.
+> - The fetch is the delta's own form (`gh repo clone --bare
+>   --revision=OID --reference=KEPT` into a private temporary root, the same
+>   pinned private configuration, environment, hooks off, no fsmonitor,
+>   identity checks before and after, and `gh` writing only inside that
+>   root), but on the kept clone's runner, with no per-file bound: it is the
+>   clone's maintenance, not a per-question download. Each received pack is
+>   self-contained; it is copied into the kept clone owner-private, under a
+>   temporary name and renamed with its index last, so Git sees only whole
+>   packs. Credential-free local Git then checks the head's and base's
+>   trees and names them `refs/bpr/pull/N/head` and `refs/bpr/pull/N/base`,
+>   so a later delta or maintenance fetch offers them as haves and Git's
+>   own maintenance keeps them.
+> - Why this policy keeps questions fast: the fetch receives the same objects
+>   the delta would (what the clone lacks of the head), plus the base only
+>   when the clone lacks it, so it never blocks a question meaningfully
+>   longer than the delta did, and an up-to-date clone costs nothing. A
+>   background or idle schedule was rejected: it spends fetches on
+>   repositories with no question, and a question arriving first still
+>   needed a delta.
+> - It runs in the host, before the workspace exists, on the question's own
+>   cancellable stop, through the review's `gh` lease: never inside the
+>   agent's sandbox or with the agent's environment, and never in a widget.
+> - A reviewer-linked clone is never fetched into or written: the host asks
+>   only for a `Managed` link, and the transport refuses any folder that is
+>   not a kept clone's working folder directly inside `agent-clones-v1`.
+> - A fetch that fails or is cancelled while the question goes on leaves the
+>   kept clone as valid as it was, the question proceeds through the delta
+>   above, and the outcome is a `clone_refresh` diagnostics line
+>   (`refresh_failed` or `cancelled`).
+> - Not built: a "last updated" time in Storage, and running `git
+>   maintenance` or `gc --auto` on the kept clone (which can repack a large
+>   repository for minutes inside a question). Each refresh adds at most two
+>   packs, which accumulate until that is added. Both are left to a later
+>   card.
 >
 > The sparse row's former text, "the head's files only, without history,
 > branches, tags, LFS files or submodules", described the snapshot and is

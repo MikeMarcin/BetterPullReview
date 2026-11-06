@@ -726,11 +726,12 @@ namespace bpr::application {
 					++WorkspaceStarts;
 					auto materialized = Workspaces.materialize_agent_workspace(
 						agent_workspace_materialization_request{
-							.ApplicationSession = aRequest.ApplicationSession,
-							.Authority          = aRequest.Authority,
-							.Session            = aInvocation->Identity.Session,
-							.ParentDirectory    = WorkspaceParent,
-							.HistoryClone       = aRequest.HistoryClone,
+							.ApplicationSession  = aRequest.ApplicationSession,
+							.Authority           = aRequest.Authority,
+							.Session             = aInvocation->Identity.Session,
+							.ParentDirectory     = WorkspaceParent,
+							.HistoryClone        = aRequest.HistoryClone,
+							.HistoryCloneManaged = aRequest.HistoryCloneManaged,
 						},
 						aInvocation->Stop->get_token());
 					if (!materialized.has_value()) {
