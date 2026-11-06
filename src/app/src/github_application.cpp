@@ -12715,6 +12715,15 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			// GitHub's `size` says roughly what it downloads.
 			repository.CanKeep          = AgentReview->Sparse;
 			repository.ApproximateBytes = AgentReview->ApproximateBytes;
+	#if defined(BPR_BUILD_TESTING)
+			// [[BPR-1879]], owner look v005. A fixture course has no `gh` lease,
+			// so keeping a clone there is a rehearsal (see prepare_kept_clone):
+			// the frozen look can show the choice and its progress.
+			if (Fixture != nullptr) {
+				repository.CanKeep          = true;
+				repository.ApproximateBytes = repository.ApproximateBytes.value_or(48'000'000U);
+			}
+	#endif
 			CloneLinks->observe_repository(std::move(repository));
 		}
 
@@ -12725,6 +12734,29 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// is not a sparse one of this repository.
 		[[nodiscard]] auto prepare_kept_clone(const application::clone_repository& aRepository, const std::string& aDestination) -> application::clone_link_dependencies::keep_job
 		{
+	#if defined(BPR_BUILD_TESTING)
+			// [[BPR-1879]], owner look v005. A fixture course rehearses the
+			// download: bytes arrive at about 2 MB a second, on past the stated
+			// size as a real clone with no limit may, until Cancel, which ends
+			// it as a cancel. Nothing is written; no clone is made.
+			if (Fixture != nullptr) {
+				if (Closing || !AgentReview || AgentReview->Repository.value() != aRepository.Repository) {
+					return { };
+				}
+				return [](const application::git_smart_clone_progress& aProgress, const std::stop_token aStop) -> std::expected<void, application::managed_clone_error> {
+					auto received = std::uint64_t{ 0U };
+					while (!aStop.stop_requested()) {
+						std::this_thread::sleep_for(std::chrono::milliseconds{ 250 });
+						received += 500'000U;
+						if (aProgress) {
+							aProgress(received);
+						}
+					}
+					return std::unexpected{ application::managed_clone_error { application::managed_clone_failure::cancelled,
+																			   { } } };
+				};
+			}
+	#endif
 			if (Closing || EpochHost == nullptr || !AgentReview || !AgentReview->Sparse || AgentReview->Repository.value() != aRepository.Repository) {
 				return { };
 			}

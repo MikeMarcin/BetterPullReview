@@ -259,6 +259,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-repository-look" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5594,6 +5595,7 @@ namespace {
 	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 	void schedule_attended_agent_look(bpr::app::github_application& aApplication);
+	void schedule_attended_repository_look(bpr::app::github_application& aApplication);
 	#endif
 
 	void schedule_attended_reveal(
@@ -5690,6 +5692,8 @@ namespace {
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
+					} else if (look == "repository") {
+						schedule_attended_repository_look(aApplication);
 	#endif
 					} else if (look) {
 						schedule_attended_preflight_look(aApplication, *look);
@@ -6287,6 +6291,102 @@ namespace {
 				static_cast<void>(window.grab().save(root + QStringLiteral("/app-agent.png"), "PNG"));
 			}
 			done(QStringLiteral("ATTENDED_AGENT_SHOWN:findings=%1").arg(window.finding_queue()->finding_count()));
+		});
+		timer->start();
+	}
+	#endif
+
+	#if defined(BPR_AGENT_INTEGRATIONS)
+	// [[BPR-1879]]. `--attended-repository-look`: once the file shows, the
+	// Agent tab opens on its setup's Repository step, where no clone is
+	// linked, so the person sees the choice: Link your clone, Keep a clone for
+	// me and the weakest. A fixture course keeps a clone as a rehearsal.
+	// With BPR_ATTENDED_REPOSITORY_RENDER set (the look's own offscreen
+	// check), the window is drawn there, Keep a clone is chosen and pressed,
+	// and the window is drawn again while it downloads.
+	void schedule_attended_repository_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer = new QTimer{ &aApplication.window() };
+		timer->setInterval(100);
+		const auto step  = std::make_shared<int>(0);
+		const auto ticks = std::make_shared<int>(0);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, alive = aApplication.liveness()] {
+			if (alive.expired()) {
+				return;
+			}
+			auto&      window = aApplication.window();
+			const auto root   = qEnvironmentVariable("BPR_ATTENDED_REPOSITORY_RENDER");
+			const auto done   = [timer](const QString& aLine) {
+				timer->stop();
+				timer->deleteLater();
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+			};
+			if (++*ticks > 1'200) {
+				if (!root.isEmpty()) {
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-repository-timeout.png"), "PNG"));
+				}
+				done(QStringLiteral("ATTENDED_REPOSITORY_FAILED:timeout:step=%1").arg(*step));
+				return;
+			}
+			auto* const setup = static_cast<QWidget*>(window.agent_setup());
+			if (*step == 0) {
+				window.open_agent_action()->trigger();
+				*step = 1;
+				return;
+			}
+			if (*step == 1) {
+				if (setup->findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")) == nullptr) {
+					// A fresh fixture profile has no agent chosen yet: the first
+					// one found is chosen, so the look reaches the Repository step.
+					if (auto* const next = setup->findChild<QPushButton*>(QStringLiteral("agentSetupContinue")); next != nullptr && next->isEnabled()) {
+						next->click();
+					} else if (auto* const first = setup->findChild<QWidget*>(QStringLiteral("agentSetupAgentRow")); first != nullptr && *ticks % 10 == 0) {
+						const auto centre  = QPointF{ first->rect().center() };
+						auto       press   = QMouseEvent{ QEvent::MouseButtonPress, centre, first->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+						auto       release = QMouseEvent{ QEvent::MouseButtonRelease, centre, first->mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+						QCoreApplication::sendEvent(first, &press);
+						QCoreApplication::sendEvent(first, &release);
+					}
+					return;
+				}
+				QCoreApplication::processEvents();
+				if (root.isEmpty()) {
+					done(QStringLiteral("ATTENDED_REPOSITORY_SHOWN"));
+					return;
+				}
+				static_cast<void>(window.grab().save(root + QStringLiteral("/app-repository.png"), "PNG"));
+				auto* const keep = setup->findChild<QWidget*>(QStringLiteral("agentSetupKeepCard"));
+				if (keep == nullptr) {
+					done(QStringLiteral("ATTENDED_REPOSITORY_FAILED:no-keep-card"));
+					return;
+				}
+				const auto centre  = QPointF{ keep->rect().center() };
+				auto       press   = QMouseEvent{ QEvent::MouseButtonPress, centre, keep->mapToGlobal(centre), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+				auto       release = QMouseEvent{ QEvent::MouseButtonRelease, centre, keep->mapToGlobal(centre), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+				QCoreApplication::sendEvent(keep, &press);
+				QCoreApplication::sendEvent(keep, &release);
+				*step = 2;
+				return;
+			}
+			if (*step == 2) {
+				auto* const button = setup->findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
+				if (button == nullptr) {
+					return;
+				}
+				button->click();
+				*ticks = 0;
+				*step  = 3;
+				return;
+			}
+			// Bytes arrive about twice a second; draw once a few have.
+			if (setup->findChild<QWidget*>(QStringLiteral("agentSetupKeepBar")) == nullptr || *ticks < 25) {
+				return;
+			}
+			static_cast<void>(window.grab().save(root + QStringLiteral("/app-repository-downloading.png"), "PNG"));
+			const auto alone = setup->findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")) == nullptr && setup->findChild<QWidget*>(QStringLiteral("agentSetupPrivateCopyCard")) == nullptr
+				&& setup->findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard")) == nullptr;
+			done(QStringLiteral("ATTENDED_REPOSITORY_DOWNLOADING:alone=%1").arg(alone ? 1 : 0));
 		});
 		timer->start();
 	}
@@ -10494,6 +10594,8 @@ auto main(int argc, char** argv) -> int
 		// [[BPR-1594]]. After the file, the Agent tab and one review by the
 		// fixture agent named here.
 		const auto attendedAgentLook = launch.value("--attended-agent-look");
+		// [[BPR-1879]]. The Agent tab's Repository step, for a look at it.
+		const auto attendedRepositoryLook = launch.has("--attended-repository-look");
 		if (attendedAgentLook.has_value()) {
 			fixtureOptions.CodexAgentExecutable = std::filesystem::path{ std::string{ *attendedAgentLook } };
 		}
@@ -11066,6 +11168,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedAgentLook.has_value()) {
 						look = std::string{ "agent" };
+					}
+					if (attendedRepositoryLook) {
+						look = std::string{ "repository" };
 					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };

@@ -115,7 +115,7 @@ namespace bpr::qt {
 		void               build_agent(QVBoxLayout& aBody);
 		void               build_repository(QVBoxLayout& aBody);
 		void               build_check(QVBoxLayout& aBody);
-		void               build_no_clone_choice(QVBoxLayout& aBody, bool aLead, const std::function<void()>& aChooseFolder);
+		void               build_no_clone_choice(QVBoxLayout& aBody);
 		[[nodiscard]] auto agent_name() const -> QString;
 		/// The chosen custom agent's own name for its kind, or the plain name.
 		[[nodiscard]] auto name_for(core::setup_agent aAgent) const -> QString;
@@ -137,13 +137,16 @@ namespace bpr::qt {
 												  keep,
 												  pull_request };
 		std::optional<no_clone_pick> NoClonePick;
-		core::setup_step             Open             = core::setup_step::agent;
-		bool                         Active           = false;
-		bool                         Ready            = false;
-		bool                         AgentDetailsOpen = false;
-		bool                         WorkspaceLogOpen = false;
-		QVBoxLayout*                 Steps            = nullptr;
-		QLabel*                      Intro            = nullptr;
+		/// [[BPR-1879]]. The repository whose clone folders the step last
+		/// searched by itself, so it searches once, not on every rebuild.
+		std::optional<std::string> AutoSearched;
+		core::setup_step           Open             = core::setup_step::agent;
+		bool                       Active           = false;
+		bool                       Ready            = false;
+		bool                       AgentDetailsOpen = false;
+		bool                       WorkspaceLogOpen = false;
+		QVBoxLayout*               Steps            = nullptr;
+		QLabel*                    Intro            = nullptr;
 	};
 
 	/// \brief [[BPR-1753]], RFC-BPR-0092 Ready. What one review
