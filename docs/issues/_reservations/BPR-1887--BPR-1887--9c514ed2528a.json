@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1887"
+  ],
+  "reserve_for": "responsiveness-latency",
+  "purpose": "Keep the pull request conversation link clear of line-aligned comments",
+  "created": "2026-11-06T16:05:56.749630+00:00",
+  "base": "5715811cdc8e43338e00f26652d841207c96f0c2"
+}
