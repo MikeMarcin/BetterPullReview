@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1898"
 title: "Separate Overview progress readiness from network status"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1897"]
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1898--BPR-1898--605c229d551e.json","milestone_plan":{"id":"responsiveness-latency-v10","path":"docs/rfcs/plans/responsiveness-latency-v10/milestone-plan.json"},"frontend_design":"frontend-design:frontend-design and desktop guidance; retain existing Status sections."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"fc1bf162f9e9cc8b4a5e1d4416b4f921c8e70fc7","evidence":{"kind":"observation","detail":"Separate receipt and private-record readiness is projected from scoped store outcomes. Held-local composed runs show completed network Status, then file progress while notes and last-review history still load; failure is explicit rather than zero. Inspected final offscreen renders show the same existing Status layout."}},{"criterion":"AC2","outcome":"pass","revision":"fc1bf162f9e9cc8b4a5e1d4416b4f921c8e70fc7","evidence":{"kind":"observation","detail":"The current serialized store lane, generation guards, account/PR authority and exact filtered receipt keys are preserved. Both composed openings read exactly two receipts and one private record set. Durable read marks survive reopening without leaking to another PR. Ledger host/composition, split-receipt commit filters, force-push rematch and incremental scaling courses pass."}},{"criterion":"AC3","outcome":"pass","revision":"fc1bf162f9e9cc8b4a5e1d4416b4f921c8e70fc7","evidence":{"kind":"observation","detail":"The final composed public path passes held effects and individually delivered completions, check selection/disclosure preservation, replacement and actual SQLite receipt-read failure while private records succeed. The old-order control fails the intended early-file-progress assertion. Loading and unavailable states were inspected in actual offscreen application renders."}},{"criterion":"AC4","outcome":"pass","revision":"fc1bf162f9e9cc8b4a5e1d4416b4f921c8e70fc7","evidence":{"kind":"observation","detail":"Thirteen focused Release courses have passing evidence. Both architecture courses, clang-format 22, documentation and scoped board checks pass. Full clang-tidy reports only one existing fixture-local naming violation, corrected with a passing focused naming recheck and composition rebuild; all other analysis is unchanged and reused. Final public-path rerun passes. The source and one-line journal entry are landed on local main."}}]
 ---
 
 # BPR-1898: Separate Overview progress readiness from network status
@@ -153,3 +154,9 @@ The rebuilt final composition passes the progressive public path again
 read counts, durable replacement and the real SQLite failure. The final naming
 format check passes (`progress-naming-format.log`). All acceptance evidence is
 complete; source landing and guarded card completion follow.
+
+## Landing
+
+Verified source and the one-line journal entry landed on local `main` as
+`fc1bf162f9e9cc8b4a5e1d4416b4f921c8e70fc7`. All four criteria are satisfied. No owner action,
+remote push or release is part of this round.
