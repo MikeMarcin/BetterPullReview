@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1881"
 title: "Tour tab: a call to action to set up the agent, and agent features in one colour"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac"]
-parked_on: "human-review"
 metadata: {"kind":"feature","found_by":"owner, 2026-11-06, in coordinator chat","related_cards":["BPR-1878","BPR-1879"]}
 acceptance: [{"criterion": "AC1", "outcome": "pass", "revision": "101c59fe2", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_setup_call (tests/adapters_qt/review_tour_agent_setup_call_tests.cpp): set unfinished, tourAgentSetupCall is the tab's first widget (top 0) above the steps, and nothing asks for the setup by itself; its Set up the agent asks the window once; checking shows no call; ready hides it. qt_workbench_window_scale_100 (test_an_agent_error_is_an_error_and_suggestions_wait_for_setup): the Tour editor's agent_readiness follows the Agent tab's verdict (ready with no setup adopted, unfinished on a failed check with the call shown and the Agent tab not setting up, ready with the Ready line and the call hidden), and the Tour tab's Set up the agent puts the Agent tab in setting_up at Check it works, as Finish setup does. Frozen build's look: ATTENDED_TOUR_SETUP_CALL_SHOWN, and with BPR_ATTENDED_TOUR_SETUP=open ATTENDED_TOUR_SETUP_OPENED (the Agent tab at its setup)."}}, {"criterion": "AC2", "outcome": "pass", "revision": "f7c8334a8", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_setup_call: in light (#E7E7E7 window, white base) and dark (#323232 window, #1E1E1E base) palettes, before and after setup, agent_accent is at least 4.5:1 on window and base; every agent feature (tourProblemMagic, tourSolutionMagic, tourStopMagic, tourSuggestOutline, tourInsertOutline, tourAgentField with the picker) has the accent as WindowText and ButtonText, each button carries the agent spark icon, the call's title and button wear the same accent, an ordinary control (tourProblemMap) does not, and an application palette change re-derives it. v002 accent #4A3FD6 light (7.1:1 white, 5.7:1 #E7E7E7), #A3A0FF dark (8.1:1 #0D1117, 5.5:1 #323232); qt_review_tour_agent_setup_call passes on f7c8334a8."}}, {"criterion": "AC3", "outcome": "pass", "revision": "101c59fe2", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_setup_call: unfinished, every agent feature but the bar's picker is disabled with a tooltip naming 'not set up' and 'Set up the agent'; a click asks nothing; disabled words are the faded accent; checking says 'Waiting'; ready, all are enabled, tooltips say what they do, a click asks, the accent stays. The picker stays usable: it chooses the Agent tab's agent and runs nothing. qt_review_tour_agent_help and qt_review_tour_steps still pass."}}, {"criterion": "AC5", "outcome": "pass", "revision": "101c59fe2", "evidence": {"kind": "command", "detail": "python3 scripts/verify_documentation.py --root . printed DOCUMENTATION_OK (run with PYTHONPATH at the main checkout's .agents/skills/implement-rfc/scripts, which the worktree lacks); coding-format-check passed."}}]
 ---
@@ -128,3 +127,7 @@ focus and unread blue (212°) and the violet that means fixed and merged
   candidate, `BPR-1881-tour-agent-setup` (revision `f7c8334a8-v002`), with one
   Accept/Reject question and the pick explained in one line. Status: ready,
   awaiting the owner.
+
+## Accepted
+
+The owner accepted v002 (indigo accent) on 2026-11-06 (attended review, no note).
