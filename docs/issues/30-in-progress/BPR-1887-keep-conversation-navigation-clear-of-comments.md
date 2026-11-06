@@ -31,5 +31,52 @@ render acceptable.
 
 ## Evidence
 
-Pending implementation and verification. The frontend-design skill is loaded;
-this is a layout correction within the existing native presentation.
+The composed window now places the existing link in the Comments toolbar,
+beside its existing filters and next-unread control. The toolbar owns its
+geometry; viewport positioning remains only for standalone card views. When
+the unread badge appears or disappears, the link invalidates its size hint,
+without requesting another layout on every comparison frame. Text, count,
+focus policy, callback and code-line placement are retained. Show/hide events
+keep the toolbar-owned link tied to its card view's availability.
+
+The frontend-design and code-simplifier skills were applied. The corrected
+full-window offscreen render shows the navigation link above the comment's
+author and body; the owner saw it and replied “that looks much better” on
+2026-11-06. The existing palette, typography and controls remain in use.
+
+- Against pre-fix product source `8b33cba9f`, the new composed refresh check
+  fails at “conversation navigation has layout space outside the comment
+  viewport.” The corrected version passes before and after refresh, checks
+  that the label and unread badge fit, activates the link with Space, verifies
+  Overview's Comments destination, verifies view visibility propagation, and
+  checks geometry again at a 960-by-640 requested window.
+- `qt_composed_github_scale_100`, `qt_github_conversation_panel`,
+  `qt_conversation_cards_view` and `application_refresh_current_file_public_path`
+  pass. Existing card tests retain line alignment, ordering, read counts,
+  navigation dispatch, expansion and scroll behavior.
+- The 330 ms-per-read composed render course passes all refresh assertions:
+  fresh conversation at 1,666 ms, settled at 5,991 ms, 18 reads, zero blank
+  comparison samples and no renewed wash. The remaining-details marker stays
+  visible. These are synthetic regression observations, not a new latency claim.
+
+The 100% and 200% offscreen refresh renders were inspected. These establish
+layout separation; they are not a native system-appearance acceptance claim.
+The final 200% course passes the visibility, narrow-window and keyboard checks
+with all refresh assertions retained: fresh at 1,679 ms, settled at 6,003 ms,
+18 reads, zero blank samples and no renewed wash. The corrected narrow render
+keeps the link, unread badge, author and wrapped comment text separate.
+
+All four changed C++ files pass clang-format 22.1.8. The conversation-card
+source and end-to-end test pass clang-tidy 22.1.8 with warnings as errors;
+the header is also compiled through those units. Documentation and
+`git diff --check` pass. Unchanged documentation regressions and composition
+inventory checks reuse the passing round-one evidence. The journal contains
+one line for this correction; the closeout records its landed source revision.
+
+The inherited BPR-1884 architecture refusal and earlier architecture-fixture,
+network-manifest and unrelated whole-window lint failures remain documented in
+[[BPR-1885]] and [[BPR-1883]]; this fix does not claim those gates pass.
+Whole `workbench_window.cpp` clang-tidy was rerun and still reports only the
+previously recorded `QueueFilterModel` null-object diagnostic and
+`finish_choice` naming violation. Its diff contains only the four toolbar
+placement lines; neither diagnostic is in that change.
