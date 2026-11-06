@@ -309,17 +309,18 @@ its own: see the amendment below.
 >   Whether it also replaces that repository's sparse review cache is left to
 >   a later card.
 >
->   As built (owner look v004): with no clone found, the Repository step of a
->   sparse review read through a `gh` lease is one choice between two cards,
->   the same cards a found clone is chosen from. **Keep a clone for me** is
->   chosen at first, the stronger answer: its figure is SIZE, its line "Full
->   history, kept in LOCATION" (the location shortened in the middle, the
->   whole path as its tooltip). **This pull request only** is the second card,
->   "Weaker answers: no callers, tests or history". One default button acts
->   on the card chosen (**Keep a clone** or **Use this pull request**), with
->   **Choose a folder…** beside it to link one instead. When another action
->   leads (no clone folder yet, or clones found), the same cards follow it
->   with a quiet button. SIZE is GitHub's `size` from the review's repository
+>   As built (owner look v005): with no clone found, the Repository step of a
+>   sparse review read through a `gh` lease is one choice between three
+>   cards, the same cards a found clone is chosen from, in order of strength.
+>   **Use my clone** is first, chosen at first and marked "Recommended" in the
+>   accent colour: "Full history already on this computer". **Keep a clone
+>   for me** is second: its figure is SIZE, its line "Full history, kept in
+>   LOCATION" (the location shortened in the middle, the whole path as its
+>   tooltip). **This pull request only** is last, "Weaker answers: no callers,
+>   tests or history". One default button acts on the card chosen: **Choose
+>   its folder…**, **Keep a clone** or **Use this pull request**. When
+>   another action leads (no clone folder yet, or clones found), the keep and
+>   pull-request cards follow it with a quiet button. SIZE is GitHub's `size` from the review's repository
 >   read, in decimal units. The review's own lease
 >   runs `gh repo clone URL STORE --no-upstream -- --no-checkout --quiet`
 >   with the same pinned private configuration, environment, hooks off, no
@@ -333,7 +334,8 @@ its own: see the amendment below.
 >   one whose deadline is lifted. The store is
 >   checked to hold a commit at `HEAD`, made owner-private, and moved whole
 >   to `agent-clones-v1/HOST-REPOSITORY_ID` in the profile. While it runs its
->   card becomes the progress, alone in the step: "Keeping a clone", the
+>   card becomes the progress and is the whole step (no header, other cards
+>   or links; owner look v004): "Keeping a clone", the
 >   bytes received as its figure ("42 MB of 126 MB", sampled twice a second),
 >   a thin bar and **Cancel**; past SIZE, or with no SIZE, the bar is busy and
 >   only the bytes received show. Objects and percent are not
