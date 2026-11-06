@@ -70,6 +70,37 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto name(discovery_completeness_reason aReason) noexcept -> std::string_view;
 
+	/// \brief [[BPR-1874]]. Which of the host's checks refused part of a
+	/// read's answer, which leaves its refresh stale with no failed read.
+	enum class discovery_rejection : std::uint8_t {
+		none,
+		/// A retained read answered other than complete.
+		incomplete_answer,
+		/// A retained read answered a pull request it did not ask for, or more
+		/// rows than it asked for.
+		unasked_row,
+		/// A retained read gave no row for a pull request it asked for: the
+		/// adapter could not read that one, and the line's failure says why.
+		missing_row,
+		/// A retained read gave two rows for one pull request.
+		duplicate_row,
+		/// A retained row without its detail.
+		undetailed_row,
+		/// A retained row without its head.
+		missing_head,
+		/// A retained row with more submitted reviews than discovery keeps.
+		review_limit,
+		/// A retained row whose head is not a commit identity.
+		malformed_head,
+		/// A shared search's row that names none of its saved repositories.
+		unattributed_row,
+		/// An answer for a request other than the one the read made.
+		mismatched_answer,
+		/// A read cancelled other than to give way to a window's read.
+		unexpected_cancel,
+	};
+	[[nodiscard]] auto name(discovery_rejection aRejection) noexcept -> std::string_view;
+
 	/// \brief [[BPR-1680]]. One Home discovery diagnostic line: enums,
 	/// ordinals and counts only.
 	///
@@ -101,6 +132,12 @@ namespace bpr::core {
 	/// over its reads, and `BackoffSeconds` is how long a rate limit then
 	/// keeps the next refresh waiting. These spans overlap the run and the
 	/// refresh; they are not parts to add up.
+	///
+	/// [[BPR-1874]]. A read line with a `Rejection` says which check refused
+	/// part of that read's answer, and `Row` which of the pull requests it
+	/// asked for, from 1 in the request's order (0 when the check is about the
+	/// whole answer or a search's row). It names the row by that position, not
+	/// by its number, as the rest of the line names nothing.
 	struct discovery_diagnosis
 	{
 		discovery_diagnosis_scope  Scope                  = discovery_diagnosis_scope::refresh;
@@ -126,6 +163,9 @@ namespace bpr::core {
 
 		discovery_work Work;
 
+		discovery_rejection Rejection = discovery_rejection::none;
+		std::uint32_t       Row       = 0U;
+
 		auto operator<=>(const discovery_diagnosis&) const = default;
 	};
 
@@ -137,7 +177,9 @@ namespace bpr::core {
 	/// \brief Whether a line is one the host writes: known enums, a refresh
 	/// numbered from 1, a refresh line with no read ordinal or reason and a
 	/// read line with both, no more failures than reads, and a read line with
-	/// no refresh state, read count, failure count or backoff.
+	/// no refresh state, read count, failure count or backoff. Only a read
+	/// line has a rejection, a row only with one, and no row past the pull
+	/// requests the read asked for.
 	[[nodiscard]] auto valid(const discovery_diagnosis& aDiagnosis) noexcept -> bool;
 
 	/// \brief The line for the diagnostics log, in fixed key order:
@@ -145,7 +187,9 @@ namespace bpr::core {
 	/// repositories=N pull_requests=N reads=N failed=N requests=N wait_ms=N
 	/// run_ms=N credential_ms=N wire_ms=N decision_ms=N http_403=N http_429=N
 	/// http_5xx=N timeouts=N backoff_s=N candidates=N reused=N direct=N
-	/// rejected=N roster_recoveries=N completeness=REASON`. Empty when the line is not valid.
+	/// rejected=N roster_recoveries=N completeness=REASON`, then
+	/// ([[BPR-1874]]) ` check=REJECTION row=N` only when the line has a
+	/// rejection. Empty when the line is not valid.
 	[[nodiscard]] auto describe(const discovery_diagnosis& aDiagnosis) -> std::string;
 
 	/// \brief Reads exactly what `describe` writes; anything else is none.
