@@ -12,6 +12,7 @@
 #include "waiting_panel.hpp"
 
 #include <QAbstractButton>
+#include <QAbstractItemModel>
 #include <QAbstractTextDocumentLayout>
 #include <QAction>
 #include <QApplication>
@@ -35,6 +36,7 @@
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QShowEvent>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -853,6 +855,41 @@ namespace bpr::qt {
 		auto* const notes = new QVBoxLayout{ Notices };
 		notes->setContentsMargins(10, 8, 10, 4);
 		notes->setSpacing(6);
+		// [[BPR-1878]]. Agent help: the agent drafts and rewrites use, chosen
+		// here as in the Agent tab (one shared menu), and one line saying what
+		// it will do. With no agent the line says why and offers setup; manual
+		// writing never waits on it.
+		AgentHelp = new QWidget{ Notices };
+		AgentHelp->setObjectName(QStringLiteral("tourAgentHelp"));
+		auto* const help = new QVBoxLayout{ AgentHelp };
+		help->setContentsMargins(0, 0, 0, 2);
+		help->setSpacing(2);
+		auto* const agentRow = new QHBoxLayout{ };
+		agentRow->setSpacing(6);
+		auto* const agentLabel = new QLabel{ tr("Drafting agent"), AgentHelp };
+		agentLabel->setObjectName(QStringLiteral("tourAgentLabel"));
+		agentRow->addWidget(agentLabel);
+		AgentPicker = new QComboBox{ AgentHelp };
+		AgentPicker->setObjectName(QStringLiteral("tourAgentPicker"));
+		AgentPicker->setAccessibleName(tr("Drafting agent"));
+		AgentPicker->setToolTip(tr("The agent that drafts and rewrites tour text when you ask. It is the same choice as the Agent tab."));
+		AgentPicker->setSizeAdjustPolicy(QComboBox::AdjustToMinimumContentsLengthWithIcon);
+		AgentPicker->setMinimumContentsLength(12);
+		agentLabel->setBuddy(AgentPicker);
+		agentRow->addWidget(AgentPicker, 1);
+		AgentSetUp = new quiet_push_button{ tr("Set up an agent"), AgentHelp };
+		AgentSetUp->setObjectName(QStringLiteral("tourAgentSetUp"));
+		AgentSetUp->setToolTip(tr("Open Settings at Agents & context to add an agent that can draft tour text."));
+		connect(AgentSetUp, &QPushButton::clicked, this, [this] { trigger(tour_editor_action::set_up_agent); });
+		agentRow->addWidget(AgentSetUp);
+		// Holds Set up an agent beside its label while the menu gives way.
+		agentRow->addStretch(0);
+		help->addLayout(agentRow);
+		AgentHint = paragraph({ }, AgentHelp);
+		AgentHint->setObjectName(QStringLiteral("tourAgentHint"));
+		AgentHint->setForegroundRole(QPalette::PlaceholderText);
+		help->addWidget(AgentHint);
+		notes->addWidget(AgentHelp);
 		Imports = new QComboBox{ Notices };
 		Imports->setObjectName(QStringLiteral("tourImportChoices"));
 		Imports->setAccessibleName(tr("GitHub tour index and list"));
@@ -966,8 +1003,9 @@ namespace bpr::qt {
 			editor->setTabChangesFocus(true);
 			editor->setMinimumHeight(110);
 			column->addWidget(editor, 1);
-			// [[BPR-1784]]. Next shares the assistance row, so the step fits the
-			// narrowest drawer.
+			// [[BPR-1878]]. The helpers first, each saying what it does, then
+			// moving on on its own row, named for where it goes: the owner
+			// read a bare Next among the helpers as one of them.
 			auto* const first = new QHBoxLayout{ };
 			first->setSpacing(6);
 			add_writing_button(editor, aKind == core::tour_command_kind::problem ? core::writing_hook::problem : core::writing_hook::solution, first);
@@ -975,19 +1013,23 @@ namespace bpr::qt {
 			column->addLayout(first);
 			auto* const tools = new QHBoxLayout{ };
 			tools->setSpacing(6);
-			auto* map = new quiet_push_button{ tr("Use selected description text"), panel };
+			auto* map = new quiet_push_button{ tr("Copy selected description text"), panel };
 			map->setObjectName(aName + QStringLiteral("Map"));
-			map->setToolTip(tr("Select text in the pull request description's Source view, then use it in this field."));
+			map->setToolTip(tr("Copies the text you selected in the pull request description (Overview, Source view) into this field, replacing what is here."));
 			tools->addWidget(map);
 			tools->addStretch(1);
 			column->addLayout(tools);
 			// Moving on is explicit: Next, or the key that marks a stop Ready
 			// and goes on.
-			auto* const next = new QPushButton{ tr("Next"), panel };
+			auto* const onward = new QHBoxLayout{ };
+			onward->setContentsMargins(0, 4, 0, 0);
+			onward->addStretch(1);
+			auto* const next = new QPushButton{ aIndex == 0 ? tr("Next: Solution") : tr("Next: Stops"), panel };
 			next->setObjectName(aName + QStringLiteral("Next"));
 			next->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
-			next->setToolTip((aIndex == 0 ? tr("Go on to the solution (%1)") : tr("Go on to the stops (%1)")).arg(next->shortcut().toString(QKeySequence::NativeText)));
-			first->addWidget(next);
+			next->setToolTip((aIndex == 0 ? tr("Go on to step 2, the solution (%1). This text stays saved.") : tr("Go on to step 3, the stops (%1). This text stays saved.")).arg(next->shortcut().toString(QKeySequence::NativeText)));
+			onward->addWidget(next);
+			column->addLayout(onward);
 			connect(map, &QPushButton::clicked, this, [this, aMapping] { trigger(aMapping); });
 			connect(next, &QPushButton::clicked, this, [this, aIndex] { choose_step(aIndex == 0 ? 1 : -1); });
 			connect(editor, &QPlainTextEdit::textChanged, this, [this, editor, aKind] { edit(aKind, editor->raw()); });
@@ -1342,7 +1384,10 @@ namespace bpr::qt {
 		Import->setVisible(!aProjection.ImportChoices.empty());
 		Shown               = aProjection;
 		const bool editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly;
-		const bool bounded  = same && Shown.Refusal == core::tour_refusal::bounds;
+		// [[BPR-1878]]. Agent help is for writing a draft; a read-only or
+		// absent one has nothing to draft.
+		AgentHelp->setVisible(editable);
+		const bool bounded = same && Shown.Refusal == core::tour_refusal::bounds;
 		Problem->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::problem));
 		Solution->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::solution));
 		Title->setReadOnly(!editable || (bounded && EditingKind != core::tour_command_kind::edit_stop));
@@ -1500,10 +1545,27 @@ namespace bpr::qt {
 																																				: QStringLiteral("tourStopMagic"));
 		button->setFocusPolicy(Qt::TabFocus);
 		// [[BPR-1776]]. Raised, as the shared chip: flat it read as a label.
-		button->setToolTip(tr("Use the selected agent once. The result replaces only the captured text and can be undone."));
 		aLayout->addWidget(button, 0, Qt::AlignLeft);
-		const auto label = [aEditor, aHook, button] { button->setText(aEditor->textCursor().hasSelection() ? tr("Enhance selection") : core::writing_blank(aEditor->raw()) ? (aHook == core::writing_hook::comment ? tr("Generate comment") : tr("Recover explanation"))
-																																										   : tr("Enhance text")); };
+		// [[BPR-1878]]. RFC-BPR-0043's labels: each says what a click does to
+		// this field, and its tooltip says how, and that Undo restores it.
+		const auto label = [aEditor, aHook, button] {
+			const auto whole = aHook == core::writing_hook::problem ? tr("Enhance problem statement") : aHook == core::writing_hook::solution ? tr("Enhance solution")
+																																			  : tr("Enhance comment");
+			if (aEditor->textCursor().hasSelection()) {
+				button->setText(tr("Enhance selection"));
+				button->setToolTip(tr("Asks the drafting agent to rewrite only the selected text. Undo restores it."));
+			} else if (!core::writing_blank(aEditor->raw())) {
+				button->setText(whole);
+				button->setToolTip(tr("Asks the drafting agent to rewrite this whole field, keeping your meaning. Undo restores your text."));
+			} else if (aHook == core::writing_hook::comment) {
+				button->setText(tr("Generate comment"));
+				button->setToolTip(tr("Asks the drafting agent to write this stop's comment from its code. Undo removes it."));
+			} else {
+				button->setText(tr("Draft from PR context"));
+				button->setToolTip(aHook == core::writing_hook::problem ? tr("Fills this field from the pull request: the description's own Problem section if it has one, otherwise a draft by the drafting agent. Undo removes it.")
+																		: tr("Fills this field from the pull request: the description's own Solution section if it has one, otherwise a draft by the drafting agent. Undo removes it."));
+			}
+		};
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
 		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook] {
@@ -1621,6 +1683,70 @@ namespace bpr::qt {
 		return QWidget::eventFilter(aWatched, aEvent);
 	}
 	void review_tour_editor::show_writing_notice(const QString& aText) { WritingStatus->setText(aText); }
+	void review_tour_editor::share_agent_choices(QComboBox* aSource)
+	{
+		if (aSource == nullptr || AgentSource == aSource) {
+			return;
+		}
+		AgentSource = aSource;
+		AgentPicker->setModel(aSource->model());
+		const auto follow = [this] {
+			if (AgentSource) {
+				const auto block = QSignalBlocker{ AgentPicker };
+				AgentPicker->setCurrentIndex(AgentSource->currentIndex());
+			}
+			refresh_agent_help();
+		};
+		// The source settles its own choice (core decides the pick); this menu
+		// only mirrors it, and hands a choice made here to the source.
+		connect(aSource, &QComboBox::currentIndexChanged, this, follow);
+		auto* const model = aSource->model();
+		connect(model, &QAbstractItemModel::rowsInserted, this, follow);
+		connect(model, &QAbstractItemModel::rowsRemoved, this, follow);
+		connect(model, &QAbstractItemModel::modelReset, this, follow);
+		connect(AgentPicker, &QComboBox::activated, this, [this](const int aIndex) {
+			if (AgentSource && AgentSource->currentIndex() != aIndex) {
+				AgentSource->setCurrentIndex(aIndex);
+			}
+			refresh_agent_help();
+		});
+		follow();
+	}
+	void review_tour_editor::set_agent_help_source(std::function<QString()> aSource)
+	{
+		AgentHelpSource = std::move(aSource);
+		refresh_agent_help();
+	}
+	auto review_tour_editor::agents_offered() const -> bool
+	{
+		// The source's unavailable entry (a chosen agent that went) is disabled
+		// and carries no agent: it is not one offered.
+		for (int row = 0; row < AgentPicker->count(); ++row) {
+			if (AgentPicker->itemData(row).isValid()) {
+				return true;
+			}
+		}
+		return false;
+	}
+	void review_tour_editor::refresh_agent_help()
+	{
+		const bool offered = agents_offered();
+		AgentPicker->setVisible(offered);
+		AgentSetUp->setVisible(!offered);
+		auto hint = AgentHelpSource ? AgentHelpSource() : QString{ };
+		if (hint.isEmpty()) {
+			hint = !offered                       ? tr("No agent is set up, so drafting is off. You can write the text yourself.")
+				: AgentPicker->currentIndex() < 0 ? tr("Choose an agent to draft or rewrite text. You can always write it yourself.")
+												  : tr("Drafts and rewrites use this agent. Choosing here also chooses it in the Agent tab.");
+		}
+		AgentHint->setText(hint);
+	}
+	auto review_tour_editor::agent_help_text() const -> QString { return AgentHint->text(); }
+	void review_tour_editor::showEvent(QShowEvent* aEvent)
+	{
+		QWidget::showEvent(aEvent);
+		refresh_agent_help();
+	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::trigger(tour_editor_action aAction)
 	{
