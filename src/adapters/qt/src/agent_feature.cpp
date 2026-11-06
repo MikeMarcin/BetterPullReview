@@ -9,9 +9,9 @@ namespace bpr::qt {
 
 	auto agent_accent(const QPalette& aPalette) -> QColor
 	{
-		// Light: 6.7:1 on white, 5.4:1 on macOS's #E7E7E7 window.
-		// Dark: 7.5:1 on #0D1117, 5.1:1 on macOS's #323232 window.
-		return dark_ground(aPalette) ? QColor{ 0xF2, 0x7A, 0xC0 } : QColor{ 0xA8, 0x22, 0x6E };
+		// Light #4A3FD6: 7.1:1 on white, 5.7:1 on macOS's #E7E7E7 window.
+		// Dark #A3A0FF: 8.1:1 on #0D1117, 5.5:1 on macOS's #323232 window.
+		return dark_ground(aPalette) ? QColor{ 0xA3, 0xA0, 0xFF } : QColor{ 0x4A, 0x3F, 0xD6 };
 	}
 
 	auto agent_accent_disabled(const QPalette& aPalette) -> QColor
