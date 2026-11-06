@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1878"
 title: "The Tour tab lets an author pick an agent and says plainly what each control does"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -173,3 +172,7 @@ pill when no agent is chosen.
   candidate, `BPR-1878-tour-authoring-v004` (revision `d2ff143bd-v004`), asking
   "The agent picker is the Tour tab's bottom bar, like the Agent tab's, and
   Preview and publish sits above it." Status: ready, awaiting the owner.
+
+## Accepted
+
+The owner accepted v004 on 2026-11-06 (attended review, no note): the agent picker is the Tour tab's bottom bar, and Preview and publish is above it.
