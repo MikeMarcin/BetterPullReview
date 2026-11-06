@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1885"
 title: "Refresh conversations before viewed-file status pagination"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1885--BPR-1885--cb56fb646bfe.json","related_cards":["BPR-1883"],"milestone_plan":{"id":"responsiveness-latency-v2","path":"docs/rfcs/plans/responsiveness-latency-v2/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"7578fbfeb6d5d3980327f0eadf7ff2cdde0d8713","evidence":{"kind":"observation","detail":"github_paged_read passes complete conversation before either viewed-file continuation, exact final viewed states for 201 files, equal conversation records and 20 requests, and unchanged first-open/unobserved ordering."}},{"criterion":"AC2","outcome":"pass","revision":"7578fbfeb6d5d3980327f0eadf7ff2cdde0d8713","evidence":{"kind":"observation","detail":"The same course rejects late head/count/cursor/duplicate/missing/state faults, cancels remaining viewed-file pages, suppresses conversation after prior cancellation, and enforces the shared eight-page budget without accepting incomplete snapshots. Provider and window-host courses pass unchanged authority/handoff contracts."}},{"criterion":"AC3","outcome":"pass","revision":"7578fbfeb6d5d3980327f0eadf7ff2cdde0d8713","evidence":{"kind":"observation","detail":"Baseline negative control fails at the targeted early-observation assertion. Serial optimized fixture measurement with two 330 ms continuation waits improves median conversation observation 673.210 to 16.747 ms, retaining 20 requests. Composed public refresh and inspected offscreen render retain comparison and pending markers with zero blank samples or re-wash."}},{"criterion":"AC4","outcome":"pass","revision":"7578fbfeb6d5d3980327f0eadf7ff2cdde0d8713","evidence":{"kind":"observation","detail":"Source, tests, host contract and one-line journal landed on main at this revision. Both changed C++ units pass clang-format/tidy 22, core_dependency_boundary and documentation checks pass. The unrelated architecture_boundaries failure in the BPR-1884 smart transport reproduces on pre-round main and is documented; earlier inherited broader failures are not claimed as passing."}}]
 ---
 
 # BPR-1885: Refresh conversations before viewed-file status pagination
@@ -96,7 +97,7 @@ No Qt surface changes are needed for this round.
 
 The final documentation gate passes; its unchanged 67-test regression course
 and the unchanged composition inventory/hostile-control check reuse the
-passing evidence from round-one integration. The source and journal are ready
-for the main landing recorded at closeout.
+passing evidence from round-one integration. Source, tests, host contract and journal landed on main at
+`7578fbfeb6d5d3980327f0eadf7ff2cdde0d8713`. This card closes over that landed source.
 The [journal](../../development/responsiveness-journal.md) records this round's
 one notable improvement.
