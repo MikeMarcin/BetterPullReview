@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1882"
 title: "Project review comment parents without repeated ancestry walks"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 metadata: {"kind":"performance","reservation":"docs/issues/_reservations/BPR-1882--BPR-1883--c940b7c58a89.json","milestone_plan":{"id":"responsiveness-latency-v1","path":"docs/rfcs/plans/responsiveness-latency-v1/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"2531aae697f5b71b477fc3a49b4579dd32c2af3d","evidence":{"kind":"observation","detail":"Iterative memoized ancestry retains exact immediate parent, order and missing/cyclic fallback; exhaustive independent four-comment graph oracle and large reversed threads pass."}},{"criterion":"AC2","outcome":"pass","revision":"2531aae697f5b71b477fc3a49b4579dd32c2af3d","evidence":{"kind":"observation","detail":"Release CTest application_github_projection_mapping and application_github_host pass; both also passed against unchanged product baseline. Production architecture_boundaries and core_dependency_boundary pass."}},{"criterion":"AC3","outcome":"pass","revision":"2531aae697f5b71b477fc3a49b4579dd32c2af3d","evidence":{"kind":"observation","detail":"Same Release harness: 10,000-comment chain median 1330.330 to 1.408 ms, cycle 2832.872 to 1.469 ms; one-line journal committed. Format/tidy 22, documentation gate, 67 documentation regressions and diff check pass. Inherited architecture contract fixture failure recorded with baseline reproduction."}}]
 ---
 
 # BPR-1882: Project review comment parents without repeated ancestry walks
