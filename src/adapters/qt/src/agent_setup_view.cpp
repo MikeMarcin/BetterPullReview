@@ -10,6 +10,7 @@
 #include <QFont>
 #include <QFontDatabase>
 #include <QFontMetrics>
+#include <QGridLayout>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
@@ -910,24 +911,13 @@ namespace bpr::qt {
 		// pull request's files. That is the weaker answer, offered last and
 		// quietly, with its cost said plainly; linking a clone stays the
 		// default. The choice is remembered for the repository.
-		const auto withoutClone = [this, parent, &aBody, privateCopy](const QString& aCopyText) {
+		const auto withoutClone = [this, &aBody, privateCopy](const QString& aCopyText) {
 			if (!Facts.Sparse) {
 				aBody.addWidget(privateCopy(aCopyText), 0, Qt::AlignLeft);
 				return;
 			}
-			build_kept_clone(aBody);
-			// [[BPR-1879]], owner look v002 ("way too worded and verbose"): a
-			// short label and one short line.
-			auto* const only = link_button(tr("This pull request only"), parent, QStringLiteral("agentSetupPullRequestOnly"));
-			connect(only, &QPushButton::clicked, this, [this] {
-				if (Intents.UsePrivateCopy) {
-					Intents.UsePrivateCopy();
-				}
-			});
-			aBody.addWidget(only, 0, Qt::AlignLeft);
-			auto* const cost = muted(tr("Weaker answers: no callers, tests or history."), parent);
-			cost->setObjectName(QStringLiteral("agentSetupPullRequestOnlyCost"));
-			aBody.addWidget(cost);
+			// [[BPR-1879]]. Another action leads here, so the choice is quiet.
+			build_no_clone_choice(aBody, false, { });
 		};
 		if (Clones.Folders.empty()) {
 			auto* const ask = words(tr("Where do your clones live?"), parent);
@@ -1003,7 +993,7 @@ namespace bpr::qt {
 			return;
 		}
 		if (Clones.Matches.empty()) {
-			auto* const none = words(tr("No clone of %1 in your clone folders").arg(name), parent);
+			auto* const none = words(tr("No clone of %1 found").arg(name), parent);
 			none->setObjectName(QStringLiteral("agentSetupNoClone"));
 			auto bold = none->font();
 			bold.setWeight(QFont::DemiBold);
@@ -1013,14 +1003,20 @@ namespace bpr::qt {
 			for (const auto& folder : Clones.Folders) {
 				looked << shown_path(folder);
 			}
-			aBody.addWidget(muted(tr("Looked in %1, two levels down.").arg(looked.join(QStringLiteral(", "))), parent));
-			auto* const row    = new QHBoxLayout{ };
-			auto* const choose = primary_button(tr("Choose its folder…"), parent, QStringLiteral("agentSetupChooseFolder"));
-			connect(choose, &QPushButton::clicked, this, chooseFolder);
-			row->addWidget(choose);
-			row->addStretch(1);
-			aBody.addLayout(row);
-			withoutClone(tr("Use a private copy"));
+			aBody.addWidget(muted(tr("Looked in %1").arg(looked.join(QStringLiteral(", "))), parent));
+			if (Facts.Sparse) {
+				// [[BPR-1879]], owner look v004: no clone found, so keeping one
+				// leads; choosing its folder is beside the button.
+				build_no_clone_choice(aBody, true, chooseFolder);
+			} else {
+				auto* const row    = new QHBoxLayout{ };
+				auto* const choose = primary_button(tr("Choose its folder…"), parent, QStringLiteral("agentSetupChooseFolder"));
+				connect(choose, &QPushButton::clicked, this, chooseFolder);
+				row->addWidget(choose);
+				row->addStretch(1);
+				aBody.addLayout(row);
+				withoutClone(tr("Use a private copy"));
+			}
 			auto* const edit = link_button(tr("Edit clone folders…"), parent, QStringLiteral("agentSetupEditFolders"));
 			connect(edit, &QPushButton::clicked, this, [this] {
 				if (Intents.OpenRepositorySettings) {
@@ -1089,101 +1085,173 @@ namespace bpr::qt {
 		withoutClone(tr("Use a private copy instead"));
 	}
 
-	/// [[BPR-1879]], owner decision 2026-11-05. The third choice beside
-	/// linking a clone: BetterPullReview downloads one, once, and keeps it.
-	/// Owner look v002 ("way too worded and verbose"): a short label and at
-	/// most one short line per state. Before: the size and where it goes, as
-	/// facts. While it runs: a bar, the bytes received and Cancel. After a
-	/// failure: a few words and Retry.
-	void agent_setup_view::build_kept_clone(QVBoxLayout& aBody)
+	/// [[BPR-1879]], owner looks v002 to v004. With no clone of a sparse
+	/// review's repository, where the agent's code comes from is one choice
+	/// between two cards, the same cards a found clone is chosen from: Keep a
+	/// clone for me (chosen at first, the stronger answer) and This pull
+	/// request only (weaker, said in one line). One button acts on the card
+	/// chosen; linking a folder stays beside it. Each card is a label and
+	/// facts. While the clone downloads its card becomes the progress: the
+	/// bar, the bytes received and Cancel, in place. After a failure the card
+	/// says why in a few words and the button reads Retry.
+	///
+	/// \p aLead: the button is the step's default (no clone was found); else
+	/// another action leads (Add a folder, Use this clone) and it is quiet.
+	void agent_setup_view::build_no_clone_choice(QVBoxLayout& aBody, const bool aLead, const std::function<void()>& aChooseFolder)
 	{
-		auto* const parent = aBody.parentWidget();
-		if (!Clones.Repository || !Clones.Repository->CanKeep || Clones.ManagedLocation.empty()) {
-			return;
-		}
-		const auto approximate = Clones.Repository->ApproximateBytes;
-		const auto locale      = QLocale{ };
+		auto* const parent  = aBody.parentWidget();
+		const auto  canKeep = Clones.Repository && Clones.Repository->CanKeep && !Clones.ManagedLocation.empty();
+		const auto  keep    = canKeep && !PickedPullRequestOnly;
+		const auto  locale  = QLocale{ };
 		// Decimal units, as the Finder shows sizes on macOS.
-		const auto amount = [&locale](const std::uint64_t aBytes) { return locale.formattedDataSize(static_cast<qint64>(std::min<std::uint64_t>(aBytes, std::numeric_limits<qint64>::max())), 0, QLocale::DataSizeSIFormat); };
-		if (Clones.Keeping.State == application::managed_clone_state::downloading) {
-			auto* const row = new QHBoxLayout{ };
-			row->setSpacing(8);
-			auto* const bar = new QProgressBar{ parent };
-			bar->setObjectName(QStringLiteral("agentSetupKeepBar"));
-			bar->setTextVisible(false);
-			bar->setAccessibleName(tr("Downloading %1").arg(text_of(Facts.Repository)));
-			const auto received = Clones.Keeping.Received;
-			const auto within   = approximate && *approximate > 0U && received < *approximate;
-			if (within) {
-				// GitHub's size is approximate, so the bar stops short of full
-				// until the clone is in place.
-				bar->setRange(0, 1000);
-				bar->setValue(static_cast<int>(std::min<std::uint64_t>(990U, received * 1000U / *approximate)));
-			} else {
-				// [[BPR-1879]], owner decision 2026-11-05: no limit, so the
-				// download may run past GitHub's figure, and Git then indexes
-				// what it received without writing more. The bar keeps moving
-				// (busy) while the bytes received go on counting.
-				bar->setRange(0, 0);
+		const auto amount      = [&locale](const std::uint64_t aBytes) { return locale.formattedDataSize(static_cast<qint64>(std::min<std::uint64_t>(aBytes, std::numeric_limits<qint64>::max())), 0, QLocale::DataSizeSIFormat); };
+		const auto approximate = canKeep ? Clones.Repository->ApproximateBytes : std::optional<std::uint64_t>{ };
+		const auto downloading = canKeep && Clones.Keeping.State == application::managed_clone_state::downloading;
+		const auto failed      = canKeep && Clones.Keeping.State == application::managed_clone_state::failed && Clones.Keeping.Failure;
+
+		// One card: a radio, a title, a figure at the right, and one line.
+		const auto card = [parent](const QString& aName, const QString& aTitle, const QString& aFigure, const bool aChosen, std::function<void()> aActivate) {
+			auto* const box = new choice_card{ parent };
+			box->setObjectName(aName);
+			box->Chosen      = aChosen;
+			box->Activate    = std::move(aActivate);
+			auto* const grid = new QGridLayout{ box };
+			grid->setContentsMargins(12, 10, 12, 10);
+			grid->setHorizontalSpacing(10);
+			grid->setVerticalSpacing(3);
+			auto* const radio = new QRadioButton{ box };
+			radio->setChecked(aChosen);
+			radio->setAccessibleName(aTitle);
+			grid->addWidget(radio, 0, 0, Qt::AlignVCenter);
+			auto* const title = words(aTitle, box);
+			title->setObjectName(aName + QStringLiteral("Title"));
+			auto heavy = title->font();
+			heavy.setWeight(QFont::DemiBold);
+			title->setFont(heavy);
+			grid->addWidget(title, 0, 1);
+			auto* const figure = new QLabel{ aFigure, box };
+			figure->setObjectName(aName + QStringLiteral("Figure"));
+			figure->setTextFormat(Qt::PlainText);
+			auto tabular = figure->font();
+			tabular.setFeature(QFont::Tag{ "tnum" }, 1);
+			figure->setFont(tabular);
+			grid->addWidget(figure, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+			grid->setColumnStretch(1, 1);
+			box->setAccessibleName(aTitle);
+			return std::pair{ box, grid };
+		};
+		const auto fact = [](choice_card* aBox, const QString& aName, const QString& aText) {
+			auto* const line = muted(aText, aBox);
+			line->setObjectName(aName);
+			line->setWordWrap(false);
+			return line;
+		};
+
+		if (canKeep) {
+			const auto choose = [this] {
+				PickedPullRequestOnly = false;
+				rebuild();
+			};
+			const auto received   = Clones.Keeping.Received;
+			const auto within     = approximate && *approximate > 0U && received < *approximate;
+			const auto figure     = downloading ? (within ? tr("%1 of %2").arg(amount(received), amount(*approximate)) : amount(received)) : (approximate ? amount(*approximate) : QString{ });
+			auto [box, grid]      = card(QStringLiteral("agentSetupKeepCard"), downloading ? tr("Keeping a clone") : tr("Keep a clone for me"), figure, keep || downloading, downloading ? std::function<void()>{ } : std::function<void()>{ choose });
+			auto* const figureTag = box->findChild<QLabel*>(QStringLiteral("agentSetupKeepCardFigure"));
+			figureTag->setObjectName(downloading ? QStringLiteral("agentSetupKeepStatus") : QStringLiteral("agentSetupKeepSize"));
+			if (downloading) {
+				// Nothing to choose while it downloads: no radio.
+				box->findChild<QRadioButton*>()->hide();
 			}
-			row->addWidget(bar, 1);
-			auto* const status = muted(within ? tr("%1 of %2").arg(amount(received), amount(*approximate)) : amount(received), parent);
-			status->setObjectName(QStringLiteral("agentSetupKeepStatus"));
-			row->addWidget(status);
-			auto* const cancel = new quiet_push_button{ tr("Cancel"), parent };
-			cancel->setObjectName(QStringLiteral("agentSetupKeepCancel"));
-			connect(cancel, &QPushButton::clicked, this, [this] {
-				if (Intents.CancelKeeping) {
-					Intents.CancelKeeping();
+			if (downloading) {
+				// The card is the progress: a thin bar across it, the bytes at
+				// the right, Cancel at the end.
+				auto* const row = new QHBoxLayout{ };
+				row->setSpacing(10);
+				auto* const bar = new QProgressBar{ box };
+				bar->setObjectName(QStringLiteral("agentSetupKeepBar"));
+				bar->setTextVisible(false);
+				bar->setFixedHeight(6);
+				bar->setAccessibleName(tr("Downloading %1").arg(text_of(Facts.Repository)));
+				if (within) {
+					// GitHub's size is approximate, so the bar stops short of
+					// full until the clone is in place.
+					bar->setRange(0, 1000);
+					bar->setValue(static_cast<int>(std::min<std::uint64_t>(990U, received * 1000U / *approximate)));
+				} else {
+					// No limit (owner decision 2026-11-05): past GitHub's figure,
+					// or with none, the bar is busy while the bytes go on counting.
+					bar->setRange(0, 0);
 				}
-			});
-			row->addWidget(cancel);
-			aBody.addLayout(row);
-			return;
+				row->addWidget(bar, 1, Qt::AlignVCenter);
+				auto* const cancel = new quiet_push_button{ tr("Cancel"), box };
+				cancel->setObjectName(QStringLiteral("agentSetupKeepCancel"));
+				connect(cancel, &QPushButton::clicked, this, [this] {
+					if (Intents.CancelKeeping) {
+						Intents.CancelKeeping();
+					}
+				});
+				row->addWidget(cancel);
+				grid->addLayout(row, 1, 1, 1, 2);
+			} else if (failed) {
+				const auto why = [](const application::managed_clone_failure aFailure) -> QString {
+					switch (aFailure) {
+					case application::managed_clone_failure::sign_in_refused:   return tr("GitHub refused the sign-in.");
+					case application::managed_clone_failure::connection_failed: return tr("No connection to GitHub.");
+					case application::managed_clone_failure::too_large:         return tr("Too large to keep.");
+					case application::managed_clone_failure::unavailable:       return tr("Needs a GitHub CLI sign-in.");
+					case application::managed_clone_failure::cancelled:
+					case application::managed_clone_failure::failed:            break;
+					}
+					return tr("Download failed.");
+				}(*Clones.Keeping.Failure);
+				grid->addWidget(fact(box, QStringLiteral("agentSetupKeepFailed"), why), 1, 1, 1, 2);
+			} else {
+				// Where it goes, as a fact, shortened in the middle; the whole
+				// path is the tooltip.
+				const auto  where = QFontMetrics{ font() }.elidedText(shown_path(Clones.ManagedLocation), Qt::ElideMiddle, 200);
+				auto* const line  = fact(box, QStringLiteral("agentSetupKeepCost"), tr("Full history, kept in %1").arg(where));
+				line->setToolTip(QDir::toNativeSeparators(text_of(Clones.ManagedLocation)));
+				grid->addWidget(line, 1, 1, 1, 2);
+			}
+			box->settle();
+			aBody.addWidget(box);
+			if (downloading) {
+				// While it downloads, the download is the step: nothing to choose.
+				return;
+			}
 		}
-		if (Clones.Keeping.State == application::managed_clone_state::failed && Clones.Keeping.Failure) {
-			const auto why = [](const application::managed_clone_failure aFailure) -> QString {
-				switch (aFailure) {
-				case application::managed_clone_failure::sign_in_refused:   return tr("GitHub refused the sign-in.");
-				case application::managed_clone_failure::connection_failed: return tr("No connection to GitHub.");
-				case application::managed_clone_failure::too_large:         return tr("Too large to keep.");
-				case application::managed_clone_failure::unavailable:       return tr("Needs a GitHub CLI sign-in.");
-				case application::managed_clone_failure::cancelled:
-				case application::managed_clone_failure::failed:            break;
-				}
-				return tr("Download failed.");
-			}(*Clones.Keeping.Failure);
-			auto* const row    = new QHBoxLayout{ };
-			auto* const failed = muted(why, parent);
-			failed->setObjectName(QStringLiteral("agentSetupKeepFailed"));
-			failed->setWordWrap(false);
-			row->addWidget(failed);
-			auto* const retry = link_button(tr("Retry"), parent, QStringLiteral("agentSetupKeepClone"));
-			connect(retry, &QPushButton::clicked, this, [this] {
-				if (Intents.KeepClone) {
-					Intents.KeepClone();
-				}
-			});
-			row->addWidget(retry);
-			row->addStretch(1);
-			aBody.addLayout(row);
-			return;
+		{
+			const auto choose = [this] {
+				PickedPullRequestOnly = true;
+				rebuild();
+			};
+			auto [box, grid] = card(QStringLiteral("agentSetupPullRequestOnlyCard"), tr("This pull request only"), { }, !keep, choose);
+			grid->addWidget(fact(box, QStringLiteral("agentSetupPullRequestOnlyCost"), tr("Weaker answers: no callers, tests or history")), 1, 1, 1, 2);
+			box->settle();
+			aBody.addWidget(box);
 		}
-		auto* const keep = link_button(tr("Keep a clone for me"), parent, QStringLiteral("agentSetupKeepClone"));
-		connect(keep, &QPushButton::clicked, this, [this] {
-			if (Intents.KeepClone) {
+		auto* const row    = new QHBoxLayout{ };
+		const auto  label  = keep ? (failed ? tr("Retry") : tr("Keep a clone")) : tr("Use this pull request");
+		const auto  name   = keep ? QStringLiteral("agentSetupKeepClone") : QStringLiteral("agentSetupPullRequestOnly");
+		auto* const action = aLead ? primary_button(label, parent, name) : static_cast<QPushButton*>(new quiet_push_button{ label, parent });
+		action->setObjectName(name);
+		connect(action, &QPushButton::clicked, this, [this, keep] {
+			if (keep && Intents.KeepClone) {
 				Intents.KeepClone();
+			} else if (!keep && Intents.UsePrivateCopy) {
+				Intents.UsePrivateCopy();
 			}
 		});
-		aBody.addWidget(keep, 0, Qt::AlignLeft);
-		// The location as a fact, shortened in the middle to one line; the
-		// whole path is its tooltip.
-		const auto  where = QFontMetrics{ font() }.elidedText(shown_path(Clones.ManagedLocation), Qt::ElideMiddle, 170);
-		auto* const cost  = muted(approximate ? tr("About %1, kept in %2").arg(amount(*approximate), where) : tr("Kept in %1").arg(where), parent);
-		cost->setObjectName(QStringLiteral("agentSetupKeepCost"));
-		cost->setWordWrap(false);
-		cost->setToolTip(QDir::toNativeSeparators(text_of(Clones.ManagedLocation)));
-		aBody.addWidget(cost);
+		row->addWidget(action);
+		if (aChooseFolder) {
+			auto* const choose = new quiet_push_button{ tr("Choose a folder…"), parent };
+			choose->setObjectName(QStringLiteral("agentSetupChooseFolder"));
+			choose->setFlat(true);
+			connect(choose, &QPushButton::clicked, this, aChooseFolder);
+			row->addWidget(choose);
+		}
+		row->addStretch(1);
+		aBody.addLayout(row);
 	}
 
 	void agent_setup_view::build_check(QVBoxLayout& aBody)
