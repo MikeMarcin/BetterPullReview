@@ -4585,6 +4585,12 @@ bpr_add_executable(test_scoped_writing_agent scoped_writing_agent.cpp)
 target_compile_features(test_scoped_writing_agent PRIVATE cxx_std_23)
 bpr_enable_hardening(test_scoped_writing_agent)
 bpr_enable_warnings(test_scoped_writing_agent)
+# [[BPR-1892]]. The same agent as the `claude` an attended look finds in a
+# folder of its own, where it fails every writing request.
+add_custom_command(TARGET test_scoped_writing_agent POST_BUILD
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-failing-claude"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-failing-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
+    VERBATIM)
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED
     COMMAND test_review_tour_composition_public_path --writing "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/review-tour-outline.png")

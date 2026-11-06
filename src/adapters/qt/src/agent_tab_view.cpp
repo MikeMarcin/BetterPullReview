@@ -2738,6 +2738,20 @@ namespace bpr::qt {
 		return refused == core::agent_send_refusal::no_review || refused == core::agent_send_refusal::session_stale ? refused : core::agent_send_refusal::none;
 	}
 
+	void agent_tab_view::reveal_run_failure()
+	{
+		refresh();
+		if (!panels_alive() || Banner == nullptr || Banner->isHidden()) {
+			return;
+		}
+		if (auto* const scroll = qobject_cast<QScrollArea*>(Viewport != nullptr ? Viewport->parentWidget() : nullptr); scroll != nullptr) {
+			scroll->ensureWidgetVisible(Banner);
+		}
+		if (BannerFirst != nullptr && !BannerFirst->isHidden()) {
+			BannerFirst->setFocus(Qt::OtherFocusReason);
+		}
+	}
+
 	auto agent_tab_view::run_failure_words(const application::agent_run_outcome aOutcome, const QString& aAgent) -> QString
 	{
 		const auto agent = aAgent.isEmpty() ? tr("The agent") : aAgent;

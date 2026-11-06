@@ -421,6 +421,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto send_blocked() const -> core::agent_send_refusal;
 		/// \brief The composer's sentence for one refusal, naming `aAgent`.
 		[[nodiscard]] static auto send_refusal_words(core::agent_send_refusal aRefusal, const QString& aAgent) -> QString;
+		/// \brief [[BPR-1892]]. Brings the stopped run's card into view and
+		/// puts the keyboard on its first action; another tab's notice of
+		/// the failure sends the person here.
+		void reveal_run_failure();
 		/// \brief What a run that ended without an answer amounts to, in words.
 		[[nodiscard]] static auto run_failure_words(application::agent_run_outcome aOutcome, const QString& aAgent) -> QString;
 		[[nodiscard]] auto        head_chip() const noexcept -> QLabel* { return Head; }
