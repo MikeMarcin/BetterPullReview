@@ -24,18 +24,17 @@ namespace bpr::adapters::github::detail {
 		/// this acquisition may search. Empty keeps the ordinary empty-PATH rule
 		/// on Windows; no ambient search path is ever admitted.
 		std::filesystem::path LocalGitExecutable = { };
-		/// [[BPR-1879]]. A kept clone's runner: its launches may run up to
-		/// `github_cli_managed_clone_max_timeout` instead of the usual ceiling.
+		/// [[BPR-1879]]. A kept clone's runner: its launches have no time
+		/// limit; the reviewer's Cancel ends them.
 		bool ManagedClone = false;
 	};
 
-	/// \brief [[BPR-1879]]. The longest a kept clone's download may run. It
-	/// is cancellable throughout; a large repository takes minutes, not hours.
-	inline constexpr auto github_cli_managed_clone_max_timeout = std::chrono::hours{ 2 };
-	/// \brief [[BPR-1879]]. The kept clone's kernel per-file ceiling and store
-	/// abort threshold, whatever GitHub's `size` says: far above any real
-	/// repository a review opens, and never the 32 MiB a sparse read uses.
-	inline constexpr std::uint64_t github_cli_managed_clone_max_bytes = 64ULL * 1024U * 1024U * 1024U;
+	/// \brief [[BPR-1879]], owner decision 2026-11-05 ("I don't really care
+	/// about a limit, a cancel and a progress would be better"). A kept
+	/// clone's download has no time limit. The supervisor still needs a time
+	/// point it can add its reap bound to without overflowing, so this is
+	/// fifty years: never reached. Cancel is checked every wait slice.
+	inline constexpr auto github_cli_managed_clone_no_deadline = std::chrono::hours{ 24 * 365 * 50 };
 	class github_cli_process_runner_test_seam
 	{
 	public:
@@ -86,16 +85,14 @@ namespace bpr::adapters::github::detail {
 		github_cli_process_file_limits aFileLimits)
 		-> std::unique_ptr<github_cli_process_port>;
 
-	/// \brief [[BPR-1879]]. Makes the runner for one kept clone's download
-	/// into the owned temporary store \p aDirectory.
-	/// \details Outside the sparse acquisition's 32 MiB per-file and 96 MiB
-	/// store limits: the kernel ceiling and the abort threshold are
-	/// \p aMaximumBytes (at most `github_cli_managed_clone_max_bytes`), and
-	/// a launch may run for `github_cli_managed_clone_max_timeout`. The same
-	/// supervision, write confinement, credential handling and Git search
-	/// path as every acquisition runner. Never takes a test seam.
-	[[nodiscard]] auto make_github_cli_managed_clone_process_runner(
-		const std::filesystem::path& aDirectory, const std::filesystem::path& aGit, std::uint64_t aMaximumBytes)
+	/// \brief [[BPR-1879]]. Makes the runner for one kept clone's download.
+	/// \details No byte or time limit (owner decision 2026-11-05): no
+	/// per-file ceiling, no store threshold, and no deadline; Cancel and the
+	/// bytes-received progress are the controls. The same supervision,
+	/// cancellation, write confinement (the request's own), credential
+	/// handling and Git search path as every acquisition runner. Never takes a
+	/// test seam.
+	[[nodiscard]] auto make_github_cli_managed_clone_process_runner(const std::filesystem::path& aGit)
 		-> std::unique_ptr<github_cli_process_port>;
 
 	[[nodiscard]] auto make_github_cli_process_runner_for_test(

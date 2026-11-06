@@ -1267,11 +1267,11 @@ namespace bpr::adapters::github::detail {
 			///
 			/// \details The clone writes only inside the temporary root, as every
 			/// acquisition does (on macOS `gh` may write nowhere else), so the
-			/// profile's folder is touched only by the final move. Its bounds
-			/// are the kept clone's runner's, sized from GitHub's `size`, not
-			/// the 32 MiB per file of a sparse read. Received bytes are sampled
-			/// from the root while it runs. A cancelled or failed clone leaves
-			/// nothing behind: the root is removed with its directory.
+			/// profile's folder is touched only by the final move. The download
+			/// has no byte or time limit (owner decision 2026-11-05); received
+			/// bytes are sampled from the root twice a second while it runs, and
+			/// the stop is honoured at every step. A cancelled or failed clone
+			/// leaves nothing behind: the root is removed with its directory.
 			auto acquire_kept_clone(const git_smart_managed_clone_request& aRequest, const git_smart_clone_progress& aProgress, std::stop_token aStop,
 									git_smart_transport_step& aStep) -> git_smart_transport_result<void>
 			{
@@ -1287,11 +1287,12 @@ namespace bpr::adapters::github::detail {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
 				std::filesystem::create_directory(root / "empty");
-				constexpr auto least   = std::uint64_t{ 4U } * 1024U * 1024U * 1024U;
-				const auto     stated  = aRequest.ApproximateBytes.value_or(0U);
-				const auto     maximum = std::clamp(stated > github_cli_managed_clone_max_bytes / 4U ? github_cli_managed_clone_max_bytes : stated * 4U, least, github_cli_managed_clone_max_bytes);
-				aStep                  = git_smart_transport_step::process_runner;
-				auto process           = make_github_cli_git_acquisition_process_runner({ pack_limit, root, 96U * 1024U * 1024U, 128U, { }, false, Git });
+				// The qualification, identity and object-check launches keep the
+				// usual bounds, over their own empty folder: supervising the
+				// whole root would count the clone itself, which has no limit.
+				std::filesystem::create_directory(root / "control");
+				aStep        = git_smart_transport_step::process_runner;
+				auto process = make_github_cli_git_acquisition_process_runner({ pack_limit, root / "control", 96U * 1024U * 1024U, 128U, { }, false, Git });
 				if (!process) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 				}
@@ -1320,7 +1321,7 @@ namespace bpr::adapters::github::detail {
 					if (!invocation) {
 						return std::unexpected{ git_smart_transport_error{ failure::invalid_request } };
 					}
-					auto cloneProcess = make_github_cli_managed_clone_process_runner(root, Git, maximum);
+					auto cloneProcess = make_github_cli_managed_clone_process_runner(Git);
 					if (!cloneProcess) {
 						return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
 					}
@@ -1404,6 +1405,9 @@ namespace bpr::adapters::github::detail {
 				}
 				if (moved || std::filesystem::is_symlink(std::filesystem::symlink_status(parent, moved)) || moved) {
 					return std::unexpected{ git_smart_transport_error{ failure::unavailable } };
+				}
+				if (aStop.stop_requested()) {
+					return std::unexpected{ git_smart_transport_error{ failure::cancelled } };
 				}
 				std::filesystem::rename(store, aRequest.Destination, moved);
 				if (moved) {
