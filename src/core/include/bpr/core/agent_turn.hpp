@@ -58,10 +58,11 @@ namespace bpr::core {
 	/// \brief The one way back an error turn offers.
 	enum class agent_turn_recovery : std::uint8_t {
 		none,
-		/// Send the turn's question again, as a new run. The run starts the
-		/// agent and makes its workspace, so it checks both as it goes
-		/// ([[BPR-1876]]).
-		ask_again,
+		/// Resend the turn's message, as a new run. The run starts the agent
+		/// and makes its workspace, so it checks both as it goes
+		/// ([[BPR-1876]]; owner look v001: "Resend", since a message is not
+		/// always a question).
+		resend,
 		/// Open the agent's settings: its program or protocol is wrong.
 		agent_settings,
 	};
@@ -84,6 +85,11 @@ namespace bpr::core {
 
 	/// \brief The check that clears a turn's cause, for how it ended.
 	[[nodiscard]] auto agent_turn_cause_of(agent_turn_outcome aOutcome) noexcept -> agent_turn_cause;
+
+	/// \brief [[BPR-1876]]. Whether a turn that ended so never reached the
+	/// agent: it did not start, its workspace could not be made, or private
+	/// history could not record the run, so nothing was sent.
+	[[nodiscard]] auto agent_turn_never_sent(agent_turn_outcome aOutcome) noexcept -> bool;
 
 	/// \brief What the thread knows about one ended turn.
 	struct agent_turn_facts
@@ -117,6 +123,11 @@ namespace bpr::core {
 		/// [[BPR-1876]]. The cause the error names is no longer true: it is
 		/// said as fixed since, not as how things stand.
 		bool FixedSince = false;
+		/// [[BPR-1876]], owner look v001: "We should also be able to delete a
+		/// message that was never sent to the agent". Delete removes the turn
+		/// from the thread; only a message that never reached the agent, on
+		/// any turn, while nothing runs.
+		bool Delete = false;
 
 		auto operator<=>(const agent_turn_actions&) const = default;
 	};
@@ -128,11 +139,13 @@ namespace bpr::core {
 	/// Copy when it has words, never offers Save as note or Draft comment,
 	/// and, on the latest turn while nothing runs, offers one recovery: an
 	/// unreadable answer opens the agent's settings, and every other ending,
-	/// a start or workspace failure among them, asks again. [[BPR-1876]]:
+	/// a start or workspace failure among them, resends. [[BPR-1876]]:
 	/// the owner, 2026-11-05, read a failed answer's Check again, which re-ran
 	/// only the setup check and left the old error up, as the check failing.
 	/// A start or workspace failure whose check has passed since is fixed
-	/// since, on any turn.
+	/// since, on any turn. A message that never reached the agent
+	/// (`agent_turn_never_sent`) can be deleted, on any turn, while nothing
+	/// runs; one the agent received stays, as part of its conversation.
 	[[nodiscard]] auto decide_agent_turn_actions(const agent_turn_facts& aFacts) noexcept -> agent_turn_actions;
 
 	/// \brief What the Agent tab knows when it would show suggested prompts.

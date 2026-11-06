@@ -2612,14 +2612,20 @@ card is drawn in the danger look the stopped banner uses, it keeps Copy (the
 error's words and what the agent wrote to its error stream) and never offers
 Save as note or Draft comment. The thread's latest error, while nothing runs,
 offers one way back: **Agent settings…** for an answer this app cannot read,
-and **Ask again** for any other ending, a start or workspace failure among
-them ([[BPR-1876]]): it sends the same question again as a new run, which
-starts the agent and makes its workspace and so checks both as it goes. Once
+and **Resend** for any other ending, a start or workspace failure among
+them ([[BPR-1876]]; owner look v001 named it Resend, since a message is not
+always a question): it sends the same message again as a new run, which
+starts the agent and makes its workspace and so checks both as it goes. A
+message that never reached the agent (it did not start, its workspace could
+not be made, or private history could not record the run) also offers
+**Delete**, on any turn while nothing runs: the turn leaves the thread and
+the kept thread, and, if it was the stopped run's, the stopped banner goes
+with it. A message the agent received stays as part of its conversation. Once
 the setup's check of what a start or workspace failure names has run again
 and passed, that error says so: its card leaves the danger look for the plain
 one and opens with a green check and "Fixed since: <agent> passed its check."
-(or "the workspace check passed."), with "Ask again to send this question
-now." on the latest, and the stopped banner stands down; while the check has
+(or "the workspace check passed."), with "Resend to try it now." on the
+latest, and the stopped banner stands down; while the check has
 not passed since, it shows its cause as before. The setup's own check keeps
 its Check and Check again in the setup. How each turn ended is kept with the thread, so a thread opened
 again presents its errors the same way. A file and line a
@@ -2697,8 +2703,8 @@ agent is running, the time it has taken, its latest line, and Stop), finished
 (how many findings, or that its answer is below, or that it found nothing),
 head moved (Start
 a new session or Continue on the old head) and stopped (what happened, the
-question kept, Ask again and Show the log, whatever the cause; hidden once
-the latest turn says its cause is fixed since).
+message kept, Resend and Show the log, whatever the cause; hidden once the
+latest turn says its cause is fixed since, or once that turn is deleted).
 A send asks the agent the pill shows, whatever agent the conversation used
 before; choosing another agent starts that agent's conversation
 ([[BPR-1817]]). The pill keeps the reviewer's choice ([[BPR-1823]], owner
