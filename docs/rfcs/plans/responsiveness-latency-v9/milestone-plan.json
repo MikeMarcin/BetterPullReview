@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v9",
+  "scope": {
+    "issues": [
+      "BPR-1895"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "checks-before-status",
+      "outcome": "Overview check results are readable before independent remaining status loads, with explicit loading.",
+      "work": [
+        {
+          "issue": "BPR-1895"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Verify bounded independent check publication, exact admission and unchanged final behavior.",
+        "Demonstrate selectable checks during held remaining status in the composed app and measure optimized latency.",
+        "Finish the card, journal and verified landing on main."
+      ],
+      "boundary": "Earlier read-only check results at authenticated first open; request order, authority and final status behavior stay unchanged."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
