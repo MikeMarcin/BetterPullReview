@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1880"
+  ],
+  "reserve_for": "delete-every-failed",
+  "purpose": "Delete on every failed agent message",
+  "created": "2026-11-06T03:33:47.299474+00:00",
+  "base": "8ec90723535dc873979a3eb86612cebb1722385e"
+}
