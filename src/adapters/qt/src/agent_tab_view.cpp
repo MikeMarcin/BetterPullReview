@@ -1938,6 +1938,10 @@ namespace bpr::qt {
 			if (const auto latest = Launch.latest_output_line(); written.isEmpty() && !latest.isEmpty()) {
 				line += QStringLiteral(" ") + latest.left(120);
 			}
+			// [[BPR-1873]]. A sparse review with no clone: said while it runs.
+			if (Launch.pull_request_files_only()) {
+				line += QStringLiteral(" ") + tr("It sees only this pull request's files.");
+			}
 			current.Footer->setText(QStringLiteral("● ") + line);
 			return;
 		}
@@ -1979,6 +1983,9 @@ namespace bpr::qt {
 		}
 		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
 		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
+		if (succeeded && Launch.pull_request_files_only()) {
+			footer += QStringLiteral(" ") + tr("It saw only this pull request's files.");
+		}
 		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
 			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
 		}

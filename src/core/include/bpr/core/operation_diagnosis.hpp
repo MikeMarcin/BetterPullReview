@@ -219,7 +219,7 @@ namespace bpr::core {
 		connection_failed,
 		sign_in_refused,
 		too_large,
-		too_large_not_in_clone,
+		clone_needed,
 		// Review mutation (application::review_mutation_failure).
 		refused_by_server,
 		undesignated_target,

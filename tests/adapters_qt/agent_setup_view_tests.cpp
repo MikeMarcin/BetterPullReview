@@ -309,6 +309,28 @@ namespace {
 		expect(test.Intents.back() == "private-copy", "the private copy is one press away");
 		render(test.View, QStringLiteral("noclone"));
 
+		// [[BPR-1873]]. A sparse review with no clone: linking stays the
+		// default, and asking about the pull request only says what it costs.
+		test.Facts.Sparse = true;
+		test.show();
+		auto* const only = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
+		auto* const cost = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
+		expect(only != nullptr && cost != nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
+				   && cost->text().contains(QStringLiteral("only the files this pull request changes")) && cost->text().contains(QStringLiteral("weaker"))
+				   && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault(),
+			   "a sparse review offers the pull request only, after linking a clone, with its weaker result said");
+		if (only != nullptr) {
+			only->click();
+			expect(test.Intents.back() == "private-copy", "asking about the pull request only is remembered as this repository's no-clone choice");
+		}
+		render(test.View, QStringLiteral("noclone-sparse"));
+		test.Clones.Folders.clear();
+		test.show();
+		expect(test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) != nullptr, "and with no clone folder yet too");
+		render(test.View, QStringLiteral("nofolders-sparse"));
+		test.Clones.Folders = { "/Users/me/Documents/GitHub" };
+		test.Facts.Sparse   = false;
+
 		test.Clones.Matches = { core::clone_match{ .Path = "/Users/me/Documents/GitHub/engine", .Folder = "/Users/me/Documents/GitHub", .Remote = "origin", .Location = "github.com/bpr-fixtures/engine", .Branch = "main" },
 								core::clone_match{ .Path = "/Users/me/src/engine-old", .Folder = "/Users/me/src", .Remote = "upstream", .Location = "github.com/bpr-fixtures/engine", .Branch = "spike/retry" } };
 		test.show();
@@ -528,7 +550,7 @@ namespace {
 		const auto  srcFolder    = QDir::toNativeSeparators(QStringLiteral("/Users/me/src")).toStdString();
 		const auto  gitHubFolder = QDir::toNativeSeparators(QStringLiteral("/Users/me/Documents/GitHub")).toStdString();
 		const auto  workFolder   = QDir::toNativeSeparators(QStringLiteral("/Volumes/work")).toStdString();
-		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral("a private copy")), "folders and links are listed");
+		expect(editor->list()->count() == 2 && folders.links()->count() == 1 && folders.links()->item(0)->text().contains(QStringLiteral(": no clone")), "folders and links are listed");
 		editor->list()->setCurrentRow(1);
 		editor->up_button()->click();
 		expect(asked == std::vector<std::string>{ "set " + gitHubFolder + " " + srcFolder } && editor->folders() == std::vector<std::string>{ gitHubFolder, srcFolder }, "Move up reorders the list, which is the order clones are looked for in");

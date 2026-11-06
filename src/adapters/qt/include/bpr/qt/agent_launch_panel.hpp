@@ -175,6 +175,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto last_reported_cost() const -> QString { return LastCost; }
 		/// [[BPR-1753]]. How the last request ended, while nothing runs.
 		[[nodiscard]] auto last_outcome() const noexcept -> std::optional<application::agent_run_outcome> { return LastOutcome; }
+		/// \brief [[BPR-1873]]. Whether the running or last run's workspace
+		/// holds only the pull request's files (a sparse review with no clone).
+		[[nodiscard]] auto pull_request_files_only() const noexcept -> bool { return PullRequestFilesOnly; }
 		/// [[BPR-1817]]. How many refusals the host has named here, and the
 		/// last one. Counted even while a turn runs, when the status line
 		/// keeps saying it runs, so the composer can say a send was refused.
@@ -226,7 +229,8 @@ namespace bpr::qt {
 		std::optional<application::agent_draft_choice>          OfferedDraft;
 		QString                                                 StopReason;
 		std::optional<application::agent_run_outcome>           LastOutcome;
-		std::uint64_t                                           Refusals = 0U;
+		bool                                                    PullRequestFilesOnly = false;
+		std::uint64_t                                           Refusals             = 0U;
 		QString                                                 LastRefusal;
 		QString                                                 LastModel;
 		QString                                                 LastCost;
