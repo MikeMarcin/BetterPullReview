@@ -12,6 +12,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -228,6 +229,20 @@ namespace bpr::qt {
 		/// History. [[BPR-1876]]: an Ask that ends for a setup reason is asked
 		/// again, not checked again, and says when its check has passed since.
 		void adopt_setup(agent_setup_view& aSetup);
+		/// \brief [[BPR-1881]]. Whether the setup has finished, from the
+		/// same core verdict that holds the suggested prompts back: the
+		/// setup's own state, not a second one.
+		[[nodiscard]] auto setup_readiness() const -> agent_setup_readiness;
+		/// \brief [[BPR-1881]]. Told when `setup_readiness()` changes.
+		void set_readiness_observer(std::function<void()> aObserver);
+		/// \brief [[BPR-1881]]. Shows the setup at its first unfinished
+		/// step, as **Finish setup** does. Only a reviewer's click calls it;
+		/// the setup never opens by itself.
+		void open_setup();
+		/// \brief [[BPR-1881]]. Another surface that presents the setup's
+		/// way in (the Tour tab) is shown: the setup may look for agents, as
+		/// it does the first time this tab shows. Once only, whichever first.
+		void look_for_agents();
 		/// \brief The ready line once setup finishes, and what the agent gets.
 		void present_ready(const QString& aTitle, const QString& aText, const QString& aGets);
 		/// \brief Called once, the first time the tab is shown: when setup
@@ -585,10 +600,13 @@ namespace bpr::qt {
 		QToolButton*                                        SuggestionsMenu  = nullptr;
 		QLabel*                                             SuggestionsLine  = nullptr;
 		/// [[BPR-1847]]. In place of the suggestions while setup is unfinished.
-		QWidget*                           SetupPrompt = nullptr;
-		std::function<void(bool)>          SuggestionsObserver;
-		QStringList                        Prompts;
-		std::vector<QPointer<QPushButton>> PromptButtons;
+		QWidget* SetupPrompt = nullptr;
+		/// [[BPR-1881]]. The readiness last told, and who is told.
+		std::optional<agent_setup_readiness> ToldReadiness;
+		std::function<void()>                ReadinessObserver;
+		std::function<void(bool)>            SuggestionsObserver;
+		QStringList                          Prompts;
+		std::vector<QPointer<QPushButton>>   PromptButtons;
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
