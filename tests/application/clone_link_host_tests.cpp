@@ -201,7 +201,7 @@ namespace {
 		return repository;
 	}
 
-	/// \brief [[BPR-1879]]. Let BetterPullReview keep one: the location and
+	/// \brief [[BPR-1879]]. Keep a clone for me: the location and
 	/// size are known before it starts, the download runs on its own worker
 	/// with progress, and once in place it is linked as the repository's clone,
 	/// marked as the one BetterPullReview keeps. Cancel, a failure, a review

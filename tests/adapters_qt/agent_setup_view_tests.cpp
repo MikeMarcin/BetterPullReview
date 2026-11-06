@@ -318,7 +318,7 @@ namespace {
 		auto* const only = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly"));
 		auto* const cost = test.View.findChild<QLabel*>(QStringLiteral("agentSetupPullRequestOnlyCost"));
 		expect(only != nullptr && cost != nullptr && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPrivateCopy")) == nullptr
-				   && cost->text().contains(QStringLiteral("only the files this pull request changes")) && cost->text().contains(QStringLiteral("weaker"))
+				   && cost->text() == QStringLiteral("Weaker answers: no callers, tests or history.") && only->text() == QStringLiteral("This pull request only")
 				   && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault(),
 			   "a sparse review offers the pull request only, after linking a clone, with its weaker result said");
 		if (only != nullptr) {
@@ -335,8 +335,8 @@ namespace {
 		test.show();
 		auto* const keep     = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone"));
 		auto* const keepCost = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepCost"));
-		expect(keep != nullptr && keepCost != nullptr && keep->text() == QStringLiteral("Let BetterPullReview keep one") && keepCost->text().contains(QStringLiteral("126 MB"))
-				   && keepCost->text().contains(QStringLiteral("agent-clones-v1")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault()
+		expect(keep != nullptr && keepCost != nullptr && keep->text() == QStringLiteral("Keep a clone for me") && keepCost->text().startsWith(QStringLiteral("About 126 MB, kept in "))
+				   && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42")) && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault()
 				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupPullRequestOnly")) != nullptr,
 			   "AC1: keeping a clone is offered beside linking one, with its approximate download and its location; linking stays the default");
 		if (keep != nullptr) {
@@ -349,7 +349,7 @@ namespace {
 		auto* const bar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
 		auto* const status = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
 		auto* const stop   = test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel"));
-		expect(bar != nullptr && status != nullptr && stop != nullptr && bar->value() == 333 && status->text().contains(QStringLiteral("42 MB of about 126 MB"))
+		expect(bar != nullptr && status != nullptr && stop != nullptr && bar->value() == 333 && status->text() == QStringLiteral("42 MB of 126 MB")
 				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepClone")) == nullptr,
 			   "AC1: while it downloads, how much has arrived of about how much, with Cancel");
 		if (stop != nullptr) {
@@ -363,15 +363,15 @@ namespace {
 		test.show();
 		auto* const pastBar    = test.View.findChild<QProgressBar*>(QStringLiteral("agentSetupKeepBar"));
 		auto* const pastStatus = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepStatus"));
-		expect(pastBar != nullptr && pastStatus != nullptr && pastBar->maximum() == 0 && pastStatus->text().contains(QStringLiteral("131 MB so far (GitHub said about 126 MB)"))
+		expect(pastBar != nullptr && pastStatus != nullptr && pastBar->maximum() == 0 && pastStatus->text() == QStringLiteral("131 MB")
 				   && test.View.findChild<QPushButton*>(QStringLiteral("agentSetupKeepCancel")) != nullptr,
 			   "past GitHub's size the bar keeps moving, the bytes keep counting, and Cancel stays");
 		render(test.View, QStringLiteral("keep-downloading-past"));
 		test.Clones.Keeping = { .State = application::managed_clone_state::failed, .Received = 0U, .Failure = application::managed_clone_failure::connection_failed };
 		test.show();
 		auto* const keepFailed = test.View.findChild<QLabel*>(QStringLiteral("agentSetupKeepFailed"));
-		expect(keepFailed != nullptr && keepFailed->text().contains(QStringLiteral("GitHub could not be reached"))
-				   && test.button(QStringLiteral("agentSetupKeepClone"))->text() == QStringLiteral("Try keeping one again"),
+		expect(keepFailed != nullptr && keepFailed->text() == QStringLiteral("No connection to GitHub.")
+				   && test.button(QStringLiteral("agentSetupKeepClone"))->text() == QStringLiteral("Retry"),
 			   "a failed download says why and offers to try again");
 		render(test.View, QStringLiteral("keep-failed"));
 		test.Clones.Keeping = { };
