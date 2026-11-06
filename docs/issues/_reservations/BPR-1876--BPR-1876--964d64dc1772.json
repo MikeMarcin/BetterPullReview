@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1876"
+  ],
+  "reserve_for": "agent-ask-again",
+  "purpose": "Failed agent answer offers Ask again",
+  "created": "2026-11-06T00:42:31.551119+00:00",
+  "base": "77e32fe4166224bd9c0d5eabb3780615e768e47a"
+}

@@ -3189,6 +3189,7 @@ namespace bpr::adapters::github::detail {
 						.Completeness = result->Completeness,
 						.RateLimits   = std::move(result->RateLimits),
 						.Cost         = cost(),
+						.Unread       = std::move(result->Unread),
 					});
 				} catch (...) {
 					static_cast<void>(finish_job(state, job));
