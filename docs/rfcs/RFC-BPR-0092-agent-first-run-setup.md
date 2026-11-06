@@ -996,6 +996,71 @@ coordinator, verbatim:
   request was last asked with, so a new agent whose id an old one had does
   not open on that agent's thread; every turn stays.
 
+### Amendment [[BPR-1900]] (2026-11-06): the tour session
+
+The owner, 2026-11-06: "Feels like something like `rg` might be useful for a
+tour writer to gather context", "to me the tour itself is much more of a
+second agent session, separate and mostly background from my main agent chat
+session", and "And then it can fill its tour stops and problem and solution
+from all that context." Tour authoring is its own agent session per review,
+separate from the Agent tab's conversation, with the agent, model and effort
+the reviewer picked ([[BPR-1878]]'s bar). It runs through its own agent host,
+launcher, lane and projection, so tour runs are never chat turns and chat runs
+never tour runs. **Draft the tour** drafts the whole tour in the background
+from the review's private workspace ([[BPR-1873]]) with read-only tools and
+returns a proposal the author decides part by part; the core anchors every
+proposed stop to real head lines of the pull request's files. The
+[AI agent boundary](../architecture/ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900)
+and [review tours](../architecture/review-tours.md) describe the whole of it.
+The three questions the card left open are settled as recommended below; each
+waits on the owner's look on the card's attended review.
+
+- **T1. Fresh runs, not `--resume` (recommended).** Each tour request is a
+  fresh run given the tour so far (the Problem, the Solution and each stop's
+  title and lines) and the pull request, with session persistence off. The
+  tour draft is the session's memory: it is what the author sees and edits,
+  so a run never reasons from an earlier answer the author has since
+  changed or discarded, and nothing about the tour is kept in an agent's own
+  store. It is also the only shape Codex's `exec` can share, and it keeps
+  BPR-1375's "no session saved". The cost is that a follow-up repeats some
+  reading; drafting runs are minutes apart and bounded, so that is cheap.
+  `--resume` would make the agent's hidden conversation part of the tour's
+  state, and a resumed session could carry tool results from a head the
+  review has since moved past.
+- **T2. The transcript opens in a panel on the Tour tab (recommended).**
+  **Transcript** at the top of the tab opens the session's runs, newest first:
+  what was asked, what it searched, read and ran, and what it answered or how
+  it ended. It never opens by itself. [[BPR-1892]]'s notice keeps its words
+  and its button becomes **Show the run**, which opens the transcript at that
+  run. The Agent tab with a session switcher was not chosen: it would send the
+  author away from the tour to see a tour run, which is what BPR-1892 removed,
+  and it would mix the two sessions in one place the owner asked to keep apart.
+- **T3. The read-only allowlist per agent (recommended).** Claude Code:
+  `--tools Read,Grep,Glob,Bash`, `--allowedTools` Read, Grep, Glob and the
+  shell programs `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find`
+  and `git log`, `show`, `blame`, `diff`, `grep`, `ls-files`;
+  `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`;
+  an empty strict MCP configuration, no setting sources, no slash commands, no
+  saved session, hooks and auto-memory off. The app also holds the run to the
+  list from Claude's own frames (`core::decide_read_only_tool`): another tool
+  in the init frame, any MCP server, or a tool use outside the list (including
+  a shell command that is more than one plain pipeline of those programs, or
+  one with an argument that writes or runs something) ends the run. Codex:
+  `codex exec --json --sandbox read-only` with approvals off, no MCP server and
+  no web search; Codex's sandbox enforces it, and its commands are shown, not
+  re-checked. Codex's App Server and the plain-text harness have no read-only
+  mode yet and are refused with why.
+
+Also recorded: the split between drafting and rewriting. **Draft the tour**,
+**Draft from PR context** on an empty field and **Suggest an outline** read the
+repository; **Enhance**, **Enhance selection**, **Generate comment** and the
+Settings test stay BPR-1375's tool-free writing, fast and in an empty folder.
+Without a clone, drafting reads the pull request's own files
+([[BPR-1873]]'s "This pull request only") and says so. A whole-tour proposal
+never replaces the author's text without the author's Accept on that part,
+says so on a field the author already wrote, and flags a stop whose lines are
+not lines of a head file of the pull request, which can only be discarded.
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

@@ -157,6 +157,10 @@ namespace bpr::application {
 		std::optional<core::agent_run_provenance> AdmittedRun;
 		std::vector<agent_private_source_body>    PrivateSources;
 		bool                                      WritingOnly = false;
+		/// [[BPR-1900]]. A tour drafting run: the workspace, with read-only
+		/// tools only (`claude_read_only_restrictions`,
+		/// `codex_read_only_arguments`).
+		bool ReadOnlyTools = false;
 	};
 
 	/// \brief Effect-lane source claim, released after the private input write or refusal.
@@ -202,6 +206,8 @@ namespace bpr::application {
 		/// program and fixed arguments are found for its slot.
 		core::agent_profile_id Profile;
 		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
+		/// [[BPR-1900]]. The decoder admits only read-only tool uses.
+		bool ReadOnlyTools = false;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -274,6 +280,33 @@ namespace bpr::application {
 	/// the environment through. Hardening, not a gate: a wrapper that drops
 	/// it turns memory back on, and the init frame then reports it.
 	inline constexpr std::pair<std::string_view, std::string_view> claude_writing_environment{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" };
+
+	/// \brief [[BPR-1900]], RFC-BPR-0092 amendment. What a read-only tour
+	/// drafting launch appends to Claude's print-mode arguments.
+	///
+	/// \details The run starts in the review's private workspace. Only Read,
+	/// Grep, Glob and Bash are loaded (`--tools`); Read, Grep, Glob and the
+	/// read-only shell commands are approved (`--allowedTools`), so in print
+	/// mode every other use is denied without a prompt; edits, writes, the
+	/// network and subagents are named again in `--disallowedTools`. No MCP
+	/// server, no settings file of any source, no slash commands, no session
+	/// saved, and `claude_writing_settings`. The decoder also refuses an init
+	/// frame that lists another tool or any MCP server, and any tool use
+	/// `core::decide_read_only_tool` refuses (`tool_refused`).
+	inline constexpr std::array<std::string_view, 17> claude_read_only_restrictions = {
+		"--tools", "Read,Grep,Glob,Bash", "--allowedTools",
+		"Read,Grep,Glob,Bash(rg:*),Bash(grep:*),Bash(ls:*),Bash(cat:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(nl:*),Bash(find:*),Bash(git log:*),Bash(git show:*),Bash(git blame:*),Bash(git diff:*),Bash(git grep:*),Bash(git ls-files:*)",
+		"--disallowedTools", "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task", "--permission-mode", "default", "--strict-mcp-config", "--mcp-config", R"({"mcpServers":{}})",
+		"--setting-sources", "", "--disable-slash-commands", "--no-session-persistence", "--settings", claude_writing_settings
+	};
+
+	/// \brief [[BPR-1900]]. What a read-only tour drafting launch gives
+	/// `codex exec --json`, before its `-`: Codex's own read-only sandbox (no
+	/// writes, no network), no approval prompts, no MCP server and no web
+	/// search.
+	inline constexpr std::array<std::string_view, 8> codex_read_only_arguments = {
+		"--sandbox", "read-only", "-c", "approval_policy=\"never\"", "-c", "mcp_servers={}", "-c", "tools.web_search=false"
+	};
 
 	/// \brief Builds one protocol-specific process request.
 	[[nodiscard]] auto build_agent_launch(
@@ -356,6 +389,11 @@ namespace bpr::application {
 		return true;
 	}
 
+	/// \brief [[BPR-1900]]. How many tool uses a read-only run's result
+	/// keeps, and how much of what each was asked.
+	inline constexpr std::size_t maximum_agent_tool_activity       = 256U;
+	inline constexpr std::size_t maximum_agent_tool_activity_bytes = 512U;
+
 	/// \brief The longest structured-finding payload one turn may return.
 	///
 	/// \details Declared in the same style as the stdout, stderr, and frame
@@ -416,17 +454,22 @@ namespace bpr::application {
 		/// any model was asked. Told apart from a malformed or failed turn
 		/// so the person is told to sign in rather than that it broke.
 		not_signed_in,
+		/// [[BPR-1900]]. A read-only tour run's Claude listed or used a tool
+		/// `core::decide_read_only_tool` refuses (an edit, a write, the
+		/// network, an MCP tool, or a shell command that is not a plain
+		/// read-only pipeline). The run ends there.
+		tool_refused,
 	};
 
 	/// \brief The number of declared protocol failures.
 	///
 	/// \details Exists so a sweep over the causes can be exhaustive rather than
 	/// a sample: a new failure that nothing distinguishes fails the count.
-	inline constexpr std::size_t agent_protocol_failure_count = 15U;
+	inline constexpr std::size_t agent_protocol_failure_count = 16U;
 
 	static_assert(
 		static_cast<std::size_t>(
-			agent_protocol_failure::not_signed_in)
+			agent_protocol_failure::tool_refused)
 				+ 1U
 			== agent_protocol_failure_count,
 		"agent_protocol_failure_count must cover every declared failure");
@@ -459,6 +502,10 @@ namespace bpr::application {
 		/// Owner look v006. A catalog run's `model/list` result, its exact
 		/// bytes; the loop keeps it and closes the input.
 		model_catalog,
+		/// [[BPR-1900]]. A read-only run used a tool: `Text` is the tool's
+		/// name and `Item` what it was asked (the path read, the pattern or
+		/// the command), for the tour session's transcript.
+		tool_activity,
 	};
 
 	struct agent_protocol_event
@@ -578,7 +625,7 @@ namespace bpr::application {
 	class agent_protocol_decoder final
 	{
 	public:
-		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation);
+		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation, bool aReadOnlyTools = false);
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -614,8 +661,9 @@ namespace bpr::application {
 		std::size_t                  AssistantBytes = 0;
 		core::agent_runtime_metadata Metadata;
 		core::agent_protocol         Protocol;
-		bool                         WritingOnly = false;
-		agent_launch_purpose         Purpose     = agent_launch_purpose::conversation;
+		bool                         WritingOnly   = false;
+		agent_launch_purpose         Purpose       = agent_launch_purpose::conversation;
+		bool                         ReadOnlyTools = false;
 		std::string                  Pending;
 		std::size_t                  TotalBytes   = 0U;
 		bool                         Failed       = false;
@@ -696,6 +744,13 @@ namespace bpr::application {
 		/// [[BPR-1899]]. Whether a writing run's Claude wrote a thinking
 		/// block, as `thinking_reported` says. Never its content.
 		bool ReportedThinking = false;
+		/// [[BPR-1900]]. A read-only run's tool uses in order: the tool and
+		/// what it was asked, at most `maximum_agent_tool_activity`.
+		std::vector<std::pair<std::string, std::string>> ToolActivity;
+		/// [[BPR-1900]]. The head line count of each path the request asked
+		/// to have measured in its workspace, as the host counted it before
+		/// the agent started; a path it could not count is absent.
+		std::vector<std::pair<std::string, std::uint32_t>> MeasuredLines;
 		/// Owner look v006. A catalog run's `model/list` result, as written.
 		std::optional<std::string> ModelCatalog;
 		/// [[BPR-1827]]. Every byte the agent wrote to standard output,

@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_REVIEW_TOUR_EDITOR_HPP
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/review_tour_projection.hpp"
+#include "bpr/core/tour_agent_session.hpp"
 #include "bpr/core/tour_steps.hpp"
 #include "bpr/core/tour_stop_view.hpp"
 #include "bpr/qt/agent_feature.hpp"
@@ -31,6 +32,7 @@ class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
 	class stop_action_row;
+	class tour_agent_panel;
 	enum class tour_editor_action : std::uint8_t { import_selected,
 												   retry_save,
 												   use_saved_copy,
@@ -126,6 +128,24 @@ namespace bpr::qt {
 		/// \brief [[BPR-1892]]. Show on the Agent tab: asks the window for
 		/// the Agent tab at the failed run's card.
 		void set_agent_failure_dispatch(std::function<void()> aDispatch);
+		/// \brief [[BPR-1900]]. The tour session's gestures: Draft the tour,
+		/// Stop (a drafting run, from the control that started it), and one
+		/// proposed part's Accept, with the author's edit, or Discard.
+		void set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide);
+		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
+		/// decided.
+		void present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
+		/// \brief [[BPR-1900]]. A drafting run is running: started by the
+		/// control of `aHook` (Draft from PR context, Suggest an outline), or
+		/// by Draft the tour. Its control says Stop drafting and stops it;
+		/// nothing else waits on it, and leaving the window does not stop it.
+		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour);
+		/// \brief [[BPR-1900]]. Draft the tour failed, in BPR-1892's notice.
+		void show_tour_draft_failure(const QString& aWhy);
+		void clear_tour_draft_failure();
+		/// \brief [[BPR-1900]]. What a request's control said when pressed.
+		[[nodiscard]] auto request_name(core::writing_hook aHook) const -> QString;
+		[[nodiscard]] auto tour_agent() const noexcept -> tour_agent_panel* { return TourAgentPanel; }
 		/// \brief [[BPR-1892]]. The notice for a request's control, shown or
 		/// not, and the line it says.
 		[[nodiscard]] auto agent_failure_notice(core::writing_hook aHook) const -> QWidget*;
@@ -284,24 +304,31 @@ namespace bpr::qt {
 		std::map<core::writing_hook, QWidget*> FailureNotices;
 		std::map<core::writing_hook, QString>  RequestNames;
 		std::function<void()>                  AgentFailureDispatch;
-		auto                                   add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
-		void                                   refresh_agent_features();
-		void                                   restyle_agent_features();
-		QWidget*                               Foot               = nullptr;
-		QLabel*                                FootState          = nullptr;
-		QPushButton*                           PreviewPublish     = nullptr;
-		QLabel*                                StopState          = nullptr;
-		QPushButton*                           Reaffirm           = nullptr;
-		QPushButton*                           Previous           = nullptr;
-		QPushButton*                           Next               = nullptr;
-		QComboBox*                             PublicationMode    = nullptr;
-		QCheckBox*                             DescriptionEdit    = nullptr;
-		QLabel*                                PublicationStatus  = nullptr;
-		markdown_body_view*                    PublicationPreview = nullptr;
-		QPushButton*                           PublishTour        = nullptr;
-		QPushButton*                           ResumeTour         = nullptr;
-		QPushButton*                           ReconcileTour      = nullptr;
-		QPushButton*                           StopTour           = nullptr;
+		/// [[BPR-1900]]. The tour session's panel, Draft the tour's failure
+		/// notice, and the drafting run in flight.
+		tour_agent_panel*                 TourAgentPanel = nullptr;
+		QWidget*                          DraftFailure   = nullptr;
+		std::optional<core::writing_hook> RunningHook;
+		bool                              RunningDraft = false;
+		void                              open_failed_run();
+		auto                              add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
+		void                              refresh_agent_features();
+		void                              restyle_agent_features();
+		QWidget*                          Foot               = nullptr;
+		QLabel*                           FootState          = nullptr;
+		QPushButton*                      PreviewPublish     = nullptr;
+		QLabel*                           StopState          = nullptr;
+		QPushButton*                      Reaffirm           = nullptr;
+		QPushButton*                      Previous           = nullptr;
+		QPushButton*                      Next               = nullptr;
+		QComboBox*                        PublicationMode    = nullptr;
+		QCheckBox*                        DescriptionEdit    = nullptr;
+		QLabel*                           PublicationStatus  = nullptr;
+		markdown_body_view*               PublicationPreview = nullptr;
+		QPushButton*                      PublishTour        = nullptr;
+		QPushButton*                      ResumeTour         = nullptr;
+		QPushButton*                      ReconcileTour      = nullptr;
+		QPushButton*                      StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;

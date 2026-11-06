@@ -2,10 +2,12 @@
 /// \brief Proves exact context adaptation, framing, and typed host outcomes.
 
 #include "../core/private_review_fixture.hpp"
+#include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/review_brief.hpp"
 #include "bpr/application/review_skill_host.hpp"
+#include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_wrapper.hpp"
@@ -13,9 +15,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <expected>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -1480,6 +1484,92 @@ namespace {
 		expect(std::ranges::find(builtIn->AllowedEnvironment, "USER") != builtIn->AllowedEnvironment.end(), "the shipped Claude profile passes USER, which its keychain sign-in is filed under");
 	}
 
+	/// [[BPR-1900]] AC1. A tour drafting run reads the workspace with
+	/// read-only tools: the exact argv for Claude and Codex, a search and a
+	/// read decoded for the transcript, and a write or edit refused.
+	void test_read_only_tour_drafting()
+	{
+		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
+		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
+		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		expect(claude && claude->ReadOnlyTools && !claude->WritingOnly && claude->Arguments == expected, "a read-only run is print mode with the read-only allowlist");
+		expect(claude && std::ranges::find(claude->Arguments, "Read,Grep,Glob,Bash") != claude->Arguments.end() && std::ranges::find(claude->Arguments, "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task") != claude->Arguments.end(),
+			   "it loads only read, search and shell, and denies edits, writes, the network and subagents");
+		expect(claude && std::ranges::find(claude->Environment, std::pair<std::string, std::string>{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" }) != claude->Environment.end(), "auto-memory stays off");
+		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .ReadOnlyTools = true });
+		expect(codex && codex->Arguments == std::vector<std::string>{ "exec", "--json", "--sandbox", "read-only", "-c", "approval_policy=\"never\"", "-c", "mcp_servers={}", "-c", "tools.web_search=false", "-" }, "Codex runs in its own read-only sandbox");
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::external_terminal }) {
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .ReadOnlyTools = true }), "no other protocol has a recorded read-only allowlist");
+		}
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .WritingOnly = true, .ReadOnlyTools = true }), "a run is tool-free or read-only, not both");
+
+		const std::string init = R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Grep","Glob","Bash"],"mcp_servers":[],"plugins":[]})"
+								 "\n";
+		const auto        use  = [](const std::string& aName, const std::string& aInput) {
+			return R"({"type":"assistant","session_id":"s","message":{"id":"m-)" + aName + R"(","role":"assistant","content":[{"type":"tool_use","id":"t","name":")" + aName + R"(","input":)" + aInput + "}]}}\n";
+		};
+		const std::string result  = R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"src/renderer.cpp:5: draw_scene();"}]}})"
+									"\n";
+		const std::string answer  = R"({"type":"assistant","session_id":"s","message":{"id":"m-a","role":"assistant","content":[{"type":"text","text":"done"}]}})"
+									"\n"
+									R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"done"})"
+									"\n";
+		auto              decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+		auto              pushed  = decoder.push(init + use("Grep", R"({"pattern":"draw_scene","path":"src"})") + result + use("Bash", R"({"command":"rg -n \"clear|present\" src"})") + result + use("Read", R"({"file_path":"/w/src/renderer.cpp"})") + result + answer);
+		expect(pushed.has_value() && decoder.finish().has_value(), "a run that searches, reads and answers is read");
+		auto activity = std::vector<std::pair<std::string, std::string>>{ };
+		for (const auto& event : pushed.value_or(std::vector<application::agent_protocol_event>{ })) {
+			if (event.Kind == application::agent_protocol_event_kind::tool_activity) {
+				activity.emplace_back(event.Text, event.Item);
+			}
+		}
+		expect(activity == std::vector<std::pair<std::string, std::string>>{ { "Grep", "draw_scene in src" }, { "Bash", "rg -n \"clear|present\" src" }, { "Read", "/w/src/renderer.cpp" } }, "each tool use is named with what it was asked");
+		const auto transcript = application::tour_transcript_of(activity, "/w");
+		expect(transcript.size() == 3U && transcript[0].Kind == core::tour_transcript_kind::searched && transcript[2].Kind == core::tour_transcript_kind::read && transcript[2].Text == "src/renderer.cpp", "the transcript says what it searched and read, inside the workspace");
+		const auto refused = [&](const std::string& aFrames) {
+			auto       refusing = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto read     = refusing.push(aFrames);
+			return !read && read.error() == application::agent_protocol_failure::tool_refused;
+		};
+		expect(refused(init + use("Edit", R"({"file_path":"a","old_string":"x","new_string":"y"})")), "an edit is refused");
+		expect(refused(init + use("Write", R"({"file_path":"a","content":"x"})")), "a write is refused");
+		expect(refused(init + use("Bash", R"({"command":"rm -rf src"})")), "a shell command that writes is refused");
+		expect(refused(init + use("WebFetch", R"({"url":"https://example.com"})")), "the network is refused");
+		expect(refused(R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Edit"],"mcp_servers":[],"plugins":[]})"
+					   "\n"),
+			   "an init frame that loads an edit tool is refused");
+		expect(refused(R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[{"name":"github","status":"connected"}],"plugins":[]})"
+					   "\n"),
+			   "an init frame with an MCP server is refused");
+		auto chat = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(chat.push(init + use("Edit", R"({"file_path":"a"})") + result + answer).has_value(), "the Agent tab's own runs are not held to the tour's allowlist");
+
+		// The whole-tour answer, alone or fenced, and nothing else.
+		const auto draft = std::string{ R"({"schema":"bpr.tour-draft.v1","problem":"P","solution":"S","stops":[{"path":"./src/a.cpp","first_line":2,"last_line":4,"title":"T","explanation":"E"}]})" };
+		const auto read  = application::decode_tour_draft_answer(draft);
+		expect(read && read->Problem == "P" && read->Stops.size() == 1U && read->Stops[0].Path == "src/a.cpp" && read->Stops[0].FirstLine == 2U, "a whole-tour answer is read");
+		expect(application::decode_tour_draft_answer("Here it is:\n```json\n" + draft + "\n```\n").has_value(), "one fenced block is read");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v1","problem":"P","solution":"S","stops":[],"publish":true})"), "an extra key is refused");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"other","problem":"P","solution":"S","stops":[]})"), "another schema is refused");
+		expect(!application::decode_tour_draft_answer("not json"), "prose is refused");
+		const auto prompt = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified" } }, core::review_tour{ .Problem = "Mine" });
+		expect(prompt && prompt->find("bpr.tour-draft.v1") != std::string::npos && prompt->find("src/a.cpp") != std::string::npos && prompt->find("\"problem\":\"Mine\"") != std::string::npos, "the request carries the schema, the files and the tour so far");
+	}
+
+	/// [[BPR-1900]]. The head lines a proposed stop is checked against.
+	void test_workspace_line_counts()
+	{
+		const auto root = std::filesystem::temp_directory_path() / ("bpr-1900-measure-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::filesystem::create_directories(root / "src");
+		std::ofstream{ root / "src" / "a.cpp" } << "one\ntwo\nthree";
+		std::ofstream{ root / "b.txt" } << "x\n";
+		std::error_code linked;
+		std::filesystem::create_symlink(root / "b.txt", root / "link.txt", linked);
+		const auto counted = application::measure_workspace_lines(root, { "src/a.cpp", "b.txt", "missing.cpp", "../escape", "/etc/hosts", "link.txt", "src" });
+		expect(counted == std::vector<std::pair<std::string, std::uint32_t>>{ { "src/a.cpp", 3U }, { "b.txt", 1U } }, "files are counted; a missing path, an escape, an absolute path, a link and a folder are not");
+		std::filesystem::remove_all(root);
+	}
+
 	/// [[BPR-1375]]. What Claude 2.1.296 writes around a turn, and what a
 	/// signed-out Claude answers.
 	void test_claude_decoder_reads_sign_in_and_benign_frames()
@@ -1890,6 +1980,8 @@ auto main() -> int
 	test_requested_configured_and_admitted_run_snapshot();
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
+	test_read_only_tour_drafting();
+	test_workspace_line_counts();
 	test_claude_decoder_reads_sign_in_and_benign_frames();
 	test_claude_writing_reports_the_plugins_it_loaded();
 	test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on();

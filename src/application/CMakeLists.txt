@@ -26,6 +26,7 @@ add_library(
         src/source_pr_search_execution.cpp
         src/remembered_connection_host.cpp
         src/writing_hooks.cpp
+        src/tour_agent_drafting.cpp
         src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/review_cycle_capture.cpp
