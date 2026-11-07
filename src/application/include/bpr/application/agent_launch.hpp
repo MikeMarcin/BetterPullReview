@@ -147,6 +147,20 @@ namespace bpr::application {
 		std::optional<core::retained_agent_finding> Finding = { };
 	};
 	[[nodiscard]] auto serialize_private_finding(const core::retained_agent_finding&) -> std::string;
+	/// \brief [[BPR-1918]]. Whether this app ends a writing or read-only
+	/// run on a check that a wrapper's or policy's settings can trip: extra
+	/// tools or MCP servers in init, a tool_use outside the list, a block
+	/// that is not text in a writing answer, and [[BPR-1916]]'s unreferenced
+	/// skill. `relaxed` is a custom agent profile's opt-out: each such check
+	/// reports what it would have refused (`check_relaxed`, and a
+	/// `tool_activity` noted `relaxed_check_note`) and the run goes on. The
+	/// restrictive arguments are passed either way, the workspace stays the
+	/// private disposable one, and only text blocks ever become output.
+	enum class agent_run_checks : std::uint8_t {
+		strict,
+		relaxed,
+	};
+
 	/// \brief Host admission snapshot and explicit settings for one invocation.
 	/// The host persists AdmittedRun before dispatch; the builder verifies correlation,
 	/// never allocates identities. Legacy callers omit it until durable host integration.
@@ -161,6 +175,8 @@ namespace bpr::application {
 		/// tools only (`claude_read_only_restrictions`,
 		/// `codex_read_only_arguments`).
 		bool ReadOnlyTools = false;
+		/// [[BPR-1918]]. Strict unless a custom profile opted out.
+		agent_run_checks RunChecks = agent_run_checks::strict;
 	};
 
 	/// \brief Effect-lane source claim, released after the private input write or refusal.
@@ -208,6 +224,8 @@ namespace bpr::application {
 		agent_launch_purpose   Purpose = agent_launch_purpose::conversation;
 		/// [[BPR-1900]]. The decoder admits only read-only tool uses.
 		bool ReadOnlyTools = false;
+		/// [[BPR-1918]]. How the decoder treats what a wrapper can trip.
+		agent_run_checks RunChecks = agent_run_checks::strict;
 
 		auto operator<=>(const agent_launch_request&) const = default;
 	};
@@ -403,6 +421,36 @@ namespace bpr::application {
 	inline constexpr std::string_view read_only_ran_note       = "(ran, outside the read-only list) ";
 	inline constexpr std::string_view read_only_unchecked_note = "(unchecked, outside the read-only list) ";
 
+	/// \brief [[BPR-1918]]. The checks `agent_run_checks::relaxed` lets
+	/// pass, each counted on its own. `skill` is [[BPR-1916]]'s check for a
+	/// Skill tool_use no reference names; it honours the same switch.
+	enum class relaxed_check : std::uint8_t {
+		/// Init named a tool or an MCP server the run did not ask for.
+		init,
+		/// A tool_use outside the run's list.
+		tool,
+		/// A writing answer's block that is not text.
+		block,
+		/// A Skill tool_use for a skill no reference names.
+		skill,
+	};
+	inline constexpr std::size_t relaxed_check_count = static_cast<std::size_t>(relaxed_check::skill) + 1U;
+	/// \brief The check's stable name, as `check_relaxed` and the
+	/// diagnostic carry it.
+	[[nodiscard]] constexpr auto relaxed_check_name(const relaxed_check aCheck) noexcept -> std::string_view
+	{
+		switch (aCheck) {
+		case relaxed_check::init:  return "init";
+		case relaxed_check::tool:  return "tool";
+		case relaxed_check::block: return "block";
+		case relaxed_check::skill: return "skill";
+		}
+		return { };
+	}
+	/// \brief [[BPR-1918]]. Before what a relaxed check let pass, in a
+	/// `tool_activity` item, for the transcript.
+	inline constexpr std::string_view relaxed_check_note = "(not stopped, strict run checks off) ";
+
 	/// \brief The longest structured-finding payload one turn may return.
 	///
 	/// \details Declared in the same style as the stdout, stderr, and frame
@@ -520,6 +568,11 @@ namespace bpr::application {
 		/// denied. Carries no text; its `tool_activity` names it. Counted for
 		/// the proposal and the diagnostic, never refused.
 		outside_list_ran,
+		/// [[BPR-1918]]. A check that `agent_run_checks::relaxed` let
+		/// pass: `Text` is the check's stable name
+		/// (`relaxed_check_name`), never what tripped it. Counted for the
+		/// diagnostic.
+		check_relaxed,
 	};
 
 	struct agent_protocol_event
@@ -639,7 +692,7 @@ namespace bpr::application {
 	class agent_protocol_decoder final
 	{
 	public:
-		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation, bool aReadOnlyTools = false);
+		explicit agent_protocol_decoder(core::agent_protocol aProtocol, bool aWritingOnly = false, agent_launch_purpose aPurpose = agent_launch_purpose::conversation, bool aReadOnlyTools = false, agent_run_checks aChecks = agent_run_checks::strict);
 
 		[[nodiscard]] auto push(std::string_view aBytes)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>;
@@ -678,6 +731,7 @@ namespace bpr::application {
 		bool                         WritingOnly   = false;
 		agent_launch_purpose         Purpose       = agent_launch_purpose::conversation;
 		bool                         ReadOnlyTools = false;
+		agent_run_checks             Checks        = agent_run_checks::strict;
 		/// [[BPR-1900]], [[BPR-1912]]. Shell commands of a read-only run
 		/// outside its list, awaiting their result: the tool_use's id and
 		/// what it was asked, named once the result says what Claude did.
@@ -768,6 +822,9 @@ namespace bpr::application {
 		/// [[BPR-1912]]. How many of a read-only run's shell commands outside
 		/// the list ran, as `outside_list_ran` counts them.
 		std::size_t OutsideListCommands = 0U;
+		/// [[BPR-1918]]. How many times each relaxed check let something
+		/// pass, by `relaxed_check`; all zero for a strict run.
+		std::array<std::uint32_t, relaxed_check_count> RelaxedCounts = { };
 		/// [[BPR-1900]]. The head line count of each path the request asked
 		/// to have measured in its workspace, as the host counted it before
 		/// the agent started; a path it could not count is absent.

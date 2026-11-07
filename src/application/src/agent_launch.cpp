@@ -14,6 +14,7 @@
 #include <cctype>
 #include <cstdint>
 #include <ranges>
+#include <span>
 #include <type_traits>
 #include <utility>
 
@@ -961,36 +962,90 @@ namespace bpr::application {
 		/// (`read_only_tool_result`), and named then. Past the bound it is
 		/// named at once, unchecked, and the run goes on.
 		using held_tool_uses = std::vector<std::pair<std::string, std::string>>;
-		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock, held_tool_uses& aHeld) -> std::expected<std::optional<agent_protocol_event>, agent_protocol_failure>
+
+		/// [[BPR-1918]]. What a relaxed check let pass: named for the
+		/// transcript as `aTool` with `aAsked` after `relaxed_check_note`,
+		/// and counted by check for the diagnostic.
+		void relax(std::vector<agent_protocol_event>& aEvents, const relaxed_check aCheck, std::string aTool, std::string aAsked)
+		{
+			aAsked.insert(0U, relaxed_check_note);
+			if (aAsked.size() > maximum_agent_tool_activity_bytes) {
+				aAsked.resize(maximum_agent_tool_activity_bytes);
+			}
+			aEvents.push_back({ .Kind = agent_protocol_event_kind::tool_activity, .Text = std::move(aTool), .Item = std::move(aAsked) });
+			aEvents.push_back({ .Kind = agent_protocol_event_kind::check_relaxed, .Text = std::string{ relaxed_check_name(aCheck) } });
+		}
+
+		/// [[BPR-1900]]. What a tool_use asked, for the transcript: a shell
+		/// command, the path read or the pattern searched, bounded.
+		[[nodiscard]] auto tool_use_asked(const json_value& aBlock, const std::string_view aName) -> std::string
+		{
+			const auto* input = object_member(aBlock, "input");
+			const auto  text  = [input](const std::string_view aKey) { const auto* value = input == nullptr ? nullptr : string_member(*input, aKey); return value == nullptr ? std::string{ } : *value; };
+			auto        asked = aName == "Bash" ? text("command") : aName == "Read" ? text("file_path")
+																					: text("pattern");
+			if (aName == "Grep" && !text("path").empty()) {
+				asked += " in " + text("path");
+			}
+			if (asked.size() > maximum_agent_tool_activity_bytes) {
+				asked.resize(maximum_agent_tool_activity_bytes);
+			}
+			return asked;
+		}
+
+		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock, held_tool_uses& aHeld, std::vector<agent_protocol_event>& aEvents, const agent_run_checks aChecks) -> std::expected<void, agent_protocol_failure>
 		{
 			const auto* name  = string_member(aBlock, "name");
 			const auto* input = object_member(aBlock, "input");
 			if (name == nullptr) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
-			const auto text    = [input](const std::string_view aKey) { const auto* value = input == nullptr ? nullptr : string_member(*input, aKey); return value == nullptr ? std::string{ } : *value; };
-			const auto command = text("command");
-			const auto refusal = core::decide_read_only_tool(*name, command);
+			const auto* command = input == nullptr ? nullptr : string_member(*input, "command");
+			const auto  refusal = core::decide_read_only_tool(*name, command == nullptr ? std::string_view{ } : std::string_view{ *command });
+			auto        asked   = tool_use_asked(aBlock, *name);
 			if (refusal == core::tour_tool_refusal::tool) {
+				// [[BPR-1918]]. A wrapper's settings can load a tool this
+				// run did not ask for; relaxed, its use is named, not refused.
+				if (aChecks == agent_run_checks::relaxed) {
+					relax(aEvents, relaxed_check::tool, *name, std::move(asked));
+					return { };
+				}
 				return std::unexpected(agent_protocol_failure::tool_refused);
-			}
-			auto asked = *name == "Bash" ? command : *name == "Read" ? text("file_path")
-																	 : text("pattern");
-			if (*name == "Grep" && !text("path").empty()) {
-				asked += " in " + text("path");
-			}
-			if (asked.size() > maximum_agent_tool_activity_bytes) {
-				asked.resize(maximum_agent_tool_activity_bytes);
 			}
 			if (refusal != core::tour_tool_refusal::none) {
 				const auto* id = string_member(aBlock, "id");
 				if (id != nullptr && !id->empty() && aHeld.size() < maximum_agent_tool_activity) {
 					aHeld.emplace_back(*id, std::move(asked));
-					return std::optional<agent_protocol_event>{ };
+					return { };
 				}
 				asked.insert(0U, read_only_unchecked_note);
 			}
-			return std::optional{ agent_protocol_event{ .Kind = agent_protocol_event_kind::tool_activity, .Text = *name, .Item = std::move(asked) } };
+			aEvents.push_back({ .Kind = agent_protocol_event_kind::tool_activity, .Text = *name, .Item = std::move(asked) });
+			return { };
+		}
+
+		/// [[BPR-1918]]. What an init frame loaded beyond `aAllowed`: tools
+		/// by name, MCP servers by count. Empty when it loaded nothing more.
+		[[nodiscard]] auto init_extras(const json_value& aRoot, std::span<const std::string_view> aAllowed) -> std::string
+		{
+			auto        tools   = std::string{ };
+			const auto* listed  = member(aRoot, "tools");
+			const auto* servers = member(aRoot, "mcp_servers");
+			if (listed != nullptr && listed->Kind == json_kind::array_value) {
+				for (const auto& tool : listed->Elements) {
+					const auto named = tool.Kind == json_kind::string_value ? std::string_view{ tool.Text } : std::string_view{ "unnamed" };
+					if (std::ranges::find(aAllowed, named) == aAllowed.end()) {
+						tools += tools.empty() ? "" : ", ";
+						tools += named;
+					}
+				}
+			}
+			const auto mcp  = servers != nullptr && servers->Kind == json_kind::array_value ? servers->Elements.size() : std::size_t{ 0U };
+			auto       text = tools.empty() ? std::string{ } : "loaded tools " + tools;
+			if (mcp != 0U) {
+				text += (text.empty() ? "loaded " : "; ") + std::to_string(mcp) + (mcp == 1U ? " MCP server" : " MCP servers");
+			}
+			return text;
 		}
 
 		/// [[BPR-1900]], [[BPR-1912]]. A held command's result: denied
@@ -1023,9 +1078,10 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, held_tool_uses* aHeld = nullptr)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, held_tool_uses* aHeld = nullptr, const agent_run_checks aChecks = agent_run_checks::strict)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
+			const auto  relaxed = aChecks == agent_run_checks::relaxed;
 			const auto* type    = string_member(aRoot, "type");
 			const auto* session = string_member(aRoot, "session_id");
 			if (type == nullptr) {
@@ -1069,19 +1125,32 @@ namespace bpr::application {
 				// back on. The memory folder is keyed to the run's own fresh
 				// folder, so it starts empty, and with no tool nothing in the
 				// run can write it.
+				// [[BPR-1918]]. Relaxed, what a wrapper's settings loaded is
+				// named instead; a missing tool list is still malformed.
+				auto extras = std::vector<agent_protocol_event>{ };
 				if (aWritingOnly && (!empty("tools") || !empty("mcp_servers"))) {
-					return std::unexpected(agent_protocol_failure::malformed_frame);
+					const auto* tools = member(aRoot, "tools");
+					if (!relaxed || tools == nullptr || tools->Kind != json_kind::array_value) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					relax(extras, relaxed_check::init, "Init", init_extras(aRoot, { }));
 				}
 				// [[BPR-1900]]. A read-only run loads only the read-only tools
 				// and no MCP server.
 				if (aReadOnly) {
 					const auto* tools = member(aRoot, "tools");
-					if (tools == nullptr || tools->Kind != json_kind::array_value || !empty("mcp_servers")
-						|| !std::ranges::all_of(tools->Elements, [](const json_value& aTool) { return aTool.Kind == json_kind::string_value && std::ranges::find(core::read_only_claude_tools, std::string_view{ aTool.Text }) != core::read_only_claude_tools.end(); })) {
+					if (tools == nullptr || tools->Kind != json_kind::array_value) {
 						return std::unexpected(agent_protocol_failure::tool_refused);
+					}
+					if (!empty("mcp_servers") || !std::ranges::all_of(tools->Elements, [](const json_value& aTool) { return aTool.Kind == json_kind::string_value && std::ranges::find(core::read_only_claude_tools, std::string_view{ aTool.Text }) != core::read_only_claude_tools.end(); })) {
+						if (!relaxed) {
+							return std::unexpected(agent_protocol_failure::tool_refused);
+						}
+						relax(extras, relaxed_check::init, "Init", init_extras(aRoot, core::read_only_claude_tools));
 					}
 				}
 				auto reported = aWritingOnly ? reported_init(aRoot) : std::vector<agent_protocol_event>{ };
+				reported.insert(reported.end(), std::make_move_iterator(extras.begin()), std::make_move_iterator(extras.end()));
 				if (aPhase == 0U) {
 					aSession = *session;
 					aPhase   = 1U;
@@ -1098,7 +1167,9 @@ namespace bpr::application {
 			if (aPhase != 1U || *session != aSession) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
-			if (aWritingOnly && (member(aRoot, agent_finding_payload_member) || *type == "user")) {
+			// [[BPR-1918]]. Relaxed, a writing run's tool results (user
+			// frames) are read past; a payload is still refused.
+			if (aWritingOnly && (member(aRoot, agent_finding_payload_member) || (*type == "user" && !relaxed))) {
 				return std::unexpected(agent_protocol_failure::malformed_frame);
 			}
 			// [[BPR-1375]]. A signed-out Claude answers with a synthetic
@@ -1150,16 +1221,22 @@ namespace bpr::application {
 						continue;
 					}
 					if (aWritingOnly && *blockType != "text") {
-						return std::unexpected(
-							agent_protocol_failure::malformed_frame);
+						if (!relaxed) {
+							return std::unexpected(
+								agent_protocol_failure::malformed_frame);
+						}
+						// [[BPR-1918]]. Named, never the answer: only text
+						// blocks become output. A tool's result is not counted.
+						if (*type == "assistant") {
+							const auto* tool = *blockType == "tool_use" ? string_member(block, "name") : nullptr;
+							relax(events, relaxed_check::block, tool != nullptr ? *tool : *blockType, tool != nullptr ? tool_use_asked(block, *tool) : "a " + *blockType + " block");
+						}
+						++blockIndex;
+						continue;
 					}
 					if (aReadOnly && aHeld != nullptr && *type == "assistant" && *blockType == "tool_use") {
-						auto used = read_only_tool_use(block, *aHeld);
-						if (!used) {
+						if (auto used = read_only_tool_use(block, *aHeld, events, aChecks); !used) {
 							return std::unexpected(used.error());
-						}
-						if (*used) {
-							events.push_back(std::move(**used));
 						}
 					}
 					if (aReadOnly && aHeld != nullptr && *type == "user" && *blockType == "tool_result") {
@@ -1682,7 +1759,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1728,7 +1805,7 @@ namespace bpr::application {
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -2692,6 +2769,7 @@ namespace bpr::application {
 			request.Environment.emplace_back(claude_writing_environment.first, claude_writing_environment.second);
 		}
 		request.ReadOnlyTools = aOptions.ReadOnlyTools;
+		request.RunChecks     = aOptions.RunChecks;
 		request.Profile       = aProfile.Id;
 		if (aProfile.Protocol == core::agent_protocol::codex_app_server) {
 			request.DeferredContext = payload;
@@ -3019,17 +3097,19 @@ namespace bpr::application {
 		case agent_protocol_event_kind::thinking_reported:
 		case agent_protocol_event_kind::model_catalog:
 		case agent_protocol_event_kind::tool_activity:
-		case agent_protocol_event_kind::outside_list_ran:     break;
+		case agent_protocol_event_kind::outside_list_ran:
+		case agent_protocol_event_kind::check_relaxed:        break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}
 
 	agent_protocol_decoder::agent_protocol_decoder(
-		const core::agent_protocol aProtocol, bool aWritingOnly, const agent_launch_purpose aPurpose, const bool aReadOnlyTools)
+		const core::agent_protocol aProtocol, bool aWritingOnly, const agent_launch_purpose aPurpose, const bool aReadOnlyTools, const agent_run_checks aChecks)
 		: Protocol{ aProtocol }
 		, WritingOnly{ aWritingOnly }
 		, Purpose{ aPurpose }
 		, ReadOnlyTools{ aReadOnlyTools }
+		, Checks{ aChecks }
 	{
 	}
 
@@ -3106,7 +3186,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;

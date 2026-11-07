@@ -25,7 +25,7 @@ namespace bpr::adapters::agent::detail {
 				, Sink{ aSink }
 				, Transport{ aTransport }
 				, Result{ .Session = aRequest.Session, .Run = aRequest.Run }
-				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools }
+				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools, aRequest.RunChecks }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
 				}
@@ -334,6 +334,13 @@ namespace bpr::adapters::agent::detail {
 					} else if (message.Kind == application::agent_protocol_event_kind::outside_list_ran) {
 						// [[BPR-1912]]. Reported, never refused.
 						++Result.OutsideListCommands;
+					} else if (message.Kind == application::agent_protocol_event_kind::check_relaxed) {
+						// [[BPR-1918]]. Counted by check; its activity names it.
+						for (std::size_t check = 0U; check < application::relaxed_check_count; ++check) {
+							if (message.Text == application::relaxed_check_name(static_cast<application::relaxed_check>(check))) {
+								++Result.RelaxedCounts[check];
+							}
+						}
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;

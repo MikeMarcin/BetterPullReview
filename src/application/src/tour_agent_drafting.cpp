@@ -196,6 +196,11 @@ namespace bpr::application {
 					break;
 				}
 			}
+			// [[BPR-1918]]. What a relaxed check let pass, for any tool.
+			if (command.starts_with(relaxed_check_note)) {
+				command.remove_prefix(relaxed_check_note.size());
+				note = core::tour_transcript_note::not_stopped;
+			}
 			auto shown = std::string{ command };
 			for (auto at = root.empty() ? std::string::npos : shown.find(root); at != std::string::npos; at = shown.find(root)) {
 				shown.erase(at, root.size());

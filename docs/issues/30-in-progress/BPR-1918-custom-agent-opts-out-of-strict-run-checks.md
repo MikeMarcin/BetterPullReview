@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1918"
 title: "A custom agent profile can opt out of the strict writing and read-only run checks"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"

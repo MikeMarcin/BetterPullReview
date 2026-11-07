@@ -159,6 +159,7 @@ namespace bpr::qt {
 			case core::tour_transcript_note::not_run:          return QObject::tr("not run, outside the read-only list");
 			case core::tour_transcript_note::ran_outside_list: return QObject::tr("ran, outside the read-only list");
 			case core::tour_transcript_note::unchecked:        return QObject::tr("outside the read-only list, not checked");
+			case core::tour_transcript_note::not_stopped:      return QObject::tr("not stopped, strict run checks are off");
 			}
 			return { };
 		}

@@ -131,6 +131,10 @@ namespace bpr::core {
 		ran_outside_list,
 		/// Its result was never matched to it: past the held commands' bound.
 		unchecked,
+		/// [[BPR-1918]]. A check would have ended the run, and the custom
+		/// profile's strict run checks are off: a tool or MCP server init
+		/// loaded, a tool used outside the list, or a block that is not text.
+		not_stopped,
 	};
 
 	struct tour_transcript_entry
