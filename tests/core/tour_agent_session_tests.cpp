@@ -216,7 +216,8 @@ namespace {
 		expect(relocate_tour_stop(far, 0U, files) && far.Items[0].Stop.FirstLine == 25U && far.Items[0].Stop.LastLine == 26U, "below every hunk it moves to the last one's end");
 		auto near = propose_tour(tour_agent_run_id{ 5 }, tour_draft_answer{ .Stops = { { "src/a.cpp", 18U, 18U, "Near", "One." } } }, files, review_tour{ });
 		expect(relocate_tour_stop(near, 0U, files) && near.Items[0].Stop.FirstLine == 21U && near.Items[0].Stop.LastLine == 21U, "a near stop moves to the closest hunk");
-		expect(!relocate_tour_stop(near, 0U, std::vector<tour_anchor_file>{ tour_anchor_file{ .Path = "src/a.cpp", .HeadLines = 60U } }) && !relocate_tour_stop(near, 9U, files), "no hunks or no such part: nothing moves");
+		const auto noHunks = std::vector<tour_anchor_file>{ tour_anchor_file{ .Path = "src/a.cpp", .HeadLines = 60U } };
+		expect(!relocate_tour_stop(near, 0U, noHunks) && !relocate_tour_stop(near, 9U, files), "no hunks or no such part: nothing moves");
 		static_cast<void>(decide_tour_proposal(near, 0U, tour_proposal_decision::discarded, ""));
 		expect(!relocate_tour_stop(near, 0U, files), "a decided part does not move");
 	}
