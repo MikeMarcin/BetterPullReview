@@ -129,6 +129,14 @@ add_library(
         src/profile_epoch_actor_registry.cpp
         src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
+        src/github_host_credential_refresh_and_store.cpp
+        src/github_host_dispatch_and_enrollment.cpp
+        src/github_host_failure_and_shutdown.cpp
+        src/github_host_profile_sessions.cpp
+        src/github_host_public_preview_and_projection.cpp
+        src/github_host_retained_refresh_and_delete.cpp
+        src/github_host_support.cpp
+        src/github_host_viewer_and_capabilities.cpp
         src/github_window_read_host.cpp
         src/reference_page.cpp
         src/home_open_host.cpp

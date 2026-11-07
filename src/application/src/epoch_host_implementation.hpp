@@ -1,5 +1,5 @@
-#ifndef BPR_APP_EPOCH_HOST_IMPLEMENTATION_HPP
-#define BPR_APP_EPOCH_HOST_IMPLEMENTATION_HPP
+#ifndef BPR_SRC_APPLICATION_SRC_EPOCH_HOST_IMPLEMENTATION_HPP
+#define BPR_SRC_APPLICATION_SRC_EPOCH_HOST_IMPLEMENTATION_HPP
 #include "bpr/application/agent_workspace.hpp"
 #include "bpr/application/cached_review_source_port.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
