@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1930"
 title: "General feedback on the whole tour: the agent revises stops, focus and structure as one proposal"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1925"]
 priority: "P1"
@@ -59,3 +59,53 @@ Load `frontend-design:frontend-design` first.
   pending, and revises it.
 - AC4. Owner look: Accept/Reject on a frozen build.
 - AC5. The RFC amendment and the documentation gate pass.
+
+## Implementation v001 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. The one bold element stays
+BPR-1925 v003's: proposals in the tour, grey and dashed until accepted. The
+rest is the drawer's quiet chrome. On branch `worktree-agent-a2168bac3b72f3c50`
+from `main` `b16722732`. RFC-BPR-0092 Amendment BPR-1930, BPR-1931 and
+`review-tours.md` record it.
+
+- **Core** (`tour_agent_session.hpp`):
+  - new parts `remove_stop`, `merge_stops`, `split_stop`, `reorder` and
+    `focus`;
+  - `tour_revision` on `tour_ask_answer`, checked by `propose_tour_changes`
+    (distinct stops, a merge keeps every line, a split stays inside its
+    stop, an order is every stop once; refusals counted);
+  - `apply_tour_revision` (one restorable tour) and `prune_tour_proposal`;
+  - the session's `Focus` and `Waiting` feedback (`set_tour_focus`,
+    `clear_tour_focus`, `queue_tour_feedback`, `take_tour_feedback`);
+  - `merge_tour_proposal` lets a revision of the waiting stops replace them,
+    and a structural part supersede one about the same stops;
+  - `proposed_in_thread` is false for the tour's chat, so its parts wait in
+    the tour.
+- **Application**: the tour chat's turn answers in `bpr.tour-revise.v1` and is
+  given `waiting_stops` and the focus. Draft the tour is given the focus.
+- **Composition** (`window_tours.cpp`):
+  - feedback given in the tour chat while Draft the tour runs is kept, then
+    sent once the draft proposes;
+  - an accepted structural part is restored as one edit;
+  - Set focus sets the session's focus, and the chip's × clears it.
+- **Qt**:
+  - the tour's chat toggle sits at the right of the tour's header, after
+    Conversation, and stays at the right when the header wraps;
+  - the route marks the stops a part changes (grey dashed ground and ring,
+    a pill, a struck title for a removal);
+  - removal, merge and split boxes wait on the card of the stop they lead,
+    with Remove, Merge or Split at the right;
+  - a proposed order waits above the route with Reorder;
+  - the focus waits under the panel's line and becomes a chip;
+  - the tour chat says how many changes wait in the tour, and shows feedback
+    waiting for the draft.
+  - A box placed on a stop's card asks for its size afresh. Before this, the
+    card kept room for the box's hidden editor, and lines spread apart.
+- **Stub and look**: `scoped_writing_agent` answers `bpr.tour-revise.v1`.
+  `--attended-tour-drafting --attended-tour-revision`:
+  - feedback is given while the draft runs, and the draft is revised before
+    it is accepted;
+  - Accept all;
+  - "Too many stops. Merge 2 and 3, and focus on the renderer changes.",
+    shown in place, with its focus set;
+  - with `BPR_ATTENDED_TOUR_RESET`, Reset tour, its question and Undo reset.

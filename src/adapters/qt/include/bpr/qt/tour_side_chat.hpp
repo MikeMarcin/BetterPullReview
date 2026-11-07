@@ -134,8 +134,16 @@ namespace bpr::qt {
 		void present(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal, std::shared_ptr<const core::review_tour> aDraft);
 		/// \brief The tour as it is now, between sessions' presentations.
 		void set_draft(std::shared_ptr<const core::review_tour> aDraft);
-		void set_running(bool aAny);
+		/// \brief [[BPR-1930]]. `aDrafting`: the run is Draft the tour, and the
+		/// tour's chat still takes feedback, which waits for its proposal.
+		void set_running(bool aAny, bool aDrafting = false);
 		void set_available(bool aReady, const QString& aWhy);
+		/// \brief [[BPR-1930]]. Feedback kept until the draft proposes, shown
+		/// in the tour's chat while it waits.
+		[[nodiscard]] auto waiting_feedback() const noexcept -> QWidget* { return WaitingBubble; }
+		/// \brief [[BPR-1930]]. The tour chat's line saying where its proposal
+		/// waits, for the newest turn that proposed.
+		[[nodiscard]] auto in_tour_line() const noexcept -> QLabel* { return InTour; }
 		/// \brief [[BPR-1919]]. Replies and proposals set their code as the
 		/// diff's comments do.
 		void set_code_style(const QFont& aFont, qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
@@ -234,9 +242,13 @@ namespace bpr::qt {
 		std::set<std::uint64_t>                                                     Expanded;
 		std::map<std::size_t, QString>                                              Edited;
 		std::set<std::size_t>                                                       Editing;
-		bool                                                                        Running = false;
-		bool                                                                        Mine    = false;
-		bool                                                                        Ready   = true;
+		bool                                                                        Running       = false;
+		bool                                                                        Drafting      = false;
+		QWidget*                                                                    WaitingBubble = nullptr;
+		QLabel*                                                                     InTour        = nullptr;
+		[[nodiscard]] auto                                                          takes_feedback() const -> bool;
+		bool                                                                        Mine  = false;
+		bool                                                                        Ready = true;
 		QString                                                                     Why;
 		std::size_t                                                                 Shown = 0U;
 		bool                                                                        Stick = false;

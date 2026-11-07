@@ -10,6 +10,7 @@
 
 #include <functional>
 #include <map>
+#include <memory>
 #include <optional>
 #include <set>
 #include <utility>
@@ -88,6 +89,30 @@ namespace bpr::qt {
 		/// \brief [[BPR-1914]] v003. Opens the side chat about the whole tour.
 		void               set_chat_dispatch(std::function<void()> aChat) { ChatDispatch = std::move(aChat); }
 		[[nodiscard]] auto chat_button() const noexcept -> QToolButton* { return ChatTour; }
+		/// \brief [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour
+		/// (once confirmed) and Undo reset. The host clears, resets and
+		/// restores; this panel only asks.
+		void set_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset);
+		/// \brief [[BPR-1930]]. The tour as it is, to name the stops a
+		/// structural part changes by their numbers and titles.
+		void set_draft(std::shared_ptr<const core::review_tour> aDraft) { Tour = std::move(aDraft); }
+		/// \brief [[BPR-1931]]. What Reset tour would clear, whether it can, and
+		/// whether the last reset can still be undone.
+		void present_reset(const core::tour_reset_tally& aTally, bool aAvailable, bool aUndoable);
+		/// \brief [[BPR-1931]]. The confirmation's sentence: what is lost, and
+		/// for a published tour that only the local draft is reset.
+		[[nodiscard]] static auto reset_words(const core::tour_reset_tally& aTally) -> QString;
+		/// \brief [[BPR-1930]]. The remembered focus, as a chip with ×.
+		[[nodiscard]] auto focus_chip() const noexcept -> QWidget* { return FocusChip; }
+		[[nodiscard]] auto focus_text() const noexcept -> QLabel* { return FocusText; }
+		[[nodiscard]] auto focus_clear_button() const noexcept -> QToolButton* { return FocusClear; }
+		[[nodiscard]] auto reset_button() const noexcept -> QPushButton* { return Reset; }
+		[[nodiscard]] auto reset_confirm() const noexcept -> QWidget* { return ResetConfirm; }
+		[[nodiscard]] auto reset_sentence() const noexcept -> QLabel* { return ResetSentence; }
+		[[nodiscard]] auto reset_confirm_button() const noexcept -> QPushButton* { return ResetYes; }
+		[[nodiscard]] auto reset_cancel_button() const noexcept -> QPushButton* { return ResetNo; }
+		[[nodiscard]] auto reset_done() const noexcept -> QWidget* { return ResetDone; }
+		[[nodiscard]] auto undo_reset_button() const noexcept -> QPushButton* { return UndoReset; }
 		/// \brief [[BPR-1919]]. Proposed texts' code: font, colours and the
 		/// highlighter.
 		void set_code_style(const QFont& aFont, qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
@@ -221,6 +246,29 @@ namespace bpr::qt {
 		QScrollArea*                                                                ProposalScroll   = nullptr;
 		std::vector<QPointer<QWidget>>                                              Accented;
 		std::vector<QPointer<QWidget>>                                              Fields;
+		/// [[BPR-1930]]. A structural part's words: what it changes, by the
+		/// tour's numbers and titles.
+		[[nodiscard]] auto                       stop_number(core::tour_stop_id aStop) const -> int;
+		[[nodiscard]] auto                       stop_title(core::tour_stop_id aStop) const -> QString;
+		void                                     add_revision_lines(QVBoxLayout* aColumn, const core::tour_proposal_item& aItem, QWidget* aBox);
+		std::shared_ptr<const core::review_tour> Tour;
+		QVBoxLayout*                             FocusSlot     = nullptr;
+		QWidget*                                 FocusChip     = nullptr;
+		QLabel*                                  FocusText     = nullptr;
+		QToolButton*                             FocusClear    = nullptr;
+		QPushButton*                             Reset         = nullptr;
+		QWidget*                                 ResetConfirm  = nullptr;
+		QLabel*                                  ResetSentence = nullptr;
+		QPushButton*                             ResetYes      = nullptr;
+		QPushButton*                             ResetNo       = nullptr;
+		QWidget*                                 ResetDone     = nullptr;
+		QPushButton*                             UndoReset     = nullptr;
+		core::tour_reset_tally                   ResetTally;
+		bool                                     ResetAvailable = false;
+		std::function<void()>                    ClearFocusDispatch;
+		std::function<void()>                    ResetDispatch;
+		std::function<void()>                    UndoResetDispatch;
+		void                                     refresh_shape();
 	};
 }
 

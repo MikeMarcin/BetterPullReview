@@ -16,6 +16,7 @@
 #include <QComboBox>
 #include <QDesktopServices>
 #include <QTextStream>
+#include <QTimer>
 #include <QVariant>
 #include <QWidget>
 
@@ -381,13 +382,17 @@ namespace bpr::app {
 																		   }
 																	   }
 																	   Window->tour_editor()->present(projected);
+#if defined(BPR_AGENT_INTEGRATIONS)
+																	   // [[BPR-1931]]. Undo reset goes once the tour changes.
+																	   present_tour_reset();
+#endif
 																	   finish_pending_tour_start(projected);
 																	   if (TourPublication) {
 																		   TourPublication->observe(projected);
 																	   }
 																	   Window->prepare_tour_action()->setEnabled(static_cast<bool>(aProjection.Draft));
 																	   observe_tour_head();
-																			});
+																   });
 		TourHost->set_diagnostics(DiagnosticLog.get()); // [[BPR-1830]]
 		TourHost->start();
 		refresh_tour_imports();
@@ -897,6 +902,16 @@ namespace bpr::app {
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			finish_tour_draft(run, aResult, words);
+			// [[BPR-1930]] AC3. Feedback given while it drafted goes next, to
+			// revise what it proposed; a draft that didn't finish says so in
+			// the tour chat, with the feedback as written.
+			if (TourAgent.Waiting && aResult.Outcome == application::agent_run_outcome::success && TourProposal) {
+				send_waiting_tour_feedback();
+			} else if (const auto waiting = core::take_tour_feedback(TourAgent)) {
+				if (const auto turn = core::begin_tour_ask(TourAgent, core::tour_thread{ }, std::nullopt, *waiting)) {
+					static_cast<void>(core::finish_tour_run(TourAgent, *turn, core::tour_agent_run_state::failed, "The draft didn't propose a tour, so this feedback wasn't sent. Send it again when you want."));
+				}
+			}
 		} else if (TourAskPending) {
 			TourAskPending = false;
 		} else {
@@ -936,6 +951,14 @@ namespace bpr::app {
 			return;
 		}
 		adopt_tour_conversation();
+		// [[BPR-1930]] AC3, owner: "particularly during the initial agent
+		// draft". Feedback on the whole tour while Draft the tour runs waits
+		// for its proposal, then revises it.
+		if (aThread.Kind == core::tour_thread_kind::tour && !aUpdate && TourDraftPending && core::queue_tour_feedback(TourAgent, question)) {
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Your feedback is sent to the tour agent when the draft is ready, so it revises that draft."));
+			present_tour_session();
+			return;
+		}
 		// A turn that cannot run still lands in its side chat, saying why.
 		const auto refuse = [this, &aThread, &aPassage, &question, aUpdate](const std::string& aWhy) {
 			if (const auto run = core::begin_tour_ask(TourAgent, aThread, aPassage, question, aUpdate)) {
@@ -964,7 +987,7 @@ namespace bpr::app {
 																					  : "modified";
 			files.push_back({ file.Path, change, file.HeadHunks });
 		}
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent, aThread), aThread, aPassage, question, aUpdate);
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent, aThread), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus);
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
@@ -1011,10 +1034,112 @@ namespace bpr::app {
 			return;
 		}
 		static_cast<void>(core::note_finished_tour_run(TourAgent, aRun, core::left_out_entries(*proposal)));
-		if (!proposal->Items.empty()) {
+		const auto* const asked = core::find_tour_run(TourAgent, aRun);
+		const auto        whole = asked != nullptr && asked->Thread.Kind == core::tour_thread_kind::tour;
+		if (!proposal->Items.empty() || proposal->RevisesWaitingStops) {
 			TourProposal = core::merge_tour_proposal(TourProposal, std::move(*proposal));
-			Window->tour_editor()->show_writing_notice(QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you accept it."));
+			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself.
+			Window->tour_editor()->show_writing_notice(whole ? QStringLiteral("The tour agent's changes wait in the tour, marked grey. Nothing changes until you accept them.")
+															 : QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you accept it."));
 		}
+	}
+
+	/// [[BPR-1930]] AC3. The feedback given while Draft the tour ran, sent as
+	/// the tour chat's next turn once the run has fully ended, so it is given
+	/// the draft's proposal and revises it.
+	void github_application::implementation::send_waiting_tour_feedback(const int aTries)
+	{
+		if (Closing || Window == nullptr || !TourAgent.Waiting) {
+			return;
+		}
+		if (!tour_session_idle() && aTries < 50) {
+			QTimer::singleShot(100, Window->tour_editor(), [this, aTries] { send_waiting_tour_feedback(aTries + 1); });
+			return;
+		}
+		const auto feedback = core::take_tour_feedback(TourAgent);
+		if (feedback) {
+			request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(*feedback), false);
+		}
+	}
+
+	void github_application::implementation::clear_tour_focus()
+	{
+		if (core::clear_tour_focus(TourAgent)) {
+			Window->tour_editor()->show_writing_notice(QStringLiteral("Focus cleared. Later drafts and chat turns cover the whole pull request."));
+			present_tour_session();
+		}
+	}
+
+	/// [[BPR-1931]], owner: "I want the ability to reset/clear the tour that
+	/// I'm authoring". The core makes the empty draft; the tour host saves
+	/// it as any edit (one Undo restores it too); the chats, the focus and
+	/// any proposal go with it, kept here for Undo reset. A published tour is
+	/// not touched: no GitHub request is made.
+	void github_application::implementation::reset_tour()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Closing || !draft || draft->ReadOnly || core::running_tour_run(TourAgent) || !core::resettable(core::reset_tally_of(*draft, TourAgent, TourProposal))) {
+			return;
+		}
+		auto       snapshot = tour_reset_undo{ .Draft = *draft, .Session = TourAgent, .Proposal = TourProposal, .Anchors = TourAnchorFiles };
+		const auto revision = draft->Revision;
+		TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = core::reset_tour(*draft) });
+		const auto after = TourHost->presentation().Draft;
+		if (!after || after->Revision == revision) {
+			Window->tour_editor()->show_writing_notice(QStringLiteral("The tour couldn't be reset. Nothing changed."));
+			return;
+		}
+		snapshot.ResetRevision = after->Revision;
+		TourResetUndo          = std::move(snapshot);
+		TourAgent              = core::tour_agent_session{ .LastRun = TourAgent.LastRun };
+		TourProposal.reset();
+		TourAnchorFiles.clear();
+		Window->tour_editor()->show_writing_notice({ });
+		present_tour_session();
+		present_tour_reset();
+	}
+
+	void github_application::implementation::undo_tour_reset()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Closing || !draft || !TourResetUndo || draft->Revision != TourResetUndo->ResetRevision || core::running_tour_run(TourAgent)) {
+			TourResetUndo.reset();
+			present_tour_reset();
+			return;
+		}
+		// Taken first: the restore's own presentation lets a stale undo go.
+		auto undo = std::move(*TourResetUndo);
+		TourResetUndo.reset();
+		TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = undo.Draft });
+		const auto after = TourHost->presentation().Draft;
+		if (!after || after->Revision == draft->Revision) {
+			TourResetUndo = std::move(undo);
+			Window->tour_editor()->show_writing_notice(QStringLiteral("The reset couldn't be undone. The tour is as the reset left it."));
+			return;
+		}
+		const auto last   = TourAgent.LastRun;
+		TourAgent         = std::move(undo.Session);
+		TourAgent.LastRun = std::max(TourAgent.LastRun, last);
+		TourProposal      = std::move(undo.Proposal);
+		TourAnchorFiles   = std::move(undo.Anchors);
+		Window->tour_editor()->show_writing_notice(QStringLiteral("Reset undone. The tour, its chats, its focus and its proposals are back."));
+		present_tour_session();
+		present_tour_reset();
+	}
+
+	/// [[BPR-1931]]. What Reset tour would clear, and whether its Undo is
+	/// still offered, for the Tour tab.
+	void github_application::implementation::present_tour_reset()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (Window == nullptr) {
+			return;
+		}
+		if (TourResetUndo && (!draft || draft->Revision != TourResetUndo->ResetRevision)) {
+			TourResetUndo.reset();
+		}
+		const auto tally = draft ? core::reset_tally_of(*draft, TourAgent, TourProposal) : core::tour_reset_tally{ };
+		Window->tour_editor()->present_tour_reset(tally, draft && !draft->ReadOnly, TourResetUndo.has_value());
 	}
 
 	/// [[BPR-1900]]. The host's facts the core anchors against: the pull
@@ -1100,7 +1225,8 @@ namespace bpr::app {
 																					  : "modified";
 			files.push_back({ file.Path, change, file.HeadHunks });
 		}
-		const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft);
+		adopt_tour_conversation();
+		const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus);
 		if (!prompt) {
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("This pull request is too large to describe to the agent in one request."));
 			return;
@@ -1158,7 +1284,27 @@ namespace bpr::app {
 			return;
 		}
 		const auto& item = decided.Items[aIndex];
-		if (aDecision == core::tour_proposal_decision::accepted) {
+		if (aDecision == core::tour_proposal_decision::accepted && item.Part == core::tour_proposal_part::focus) {
+			// [[BPR-1930]] AC2. The focus is the session's, for later turns.
+			static_cast<void>(core::set_tour_focus(TourAgent, item.Text));
+		} else if (aDecision == core::tour_proposal_decision::accepted && core::structural(item.Part)) {
+			// [[BPR-1930]] AC1. The core makes the revised tour; the host
+			// restores it as one edit, so one Undo takes it back.
+			const auto revised = core::apply_tour_revision(*draft, item);
+			if (!revised) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("The tour changed since this was proposed, so it can't be applied. Nothing changed."));
+				return;
+			}
+			const auto revision = draft->Revision;
+			TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = *revised });
+			const auto after = TourHost->presentation().Draft;
+			if (!after || after->Revision == revision) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This change couldn't be applied. Nothing changed."));
+				return;
+			}
+			// A pending part about a stop this took away goes with it.
+			static_cast<void>(core::prune_tour_proposal(decided, *after));
+		} else if (aDecision == core::tour_proposal_decision::accepted) {
 			auto command = core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision };
 			if (item.Part == core::tour_proposal_part::stop_text) {
 				// [[BPR-1914]]. A new explanation for a stop still in the tour.
@@ -1205,6 +1351,7 @@ namespace bpr::app {
 	{
 		if (Window != nullptr) {
 			Window->tour_editor()->present_tour_session(TourAgent, TourProposal);
+			present_tour_reset();
 		}
 	}
 

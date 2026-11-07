@@ -206,10 +206,16 @@ namespace bpr::core {
 	/// conversation.
 	struct tour_proposal_tally
 	{
-		bool        Problem                                              = false;
-		bool        Solution                                             = false;
-		std::size_t Stops                                                = 0U;
-		std::size_t StopTexts                                            = 0U;
+		bool        Problem   = false;
+		bool        Solution  = false;
+		std::size_t Stops     = 0U;
+		std::size_t StopTexts = 0U;
+		/// [[BPR-1930]]. A whole-tour revision's parts.
+		std::size_t Removals                                             = 0U;
+		std::size_t Merges                                               = 0U;
+		std::size_t Splits                                               = 0U;
+		bool        Reorder                                              = false;
+		bool        Focus                                                = false;
 		auto        operator==(const tour_proposal_tally&) const -> bool = default;
 	};
 
@@ -258,9 +264,31 @@ namespace bpr::core {
 	struct tour_agent_session
 	{
 		std::vector<tour_agent_run> Runs;
-		std::uint64_t               LastRun                                             = 0U;
-		auto                        operator==(const tour_agent_session&) const -> bool = default;
+		std::uint64_t               LastRun = 0U;
+		/// [[BPR-1930]], owner 2026-11-07: "the tour should focus on <this
+		/// particular part of the PR>". The focus the author accepted, given
+		/// to every later draft and chat turn of this tour until cleared.
+		std::string Focus;
+		/// [[BPR-1930]]. Feedback on the whole tour given while Draft the tour
+		/// runs: sent as the tour chat's next turn once the draft proposes,
+		/// so it revises that proposal instead of starting over.
+		std::optional<std::string> Waiting;
+		auto                       operator==(const tour_agent_session&) const -> bool = default;
 	};
+	inline constexpr std::size_t maximum_tour_focus_bytes = 280U;
+	/// \brief [[BPR-1930]]. Sets the remembered focus: not blank, valid
+	/// UTF-8, at most `maximum_tour_focus_bytes`. False otherwise.
+	auto set_tour_focus(tour_agent_session& aSession, std::string_view aFocus) -> bool;
+	/// \brief [[BPR-1930]]. Clears the remembered focus; false when there was
+	/// none.
+	auto clear_tour_focus(tour_agent_session& aSession) -> bool;
+	/// \brief [[BPR-1930]]. Keeps whole-tour feedback given while a Draft the
+	/// tour run is running, after any already kept, within
+	/// `maximum_tour_question_bytes`. Refused when no draft is running, or for
+	/// blank or invalid text.
+	auto queue_tour_feedback(tour_agent_session& aSession, std::string_view aFeedback) -> bool;
+	/// \brief [[BPR-1930]]. The kept feedback, taken: it is sent once.
+	[[nodiscard]] auto take_tour_feedback(tour_agent_session& aSession) -> std::optional<std::string>;
 
 	/// \brief Starts a run. Refused (nullopt) while another run is running:
 	/// the session asks one thing at a time. The oldest run is forgotten past
@@ -364,7 +392,27 @@ namespace bpr::core {
 		stop,
 		/// [[BPR-1914]]. A new explanation for a stop already in the tour.
 		stop_text,
+		/// [[BPR-1930]]. A stop of the tour taken out (`StopId`).
+		remove_stop,
+		/// [[BPR-1930]]. Stops of the tour made one (`Stops`, in tour order):
+		/// the first takes the others' lines, `Stop.Title` and `Text`.
+		merge_stops,
+		/// [[BPR-1930]]. A stop of the tour (`StopId`) made several
+		/// (`Pieces`), each on lines of its own.
+		split_stop,
+		/// [[BPR-1930]]. The tour's stops in a new order (`Stops`).
+		reorder,
+		/// [[BPR-1930]]. A focus for later turns (`Text`).
+		focus,
 	};
+	inline constexpr std::size_t tour_proposal_part_count = 9U;
+	static_assert(static_cast<std::size_t>(tour_proposal_part::focus) + 1U == tour_proposal_part_count, "tour_proposal_part_count must cover every part");
+	/// \brief [[BPR-1930]]. Whether a part changes the tour's structure:
+	/// removes, merges, splits or reorders its stops.
+	[[nodiscard]] auto structural(tour_proposal_part aPart) noexcept -> bool;
+	/// \brief [[BPR-1930]]. Whether accepting a part takes a text: the
+	/// Problem, the Solution, a stop's explanation, a merged stop's, a focus.
+	[[nodiscard]] auto takes_text(tour_proposal_part aPart) noexcept -> bool;
 	enum class tour_proposal_decision : std::uint8_t {
 		pending,
 		accepted,
@@ -389,7 +437,12 @@ namespace bpr::core {
 		/// [[BPR-1914]] v002. The run that proposed it: an ask turn's parts
 		/// are shown in that turn's thread.
 		tour_agent_run_id Run;
-		auto              operator==(const tour_proposal_item&) const -> bool = default;
+		/// [[BPR-1930]]. For a merge, its stops in tour order; for a reorder,
+		/// every stop of the tour in its new order.
+		std::vector<tour_stop_id> Stops;
+		/// [[BPR-1930]]. For a split, the stops it becomes.
+		std::vector<proposed_tour_stop> Pieces;
+		auto                            operator==(const tour_proposal_item&) const -> bool = default;
 	};
 	/// \brief A proposed stop the core left out, and why.
 	struct tour_left_out_stop
@@ -407,7 +460,14 @@ namespace bpr::core {
 		/// do not anchor are never shown as items; they are counted in one
 		/// quiet line and kept in the run's transcript.
 		std::vector<tour_left_out_stop> LeftOut;
-		auto                            operator==(const tour_proposal&) const -> bool = default;
+		/// [[BPR-1930]]. A whole-tour turn that revised the proposed stops
+		/// still waiting: its stops replace them.
+		bool RevisesWaitingStops = false;
+		/// [[BPR-1930]]. Revision parts the core refused (a stop number not in
+		/// the tour, a merge whose lines can't be kept, an order that isn't
+		/// every stop once), counted for the reply's line.
+		std::size_t Refused                                        = 0U;
+		auto        operator==(const tour_proposal&) const -> bool = default;
 	};
 	/// \brief The proposal an answer makes against the draft as it is now:
 	/// Problem, Solution, then the anchored stops: those on a change first,
@@ -503,16 +563,57 @@ namespace bpr::core {
 	};
 	/// \brief An ask turn's answer, as decoded: the reply, and any change it
 	/// proposes. Nothing here is checked yet.
+	/// \brief [[BPR-1930]]. Stops of the tour (one-based) to make one.
+	struct proposed_merge
+	{
+		std::vector<std::size_t> Stops;
+		std::string              Title;
+		std::string              Explanation;
+		auto                     operator==(const proposed_merge&) const -> bool = default;
+	};
+	/// \brief [[BPR-1930]]. A stop of the tour (one-based) to make several.
+	struct proposed_split
+	{
+		std::size_t                     Stop = 0U;
+		std::vector<proposed_tour_stop> Into;
+		auto                            operator==(const proposed_split&) const -> bool = default;
+	};
+	/// \brief [[BPR-1930]], owner 2026-11-07: "too many stops/too few stops
+	/// add/remove some or merge some". What a whole-tour turn changes in the
+	/// tour's structure, by the stop numbers the tour so far gave it.
+	struct tour_revision
+	{
+		std::vector<std::size_t>    Remove;
+		std::vector<proposed_merge> Merges;
+		std::vector<proposed_split> Splits;
+		/// Every stop's number once, in the new order; empty for none.
+		std::vector<std::size_t> Order;
+		std::string              Focus;
+		/// The answer's stops replace the proposed stops still waiting.
+		bool ReplaceWaitingStops                            = false;
+		auto operator==(const tour_revision&) const -> bool = default;
+	};
+	inline constexpr std::size_t maximum_split_pieces = 6U;
 	struct tour_ask_answer
 	{
 		std::string                     Reply;
 		tour_draft_answer               Changes;
 		std::vector<proposed_stop_text> StopTexts;
-		auto                            operator==(const tour_ask_answer&) const -> bool = default;
+		/// [[BPR-1930]]. Only a whole-tour turn answers with one.
+		std::optional<tour_revision> Revision;
+		auto                         operator==(const tour_ask_answer&) const -> bool = default;
 	};
 	/// \brief The proposal an ask turn makes: as `propose_tour` for the
 	/// Problem, the Solution and new stops, then a `stop_text` item for each
 	/// stop rewrite that names a stop of `aDraft` (others are dropped).
+	/// [[BPR-1930]]. Then a whole-tour revision's parts, each checked against
+	/// `aDraft`: removals, merges and splits name distinct stops of the tour,
+	/// none named twice; a merge's stops all have confirmed lines, or all
+	/// have lines to confirm in one file within `maximum_proposed_stop_lines`,
+	/// so the merged stop keeps every line; a split's pieces anchor in the
+	/// pull request inside the stop's own lines; an order names every stop
+	/// once and differs from the tour's; a focus is not blank. A part that
+	/// fails is counted in `Refused`, never shown.
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal;
 	/// \brief What a proposal holds, counted.
 	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) noexcept -> tour_proposal_tally;
@@ -522,5 +623,40 @@ namespace bpr::core {
 	/// same stop). Decided items of `aCurrent` are let go. Nothing proposed
 	/// leaves `aCurrent` as it is.
 	[[nodiscard]] auto merge_tour_proposal(const std::optional<tour_proposal>& aCurrent, tour_proposal aIncoming) -> std::optional<tour_proposal>;
+	/// \brief [[BPR-1930]]. The tour after accepting a structural part, as one
+	/// value the host restores, so one Undo takes it back: a removal or a
+	/// split retires a published stop as Remove does; a merge keeps every
+	/// source's lines on the merged stop and takes the part's title and text;
+	/// a reorder puts the stops it names, still in the tour, in its order in
+	/// the places they hold. Nothing when a stop it names is gone, or the
+	/// result would not be a valid tour.
+	[[nodiscard]] auto apply_tour_revision(const review_tour& aDraft, const tour_proposal_item& aItem) -> std::optional<review_tour>;
+	/// \brief [[BPR-1930]]. Discards the pending parts that name a stop no
+	/// longer in `aDraft` (an accepted merge took it, say); how many.
+	auto prune_tour_proposal(tour_proposal& aProposal, const review_tour& aDraft) -> std::size_t;
+
+	/// \brief [[BPR-1931]], owner 2026-11-07: "I want the ability to
+	/// reset/clear the tour that I'm authoring". The draft with no Problem,
+	/// Solution or stops. Its identity, head and any published binding stay:
+	/// a published stop is retired as Remove retires it, so nothing on
+	/// GitHub changes until the author publishes again.
+	[[nodiscard]] auto reset_tour(const review_tour& aDraft) -> review_tour;
+	/// \brief [[BPR-1931]]. What a reset would clear, counted for its
+	/// confirmation.
+	struct tour_reset_tally
+	{
+		bool        Problem   = false;
+		bool        Solution  = false;
+		std::size_t Stops     = 0U;
+		std::size_t Proposals = 0U;
+		std::size_t Chats     = 0U;
+		bool        Focus     = false;
+		/// The tour was published: only the local draft is reset.
+		bool Published                                         = false;
+		auto operator==(const tour_reset_tally&) const -> bool = default;
+	};
+	[[nodiscard]] auto reset_tally_of(const review_tour& aDraft, const tour_agent_session& aSession, const std::optional<tour_proposal>& aProposal) -> tour_reset_tally;
+	/// \brief [[BPR-1931]]. Whether there is anything to reset.
+	[[nodiscard]] auto resettable(const tour_reset_tally& aTally) noexcept -> bool;
 }
 #endif

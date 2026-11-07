@@ -189,7 +189,19 @@ under the part's own text, with a "Proposed" pill on its step. Each has
 **Accept** at the right, with **Edit text** and **Discard** before it. One line
 under the button counts them, with **Accept all**. **Ready, next** is offered
 once a stop's lines are confirmed in the code (Show in code, then Use selected
-lines), and it goes on to the next stop when the stop shows as Ready. When Claude ran a command outside the read-only list, one
+lines), and it goes on to the next stop when the stop shows as Ready. Since
+[[BPR-1930]] the tour's own chat proposes the tour's shape too: stops to
+remove, merge, split or reorder, and a focus. The core checks each part against
+the tour (a merge keeps every line of its stops), and the stops a part changes
+are marked grey on the route with a pill ("Remove", "Merge with 3", "Moves to
+1"). Its box waits on the card of the stop it leads, with **Remove**, **Merge**
+or **Split** at the right; a new order waits above the route with
+**Reorder**. A set focus shows as a chip under the tour's header and rides
+every later draft and chat turn. Feedback given while Draft the tour runs is
+sent once it proposes, and revises the stops still waiting. **Reset tour**
+([[BPR-1931]]) asks first, naming what is lost, clears the draft, its
+proposals, chats and focus, and offers **Undo reset** until the tour changes;
+a published tour on GitHub is not touched. When Claude ran a command outside the read-only list, one
 quiet line under the proposal says how many, with a link to them in the
 transcript (BPR-1912). **Transcript** opens the session's runs, newest first,
 in a window of its own beside the main window (BPR-1913): what was asked,
