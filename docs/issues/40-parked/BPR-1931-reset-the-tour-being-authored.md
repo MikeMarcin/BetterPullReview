@@ -9,7 +9,7 @@ priority: "P2"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-07, coordinator chat: 'I want the ability to reset/clear the tour that I'm authoring'","related_cards":["BPR-1900","BPR-1925"]}
 parked_on: "human-review"
-acceptance: [{"criterion": "AC1 Reset clears the local tour draft, proposals, chats and focus. Undo restores them exactly (Qt and host tests)", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session (reset_tour, tally, restore gives the draft back exactly); qt_tour_agent_session_view (question, Keep, Reset, Undo dispatch); frozen look ATTENDED_TOUR_RESET_DONE:stops=0:chats=0:focus=0:proposal=0 then ATTENDED_TOUR_RESET_UNDONE:stops=4:chats=1:focus and merge back", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#verification-v001-focused"}}, {"criterion": "AC2 A published tour on GitHub is untouched (a test with a fixture)", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session: reset of a fixture draft bound to a published tour keeps the binding and retires the published stop whole; the host's reset makes no GitHub request (restore through the tour host only)", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#verification-v001-focused"}}, {"criterion": "AC3 Owner look: may share a session with the whole-tour feedback card", "outcome": "pending", "revision": "bdd57d419", "evidence": {"kind": "observation", "detail": "Same frozen build and session d2e623413a8acad6fc6e91bb4f68a7b7, candidate BPR-1931-reset-tour-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#attended-review-v001"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#implementation-v001-2026-11-07"}}]
+acceptance: [{"criterion": "AC1 Reset clears the local tour draft, proposals, chats and focus. Undo restores them exactly (Qt and host tests)", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session (reset_tour, tally, restore gives the draft back exactly); qt_tour_agent_session_view (question, Keep, Reset, Undo dispatch); frozen look ATTENDED_TOUR_RESET_DONE:stops=0:chats=0:focus=0:proposal=0 then ATTENDED_TOUR_RESET_UNDONE:stops=4:chats=1:focus and merge back", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#verification-v001-focused"}}, {"criterion": "AC2 A published tour on GitHub is untouched (a test with a fixture)", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session: reset of a fixture draft bound to a published tour keeps the binding and retires the published stop whole; the host's reset makes no GitHub request (restore through the tour host only)", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#verification-v001-focused"}}, {"criterion": "AC3 Owner look: may share a session with the whole-tour feedback card", "outcome": "pending", "revision": "bf4fa23d2", "evidence": {"kind": "observation", "detail": "v001 (bdd57d419) rejected: make Reset tour smaller like the Agent tab so the top row does not wrap so early. v002: frozen build /Users/jaeger/.codex/attended-builds/bpr1931-reset-icon-v002.tqz_uu89 of bf4fa23d2; new short session 1b8774b4d1243a37bd0e808eef98e315, candidate BPR-1931-reset-tour-icon-v002, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#attended-review-v002"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#implementation-v001-2026-11-07"}}]
 ---
 
 # BPR-1931: The author can reset or clear the tour they are authoring
@@ -95,4 +95,69 @@ On `bdd57d419`, dev build:
   `/Users/jaeger/.codex/attended-review/bpr1930-v001-k7Qx2m/state`, host started with `serve --tailscale`.
 - Candidates `BPR-1930-whole-tour-feedback-v001` and `BPR-1931-reset-tour-v001`
   (revision `bdd57d419-v001`), one Accept/Reject question each.
+- Status: ready, awaiting the owner.
+
+### v001 rejected (2026-11-07)
+
+v001 was merged to `main` as `82270d817` with [[BPR-1930]], which the owner
+accepted. The owner rejected BPR-1931's look in session
+`d2e623413a8acad6fc6e91bb4f68a7b7`, with two pictures (the Agent tab's small
+history button, and the Tour tab's wrapped header), verbatim: "I think the
+resource tour button can get smaller like it is on agents so that top row
+doesn't have to wrap so early". The pictures stay in that session's state.
+The v001 host is stopped and its frozen root removed.
+
+## v002 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v002 is on branch
+`bpr1931-v002-compact-reset`, made from `origin/main` `d2f131e72`.
+
+- **Reset tour is an icon button.** It is made by `make_drawer_tool`, as the
+  Agent tab's history action is: auto-raised, icon only, and taking the
+  keyboard. It shows the drawer's clear arrow (`drawer_glyph::clear`).
+  - Its accessible name is "Reset tour".
+  - Its tooltip starts with "Reset tour", then says what it clears, or why it
+    can't.
+  - Its accessible description says the same.
+  - The question, Keep the tour, Reset tour and Undo reset are unchanged.
+- **The header wraps later:**
+  - In the real window with the chat column closed, the header keeps one row
+    down to a 388-pixel drawer (432 in v001). The narrow drawer opens at 420,
+    so it no longer wraps there.
+  - In `qt_tour_agent_session_view`, the Tour tab keeps one row down to 365
+    pixels (409 in v001).
+  - The look measures this with `BPR_ATTENDED_TOUR_WRAP`
+    (`ATTENDED_TOUR_HEAD_ONE_ROW_DRAWER`) and draws the header at 420.
+
+### Verification (v002, focused)
+
+On `bf4fa23d2`, dev build:
+- `qt_tour_agent_session_view` now checks that Reset tour is icon-only and
+  auto-raised, with its name and tooltip. It prints and bounds the narrowest
+  one-row Tour tab: `TOUR_HEAD_ONE_ROW_FROM:365`, which was 409 on v001.
+- These pass too: `qt_tour_chat_in_tab`, `qt_tour_side_chat`,
+  `qt_tour_click_scroll`, `qt_tour_stop_card`, `qt_review_tour_*`,
+  `qt_drawer_surfaces_fit_scale_100/125/200` and `core_tour_agent_session`.
+- `application_review_round_trip_composition_contract` passes, resealed from
+  its own output (`96d7d417…`).
+- `coding-format-check` passes.
+- The frozen executable, offscreen with `BPR_ATTENDED_TOUR_WRAP=1` and
+  `BPR_ATTENDED_TOUR_RESET=1`, prints:
+  - `ATTENDED_TOUR_HEAD_ONE_ROW_DRAWER:388` (v001: 432);
+  - the same question as v001;
+  - `ATTENDED_TOUR_RESET_DONE:stops=0:problem=0:chats=0:focus=0:proposal=0`;
+  - `ATTENDED_TOUR_RESET_UNDONE:stops=4:chats=1:...:merge=1`.
+
+## Attended review (v002)
+
+- Frozen build `/Users/jaeger/.codex/attended-builds/bpr1931-reset-icon-v002.tqz_uu89`
+  of `bf4fa23d2` (executable SHA-256
+  `2ef6d19cd66f82424a0f319a8e7db73cbd892b586be27d3890e06d79c7b71990`).
+  Its launcher's own offscreen check reached `ATTENDED_TOUR_REVISION_SHOWN`.
+- Launch: `python3 /Users/jaeger/.codex/attended-builds/bpr1931-reset-icon-v002.tqz_uu89/launch.py`.
+- New short session `1b8774b4d1243a37bd0e808eef98e315`, state
+  `/Users/jaeger/.codex/attended-review/bpr1931-v002-R4m8zt/state`, host started
+  with `serve --tailscale`.
+- One candidate, `BPR-1931-reset-tour-icon-v002` (revision `bf4fa23d2-v002`),
+  with one Accept/Reject question.
 - Status: ready, awaiting the owner.

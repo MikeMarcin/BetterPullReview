@@ -106,7 +106,7 @@ namespace bpr::qt {
 		[[nodiscard]] auto focus_chip() const noexcept -> QWidget* { return FocusChip; }
 		[[nodiscard]] auto focus_text() const noexcept -> QLabel* { return FocusText; }
 		[[nodiscard]] auto focus_clear_button() const noexcept -> QToolButton* { return FocusClear; }
-		[[nodiscard]] auto reset_button() const noexcept -> QPushButton* { return Reset; }
+		[[nodiscard]] auto reset_button() const noexcept -> QToolButton* { return Reset; }
 		[[nodiscard]] auto reset_confirm() const noexcept -> QWidget* { return ResetConfirm; }
 		[[nodiscard]] auto reset_sentence() const noexcept -> QLabel* { return ResetSentence; }
 		[[nodiscard]] auto reset_confirm_button() const noexcept -> QPushButton* { return ResetYes; }
@@ -256,7 +256,7 @@ namespace bpr::qt {
 		QWidget*                                 FocusChip     = nullptr;
 		QLabel*                                  FocusText     = nullptr;
 		QToolButton*                             FocusClear    = nullptr;
-		QPushButton*                             Reset         = nullptr;
+		QToolButton*                             Reset         = nullptr;
 		QWidget*                                 ResetConfirm  = nullptr;
 		QLabel*                                  ResetSentence = nullptr;
 		QPushButton*                             ResetYes      = nullptr;

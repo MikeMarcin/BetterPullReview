@@ -1402,7 +1402,12 @@ want to say the tour should focus on <this particular part of the PR>." And:
   turn that sets `replace_waiting_stops` revises them: its stops replace the
   waiting ones (`core::merge_tour_proposal`). A draft that proposes nothing
   leaves the feedback in the chat as not sent.
-- **Reset tour** ([[BPR-1931]]). A quiet action in the tour's header. It asks
+- **Reset tour** ([[BPR-1931]]). An icon button in the tour's header, the
+  drawer's clear arrow, named "Reset tour" in its tooltip and accessible name,
+  as the Agent tab's header actions are (v002, owner on v001: "the reset tour
+  button can get smaller like it is on agents so that top row doesn't have to
+  wrap so early"). The header keeps one row down to a 388-pixel drawer
+  (v001: 432), so the narrow drawer's 420 holds it. It asks
   first, in one sentence naming what is lost (the Problem, the Solution, the
   stops, the waiting proposals, the chats and the focus), and for a published
   tour that the tour on GitHub stays as it is and only the local draft is

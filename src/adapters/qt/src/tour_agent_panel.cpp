@@ -248,10 +248,11 @@ namespace bpr::qt {
 		trailRow->setSpacing(8);
 		// [[BPR-1931]], owner: "the ability to reset/clear the tour that I'm
 		// authoring". A quiet action, never the row's emphasis; it asks first.
-		Reset = new quiet_push_button{ tr("Reset tour"), Trail };
-		Reset->setObjectName(QStringLiteral("tourResetTour"));
-		Reset->setFlat(true);
-		Reset->setFocusPolicy(Qt::TabFocus);
+		// [[BPR-1931]] v002, owner on v001: "the reset tour button can get
+		// smaller like it is on agents so that top row doesn't have to wrap so
+		// early". An icon only, as the Agent tab's header actions are: the
+		// drawer's clear-and-start-again arrow, named in its tooltip.
+		Reset = make_drawer_tool(Trail, drawer_icon(drawer_glyph::clear, palette()), tr("Reset tour"), QStringLiteral("tourResetTour"));
 		Reset->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		trailRow->addWidget(Reset, 0, Qt::AlignVCenter);
 		// [[BPR-1925]] v002. The tour's own chat toggle, as each part's is.
@@ -352,7 +353,7 @@ namespace bpr::qt {
 		ResetDone->installEventFilter(this);
 		ResetDone->hide();
 		column->addWidget(ResetDone);
-		connect(Reset, &QPushButton::clicked, this, [this] {
+		connect(Reset, &QToolButton::clicked, this, [this] {
 			ResetSentence->setText(reset_words(ResetTally));
 			ResetDone->hide();
 			ResetConfirm->setVisible(!ResetConfirm->isVisible());
@@ -665,6 +666,8 @@ namespace bpr::qt {
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
 		apply_agent_accent(*ChatTour, aGround);
 		ChatTour->setIcon(side_chat_icon(ChatTour->palette()));
+		// [[BPR-1931]] v002. Reset tour's glyph in this appearance's ink.
+		Reset->setIcon(drawer_icon(drawer_glyph::clear, Reset->palette()));
 		// [[BPR-1930]]. The focus chip reads in the agent's accent.
 		apply_agent_accent(*FocusText, aGround);
 		apply_agent_accent(*FocusClear, aGround);
@@ -909,9 +912,13 @@ namespace bpr::qt {
 		FocusChip->setVisible(!focus.isEmpty());
 		const auto can = ResetAvailable && core::resettable(ResetTally) && !RunningAny;
 		Reset->setEnabled(can);
-		Reset->setToolTip(RunningAny                          ? tr("Wait for the tour agent to finish, or stop it, before resetting the tour.")
-							  : !core::resettable(ResetTally) ? tr("The tour is empty. There is nothing to reset.")
-															  : tr("Clears the Problem, the Solution, the stops, the proposals, the chats and the focus of this tour, after asking. You can undo it."));
+		// [[BPR-1931]] v002. An icon only: its tooltip starts with its name.
+		const auto why = RunningAny         ? tr("Wait for the tour agent to finish, or stop it, before resetting the tour.")
+			: !core::resettable(ResetTally) ? tr("The tour is empty. There is nothing to reset.")
+											: tr("Clears the Problem, the Solution, the stops, the proposals, the chats and the focus of this tour, after asking. You can undo it.");
+		Reset->setToolTip(tr("Reset tour") + QStringLiteral("\n") + why);
+		Reset->setAccessibleName(tr("Reset tour"));
+		Reset->setAccessibleDescription(why);
 		if (!can) {
 			ResetConfirm->hide();
 		}
