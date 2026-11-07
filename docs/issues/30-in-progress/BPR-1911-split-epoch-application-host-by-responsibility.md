@@ -29,3 +29,22 @@ the public forwarders.
   application tests and the epoch, diff and composition courses that drive it;
   architecture boundaries; format and documentation gates.
 - AC4: Land the change, the completed card and a journal line on local main.
+
+## Result
+
+Source `00ffa053f`; `epoch_application_host.cpp` goes from 11,625 to 411 lines (the
+public forwarders and test hooks). New files (lines): `epoch_host_materialization.cpp` 1643, `epoch_host_requests_and_recovery.cpp` 1617, `epoch_host_dispatch_and_imports.cpp` 1521, `epoch_host_review_reads.cpp` 1425, `epoch_host_source_search_and_diffs.cpp` 1379, `epoch_host_implementation.hpp` 1366, `epoch_host_catalog_and_history.cpp` 1360, `epoch_host_blob_authority.cpp` 906, `epoch_host_support.cpp` 539, `epoch_host_support.hpp` 163, `epoch_host_implementation.cpp` 143.
+
+Helpers used by one source stay private to it; `epoch_host_support` declares the
+23 that several sources share. `ArmedAdmissionStage`, the test-only stage the
+source's hooks arm and the blob authority reads, becomes an `inline` variable so
+it remains one object; it is constant-initialized, so no initialization order
+changes. `main` had not changed this file or its header.
+
+Checks on macOS arm64: application library tests-off and full dev builds; and 32
+rows all passing: `application_epoch_host`, the epoch contract, catalog,
+persistence, maintenance, update-line and kill-recovery rows, SQLite epoch
+contracts, the anonymous diff authority, agent workspace rows, the UIforETW
+selected-diff, diff workbench, review ledger, defect and workbench composition
+courses, both composition contracts, `qt_composed_github_scale_100` and the
+architecture rows. Windows and Linux were not built.
