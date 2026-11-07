@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1907"
 title: "Split the GitHub profile runtime out of github_application.cpp"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1906"]
 priority: "P2"
