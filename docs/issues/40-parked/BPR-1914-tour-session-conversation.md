@@ -68,7 +68,7 @@ Load `frontend-design:frontend-design` first.
   turns, the question and the passage as untrusted evidence. It asks for
   `path:line` citations and for changes only when asked.
   `decode_tour_ask_answer` reads `bpr.tour-ask.v1` with exactly its keys.
-- **Composition** (`github_application.cpp`, beside the BPR-1900 tour
+- **Composition** (`github_application/window_tours.cpp`, beside the BPR-1900 tour
   session code, where it fits): `request_tour_ask`, `finish_tour_ask`,
   `adopt_tour_conversation` (one conversation per tour draft), the shared
   `tour_anchor_files`, and Accept of a stop text as `edit_stop`.
@@ -115,3 +115,11 @@ that executable, offscreen, light and dark. New short session `ac06de1b29f46bbf0
 state `/Users/jaeger/.codex/attended-review/bpr1914-v001-HmfYOg/state`, host started with `serve --tailscale`. Status: ready,
 awaiting the owner. Candidate `BPR-1914-tour-conversation` (revision `da676456a`), one
 Accept/Reject question. BPR-1915 is a second candidate in the same session.
+
+The frozen commit `da676456a` stays reachable on the local branch
+`bpr1914-v001-frozen-history`. The card's branch was then rebased onto `main`
+past BPR-1908, which moved the tour session code into
+`src/app/src/github_application/window_tours.cpp`, so the ask code now lives
+there. On the rebased commit the 16 focused tests, the format check, the
+documentation gate and the offscreen look (`ATTENDED_TOUR_CONVERSATION_SHOWN`)
+pass again, with the composition pin resealed.

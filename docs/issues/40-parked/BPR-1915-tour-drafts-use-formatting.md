@@ -92,3 +92,11 @@ state `/Users/jaeger/.codex/attended-review/bpr1914-v001-HmfYOg/state`, host sta
 awaiting the owner. Candidate
 `BPR-1915-formatted-drafts` (revision `da676456a`), its own Accept/Reject
 question.
+
+The frozen commit `da676456a` stays reachable on the local branch
+`bpr1914-v001-frozen-history`. The card's branch was then rebased onto `main`
+past BPR-1908, which moved the tour session code into
+`src/app/src/github_application/window_tours.cpp`, so the ask code now lives
+there. On the rebased commit the 16 focused tests, the format check, the
+documentation gate and the offscreen look (`ATTENDED_TOUR_CONVERSATION_SHOWN`)
+pass again, with the composition pin resealed.

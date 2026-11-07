@@ -2149,7 +2149,7 @@ namespace bpr::app {
 		/// conversation belongs to.
 		bool                               TourAskPending = false;
 		std::optional<core::tour_draft_id> TourConversationDraft;
-		std::optional<core::tour_proposal>                               TourProposal;
+		std::optional<core::tour_proposal> TourProposal;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
