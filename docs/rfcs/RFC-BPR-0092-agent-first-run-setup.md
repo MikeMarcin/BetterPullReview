@@ -1289,6 +1289,17 @@ button to toggle it open and closed."
   classified before is answered inside the request. A chat reader is among
   those an answer reaches before its body asks, so a chat rebuilt for a new
   presentation keeps its colours (the owner saw v001's plain).
+- **A calm edit box for a stop's text.** The owner on the in-place editor:
+  "feels cramping, I dont like it how it is". It had a thick blue focus border
+  hugging the words.
+  - The stop's text now has no frame, no native focus rectangle and no focus
+    ring.
+  - The card paints a quiet box round it, 8 pixels out into its own margin at
+    the sides and 6 above and below. It is the ground a shade lighter or darker
+    with a hairline edge, and that edge takes the focus colour, still one pixel,
+    while the keyboard is in it.
+  - The words keep their place and width, where they were read, so opening the
+    pencil moves and rewraps nothing.
 - **The open stop's card fits.** The tour and the chat share the drawer evenly
   at first. The tour keeps 340 pixels while the chat is open (the drawer
   between 660 and 960), and the open stop's card takes the route's new width

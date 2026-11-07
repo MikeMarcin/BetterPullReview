@@ -25,9 +25,11 @@
 #include <QKeyEvent>
 #include <QListWidget>
 #include <QMouseEvent>
+#include <QPlainTextEdit>
 #include <QSplitter>
 #include <QTabBar>
 #include <QTextBlock>
+#include <QTextCursor>
 #include <QTextLayout>
 #include <QToolButton>
 
@@ -382,6 +384,24 @@ namespace {
 		expect(openStopGlyph != nullptr && openStopGlyph->isVisible() && openStopGlyph->isChecked(), "and the stop it went to has its toggle pressed");
 		click(openStopGlyph);
 		expect(!chat->column_open() && !openStopGlyph->isChecked(), "which closes the column");
+
+		// [[BPR-1925]] v002, owner: the blue box on a stop's text "feels
+		// cramping". Edited in place, the text has room inside a quiet edge:
+		// no native focus rectangle, no ring hugging the words, and the
+		// first line starts where it was read.
+		auto* const reader = static_cast<qt::markdown_body_view*>(editor->findChild<QWidget*>(QStringLiteral("tourStopReader")));
+		auto* const body   = editor->findChild<QPlainTextEdit*>(QStringLiteral("tourStopBody"));
+		auto* const card   = editor->findChild<QWidget*>(QStringLiteral("tourStopCard"));
+		expect(reader != nullptr && reader->isVisible() && body != nullptr && card != nullptr, "the open stop reads its text");
+		const auto readAt = reader->rendered_view()->viewport()->mapTo(card, reader->rendered_view()->cursorRect(QTextCursor{ reader->rendered_view()->document() }).topLeft());
+		click(editor->findChild<QToolButton*>(QStringLiteral("tourStopEdit")));
+		expect(body->isVisible() && body->hasFocus(), "the pencil opens the text with the keyboard in it");
+		const auto editAt = body->viewport()->mapTo(card, body->cursorRect(QTextCursor{ body->document() }).topLeft());
+		expect(!body->testAttribute(Qt::WA_MacShowFocusRect) && body->frameShape() == QFrame::NoFrame && body->findChildren<QWidget*>(QStringLiteral("tourKeyboardFocus")).isEmpty(), "no native focus rectangle, no ring hugging the words");
+		expect(body->findChild<QObject*>(QStringLiteral("tourStopTextBox")) != nullptr && card->geometry().contains(QRect{ body->mapTo(card, QPoint{ -8, -6 }), body->size() + QSize{ 16, 12 } }), "a quiet box round the words, with room inside the card");
+		expect(std::abs(editAt.x() - readAt.x()) <= 2 && std::abs(editAt.y() - readAt.y()) <= 3,
+			   "the first line starts where it was read: read at " + std::to_string(readAt.x()) + "," + std::to_string(readAt.y()) + ", edited at " + std::to_string(editAt.x()) + "," + std::to_string(editAt.y()));
+		draw(window, QStringLiteral("tour-stop-edit"), aTheme);
 	}
 }
 

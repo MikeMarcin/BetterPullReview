@@ -56,6 +56,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <set>
 #include <vector>
 namespace bpr::qt {
 	namespace {
@@ -74,11 +75,16 @@ namespace bpr::qt {
 		constexpr int chat_role      = Qt::UserRole + 9;
 		constexpr int discussed_role = Qt::UserRole + 10;
 		/// The route's measures: the grip, the circle's column, the text.
-		constexpr int grip_width   = 18;
-		constexpr int ring_left    = 22;
-		constexpr int ring_size    = 22;
-		constexpr int text_left    = ring_left + ring_size + 10;
-		constexpr int divider_band = 26;
+		constexpr int grip_width = 18;
+		constexpr int ring_left  = 22;
+		constexpr int ring_size  = 22;
+		constexpr int text_left  = ring_left + ring_size + 10;
+		/// [[BPR-1925]] v002. How far a stop's text box reaches round the
+		/// words, into the card's margin: sideways, and up and down (the
+		/// fields are six pixels apart).
+		constexpr qreal stop_text_room          = 8.0;
+		constexpr qreal stop_text_room_vertical = 6.0;
+		constexpr int   divider_band            = 26;
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -259,6 +265,74 @@ namespace bpr::qt {
 
 		private:
 			std::function<bool()> Marked;
+		};
+
+		/// \brief [[BPR-1925]] v002, owner: the blue box on a stop's text "feels
+		/// cramping, I dont like it how it is". Edited in place, the text keeps
+		/// its place and its width, where it was read; the quiet box is drawn
+		/// round it, `stop_text_room` pixels out into the card's own margin, so
+		/// the words have room without moving or rewrapping. The box is the
+		/// card's ground shifted a shade, with a hairline edge that takes the
+		/// focus colour, one pixel either way, while the keyboard is in it.
+		/// No native focus rectangle or ring is drawn on the text itself.
+		class calm_text_box final : public QObject
+		{
+		public:
+			explicit calm_text_box(QPlainTextEdit& aText)
+				: QObject{ &aText }
+				, Text{ &aText }
+			{
+				setObjectName(QStringLiteral("tourStopTextBox"));
+				aText.installEventFilter(this);
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aWatched == Text) {
+					switch (aEvent->type()) {
+					case QEvent::FocusIn:
+					case QEvent::FocusOut:
+					case QEvent::Resize:
+					case QEvent::Move:
+					case QEvent::Show:
+					case QEvent::Hide:
+					case QEvent::ParentChange:
+						if (auto* const holder = host(); holder != nullptr) {
+							if (!Hosts.contains(holder)) {
+								Hosts.insert(holder);
+								holder->installEventFilter(this);
+							}
+							holder->update();
+						}
+						break;
+					default: break;
+					}
+				} else if (aEvent->type() == QEvent::Paint && aWatched == host() && Text->isVisible()) {
+					auto* const holder  = static_cast<QWidget*>(aWatched);
+					auto        painter = QPainter{ holder };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					const auto ground  = holder->palette().color(QPalette::Active, QPalette::Window);
+					const auto ink     = holder->palette().color(QPalette::Active, QPalette::WindowText);
+					const auto focused = Text->hasFocus();
+					const auto box     = QRectF{ QRect{ Text->mapTo(holder, QPoint{ 0, 0 }), Text->size() } }.adjusted(-stop_text_room, -stop_text_room_vertical, stop_text_room, stop_text_room_vertical);
+					painter.setPen(QPen{ focused ? focus_ring_colour(holder->palette(), QPalette::Window) : mixed(ground, ink, 0.16), 1.0 });
+					painter.setBrush(mixed(ground, ink, focused ? 0.05 : 0.03));
+					painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			/// The card (or page) the stop's fields sit in: it has the margin
+			/// the box reaches into.
+			[[nodiscard]] auto host() const -> QWidget*
+			{
+				auto* const fields = Text->parentWidget();
+				return fields != nullptr ? fields->parentWidget() : nullptr;
+			}
+			QPlainTextEdit*          Text = nullptr;
+			std::set<const QWidget*> Hosts;
 		};
 
 		/// \brief [[BPR-1925]] v002. Where a stop's chat toggle sits in its
@@ -1551,6 +1625,10 @@ namespace bpr::qt {
 
 		for (auto* widget : findChildren<QWidget*>()) {
 			widget->installEventFilter(this);
+			// [[BPR-1925]] v002. The stop's text has its quiet box instead.
+			if (widget == Body || Body->isAncestorOf(widget)) {
+				continue;
+			}
 			widget->setAttribute(Qt::WA_MacShowFocusRect);
 			if (widget->focusPolicy() & Qt::TabFocus) {
 				// Inside the control's bounds, including scroll viewports: some
@@ -2765,6 +2843,13 @@ namespace bpr::qt {
 		Body->setPlaceholderText(tr("What would you like checked?"));
 		Body->setMinimumHeight(110);
 		Body->setTabChangesFocus(true);
+		// [[BPR-1925]] v002. No frame, no native focus rectangle and no ring on
+		// the words: the card draws a quiet box round them (`calm_text_box`).
+		Body->setFrameShape(QFrame::NoFrame);
+		Body->setAttribute(Qt::WA_MacShowFocusRect, false);
+		Body->viewport()->setAutoFillBackground(false);
+		Body->document()->setDocumentMargin(0);
+		new calm_text_box{ *Body };
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
 		// [[BPR-1805]]. The explanation as the reviewer will read it, rendered
@@ -3092,6 +3177,8 @@ namespace bpr::qt {
 			if (!document) {
 				document = new QTextDocument{ this };
 				document->setDocumentLayout(new QPlainTextDocumentLayout{ document });
+				// [[BPR-1925]] v002. The words start where they were read.
+				document->setDocumentMargin(0);
 				document->setPlainText(QString::fromStdString(stop->Body));
 			}
 			Body->bind_document(document);
