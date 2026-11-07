@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1920"
 title: "Split workbench_window.cpp by responsibility"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
