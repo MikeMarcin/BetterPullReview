@@ -11,6 +11,7 @@
 #include <QAbstractTextDocumentLayout>
 #include <QClipboard>
 #include <QFontDatabase>
+#include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
@@ -223,32 +224,44 @@ namespace bpr::qt {
 		// bordered action, at its own width on the left; Transcript is a bare
 		// action with a page glyph at the far end, never checkable, and opens
 		// a window. Nothing here is a pair of equal segments.
-		auto* const row = new QHBoxLayout{ };
-		row->setSpacing(8);
+		Head = new QGridLayout{ };
+		Head->setContentsMargins(0, 0, 0, 0);
+		Head->setHorizontalSpacing(8);
+		Head->setVerticalSpacing(4);
 		Draft = new quiet_push_button{ tr("Draft the tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
 		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one."));
-		row->addWidget(Draft, 0, Qt::AlignVCenter);
+		Head->addWidget(Draft, 0, 0, Qt::AlignVCenter);
 		Status = small(paragraph({ }, this));
 		Status->setObjectName(QStringLiteral("tourDraftStatus"));
-		row->addWidget(Status, 1, Qt::AlignVCenter);
-		row->addStretch(1);
-		TranscriptToggle = new quiet_push_button{ this };
-		TranscriptToggle->setObjectName(QStringLiteral("tourSessionTranscriptOpen"));
-		TranscriptToggle->setFlat(true);
-		TranscriptToggle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		TranscriptToggle->setToolTip(tr("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
-		row->addWidget(TranscriptToggle, 0, Qt::AlignVCenter);
-		column->addLayout(row);
+		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		Head->addWidget(Status, 0, 1, Qt::AlignVCenter);
+		Head->setColumnStretch(1, 1);
 		// [[BPR-1914]] v003. A side chat about the tour as a whole: one quiet
-		// glyph beside Conversation; the chat docks at the window's edge.
-		ChatTour = new QToolButton{ this };
+		// glyph beside Conversation. [[BPR-1925]]. The pair keeps together
+		// and takes its own row under Draft the tour when the drawer is too
+		// narrow for both at their own widths (`fit_head`).
+		Trail                = new QWidget{ this };
+		auto* const trailRow = new QHBoxLayout{ Trail };
+		trailRow->setContentsMargins(0, 0, 0, 0);
+		trailRow->setSpacing(8);
+		ChatTour = new QToolButton{ Trail };
 		ChatTour->setObjectName(QStringLiteral("tourChatAboutTour"));
 		ChatTour->setAutoRaise(true);
 		ChatTour->setFocusPolicy(Qt::TabFocus);
 		ChatTour->setAccessibleName(tr("Open side chat about the tour"));
-		row->insertWidget(row->indexOf(TranscriptToggle), ChatTour, 0, Qt::AlignVCenter);
+		trailRow->addWidget(ChatTour, 0, Qt::AlignVCenter);
+		TranscriptToggle = new quiet_push_button{ Trail };
+		TranscriptToggle->setObjectName(QStringLiteral("tourSessionTranscriptOpen"));
+		TranscriptToggle->setFlat(true);
+		TranscriptToggle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		TranscriptToggle->setToolTip(tr("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
+		trailRow->addWidget(TranscriptToggle, 0, Qt::AlignVCenter);
+		Trail->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		Head->addWidget(Trail, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		column->addLayout(Head);
+		fit_head();
 		connect(ChatTour, &QToolButton::clicked, this, [this] {
 			if (ChatDispatch) {
 				ChatDispatch();
@@ -448,6 +461,7 @@ namespace bpr::qt {
 		RunningDraft = aDraftTour;
 		RunningAny   = aAny;
 		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft the tour"));
+		fit_head();
 		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one.")
 																																: Why);
 		Draft->setEnabled(Ready && (aDraftTour || !aAny));
@@ -701,6 +715,41 @@ namespace bpr::qt {
 		// about the tour is asked, before any run.
 		TranscriptToggle->setText(count == 0U ? tr("Conversation") : tr("Conversation (%1)").arg(count));
 		TranscriptToggle->setEnabled(true);
+		fit_head();
+	}
+
+	void tour_agent_panel::resizeEvent(QResizeEvent* aEvent)
+	{
+		QWidget::resizeEvent(aEvent);
+		fit_head();
+	}
+
+	void tour_agent_panel::fit_head()
+	{
+		if (Head == nullptr || Trail == nullptr) {
+			return;
+		}
+		// The row's own width inside the panel's margins, against what Draft
+		// the tour and the pair need at their size hints with the gap.
+		const auto margins = layout()->contentsMargins();
+		// The narrowest the panel goes is the wrapped head's, so a narrow
+		// drawer can reach the width at which the pair takes its own row.
+		setMinimumWidth(margins.left() + margins.right() + std::max(Draft->sizeHint().width(), Trail->sizeHint().width()));
+		const auto room = width() - margins.left() - margins.right();
+		const auto need = Draft->sizeHint().width() + Head->horizontalSpacing() + Trail->sizeHint().width();
+		const auto wrap    = room > 0 && need > room;
+		const auto index   = Head->indexOf(Trail);
+		auto       row = 0, column = 0, rows = 0, columns = 0;
+		Head->getItemPosition(index, &row, &column, &rows, &columns);
+		if (wrap == (row == 1)) {
+			return;
+		}
+		Head->removeWidget(Trail);
+		if (wrap) {
+			Head->addWidget(Trail, 1, 0, 1, 3, Qt::AlignLeft | Qt::AlignVCenter);
+		} else {
+			Head->addWidget(Trail, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		}
 	}
 
 	void tour_agent_panel::rebuild_proposal()

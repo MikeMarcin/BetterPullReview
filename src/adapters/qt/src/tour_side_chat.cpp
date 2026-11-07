@@ -1,7 +1,6 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
-#include "bpr/qt/document_tab_strip.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
@@ -12,7 +11,6 @@
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
-#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
@@ -185,16 +183,36 @@ namespace bpr::qt {
 		column->setContentsMargins(10, 8, 10, 10);
 		column->setSpacing(6);
 
-		// The title row: a tab per chat, + for another, Copy chat, close.
+		// [[BPR-1925]], owner 2026-11-07: "it's kind of weird that the
+		// sidechat is so decoupled from the tour when it's really about the
+		// tour". The chat is the Tour tab's second column, beside the part it
+		// is about, which is marked in the tour; the part's own glyph chooses
+		// the chat, so there are no tabs. The title row: the agent's glyph,
+		// the part, Show, Copy chat and close.
 		auto* const top = new QHBoxLayout{ };
-		top->setSpacing(2);
-		Strip = new document_tab_strip{ this };
-		Strip->setObjectName(QStringLiteral("tourSideChatTabs"));
-		Strip->set_minimum_tab_width(96);
-		Strip->set_dispatch([this](const core::document_tab_intent& aIntent) { tab_gesture(aIntent); });
-		Strip->new_tab_button()->setToolTip(tr("Another side chat: about the whole tour, the Problem, the Solution or a stop"));
-		Strip->new_tab_button()->setAccessibleName(tr("New side chat"));
-		top->addWidget(Strip, 1);
+		top->setSpacing(4);
+		Glyph = new QLabel{ this };
+		Glyph->setObjectName(QStringLiteral("tourSideChatGlyph"));
+		top->addWidget(Glyph, 0, Qt::AlignTop);
+		auto* const aboutText = new QVBoxLayout{ };
+		aboutText->setSpacing(1);
+		Subject = new QLabel{ this };
+		Subject->setObjectName(QStringLiteral("tourSideChatSubject"));
+		Subject->setTextFormat(Qt::PlainText);
+		Subject->setWordWrap(true);
+		auto heavy = Subject->font();
+		heavy.setWeight(QFont::DemiBold);
+		Subject->setFont(heavy);
+		Quote = quiet(small(words({ }, this)));
+		Quote->setObjectName(QStringLiteral("tourSideChatQuote"));
+		aboutText->addWidget(Subject);
+		aboutText->addWidget(Quote);
+		top->addLayout(aboutText, 1);
+		ShowPart = new quiet_push_button{ tr("Show"), this };
+		ShowPart->setObjectName(QStringLiteral("tourSideChatShow"));
+		ShowPart->setFlat(true);
+		ShowPart->setFocusPolicy(Qt::TabFocus);
+		top->addWidget(ShowPart, 0, Qt::AlignTop);
 		CopyChat = new QToolButton{ this };
 		CopyChat->setObjectName(QStringLiteral("tourSideChatCopy"));
 		CopyChat->setAutoRaise(true);
@@ -203,33 +221,11 @@ namespace bpr::qt {
 		ClosePane = new QToolButton{ this };
 		ClosePane->setObjectName(QStringLiteral("tourSideChatClose"));
 		ClosePane->setAutoRaise(true);
-		ClosePane->setToolTip(tr("Close the side chat. Its chats are kept; open one again from any part of the tour."));
-		ClosePane->setAccessibleName(tr("Close side chat"));
-		top->addWidget(CopyChat);
-		top->addWidget(ClosePane);
+		ClosePane->setToolTip(tr("Close the chat. Every part's chat is kept; its glyph in the tour opens it again."));
+		ClosePane->setAccessibleName(tr("Close the chat"));
+		top->addWidget(CopyChat, 0, Qt::AlignTop);
+		top->addWidget(ClosePane, 0, Qt::AlignTop);
 		column->addLayout(top);
-
-		// What the chat is about, and Show.
-		auto* const about = new QHBoxLayout{ };
-		about->setSpacing(6);
-		auto* const aboutText = new QVBoxLayout{ };
-		aboutText->setSpacing(1);
-		Subject = small(words({ }, this));
-		Subject->setObjectName(QStringLiteral("tourSideChatSubject"));
-		auto heavy = Subject->font();
-		heavy.setWeight(QFont::DemiBold);
-		Subject->setFont(heavy);
-		Quote = quiet(small(words({ }, this)));
-		Quote->setObjectName(QStringLiteral("tourSideChatQuote"));
-		aboutText->addWidget(Subject);
-		aboutText->addWidget(Quote);
-		about->addLayout(aboutText, 1);
-		ShowPart = new quiet_push_button{ tr("Show"), this };
-		ShowPart->setObjectName(QStringLiteral("tourSideChatShow"));
-		ShowPart->setFlat(true);
-		ShowPart->setFocusPolicy(Qt::TabFocus);
-		about->addWidget(ShowPart, 0, Qt::AlignTop);
-		column->addLayout(about);
 
 		// The chat.
 		Scroll = new QScrollArea{ this };
@@ -298,11 +294,7 @@ namespace bpr::qt {
 				clipboard->setText(chat_text());
 			}
 		});
-		connect(ClosePane, &QToolButton::clicked, this, [this] {
-			if (VisibilityDispatch) {
-				VisibilityDispatch(false);
-			}
-		});
+		connect(ClosePane, &QToolButton::clicked, this, [this] { set_column_open(false); });
 		connect(ShowPart, &QPushButton::clicked, this, [this] {
 			if (const auto thread = current(); thread && RevealDispatch) {
 				RevealDispatch(*thread);
@@ -362,22 +354,21 @@ namespace bpr::qt {
 		return found == Passages.end() ? std::nullopt : std::optional{ found->second };
 	}
 
-	void tour_side_chat::open(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage)
+	void tour_side_chat::open(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage, const bool aFocus)
 	{
 		auto index = index_of(aThread);
 		if (index < 0) {
 			Open.push_back(aThread);
-			TabIds.push_back(core::document_tab_id{ ++LastTab });
 			index = static_cast<int>(Open.size()) - 1;
 		}
 		if (aPassage) {
 			Passages[static_cast<std::size_t>(index)] = std::move(*aPassage);
 		}
 		select(index);
-		if (VisibilityDispatch) {
-			VisibilityDispatch(true);
+		set_column_open(true);
+		if (aFocus) {
+			Composer->setFocus(Qt::OtherFocusReason);
 		}
-		Composer->setFocus(Qt::OtherFocusReason);
 	}
 
 	void tour_side_chat::select(const int aIndex)
@@ -391,71 +382,42 @@ namespace bpr::qt {
 			Editing.clear();
 			Stick = true;
 		}
-		rebuild_tabs();
 		rebuild();
+		changed();
 	}
 
-	auto tour_side_chat::add_button() const noexcept -> QToolButton* { return Strip->new_tab_button(); }
-
-	void tour_side_chat::rebuild_tabs()
+	void tour_side_chat::set_column_open(const bool aOpen)
 	{
-		auto tabs = std::vector<document_tab_presentation>{ };
-		for (std::size_t index = 0U; index < Open.size(); ++index) {
-			tabs.push_back({ .Id = TabIds[index], .Name = name_of(Open[index]), .Path = tr("Side chat about %1").arg(name_of(Open[index])), .Active = static_cast<int>(index) == Current });
+		const auto was = ColumnOpen;
+		ColumnOpen     = aOpen && current().has_value();
+		if (VisibilityDispatch && (was != ColumnOpen || ColumnOpen)) {
+			VisibilityDispatch(ColumnOpen);
 		}
-		Strip->present(std::move(tabs));
-		// + opens another chat whenever one is open; with none, the pane is
-		// closed.
-		Strip->new_tab_button()->setEnabled(true);
-	}
-
-	void tour_side_chat::tab_gesture(const core::document_tab_intent& aIntent)
-	{
-		const auto at = [this](const core::document_tab_id aTab) {
-			const auto found = std::ranges::find(TabIds, aTab);
-			return found == TabIds.end() ? -1 : static_cast<int>(found - TabIds.begin());
-		};
-		if (const auto* const activate = std::get_if<core::activate_tab_intent>(&aIntent)) {
-			select(at(activate->Tab));
-		} else if (const auto* const adjacent = std::get_if<core::activate_adjacent_tab_intent>(&aIntent)) {
-			if (!Open.empty()) {
-				const auto count = static_cast<int>(Open.size());
-				select(((Current + (adjacent->Direction == core::change_navigation_direction::next ? 1 : -1)) % count + count) % count);
-			}
-		} else if (const auto* const shut = std::get_if<core::close_tab_intent>(&aIntent)) {
-			if (const auto index = at(shut->Tab); index >= 0) {
-				close(Open[static_cast<std::size_t>(index)]);
-			}
-		} else if (const auto* const others = std::get_if<core::close_other_tabs_intent>(&aIntent)) {
-			if (const auto index = at(others->Tab); index >= 0) {
-				const auto kept = Open[static_cast<std::size_t>(index)];
-				for (std::size_t each = Open.size(); each-- > 0U;) {
-					if (!(Open[each] == kept)) {
-						close(Open[each]);
-					}
-				}
-			}
-		} else if (std::holds_alternative<core::duplicate_tab_intent>(aIntent)) {
-			// The strip's + and Duplicate Tab: a chat about another part.
-			show_parts_menu();
+		if (was != ColumnOpen) {
+			changed();
 		}
 	}
 
-	void tour_side_chat::show_parts_menu()
+	void tour_side_chat::changed()
 	{
-		auto menu  = QMenu{ this };
-		auto parts = std::vector<core::tour_thread>{ { }, { .Kind = core::tour_thread_kind::problem }, { .Kind = core::tour_thread_kind::solution } };
-		if (Draft) {
-			for (const auto& stop : Draft->Stops) {
-				parts.push_back({ .Kind = core::tour_thread_kind::stop, .Stop = stop.Id });
-			}
+		if (ChangeObserver) {
+			ChangeObserver();
 		}
-		for (const auto& part : parts) {
-			auto* const action = menu.addAction(name_of(part));
-			connect(action, &QAction::triggered, this, [this, part] { open(part); });
-		}
-		auto* const plus = Strip->new_tab_button();
-		menu.exec(plus->mapToGlobal(QPoint{ 0, plus->height() }));
+	}
+
+	auto tour_side_chat::discussed() const -> std::optional<core::tour_thread>
+	{
+		return ColumnOpen ? current() : std::nullopt;
+	}
+
+	auto tour_side_chat::turns_about(const core::tour_thread& aThread) const -> std::size_t
+	{
+		return core::thread_runs(Session, aThread).size();
+	}
+
+	auto tour_side_chat::chat_parts() const -> std::size_t
+	{
+		return core::chat_threads(Session).size();
 	}
 
 	void tour_side_chat::close(const core::tour_thread& aThread)
@@ -473,18 +435,19 @@ namespace bpr::qt {
 		}
 		Passages = std::move(moved);
 		Open.erase(Open.begin() + index);
-		TabIds.erase(TabIds.begin() + index);
 		// The chat after it takes its place, or the one before at the end.
+		// The chat in the column was this one: the column closes.
+		const auto shown = Current == index;
 		if (Current > index || Current >= static_cast<int>(Open.size())) {
 			--Current;
 		}
 		Edited.clear();
 		Editing.clear();
-		rebuild_tabs();
-		if (Open.empty() && VisibilityDispatch) {
-			VisibilityDispatch(false);
+		if (shown || Open.empty()) {
+			set_column_open(false);
 		}
 		rebuild();
+		changed();
 	}
 
 	void tour_side_chat::present(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal, std::shared_ptr<const core::review_tour> aDraft)
@@ -497,14 +460,14 @@ namespace bpr::qt {
 		Session  = aSession;
 		Proposal = aProposal;
 		Draft    = std::move(aDraft);
-		// A stop gone from the tour takes its chat's tab with it.
+		// A stop gone from the tour takes its chat with it.
 		for (std::size_t index = Open.size(); index-- > 0U;) {
 			if (Open[index].Kind == core::tour_thread_kind::stop && Draft && std::ranges::find(Draft->Stops, Open[index].Stop, &core::tour_stop::Id) == Draft->Stops.end()) {
 				close(Open[index]);
 			}
 		}
-		rebuild_tabs();
 		rebuild();
+		changed();
 	}
 
 	void tour_side_chat::set_draft(std::shared_ptr<const core::review_tour> aDraft)
@@ -565,9 +528,11 @@ namespace bpr::qt {
 				apply_agent_accent(*widget, aGround);
 			}
 		}
-		// [[BPR-1914]] v004, owner look v003: "The side chat buttons should
-		// be in the agent color".
-		apply_agent_accent(*Strip->new_tab_button(), aGround);
+		// [[BPR-1925]]. The agent's glyph leads the title, in its accent.
+		auto accented = palette();
+		accented.setColor(QPalette::Active, QPalette::ButtonText, agent_accent(aGround));
+		const auto side = Glyph->fontMetrics().height();
+		Glyph->setPixmap(side_chat_icon(accented).pixmap(QSize{ side, side }, devicePixelRatioF()));
 		CopyChat->setIcon(drawer_icon(drawer_glyph::copy, palette()));
 		ClosePane->setIcon(drawer_icon(drawer_glyph::close, palette()));
 		ClearPassage->setIcon(drawer_icon(drawer_glyph::close, palette()));
@@ -632,6 +597,21 @@ namespace bpr::qt {
 		return lines.join(QLatin1Char('\n'));
 	}
 
+	void tour_side_chat::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		if (isWindow()) {
+			return;
+		}
+		auto       painter = QPainter{ this };
+		const auto ground  = palette().color(QPalette::Active, QPalette::Window);
+		const auto accent  = agent_accent(palette());
+		auto       wash    = QLinearGradient{ 0.0, 0.0, static_cast<qreal>(std::min(width(), 160)), 0.0 };
+		wash.setColorAt(0.0, mixed(ground, accent, 0.06));
+		wash.setColorAt(1.0, ground);
+		painter.fillRect(QRect{ 0, 0, std::min(width(), 160), height() }, wash);
+		painter.fillRect(QRect{ 0, 0, 1, height() }, mixed(ground, accent, 0.5));
+	}
+
 	bool tour_side_chat::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
 		if (aEvent->type() == QEvent::Resize && aWatched == Scroll->viewport()) {
@@ -671,15 +651,15 @@ namespace bpr::qt {
 		auto quote = QString{ };
 		switch (thread->Kind) {
 		case core::tour_thread_kind::tour:
-			Subject->setText(tr("About the whole tour and the change"));
+			Subject->setText(tr("The whole tour"));
 			break;
 		case core::tour_thread_kind::problem:
-			Subject->setText(tr("About the Problem"));
+			Subject->setText(tr("Problem"));
 			quote = Draft ? QString::fromStdString(Draft->Problem) : QString{ };
 			ShowPart->setToolTip(tr("Show the Problem in the Tour tab"));
 			break;
 		case core::tour_thread_kind::solution:
-			Subject->setText(tr("About the Solution"));
+			Subject->setText(tr("Solution"));
 			quote = Draft ? QString::fromStdString(Draft->Solution) : QString{ };
 			ShowPart->setToolTip(tr("Show the Solution in the Tour tab"));
 			break;
@@ -691,7 +671,7 @@ namespace bpr::qt {
 				}
 			}
 			if (stop != nullptr) {
-				Subject->setText(tr("About %1, %2").arg(name_of(*thread), QString::fromStdString(stop->Title)));
+				Subject->setText(tr("%1, %2").arg(name_of(*thread), QString::fromStdString(stop->Title)));
 				if (const auto& source = stop->Mapped ? stop->Mapped : stop->Original; source) {
 					Quote->setText(source->First.Line == source->Last.Line ? tr("%1, line %2").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U)
 																		   : tr("%1, lines %2 to %3").arg(QString::fromStdString(source->Path)).arg(source->First.Line + 1U).arg(source->Last.Line + 1U));
@@ -700,7 +680,7 @@ namespace bpr::qt {
 					Quote->setText(tr("%1, lines %2 to %3").arg(QString::fromStdString(stop->Destination->Path)).arg(stop->Destination->FirstLine + 1U).arg(stop->Destination->LastLine + 1U));
 				}
 			} else {
-				Subject->setText(tr("About a stop"));
+				Subject->setText(tr("A stop"));
 			}
 			ShowPart->setText(tr("Show in code"));
 			ShowPart->setToolTip(tr("Open the stop in the Tour tab and show its lines in the code"));

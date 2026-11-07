@@ -1,0 +1,31 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>BPR-1914 follow-up: where the tour's side chat lives</title>
+<link rel="stylesheet" href="mock.css">
+<style>
+body { padding:28px 32px 80px; max-width:1500px; margin:0 auto; }
+h1 { font-size:22px; font-weight:650; margin:0 0 6px; }
+h2 { font-size:17px; font-weight:650; margin:40px 0 6px; }
+p { color:var(--ink-2); font-size:14px; line-height:1.55; max-width:78ch; margin:4px 0 12px; }
+img { width:100%; border-radius:10px; box-shadow:0 0 0 1px var(--rule); }
+.row { display:grid; grid-template-columns:1fr 1fr; gap:14px; margin-top:14px; }
+a { color:var(--signal); }
+</style></head>
+<body>
+<h1>Where the tour's side chat lives: three directions</h1>
+<p>BPR-1914 v004 docks the side chat at the window's edge, apart from the Tour tab it is about; with the drawer on Comments it still shows a stop's chat. Each direction below shows a part under discussion, its conversation, Update's proposal, switching to another part's chat, and the drawer on Comments. Dark theme, the shipped colour roles and the BPR-1881 agent accent. The yellow notes are for review only. Each frame is <code>frame.html?dir=A&amp;f=1</code> and is drawn at the window's 1440 by 900.</p>
+
+<h2>A. Chat inside the Tour tab</h2>
+<p>The Tour tab widens into two columns while a chat is open: the tour on the left, the chat on the right. The part under discussion carries the agent rule, and other parts show their chat count on the glyph. Leaving the Tour tab closes the chat and the drawer returns to its usual width. The cost is width: the code narrows while you talk.</p>
+<img src="frames/A1.png" alt="A: discussing Stop 1 with a pending proposal">
+<div class="row"><img src="frames/A2.png" alt="A: the Solution's chat"><img src="frames/A3.png" alt="A: drawer on Comments"></div>
+
+<h2>B. A focused part</h2>
+<p>Choosing a part opens it as a focused card, and its chat folds out beneath it. Every other part dims to one line. Update's proposal is written into the part itself, struck and inserted, so you judge it where it will live. One part is open at a time, there are no tabs, and the drawer keeps one width. The cost: a long chat pushes the stops below it out of view.</p>
+<img src="frames/B1.png" alt="B: Stop 1 focused with its chat and an in-place proposal">
+<div class="row"><img src="frames/B2.png" alt="B: Stop 2 focused, Stop 1 folded"><img src="frames/B3.png" alt="B: drawer on Comments"></div>
+
+<h2>C. Drawer pairing</h2>
+<p>The docked chat stays, but only while the Tour tab is open. The part's row opens through the drawer's edge into the chat, like a folder tab. A jump list of the tour's parts, with back and forward, replaces the tabs. On another tab the dock folds to a rail that names the open chat. The cost: two panes of chrome, and the rail is one more thing at the window's edge.</p>
+<img src="frames/C1.png" alt="C: Stop 1's row bridging into the docked chat">
+<div class="row"><img src="frames/C2.png" alt="C: the jump list of parts"><img src="frames/C3.png" alt="C: drawer on Comments, dock folded to a rail"></div>
+</body></html>

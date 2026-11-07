@@ -193,8 +193,22 @@ request is a fresh run given the tour so far, never `--resume`. See the
 
 Since [[BPR-1914]] v003 (owner, 2026-11-06: "something more like a side chat")
 each part of the tour (the tour as a whole, the Problem, the Solution, each
-stop) has its own side chat, docked at the window's right edge so the tour
-and the code keep their room. A quiet speech-bubble glyph beside each part,
+stop) has its own side chat. Since [[BPR-1925]] (owner, 2026-11-07: "it's kind
+of weird that the sidechat is so decoupled from the tour when it's really
+about the tour") the chat is the Tour tab's second column, beside the tour,
+not a pane at the window's edge. While it is open the drawer widens to hold
+both (740 pixels at first, then the width the reviewer drags it to), and the
+part under discussion carries the agent's rule: a faint wash of the accent
+and its line down the left of the Problem's or the Solution's panel, or of
+the stop on the route. Each part's glyph shows how many turns its chat has,
+and is pressed while that chat is beside the tour. There are no tabs: the
+part's glyph brings its chat, and going to another stop on the route brings
+that stop's chat while a stop's chat is open. The chat goes with the Tour tab:
+on Comments, Notes or Agent it is gone and the drawer is its narrow width
+again, and the Tour tab counts the parts that have a chat in the agent's
+accent; back on Tour it is as it was. Close gives the narrow drawer back and
+keeps every chat. On the tour's own page (Expand) the chat sits beside the
+tour there. A quiet speech-bubble glyph beside each part,
 or Open side chat in its menu, opens it, quoting the selected text; a stop's
 chat shows the stop's lines in the diff, and Ask about its code quotes them.
 The chat is plain: the author's bubbles, the agent's rendered replies with

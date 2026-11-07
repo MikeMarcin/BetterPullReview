@@ -68,6 +68,10 @@ namespace bpr::qt {
 		constexpr int divider_role   = Qt::UserRole + 6;
 		constexpr int current_role   = Qt::UserRole + 7;
 		constexpr int attention_role = Qt::UserRole + 8;
+		/// [[BPR-1925]]. The turns in a stop's chat, and whether that chat is
+		/// the one beside the tour now.
+		constexpr int chat_role      = Qt::UserRole + 9;
+		constexpr int discussed_role = Qt::UserRole + 10;
 		/// The route's measures: the grip, the circle's column, the text.
 		constexpr int grip_width   = 18;
 		constexpr int ring_left    = 22;
@@ -217,6 +221,45 @@ namespace bpr::qt {
 			return code;
 		}
 
+		/// \brief [[BPR-1925]]. Paints the agent's mark under a widget that
+		/// shows a part while that part's chat is beside the tour: a faint
+		/// wash of the accent and its rule down the left, as the route marks a
+		/// stop. It paints before the widget does, so everything the widget
+		/// and its children draw stays on top.
+		class part_marker final : public QObject
+		{
+		public:
+			part_marker(QObject* aParent, std::function<bool()> aMarked)
+				: QObject{ aParent }
+				, Marked{ std::move(aMarked) }
+			{
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::Paint && Marked && Marked()) {
+					auto* const widget  = static_cast<QWidget*>(aWatched);
+					auto        painter = QPainter{ widget };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					const auto& palette = widget->palette();
+					const auto  base    = palette.color(QPalette::Active, QPalette::Window);
+					const auto  agent   = agent_accent(palette);
+					const auto  ground  = QRectF{ widget->rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+					painter.setPen(QPen{ mixed(base, agent, 0.45), 1.0 });
+					painter.setBrush(mixed(base, agent, 0.10));
+					painter.drawRoundedRect(ground, 6.0, 6.0);
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(agent);
+					painter.drawRoundedRect(QRectF{ ground.left(), ground.top() + 4.0, 3.0, std::max(0.0, ground.height() - 8.0) }, 1.5, 1.5);
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			std::function<bool()> Marked;
+		};
+
 		/// \brief [[BPR-1593]]. RFC-BPR-0085 D4: each stop on the route, a
 		/// numbered circle on an amber line, its source in a code chip, its
 		/// readiness in its ring; a file divider where the route changes file.
@@ -290,8 +333,21 @@ namespace bpr::qt {
 				if (!last) {
 					aPainter->drawLine(QPointF{ ringCentre.x(), ringCentre.y() + ring_size / 2.0 }, QPointF{ ringCentre.x(), static_cast<qreal>(rect.bottom() + 1) });
 				}
+				// [[BPR-1925]]. The stop whose chat is beside the tour: the agent's
+				// rule and a faint wash of its accent, under everything else.
+				const auto agent     = agent_accent(palette);
+				const auto discussed = aIndex.data(discussed_role).toBool();
+				if (discussed) {
+					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					aPainter->setPen(QPen{ mixed(base, agent, 0.45), 1.0 });
+					aPainter->setBrush(mixed(base, agent, 0.10));
+					aPainter->drawRoundedRect(ground, 8.0, 8.0);
+					aPainter->setPen(Qt::NoPen);
+					aPainter->setBrush(agent);
+					aPainter->drawRoundedRect(QRectF{ ground.left(), ground.top() + 6.0, 3.0, ground.height() - 12.0 }, 1.5, 1.5);
+				}
 				// The current stop's ground, and the selection's.
-				if (current || selected || hovered) {
+				if (!discussed && (current || selected || hovered)) {
 					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
 					aPainter->setPen(current ? QPen{ mixed(base, amber, 0.55), 1.0 } : Qt::NoPen);
 					aPainter->setBrush(current ? base : mixed(window, ink, selected ? 0.07 : 0.04));
@@ -378,6 +434,26 @@ namespace bpr::qt {
 				}
 				const auto left  = rect.left() + text_left;
 				auto       right = rect.right() - 10;
+				// [[BPR-1925]]. A stop with a chat: its glyph and its turns, in the
+				// agent's accent, at the right of its title.
+				if (const auto turns = aIndex.data(chat_role).toInt(); turns > 0) {
+					const auto figures = QString::number(turns);
+					const auto side    = 14;
+					const auto w       = QFontMetrics{ small }.horizontalAdvance(figures);
+					const auto glyph   = QRectF{ static_cast<qreal>(right - w - side - 4), ring.center().y() - side / 2.0, static_cast<qreal>(side), static_cast<qreal>(side) };
+					aPainter->setPen(QPen{ agent, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+					aPainter->setBrush(Qt::NoBrush);
+					aPainter->drawRoundedRect(QRectF{ glyph.left() + 1.0, glyph.top() + 1.5, glyph.width() - 2.0, glyph.height() * 0.62 }, 3.0, 3.0);
+					auto tail = QPainterPath{ };
+					tail.moveTo(glyph.left() + 4.0, glyph.top() + 1.5 + glyph.height() * 0.62);
+					tail.lineTo(glyph.left() + 3.5, glyph.bottom() - 0.5);
+					tail.lineTo(glyph.left() + 7.5, glyph.top() + 1.5 + glyph.height() * 0.62);
+					aPainter->drawPath(tail);
+					aPainter->setFont(small);
+					aPainter->setPen(agent);
+					aPainter->drawText(QRect{ right - w, static_cast<int>(ring.top()), w + 1, ring_size }, Qt::AlignRight | Qt::AlignVCenter, figures);
+					right -= w + side + 10;
+				}
 				if (aIndex.data(attention_role).toBool() || preparation == core::tour_preparation::needs_attention) {
 					const auto words        = QObject::tr("Lines changed");
 					const auto smallMetrics = QFontMetrics{ small };
@@ -1020,6 +1096,9 @@ namespace bpr::qt {
 		SideChat = new tour_side_chat{ };
 		SideChat->setParent(this, Qt::Window);
 		SideChat->set_reveal_dispatch([this](const core::tour_thread& aThread) { reveal_part(aThread); });
+		// [[BPR-1925]]. The tour marks the part under discussion and counts
+		// each part's chat as the chat changes.
+		SideChat->set_change_observer([this] { mark_side_chat(); });
 		TourAgentPanel->set_chat_dispatch([this] { SideChat->open(core::tour_thread{ }); });
 		DraftFailure = new failure_notice_card{ TourAgentPanel };
 		connect(static_cast<failure_notice_card*>(DraftFailure)->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
@@ -1133,7 +1212,12 @@ namespace bpr::qt {
 			Roadmap->addTab(host, aTitle);
 			auto* const panel  = new QWidget{ BriefSlots[aIndex] };
 			auto* const column = new QVBoxLayout{ panel };
-			column->setContentsMargins(0, 0, 0, 0);
+			// [[BPR-1925]]. Room inside the panel for the agent's mark while
+			// this part's chat is beside the tour.
+			column->setContentsMargins(8, 6, 6, 6);
+			mark_part(panel, [aKind]() -> std::optional<core::tour_thread> {
+				return core::tour_thread{ .Kind = aKind == core::tour_command_kind::problem ? core::tour_thread_kind::problem : core::tour_thread_kind::solution };
+			});
 			column->setSpacing(6);
 			BriefPanels[aIndex] = panel;
 			slot->addWidget(panel);
@@ -2020,6 +2104,53 @@ namespace bpr::qt {
 		}
 		SideChat->open(thread, std::move(passage));
 	}
+	void review_tour_editor::mark_part(QWidget* aWidget, std::function<std::optional<core::tour_thread>()> aPart)
+	{
+		aWidget->installEventFilter(new part_marker{ aWidget, [this, aPart] {
+														const auto part = aPart();
+														return part.has_value() && SideChat != nullptr && SideChat->discussed() == part;
+													} });
+		PartMarks.emplace_back(aWidget, std::move(aPart));
+	}
+
+	void review_tour_editor::mark_side_chat()
+	{
+		const auto discussed = SideChat->discussed();
+		// The glyph beside each part: its chat's turns, and pressed while
+		// that chat is the one beside the tour.
+		for (auto* const chat : ChatButtons) {
+			auto thread = std::optional<core::tour_thread>{ };
+			if (chat->objectName() == QStringLiteral("tourProblemChat")) {
+				thread = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
+			} else if (chat->objectName() == QStringLiteral("tourSolutionChat")) {
+				thread = core::tour_thread{ .Kind = core::tour_thread_kind::solution };
+			} else if (const auto* const stop = selected_stop(); stop != nullptr) {
+				thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id };
+			}
+			const auto turns = thread ? SideChat->turns_about(*thread) : 0U;
+			chat->setText(turns == 0U ? QString{ } : QString::number(turns));
+			chat->setToolButtonStyle(turns == 0U ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
+			chat->setCheckable(true);
+			chat->setChecked(thread.has_value() && discussed == thread);
+		}
+		// The route: each stop's turns, and the stop under discussion.
+		if (Outline != nullptr && Shown.Draft) {
+			for (int index = 0; index < Outline->count() && static_cast<std::size_t>(index) < Shown.Draft->Stops.size(); ++index) {
+				const auto  thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = Shown.Draft->Stops[static_cast<std::size_t>(index)].Id };
+				auto* const item   = Outline->item(index);
+				item->setData(chat_role, static_cast<int>(SideChat->turns_about(thread)));
+				item->setData(discussed_role, discussed == thread);
+			}
+			Outline->viewport()->update();
+		}
+		for (const auto& [widget, part] : PartMarks) {
+			widget->update();
+		}
+		if (SideChatObserver) {
+			SideChatObserver();
+		}
+	}
+
 	void review_tour_editor::reveal_part(const core::tour_thread& aThread)
 	{
 		switch (aThread.Kind) {
@@ -3332,6 +3463,22 @@ namespace bpr::qt {
 	}
 
 	void review_tour_editor::place_stop_card()
+	{
+		place_stop_card_now();
+		// [[BPR-1925]]. While a stop's chat is beside the tour, going to
+		// another stop brings that stop's chat: the chat follows the route.
+		// The keyboard stays where the reviewer put it.
+		if (SideChat != nullptr) {
+			const auto discussed = SideChat->discussed();
+			if (const auto* const stop = selected_stop(); stop != nullptr && discussed && discussed->Kind == core::tour_thread_kind::stop && discussed->Stop != stop->Id) {
+				SideChat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id }, std::nullopt, false);
+				return;
+			}
+			mark_side_chat();
+		}
+	}
+
+	void review_tour_editor::place_stop_card_now()
 	{
 		if (Outline == nullptr || StopFields == nullptr) {
 			return;

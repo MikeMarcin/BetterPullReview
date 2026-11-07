@@ -82,7 +82,6 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QDockWidget>
 #include <QFont>
 #include <QFontMetrics>
 #include <QFontMetricsF>

@@ -744,6 +744,17 @@ namespace bpr::core {
 		return runs;
 	}
 
+	auto chat_threads(const tour_agent_session& aSession) -> std::vector<tour_thread>
+	{
+		auto threads = std::vector<tour_thread>{ };
+		for (const auto& run : aSession.Runs) {
+			if (run.Request == tour_agent_request::ask && std::ranges::find(threads, run.Thread) == threads.end()) {
+				threads.push_back(run.Thread);
+			}
+		}
+		return threads;
+	}
+
 	auto proposed_in_thread(const tour_agent_session& aSession, const tour_proposal_item& aItem) noexcept -> bool
 	{
 		const auto* const run = find_tour_run(aSession, aItem.Run);
