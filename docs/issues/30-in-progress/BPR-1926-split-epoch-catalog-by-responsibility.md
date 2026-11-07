@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1926"
 title: "Split epoch_catalog.cpp by responsibility"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
