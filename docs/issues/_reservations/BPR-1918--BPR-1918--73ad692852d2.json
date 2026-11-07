@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1918"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Custom agent opt-out of strict run checks",
+  "created": "2026-11-07T04:24:47.158880+00:00",
+  "base": "5b1410f1e75ce28b9074e265cd1b30d6baca9465"
+}
