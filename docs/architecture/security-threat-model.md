@@ -1850,7 +1850,9 @@ A `/skill-name` in a prompt brings that skill's `SKILL.md` into the request
   No run gains a tool. A wrapper that turns skills on anyway is caught by
   the decoder: a `Skill` tool in a writing or read-only run's init frame, or
   a `Skill` tool use, ends the run (`tool_refused`) with the refused line,
-  naming the skill, in its log.
+  naming the skill, in its log. A custom agent whose person turned strict run
+  checks off ([[BPR-1918]]) names the use with its skill and counts it as the
+  `skill` check instead, and the run goes on.
 - **Residual.** A named skill's text is instruction data the person chose;
   a repository skill they name is the base side's text and may still steer
   the agent's prose. It grants no tool, publication or review authority.

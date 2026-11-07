@@ -1770,7 +1770,10 @@ description says to load it always). As defence in depth, a wrapper that
 turns skills on gets nothing past the decoder: a writing run refuses an init
 frame with any tool; a read-only run refuses an init frame that loads
 `Skill` and ends at a `Skill` tool use (`tool_refused`), the refused line,
-which names the skill, kept in the run's log ([[BPR-1827]]).
+which names the skill, kept in the run's log ([[BPR-1827]]). A custom agent
+with relaxed run checks ([[BPR-1918]]) is not stopped there: the use is named
+in the transcript with its skill ("which no prompt named") and counted as the
+`skill` check, and the run goes on.
 
 **Head allowed (owner, 2026-11-06).** The owner first ruled repository skills
 base-only ("you could be reviewing a PR you dont trust"), then allowed the
