@@ -1327,6 +1327,11 @@ namespace bpr::app {
 		if (auto* const overview = Window->overview_page(); overview != nullptr) {
 			overview->adopt_appearance(*AppearanceProfile);
 		}
+		// [[BPR-1919]]. Fenced code in the tour's rendered text, its
+		// proposals and the agent's replies, in the panes' colours.
+		if (auto* const tour = Window->tour_editor(); tour != nullptr) {
+			tour->set_code_theme({ .Colors = qt::code_role_colors_of(AppearanceProfile->palette()), .Variant = AppearanceProfile->variant() });
+		}
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1753]], owner look v003. The agent's answers' code in
 		// the panes' colours and code font.

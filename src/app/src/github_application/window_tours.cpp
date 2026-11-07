@@ -21,6 +21,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <string_view>
 #include <variant>
 
@@ -719,7 +720,7 @@ namespace bpr::app {
 			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
 													   + QString::fromStdString(*skills.Note));
 		}
-		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly ? std::optional{ aHook } : std::nullopt, std::nullopt, std::move(skills))) {
+		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly ? std::optional{ aHook } : std::nullopt, std::nullopt, core::tour_thread{ }, false, std::move(skills))) {
 			cancel_writing();
 		}
 #else
@@ -789,15 +790,16 @@ namespace bpr::app {
 	/// the core starts the run in the session, then the launch path sends it
 	/// (`aRunFor` names the hook whose control shows it running).
 	auto github_application::implementation::dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor,
-															   const std::optional<core::tour_passage>& aPassage, skill_run aSkills) -> bool
+															   const std::optional<core::tour_passage>& aPassage, const core::tour_thread& aThread, const bool aUpdate, skill_run aSkills) -> bool
 	{
 		adopt_tour_conversation();
 		const auto tools = core::tools_for(aKind);
-		const auto run   = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aPassage, aAsked) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
+		const auto run   = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aThread, aPassage, aAsked, aUpdate) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
 		if (!run) {
 			return false;
 		}
-		TourRun = *run;
+		TourRun        = *run;
+		TourRunStarted = std::chrono::steady_clock::now();
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
 		auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
@@ -884,6 +886,10 @@ namespace bpr::app {
 			}
 		}
 		const auto run = TourRun;
+		// [[BPR-1914]] v003. How long it worked, as "Worked for Ns" says.
+		if (run) {
+			static_cast<void>(core::time_tour_run(TourAgent, *run, static_cast<std::uint32_t>(std::chrono::duration_cast<std::chrono::seconds>(std::chrono::steady_clock::now() - TourRunStarted).count())));
+		}
 		TourRun.reset();
 		TourInvocation.reset();
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
@@ -920,7 +926,7 @@ namespace bpr::app {
 	/// tour or a selected passage, or a change asked for in words. It runs
 	/// read-only in the workspace, as drafting does, and is given the
 	/// earlier turns.
-	void github_application::implementation::request_tour_ask(const std::optional<core::tour_passage>& aPassage, const QString& aQuestion)
+	void github_application::implementation::request_tour_ask(const core::tour_thread& aThread, const std::optional<core::tour_passage>& aPassage, const QString& aQuestion, const bool aUpdate)
 	{
 		const auto* const snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
 		const auto        draft    = TourHost ? TourHost->presentation().Draft : nullptr;
@@ -928,20 +934,23 @@ namespace bpr::app {
 		if (Closing || snapshot == nullptr || !draft || question.empty()) {
 			return;
 		}
-		const auto agent = writing_agent();
-		if (!agent || !tour_session_idle()) {
-			Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
-															  : QStringLiteral("The tour session is busy. Ask when it finishes, or stop it."));
-			return;
-		}
 		adopt_tour_conversation();
-		// A turn that cannot run still lands in the conversation, saying why.
-		const auto refuse = [this, &aPassage, &question](const std::string& aWhy) {
-			if (const auto run = core::begin_tour_ask(TourAgent, aPassage, question)) {
+		// A turn that cannot run still lands in its side chat, saying why.
+		const auto refuse = [this, &aThread, &aPassage, &question, aUpdate](const std::string& aWhy) {
+			if (const auto run = core::begin_tour_ask(TourAgent, aThread, aPassage, question, aUpdate)) {
 				static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, aWhy));
 			}
 			present_tour_session();
 		};
+		const auto agent = writing_agent();
+		if (!agent) {
+			refuse("No agent is chosen. Choose one with the agent picker at the bottom of the Tour tab.");
+			return;
+		}
+		if (!tour_session_idle()) {
+			refuse("The tour agent was still finishing its last run. Send this again in a moment.");
+			return;
+		}
 		if (!reads_read_only(*agent)) {
 			refuse(QStringLiteral("%1 has no read-only mode to read the code with. Choose Claude or Codex with the agent picker at the bottom of the Tour tab.").arg(agent_display_name(*agent)).toStdString());
 			return;
@@ -954,7 +963,7 @@ namespace bpr::app {
 																					  : "modified";
 			files.push_back({ file.Path, change, file.HeadHunks });
 		}
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent), aPassage, question);
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent, aThread), aThread, aPassage, question, aUpdate);
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
@@ -968,7 +977,7 @@ namespace bpr::app {
 		}
 		const auto text = *prompt + skills.Directive;
 		TourAskPending  = true;
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, text, std::nullopt, aPassage, std::move(skills))) {
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, text, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
 			TourAskPending = false;
 		}
 	}
@@ -988,6 +997,10 @@ namespace bpr::app {
 		if (draft) {
 			auto files = tour_anchor_files(aResult);
 			proposal   = core::propose_tour_changes(aRun, *answer, files, *draft);
+			// [[BPR-1914]] v003. An Update proposes only its chat's part.
+			if (const auto* const asked = core::find_tour_run(TourAgent, aRun); asked != nullptr && asked->Update) {
+				proposal = core::keep_thread_part(std::move(*proposal), asked->Thread);
+			}
 			if (!proposal->Items.empty()) {
 				TourAnchorFiles = std::move(files);
 			}
@@ -999,7 +1012,7 @@ namespace bpr::app {
 		static_cast<void>(core::note_finished_tour_run(TourAgent, aRun, core::left_out_entries(*proposal)));
 		if (!proposal->Items.empty()) {
 			TourProposal = core::merge_tour_proposal(TourProposal, std::move(*proposal));
-			Window->tour_editor()->show_writing_notice(QStringLiteral("The tour agent proposed a change. It's in the Tour tab; nothing changes until you accept it."));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you accept it."));
 		}
 	}
 
@@ -1463,6 +1476,10 @@ namespace bpr::app {
 			navigate_tour_source(source);
 			return;
 		}
+		case qt::tour_editor_action::ask_code:
+			// [[BPR-1914]] v002. The lines selected in the code, or the stop's own.
+			Window->tour_editor()->ask_about_code(selected_tour_source());
+			return;
 		case qt::tour_editor_action::navigate_related: {
 			const auto related = Window->tour_editor()->selected_related();
 			navigate_tour_source(related ? std::optional{ core::destination_of(*related) } : std::nullopt);

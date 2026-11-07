@@ -1226,6 +1226,107 @@ where we're editing the built-in prompts its a bit weak".
   skills brought in, and unsaved edits are marked and kept per prompt until
   saved or discarded. The owner's look on a frozen build decides it.
 
+### Amendment [[BPR-1914]] v003 (2026-11-06): side chats, and Update from the chat
+
+The owner rejected v002's inline threads: "This is much closer than the
+previous version but it's too in the way and noisy. I think I need something
+more like a side chat ... On each part I can pop open a side chat, ask some
+questions and then the other part the current version is missing is being
+able to ask the agent to update the section based on our chat. I dunno if each
+side chat is a session or what, you figure out the best way." v003 replaces
+v002's threads under the parts (described below for the record) and keeps its
+thread model, code passages, proposals carried by their run and [[BPR-1919]]'s
+highlighting.
+
+- **Session model: one side chat is one thread, replayed on its own.** It
+  supersedes the v001 replay of the whole conversation. Each part of the tour
+  (the tour as a whole, the Problem, the Solution, each stop) has at most one
+  side chat, which is its `core::tour_thread`. A turn in a chat is a fresh
+  read-only run given the tour as it is now (so the part's current text) and
+  that chat's own answered turns alone (`core::tour_conversation_of(session,
+  thread)`, the newest 12 within 48 KiB); the tour's chat also has the
+  whole-tour drafts. Chats are independent: what was said about one stop never
+  reaches another's. Turns live in the app's memory for the review (closing a
+  chat's tab keeps them; opening it again shows them); a run on another tour
+  draft lets them go. No agent keeps a session: Claude's read-only runs keep
+  `--no-session-persistence`, and the same request works for every agent kind.
+- **Where it lives: docked at the window's right edge.** The side chats dock on
+  the main window's right edge, past the drawers (a `QDockWidget` with no title
+  bar, so the tour, the code and the comments keep their layout; closed, it
+  takes no room). Its own top row is one tab per open chat, + for another
+  (the tour, the Problem, the Solution or any stop), Copy chat and close. Under
+  it, what the chat is about: the part's current text quoted, or a stop's
+  title and file and lines, with Show (Show in code for a stop) to bring the
+  tour there and a stop's lines into the diff.
+- **Opening one.** Each part has one quiet glyph (a small speech bubble) beside
+  its own helpers (Problem, Solution, a stop's actions), and the part's own
+  context menu has Open side chat. With text selected, the chat opens quoting
+  it. A stop's chat opens with the stop's lines shown in the diff, and Ask
+  about its code ([[BPR-1914]] v002's code passage) quotes the lines selected
+  in the diff or the stop's own. Draft the tour's row has the glyph for the
+  tour as a whole. Nothing is added to the tour's column: v002's threads and
+  Ask buttons are gone.
+- **A plain chat.** The author's words are right-aligned bubbles (with the
+  quoted passage); the agent's are left-aligned, rendered as Markdown with
+  highlighted code, under a folded "Worked for Ns" that opens to the steps it
+  took (the host measures the run's time, `core::time_tour_run`), with Copy
+  under each reply and Copy chat for the whole chat. The composer at the
+  bottom (Return sends, Shift+Return is a new line) is the one place a chat's
+  words are typed: every chat sends a `qt::tour_ask` through the editor's one
+  `set_tour_ask_dispatch`, where a reviewer's `/skill` references
+  ([[BPR-1916]]) are resolved.
+- **Update this section from our chat.** One clear action above the composer,
+  "Update the Solution from this chat" (the Problem, this stop, the tour),
+  enabled once the chat has an answer. It sends an Update turn
+  (`tour_agent_run::Update`): the request asks for that part rewritten as its
+  whole new text from the chat and the code, and the core keeps only that
+  part of the answer (`core::keep_thread_part`). It comes back as the part's
+  proposal (BPR-1900's, with Accept, Edit text and Discard) in the chat, and
+  Accept applies it to the part. Nothing changes without Accept.
+- A question sent while the session is still finishing its last run, or with
+  no agent chosen, lands in its chat as a turn that did not run, saying why.
+
+### Amendment [[BPR-1914]] v002, [[BPR-1919]] (2026-11-06): asking in context, highlighted code
+
+v002's threads under the parts were replaced by v003's side chats above; its
+thread model, code passages and highlighting stand.
+
+The owner rejected v001's conversation window: "I don't understand this
+editing interface. Like I want to ask questions about the specific parts of
+the tour, how do I do that if I can't see the tour or the code?" The window
+above stays, but only as a secondary, copyable record; nothing is asked there.
+
+- **Threads under the part they are about.** Each ask turn belongs to a thread
+  (`core::tour_thread`): the tour as a whole, the Problem, the Solution, or one
+  stop. A thread hangs under its part as a margin note in the agent accent:
+  under the Problem or Solution field, under the open stop in the route, and,
+  for the tour as a whole, under Draft the tour (**Ask about the tour**). Each
+  turn shows the passage it was about, the question, one quiet line of what
+  the agent read, the reply rendered as Markdown, and any change it proposed.
+  The thread's ask box takes follow-ups, so "rewrite that" stays in the same
+  thread, and the request names every turn's thread so a follow-up refers to
+  its own.
+- **Where asking starts.** Beside each field's Enhance control, **Ask about the
+  Problem**, **Ask about the Solution** or **Ask about this stop** is always
+  offered; with text selected it reads **Ask about this** and quotes the
+  passage. Under an open stop, **Ask about its code** asks about the lines
+  selected in the code, or else the stop's own lines (a `stop_code` passage
+  with the path, lines and, where the app has them, the lines' text). Asking
+  in a stop's thread shows the stop's lines in the diff (Show in code), so the
+  code is beside the thread while it is read. A new answer scrolls the drawer
+  to it.
+- **Proposals in the thread.** An ask turn's proposed parts carry their run
+  (`tour_proposal_item::Run`) and are decided in that turn's thread, with
+  Accept, Edit text and Discard beside the part they change. The proposal box
+  under Draft the tour shows only a whole-tour draft's parts.
+- **Highlighted code ([[BPR-1919]]).** Replies and proposed texts in threads
+  and the proposal box, and the Tour tab's stop reader and previews, set fenced
+  code with the app's highlighter (the Markdown code-syntax dispatch the diff's
+  comments use), the profile's code font, and the panes' code colours for the
+  appearance (`review_tour_editor::set_code_theme`, from the appearance
+  profile). A block in a language the highlighter does not know stays plain
+  monospace. The published GitHub form is unchanged.
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

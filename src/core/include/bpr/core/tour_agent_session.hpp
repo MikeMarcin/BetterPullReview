@@ -159,6 +159,9 @@ namespace bpr::core {
 		problem,
 		solution,
 		stop,
+		/// [[BPR-1914]] v002. Lines of the code a stop points at (or lines
+		/// selected in the code while the stop is open).
+		stop_code,
 	};
 	/// \brief [[BPR-1914]]. The passage an Ask about this turn is about: the
 	/// selected text and where it was selected.
@@ -170,7 +173,30 @@ namespace bpr::core {
 		/// For a stop: its title then.
 		std::string StopTitle;
 		std::string Text;
-		auto        operator==(const tour_passage&) const -> bool = default;
+		/// For stop code: the head path and one-based lines it shows.
+		std::string   Path;
+		std::uint32_t FirstLine                                     = 0U;
+		std::uint32_t LastLine                                      = 0U;
+		auto          operator==(const tour_passage&) const -> bool = default;
+	};
+
+	/// \brief [[BPR-1914]] v002, owner 2026-11-06: "I want to ask questions
+	/// about the specific parts of the tour, how do I do that if I can't see
+	/// the tour or the code?" Each turn belongs to the thread of the part it
+	/// was asked from, shown under that part: the tour as a whole, the
+	/// Problem, the Solution, or one stop (its explanation and its code).
+	enum class tour_thread_kind : std::uint8_t {
+		tour,
+		problem,
+		solution,
+		stop,
+	};
+	struct tour_thread
+	{
+		tour_thread_kind Kind = tour_thread_kind::tour;
+		/// For a stop's thread: the stop.
+		tour_stop_id Stop;
+		auto         operator==(const tour_thread&) const -> bool = default;
 	};
 	inline constexpr std::size_t maximum_tour_passage_bytes  = 4096U;
 	inline constexpr std::size_t maximum_tour_question_bytes = 4096U;
@@ -207,7 +233,15 @@ namespace bpr::core {
 		std::string                 Question;
 		std::string                 Reply;
 		tour_proposal_tally         Proposed;
-		auto                        operator==(const tour_agent_run&) const -> bool = default;
+		/// [[BPR-1914]] v002. The thread an ask turn belongs to.
+		tour_thread Thread;
+		/// [[BPR-1914]] v003. "Update this section from our chat": a turn that
+		/// asks for its thread's part rewritten from the conversation.
+		bool Update = false;
+		/// [[BPR-1914]] v003. How long the run worked, as the host measured
+		/// it, for "Worked for Ns".
+		std::optional<std::uint32_t> Seconds;
+		auto                         operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;
@@ -352,7 +386,10 @@ namespace bpr::core {
 		/// For a stop_text: the stop of the tour it rewrites (its title is in
 		/// `Stop.Title`).
 		tour_stop_id StopId;
-		auto         operator==(const tour_proposal_item&) const -> bool = default;
+		/// [[BPR-1914]] v002. The run that proposed it: an ask turn's parts
+		/// are shown in that turn's thread.
+		tour_agent_run_id Run;
+		auto              operator==(const tour_proposal_item&) const -> bool = default;
 	};
 	/// \brief A proposed stop the core left out, and why.
 	struct tour_left_out_stop
@@ -405,7 +442,19 @@ namespace bpr::core {
 	/// passage it is about (its text not blank, at most
 	/// `maximum_tour_passage_bytes`). Refused as `begin_tour_run` is, and for
 	/// a question or passage outside those bounds.
-	[[nodiscard]] auto begin_tour_ask(tour_agent_session& aSession, const std::optional<tour_passage>& aPassage, std::string_view aQuestion) -> std::optional<tour_agent_run_id>;
+	[[nodiscard]] auto begin_tour_ask(tour_agent_session& aSession, const tour_thread& aThread, const std::optional<tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false) -> std::optional<tour_agent_run_id>;
+	/// \brief [[BPR-1914]] v003. Records how long a run worked, once it has
+	/// ended; false for a running or unknown run.
+	auto time_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::uint32_t aSeconds) -> bool;
+	/// \brief [[BPR-1914]] v003. An Update turn proposes only its thread's part:
+	/// the Problem, the Solution, or the stop's new explanation; the tour's
+	/// thread keeps everything. The rest is left out of the proposal.
+	[[nodiscard]] auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal;
+	/// \brief [[BPR-1914]] v002. The ask turns of `aThread`, oldest first.
+	[[nodiscard]] auto thread_runs(const tour_agent_session& aSession, const tour_thread& aThread) -> std::vector<const tour_agent_run*>;
+	/// \brief Whether proposal item `aItem` came from an ask turn, and so is
+	/// shown in that turn's thread rather than with a whole-tour draft.
+	[[nodiscard]] auto proposed_in_thread(const tour_agent_session& aSession, const tour_proposal_item& aItem) noexcept -> bool;
 	/// \brief Ends a running ask turn as answered with the agent's reply (cut
 	/// to `maximum_tour_reply_bytes` at a character) and what it proposed.
 	auto answer_tour_ask(tour_agent_session& aSession, tour_agent_run_id aRun, std::string_view aReply, const tour_proposal_tally& aProposed) -> bool;
@@ -417,6 +466,7 @@ namespace bpr::core {
 		std::optional<tour_passage> Passage;
 		/// The reply, or for a Draft the tour run what it proposed.
 		std::string Reply;
+		tour_thread Thread;
 		auto        operator==(const tour_conversation_turn&) const -> bool = default;
 	};
 	struct tour_conversation
@@ -434,6 +484,11 @@ namespace bpr::core {
 	/// `maximum_replayed_tour_turns` that fit in `maximum_replayed_tour_bytes`.
 	/// Failed and stopped turns, and small rewrites, are not replayed.
 	[[nodiscard]] auto tour_conversation_of(const tour_agent_session& aSession) -> tour_conversation;
+	/// \brief [[BPR-1914]] v003. One side chat is one thread: the turns a new
+	/// turn in `aThread` replays are that thread's own answered turns (and, for
+	/// the tour's thread, the answered Draft the tour runs), bounded as above.
+	/// Each part's chat is independent of the others.
+	[[nodiscard]] auto tour_conversation_of(const tour_agent_session& aSession, const tour_thread& aThread) -> tour_conversation;
 
 	/// \brief A new explanation an ask turn proposes for stop `Stop` (one-based,
 	/// as the tour so far numbered it).
