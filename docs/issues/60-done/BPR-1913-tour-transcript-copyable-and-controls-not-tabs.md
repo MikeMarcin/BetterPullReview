@@ -2,10 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1913"
 title: "The tour session's transcript copies as a whole and leaves the tour's room, and its controls stop looking like tabs"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
-parked_on: "human-review"
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-06, coordinator chat after using BPR-1900","related_cards":["BPR-1878","BPR-1881","BPR-1892","BPR-1900","BPR-1912"]}
@@ -132,3 +131,7 @@ Focused, owner: "dont wait for tests". On `840b1c629`:
   candidate, `BPR-1913-tour-transcript` (revision `840b1c629-v002`), one
   Accept/Reject question. Status: ready, awaiting the owner.
 
+
+## Accepted
+
+The owner accepted v002 on 2026-11-06 (attended review, no note).
