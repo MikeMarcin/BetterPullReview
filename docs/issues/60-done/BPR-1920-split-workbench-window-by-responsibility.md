@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1920"
 title: "Split workbench_window.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"aff74307f","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"543e4e210","evidence":{"kind":"observation","detail":"Thirteen workbench_window_* sources and workbench_window_support; public header unchanged; single-use helpers private."}},{"criterion":"AC2","outcome":"pass","revision":"543e4e210","evidence":{"kind":"command","detail":"Tests-off builds; dev build except main's broken agent_context_supplement test; 221/230 rows pass, nine fail identically at main aff74307f; architecture and format pass. Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"543e4e210","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split workbench_window.cpp by responsibility
