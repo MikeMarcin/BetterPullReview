@@ -249,6 +249,13 @@ auto main(int argc, char** argv) -> int
 		expect(selected.contains(QStringLiteral("src/renderer.cpp")) && selected.contains(QStringLiteral("so the run was stopped")), "a selection spans entries: " + selected.toStdString());
 		panel->transcript_view()->copy();
 		expect(clipboard->text().contains(QStringLiteral("python3 -c 'print(42)'")) && clipboard->text().contains(QStringLiteral("Ended")), "and the platform's Copy takes it");
+		// Its own window wears the main window's appearance.
+		auto dark = editor.palette();
+		dark.setColor(QPalette::Window, QColor{ 0x1e, 0x1f, 0x22 });
+		dark.setColor(QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+		panel->restyle(dark);
+		expect(panel->transcript()->palette().color(QPalette::Window) == QColor{ 0x1e, 0x1f, 0x22 } && panel->transcript_view()->palette().color(QPalette::Base) == QColor{ 0x16, 0x17, 0x19 }, "the transcript window follows the appearance");
+		panel->restyle(editor.palette());
 		panel->transcript()->hide();
 	}
 	std::cout << "tour-agent-session-view:pass\n";

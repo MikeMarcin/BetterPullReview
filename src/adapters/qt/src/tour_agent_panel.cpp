@@ -444,6 +444,17 @@ namespace bpr::qt {
 		}
 		Draft->setIcon(drawer_icon(drawer_glyph::agent, Draft->palette()));
 		TranscriptToggle->setIcon(drawer_icon(drawer_glyph::page, TranscriptToggle->palette()));
+		// [[BPR-1913]]. A window of its own takes no palette from its parent:
+		// it wears the main window's appearance, as the Settings window does,
+		// and its run is drawn again in that appearance's colours.
+		// Every role is set: an inherited ground resolves nothing of its own,
+		// and a window would then fall back to the application's palette.
+		auto ground = aGround;
+		ground.setResolveMask(~QPalette::ResolveMask{ 0 });
+		TranscriptWindow->setPalette(ground);
+		if (TranscriptWindow->isVisible()) {
+			show_run(ShownRun, std::nullopt);
+		}
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
 		for (const auto& widget : Accented) {
 			if (widget) {
@@ -743,7 +754,7 @@ namespace bpr::qt {
 		}
 		// One document: a selection runs across entries, and the platform's
 		// Copy takes it as text.
-		const auto muted = palette().color(QPalette::Active, QPalette::PlaceholderText).name();
+		const auto muted = TranscriptWindow->palette().color(QPalette::Active, QPalette::PlaceholderText).name();
 		const auto code  = QFontDatabase::systemFont(QFontDatabase::FixedFont).family().toHtmlEscaped();
 		const auto asked = run->Entries.empty() ? QString{ } : QString::fromStdString(run->Entries.front().Text);
 		auto       html  = QStringLiteral("<p style=\"margin-bottom:2px\"><b>%1</b></p><p style=\"color:%2; margin-top:0\">%3</p><table cellspacing=\"0\" cellpadding=\"3\" width=\"100%\">")
