@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1905"
+  ],
+  "reserve_for": "refactor-github-application",
+  "purpose": "Refactor round 1: extract cohesive responsibilities from github_application.cpp",
+  "created": "2026-11-07T00:54:31.525119+00:00",
+  "base": "f430ebd907772b95576230d0858ae600e2f220c4"
+}

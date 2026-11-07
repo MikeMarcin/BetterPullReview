@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1913"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour transcript copyable, controls not tab-like",
+  "created": "2026-11-07T01:51:43.047617+00:00",
+  "base": "27d294ea1fc3bc12a4a635fb829488a163dc6725"
+}

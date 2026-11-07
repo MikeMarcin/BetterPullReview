@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1912"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour drafting reports outside-list commands",
+  "created": "2026-11-07T01:51:42.445651+00:00",
+  "base": "27d294ea1fc3bc12a4a635fb829488a163dc6725"
+}

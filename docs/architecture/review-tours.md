@@ -179,10 +179,15 @@ come first; one just off it says "Outside the change"; one off it on several
 lines says it won't appear when published until it's on changed lines and
 offers **Move to nearest change**. An accepted stop is
 added at the end of the route at its head lines, to be confirmed in the code
-before it is Ready. **Transcript** opens the session's runs, newest first:
-what was asked, what it searched, read and ran, and what it answered or how it
-ended; it never opens by itself. BPR-1892's notice keeps its words and its
-button is now **Show the run**, which opens that transcript at the run. Each
+before it is Ready. When Claude ran a command outside the read-only list, one
+quiet line under the proposal says how many, with a link to them in the
+transcript (BPR-1912). **Transcript** opens the session's runs, newest first,
+in a window of its own beside the main window (BPR-1913): what was asked,
+what it searched, read and ran, and what it answered or how it ended, with a
+failed run's reason and log; it never opens by itself. A selection spans a
+run's entries, and **Copy run** and **Copy all runs** put plain text on the
+clipboard. BPR-1892's notice keeps its words and its button is now **Show the
+run**, which opens that window at the run. Each
 request is a fresh run given the tour so far, never `--resume`. See the
 [AI agent boundary](ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900).
 

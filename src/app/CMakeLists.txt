@@ -137,6 +137,19 @@ if(BPR_BUILD_QT)
         STATIC
             src/foundation_application.cpp
             src/github_application.cpp
+            src/github_application/agent_composition.cpp
+            src/github_application/blob_sources.cpp
+            src/github_application/device_authorization_composition.cpp
+            src/github_application/github_presentation_projections.cpp
+            src/github_application/profile_hosts.cpp
+            src/github_application/public_preview_wire_self_check.cpp
+            src/github_application/public_preview_wire_transport.cpp
+            src/github_application/queue_notifications.cpp
+            src/github_application/review_mutation_selection.cpp
+            src/github_application/session_settings.cpp
+            src/github_application/theme_document_file.cpp
+            src/github_application/window_review_lanes.cpp
+            src/github_application/workbench_composition.cpp
             src/pane_find_controller.cpp
             src/pr_search_controller.cpp
             src/github_cli_runtime.cpp
@@ -465,6 +478,31 @@ if(BPR_BUILD_QT)
 		src/app/src/command_line.cpp
 		src/app/include/bpr/app/github_application.hpp
 		src/app/src/github_application.cpp
+		src/app/src/github_application/agent_composition.cpp
+		src/app/src/github_application/agent_composition.hpp
+		src/app/src/github_application/blob_sources.cpp
+		src/app/src/github_application/blob_sources.hpp
+		src/app/src/github_application/device_authorization_composition.cpp
+		src/app/src/github_application/device_authorization_composition.hpp
+		src/app/src/github_application/github_presentation_projections.cpp
+		src/app/src/github_application/github_presentation_projections.hpp
+		src/app/src/github_application/profile_hosts.cpp
+		src/app/src/github_application/profile_hosts.hpp
+		src/app/src/github_application/public_preview_wire_self_check.cpp
+		src/app/src/github_application/public_preview_wire_transport.cpp
+		src/app/src/github_application/public_preview_wire_transport.hpp
+		src/app/src/github_application/queue_notifications.cpp
+		src/app/src/github_application/queue_notifications.hpp
+		src/app/src/github_application/review_mutation_selection.cpp
+		src/app/src/github_application/review_mutation_selection.hpp
+		src/app/src/github_application/session_settings.cpp
+		src/app/src/github_application/session_settings.hpp
+		src/app/src/github_application/theme_document_file.cpp
+		src/app/src/github_application/theme_document_file.hpp
+		src/app/src/github_application/window_review_lanes.cpp
+		src/app/src/github_application/window_review_lanes.hpp
+		src/app/src/github_application/workbench_composition.cpp
+		src/app/src/github_application/workbench_composition.hpp
 		src/app/src/review_submission_workflow.hpp
 		src/app/src/review_submission_workflow.cpp
             src/app/src/private_review_workflow.cpp

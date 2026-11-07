@@ -7,10 +7,15 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include <QApplication>
+#include <QClipboard>
 #include <QLabel>
+#include <QListWidget>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QTextBrowser>
+#include <QTextCursor>
+#include <QTextDocumentFragment>
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
@@ -64,7 +69,15 @@ auto main(int argc, char** argv) -> int
 	auto* const draftTour = panel->draft_button();
 	expect(draftTour->text() == QStringLiteral("Draft the tour") && draftTour->isEnabled(), "Draft the tour is offered");
 	expect(draftTour->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()) && !draftTour->icon().isNull(), "it wears the agent accent and spark");
-	expect(!panel->transcript()->isVisibleTo(&editor) && !panel->proposal()->isVisibleTo(&editor), "nothing of the session is pushed in front of the author");
+	expect(!panel->transcript()->isVisible() && !panel->proposal()->isVisibleTo(&editor), "nothing of the session is pushed in front of the author");
+	// [[BPR-1913]] AC4, owner 2026-11-06: "the button at the top looks like
+	// a tab, except they're not tabs". Draft the tour is one bordered action
+	// at its own width; Transcript is bare, never checkable, apart from it.
+	expect(!draftTour->isFlat() && !draftTour->isCheckable() && draftTour->sizePolicy().horizontalPolicy() == QSizePolicy::Fixed, "Draft the tour is a button at its own width");
+	expect(panel->transcript_button()->isFlat() && !panel->transcript_button()->isCheckable() && !panel->transcript_button()->icon().isNull(), "Transcript is a bare action with a glyph, not a toggle");
+	for (auto* const button : panel->findChildren<QPushButton*>()) {
+		expect(!button->isCheckable(), "no control of the session is a checkable segment");
+	}
 
 	// AC3. In the background: the control says it is running and stops it;
 	// the author keeps writing, and leaving the window does not stop it.
@@ -108,14 +121,15 @@ auto main(int argc, char** argv) -> int
 	static_cast<void>(core::note_finished_tour_run(session, *run, core::left_out_entries(proposal)));
 	editor.present_tour_session(session, proposal);
 	expect(panel->transcript_button()->isEnabled() && panel->transcript_button()->text() == QStringLiteral("Transcript (1)"), "the transcript can be opened");
-	expect(!panel->transcript()->isVisibleTo(&editor), "it is not opened for the author");
+	expect(!panel->transcript()->isVisible(), "it is not opened for the author");
 	panel->transcript_button()->click();
-	expect(panel->transcript()->isVisibleTo(&editor), "it opens from the Tour tab");
+	// [[BPR-1913]] AC1. Its own window: nothing of it in the Tour tab's column.
+	expect(panel->transcript()->isVisible() && panel->transcript()->isWindow(), "it opens from the Tour tab, in its own window");
+	expect(editor.findChildren<QTextBrowser*>().size() == 1U && panel->transcript_view()->window() != editor.window(), "the editing column holds no transcript");
 	const auto said = panel->transcript_text();
 	expect(said.contains(QStringLiteral("Searched rg -n draw_scene src")) && said.contains(QStringLiteral("Read src/renderer.cpp")) && said.contains(QStringLiteral("Answered Proposed a Problem and 2 stops.")), "it says what it searched, read and answered: " + said.toStdString());
 	expect(said.contains(QStringLiteral("Left out \"Elsewhere\", src/elsewhere.cpp, lines 1 to 2: not a file of this pull request")), "it keeps the stop that was left out: " + said.toStdString());
-	render(editor, prefix, "transcript");
-	panel->transcript_button()->click();
+	panel->transcript()->hide();
 
 	expect(panel->proposal()->isVisibleTo(&editor), "the proposal shows where it was asked for");
 	expect(panel->accept_button(0) != nullptr && panel->accept_button(0)->isEnabled(), "the Problem can be accepted");
@@ -196,6 +210,54 @@ auto main(int argc, char** argv) -> int
 	editor.present_tour_session(session, kept);
 	const auto items = panel->proposal_items()->findChildren<QLabel*>();
 	expect(std::ranges::any_of(items, [](const QLabel* aLabel) { return aLabel->text().startsWith(QStringLiteral("Added to the tour. It won't appear when the tour is published until it's on changed lines")); }), "accepted as it is, it says plainly it won't publish until moved");
+	// [[BPR-1912]] AC4, [[BPR-1913]] AC2/AC3. A failed run in which Claude ran
+	// a command outside the read-only list.
+	{
+		auto       failed = core::tour_agent_session{ };
+		const auto first  = core::begin_tour_run(failed, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
+		static_cast<void>(core::record_tour_activity(failed, *first, { { core::tour_transcript_kind::searched, "rg -n draw src" }, { core::tour_transcript_kind::read, "awk 'NR<3' notes.txt", core::tour_transcript_note::ran_outside_list } }));
+		static_cast<void>(core::finish_tour_run(failed, *first, core::tour_agent_run_state::answered, "Proposed a Problem and 1 stop."));
+		const auto again = core::begin_tour_run(failed, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
+		static_cast<void>(core::record_tour_activity(failed, *again, { { core::tour_transcript_kind::read, "src/renderer.cpp" }, { core::tour_transcript_kind::ran, "python3 -c 'print(42)'", core::tour_transcript_note::not_run } }));
+		static_cast<void>(core::finish_tour_run(failed, *again, core::tour_agent_run_state::failed, "It tried a tool a drafting run may not use, so the run was stopped."));
+		auto withOutside = core::propose_tour(*first, answer, files, draft);
+		editor.present_tour_session(failed, withOutside);
+		expect(panel->outside_list()->isVisibleTo(&editor) && panel->outside_list()->text().startsWith(QStringLiteral("Claude ran 1 command outside the read-only list. <a href=")), "[[BPR-1912]] AC4 the proposal says one command ran outside the list: " + panel->outside_list()->text().toStdString());
+		expect(panel->outside_list()->foregroundRole() == QPalette::PlaceholderText, "in the quiet colour, not as an error");
+		render(editor, prefix, "outside-list");
+		emit panel->outside_list()->linkActivated(QStringLiteral("#outside-list"));
+		expect(panel->transcript()->isVisible() && panel->shown_run() == first, "its link opens the transcript at that run");
+		expect(panel->transcript_view()->toPlainText().contains(QStringLiteral("awk 'NR<3' notes.txt")) && panel->transcript_view()->toPlainText().contains(QStringLiteral("ran, outside the read-only list")), "where the command is named as run outside the list");
+		editor.present_tour_session(failed, core::propose_tour(*again, answer, files, draft));
+		expect(!panel->outside_list()->isVisibleTo(&editor), "a run with none shows nothing extra");
+		// BPR-1892's Show the run: the failed run, in the window.
+		panel->open_transcript(again);
+		expect(panel->shown_run() == again && panel->transcript_runs()->count() == 2 && panel->transcript_runs()->currentRow() == 0, "the failed run is shown, newest first");
+		render(*panel->transcript(), prefix, "transcript-window");
+		auto* const clipboard = QGuiApplication::clipboard();
+		clipboard->clear();
+		panel->copy_run_button()->click();
+		const auto copied = clipboard->text();
+		expect(copied.startsWith(QStringLiteral("## Run 2: Draft the tour\n\nDid not finish, read-only, in the review's workspace.\n\n- Asked: Draft the tour\n- Read: src/renderer.cpp\n- Ran: python3 -c 'print(42)' (not run, outside the read-only list)\n- Ended: It tried a tool a drafting run may not use, so the run was stopped.")),
+			   "AC2 Copy run puts the whole failed run, with its reason, on the clipboard: " + copied.toStdString());
+		panel->copy_all_button()->click();
+		const auto all = clipboard->text();
+		expect(all.indexOf(QStringLiteral("## Run 1")) == 0 && all.contains(QStringLiteral("## Run 2")) && all.contains(QStringLiteral("- Read: awk 'NR<3' notes.txt (ran, outside the read-only list)")), "Copy all runs copies the session, oldest first: " + all.toStdString());
+		// AC3. One selection runs across the entries.
+		panel->transcript_view()->selectAll();
+		const auto selected = panel->transcript_view()->textCursor().selection().toPlainText();
+		expect(selected.contains(QStringLiteral("src/renderer.cpp")) && selected.contains(QStringLiteral("so the run was stopped")), "a selection spans entries: " + selected.toStdString());
+		panel->transcript_view()->copy();
+		expect(clipboard->text().contains(QStringLiteral("python3 -c 'print(42)'")) && clipboard->text().contains(QStringLiteral("Ended")), "and the platform's Copy takes it");
+		// Its own window wears the main window's appearance.
+		auto dark = editor.palette();
+		dark.setColor(QPalette::Window, QColor{ 0x1e, 0x1f, 0x22 });
+		dark.setColor(QPalette::Base, QColor{ 0x16, 0x17, 0x19 });
+		panel->restyle(dark);
+		expect(panel->transcript()->palette().color(QPalette::Window) == QColor{ 0x1e, 0x1f, 0x22 } && panel->transcript_view()->palette().color(QPalette::Base) == QColor{ 0x16, 0x17, 0x19 }, "the transcript window follows the appearance");
+		panel->restyle(editor.palette());
+		panel->transcript()->hide();
+	}
 	std::cout << "tour-agent-session-view:pass\n";
 	return EXIT_SUCCESS;
 }

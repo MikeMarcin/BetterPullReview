@@ -24,8 +24,9 @@ namespace bpr::application {
 	/// whose Claude reported loading plugins, their names ([[BPR-1891]]):
 	/// bounded tokens that are never a path; and `memory=on` when it
 	/// reported an auto-memory folder, never the folder ([[BPR-1896]]);
-	/// and `thinking=on` when it wrote a thinking block, never its content
-	/// ([[BPR-1899]]).
+	/// `thinking=on` when it wrote a thinking block, never its content
+	/// ([[BPR-1899]]); and for a read-only Claude run how many shell commands
+	/// outside the read-only list ran, never which ([[BPR-1912]]).
 	struct agent_run_diagnosis
 	{
 		core::agent_protocol                  Protocol = core::agent_protocol::claude_stream_json;
@@ -40,6 +41,11 @@ namespace bpr::application {
 		bool AutoMemory = false;
 		/// [[BPR-1899]]. As `agent_run_result::ReportedThinking` says.
 		bool Thinking = false;
+		/// [[BPR-1912]]. A read-only Claude run's count of shell commands
+		/// outside the read-only list that ran; absent for any other run.
+		/// Never the commands: they can hold the repository's paths and
+		/// search terms.
+		std::optional<std::uint64_t> OutsideList;
 
 		auto operator<=>(const agent_run_diagnosis&) const = default;
 	};
@@ -49,7 +55,8 @@ namespace bpr::application {
 	/// stdout_bytes=223211 stderr_bytes=0`, then
 	/// `plugins=cc-plugin-sec-default@builtin` when plugins were reported,
 	/// then `memory=on` when an auto-memory folder was, then `thinking=on`
-	/// when a thinking block was.
+	/// when a thinking block was, then `outside_list=N` for a read-only
+	/// Claude run ([[BPR-1912]]).
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;

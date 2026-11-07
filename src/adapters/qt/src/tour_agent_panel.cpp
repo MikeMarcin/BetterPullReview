@@ -5,14 +5,19 @@
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QAbstractTextDocumentLayout>
+#include <QClipboard>
 #include <QFontDatabase>
+#include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QLabel>
+#include <QListWidget>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QSplitter>
 #include <QTextBlock>
+#include <QTextBrowser>
 #include <QTextDocument>
 #include <QTimer>
 #include <QToolButton>
@@ -140,6 +145,17 @@ namespace bpr::qt {
 			}
 			return { };
 		}
+		/// [[BPR-1912]]. What became of a command outside the read-only list.
+		auto note_words(const core::tour_transcript_note aNote) -> QString
+		{
+			switch (aNote) {
+			case core::tour_transcript_note::none:             return { };
+			case core::tour_transcript_note::not_run:          return QObject::tr("not run, outside the read-only list");
+			case core::tour_transcript_note::ran_outside_list: return QObject::tr("ran, outside the read-only list");
+			case core::tour_transcript_note::unchecked:        return QObject::tr("outside the read-only list, not checked");
+			}
+			return { };
+		}
 		auto tools_words(const core::tour_agent_tools aTools) -> QString
 		{
 			return aTools == core::tour_agent_tools::read_only ? QObject::tr("read-only, in the review's workspace") : QObject::tr("no tools");
@@ -178,20 +194,27 @@ namespace bpr::qt {
 		column->setContentsMargins(10, 8, 10, 0);
 		column->setSpacing(6);
 
+		// [[BPR-1913]], owner 2026-11-06: "the button at the top looks like a
+		// tab, except they're not tabs". Draft the tour is the row's one
+		// bordered action, at its own width on the left; Transcript is a bare
+		// action with a page glyph at the far end, never checkable, and opens
+		// a window. Nothing here is a pair of equal segments.
 		auto* const row = new QHBoxLayout{ };
 		row->setSpacing(8);
 		Draft = new quiet_push_button{ tr("Draft the tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
+		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one."));
 		row->addWidget(Draft, 0, Qt::AlignVCenter);
 		Status = small(paragraph({ }, this));
 		Status->setObjectName(QStringLiteral("tourDraftStatus"));
 		row->addWidget(Status, 1, Qt::AlignVCenter);
+		row->addStretch(1);
 		TranscriptToggle = new quiet_push_button{ this };
 		TranscriptToggle->setObjectName(QStringLiteral("tourSessionTranscriptOpen"));
 		TranscriptToggle->setFlat(true);
-		TranscriptToggle->setCheckable(true);
-		TranscriptToggle->setToolTip(tr("What the tour session read and answered, run by run. It never opens by itself."));
+		TranscriptToggle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		TranscriptToggle->setToolTip(tr("Opens what the tour session read and answered, run by run, in its own window. It never opens by itself."));
 		row->addWidget(TranscriptToggle, 0, Qt::AlignVCenter);
 		column->addLayout(row);
 		FailureSlot = new QVBoxLayout{ };
@@ -206,13 +229,7 @@ namespace bpr::qt {
 				DraftDispatch();
 			}
 		});
-		connect(TranscriptToggle, &QPushButton::toggled, this, [this](const bool aOpen) {
-			TranscriptBox->setVisible(aOpen);
-			if (aOpen) {
-				rebuild_transcript();
-			}
-			refresh_toggle();
-		});
+		connect(TranscriptToggle, &QPushButton::clicked, this, [this] { open_transcript(); });
 
 		// The proposal: the agent's draft, until each part is decided.
 		auto* const proposal = new agent_margin{ this };
@@ -235,6 +252,29 @@ namespace bpr::qt {
 		LeftOut->setForegroundRole(QPalette::PlaceholderText);
 		LeftOut->hide();
 		proposalColumn->addWidget(LeftOut);
+		// [[BPR-1912]]. Commands Claude ran outside the read-only list: one
+		// quiet line, not an error, with the way to them in the transcript.
+		OutsideList = small(new QLabel{ ProposalBox });
+		OutsideList->setObjectName(QStringLiteral("tourProposalOutsideList"));
+		OutsideList->setWordWrap(true);
+		OutsideList->setTextFormat(Qt::RichText);
+		OutsideList->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+		OutsideList->setForegroundRole(QPalette::PlaceholderText);
+		OutsideList->hide();
+		connect(OutsideList, &QLabel::linkActivated, this, [this] {
+			if (!Proposal) {
+				return;
+			}
+			auto entry = std::optional<std::size_t>{ };
+			if (const auto* run = core::find_tour_run(Session, Proposal->Run); run != nullptr) {
+				const auto found = std::ranges::find(run->Entries, core::tour_transcript_note::ran_outside_list, &core::tour_transcript_entry::Note);
+				if (found != run->Entries.end()) {
+					entry = static_cast<std::size_t>(found - run->Entries.begin());
+				}
+			}
+			open_transcript(Proposal->Run, entry);
+		});
+		proposalColumn->addWidget(OutsideList);
 		auto* const proposalScroll = new QScrollArea{ ProposalBox };
 		// [[BPR-1900]] owner look v001: a click in the proposal never parks
 		// the keyboard on the pane itself (which drew a box around it and
@@ -257,31 +297,74 @@ namespace bpr::qt {
 		ProposalBox->hide();
 		column->addWidget(ProposalBox);
 
-		// The transcript: opened from here, never pushed in front.
-		TranscriptBox = new QWidget{ this };
-		TranscriptBox->setObjectName(QStringLiteral("tourSessionTranscript"));
-		TranscriptBox->setAccessibleName(tr("Tour session transcript"));
-		auto* const transcriptColumn = new QVBoxLayout{ TranscriptBox };
-		transcriptColumn->setContentsMargins(0, 2, 0, 4);
-		transcriptColumn->setSpacing(4);
-		auto* const transcriptTitle = small(paragraph(tr("The tour session is separate from the Agent tab's conversation. Each request is a fresh run that is given the tour so far."), TranscriptBox));
-		transcriptTitle->setForegroundRole(QPalette::PlaceholderText);
-		transcriptColumn->addWidget(transcriptTitle);
-		TranscriptScroll = new QScrollArea{ TranscriptBox };
-		TranscriptScroll->setFocusPolicy(Qt::NoFocus);
-		TranscriptScroll->setWidgetResizable(true);
-		TranscriptScroll->setFrameShape(QFrame::NoFrame);
-		TranscriptScroll->setMinimumHeight(220);
-		TranscriptScroll->setMaximumHeight(320);
-		TranscriptScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-		auto* const transcriptBody = new QWidget{ TranscriptScroll };
-		TranscriptItems            = new QVBoxLayout{ transcriptBody };
-		TranscriptItems->setContentsMargins(0, 0, 4, 0);
-		TranscriptItems->setSpacing(8);
-		TranscriptScroll->setWidget(transcriptBody);
-		transcriptColumn->addWidget(TranscriptScroll);
-		TranscriptBox->hide();
-		column->addWidget(TranscriptBox);
+		// [[BPR-1913]], RFC-BPR-0092 T2 amended. The transcript: a window of
+		// its own, opened from here or from a failure notice, never pushed in
+		// front. The runs on the left; the chosen run as one text, so a
+		// selection spans its entries; Copy run and Copy all runs.
+		TranscriptWindow = new QWidget{ this, Qt::Window };
+		TranscriptWindow->setObjectName(QStringLiteral("tourSessionTranscript"));
+		TranscriptWindow->setWindowTitle(tr("Tour session transcript"));
+		TranscriptWindow->setAccessibleName(tr("Tour session transcript"));
+		TranscriptWindow->resize(760, 520);
+		auto* const windowColumn = new QVBoxLayout{ TranscriptWindow };
+		windowColumn->setContentsMargins(14, 12, 14, 12);
+		windowColumn->setSpacing(8);
+		auto* const about = small(paragraph(tr("The tour session is separate from the Agent tab's conversation. Each request is a fresh run that is given the tour so far."), TranscriptWindow));
+		about->setForegroundRole(QPalette::PlaceholderText);
+		windowColumn->addWidget(about);
+		auto* const split = new QSplitter{ Qt::Horizontal, TranscriptWindow };
+		split->setChildrenCollapsible(false);
+		RunList = new QListWidget{ split };
+		RunList->setObjectName(QStringLiteral("tourSessionRuns"));
+		RunList->setAccessibleName(tr("Runs"));
+		RunList->setWordWrap(true);
+		RunList->setTextElideMode(Qt::ElideNone);
+		RunList->setUniformItemSizes(false);
+		RunList->setMinimumWidth(170);
+		RunList->setSpacing(3);
+		RunView = new QTextBrowser{ split };
+		RunView->setObjectName(QStringLiteral("tourSessionRun"));
+		RunView->setAccessibleName(tr("Run"));
+		RunView->setOpenLinks(false);
+		RunView->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
+		RunView->document()->setDocumentMargin(10);
+		split->addWidget(RunList);
+		split->addWidget(RunView);
+		split->setStretchFactor(0, 0);
+		split->setStretchFactor(1, 1);
+		split->setSizes({ 220, 520 });
+		windowColumn->addWidget(split, 1);
+		auto* const actions = new QHBoxLayout{ };
+		actions->setSpacing(8);
+		CopyRun = new quiet_push_button{ tr("Copy run"), TranscriptWindow };
+		CopyRun->setObjectName(QStringLiteral("tourSessionCopyRun"));
+		CopyRun->setToolTip(tr("Copies this run as plain text: each step, the command or path it was asked, and how it ended."));
+		CopyAll = new quiet_push_button{ tr("Copy all runs"), TranscriptWindow };
+		CopyAll->setObjectName(QStringLiteral("tourSessionCopyAll"));
+		CopyAll->setFlat(true);
+		CopyAll->setToolTip(tr("Copies every run of this tour session as plain text, oldest first."));
+		Copied = small(paragraph({ }, TranscriptWindow));
+		Copied->setObjectName(QStringLiteral("tourSessionCopied"));
+		Copied->setForegroundRole(QPalette::PlaceholderText);
+		actions->addWidget(CopyRun);
+		actions->addWidget(CopyAll);
+		actions->addWidget(Copied, 1);
+		windowColumn->addLayout(actions);
+		connect(RunList, &QListWidget::currentRowChanged, this, [this](const int aRow) {
+			if (aRow < 0) {
+				return;
+			}
+			FocusRun = core::tour_agent_run_id{ RunList->item(aRow)->data(Qt::UserRole).toULongLong() };
+			Copied->clear();
+			show_run(FocusRun, std::nullopt);
+		});
+		connect(CopyRun, &QPushButton::clicked, this, [this] {
+			if (const auto* run = ShownRun ? core::find_tour_run(Session, *ShownRun) : nullptr; run != nullptr) {
+				copy(run_text(*run), tr("Copied run %1.").arg(run->Id.value()));
+			}
+		});
+		connect(CopyAll, &QPushButton::clicked, this, [this] { copy(session_text(), tr("Copied all runs.")); });
+		TranscriptWindow->hide();
 		refresh_toggle();
 		set_running(false, false);
 	}
@@ -308,7 +391,7 @@ namespace bpr::qt {
 		Session  = aSession;
 		Proposal = aProposal;
 		rebuild_proposal();
-		if (TranscriptBox->isVisible()) {
+		if (TranscriptWindow->isVisible()) {
 			rebuild_transcript();
 		}
 		refresh_toggle();
@@ -341,12 +424,17 @@ namespace bpr::qt {
 		FailureSlot->addWidget(aNotice);
 	}
 
-	void tour_agent_panel::open_transcript(const std::optional<core::tour_agent_run_id> aRun)
+	void tour_agent_panel::open_transcript(const std::optional<core::tour_agent_run_id> aRun, const std::optional<std::size_t> aEntry)
 	{
 		FocusRun = aRun;
-		TranscriptToggle->setChecked(true);
+		Copied->clear();
 		rebuild_transcript();
-		TranscriptBox->show();
+		TranscriptWindow->show();
+		TranscriptWindow->raise();
+		TranscriptWindow->activateWindow();
+		if (aEntry) {
+			show_run(ShownRun, aEntry);
+		}
 	}
 
 	void tour_agent_panel::restyle(const QPalette& aGround)
@@ -355,6 +443,19 @@ namespace bpr::qt {
 			apply_agent_accent(*widget, aGround);
 		}
 		Draft->setIcon(drawer_icon(drawer_glyph::agent, Draft->palette()));
+		TranscriptToggle->setIcon(drawer_icon(drawer_glyph::page, TranscriptToggle->palette()));
+		// [[BPR-1913]]. A window of its own takes no palette from its parent:
+		// it wears the main window's appearance, as the Settings window does,
+		// and its run is drawn again in that appearance's colours.
+		// Every role is set: an inherited ground resolves nothing of its own,
+		// and a window would then fall back to the application's palette.
+		auto ground = aGround;
+		ground.setResolveMask(~QPalette::ResolveMask{ 0 });
+		TranscriptWindow->setPalette(ground);
+		if (TranscriptWindow->isVisible()) {
+			show_run(ShownRun, std::nullopt);
+		}
+		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
 		for (const auto& widget : Accented) {
 			if (widget) {
 				apply_agent_accent(*widget, aGround);
@@ -375,10 +476,44 @@ namespace bpr::qt {
 		for (auto run = Session.Runs.rbegin(); run != Session.Runs.rend(); ++run) {
 			lines << tr("Run %1, %2: %3").arg(run->Id.value()).arg(QString::fromStdString(run->Entries.empty() ? std::string{ } : run->Entries.front().Text), state_words(run->State));
 			for (const auto& entry : run->Entries) {
-				lines << verb(entry.Kind) + QStringLiteral(" ") + QString::fromStdString(entry.Text);
+				const auto note = note_words(entry.Note);
+				lines << verb(entry.Kind) + QStringLiteral(" ") + QString::fromStdString(entry.Text) + (note.isEmpty() ? QString{ } : QStringLiteral(" (") + note + QLatin1Char(')'));
 			}
 		}
 		return lines.join(QLatin1Char('\n'));
+	}
+
+	auto tour_agent_panel::run_text(const core::tour_agent_run& aRun) -> QString
+	{
+		const auto asked = aRun.Entries.empty() ? QString{ } : QString::fromStdString(aRun.Entries.front().Text);
+		auto       how   = tr("%1, %2.").arg(state_words(aRun.State), tools_words(aRun.Tools));
+		how[0]           = how[0].toUpper();
+		auto lines       = QStringList{ tr("## Run %1: %2").arg(aRun.Id.value()).arg(asked), QString{ }, how, QString{ } };
+		for (const auto& entry : aRun.Entries) {
+			const auto note = note_words(entry.Note);
+			lines << QStringLiteral("- ") + verb(entry.Kind) + QStringLiteral(": ") + QString::fromStdString(entry.Text) + (note.isEmpty() ? QString{ } : QStringLiteral(" (") + note + QLatin1Char(')'));
+		}
+		if (aRun.Dropped > 0U) {
+			lines << QStringLiteral("- ") + (aRun.Dropped == 1U ? tr("1 more step was not kept.") : tr("%1 more steps were not kept.").arg(aRun.Dropped));
+		}
+		return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
+	}
+
+	auto tour_agent_panel::session_text() const -> QString
+	{
+		auto runs = QStringList{ };
+		for (const auto& run : Session.Runs) {
+			runs << run_text(run);
+		}
+		return runs.join(QLatin1Char('\n'));
+	}
+
+	void tour_agent_panel::copy(const QString& aText, const QString& aSaid)
+	{
+		if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+			clipboard->setText(aText);
+			Copied->setText(aSaid);
+		}
 	}
 
 	auto tour_agent_panel::proposal_items() const -> QWidget* { return ProposalScroll->widget(); }
@@ -410,8 +545,7 @@ namespace bpr::qt {
 	void tour_agent_panel::refresh_toggle()
 	{
 		const auto count = Session.Runs.size();
-		TranscriptToggle->setText(TranscriptToggle->isChecked() ? tr("Hide transcript") : count == 0U ? tr("Transcript")
-																									  : tr("Transcript (%1)").arg(count));
+		TranscriptToggle->setText(count == 0U ? tr("Transcript") : tr("Transcript (%1)").arg(count));
 		TranscriptToggle->setEnabled(count > 0U);
 	}
 
@@ -426,6 +560,7 @@ namespace bpr::qt {
 		Fields.clear();
 		if (!Proposal || Proposal->Items.empty()) {
 			ProposalBox->hide();
+			OutsideList->hide();
 			return;
 		}
 		const auto pending = std::ranges::count_if(Proposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending; });
@@ -435,6 +570,12 @@ namespace bpr::qt {
 			LeftOut->setText(tr("%1 suggested stops pointed outside this pull request and were left out.").arg(Proposal->LeftOut.size()));
 		}
 		LeftOut->setVisible(!Proposal->LeftOut.empty());
+		// [[BPR-1912]]. Only Claude's commands are checked against the list.
+		const auto* const proposed = core::find_tour_run(Session, Proposal->Run);
+		const auto        outside  = proposed == nullptr ? std::size_t{ 0U } : proposed->OutsideList;
+		const auto        see      = QStringLiteral("<a href=\"#outside-list\">%1</a>").arg(tr("See the transcript").toHtmlEscaped());
+		OutsideList->setText(outside == 1U ? tr("Claude ran 1 command outside the read-only list. %1.").arg(see) : tr("Claude ran %1 commands outside the read-only list. %2.").arg(outside).arg(see));
+		OutsideList->setVisible(outside > 0U);
 		ProposalTitle->setText(tr("<b>Proposed tour</b>&nbsp;&nbsp;%1").arg(tr("Accept, edit or discard each part. Nothing changes until you accept it. %n left to decide.", nullptr, static_cast<int>(pending)).toHtmlEscaped()));
 		auto* const parent     = ProposalItems->parentWidget();
 		const auto  code       = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -575,53 +716,72 @@ namespace bpr::qt {
 
 	void tour_agent_panel::rebuild_transcript()
 	{
-		clear(TranscriptItems);
-		const auto code  = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-		auto*      focus = static_cast<QWidget*>(nullptr);
+		const auto blocked = RunList->blockSignals(true);
+		RunList->clear();
+		auto chosen = -1;
 		for (auto run = Session.Runs.rbegin(); run != Session.Runs.rend(); ++run) {
-			auto* const box = new agent_margin{ TranscriptItems->parentWidget() };
-			box->setObjectName(QStringLiteral("tourSessionRun"));
-			auto* const runColumn = new QVBoxLayout{ box };
-			runColumn->setContentsMargins(12, 6, 8, 6);
-			runColumn->setSpacing(3);
 			const auto  asked = run->Entries.empty() ? QString{ } : QString::fromStdString(run->Entries.front().Text);
-			auto* const title = new QLabel{ tr("<b>%1</b>&nbsp;&nbsp;Run %2, %3, %4").arg(asked.toHtmlEscaped()).arg(run->Id.value()).arg(tools_words(run->Tools).toHtmlEscaped(), state_words(run->State).toHtmlEscaped()), box };
-			title->setWordWrap(true);
-			runColumn->addWidget(small(title));
-			for (std::size_t index = 1U; index < run->Entries.size(); ++index) {
-				const auto& entry   = run->Entries[index];
-				auto* const line    = new QWidget{ box };
-				auto* const lineRow = new QHBoxLayout{ line };
-				lineRow->setContentsMargins(0, 0, 0, 0);
-				lineRow->setSpacing(8);
-				auto* const word = small(new QLabel{ verb(entry.Kind), line });
-				word->setForegroundRole(QPalette::PlaceholderText);
-				word->setFixedWidth(word->fontMetrics().horizontalAdvance(tr("Searched")) + 6);
-				word->setAlignment(Qt::AlignRight | Qt::AlignTop);
-				lineRow->addWidget(word, 0, Qt::AlignTop);
-				auto* const text = small(paragraph(QString::fromStdString(entry.Text), line));
-				text->setTextInteractionFlags(Qt::TextSelectableByMouse);
-				if (entry.Kind == core::tour_transcript_kind::searched || entry.Kind == core::tour_transcript_kind::read || entry.Kind == core::tour_transcript_kind::ran) {
-					auto font = code;
-					font.setPointSizeF(text->font().pointSizeF());
-					text->setFont(font);
-				}
-				lineRow->addWidget(text, 1);
-				runColumn->addWidget(line);
+			auto* const item  = new QListWidgetItem{ tr("%1\nRun %2, %3").arg(asked).arg(run->Id.value()).arg(state_words(run->State)), RunList };
+			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(run->Id.value()));
+			item->setToolTip(asked);
+			if (run->State == core::tour_agent_run_state::failed) {
+				auto heavier = item->font();
+				heavier.setWeight(QFont::DemiBold);
+				item->setFont(heavier);
 			}
-			if (run->Dropped > 0U) {
-				auto* const more = small(paragraph(tr("%n more steps were not kept.", nullptr, static_cast<int>(run->Dropped)), box));
-				more->setForegroundRole(QPalette::PlaceholderText);
-				runColumn->addWidget(more);
-			}
-			TranscriptItems->addWidget(box);
+			// The run asked for, else the newest.
 			if (FocusRun && run->Id == *FocusRun) {
-				focus = box;
+				chosen = RunList->count() - 1;
 			}
 		}
-		TranscriptItems->addStretch(1);
-		if (focus != nullptr) {
-			TranscriptScroll->ensureWidgetVisible(focus);
+		if (chosen < 0 && RunList->count() > 0) {
+			chosen = 0;
+		}
+		RunList->setCurrentRow(chosen);
+		RunList->blockSignals(blocked);
+		show_run(chosen < 0 ? std::nullopt : std::optional{ core::tour_agent_run_id{ RunList->item(chosen)->data(Qt::UserRole).toULongLong() } }, std::nullopt);
+	}
+
+	void tour_agent_panel::show_run(const std::optional<core::tour_agent_run_id> aRun, const std::optional<std::size_t> aEntry)
+	{
+		const auto* const run = aRun ? core::find_tour_run(Session, *aRun) : nullptr;
+		ShownRun              = run == nullptr ? std::nullopt : aRun;
+		CopyRun->setEnabled(run != nullptr);
+		CopyAll->setEnabled(!Session.Runs.empty());
+		if (run == nullptr) {
+			RunView->clear();
+			return;
+		}
+		// One document: a selection runs across entries, and the platform's
+		// Copy takes it as text.
+		const auto muted = TranscriptWindow->palette().color(QPalette::Active, QPalette::PlaceholderText).name();
+		const auto code  = QFontDatabase::systemFont(QFontDatabase::FixedFont).family().toHtmlEscaped();
+		const auto asked = run->Entries.empty() ? QString{ } : QString::fromStdString(run->Entries.front().Text);
+		auto       html  = QStringLiteral("<p style=\"margin-bottom:2px\"><b>%1</b></p><p style=\"color:%2; margin-top:0\">%3</p><table cellspacing=\"0\" cellpadding=\"3\" width=\"100%\">")
+							   .arg(asked.toHtmlEscaped(), muted, tr("Run %1, %2, %3.").arg(run->Id.value()).arg(state_words(run->State), tools_words(run->Tools)).toHtmlEscaped());
+		for (std::size_t index = 1U; index < run->Entries.size(); ++index) {
+			const auto& entry = run->Entries[index];
+			const auto  text  = QString::fromStdString(entry.Text).toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"));
+			const auto  tool  = entry.Kind == core::tour_transcript_kind::searched || entry.Kind == core::tour_transcript_kind::read || entry.Kind == core::tour_transcript_kind::ran;
+			auto        said  = tool ? QStringLiteral("<span style=\"font-family:'%1'\">%2</span>").arg(code, text) : text;
+			// How a run ended: its first line is the headline, the failure's
+			// own log under it in the plain weight.
+			if (entry.Kind == core::tour_transcript_kind::ended) {
+				const auto split = text.indexOf(QStringLiteral("<br>"));
+				said             = split < 0 ? QStringLiteral("<b>%1</b>").arg(text) : QStringLiteral("<b>%1</b>%2").arg(text.left(split), text.mid(split));
+			}
+			if (const auto note = note_words(entry.Note); !note.isEmpty()) {
+				said += QStringLiteral("<br><span style=\"color:%1\"><i>%2</i></span>").arg(muted, note.toHtmlEscaped());
+			}
+			html += QStringLiteral("<tr><td valign=\"top\" align=\"right\" style=\"color:%1; padding-right:10px\" width=\"72\"><a name=\"entry-%2\"></a>%3</td><td valign=\"top\">%4</td></tr>").arg(muted).arg(index).arg(verb(entry.Kind).toHtmlEscaped(), said);
+		}
+		html += QStringLiteral("</table>");
+		if (run->Dropped > 0U) {
+			html += QStringLiteral("<p style=\"color:%1\">%2</p>").arg(muted, (run->Dropped == 1U ? tr("1 more step was not kept.") : tr("%1 more steps were not kept.").arg(run->Dropped)).toHtmlEscaped());
+		}
+		RunView->setHtml(html);
+		if (aEntry) {
+			RunView->scrollToAnchor(QStringLiteral("entry-%1").arg(*aEntry));
 		}
 	}
 }

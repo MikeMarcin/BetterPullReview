@@ -1644,22 +1644,38 @@ tool-free as above. A read-only Claude launch adds
 `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`,
 an empty strict MCP configuration, no setting sources, no slash commands, no
 saved session, `claude_writing_settings` and auto-memory off. In print mode a
-tool use outside the allowed list is denied without a prompt. The decoder then
-holds the run to the list itself: an init frame that loads another tool or any
-MCP server, or a `tool_use` of a tool outside the four, ends the run as
-`tool_refused`. A shell command `core::decide_read_only_tool` refuses (one
-that is not plain commands of the admitted programs joined by `|`, `&&`, `||`
-or `;`, with no redirection but to `/dev/null`, or one with an argument that
-writes or runs something such as `find -delete`, `sort -o`, `sed -i`,
-`rg --pre`, Git's `-c`, `--output` or `--ext-diff`) is held until its result:
-Claude's own allowlist denies it (`is_error`), the transcript says it was not
-run and the run goes on; a result that says it ran ends the run as
-`tool_refused`. Installed Claude Code 2.1.310, checked on 2026-11-06 with these
+tool use outside the allowed list is denied without a prompt.
+
+Claude's permission check is the gate ([[BPR-1912]]). It decides before a
+command runs; this app reads only what Claude reports afterwards, so it reads
+what Claude decided and names what ran outside its own list. Claude approves
+the shell commands it classifies as read-only beyond `--allowedTools`, release
+by release (2.1.310: `cd`, `sed -n`, `jq`, `column`, `comm`, `od`, `xargs`;
+2.1.314 through a wrapper: `awk`), and a wrapper's or policy's own permission
+rules can widen that. The decoder still ends the run as `tool_refused` for an
+init frame that loads another tool or any MCP server, and for a `tool_use` of
+a tool outside the four, which was never loaded. A shell command
+`core::decide_read_only_tool` refuses (one that is not plain commands of the
+admitted programs joined by `|`, `&&`, `||` or `;`, with no redirection but to
+`/dev/null`, or one with an argument that writes or runs something such as
+`find -delete`, `sort -o`, `sed -i`, `rg --pre`, Git's `-c`, `--output` or
+`--ext-diff`) is held until its result. Denied (`is_error`), the transcript
+says "not run, outside the read-only list". Run, the transcript names it
+under its usual kind with "ran, outside the read-only list", the run's
+proposal says how many ran with a link to them, and the `agent.run`
+diagnostic of a read-only Claude run carries `outside_list=N`, never the
+command. The run goes on either way, a write or delete included (owner
+decision at pickup): when the result arrives the command has already run, so
+ending the run would prevent nothing and would only throw the draft away.
+Installed Claude Code 2.1.310, checked on 2026-11-06 with these
 exact arguments in an empty folder, lists exactly `Bash`, `Glob`, `Grep` and
 `Read`, no MCP server and no plugin; it chains commands (`git show --stat HEAD
 && git show HEAD | head -400`), runs `cd` into the workspace and `sed -n` on
-its own, and tries `for` loops it then denies. The admitted programs are
-therefore `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `sort`,
+its own, and tries `for` loops it then denies. Checked again on 2026-11-06
+with no wrapper ([[BPR-1912]]): it ran `jq`, `ls | xargs wc -l`, `column`,
+`comm` and `od` without asking and denied `awk`, `less`, `python3 -c`,
+`touch` and `rm`. The admitted programs, the commands the transcript shows
+without a note, are `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `sort`,
 `uniq`, `cut`, `tr`, `diff`, `file`, `stat`, `du`, `tree`, `basename`,
 `dirname`, `realpath`, `cd`, `pwd`, `echo`, `printf`, `find`, `sed` (print
 only) and `git log|show|blame|diff|grep|ls-files|status|rev-parse|shortlog|describe|cat-file|ls-tree|merge-base|name-rev`. A read-only Codex launch is

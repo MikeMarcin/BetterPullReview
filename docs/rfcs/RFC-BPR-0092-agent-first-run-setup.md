@@ -1027,10 +1027,27 @@ waits on the owner's look on the card's attended review.
   `--resume` would make the agent's hidden conversation part of the tour's
   state, and a resumed session could carry tool results from a head the
   review has since moved past.
-- **T2. The transcript opens in a panel on the Tour tab (recommended).**
+- **T2. The transcript opens in a window of its own (amended by
+  [[BPR-1913]]; first a panel on the Tour tab).**
   **Transcript** at the top of the tab opens the session's runs, newest first:
   what was asked, what it searched, read and ran, and what it answered or how
-  it ended. It never opens by itself. [[BPR-1892]]'s notice keeps its words
+  it ended. It never opens by itself. The owner, 2026-11-06: "I don't like the
+  way the transcript is in the tour window, when it failed I couldn't copy it
+  to the clipboard, except for one response at a time. And the button at the
+  top looks like a tab, except they're not tabs." The panel in the Tour tab's
+  editing column is replaced by a separate, non-modal **Tour session
+  transcript** window: the runs on the left, the chosen run as one selectable
+  text on the right (a selection spans its entries), and **Copy run** and
+  **Copy all runs**, which put plain text that reads as Markdown on the
+  clipboard: the request, how the run ended, each step's kind and its command
+  or path with any read-only-list note, and the answer or, for a failed run,
+  its reason with the failure's own log. A window was chosen over a sheet or
+  a drawer surface: a sheet would block the tour while it is open, and a
+  drawer surface would take room from the editing column again; the window
+  sits beside the main window while the author edits. **Draft the tour** is
+  the row's one bordered action, at its own width; **Transcript (n)** is a bare
+  action with a page glyph at the row's far end, never a toggle, so the two
+  no longer read as a pair of tabs. [[BPR-1892]]'s notice keeps its words
   and its button becomes **Show the run**, which opens the transcript at that
   run. The Agent tab with a session switcher was not chosen: it would send the
   author away from the tour to see a tour run, which is what BPR-1892 removed,
@@ -1041,11 +1058,20 @@ waits on the owner's look on the card's attended review.
   and `git log`, `show`, `blame`, `diff`, `grep`, `ls-files`;
   `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`;
   an empty strict MCP configuration, no setting sources, no slash commands, no
-  saved session, hooks and auto-memory off. The app also holds the run to the
-  list from Claude's own frames (`core::decide_read_only_tool`): another tool
-  in the init frame, any MCP server, or a tool outside the four ends the run; a
-  shell command the app does not admit is held, and ends the run only if its
-  result says it ran (Claude denies it otherwise and the model goes on).
+  saved session, hooks and auto-memory off. The app also reads Claude's own
+  frames (`core::decide_read_only_tool`): another tool in the init frame, any
+  MCP server, or a tool outside the four ends the run; a shell command the app
+  does not admit is held until its result. [[BPR-1912]] supersedes the first
+  rule here, that a held command whose result says it ran ends the run as
+  `tool_refused`: Claude's permission check is the gate, it approves read-only
+  commands of its own beyond `--allowedTools` (2.1.314 through a wrapper ran
+  `awk`), and when the result arrives the command has already run. Such a
+  command is now named in the transcript as run outside the read-only list,
+  counted on the proposal ("Claude ran 1 command outside the read-only list.
+  See the transcript.") and in the `agent.run` diagnostic as `outside_list=N`,
+  and the run goes on; a write or delete Claude ran is reported the same way
+  (owner decision at pickup, as the card recommended). A command Claude denied
+  reads "not run, outside the read-only list".
   Checked against installed Claude Code 2.1.310 on 2026-11-06: its init lists
   exactly the four tools, no MCP server and no plugin, and a whole-tour draft
   of the fixture pull request ran to a 12-stop proposal ([[BPR-1900]]). Codex:

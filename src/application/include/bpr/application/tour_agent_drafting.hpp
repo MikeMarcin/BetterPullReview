@@ -49,7 +49,8 @@ namespace bpr::application {
 	[[nodiscard]] auto decode_tour_draft_answer(std::string_view aText) -> std::optional<core::tour_draft_answer>;
 
 	/// \brief A read-only run's tool uses as transcript lines, with the
-	/// workspace's own folder taken off the front of a path.
+	/// workspace's own folder taken off the front of a path. [[BPR-1912]]: a
+	/// shell command's `read_only_*_note` becomes the entry's note.
 	[[nodiscard]] auto tour_transcript_of(const std::vector<std::pair<std::string, std::string>>& aActivity, std::string_view aWorkspace) -> std::vector<core::tour_transcript_entry>;
 }
 
