@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1909"
 title: "Split the fixture accessors out of github_application.cpp"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1908"]
 priority: "P2"
 metadata: {"baseline":"1537b11a9","mandate":"Owner, 2026-11-06: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round, landing on local main without pushing; at most about 2,000 lines per file for this initial pass; separate fixture/test support from production where appropriate."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"768850524","evidence":{"kind":"observation","detail":"Fourteen fixture course files plus fixture_course_support and fixture_uiforetw_observation; single-use helpers private, shared ones declared."}},{"criterion":"AC2","outcome":"pass","revision":"768850524","evidence":{"kind":"command","detail":"Every moved definition stays under BPR_BUILD_TESTING; tests-off composition build passes."}},{"criterion":"AC3","outcome":"pass","revision":"768850524","evidence":{"kind":"command","detail":"Full dev build; 360-row pass: 348 pass, one load-sensitive row passes alone, six Debug timing rows nongating, six failures identical at round 1 (2fc1cb2a3). Format 22."}},{"criterion":"AC4","outcome":"pass","revision":"768850524","evidence":{"kind":"observation","detail":"Completed card and journal line accompany the source for the local main fast-forward."}}]
 ---
 
 # Split the fixture accessors out of github_application.cpp
