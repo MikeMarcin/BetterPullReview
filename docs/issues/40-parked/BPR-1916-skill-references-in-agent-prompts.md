@@ -2,7 +2,8 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1916"
 title: "Agent prompts can reference a skill from the person's own skills or the reviewed repository"
-status: "In Progress"
+status: "Parked"
+parked_on: "human-review"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
 priority: "P1"
@@ -101,3 +102,19 @@ Rejected for the owner's reason above; recorded as evidence in the
   tool use refused), `repository_skill_reader` (base not head, a head-added
   and a working-tree skill never reach a run, a lure skill never sent unless
   named), `qt_settings_window` (completion rows with source).
+
+## Attended review v001 (2026-11-06)
+
+Parked on `human-review` for the owner's look at completion (AC3's look).
+AC1, AC2, AC4 and AC5 are met by the tests above and the documentation
+gate (`DOCUMENTATION_OK`).
+
+- Frozen build: `bpr-1916-1917-v001` from 354656a39, root
+  `/Users/jaeger/bpr-1916-1917-v001.6lrosi2z`, executable sha256
+  `deef523682d229b545d788f2a4fcdbbeb77fbcbc6eaf172fa45230037bc99f12`;
+  the freeze's own `--check` passed (`ATTENDED_PROMPT_EDITOR_SHOWN`).
+  Launch: `python3 /Users/jaeger/bpr-1916-1917-v001.6lrosi2z/launch.py`.
+  Fixture skills only (`--attended-skill-home`), never the owner's.
+- Session `4b8b91fc663e6c51243591fe761ba0f5`, a new short session, state
+  `/Users/jaeger/BPR-attended/review-state-bpr-1916-1917-v001`, loopback
+  host; candidate `BPR-1916-skill-completion` (one Accept/Reject question).

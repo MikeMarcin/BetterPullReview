@@ -2,7 +2,8 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1917"
 title: "Agent settings' built-in prompt editor gets a real design"
-status: "In Progress"
+status: "Parked"
+parked_on: "human-review"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"
@@ -54,3 +55,18 @@ named skills brought in. Persistence stays the host's: the panel's Save and
 Reset are intents. Fits the 760 by 480 minimum Settings window with no
 sideways scrolling. Tests: `qt_settings_window` (listing, marker, unsaved
 kept, Save, Reset, Undo reset, Preview with a skill).
+
+## Attended review v001 (2026-11-06)
+
+Parked on `human-review` for AC3. AC1 and AC2 are met by
+`qt_settings_window`; AC4 by the documentation gate (`DOCUMENTATION_OK`).
+
+- Frozen build: `bpr-1916-1917-v001` from 354656a39, root
+  `/Users/jaeger/bpr-1916-1917-v001.6lrosi2z`, executable sha256
+  `deef523682d229b545d788f2a4fcdbbeb77fbcbc6eaf172fa45230037bc99f12`. It
+  opens Settings on Built-in prompts with Problem statement changed through
+  its own Save.
+  Launch: `python3 /Users/jaeger/bpr-1916-1917-v001.6lrosi2z/launch.py`.
+- Session `4b8b91fc663e6c51243591fe761ba0f5`, state
+  `/Users/jaeger/BPR-attended/review-state-bpr-1916-1917-v001`; candidate
+  `BPR-1917-prompt-editor` (one Accept/Reject question).
