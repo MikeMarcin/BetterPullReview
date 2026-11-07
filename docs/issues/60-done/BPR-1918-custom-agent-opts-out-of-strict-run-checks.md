@@ -2,11 +2,10 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1918"
 title: "A custom agent profile can opt out of the strict writing and read-only run checks"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"
-parked_on: "human-review"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-06, coordinator chat","related_cards":["BPR-1375","BPR-1891","BPR-1896","BPR-1899","BPR-1900","BPR-1912","BPR-1916"]}
 acceptance: [{"criterion": "AC1. With strict checks off, a writing or read-only run whose init reports an extra tool, or that uses a tool outside the list, finishes; the transcript and diagnostics name what happened", "outcome": "pass", "revision": "3ea2736c3", "evidence": {"kind": "command", "detail": "application_agent_launch: test_relaxed_run_checks_report_instead_of_refusing (read-only init with Edit and an MCP server plus an Edit tool_use, and a writing init with Edit plus a tool_use and its result, both finish and answer 'done'; tool_activity items noted relaxed_check_note; check_relaxed counted init/tool/block; tour_transcript_of marks not_stopped; describe/parse round-trip of relaxed=on relaxed_init=1 relaxed_tool=2 relaxed_block=0 relaxed_skill=0) passes in build/dev."}}, {"criterion": "AC2. With strict checks on (the default), behaviour is unchanged and the existing refusal tests pass", "outcome": "pass", "revision": "3ea2736c3", "evidence": {"kind": "command", "detail": "application_agent_launch passes unchanged refusal cases (test_read_only_tour_drafting tool_refused for Edit, Write, WebFetch, extra init tool and MCP server; writing init and thinking tests) and the new strict counterparts in the relaxed test; core_agent_entry, sqlite_agent_setup_storage and qt_agent_setup_view pass; coding-format-check passes."}}, {"criterion": "AC3. The setting is per custom profile, stored through the host, and shown only for custom profiles", "outcome": "pass", "revision": "3ea2736c3", "evidence": {"kind": "command", "detail": "sqlite_agent_setup_storage: a custom entry stored with StrictRunChecks off reads back off after a restart, only for that entry (table agent_entry_relaxed_checks); a popular agent with it off is refused (relaxed_popular_agent). qt_agent_setup_view: the dialog shows the switch on by default for a custom agent, keeps it off when unchecked, and shows none for Claude Code."}}, {"criterion": "AC4. Owner look: an Accept/Reject on the setting's control and wording, in a frozen build", "outcome": "pending", "revision": "3ea2736c3", "evidence": {"kind": "observation", "detail": "Attended session f56d172edaab68eaf4bc91758a400032 (state /Users/jaeger/BPR-attended/BPR-1918-v001-review/state), candidate BPR-1918-strict-run-checks, fingerprint 89bf1d90df719891070c1fd0091ffe2df6812b4a1b545a5962b1b47ce2896375, ready and served; frozen root /Users/jaeger/BPR-attended/BPR-1918-v001.3azwjmgj from 3ea2736c3d856f9097aa79eb0879f04024e571bd, executable sha256 e4660e3a184ca0082dd17f426466a32572bc5e7df4dab97af976ce6a435f5659, launcher --check ATTENDED_PULL_REQUEST_OPENED."}}, {"criterion": "AC5. The documentation gate passes", "outcome": "pass", "revision": "3ea2736c3", "evidence": {"kind": "command", "detail": "python3 scripts/verify_documentation.py --root . prints DOCUMENTATION_OK; tests/scripts/verify_documentation_tests.py 67 tests OK."}}]
@@ -122,3 +121,8 @@ reseals the production-app manifest digest in
 `tests/end_to_end/application_review_round_trip_composition_contract.cmake`
 for the `window_agent_chat.cpp` edit. That contract and the focused tests
 pass on the rebased tree.
+
+## Accepted
+
+The owner accepted v001 on 2026-11-06 (attended review).
+Owner note on the look: "Wording talks about tour but is this only tour or agent as well?"

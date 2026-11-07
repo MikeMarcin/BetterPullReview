@@ -2,10 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1915"
 title: "Tour drafts and agent answers use real formatting instead of walls of text"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
-parked_on: "human-review"
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-06, coordinator chat after using BPR-1900","related_cards":["BPR-1900","BPR-1914","BPR-1916"]}
@@ -100,3 +99,8 @@ past BPR-1908, which moved the tour session code into
 there. On the rebased commit the 16 focused tests, the format check, the
 documentation gate and the offscreen look (`ATTENDED_TOUR_CONVERSATION_SHOWN`)
 pass again, with the composition pin resealed.
+
+## Accepted
+
+The owner accepted v001 on 2026-11-06 (attended review).
+Owner note in chat: code blocks did not render with syntax highlighting; follow-up card filed.
