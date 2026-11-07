@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1905"
 title: "Extract the public-preview transport and theme reader from github_application.cpp"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
