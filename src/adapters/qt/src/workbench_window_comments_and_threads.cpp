@@ -1202,12 +1202,15 @@ namespace bpr::qt {
 		// beside the tour there), so it shows with the tab and nowhere else.
 		auto* const chat = TourEditor->side_chat();
 		chat->setVisible(aShown);
-		// The first time, the chat takes a little more than half: it is read
-		// in paragraphs and the tour beside it in lines (the chosen mockup's
-		// 340 and 400).
+		// The first time, the tour and the chat share the drawer evenly. The
+		// mockup gave the chat a little more, but an open stop's card needs
+		// its 340 pixels or its actions are cut off ([[BPR-1925]] v002).
+		if (TourChatSplit != nullptr && TourChatSplit->count() > 0) {
+			TourChatSplit->widget(0)->setMinimumWidth(aShown ? 340 : 0);
+		}
 		if (aShown && !TourChatSized && chat->parentWidget() == TourChatSplit) {
 			TourChatSized = true;
-			TourChatSplit->setSizes({ 9'000, 11'000 });
+			TourChatSplit->setSizes({ 10'000, 10'000 });
 		}
 		if (aShown && !TourPageOpen && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			conversations_drawer_toggle_action()->trigger();

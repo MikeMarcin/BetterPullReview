@@ -18,6 +18,7 @@
 #include <set>
 #include <vector>
 class QAction;
+class QHBoxLayout;
 class QCheckBox;
 class QComboBox;
 class QListWidget;
@@ -159,6 +160,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto side_chat() const noexcept -> tour_side_chat* { return SideChat; }
 		/// \brief Opens the side chat about `aThread`, quoting `aPassage`.
 		void open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
+		/// \brief [[BPR-1925]] v002. What a part's chat toggle does: opens the
+		/// chat about `aThread` (a stop's with its lines in the code), or
+		/// closes the column when that chat is the one in it.
+		void toggle_side_chat(const core::tour_thread& aThread);
 		/// \brief Opens the open stop's side chat on its code: `aSelected` (the
 		/// lines selected in the code) or the stop's own.
 		void ask_about_code(const std::optional<core::tour_source_range>& aSelected);
@@ -351,7 +356,11 @@ namespace bpr::qt {
 		QMetaObject::Connection HeldScrollWatch;
 		QMetaObject::Connection HeldScrollRelease;
 		void                    open_side_chat_about(core::writing_hook aHook, const QString& aSelected);
-		void                    apply_agent_code_style();
+		/// [[BPR-1925]] v002. A part's toggle: opens its chat, switches to it,
+		/// or, on the part whose chat is open, closes the column.
+		void         toggle_side_chat_about(core::writing_hook aHook, const QString& aSelected);
+		QHBoxLayout* StopTitleRow = nullptr;
+		void         apply_agent_code_style();
 		/// [[BPR-1892]]. Each request's failure notice, what its control
 		/// said when it was pressed, and where Show on the Agent tab goes.
 		std::map<core::writing_hook, QWidget*> FailureNotices;
