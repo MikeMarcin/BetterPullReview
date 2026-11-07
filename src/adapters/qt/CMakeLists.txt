@@ -97,6 +97,13 @@ add_library(
         src/markdown_github_html.cpp
         src/markdown_github_math.cpp
         src/pull_request_overview_page.cpp
+        src/pull_request_overview_chips_and_details.cpp
+        src/pull_request_overview_delegate_and_rows.cpp
+        src/pull_request_overview_file_model.cpp
+        src/pull_request_overview_files_interaction.cpp
+        src/pull_request_overview_people_and_status.cpp
+        src/pull_request_overview_presentation.cpp
+        src/pull_request_overview_support.cpp
         src/reviewer_picker.cpp
         src/draft_state_chip.cpp
         src/conversation_cards_view.cpp
