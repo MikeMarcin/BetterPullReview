@@ -2,6 +2,7 @@
 
 #include "bpr/qt/quiet_push_button.hpp"
 
+#include <QCheckBox>
 #include <QComboBox>
 #include <QDialogButtonBox>
 #include <QDir>
@@ -12,6 +13,7 @@
 #include <QLineEdit>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QStyle>
 #include <QVBoxLayout>
 
 #include <algorithm>
@@ -103,6 +105,21 @@ namespace bpr::qt {
 		Effort->setObjectName(QStringLiteral("agentEntryEffort"));
 		form->addRow(tr("Effort"), Effort);
 		column->addLayout(form);
+		// [[BPR-1918]]. A custom agent's opt-out, with what it means right
+		// under it; a popular agent keeps strict checks and shows none.
+		if (!aEntry.Preset) {
+			StrictChecks = new QCheckBox{ tr("Strict run checks"), this };
+			StrictChecks->setObjectName(QStringLiteral("agentEntryStrictChecks"));
+			StrictChecks->setChecked(aEntry.StrictRunChecks);
+			column->addWidget(StrictChecks);
+			auto* const meaning = new QLabel{ tr("Stops a tour run when the agent loads or uses a tool it wasn't given. Turn off only for repositories you trust: the app then reports what the agent did instead of stopping it."), this };
+			meaning->setObjectName(QStringLiteral("agentEntryStrictChecksMeaning"));
+			meaning->setWordWrap(true);
+			meaning->setForegroundRole(QPalette::PlaceholderText);
+			meaning->setContentsMargins(style()->pixelMetric(QStyle::PM_IndicatorWidth) + style()->pixelMetric(QStyle::PM_CheckBoxLabelSpacing), 0, 0, 0);
+			StrictChecks->setAccessibleDescription(meaning->text());
+			column->addWidget(meaning);
+		}
 		auto* const words = new QLabel{ tr("The arguments are given to the program exactly as written, before the request's own, every time. Nothing is put into them and no shell runs them."), this };
 		words->setWordWrap(true);
 		words->setForegroundRole(QPalette::PlaceholderText);
@@ -122,6 +139,9 @@ namespace bpr::qt {
 		connect(Arguments, &QPlainTextEdit::textChanged, this, [this] { settle(); });
 		connect(Check, &QPlainTextEdit::textChanged, this, [this] { settle(); });
 		connect(Model, &QLineEdit::textChanged, this, [this] { settle(); });
+		if (StrictChecks != nullptr) {
+			connect(StrictChecks, &QCheckBox::toggled, this, [this] { settle(); });
+		}
 		connect(Effort, &QComboBox::currentIndexChanged, this, [this] { settle(); });
 		connect(Protocol, &QComboBox::currentIndexChanged, this, [this] {
 			offer_efforts();
@@ -172,9 +192,11 @@ namespace bpr::qt {
 		if ((result.Preset == core::setup_agent::claude_code && result.Protocol != core::agent_protocol::claude_stream_json) || (result.Preset == core::setup_agent::codex && !codex)) {
 			result.Preset.reset();
 		}
-		// A popular agent keeps its sign-in check.
+		// A popular agent keeps its sign-in check and strict run checks.
+		result.StrictRunChecks = StrictChecks == nullptr || StrictChecks->isChecked();
 		if (result.Preset) {
 			result.CheckArguments.clear();
+			result.StrictRunChecks = true;
 		}
 		return result;
 	}

@@ -86,6 +86,9 @@ namespace bpr::application {
 		/// with `WritingOnly`, a continuation, the existing checkout or a
 		/// private run.
 		bool ReadOnlyTools = false;
+		/// [[BPR-1918]]. A custom profile that opted out of strict run
+		/// checks; the host passes it to the launch as it is.
+		agent_run_checks RunChecks = agent_run_checks::strict;
 		/// [[BPR-1900]]. Paths, relative to the workspace, whose lines the
 		/// host counts once the workspace is made and before the agent starts
 		/// (`agent_run_result::MeasuredLines`), so the core can check a

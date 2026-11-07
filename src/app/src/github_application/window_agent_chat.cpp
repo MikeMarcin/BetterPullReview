@@ -747,9 +747,14 @@ namespace bpr::app {
 		}
 		// [[BPR-1753]], owner amendment 2026-10-23. An added agent runs
 		// with its own model and effort unless the request names one.
+		auto checks = application::agent_run_checks::strict;
 		if (AgentSetup) {
 			const auto agents = AgentSetup->projection().Preferences.Agents;
 			if (const auto* const entry = core::entry_of_profile(agents, aProfile); entry != nullptr) {
+				// [[BPR-1918]]. A custom agent may opt out of strict run checks.
+				if (!entry->StrictRunChecks && !entry->Preset) {
+					checks = application::agent_run_checks::relaxed;
+				}
 				if (!requested.Model && !entry->Model.empty()) {
 					requested.Model = entry->Model;
 				}
@@ -790,6 +795,7 @@ namespace bpr::app {
 			invocation.HistoryClone        = aTour.ReadOnly ? linked_history_clone(false) : std::nullopt;
 			invocation.HistoryCloneManaged = aTour.ReadOnly && linked_history_clone_managed(false);
 			invocation.MeasurePaths        = aTour.Measure;
+			invocation.RunChecks           = checks;
 			TourSession->dispatch(std::move(invocation));
 			return true;
 		}

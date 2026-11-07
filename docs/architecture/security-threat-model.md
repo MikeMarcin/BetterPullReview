@@ -1797,6 +1797,35 @@ workspace.
   nothing, it does not end the run ([[BPR-1912]]), a write or delete
   included.
 
+## Custom agent opt-out of strict run checks (BPR-1918)
+
+A custom agent profile may turn off **Strict run checks** in Agent settings
+(on by default; owner, 2026-11-06). Off, a writing or read-only run of that
+profile does not end on a check that a wrapper's or policy's settings can
+trip: tools or MCP servers in init beyond what the run asked for, a tool_use
+outside the list, a block that is not text in a writing answer, and
+[[BPR-1916]]'s unreferenced Skill tool_use. Each is named in the transcript
+("not stopped, strict run checks are off") and counted in the `agent.run`
+diagnostic (`relaxed=on relaxed_init=N relaxed_tool=N relaxed_block=N
+relaxed_skill=N`, never what was used).
+
+- **What stays.** The app still passes its restrictive arguments, so a
+  wrapper that honours them stays tool-free or read-only. The run still
+  works in the private, disposable workspace or an empty writing folder,
+  never in the reviewer's own checkout. Only text blocks become tour text,
+  a finding payload outside the result is still refused, and a proposal
+  still needs the author's acceptance.
+- **Popular agents.** The built-in Claude Code and Codex entries keep strict
+  checks; the store and the core refuse the switch for them. Whether to offer
+  it there is left for later.
+- **Residual.** With the switch off, what a tour run can do is whatever the
+  wrapper's or policy's settings allow, bounded by the private workspace and
+  the agent's own permissions. A tool that edits or writes can change the
+  disposable workspace, and a tool with network access can send what the run
+  can read: the pull request's files and the brief. The app reports what was
+  used and cannot prevent or undo it. The wording asks the reviewer to turn
+  it off only for repositories they trust.
+
 ## Claude process wrapper (BPR-1301)
 
 A profile may name one program to run in place of `claude`

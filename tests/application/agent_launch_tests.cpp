@@ -1867,6 +1867,84 @@ namespace {
 	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads
 	/// files, as a wrapper prints it, and what the decoder keeps of a line it
 	/// refuses.
+	/// [[BPR-1918]]. A custom profile's relaxed checks: what a strict run
+	/// would end on is named and counted, and the run answers.
+	void test_relaxed_run_checks_report_instead_of_refusing()
+	{
+		const auto relaxed = application::agent_run_checks::relaxed;
+		const auto answer  = std::string{ R"({"type":"assistant","session_id":"s","message":{"id":"m-a","role":"assistant","content":[{"type":"text","text":"done"}]}})"
+										  "\n"
+										  R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"done"})"
+										  "\n" };
+		const auto edit    = std::string{ R"({"type":"assistant","session_id":"s","message":{"id":"m-e","role":"assistant","content":[{"type":"tool_use","id":"te","name":"Edit","input":{"file_path":"a"}}]}})"
+										  "\n" };
+		const auto edited  = std::string{ R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"te","content":"ok"}]}})"
+										  "\n" };
+		const auto counted = [](const std::vector<application::agent_protocol_event>& aEvents, const application::relaxed_check aCheck) {
+			return std::ranges::count_if(aEvents, [aCheck](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::check_relaxed && aEvent.Text == application::relaxed_check_name(aCheck); });
+		};
+		const auto named = [](const std::vector<application::agent_protocol_event>& aEvents) {
+			auto items = std::vector<std::pair<std::string, std::string>>{ };
+			for (const auto& event : aEvents) {
+				if (event.Kind == application::agent_protocol_event_kind::tool_activity) {
+					items.emplace_back(event.Text, event.Item);
+				}
+			}
+			return items;
+		};
+		const auto answered = [](const std::vector<application::agent_protocol_event>& aEvents) {
+			auto text = std::string{ };
+			for (const auto& event : aEvents) {
+				if (event.Kind == application::agent_protocol_event_kind::output) {
+					text += event.Text;
+				}
+			}
+			return text;
+		};
+		{
+			// AC1, read-only: init loads an edit tool and an MCP server, and
+			// the run uses the edit tool.
+			const auto init   = std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Grep","Glob","Bash","Edit"],"mcp_servers":[{"name":"github"}],"plugins":[]})"
+											 "\n" };
+			auto       strict = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto ended  = strict.push(init);
+			expect(!ended && ended.error() == application::agent_protocol_failure::tool_refused, "AC2 strict, the extra tool in init still ends the run");
+			auto       open = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true, relaxed };
+			const auto read = open.push(init + edit + edited + answer);
+			expect(read.has_value() && open.finish().has_value(), "AC1 relaxed, a read-only run whose init loads more and that uses a tool outside the list finishes");
+			expect(read && named(*read) == std::vector<std::pair<std::string, std::string>>{ { "Init", "(not stopped, strict run checks off) loaded tools Edit; 1 MCP server" }, { "Edit", "(not stopped, strict run checks off) " } },
+				   "the transcript names what init loaded and the tool it used");
+			expect(read && counted(*read, application::relaxed_check::init) == 1 && counted(*read, application::relaxed_check::tool) == 1 && answered(*read) == "done", "each is counted and the run answers");
+			const auto transcript = application::tour_transcript_of(named(read.value_or(std::vector<application::agent_protocol_event>{ })), "/w");
+			expect(transcript.size() == 2U && transcript[0].Note == core::tour_transcript_note::not_stopped && transcript[0].Text == "loaded tools Edit; 1 MCP server" && transcript[1].Note == core::tour_transcript_note::not_stopped,
+				   "the transcript entries are noted as not stopped");
+		}
+		{
+			// AC1, writing: init loads a tool, the answer holds a tool use
+			// and its result, and only the text becomes the answer.
+			const auto init   = std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Edit"],"mcp_servers":[],"plugins":[]})"
+											 "\n" };
+			auto       strict = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true };
+			expect(!strict.push(init), "AC2 strict, a writing init with a tool still ends the run");
+			auto blockStrict = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true };
+			expect(!blockStrict.push(std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[]})" } + "\n" + edit), "AC2 strict, a tool use in a writing answer still ends the run");
+			auto       open = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true, application::agent_launch_purpose::conversation, false, relaxed };
+			const auto read = open.push(init + edit + edited + answer);
+			expect(read.has_value() && open.finish().has_value(), "AC1 relaxed, the writing run finishes");
+			expect(read && counted(*read, application::relaxed_check::init) == 1 && counted(*read, application::relaxed_check::block) == 1 && answered(*read) == "done", "init and the block are counted, and only text is the answer");
+			expect(read && named(*read).size() == 2U && named(*read)[1].first == "Edit", "the transcript names the tool it used");
+			auto payload = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true, application::agent_launch_purpose::conversation, false, relaxed };
+			expect(!payload.push(init + R"({"type":"user","session_id":"s","bprFindings":{},"message":{"role":"user","content":[]}})" + "\n"), "relaxed, a payload outside the result is still refused");
+		}
+		{
+			auto diagnosis    = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::claude_stream_json, .Outcome = application::agent_run_outcome::success, .ExitCode = 0, .StandardOutputBytes = 10U };
+			diagnosis.Relaxed = std::array<std::uint64_t, application::relaxed_check_count>{ 1U, 2U, 0U, 0U };
+			expect(application::describe(diagnosis) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=10 stderr_bytes=0 relaxed=on relaxed_init=1 relaxed_tool=2 relaxed_block=0 relaxed_skill=0", "the diagnostic says relaxed=on with counts, never content");
+			expect(application::parse_agent_run_diagnosis(application::describe(diagnosis)) == std::optional{ diagnosis }, "and reads back exactly");
+			expect(!application::parse_agent_run_diagnosis("protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 relaxed_init=1"), "a count without relaxed=on is refused");
+		}
+	}
+
 	void test_claude_decoder_reads_a_current_transcript()
 	{
 		const auto file     = std::string(90U * 1024U, 'x');
@@ -2051,6 +2129,7 @@ auto main() -> int
 	test_claude_writing_environment_turns_auto_memory_off();
 	test_claude_writing_reads_past_thinking_blocks();
 	test_claude_decoder_reads_a_current_transcript();
+	test_relaxed_run_checks_report_instead_of_refusing();
 	test_agent_run_diagnosis_round_trips_exactly();
 	test_full_encoded_input_budget_and_private_raw_budget();
 	test_private_ledger_observation_is_an_input_not_an_implicit_store();

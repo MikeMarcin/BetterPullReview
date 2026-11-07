@@ -167,6 +167,15 @@ try {
 	expect(store->store(listed), "an agent list is stored");
 	store = adapters::sqlite::make_agent_setup_store(scratch.path());
 	expect(store->load() == listed, "and reads back in order with its fixed arguments, preset and choice after a restart");
+	// [[BPR-1918]] AC3. A custom agent's strict run checks are its own,
+	// stored through the host and read back after a restart.
+	listed.Agents[1].StrictRunChecks = false;
+	expect(store->store(listed), "a custom agent with strict run checks off is stored");
+	store = adapters::sqlite::make_agent_setup_store(scratch.path());
+	expect(store->load() == listed && store->load()->Agents[0].StrictRunChecks && !store->load()->Agents[1].StrictRunChecks, "it reads back off, and only for that agent");
+	auto popular                      = listed;
+	popular.Agents[2].StrictRunChecks = false;
+	expect(core::inspect_agent_entries(popular.Agents) == core::agent_entry_refusal::relaxed_popular_agent && !store->store(popular), "a popular agent keeps strict run checks");
 	listed.Agents.pop_back();
 	expect(store->store(listed) && store->load()->Agents.size() == 2U, "a removed agent is gone from the stored list");
 
