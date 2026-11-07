@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1922"
 title: "Split github_mutation_contract.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"6c52dc5b7","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"64e5dc0dd","evidence":{"kind":"observation","detail":"Five github_mutation_contract_* sources and a support header; contract header unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"64e5dc0dd","evidence":{"kind":"command","detail":"Tests-off builds; dev build except main's broken test; 46/47 rows pass, the one failure pre-existing. Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"64e5dc0dd","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split github_mutation_contract.cpp by responsibility
