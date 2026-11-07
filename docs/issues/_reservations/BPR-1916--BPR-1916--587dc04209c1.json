@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1916"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Skill references in agent prompts",
+  "created": "2026-11-07T03:31:31.844241+00:00",
+  "base": "3e19d0e87bb6e81c3fde0fd955ce6b244bebbfa3"
+}

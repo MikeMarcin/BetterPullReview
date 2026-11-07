@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1915"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour drafts use formatting",
+  "created": "2026-11-07T03:31:31.289250+00:00",
+  "base": "3e19d0e87bb6e81c3fde0fd955ce6b244bebbfa3"
+}
