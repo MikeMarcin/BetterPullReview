@@ -1234,7 +1234,7 @@ namespace bpr::app {
 		TourProposal.reset();
 		TourDraftPending = true;
 		Window->tour_editor()->show_writing_notice(tour_reading_notice());
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft the tour", *prompt, std::nullopt)) {
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft Tour", *prompt, std::nullopt)) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The tour session could not start this request."));
 		}

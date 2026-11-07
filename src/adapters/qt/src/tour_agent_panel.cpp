@@ -228,7 +228,7 @@ namespace bpr::qt {
 		Head->setContentsMargins(0, 0, 0, 0);
 		Head->setHorizontalSpacing(8);
 		Head->setVerticalSpacing(4);
-		Draft = new quiet_push_button{ tr("Draft the tour"), this };
+		Draft = new quiet_push_button{ tr("Draft Tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
 		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one."));
@@ -603,7 +603,7 @@ namespace bpr::qt {
 	{
 		RunningDraft = aDraftTour;
 		RunningAny   = aAny;
-		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft the tour"));
+		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft Tour"));
 		fit_head();
 		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one.")
 																																: Why);

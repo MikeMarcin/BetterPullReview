@@ -2799,7 +2799,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
 	{
-		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft the tour"), aWhy);
+		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft Tour"), aWhy);
 		restyle_agent_features();
 	}
 	void review_tour_editor::clear_tour_draft_failure() { DraftFailure->hide(); }

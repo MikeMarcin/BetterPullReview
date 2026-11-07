@@ -336,7 +336,7 @@ auto main(int argc, char** argv) -> int
 
 	auto* const panel     = editor.tour_agent();
 	auto* const draftTour = panel->draft_button();
-	expect(draftTour->text() == QStringLiteral("Draft the tour") && draftTour->isEnabled(), "Draft the tour is offered");
+	expect(draftTour->text() == QStringLiteral("Draft Tour") && draftTour->isEnabled(), "Draft Tour is offered");
 	expect(draftTour->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()) && !draftTour->icon().isNull(), "it wears the agent accent and spark");
 	expect(!panel->transcript()->isVisible() && !panel->proposal()->isVisibleTo(&editor), "nothing of the session is pushed in front of the author");
 	// [[BPR-1913]] AC4, owner 2026-11-06: "the button at the top looks like

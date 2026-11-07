@@ -1417,6 +1417,11 @@ want to say the tour should focus on <this particular part of the PR>." And:
   restores all of them exactly while the tour is as the reset left it; it goes
   once the tour changes. No GitHub request is made. Nothing is reset while the
   tour agent runs.
+- **Draft Tour.** The button reads "Draft Tour", no longer "Draft the
+  tour", to give the header more room (owner, 2026-11-07: "can we just
+  change it to say Draft tour instead of Draft the tour to get some space
+  back", then "Draft Tour" with a capital T). Its tooltip keeps the longer
+  wording, and a run's transcript says "Draft Tour" too.
 - Owner rules kept: nothing changes until accepted, and nothing the author
   wrote is silently overwritten (a merge or removal says so on its box).
 
