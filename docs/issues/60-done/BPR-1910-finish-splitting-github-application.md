@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1910"
 title: "Finish splitting github_application.cpp"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1909"]
 priority: "P2"
 metadata: {"baseline":"72f469cef","mandate":"Owner, 2026-11-06: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round, landing on local main without pushing; at most about 2,000 lines per file for this initial pass."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"71abe5309","evidence":{"kind":"observation","detail":"application_startup, application_desktop, application_windows, tour_owner_replies and fixture_startup hold the moved members unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"71abe5309","evidence":{"kind":"observation","detail":"Root keeps the boundary reader, using-declarations and pinned span; 43 includes remain (platform-guarded and contract-required kept)."}},{"criterion":"AC3","outcome":"pass","revision":"71abe5309","evidence":{"kind":"command","detail":"Full dev and tests-off builds; format 22; 361-row pass: 349 pass, restoration course passes alone, six Debug timing rows nongating, six pre-existing at round 1."}},{"criterion":"AC4","outcome":"pass","revision":"71abe5309","evidence":{"kind":"observation","detail":"Completed card and journal line accompany the source for the local main fast-forward."}}]
 ---
 
 # Finish splitting github_application.cpp
