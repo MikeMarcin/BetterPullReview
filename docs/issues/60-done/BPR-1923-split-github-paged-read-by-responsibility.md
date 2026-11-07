@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1923"
 title: "Split github_paged_read.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"e71bb6995","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"200218758","evidence":{"kind":"observation","detail":"Five github_paged_read_* sources and two support headers; public header unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"200218758","evidence":{"kind":"command","detail":"Tests-off builds; dev build except main's broken test; 83/84 rows pass, the one failure pre-existing. Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"dced9c6a3","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split github_paged_read.cpp by responsibility
