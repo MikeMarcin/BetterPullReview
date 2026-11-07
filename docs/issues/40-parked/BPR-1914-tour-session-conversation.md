@@ -417,3 +417,35 @@ frozen executable.
 - One candidate, `BPR-1914-side-chats-v004` (revision `067c921f2-v004`), with one
   Accept/Reject question.
 - Status: ready, awaiting the owner.
+
+### v004 fix: a click on the first side chat tab (2026-11-07)
+
+v004 was merged to `main` as `6220a9362`. On its frozen build, the owner
+reported: "There's something eating click on the side chat tabs. I cant
+reliably select them with a single click."
+
+The coordinator checked the owner's running build, with permission. An
+accessibility press switched to the "Solution" tab, but a real click did not;
+a real click on "Stop 1" did.
+
+- **Cause.** The side chat's constructor made a label for the empty state
+  (`tourSideChatEmpty`) as a child of the pane and never put it in a layout.
+  It stayed at the pane's top-left corner, 100 by 30 pixels, over the first
+  tab. A real click there landed on the label, not the tab bar. The
+  accessibility press does not hit-test, which is why it worked. The empty
+  state the chat shows is a separate label made in `rebuild()`, so this one
+  was a leftover.
+- **Fix.** The stray label is gone (branch `bpr1914-v005-tab-click`).
+- **Test.** `qt_tour_side_chat_tab_click` (new) clicks through the window, as
+  the platform delivers a click, so the press also moves the keyboard. The
+  tour's selected stop is Stop 1. The test runs with tabs that select on the
+  press (offscreen Fusion) and on the release (macOS's style). It covers:
+  - every tab that is not current, once, from the composer;
+  - the left edge of a tab;
+  - with the keyboard on the tabs;
+  - each click followed by 700 ms of events, past the scroll hold.
+
+  Each click must leave its tab current. The test also checks that every
+  point along the tab row belongs to the tab strip. Before the fix it failed
+  on the first click ("one click selects tab 1 (now 2)"). The label was under
+  the tab.
