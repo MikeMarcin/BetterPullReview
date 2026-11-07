@@ -44,6 +44,9 @@ namespace bpr::qt {
 		void adopt_review_skill(QWidget* aPanel);
 		/// \brief Shows the review skill's row, as choosing it does.
 		void select_review_skill();
+		/// \brief [[BPR-1917]]. Whether the review skill is the profile's own
+		/// copy: Changed in its row and beside its title, as for the others.
+		void present_review_skill_changed(bool aChanged);
 		/// \brief Edit or preview what the run receives.
 		void show_preview(bool aPreview);
 		/// \brief Prompts with edits not saved yet.
@@ -73,7 +76,10 @@ namespace bpr::qt {
 		bool                                                             ReviewSkillShown = false;
 		QListWidget*                                                     Hook;
 		QWidget*                                                         Pages;
-		QWidget*                                                         ReviewPage = nullptr;
+		QWidget*                                                         ReviewPage    = nullptr;
+		QLabel*                                                          ReviewTitle   = nullptr;
+		QLabel*                                                          ReviewBadge   = nullptr;
+		bool                                                             ReviewChanged = false;
 		QWidget*                                                         HookPage;
 		QLabel*                                                          Title;
 		QLabel*                                                          Badge;

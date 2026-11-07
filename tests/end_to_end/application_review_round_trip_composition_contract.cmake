@@ -3209,8 +3209,10 @@ function(bpr_verify_app_source_tree app_source_root)
 	# writing hook, an Agent tab question or a tour ask names carried inline,
 	# and the attended prompt-editor look. No grant, provider, gh process,
 	# admission, mutation branch or publication change.
+	# Resealed again over the review skill's place among the built-in prompts
+	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "48c671b96e967065fd05c2fd224580e71e624fbacf2dd71e9be0698df982fdf8"
+        "2adb040e617dcdc1785722438079fb251c783cdd03d2f9b4974d7f127c37c757"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

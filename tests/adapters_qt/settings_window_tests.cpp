@@ -688,6 +688,20 @@ auto main(int argc, char** argv) -> int
 		expect(settings.Overrides[0].empty() && badge->text() == "Built-in" && text->toPlainText() == builtIn && !undo->isHidden(), "Reset to built-in restores the default");
 		undo->click();
 		expect(text->toPlainText().contains("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U && settings.Overrides[0].empty(), "Undo reset brings the text back, unsaved");
+		// Owner look v001: the review skill reads like every other prompt. Its
+		// title, purpose, use and state come from the prompts pane, its own
+		// heading goes, and its editor and Reset are the others'.
+		panel->select_review_skill();
+		auto* const skillTitle = panel->findChild<QLabel*>("reviewSkillTitle");
+		auto* const skillBadge = panel->findChild<QLabel*>("reviewSkillBadge");
+		auto* const skill      = window.review_skill();
+		expect(skillTitle != nullptr && skillTitle->isVisibleTo(panel) && skillTitle->font() == panel->findChild<QLabel*>("writingHookTitle")->font(), "the review skill's title is the prompts' title");
+		expect(panel->findChild<QLabel*>("reviewSkillUsedBy")->isVisibleTo(panel) && skillBadge->text() == "Built-in", "it says where it is used and that it is built in");
+		expect(skill->editor()->font() == text->font() && skill->findChild<QPushButton*>("reviewSkillRestore")->text() == "Reset to built-in", "its editor and Reset are the others'");
+		const auto headings = skill->findChildren<QLabel*>();
+		expect(std::ranges::none_of(headings, [skill](const QLabel* aLabel) { return aLabel->text() == "Review skill" && aLabel->isVisibleTo(skill); }), "its own heading is not shown twice");
+		panel->present_review_skill_changed(true);
+		expect(skillBadge->text() == "Changed from built-in" && list->item(list->count() - 1)->data(Qt::UserRole + 3).toString() == "Changed", "a changed review skill is marked as the others are");
 	}
 
 	test_adopting_a_panel_replaces_the_notice();

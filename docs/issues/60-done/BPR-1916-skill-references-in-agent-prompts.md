@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1916"
 title: "Agent prompts can reference a skill from the person's own skills or the reviewed repository"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
 priority: "P1"
@@ -118,3 +117,16 @@ gate (`DOCUMENTATION_OK`).
 - Session `4b8b91fc663e6c51243591fe761ba0f5`, a new short session, state
   `/Users/jaeger/BPR-attended/review-state-bpr-1916-1917-v001`, loopback
   host; candidate `BPR-1916-skill-completion` (one Accept/Reject question).
+
+## Accepted
+
+The owner accepted `BPR-1916-skill-completion` on 2026-11-06 in session
+`4b8b91fc663e6c51243591fe761ba0f5` (frozen build v001), with the note "This
+is quite good but why does the review skill render differently than the other
+ones?". That question is about the built-in prompts editor and is answered on
+[[BPR-1917]].
+
+After the look, on the same branch: completion and inline skills in the Tour
+conversation's ask box and Ask about this ([[BPR-1914]]), and a `Skill` use
+follows [[BPR-1918]]'s run-checks switch (strict ends the run; relaxed names
+it with its skill and counts it as `skill`).

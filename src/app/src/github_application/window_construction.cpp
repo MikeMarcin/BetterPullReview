@@ -1324,6 +1324,7 @@ namespace bpr::app {
 			dependencies.Publish  = [this](const application::review_skill_projection& aProjection) {
 				if (!Closing && Window != nullptr) {
 					Window->review_skill()->present(aProjection, std::string{ application::built_in_review_skill() });
+					Window->writing_hooks()->present_review_skill_changed(Window->review_skill()->changed());
 				}
 			};
 			ReviewSkill = std::make_unique<application::review_skill_host>(std::move(dependencies));

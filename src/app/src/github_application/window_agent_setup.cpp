@@ -1194,6 +1194,7 @@ namespace bpr::app {
 				},
 		});
 		Window->review_skill()->present(ReviewSkill->projection(), std::string{ application::built_in_review_skill() });
+		Window->writing_hooks()->present_review_skill_changed(Window->review_skill()->changed());
 		present_setup_view();
 	}
 

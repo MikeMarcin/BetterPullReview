@@ -1,5 +1,6 @@
 #include "bpr/qt/writing_hooks_panel.hpp"
 
+#include "bpr/qt/agent_setup_settings.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
 
@@ -425,16 +426,51 @@ namespace bpr::qt {
 		auto* const pageColumn = new QVBoxLayout{ page };
 		pageColumn->setContentsMargins(0, 0, 0, 0);
 		pageColumn->setSpacing(6);
-		auto* const title = make_label(page, QStringLiteral("reviewSkillTitle"), false);
-		title->setText(tr("Review skill"));
-		title->setFont(Title->font());
-		pageColumn->addWidget(title);
+		// [[BPR-1917]], owner look v001 ("why does the review skill render
+		// differently than the other ones?"): the same title, purpose, use and
+		// state as every other prompt; the review skill's own panel keeps only
+		// what is its own (its version offer, its copy to Downloads).
+		ReviewTitle = make_label(page, QStringLiteral("reviewSkillTitle"));
+		ReviewTitle->setText(tr("Review skill"));
+		ReviewTitle->setFont(Title->font());
+		pageColumn->addWidget(ReviewTitle);
 		auto* const purpose = make_label(page, QStringLiteral("reviewSkillPurpose"));
-		purpose->setText(tr("How the agent reviews when you ask about this pull request in the Agent tab. It is a skill of its own, bpr-pr-review."));
+		purpose->setText(tr("How the agent reviews: the skill bpr-pr-review, sent with every review request, the same for every agent. It grants nothing; the agent's own tools and permissions still govern."));
 		pageColumn->addWidget(purpose);
+		auto* const usedBy = make_label(page, QStringLiteral("reviewSkillUsedBy"));
+		usedBy->setText(tr("Used by every question about the pull request in the Agent tab."));
+		usedBy->setForegroundRole(QPalette::PlaceholderText);
+		pageColumn->addWidget(usedBy);
+		auto* const stateRow = new QHBoxLayout{ };
+		stateRow->addStretch(1);
+		ReviewBadge = make_label(page, QStringLiteral("reviewSkillBadge"), false);
+		stateRow->addWidget(ReviewBadge);
+		pageColumn->addLayout(stateRow);
+		if (auto* const skill = dynamic_cast<review_skill_panel*>(aPanel); skill != nullptr) {
+			skill->show_as_built_in_prompt(Instructions->font());
+		}
 		aPanel->setParent(page);
 		pageColumn->addWidget(aPanel, 1);
+		present_review_skill_changed(ReviewChanged);
 		Pages->layout()->addWidget(page);
+	}
+
+	void writing_hooks_panel::present_review_skill_changed(const bool aChanged)
+	{
+		ReviewChanged = aChanged;
+		if (ReviewBadge == nullptr) {
+			return;
+		}
+		ReviewBadge->setText(aChanged ? tr("Changed from built-in") : tr("Built-in"));
+		ReviewBadge->setForegroundRole(aChanged ? QPalette::WindowText : QPalette::PlaceholderText);
+		auto badgeFont = font();
+		badgeFont.setWeight(aChanged ? QFont::DemiBold : QFont::Normal);
+		ReviewBadge->setFont(badgeFont);
+		for (int row = 0; row < Hook->count(); ++row) {
+			if (Hook->item(row)->data(hook_role).toInt() == review_skill_v) {
+				Hook->item(row)->setData(marker_role, aChanged ? tr("Changed") : QString{ });
+			}
+		}
 	}
 
 	void writing_hooks_panel::select_review_skill()
@@ -489,6 +525,9 @@ namespace bpr::qt {
 		fixed.setPointSizeF(QApplication::font(this).pointSizeF());
 		Instructions->setFont(fixed);
 		Preview->setFont(fixed);
+		if (ReviewTitle != nullptr) {
+			ReviewTitle->setFont(title);
+		}
 	}
 
 	auto writing_hooks_panel::saved_text(const core::writing_hook aHook) const -> std::string { return std::string{ application::effective_writing_hook(Settings, aHook) }; }

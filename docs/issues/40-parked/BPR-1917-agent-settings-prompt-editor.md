@@ -70,3 +70,22 @@ Parked on `human-review` for AC3. AC1 and AC2 are met by
 - Session `4b8b91fc663e6c51243591fe761ba0f5`, state
   `/Users/jaeger/BPR-attended/review-state-bpr-1916-1917-v001`; candidate
   `BPR-1917-prompt-editor` (one Accept/Reject question).
+
+## Owner question on v001 (2026-11-06)
+
+The owner, on the BPR-1916 candidate of the same session: "why does the review
+skill render differently than the other ones?" It was an inconsistency, not a
+distinction: the review skill's row showed its own panel as it was built for
+the old Settings column, so it repeated its own heading under the pane's title,
+had no "Used by" line or Built-in/Changed state, used a proportional editor,
+said Restore default where the others say Reset to built-in, and its row never
+showed Changed. Fixed: the pane gives it the same title, purpose, use line and
+Built-in or Changed from built-in state (and Changed in its row, from the
+review skill host's projection); its own heading and introduction are hidden;
+its editor is the prompts' fixed-pitch one at their height; its Restore default
+reads Reset to built-in. What stays different on purpose: no Preview or Test
+(the skill's text is itself what every review request carries, in its brief,
+and it runs from the Agent tab), and its version offer (Compare, Use version N,
+Keep mine) and "Save my copy to Downloads first", which only the versioned
+review skill has. `qt_settings_window` checks it. BPR-1917 has no recorded
+decision yet; the fix is not in the v001 build.
