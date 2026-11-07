@@ -1,5 +1,5 @@
-#ifndef BPR_APP_DIFF_WORKBENCH_SUPPORT_HPP
-#define BPR_APP_DIFF_WORKBENCH_SUPPORT_HPP
+#ifndef BPR_SRC_ADAPTERS_QT_SRC_DIFF_WORKBENCH_SUPPORT_HPP
+#define BPR_SRC_ADAPTERS_QT_SRC_DIFF_WORKBENCH_SUPPORT_HPP
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/core/appearance_contrast.hpp"
 #include "bpr/qt/anchored_tooltip.hpp"

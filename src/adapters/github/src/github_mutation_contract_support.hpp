@@ -1,5 +1,5 @@
-#ifndef BPR_APP_GITHUB_MUTATION_CONTRACT_SUPPORT_HPP
-#define BPR_APP_GITHUB_MUTATION_CONTRACT_SUPPORT_HPP
+#ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_MUTATION_CONTRACT_SUPPORT_HPP
+#define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_MUTATION_CONTRACT_SUPPORT_HPP
 #include "bpr/application/review_mutation_coordinator.hpp"
 #include "bpr/core/comment_edit.hpp"
 #include "bpr/core/reviewer_request.hpp"

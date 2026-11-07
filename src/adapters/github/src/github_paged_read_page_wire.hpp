@@ -1,5 +1,5 @@
-#ifndef BPR_APP_GITHUB_PAGED_READ_PAGE_WIRE_HPP
-#define BPR_APP_GITHUB_PAGED_READ_PAGE_WIRE_HPP
+#ifndef BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PAGED_READ_PAGE_WIRE_HPP
+#define BPR_SRC_ADAPTERS_GITHUB_SRC_GITHUB_PAGED_READ_PAGE_WIRE_HPP
 #include "bpr/core/home_discovery_plan.hpp"
 #include "bpr/core/json_preflight.hpp"
 #include "github_http_helpers.hpp"

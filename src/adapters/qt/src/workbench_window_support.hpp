@@ -1,5 +1,5 @@
-#ifndef BPR_APP_WORKBENCH_WINDOW_SUPPORT_HPP
-#define BPR_APP_WORKBENCH_WINDOW_SUPPORT_HPP
+#ifndef BPR_SRC_ADAPTERS_QT_SRC_WORKBENCH_WINDOW_SUPPORT_HPP
+#define BPR_SRC_ADAPTERS_QT_SRC_WORKBENCH_WINDOW_SUPPORT_HPP
 #include "bpr/qt/epoch_comparison_control.hpp"
 #include "bpr/qt/overview_status_drawer.hpp"
 #include "bpr/qt/workbench_window.hpp"
