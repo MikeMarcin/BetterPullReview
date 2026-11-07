@@ -355,6 +355,7 @@ if(BPR_BUILD_QT)
     bpr_add_executable(
         app_better_pull_review
         main.cpp
+        src/attended_source_identity.cpp
         src/installed_resources.cpp
         src/installed_runtime.cpp
     )
@@ -458,6 +459,8 @@ if(BPR_BUILD_QT)
 		bpr_attended_review_source_surface
 		src/app/CMakeLists.txt
 		src/app/main.cpp
+		src/app/src/attended_source_identity.hpp
+		src/app/src/attended_source_identity.cpp
 		src/app/include/bpr/app/command_line.hpp
 		src/app/src/command_line.cpp
 		src/app/include/bpr/app/github_application.hpp
@@ -548,12 +551,15 @@ if(BPR_BUILD_QT)
             BetterPullReview::Composition
             better_pull_review_command_line
     )
+    # [[BPR-1901]]. Keep the volatile source fingerprint out of main.cpp and
+    # unrelated application objects; the source surface above stays complete.
+    set_property(SOURCE src/attended_source_identity.cpp APPEND PROPERTY COMPILE_DEFINITIONS
+        "BPR_ATTENDED_REVIEW_SOURCE_SHA256=\"${BPR_ATTENDED_REVIEW_SOURCE_SHA256}\"")
     target_compile_definitions(
         app_better_pull_review
         PRIVATE
             "BPR_VERSION=\"${PROJECT_VERSION}\""
             "BPR_BUILD_CONFIGURATION=\"$<CONFIG>\""
-			"BPR_ATTENDED_REVIEW_SOURCE_SHA256=\"${BPR_ATTENDED_REVIEW_SOURCE_SHA256}\""
     )
 
     set(bpr_app_icon_root "${PROJECT_SOURCE_DIR}/packaging/icons")

@@ -1,5 +1,7 @@
 cmake_minimum_required(VERSION 4.4.2)
 
+include("${CMAKE_CURRENT_LIST_DIR}/cmake/BprVisualStudio.cmake")
+
 if(CMAKE_PROJECT_TOP_LEVEL_INCLUDES)
     message(
         FATAL_ERROR

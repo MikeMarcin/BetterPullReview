@@ -4,6 +4,7 @@
 #include "bpr/application/github_capability_diagnostic.hpp"
 #include "bpr/application/github_read_progress.hpp"
 #include "bpr/application/overview_checks_projection.hpp"
+#include "bpr/application/overview_status_sections.hpp"
 #include "bpr/core/anonymous_read_policy.hpp"
 #include "bpr/core/cached_review_overview.hpp"
 #include "bpr/core/diff_model.hpp"
@@ -179,6 +180,8 @@ namespace bpr::application {
 		std::optional<std::vector<core::cached_review_file>> Files;
 		/// [[BPR-1895]]. Complete check pages, before merge rules and people.
 		std::optional<overview_checks_projection> Checks                                                       = std::nullopt;
+		std::optional<overview_people_projection> People                                                       = std::nullopt;
+		std::optional<overview_merge_projection>  Merge                                                        = std::nullopt;
 		auto                                      operator<=>(const github_loading_overview_projection&) const = default;
 	};
 

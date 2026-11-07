@@ -1813,14 +1813,18 @@ namespace bpr::app::detail {
 			const auto repository = [](const auto& aExchange) { return aExchange.Request.Operation == read_operation::get_repository; };
 			const auto rank       = [](const auto& aExchange) {
 				switch (aExchange.Request.Operation) {
-				case read_operation::get_repository:            return 0;
-				case read_operation::get_pull_request:          return 1;
-				case read_operation::list_reviews:              return 2;
-				case read_operation::list_review_threads:       return 3;
+				case read_operation::get_repository:   return 0;
+				case read_operation::get_pull_request: return 1;
+				case read_operation::list_reviews:     return 2;
+				case read_operation::list_review_threads:
+					return aExchange.Request.Semantic.GraphqlPage
+							&& aExchange.Request.Semantic.GraphqlPage->Kind == adapters::github::detail::github_graphql_page_kind::files
+						? 6
+						: 3;
 				case read_operation::list_issue_comments:       return 4;
 				case read_operation::list_pull_request_files:   return 5;
-				case read_operation::list_pull_request_commits: return 6;
-				default:                                        return 7;
+				case read_operation::list_pull_request_commits: return 7;
+				default:                                        return 8;
 				}
 			};
 			for (auto first = std::ranges::find_if(aExchanges, repository); first != aExchanges.end();) {
@@ -1830,6 +1834,20 @@ namespace bpr::app::detail {
 				});
 				if (threaded) {
 					std::stable_sort(first, last, [&](const auto& aLeft, const auto& aRight) { return rank(aLeft) < rank(aRight); });
+					// Reordering pages preserves their cursors and payloads;
+					// the canonical request sequence follows their new order.
+					auto sequence = std::uint32_t{ 0U };
+					for (auto page = first; page != last; ++page) {
+						if (page->Request.Operation == read_operation::list_review_threads && page->Request.Semantic.GraphqlPage) {
+							auto semantic = page->Request.Semantic;
+							semantic.Page = ++sequence;
+							auto compiled = compile_read_request(semantic);
+							if (!compiled) {
+								throw std::logic_error{ "Refresh fixture page cannot compile" };
+							}
+							page->Request = std::move(*compiled);
+						}
+					}
 				}
 				first = last;
 			}
@@ -1848,6 +1866,7 @@ namespace bpr::app::detail {
 				, Strict{ aPaged ? std::vector<recorded_exchange>{ } : std::exchange(aExchanges, { }) }
 			{
 				if (aPaged) {
+					PagedRefresh.emplace(refresh_recording(aExchanges));
 					Paged.emplace(std::move(aExchanges));
 				}
 			}
@@ -1894,7 +1913,7 @@ namespace bpr::app::detail {
 					}
 					return response;
 				}
-				auto response = Paged               ? Paged->perform(aRequest)
+				auto response = Paged               ? paged().perform(aRequest)
 					: aSeededRefresh && !Refreshing ? Strict.perform_refresh(aRequest)
 													: strict().perform(aRequest);
 				if (TimelineCourse == "ordinary" && response && aRequest.Operation == read_operation::list_pull_request_commits) {
@@ -1904,15 +1923,17 @@ namespace bpr::app::detail {
 			}
 			[[nodiscard]] auto consumed_all() const noexcept -> bool
 			{
-				return Paged ? Paged->consumed_all()
+				return Paged ? (Refreshing ? PagedRefresh : Paged)->consumed_all()
 							 : (Refreshing ? Refresh : Strict).consumed_all() && (!Timeline || TimelineConsumed);
 			}
 			void replace_completed_paged_script(std::vector<recorded_exchange> aExchanges)
 			{
-				if (!Paged || !Paged->consumed_all()) {
+				if (!Paged || !consumed_all()) {
 					throw std::logic_error{ "Only a completed paged fixture may advance" };
 				}
+				PagedRefresh.emplace(refresh_recording(aExchanges));
 				Paged.emplace(std::move(aExchanges));
+				Refreshing = false;
 			}
 			void rewind() noexcept
 			{
@@ -1933,7 +1954,8 @@ namespace bpr::app::detail {
 			{
 				if (Paged) {
 					if (aRepeatPaged) {
-						Paged->replay_from(aOperation);
+						Refreshing = aRefresh;
+						paged().replay_from(aOperation);
 					}
 					return;
 				}
@@ -1946,6 +1968,7 @@ namespace bpr::app::detail {
 
 		private:
 			[[nodiscard]] auto        strict() noexcept -> strict_recorded_transport& { return Refreshing ? Refresh : Strict; }
+			[[nodiscard]] auto        paged() noexcept -> large_review_fixture::sequential_replay& { return Refreshing ? *PagedRefresh : *Paged; }
 			[[nodiscard]] static auto take_timeline(std::vector<recorded_exchange>& aExchanges)
 				-> std::optional<recorded_exchange>
 			{
@@ -1963,7 +1986,7 @@ namespace bpr::app::detail {
 			strict_recorded_transport                              Refresh;
 			bool                                                   Refreshing = false;
 			strict_recorded_transport                              Strict;
-			std::optional<large_review_fixture::sequential_replay> Paged;
+			std::optional<large_review_fixture::sequential_replay> Paged, PagedRefresh;
 		};
 
 		[[nodiscard]] auto history_heads(const fixture_descriptor& aDescriptor, bool aEnabled) -> std::vector<std::string>
@@ -2019,6 +2042,7 @@ namespace bpr::app::detail {
 										};
 									}
 									second.erase(second.begin());
+									second = refresh_recording(std::move(second));
 									result.insert(result.end(),
 												  std::make_move_iterator(
 													  second.begin()),
@@ -2033,7 +2057,7 @@ namespace bpr::app::detail {
 			{
 			}
 
-			[[nodiscard]] auto advance_history(const adapters::github::detail::wire_request& aRequest, std::unique_lock<std::mutex>& aStateLock) -> bool
+			[[nodiscard]] auto advance_history(const adapters::github::detail::wire_request& aRequest, std::unique_lock<std::mutex>& aStateLock, const bool aRefresh) -> bool
 			{
 				if (HistoryHeads.empty() || HistoryIndex + 1U == HistoryHeads.size()
 					|| !Recording.consumed_all() || aRequest.Operation != read_operation::get_repository) {
@@ -2057,7 +2081,7 @@ namespace bpr::app::detail {
 				if (HistoryIndex + 1U != nextIndex || !Recording.consumed_all() || exchanges.front().Request != aRequest) {
 					return true;
 				}
-				Recording.replace_completed_paged_script(std::move(exchanges));
+				Recording.replace_completed_paged_script(aRefresh ? refresh_recording(std::move(exchanges)) : std::move(exchanges));
 				++HistoryIndex;
 				return true;
 			}
@@ -2085,6 +2109,7 @@ namespace bpr::app::detail {
 			std::function<void()>                HistoryCompileInterleave;
 			std::function<void(std::stop_token)> BeforeFilesPage;
 			std::function<void(std::stop_token)> BeforeMergeAssessment;
+			std::function<void(std::stop_token)> BeforeReviewRequests, BeforeBranchRules;
 			std::function<void(std::stop_token)> BeforeViewerIdentity;
 			fixture_replay                       BootstrapRecording;
 			fixture_replay                       Recording;
@@ -3222,6 +3247,12 @@ namespace bpr::app::detail {
 					append_rate_limit_headers(*summary, aRequest.Wire.Operation);
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(*summary) };
 				}
+				if (aRequest.Wire.Operation == read_operation::list_review_requests && State->BeforeReviewRequests) {
+					State->BeforeReviewRequests(aStop);
+				}
+				if (aRequest.Wire.Operation == read_operation::list_branch_rules && State->BeforeBranchRules) {
+					State->BeforeBranchRules(aStop);
+				}
 				if (aRequest.Wire.Operation == read_operation::get_merge_assessment && State->BeforeMergeAssessment) {
 					State->BeforeMergeAssessment(aStop);
 				}
@@ -3538,7 +3569,8 @@ namespace bpr::app::detail {
 					return github_wire_success{ .Correlation = aRequest.Correlation, .Response = std::move(discovered) };
 				}
 				if (Role == fixture_transport_role::account) {
-					if (!State->advance_history(aRequest.Wire, lock)) {
+					const auto* context = std::get_if<core::pull_request_request_context>(&aRequest.Correlation.Parent);
+					if (!State->advance_history(aRequest.Wire, lock, context != nullptr && context->ExpectedPullRequest.has_value())) {
 						return github_wire_error{ .Correlation = aRequest.Correlation, .Error = provider_error(application::github_provider_failure::authentication) };
 					}
 				}
@@ -5963,6 +5995,8 @@ namespace bpr::app::detail {
 			Recording->UnboundViewer           = aOptions.ViewerNamesAnotherAccount;
 			Recording->BeforeFilesPage         = aOptions.BeforeFilesPage;
 			Recording->BeforeMergeAssessment   = aOptions.BeforeMergeAssessment;
+			Recording->BeforeReviewRequests    = aOptions.BeforeReviewRequests;
+			Recording->BeforeBranchRules       = aOptions.BeforeBranchRules;
 			Recording->BeforeViewerIdentity    = aOptions.BeforeViewerIdentity;
 			Recording->CliEnabled              = aOptions.GithubCliDiscoveryAccounts.has_value();
 			Recording->CliStrictCapability     = aOptions.GithubCliStrictCapability;

@@ -996,6 +996,99 @@ coordinator, verbatim:
   request was last asked with, so a new agent whose id an old one had does
   not open on that agent's thread; every turn stays.
 
+### Amendment [[BPR-1900]] (2026-11-06): the tour session
+
+The owner, 2026-11-06: "Feels like something like `rg` might be useful for a
+tour writer to gather context", "to me the tour itself is much more of a
+second agent session, separate and mostly background from my main agent chat
+session", and "And then it can fill its tour stops and problem and solution
+from all that context." Tour authoring is its own agent session per review,
+separate from the Agent tab's conversation, with the agent, model and effort
+the reviewer picked ([[BPR-1878]]'s bar). It runs through its own agent host,
+launcher, lane and projection, so tour runs are never chat turns and chat runs
+never tour runs. **Draft the tour** drafts the whole tour in the background
+from the review's private workspace ([[BPR-1873]]) with read-only tools and
+returns a proposal the author decides part by part; the core anchors every
+proposed stop to real head lines of the pull request's files. The
+[AI agent boundary](../architecture/ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900)
+and [review tours](../architecture/review-tours.md) describe the whole of it.
+The three questions the card left open are settled as recommended below; each
+waits on the owner's look on the card's attended review.
+
+- **T1. Fresh runs, not `--resume` (recommended).** Each tour request is a
+  fresh run given the tour so far (the Problem, the Solution and each stop's
+  title and lines) and the pull request, with session persistence off. The
+  tour draft is the session's memory: it is what the author sees and edits,
+  so a run never reasons from an earlier answer the author has since
+  changed or discarded, and nothing about the tour is kept in an agent's own
+  store. It is also the only shape Codex's `exec` can share, and it keeps
+  BPR-1375's "no session saved". The cost is that a follow-up repeats some
+  reading; drafting runs are minutes apart and bounded, so that is cheap.
+  `--resume` would make the agent's hidden conversation part of the tour's
+  state, and a resumed session could carry tool results from a head the
+  review has since moved past.
+- **T2. The transcript opens in a panel on the Tour tab (recommended).**
+  **Transcript** at the top of the tab opens the session's runs, newest first:
+  what was asked, what it searched, read and ran, and what it answered or how
+  it ended. It never opens by itself. [[BPR-1892]]'s notice keeps its words
+  and its button becomes **Show the run**, which opens the transcript at that
+  run. The Agent tab with a session switcher was not chosen: it would send the
+  author away from the tour to see a tour run, which is what BPR-1892 removed,
+  and it would mix the two sessions in one place the owner asked to keep apart.
+- **T3. The read-only allowlist per agent (recommended).** Claude Code:
+  `--tools Read,Grep,Glob,Bash`, `--allowedTools` Read, Grep, Glob and the
+  shell programs `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find`
+  and `git log`, `show`, `blame`, `diff`, `grep`, `ls-files`;
+  `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`;
+  an empty strict MCP configuration, no setting sources, no slash commands, no
+  saved session, hooks and auto-memory off. The app also holds the run to the
+  list from Claude's own frames (`core::decide_read_only_tool`): another tool
+  in the init frame, any MCP server, or a tool outside the four ends the run; a
+  shell command the app does not admit is held, and ends the run only if its
+  result says it ran (Claude denies it otherwise and the model goes on).
+  Checked against installed Claude Code 2.1.310 on 2026-11-06: its init lists
+  exactly the four tools, no MCP server and no plugin, and a whole-tour draft
+  of the fixture pull request ran to a 12-stop proposal ([[BPR-1900]]). Codex:
+  `codex exec --json --sandbox read-only` with approvals off, no MCP server and
+  no web search; Codex's sandbox enforces it, and its commands are shown, not
+  re-checked. Codex's App Server and the plain-text harness have no read-only
+  mode yet and are refused with why.
+
+Also recorded: the split between drafting and rewriting. **Draft the tour**,
+**Draft from PR context** on an empty field and **Suggest an outline** read the
+repository; **Enhance**, **Enhance selection**, **Generate comment** and the
+Settings test stay BPR-1375's tool-free writing, fast and in an empty folder.
+Without a clone, drafting reads the pull request's own files
+([[BPR-1873]]'s "This pull request only") and says so. A whole-tour proposal
+never replaces the author's text without the author's Accept on that part,
+says so on a field the author already wrote, and leaves out a stop whose lines
+are not lines of a head file of the pull request: owner look v002 ("What's up
+with this?") rejected showing it flagged with Accept disabled, so the proposal
+says only "1 suggested stop pointed outside this pull request and was left
+out." (nothing when none were), and the run's transcript keeps each one.
+
+Stop placement, owner 2026-11-06: "It should strongly prefer on hunk. I'm okay
+with high value off-hunk that will work on live or i can relocate to on a hunk
+or in the PR". The request gives each file's hunks (head lines of each `@@`
+header of GitHub's own patch, kept on the file record) and asks for stops
+wholly inside one, allowing a one-line stop off them only when it adds high
+value and its first sentence says why. The core places every anchored stop
+(`core::place_tour_stop`), as tour publication will: **on the change** (wholly
+inside one hunk, context lines included, or the file's hunks are unknown,
+which publication also places natively), shown as it is; **near the change**
+(one line off every hunk: published as a line comment where GitHub takes one
+off the diff, otherwise as a file comment with a permalink, so it works on
+GitHub as it is), shown with a small quiet "Outside the change"; **off the
+change** (several lines not wholly inside one hunk: a range has no file
+comment, so it would not publish as it is), shown with one plain line saying
+it won't appear when published until it is on changed lines, and a one-click
+**Move to nearest change** (`core::relocate_tour_stop`: onto the closest hunk
+of its file, keeping as many lines as fit). Accepted as it is, it says the
+same plainly, and the author can still choose its lines in the code with Use
+selected lines. A stop outside the pull request is left out as above. The
+proposal lists stops on the change first, then near, then off, each group in
+the agent's order. Nothing in the proposal is red or disabled.
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

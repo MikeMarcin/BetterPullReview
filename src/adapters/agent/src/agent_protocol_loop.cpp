@@ -25,7 +25,7 @@ namespace bpr::adapters::agent::detail {
 				, Sink{ aSink }
 				, Transport{ aTransport }
 				, Result{ .Session = aRequest.Session, .Run = aRequest.Run }
-				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose }
+				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
 				}
@@ -320,6 +320,17 @@ namespace bpr::adapters::agent::detail {
 					} else if (message.Kind == application::agent_protocol_event_kind::plugins_reported) {
 						// [[BPR-1891]]. Named in diagnostics, never refused.
 						Result.ReportedPlugins = message.Text;
+					} else if (message.Kind == application::agent_protocol_event_kind::auto_memory_reported) {
+						// [[BPR-1896]]. Named in diagnostics, never refused.
+						Result.ReportedAutoMemory = true;
+					} else if (message.Kind == application::agent_protocol_event_kind::thinking_reported) {
+						// [[BPR-1899]]. Named in diagnostics; the content was never kept.
+						Result.ReportedThinking = true;
+					} else if (message.Kind == application::agent_protocol_event_kind::tool_activity) {
+						// [[BPR-1900]]. For the tour session's transcript, bounded.
+						if (Result.ToolActivity.size() < application::maximum_agent_tool_activity) {
+							Result.ToolActivity.emplace_back(message.Text, message.Item);
+						}
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;

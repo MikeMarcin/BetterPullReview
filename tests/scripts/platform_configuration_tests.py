@@ -1,12 +1,49 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import argparse
 import json
+import sys
 import unittest
+import xml.etree.ElementTree as ET
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
+from skip_report import SkipReportingTestRunner  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
+BUILD_DIR: Path | None = None
+
+
+def vcpkg_is_disabled(project: str) -> bool:
+    """The generated project opts out unconditionally, before any imports."""
+    root = ET.fromstring(project)
+    namespace = {"m": "http://schemas.microsoft.com/developer/msbuild/2003"}
+    for group in root:
+        if group.tag.endswith("}Import"):
+            break
+        if group.get("Label") == "Globals" and not group.get("Condition"):
+            values = group.findall("m:VcpkgEnabled", namespace)
+            return (
+                len(values) == 1
+                and not values[0].get("Condition")
+                and values[0].text == "false"
+            )
+    return False
+
+
+def generated_visual_studio_projects(build: Path) -> list[Path]:
+    """Use CMake's target inventory, not upstream examples or cached probes."""
+    projects = set()
+    for inventory in build.rglob("CMakeFiles/TargetDirectories.txt"):
+        if "CMakeFiles" in inventory.relative_to(build).parts[:-2]:
+            continue
+        for line in inventory.read_text(encoding="utf-8").splitlines():
+            target = Path(line)
+            project = target.parent.parent / (target.stem + ".vcxproj")
+            if project.is_file():
+                projects.add(project)
+    return sorted(projects)
 
 
 class PlatformConfigurationTests(unittest.TestCase):
@@ -124,6 +161,39 @@ class PlatformConfigurationTests(unittest.TestCase):
             "GitHub Actions is not selected for BetterPullReview",
         )
 
+    def test_generated_visual_studio_projects_disable_vcpkg(self) -> None:
+        if BUILD_DIR is None:
+            self.skipTest("no --build-dir given")
+        cache = (BUILD_DIR / "CMakeCache.txt").read_text(encoding="utf-8")
+        if "CMAKE_GENERATOR:INTERNAL=Visual Studio " not in cache:
+            self.skipTest("this tree does not use Visual Studio")
+        projects = generated_visual_studio_projects(BUILD_DIR)
+        self.assertTrue(projects, "no generated Visual Studio projects")
+        findings = [
+            str(project.relative_to(BUILD_DIR)) for project in projects
+            if not vcpkg_is_disabled(project.read_text(encoding="utf-8-sig"))
+        ]
+        self.assertEqual(findings, [], "vcpkg is not disabled: " + ", ".join(findings))
+
+    def test_generated_project_check_refuses_missing_or_enabled_integration(self) -> None:
+        def project(properties: str) -> str:
+            return (
+                '<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">'
+                f'<PropertyGroup Label="Globals">{properties}</PropertyGroup></Project>'
+            )
+
+        self.assertTrue(vcpkg_is_disabled(project("<VcpkgEnabled>false</VcpkgEnabled>")))
+        for properties in (
+            "", "<VcpkgEnabled>true</VcpkgEnabled>",
+            '<VcpkgEnabled Condition="sometimes">false</VcpkgEnabled>',
+            '<VcpkgEnabled>false</VcpkgEnabled><VcpkgEnabled>true</VcpkgEnabled>',
+        ):
+            self.assertFalse(vcpkg_is_disabled(project(properties)), properties)
+
 
 if __name__ == "__main__":
-    unittest.main()
+    parser = argparse.ArgumentParser(add_help=False)
+    parser.add_argument("--build-dir", type=Path)
+    options, remaining = parser.parse_known_args()
+    BUILD_DIR = options.build_dir
+    unittest.main(argv=[sys.argv[0], *remaining], testRunner=SkipReportingTestRunner)

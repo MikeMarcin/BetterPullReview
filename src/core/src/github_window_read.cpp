@@ -61,6 +61,8 @@ namespace bpr::core {
 		ConversationObserved = false;
 		DiscussionObserved   = false;
 		ChecksObserved       = false;
+		PeopleObserved       = false;
+		MergeObserved        = false;
 		return true;
 	}
 
@@ -84,6 +86,8 @@ namespace bpr::core {
 			ConversationObserved = false;
 			DiscussionObserved   = false;
 			ChecksObserved       = false;
+			PeopleObserved       = false;
+			MergeObserved        = false;
 		}
 		if (State != before) {
 			Adoption.reset();
@@ -148,6 +152,24 @@ namespace bpr::core {
 			return false;
 		}
 		ChecksObserved = true;
+		return true;
+	}
+	auto github_window_read::accept_merge_observation(const bpr_window_context            aWindow,
+													  const pull_request_request_context& aRequest) noexcept -> bool
+	{
+		if (aWindow != Window || !Session || State.PendingPullRequest != aRequest || !OverviewObserved || aRequest.ExpectedPullRequest || MergeObserved) {
+			return false;
+		}
+		MergeObserved = true;
+		return true;
+	}
+	auto github_window_read::accept_people_observation(const bpr_window_context            aWindow,
+													   const pull_request_request_context& aRequest) noexcept -> bool
+	{
+		if (aWindow != Window || !Session || State.PendingPullRequest != aRequest || !OverviewObserved || aRequest.ExpectedPullRequest || PeopleObserved) {
+			return false;
+		}
+		PeopleObserved = true;
 		return true;
 	}
 

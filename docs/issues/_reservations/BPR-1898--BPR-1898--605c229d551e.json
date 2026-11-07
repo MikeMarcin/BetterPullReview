@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1898"
+  ],
+  "reserve_for": "status-progress",
+  "purpose": "Load local Overview progress independently with explicit readiness",
+  "created": "2026-11-06T21:25:39.945743+00:00",
+  "base": "ccadb3e78901be355dc8410be7f3fe45bfe0d1af"
+}

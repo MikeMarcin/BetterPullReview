@@ -81,6 +81,17 @@ namespace bpr::application {
 		/// work"): the run's time limit when the reviewer set one; none runs
 		/// until the agent finishes or Stop.
 		std::optional<int> RunLimitMilliseconds;
+		/// [[BPR-1900]]. A tour drafting run: the workspace, read-only tools.
+		/// Admitted for Claude's stream JSON and Codex's `exec --json`, never
+		/// with `WritingOnly`, a continuation, the existing checkout or a
+		/// private run.
+		bool ReadOnlyTools = false;
+		/// [[BPR-1900]]. Paths, relative to the workspace, whose lines the
+		/// host counts once the workspace is made and before the agent starts
+		/// (`agent_run_result::MeasuredLines`), so the core can check a
+		/// proposed stop's lines. At most `maximum_measured_paths`; a link, a
+		/// folder or a file over `maximum_measured_bytes` is not counted.
+		std::vector<std::string> MeasurePaths;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -89,6 +100,14 @@ namespace bpr::application {
 	/// an `int` of milliseconds can name, a little under 25 days. A run that
 	/// long is ended only by Stop, closing the window or quitting.
 	inline constexpr int agent_run_without_limit = std::numeric_limits<int>::max();
+	/// \brief [[BPR-1900]]. The bounds on `agent_invocation_request::MeasurePaths`.
+	inline constexpr std::size_t maximum_measured_paths = 512U;
+	inline constexpr std::size_t maximum_measured_bytes = 8U * 1024U * 1024U;
+	/// \brief [[BPR-1900]]. Counts the lines of each of `aPaths` under
+	/// `aRoot`: a regular file reached without following a link, inside the
+	/// root, at most `maximum_measured_bytes`. A path it cannot count is left
+	/// out. A last line without a newline counts.
+	[[nodiscard]] auto measure_workspace_lines(const std::filesystem::path& aRoot, const std::vector<std::string>& aPaths) -> std::vector<std::pair<std::string, std::uint32_t>>;
 
 	/// \brief Exact identity admitted for one invocation's UI projections.
 	struct agent_invocation_projection_identity

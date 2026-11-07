@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1899"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Writing accepts thinking blocks",
+  "created": "2026-11-06T21:45:29.127374+00:00",
+  "base": "3e193dee20c36b8c01fcebe713a0828827825e40"
+}

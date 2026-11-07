@@ -739,6 +739,33 @@ namespace bpr::application {
 		return before != std::tie(aProjection.Draft, aProjection.DraftPending, aProjection.MergeState, aProjection.MergeTone, aProjection.RequirementDetails);
 	}
 
+	auto project_loading_overview_people(const github_pull_request_snapshot& aPeople) -> overview_people_projection
+	{
+		auto       roster = participant_roster{ aPeople.Viewer.Login };
+		const auto author = login_of(aPeople.PullRequest.Author);
+		roster.place(author, overview_participant_role::author, overview_signoff::uploaded);
+		for (const auto& comment : aPeople.IssueComments) {
+			roster.place(login_of(comment.Author), overview_participant_role::observer, overview_signoff::commented);
+		}
+		for (const auto& review : aPeople.Reviews) {
+			const auto login = login_of(review.Author);
+			if (login != author) {
+				roster.place(login, overview_participant_role::reviewer, signoff_of(review.State));
+			}
+		}
+		auto projection = pull_request_overview_projection{ };
+		project_review_requests(aPeople, projection, { });
+		return { roster.take(), std::move(projection.ReviewRequests), std::move(projection.ReviewRequestsNote) };
+	}
+
+	auto project_loading_overview_merge(const github_merge_observation& aMerge) -> overview_merge_projection
+	{
+		const auto reading = read_merge(aMerge);
+		auto       details = std::string{ reading.Sentence } + (aMerge.Availability != github_observation_availability::available ? ": " + availability_note(aMerge.Availability) + "." : ".");
+		details += "\nMerge rules are still loading.";
+		return { std::string{ reading.State }, reading.Tone, std::move(details) };
+	}
+
 	auto project_loading_overview_checks(const github_pull_request_record&       aPullRequest,
 										 const std::vector<github_check_record>& aChecks, const github_collection_availability aRuns,
 										 const github_collection_availability aStatuses) -> overview_checks_projection
@@ -956,6 +983,8 @@ namespace bpr::application {
 		});
 
 		projection.Progress.FilesTotal      = projection.Files.size();
+		projection.Progress.FilesReadiness  = aContext.ReceiptsReadiness;
+		projection.Progress.NotesReadiness  = aContext.PrivateReadiness;
 		projection.Progress.PrivateNotes    = aContext.Private.has_value() ? aContext.Private->Notes.size() : 0U;
 		projection.Progress.DraftedComments = aContext.DraftedComments;
 

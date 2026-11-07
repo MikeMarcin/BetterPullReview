@@ -31,10 +31,12 @@
 #include <QListView>
 #include <QMouseEvent>
 #include <QPushButton>
+#include <QScopeGuard>
 #include <QTemporaryDir>
 #include <QThread>
 #include <QTreeWidget>
 #include <atomic>
+#include <sqlite3.h>
 #include <thread>
 
 #include <cstdlib>
@@ -98,7 +100,7 @@ namespace {
 	/// from the gesture.
 	struct opening_times
 	{
-		std::optional<qint64> Title, Identity, OverviewFiles, Checks, Accepted, DrawerFiles, Diff;
+		std::optional<qint64> Title, Identity, OverviewFiles, Checks, Merge, People, Accepted, DrawerFiles, Diff;
 		std::size_t           Reads = 0U;
 	};
 
@@ -136,16 +138,19 @@ try {
 	options.RepeatReadSessions     = true;
 	options.SharedDeviceVault      = app::detail::make_shared_github_fixture_vault();
 	options.ReadDelay              = delay;
-	std::atomic<bool> holdStatus{ false }, statusHeld{ false };
-	options.BeforeMergeAssessment = [&](const std::stop_token aStop) {
-		if (holdStatus.load()) {
-			statusHeld = true;
-			while (holdStatus.load() && !aStop.stop_requested()) {
+	std::atomic<bool> holdStatus{ false }, statusHeld{ false }, holdPeople{ false }, peopleHeld{ false }, holdRules{ false }, rulesHeld{ false };
+	const auto        hold = [](std::atomic<bool>& aHold, std::atomic<bool>& aHeld, const std::stop_token aStop) {
+		if (aHold.load()) {
+			aHeld = true;
+			while (aHold.load() && !aStop.stop_requested()) {
 				std::this_thread::sleep_for(std::chrono::milliseconds{ 1 });
 			}
 		}
 	};
-	options.PersonalDiscovery = app::detail::github_personal_discovery_fixture{
+	options.BeforeMergeAssessment = [&](const std::stop_token aStop) { hold(holdStatus, statusHeld, aStop); };
+	options.BeforeReviewRequests  = [&](const std::stop_token aStop) { hold(holdPeople, peopleHeld, aStop); };
+	options.BeforeBranchRules     = [&](const std::stop_token aStop) { hold(holdRules, rulesHeld, aStop); };
+	options.PersonalDiscovery     = app::detail::github_personal_discovery_fixture{
 		.OpenPullRequests = {
 			{ .Number = 17U, .Author = "contributor-a", .RequestedUsers = { "octo-reviewer" } },
 			{ .Number = 18U, .Author = "contributor-b", .RequestedUsers = { "octo-reviewer" } },
@@ -196,11 +201,17 @@ try {
 		auto preparedWhileLoading    = false;
 		auto statusShown             = false;
 		statusHeld                   = false;
+		peopleHeld                   = false;
+		rulesHeld                    = false;
 		holdStatus                   = !measureOnly && roundTrip != 0U;
+		holdPeople                   = holdStatus.load();
+		holdRules                    = holdStatus.load();
 		auto        statusReleased   = !holdStatus.load();
 		auto        selectedCheck    = QString{ };
 		auto* const checks           = overview->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
 		expect(checks != nullptr, "Overview has its check-result list");
+		const auto releaseLedger = !measureOnly && roundTrip != 0U ? access::hold_review_ledger_effects(*owner) : std::function<void()>{ };
+		const auto releaseOnExit = qScopeGuard([&] { if (releaseLedger) { releaseLedger(); } });
 		clock.start();
 		double_click(row_of(*window, aIdentity));
 		while (!times.Accepted && clock.elapsed() < 120'000) {
@@ -222,6 +233,9 @@ try {
 			}
 			const auto checksVisible = checks->topLevelItemCount() > 0 && overview->status_section(qt::overview_status_section::checks)->isVisibleTo(window);
 			mark(times.Checks, checksVisible, clock);
+			const auto* merge = overview->findChild<QLabel*>(QStringLiteral("overviewMergeState"));
+			mark(times.Merge, merge != nullptr && !merge->text().isEmpty() && overview->status_section(qt::overview_status_section::attention)->isVisibleTo(window), clock);
+			mark(times.People, overview->status_section(qt::overview_status_section::people)->isVisibleTo(window), clock);
 			if (!statusReleased && statusHeld && (checksVisible || clock.elapsed() > 15'000)) {
 				const auto partial = overview->pending_veils().Side->look() == core::pending_look::partial;
 				if (!checksVisible || !partial) {
@@ -252,6 +266,31 @@ try {
 				holdStatus     = false;
 				statusReleased = true;
 			}
+			if (holdPeople && peopleHeld && (times.Merge || clock.elapsed() > 15'000)) {
+				holdPeople = false;
+				expect(times.Merge && !times.People && !accepted && overview->pending_veils().Side->look() == core::pending_look::partial,
+					   "merge assessment is readable while reviewers remain explicitly loading");
+				auto* header = overview->status_section_header(qt::overview_status_section::attention);
+				if (!header->isChecked()) {
+					header->click();
+				}
+				expect(overview->findChild<QLabel*>(QStringLiteral("overviewRequirementDetails"))->text().contains(QStringLiteral("still loading")), "early assessment identifies unfinished merge rules");
+			}
+			if (holdRules && rulesHeld && (times.People || clock.elapsed() > 15'000)) {
+				holdRules = false;
+				expect(times.Merge && times.People && !accepted && !overview->participant_rows().empty(), "people and merge are readable before held rules finish");
+				expect(overview->pending_veils().Side->shown_text().contains(QStringLiteral("Loading merge rules and review progress")), "completed reviewers leave the remaining-loading plate");
+				auto* header = overview->status_section_header(qt::overview_status_section::people);
+				if (!header->isChecked()) {
+					header->click();
+				}
+				QApplication::processEvents();
+				expect(checks->currentItem() != nullptr && checks->currentItem()->data(0, Qt::UserRole).toString() == selectedCheck,
+					   "independent people and merge updates preserve check selection");
+				if (!renderDirectory.isEmpty() && aIdentity == first) {
+					expect(window->grab().save(renderDirectory + QStringLiteral("/status-people-before-rules.png")), "independent Status sections render in the composed app");
+				}
+			}
 			QThread::msleep(1);
 		}
 		expect(times.Accepted.has_value(), "the review is accepted");
@@ -260,6 +299,52 @@ try {
 			expect(checks->currentItem() != nullptr && checks->currentItem()->data(0, Qt::UserRole).toString() == selectedCheck
 					   && overview->status_section_header(qt::overview_status_section::checks)->isChecked(),
 				   "final acceptance retains the selected check and disclosure");
+		}
+		if (releaseLedger) {
+			using readiness    = application::overview_readiness;
+			const auto context = owner->windows().front();
+			wait_for([&] { return access::hold_review_ledger_terminals(*owner, context, true); }, "the accepted review owns its local store");
+			const auto releaseAnswers = qScopeGuard([&] { static_cast<void>(access::hold_review_ledger_terminals(*owner, context, false)); });
+			expect(overview->projection()->Progress.FilesReadiness == readiness::loading && overview->projection()->Progress.NotesReadiness == readiness::loading
+					   && overview->value_label(qt::overview_value::files_read)->text() == QStringLiteral("Loading…")
+					   && !overview->pending_veils().Side->busy(),
+				   "network Status is complete while local progress explicitly loads");
+			auto* reviewHeader = overview->status_section_header(qt::overview_status_section::my_review);
+			if (!reviewHeader->isChecked()) {
+				reviewHeader->click();
+			}
+			if (overview->status_section_header(qt::overview_status_section::people)->isChecked()) {
+				overview->status_section_header(qt::overview_status_section::people)->click();
+			}
+			QApplication::processEvents();
+			if (!renderDirectory.isEmpty() && aIdentity == first) {
+				expect(window->grab().save(renderDirectory + QStringLiteral("/status-progress-loading.png")), "local loading is rendered with usable network Status");
+			}
+			releaseLedger();
+			// Deliver the opening and receipt answers individually; later
+			// private-record completions stay held on the same decision gate.
+			for (auto step = 0; overview->projection()->Progress.FilesReadiness != readiness::ready && step < 16; ++step) {
+				wait_for([&] { return access::held_review_ledger_terminals(*owner, context) != 0U; }, "one local completion is available");
+				expect(access::release_review_ledger_terminal(*owner, context), "release one local completion");
+				QApplication::processEvents();
+			}
+			expect(overview->projection()->Progress.FilesReadiness == readiness::ready && overview->projection()->Progress.NotesReadiness == readiness::loading,
+				   "file progress becomes ready before independent private records");
+			expect(overview->value_label(qt::overview_value::files_read)->text() == QStringLiteral("0 of 2")
+					   && overview->value_label(qt::overview_value::private_notes)->text() == QStringLiteral("Loading…"),
+				   "only the completed local input presents its value");
+			if (!renderDirectory.isEmpty() && aIdentity == first) {
+				QApplication::processEvents();
+				expect(window->grab().save(renderDirectory + QStringLiteral("/status-files-before-notes.png")), "file progress renders before notes complete");
+			}
+			expect(access::hold_review_ledger_terminals(*owner, context, false), "release remaining local completions");
+			wait_for([&] { return overview->projection()->Progress.NotesReadiness == readiness::ready; }, "private records complete independently");
+			const auto ledger = access::scaling_evidence(*owner, context).Ledger;
+			expect(ledger.ReceiptLoads == 2U && ledger.PrivateLoads == 1U, "independent completion reads each file and private records once");
+			expect(overview->projection()->Progress.PrivateNotes == 0U && reviewHeader->isChecked()
+					   && checks->currentItem() != nullptr && checks->currentItem()->data(0, Qt::UserRole).toString() == selectedCheck,
+				   "local completion preserves final values, disclosure and check selection");
+			std::cout << "progressive-open:local-progress " << aIdentity.toStdString() << " network-ready-before-ledger=1 files-ready-before-private=1 receipt-loads=" << ledger.ReceiptLoads << " private-loads=" << ledger.PrivateLoads << '\n';
 		}
 		expect(!staleName, "while it loads, the title row never names the pull request the window showed before");
 		if (aIdentity == first && roundTrip != 0U) {
@@ -285,6 +370,11 @@ try {
 		drawer->selectionModel()->setCurrentIndex(file, QItemSelectionModel::ClearAndSelect | QItemSelectionModel::Rows);
 		wait_for([&] { return surface->current_result() != nullptr && surface->current_context().has_value() && !surface->geometry_pending(); }, "the first file's comparison shows");
 		mark(times.Diff, true, clock);
+		if (releaseLedger && aIdentity == first) {
+			wait_for([&] { return window->read_action()->isEnabled(); }, "the first file offers its durable read gesture");
+			window->read_action()->trigger();
+			wait_for([&] { return overview->projection()->Progress.FilesRead == 1U; }, "a nonzero durable receipt is recorded for the first PR");
+		}
 		{
 			const std::scoped_lock lock{ delay->ReadLogMutex };
 			times.Reads = delay->ReadLog.size();
@@ -302,7 +392,7 @@ try {
 		std::cout << "progressive-open:timing " << aIdentity.toStdString() << " round-trip-ms=" << roundTrip
 				  << " title=" << text(times.Title) << " identity=" << text(times.Identity)
 				  << " overview-files=" << text(times.OverviewFiles) << " drawer-files=" << text(times.DrawerFiles)
-				  << " checks=" << text(times.Checks) << " accepted=" << text(times.Accepted) << " first-diff=" << text(times.Diff) << " reads=" << times.Reads << '\n';
+				  << " checks=" << text(times.Checks) << " merge=" << text(times.Merge) << " people=" << text(times.People) << " accepted=" << text(times.Accepted) << " first-diff=" << text(times.Diff) << " reads=" << times.Reads << '\n';
 		return times;
 	};
 
@@ -355,6 +445,59 @@ try {
 	auto* const surface          = window->comparison_surface();
 	wait_for([&] { return !window->showing_overview() && surface->current_result() != nullptr && surface->current_context().has_value(); }, "the waiting file opens once the review is accepted");
 	expect(overview->pending_open().isEmpty(), "nothing waits once it has opened");
+	wait_for([&] { return overview->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "reopened progress finishes loading");
+	expect(overview->projection()->Progress.FilesRead == 1U, "the first PR retains its own durable progress across replacement");
+
+	{
+		// A real read failure in this course's private SQLite file must not
+		// turn unknown progress into zero or disable completed network Status.
+		using readiness    = application::overview_readiness;
+		const auto context = owner->windows().front();
+		window->choose_home(true);
+		wait_for([&] { return window->showing_home(); }, "Home precedes the local failure opening");
+		const auto releaseOpening = access::hold_review_ledger_effects(*owner);
+		const auto openingGuard   = qScopeGuard(releaseOpening);
+		double_click(row_of(*window, second));
+		wait_for([&] { return overview->projection().has_value(); }, "network Status completes before the failed local read");
+		expect(access::hold_review_ledger_terminals(*owner, context, true), "hold this review's store completion");
+		const auto answerGuard = qScopeGuard([&] { static_cast<void>(access::hold_review_ledger_terminals(*owner, context, false)); });
+		expect(overview->projection()->Progress.FilesReadiness == readiness::loading, "replacement awaits its own local progress");
+		releaseOpening();
+		wait_for([&] { return access::held_review_ledger_terminals(*owner, context) != 0U; }, "the store has opened on its effect lane");
+		const auto releaseReads = access::hold_review_ledger_effects(*owner);
+		const auto readsGuard   = qScopeGuard(releaseReads);
+		expect(access::release_review_ledger_terminal(*owner, context), "deliver the store opening before faulting reads");
+		wait_for([&] { return access::review_ledger_available(*owner) == true; }, "the scoped store opened successfully");
+		sqlite3* ledgerRaw = nullptr;
+		expect(sqlite3_open_v2((root / "state/v1/review-ledger.sqlite3").string().c_str(), &ledgerRaw, SQLITE_OPEN_READWRITE, nullptr) == SQLITE_OK,
+			   "fixture opens only its own ledger for a bounded read fault");
+		const auto ledgerConnection = std::unique_ptr<sqlite3, decltype(&sqlite3_close)>{ ledgerRaw, sqlite3_close };
+		expect(sqlite3_exec(ledgerRaw, "ALTER TABLE file_receipt RENAME TO fixture_hidden_receipt", nullptr, nullptr, nullptr) == SQLITE_OK,
+			   "fixture hides its receipt table before the queued read");
+		overview->status_drawer()->show_tab(qt::overview_drawer_tab::status);
+		auto* checks = overview->findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
+		expect(checks->topLevelItemCount() > 0, "network checks are available during the local fault");
+		checks->setCurrentItem(checks->topLevelItem(0));
+		const auto selectedCheck = checks->currentItem()->data(0, Qt::UserRole).toString();
+		auto*      reviewHeader  = overview->status_section_header(qt::overview_status_section::my_review);
+		if (!reviewHeader->isChecked()) {
+			reviewHeader->click();
+		}
+		releaseReads();
+		expect(access::hold_review_ledger_terminals(*owner, context, false), "deliver the failed receipt read and independent private records");
+		wait_for([&] { return overview->projection()->Progress.FilesReadiness == readiness::unavailable && overview->projection()->Progress.NotesReadiness == readiness::ready; },
+				 "failed receipts and successful private records reach separate terminal states");
+		expect(access::scaling_evidence(*owner, context).Ledger.StoreFailures > 0U
+				   && overview->value_label(qt::overview_value::files_read)->text() == QStringLiteral("Unavailable")
+				   && !overview->pending_veils().Side->busy() && reviewHeader->isChecked()
+				   && checks->currentItem()->data(0, Qt::UserRole).toString() == selectedCheck,
+			   "an actual SQLite failure preserves usable Status, selection and explicit unavailable progress");
+		if (!renderDirectory.isEmpty()) {
+			QApplication::processEvents();
+			expect(window->grab().save(renderDirectory + QStringLiteral("/status-progress-unavailable.png")), "unavailable progress renders with completed network sections");
+		}
+		std::cout << "progressive-open:local-progress-failure receipt-unavailable=1 private-ready=1 network-usable=1\n";
+	}
 
 	owner->begin_shutdown();
 	wait_for([&] { return owner->status().ShutdownComplete; }, "the course drains");

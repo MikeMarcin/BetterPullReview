@@ -1,3 +1,13 @@
+# [[BPR-1900]] owner look v002 reseal: github_application.cpp keeps the
+# stops a whole-tour draft left out in the tour session's transcript and
+# drops the flagged-stops notice; it places proposed stops against the
+# hunks of each file's patch (github_file_record::HeadHunks, read from the
+# same files answer) and offers Move to nearest change. No provider request,
+# credential, grant, mutation or inventory change.
+# [[BPR-1900]] reseal over 438bba59c: main.cpp's tests-on drafting look
+# (--attended-tour-drafting) waits up to ten minutes, for an installed agent,
+# and (owner look v001) draws a proposed field with the keyboard in it.
+# No provider, credential, grant, mutation or inventory change.
 # [[BPR-1888]] Reviewed against 650099b71: github_application.cpp only adds
 # the current-window handoff forwarding optional runtime preparation to its
 # epoch host. The host owns effect scheduling and keeps accepted repository
@@ -2693,7 +2703,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "7ae62b108394a25d0508660505ca99792c6e0419ab7052f4c4b02cbf90a2eb7f"
+        "0b6cf877b20317ffbe36925739a0ecb19d8b43ff0c0b3421aec73a30ecec12f4"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2722,6 +2732,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"main.cpp"
 		"src/about_desktop.cpp"
 		"src/about_desktop.hpp"
+		"src/attended_source_identity.cpp"
+		"src/attended_source_identity.hpp"
 		"src/command_line.cpp"
 		"src/designated_live_macos_supervisor.cpp"
 		"src/designated_live_macos_supervisor_identity.cpp"
@@ -2802,6 +2814,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "main.cpp"
         "src/about_desktop.cpp"
         "src/about_desktop.hpp"
+        "src/attended_source_identity.cpp"
+        "src/attended_source_identity.hpp"
         "src/command_line.cpp"
         "src/cycle_cli.cpp"
         "src/cycle_cli.hpp"
@@ -3018,7 +3032,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "2e91dcf697e6d8ac99ab61024e2810a6821ddf06783355e40a3d83de74e40703"
+        "a00222d6371444aa7ecee5085758e1842949fc09fd3e0867c679d39f9a13f1f7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

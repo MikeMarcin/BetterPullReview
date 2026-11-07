@@ -213,6 +213,54 @@ namespace {
 			   "a cleared open cannot be revived by late provisional results");
 	}
 
+	void test_local_progress_loads_independently()
+	{
+		using readiness = application::overview_readiness;
+		qt::pull_request_overview_page page;
+		page.resize(1000, 760);
+		page.show();
+		auto shown                    = projection();
+		shown.CheckRows               = { { .Identity = "first", .Name = "First", .Outcome = "Passed" }, { .Identity = "second", .Name = "Second", .Outcome = "Passed" } };
+		shown.Progress.FilesReadiness = readiness::loading;
+		shown.Progress.NotesReadiness = readiness::loading;
+		page.present(shown);
+		page.status_drawer()->show_tab(qt::overview_drawer_tab::status);
+		auto* header = page.status_section_header(qt::overview_status_section::my_review);
+		if (!header->isChecked()) {
+			header->click();
+		}
+		auto* list = page.findChild<QTreeWidget*>(QStringLiteral("overviewCheckList"));
+		list->setCurrentItem(list->topLevelItem(1));
+		auto* files = page.value_label(qt::overview_value::files_read);
+		auto* notes = page.value_label(qt::overview_value::private_notes);
+		auto* meter = page.findChild<QWidget*>(QStringLiteral("overviewReadMeter"));
+		expect(files->text() == QStringLiteral("Loading…") && notes->text() == QStringLiteral("Loading…") && meter->isHidden()
+				   && !page.pending_veils().Side->busy() && header->accessibleName().contains(QStringLiteral("Loading")),
+			   "only local inputs are loading; network Status remains usable and no false zero is drawn");
+		expect(page.since_heading()->text().contains(QStringLiteral("loading")) && page.files_heading()->text().contains(QStringLiteral("read progress loading")),
+			   "pending receipts and private records also qualify the file summary and last-review marker");
+		shown.Progress.FilesReadiness = readiness::ready;
+		page.present(shown);
+		expect(files->text() == QStringLiteral("1 of 3") && !meter->isHidden() && notes->text() == QStringLiteral("Loading…"), "ready file progress is independent of pending notes");
+		shown.Progress.NotesReadiness = readiness::unavailable;
+		page.present(shown);
+		expect(notes->text() == QStringLiteral("Unavailable") && files->text() == QStringLiteral("1 of 3"), "failed notes leave completed file progress readable");
+		expect(page.since_heading()->text().contains(QStringLiteral("unavailable")), "a failed private read never means no previous review");
+		shown.Progress.FilesReadiness = readiness::unavailable;
+		shown.Progress.NotesReadiness = readiness::ready;
+		page.present(shown);
+		expect(files->text() == QStringLiteral("Unavailable") && meter->isHidden() && notes->text() == QStringLiteral("1"), "failed receipts leave completed notes readable");
+		expect(page.files_heading()->text().contains(QStringLiteral("read progress unavailable")), "the file heading does not invent unread progress after failure");
+		shown.Progress.FilesReadiness = readiness::ready;
+		page.present(shown);
+		expect(files->text() == QStringLiteral("1 of 3") && notes->text() == QStringLiteral("1") && header->isChecked()
+				   && list->currentItem()->data(0, Qt::UserRole).toString() == QStringLiteral("second"),
+			   "local completion keeps final counts, disclosure and check selection");
+		page.clear();
+		page.present_loading();
+		expect(!page.projection() && page.status_section(qt::overview_status_section::my_review)->isHidden(), "replacement does not retain the previous review's progress");
+	}
+
 	auto test_page_presents_the_projection_and_reports_its_gestures() -> void
 	{
 		qt::pull_request_overview_page page;
@@ -4047,6 +4095,7 @@ auto main(int argc, char** argv) -> int
 		return EXIT_SUCCESS;
 	}
 	test_checks_load_independently_of_remaining_status();
+	test_local_progress_loads_independently();
 	test_history_publication_does_not_touch_file_rows();
 	test_cached_catalogue_availability_and_navigation();
 	test_column_sizing_measures_visible_files();

@@ -1,0 +1,28 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "windows-checked-iterator-v1",
+  "scope": {
+    "issues": [
+      "BPR-1902"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "checked-iterator",
+      "outcome": "Cancellation summary construction compiles with native checked iterators and preserves its contents.",
+      "work": [
+        {
+          "issue": "BPR-1902"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Pass native Debug and Release host builds and cancellation assertions.",
+        "Land the correction and journal entry on main; retain it identically in both performance measurements."
+      ],
+      "boundary": "Iterator type deduction only; preserve copy bounds, text, length and classification."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

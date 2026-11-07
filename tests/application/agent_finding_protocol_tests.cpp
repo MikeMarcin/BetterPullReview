@@ -701,6 +701,7 @@ namespace {
 				 failure::invalid_runtime_metadata,
 				 failure::input_too_large,
 				 failure::not_signed_in,
+				 failure::tool_refused,
 			 }) {
 			values.push_back(static_cast<std::uint8_t>(existing));
 		}

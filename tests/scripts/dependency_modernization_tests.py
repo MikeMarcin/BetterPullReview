@@ -361,6 +361,38 @@ class DependencyModernizationTests(unittest.TestCase):
         )
         self.assertFalse(marker.exists())
 
+    def test_vcpkg_opt_out_preserves_other_globals_and_generators(self) -> None:
+        self.assertIsNotNone(CMAKE_COMMAND, "cmake is required")
+        module = (ROOT / "cmake/BprVisualStudio.cmake").as_posix()
+        with contained_temporary_directory(prefix="bpr-vs-globals-") as directory:
+            script = Path(directory) / "globals.cmake"
+            script.write_text(
+                "cmake_minimum_required(VERSION 4.4.2)\n"
+                'set(CMAKE_GENERATOR "Visual Studio 18 2026")\n'
+                f'include("{module}")\n'
+                'if(NOT CMAKE_VS_GLOBALS STREQUAL "VcpkgEnabled=false")\n'
+                '  message(FATAL_ERROR "Missing default opt-out: ${CMAKE_VS_GLOBALS}")\n'
+                'endif()\n'
+                'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=true;Last=two;vcpkgenabled=true")\n'
+                f'include("{module}")\n'
+                f'include("{module}")\n'
+                'if(NOT CMAKE_VS_GLOBALS STREQUAL "First=one;Last=two;VcpkgEnabled=false")\n'
+                '  message(FATAL_ERROR "Unexpected VS globals: ${CMAKE_VS_GLOBALS}")\n'
+                'endif()\n'
+                'set(CMAKE_GENERATOR "Ninja")\n'
+                'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=true")\n'
+                f'include("{module}")\n'
+                'if(NOT CMAKE_VS_GLOBALS STREQUAL "First=one;VcpkgEnabled=true")\n'
+                '  message(FATAL_ERROR "Changed non-VS globals: ${CMAKE_VS_GLOBALS}")\n'
+                'endif()\n',
+                encoding="utf-8",
+            )
+            result = subprocess.run(
+                [str(CMAKE_COMMAND), "-P", str(script)],
+                capture_output=True, text=True, check=False, timeout=30,
+            )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+
     def test_syntax_provider_forwards_list_values_whole(self) -> None:
         # The provider escapes a value's `;` and appends `-D<name>=<value>` to
         # an accumulator. Appending by expanding the accumulator unquoted
@@ -378,8 +410,9 @@ class DependencyModernizationTests(unittest.TestCase):
                 'set(CMAKE_CXX_FLAGS "/W4 /EHsc")\n'
                 'set(CMAKE_CONFIGURATION_TYPES "Debug;Release;MinSizeRel;RelWithDebInfo")\n'
                 'set(CMAKE_PREFIX_PATH "first;second")\n'
+                'set(CMAKE_VS_GLOBALS "First=one;VcpkgEnabled=false")\n'
                 "set(forwarded)\n"
-                "foreach(name IN ITEMS CMAKE_CXX_FLAGS CMAKE_CONFIGURATION_TYPES CMAKE_PREFIX_PATH)\n"
+                "foreach(name IN ITEMS CMAKE_CXX_FLAGS CMAKE_CONFIGURATION_TYPES CMAKE_PREFIX_PATH CMAKE_VS_GLOBALS)\n"
                 '    bpr_syntax_forward(forwarded "${name}")\n'
                 "endforeach()\n"
                 "list(LENGTH forwarded count)\n"
@@ -398,13 +431,14 @@ class DependencyModernizationTests(unittest.TestCase):
         output = completed.stdout + completed.stderr
         self.assertEqual(completed.returncode, 0, output)
         elements = re.findall(r"FORWARDED_ELEMENT=(.*)", output)
-        self.assertIn("FORWARDED_COUNT=3", output, output)
+        self.assertIn("FORWARDED_COUNT=4", output, output)
         self.assertEqual(
             elements,
             [
                 "-DCMAKE_CXX_FLAGS=/W4 /EHsc",
                 "-DCMAKE_CONFIGURATION_TYPES=Debug;Release;MinSizeRel;RelWithDebInfo",
                 "-DCMAKE_PREFIX_PATH=first;second",
+                "-DCMAKE_VS_GLOBALS=First=one;VcpkgEnabled=false",
             ],
             output,
         )

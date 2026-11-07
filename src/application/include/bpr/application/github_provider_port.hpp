@@ -460,6 +460,29 @@ namespace bpr::application {
 			github_collection_availability   Statuses = github_collection_availability::unavailable;
 		};
 		std::optional<checks> Checks = std::nullopt;
+		/// [[BPR-1897]]. Compact roster facts, without conversation bodies.
+		struct people
+		{
+			struct commenter
+			{
+				github_comment_id                  Comment;
+				std::optional<github_actor_record> Author;
+			};
+			struct reviewer
+			{
+				std::uint64_t                      DatabaseId = 0U;
+				github_review_id                   Review;
+				std::optional<github_actor_record> Author;
+				github_review_state                State = github_review_state::uninitialized;
+			};
+			github_actor_record                       Viewer;
+			std::vector<commenter>                    Commenters;
+			std::vector<reviewer>                     Reviews;
+			std::vector<github_review_request_record> Requests;
+			github_observation_availability           Availability = github_observation_availability::unobserved;
+		};
+		std::optional<people>                   People = std::nullopt;
+		std::optional<github_merge_observation> Merge  = std::nullopt;
 	};
 	using github_pull_request_overview_handler = std::function<void(github_pull_request_overview_observation)>;
 

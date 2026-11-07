@@ -1,0 +1,29 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "windows-syntax-regeneration-v1",
+  "scope": {
+    "issues": [
+      "BPR-1904"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "staged-regeneration",
+      "outcome": "Pinned Windows syntax dependency builds complete without competing CMake regeneration and retain parent-owned input invalidation.",
+      "work": [
+        {
+          "issue": "BPR-1904"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Reproduce the native generation-stamp race and complete fresh Debug/Release dependency builds with the correction.",
+        "Verify unchanged inputs reuse compiled dependencies and changed forwarded inputs rebuild them; preserve root regeneration and required functional checks.",
+        "Land the correction, completed card and one-line journal on main."
+      ],
+      "boundary": "Only automatic regeneration inside the parent-owned pinned Visual Studio dependency build; no source, compiler flag, configuration or test coverage reduction."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

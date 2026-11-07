@@ -1,0 +1,48 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "responsiveness-latency-v10",
+  "scope": {
+    "issues": [
+      "BPR-1897",
+      "BPR-1898"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "people-merge",
+      "outcome": "People and merge assessment become readable independently of remaining rules and progress.",
+      "work": [
+        {
+          "issue": "BPR-1897"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Verify scoped independent data and unchanged final behavior.",
+        "Exercise held dependency, completion and replacement through the composed Status surface.",
+        "Land verified source, completed card and one journal line on main."
+      ],
+      "boundary": "Direct implementation; preserve authority and unrelated behavior; no new transport or storage ownership."
+    },
+    {
+      "id": "local-progress",
+      "outcome": "Local progress has independent truthful readiness while network Status stays usable.",
+      "work": [
+        {
+          "issue": "BPR-1898"
+        }
+      ],
+      "depends_on": [
+        "people-merge"
+      ],
+      "exit_criteria": [
+        "Verify scoped independent data and unchanged final behavior.",
+        "Exercise held dependency, completion and replacement through the composed Status surface.",
+        "Land verified source, completed card and one journal line on main."
+      ],
+      "boundary": "Direct implementation; preserve authority and unrelated behavior; no new transport or storage ownership."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

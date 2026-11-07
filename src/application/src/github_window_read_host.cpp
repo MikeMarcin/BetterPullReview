@@ -984,16 +984,22 @@ namespace bpr::application {
 											 const core::pull_request_request_context& aContext, const std::shared_ptr<std::atomic_bool>& aTerminal)
 			-> github_pull_request_overview_handler
 		{
-			// [[BPR-1895]]. Five observations at most: metadata, then the
-			// independent files, threads, PR-wide comments and checks, once each.
+			// [[BPR-1897]]. Seven observations at most: metadata, then the
+			// independent files, threads, comments, checks, people and merge, once each.
 			auto posted = std::make_shared<std::atomic<std::uint8_t>>(std::uint8_t{ 0U });
 			return [weak = weak_from_this(), lane = &DecisionLane, aToken, aContext, aTerminal, posted, digests = BodyDigests](github_pull_request_overview_observation aObservation) {
-				if (aObservation.Context != aContext || aTerminal->load() || (aObservation.Conversation && aObservation.Discussion)
-					|| (aObservation.Checks && (aObservation.Files || aObservation.Conversation || aObservation.Discussion))) {
+				const auto parts = static_cast<unsigned>(aObservation.Files.has_value()) + static_cast<unsigned>(aObservation.Conversation.has_value())
+					+ static_cast<unsigned>(aObservation.Discussion.has_value()) + static_cast<unsigned>(aObservation.Checks.has_value())
+					+ static_cast<unsigned>(aObservation.People.has_value()) + static_cast<unsigned>(aObservation.Merge.has_value());
+				if (aObservation.Context != aContext || aTerminal->load() || parts > 1U) {
 					return;
 				}
 				auto stage = std::uint8_t{ 1U };
-				if (aObservation.Checks) {
+				if (aObservation.People) {
+					stage = 32U;
+				} else if (aObservation.Merge) {
+					stage = 64U;
+				} else if (aObservation.Checks) {
 					stage = 16U;
 				} else if (aObservation.Discussion) {
 					stage = 8U;
@@ -1061,7 +1067,8 @@ namespace bpr::application {
 		void publish_overview(const std::uint64_t aToken, const github_pull_request_overview_observation& aObservation)
 		{
 			if (Closing || !Publish || aToken != ProviderOperationToken || !PendingProvider
-				|| PendingProvider->Context != aObservation.Context) {
+				|| PendingProvider->Context != aObservation.Context
+				|| (aObservation.People && (aObservation.People->Viewer.Actor != PendingProvider->Viewer.Node || aObservation.People->Viewer.Login != PendingProvider->Viewer.Login))) {
 				return;
 			}
 			try {
@@ -1070,7 +1077,11 @@ namespace bpr::application {
 					return;
 				}
 				auto admitted = false;
-				if (aObservation.Checks) {
+				if (aObservation.People) {
+					admitted = Policy.accept_people_observation(Policy.window(), aObservation.Context);
+				} else if (aObservation.Merge) {
+					admitted = Policy.accept_merge_observation(Policy.window(), aObservation.Context);
+				} else if (aObservation.Checks) {
 					admitted = Policy.accept_checks_observation(Policy.window(), aObservation.Context);
 				} else if (aObservation.Files) {
 					admitted = Policy.accept_files_observation(Policy.window(), aObservation.Context);

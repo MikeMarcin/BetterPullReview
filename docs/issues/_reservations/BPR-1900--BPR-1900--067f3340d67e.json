@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1900"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour authoring as its own background agent session",
+  "created": "2026-11-06T21:54:12.502536+00:00",
+  "base": "938727a454f42195a10828996e1916ad2fb77eac"
+}

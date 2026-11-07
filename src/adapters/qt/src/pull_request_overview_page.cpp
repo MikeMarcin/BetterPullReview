@@ -3417,6 +3417,8 @@ namespace bpr::qt {
 		RequirementDetails->setVisible(RequirementDisclosure->isChecked());
 		present_status(samePullRequest);
 		ObservedChecks.reset();
+		ObservedPeople.reset();
+		ObservedMerge.reset();
 
 		apply_pending();
 	}
@@ -3571,12 +3573,17 @@ namespace bpr::qt {
 		case attributes::objects_unavailable: heading += QStringLiteral(", linguist-generated not read: the head's .gitattributes are not available"); break;
 		case attributes::failed:              heading += QStringLiteral(", linguist-generated could not be read"); break;
 		}
-		if (since.Known && since.FilesChanged.has_value()) {
+		const auto historyReady = aProjection.Progress.NotesReadiness == application::overview_readiness::ready;
+		if (historyReady && since.Known && since.FilesChanged.has_value()) {
 			heading += QStringLiteral(", %1 changed since my last review").arg(count_text(*since.FilesChanged));
-		} else if (since.Known) {
+		} else if (historyReady && since.Known) {
 			heading += QStringLiteral(", changes since my last review not yet resolved");
 		}
-		heading += QStringLiteral(", %1 not read").arg(count_text(notRead));
+		switch (aProjection.Progress.FilesReadiness) {
+		case application::overview_readiness::ready:       heading += QStringLiteral(", %1 not read").arg(count_text(notRead)); break;
+		case application::overview_readiness::loading:     heading += QStringLiteral(", read progress loading…"); break;
+		case application::overview_readiness::unavailable: heading += QStringLiteral(", read progress unavailable"); break;
+		}
 		present_heading(*FilesHeading, heading);
 	}
 
@@ -3589,6 +3596,13 @@ namespace bpr::qt {
 		since.Known      = aUpdate.Known;
 		since.ReviewedAt = aUpdate.ReviewedAt;
 		since.Uploads    = aUpdate.Uploads;
+		if (Projection->Progress.NotesReadiness != application::overview_readiness::ready) {
+			SinceHeading->setText(Projection->Progress.NotesReadiness == application::overview_readiness::loading
+									  ? QStringLiteral("Since my last review: loading…")
+									  : QStringLiteral("Since my last review: unavailable"));
+			show_value(overview_value::uploads, false);
+			return;
+		}
 		if (!since.Known) {
 			SinceHeading->setText(QStringLiteral("Since my last review: none yet"));
 		} else if (since.ReviewedAt) {
@@ -3624,6 +3638,8 @@ namespace bpr::qt {
 		set_description_expanded(false);
 		Projection.reset();
 		ObservedChecks.reset();
+		ObservedPeople.reset();
+		ObservedMerge.reset();
 		// [[BPR-1852]]. Nothing presented is a draft, and no change is under way.
 		ShownDraft        = false;
 		ShownOpen         = false;
@@ -3764,9 +3780,17 @@ namespace bpr::qt {
 		// received yet keeps its own loading presentation.
 		section(*Veils.Header, Loading && !Observed, QStringLiteral("Opening the pull request…"));
 		section(*Veils.Description, Loading && !Observed, QStringLiteral("Loading the description…"));
-		if (Loading && ObservedChecks) {
+		if (Loading && has_observed_status()) {
+			auto remaining = QStringList{ };
+			if (!ObservedPeople) {
+				remaining.push_back(QStringLiteral("reviewers"));
+			}
+			if (!ObservedChecks) {
+				remaining.push_back(QStringLiteral("checks"));
+			}
+			remaining.push_back(QStringLiteral("merge rules"));
 			Veils.Side->present(core::pending_activity::loading, true, true,
-								{ .Waiting = waiting, .Coming = QStringLiteral("Loading reviewers, merge rules and review progress…") });
+								{ .Waiting = waiting, .Coming = QStringLiteral("Loading %1 and review progress…").arg(remaining.join(QStringLiteral(", "))) });
 		} else {
 			section(*Veils.Side, Loading, QStringLiteral("Loading reviewers, checks and progress…"));
 		}
@@ -3853,9 +3877,37 @@ namespace bpr::qt {
 		apply_pending();
 	}
 
-	auto pull_request_overview_page::has_observed_checks() const noexcept -> bool
+	void pull_request_overview_page::present_observed_people(const application::overview_people_projection& aPeople)
 	{
-		return ObservedChecks.has_value();
+		if (!Loading || !Observed || Cached || Projection) {
+			return;
+		}
+		ObservedPeople = aPeople;
+		rebuild_participants(aPeople.Participants);
+		present_request_rows();
+		present_people();
+		Sections[static_cast<std::size_t>(overview_status_section::people)].Frame->show();
+		apply_pending();
+	}
+
+	void pull_request_overview_page::present_observed_merge(const application::overview_merge_projection& aMerge)
+	{
+		if (!Loading || !Observed || Cached || Projection) {
+			return;
+		}
+		ObservedMerge = aMerge;
+		present_merge_details(aMerge.State, aMerge.Tone, { }, aMerge.Details);
+		auto& section = Sections[static_cast<std::size_t>(overview_status_section::attention)];
+		section.Frame->show();
+		section.Header->setText(QStringLiteral("Merge"));
+		section.Header->set_count(text(aMerge.State));
+		section.Header->setAccessibleName(QStringLiteral("Merge: %1; rules loading").arg(text(aMerge.State)));
+		apply_pending();
+	}
+
+	auto pull_request_overview_page::has_observed_status() const noexcept -> bool
+	{
+		return ObservedChecks.has_value() || ObservedPeople.has_value() || ObservedMerge.has_value();
 	}
 
 	void pull_request_overview_page::present_observed_files(const std::vector<core::cached_review_file>& aFiles)
@@ -4058,6 +4110,8 @@ namespace bpr::qt {
 		refresh_feedback_icons();
 		if (Projection) {
 			present_merge(*Projection);
+		} else if (ObservedMerge) {
+			present_merge_details(ObservedMerge->State, ObservedMerge->Tone, { }, ObservedMerge->Details);
 		}
 		update();
 		Files->viewport()->update();
@@ -5133,8 +5187,14 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present_merge(const application::pull_request_overview_projection& aProjection)
 	{
+		present_merge_details(aProjection.MergeState, aProjection.MergeTone, aProjection.Status.OpenConditions, aProjection.RequirementDetails);
+		present_request_rows();
+	}
+
+	void pull_request_overview_page::present_merge_details(const std::string& aState, const application::overview_merge_tone aTone, const std::vector<std::string>& aConditions, const std::string& aDetails)
+	{
 		auto tone = palette().color(QPalette::Active, QPalette::PlaceholderText);
-		switch (aProjection.MergeTone) {
+		switch (aTone) {
 		case application::overview_merge_tone::blocked:
 			tone = Colours.Defect;
 			break;
@@ -5150,23 +5210,21 @@ namespace bpr::qt {
 		auto statePalette = MergeState->palette();
 		statePalette.setColor(QPalette::WindowText, tone);
 		MergeState->setPalette(statePalette);
-		MergeState->setText(text(aProjection.MergeState));
+		MergeState->setText(text(aState));
 		MergeState->setAccessibleName(QStringLiteral("Merge state: %1").arg(MergeState->text()));
 		MergeState->show();
 
 		// [[BPR-1589]]. Each failed check is named in Needs attention; the
 		// details carry Merge's other conditions.
 		auto conditions = QStringList{ };
-		for (const auto& condition : aProjection.Status.OpenConditions) {
+		for (const auto& condition : aConditions) {
 			conditions.push_back(text(condition));
 		}
 		MergeConditions->setText(conditions.join(QLatin1Char{ '\n' }));
 		MergeConditions->setAccessibleName(conditions.join(QStringLiteral(". ")));
 		MergeConditions->setVisible(!conditions.isEmpty());
 
-		present_request_rows();
-
-		RequirementDetails->setText(text(aProjection.RequirementDetails));
+		RequirementDetails->setText(text(aDetails));
 		RequirementDetails->setAccessibleName(RequirementDetails->text());
 		RequirementDisclosure->show();
 	}
@@ -5813,13 +5871,25 @@ namespace bpr::qt {
 			return;
 		}
 		const auto& progress = Projection->Progress;
-		set_value(overview_value::files_read, QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)), false);
-		show_value(overview_value::files_read, progress.FilesTotal != 0U);
+		using readiness      = application::overview_readiness;
+		const auto value     = [](const readiness aReadiness, const QString& aReady) {
+			switch (aReadiness) {
+			case readiness::loading:     return QStringLiteral("Loading…");
+			case readiness::unavailable: return QStringLiteral("Unavailable");
+			case readiness::ready:       return aReady;
+			}
+			return QStringLiteral("Unavailable");
+		};
+		const auto filesReady = progress.FilesReadiness == readiness::ready;
+		const auto notesReady = progress.NotesReadiness == readiness::ready;
+		const auto filesRead  = QStringLiteral("%1 of %2").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal));
+		set_value(overview_value::files_read, value(progress.FilesReadiness, filesRead), false);
+		show_value(overview_value::files_read, progress.FilesTotal != 0U || !filesReady);
 		ReadMeter->set_segments({ { static_cast<double>(progress.FilesRead), Colours.Accepted } }, static_cast<double>(progress.FilesTotal));
-		ReadMeter->setAccessibleName(QStringLiteral("%1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
-		ReadMeter->setVisible(progress.FilesTotal != 0U);
-		set_value(overview_value::private_notes, count_text(progress.PrivateNotes), false);
-		show_value(overview_value::private_notes, progress.PrivateNotes != 0U);
+		ReadMeter->setAccessibleName(filesReady ? filesRead + QStringLiteral(" files read") : QString{ });
+		ReadMeter->setVisible(filesReady && progress.FilesTotal != 0U);
+		set_value(overview_value::private_notes, value(progress.NotesReadiness, count_text(progress.PrivateNotes)), false);
+		show_value(overview_value::private_notes, progress.PrivateNotes != 0U || !notesReady);
 		set_value(overview_value::drafted_comments, count_text(progress.DraftedComments.value_or(0U)), false);
 		show_value(overview_value::drafted_comments, progress.DraftedComments.value_or(0U) != 0U);
 		NewThreadsText->setText(plural(NewThreads, QStringLiteral("1 thread with new posts"), QStringLiteral("%1 threads with new posts")));
@@ -5839,30 +5909,43 @@ namespace bpr::qt {
 		NewConversationGo->setAccessibleName(QStringLiteral("Go to the %1 in Discuss").arg(NewConversationText->text()));
 		NewConversationRow->setVisible(conversation != 0U);
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::my_review)].Header;
-		// The files-read row under it says the count; the header does not repeat it.
-		header->setAccessibleName(QStringLiteral("My review: %1 of %2 files read").arg(count_text(progress.FilesRead), count_text(progress.FilesTotal)));
+		// Readiness stays visible even when the section is collapsed.
+		const auto loading = progress.FilesReadiness == readiness::loading || progress.NotesReadiness == readiness::loading;
+		if (loading) {
+			header->set_count(QStringLiteral("Loading…"));
+		} else if (!filesReady || !notesReady) {
+			header->set_count(QStringLiteral("Some data unavailable"));
+		} else {
+			header->set_count({ });
+		}
+		auto summary = filesReady ? filesRead + QStringLiteral(" files read") : QStringLiteral("File progress: %1").arg(value(progress.FilesReadiness, { }));
+		if (!notesReady) {
+			summary += QStringLiteral("; private notes: %1").arg(value(progress.NotesReadiness, { }));
+		}
+		header->setAccessibleName(QStringLiteral("My review: %1").arg(summary));
 	}
 
 	void pull_request_overview_page::present_request_rows()
 	{
-		const auto& shown = *Projection;
+		const auto& requests = Projection ? Projection->ReviewRequests : ObservedPeople->ReviewRequests;
+		const auto& note     = Projection ? Projection->ReviewRequestsNote : ObservedPeople->ReviewRequestsNote;
 		// Rows are rebuilt only when the roster changed, so a refresh that
 		// settles the same requests leaves them, and their focus, alone.
 		const auto current = request_rows();
-		if (!std::ranges::equal(current, shown.ReviewRequests, { }, [](const overview_request_row* aRow) -> const auto& { return aRow->request(); })) {
+		if (!std::ranges::equal(current, requests, { }, [](const overview_request_row* aRow) -> const auto& { return aRow->request(); })) {
 			while (Requests->count() != 0) {
 				auto* const item = Requests->takeAt(0);
 				delete item->widget();
 				delete item;
 			}
-			for (const auto& request : shown.ReviewRequests) {
+			for (const auto& request : requests) {
 				Requests->addWidget(new overview_request_row{ request, Colours });
 			}
 			++RequestRowBuilds;
 		}
-		RequestsNote->setText(text(shown.ReviewRequestsNote));
+		RequestsNote->setText(text(note));
 		RequestsNote->setAccessibleName(RequestsNote->text());
-		RequestsNote->setVisible(!shown.ReviewRequestsNote.empty());
+		RequestsNote->setVisible(!note.empty());
 	}
 
 	auto pull_request_overview_page::present_review_requests(const application::pull_request_overview_projection& aProjection) -> bool
@@ -5999,10 +6082,11 @@ namespace bpr::qt {
 
 	void pull_request_overview_page::present_people()
 	{
-		const auto& shown = *Projection;
-		auto        faces = std::vector<overview_face>{ };
-		auto        tally = std::array<std::size_t, 3>{ };
-		for (const auto& person : shown.Participants) {
+		const auto& participants = Projection ? Projection->Participants : ObservedPeople->Participants;
+		const auto& requests     = Projection ? Projection->ReviewRequests : ObservedPeople->ReviewRequests;
+		auto        faces        = std::vector<overview_face>{ };
+		auto        tally        = std::array<std::size_t, 3>{ };
+		for (const auto& person : participants) {
 			auto face = overview_face{ .Identity = text(person.Login) };
 			switch (person.Signoff) {
 			case application::overview_signoff::approved:
@@ -6024,7 +6108,7 @@ namespace bpr::qt {
 			}
 			faces.push_back(std::move(face));
 		}
-		for (const auto& request : shown.ReviewRequests) {
+		for (const auto& request : requests) {
 			const auto identity = text(request.Name);
 			faces.push_back({ .Identity = identity, .InitialsFrom = request.Team ? identity.mid(identity.indexOf(QLatin1Char{ '/' }) + 1) : QString{ }, .Team = request.Team });
 		}
@@ -6039,15 +6123,15 @@ namespace bpr::qt {
 		if (tally[2] != 0U) {
 			words.push_back(QStringLiteral("%1 commented").arg(count_text(tally[2])));
 		}
-		if (!shown.ReviewRequests.empty()) {
-			words.push_back(QStringLiteral("%1 requested").arg(count_text(shown.ReviewRequests.size())));
+		if (!requests.empty()) {
+			words.push_back(QStringLiteral("%1 requested").arg(count_text(requests.size())));
 		}
 		if (words.isEmpty()) {
-			words.push_back(plural(shown.Participants.size(), QStringLiteral("1 person"), QStringLiteral("%1 people")));
+			words.push_back(plural(participants.size(), QStringLiteral("1 person"), QStringLiteral("%1 people")));
 		}
 		PeopleSummary->setText(words.join(QStringLiteral(", ")));
 		Faces->setAccessibleName(QStringLiteral("People: %1").arg(PeopleSummary->text()));
-		const auto  people = shown.Participants.size() + shown.ReviewRequests.size();
+		const auto  people = participants.size() + requests.size();
 		auto* const header = Sections[static_cast<std::size_t>(overview_status_section::people)].Header;
 		header->set_count(count_text(people));
 		header->setAccessibleName(QStringLiteral("People: %1").arg(PeopleSummary->text()));

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1901"
+  ],
+  "reserve_for": "codex-windows-rebuilds",
+  "purpose": "Reduce repeated Windows compilation with native before/after measurements and unchanged coverage",
+  "created": "2026-11-06T22:52:56.830843+00:00",
+  "base": "d4c4272cd493abb0bf4be745738dfd66a3d6ba50"
+}

@@ -682,6 +682,7 @@ bpr_add_network_isolated_test(
     COMMAND
         Python3::Interpreter
         "${PROJECT_SOURCE_DIR}/tests/scripts/platform_configuration_tests.py"
+        --build-dir "${CMAKE_BINARY_DIR}"
 )
 
 bpr_add_network_isolated_test(

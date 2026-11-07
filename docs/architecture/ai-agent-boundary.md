@@ -1546,7 +1546,7 @@ planted `CLAUDE.md`, `AGENTS.md`, `.claude/settings.json` (a hook) and
 | `CLAUDE.md` auto-discovery | `--setting-sources ""`, and the empty folder below | Neither planted file reached the system prompt or messages |
 | Hooks | `disableAllHooks`, no settings source | The planted hook did not run |
 | Plugin sync and the built-in plugins | `enabledPlugins` off for the three built in; no settings source names a marketplace | `plugins: []`; without it the built-in telemetry plugin started `sh` in the working folder. Hardening, not a gate: a builtin policy holds on still loads ([[BPR-1891]]) |
-| Auto-memory | `autoMemoryEnabled: false` | No memory section in the prompt; no `memory_paths` in the init frame |
+| Auto-memory | `autoMemoryEnabled: false`, and `CLAUDE_CODE_DISABLE_AUTO_MEMORY=1` in the environment ([[BPR-1896]]) | No memory section in the prompt; no `memory_paths` in the init frame. Hardening, not a gate: a wrapper whose own settings replace these can turn it back on, and the init frame then reports a memory folder ([[BPR-1896]]) |
 | MCP servers, claude.ai connectors | `--strict-mcp-config` with an empty configuration | `mcp_servers: []`, signed in with a Claude account too |
 | LSP | No plugin, no settings source | Zero LSP servers |
 | Background prefetches | Not held off | Claude still fetches its own bootstrap from Anthropic, on the same sign-in |
@@ -1556,15 +1556,30 @@ The process starts in an empty folder of its own (`bpr-writing-XXXXXX` under
 the temporary folder), made by the agent adapter and removed when the request
 ends, never the review workspace, so nothing from the reviewed repository is
 where Claude starts and nothing left there outlives the request. The decoder
-refuses, before any text is read, an init frame that reports a tool, an MCP
-server or an auto-memory folder; a plugin's tools and MCP servers would show in
-the first two. Plugins themselves are reported, not refused ([[BPR-1891]]):
+refuses, before any text is read, an init frame that reports a tool or an MCP
+server; a plugin's tools and MCP servers would show there. An auto-memory
+folder is reported, not refused ([[BPR-1896]]): a wrapper that passes its own
+`--settings` replaces this app's, since Claude keeps only the last one, and
+turns auto-memory and the builtins back on. The folder is keyed to the run's
+fresh `bpr-writing-XXXXXX` folder, so it is new and empty and nothing from
+another run or project loads, and with no tool nothing in the run can write
+it; at most an empty folder is left under Claude's own state. The `agent.run`
+line reads `memory=on`, never the path, which holds the home folder name.
+Plugins themselves are reported, not refused ([[BPR-1891]]):
 Claude builds them in release by release, and policy can hold one on that no
 setting a person passes turns off (Claude Code 2.1.314 holds
 `cc-plugin-sec-default@builtin` on wherever managed settings apply). The run's
 `agent.run` diagnostic line names each plugin the init frame reported by its
 `source`, or its `name`, at most eight plain tokens of 64 bytes and never a
-path, so drift is visible without stopping the request. It reads past `system` frames
+path, so drift is visible without stopping the request. A writing answer is
+text only: an assistant `thinking` or `redacted_thinking` block is read past
+and its content dropped unread, never kept, logged or shown ([[BPR-1899]]); a
+wrapper, a model default or policy can turn thinking on over this app's
+settings, and with no tool present a thinking block can do nothing. The
+`agent.run` line reads `thinking=on` when one was written. Every other block
+that is not text (`tool_use`, `server_tool_use`, an image) still refuses the
+run, and a run whose assistant frames hold only thinking has no answer and
+fails. Agent chat reads its blocks as before. It reads past `system` frames
 other than init and `rate_limit_event`, which 2.1.296 writes around a turn.
 For every Claude run ([[BPR-1827]], Claude Code 2.1.310) only init,
 `assistant`, `user` and `result` frames carry the turn; any other frame type
@@ -1605,6 +1620,66 @@ need individual visible author completion. See the
 [Settings guide](../development/settings.md#review-preparation-writing-hooks)
 and [tour operator guide](../development/review-tours.md) for the user-facing
 behaviour.
+
+### The tour session's read-only drafting (BPR-1900)
+
+Owner, 2026-11-06: "to me the tour itself is much more of a second agent
+session, separate and mostly background from my main agent chat session".
+Tour authoring runs through its own `agent_invocation_host` (the tour
+session) with its own process launcher, effect lane and projection, so a tour
+run never reaches the Agent tab's launch panel or chat, a chat run never
+reaches the tour, and Stop on a tour control stops only the tour's run. It uses
+the same Claude wrapper, program and added-agent ports, and the agent, model
+and effort the Tour tab's agent bar shows.
+
+`core::tools_for` records the split ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)):
+**Draft the tour**, **Draft from PR context** on an empty Problem or Solution,
+and **Suggest an outline** run in the review's private workspace (BPR-1873's,
+from the linked or kept clone, or "This pull request only") with read-only
+tools; Enhance, Enhance selection, Generate comment and the Settings test stay
+tool-free as above. A read-only Claude launch adds
+`claude_read_only_restrictions`: `--tools Read,Grep,Glob,Bash`, an
+`--allowedTools` list of Read, Grep, Glob and the shell programs `rg`, `grep`,
+`ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find` and `git log|show|blame|diff|grep|ls-files`,
+`--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`,
+an empty strict MCP configuration, no setting sources, no slash commands, no
+saved session, `claude_writing_settings` and auto-memory off. In print mode a
+tool use outside the allowed list is denied without a prompt. The decoder then
+holds the run to the list itself: an init frame that loads another tool or any
+MCP server, or a `tool_use` of a tool outside the four, ends the run as
+`tool_refused`. A shell command `core::decide_read_only_tool` refuses (one
+that is not plain commands of the admitted programs joined by `|`, `&&`, `||`
+or `;`, with no redirection but to `/dev/null`, or one with an argument that
+writes or runs something such as `find -delete`, `sort -o`, `sed -i`,
+`rg --pre`, Git's `-c`, `--output` or `--ext-diff`) is held until its result:
+Claude's own allowlist denies it (`is_error`), the transcript says it was not
+run and the run goes on; a result that says it ran ends the run as
+`tool_refused`. Installed Claude Code 2.1.310, checked on 2026-11-06 with these
+exact arguments in an empty folder, lists exactly `Bash`, `Glob`, `Grep` and
+`Read`, no MCP server and no plugin; it chains commands (`git show --stat HEAD
+&& git show HEAD | head -400`), runs `cd` into the workspace and `sed -n` on
+its own, and tries `for` loops it then denies. The admitted programs are
+therefore `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `sort`,
+`uniq`, `cut`, `tr`, `diff`, `file`, `stat`, `du`, `tree`, `basename`,
+`dirname`, `realpath`, `cd`, `pwd`, `echo`, `printf`, `find`, `sed` (print
+only) and `git log|show|blame|diff|grep|ls-files|status|rev-parse|shortlog|describe|cat-file|ls-tree|merge-base|name-rev`. A read-only Codex launch is
+`codex exec --json --sandbox read-only -c approval_policy="never" -c mcp_servers={} -c tools.web_search=false -`:
+Codex's own sandbox holds it to reading with no network; its commands are
+shown in the transcript and not re-checked. The App Server and the plain-text
+harness have no recorded read-only mode and are refused.
+
+Before a whole-tour run starts the host counts the head lines of the pull
+request's files in the new workspace (`measure_workspace_lines`: regular
+files reached without following a link, inside the workspace, at most 8 MiB
+each, at most 512 paths). The core anchors every proposed stop against those
+counts and the pull request's file list (`core::anchor_tour_stop`); a stop on a
+file outside the pull request, a deleted file, lines past the end or an
+uncounted file is left out of the proposal before it is shown (owner look
+v002), counted in one quiet line, and kept in the run's transcript with why.
+Each anchored stop is placed against the hunks of its file's patch (from the
+same `files` answer the review already reads; no further request) as on, near
+or off the change, as tour publication will place it ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)).
+Nothing the agent proposes is applied until the author accepts that part.
 
 ### Writing request and result bounds
 

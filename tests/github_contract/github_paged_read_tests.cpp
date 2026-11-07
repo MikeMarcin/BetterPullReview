@@ -3319,9 +3319,22 @@ namespace {
 		std::size_t                                                          DiscussionPageCount = 0U;
 		std::optional<application::github_pull_request_overview_observation> Checks;
 		std::size_t                                                          ChecksPageCount = 0U;
-		std::function<void()>                                                AfterChecks;
+		std::function<void()>                                                AfterChecks, AfterMerge, AfterPeople;
+		std::optional<application::github_pull_request_overview_observation> Merge, People;
 		void                                                                 overview_observed(application::github_pull_request_overview_observation aObservation) noexcept override
 		{
+			if (aObservation.Merge || aObservation.People) {
+				const auto people = aObservation.People.has_value();
+				auto&      prior  = people ? People : Merge;
+				expect(Overview && !prior && !aObservation.Checks && !aObservation.Files && !aObservation.Conversation && !aObservation.Discussion,
+					   "status sections are independently observed once after metadata");
+				prior             = std::move(aObservation);
+				const auto& after = people ? AfterPeople : AfterMerge;
+				if (after) {
+					after();
+				}
+				return;
+			}
 			if (aObservation.Checks) {
 				expect(Overview && !Checks && !aObservation.Files && !aObservation.Conversation && !aObservation.Discussion,
 					   "checks are independently observed once after metadata");
@@ -3373,7 +3386,7 @@ namespace {
 		request.Context.ExpectedPullRequest = core::pull_request_id{ 3001U };
 		recording_response_observer observer;
 		const auto                  result = perform_paged_github_read(transport, profile(), request, core::provider_snapshot_id{ 56U }, { }, { }, github_provider_read_authority::authenticated, &observer);
-		expect(result.has_value() && result->ReviewThreadsAvailability == application::github_collection_availability::available && !observer.Checks, "the refresh reads its threads without adding first-open checks");
+		expect(result.has_value() && result->ReviewThreadsAvailability == application::github_collection_availability::available && !observer.Checks && !observer.Merge && !observer.People, "the refresh reads its threads without adding first-open checks");
 		expect(observer.Conversation && observer.Conversation->Context == request.Context && observer.ConversationPageCount < observer.FileListPageCount
 				   && observer.Responses[observer.ConversationPageCount - 1U].first == read_operation::list_review_threads
 				   && observer.ConversationPageCount < observer.Count,
@@ -3734,6 +3747,51 @@ namespace {
 					  << std::chrono::duration<double, std::milli>{ observer.ConversationObservedAt - started }.count()
 					  << " settled-ms=" << std::chrono::duration<double, std::milli>{ finished - started }.count()
 					  << " reads=" << transport.Requests.size() << '\n';
+		}
+	}
+
+	void test_first_open_observes_independent_status_sections()
+	{
+		for (const auto cancel : { 0, 1, 2 }) {
+			auto                        transport = paged_fixture_transport{ fixture_scenario::success };
+			recording_response_observer observer;
+			auto                        stop       = std::stop_source{ };
+			auto                        operations = std::vector<read_operation>{ };
+			auto                        mergeRead = std::size_t{ 0 }, peopleRead = std::size_t{ 0 };
+			observer.AfterMerge       = [&] { mergeRead = operations.size(); if (cancel == 1) { stop.request_stop(); } };
+			observer.AfterPeople      = [&] { peopleRead = operations.size(); if (cancel == 2) { stop.request_stop(); } };
+			transport.RewriteResponse = [&](const github_wire_request& aRequest, wire_response&) {
+				operations.push_back(aRequest.Wire.Operation);
+				if (aRequest.Wire.Operation == read_operation::list_review_requests) {
+					expect(observer.Merge && !observer.People, "merge assessment is readable before reviewers finish");
+				}
+				if (aRequest.Wire.Operation == read_operation::list_branch_rules) {
+					expect(observer.People && observer.Merge, "complete people are readable before rules finish");
+				}
+			};
+			const auto result = perform_paged_github_read(transport, profile(), provider_request(), core::provider_snapshot_id{ 70U }, stop.get_token(), { }, github_provider_read_authority::authenticated, &observer);
+			expect(observer.Checks && observer.Merge && observer.ChecksPageCount < mergeRead,
+				   "checks remain earlier than the independent merge assessment");
+			if (cancel != 0) {
+				expect(!result && std::holds_alternative<github_paged_read_cancelled>(result.error()) && observer.People.has_value() == (cancel == 2),
+					   "cancellation at either boundary stops later observations and final acceptance");
+				continue;
+			}
+			expect(result && observer.People && mergeRead < peopleRead && peopleRead < operations.size()
+					   && *observer.Merge->Merge == result->Merge && observer.People->People->Requests == result->ReviewRequests
+					   && observer.People->People->Availability == result->ReviewRequestsAvailability,
+				   "early assessment and requests equal final values and precede the remaining policy reads");
+			const auto& people = *observer.People->People;
+			expect(people.Viewer == result->Viewer && people.Reviews.size() == result->Reviews.size(), "early people preserve viewer and all reviews");
+			for (std::size_t index = 0; index < people.Reviews.size(); ++index) {
+				expect(people.Reviews[index].Author == result->Reviews[index].Author && people.Reviews[index].State == result->Reviews[index].State,
+					   "reviewer signoff facts match final acceptance");
+			}
+			auto plain            = paged_fixture_transport{ fixture_scenario::success };
+			auto plainOperations  = std::vector<read_operation>{ };
+			plain.RewriteResponse = [&](const github_wire_request& aRequest, wire_response&) { plainOperations.push_back(aRequest.Wire.Operation); };
+			const auto unobserved = perform_paged_github_read(plain, profile(), provider_request(), core::provider_snapshot_id{ 70U }, { });
+			expect(unobserved && *unobserved == *result && plainOperations == operations, "observation leaves the completed snapshot unchanged");
 		}
 	}
 
@@ -5843,6 +5901,7 @@ auto main(int aArgc, char* aArgv[]) -> int
 	test_refresh_conversation_precedes_file_pages();
 	test_refresh_cancellation_after_early_conversation();
 	test_first_open_observes_checks_before_requirements();
+	test_first_open_observes_independent_status_sections();
 	test_first_open_keeps_commit_read_order();
 	test_refresh_conversation_precedes_viewed_files();
 	test_late_viewed_file_validation_and_cancellation();

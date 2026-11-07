@@ -145,6 +145,7 @@
 #include "bpr/application/profile_startup_admission.hpp"
 #include "bpr/application/pull_request_link_location.hpp"
 #include "bpr/application/setup_destination.hpp"
+#include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/window_review_restoration_host.hpp"
 #include "bpr/core/diff_line_matcher.hpp"
 #if defined(BPR_LOCAL_AUTOMATION)
@@ -611,6 +612,21 @@ namespace bpr::app {
 				for (auto& task : held) {
 					Target.post(std::move(task));
 				}
+			}
+
+			[[nodiscard]] auto release_next() -> bool
+			{
+				auto task = std::function<void()>{ };
+				{
+					const auto lock = std::scoped_lock{ Mutex };
+					if (Held.empty()) {
+						return false;
+					}
+					task = std::move(Held.front());
+					Held.pop_front();
+				}
+				Target.post(std::move(task));
+				return true;
 			}
 
 			[[nodiscard]] auto pending() const -> std::size_t
@@ -3674,6 +3690,48 @@ namespace bpr::app {
 	}
 #endif
 
+	/// \brief [[BPR-1900]]. How a tour session run launches: read-only in the
+	/// workspace, and the paths whose lines the host counts first.
+	struct tour_launch
+	{
+		bool                     ReadOnly = false;
+		std::vector<std::string> Measure;
+	};
+
+	/// \brief [[BPR-1900]]. The tour session's projection: its own, so a tour
+	/// run never reaches the Agent tab's launch panel or chat, and nothing of
+	/// the chat reaches here. Offers and the session catalog are the Agent
+	/// tab's, so they are read past.
+	class tour_session_projection final : public application::agent_invocation_projection_port
+	{
+	public:
+		using identity_sink = std::function<void(const application::agent_invocation_projection_identity&)>;
+		using start_sink    = std::function<void(const application::agent_invocation_projection_identity&, const application::prepared_workspace&)>;
+		using run_sink      = std::function<void(const application::agent_invocation_projection_identity&, const application::agent_run_result&)>;
+		using refuse_sink   = std::function<void(std::string_view)>;
+
+		tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse)
+			: Admit{ std::move(aAdmit) }
+			, Start{ std::move(aStart) }
+			, Finish{ std::move(aFinish) }
+			, Refuse{ std::move(aRefuse) }
+		{
+		}
+		void offer(std::span<const core::agent_profile>) override { }
+		void refuse(const std::string_view aReason) override { Refuse(aReason); }
+		void admit(const application::agent_invocation_projection_identity& aIdentity) override { Admit(aIdentity); }
+		void start(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace) override { Start(aIdentity, aWorkspace); }
+		void stream(const application::agent_invocation_projection_identity&, const application::agent_stream_event&) override { }
+		void finish(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) override { Finish(aIdentity, aResult); }
+		void present_session_catalog(const application::agent_session_catalog_projection&) override { }
+
+	private:
+		identity_sink Admit;
+		start_sink    Start;
+		run_sink      Finish;
+		refuse_sink   Refuse;
+	};
+
 	/// \brief Carries every invocation projection onward, findings included.
 	///
 	/// \details The launch panel stays the invocation surface it already is;
@@ -4437,6 +4495,9 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		worker_executor AgentEffects;
 		worker_executor McpEffects;
+		/// [[BPR-1900]]. The tour session's own lane, so a drafting run in the
+		/// background never waits on, or holds up, the Agent tab's chat.
+		worker_executor TourAgentEffects;
 #endif
 		worker_executor ConnectionEffects;
 		worker_executor WorkbenchEffects;
@@ -5151,7 +5212,7 @@ namespace bpr::app {
 				return;
 			}
 #if defined(BPR_AGENT_INTEGRATIONS)
-			if (!AgentEffects.idle() || !McpEffects.idle()) {
+			if (!AgentEffects.idle() || !McpEffects.idle() || !TourAgentEffects.idle()) {
 				return;
 			}
 #endif
@@ -5212,6 +5273,7 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 			AgentEffects.close_and_drain();
 			McpEffects.close_and_drain();
+			TourAgentEffects.close_and_drain();
 #endif
 			InsightsEffects.close_and_drain();
 			ConnectionEffects.close_and_drain();
@@ -9470,6 +9532,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					AgentEffects,
 					DecisionLane,
 					*AgentProjections, PrivateReview.get());
+				compose_tour_session(agentProfiles, agentPolicies);
 			}
 			PrivateReview->profiles(agentProfiles);
 #else
@@ -9992,6 +10055,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 #endif
 			Window->writing_hooks()->set_dispatch([this](core::writing_hook aHook, std::string aText) { return !Closing && Profile->WorkbenchPreferences->apply_writing_hook(aHook, std::move(aText)); }, [this](core::writing_hook aHook) { test_writing_hook(aHook); });
 			Window->tour_editor()->set_writing_dispatch([this](core::writing_hook aHook, qt::prose_capture aCaptured) { request_writing(aHook, std::move(aCaptured)); }, [this] { cancel_writing(); });
+#if defined(BPR_AGENT_INTEGRATIONS)
+			// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
+			// and each proposed field's or stop's Accept and Discard.
+			Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
+#endif
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
 				core::workbench_interaction_state{ },
@@ -11245,11 +11313,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				Window->clear_review_ledger(!aAvailable);
 			}
 			if (!aAvailable) {
+				publish_overview(false);
 				return;
 			}
+			// [[BPR-1898]]. File progress need not queue behind conversation
+			// receipts or private records. Every operation stays on its store lane.
+			publish_overview();
 			publish_read_state();
 			reload_private_records(true);
-			publish_overview();
 		}
 
 		/// \brief Reads the private records again, off the decision lane.
@@ -11263,7 +11334,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				return;
 			}
 			ReviewLedgerHost->load_private(ledger_answer([this, aCorrelate](const std::expected<void, application::ledger_store_failure>& aLoaded) {
+				PrivateRecordsFailed = !aLoaded.has_value();
 				if (!aLoaded) {
+					publish_overview(false);
 					return;
 				}
 				if (aCorrelate) {
@@ -12080,6 +12153,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			std::vector<application::writing_source>                         Sources;
 			std::optional<application::agent_invocation_projection_identity> Invocation;
 			bool                                                             Test = false;
+			/// [[BPR-1900]]. Run in the workspace with read-only tools; its
+			/// answer is the agent's last message.
+			bool ReadOnly = false;
 		};
 		struct tour_outline_proposal
 		{
@@ -12095,6 +12171,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		{
 #if defined(BPR_AGENT_INTEGRATIONS)
 			return AgentHost && AgentHost->is_quiescent();
+#else
+			return false;
+#endif
+		}
+		/// [[BPR-1900]]. Whether the tour session can take a request now: its
+		/// own host is idle and no run of it is still running. The Agent tab's
+		/// chat being busy does not matter.
+		[[nodiscard]] auto tour_session_idle() const -> bool
+		{
+#if defined(BPR_AGENT_INTEGRATIONS)
+			return TourSession && TourSession->is_quiescent() && !core::running_tour_run(TourAgent);
 #else
 			return false;
 #endif
@@ -13541,8 +13628,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			PendingWriting.reset();
 #if defined(BPR_AGENT_INTEGRATIONS)
-			if (AgentHost) {
-				AgentHost->cancel();
+			// [[BPR-1900]]. Only the tour session's own run is stopped; the
+			// Agent tab's chat is never touched by a tour gesture.
+			if (TourSession) {
+				TourSession->cancel();
 			}
 #endif
 			if (Window) {
@@ -13726,14 +13815,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				}
 			}
 			const auto target = writing_target(aHook, aCapture);
-			if (!target || !agent_idle()) {
+			if (!target || !tour_session_idle()) {
 				// [[BPR-1878]]. Says which it is, naming only what the tab shows:
 				// the agent picker at its bottom.
 				const auto agent = writing_agent();
 				Window->tour_editor()->show_writing_notice(Window->agent_panel()->offered_count() == 0 ? QStringLiteral("No agent is set up. Add one in Settings, Agents & context, or keep writing yourself.")
 															   : !agent                                ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
 															   : !target                               ? QStringLiteral("Only your own tour draft, open in this window, can be drafted for. You can keep writing yourself.")
-																									   : QStringLiteral("%1 is busy with another request. Try again when it finishes, or keep writing yourself.").arg(agent_display_name(*agent)));
+																									   : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
 				return;
 			}
 			const auto request = WritingState.begin(*target, std::move(aCapture.Raw), aCapture.Selection);
@@ -13779,16 +13868,347 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				Window->tour_editor()->show_writing_notice(QStringLiteral("This request exceeds the writing context limit. Select a smaller passage or shorten the hook instructions."));
 				return;
 			}
-			PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
-			Window->tour_editor()->show_writing_notice(QStringLiteral("Writing assistance running… Your text remains editable."));
 #if defined(BPR_AGENT_INTEGRATIONS)
-			if (!dispatch_agent_invocation(target->Agent, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
+			// [[BPR-1900]]. Draft from PR context and Suggest an outline read the
+			// repository in the background; a small rewrite stays tool-free.
+			const auto kind     = core::tour_request_of(aHook, request->Scope);
+			const auto readOnly = core::tools_for(kind) == core::tour_agent_tools::read_only;
+			PendingWriting      = writing_operation{ *request, std::move(sources), { }, false, readOnly };
+			Window->tour_editor()->show_writing_notice(readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable."));
+			const auto asked = Window->tour_editor()->request_name(aHook);
+			if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), readOnly ? std::string{ application::read_only_writing_preamble() } + *prompt : *prompt, readOnly ? std::optional{ aHook } : std::nullopt)) {
 				cancel_writing();
 			}
 #else
+			PendingWriting = writing_operation{ *request, std::move(sources), { }, false };
 			cancel_writing();
 #endif
 		}
+#if defined(BPR_AGENT_INTEGRATIONS)
+		/// [[BPR-1900]]. The tour session's process chain and host: its own
+		/// launcher and lane, the Claude wrapper, program and added-agent
+		/// ports the Agent tab's launches use, and its own projection.
+		void compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies)
+		{
+			TourProcess = std::make_unique<adapters::agent::agent_process_launcher>();
+	#if defined(BPR_BUILD_TESTING)
+			// Counted as the Agent tab's launcher is, so a course sees a tour
+			// run start and finish.
+			TourProcessProbe = std::make_unique<composition_agent_process_launcher_probe>(*TourProcess);
+			auto& launcher   = static_cast<application::agent_process_port&>(*TourProcessProbe);
+	#else
+			auto& launcher = static_cast<application::agent_process_port&>(*TourProcess);
+	#endif
+			TourClaudeProcess    = std::make_unique<application::wrapped_claude_process>(launcher, ClaudeWrapperSource, &adapters::agent::inspect_claude_process_wrapper, locate_claude());
+			TourLocatedProcess   = std::make_unique<application::located_agent_process>(*TourClaudeProcess, AgentProgramSource, &adapters::agent::inspect_claude_process_wrapper, locate_agent_program());
+			TourEntryProcess     = std::make_unique<application::agent_entry_process>(launcher, *TourLocatedProcess, AgentEntries, &adapters::agent::inspect_claude_process_wrapper, locate_claude(), locate_agent_program());
+			TourDiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*TourEntryProcess, DiagnosticLog);
+			TourProjection       = std::make_unique<tour_session_projection>(
+				[this](const application::agent_invocation_projection_identity& aIdentity) { tour_run_admitted(aIdentity); },
+				[this](const application::agent_invocation_projection_identity&, const application::prepared_workspace& aWorkspace) { TourWorkspacePath = aWorkspace.Path; },
+				[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { tour_run_finished(aIdentity, aResult); },
+				[this](const std::string_view aReason) { tour_run_refused(aReason); });
+			TourSession = std::make_unique<application::agent_invocation_host>(
+				aProfiles, aPolicies, AgentWorkspaceNeighbourhood, *this, *EpochHost, *TourDiagnosedProcess,
+				[](const std::string& aName) -> std::optional<std::string> {
+					if (!qEnvironmentVariableIsSet(aName.c_str())) {
+						return std::nullopt;
+					}
+					return qEnvironmentVariable(aName.c_str()).toStdString();
+				},
+				TourAgentEffects, DecisionLane, *TourProjection, nullptr);
+		}
+		/// [[BPR-1900]]. What a drafting run says while it reads, and that a
+		/// review without a clone reads only the pull request's files.
+		[[nodiscard]] auto tour_reading_notice() const -> QString
+		{
+			const auto sparse = AgentReview && AgentReview->Sparse && !linked_history_clone(false);
+			return sparse ? QStringLiteral("Drafting in the background. No clone is linked, so it reads only this pull request's files. Keep writing.")
+						  : QStringLiteral("Drafting in the background from the repository. Keep writing.");
+		}
+		/// [[BPR-1900]]. Whether an agent has a recorded read-only allowlist.
+		[[nodiscard]] auto reads_read_only(const core::agent_profile_id aProfile) const -> bool
+		{
+			if (writes_tool_free(aProfile) || aProfile == core::codex_jsonl_profile_id) {
+				return true;
+			}
+			if (core::is_agent_entry_profile(aProfile) && AgentSetup) {
+				const auto        agents = AgentSetup->projection().Preferences.Agents;
+				const auto* const entry  = core::entry_of_profile(agents, aProfile);
+				return entry != nullptr && entry->Protocol == core::agent_protocol::codex_jsonl_exec;
+			}
+			return false;
+		}
+		/// [[BPR-1900]]. The one way a tour request reaches the tour session:
+		/// the core starts the run in the session, then the launch path sends it
+		/// (`aRunFor` names the hook whose control shows it running).
+		[[nodiscard]] auto dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor) -> bool
+		{
+			const auto tools = core::tools_for(aKind);
+			const auto run   = core::begin_tour_run(TourAgent, aKind, tools, aAsked);
+			if (!run) {
+				return false;
+			}
+			TourRun = *run;
+			TourInvocation.reset();
+			TourWorkspacePath.clear();
+			auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only };
+			if (aKind == core::tour_agent_request::draft_tour && WindowRead->accepted_snapshot()) {
+				for (const auto& file : WindowRead->accepted_snapshot()->Files) {
+					if (file.Change != application::github_file_change::removed) {
+						launch.Measure.push_back(file.Path);
+					}
+				}
+			}
+			Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour);
+			present_tour_session();
+			if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, { }, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
+				static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, "The tour session could not start this request."));
+				TourRun.reset();
+				Window->tour_editor()->set_tour_running(std::nullopt, false);
+				present_tour_session();
+				return false;
+			}
+			return true;
+		}
+		void tour_run_admitted(const application::agent_invocation_projection_identity& aIdentity)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			TourInvocation = aIdentity;
+			if (PendingWriting && !PendingWriting->Invocation) {
+				PendingWriting->Invocation = aIdentity;
+			}
+		}
+		void tour_run_refused(const std::string_view aReason)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			if (TourRun) {
+				static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, core::tour_agent_run_state::failed, "Refused before it started: " + std::string{ aReason }));
+				TourRun.reset();
+			}
+			Window->tour_editor()->set_tour_running(std::nullopt, false);
+			if (TourDraftPending) {
+				TourDraftPending = false;
+				Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker at the bottom of this tab."));
+			}
+			present_tour_session();
+			if (!PendingWriting) {
+				return;
+			}
+			const bool test = PendingWriting->Test;
+			PendingWriting.reset();
+			WritingState.cancel();
+			if (test) {
+				Window->writing_hooks()->show_notice("Writing request was refused by the selected agent host.");
+			} else {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Writing request was refused by the selected agent host. Manual editing is available."));
+			}
+		}
+		void tour_run_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult)
+		{
+			if (Closing || Window == nullptr) {
+				return;
+			}
+			const auto words = qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile));
+			if (TourRun) {
+				static_cast<void>(core::record_tour_activity(TourAgent, *TourRun, application::tour_transcript_of(aResult.ToolActivity, TourWorkspacePath)));
+				const auto state = aResult.Outcome == application::agent_run_outcome::success ? core::tour_agent_run_state::answered
+					: aResult.Outcome == application::agent_run_outcome::cancelled            ? core::tour_agent_run_state::cancelled
+																							  : core::tour_agent_run_state::failed;
+				auto       last  = state == core::tour_agent_run_state::answered ? tour_answer_words(aResult)
+					: state == core::tour_agent_run_state::cancelled             ? std::string{ "Stopped. Nothing in the tour changed." }
+																				 : words.toStdString();
+				static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, state, last));
+			}
+			const auto run = TourRun;
+			TourRun.reset();
+			TourInvocation.reset();
+			Window->tour_editor()->set_tour_running(std::nullopt, false);
+			if (TourDraftPending) {
+				TourDraftPending = false;
+				finish_tour_draft(run, aResult, words);
+			} else {
+				finish_writing(aIdentity, aResult);
+			}
+			present_tour_session();
+		}
+		/// [[BPR-1900]]. What a run answered, as its transcript says it: a
+		/// whole-tour draft by what it proposes, anything else as written.
+		[[nodiscard]] auto tour_answer_words(const application::agent_run_result& aResult) const -> std::string
+		{
+			const auto said = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
+			if (!TourDraftPending) {
+				return said;
+			}
+			const auto answer = application::decode_tour_draft_answer(said);
+			if (!answer) {
+				return "An answer that isn't a tour this app can read.";
+			}
+			auto parts = std::vector<std::string>{ };
+			if (answer->Problem && !answer->Problem->empty()) {
+				parts.emplace_back("a Problem");
+			}
+			if (answer->Solution && !answer->Solution->empty()) {
+				parts.emplace_back("a Solution");
+			}
+			parts.push_back(std::to_string(answer->Stops.size()) + (answer->Stops.size() == 1U ? " stop" : " stops"));
+			auto words = std::string{ "Proposed " };
+			for (std::size_t index = 0U; index < parts.size(); ++index) {
+				words += (index == 0U ? "" : index + 1U == parts.size() ? " and "
+																		: ", ")
+					+ parts[index];
+			}
+			return words + ".";
+		}
+		/// [[BPR-1900]], owner addition. Draft the tour: the whole tour,
+		/// drafted in the background from the workspace, as a proposal.
+		void request_tour_draft()
+		{
+			const auto* const snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+			const auto        draft    = TourHost ? TourHost->presentation().Draft : nullptr;
+			Window->tour_editor()->clear_tour_draft_failure();
+			if (Closing || snapshot == nullptr || !draft || draft->ReadOnly) {
+				return;
+			}
+			const auto agent = writing_agent();
+			if (!agent || !tour_session_idle()) {
+				Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+																  : QStringLiteral("The tour session is drafting. Wait for it to finish or stop it, or keep writing yourself."));
+				return;
+			}
+			if (!reads_read_only(*agent)) {
+				Window->tour_editor()->show_tour_draft_failure(QStringLiteral("%1 has no read-only drafting mode. Choose Claude or Codex with the agent picker at the bottom of this tab.").arg(agent_display_name(*agent)));
+				return;
+			}
+			auto files = std::vector<application::tour_draft_file>{ };
+			for (const auto& file : snapshot->Files) {
+				const auto change = file.Change == application::github_file_change::added ? "added"
+					: file.Change == application::github_file_change::removed             ? "removed"
+					: file.Change == application::github_file_change::renamed             ? "renamed"
+																						  : "modified";
+				files.push_back({ file.Path, change, file.HeadHunks });
+			}
+			const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft);
+			if (!prompt) {
+				Window->tour_editor()->show_tour_draft_failure(QStringLiteral("This pull request is too large to describe to the agent in one request."));
+				return;
+			}
+			TourProposal.reset();
+			TourDraftPending = true;
+			Window->tour_editor()->show_writing_notice(tour_reading_notice());
+			if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft the tour", *prompt, std::nullopt)) {
+				TourDraftPending = false;
+				Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The tour session could not start this request."));
+			}
+		}
+		void finish_tour_draft(const std::optional<core::tour_agent_run_id> aRun, const application::agent_run_result& aResult, const QString& aWords)
+		{
+			if (aResult.Outcome == application::agent_run_outcome::cancelled) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Drafting stopped. Nothing in the tour changed."));
+				return;
+			}
+			if (aResult.Outcome != application::agent_run_outcome::success) {
+				Window->tour_editor()->show_writing_notice({ });
+				Window->tour_editor()->show_tour_draft_failure(aWords);
+				return;
+			}
+			const auto  answer = aResult.AssistantItems.empty() ? std::nullopt : application::decode_tour_draft_answer(aResult.AssistantItems.back());
+			const auto  draft  = TourHost ? TourHost->presentation().Draft : nullptr;
+			const auto* snap   = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+			if (!answer || !draft || snap == nullptr || !aRun) {
+				Window->tour_editor()->show_writing_notice({ });
+				Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The agent's answer wasn't a tour this app can read. Nothing in the tour changed."));
+				return;
+			}
+			// The host's facts the core anchors against: the pull request's
+			// files, and the head lines the host counted before the agent ran.
+			auto files = std::vector<core::tour_anchor_file>{ };
+			for (const auto& file : snap->Files) {
+				auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
+				// [[BPR-1900]], owner 2026-11-06: stops strongly prefer the
+				// change; where it is comes from the file's patch.
+				if (file.HeadHunks) {
+					anchor.Hunks.emplace();
+					for (const auto& [first, last] : *file.HeadHunks) {
+						anchor.Hunks->push_back({ first, last });
+					}
+				}
+				if (const auto counted = std::ranges::find(aResult.MeasuredLines, file.Path, &std::pair<std::string, std::uint32_t>::first); counted != aResult.MeasuredLines.end()) {
+					anchor.HeadLines = counted->second;
+				}
+				files.push_back(std::move(anchor));
+			}
+			TourProposal    = core::propose_tour(*aRun, *answer, files, *draft);
+			TourAnchorFiles = std::move(files);
+			// [[BPR-1900]] owner look v002. Stops left out of the proposal are
+			// kept in the run's transcript, so nothing the agent said is lost.
+			static_cast<void>(core::note_finished_tour_run(TourAgent, *aRun, core::left_out_entries(*TourProposal)));
+			Window->tour_editor()->show_writing_notice(TourProposal->Items.empty() ? QStringLiteral("The agent proposed nothing for this tour.")
+																				   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you accept it."));
+		}
+		/// [[BPR-1900]]. The author accepts (with their edit) or discards one
+		/// proposed field or stop; the core decides, the tour host applies.
+		void decide_tour_proposal(const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText)
+		{
+			const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+			if (!TourProposal || !draft || draft->ReadOnly || aIndex >= TourProposal->Items.size()) {
+				return;
+			}
+			auto decided = *TourProposal;
+			if (!core::decide_tour_proposal(decided, aIndex, aDecision, aText.toStdString())) {
+				return;
+			}
+			const auto& item = decided.Items[aIndex];
+			if (aDecision == core::tour_proposal_decision::accepted) {
+				auto command = core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision };
+				if (item.Part == core::tour_proposal_part::stop) {
+					// After the stops already accepted from this proposal, in its order.
+					auto position    = draft->Stops.size();
+					command.Kind     = core::tour_command_kind::insert;
+					command.Value    = core::tour_stop_of(item.Stop, draft->ObservedHead.value_or(draft->Head));
+					command.Position = position;
+				} else {
+					command.Kind = item.Part == core::tour_proposal_part::problem ? core::tour_command_kind::problem : core::tour_command_kind::solution;
+					command.Text = item.Text;
+				}
+				TourHost->dispatch(command);
+			}
+			TourProposal = std::move(decided);
+			if (std::ranges::none_of(TourProposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending; })) {
+				TourProposal.reset();
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Proposal done. Visit each accepted stop and confirm its lines in the code, then mark it Ready."));
+			}
+			present_tour_session();
+		}
+		/// [[BPR-1900]]. Move to nearest change: the core moves the stop onto
+		/// the closest hunk of its file.
+		void relocate_tour_proposal(const std::size_t aIndex)
+		{
+			if (TourProposal && core::relocate_tour_stop(*TourProposal, aIndex, TourAnchorFiles)) {
+				present_tour_session();
+			}
+		}
+		void present_tour_session()
+		{
+			if (Window != nullptr) {
+				Window->tour_editor()->present_tour_session(TourAgent, TourProposal);
+			}
+		}
+		void cancel_tour_run()
+		{
+			if (PendingWriting) {
+				cancel_writing();
+				return;
+			}
+			if (TourSession && TourRun) {
+				TourSession->cancel();
+			}
+		}
+#endif
 		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>
 		{
 			std::vector<core::tour_outline_entry> entries;
@@ -13879,6 +14299,12 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				}
 				json += event.Text;
 			}
+			// [[BPR-1900]]. A run that read the repository spoke between its
+			// tool uses; its answer is its last message alone.
+			if (operation.ReadOnly) {
+				json    = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
+				bounded = json.size() <= 32768;
+			}
 			const auto  result = aResult.Outcome == application::agent_run_outcome::success && bounded ? application::decode_writing_result(json, operation.Request.Target.Hook, operation.Sources, operation.Request.Scope == core::writing_scope::empty_field) : std::nullopt;
 			const auto& prefs  = Profile->WorkbenchPreferences->accepted();
 			if (result && prefs && prefs->WritingHooks.Revision == operation.Request.Target.HookRevision && writing_context_key() == operation.Request.Target.ContextDigest) {
@@ -13952,7 +14378,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			cancel_writing();
 			const auto& prefs    = Profile->WorkbenchPreferences->accepted();
 			const auto  selected = writing_agent();
-			if (!prefs || !selected || !writes_tool_free(*selected) || !agent_idle()) {
+			if (!prefs || !selected || !writes_tool_free(*selected) || !tour_session_idle()) {
 				Window->writing_hooks()->show_notice("Add an agent that speaks Claude Code's stream JSON in Settings › Agents & context for tool-free writing tests; wait for any running request.");
 				return;
 			}
@@ -17630,6 +18056,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			++ReviewLedgerGeneration;
 			ConversationReceiptsLoading = false;
 			OverviewReceiptsLoading     = false;
+			OverviewReceiptsFailed      = false;
+			PrivateRecordsFailed        = false;
 			PendingDefectWrites.clear();
 			ReviewLedgerHost.reset();
 #if defined(BPR_BUILD_TESTING)
@@ -19569,7 +19997,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}));
 		}
 
-		void publish_overview()
+		void publish_overview(const bool aLoadReceipts = true)
 		{
 			if (Closing || Window == nullptr || Host == nullptr) {
 				return;
@@ -19620,8 +20048,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			++OverviewBuilds;
 			OverviewReceiptRevision.reset();
 			OverviewReceipts.clear();
-			auto context = application::overview_context{ };
-			auto missing = std::vector<core::file_identity>{ };
+			auto context    = application::overview_context{ };
+			using readiness = application::overview_readiness;
+			// The first accepted projection can precede attachment of its store.
+			const auto available      = ReviewLedgerHost != nullptr ? ReviewLedgerHost->available() : std::optional<bool>{ };
+			context.ReceiptsReadiness = available == false ? readiness::unavailable : readiness::loading;
+			context.PrivateReadiness  = context.ReceiptsReadiness;
+			auto missing              = std::vector<core::file_identity>{ };
 			{
 				const auto lock = std::scoped_lock{ ReviewLedgerStateMutex };
 				if (ReviewLedgerAvailable && ReviewLedgerHost != nullptr) {
@@ -19657,26 +20090,34 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 						}
 					}
 					if (missing.empty()) {
-						OverviewReceiptRevision = revision;
+						OverviewReceiptRevision   = revision;
+						context.ReceiptsReadiness = readiness::ready;
+					} else if (OverviewReceiptsFailed) {
+						context.ReceiptsReadiness = readiness::unavailable;
 					}
 				}
 			}
 			// [[BPR-1211]]. Receipts the ledger does not hold yet are read off
 			// the decision lane, in one operation; the overview is published
 			// now from what is held and again when they arrive.
-			if (!missing.empty() && !OverviewReceiptsLoading) {
-				OverviewReceiptsLoading = true;
+			if (aLoadReceipts && !missing.empty() && !OverviewReceiptsLoading) {
+				OverviewReceiptsLoading   = true;
+				OverviewReceiptsFailed    = false;
+				context.ReceiptsReadiness = readiness::loading;
 				ReviewLedgerHost->load_receipts(std::move(missing), ledger_answer([this](const std::expected<void, application::ledger_store_failure>& aLoaded) {
 													OverviewReceiptsLoading = false;
-													if (aLoaded.has_value()) {
-														publish_overview();
-													}
+													OverviewReceiptsFailed  = !aLoaded.has_value();
+													// Publish failure without retrying this same failed load.
+													publish_overview(aLoaded.has_value());
 												}));
 			}
 			if (ReviewLedgerHost != nullptr) {
 				if (auto privateState = ReviewLedgerHost->private_observation();
 					privateState.has_value()) {
-					context.Private = std::move(*privateState);
+					context.Private          = std::move(*privateState);
+					context.PrivateReadiness = readiness::ready;
+				} else if (PrivateRecordsFailed) {
+					context.PrivateReadiness = readiness::unavailable;
 				}
 			}
 			OverviewReviewedHead = context.Private ? context.Private->LastReviewedHead : std::nullopt;
@@ -20215,6 +20656,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 #if defined(BPR_AGENT_INTEGRATIONS)
 			if (AgentHost != nullptr) {
 				AgentHost->clear();
+			}
+			if (TourSession != nullptr) {
+				TourSession->clear();
 			}
 #endif
 			if (Window != nullptr) {
@@ -21781,6 +22225,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (!state.Authority.has_value() || !state.AcceptedRevision.has_value()
 				|| !state.AcceptedComparison.has_value() || !AgentReview.has_value()) {
 				AgentHost->clear();
+				if (TourSession) {
+					TourSession->clear();
+				}
 				clear_side_chat();
 				Window->clear_dif_context();
 				return;
@@ -21792,6 +22239,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				|| authority.Repository != AgentReview->Repository
 				|| authority.PullRequest != AgentReview->PullRequest) {
 				AgentHost->clear();
+				if (TourSession) {
+					TourSession->clear();
+				}
 				clear_side_chat();
 				Window->clear_dif_context();
 				return;
@@ -21809,6 +22259,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				state.ApplicationSession, authority, observedBinding);
 			AgentHost->observe(
 				state.ApplicationSession, authority, observedBinding);
+			if (TourSession) {
+				TourSession->observe(state.ApplicationSession, authority, observedBinding);
+			}
 			if (AgentSetup) {
 				// [[BPR-1749]]. Setup's rows carry this review's host
 				// policy, the same the agent host decides by.
@@ -21900,7 +22353,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			const std::string_view                                aChatMessage,
 			const std::optional<core::agent_session>&             aTurnSession,
 			const core::agent_entry_point                         aEntryPoint,
-			const std::optional<core::workshop_operation>& aWorkshopOperation, bool aWritingOnly = false)
+			const std::optional<core::workshop_operation>& aWorkshopOperation, bool aWritingOnly = false, const tour_launch& aTour = { })
 			-> bool
 		{
 			if (Closing || AgentHost == nullptr || EpochHost == nullptr
@@ -22089,7 +22542,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				std::move(observation),
 				aExistingCheckoutChosen,
 				std::nullopt,
-				aWritingOnly ? std::vector<core::agent_finding_snapshot_file>{ } : frozen_snapshot_files(), aWritingOnly);
+				aWritingOnly ? std::vector<core::agent_finding_snapshot_file>{ } : frozen_snapshot_files(), aWritingOnly, aTour);
 		}
 
 		/// \brief Freezes one turn's identities, pins them, and dispatches it.
@@ -22116,7 +22569,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			application::agent_context_observation         aObservation,
 			const bool                                     aExistingCheckoutChosen,
 			const std::optional<core::agent_session>&      aContinuedSession,
-			std::vector<core::agent_finding_snapshot_file> aFrozen, bool aWritingOnly = false) -> bool
+			std::vector<core::agent_finding_snapshot_file> aFrozen, bool aWritingOnly = false, const tour_launch& aTour = { }) -> bool
 		{
 			if (Closing || AgentHost == nullptr) {
 				return false;
@@ -22147,7 +22600,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				if (aProfile == core::claude_stream_json_profile_id && !requested.Effort && !preferences.ClaudeEffort.empty()) {
 					requested.Effort = preferences.ClaudeEffort;
 				}
-				if ((aProfile == core::codex_app_server_profile_id || aProfile == core::codex_jsonl_profile_id) && !aWritingOnly) {
+				if ((aProfile == core::codex_app_server_profile_id || aProfile == core::codex_jsonl_profile_id) && (!aWritingOnly || aTour.ReadOnly)) {
 					if (!requested.Model && !preferences.CodexModel.empty()) {
 						requested.Model = preferences.CodexModel;
 					}
@@ -22172,7 +22625,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (!aWritingOnly && !privateRun && PrivateReview) {
 				privateRun = PrivateReview->default_run(aObservation.Binding, !aObservation.ChatMessage.empty());
 			}
-			AgentHost->dispatch(application::agent_invocation_request{
+			auto invocation = application::agent_invocation_request{
 				.ApplicationSession     = aApplicationSession,
 				.Authority              = aAuthority,
 				.Profile                = aProfile,
@@ -22188,7 +22641,23 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				.HistoryCloneManaged    = linked_history_clone_managed(aWritingOnly),
 				// Owner decision 2026-10-23: a time limit only when the reviewer set one.
 				.RunLimitMilliseconds = run_limit_milliseconds(),
-			});
+			};
+			// [[BPR-1900]]. Every tour writing run is the tour session's, never
+			// the Agent tab's: a drafting run in the review's workspace with
+			// read-only tools, or a small rewrite tool-free.
+			if (aWritingOnly) {
+				if (TourSession == nullptr) {
+					return false;
+				}
+				invocation.WritingOnly         = !aTour.ReadOnly;
+				invocation.ReadOnlyTools       = aTour.ReadOnly;
+				invocation.HistoryClone        = aTour.ReadOnly ? linked_history_clone(false) : std::nullopt;
+				invocation.HistoryCloneManaged = aTour.ReadOnly && linked_history_clone_managed(false);
+				invocation.MeasurePaths        = aTour.Measure;
+				TourSession->dispatch(std::move(invocation));
+				return true;
+			}
+			AgentHost->dispatch(std::move(invocation));
 			return true;
 		}
 
@@ -24464,7 +24933,10 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			if (AgentHost) {
 				AgentHost->shutdown();
 			}
-			if (!AgentHost || AgentHost->is_quiescent()) {
+			if (TourSession) {
+				TourSession->shutdown();
+			}
+			if ((!AgentHost || AgentHost->is_quiescent()) && (!TourSession || TourSession->is_quiescent())) {
 				begin_other_shutdown();
 			}
 #else
@@ -24592,6 +25064,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 #if defined(BPR_AGENT_INTEGRATIONS)
 			if (AgentHost && !AgentHost->is_quiescent()) {
 				AgentHost->retry_cleanup();
+				schedule_shutdown_poll();
+				return;
+			}
+			if (TourSession && !TourSession->is_quiescent()) {
+				TourSession->retry_cleanup();
 				schedule_shutdown_poll();
 				return;
 			}
@@ -25634,6 +26111,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		bool ConversationReceiptsLoading = false;
 		/// The overview asked for receipts it does not hold.
 		bool OverviewReceiptsLoading = false;
+		bool OverviewReceiptsFailed  = false;
+		bool PrivateRecordsFailed    = false;
 
 		mutable std::mutex                                           ReviewLedgerStateMutex;
 		std::optional<application::workbench_pull_request_authority> ReviewLedgerAuthority;
@@ -25772,8 +26251,9 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		decltype(github_profile_runtime::DiffEffects)&                    DiffEffects                    = Profile->DiffEffects;
 		decltype(github_profile_runtime::PrepareEffects)&                 PrepareEffects                 = Profile->PrepareEffects;
 #if defined(BPR_AGENT_INTEGRATIONS)
-		decltype(github_profile_runtime::AgentEffects)& AgentEffects = Profile->AgentEffects;
-		decltype(github_profile_runtime::McpEffects)&   McpEffects   = Profile->McpEffects;
+		decltype(github_profile_runtime::AgentEffects)&     AgentEffects     = Profile->AgentEffects;
+		decltype(github_profile_runtime::TourAgentEffects)& TourAgentEffects = Profile->TourAgentEffects;
+		decltype(github_profile_runtime::McpEffects)&       McpEffects       = Profile->McpEffects;
 #endif
 		decltype(github_profile_runtime::WorkbenchEffects)&  WorkbenchEffects  = Profile->WorkbenchEffects;
 		decltype(github_profile_runtime::AppearanceEffects)& AppearanceEffects = Profile->AppearanceEffects;
@@ -25872,6 +26352,31 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		/// A test that put its own program on a built-in profile keeps it offered.
 		bool                                                BuiltInProfilesOffered = false;
 		std::unique_ptr<application::agent_invocation_host> AgentHost;
+		/// [[BPR-1900]]. The tour session: its own launcher (so Cancel stops
+		/// only a tour run), the same Claude wrapper, program and added-agent
+		/// ports, its own projection and host. Declared in that order so the
+		/// host goes first.
+		std::unique_ptr<adapters::agent::agent_process_launcher> TourProcess;
+	#if defined(BPR_BUILD_TESTING)
+		std::unique_ptr<composition_agent_process_launcher_probe> TourProcessProbe;
+	#endif
+		std::unique_ptr<application::wrapped_claude_process>  TourClaudeProcess;
+		std::unique_ptr<application::located_agent_process>   TourLocatedProcess;
+		std::unique_ptr<application::agent_entry_process>     TourEntryProcess;
+		std::unique_ptr<application::diagnosed_agent_process> TourDiagnosedProcess;
+		std::unique_ptr<tour_session_projection>              TourProjection;
+		std::unique_ptr<application::agent_invocation_host>   TourSession;
+		/// [[BPR-1900]]. The session's runs and transcript, the run in
+		/// flight with its invocation, the workspace it ran in, and the
+		/// whole-tour proposal waiting on the author.
+		core::tour_agent_session                                         TourAgent;
+		std::optional<core::tour_agent_run_id>                           TourRun;
+		std::optional<application::agent_invocation_projection_identity> TourInvocation;
+		std::string                                                      TourWorkspacePath;
+		bool                                                             TourDraftPending = false;
+		std::optional<core::tour_proposal>                               TourProposal;
+		/// [[BPR-1900]]. The files the proposal was anchored against.
+		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;
@@ -34855,7 +35360,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			probe.Phase = state_type::phase::passed;
 			return result::passed;
 		};
-		const auto go_on_to_reviewers = [&probe, implementation, &goOnToDraftState] {
+		const auto goOnToReviewers = [&probe, implementation, &goOnToDraftState] {
 			if (implementation->ReviewMutationHost->capabilities().RequestsReviewers) {
 				probe.Phase = state_type::phase::awaiting_reviewer_offered;
 				return result::pending;
@@ -35214,7 +35719,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 					return result::pending;
 				}
-				return go_on_to_reviewers();
+				return goOnToReviewers();
 			}
 			cards->open_thread(std::string{ threadIdentity });
 			QCoreApplication::processEvents();
@@ -35410,7 +35915,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 				return result::pending;
 			}
-			return go_on_to_reviewers();
+			return goOnToReviewers();
 		}
 		// [[BPR-1774]]. Overview offers the author Edit; Save performs exactly
 		// one write, and the next read shows GitHub's body. A second edit
@@ -35511,7 +36016,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				probe.Phase = state_type::phase::awaiting_comment_edit_offered;
 				return result::pending;
 			}
-			return go_on_to_reviewers();
+			return goOnToReviewers();
 		}
 		// [[BPR-1775]]. My published reply offers Edit in Discuss and another's
 		// comment does not; Save performs exactly one write, and the next read
@@ -35645,7 +36150,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			}
 			cards->comment_edit_cancel_button()->click();
 			QCoreApplication::processEvents();
-			return go_on_to_reviewers();
+			return goOnToReviewers();
 		}
 		// [[BPR-1804]]. People offers Request review; the picker lists GitHub's
 		// suggestion, a typed query narrows it to one person, and choosing them
@@ -41312,6 +41817,13 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		return true;
 	}
 
+	auto detail::github_application_fixture_access::release_review_ledger_terminal(github_application& aApplication, const core::bpr_window_context aContext) -> bool
+	{
+		const auto found = aApplication.Sessions.find(aContext);
+		return found != aApplication.Sessions.end() && !found->second->Closing && found->second->ReviewLedgerDecisionGate
+			&& found->second->ReviewLedgerDecisionGate->release_next();
+	}
+
 	auto detail::github_application_fixture_access::held_review_ledger_terminals(const github_application& aApplication, const core::bpr_window_context aContext) -> std::size_t
 	{
 		const auto found = aApplication.Sessions.find(aContext);
@@ -42024,13 +42536,17 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 	#if defined(BPR_AGENT_INTEGRATIONS)
 		return {
 			.AgentProcessLauncherComposed = implementation->AgentProcess != nullptr,
+			// [[BPR-1900]]. The tour session's runs are counted with the
+			// Agent tab's: a course asks whether an agent ran and finished.
 			.AgentProcessLauncherInvocations
-			= implementation->AgentProcessProbe != nullptr
-				? implementation->AgentProcessProbe->invocations()
-				: 0U,
+			= (implementation->AgentProcessProbe != nullptr
+				   ? implementation->AgentProcessProbe->invocations()
+				   : 0U)
+				+ (implementation->TourProcessProbe != nullptr ? implementation->TourProcessProbe->invocations() : 0U),
 			.HostComposed = implementation->AgentHost != nullptr,
-			.Quiescent    = implementation->AgentHost == nullptr
-				|| implementation->AgentHost->is_quiescent(),
+			.Quiescent    = (implementation->AgentHost == nullptr
+							 || implementation->AgentHost->is_quiescent())
+				&& (implementation->TourSession == nullptr || implementation->TourSession->is_quiescent()),
 			.Statistics    = implementation->AgentHost != nullptr
 				? implementation->AgentHost->statistics()
 				: application::agent_invocation_host_statistics{ },

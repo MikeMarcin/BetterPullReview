@@ -21,7 +21,9 @@
 #include "bpr/qt/review_submission_editor.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/suggestion_mark.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "src/attended_source_identity.hpp"
 #include "src/installed_resources.hpp"
 #include "src/installed_runtime.hpp"
 #include "src/terminal_diagnostics.hpp"
@@ -258,6 +260,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-look" },
 		bpr::app::command_line_option{ .Name = "attended-tour-authoring", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
+		bpr::app::command_line_option{ .Name = "attended-tour-drafting" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
@@ -392,7 +395,7 @@ namespace {
 			}
 			received += static_cast<std::size_t>(count);
 		}
-		const auto expected = std::string{ BPR_ATTENDED_REVIEW_SOURCE_SHA256 } + "\n";
+		const auto expected = std::string{ bpr::app::attended_source_sha256 } + "\n";
 		if (std::string_view{ challenge.data(), challenge.size() } != expected) {
 			return EXIT_FAILURE;
 		}
@@ -6099,15 +6102,18 @@ namespace {
 	// BPR_ATTENDED_TOUR_RENDER it draws that, then presses Show on the Agent
 	// tab and draws where it goes.
 	constexpr const char* attended_failure_problem = "A second view drew over the first when both cleared in the same frame.";
+	// [[BPR-1900]]. What the author writes while Draft the tour runs.
+	constexpr const char* attended_drafting_problem = "Two views drew over each other when they cleared in the same frame.";
 	void                  schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
 	{
-		const auto  failure = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-agent-failure"));
-		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  failure  = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-agent-failure"));
+		const auto  drafting = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-drafting"));
+		auto* const timer    = new QTimer{ &aApplication.window() };
 		timer->setInterval(80);
 		const auto step  = std::make_shared<int>(0);
 		const auto ticks = std::make_shared<int>(0);
 		const auto open  = qEnvironmentVariable("BPR_ATTENDED_TOUR_SETUP") == QStringLiteral("open");
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6127,7 +6133,9 @@ namespace {
 				QTextStream{ stdout } << aLine << '\n';
 				QTextStream{ stdout }.flush();
 			};
-			if (++*ticks > 1'000) {
+			// [[BPR-1900]]. A real agent drafting a whole tour takes minutes,
+			// not the stub's seconds: the drafting look waits up to ten.
+			if (++*ticks > (drafting ? 7'500 : 1'000)) {
 				const auto* const status = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
 				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2:writing=%3").arg(*step).arg(static_cast<int>(editor->agent_readiness())).arg(status != nullptr ? status->text() : QString{ }));
 				return;
@@ -6140,6 +6148,22 @@ namespace {
 				if (qEnvironmentVariable("BPR_ATTENDED_TOUR_THEME") == QStringLiteral("dark")) {
 					static_cast<void>(bpr::app::detail::github_application_fixture_access::apply_appearance_gesture(aApplication, bpr::core::appearance_mode::dark, 4U));
 					QCoreApplication::processEvents();
+				}
+				// [[BPR-1900]]. Draft the tour, pressed once the agent is set
+				// up; the author goes on writing while it drafts.
+				if (drafting) {
+					if (editor->agent_readiness() != bpr::qt::agent_setup_readiness::ready) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:drafting-agent-not-ready:readiness=%1").arg(static_cast<int>(editor->agent_readiness())));
+						return;
+					}
+					auto* const draft = editor->tour_agent()->draft_button();
+					if (!draft->isEnabled()) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-draft-the-tour"));
+						return;
+					}
+					draft->click();
+					*step = 10;
+					return;
 				}
 				if (failure) {
 					if (editor->agent_readiness() != bpr::qt::agent_setup_readiness::ready) {
@@ -6167,6 +6191,63 @@ namespace {
 				}
 				editor->findChild<QPushButton*>(QStringLiteral("tourAgentSetupOpen"))->click();
 				*step = 1;
+				return;
+			}
+			if (*step == 10 || *step == 11) {
+				auto* const panel  = editor->tour_agent();
+				auto* const failed = panel->findChild<QWidget*>(QStringLiteral("tourAgentFailure"));
+				if (failed != nullptr && failed->isVisible()) {
+					done(QStringLiteral("ATTENDED_TOUR_FAILED:draft-failed:%1").arg(failed->findChild<QLabel*>(QStringLiteral("tourAgentFailureLine"))->text()));
+					return;
+				}
+				if (*step == 10) {
+					// Running in the background: the author writes meanwhile.
+					if (panel->draft_button()->text() != QStringLiteral("Stop drafting")) {
+						return;
+					}
+					editor->show_problem();
+					editor->problem_editor()->setPlainText(QString::fromUtf8(attended_drafting_problem));
+					QCoreApplication::processEvents();
+					draw(QStringLiteral("app-tour-drafting-running"));
+					QTextStream{ stdout } << "ATTENDED_TOUR_DRAFTING_RUNNING\n";
+					QTextStream{ stdout }.flush();
+					*step = 11;
+					return;
+				}
+				if (!panel->proposal()->isVisible()) {
+					return;
+				}
+				draw(QStringLiteral("app-tour-drafting-proposal"));
+				// Close up: the Tour tab, and every proposed part at full height.
+				const auto closeUp = [&root, &theme](QWidget* aWidget, const QString& aName) {
+					if (!root.isEmpty()) {
+						QCoreApplication::processEvents();
+						static_cast<void>(aWidget->grab().save(root + QStringLiteral("/") + aName + theme + QStringLiteral(".png"), "PNG"));
+					}
+				};
+				closeUp(editor, QStringLiteral("tour-tab-drafting-proposal"));
+				auto* const items      = panel->proposal_items();
+				const auto  fixedWidth = items->width();
+				items->resize(fixedWidth, items->sizeHint().height());
+				closeUp(items, QStringLiteral("tour-proposal-items"));
+				// Owner look v001: a proposed field with the keyboard in it.
+				if (auto* const field = panel->proposal_editor(0); field != nullptr) {
+					window.activateWindow();
+					field->setFocus(Qt::MouseFocusReason);
+					QCoreApplication::processEvents();
+					closeUp(panel->proposal(), QStringLiteral("tour-proposal-focused"));
+				}
+				panel->open_transcript();
+				QCoreApplication::processEvents();
+				draw(QStringLiteral("app-tour-drafting-transcript"));
+				closeUp(editor, QStringLiteral("tour-tab-drafting-transcript"));
+				QTextStream{ stdout } << "ATTENDED_TOUR_TRANSCRIPT:" << panel->transcript_text().replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
+				if (root.isEmpty() || qEnvironmentVariable("BPR_ATTENDED_TOUR_KEEP_TRANSCRIPT").isEmpty()) {
+					panel->transcript_button()->setChecked(false);
+				}
+				// AC2: the run is the tour session's, never a chat turn.
+				QTextStream{ stdout } << "ATTENDED_AGENT_TAB_TURNS:" << window.agent_tab()->turn_count() << '\n';
+				done(QStringLiteral("ATTENDED_TOUR_DRAFTING_SHOWN"));
 				return;
 			}
 			if (*step == 3) {
@@ -9726,7 +9807,7 @@ auto main(int argc, char** argv) -> int
 			config.ApplicationDataRoot            = applicationDataRoot;
 			config.RunningExecutable              = std::filesystem::path{ std::string{
 				executableUtf8.constData(), static_cast<std::size_t>(executableUtf8.size()) } };
-			config.AttendedSourceSha256           = BPR_ATTENDED_REVIEW_SOURCE_SHA256;
+			config.AttendedSourceSha256           = bpr::app::attended_source_sha256;
 			config.BuildConfiguration             = BPR_BUILD_CONFIGURATION;
 			config.BuildTesting                   = false;
 	#if !defined(__APPLE__)
@@ -10712,7 +10793,7 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-1892]]. The failing agent is a `claude` in a folder of its
 			// own, and the setup finds only it, so the person's own agents
 			// are never run.
-			if (launch.has("--attended-tour-agent-failure")) {
+			if (launch.has("--attended-tour-agent-failure") || launch.has("--attended-tour-drafting")) {
 				fixtureOptions.AttendedAgentSearch = false;
 				fixtureOptions.ClaudeSearch        = bpr::app::detail::claude_search_environment{ .PathVariable = std::filesystem::path{ std::string{ *attendedTourAuthoringAgent } }.parent_path().string() };
 			}

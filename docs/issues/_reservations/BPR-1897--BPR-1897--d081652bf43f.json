@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1897"
+  ],
+  "reserve_for": "status-sections",
+  "purpose": "Decouple Overview reviewers, merge rules and review progress",
+  "created": "2026-11-06T21:23:54.108389+00:00",
+  "base": "799c0b4ab12c1ccaeeb6c11a824d3ab2df11270e"
+}

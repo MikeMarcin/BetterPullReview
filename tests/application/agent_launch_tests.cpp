@@ -2,10 +2,12 @@
 /// \brief Proves exact context adaptation, framing, and typed host outcomes.
 
 #include "../core/private_review_fixture.hpp"
+#include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/review_brief.hpp"
 #include "bpr/application/review_skill_host.hpp"
+#include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_wrapper.hpp"
@@ -13,9 +15,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <expected>
+#include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <iterator>
@@ -1480,6 +1484,114 @@ namespace {
 		expect(std::ranges::find(builtIn->AllowedEnvironment, "USER") != builtIn->AllowedEnvironment.end(), "the shipped Claude profile passes USER, which its keychain sign-in is filed under");
 	}
 
+	/// [[BPR-1900]] AC1. A tour drafting run reads the workspace with
+	/// read-only tools: the exact argv for Claude and Codex, a search and a
+	/// read decoded for the transcript, and a write or edit refused.
+	void test_read_only_tour_drafting()
+	{
+		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
+		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
+		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		expect(claude && claude->ReadOnlyTools && !claude->WritingOnly && claude->Arguments == expected, "a read-only run is print mode with the read-only allowlist");
+		expect(claude && std::ranges::find(claude->Arguments, "Read,Grep,Glob,Bash") != claude->Arguments.end() && std::ranges::find(claude->Arguments, "Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task") != claude->Arguments.end(),
+			   "it loads only read, search and shell, and denies edits, writes, the network and subagents");
+		expect(claude && std::ranges::find(claude->Environment, std::pair<std::string, std::string>{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" }) != claude->Environment.end(), "auto-memory stays off");
+		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), built_supplement(), reader(), { .ReadOnlyTools = true });
+		expect(codex && codex->Arguments == std::vector<std::string>{ "exec", "--json", "--sandbox", "read-only", "-c", "approval_policy=\"never\"", "-c", "mcp_servers={}", "-c", "tools.web_search=false", "-" }, "Codex runs in its own read-only sandbox");
+		for (const auto protocol : { core::agent_protocol::codex_app_server, core::agent_protocol::external_terminal }) {
+			expect(!application::build_agent_launch(profile(protocol), built_supplement(), reader(), { .ReadOnlyTools = true }), "no other protocol has a recorded read-only allowlist");
+		}
+		expect(!application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .WritingOnly = true, .ReadOnlyTools = true }), "a run is tool-free or read-only, not both");
+
+		const std::string init = R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Grep","Glob","Bash"],"mcp_servers":[],"plugins":[]})"
+								 "\n";
+		const auto        use  = [](const std::string& aName, const std::string& aInput) {
+			return R"({"type":"assistant","session_id":"s","message":{"id":"m-)" + aName + R"(","role":"assistant","content":[{"type":"tool_use","id":"t","name":")" + aName + R"(","input":)" + aInput + "}]}}\n";
+		};
+		const std::string result  = R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t","content":"src/renderer.cpp:5: draw_scene();"}]}})"
+									"\n";
+		const std::string answer  = R"({"type":"assistant","session_id":"s","message":{"id":"m-a","role":"assistant","content":[{"type":"text","text":"done"}]}})"
+									"\n"
+									R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"done"})"
+									"\n";
+		auto              decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+		auto              pushed  = decoder.push(init + use("Grep", R"({"pattern":"draw_scene","path":"src"})") + result + use("Bash", R"({"command":"rg -n \"clear|present\" src"})") + result + use("Read", R"({"file_path":"/w/src/renderer.cpp"})") + result + answer);
+		expect(pushed.has_value() && decoder.finish().has_value(), "a run that searches, reads and answers is read");
+		auto activity = std::vector<std::pair<std::string, std::string>>{ };
+		for (const auto& event : pushed.value_or(std::vector<application::agent_protocol_event>{ })) {
+			if (event.Kind == application::agent_protocol_event_kind::tool_activity) {
+				activity.emplace_back(event.Text, event.Item);
+			}
+		}
+		expect(activity == std::vector<std::pair<std::string, std::string>>{ { "Grep", "draw_scene in src" }, { "Bash", "rg -n \"clear|present\" src" }, { "Read", "/w/src/renderer.cpp" } }, "each tool use is named with what it was asked");
+		const auto transcript = application::tour_transcript_of(activity, "/w");
+		expect(transcript.size() == 3U && transcript[0].Kind == core::tour_transcript_kind::searched && transcript[2].Kind == core::tour_transcript_kind::read && transcript[2].Text == "src/renderer.cpp", "the transcript says what it searched and read, inside the workspace");
+		const auto refused = [&](const std::string& aFrames) {
+			auto       refusing = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto read     = refusing.push(aFrames);
+			return !read && read.error() == application::agent_protocol_failure::tool_refused;
+		};
+		expect(refused(init + use("Edit", R"({"file_path":"a","old_string":"x","new_string":"y"})")), "an edit is refused");
+		expect(refused(init + use("Write", R"({"file_path":"a","content":"x"})")), "a write is refused");
+		// [[BPR-1900]]. A shell command the app does not admit is held: Claude's
+		// own allowlist denies it (installed 2.1.310 answers `is_error`), and the
+		// run goes on; a result that says it ran refuses the run.
+		const auto bash = [](const std::string& aCommand) {
+			return R"({"type":"assistant","session_id":"s","message":{"id":"m-b","role":"assistant","content":[{"type":"tool_use","id":"tb","name":"Bash","input":{"command":")" + aCommand + R"("}}]}})" + "\n";
+		};
+		const auto outcome = [](const bool aDenied) {
+			return R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done","is_error":)" + std::string{ aDenied ? "true" : "false" } + "}]}}\n";
+		};
+		{
+			auto       held = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto read = held.push(init + bash("touch made.txt") + outcome(true) + answer);
+			expect(read.has_value() && held.finish().has_value(), "a write Claude denied lets the run answer");
+			expect(read && std::ranges::any_of(*read, [](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::tool_activity && aEvent.Item == "(not run, outside the read-only list) touch made.txt"; }), "the transcript says it was not run");
+		}
+		expect(refused(init + bash("touch made.txt") + outcome(false)), "a write that ran is refused");
+		expect(refused(init + bash("rm -rf src") + R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done"}]}})" + "\n"), "a result that does not say it was denied is refused");
+		{
+			auto chained = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			expect(chained.push(init + bash("git show --stat HEAD && git show HEAD | head -400") + outcome(false) + answer).has_value(), "a read-only chain runs");
+		}
+		expect(refused(init + use("WebFetch", R"({"url":"https://example.com"})")), "the network is refused");
+		expect(refused(R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Edit"],"mcp_servers":[],"plugins":[]})"
+					   "\n"),
+			   "an init frame that loads an edit tool is refused");
+		expect(refused(R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[{"name":"github","status":"connected"}],"plugins":[]})"
+					   "\n"),
+			   "an init frame with an MCP server is refused");
+		auto chat = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(chat.push(init + use("Edit", R"({"file_path":"a"})") + result + answer).has_value(), "the Agent tab's own runs are not held to the tour's allowlist");
+
+		// The whole-tour answer, alone or fenced, and nothing else.
+		const auto draft = std::string{ R"({"schema":"bpr.tour-draft.v1","problem":"P","solution":"S","stops":[{"path":"./src/a.cpp","first_line":2,"last_line":4,"title":"T","explanation":"E"}]})" };
+		const auto read  = application::decode_tour_draft_answer(draft);
+		expect(read && read->Problem == "P" && read->Stops.size() == 1U && read->Stops[0].Path == "src/a.cpp" && read->Stops[0].FirstLine == 2U, "a whole-tour answer is read");
+		expect(application::decode_tour_draft_answer("Here it is:\n```json\n" + draft + "\n```\n").has_value(), "one fenced block is read");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"bpr.tour-draft.v1","problem":"P","solution":"S","stops":[],"publish":true})"), "an extra key is refused");
+		expect(!application::decode_tour_draft_answer(R"({"schema":"other","problem":"P","solution":"S","stops":[]})"), "another schema is refused");
+		expect(!application::decode_tour_draft_answer("not json"), "prose is refused");
+		const auto prompt = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified" } }, core::review_tour{ .Problem = "Mine" });
+		const auto hunked = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified", std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 3U, 14U } } } }, core::review_tour{ });
+		expect(hunked && hunked->find("\"changed_lines\":[[3,14]]") != std::string::npos && hunked->find("Strongly prefer stops on the change") != std::string::npos, "the request gives each file's hunks and asks for stops on them");
+		expect(prompt && prompt->find("bpr.tour-draft.v1") != std::string::npos && prompt->find("src/a.cpp") != std::string::npos && prompt->find("\"problem\":\"Mine\"") != std::string::npos, "the request carries the schema, the files and the tour so far");
+	}
+
+	/// [[BPR-1900]]. The head lines a proposed stop is checked against.
+	void test_workspace_line_counts()
+	{
+		const auto root = std::filesystem::temp_directory_path() / ("bpr-1900-measure-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+		std::filesystem::create_directories(root / "src");
+		std::ofstream{ root / "src" / "a.cpp" } << "one\ntwo\nthree";
+		std::ofstream{ root / "b.txt" } << "x\n";
+		std::error_code linked;
+		std::filesystem::create_symlink(root / "b.txt", root / "link.txt", linked);
+		const auto counted = application::measure_workspace_lines(root, { "src/a.cpp", "b.txt", "missing.cpp", "../escape", "/etc/hosts", "link.txt", "src" });
+		expect(counted == std::vector<std::pair<std::string, std::uint32_t>>{ { "src/a.cpp", 3U }, { "b.txt", 1U } }, "files are counted; a missing path, an escape, an absolute path, a link and a folder are not");
+		std::filesystem::remove_all(root);
+	}
+
 	/// [[BPR-1375]]. What Claude 2.1.296 writes around a turn, and what a
 	/// signed-out Claude answers.
 	void test_claude_decoder_reads_sign_in_and_benign_frames()
@@ -1511,11 +1623,11 @@ namespace {
 		const auto plugin = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
 		expect(plugin && *plugin == 1U, "[[BPR-1891]] a writing init frame that reports a plugin is read, not refused");
 		const auto memory = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);
-		const auto tools  = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[]})" } + "\n" + turn);
-		const auto mcp    = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[{"name":"m","status":"connected"}],"plugins":[]})" } + "\n" + turn);
-		expect(!memory && !tools && !mcp && memory.error() == application::agent_protocol_failure::malformed_frame && tools.error() == application::agent_protocol_failure::malformed_frame
-				   && mcp.error() == application::agent_protocol_failure::malformed_frame,
-			   "a writing init frame with an auto-memory folder, a tool or an MCP server refuses");
+		expect(memory && *memory == 1U, "[[BPR-1896]] a writing init frame that reports an auto-memory folder is read, not refused");
+		const auto tools = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[],"memory_paths":{"auto":"/m"}})" } + "\n" + turn);
+		const auto mcp   = decode(true, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[{"name":"m","status":"connected"}],"plugins":[]})" } + "\n" + turn);
+		expect(!tools && !mcp && tools.error() == application::agent_protocol_failure::malformed_frame && mcp.error() == application::agent_protocol_failure::malformed_frame,
+			   "a writing init frame with a tool or an MCP server still refuses");
 		const auto review = decode(false, std::string{ R"({"type":"system","subtype":"init","session_id":"s","tools":["Read"],"mcp_servers":[],"plugins":[{"name":"p"}]})" } + "\n" + turn);
 		expect(review && *review == 1U, "an ordinary review run keeps its tools and plugins");
 	}
@@ -1561,6 +1673,165 @@ namespace {
 		const auto [manyRead, manyReported] = pluginsOf(true, many + turn);
 		expect(manyRead && manyReported == std::vector<std::string>{ "by-name,unnamed,unnamed,p0,p1,p2,p3,p4,+3" },
 			   "a source that is a path falls back to the name, an unusable name is unnamed, the list is bounded and no path is read");
+	}
+
+	/// [[BPR-1896]]. A wrapper whose own `--settings` replaces this app's
+	/// turns auto-memory and the built-in plugins back on. The three frames
+	/// it wrote are read, the folder is reported without its path, and the
+	/// refusals that make the run tool-free still hold.
+	void test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on()
+	{
+		const std::string init = R"({"type":"system","subtype":"init","cwd":"/fixture/bpr-writing","session_id":"fixture","tools":[],"mcp_servers":[],"model":"claude-opus-5-5","permissionMode":"default","slash_commands":[],"apiKeySource":"apiKeyHelper","claude_code_version":"2.1.314","output_style":"default","agents":["claude","Explore","general-purpose","Plan","statusline-setup"],"skills":[],"plugins":[{"name":"cc-plugin-sec-default","path":"builtin","source":"cc-plugin-sec-default@builtin"},{"name":"cc-plugin-agents-md","path":"builtin","source":"cc-plugin-agents-md@builtin"},{"name":"cc-plugin-plugin-authoring","path":"builtin","source":"cc-plugin-plugin-authoring@builtin"}],"memory_paths":{"auto":"/fixture/home/.claude/projects/-fixture-bpr-writing/memory/"},"capabilities":[],"analytics_disabled":true,"product_feedback_disabled":true,"uuid":"fixture-init","original_cwd":"/fixture/bpr-writing","additional_directories":["/fixture/bpr-writing"],"messaging_socket_path":"/fixture/cc.sock","fast_mode_state":"off","fast_mode_disabled_reason":"not_first_party","per_turn_effort_active":false,"view_mode":"default"})"
+								 "\n";
+		const std::string turn = R"({"type":"assistant","session_id":"fixture","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"written"}]}})"
+								 "\n"
+								 R"({"type":"result","subtype":"success","session_id":"fixture","is_error":false,"result":"written"})"
+								 "\n";
+		struct read_back
+		{
+			bool                                               Finished = false;
+			std::vector<std::string>                           Items;
+			std::vector<std::string>                           Plugins;
+			std::size_t                                        Memory = 0U;
+			std::string                                        Texts;
+			std::optional<application::agent_protocol_failure> Failure;
+		};
+		const auto readOf = [](const bool aWriting, const std::string& aFrames) {
+			auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, aWriting };
+			auto result  = read_back{ };
+			auto pushed  = decoder.push(aFrames);
+			if (!pushed) {
+				result.Failure = pushed.error();
+				return result;
+			}
+			for (const auto& event : *pushed) {
+				result.Texts += event.Text;
+				if (event.Kind == application::agent_protocol_event_kind::plugins_reported) {
+					result.Plugins.push_back(event.Text);
+				} else if (event.Kind == application::agent_protocol_event_kind::auto_memory_reported) {
+					++result.Memory;
+				}
+			}
+			const auto finished = decoder.finish();
+			result.Finished     = finished.has_value();
+			result.Failure      = finished ? std::nullopt : std::optional{ finished.error() };
+			result.Items        = decoder.assistant_items();
+			return result;
+		};
+		const auto writing = readOf(true, init + turn);
+		expect(writing.Finished && writing.Items == std::vector<std::string>{ "written" }, "AC1: the wrapper stream finishes with the agent's text");
+		expect(writing.Memory == 1U && writing.Plugins == std::vector<std::string>{ "cc-plugin-sec-default@builtin,cc-plugin-agents-md@builtin,cc-plugin-plugin-authoring@builtin" },
+			   "AC4: the run reports auto-memory on and names the three plugins");
+		expect(writing.Texts.find("/fixture/") == std::string::npos && writing.Texts.find("memory/") == std::string::npos, "AC4: no event carries the memory folder's path");
+		const auto chat = readOf(false, init + turn);
+		expect(chat.Finished && chat.Items == std::vector<std::string>{ "written" } && chat.Memory == 0U && chat.Plugins.empty(), "AC3: agent chat reads the same stream unchanged and reports nothing");
+		const auto nullMemory = readOf(true, std::string{ R"({"type":"system","subtype":"init","session_id":"fixture","tools":[],"mcp_servers":[],"memory_paths":null})" } + "\n" + turn);
+		expect(nullMemory.Finished && nullMemory.Memory == 0U, "a null memory folder reports nothing");
+
+		const auto replace = [&init](const std::string_view aFrom, const std::string_view aTo) {
+			auto text = init;
+			text.replace(text.find(aFrom), aFrom.size(), aTo);
+			return text;
+		};
+		const auto tool = readOf(true, replace(R"("tools":[])", R"("tools":["Bash"])") + turn);
+		const auto mcp  = readOf(true, replace(R"("mcp_servers":[])", R"("mcp_servers":[{"name":"m","status":"connected"}])") + turn);
+		expect(tool.Failure == application::agent_protocol_failure::malformed_frame && tool.Items.empty() && mcp.Failure == application::agent_protocol_failure::malformed_frame && mcp.Items.empty(),
+			   "AC2: with memory on, a tool or an MCP server in init is still refused before any output");
+		const auto userFrame = readOf(true, init + R"({"type":"user","session_id":"fixture","message":{"role":"user","content":"x"}})" + "\n" + turn);
+		const auto toolUse   = readOf(true, init + R"({"type":"assistant","session_id":"fixture","message":{"id":"m","role":"assistant","content":[{"type":"tool_use","id":"t","name":"Bash","input":{}}]}})" + "\n" + turn);
+		const auto payload   = readOf(true, init + R"({"type":"result","subtype":"success","session_id":"fixture","is_error":false,"result":"written","bprFindings":{}})" + "\n");
+		expect(userFrame.Failure == application::agent_protocol_failure::malformed_frame && toolUse.Failure == application::agent_protocol_failure::malformed_frame
+				   && payload.Failure == application::agent_protocol_failure::malformed_frame,
+			   "AC2: with memory on, a user frame, a non-text block or a finding payload is still refused");
+	}
+
+	/// [[BPR-1896]]. Only a writing launch carries the auto-memory switch.
+	void test_claude_writing_environment_turns_auto_memory_off()
+	{
+		const auto carries = [](const application::agent_launch_request& aRequest) {
+			return std::ranges::count(aRequest.Environment, std::pair<std::string, std::string>{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY", "1" });
+		};
+		const auto names = [](const application::agent_launch_request& aRequest) {
+			return std::ranges::count(aRequest.Environment, std::string{ "CLAUDE_CODE_DISABLE_AUTO_MEMORY" }, &std::pair<std::string, std::string>::first);
+		};
+		const auto claude  = profile(core::agent_protocol::claude_stream_json);
+		const auto writing = application::build_agent_launch(claude, built_supplement(), reader(), { .WritingOnly = true });
+		const auto chat    = application::build_agent_launch(claude, built_supplement(), reader(), { });
+		expect(writing && carries(*writing) == 1 && names(*writing) == 1, "AC5: a writing launch's environment carries CLAUDE_CODE_DISABLE_AUTO_MEMORY=1 once");
+		expect(chat && names(*chat) == 0 && writing && chat->Environment.size() + 1U == writing->Environment.size(), "AC3: a chat launch's environment is unchanged");
+		expect(core::permitted_agent_environment_name("CLAUDE_CODE_DISABLE_AUTO_MEMORY"), "the credential-word filter admits the variable's name");
+	}
+
+	/// [[BPR-1899]]. A wrapper, a model default or policy can turn thinking
+	/// on. A writing run reads past a thinking or redacted_thinking block,
+	/// keeps none of its content and reports only that one was written; every
+	/// other block that is not text is still refused.
+	void test_claude_writing_reads_past_thinking_blocks()
+	{
+		const std::string init     = R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[],"plugins":[]})"
+									 "\n";
+		const std::string thinking = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"thinking","thinking":"PRIVATE_THINKING_CANARY","signature":"PRIVATE_SIGNATURE_CANARY"}]}})"
+									 "\n";
+		const std::string redacted = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"redacted_thinking","data":"PRIVATE_REDACTED_CANARY"}]}})"
+									 "\n";
+		const std::string text     = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"text","text":"written"}]}})"
+									 "\n";
+		const std::string result   = R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"written"})"
+									 "\n";
+		struct read_back
+		{
+			bool                                               Finished = false;
+			std::vector<std::string>                           Items;
+			std::size_t                                        Thinking = 0U;
+			std::string                                        Texts;
+			std::optional<application::agent_protocol_failure> Failure;
+		};
+		const auto readOf = [](const bool aWriting, const std::string& aFrames) {
+			auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, aWriting };
+			auto read    = read_back{ };
+			auto pushed  = decoder.push(aFrames);
+			if (!pushed) {
+				read.Failure = pushed.error();
+				return read;
+			}
+			for (const auto& event : *pushed) {
+				read.Texts += event.Text;
+				if (event.Kind == application::agent_protocol_event_kind::thinking_reported) {
+					++read.Thinking;
+				}
+			}
+			const auto finished = decoder.finish();
+			read.Finished       = finished.has_value();
+			read.Failure        = finished ? std::nullopt : std::optional{ finished.error() };
+			read.Items          = decoder.assistant_items();
+			return read;
+		};
+		const auto private_content = [](const read_back& aRead) {
+			return aRead.Texts.find("PRIVATE_") != std::string::npos
+				|| std::ranges::any_of(aRead.Items, [](const std::string& aItem) { return aItem.find("PRIVATE_") != std::string::npos; });
+		};
+		const auto thought = readOf(true, init + thinking + text + result);
+		expect(thought.Finished && thought.Items == std::vector<std::string>{ "written" } && thought.Thinking == 1U, "AC1: a thinking block before the text finishes with that text only");
+		const auto hidden = readOf(true, init + redacted + text + result);
+		expect(hidden.Finished && hidden.Items == std::vector<std::string>{ "written" } && hidden.Thinking == 1U, "AC1: a redacted_thinking block before the text finishes with that text only");
+		const auto mixed = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"thinking","thinking":"PRIVATE_THINKING_CANARY"},{"type":"text","text":"written"}]}})" + "\n" + result);
+		expect(mixed.Finished && mixed.Items == std::vector<std::string>{ "written" } && mixed.Thinking == 1U, "AC1: thinking and text in one frame keep only the text");
+		expect(!private_content(thought) && !private_content(hidden) && !private_content(mixed), "AC3: no event and no answer item carries thinking content");
+		const auto onlyThinking = readOf(true, init + thinking + result);
+		expect(!onlyThinking.Finished && onlyThinking.Failure == application::agent_protocol_failure::malformed_frame && onlyThinking.Items.empty(),
+			   "a writing run whose answer holds only thinking still fails");
+
+		const auto toolUse = readOf(true, init + thinking + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"tool_use","id":"t","name":"Bash","input":{}}]}})" + "\n" + text + result);
+		const auto server  = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"server_tool_use","id":"t","name":"web_search","input":{}}]}})" + "\n" + text + result);
+		const auto image   = readOf(true, init + R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"image","source":{}}]}})" + "\n" + text + result);
+		const auto user    = readOf(true, init + thinking + R"({"type":"user","session_id":"s","message":{"role":"user","content":"x"}})" + "\n" + text + result);
+		const auto payload = readOf(true, init + thinking + text + R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"written","bprFindings":{}})" + "\n");
+		for (const auto* refused : { &toolUse, &server, &image, &user, &payload }) {
+			expect(refused->Failure == application::agent_protocol_failure::malformed_frame && refused->Items.empty(), "AC2: a tool_use, server_tool_use or image block, a user frame or a finding payload is still refused");
+		}
+
+		const auto chat = readOf(false, init + thinking + text + result);
+		expect(chat.Finished && chat.Items == std::vector<std::string>{ "written" } && chat.Thinking == 0U && !private_content(chat), "AC4: agent chat reads the same stream as before and reports nothing");
 	}
 
 	/// [[BPR-1827]]. What Claude Code 2.1.310 writes for a turn that reads
@@ -1637,6 +1908,22 @@ namespace {
 		const auto writing = application::agent_run_diagnosis{ .Protocol = core::agent_protocol::claude_stream_json, .Outcome = application::agent_run_outcome::success, .ExitCode = 0, .StandardOutputBytes = 1716U, .StandardErrorBytes = 0U, .Plugins = "cc-plugin-sec-default@builtin,+2" };
 		expect(application::describe(writing) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2", "[[BPR-1891]] a writing run names the plugins its Claude loaded");
 		expect(application::parse_agent_run_diagnosis(application::describe(writing)) == std::optional{ writing }, "a line naming plugins reads back exactly");
+		auto remembering       = writing;
+		remembering.AutoMemory = true;
+		expect(application::describe(remembering) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2 memory=on",
+			   "[[BPR-1896]] a writing run whose Claude reported an auto-memory folder reads memory=on");
+		expect(application::parse_agent_run_diagnosis(application::describe(remembering)) == std::optional{ remembering }, "a line reading memory=on reads back exactly");
+		auto thinking     = remembering;
+		thinking.Thinking = true;
+		expect(application::describe(thinking) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2 memory=on thinking=on",
+			   "[[BPR-1899]] a writing run whose Claude wrote a thinking block reads thinking=on");
+		expect(application::parse_agent_run_diagnosis(application::describe(thinking)) == std::optional{ thinking }, "a line reading thinking=on reads back exactly");
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=off", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=on memory=on" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "a thinking token describe would not write is refused");
+		}
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=/Users/x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=off", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 memory=on plugins=a" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "a memory token describe would not write is refused");
+		}
 		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=/Users/x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=a,,b", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 plugins=" }) {
 			expect(!application::parse_agent_run_diagnosis(bad), "a plugin list that is not plain tokens is refused");
 		}
@@ -1715,8 +2002,13 @@ auto main() -> int
 	test_requested_configured_and_admitted_run_snapshot();
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
+	test_read_only_tour_drafting();
+	test_workspace_line_counts();
 	test_claude_decoder_reads_sign_in_and_benign_frames();
 	test_claude_writing_reports_the_plugins_it_loaded();
+	test_claude_writing_reads_a_wrapper_that_turns_auto_memory_on();
+	test_claude_writing_environment_turns_auto_memory_off();
+	test_claude_writing_reads_past_thinking_blocks();
 	test_claude_decoder_reads_a_current_transcript();
 	test_agent_run_diagnosis_round_trips_exactly();
 	test_full_encoded_input_budget_and_private_raw_budget();

@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1896"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Writing init accepts memory folder",
+  "created": "2026-11-06T21:22:35.610949+00:00",
+  "base": "addef7a2f549eec6e0da028b3c7f02809828088e"
+}

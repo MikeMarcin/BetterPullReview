@@ -4596,6 +4596,10 @@ bpr_enable_warnings(test_scoped_writing_agent)
 add_custom_command(TARGET test_scoped_writing_agent POST_BUILD
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-failing-claude"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-failing-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
+    # [[BPR-1900]]. And in `attended-drafting-claude`, where a drafting run in
+    # the workspace takes a few seconds, so a look sees it in the background.
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-claude"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
     VERBATIM)
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED

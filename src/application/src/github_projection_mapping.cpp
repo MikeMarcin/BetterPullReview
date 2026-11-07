@@ -253,6 +253,67 @@ namespace bpr::application {
 			|| aObservation.ReportedFiles > limits.MaximumFiles) {
 			return std::nullopt;
 		}
+		const auto parts = static_cast<unsigned>(aObservation.Files.has_value()) + static_cast<unsigned>(aObservation.Conversation.has_value())
+			+ static_cast<unsigned>(aObservation.Discussion.has_value()) + static_cast<unsigned>(aObservation.Checks.has_value())
+			+ static_cast<unsigned>(aObservation.People.has_value()) + static_cast<unsigned>(aObservation.Merge.has_value());
+		if (parts > 1U || aObservation.Conversation || aObservation.Discussion) {
+			return std::nullopt;
+		}
+		auto people = std::optional<overview_people_projection>{ };
+		auto merge  = std::optional<overview_merge_projection>{ };
+		if (aObservation.People || aObservation.Merge) {
+			if (context.Mode != core::github_access_mode::authenticated || context.ExpectedPullRequest || (aObservation.Merge && aObservation.Merge->Stale)) {
+				return std::nullopt;
+			}
+			auto records        = github_pull_request_snapshot{ };
+			records.Repository  = repository;
+			records.PullRequest = pr;
+			if (aObservation.People) {
+				const auto& observed = *aObservation.People;
+				if (observed.Requests.size() > 1000U || observed.Commenters.size() > limits.MaximumTotalComments || observed.Reviews.size() > limits.MaximumReviews
+					|| observed.Commenters.size() + observed.Reviews.size() > limits.MaximumTotalRecords
+					|| detail::validate_actor(observed.Viewer, budget, limits, true) != github_read_validation_error::none) {
+					return std::nullopt;
+				}
+				records.Viewer                     = observed.Viewer;
+				records.ReviewRequests             = observed.Requests;
+				records.ReviewRequestsAvailability = observed.Availability;
+				for (const auto& author : observed.Commenters) {
+					auto comment    = github_issue_comment_record{ };
+					comment.Comment = author.Comment;
+					comment.Author  = author.Author;
+					if (detail::validate_issue_comment(comment, budget, limits) != github_read_validation_error::none) {
+						return std::nullopt;
+					}
+					records.IssueComments.push_back(std::move(comment));
+				}
+				for (const auto& author : observed.Reviews) {
+					auto review       = github_review_record{ };
+					review.DatabaseId = author.DatabaseId;
+					review.Review     = author.Review;
+					review.Author     = author.Author;
+					review.State      = author.State;
+					if (detail::validate_review(review, budget, limits) != github_read_validation_error::none) {
+						return std::nullopt;
+					}
+					records.Reviews.push_back(std::move(review));
+				}
+				auto conflict = std::optional<github_actor_login_conflict>{ };
+				if (detail::validate_unique_identities(records, conflict) != github_read_validation_error::none) {
+					return std::nullopt;
+				}
+			} else {
+				records.Merge = *aObservation.Merge;
+			}
+			if (detail::validate_merge_observations(records, budget, limits) != github_read_validation_error::none) {
+				return std::nullopt;
+			}
+			if (aObservation.People) {
+				people = project_loading_overview_people(records);
+			} else {
+				merge = project_loading_overview_merge(records.Merge);
+			}
+		}
 		auto files = std::optional<std::vector<core::cached_review_file>>{ };
 		if (aObservation.Files) {
 			files = project_github_file_rows(*aObservation.Files);
@@ -292,6 +353,8 @@ namespace bpr::application {
 			.Number          = pr.Number.value(),
 			.Files           = std::move(files),
 			.Checks          = std::move(checks),
+			.People          = std::move(people),
+			.Merge           = std::move(merge),
 		};
 	}
 

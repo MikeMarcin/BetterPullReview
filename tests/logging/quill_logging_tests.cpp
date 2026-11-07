@@ -78,6 +78,7 @@ namespace {
 		escaped.Text.fill('\\');
 		escaped.Text.front() = '"';
 		escaped.Size         = static_cast<std::uint16_t>(escaped.Text.size());
+		std::string capturedBuild;
 		{
 			adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
 			expect(log.record({ .Operation = application::diagnostic_operation::capability, .Outcome = application::diagnostic_outcome::failed, .Request = 123U, .HttpStatus = 403U, .Summary = escaped }) == status::available, "maximum escaped classified field is admitted");
@@ -88,6 +89,9 @@ namespace {
 			expect(log.record({ .Summary = invalid }) == status::dropped, "invalid UTF-8 cannot reach JSON transport");
 			expect(log.record({ .Outcome = application::diagnostic_outcome::response_received, .HttpStatus = 429U }) == status::available, "HTTP warning admitted");
 			expect(log.record({ .Outcome = application::diagnostic_outcome::cancelled }) == status::available, "cancellation is informational");
+			const auto capture = log.flush_for_export(false);
+			expect(capture && !capture->Build.empty(), "export captures the configured build identity");
+			capturedBuild = capture->Build;
 		}
 		{
 			adapters::logging::quill_log log{ aRoot, { }, { .Privacy = application::diagnostic_privacy::include_locally } };
@@ -96,6 +100,7 @@ namespace {
 		const auto bytes   = tests::read_diagnostic_logs(aRoot);
 		const auto records = tests::diagnostic_json_records(bytes);
 		expect(records.size() == 4U && records[0].value("detail").toString().toStdString() == escaped.text(), "escaping round trips one full classified field without extra records");
+		expect(records[0].value("build").toString().toStdString() == capturedBuild, "records and exports carry the same build identity");
 		expect(records[0].value("severity") == "error" && records[1].value("severity") == "warning" && records[2].value("severity") == "info", "error, warning and cancellation severity survive JSON");
 		expect(records[1].value("dropped").toInteger() == 2 && records[2].value("sequence").toInteger() == 3, "invalid records are counted without entering session sequence");
 		expect(records[0].value("session") != records[3].value("session") && records[3].value("sequence").toInteger() == 1, "a new session cannot alias appended history");

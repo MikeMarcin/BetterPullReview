@@ -156,6 +156,36 @@ switches tabs by itself. The notice clears when its request is made again
 or succeeds, and its close button dismisses it. A stop the person asked
 for says nothing there.
 
+Since [[BPR-1900]] (owner, 2026-11-06: "the tour itself is much more of a
+second agent session, separate and mostly background from my main agent chat
+session", and "then it can fill its tour stops and problem and solution from
+all that context") tour authoring is its own agent session, separate from the
+Agent tab's chat: tour runs are not chat turns and chat turns are not tour
+runs. The top of the tab has **Draft the tour**, in the agent accent. It asks
+the agent, in the background, to read the pull request in the review's
+workspace with read-only tools and propose the Problem, the Solution and the
+stops (files, lines, order and explanations). While it runs the button says
+**Stop drafting** and stops it; the author keeps writing, and leaving the
+window does not stop it. **Draft from PR context** and **Suggest an outline**
+read the repository the same way and say **Stop drafting** on their own
+control while they run; Enhance and Generate comment stay tool-free. Without
+a clone the tab says drafting reads only the pull request's files. The answer
+is a proposal under the button: each part accepted (with the author's edit in
+place), or discarded, on its own; a Problem or Solution the author already
+wrote says that accepting replaces it; a stop whose lines are not lines of the
+pull request's files is left out before the proposal is shown, with one quiet
+line saying how many and each one kept in the transcript. Stops on the change
+come first; one just off it says "Outside the change"; one off it on several
+lines says it won't appear when published until it's on changed lines and
+offers **Move to nearest change**. An accepted stop is
+added at the end of the route at its head lines, to be confirmed in the code
+before it is Ready. **Transcript** opens the session's runs, newest first:
+what was asked, what it searched, read and ran, and what it answered or how it
+ended; it never opens by itself. BPR-1892's notice keeps its words and its
+button is now **Show the run**, which opens that transcript at the run. Each
+request is a fresh run given the tour so far, never `--resume`. See the
+[AI agent boundary](ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900).
+
 The stop editor retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
 The context menu offers insert after, duplicate, merge selected adjacent stops,
