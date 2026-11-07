@@ -2822,6 +2822,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
         "src/github_application/session_settings.hpp"
+        "src/github_application/skill_runs.cpp"
+        "src/github_application/skill_runs.hpp"
         "src/github_application/startup_failures.cpp"
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
@@ -2845,6 +2847,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_review_mutations.cpp"
         "src/github_application/window_shutdown.cpp"
         "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_skills.cpp"
         "src/github_application/window_tours.cpp"
         "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
@@ -2976,6 +2979,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
         "src/github_application/session_settings.hpp"
+        "src/github_application/skill_runs.cpp"
+        "src/github_application/skill_runs.hpp"
         "src/github_application/startup_failures.cpp"
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
@@ -2999,6 +3004,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_review_mutations.cpp"
         "src/github_application/window_shutdown.cpp"
         "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_skills.cpp"
         "src/github_application/window_tours.cpp"
         "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
@@ -3198,8 +3204,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	# [[BPR-1918]]. Resealed over main 2261fa371 for the custom agent's
 	# run-checks switch in window_agent_chat.cpp.
+	# [[BPR-1916]], [[BPR-1917]] reseal (2026-11-06): skill_runs.{hpp,cpp} and
+	# window_skills.cpp join the inventory; the catalog loader, the skills a
+	# writing hook, an Agent tab question or a tour ask names carried inline,
+	# and the attended prompt-editor look. No grant, provider, gh process,
+	# admission, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "ed4d0528d0b6f01561359d69692d69d679008c849d7675161891f79b714ce06c"
+        "48c671b96e967065fd05c2fd224580e71e624fbacf2dd71e9be0698df982fdf8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
