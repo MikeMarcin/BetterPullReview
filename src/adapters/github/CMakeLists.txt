@@ -65,6 +65,12 @@ if(BPR_BUILD_QT OR BPR_BUILD_TOUR_CLI)
             src/github_host_profile.cpp
             src/github_http_helpers.cpp
 			src/github_mutation_contract.cpp
+			src/github_mutation_contract_edit_requests.cpp
+			src/github_mutation_contract_edits.cpp
+			src/github_mutation_contract_publication.cpp
+			src/github_mutation_contract_responses_and_observation.cpp
+			src/github_mutation_contract_review_and_meta_requests.cpp
+			src/github_mutation_contract_support.cpp
             src/github_publication_contract.cpp
             src/github_publication_session.cpp
             src/review_comment_permalink.cpp

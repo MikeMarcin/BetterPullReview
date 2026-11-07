@@ -665,6 +665,13 @@ if(BPR_BUILD_QT)
 		src/adapters/github/CMakeLists.txt
 		src/adapters/github/src/github_mutation_contract.hpp
 		src/adapters/github/src/github_mutation_contract.cpp
+		src/adapters/github/src/github_mutation_contract_edit_requests.cpp
+		src/adapters/github/src/github_mutation_contract_edits.cpp
+		src/adapters/github/src/github_mutation_contract_publication.cpp
+		src/adapters/github/src/github_mutation_contract_responses_and_observation.cpp
+		src/adapters/github/src/github_mutation_contract_review_and_meta_requests.cpp
+		src/adapters/github/src/github_mutation_contract_support.cpp
+		src/adapters/github/src/github_mutation_contract_support.hpp
 		src/adapters/github/src/designated_review_public_observer.hpp
 		src/adapters/github/src/designated_live_public_observer.hpp
 		src/adapters/github/src/designated_live_public_observer.cpp
