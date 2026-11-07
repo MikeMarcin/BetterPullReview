@@ -289,8 +289,8 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # [[BPR-1851]]. The file on screen refreshed first, same slow fixture network.
     "application_refresh_current_file_public_path": "private-desktop-root-refused",
     # [[BPR-1871]]. A file opened during a held clone, same fixture desktop root.
-    "application_file_open_while_loading_public_path": "unmeasured (registered on macOS)",
-    "application_file_open_while_loading_failure_public_path": "unmeasured (registered on macOS)",
+    "application_file_open_while_loading_public_path": "private-desktop-root-refused",
+    "application_file_open_while_loading_failure_public_path": "private-desktop-root-refused",
     # [[BPR-1844]]. The remembered view-filter store, same SQLite profile root.
     "sqlite_view_filter_memory_store": "fresh-view-filter-store-predicate-failed",
     # [[BPR-1850]]. Activity notifications' store, same SQLite profile root.

@@ -73,3 +73,19 @@ Its `receipt.json` SHA-256 is `38dd40e56a782cd1562f7ef60bdc993d35603197a8f83dae7
 It retains the configured rows, generated replay files, native process
 identities, raw commands, exits and stdout/stderr. This is finite inventory
 measurement, not comprehensive qualification or package approval.
+
+## File opening during clone
+
+At `ffd6b41a9c2554c7d962e47c6acfd9a74c8acda1`, both
+`application_file_open_while_loading_public_path` and
+`application_file_open_while_loading_failure_public_path` passed directly in
+native Windows Release (CTest exit 0, 22.19 seconds). With the maintained
+zero-capability AppContainer launcher prepended to each configured command,
+both stopped at the private desktop root predicate (child exit 1, CTest
+exit 8). The replay kept the configured arguments, environment, working
+directory, and deadlines. The two pins record that observed predicate.
+
+The external evidence is
+`/Users/jaeger/.codex/release-runs/v0.4.2-20261104/candidate28/native-file-open-boundary/`.
+Its receipt SHA-256 is
+`411d9224114d902cdd9ad7ce9a38e374be6714d82bc133dbbf6c44a66cc1051a`.
