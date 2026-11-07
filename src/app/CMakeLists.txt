@@ -137,6 +137,9 @@ if(BPR_BUILD_QT)
         STATIC
             src/foundation_application.cpp
             src/github_application.cpp
+            src/github_application/public_preview_wire_self_check.cpp
+            src/github_application/public_preview_wire_transport.cpp
+            src/github_application/theme_document_file.cpp
             src/pane_find_controller.cpp
             src/pr_search_controller.cpp
             src/github_cli_runtime.cpp
@@ -465,6 +468,11 @@ if(BPR_BUILD_QT)
 		src/app/src/command_line.cpp
 		src/app/include/bpr/app/github_application.hpp
 		src/app/src/github_application.cpp
+		src/app/src/github_application/public_preview_wire_self_check.cpp
+		src/app/src/github_application/public_preview_wire_transport.hpp
+		src/app/src/github_application/public_preview_wire_transport.cpp
+		src/app/src/github_application/theme_document_file.hpp
+		src/app/src/github_application/theme_document_file.cpp
 		src/app/src/review_submission_workflow.hpp
 		src/app/src/review_submission_workflow.cpp
             src/app/src/private_review_workflow.cpp

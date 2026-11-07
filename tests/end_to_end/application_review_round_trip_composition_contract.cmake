@@ -1,3 +1,17 @@
+# [[BPR-1905]] refactoring reseal over last-matching bb3ff53ff. Pinned-scope
+# commits: 416660399 and 9d4654594 ([[BPR-1901]]) read main.cpp's attended
+# source digest from the new attended_source_identity.{cpp,hpp} instead of a
+# macro; same value, no effect or authority change. They left this contract
+# red: the source inventory lacked both files and the manifest pin drifted.
+# BPR-1905 then moves code out of github_application.cpp unchanged in
+# behavior: the signed-out public-preview wire counters, log, transport
+# factories and Git smart lease to src/github_application/
+# public_preview_wire_transport.{cpp,hpp}, the tests-only single-attempt
+# self-check to public_preview_wire_self_check.cpp beside it and the bounded
+# theme document file reader to theme_document_file.{cpp,hpp} there.
+# Those five files join the inventory and the production manifest, which
+# covered the code inside github_application.cpp. No provider, credential,
+# grant, mutation or publication change; the mutation-branch pin is unchanged.
 # [[BPR-1900]] owner look v002 reseal: github_application.cpp keeps the
 # stops a whole-tour draft left out in the tour session's transcript and
 # drops the flagged-stops notice; it places proposed stops against the
@@ -2703,7 +2717,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "7dfa1b10d3e4252895fb1559af5e47c9c28d3939966ab9b14a04ed61b1e70657"
+        "05ad7a6a225ff77edd5aa9af790eab02dc6e55b09525c521ffeb30ad8d81bbed"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2742,6 +2756,11 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/github_application/public_preview_wire_self_check.cpp"
+        "src/github_application/public_preview_wire_transport.cpp"
+        "src/github_application/public_preview_wire_transport.hpp"
+        "src/github_application/theme_document_file.cpp"
+        "src/github_application/theme_document_file.hpp"
         "src/installed_resources.cpp"
         "src/installed_resources.hpp"
         "src/installed_runtime.cpp"
@@ -2812,6 +2831,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "main.cpp"
         "src/about_desktop.cpp"
         "src/about_desktop.hpp"
+        "src/attended_source_identity.cpp"
+        "src/attended_source_identity.hpp"
         "src/command_line.cpp"
         "src/cycle_cli.cpp"
         "src/cycle_cli.hpp"
@@ -2834,6 +2855,11 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/github_application/public_preview_wire_self_check.cpp"
+        "src/github_application/public_preview_wire_transport.cpp"
+        "src/github_application/public_preview_wire_transport.hpp"
+        "src/github_application/theme_document_file.cpp"
+        "src/github_application/theme_document_file.hpp"
         "src/github_application_fixture_access.hpp"
         "src/github_cli_runtime.cpp"
         "src/github_cli_runtime.hpp"
@@ -3028,7 +3054,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "6ecb02bcd5413e0e017daa63c6876c065bb1bff63be35802016c683f277d70d2"
+        "81e0ff1344e334680e8cc35c9f8fdb4110c6695e05fe56e3bb60239da7c82533"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
