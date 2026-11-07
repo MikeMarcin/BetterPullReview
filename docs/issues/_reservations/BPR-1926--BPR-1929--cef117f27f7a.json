@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1926",
+    "BPR-1927",
+    "BPR-1928",
+    "BPR-1929"
+  ],
+  "reserve_for": "local-main",
+  "purpose": "largest-files refactor rounds 12-15",
+  "created": "2026-11-07T18:16:19.772480+00:00",
+  "base": "738caf882fe71b6019369c8f5bba9c525adbe708"
+}
