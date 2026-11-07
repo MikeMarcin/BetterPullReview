@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1915"
 title: "Tour drafts and agent answers use real formatting instead of walls of text"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
 priority: "P1"

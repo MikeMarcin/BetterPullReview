@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1914"
 title: "The tour session is a conversation: ask about the tour, get answers, and have it propose edits"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900","BPR-1913"]
 priority: "P1"
