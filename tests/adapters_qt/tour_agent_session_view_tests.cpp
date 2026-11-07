@@ -26,6 +26,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 #include <vector>
 namespace {
@@ -203,16 +204,29 @@ namespace {
 		answer.Revision     = std::move(revision);
 		const auto proposal = core::propose_tour_changes(*turn, answer, { }, tour);
 		static_cast<void>(core::answer_tour_ask(session, *turn, answer.Reply, core::tally_of(proposal)));
-		expect(proposal.Items.size() == 3U, "a merge, a removal and a focus are proposed");
+		expect(proposal.Items.size() == 2U && proposal.Focus == "the renderer", "a merge and a removal are proposed; the focus is no part to accept");
+		// [[BPR-1930]] follow-up. The host applies the focus at once.
+		expect(core::apply_tour_focus(session, *turn, proposal.Focus), "the host applies the focus");
 		editor.present_tour_session(session, proposal);
 		QApplication::processEvents();
 		const auto mark = [&editor](const int aRow) { return editor.route_mark(aRow); };
 		expect(mark(0).first == 0 && mark(1) == std::pair{ 2, QStringLiteral("Merge with 3") } && mark(2) == std::pair{ 2, QStringLiteral("Merges into 2") } && mark(3) == std::pair{ 1, QStringLiteral("Remove") }, "the stops it changes are marked on the route, in place");
-		expect(chat->in_tour_line() != nullptr && chat->in_tour_line()->text().startsWith(QStringLiteral("3 changes wait in the tour")), "the tour's chat says where its proposal waits");
+		expect(chat->in_tour_line() != nullptr && chat->in_tour_line()->text().startsWith(QStringLiteral("2 changes wait in the tour")), "the tour's chat says where its proposal waits");
 		expect(chat->findChildren<QPushButton*>(QStringLiteral("tourSideChatAccept")).isEmpty(), "nothing of it is decided in the chat");
-		expect(panel->proposal_title()->text().contains(QStringLiteral("3 parts wait in the tour")), "the panel's one line counts them");
-		auto* const focus = accept_named(*panel, QStringLiteral("Set focus"));
-		expect(focus != nullptr && focus->isVisibleTo(&editor), "the focus waits under the panel's line");
+		expect(panel->proposal_title()->text().contains(QStringLiteral("2 parts wait in the tour")), "the panel's one line counts them");
+		expect(accept_named(editor, QStringLiteral("Set focus")) == nullptr && accept_named(*panel, QStringLiteral("Accept")) == nullptr, "no Set focus to press: the focus is not a proposal");
+		expect(panel->focus_chip()->isVisibleTo(&editor) && panel->focus_text()->text() == QStringLiteral("Focus: the renderer") && panel->focus_chip()->toolTip().startsWith(QStringLiteral("Later drafts and chat answers favour this part")), "the chip shows at once and says what it does");
+		auto* const focusLine = chat->focus_line();
+		expect(focusLine != nullptr && focusLine->text() == QStringLiteral("Focus set to \u201Cthe renderer\u201D \u00B7 <a href=\"#undo\">Undo</a>"), "the chat answer says the focus was set, with Undo: " + (focusLine == nullptr ? std::string{ } : focusLine->text().toStdString()));
+		auto undoneRun = std::optional<core::tour_agent_run_id>{ };
+		chat->set_focus_undo_dispatch([&undoneRun](const core::tour_agent_run_id aRun) { undoneRun = aRun; });
+		emit focusLine->linkActivated(QStringLiteral("#undo"));
+		expect(undoneRun == turn, "Undo asks the host to undo that turn's focus");
+		expect(core::undo_tour_focus(session, *turn), "the host undoes it");
+		editor.present_tour_session(session, proposal);
+		QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+		QApplication::processEvents();
+		expect(!panel->focus_chip()->isVisibleTo(&editor) && chat->focus_line() != nullptr && chat->focus_line()->text().endsWith(QStringLiteral(", then undone.")), "undone, the chip goes and the line says so");
 		editor.go_to_stop(core::tour_stop_id{ 2 });
 		QApplication::processEvents();
 		auto* const merge = accept_named(editor, QStringLiteral("Merge"));
@@ -227,8 +241,6 @@ namespace {
 		expect(remove != nullptr && remove->isVisibleTo(&editor) && (merge == nullptr || !accept_named(editor, QStringLiteral("Merge"))->isVisibleTo(&editor)), "the removal waits on stop 4's card, the merge with its own");
 		remove->click();
 		expect(!decided.empty() && std::get<1>(decided.back()) == core::tour_proposal_decision::accepted && proposal.Items[std::get<0>(decided.back())].Part == core::tour_proposal_part::remove_stop, "Remove dispatches the removal's acceptance");
-		accept_named(*panel, QStringLiteral("Set focus"))->click();
-		expect(proposal.Items[std::get<0>(decided.back())].Part == core::tour_proposal_part::focus && std::get<2>(decided.back()) == QStringLiteral("the renderer"), "Set focus dispatches its text");
 
 		// AC2. The focus the host remembered: a chip, and its × asks to clear it.
 		static_cast<void>(core::set_tour_focus(session, "the renderer"));
@@ -336,7 +348,7 @@ auto main(int argc, char** argv) -> int
 
 	auto* const panel     = editor.tour_agent();
 	auto* const draftTour = panel->draft_button();
-	expect(draftTour->text() == QStringLiteral("Draft the tour") && draftTour->isEnabled(), "Draft the tour is offered");
+	expect(draftTour->text() == QStringLiteral("Draft Tour") && draftTour->isEnabled(), "Draft Tour is offered");
 	expect(draftTour->palette().color(QPalette::Active, QPalette::ButtonText) == qt::agent_accent(editor.palette()) && !draftTour->icon().isNull(), "it wears the agent accent and spark");
 	expect(!panel->transcript()->isVisible() && !panel->proposal()->isVisibleTo(&editor), "nothing of the session is pushed in front of the author");
 	// [[BPR-1913]] AC4, owner 2026-11-06: "the button at the top looks like

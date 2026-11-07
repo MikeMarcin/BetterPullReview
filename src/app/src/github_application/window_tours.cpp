@@ -1036,6 +1036,14 @@ namespace bpr::app {
 		static_cast<void>(core::note_finished_tour_run(TourAgent, aRun, core::left_out_entries(*proposal)));
 		const auto* const asked = core::find_tour_run(TourAgent, aRun);
 		const auto        whole = asked != nullptr && asked->Thread.Kind == core::tour_thread_kind::tour;
+		// [[BPR-1930]] follow-up, owner: "I dont really understand the focus
+		// changes button". A focus is the author's own instruction and changes
+		// no text of the tour: it applies at once, with Undo on the turn.
+		if (whole && !proposal->Focus.empty()) {
+			if (core::apply_tour_focus(TourAgent, aRun, proposal->Focus) && proposal->Items.empty() && !proposal->RevisesWaitingStops) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("Focus set. Later drafts and chat answers favour %1.").arg(QString::fromStdString(TourAgent.Focus)));
+			}
+		}
 		if (!proposal->Items.empty() || proposal->RevisesWaitingStops) {
 			TourProposal = core::merge_tour_proposal(TourProposal, std::move(*proposal));
 			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself.
@@ -1059,6 +1067,16 @@ namespace bpr::app {
 		const auto feedback = core::take_tour_feedback(TourAgent);
 		if (feedback) {
 			request_tour_ask(core::tour_thread{ }, std::nullopt, QString::fromStdString(*feedback), false);
+		}
+	}
+
+	/// [[BPR-1930]] follow-up. Undo on a turn's "Focus set to" line.
+	void github_application::implementation::undo_tour_focus(const core::tour_agent_run_id aRun)
+	{
+		if (core::undo_tour_focus(TourAgent, aRun)) {
+			Window->tour_editor()->show_writing_notice(TourAgent.Focus.empty() ? QStringLiteral("Focus undone. Later drafts and chat answers cover the whole pull request.")
+																			   : QStringLiteral("Focus undone. The earlier focus is back."));
+			present_tour_session();
 		}
 	}
 
@@ -1234,7 +1252,7 @@ namespace bpr::app {
 		TourProposal.reset();
 		TourDraftPending = true;
 		Window->tour_editor()->show_writing_notice(tour_reading_notice());
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft the tour", *prompt, std::nullopt)) {
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::draft_tour, "Draft Tour", *prompt, std::nullopt)) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The tour session could not start this request."));
 		}
@@ -1284,10 +1302,7 @@ namespace bpr::app {
 			return;
 		}
 		const auto& item = decided.Items[aIndex];
-		if (aDecision == core::tour_proposal_decision::accepted && item.Part == core::tour_proposal_part::focus) {
-			// [[BPR-1930]] AC2. The focus is the session's, for later turns.
-			static_cast<void>(core::set_tour_focus(TourAgent, item.Text));
-		} else if (aDecision == core::tour_proposal_decision::accepted && core::structural(item.Part)) {
+		if (aDecision == core::tour_proposal_decision::accepted && core::structural(item.Part)) {
 			// [[BPR-1930]] AC1. The core makes the revised tour; the host
 			// restores it as one edit, so one Undo takes it back.
 			const auto revised = core::apply_tour_revision(*draft, item);

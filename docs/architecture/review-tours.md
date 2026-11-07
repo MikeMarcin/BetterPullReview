@@ -161,7 +161,7 @@ second agent session, separate and mostly background from my main agent chat
 session", and "then it can fill its tour stops and problem and solution from
 all that context") tour authoring is its own agent session, separate from the
 Agent tab's chat: tour runs are not chat turns and chat turns are not tour
-runs. The top of the tab has **Draft the tour**, in the agent accent. It asks
+runs. The top of the tab has **Draft Tour**, in the agent accent. It asks
 the agent, in the background, to read the pull request in the review's
 workspace with read-only tools and propose the Problem, the Solution and the
 stops (files, lines, order and explanations). While it runs the button says
@@ -196,8 +196,8 @@ the tour (a merge keeps every line of its stops), and the stops a part changes
 are marked grey on the route with a pill ("Remove", "Merge with 3", "Moves to
 1"). Its box waits on the card of the stop it leads, with **Remove**, **Merge**
 or **Split** at the right; a new order waits above the route with
-**Reorder**. A set focus shows as a chip under the tour's header and rides
-every later draft and chat turn. Feedback given while Draft the tour runs is
+**Reorder**. A focus from the chat applies at once, with Undo on its answer; it shows as a chip under the header and rides
+every later draft and chat turn. Feedback given while Draft Tour runs is
 sent once it proposes, and revises the stops still waiting. **Reset tour**
 ([[BPR-1931]]) asks first, naming what is lost, clears the draft, its
 proposals, chats and focus, and offers **Undo reset** until the tour changes;
@@ -224,7 +224,7 @@ part under discussion carries the agent's rule: a faint wash of the accent
 and its line down the left of the Problem's or the Solution's panel, or of
 the stop on the route. Each part's chat button sits at the right of its
 header: the Problem's and the Solution's step rows, the open stop's title row,
-each stop's row on the route, and Draft the tour's row for the tour as a
+each stop's row on the route, and Draft Tour's row for the tour as a
 whole. It shows how many turns its chat has, and it toggles: a click opens
 that part's chat, a click on the open part's closes the column, and a click
 on another part's switches (v002, owner: "I also want the chat button to
@@ -258,7 +258,7 @@ whatever the agent. The conversation reads as one selectable document, oldest
 first, with each reply rendered as Markdown; **Copy turn** and **Copy
 conversation** copy it as text. Asked to change the tour, the agent proposes:
 a changed Problem or Solution, new stops, or a new explanation for a stop
-already in the tour, which join the proposal under Draft the tour and change
+already in the tour, which join the proposal under Draft Tour and change
 nothing until accepted. Since [[BPR-1915]] every built-in tour prompt asks for
 GitHub-flavoured Markdown that scans (short paragraphs, lists, inline code, no
 headings), and a proposed text shows rendered as the preview and GitHub show

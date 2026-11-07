@@ -1633,7 +1633,7 @@ the same Claude wrapper, program and added-agent ports, and the agent, model
 and effort the Tour tab's agent bar shows.
 
 `core::tools_for` records the split ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)):
-**Draft the tour**, **Draft from PR context** on an empty Problem or Solution,
+**Draft Tour**, **Draft from PR context** on an empty Problem or Solution,
 and **Suggest an outline** run in the review's private workspace (BPR-1873's,
 from the linked or kept clone, or "This pull request only") with read-only
 tools; Enhance, Enhance selection, Generate comment and the Settings test stay

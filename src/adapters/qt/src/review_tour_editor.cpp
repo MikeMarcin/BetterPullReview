@@ -2705,8 +2705,7 @@ namespace bpr::qt {
 			StructureProposed = true;
 			return true;
 		}
-		case core::tour_proposal_part::focus: return false;
-		case core::tour_proposal_part::stop:  {
+		case core::tour_proposal_part::stop: {
 			// On the route, after the tour's own stops, numbered on from them.
 			++ProposedStopCount;
 			const auto  number = static_cast<int>((Shown.Draft ? Shown.Draft->Stops.size() : 0U) + ProposedStopCount);
@@ -2799,7 +2798,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
 	{
-		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft the tour"), aWhy);
+		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft Tour"), aWhy);
 		restyle_agent_features();
 	}
 	void review_tour_editor::clear_tour_draft_failure() { DraftFailure->hide(); }

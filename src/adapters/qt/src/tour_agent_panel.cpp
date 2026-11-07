@@ -228,7 +228,7 @@ namespace bpr::qt {
 		Head->setContentsMargins(0, 0, 0, 0);
 		Head->setHorizontalSpacing(8);
 		Head->setVerticalSpacing(4);
-		Draft = new quiet_push_button{ tr("Draft the tour"), this };
+		Draft = new quiet_push_button{ tr("Draft Tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
 		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one."));
@@ -603,7 +603,7 @@ namespace bpr::qt {
 	{
 		RunningDraft = aDraftTour;
 		RunningAny   = aAny;
-		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft the tour"));
+		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft Tour"));
 		fit_head();
 		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one.")
 																																: Why);
@@ -908,7 +908,9 @@ namespace bpr::qt {
 	{
 		const auto focus = QString::fromStdString(Session.Focus);
 		FocusText->setText(tr("Focus: %1").arg(focus));
-		FocusText->setToolTip(tr("Later drafts and chat turns favour this part of the pull request. Clear it to cover the whole change again."));
+		const auto favour = tr("Later drafts and chat answers favour this part of the pull request. × clears it, so they cover the whole change again.");
+		FocusText->setToolTip(favour);
+		FocusChip->setToolTip(favour);
 		FocusChip->setVisible(!focus.isEmpty());
 		const auto can = ResetAvailable && core::resettable(ResetTally) && !RunningAny;
 		Reset->setEnabled(can);
@@ -1007,9 +1009,6 @@ namespace bpr::qt {
 			}
 			break;
 		}
-		case core::tour_proposal_part::focus:
-			quietLine(tr("Remembered for this tour's later drafts and chat turns, until you clear it."));
-			break;
 		default: break;
 		}
 	}
@@ -1211,8 +1210,6 @@ namespace bpr::qt {
 				heading = tr("Split stop %1, %2, into %3").arg(stop_number(item.StopId)).arg(stop_title(item.StopId)).arg(item.Pieces.size());
 			} else if (item.Part == core::tour_proposal_part::reorder) {
 				heading = tr("Proposed order");
-			} else if (item.Part == core::tour_proposal_part::focus) {
-				heading = tr("Proposed focus");
 			} else {
 				heading = QString::fromStdString(item.Stop.Title);
 			}
@@ -1315,12 +1312,11 @@ namespace bpr::qt {
 			auto* const buttons = new QHBoxLayout{ };
 			buttons->setSpacing(6);
 			// [[BPR-1930]]. The primary action says what it does: Remove,
-			// Merge, Split, Reorder, Set focus.
+			// Merge, Split, Reorder.
 			const auto  acceptWords = item.Part == core::tour_proposal_part::remove_stop ? tr("Remove")
 				: item.Part == core::tour_proposal_part::merge_stops                     ? tr("Merge")
 				: item.Part == core::tour_proposal_part::split_stop                      ? tr("Split")
 				: item.Part == core::tour_proposal_part::reorder                         ? tr("Reorder")
-				: item.Part == core::tour_proposal_part::focus                           ? tr("Set focus")
 																						 : tr("Accept");
 			auto* const accept      = new quiet_push_button{ acceptWords, box };
 			accept->setObjectName(QStringLiteral("tourProposalAccept"));
@@ -1330,7 +1326,6 @@ namespace bpr::qt {
 								   : item.Part == core::tour_proposal_part::merge_stops ? tr("Makes these stops one, keeping all their lines, with this explanation. Undo arrangement takes it back.")
 								   : item.Part == core::tour_proposal_part::split_stop  ? tr("Puts these stops in this stop's place. Undo arrangement takes it back.")
 								   : item.Part == core::tour_proposal_part::reorder     ? tr("Puts the stops in this order. Undo arrangement takes it back.")
-								   : item.Part == core::tour_proposal_part::focus       ? tr("Remembers this focus for the tour's later drafts and chat turns.")
 																						: tr("Puts this text in the tour's %1.").arg(heading));
 			auto* const discard = new quiet_push_button{ tr("Discard"), box };
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
@@ -1394,10 +1389,6 @@ namespace bpr::qt {
 						label->setMinimumSize(1, 1);
 					}
 				}
-				box->installEventFilter(this);
-			} else if (item.Part == core::tour_proposal_part::focus) {
-				// [[BPR-1930]]. The tour's focus waits under the line.
-				FocusSlot->addWidget(box);
 				box->installEventFilter(this);
 			} else {
 				ProposalItems->addWidget(box);

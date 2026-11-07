@@ -247,7 +247,12 @@ namespace bpr::core {
 		/// [[BPR-1914]] v003. How long the run worked, as the host measured
 		/// it, for "Worked for Ns".
 		std::optional<std::uint32_t> Seconds;
-		auto                         operator==(const tour_agent_run&) const -> bool = default;
+		/// [[BPR-1930]] follow-up. The focus this turn set, the one it
+		/// replaced, and whether the author undid it.
+		std::string FocusSet;
+		std::string FocusBefore;
+		bool        FocusUndone                                     = false;
+		auto        operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;
@@ -282,6 +287,17 @@ namespace bpr::core {
 	/// \brief [[BPR-1930]]. Clears the remembered focus; false when there was
 	/// none.
 	auto clear_tour_focus(tour_agent_session& aSession) -> bool;
+	/// \brief [[BPR-1930]] follow-up. A whole-tour turn's focus, applied at
+	/// once: the session's focus becomes `aFocus`, and the ended turn `aRun`
+	/// keeps it and the focus it replaced, for its chat line and Undo. False
+	/// for an unknown or running turn, or a focus `set_tour_focus` refuses.
+	auto apply_tour_focus(tour_agent_session& aSession, tour_agent_run_id aRun, std::string_view aFocus) -> bool;
+	/// \brief [[BPR-1930]] follow-up. Undo on the turn's line: the focus it
+	/// replaced comes back, while the focus is still the one it set. False
+	/// otherwise, or when already undone.
+	auto undo_tour_focus(tour_agent_session& aSession, tour_agent_run_id aRun) -> bool;
+	/// \brief [[BPR-1930]] follow-up. Whether the turn's Undo is still offered.
+	[[nodiscard]] auto tour_focus_undoable(const tour_agent_session& aSession, const tour_agent_run& aRun) noexcept -> bool;
 	/// \brief [[BPR-1930]]. Keeps whole-tour feedback given while a Draft the
 	/// tour run is running, after any already kept, within
 	/// `maximum_tour_question_bytes`. Refused when no draft is running, or for
@@ -402,16 +418,14 @@ namespace bpr::core {
 		split_stop,
 		/// [[BPR-1930]]. The tour's stops in a new order (`Stops`).
 		reorder,
-		/// [[BPR-1930]]. A focus for later turns (`Text`).
-		focus,
 	};
-	inline constexpr std::size_t tour_proposal_part_count = 9U;
-	static_assert(static_cast<std::size_t>(tour_proposal_part::focus) + 1U == tour_proposal_part_count, "tour_proposal_part_count must cover every part");
+	inline constexpr std::size_t tour_proposal_part_count = 8U;
+	static_assert(static_cast<std::size_t>(tour_proposal_part::reorder) + 1U == tour_proposal_part_count, "tour_proposal_part_count must cover every part");
 	/// \brief [[BPR-1930]]. Whether a part changes the tour's structure:
 	/// removes, merges, splits or reorders its stops.
 	[[nodiscard]] auto structural(tour_proposal_part aPart) noexcept -> bool;
 	/// \brief [[BPR-1930]]. Whether accepting a part takes a text: the
-	/// Problem, the Solution, a stop's explanation, a merged stop's, a focus.
+	/// Problem, the Solution, a stop's explanation, a merged stop's.
 	[[nodiscard]] auto takes_text(tour_proposal_part aPart) noexcept -> bool;
 	enum class tour_proposal_decision : std::uint8_t {
 		pending,
@@ -466,7 +480,13 @@ namespace bpr::core {
 		/// [[BPR-1930]]. Revision parts the core refused (a stop number not in
 		/// the tour, a merge whose lines can't be kept, an order that isn't
 		/// every stop once), counted for the reply's line.
-		std::size_t Refused                                        = 0U;
+		std::size_t Refused = 0U;
+		/// [[BPR-1930]] follow-up, owner: "I dont really understand the focus
+		/// changes button". A focus the whole-tour turn read from the author's
+		/// words, trimmed and checked; not a part to accept. It changes no
+		/// text of the tour, so the host applies it at once
+		/// (`apply_tour_focus`), with Undo in the chat.
+		std::string Focus;
 		auto        operator==(const tour_proposal&) const -> bool = default;
 	};
 	/// \brief The proposal an answer makes against the draft as it is now:
