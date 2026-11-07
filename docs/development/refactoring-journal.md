@@ -13,3 +13,4 @@ One line per behavior-preserving restructuring round; linked cards hold scope, l
 - 2026-11-07 — [[BPR-1921]]: Split `diff_workbench.cpp` into three responsibility sources and a support header holding its widgets and nested types (7,145 to 85 lines; every new file under 2,000).
 - 2026-11-07 — [[BPR-1922]]: Split `github_mutation_contract.cpp` into five responsibility sources and a support header (6,972 to 46 lines; every new file under 1,900); the public contract header is unchanged.
 - 2026-11-07 — [[BPR-1923]]: Split `github_paged_read.cpp` into five responsibility sources and two support headers (6,407 to 42 lines; every new file under 2,000); the public paged-read header is unchanged.
+- 2026-11-07 — [[BPR-1926]]: Split `epoch_catalog.cpp` into six responsibility sources and a support header in a private `epoch_catalog_detail` namespace (6,446 to 43 lines; every new file under 1,300).
