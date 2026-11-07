@@ -49,6 +49,7 @@
 #include "bpr/application/setup_destination.hpp"
 #include "bpr/application/setup_destination_projection.hpp"
 #include "bpr/application/shared_draft_application_host.hpp"
+#include "bpr/application/skill_catalog.hpp"
 #include "bpr/application/source_corpus_port.hpp"
 #include "bpr/application/tour_owner_channel.hpp"
 #include "bpr/application/window_review_restoration_ports.hpp"
@@ -580,8 +581,20 @@ namespace bpr::app {
 		std::optional<tour_outline_proposal> OutlineProposal;
 		core::scoped_writing_state           WritingState;
 		std::optional<writing_operation>     PendingWriting;
-		[[nodiscard]] auto                   agent_idle() const -> bool;
-		[[nodiscard]] auto                   tour_session_idle() const -> bool;
+		/// [[BPR-1916]]. The skills a prompt can name: the person's own and
+		/// the reviewed repository's at the pull request's base.
+		std::unique_ptr<application::skill_catalog_loader> SkillCatalog;
+		application::skill_library                         SkillLibrary;
+		/// [[BPR-1916]]. Loads the skill catalog again: the person's skills,
+		/// and with a linked clone the repository's at the base commit.
+		void compose_skill_catalog();
+		void refresh_skills();
+		void present_skills(const application::skill_library& aLibrary);
+		/// [[BPR-1916]]. The skills a writing hook names, carried inline to
+		/// its run, whatever the agent.
+		[[nodiscard]] auto skill_run_for(core::writing_hook aHook) const -> skill_run;
+		[[nodiscard]] auto agent_idle() const -> bool;
+		[[nodiscard]] auto tour_session_idle() const -> bool;
 #if defined(BPR_AGENT_INTEGRATIONS)
 		[[nodiscard]] auto locate_claude() const -> application::claude_locator;
 
@@ -690,7 +703,8 @@ namespace bpr::app {
 		void               compose_tour_session(const std::vector<core::agent_profile>& aProfiles, const std::vector<core::agent_host_policy>& aPolicies);
 		[[nodiscard]] auto tour_reading_notice() const -> QString;
 		[[nodiscard]] auto reads_read_only(const core::agent_profile_id aProfile) const -> bool;
-		[[nodiscard]] auto dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor, const std::optional<core::tour_passage>& aPassage = std::nullopt) -> bool;
+		[[nodiscard]] auto dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor,
+											 const std::optional<core::tour_passage>& aPassage = std::nullopt, skill_run aSkills = { }) -> bool;
 		void               tour_run_admitted(const application::agent_invocation_projection_identity& aIdentity);
 		void               tour_run_refused(const std::string_view aReason);
 		void               tour_run_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);

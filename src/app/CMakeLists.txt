@@ -172,6 +172,7 @@ if(BPR_BUILD_QT)
             src/github_application/queue_notifications.cpp
             src/github_application/review_mutation_selection.cpp
             src/github_application/session_settings.cpp
+            src/github_application/skill_runs.cpp
             src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
             src/github_application/window_agent_chat.cpp
@@ -191,6 +192,7 @@ if(BPR_BUILD_QT)
             src/github_application/window_shutdown.cpp
             src/github_application/window_sign_in.cpp
             src/github_application/window_tours.cpp
+            src/github_application/window_skills.cpp
             src/github_application/window_workbench.cpp
             src/github_application/workbench_composition.cpp
             src/pane_find_controller.cpp
@@ -572,6 +574,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/review_mutation_selection.hpp
 		src/app/src/github_application/session_settings.cpp
 		src/app/src/github_application/session_settings.hpp
+		src/app/src/github_application/skill_runs.cpp
+		src/app/src/github_application/skill_runs.hpp
 		src/app/src/github_application/startup_failures.cpp
 		src/app/src/github_application/startup_failures.hpp
 		src/app/src/github_application/theme_document_file.cpp
@@ -596,6 +600,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/window_shutdown.cpp
 		src/app/src/github_application/window_sign_in.cpp
 		src/app/src/github_application/window_tours.cpp
+		src/app/src/github_application/window_skills.cpp
 		src/app/src/github_application/window_workbench.cpp
 		src/app/src/github_application/workbench_composition.cpp
 		src/app/src/github_application/workbench_composition.hpp

@@ -36,6 +36,7 @@ add_library(
         src/keyboard_shortcuts_window.cpp
         src/about_window.cpp
         src/writing_hooks_panel.cpp
+        src/skill_completer.cpp
         src/claude_wrapper_panel.cpp
         src/release_maintenance_panel.cpp
         src/profile_data_reset_views.cpp

@@ -1191,6 +1191,41 @@ entirely devoid of any formatting. It feels just like big walls of text."
   renders it again. A message that holds a fenced block inside a field is read
   as the JSON it is before any fence is looked for.
 
+### Amendment [[BPR-1916]] and [[BPR-1917]] (2026-11-06): skills in prompts, and the prompt editor
+
+The owner, 2026-11-06: "I wonder if I can't have a hook to let me reference a
+custom skill in my prompts if the skill is available in as a personal user
+skill or a skill in the repo being reviewed", and "the settings agent tab
+where we're editing the built-in prompts its a bit weak".
+
+- **S1. `/skill-name` in a prompt.** In a built-in prompt (Settings), an
+  Agent tab question and a Tour conversation question ([[BPR-1914]]), `/name`
+  names a skill; typing `/` completes the names
+  found, each with its source. Sources, bounds, precedence (personal over
+  repository unless `/repo:name`) and the quiet note for an unknown name are
+  in the [AI agent boundary](../architecture/ai-agent-boundary.md#skills-a-prompt-names-bpr-1916).
+- **S2. Inline, for every run (owner decision).** The named `SKILL.md` rides
+  in the request's supplement as escaped `skill.N.*` fields; no run gains the
+  `Skill` tool or a setting source. Native loading was evaluated on Claude
+  Code 2.1.310 and rejected because a wrapper can replace this application's
+  settings (owner: "my custom wrapper right now seems to throw away all my
+  settings on load its own, so we can't rely on that").
+- **S3. Referenced only; head allowed (owner decision).** Only skills a
+  prompt names reach a run. The owner allowed repository skills from the
+  pull request's head on that condition; the reader takes them at the base
+  from the linked clone, and shows "this pull request's repository" as their
+  source. The [threat model](../architecture/security-threat-model.md#skills-a-prompt-names-bpr-1916)
+  records the rule.
+- **S4. The built-in prompts' editor ([[BPR-1917]]).** Settings, Agents &
+  context lists every built-in prompt under where it is used (Tour tab:
+  Problem statement, Solution summary, Tour outline, Tour-stop comment;
+  Comments: Review feedback; Agent tab: Review skill), each with what it is
+  for. The editor is fixed-pitch and wraps; it says Built-in or Changed from
+  built-in, Reset to built-in restores the default (Undo reset brings the
+  text back unsaved), Preview shows what a run receives with the named
+  skills brought in, and unsaved edits are marked and kept per prompt until
+  saved or discarded. The owner's look on a frozen build decides it.
+
 ## Acceptance criteria
 
 - **AC01:** With no agent chosen for the profile, opening the Agent tab on a

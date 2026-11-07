@@ -2,6 +2,7 @@
 
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/skill_completer.hpp"
 
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
@@ -785,6 +786,8 @@ namespace bpr::qt {
 		composer->setParent(field);
 		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
+		// [[BPR-1916]]. `/name` completion of the person's own skills.
+		SkillCompletion = new skill_completer{ composer };
 		composer->setMaximumHeight(90);
 		composer->viewport()->setAutoFillBackground(false);
 		fieldCol->addWidget(composer);
@@ -2824,6 +2827,13 @@ namespace bpr::qt {
 			return std::nullopt;
 		}
 	} // namespace
+
+	void agent_tab_view::present_skills(std::vector<core::skill_entry> aSkills)
+	{
+		if (SkillCompletion != nullptr) {
+			SkillCompletion->present(std::move(aSkills));
+		}
+	}
 
 	void agent_tab_view::refuse_send(core::agent_send_refusal aRefusal, const QString& aDetail)
 	{

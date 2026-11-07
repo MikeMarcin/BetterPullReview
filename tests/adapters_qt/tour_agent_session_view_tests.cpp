@@ -6,6 +6,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include <QApplication>
 #include <QClipboard>
@@ -155,6 +156,38 @@ namespace {
 		panel->accept_button(0)->click();
 		expect(!decided.empty() && std::get<2>(decided.back()).startsWith(QStringLiteral("Each view clears its own target.\n\n- `clear()`")), "Accept sends the Markdown source");
 		aEditor.present_tour_session(session, std::nullopt);
+	}
+}
+
+namespace {
+	/// [[BPR-1916]]. `/name` completion in the conversation's ask box: the
+	/// rows say where each skill came from, Return chooses a row while the
+	/// list is open and only then asks, with the name in the question.
+	void skills_in_the_ask_box(qt::review_tour_editor& aEditor)
+	{
+		auto* const panel = aEditor.tour_agent();
+		auto        asked = std::vector<QString>{ };
+		aEditor.set_tour_ask_dispatch([&asked](const std::optional<core::tour_passage>&, const QString& aQuestion) { asked.push_back(aQuestion); });
+		panel->present_skills({ { .Name = "fixture-technical-writer", .Description = "Short paragraphs.", .Source = core::skill_source::personal, .Origin = "~/.claude/skills" },
+								{ .Name = "team-voice", .Description = "The team's.", .Source = core::skill_source::repository, .Origin = "this pull request's repository, .claude/skills at base 1a2b3c4" } });
+		panel->ask_about(std::nullopt);
+		panel->transcript()->activateWindow();
+		panel->ask_box()->setFocus();
+		QApplication::processEvents();
+		expect(panel->skill_completion() != nullptr, "the ask box completes skills");
+		panel->ask_box()->clear();
+		panel->ask_box()->insertPlainText(QStringLiteral("Rewrite the Solution as /fix"));
+		QApplication::processEvents();
+		const auto rows = panel->skill_completion()->rows();
+		expect(rows == QStringList{ QStringLiteral("/fixture-technical-writer (Personal, ~/.claude/skills)") }, "completion lists the matching skill with its source");
+		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
+		QApplication::sendEvent(panel->ask_box(), &enter);
+		expect(asked.empty() && panel->ask_box()->toPlainText() == QStringLiteral("Rewrite the Solution as /fixture-technical-writer "), "Return chooses the row and does not ask yet");
+		panel->ask_box()->insertPlainText(QStringLiteral("says."));
+		QApplication::processEvents();
+		QApplication::sendEvent(panel->ask_box(), &enter);
+		expect(asked.size() == 1U && asked[0] == QStringLiteral("Rewrite the Solution as /fixture-technical-writer says."), "the question carries the skill's name");
+		panel->transcript()->hide();
 	}
 }
 
@@ -384,6 +417,7 @@ auto main(int argc, char** argv) -> int
 	}
 	conversation(editor, prefix);
 	formatted(editor, prefix);
+	skills_in_the_ask_box(editor);
 	std::cout << "tour-agent-session-view:pass\n";
 	return EXIT_SUCCESS;
 }

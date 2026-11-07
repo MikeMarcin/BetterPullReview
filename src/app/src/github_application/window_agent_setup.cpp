@@ -643,6 +643,7 @@ namespace bpr::app {
 		}
 		if (!AgentReview) {
 			CloneLinks->observe_repository(std::nullopt);
+			refresh_skills();
 			return;
 		}
 		auto repository       = application::clone_repository{ };
@@ -663,6 +664,7 @@ namespace bpr::app {
 		}
 	#endif
 		CloneLinks->observe_repository(std::move(repository));
+		refresh_skills();
 	}
 
 	/// [[BPR-1879]], RFC-BPR-0092. The download of the clone
@@ -873,6 +875,9 @@ namespace bpr::app {
 		// no clone: its Repository step is done without one, never a question.
 		AgentSetup->set_repository_chosen(CloneLinks->repository_chosen() || (AgentReview && !AgentReview->Sparse));
 		present_setup_view();
+		// [[BPR-1916]]. A linked, changed or forgotten clone changes which
+		// repository skills there are.
+		refresh_skills();
 	}
 
 	/// [[BPR-1753]], RFC-BPR-0092. The Agent tab's setup and its
@@ -1189,6 +1194,7 @@ namespace bpr::app {
 				},
 		});
 		Window->review_skill()->present(ReviewSkill->projection(), std::string{ application::built_in_review_skill() });
+		Window->writing_hooks()->present_review_skill_changed(Window->review_skill()->changed());
 		present_setup_view();
 	}
 

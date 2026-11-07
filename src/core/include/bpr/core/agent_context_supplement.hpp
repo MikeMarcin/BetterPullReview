@@ -167,6 +167,33 @@ namespace bpr::core {
 		auto operator<=>(const supplement_feedback_guidance&) const = default;
 	};
 
+	/// \brief [[BPR-1916]]. The most skills one request carries inline.
+	inline constexpr std::size_t maximum_supplement_skills = 4U;
+	/// \brief The longest `SKILL.md` one request carries inline.
+	inline constexpr std::size_t maximum_supplement_skill_bytes = 64U * 1024U;
+	/// \brief The longest origin, or supporting file name, of one skill.
+	inline constexpr std::size_t maximum_supplement_skill_label_bytes = 512U;
+	/// \brief The most supporting files one skill lists.
+	inline constexpr std::size_t maximum_supplement_skill_files = 24U;
+
+	/// \brief [[BPR-1916]]. A skill the person's prompt named, carried inline:
+	/// the one mechanism, for every run and agent kind (owner, 2026-11-06).
+	///
+	/// \details `Source` is `personal` or `repository`; a repository skill is
+	/// the base side's. The text is the author's writing guidance; it grants
+	/// no tool, publication or review authority. Supporting files are named,
+	/// never loaded. Only skills the prompt names are carried.
+	struct supplement_skill
+	{
+		std::string              Name;
+		std::string              Source;
+		std::string              Origin;
+		std::string              Text;
+		std::vector<std::string> Supporting;
+
+		auto operator<=>(const supplement_skill&) const = default;
+	};
+
 	/// \brief [[BPR-1752]], RFC-BPR-0092. The review brief's bounds.
 	inline constexpr std::size_t maximum_brief_title_bytes       = 1024U;
 	inline constexpr std::size_t maximum_brief_description_bytes = 16U * 1024U;
@@ -446,6 +473,9 @@ namespace bpr::core {
 		/// [[BPR-1773]]. The conversation the reviewer asked about; one
 		/// outside its bounds refuses the request whole.
 		std::optional<supplement_conversation> Conversation;
+		/// [[BPR-1916]]. Skills the prompt named, inline; outside their
+		/// bounds the request is refused whole.
+		std::vector<supplement_skill> Skills;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -493,6 +523,9 @@ namespace bpr::core {
 		/// [[BPR-1773]]. The conversation asked about, carried through
 		/// unchanged; absent for every other launch.
 		std::optional<supplement_conversation> Conversation;
+		/// [[BPR-1916]]. Skills the prompt named, carried inline; empty for
+		/// every launch whose prompt named none.
+		std::vector<supplement_skill> Skills;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};

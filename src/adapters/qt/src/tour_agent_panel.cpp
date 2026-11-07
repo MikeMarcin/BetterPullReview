@@ -6,6 +6,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/skill_completer.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QClipboard>
@@ -431,7 +432,10 @@ namespace bpr::qt {
 		AskBox->document()->setDocumentMargin(6);
 		AskBox->setFixedHeight(3 * AskBox->fontMetrics().lineSpacing() + 22);
 		AskBox->installEventFilter(new ask_keys{ AskBox, [this] { send_ask(); } });
-		Ask = new quiet_push_button{ tr("Ask"), TranscriptWindow };
+		// [[BPR-1916]]. `/name` completion; installed after Return's filter,
+		// so Return chooses a row while the list is open.
+		SkillCompletion = new skill_completer{ AskBox };
+		Ask             = new quiet_push_button{ tr("Ask"), TranscriptWindow };
 		Ask->setObjectName(QStringLiteral("tourAsk"));
 		Ask->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		composer->addWidget(AskBox, 1);
@@ -1151,6 +1155,13 @@ namespace bpr::qt {
 			aCursor.movePosition(QTextCursor::End);
 			aCursor.insertBlock(QTextBlockFormat{ }, QTextCharFormat{ });
 			aCursor.insertHtml(QStringLiteral("<p style=\"color:%1; margin-top:6px\"><i>%2</i></p>").arg(accent, proposed.toHtmlEscaped()));
+		}
+	}
+
+	void tour_agent_panel::present_skills(std::vector<core::skill_entry> aSkills)
+	{
+		if (SkillCompletion != nullptr) {
+			SkillCompletion->present(std::move(aSkills));
 		}
 	}
 }

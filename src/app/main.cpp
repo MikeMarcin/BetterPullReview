@@ -267,6 +267,8 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
+		bpr::app::command_line_option{ .Name = "attended-skill-home", .TakesValue = true },
+		bpr::app::command_line_option{ .Name = "attended-prompt-editor" },
 		bpr::app::command_line_option{ .Name = "attended-read-state" },
 		bpr::app::command_line_option{ .Name = "attended-tour-stop" },
 		bpr::app::command_line_option{ .Name = "attended-workshop-agent", .TakesValue = true },
@@ -5598,6 +5600,7 @@ namespace {
 	void schedule_attended_unknown_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_finish_review_look(bpr::app::github_application& aApplication);
 	void schedule_attended_notes_look(bpr::app::github_application& aApplication);
+	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication);
 	void schedule_attended_tour_look(bpr::app::github_application& aApplication, bool aBriefOnly = false);
 	void schedule_attended_conversation_look(bpr::app::github_application& aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
@@ -5696,6 +5699,8 @@ namespace {
 						schedule_attended_tour_look(aApplication);
 					} else if (look == "tour-authoring") {
 						schedule_attended_tour_look(aApplication, true);
+					} else if (look == "prompt-editor") {
+						schedule_attended_prompt_editor_look(aApplication);
 	#if defined(BPR_AGENT_INTEGRATIONS)
 					} else if (look == "agent") {
 						schedule_attended_agent_look(aApplication);
@@ -5823,6 +5828,65 @@ namespace {
 			window.settings_action()->trigger();
 			QTextStream{ stdout } << (window.settings()->isVisible() ? "ATTENDED_SETTINGS_SHOWN" : "ATTENDED_SETTINGS_FAILED") << '\n';
 		});
+	}
+
+	// [[BPR-1916]], [[BPR-1917]]. `--attended-prompt-editor`: once the file
+	// shows, Settings opens on Agents & context with the built-in prompts,
+	// and Problem statement is changed through its own Save to name the
+	// fixture home's `/fixture-technical-writer`, so the look starts on a
+	// changed prompt whose Reset and Preview the person tries. The skill
+	// catalog is the fixture home's (`--attended-skill-home`), never the
+	// person's. One line says it is shown.
+	void schedule_attended_prompt_editor_look(bpr::app::github_application& aApplication)
+	{
+		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto  started = automated_clock::now();
+		timer->setInterval(50);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, started, saved = false, alive = aApplication.liveness()]() mutable {
+			if (alive.expired()) {
+				return;
+			}
+			auto&       window = aApplication.window();
+			auto* const hooks  = window.writing_hooks();
+			const auto  finish = [timer](const QString& aLine) {
+				QTextStream{ stdout } << aLine << '\n';
+				QTextStream{ stdout }.flush();
+				timer->stop();
+				timer->deleteLater();
+			};
+			if (automated_clock::now() - started > std::chrono::seconds{ 30 }) {
+				finish(QStringLiteral("ATTENDED_PROMPT_EDITOR_FAILED:timeout"));
+				return;
+			}
+			auto* const text   = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
+			auto* const save   = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
+			auto* const badge  = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookBadge")) : nullptr;
+			auto* const skills = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookSkills")) : nullptr;
+			if (text == nullptr || save == nullptr || badge == nullptr || skills == nullptr) {
+				finish(QStringLiteral("ATTENDED_PROMPT_EDITOR_FAILED:surfaces"));
+				return;
+			}
+			if (!saved) {
+				// The skill catalog answers on the decision lane; wait for it.
+				if (!skills->text().contains(QStringLiteral("Type /"))) {
+					return;
+				}
+				window.settings_action()->trigger();
+				window.settings()->present(bpr::qt::settings_page::agents_and_context);
+				hooks->select_hook(bpr::core::writing_hook::problem);
+				hooks->show_preview(false);
+				text->setPlainText(text->toPlainText() + QStringLiteral("\n\nWrite it the way /fixture-technical-writer says: short paragraphs, a list where steps are a list."));
+				save->click();
+				saved = true;
+				return;
+			}
+			if (badge->text() != QStringLiteral("Changed from built-in")) {
+				return;
+			}
+			hooks->ensurePolished();
+			finish(QStringLiteral("ATTENDED_PROMPT_EDITOR_SHOWN:skills=%1").arg(skills->text()));
+		});
+		timer->start();
 	}
 
 	// [[BPR-1541]]. `--attended-unknown-review-look`: on
@@ -6866,12 +6930,11 @@ namespace {
 			auto&       window = aApplication.window();
 			auto* const editor = window.review_editor();
 			auto* const hooks  = window.writing_hooks();
-			auto* const choice = hooks != nullptr ? hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice")) : nullptr;
 			auto* const text   = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
 			auto* const save   = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
 			auto* const source = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookSource")) : nullptr;
 			auto* const scope  = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookScope")) : nullptr;
-			if (editor == nullptr || choice == nullptr || text == nullptr || save == nullptr || source == nullptr || scope == nullptr) {
+			if (editor == nullptr || hooks == nullptr || text == nullptr || save == nullptr || source == nullptr || scope == nullptr) {
 				finish(QStringLiteral("ATTENDED_WORKSHOP_FAILED:surfaces"));
 				return;
 			}
@@ -6894,7 +6957,7 @@ namespace {
 				case bpr::app::detail::fixture_file_reveal_result::shown:
 					break;
 				}
-				choice->setCurrentIndex(choice->findData(QVariant::fromValue(static_cast<int>(bpr::core::writing_hook::feedback))));
+				hooks->select_hook(bpr::core::writing_hook::feedback);
 				state->Step = step::guidance;
 				return;
 			case step::guidance:
@@ -6906,7 +6969,7 @@ namespace {
 				state->Step = step::saved;
 				return;
 			case step::saved:
-				if (source->text().startsWith(QStringLiteral("Profile override"))) {
+				if (source->text().startsWith(QStringLiteral("Changed from built-in"))) {
 					state->Step = step::press;
 				}
 				return;
@@ -10963,6 +11026,13 @@ auto main(int argc, char** argv) -> int
 		const auto attendedAgentLook = launch.value("--attended-agent-look");
 		// [[BPR-1879]]. The Agent tab's Repository step, for a look at it.
 		const auto attendedRepositoryLook = launch.has("--attended-repository-look");
+		// [[BPR-1916]], [[BPR-1917]]. A fixture home of skills that stands in
+		// for the person's own, and after the file, Settings' built-in prompts
+		// with one changed to name a skill.
+		if (const auto skills = launch.value("--attended-skill-home"); skills.has_value() && !skills->empty()) {
+			fixtureOptions.PersonalSkillHome = std::filesystem::path{ std::string{ *skills } };
+		}
+		const auto attendedPromptEditor = launch.has("--attended-prompt-editor");
 		if (attendedRepositoryLook) {
 			// Every fixture review is read whole; the look shows the step as a
 			// review read through `gh` shows it, where the choice is.
@@ -11543,6 +11613,9 @@ auto main(int argc, char** argv) -> int
 					}
 					if (attendedRepositoryLook) {
 						look = std::string{ "repository" };
+					}
+					if (attendedPromptEditor) {
+						look = std::string{ "prompt-editor" };
 					}
 					if (attendedUnknownReviewLook) {
 						look = std::string{ "unknown-review" };

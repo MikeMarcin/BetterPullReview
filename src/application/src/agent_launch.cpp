@@ -1220,6 +1220,22 @@ namespace bpr::application {
 						++blockIndex;
 						continue;
 					}
+					// [[BPR-1916]]. No run is given the Skill tool: skills a prompt
+					// names ride inline. A Skill use a wrapper made possible names
+					// a skill no reference brought in. Strict, it ends the run;
+					// relaxed ([[BPR-1918]]), it is named, with the skill.
+					if ((aWritingOnly || aReadOnly) && *type == "assistant" && *blockType == "tool_use") {
+						if (const auto* tool = string_member(block, "name"); tool != nullptr && *tool == "Skill") {
+							if (!relaxed) {
+								return std::unexpected(agent_protocol_failure::tool_refused);
+							}
+							const auto* input = object_member(block, "input");
+							const auto* skill = input == nullptr ? nullptr : string_member(*input, "skill");
+							relax(events, relaxed_check::skill, "Skill", (skill == nullptr ? std::string{ "a skill" } : *skill) + ", which no prompt named");
+							++blockIndex;
+							continue;
+						}
+					}
 					if (aWritingOnly && *blockType != "text") {
 						if (!relaxed) {
 							return std::unexpected(
@@ -2004,6 +2020,7 @@ namespace bpr::application {
 			.FeedbackGuidance   = aObservation.FeedbackGuidance,
 			.Brief              = aObservation.Brief,
 			.Conversation       = aObservation.Conversation,
+			.Skills             = aObservation.Skills,
 		};
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
@@ -2313,6 +2330,25 @@ namespace bpr::application {
 				append_field(aResult, "feedback_guidance.source", core::stable_name(aSupplement.FeedbackGuidance->Source));
 				append_field(aResult, "feedback_guidance.version", aSupplement.FeedbackGuidance->Version);
 				append_field(aResult, "feedback_guidance.text", aSupplement.FeedbackGuidance->Text);
+			}
+			// [[BPR-1916]]: the skills the prompt named, inline, each field one
+			// escaped line, so a skill's text cannot end its field or pose as
+			// another field. Written only when present, as the guidance above
+			// is, so a prompt that names none keeps its exact bytes.
+			if (!aSupplement.Skills.empty()) {
+				append_number(aResult, "skill.count", aSupplement.Skills.size());
+				for (std::size_t index = 0U; index < aSupplement.Skills.size(); ++index) {
+					const auto& skill  = aSupplement.Skills[index];
+					const auto  prefix = "skill." + std::to_string(index);
+					append_field(aResult, prefix + ".name", skill.Name);
+					append_field(aResult, prefix + ".source", skill.Source);
+					append_field(aResult, prefix + ".origin", skill.Origin);
+					append_field(aResult, prefix + ".text", skill.Text);
+					append_number(aResult, prefix + ".supporting.count", skill.Supporting.size());
+					for (std::size_t file = 0U; file < skill.Supporting.size(); ++file) {
+						append_field(aResult, prefix + ".supporting." + std::to_string(file), skill.Supporting[file]);
+					}
+				}
 			}
 			append_field(
 				aResult,

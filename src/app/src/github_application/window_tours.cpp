@@ -20,6 +20,8 @@
 #include <QWidget>
 
 #include <algorithm>
+#include <array>
+#include <string_view>
 #include <variant>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
@@ -710,7 +712,14 @@ namespace bpr::app {
 		PendingWriting      = writing_operation{ *request, std::move(sources), { }, false, readOnly };
 		Window->tour_editor()->show_writing_notice(readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable."));
 		const auto asked = Window->tour_editor()->request_name(aHook);
-		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), readOnly ? std::string{ application::read_only_writing_preamble() } + *prompt : *prompt, readOnly ? std::optional{ aHook } : std::nullopt)) {
+		// [[BPR-1916]]. The skills the hook names, inline.
+		auto skills = skill_run_for(aHook);
+		auto text   = (readOnly ? std::string{ application::read_only_writing_preamble() } + *prompt : *prompt) + skills.Directive;
+		if (skills.Note) {
+			Window->tour_editor()->show_writing_notice((readOnly ? tour_reading_notice() : QStringLiteral("Writing assistance running… Your text remains editable.")) + QStringLiteral(" ")
+													   + QString::fromStdString(*skills.Note));
+		}
+		if (!dispatch_tour_run(target->Agent, kind, asked.toStdString(), text, readOnly ? std::optional{ aHook } : std::nullopt, std::nullopt, std::move(skills))) {
 			cancel_writing();
 		}
 #else
@@ -779,7 +788,8 @@ namespace bpr::app {
 	/// [[BPR-1900]]. The one way a tour request reaches the tour session:
 	/// the core starts the run in the session, then the launch path sends it
 	/// (`aRunFor` names the hook whose control shows it running).
-	auto github_application::implementation::dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor, const std::optional<core::tour_passage>& aPassage) -> bool
+	auto github_application::implementation::dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor,
+															   const std::optional<core::tour_passage>& aPassage, skill_run aSkills) -> bool
 	{
 		adopt_tour_conversation();
 		const auto tools = core::tools_for(aKind);
@@ -790,7 +800,7 @@ namespace bpr::app {
 		TourRun = *run;
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
-		auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only };
+		auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
 				if (file.Change != application::github_file_change::removed) {
@@ -949,8 +959,16 @@ namespace bpr::app {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
 		}
-		TourAskPending = true;
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, *prompt, std::nullopt, aPassage)) {
+		// [[BPR-1916]]. The skills the question names, inline; an unknown
+		// name stays text, said once in the notice.
+		const auto texts  = std::array{ std::string_view{ question } };
+		auto       skills = prepare_skill_run(SkillLibrary, texts);
+		if (skills.Note) {
+			Window->tour_editor()->show_writing_notice(QString::fromStdString(*skills.Note));
+		}
+		const auto text = *prompt + skills.Directive;
+		TourAskPending  = true;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, text, std::nullopt, aPassage, std::move(skills))) {
 			TourAskPending = false;
 		}
 	}
@@ -1378,9 +1396,11 @@ namespace bpr::app {
 			return;
 		}
 		PendingWriting = writing_operation{ request, std::move(sources), { }, true };
-		Window->writing_hooks()->show_notice("Testing saved hook… Nothing will be inserted or published.");
+		auto skills    = skill_run_for(aHook);
+		Window->writing_hooks()->show_notice(skills.Note ? "Testing saved prompt… Nothing will be inserted or published. " + *skills.Note : std::string{ "Testing saved prompt… Nothing will be inserted or published." });
 #if defined(BPR_AGENT_INTEGRATIONS)
-		if (!dispatch_agent_invocation(*selected, { }, { }, false, *prompt, { }, core::agent_entry_point::ask_about_selection, { }, true)) {
+		const auto text = *prompt + skills.Directive;
+		if (!dispatch_agent_invocation(*selected, { }, { }, false, text, { }, core::agent_entry_point::ask_about_selection, { }, true, tour_launch{ .Skills = std::move(skills) })) {
 			PendingWriting.reset();
 			Window->writing_hooks()->show_notice("An available agent and exact approved review context are required.");
 		}

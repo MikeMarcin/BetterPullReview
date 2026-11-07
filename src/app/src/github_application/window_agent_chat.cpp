@@ -552,6 +552,17 @@ namespace bpr::app {
 			.EntryPoint        = aEntryPoint,
 			.WorkshopOperation = aWorkshopOperation,
 		};
+		// [[BPR-1916]]. The skills an Agent tab question names ride with
+		// it, inline. A tour writing run's come from its hook (see
+		// skill_run_for), not from its prompt's template text.
+		if (!aWritingOnly && !aChatMessage.empty()) {
+			const auto texts  = std::array{ std::string_view{ aChatMessage } };
+			auto       skills = prepare_skill_run(SkillLibrary, texts);
+			if (!skills.Inline.empty() && observation.ChatMessage.size() + skills.Directive.size() <= core::maximum_chat_message_bytes) {
+				observation.Skills = std::move(skills.Inline);
+				observation.ChatMessage += skills.Directive;
+			}
+		}
 		// [[BPR-1091]]. A comment-workshop press, and nothing else, sends
 		// the profile's review-feedback guidance, read now from the
 		// preferences the profile has published, and only while its label
@@ -796,6 +807,8 @@ namespace bpr::app {
 			invocation.HistoryCloneManaged = aTour.ReadOnly && linked_history_clone_managed(false);
 			invocation.MeasurePaths        = aTour.Measure;
 			invocation.RunChecks           = checks;
+			// [[BPR-1916]]. The skills the prompt names ride in the supplement.
+			invocation.Context.Skills = aTour.Skills.Inline;
 			TourSession->dispatch(std::move(invocation));
 			return true;
 		}

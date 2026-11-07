@@ -1,6 +1,7 @@
 #include "bpr/core/agent_context_supplement.hpp"
 
 #include "bpr/core/review_preparation.hpp"
+#include "bpr/core/skill_references.hpp"
 
 #include <algorithm>
 #include <cstddef>
@@ -187,6 +188,16 @@ namespace bpr::core {
 				&& valid_writing_utf8(aGuidance.Version)
 				&& enumerator_at_most(aGuidance.Source, feedback_guidance_source::profile_override);
 		}
+
+		/// \brief [[BPR-1916]]. A skill carried inline: a valid name, a known
+		/// source, a bounded UTF-8 text, origin and file list.
+		[[nodiscard]] auto valid_skill(const supplement_skill& aSkill) -> bool
+		{
+			const auto label = [](const std::string& aText) { return !aText.empty() && aText.size() <= maximum_supplement_skill_label_bytes && valid_writing_utf8(aText); };
+			return valid_skill_name(aSkill.Name) && (aSkill.Source == stable_name(skill_source::personal) || aSkill.Source == stable_name(skill_source::repository))
+				&& label(aSkill.Origin) && !aSkill.Text.empty() && aSkill.Text.size() <= maximum_supplement_skill_bytes && valid_writing_utf8(aSkill.Text)
+				&& aSkill.Supporting.size() <= maximum_supplement_skill_files && std::ranges::all_of(aSkill.Supporting, label);
+		}
 	} // namespace
 
 	auto stable_name(const feedback_guidance_source aSource) noexcept -> std::string_view
@@ -218,7 +229,9 @@ namespace bpr::core {
 			|| (aRequest.FeedbackGuidance && !valid_feedback_guidance(aRequest.Operation, *aRequest.FeedbackGuidance))
 			|| (aRequest.Brief && !valid_brief(*aRequest.Brief))
 			|| (aRequest.Conversation && !valid_conversation(*aRequest.Conversation))
-			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))) {
+			|| (aRequest.Selection && !valid_selection(*aRequest.Selection))
+			|| aRequest.Skills.size() > maximum_supplement_skills
+			|| !std::ranges::all_of(aRequest.Skills, valid_skill)) {
 			return std::nullopt;
 		}
 		if (
@@ -255,6 +268,7 @@ namespace bpr::core {
 			.FeedbackGuidance   = aRequest.FeedbackGuidance,
 			.Brief              = aRequest.Brief,
 			.Conversation       = aRequest.Conversation,
+			.Skills             = aRequest.Skills,
 		};
 	}
 
