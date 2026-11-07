@@ -393,6 +393,15 @@ namespace bpr::application {
 	/// keeps, and how much of what each was asked.
 	inline constexpr std::size_t maximum_agent_tool_activity       = 256U;
 	inline constexpr std::size_t maximum_agent_tool_activity_bytes = 512U;
+	/// \brief [[BPR-1912]]. The note before a read-only Claude run's shell
+	/// command outside `core::read_only_programs`, as its `tool_activity`
+	/// carries it once its result says what Claude did: denied, ran, or
+	/// never matched to a result (past `maximum_agent_tool_activity` held
+	/// commands). `tour_transcript_of` reads them back as
+	/// `core::tour_transcript_note`.
+	inline constexpr std::string_view read_only_not_run_note   = "(not run, outside the read-only list) ";
+	inline constexpr std::string_view read_only_ran_note       = "(ran, outside the read-only list) ";
+	inline constexpr std::string_view read_only_unchecked_note = "(unchecked, outside the read-only list) ";
 
 	/// \brief The longest structured-finding payload one turn may return.
 	///
@@ -506,6 +515,11 @@ namespace bpr::application {
 		/// name and `Item` what it was asked (the path read, the pattern or
 		/// the command), for the tour session's transcript.
 		tool_activity,
+		/// [[BPR-1912]]. A read-only Claude run's shell command outside
+		/// `core::read_only_programs` ran: its result did not say it was
+		/// denied. Carries no text; its `tool_activity` names it. Counted for
+		/// the proposal and the diagnostic, never refused.
+		outside_list_ran,
 	};
 
 	struct agent_protocol_event
@@ -664,17 +678,18 @@ namespace bpr::application {
 		bool                         WritingOnly   = false;
 		agent_launch_purpose         Purpose       = agent_launch_purpose::conversation;
 		bool                         ReadOnlyTools = false;
-		/// [[BPR-1900]]. Shell commands of a read-only run awaiting their
-		/// result: refused if it says they ran.
-		std::vector<std::string> HeldTools;
-		std::string              Pending;
-		std::size_t              TotalBytes   = 0U;
-		bool                     Failed       = false;
-		std::uint8_t             Phase        = 0U;
-		bool                     SawAssistant = false;
-		std::string              RemoteSession;
-		std::string              RemoteThread;
-		std::string              RemoteTurn;
+		/// [[BPR-1900]], [[BPR-1912]]. Shell commands of a read-only run
+		/// outside its list, awaiting their result: the tool_use's id and
+		/// what it was asked, named once the result says what Claude did.
+		std::vector<std::pair<std::string, std::string>> HeldTools;
+		std::string                                      Pending;
+		std::size_t                                      TotalBytes   = 0U;
+		bool                                             Failed       = false;
+		std::uint8_t                                     Phase        = 0U;
+		bool                                             SawAssistant = false;
+		std::string                                      RemoteSession;
+		std::string                                      RemoteThread;
+		std::string                                      RemoteTurn;
 	};
 
 	/// \brief Every terminal condition the host exposes distinctly.
@@ -750,6 +765,9 @@ namespace bpr::application {
 		/// [[BPR-1900]]. A read-only run's tool uses in order: the tool and
 		/// what it was asked, at most `maximum_agent_tool_activity`.
 		std::vector<std::pair<std::string, std::string>> ToolActivity;
+		/// [[BPR-1912]]. How many of a read-only run's shell commands outside
+		/// the list ran, as `outside_list_ran` counts them.
+		std::size_t OutsideListCommands = 0U;
 		/// [[BPR-1900]]. The head line count of each path the request asked
 		/// to have measured in its workspace, as the host counted it before
 		/// the agent started; a path it could not count is absent.

@@ -1768,6 +1768,35 @@ person's own Claude account sign-in, never a paid API key
   sub-agent tools) for every model a ChatGPT account lists, whatever its
   flags, so a request is refused before any process starts.
 
+## Read-only tour drafting (BPR-1900, BPR-1912)
+
+A read-only drafting run ([AI agent boundary](ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900))
+loads Read, Grep, Glob and Bash in the review's private, disposable
+workspace.
+
+- **The gate is Claude's.** What acts before a shell command runs is
+  Claude's own permission check: `--allowedTools`, `--disallowedTools`,
+  `--permission-mode default`, and print mode denying anything that would
+  ask. This app sees each command only in Claude's frames, after Claude
+  decided. It ends the run for a tool outside the four, or an init frame
+  that loads another tool or any MCP server.
+- **Residual.** A read-only run is only as read-only as Claude's permission
+  check, plus whatever a wrapper's or policy's settings add to it, and it is
+  bounded by the private workspace. Claude approves the commands it
+  classifies as read-only without asking, beyond `--allowedTools`, and the
+  set changes between releases. Checked on 2026-11-06 with no wrapper,
+  installed Claude Code 2.1.310 ran `jq`, `xargs`, `column`, `comm` and `od`
+  on its own and denied `awk`, `less`, `python3 -c`, `touch` and `rm`. The
+  owner's Claude Code 2.1.314, through a wrapper, ran `awk` without asking.
+  Since 2.1.310 alone denies `awk`, the owner's case was Claude 2.1.314's
+  own classifier, the wrapper's permission rules, or both; this Mac cannot
+  tell which without that release and wrapper. This app sees what ran and
+  names it ("ran, outside the read-only list" in the transcript, a count on
+  the proposal, `outside_list=N` in the `agent.run` diagnostic, never the
+  command). It cannot undo it, and since ending the run would prevent
+  nothing, it does not end the run ([[BPR-1912]]), a write or delete
+  included.
+
 ## Claude process wrapper (BPR-1301)
 
 A profile may name one program to run in place of `claude`

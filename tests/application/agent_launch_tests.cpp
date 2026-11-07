@@ -1533,23 +1533,53 @@ namespace {
 		};
 		expect(refused(init + use("Edit", R"({"file_path":"a","old_string":"x","new_string":"y"})")), "an edit is refused");
 		expect(refused(init + use("Write", R"({"file_path":"a","content":"x"})")), "a write is refused");
-		// [[BPR-1900]]. A shell command the app does not admit is held: Claude's
-		// own allowlist denies it (installed 2.1.310 answers `is_error`), and the
-		// run goes on; a result that says it ran refuses the run.
+		// [[BPR-1900]], [[BPR-1912]]. A shell command the app does not admit is
+		// held until its result says what Claude's own permission check did:
+		// denied (installed 2.1.310 answers `is_error`), it reads "not run";
+		// run, it reads "ran" and is counted. The run goes on either way.
 		const auto bash = [](const std::string& aCommand) {
 			return R"({"type":"assistant","session_id":"s","message":{"id":"m-b","role":"assistant","content":[{"type":"tool_use","id":"tb","name":"Bash","input":{"command":")" + aCommand + R"("}}]}})" + "\n";
 		};
 		const auto outcome = [](const bool aDenied) {
 			return R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done","is_error":)" + std::string{ aDenied ? "true" : "false" } + "}]}}\n";
 		};
+		const auto tools_of = [](const std::vector<application::agent_protocol_event>& aEvents) {
+			auto named = std::vector<std::string>{ };
+			for (const auto& event : aEvents) {
+				if (event.Kind == application::agent_protocol_event_kind::tool_activity) {
+					named.push_back(event.Item);
+				}
+			}
+			return named;
+		};
+		const auto ran_count = [](const std::vector<application::agent_protocol_event>& aEvents) {
+			return std::ranges::count(aEvents, application::agent_protocol_event_kind::outside_list_ran, &application::agent_protocol_event::Kind);
+		};
 		{
 			auto       held = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
 			const auto read = held.push(init + bash("touch made.txt") + outcome(true) + answer);
-			expect(read.has_value() && held.finish().has_value(), "a write Claude denied lets the run answer");
-			expect(read && std::ranges::any_of(*read, [](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::tool_activity && aEvent.Item == "(not run, outside the read-only list) touch made.txt"; }), "the transcript says it was not run");
+			expect(read.has_value() && held.finish().has_value(), "AC2 a write Claude denied lets the run answer");
+			expect(read && tools_of(*read) == std::vector<std::string>{ "(not run, outside the read-only list) touch made.txt" } && ran_count(*read) == 0, "the transcript says it was not run");
 		}
-		expect(refused(init + bash("touch made.txt") + outcome(false)), "a write that ran is refused");
-		expect(refused(init + bash("rm -rf src") + R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done"}]}})" + "\n"), "a result that does not say it was denied is refused");
+		{
+			// AC1. The owner's probe on Claude Code 2.1.314: `awk` ran without
+			// asking, outside `--allowedTools`.
+			auto       probe = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto read  = probe.push(init + bash("awk 'NR<3' notes.txt") + outcome(false) + answer);
+			expect(read.has_value() && probe.finish().has_value(), "AC1 a command Claude ran outside the list does not end the run");
+			expect(read && tools_of(*read) == std::vector<std::string>{ "(ran, outside the read-only list) awk 'NR<3' notes.txt" } && ran_count(*read) == 1, "it is named as run outside the list, and counted");
+			expect(read && std::ranges::any_of(*read, [](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::output && aEvent.Text == "done"; }), "and the run answers");
+			const auto noted = application::tour_transcript_of({ { "Bash", "(ran, outside the read-only list) awk 'NR<3' /w/notes.txt" } }, "/w");
+			expect(noted == std::vector<core::tour_transcript_entry>{ { core::tour_transcript_kind::read, "awk 'NR<3' notes.txt", core::tour_transcript_note::ran_outside_list } }, "the transcript keeps its usual kind and the note");
+		}
+		{
+			// Owner decision at pickup: a write or delete Claude ran is
+			// reported the same way; ending the run would prevent nothing.
+			auto       wrote = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+			const auto read  = wrote.push(init + bash("touch made.txt") + outcome(false) + bash("rm -rf src") + R"({"type":"user","session_id":"s","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"tb","content":"done"}]}})" + "\n" + answer);
+			expect(read.has_value() && wrote.finish().has_value(), "a write that ran, and a result that does not say it was denied, are reported, not refused");
+			expect(read && tools_of(*read) == std::vector<std::string>{ "(ran, outside the read-only list) touch made.txt", "(ran, outside the read-only list) rm -rf src" } && ran_count(*read) == 2, "both are named as run outside the list");
+		}
 		{
 			auto chained = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
 			expect(chained.push(init + bash("git show --stat HEAD && git show HEAD | head -400") + outcome(false) + answer).has_value(), "a read-only chain runs");
@@ -1918,6 +1948,17 @@ namespace {
 		expect(application::describe(thinking) == "protocol=claude_stream_json outcome=success exit=0 stdout_bytes=1716 stderr_bytes=0 plugins=cc-plugin-sec-default@builtin,+2 memory=on thinking=on",
 			   "[[BPR-1899]] a writing run whose Claude wrote a thinking block reads thinking=on");
 		expect(application::parse_agent_run_diagnosis(application::describe(thinking)) == std::optional{ thinking }, "a line reading thinking=on reads back exactly");
+		// [[BPR-1912]] AC5. A read-only run counts the commands that ran
+		// outside the list, zero included, and never names them.
+		auto readOnly        = ended;
+		readOnly.OutsideList = 2U;
+		expect(application::describe(readOnly) == "protocol=claude_stream_json outcome=protocol_failure failure=frame_too_large exit=0 stdout_bytes=223211 stderr_bytes=0 outside_list=2", "a read-only run carries outside_list=N");
+		expect(application::parse_agent_run_diagnosis(application::describe(readOnly)) == std::optional{ readOnly }, "a line reading outside_list reads back exactly");
+		readOnly.OutsideList = 0U;
+		expect(application::describe(readOnly).ends_with(" outside_list=0"), "and outside_list=0 when none ran");
+		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 outside_list=awk", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 outside_list=" }) {
+			expect(!application::parse_agent_run_diagnosis(bad), "an outside_list token that is not a count is refused");
+		}
 		for (const auto* bad : { "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=off", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=x", "protocol=claude_stream_json stdout_bytes=1 stderr_bytes=0 thinking=on memory=on" }) {
 			expect(!application::parse_agent_run_diagnosis(bad), "a thinking token describe would not write is refused");
 		}

@@ -134,6 +134,7 @@
 	#include "bpr/application/clone_link_host.hpp"
 	#include "bpr/application/review_brief.hpp"
 	#include "bpr/application/review_skill_host.hpp"
+	#include "bpr/qt/agent_launch_panel.hpp"
 	#include "bpr/qt/agent_tab_view.hpp"
 #endif
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
@@ -10092,9 +10093,11 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				const auto state = aResult.Outcome == application::agent_run_outcome::success ? core::tour_agent_run_state::answered
 					: aResult.Outcome == application::agent_run_outcome::cancelled            ? core::tour_agent_run_state::cancelled
 																							  : core::tour_agent_run_state::failed;
-				auto       last  = state == core::tour_agent_run_state::answered ? tour_answer_words(aResult)
-					: state == core::tour_agent_run_state::cancelled             ? std::string{ "Stopped. Nothing in the tour changed." }
-																				 : words.toStdString();
+				// [[BPR-1913]]. A failed run's transcript keeps why, as the
+				// failure's own log says it, so Copy run carries the reason.
+				auto last = state == core::tour_agent_run_state::answered ? tour_answer_words(aResult)
+					: state == core::tour_agent_run_state::cancelled      ? std::string{ "Stopped. Nothing in the tour changed." }
+																		  : (words + QStringLiteral("\n\n") + qt::agent_launch_panel::failure_log(aResult)).toStdString();
 				static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, state, last));
 			}
 			const auto run = TourRun;

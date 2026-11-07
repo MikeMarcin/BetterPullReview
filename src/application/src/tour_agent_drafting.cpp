@@ -1,5 +1,7 @@
 #include "bpr/application/tour_agent_drafting.hpp"
 
+#include "bpr/application/agent_launch.hpp"
+
 #include "bpr/core/review_cycle_json.hpp"
 
 #include <array>
@@ -170,12 +172,28 @@ namespace bpr::application {
 		if (!root.empty() && root.back() != '/') {
 			root += '/';
 		}
+		// [[BPR-1912]]. The decoder's note before a command outside the list
+		// becomes the entry's note; the command keeps its usual kind.
+		static constexpr std::array<std::pair<std::string_view, core::tour_transcript_note>, 3> notes = { {
+			{ read_only_not_run_note, core::tour_transcript_note::not_run },
+			{ read_only_ran_note, core::tour_transcript_note::ran_outside_list },
+			{ read_only_unchecked_note, core::tour_transcript_note::unchecked },
+		} };
 		for (const auto& [tool, asked] : aActivity) {
-			auto shown = asked;
+			auto command = std::string_view{ asked };
+			auto note    = core::tour_transcript_note::none;
+			for (const auto& [prefix, meaning] : notes) {
+				if (tool == "Bash" && command.starts_with(prefix)) {
+					command.remove_prefix(prefix.size());
+					note = meaning;
+					break;
+				}
+			}
+			auto shown = std::string{ command };
 			for (auto at = root.empty() ? std::string::npos : shown.find(root); at != std::string::npos; at = shown.find(root)) {
 				shown.erase(at, root.size());
 			}
-			entries.push_back({ core::transcript_kind_of(tool, asked), std::move(shown) });
+			entries.push_back({ core::transcript_kind_of(tool, command), std::move(shown), note });
 		}
 		return entries;
 	}

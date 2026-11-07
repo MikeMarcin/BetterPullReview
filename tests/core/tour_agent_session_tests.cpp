@@ -91,6 +91,7 @@ namespace {
 		expect(decide_read_only_tool("Bash", "curl https://example.com") == refusal::program, "the network is refused");
 		expect(transcript_kind_of("Grep", "") == tour_transcript_kind::searched && transcript_kind_of("Read", "") == tour_transcript_kind::read, "Grep searches and Read reads");
 		expect(transcript_kind_of("Bash", "git log -3") == tour_transcript_kind::ran && transcript_kind_of("Bash", "rg x") == tour_transcript_kind::searched && transcript_kind_of("Bash", "head -5 a") == tour_transcript_kind::read, "shell commands are shown by what they do");
+		expect(transcript_kind_of("Bash", "awk 'NR<3' notes.txt") == tour_transcript_kind::read && transcript_kind_of("Bash", "rm -rf src") == tour_transcript_kind::ran && transcript_kind_of("Bash", "ls src") == tour_transcript_kind::searched, "[[BPR-1912]] a command outside the list is shown by what it does");
 	}
 
 	void transcript()
@@ -100,11 +101,13 @@ namespace {
 		expect(first.has_value() && running_tour_run(session) == first, "a run starts and is running");
 		expect(!begin_tour_run(session, tour_agent_request::outline, tour_agent_tools::read_only, "Suggest an outline"), "the session asks one thing at a time");
 		expect(record_tour_activity(session, *first, { { tour_transcript_kind::searched, "rg -n draw_scene" }, { tour_transcript_kind::read, "src/renderer.cpp" } }), "activity is recorded on a running run");
+		expect(record_tour_activity(session, *first, { { tour_transcript_kind::read, "awk 'NR<3' notes.txt", tour_transcript_note::ran_outside_list } }), "[[BPR-1912]] a command that ran outside the list is recorded");
+		expect(find_tour_run(session, *first)->Entries.back() == tour_transcript_entry{ tour_transcript_kind::read, "awk 'NR<3' notes.txt", tour_transcript_note::ran_outside_list } && find_tour_run(session, *first)->OutsideList == 1U, "under its usual kind, with its note, and counted");
 		expect(finish_tour_run(session, *first, tour_agent_run_state::answered, "A proposal of 3 stops"), "the run finishes");
 		expect(!record_tour_activity(session, *first, { { tour_transcript_kind::read, "late" } }), "nothing is added to a finished run");
 		expect(!finish_tour_run(session, *first, tour_agent_run_state::failed, "again"), "a run finishes once");
 		const auto* run = find_tour_run(session, *first);
-		expect(run != nullptr && run->Entries.size() == 4U && run->Entries.front().Kind == tour_transcript_kind::asked && run->Entries.back().Kind == tour_transcript_kind::answered, "asked, two tool lines, answered");
+		expect(run != nullptr && run->Entries.size() == 5U && run->Entries.front().Kind == tour_transcript_kind::asked && run->Entries.back().Kind == tour_transcript_kind::answered, "asked, three tool lines, answered");
 		const auto second = begin_tour_run(session, tour_agent_request::rewrite, tour_agent_tools::none, "Enhance problem statement");
 		expect(second && second->value() == 2U, "the next run has the next identity");
 		auto many = std::vector<tour_transcript_entry>(maximum_tour_transcript_entries + 5U, { tour_transcript_kind::read, std::string(5000U, 'x') });
@@ -112,6 +115,11 @@ namespace {
 		run = find_tour_run(session, *second);
 		expect(run->Entries.size() == maximum_tour_transcript_entries && run->Dropped == 6U, "the transcript is bounded and counts what it dropped");
 		expect(run->Entries[1].Text.size() <= maximum_tour_transcript_bytes + 3U, "an entry is bounded");
+		expect(run->OutsideList == 0U, "a run with no command outside the list counts none");
+		// [[BPR-1912]]. A command Claude ran outside the read-only list keeps
+		// its usual kind and its note, and is counted even past the bound.
+		static_cast<void>(record_tour_activity(session, *second, { { tour_transcript_kind::searched, "awk 'NR<3' notes.txt", tour_transcript_note::ran_outside_list }, { tour_transcript_kind::searched, "python3 -c x", tour_transcript_note::not_run } }));
+		expect(run->OutsideList == 1U && run->Dropped == 8U, "a command that ran outside the list is counted, a denied one is not");
 		expect(finish_tour_run(session, *second, tour_agent_run_state::cancelled, "Cancelled"), "a cancelled run ends");
 		for (int index = 0; index < 40; ++index) {
 			const auto next = begin_tour_run(session, tour_agent_request::rewrite, tour_agent_tools::none, "again");

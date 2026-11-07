@@ -109,9 +109,10 @@ auto main(int argc, char** argv) -> int
 	static_cast<void>(core::finish_tour_run(session, *run, core::tour_agent_run_state::failed, why.toStdString()));
 	editor.present_tour_session(session, std::nullopt);
 	expect(show->text() == QStringLiteral("Show the run"), "the notice's way is to the run");
-	expect(!editor.tour_agent()->transcript()->isVisibleTo(&editor), "the transcript is never shown by itself");
+	expect(!editor.tour_agent()->transcript()->isVisible(), "the transcript is never shown by itself");
 	show->click();
-	expect(opened == 0 && editor.tour_agent()->transcript()->isVisibleTo(&editor), "Show the run opens the tour session's transcript, not the Agent tab");
+	expect(opened == 0 && editor.tour_agent()->transcript()->isVisible() && editor.tour_agent()->transcript()->isWindow(), "Show the run opens the tour session's transcript, not the Agent tab");
+	expect(editor.tour_agent()->shown_run() == run, "[[BPR-1913]] in its own window, at the run that failed");
 	expect(editor.tour_agent()->transcript_text().contains(why), "the transcript says how the run ended, in the same words");
 	expect(notice->isVisible(), "following it leaves the notice until it is dismissed or the request is made again");
 

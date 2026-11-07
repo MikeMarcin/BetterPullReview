@@ -4600,6 +4600,12 @@ add_custom_command(TARGET test_scoped_writing_agent POST_BUILD
     # the workspace takes a few seconds, so a look sees it in the background.
     COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-claude"
     COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
+    # [[BPR-1913]]. And in `attended-drafting-failing-claude`, where the
+    # drafting run reads, runs one command outside the read-only list, then
+    # reaches for the network and is ended, so a look shows a failed run's
+    # transcript.
+    COMMAND "${CMAKE_COMMAND}" -E make_directory "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-failing-claude"
+    COMMAND "${CMAKE_COMMAND}" -E copy_if_different "$<TARGET_FILE:test_scoped_writing_agent>" "${CMAKE_CURRENT_BINARY_DIR}/attended-drafting-failing-claude/claude$<$<PLATFORM_ID:Windows>:.exe>"
     VERBATIM)
 bpr_add_network_isolated_test(NAME application_review_tour_writing
     WINDOWS_UNCONTAINED

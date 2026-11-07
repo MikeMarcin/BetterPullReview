@@ -95,11 +95,13 @@ namespace bpr::core {
 	enum class tour_transcript_kind : std::uint8_t {
 		/// What the author asked, in the control's own words.
 		asked,
-		/// A search: Grep, Glob, `rg`, `grep`, `find`, `ls`.
+		/// A search: Grep, Glob, `rg`, `grep`, `find`, `ls`, `tree`.
 		searched,
-		/// A file read: Read, `cat`, `head`, `tail`, `nl`.
+		/// A file read: Read, `cat`, `head`, `tail`, `nl`, `sed`, `awk`.
 		read,
-		/// Read-only Git: log, show, blame, diff.
+		/// Any other command: read-only Git (log, show, blame, diff), `wc`,
+		/// and a command outside the read-only list that Claude ran
+		/// ([[BPR-1912]]).
 		ran,
 		/// What the agent said, bounded.
 		answered,
@@ -112,10 +114,27 @@ namespace bpr::core {
 	/// \brief The kind a tool use is shown as.
 	[[nodiscard]] auto transcript_kind_of(std::string_view aTool, std::string_view aCommand) noexcept -> tour_transcript_kind;
 
+	/// \brief [[BPR-1912]]. What became of a shell command outside
+	/// `read_only_programs`. Claude's own permission check is the gate: it
+	/// approves read-only commands of its own beyond `--allowedTools`, and a
+	/// wrapper's or policy's settings can widen that. This app reads what it
+	/// decided and names what ran outside its own list.
+	enum class tour_transcript_note : std::uint8_t {
+		/// Inside the list, or not a shell command.
+		none,
+		/// Claude denied it; it did not run.
+		not_run,
+		/// Claude ran it.
+		ran_outside_list,
+		/// Its result was never matched to it: past the held commands' bound.
+		unchecked,
+	};
+
 	struct tour_transcript_entry
 	{
 		tour_transcript_kind Kind = tour_transcript_kind::asked;
 		std::string          Text;
+		tour_transcript_note Note                                                   = tour_transcript_note::none;
 		auto                 operator==(const tour_transcript_entry&) const -> bool = default;
 	};
 
@@ -137,7 +156,10 @@ namespace bpr::core {
 		tour_agent_run_state               State   = tour_agent_run_state::running;
 		std::vector<tour_transcript_entry> Entries;
 		/// Entries not kept once `maximum_tour_transcript_entries` was reached.
-		std::size_t Dropped                                         = 0U;
+		std::size_t Dropped = 0U;
+		/// [[BPR-1912]]. Shell commands outside the read-only list that Claude
+		/// ran, counted whether or not their entries were kept.
+		std::size_t OutsideList                                     = 0U;
 		auto        operator==(const tour_agent_run&) const -> bool = default;
 	};
 
@@ -160,7 +182,8 @@ namespace bpr::core {
 	/// the session asks one thing at a time. The oldest run is forgotten past
 	/// `maximum_tour_agent_runs`.
 	[[nodiscard]] auto begin_tour_run(tour_agent_session& aSession, tour_agent_request aRequest, tour_agent_tools aTools, std::string_view aAsked) -> std::optional<tour_agent_run_id>;
-	/// \brief Adds lines to a running run, bounded; false when it is not running.
+	/// \brief Adds lines to a running run, bounded, and counts those that ran
+	/// outside the read-only list; false when it is not running.
 	auto record_tour_activity(tour_agent_session& aSession, tour_agent_run_id aRun, const std::vector<tour_transcript_entry>& aEntries) -> bool;
 	/// \brief Ends a running run; false when it is not running.
 	auto               finish_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, tour_agent_run_state aState, std::string_view aLast) -> bool;

@@ -273,10 +273,18 @@ namespace bpr::core {
 		if (program == "git") {
 			return tour_transcript_kind::ran;
 		}
-		if (program == "cat" || program == "head" || program == "tail" || program == "nl") {
+		// [[BPR-1912]]. A program outside the read-only list that Claude ran
+		// keeps the kind of what it does: one that shows a file reads, one
+		// that finds searches, and anything else ran.
+		static constexpr std::array<std::string_view, 11> reading   = { "cat", "head", "tail", "nl", "sed", "awk", "less", "more", "od", "column", "jq" };
+		static constexpr std::array<std::string_view, 6>  searching = { "rg", "grep", "find", "ls", "tree", "fd" };
+		if (contains(reading, program)) {
 			return tour_transcript_kind::read;
 		}
-		return tour_transcript_kind::searched;
+		if (contains(searching, program)) {
+			return tour_transcript_kind::searched;
+		}
+		return tour_transcript_kind::ran;
 	}
 
 	auto begin_tour_run(tour_agent_session& aSession, const tour_agent_request aRequest, const tour_agent_tools aTools, const std::string_view aAsked) -> std::optional<tour_agent_run_id>
@@ -302,6 +310,9 @@ namespace bpr::core {
 			return false;
 		}
 		for (auto entry : aEntries) {
+			if (entry.Note == tour_transcript_note::ran_outside_list) {
+				++run->OutsideList;
+			}
 			if (run->Entries.size() >= maximum_tour_transcript_entries) {
 				++run->Dropped;
 				continue;

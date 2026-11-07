@@ -65,7 +65,7 @@ namespace {
 	/// does (tool uses and their results), and answers. Run as the `claude` in
 	/// `attended-drafting-claude` it takes a few seconds, so a look sees it
 	/// running in the background.
-	auto draft_in_workspace(const std::string& aModel, const bool aSlow, std::string& aInput) -> std::optional<int>
+	auto draft_in_workspace(const std::string& aModel, const bool aSlow, const bool aFailing, std::string& aInput) -> std::optional<int>
 	{
 		if (!environment_present("CLAUDE_CODE_DISABLE_AUTO_MEMORY")) {
 			return 7;
@@ -135,6 +135,21 @@ namespace {
 		if (input.find("WRITE_CANARY") != std::string::npos) {
 			// A run that tries to write: the app must stop it here.
 			emit_tool("t5", "Edit", R"({"file_path":"README.md","old_string":"a","new_string":"b"})", "edited");
+		}
+		// [[BPR-1912]]. The owner's probe on Claude Code 2.1.314: Claude ran
+		// `awk` without asking, outside the read-only list. Reported, the run
+		// goes on.
+		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-t6","role":"assistant","content":[{"type":"tool_use","id":"t6","name":"Bash","input":{"command":"awk 'NR<3' )" << escape(first) << R"("}}]}})" << '\n';
+		std::cout << R"({"type":"user","session_id":"fixture","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t6","content":"two lines","is_error":false}]}})" << '\n'
+				  << std::flush;
+		// [[BPR-1913]]. Run as the `claude` in `attended-drafting-failing-claude`,
+		// the drafting run then reaches for the network, which a drafting
+		// run never loads, and the app ends it as `tool_refused`.
+		if (aFailing) {
+			pause();
+			std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-t7","role":"assistant","content":[{"type":"tool_use","id":"t7","name":"WebFetch","input":{"url":"https://example.com/renderer"}}]}})" << '\n'
+					  << std::flush;
+			return 0;
 		}
 		pause();
 		// Any other request is answered as a tool-free one is.
@@ -217,7 +232,9 @@ int main(int argc, char** argv)
 	std::string input;
 	const auto  readOnlyRun = withoutEffort == readOnly && !environment_present("GITHUB_TOKEN") && !environment_present("GH_TOKEN");
 	if (readOnlyRun) {
-		if (const auto ended = draft_in_workspace(model, argc > 0 && std::filesystem::path{ argv[0] }.parent_path().filename() == "attended-drafting-claude", input)) {
+		const auto folder  = argc > 0 ? std::filesystem::path{ argv[0] }.parent_path().filename() : std::filesystem::path{ };
+		const auto failing = folder == "attended-drafting-failing-claude";
+		if (const auto ended = draft_in_workspace(model, folder == "attended-drafting-claude" || failing, failing, input)) {
 			return *ended;
 		}
 	} else if (actual != expected || environment_present("GITHUB_TOKEN") || environment_present("GH_TOKEN")) {

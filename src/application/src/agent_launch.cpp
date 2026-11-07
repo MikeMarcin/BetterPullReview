@@ -948,14 +948,19 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 
-		/// [[BPR-1900]]. One `tool_use` block of a read-only run, named for
-		/// the transcript with what it was asked. A tool other than the four
-		/// is refused at once: it was never loaded. A shell command
-		/// `core::decide_read_only_tool` refuses is held by its `id` in
-		/// `aHeld`: Claude's own allowlist denies most such commands, and the
-		/// model reads the denial and goes on, so the run is refused only if
-		/// the command's result says it ran (`read_only_tool_result`).
-		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock, std::vector<std::string>& aHeld) -> std::expected<agent_protocol_event, agent_protocol_failure>
+		/// [[BPR-1900]], [[BPR-1912]]. One `tool_use` block of a read-only
+		/// run, named for the transcript with what it was asked. A tool other
+		/// than the four is refused at once: it was never loaded. Claude's own
+		/// permission check is the gate for a shell command: it approves the
+		/// commands it classifies as read-only beyond `--allowedTools`
+		/// (2.1.310: `cd`, `sed -n`, `jq`, `column`, `od`), and a wrapper's or
+		/// policy's settings can widen that. So a command
+		/// `core::decide_read_only_tool` refuses is not refused here: it is
+		/// held by its `id` in `aHeld` until its result says what Claude did
+		/// (`read_only_tool_result`), and named then. Past the bound it is
+		/// named at once, unchecked, and the run goes on.
+		using held_tool_uses = std::vector<std::pair<std::string, std::string>>;
+		[[nodiscard]] auto read_only_tool_use(const json_value& aBlock, held_tool_uses& aHeld) -> std::expected<std::optional<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* name  = string_member(aBlock, "name");
 			const auto* input = object_member(aBlock, "input");
@@ -964,51 +969,52 @@ namespace bpr::application {
 			}
 			const auto text    = [input](const std::string_view aKey) { const auto* value = input == nullptr ? nullptr : string_member(*input, aKey); return value == nullptr ? std::string{ } : *value; };
 			const auto command = text("command");
-			auto       held    = false;
-			if (const auto refusal = core::decide_read_only_tool(*name, command); refusal == core::tour_tool_refusal::tool) {
+			const auto refusal = core::decide_read_only_tool(*name, command);
+			if (refusal == core::tour_tool_refusal::tool) {
 				return std::unexpected(agent_protocol_failure::tool_refused);
-			} else if (refusal != core::tour_tool_refusal::none) {
-				const auto* id = string_member(aBlock, "id");
-				if (id == nullptr || id->empty() || aHeld.size() >= maximum_agent_tool_activity) {
-					return std::unexpected(agent_protocol_failure::tool_refused);
-				}
-				aHeld.push_back(*id);
-				held = true;
 			}
 			auto asked = *name == "Bash" ? command : *name == "Read" ? text("file_path")
 																	 : text("pattern");
 			if (*name == "Grep" && !text("path").empty()) {
 				asked += " in " + text("path");
 			}
-			// A held command is shown as asked and not run: had it run, the
-			// run would have ended here.
-			if (held) {
-				asked = "(not run, outside the read-only list) " + asked;
-			}
 			if (asked.size() > maximum_agent_tool_activity_bytes) {
 				asked.resize(maximum_agent_tool_activity_bytes);
 			}
-			return agent_protocol_event{ .Kind = agent_protocol_event_kind::tool_activity, .Text = *name, .Item = std::move(asked) };
+			if (refusal != core::tour_tool_refusal::none) {
+				const auto* id = string_member(aBlock, "id");
+				if (id != nullptr && !id->empty() && aHeld.size() < maximum_agent_tool_activity) {
+					aHeld.emplace_back(*id, std::move(asked));
+					return std::optional<agent_protocol_event>{ };
+				}
+				asked.insert(0U, read_only_unchecked_note);
+			}
+			return std::optional{ agent_protocol_event{ .Kind = agent_protocol_event_kind::tool_activity, .Text = *name, .Item = std::move(asked) } };
 		}
 
-		/// [[BPR-1900]]. A held command's result: denied (`is_error`), it is
-		/// let go; anything else means it ran, and the run is refused.
-		[[nodiscard]] auto read_only_tool_result(const json_value& aBlock, std::vector<std::string>& aHeld) -> std::expected<void, agent_protocol_failure>
+		/// [[BPR-1900]], [[BPR-1912]]. A held command's result: denied
+		/// (`is_error`), it is named as not run; anything else means Claude
+		/// ran it, and it is named and counted as run outside the list. The
+		/// run goes on either way: when the result arrives the command has
+		/// already run, so ending the run would prevent nothing.
+		void read_only_tool_result(const json_value& aBlock, held_tool_uses& aHeld, std::vector<agent_protocol_event>& aEvents)
 		{
 			const auto* id = string_member(aBlock, "tool_use_id");
 			if (id == nullptr) {
-				return { };
+				return;
 			}
-			const auto held = std::ranges::find(aHeld, *id);
+			const auto held = std::ranges::find(aHeld, *id, &std::pair<std::string, std::string>::first);
 			if (held == aHeld.end()) {
-				return { };
+				return;
 			}
-			const auto* error = member(aBlock, "is_error");
-			if (error == nullptr || error->Kind != json_kind::boolean_value || !error->Boolean) {
-				return std::unexpected(agent_protocol_failure::tool_refused);
-			}
+			const auto* error  = member(aBlock, "is_error");
+			const auto  denied = error != nullptr && error->Kind == json_kind::boolean_value && error->Boolean;
+			auto        item   = std::string{ denied ? read_only_not_run_note : read_only_ran_note } + held->second;
 			aHeld.erase(held);
-			return { };
+			aEvents.push_back({ .Kind = agent_protocol_event_kind::tool_activity, .Text = "Bash", .Item = std::move(item) });
+			if (!denied) {
+				aEvents.push_back({ .Kind = agent_protocol_event_kind::outside_list_ran });
+			}
 		}
 
 		[[nodiscard]] auto decode_claude_frame(
@@ -1016,7 +1022,7 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, std::vector<std::string>* aHeld = nullptr)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, held_tool_uses* aHeld = nullptr)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto* type    = string_member(aRoot, "type");
@@ -1151,12 +1157,12 @@ namespace bpr::application {
 						if (!used) {
 							return std::unexpected(used.error());
 						}
-						events.push_back(std::move(*used));
+						if (*used) {
+							events.push_back(std::move(**used));
+						}
 					}
 					if (aReadOnly && aHeld != nullptr && *type == "user" && *blockType == "tool_result") {
-						if (const auto checked = read_only_tool_result(block, *aHeld); !checked) {
-							return std::unexpected(checked.error());
-						}
+						read_only_tool_result(block, *aHeld, events);
 					}
 					if (*type == "assistant" && *blockType == "text") {
 						wroteText        = true;
@@ -1675,7 +1681,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly, std::vector<std::string>* aHeld)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -3006,7 +3012,8 @@ namespace bpr::application {
 		case agent_protocol_event_kind::auto_memory_reported:
 		case agent_protocol_event_kind::thinking_reported:
 		case agent_protocol_event_kind::model_catalog:
-		case agent_protocol_event_kind::tool_activity:        break;
+		case agent_protocol_event_kind::tool_activity:
+		case agent_protocol_event_kind::outside_list_ran:     break;
 		}
 		return std::unexpected(agent_protocol_failure::malformed_frame);
 	}

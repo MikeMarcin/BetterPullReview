@@ -56,6 +56,7 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QClipboard>
 #include <QColor>
 #include <QComboBox>
 #include <QCoreApplication>
@@ -76,6 +77,7 @@
 #include <QStandardPaths>
 #include <QStatusBar>
 #include <QTemporaryDir>
+#include <QTextBrowser>
 #include <QTextStream>
 #include <QTimer>
 #include <QToolButton>
@@ -6197,7 +6199,33 @@ namespace {
 				auto* const panel  = editor->tour_agent();
 				auto* const failed = panel->findChild<QWidget*>(QStringLiteral("tourAgentFailure"));
 				if (failed != nullptr && failed->isVisible()) {
-					done(QStringLiteral("ATTENDED_TOUR_FAILED:draft-failed:%1").arg(failed->findChild<QLabel*>(QStringLiteral("tourAgentFailureLine"))->text()));
+					// [[BPR-1913]]. A run that did not finish: its notice, then,
+					// when drawing, Show the run opens its transcript window and
+					// Copy run puts the whole run on the clipboard. Otherwise
+					// the window is left on the notice for the person.
+					QTextStream{ stdout } << "ATTENDED_TOUR_DRAFT_ENDED:" << failed->findChild<QLabel*>(QStringLiteral("tourAgentFailureLine"))->text() << '\n';
+					draw(QStringLiteral("app-tour-drafting-failed"));
+					if (!root.isEmpty()) {
+						if (auto* const show = failed->findChild<QPushButton*>(QStringLiteral("tourAgentFailureOpen")); show != nullptr) {
+							show->click();
+						}
+						auto* const transcript = panel->transcript();
+						transcript->resize(820, 560);
+						QCoreApplication::processEvents();
+						panel->copy_run_button()->click();
+						QCoreApplication::processEvents();
+						static_cast<void>(transcript->grab().save(root + QStringLiteral("/tour-transcript-window-failed") + theme + QStringLiteral(".png"), "PNG"));
+						// The copied run's selection, as the person would make it.
+						panel->transcript_view()->selectAll();
+						QCoreApplication::processEvents();
+						static_cast<void>(transcript->grab().save(root + QStringLiteral("/tour-transcript-window-selected") + theme + QStringLiteral(".png"), "PNG"));
+						const auto copied = QGuiApplication::clipboard() == nullptr ? QString{ } : QGuiApplication::clipboard()->text();
+						QTextStream{ stdout } << "ATTENDED_TOUR_COPIED:" << QString{ copied }.replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
+						if (qEnvironmentVariable("BPR_ATTENDED_TOUR_KEEP_TRANSCRIPT").isEmpty()) {
+							transcript->hide();
+						}
+					}
+					done(QStringLiteral("ATTENDED_TOUR_FAILURE_TRANSCRIPT_READY"));
 					return;
 				}
 				if (*step == 10) {
@@ -6237,13 +6265,18 @@ namespace {
 					QCoreApplication::processEvents();
 					closeUp(panel->proposal(), QStringLiteral("tour-proposal-focused"));
 				}
+				// [[BPR-1912]]. The quiet line under the proposal, when Claude
+				// ran a command outside the read-only list.
+				if (panel->outside_list()->isVisible()) {
+					QTextStream{ stdout } << "ATTENDED_TOUR_OUTSIDE_LIST:" << panel->outside_list()->text() << '\n';
+				}
 				panel->open_transcript();
+				panel->transcript()->resize(820, 560);
 				QCoreApplication::processEvents();
-				draw(QStringLiteral("app-tour-drafting-transcript"));
-				closeUp(editor, QStringLiteral("tour-tab-drafting-transcript"));
+				closeUp(panel->transcript(), QStringLiteral("tour-transcript-window"));
 				QTextStream{ stdout } << "ATTENDED_TOUR_TRANSCRIPT:" << panel->transcript_text().replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
 				if (root.isEmpty() || qEnvironmentVariable("BPR_ATTENDED_TOUR_KEEP_TRANSCRIPT").isEmpty()) {
-					panel->transcript_button()->setChecked(false);
+					panel->transcript()->hide();
 				}
 				// AC2: the run is the tour session's, never a chat turn.
 				QTextStream{ stdout } << "ATTENDED_AGENT_TAB_TURNS:" << window.agent_tab()->turn_count() << '\n';

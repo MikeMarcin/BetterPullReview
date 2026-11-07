@@ -70,6 +70,9 @@ namespace bpr::application {
 		if (aDiagnosis.Thinking) {
 			text += " thinking=on";
 		}
+		if (aDiagnosis.OutsideList) {
+			text += " outside_list=" + std::to_string(*aDiagnosis.OutsideList);
+		}
 		return text;
 	}
 
@@ -129,6 +132,11 @@ namespace bpr::application {
 					return std::nullopt;
 				}
 				result.AutoMemory = true;
+			} else if (key == "outside_list") {
+				result.OutsideList = read_number<std::uint64_t>(value);
+				if (!result.OutsideList) {
+					return std::nullopt;
+				}
 			} else if (key == "thinking") {
 				if (value != "on") {
 					return std::nullopt;
@@ -180,6 +188,7 @@ namespace bpr::application {
 				   .Plugins             = result.ReportedPlugins,
 				   .AutoMemory          = result.ReportedAutoMemory,
 				   .Thinking            = result.ReportedThinking,
+				   .OutsideList         = aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json ? std::optional<std::uint64_t>{ result.OutsideListCommands } : std::nullopt,
 			   });
 		return result;
 	}

@@ -331,6 +331,9 @@ namespace bpr::adapters::agent::detail {
 						if (Result.ToolActivity.size() < application::maximum_agent_tool_activity) {
 							Result.ToolActivity.emplace_back(message.Text, message.Item);
 						}
+					} else if (message.Kind == application::agent_protocol_event_kind::outside_list_ran) {
+						// [[BPR-1912]]. Reported, never refused.
+						++Result.OutsideListCommands;
 					} else if (message.Kind == application::agent_protocol_event_kind::model_catalog) {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;
