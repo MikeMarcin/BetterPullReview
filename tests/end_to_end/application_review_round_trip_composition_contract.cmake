@@ -1,3 +1,11 @@
+# [[BPR-1910]] refactoring reseal: the startup implementation, the public
+# github_application members and the startup fixture accessors move,
+# unchanged, from github_application.cpp to src/app/src/github_application/
+# (application_startup, application_desktop, application_windows,
+# fixture_startup), and the root's include list keeps only what its remaining
+# code uses. The pinned span and the boundary reader stay. No provider,
+# credential, grant, mutation or publication change; the mutation-branch pin
+# is unchanged.
 # [[BPR-1909]] refactoring reseal: github_application.cpp's tests-only
 # github_application_fixture_access members move, unchanged, to course files
 # under src/app/src/github_application/ (fixture_*.cpp), with
@@ -2757,7 +2765,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "ed2d534cc7c9e06a783e6730a7c0595fd1049201dd1d8efcad2c4da86f652b01"
+        "e3dba678fe08e1ea888bfcca6b1214224783dfafe219f51d3eb8ad54647e0646"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2798,6 +2806,10 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application.cpp"
         "src/github_application/agent_composition.cpp"
         "src/github_application/agent_composition.hpp"
+        "src/github_application/application_desktop.cpp"
+        "src/github_application/application_startup.cpp"
+        "src/github_application/application_startup.hpp"
+        "src/github_application/application_windows.cpp"
         "src/github_application/blob_sources.cpp"
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
@@ -2820,6 +2832,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/fixture_review_round_trip_course.cpp"
         "src/github_application/fixture_start_and_evidence.cpp"
         "src/github_application/fixture_start_review_course.cpp"
+        "src/github_application/fixture_startup.cpp"
         "src/github_application/fixture_threaded_reply_course.cpp"
         "src/github_application/fixture_uiforetw_capture.cpp"
         "src/github_application/fixture_uiforetw_course.cpp"
@@ -2851,6 +2864,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/tour_owner_replies.cpp"
+        "src/github_application/tour_owner_replies.hpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_commit_filter.cpp"
@@ -2970,6 +2985,10 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application.cpp"
         "src/github_application/agent_composition.cpp"
         "src/github_application/agent_composition.hpp"
+        "src/github_application/application_desktop.cpp"
+        "src/github_application/application_startup.cpp"
+        "src/github_application/application_startup.hpp"
+        "src/github_application/application_windows.cpp"
         "src/github_application/blob_sources.cpp"
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
@@ -2992,6 +3011,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/fixture_review_round_trip_course.cpp"
         "src/github_application/fixture_start_and_evidence.cpp"
         "src/github_application/fixture_start_review_course.cpp"
+        "src/github_application/fixture_startup.cpp"
         "src/github_application/fixture_threaded_reply_course.cpp"
         "src/github_application/fixture_uiforetw_capture.cpp"
         "src/github_application/fixture_uiforetw_course.cpp"
@@ -3023,6 +3043,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/tour_owner_replies.cpp"
+        "src/github_application/tour_owner_replies.hpp"
         "src/github_application/window_agent_chat.cpp"
         "src/github_application/window_agent_setup.cpp"
         "src/github_application/window_commit_filter.cpp"
@@ -3242,7 +3264,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1918]]. Resealed over main 2261fa371 for the custom agent's
 	# run-checks switch in window_agent_chat.cpp.
 	set(bpr_expected_production_app_manifest_digest
-        "a47205bd21afb3d6e4a5263d5f87c9714f1bbbd2adeea2d6521246fd9672fdc8"
+        "c76e97f916ac1ff7134cc22597b0111c5e447b07979159bb921406cf11f7fe12"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

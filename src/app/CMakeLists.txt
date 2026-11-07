@@ -138,6 +138,9 @@ if(BPR_BUILD_QT)
             src/foundation_application.cpp
             src/github_application.cpp
             src/github_application/agent_composition.cpp
+            src/github_application/application_desktop.cpp
+            src/github_application/application_startup.cpp
+            src/github_application/application_windows.cpp
             src/github_application/blob_sources.cpp
             src/github_application/cli_accounts.cpp
             src/github_application/credential_prompt.cpp
@@ -154,6 +157,7 @@ if(BPR_BUILD_QT)
             src/github_application/fixture_review_round_trip_course.cpp
             src/github_application/fixture_start_and_evidence.cpp
             src/github_application/fixture_start_review_course.cpp
+            src/github_application/fixture_startup.cpp
             src/github_application/fixture_threaded_reply_course.cpp
             src/github_application/fixture_uiforetw_capture.cpp
             src/github_application/fixture_uiforetw_course.cpp
@@ -174,6 +178,7 @@ if(BPR_BUILD_QT)
             src/github_application/session_settings.cpp
             src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
+            src/github_application/tour_owner_replies.cpp
             src/github_application/window_agent_chat.cpp
             src/github_application/window_agent_setup.cpp
             src/github_application/window_commit_filter.cpp
@@ -523,6 +528,10 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application.cpp
 		src/app/src/github_application/agent_composition.cpp
 		src/app/src/github_application/agent_composition.hpp
+		src/app/src/github_application/application_desktop.cpp
+		src/app/src/github_application/application_startup.cpp
+		src/app/src/github_application/application_startup.hpp
+		src/app/src/github_application/application_windows.cpp
 		src/app/src/github_application/blob_sources.cpp
 		src/app/src/github_application/blob_sources.hpp
 		src/app/src/github_application/cli_accounts.cpp
@@ -545,6 +554,7 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/fixture_review_round_trip_course.cpp
 		src/app/src/github_application/fixture_start_and_evidence.cpp
 		src/app/src/github_application/fixture_start_review_course.cpp
+		src/app/src/github_application/fixture_startup.cpp
 		src/app/src/github_application/fixture_threaded_reply_course.cpp
 		src/app/src/github_application/fixture_uiforetw_capture.cpp
 		src/app/src/github_application/fixture_uiforetw_course.cpp
@@ -576,6 +586,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/startup_failures.hpp
 		src/app/src/github_application/theme_document_file.cpp
 		src/app/src/github_application/theme_document_file.hpp
+		src/app/src/github_application/tour_owner_replies.cpp
+		src/app/src/github_application/tour_owner_replies.hpp
 		src/app/src/github_application/window_agent_chat.cpp
 		src/app/src/github_application/window_agent_setup.cpp
 		src/app/src/github_application/window_commit_filter.cpp
