@@ -1674,8 +1674,12 @@ files reached without following a link, inside the workspace, at most 8 MiB
 each, at most 512 paths). The core anchors every proposed stop against those
 counts and the pull request's file list (`core::anchor_tour_stop`); a stop on a
 file outside the pull request, a deleted file, lines past the end or an
-uncounted file is flagged and cannot be accepted. Nothing the agent proposes is
-applied until the author accepts that part.
+uncounted file is left out of the proposal before it is shown (owner look
+v002), counted in one quiet line, and kept in the run's transcript with why.
+Each anchored stop is placed against the hunks of its file's patch (from the
+same `files` answer the review already reads; no further request) as on, near
+or off the change, as tour publication will place it ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)).
+Nothing the agent proposes is applied until the author accepts that part.
 
 ### Writing request and result bounds
 

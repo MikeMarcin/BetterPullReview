@@ -59,7 +59,15 @@ namespace bpr::application {
 	{
 		auto files = cycle_json_value::array{ };
 		for (const auto& file : aFiles.first(std::min(aFiles.size(), maximum_draft_files))) {
-			files.push_back(cycle_json_value{ cycle_json_value::object{ { "path", text(file.Path) }, { "change", text(file.Change) } } });
+			auto value = cycle_json_value::object{ { "path", text(file.Path) }, { "change", text(file.Change) } };
+			if (file.Hunks) {
+				auto hunks = cycle_json_value::array{ };
+				for (const auto& [first, last] : *file.Hunks) {
+					hunks.push_back(cycle_json_value{ cycle_json_value::array{ number(first), number(last) } });
+				}
+				value.push_back({ "changed_lines", cycle_json_value{ std::move(hunks) } });
+			}
+			files.push_back(cycle_json_value{ std::move(value) });
 		}
 		auto stops = cycle_json_value::array{ };
 		for (const auto& stop : aDraft.Stops) {
@@ -92,7 +100,9 @@ namespace bpr::application {
 			"{\"schema\":\"bpr.tour-draft.v1\",\"problem\":string,\"solution\":string,\"stops\":[{\"path\":string,\"first_line\":integer,\"last_line\":integer,\"title\":string,\"explanation\":string}]}\n"
 		};
 		prompt += "Rules: every stop's path is one of the pull request's files; first_line and last_line are one-based line numbers in that file at the head, "
-				  "and you have read them; at most "
+				  "and you have read them. Strongly prefer stops on the change: a file's changed_lines are its diff hunks at the head (first and last line), and a stop "
+				  "should lie wholly inside one of them. Put a stop off them only when it adds high value a reviewer would otherwise miss, keep it to one line, "
+				  "and make the first sentence of its explanation say why it is worth reading there. At most "
 			+ std::to_string(requested_tour_stops)
 			+ " stops, in reading order; a title is a short phrase; an explanation says what the reader should notice there, in plain sentences. "
 			  "Write the Problem and Solution as the author would, two to four sentences each, without claims you did not check. "

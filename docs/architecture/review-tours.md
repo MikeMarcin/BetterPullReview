@@ -173,7 +173,11 @@ a clone the tab says drafting reads only the pull request's files. The answer
 is a proposal under the button: each part accepted (with the author's edit in
 place), or discarded, on its own; a Problem or Solution the author already
 wrote says that accepting replaces it; a stop whose lines are not lines of the
-pull request's files is flagged and can only be discarded. An accepted stop is
+pull request's files is left out before the proposal is shown, with one quiet
+line saying how many and each one kept in the transcript. Stops on the change
+come first; one just off it says "Outside the change"; one off it on several
+lines says it won't appear when published until it's on changed lines and
+offers **Move to nearest change**. An accepted stop is
 added at the end of the route at its head lines, to be confirmed in the code
 before it is Ready. **Transcript** opens the session's runs, newest first:
 what was asked, what it searched, read and ran, and what it answered or how it

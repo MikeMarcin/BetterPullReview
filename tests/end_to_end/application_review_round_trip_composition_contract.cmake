@@ -1,3 +1,9 @@
+# [[BPR-1900]] owner look v002 reseal: github_application.cpp keeps the
+# stops a whole-tour draft left out in the tour session's transcript and
+# drops the flagged-stops notice; it places proposed stops against the
+# hunks of each file's patch (github_file_record::HeadHunks, read from the
+# same files answer) and offers Move to nearest change. No provider request,
+# credential, grant, mutation or inventory change.
 # [[BPR-1900]] reseal over 438bba59c: main.cpp's tests-on drafting look
 # (--attended-tour-drafting) waits up to ten minutes, for an installed agent,
 # and (owner look v001) draws a proposed field with the keyboard in it.
@@ -2697,7 +2703,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "d13147f16149d620ec99cfa8bb3e35ebe770c0c706f68c4e35b5295af1259725"
+        "7dfa1b10d3e4252895fb1559af5e47c9c28d3939966ab9b14a04ed61b1e70657"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -3022,7 +3028,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "11297cbcccca0d019cd1b8bb67455715ef62979cde2643300358a7aceb4bc09b"
+        "6ecb02bcd5413e0e017daa63c6876c065bb1bff63be35802016c683f277d70d2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

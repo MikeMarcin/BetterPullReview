@@ -1061,8 +1061,33 @@ Settings test stay BPR-1375's tool-free writing, fast and in an empty folder.
 Without a clone, drafting reads the pull request's own files
 ([[BPR-1873]]'s "This pull request only") and says so. A whole-tour proposal
 never replaces the author's text without the author's Accept on that part,
-says so on a field the author already wrote, and flags a stop whose lines are
-not lines of a head file of the pull request, which can only be discarded.
+says so on a field the author already wrote, and leaves out a stop whose lines
+are not lines of a head file of the pull request: owner look v002 ("What's up
+with this?") rejected showing it flagged with Accept disabled, so the proposal
+says only "1 suggested stop pointed outside this pull request and was left
+out." (nothing when none were), and the run's transcript keeps each one.
+
+Stop placement, owner 2026-11-06: "It should strongly prefer on hunk. I'm okay
+with high value off-hunk that will work on live or i can relocate to on a hunk
+or in the PR". The request gives each file's hunks (head lines of each `@@`
+header of GitHub's own patch, kept on the file record) and asks for stops
+wholly inside one, allowing a one-line stop off them only when it adds high
+value and its first sentence says why. The core places every anchored stop
+(`core::place_tour_stop`), as tour publication will: **on the change** (wholly
+inside one hunk, context lines included, or the file's hunks are unknown,
+which publication also places natively), shown as it is; **near the change**
+(one line off every hunk: published as a line comment where GitHub takes one
+off the diff, otherwise as a file comment with a permalink, so it works on
+GitHub as it is), shown with a small quiet "Outside the change"; **off the
+change** (several lines not wholly inside one hunk: a range has no file
+comment, so it would not publish as it is), shown with one plain line saying
+it won't appear when published until it is on changed lines, and a one-click
+**Move to nearest change** (`core::relocate_tour_stop`: onto the closest hunk
+of its file, keeping as many lines as fit). Accepted as it is, it says the
+same plainly, and the author can still choose its lines in the code with Use
+selected lines. A stop outside the pull request is left out as above. The
+proposal lists stops on the change first, then near, then off, each group in
+the agent's order. Nothing in the proposal is red or disabled.
 
 ## Acceptance criteria
 

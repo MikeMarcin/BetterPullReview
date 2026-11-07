@@ -7,6 +7,8 @@
 
 #include <QString>
 
+#include "bpr/core/tour_agent_session.hpp"
+
 #include <glaze/json.hpp>
 
 #include <algorithm>
@@ -35,6 +37,24 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
+		/// [[BPR-1900]]. The head lines of a file's patch hunks, as the
+		/// record keeps them; absent with no patch or one it cannot read.
+		[[nodiscard]] auto head_hunks(const std::optional<std::string>& aPatch) -> std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>>
+		{
+			if (!aPatch) {
+				return std::nullopt;
+			}
+			const auto hunks = core::parse_patch_head_hunks(*aPatch);
+			if (!hunks) {
+				return std::nullopt;
+			}
+			auto spans = std::vector<std::pair<std::uint32_t, std::uint32_t>>{ };
+			spans.reserve(hunks->size());
+			for (const auto& hunk : *hunks) {
+				spans.emplace_back(hunk.First, hunk.Last);
+			}
+			return spans;
+		}
 		constexpr std::size_t   maximum_header_name_bytes   = 256U;
 		constexpr std::size_t   maximum_header_value_bytes  = 8U * 1024U;
 		constexpr std::uint64_t maximum_retry_after_seconds = 86'400U;
@@ -2414,6 +2434,8 @@ namespace bpr::adapters::github::detail {
 				.Deletions    = integer(json_member(object, "deletions")),
 				.ContentKind  = application::github_file_content_kind::unknown,
 				.ViewedState  = application::github_file_viewed_state::unavailable,
+				// [[BPR-1900]]. Where the change is, for the tour's stops.
+				.HeadHunks = object.contains("patch") && json_is_string(json_member(object, "patch")) ? head_hunks(std::optional<std::string>{ text(json_member(object, "patch")) }) : std::nullopt,
 			};
 		}
 

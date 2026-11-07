@@ -27,6 +27,9 @@ namespace bpr::application {
 		std::string Path;
 		/// `added`, `modified`, `removed`, `renamed`.
 		std::string Change;
+		/// [[BPR-1900]]. The head lines of each hunk, when GitHub gave the
+		/// patch; the request asks for stops on them.
+		std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>> Hunks = std::nullopt;
 	};
 
 	/// \brief The whole-tour request: the read-only working rules, the answer

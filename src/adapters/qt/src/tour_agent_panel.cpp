@@ -97,6 +97,7 @@ namespace bpr::qt {
 			case core::tour_transcript_kind::ran:      return QObject::tr("Ran");
 			case core::tour_transcript_kind::answered: return QObject::tr("Answered");
 			case core::tour_transcript_kind::ended:    return QObject::tr("Ended");
+			case core::tour_transcript_kind::left_out: return QObject::tr("Left out");
 			}
 			return { };
 		}
@@ -113,18 +114,6 @@ namespace bpr::qt {
 		auto tools_words(const core::tour_agent_tools aTools) -> QString
 		{
 			return aTools == core::tour_agent_tools::read_only ? QObject::tr("read-only, in the review's workspace") : QObject::tr("no tools");
-		}
-		auto verdict_words(const core::tour_anchor_verdict aVerdict) -> QString
-		{
-			switch (aVerdict) {
-			case core::tour_anchor_verdict::anchored:            return { };
-			case core::tour_anchor_verdict::not_in_pull_request: return QObject::tr("This file is not in the pull request, so this stop can't be added.");
-			case core::tour_anchor_verdict::not_on_head:         return QObject::tr("This file was deleted, so it has no lines to visit.");
-			case core::tour_anchor_verdict::beyond_file:         return QObject::tr("These lines run past the end of the file, so this stop can't be added.");
-			case core::tour_anchor_verdict::invalid_lines:       return QObject::tr("These aren't lines a stop can point at.");
-			case core::tour_anchor_verdict::unmeasured:          return QObject::tr("This file's lines couldn't be checked, so this stop can't be added.");
-			}
-			return { };
 		}
 		auto small(QLabel* aLabel) -> QLabel*
 		{
@@ -209,6 +198,14 @@ namespace bpr::qt {
 		ProposalTitle->setWordWrap(true);
 		ProposalTitle->setTextFormat(Qt::RichText);
 		proposalColumn->addWidget(ProposalTitle);
+		// [[BPR-1900]] owner look v002 ("What's up with this?"): stops that
+		// pointed outside the pull request are not shown; one quiet line
+		// says how many, and the transcript keeps them.
+		LeftOut = small(paragraph({ }, ProposalBox));
+		LeftOut->setObjectName(QStringLiteral("tourProposalLeftOut"));
+		LeftOut->setForegroundRole(QPalette::PlaceholderText);
+		LeftOut->hide();
+		proposalColumn->addWidget(LeftOut);
 		auto* const proposalScroll = new QScrollArea{ ProposalBox };
 		// [[BPR-1900]] owner look v001: a click in the proposal never parks
 		// the keyboard on the pane itself (which drew a box around it and
@@ -363,6 +360,18 @@ namespace bpr::qt {
 		return found == Editors.end() ? nullptr : found->second;
 	}
 
+	auto tour_agent_panel::relocate_button(const std::size_t aIndex) const -> QPushButton*
+	{
+		const auto found = Relocates.find(aIndex);
+		return found == Relocates.end() ? nullptr : found->second;
+	}
+
+	auto tour_agent_panel::placement_text(const std::size_t aIndex) const -> QString
+	{
+		const auto found = Placements.find(aIndex);
+		return found == Placements.end() ? QString{ } : found->second->text();
+	}
+
 	auto tour_agent_panel::accept_button(const std::size_t aIndex) const -> QPushButton*
 	{
 		const auto found = Accepts.find(aIndex);
@@ -382,6 +391,8 @@ namespace bpr::qt {
 		clear(ProposalItems);
 		Editors.clear();
 		Accepts.clear();
+		Relocates.clear();
+		Placements.clear();
 		Accented.erase(std::remove_if(Accented.begin(), Accented.end(), [](const QPointer<QWidget>& aWidget) { return aWidget.isNull(); }), Accented.end());
 		Fields.clear();
 		if (!Proposal || Proposal->Items.empty()) {
@@ -389,6 +400,12 @@ namespace bpr::qt {
 			return;
 		}
 		const auto pending = std::ranges::count_if(Proposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending; });
+		if (Proposal->LeftOut.size() == 1U) {
+			LeftOut->setText(tr("1 suggested stop pointed outside this pull request and was left out."));
+		} else {
+			LeftOut->setText(tr("%1 suggested stops pointed outside this pull request and were left out.").arg(Proposal->LeftOut.size()));
+		}
+		LeftOut->setVisible(!Proposal->LeftOut.empty());
 		ProposalTitle->setText(tr("<b>Proposed tour</b>&nbsp;&nbsp;%1").arg(tr("Accept, edit or discard each part. Nothing changes until you accept it. %n left to decide.", nullptr, static_cast<int>(pending)).toHtmlEscaped()));
 		auto* const parent     = ProposalItems->parentWidget();
 		const auto  code       = QFontDatabase::systemFont(QFontDatabase::FixedFont);
@@ -422,24 +439,44 @@ namespace bpr::qt {
 				where->setFont([&] { auto font = code; font.setPointSizeF(where->font().pointSizeF()); return font; }());
 				where->setForegroundRole(QPalette::PlaceholderText);
 				itemColumn->addWidget(where);
+				// [[BPR-1900]], owner 2026-11-06: "strongly prefer on hunk".
+				// Near the change: a small quiet label, it publishes as is. Off
+				// it: say so plainly, and offer the move; no red, nothing
+				// disabled. The author can still move it in the code.
+				if (item.Placement != core::tour_stop_placement::on_change && item.Decision == core::tour_proposal_decision::pending) {
+					const auto  off  = item.Placement == core::tour_stop_placement::off_change;
+					auto* const said = small(paragraph(off ? tr("Outside the change. It won't appear when the tour is published until it's on changed lines.") : tr("Outside the change"), box));
+					said->setObjectName(QStringLiteral("tourProposalPlacement"));
+					said->setForegroundRole(QPalette::PlaceholderText);
+					itemColumn->addWidget(said);
+					Placements[index] = said;
+					if (off) {
+						auto* const move = new quiet_push_button{ tr("Move to nearest change"), box };
+						move->setObjectName(QStringLiteral("tourProposalRelocate"));
+						move->setFocusPolicy(Qt::TabFocus);
+						move->setToolTip(tr("Moves this stop onto the closest changed lines in this file. You can also add it as it is and choose its lines in the code."));
+						connect(move, &QPushButton::clicked, this, [this, index] {
+							if (RelocateDispatch) {
+								RelocateDispatch(index);
+							}
+						});
+						itemColumn->addWidget(move, 0, Qt::AlignLeft);
+						Relocates[index] = move;
+						Accented.emplace_back(move);
+					}
+				}
 			}
 			if (item.Decision != core::tour_proposal_decision::pending) {
-				auto* const decided = small(paragraph(item.Decision == core::tour_proposal_decision::accepted ? (item.Part == core::tour_proposal_part::stop ? tr("Added to the tour. Confirm its lines in the code before it is Ready.") : tr("Accepted into the tour."))
-																											  : tr("Discarded."),
-													  box));
+				const auto  stopWords = item.Placement == core::tour_stop_placement::off_change
+					? tr("Added to the tour. It won't appear when the tour is published until it's on changed lines: choose them in the code and use Use selected lines.")
+					: tr("Added to the tour. Confirm its lines in the code before it is Ready.");
+				auto* const decided   = small(paragraph(item.Decision == core::tour_proposal_decision::accepted ? (item.Part == core::tour_proposal_part::stop ? stopWords : tr("Accepted into the tour."))
+																												: tr("Discarded."),
+														box));
 				decided->setForegroundRole(QPalette::PlaceholderText);
 				itemColumn->addWidget(decided);
 				ProposalItems->addWidget(box);
 				continue;
-			}
-			if (item.Part == core::tour_proposal_part::stop && item.Verdict != core::tour_anchor_verdict::anchored) {
-				auto* const flag = small(paragraph(verdict_words(item.Verdict), box));
-				flag->setObjectName(QStringLiteral("tourProposalFlag"));
-				auto       flagPalette = flag->palette();
-				const auto night       = palette().color(QPalette::Window).lightness() < 128;
-				flagPalette.setColor(QPalette::WindowText, night ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E });
-				flag->setPalette(flagPalette);
-				itemColumn->addWidget(flag);
 			}
 			if (item.ReplacesAuthorText) {
 				auto* const note = small(paragraph(tr("Accepting replaces what you wrote here."), box));
@@ -482,7 +519,6 @@ namespace bpr::qt {
 			connect(editor->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged, editor, fit);
 			QTimer::singleShot(0, editor, fit);
 			Fields.emplace_back(frame);
-			editor->setEnabled(core::acceptable(item));
 			frame->hold(editor);
 			itemColumn->addWidget(frame);
 			Editors[index]      = editor;
@@ -490,7 +526,6 @@ namespace bpr::qt {
 			buttons->setSpacing(6);
 			auto* const accept = new quiet_push_button{ tr("Accept"), box };
 			accept->setObjectName(QStringLiteral("tourProposalAccept"));
-			accept->setEnabled(core::acceptable(item));
 			accept->setToolTip(item.Part == core::tour_proposal_part::stop ? tr("Adds this stop at the end of the tour, with this explanation.") : tr("Puts this text in the tour's %1.").arg(heading));
 			auto* const discard = new quiet_push_button{ tr("Discard"), box };
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
