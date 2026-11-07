@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1931"
 title: "The author can reset or clear the tour they are authoring"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-07, coordinator chat: 'I want the ability to reset/clear the tour that I'm authoring'","related_cards":["BPR-1900","BPR-1925"]}
-parked_on: "human-review"
 acceptance: [{"criterion": "AC1 Reset clears the local tour draft, proposals, chats and focus. Undo restores them exactly (Qt and host tests)", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session (reset_tour, tally, restore gives the draft back exactly); qt_tour_agent_session_view (question, Keep, Reset, Undo dispatch); frozen look ATTENDED_TOUR_RESET_DONE:stops=0:chats=0:focus=0:proposal=0 then ATTENDED_TOUR_RESET_UNDONE:stops=4:chats=1:focus and merge back", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#verification-v001-focused"}}, {"criterion": "AC2 A published tour on GitHub is untouched (a test with a fixture)", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session: reset of a fixture draft bound to a published tour keeps the binding and retires the published stop whole; the host's reset makes no GitHub request (restore through the tour host only)", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#verification-v001-focused"}}, {"criterion": "AC3 Owner look: may share a session with the whole-tour feedback card", "outcome": "pending", "revision": "bf4fa23d2", "evidence": {"kind": "observation", "detail": "v001 (bdd57d419) rejected: make Reset tour smaller like the Agent tab so the top row does not wrap so early. v002: frozen build /Users/jaeger/.codex/attended-builds/bpr1931-reset-icon-v002.tqz_uu89 of bf4fa23d2; new short session 1b8774b4d1243a37bd0e808eef98e315, candidate BPR-1931-reset-tour-icon-v002, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#attended-review-v002"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1931-reset-the-tour-being-authored.md#implementation-v001-2026-11-07"}}]
 ---
 
@@ -161,3 +160,7 @@ On `bf4fa23d2`, dev build:
 - One candidate, `BPR-1931-reset-tour-icon-v002` (revision `bf4fa23d2-v002`),
   with one Accept/Reject question.
 - Status: ready, awaiting the owner.
+
+## Accepted
+
+The owner accepted v002 on 2026-11-07, with: "It's good, can we just change it to say Draft tour instead of Draft the tour to get some space back." (follow-up landed separately)
