@@ -2,6 +2,7 @@
 
 #include <algorithm>
 #include <array>
+#include <string>
 
 namespace bpr::core {
 	namespace {
@@ -370,10 +371,21 @@ namespace bpr::core {
 		if (aAnswer.Solution && nonblank(*aAnswer.Solution)) {
 			proposal.Items.push_back({ .Part = tour_proposal_part::solution, .Text = *aAnswer.Solution, .ReplacesAuthorText = nonblank(aDraft.Solution) });
 		}
+		auto stops = std::vector<tour_proposal_item>{ };
 		for (std::size_t index = 0U; index < aAnswer.Stops.size() && index < maximum_proposed_tour_stops; ++index) {
-			const auto& stop = aAnswer.Stops[index];
-			proposal.Items.push_back({ .Part = tour_proposal_part::stop, .Text = stop.Explanation, .Stop = stop, .Verdict = anchor_tour_stop(stop, aFiles) });
+			const auto& stop    = aAnswer.Stops[index];
+			const auto  verdict = anchor_tour_stop(stop, aFiles);
+			if (verdict != tour_anchor_verdict::anchored) {
+				proposal.LeftOut.push_back({ stop, verdict });
+				continue;
+			}
+			const auto& file = *std::ranges::find(aFiles, stop.Path, &tour_anchor_file::Path);
+			stops.push_back({ .Part = tour_proposal_part::stop, .Text = stop.Explanation, .Stop = stop, .Verdict = verdict, .Placement = place_tour_stop(stop, file) });
 		}
+		// On the change first, then near it, then off it; the agent's order
+		// within each.
+		std::ranges::stable_sort(stops, { }, &tour_proposal_item::Placement);
+		proposal.Items.insert(proposal.Items.end(), std::make_move_iterator(stops.begin()), std::make_move_iterator(stops.end()));
 		return proposal;
 	}
 
@@ -401,6 +413,130 @@ namespace bpr::core {
 			}
 		}
 		item.Decision = aDecision;
+		return true;
+	}
+
+	auto parse_patch_head_hunks(const std::string_view aPatch) -> std::optional<std::vector<tour_line_span>>
+	{
+		auto       hunks  = std::vector<tour_line_span>{ };
+		const auto number = [](std::string_view& aText) -> std::optional<std::uint32_t> {
+			auto value  = std::uint64_t{ 0U };
+			auto digits = std::size_t{ 0U };
+			while (!aText.empty() && aText.front() >= '0' && aText.front() <= '9' && digits < 10U) {
+				value = value * 10U + static_cast<std::uint64_t>(aText.front() - '0');
+				aText.remove_prefix(1U);
+				++digits;
+			}
+			if (digits == 0U || value > 0xFFFF'FFFFU) {
+				return std::nullopt;
+			}
+			return static_cast<std::uint32_t>(value);
+		};
+		auto rest = aPatch;
+		while (!rest.empty()) {
+			const auto end  = rest.find('\n');
+			auto       line = rest.substr(0U, end);
+			rest            = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+			if (!line.starts_with("@@ -")) {
+				continue;
+			}
+			const auto plus = line.find(" +");
+			if (plus == std::string_view::npos) {
+				return std::nullopt;
+			}
+			line.remove_prefix(plus + 2U);
+			const auto first = number(line);
+			auto       count = std::optional<std::uint32_t>{ 1U };
+			if (!line.empty() && line.front() == ',') {
+				line.remove_prefix(1U);
+				count = number(line);
+			}
+			if (!first || !count || !line.starts_with(" @@")) {
+				return std::nullopt;
+			}
+			if (*count == 0U) {
+				continue;
+			}
+			if (hunks.size() >= maximum_patch_hunks || *first == 0U || *count - 1U > 0xFFFF'FFFFU - *first) {
+				return std::nullopt;
+			}
+			hunks.push_back({ *first, *first + *count - 1U });
+		}
+		return hunks;
+	}
+
+	auto place_tour_stop(const proposed_tour_stop& aStop, const tour_anchor_file& aFile) -> tour_stop_placement
+	{
+		if (!aFile.Hunks) {
+			return tour_stop_placement::on_change;
+		}
+		const auto inside = std::ranges::any_of(*aFile.Hunks, [&aStop](const tour_line_span& aHunk) { return aStop.FirstLine >= aHunk.First && aStop.LastLine <= aHunk.Last; });
+		if (inside) {
+			return tour_stop_placement::on_change;
+		}
+		return aStop.FirstLine == aStop.LastLine ? tour_stop_placement::near_change : tour_stop_placement::off_change;
+	}
+
+	auto relocate_tour_stop(tour_proposal& aProposal, const std::size_t aIndex, const std::vector<tour_anchor_file>& aFiles) -> bool
+	{
+		if (aIndex >= aProposal.Items.size()) {
+			return false;
+		}
+		auto& item = aProposal.Items[aIndex];
+		if (item.Part != tour_proposal_part::stop || item.Decision != tour_proposal_decision::pending) {
+			return false;
+		}
+		const auto file = std::ranges::find(aFiles, item.Stop.Path, &tour_anchor_file::Path);
+		if (file == aFiles.end() || !file->Hunks || file->Hunks->empty()) {
+			return false;
+		}
+		const auto distance = [&item](const tour_line_span& aHunk) -> std::uint64_t {
+			if (item.Stop.LastLine < aHunk.First) {
+				return aHunk.First - item.Stop.LastLine;
+			}
+			if (item.Stop.FirstLine > aHunk.Last) {
+				return item.Stop.FirstLine - aHunk.Last;
+			}
+			return 0U;
+		};
+		const auto& hunk    = *std::ranges::min_element(*file->Hunks, { }, distance);
+		const auto  length  = std::min(item.Stop.LastLine - item.Stop.FirstLine, hunk.Last - hunk.First);
+		const auto  first   = std::clamp(item.Stop.FirstLine, hunk.First, hunk.Last - length);
+		item.Stop.FirstLine = first;
+		item.Stop.LastLine  = first + length;
+		item.Placement      = tour_stop_placement::on_change;
+		return true;
+	}
+
+	auto left_out_entries(const tour_proposal& aProposal) -> std::vector<tour_transcript_entry>
+	{
+		auto entries = std::vector<tour_transcript_entry>{ };
+		for (const auto& [stop, verdict] : aProposal.LeftOut) {
+			const auto why   = verdict == tour_anchor_verdict::not_in_pull_request ? "not a file of this pull request"
+				: verdict == tour_anchor_verdict::not_on_head                      ? "a file this pull request deletes"
+				: verdict == tour_anchor_verdict::beyond_file                      ? "past the end of the file"
+				: verdict == tour_anchor_verdict::unmeasured                       ? "the file's lines could not be counted"
+																				   : "not lines a stop can point at";
+			const auto lines = stop.FirstLine == stop.LastLine ? "line " + std::to_string(stop.FirstLine) : "lines " + std::to_string(stop.FirstLine) + " to " + std::to_string(stop.LastLine);
+			entries.push_back({ tour_transcript_kind::left_out, "\"" + stop.Title + "\", " + stop.Path + ", " + lines + ": " + why });
+		}
+		return entries;
+	}
+
+	auto note_finished_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::vector<tour_transcript_entry>& aEntries) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end() || found->State == tour_agent_run_state::running) {
+			return false;
+		}
+		for (auto entry : aEntries) {
+			if (found->Entries.size() >= maximum_tour_transcript_entries + 8U) {
+				++found->Dropped;
+				continue;
+			}
+			bound(entry.Text);
+			found->Entries.push_back(std::move(entry));
+		}
 		return true;
 	}
 

@@ -105,6 +105,9 @@ namespace bpr::core {
 		answered,
 		/// How the run ended when it did not answer.
 		ended,
+		/// [[BPR-1900]] owner look v002. A proposed stop that pointed outside
+		/// the pull request's files and lines, left out of the proposal.
+		left_out,
 	};
 	/// \brief The kind a tool use is shown as.
 	[[nodiscard]] auto transcript_kind_of(std::string_view aTool, std::string_view aCommand) noexcept -> tour_transcript_kind;
@@ -186,15 +189,50 @@ namespace bpr::core {
 	inline constexpr std::size_t   maximum_proposed_tour_stops = 24U;
 	inline constexpr std::uint32_t maximum_proposed_stop_lines = 400U;
 
+	/// \brief One-based head lines, first to last.
+	struct tour_line_span
+	{
+		std::uint32_t First                                           = 0U;
+		std::uint32_t Last                                            = 0U;
+		auto          operator==(const tour_line_span&) const -> bool = default;
+	};
+	inline constexpr std::size_t maximum_patch_hunks = 512U;
+	/// \brief [[BPR-1900]]. The head side of each hunk of a pull request
+	/// file's patch, as GitHub's `files` answer gives it (`@@ -a,b +c,d @@`,
+	/// context lines included): `c` to `c + d - 1`. A hunk that only deletes
+	/// has no head lines and is skipped. Nothing for a header it cannot read
+	/// or more than `maximum_patch_hunks`.
+	[[nodiscard]] auto parse_patch_head_hunks(std::string_view aPatch) -> std::optional<std::vector<tour_line_span>>;
+
 	/// \brief A file of the pull request, as the host read it: on the head or
-	/// not (deleted), and its head line count when the host measured it.
+	/// not (deleted), its head line count when the host measured it, and its
+	/// hunks' head lines when GitHub gave its patch.
 	struct tour_anchor_file
 	{
-		std::string                  Path;
-		bool                         OnHead = true;
-		std::optional<std::uint32_t> HeadLines;
-		auto                         operator==(const tour_anchor_file&) const -> bool = default;
+		std::string                                Path;
+		bool                                       OnHead = true;
+		std::optional<std::uint32_t>               HeadLines;
+		std::optional<std::vector<tour_line_span>> Hunks;
+		auto                                       operator==(const tour_anchor_file&) const -> bool = default;
 	};
+
+	/// \brief [[BPR-1900]], owner 2026-11-06: "It should strongly prefer on
+	/// hunk. I'm okay with high value off-hunk that will work on live or i can
+	/// relocate to on a hunk or in the PR". Where an anchored stop sits
+	/// against the change, as tour publication will place it.
+	enum class tour_stop_placement : std::uint8_t {
+		/// Wholly inside one hunk (context lines included), or the file's
+		/// hunks are unknown, which publication also places natively.
+		on_change,
+		/// One line outside every hunk: published as a line comment where
+		/// GitHub takes one off the diff, otherwise as a file comment with a
+		/// permalink. It works on GitHub as it is.
+		near_change,
+		/// Several lines not wholly inside one hunk: a range has no file
+		/// comment, so it is not published until it is moved onto a change.
+		off_change,
+	};
+	[[nodiscard]] auto place_tour_stop(const proposed_tour_stop& aStop, const tour_anchor_file& aFile) -> tour_stop_placement;
 
 	enum class tour_anchor_verdict : std::uint8_t {
 		/// The lines are real lines of a head file of the pull request.
@@ -231,21 +269,36 @@ namespace bpr::core {
 		proposed_tour_stop     Stop;
 		tour_anchor_verdict    Verdict  = tour_anchor_verdict::anchored;
 		tour_proposal_decision Decision = tour_proposal_decision::pending;
+		/// For a stop: where it sits against the change.
+		tour_stop_placement Placement = tour_stop_placement::on_change;
 		/// The author already wrote this field: accepting replaces it, and
 		/// says so before it does.
 		bool ReplacesAuthorText                                  = false;
 		auto operator==(const tour_proposal_item&) const -> bool = default;
+	};
+	/// \brief A proposed stop the core left out, and why.
+	struct tour_left_out_stop
+	{
+		proposed_tour_stop  Stop;
+		tour_anchor_verdict Verdict                                             = tour_anchor_verdict::not_in_pull_request;
+		auto                operator==(const tour_left_out_stop&) const -> bool = default;
 	};
 	/// \brief The proposal of one draft_tour run.
 	struct tour_proposal
 	{
 		tour_agent_run_id               Run;
 		std::vector<tour_proposal_item> Items;
+		/// [[BPR-1900]] owner look v002 ("What's up with this?"): stops that
+		/// do not anchor are never shown as items; they are counted in one
+		/// quiet line and kept in the run's transcript.
+		std::vector<tour_left_out_stop> LeftOut;
 		auto                            operator==(const tour_proposal&) const -> bool = default;
 	};
 	/// \brief The proposal an answer makes against the draft as it is now:
-	/// Problem, Solution, then the stops in the agent's order, each stop
-	/// anchored or flagged. Empty fields of the answer are left out.
+	/// Problem, Solution, then the anchored stops: those on a change first,
+	/// then those near one, then those off it, each group in the agent's
+	/// order. A stop that does not anchor goes to `LeftOut`, never to `Items`.
+	/// Empty fields of the answer are left out.
 	[[nodiscard]] auto propose_tour(tour_agent_run_id aRun, const tour_draft_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal;
 	/// \brief Whether an item may still be accepted: pending, with text, and
 	/// for a stop, anchored.
@@ -254,8 +307,19 @@ namespace bpr::core {
 	/// edit of the proposed text) and is refused for an item that is not
 	/// `acceptable`; Discard is refused only for a decided item.
 	auto decide_tour_proposal(tour_proposal& aProposal, std::size_t aIndex, tour_proposal_decision aDecision, std::string_view aText) -> bool;
+	/// \brief Move to nearest change: moves pending stop `aIndex` onto the
+	/// hunk of its file nearest its lines, keeping as many of its lines as
+	/// fit, and places it on the change. Refused for a part that is not a
+	/// pending stop, or whose file's hunks are unknown or empty.
+	auto relocate_tour_stop(tour_proposal& aProposal, std::size_t aIndex, const std::vector<tour_anchor_file>& aFiles) -> bool;
 	/// \brief The stop an accepted proposed stop becomes: at its head lines
 	/// as a destination (zero-based), to be confirmed in the code.
 	[[nodiscard]] auto tour_stop_of(const proposed_tour_stop& aStop, const git_commit_oid& aHead) -> tour_stop;
+	/// \brief The transcript lines that keep a proposal's left-out stops:
+	/// each stop's path, lines, title and why it was left out.
+	[[nodiscard]] auto left_out_entries(const tour_proposal& aProposal) -> std::vector<tour_transcript_entry>;
+	/// \brief Adds lines to a run that has ended (the left-out stops are
+	/// known only once its answer is read); bounded as a running run's are.
+	auto note_finished_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, const std::vector<tour_transcript_entry>& aEntries) -> bool;
 }
 #endif

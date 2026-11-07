@@ -9,7 +9,7 @@ priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-06, coordinator chat","related_cards":["BPR-1375","BPR-1873","BPR-1878","BPR-1881","BPR-1892","BPR-1899"]}
 parked_on: "human-review"
-acceptance: [{"criterion": "AC1 A drafting request runs in the review's private workspace with read-only tools. A test shows the agent can search the repository, and that a write or edit tool use is refused", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "application_agent_launch: read-only argv for Claude and Codex; Grep, rg and Read decoded as tool activity; Edit, Write, rm -rf, WebFetch, an init with Edit or an MCP server end as tool_refused. core_tour_agent_session covers the allowlist. The offscreen look's stub ran in the agent workspace and searched it.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC2 Tour runs never appear in the Agent tab's chat thread, and chat runs never appear in the tour session", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "observation", "detail": "The tour session is its own agent_invocation_host with its own projection, launcher and lane; AgentHost->dispatch( keeps one call site (application_agent_chat_composition_contract passes). Offscreen look after a tour run: ATTENDED_AGENT_TAB_TURNS:0.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#implementation-2026-11-06"}}, {"criterion": "AC3 The author can keep editing the tour while a drafting run goes, and cancel it from its control", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view: Draft the tour says Stop drafting while running and stops it; the Problem takes an edit meanwhile; a field's drafting run shows Stop drafting on its own control and stops from it. The offscreen look wrote the Problem while it drafted.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC4 The tour session's transcript can be opened from the Tour tab", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view: Transcript (1) opens it, never by itself; it says Searched, Read and Answered. Offscreen look printed the transcript lines.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC5 BPR-1892's failure notice links to the tour session's run", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_failure (updated): the notice keeps its words; Show the run opens the tour session's transcript at the failed run and does not ask for the Agent tab.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC6 Owner look: an attended Accept/Reject on a frozen build that shows a background drafting run, its transcript, and a whole-tour proposal", "outcome": "pending", "revision": "9025a78f6", "evidence": {"kind": "observation", "detail": "v001 (8055ab061) rejected by the owner on 2026-11-06 in session 874076eee1b3626c3770e0fcf890cdd9: the first click on Accept highlighted a box instead of accepting, and the box cramped the text. v002 (9025a78f6) in new session 099b512a7f255d217c6eed51ba487328, candidate BPR-1900-tour-session (revision 9025a78f6-v002), ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#attended-review-ac6"}}, {"criterion": "AC7 The RFC amendment records the decisions above, and the documentation gate passes", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1900 records T1 fresh runs, T2 the transcript on the Tour tab, T3 the allowlist per agent, and the drafting/rewriting split; verify_documentation.py prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#implementation-2026-11-06"}}, {"criterion": "AC8 A whole-tour draft arrives as a proposal of the Problem, the Solution and ordered stops, each accepted, edited or discarded on its own; accepting never replaces author text without that gesture. The core validates every proposed stop's anchor against the pull request's files and lines, and a stop that does not anchor is flagged and cannot be accepted", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "core_tour_agent_session: propose_tour anchors against the host's head line counts (not in the pull request, deleted, past the end, line zero, uncounted all flagged), decide_tour_proposal refuses accepting a flagged stop. qt_tour_agent_session_view: edits survive, Accept sends the edit, a flagged stop's Accept is disabled. Offscreen look: 4 proposed stops, the one outside the pull request flagged.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}]
+acceptance: [{"criterion": "AC1 A drafting request runs in the review's private workspace with read-only tools. A test shows the agent can search the repository, and that a write or edit tool use is refused", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "application_agent_launch: read-only argv for Claude and Codex; Grep, rg and Read decoded as tool activity; Edit, Write, rm -rf, WebFetch, an init with Edit or an MCP server end as tool_refused. core_tour_agent_session covers the allowlist. The offscreen look's stub ran in the agent workspace and searched it.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC2 Tour runs never appear in the Agent tab's chat thread, and chat runs never appear in the tour session", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "observation", "detail": "The tour session is its own agent_invocation_host with its own projection, launcher and lane; AgentHost->dispatch( keeps one call site (application_agent_chat_composition_contract passes). Offscreen look after a tour run: ATTENDED_AGENT_TAB_TURNS:0.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#implementation-2026-11-06"}}, {"criterion": "AC3 The author can keep editing the tour while a drafting run goes, and cancel it from its control", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view: Draft the tour says Stop drafting while running and stops it; the Problem takes an edit meanwhile; a field's drafting run shows Stop drafting on its own control and stops from it. The offscreen look wrote the Problem while it drafted.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC4 The tour session's transcript can be opened from the Tour tab", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view: Transcript (1) opens it, never by itself; it says Searched, Read and Answered. Offscreen look printed the transcript lines.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC5 BPR-1892's failure notice links to the tour session's run", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "qt_review_tour_agent_failure (updated): the notice keeps its words; Show the run opens the tour session's transcript at the failed run and does not ask for the Agent tab.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC6 Owner look: an attended Accept/Reject on a frozen build that shows a background drafting run, its transcript, and a whole-tour proposal", "outcome": "pending", "revision": "739dcf4e4", "evidence": {"kind": "observation", "detail": "v001 (8055ab061) rejected by the owner on 2026-11-06 in session 874076eee1b3626c3770e0fcf890cdd9: the first click on Accept highlighted a box instead of accepting, and the box cramped the text. v002 (9025a78f6) rejected on 2026-11-06 in session 099b512a7f255d217c6eed51ba487328 (\"What's up with this?\" on a flagged stop outside the pull request). v003 (739dcf4e4) in new session 286839f31dbf8cbea8b2ca8a93efeeb5, candidate BPR-1900-tour-session (revision 739dcf4e4-v003), ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#attended-review-ac6"}}, {"criterion": "AC7 The RFC amendment records the decisions above, and the documentation gate passes", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1900 records T1 fresh runs, T2 the transcript on the Tour tab, T3 the allowlist per agent, and the drafting/rewriting split; verify_documentation.py prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#implementation-2026-11-06"}}, {"criterion": "AC8 A whole-tour draft arrives as a proposal of the Problem, the Solution and ordered stops, each accepted, edited or discarded on its own; accepting never replaces author text without that gesture. The core validates every proposed stop's anchor against the pull request's files and lines, and a stop that does not anchor is flagged and cannot be accepted", "outcome": "pass", "revision": "8055ab061", "evidence": {"kind": "command", "detail": "core_tour_agent_session: propose_tour anchors against the host's head line counts (not in the pull request, deleted, past the end, line zero, uncounted all flagged), decide_tour_proposal refuses accepting a flagged stop. qt_tour_agent_session_view: edits survive, Accept sends the edit, a flagged stop's Accept is disabled. Offscreen look: 4 proposed stops, the one outside the pull request flagged.", "path": "docs/issues/40-parked/BPR-1900-tour-authoring-agent-session.md#verification-focused-owner-dont-wait-for-tests"}}]
 ---
 
 # BPR-1900: Tour authoring runs as its own background agent session, with the workspace and read-only tools
@@ -270,4 +270,79 @@ Reject; its host is stopped and its candidate released.
   `/Users/jaeger/.codex/attended-review/bpr1900-v002-bLsLZy/state`, host
   started with `serve --tailscale`. One candidate, `BPR-1900-tour-session`
   (revision `9025a78f6-v002`), one Accept/Reject question, leading with
+  pictures of the frozen build. Status: ready, awaiting the owner.
+
+### v002 rejected (2026-11-06)
+
+The owner attached a picture of the proposal's Stop 4, "A file it imagined"
+(`src/not_in_this_pull_request.cpp`, lines 3 to 9): red text "This file is not
+in the pull request, so this stop can't be added.", an editable box, a
+disabled Accept and Discard. Their note, verbatim: "What's up with this?"
+Session `099b512a7f255d217c6eed51ba487328` recorded the Reject; its host is
+stopped and its candidate released.
+
+Owner direction for v003 (relayed by the coordinator, 2026-11-06), verbatim:
+"It should strongly prefer on hunk. I'm okay with high value off-hunk that will
+work on live or i can relocate to on a hunk or in the PR".
+
+### v003 (`739dcf4e4`, branch `bpr1900-installed-claude-course`)
+
+`frontend-design:frontend-design` was loaded for the UI work.
+
+- **Left out, quietly.** `core::propose_tour` leaves out every stop that does
+  not anchor to the pull request's files and lines before the proposal is
+  shown (`tour_proposal::LeftOut`). The proposal says only "1 suggested stop
+  pointed outside this pull request and was left out." (the plural for more,
+  nothing when none), in the quiet colour. `core::left_out_entries` keeps each
+  one, its path, lines and why, in the run's transcript ("Left out").
+  `tour_proposal_item` no longer has a state that disables Accept; nothing in
+  the proposal is red or disabled.
+- **On the change first.** `github_file_record::HeadHunks` keeps the head lines
+  of each hunk of a file's patch from GitHub's own `files` answer (both read
+  paths; `core::parse_patch_head_hunks`). The request gives the agent each
+  file's `changed_lines` and asks for stops inside them, an off-hunk stop only
+  when it adds high value and its first sentence says why. `core::place_tour_stop`
+  places each anchored stop as publication would: on the change (inside one
+  hunk, or hunks unknown), near it (one line off every hunk: a line comment
+  where GitHub takes one, else a file comment with a permalink, so it works on
+  GitHub), or off it (several lines not inside one hunk, which a range cannot
+  publish). Stops on the change are listed first, then near, then off.
+- **Shown.** Near: one small quiet "Outside the change". Off: "Outside the
+  change. It won't appear when the tour is published until it's on changed
+  lines." and a one-click **Move to nearest change** (`core::relocate_tour_stop`,
+  onto the closest hunk of its file, keeping as many lines as fit). Accepted as
+  it is, it says it won't appear when published until it's on changed lines,
+  and Use selected lines still lets the author choose them.
+- A proposed field now fits its text again whenever its width changes (the
+  installed Claude's long Problem was clipped).
+- Tests: `core_tour_agent_session` (patch hunks, placement on/near/off,
+  ordering, relocation onto the nearest hunk and to the last hunk's end,
+  refusals, left-out stops and their transcript lines),
+  `qt_tour_agent_session_view` (no flag, no disabled button, the quiet line in
+  singular, plural and absent, the near label, the off line and Move dispatch,
+  the accepted-as-is words), `application_agent_launch` (the request carries
+  `changed_lines` and asks for stops on them), and `github_read_contract`,
+  `github_paged_read`, `application_github_contract`,
+  `application_review_tour_writing` (+ wrapper),
+  `application_review_tour_composition_public_path`,
+  `application_agent_chat_composition_contract`,
+  `application_review_round_trip_composition_contract` (resealed),
+  `architecture_boundaries`: pass after a full dev build. Format check and
+  documentation gate pass.
+- Frozen build `/Users/jaeger/bpr1900-tour-session-v003.s5tpfw2_` (executable
+  SHA-256 `c8b51526de155a9a9523638293e14aea43a44c6c931bf3c86fc0eb106bf0af8a`):
+  the launcher's own check and the offscreen look reach
+  `ATTENDED_TOUR_DRAFTING_SHOWN` in light and dark; the stub proposes stops on,
+  near and off the change and one outside the pull request, which the
+  transcript keeps as left out. Launch:
+  `python3 /Users/jaeger/bpr1900-tour-session-v003.s5tpfw2_/launch.py`.
+- Installed Claude Code (`/opt/homebrew/bin/claude` 2.1.310) against this same
+  frozen executable, offscreen: the whole-tour draft finished end to end,
+  "Proposed a Problem, a Solution and 12 stops.", all on the change, with
+  `ATTENDED_AGENT_TAB_TURNS:0`; its one `for` loop was denied by Claude and
+  shown "(not run, outside the read-only list)".
+- New short session `286839f31dbf8cbea8b2ca8a93efeeb5`, state
+  `/Users/jaeger/.codex/attended-review/bpr1900-v003-7fONsD/state`, host
+  started with `serve --tailscale`. One candidate, `BPR-1900-tour-session`
+  (revision `739dcf4e4-v003`), one Accept/Reject question, leading with
   pictures of the frozen build. Status: ready, awaiting the owner.

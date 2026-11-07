@@ -10058,7 +10058,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 #if defined(BPR_AGENT_INTEGRATIONS)
 			// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
 			// and each proposed field's or stop's Accept and Discard.
-			Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); });
+			Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
 #endif
 			WorkbenchHost = std::make_unique<
 				application::workbench_application_host>(
@@ -14090,7 +14090,7 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 					: file.Change == application::github_file_change::removed             ? "removed"
 					: file.Change == application::github_file_change::renamed             ? "renamed"
 																						  : "modified";
-				files.push_back({ file.Path, change });
+				files.push_back({ file.Path, change, file.HeadHunks });
 			}
 			const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft);
 			if (!prompt) {
@@ -14129,16 +14129,26 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 			auto files = std::vector<core::tour_anchor_file>{ };
 			for (const auto& file : snap->Files) {
 				auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
+				// [[BPR-1900]], owner 2026-11-06: stops strongly prefer the
+				// change; where it is comes from the file's patch.
+				if (file.HeadHunks) {
+					anchor.Hunks.emplace();
+					for (const auto& [first, last] : *file.HeadHunks) {
+						anchor.Hunks->push_back({ first, last });
+					}
+				}
 				if (const auto counted = std::ranges::find(aResult.MeasuredLines, file.Path, &std::pair<std::string, std::uint32_t>::first); counted != aResult.MeasuredLines.end()) {
 					anchor.HeadLines = counted->second;
 				}
 				files.push_back(std::move(anchor));
 			}
-			TourProposal       = core::propose_tour(*aRun, *answer, files, *draft);
-			const auto flagged = std::ranges::count_if(TourProposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Part == core::tour_proposal_part::stop && aItem.Verdict != core::tour_anchor_verdict::anchored; });
+			TourProposal    = core::propose_tour(*aRun, *answer, files, *draft);
+			TourAnchorFiles = std::move(files);
+			// [[BPR-1900]] owner look v002. Stops left out of the proposal are
+			// kept in the run's transcript, so nothing the agent said is lost.
+			static_cast<void>(core::note_finished_tour_run(TourAgent, *aRun, core::left_out_entries(*TourProposal)));
 			Window->tour_editor()->show_writing_notice(TourProposal->Items.empty() ? QStringLiteral("The agent proposed nothing for this tour.")
-														   : flagged == 0          ? QStringLiteral("A proposed tour is ready to review. Nothing changes until you accept it.")
-																				   : QStringLiteral("A proposed tour is ready to review. %1 of its stops are not on lines of this pull request, so they can only be discarded.").arg(flagged));
+																				   : QStringLiteral("A proposed tour is ready to review. Nothing changes until you accept it."));
 		}
 		/// [[BPR-1900]]. The author accepts (with their edit) or discards one
 		/// proposed field or stop; the core decides, the tour host applies.
@@ -14173,6 +14183,14 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 				Window->tour_editor()->show_writing_notice(QStringLiteral("Proposal done. Visit each accepted stop and confirm its lines in the code, then mark it Ready."));
 			}
 			present_tour_session();
+		}
+		/// [[BPR-1900]]. Move to nearest change: the core moves the stop onto
+		/// the closest hunk of its file.
+		void relocate_tour_proposal(const std::size_t aIndex)
+		{
+			if (TourProposal && core::relocate_tour_stop(*TourProposal, aIndex, TourAnchorFiles)) {
+				present_tour_session();
+			}
 		}
 		void present_tour_session()
 		{
@@ -26357,6 +26375,8 @@ if (aUpdate.Transition.AcceptedSnapshot.has_value() || aUpdate.Presentation.Conv
 		std::string                                                      TourWorkspacePath;
 		bool                                                             TourDraftPending = false;
 		std::optional<core::tour_proposal>                               TourProposal;
+		/// [[BPR-1900]]. The files the proposal was anchored against.
+		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;

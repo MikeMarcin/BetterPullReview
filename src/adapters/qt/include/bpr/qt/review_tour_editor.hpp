@@ -131,7 +131,7 @@ namespace bpr::qt {
 		/// \brief [[BPR-1900]]. The tour session's gestures: Draft the tour,
 		/// Stop (a drafting run, from the control that started it), and one
 		/// proposed part's Accept, with the author's edit, or Discard.
-		void set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide);
+		void set_tour_session_dispatch(std::function<void()> aDraft, std::function<void()> aStop, std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> aDecide, std::function<void(std::size_t)> aRelocate = { });
 		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
 		/// decided.
 		void present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);

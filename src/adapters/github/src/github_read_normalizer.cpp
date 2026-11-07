@@ -1,6 +1,8 @@
 #include "github_read_contract.hpp"
 #include "github_review_comment_grouping.hpp"
 
+#include "bpr/core/tour_agent_session.hpp"
+
 #include <glaze/json.hpp>
 
 #include <algorithm>
@@ -15,6 +17,24 @@
 
 namespace bpr::adapters::github::detail {
 	namespace {
+		/// [[BPR-1900]]. The head lines of a file's patch hunks, as the
+		/// record keeps them; absent with no patch or one it cannot read.
+		[[nodiscard]] auto head_hunks(const std::optional<std::string>& aPatch) -> std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>>
+		{
+			if (!aPatch) {
+				return std::nullopt;
+			}
+			const auto hunks = core::parse_patch_head_hunks(*aPatch);
+			if (!hunks) {
+				return std::nullopt;
+			}
+			auto spans = std::vector<std::pair<std::uint32_t, std::uint32_t>>{ };
+			spans.reserve(hunks->size());
+			for (const auto& hunk : *hunks) {
+				spans.emplace_back(hunk.First, hunk.Last);
+			}
+			return spans;
+		}
 		[[nodiscard]] auto failed(const contract_failure_code aCode)
 			-> std::unexpected<contract_failure>
 		{
@@ -321,6 +341,7 @@ namespace bpr::adapters::github::detail {
 			std::string                Status;
 			std::uint64_t              Additions = 0U;
 			std::uint64_t              Deletions = 0U;
+			std::optional<std::string> Patch;
 			struct glaze
 			{
 				static constexpr auto value = glz::object(
@@ -328,7 +349,8 @@ namespace bpr::adapters::github::detail {
 					"previous_filename", &json_file::PreviousFilename,
 					"status", &json_file::Status,
 					"additions", &json_file::Additions,
-					"deletions", &json_file::Deletions);
+					"deletions", &json_file::Deletions,
+					"patch", &json_file::Patch);
 			};
 		};
 
@@ -1199,6 +1221,7 @@ namespace bpr::adapters::github::detail {
 						.Additions    = object.Additions,
 						.Deletions    = object.Deletions,
 						.ContentKind  = application::github_file_content_kind::unknown,
+						.HeadHunks    = head_hunks(object.Patch),
 					});
 			}
 
