@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1906"
 title: "Split github_application.cpp's composition adapters into responsibility files"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1905"]
 priority: "P2"
