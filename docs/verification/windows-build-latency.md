@@ -4,6 +4,73 @@
 The paused release producer and its artifacts are unchanged. These are focused
 development checks, not a new release qualification.
 
+## Fingerprint compilation: BPR-1901
+
+Source `04c3f2212` is the before baseline; `9d4654594` is the corrected candidate.
+The two volatile definitions previously applied to every source in the app and
+logging targets. Each fingerprint update recompiled `main.cpp`, installed
+resources/runtime, the allocator probe, the generated icon, `quill_log.cpp` and
+session storage. The candidate puts each value in a small private translation
+unit with a source-specific definition. Immutable `constinit` string views
+preserve the value and lifetime without dynamic initialization or extra allocation.
+The existing digest calculations and release-cohort override are unchanged;
+both new app identity files join the explicit attended source manifest.
+
+Measurements use the same isolated Windows checkout, build tree, compiler,
+Debug/Release options and disabled compiler cache as the investigation below.
+A controlled comment in `src/app/src/designated_live_macos_supervisor.cpp`
+changes both fingerprint inputs without changing Windows executable logic.
+The checkout remains dirty throughout each timed series. Each sample explicitly
+reconfigures first, then runs the generated app and logging projects sequentially
+with MSBuild `/t:PrepareForBuild;CustomBuild;ClCompile`,
+`/p:BuildProjectReferences=false`, `/p:Configuration=Debug` or `Release`,
+`/p:Platform=x64`, `/m:4` and `/nr:false`. Object timestamps and actual compiler
+command logs identify completed compilation, rather than counting the repeated
+module-scan filenames as extra compilations.
+
+| Configuration | Before, seconds (two retries) | After, seconds (two retries) | Objects per retry |
+| --- | --- | --- | --- |
+| Debug | 31.214, 31.078 | 4.936, 10.025 | 7 → 2 |
+| Release | 35.433, 35.255 | 4.927, 4.902 | 7 → 2 |
+
+The Release compilation phase saves about 30 seconds (86%); Debug saves about
+21–26 seconds in these samples. Configuration is measured separately: before
+38.40/42.43 seconds, after 33.22/45.21 seconds, with no claimed improvement.
+Linking and the full release cycle are outside these timings. The retained
+candidate-21 investigation still identifies linking as the largest cost.
+The first build after this change recompiles the affected targets once because
+their compiler definitions change; the table measures subsequent retries.
+
+Native validation at `9d4654594fd8ce796b582eb02c492ccfa8b74358` passes:
+
+- Each configuration preserves its complete 906-row CTest registration, not
+  just the names. The seven existing compiler command lines are identical
+  before/after after removing the relocated definition; diagnostics, runtime,
+  optimization and hardening flags are unchanged.
+- Changing `installed_resources.cpp` recompiles that Windows object and the
+  diagnostic fingerprint in both configurations. Restoring the source and
+  measurement anchor rebuilds their identities; the checkout finishes clean.
+- Probes linked to the actual app and logger metadata objects in Debug and
+  Release report exactly the values in their generated compiler definitions.
+  An independent SHA-256 computation over the declared attended source manifest
+  matches the app identity and includes both new identity files.
+- Native Debug and Release logging builds pass, followed by six courses in each:
+  `quill_logging`, `quill_logging_content_policy`, `logging_session_retention`,
+  `logging_crash_recovery`, `platform_configuration_contract` and
+  `cfg_complete_link_contract`. The logger checks record/export identity
+  consistency through the real sink.
+- The macOS Release application links and passes its offscreen
+  `application_public_path` course plus the four logging courses. Architecture
+  boundaries and their contract pass, clang-format 22 checks the touched C++,
+  and clang-tidy 22 accepts both new translation units with warnings as errors.
+  Documentation checks pass. These focused checks do not claim a complete
+  release qualification or a full native Windows application link.
+
+Raw receipts, exact command arrays, object changes and copied compiler commands
+are in `compile-metadata-before` and `compile-metadata-after` under the external
+evidence roots below; `metadata-validation` holds native value checks and test
+logs. The controlled source edits are restored after the run.
+
 ## Declared dependencies only: BPR-1903
 
 Source `39ee4ea4a45387515d72103799228839644cf628`, Windows 11 x64,
