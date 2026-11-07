@@ -1,3 +1,13 @@
+# [[BPR-1906]] refactoring reseal: github_application.cpp's composition
+# adapters move unchanged in behavior to src/app/src/github_application/:
+# review_mutation_selection, queue_notifications, profile_hosts,
+# device_authorization_composition, github_presentation_projections,
+# session_settings, blob_sources, workbench_composition, window_review_lanes
+# and agent_composition (.hpp declares, .cpp defines; constexpr helpers stay
+# whole in their headers). Preprocessor conditions and comments move with the
+# code. The provider using-declarations, cli_read_offered and the test
+# boundary reader stay in the root. No provider, credential, grant, mutation
+# or publication change; the mutation-branch pin is unchanged.
 # [[BPR-1905]] refactoring reseal over last-matching bb3ff53ff. Pinned-scope
 # commits: 416660399 and 9d4654594 ([[BPR-1901]]) read main.cpp's attended
 # source digest from the new attended_source_identity.{cpp,hpp} instead of a
@@ -2717,7 +2727,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "05ad7a6a225ff77edd5aa9af790eab02dc6e55b09525c521ffeb30ad8d81bbed"
+        "952d4748b127b80313df320ad69df1eb394058168acb35f444d068419ae9deb9"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2756,11 +2766,31 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/github_application/agent_composition.cpp"
+        "src/github_application/agent_composition.hpp"
+        "src/github_application/blob_sources.cpp"
+        "src/github_application/blob_sources.hpp"
+        "src/github_application/device_authorization_composition.cpp"
+        "src/github_application/device_authorization_composition.hpp"
+        "src/github_application/github_presentation_projections.cpp"
+        "src/github_application/github_presentation_projections.hpp"
+        "src/github_application/profile_hosts.cpp"
+        "src/github_application/profile_hosts.hpp"
         "src/github_application/public_preview_wire_self_check.cpp"
         "src/github_application/public_preview_wire_transport.cpp"
         "src/github_application/public_preview_wire_transport.hpp"
+        "src/github_application/queue_notifications.cpp"
+        "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_mutation_selection.cpp"
+        "src/github_application/review_mutation_selection.hpp"
+        "src/github_application/session_settings.cpp"
+        "src/github_application/session_settings.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/window_review_lanes.cpp"
+        "src/github_application/window_review_lanes.hpp"
+        "src/github_application/workbench_composition.cpp"
+        "src/github_application/workbench_composition.hpp"
         "src/installed_resources.cpp"
         "src/installed_resources.hpp"
         "src/installed_runtime.cpp"
@@ -2855,11 +2885,31 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/diagnostic_export_directory.cpp"
         "src/foundation_application.cpp"
         "src/github_application.cpp"
+        "src/github_application/agent_composition.cpp"
+        "src/github_application/agent_composition.hpp"
+        "src/github_application/blob_sources.cpp"
+        "src/github_application/blob_sources.hpp"
+        "src/github_application/device_authorization_composition.cpp"
+        "src/github_application/device_authorization_composition.hpp"
+        "src/github_application/github_presentation_projections.cpp"
+        "src/github_application/github_presentation_projections.hpp"
+        "src/github_application/profile_hosts.cpp"
+        "src/github_application/profile_hosts.hpp"
         "src/github_application/public_preview_wire_self_check.cpp"
         "src/github_application/public_preview_wire_transport.cpp"
         "src/github_application/public_preview_wire_transport.hpp"
+        "src/github_application/queue_notifications.cpp"
+        "src/github_application/queue_notifications.hpp"
+        "src/github_application/review_mutation_selection.cpp"
+        "src/github_application/review_mutation_selection.hpp"
+        "src/github_application/session_settings.cpp"
+        "src/github_application/session_settings.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/window_review_lanes.cpp"
+        "src/github_application/window_review_lanes.hpp"
+        "src/github_application/workbench_composition.cpp"
+        "src/github_application/workbench_composition.hpp"
         "src/github_application_fixture_access.hpp"
         "src/github_cli_runtime.cpp"
         "src/github_cli_runtime.hpp"
@@ -3054,7 +3104,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "81e0ff1344e334680e8cc35c9f8fdb4110c6695e05fe56e3bb60239da7c82533"
+        "35f66c06752cf2420057cf71ce024e68e5e0df19cde18c815f5519b2c023b435"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
