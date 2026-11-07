@@ -331,8 +331,15 @@ namespace bpr::qt {
 		std::optional<markdown_code_theme>                                             CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)>    CodeSyntaxDispatch;
 		void                                                                           wire_side_chat();
-		void                                                                           open_side_chat_about(core::writing_hook aHook, const QString& aSelected);
-		void                                                                           apply_agent_code_style();
+		/// [[BPR-1914]] v004. Keeps the Tour tab's scroll position through what a
+		/// click sets off.
+		void                    hold_scroll();
+		std::optional<int>      HeldScroll;
+		std::uint64_t           HeldScrollGeneration = 0U;
+		QMetaObject::Connection HeldScrollWatch;
+		QMetaObject::Connection HeldScrollRelease;
+		void                    open_side_chat_about(core::writing_hook aHook, const QString& aSelected);
+		void                    apply_agent_code_style();
 		/// [[BPR-1892]]. Each request's failure notice, what its control
 		/// said when it was pressed, and where Show on the Agent tab goes.
 		std::map<core::writing_hook, QWidget*> FailureNotices;

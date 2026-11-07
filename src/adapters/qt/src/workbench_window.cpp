@@ -9564,7 +9564,7 @@ namespace bpr::qt {
 	auto workbench_window::prepare_tour_action() const noexcept -> QAction* { return PrepareTourAction; }
 	auto workbench_window::add_tour_stop_action() const noexcept -> QAction* { return AddTourStopAction; }
 	auto workbench_window::tour_editor() const noexcept -> review_tour_editor* { return TourEditor; }
-	void workbench_window::open_review_tour()
+	void workbench_window::open_review_tour(const bool aKeepStep)
 	{
 		close_review_composition(false);
 		close_review_sheet();
@@ -9573,8 +9573,14 @@ namespace bpr::qt {
 		if (Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
 			conversations_drawer_toggle_action()->trigger();
 		}
+		const auto already = TrayTabs->currentIndex() == tray_tour_tab;
 		TrayTabs->setCurrentIndex(tray_tour_tab);
-		TourEditor->show_problem();
+		// [[BPR-1914]] v004. Going to a stop from the open Tour tab keeps the
+		// step it is on: opening the Problem first moved the keyboard and
+		// the tab's height, and the tab jumped.
+		if (!aKeepStep || !already) {
+			TourEditor->show_problem();
+		}
 	}
 
 	void workbench_window::wire_tour_page()

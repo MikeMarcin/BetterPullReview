@@ -1226,6 +1226,35 @@ where we're editing the built-in prompts its a bit weak".
   skills brought in, and unsaved edits are marked and kept per prompt until
   saved or discarded. The owner's look on a frozen build decides it.
 
+### Amendment [[BPR-1914]] v004 (2026-11-06): quieter controls, the diff window's tabs, no scroll jump
+
+The owner on v003: "can we simplify the enhance buttons to just the '<symbol>
+Enhance' and leave the tooltips in place. The side chat buttons should be in
+the agent color. The side chat tabs behave weirdly ... I can't seem to close
+the first tab or even select it ... Clicking things in the tour tab is
+disorienting ... a single left-click to activate (1) but it scrolls almost all
+the way off the top of the screen. Also I can't tell but it seems like inline
+code isnt being highlighted only blocks." And on the tabs: "I liked the tabs I
+just wanted them to behave more like our diff window tabs."
+
+- Each field's writing helper reads "Enhance" beside the agent spark when it
+  rewrites; its tooltip still says what it rewrites, and the request keeps its
+  longer name ("Enhance problem statement") in the transcript. The side chat's
+  glyphs on the tour, its + and its Update and Send wear the agent accent.
+- The side chats' tabs are the diff window's own tab strip
+  (`document_tab_strip`): equal tabs stretching across the pane (a narrower
+  minimum, `set_minimum_tab_width`), a close button on every tab, the tab menu
+  (Close Tab, Close Other Tabs), and + for a chat about another part.
+- A click on a stop or on Show in code keeps the Tour tab where it is. Going
+  to a stop's code from the open Tour tab no longer reopens the Problem step
+  first (`open_review_tour(true)`), and for a moment after the click the
+  editor puts back any scroll the person did not make
+  (`review_tour_editor::hold_scroll`). A drag or the wheel ends that at once.
+- Inline code is coloured in the language of the part it is about: a stop's
+  chat and the stop reader in the stop's file's language; the tour's, the
+  Problem's and the Solution's chats in the language most of the tour's stops
+  are in. With no language it stays plain monospace on its wash, as before.
+
 ### Amendment [[BPR-1914]] v003 (2026-11-06): side chats, and Update from the chat
 
 The owner rejected v002's inline threads: "This is much closer than the
