@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1913"
 title: "The tour session's transcript copies as a whole and leaves the tour's room, and its controls stop looking like tabs"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
 priority: "P1"

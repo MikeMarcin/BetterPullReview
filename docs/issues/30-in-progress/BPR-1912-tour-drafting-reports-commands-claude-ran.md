@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1912"
 title: "A tour drafting run reports a shell command Claude approved outside the read-only list instead of ending"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1900"]
 priority: "P1"
