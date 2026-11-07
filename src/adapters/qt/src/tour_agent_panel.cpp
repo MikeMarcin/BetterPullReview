@@ -63,8 +63,31 @@ namespace bpr::qt {
 			}
 			void hold(QPlainTextEdit* aField)
 			{
+				Field = aField;
 				layout()->addWidget(aField);
 				aField->installEventFilter(this);
+				aField->viewport()->installEventFilter(this);
+				connect(aField->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged, this, [this] { fit(); });
+				QTimer::singleShot(0, this, [this] { fit(); });
+			}
+			/// As tall as its text (three to twelve lines), so no scroll bar
+			/// eats into the words; past twelve it scrolls. Again whenever
+			/// its width or text changes, since lines wrap with the width.
+			void fit()
+			{
+				if (Field == nullptr) {
+					return;
+				}
+				const auto lineSpacing = Field->fontMetrics().lineSpacing();
+				auto       text        = 0.0;
+				for (auto block = Field->document()->begin(); block.isValid(); block = block.next()) {
+					text += Field->document()->documentLayout()->blockBoundingRect(block).height();
+				}
+				const auto margins = 2.0 * Field->document()->documentMargin() + 2;
+				const auto height  = static_cast<int>(std::ceil(std::clamp(text, 3.0 * lineSpacing, 12.0 * lineSpacing) + margins));
+				if (Field->height() != height) {
+					Field->setFixedHeight(height);
+				}
 			}
 
 		protected:
@@ -72,6 +95,9 @@ namespace bpr::qt {
 			{
 				if (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut || aEvent->type() == QEvent::EnabledChange) {
 					update();
+				}
+				if (aEvent->type() == QEvent::Resize && Field != nullptr && aWatched == Field->viewport()) {
+					QTimer::singleShot(0, this, [this] { fit(); });
 				}
 				return QWidget::eventFilter(aWatched, aEvent);
 			}
@@ -86,6 +112,9 @@ namespace bpr::qt {
 				painter.setBrush(base);
 				painter.drawRoundedRect(QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
 			}
+
+		private:
+			QPlainTextEdit* Field = nullptr;
 		};
 
 		auto verb(const core::tour_transcript_kind aKind) -> QString
@@ -501,23 +530,8 @@ namespace bpr::qt {
 			// The field is as tall as its text (three to twelve lines), so no
 			// scroll bar eats into the words; past twelve it scrolls.
 			editor->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-			editor->setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
-			const auto fit = [editor, lineSpacing = metrics.lineSpacing()] {
-				// The text's own laid-out height, block by block, in pixels.
-				auto text = 0.0;
-				for (auto block = editor->document()->begin(); block.isValid(); block = block.next()) {
-					text += editor->document()->documentLayout()->blockBoundingRect(block).height();
-				}
-				const auto margins = 2.0 * editor->document()->documentMargin() + 2;
-				const auto height  = static_cast<int>(std::ceil(std::clamp(text, 3.0 * lineSpacing, 12.0 * lineSpacing) + margins));
-				editor->setVerticalScrollBarPolicy(text > 12.0 * lineSpacing ? Qt::ScrollBarAsNeeded : Qt::ScrollBarAlwaysOff);
-				if (editor->height() != height) {
-					editor->setFixedHeight(height);
-				}
-			};
+			editor->setVerticalScrollBarPolicy(Qt::ScrollBarAsNeeded);
 			editor->setFixedHeight(std::clamp(static_cast<int>(item.Text.size() / 38U + 2U), 3, 12) * metrics.lineSpacing() + 18);
-			connect(editor->document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged, editor, fit);
-			QTimer::singleShot(0, editor, fit);
 			Fields.emplace_back(frame);
 			frame->hold(editor);
 			itemColumn->addWidget(frame);
