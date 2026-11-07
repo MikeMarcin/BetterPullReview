@@ -264,6 +264,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-agent-failure" },
 		bpr::app::command_line_option{ .Name = "attended-tour-drafting" },
 		bpr::app::command_line_option{ .Name = "attended-tour-conversation" },
+		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
 		bpr::app::command_line_option{ .Name = "attended-repository-look" },
@@ -6168,6 +6169,12 @@ namespace {
 	// failure beside it (ATTENDED_TOUR_AGENT_FAILURE_SHOWN). With
 	// BPR_ATTENDED_TOUR_RENDER it draws that, then presses Show on the Agent
 	// tab and draws where it goes.
+	// [[BPR-1924]]. With `--attended-agent-picker` the setup finds only the
+	// fixture `claude`; once it is ready the Comments drawer is dragged to
+	// 380 pixels and the Agent tab opens, where the agent picker has a row of
+	// its own under the question field's tools
+	// (ATTENDED_AGENT_PICKER_SHOWN:wrapped=1). The Tour tab beside it ends on
+	// the same picker, bare on its bar.
 	constexpr const char* attended_failure_problem = "A second view drew over the first when both cleared in the same frame.";
 	// [[BPR-1900]]. What the author writes while Draft the tour runs.
 	constexpr const char* attended_drafting_problem = "Two views drew over each other when they cleared in the same frame.";
@@ -6181,6 +6188,7 @@ namespace {
 	{
 		const auto failure  = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-agent-failure"));
 		const auto drafting = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-drafting"));
+		const auto picker   = QCoreApplication::arguments().contains(QStringLiteral("--attended-agent-picker"));
 		// [[BPR-1914]], [[BPR-1915]]. After the draft: accept its formatted
 		// Problem and Solution, ask about a Solution passage, follow up with a
 		// rewrite, and accept the rewrite.
@@ -6191,7 +6199,7 @@ namespace {
 		const auto ticks   = std::make_shared<int>(0);
 		const auto open    = qEnvironmentVariable("BPR_ATTENDED_TOUR_SETUP") == QStringLiteral("open");
 		const auto settled = std::make_shared<int>(0);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, conversation, settled, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, settled, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6251,6 +6259,20 @@ namespace {
 					editor->show_problem();
 					editor->problem_editor()->setPlainText(QString::fromUtf8(attended_failure_problem));
 					*step = 3;
+					return;
+				}
+				if (picker) {
+					if (editor->agent_readiness() != bpr::qt::agent_setup_readiness::ready) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:picker-agent-not-ready:readiness=%1").arg(static_cast<int>(editor->agent_readiness())));
+						return;
+					}
+					draw(QStringLiteral("app-tour-picker"));
+					auto* const splitter = window.central_splitter();
+					splitter->move_handle(3, splitter->width() - 380 - splitter->handleWidth());
+					window.tray_tabs()->setCurrentIndex(3);
+					QCoreApplication::processEvents();
+					draw(QStringLiteral("app-agent-picker"));
+					done(QStringLiteral("ATTENDED_AGENT_PICKER_SHOWN:wrapped=%1:drawer=%2").arg(window.agent_tab()->run_settings_wrapped() ? 1 : 0).arg(window.conversations_drawer()->width()));
 					return;
 				}
 				if (editor->agent_readiness() == bpr::qt::agent_setup_readiness::ready) {
@@ -11074,7 +11096,7 @@ auto main(int argc, char** argv) -> int
 			// [[BPR-1892]]. The failing agent is a `claude` in a folder of its
 			// own, and the setup finds only it, so the person's own agents
 			// are never run.
-			if (launch.has("--attended-tour-agent-failure") || launch.has("--attended-tour-drafting")) {
+			if (launch.has("--attended-tour-agent-failure") || launch.has("--attended-tour-drafting") || launch.has("--attended-agent-picker")) {
 				fixtureOptions.AttendedAgentSearch = false;
 				fixtureOptions.ClaudeSearch        = bpr::app::detail::claude_search_environment{ .PathVariable = std::filesystem::path{ std::string{ *attendedTourAuthoringAgent } }.parent_path().string() };
 			}

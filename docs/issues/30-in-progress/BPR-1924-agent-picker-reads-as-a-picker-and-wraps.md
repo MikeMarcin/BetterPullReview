@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1924"
 title: "The agent/model/effort picker reads as a picker, not a text field, and wraps to a second row when the drawer is narrow"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"

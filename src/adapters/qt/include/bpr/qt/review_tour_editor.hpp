@@ -313,7 +313,6 @@ namespace bpr::qt {
 		QWidget*                   AgentBar    = nullptr;
 		QWidget*                   AgentField  = nullptr;
 		agent_run_settings_picker* AgentPicker = nullptr;
-		void                       fit_agent_bar();
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
 		QWidget*                                                                       AgentSetupCall   = nullptr;
