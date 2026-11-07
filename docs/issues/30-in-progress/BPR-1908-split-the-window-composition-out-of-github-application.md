@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1908"
 title: "Split the window composition out of github_application.cpp"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1907"]
 priority: "P2"
