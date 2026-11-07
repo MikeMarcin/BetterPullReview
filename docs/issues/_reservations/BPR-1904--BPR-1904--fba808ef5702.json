@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1904"
+  ],
+  "reserve_for": "codex-windows-dependency-regeneration",
+  "purpose": "Prevent concurrent CMake regeneration of pinned Windows syntax dependencies",
+  "created": "2026-11-07T00:05:55.104071+00:00",
+  "base": "9b83dfbc5427f6041933c1b65fe505780fd0f903"
+}
