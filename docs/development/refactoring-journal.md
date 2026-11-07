@@ -15,3 +15,4 @@ One line per behavior-preserving restructuring round; linked cards hold scope, l
 - 2026-11-07 — [[BPR-1923]]: Split `github_paged_read.cpp` into five responsibility sources and two support headers (6,407 to 42 lines; every new file under 2,000); the public paged-read header is unchanged.
 - 2026-11-07 — [[BPR-1926]]: Split `epoch_catalog.cpp` into six responsibility sources and a support header in a private `epoch_catalog_detail` namespace (6,446 to 43 lines; every new file under 1,300).
 - 2026-11-07 — [[BPR-1927]]: Split `pull_request_overview_page.cpp` into six responsibility sources and a support header; the page's constructor stays in it (6,139 to 1,036 lines; every new file under 900).
+- 2026-11-07 — [[BPR-1928]]: Moved `github_application_host::implementation` into a private header and split its members into seven responsibility sources (5,119 to 654 lines; every new file under 800).
