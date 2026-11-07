@@ -291,7 +291,34 @@ namespace bpr::qt {
 		ProposalTitle->setObjectName(QStringLiteral("tourProposalTitle"));
 		ProposalTitle->setWordWrap(true);
 		ProposalTitle->setTextFormat(Qt::RichText);
-		proposalColumn->addWidget(ProposalTitle);
+		// [[BPR-1925]] v003. The proposal's parts wait in the tour itself; here
+		// one line says how many, with Accept all.
+		auto* const titleRow = new QHBoxLayout{ };
+		titleRow->setSpacing(8);
+		titleRow->addWidget(ProposalTitle, 1);
+		AcceptAll = new quiet_push_button{ tr("Accept all"), ProposalBox };
+		AcceptAll->setObjectName(QStringLiteral("tourProposalAcceptAll"));
+		AcceptAll->setFocusPolicy(Qt::TabFocus);
+		AcceptAll->setToolTip(tr("Accepts every proposed part still waiting in the tour, as it reads now."));
+		titleRow->addWidget(AcceptAll, 0, Qt::AlignTop);
+		Accented.emplace_back(AcceptAll);
+		connect(AcceptAll, &QPushButton::clicked, this, [this] {
+			if (!Proposal || !DecideDispatch) {
+				return;
+			}
+			// Each part's text first: deciding one lays the proposal out again.
+			auto decisions = std::vector<std::pair<std::size_t, QString>>{ };
+			for (std::size_t index = 0U; index < Proposal->Items.size(); ++index) {
+				if (Proposal->Items[index].Decision == core::tour_proposal_decision::pending && !core::proposed_in_thread(Session, Proposal->Items[index])) {
+					const auto found = Editors.find(index);
+					decisions.emplace_back(index, found != Editors.end() && found->second != nullptr ? found->second->toPlainText() : QString::fromStdString(Proposal->Items[index].Text));
+				}
+			}
+			for (const auto& [index, text] : decisions) {
+				DecideDispatch(index, core::tour_proposal_decision::accepted, text);
+			}
+		});
+		proposalColumn->addLayout(titleRow);
 		// [[BPR-1900]] owner look v002 ("What's up with this?"): stops that
 		// pointed outside the pull request are not shown; one quiet line
 		// says how many, and the transcript keeps them.
@@ -649,9 +676,12 @@ namespace bpr::qt {
 	{
 		// [[BPR-1915]]. Each rendered text as tall as it reads at the
 		// proposal's width, so nothing scrolls inside it.
-		const auto width = std::max(1, ProposalScroll->viewport()->width() - ProposalItems->contentsMargins().left() - ProposalItems->contentsMargins().right());
+		const auto listed = std::max(1, ProposalScroll->viewport()->width() - ProposalItems->contentsMargins().left() - ProposalItems->contentsMargins().right());
 		for (const auto& [index, reader] : Readers) {
 			if (reader != nullptr) {
+				// [[BPR-1925]] v003. A box placed in the tour is as wide as its place.
+				const auto* const box   = reader->parentWidget();
+				const auto        width = box != nullptr && box->width() > 60 && !ProposalItems->parentWidget()->isAncestorOf(box) ? box->contentsRect().width() : listed;
 				reader->setFixedHeight(reader->isHidden() ? 0 : reader->heightForWidth(width));
 			}
 		}
@@ -659,7 +689,8 @@ namespace bpr::qt {
 
 	auto tour_agent_panel::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
 	{
-		if (aEvent->type() == QEvent::Resize && ProposalScroll != nullptr && aWatched == ProposalScroll->viewport()) {
+		const auto placedBox = std::ranges::any_of(Boxes, [aWatched](const auto& aEntry) { return aEntry.second == aWatched; });
+		if (aEvent->type() == QEvent::Resize && ProposalScroll != nullptr && (aWatched == ProposalScroll->viewport() || placedBox)) {
 			QTimer::singleShot(0, this, [this] { fit_readers(); });
 		}
 		return QWidget::eventFilter(aWatched, aEvent);
@@ -754,6 +785,18 @@ namespace bpr::qt {
 
 	void tour_agent_panel::rebuild_proposal()
 	{
+		// [[BPR-1925]] v003. The boxes placed in the tour go with the old
+		// proposal; their places are cleared before the new ones are made.
+		for (auto& [index, box] : Boxes) {
+			if (box) {
+				box->hide();
+				box->deleteLater();
+			}
+		}
+		Boxes.clear();
+		if (PlaceBegin) {
+			PlaceBegin();
+		}
 		clear(ProposalItems);
 		Editors.clear();
 		Accepts.clear();
@@ -789,13 +832,19 @@ namespace bpr::qt {
 		const auto        see      = QStringLiteral("<a href=\"#outside-list\">%1</a>").arg(tr("See the transcript").toHtmlEscaped());
 		OutsideList->setText(outside == 1U ? tr("Claude ran 1 command outside the read-only list. %1.").arg(see) : tr("Claude ran %1 commands outside the read-only list. %2.").arg(outside).arg(see));
 		OutsideList->setVisible(outside > 0U);
-		ProposalTitle->setText(tr("<b>Proposed tour</b>&nbsp;&nbsp;%1").arg(tr("Accept, edit or discard each part. Nothing changes until you accept it. %n left to decide.", nullptr, static_cast<int>(pending)).toHtmlEscaped()));
-		auto* const parent     = ProposalItems->parentWidget();
-		const auto  code       = QFontDatabase::systemFont(QFontDatabase::FixedFont);
-		int         stopNumber = 0;
+		// [[BPR-1925]] v003. No list: the parts wait in the tour, grey until
+		// accepted. One line says how many.
+		const auto waiting = pending == 1 ? tr("1 part waits in the tour, marked grey. Nothing changes until you accept it.") : tr("%1 parts wait in the tour, marked grey. Nothing changes until you accept them.").arg(pending);
+		ProposalTitle->setText(tr("<b>Proposed</b>&nbsp;&nbsp;%1").arg(waiting.toHtmlEscaped()));
+		AcceptAll->setVisible(pending > 1);
+		auto        kept   = std::size_t{ 0U };
+		auto* const parent = ProposalItems->parentWidget();
+		const auto  code   = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 		for (std::size_t index = 0U; index < Proposal->Items.size(); ++index) {
 			const auto& item = Proposal->Items[index];
-			if (!here(item)) {
+			// [[BPR-1925]] v003. A decided part is the tour's now (or gone):
+			// nothing of it is shown again.
+			if (!here(item) || item.Decision != core::tour_proposal_decision::pending) {
 				continue;
 			}
 			auto* const box = new QWidget{ parent };
@@ -803,16 +852,17 @@ namespace bpr::qt {
 			auto* const itemColumn = new QVBoxLayout{ box };
 			itemColumn->setContentsMargins(0, 0, 0, 0);
 			itemColumn->setSpacing(4);
+			// [[BPR-1925]] v003. Each heading is read on the part it changes: a
+			// proposed stop is its title, under its grey ring and number.
 			auto heading = QString{ };
 			if (item.Part == core::tour_proposal_part::problem) {
-				heading = tr("Problem");
+				heading = tr("Proposed Problem");
 			} else if (item.Part == core::tour_proposal_part::solution) {
-				heading = tr("Solution");
+				heading = tr("Proposed Solution");
 			} else if (item.Part == core::tour_proposal_part::stop_text) {
-				heading = tr("New explanation for %1").arg(QString::fromStdString(item.Stop.Title));
+				heading = tr("Proposed explanation");
 			} else {
-				++stopNumber;
-				heading = tr("Stop %1. %2").arg(stopNumber).arg(QString::fromStdString(item.Stop.Title));
+				heading = QString::fromStdString(item.Stop.Title);
 			}
 			auto* const title = new QLabel{ heading, box };
 			title->setWordWrap(true);
@@ -853,18 +903,6 @@ namespace bpr::qt {
 						Accented.emplace_back(move);
 					}
 				}
-			}
-			if (item.Decision != core::tour_proposal_decision::pending) {
-				const auto  stopWords = item.Placement == core::tour_stop_placement::off_change
-					? tr("Added to the tour. It won't appear when the tour is published until it's on changed lines: choose them in the code and use Use selected lines.")
-					: tr("Added to the tour. Confirm its lines in the code before it is Ready.");
-				auto* const decided   = small(paragraph(item.Decision == core::tour_proposal_decision::accepted ? (item.Part == core::tour_proposal_part::stop ? stopWords : tr("Accepted into the tour."))
-																												: tr("Discarded."),
-														box));
-				decided->setForegroundRole(QPalette::PlaceholderText);
-				itemColumn->addWidget(decided);
-				ProposalItems->addWidget(box);
-				continue;
 			}
 			if (item.ReplacesAuthorText) {
 				auto* const note = small(paragraph(tr("Accepting replaces what you wrote here."), box));
@@ -958,10 +996,13 @@ namespace bpr::qt {
 					editText->setText(tr("Show formatted"));
 				}
 			});
-			buttons->addWidget(accept);
+			// [[BPR-1925]] v003, owner: "move the accept into the stops
+			// directly. probably where it says ready, next". The part's one
+			// primary action at the right, as Ready, next is on a stop.
 			buttons->addWidget(editText);
 			buttons->addWidget(discard);
 			buttons->addStretch(1);
+			buttons->addWidget(accept);
 			itemColumn->addLayout(buttons);
 			Accepts[index] = accept;
 			connect(accept, &QPushButton::clicked, this, [this, index, editor] {
@@ -975,10 +1016,19 @@ namespace bpr::qt {
 				}
 			});
 			Accented.emplace_back(accept);
-			ProposalItems->addWidget(box);
+			Boxes[index] = box;
+			if (Place && Place(index, item, box)) {
+
+				box->installEventFilter(this);
+			} else {
+				ProposalItems->addWidget(box);
+				++kept;
+			}
 		}
 		ProposalItems->addStretch(1);
-		ProposalBox->show();
+		// The list is only for a part the tour has no place for.
+		ProposalScroll->setVisible(kept > 0U);
+		ProposalBox->setVisible(pending > 0);
 		QTimer::singleShot(0, this, [this] { fit_readers(); });
 		restyle(palette());
 	}

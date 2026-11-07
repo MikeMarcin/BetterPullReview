@@ -8,7 +8,7 @@ depends_on: ["BPR-1914"]
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-07: the side chat felt decoupled from the tour; chose direction A from mockups (session a2c7c1b3)","related_cards":["BPR-1900","BPR-1913","BPR-1914","BPR-1919","BPR-1924"]}
-acceptance: [{"criterion": "AC1 A part's chat opens inside the Tour tab, beside the tour, and the part is marked. No chat pane exists outside the Tour tab", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_chat_in_tab: in a real workbench_window the stop's glyph opens its chat as workbenchTourChatSplit's second column, to the right of the tour, with one tourSideChat in the window; the drawer widens to 700 or more; the route marks that stop (discussed role) and no other; the glyph is pressed. qt_tour_side_chat: no tab bar in the chat. The frozen look prints ATTENDED_TOUR_CHAT_PLACE:workbenchTourChatSplit:drawer=740.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC2 Switching parts switches the chat. Every part's chat stays available and copyable", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_chat_in_tab: going to the next stop brings its chat and back brings the first with its turns; the Solution's glyph brings its chat. qt_tour_side_chat: one real click on the Solution's glyph brings its chat back with both turns, and Copy chat copies it whole.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC3 Leaving the Tour tab hides the chat. The Tour tab's badge counts the parts with chats. Returning restores it", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_chat_in_tab: on Comments the chat is hidden, the drawer is 420 or less and workbenchTrayTourCount shows 2 (core::chat_threads, core_tour_agent_session); back on Tour the same chat shows at the wide width; a drag while the chat shows is remembered and the narrow width kept.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC4 \"Update this part from this chat\" still yields a proposal, applied only on accept", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: Update asks for the Solution rewritten from the chat, the proposal shows in the chat with Accept, and Accept dispatches the decision; nothing is applied before. The frozen look prints ATTENDED_TOUR_UPDATE and then ATTENDED_TOUR_SOLUTION, the accepted rewrite.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC5 One click on any part or chat control doesn't scroll the tour (keep BPR-1914's click-scroll test green)", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_click_scroll passes on ec9eb504c.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC6 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "8f3b96703", "evidence": {"kind": "observation", "detail": "v001 (ec9eb504c) rejected by the owner: chat buttons on the right of each section, toggling open and closed. v002: frozen build /Users/jaeger/.codex/attended-builds/bpr1925-tour-chat-toggle-v002.v0k20ovh of 8f3b96703; new short session b14aff10f34c9163ecf5fb57705f474c, candidate BPR-1925-tour-chat-toggle-v002, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#attended-review-v002"}}, {"criterion": "AC7 The RFC amendment is written, and the documentation gate passes", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1925 supersedes BPR-1914 v004's window-level pane and tabs; review-tours.md updated; verify_documentation.py prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#implementation-v001-2026-11-07"}}]
+acceptance: [{"criterion": "AC1 A part's chat opens inside the Tour tab, beside the tour, and the part is marked. No chat pane exists outside the Tour tab", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_chat_in_tab: in a real workbench_window the stop's glyph opens its chat as workbenchTourChatSplit's second column, to the right of the tour, with one tourSideChat in the window; the drawer widens to 700 or more; the route marks that stop (discussed role) and no other; the glyph is pressed. qt_tour_side_chat: no tab bar in the chat. The frozen look prints ATTENDED_TOUR_CHAT_PLACE:workbenchTourChatSplit:drawer=740.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC2 Switching parts switches the chat. Every part's chat stays available and copyable", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_chat_in_tab: going to the next stop brings its chat and back brings the first with its turns; the Solution's glyph brings its chat. qt_tour_side_chat: one real click on the Solution's glyph brings its chat back with both turns, and Copy chat copies it whole.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC3 Leaving the Tour tab hides the chat. The Tour tab's badge counts the parts with chats. Returning restores it", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_chat_in_tab: on Comments the chat is hidden, the drawer is 420 or less and workbenchTrayTourCount shows 2 (core::chat_threads, core_tour_agent_session); back on Tour the same chat shows at the wide width; a drag while the chat shows is remembered and the narrow width kept.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC4 \"Update this part from this chat\" still yields a proposal, applied only on accept", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: Update asks for the Solution rewritten from the chat, the proposal shows in the chat with Accept, and Accept dispatches the decision; nothing is applied before. The frozen look prints ATTENDED_TOUR_UPDATE and then ATTENDED_TOUR_SOLUTION, the accepted rewrite.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC5 One click on any part or chat control doesn't scroll the tour (keep BPR-1914's click-scroll test green)", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "qt_tour_click_scroll passes on ec9eb504c.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#verification-v001-focused"}}, {"criterion": "AC6 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "f4d786ba9", "evidence": {"kind": "observation", "detail": "v001 (ec9eb504c) rejected by the owner: chat buttons on the right of each section, toggling open and closed. v002 (8f3b96703) rejected: Accept into the stops, grey rails, highlighting, Ready, next. v003: frozen build /Users/jaeger/.codex/attended-builds/bpr1925-proposals-in-place-v003.4lw_2ymk of f4d786ba9; new short session c50dc6e8a0d5ea9f0b6276eb9c07cc6a, candidate BPR-1925-proposals-in-place-v003, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#attended-review-v003"}}, {"criterion": "AC7 The RFC amendment is written, and the documentation gate passes", "outcome": "pass", "revision": "ec9eb504c", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1925 supersedes BPR-1914 v004's window-level pane and tabs; review-tours.md updated; verify_documentation.py prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1925-tour-chat-inside-the-tour-tab.md#implementation-v001-2026-11-07"}}]
 parked_on: "human-review"
 ---
 
@@ -302,4 +302,122 @@ and `ATTENDED_TOUR_CONVERSATION_SHOWN`.
   started with `serve --tailscale`.
 - One candidate, `BPR-1925-tour-chat-toggle-v002` (revision
   `8f3b96703-v002`), with one Accept/Reject question.
+- Status: ready, awaiting the owner.
+
+### v002 rejected (2026-11-07)
+
+v002 was merged to `main` as `223c6f70e`. The owner rejected it in session
+`b14aff10f34c9163ecf5fb57705f474c`, with one picture of the "Proposed tour"
+box under Draft the tour, verbatim:
+
+> Overall fantastic.
+>
+> Missing syntax highlights in this part. In fact I think this whole section
+> probably just goes away and we move the accept into the stops directly.
+> probably where it says ready, next right now.
+>
+> In fact ready, next doesn't seem to do anything.
+>
+> Let's put a differnt color on the stop rails for stops that aren't
+> accepted, maybe grey and then turn them back yellow once accepted.
+
+The picture stays in that session's state, not in the repository. Both v002
+hosts are stopped and both v002 frozen roots removed.
+
+## v003 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v003 is on branch
+`bpr1925-v003-proposals-in-place`, made from `origin/main` `223c6f70e`. It
+leaves the core alone: BPR-1900's rules hold (each part decided on its own,
+nothing changes until accepted, nothing silently overwritten).
+
+- **The proposal waits in the tour.** `tour_agent_panel` still builds each
+  pending part's box, and offers each one to a placer
+  (`set_proposal_placer`). The editor puts it on what it changes:
+  - a proposed stop on the route, after the tour's own stops, numbered on
+    from them, in a `proposed_stop_frame`: a grey dashed ring and rail and a
+    dashed card. Accepted, it is a stop of the tour, with the amber ring;
+  - a stop's new explanation on that stop's card, before its last row, while
+    the stop is open;
+  - the proposed Problem or Solution under the part's own text.
+
+  The Problem's, Solution's or Stops' step header carries a quiet grey
+  "Proposed" pill while one of its parts waits. Each box has Edit text and
+  Discard, then Accept at the right, where Ready, next sits. Move to nearest
+  change and the placement notes come with the box. A decided part leaves.
+  Under Draft the tour one line stays: "N parts wait in the tour, marked
+  grey", with Accept all (shown for more than one), and the left-out and
+  outside-list lines. A part with no place in the tour stays listed there.
+- **Highlighting.** The fenced blocks were coloured, but the boxes' readers
+  had no language for inline code. The placer gives each reader its part's
+  language, as the side chat does: a stop's own file, or the tour's
+  commonest language.
+- **Ready, next did nothing.** Two causes:
+  - The core refused it: a stop is Ready only when its lines are confirmed
+    (`core::ready`). A stop the agent proposed carries its lines as a
+    destination with mapping `unavailable`, so Ready, and Reaffirm too, were
+    refused, and nothing said why.
+  - Its handler asked whether the stop was Ready right after dispatching,
+    before the host had answered, so it never went on.
+
+  Now:
+  - Ready, next is enabled only when `core::ready` holds. Otherwise its
+    tooltip says to confirm the stop's lines first (Show in code, select
+    them, Use selected lines), and Show in code is the card's default.
+  - A click remembers the stop, and once a presentation shows it Ready the
+    tour goes to the next stop, just after that presentation.
+  - One primary action at a time: Accept while proposed (Ready, next is
+    hidden while a new explanation waits), then Show in code and Use selected
+    lines while the lines are unconfirmed, then Ready, next.
+- **For [[BPR-1930]].** Proposed removals, merges and reorders can be placed
+  the same way: a box with Accept on the stops they change, grey until
+  accepted.
+- RFC-BPR-0092 amendment v003 and `review-tours.md` say this.
+
+### Verification (v003, focused)
+
+On `0ea0dc19f`, dev build, 19 tests pass.
+
+`qt_tour_chat_in_tab` adds, after the chat column's colour checks (dark and
+light):
+- one line saying three parts wait, and no list in the panel;
+- the proposed stop on the route in its grey frame, with its Accept on it, at
+  the right of Discard;
+- that stop's `cpp` block and inline code coloured;
+- the Problem's under its own text;
+- Stop 1's new explanation on its card, with Ready, next hidden and its
+  inline code coloured;
+- Accept on the proposed stop accepting it;
+- with everything decided, no line and no grey stops, and Ready, next back;
+- Ready, next on a stop with confirmed lines dispatching `complete`,
+  waiting, then going to Stop 2 once the stop shows Ready;
+- a stop with unconfirmed lines: Ready, next disabled with its reason, and
+  Show in code the default.
+
+`qt_tour_agent_session_view` follows the parts into the tour (on the
+Solution, on the route). The rest pass as for v002: the drawer-fit tests at
+100, 125 and 200, the tour editor tests, `qt_tour_side_chat`,
+`qt_tour_click_scroll`, `qt_scoped_prose_editor`, `core_tour_agent_session`,
+the architecture tests and the composition contract.
+
+`coding-format-check` passes, and `verify_documentation.py` prints
+`DOCUMENTATION_OK`. The offscreen look on the dev build reaches
+`ATTENDED_TOUR_CONVERSATION_SHOWN`. Its picture shows Stop 1 accepted (amber,
+lines to confirm, Ready, next waiting) and Stop 2 proposed under a grey rail,
+with coloured inline code and Accept.
+
+### Attended review (v003)
+
+- Frozen build `/Users/jaeger/.codex/attended-builds/bpr1925-proposals-in-place-v003.4lw_2ymk`
+  of `f4d786ba9` (executable SHA-256
+  `f18e88b8aeb526278adad2335d8a2c15345a582cc130dac601d17173dff5b307`).
+  Its launcher's own offscreen check reached
+  `ATTENDED_TOUR_CONVERSATION_SHOWN`. The session's pictures are that check's
+  own (dark) and `qt_tour_chat_in_tab`'s.
+- Launch: `python3 /Users/jaeger/.codex/attended-builds/bpr1925-proposals-in-place-v003.4lw_2ymk/launch.py`.
+- New short session `c50dc6e8a0d5ea9f0b6276eb9c07cc6a`, state
+  `/Users/jaeger/.codex/attended-review/bpr1925-v003-PrP5ou/state`, host
+  started with `serve --tailscale`.
+- One candidate, `BPR-1925-proposals-in-place-v003` (revision
+  `f4d786ba9-v003`), with one Accept/Reject question.
 - Status: ready, awaiting the owner.

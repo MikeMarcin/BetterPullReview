@@ -179,7 +179,17 @@ come first; one just off it says "Outside the change"; one off it on several
 lines says it won't appear when published until it's on changed lines and
 offers **Move to nearest change**. An accepted stop is
 added at the end of the route at its head lines, to be confirmed in the code
-before it is Ready. When Claude ran a command outside the read-only list, one
+before it is Ready. Since [[BPR-1925]] v003 (owner: "this whole section probably
+just goes away and we move the accept into the stops directly") the proposal is
+not a list under the button. Each pending part waits in the tour on what it
+changes. A proposed stop sits on the route, after the tour's own, under a grey
+ring and rail that turn amber once it is accepted. A stop's new explanation
+sits on its card, where **Ready, next** is. A proposed Problem or Solution sits
+under the part's own text, with a "Proposed" pill on its step. Each has
+**Accept** at the right, with **Edit text** and **Discard** before it. One line
+under the button counts them, with **Accept all**. **Ready, next** is offered
+once a stop's lines are confirmed in the code (Show in code, then Use selected
+lines), and it goes on to the next stop when the stop shows as Ready. When Claude ran a command outside the read-only list, one
 quiet line under the proposal says how many, with a link to them in the
 transcript (BPR-1912). **Transcript** opens the session's runs, newest first,
 in a window of its own beside the main window (BPR-1913): what was asked,

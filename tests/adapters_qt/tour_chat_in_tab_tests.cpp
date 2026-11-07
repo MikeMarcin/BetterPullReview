@@ -18,6 +18,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_window.hpp"
 
@@ -286,6 +287,93 @@ namespace {
 		profile.apply_to(window);
 		settle();
 		coloured("after the appearance is applied again");
+
+		// [[BPR-1925]] v003, owner on v002: "this whole section probably just
+		// goes away and we move the accept into the stops directly ... put a
+		// different color on the stop rails for stops that aren't accepted".
+		// A proposal waits in the tour itself: a new stop on the route under a
+		// grey ring, its text in the stop reader's colours, Accept where Ready,
+		// next sits; the Problem's under its own text; Stop 1's new
+		// explanation on its card, instead of Ready, next. No list.
+		auto decided = std::vector<std::pair<std::size_t, core::tour_proposal_decision>>{ };
+		editor->set_tour_session_dispatch([] { }, [] { }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString&) { decided.emplace_back(aIndex, aDecision); });
+		auto proposed              = core::tour_proposal{ .Run = core::tour_agent_run_id{ 99 } };
+		auto problem               = core::tour_proposal_item{ .Part = core::tour_proposal_part::problem, .Text = "Two views shared one frame.", .Run = proposed.Run };
+		auto newStop               = core::tour_proposal_item{ .Part = core::tour_proposal_part::stop, .Text = "Here `clear()` runs first:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n", .Run = proposed.Run };
+		newStop.Stop               = core::proposed_tour_stop{ .Path = "src/item.cpp", .FirstLine = 4U, .LastLine = 6U, .Title = "How it ends", .Explanation = newStop.Text };
+		auto rewrite               = core::tour_proposal_item{ .Part = core::tour_proposal_part::stop_text, .Text = "Clear first, then draw: `clear()` comes before `draw()`.", .StopId = core::tour_stop_id{ 1 }, .Run = proposed.Run };
+		rewrite.Stop               = core::proposed_tour_stop{ .Title = "Why" };
+		proposed.Items             = { problem, newStop, rewrite };
+		syntax.Effects.Immediate   = false;
+		syntax.Decisions.Immediate = false;
+		syntax.Live                = nullptr;
+		editor->present_tour_session(session, proposed);
+		editor->show_stops();
+		editor->go_to_stop(core::tour_stop_id{ 1 });
+		syntax.deliver(window);
+		auto* const panelBox = editor->tour_agent()->proposal();
+		expect(panelBox->isVisibleTo(editor) && editor->tour_agent()->proposal_title()->text().contains(QStringLiteral("3 parts wait in the tour")), "one line says three parts wait in the tour");
+		expect(editor->tour_agent()->proposal_items()->findChildren<QWidget*>(QStringLiteral("tourProposalItem")).isEmpty(), "and the list is gone");
+		auto* const proposedStops = editor->findChild<QWidget*>(QStringLiteral("tourProposedStops"));
+		const auto  frames        = proposedStops != nullptr ? proposedStops->findChildren<QWidget*>(QStringLiteral("tourProposedStop")) : QList<QWidget*>{ };
+		expect(proposedStops != nullptr && proposedStops->isVisible() && frames.size() == 1, "the proposed stop is on the route, under its own");
+		auto* const stopAccept = editor->tour_agent()->accept_button(1);
+		expect(stopAccept != nullptr && frames.front()->isAncestorOf(stopAccept) && stopAccept->isVisible(), "its Accept is on it");
+		const auto* const stopDiscard = frames.front()->findChild<QPushButton*>(QStringLiteral("tourProposalDiscard"));
+		expect(stopDiscard != nullptr && stopAccept->x() > stopDiscard->x(), "Accept at the right, where Ready, next sits; Discard before it");
+		auto* const stopText = editor->tour_agent()->proposal_reader(1);
+		expect(stopText != nullptr && frames.front()->isAncestorOf(stopText), "its text reads on it");
+		expect(colours_of(*stopText, QStringLiteral("return *Table")).size() >= 2U, "the proposed stop's cpp block is coloured");
+		expect(colours_of(*stopText, QStringLiteral("clear()")).size() >= 2U, "and its inline code, as its file's");
+		auto* const problemRowWidget = editor->findChild<QWidget*>(QStringLiteral("tourProblemRow"));
+		expect(editor->tour_agent()->accept_button(0) != nullptr && editor->findChild<QWidget*>(QStringLiteral("tourProblem"))->parentWidget()->isAncestorOf(editor->tour_agent()->accept_button(0)), "the proposed Problem waits under the Problem's own text");
+		expect(problemRowWidget != nullptr, "the Problem's step says one is proposed");
+		auto* const complete      = editor->findChild<QPushButton*>(QStringLiteral("tourComplete"));
+		auto* const rewriteAccept = editor->tour_agent()->accept_button(2);
+		expect(rewriteAccept != nullptr && rewriteAccept->isVisible() && editor->findChild<QWidget*>(QStringLiteral("tourStopFields"))->isAncestorOf(rewriteAccept) && !complete->isVisible(), "Stop 1's new explanation is on its card, and its Accept stands where Ready, next was");
+		expect(colours_of(*editor->tour_agent()->proposal_reader(2), QStringLiteral("clear()")).size() >= 2U, "its inline code is coloured too");
+		draw(window, QStringLiteral("tour-proposed-in-place"), aTheme);
+		click(stopAccept);
+		expect(!decided.empty() && decided.back() == std::pair{ std::size_t{ 1U }, core::tour_proposal_decision::accepted }, "Accept on the proposed stop accepts it");
+		// Decided, the parts leave: Ready, next is back on Stop 1.
+		for (auto& item : proposed.Items) {
+			item.Decision = core::tour_proposal_decision::discarded;
+		}
+		editor->present_tour_session(session, proposed);
+		settle();
+		expect(complete->isVisible() && !panelBox->isVisibleTo(editor) && !proposedStops->isVisible(), "with nothing proposed: no line, no grey stops, Ready, next on the card");
+
+		// [[BPR-1925]] v003, owner: "ready, next doesn't seem to do anything".
+		// Stop 1's lines are confirmed: Ready, next marks it, and once the
+		// host shows it Ready the tour goes on to Stop 2.
+		auto readyCommands = std::vector<core::tour_command_kind>{ };
+		editor->set_dispatch([&readyCommands](core::tour_command aCommand) { readyCommands.push_back(aCommand.Kind); }, [](qt::tour_editor_action) { });
+		editor->go_to_stop(core::tour_stop_id{ 1 });
+		settle();
+		expect(complete->isEnabled() && complete->isDefault(), "a stop with its lines confirmed offers Ready, next");
+		click(complete);
+		expect(!readyCommands.empty() && readyCommands.back() == core::tour_command_kind::complete && editor->selected_stop()->Id == core::tour_stop_id{ 1 }, "it asks the host to mark the stop Ready, and waits for it");
+		auto marked                 = tour;
+		marked.Stops[0].Preparation = core::tour_preparation::ready;
+		auto markedPresentation     = application::tour_presentation{ };
+		markedPresentation.Draft    = std::make_shared<const core::review_tour>(marked);
+		markedPresentation.Selected = core::tour_stop_id{ 1 };
+		editor->present(markedPresentation);
+		settle();
+		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 }, "Ready shown, it goes on to the next stop");
+		// A stop the agent proposed, accepted with its lines not yet chosen:
+		// Ready, next waits, says why, and Show in code leads.
+		auto unconfirmed                 = marked;
+		unconfirmed.Stops[1].Original    = std::nullopt;
+		unconfirmed.Stops[1].Mapping     = core::tour_mapping::unavailable;
+		unconfirmed.Stops[1].Destination = core::tour_code_destination{ .Commit = tour.Head, .Path = "src/item.cpp", .Side = core::diff_side::right, .FirstLine = 3U, .LastLine = 5U };
+		auto unconfirmedPresentation     = application::tour_presentation{ };
+		unconfirmedPresentation.Draft    = std::make_shared<const core::review_tour>(unconfirmed);
+		unconfirmedPresentation.Selected = core::tour_stop_id{ 2 };
+		editor->present(unconfirmedPresentation);
+		settle();
+		auto* const showInCode = editor->findChild<QPushButton*>(QStringLiteral("tourReturn"));
+		expect(!complete->isEnabled() && complete->toolTip().startsWith(QStringLiteral("Confirm the stop's lines first")) && showInCode->isDefault(), "unconfirmed lines: Ready, next waits and says why; Show in code leads");
 		draw(window, QStringLiteral("tour-chat-stop"), aTheme);
 
 		// AC2. Switching parts switches the chat: the route's next stop.

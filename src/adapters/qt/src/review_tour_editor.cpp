@@ -215,6 +215,14 @@ namespace bpr::qt {
 			return dark ? QColor{ 0xE3, 0xB3, 0x41 } : QColor{ 0xC3, 0x8A, 0x10 };
 		}
 
+		/// \brief [[BPR-1925]] v003. The rail of a part not yet accepted: grey,
+		/// readable on either ground, until it is the tour's and turns amber.
+		[[nodiscard]] auto route_grey(const QPalette& aPalette) -> QColor
+		{
+			const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
+			return dark ? QColor{ 0x8B, 0x94, 0x9E } : QColor{ 0x6E, 0x77, 0x81 };
+		}
+
 		[[nodiscard]] auto route_green(const QPalette& aPalette) -> QColor
 		{
 			const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
@@ -333,6 +341,60 @@ namespace bpr::qt {
 			}
 			QPlainTextEdit*          Text = nullptr;
 			std::set<const QWidget*> Hosts;
+		};
+
+		/// \brief [[BPR-1925]] v003, owner on v002: "Let's put a different
+		/// color on the stop rails for stops that aren't accepted, maybe grey
+		/// and then turn them back yellow once accepted." A proposed stop on
+		/// the route: its number in a grey ring on a grey rail, and its card
+		/// (title, file and lines, its text as it will read, Edit text,
+		/// Discard and Accept where Ready, next sits on an accepted stop).
+		/// Accepted, it is a stop of the tour and wears the amber of the rest.
+		class proposed_stop_frame final : public QWidget
+		{
+		public:
+			proposed_stop_frame(const int aNumber, QWidget* aParent)
+				: QWidget{ aParent }
+				, Number{ aNumber }
+			{
+				setObjectName(QStringLiteral("tourProposedStop"));
+				auto* const column = new QVBoxLayout{ this };
+				column->setContentsMargins(text_left - 6, 10, 12, 10);
+			}
+			int Number = 0;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto base   = palette().color(QPalette::Active, QPalette::Base);
+				const auto grey   = route_grey(palette());
+				const auto ground = QRectF{ rect().adjusted(grip_width - 4, 2, -2, -2) };
+				painter.setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
+				painter.setBrush(Qt::NoBrush);
+				painter.drawRoundedRect(ground, 8.0, 8.0);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(grey);
+				painter.drawRoundedRect(QRectF{ ground.left(), ground.top() + 6.0, 3.0, ground.height() - 12.0 }, 1.5, 1.5);
+				// The rail from the stop before, and the ring.
+				const auto centre = QPointF{ ring_left + ring_size / 2.0, 10.0 + ring_size / 2.0 };
+				auto       rail   = grey;
+				rail.setAlphaF(0.55F);
+				painter.setPen(QPen{ rail, 2.0, Qt::DashLine });
+				painter.drawLine(QPointF{ centre.x(), 0.0 }, QPointF{ centre.x(), centre.y() - ring_size / 2.0 });
+				painter.drawLine(QPointF{ centre.x(), centre.y() + ring_size / 2.0 }, QPointF{ centre.x(), static_cast<qreal>(height()) });
+				const auto ring = QRectF{ centre.x() - ring_size / 2.0, centre.y() - ring_size / 2.0, static_cast<qreal>(ring_size), static_cast<qreal>(ring_size) };
+				painter.setPen(QPen{ grey, 1.6 });
+				painter.setBrush(base);
+				painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
+				auto number = font();
+				number.setWeight(QFont::DemiBold);
+				number.setPointSizeF(std::max(1.0, number.pointSizeF() * 0.86));
+				painter.setFont(number);
+				painter.setPen(grey);
+				painter.drawText(ring, Qt::AlignCenter, QString::number(Number));
+			}
 		};
 
 		/// \brief [[BPR-1925]] v002. Where a stop's chat toggle sits in its
@@ -656,7 +718,17 @@ namespace bpr::qt {
 			step_change*          Change = nullptr;
 			/// [[BPR-1925]] v002. The part's chat toggle, at the header's right.
 			QWidget* Chat = nullptr;
-			void     set_chat(QWidget* aChat)
+			/// [[BPR-1925]] v003. A proposed part waits on this step, grey
+			/// until accepted: a quiet pill says so in the header.
+			bool Proposed = false;
+			void set_proposed(const bool aProposed)
+			{
+				if (Proposed != aProposed) {
+					Proposed = aProposed;
+					update();
+				}
+			}
+			void set_chat(QWidget* aChat)
 			{
 				Chat = aChat;
 				Chat->setParent(this);
@@ -763,18 +835,40 @@ namespace bpr::qt {
 				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
 				if (!Summary.isEmpty()) {
 					const auto left  = indent + nameWidth + 10;
-					const auto right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
+					auto       right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
 																												  : width() - 6;
+					right -= Proposed ? proposed_pill_width() + 6 : 0;
 					painter.setFont(font());
 					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
 					const auto flat = QString{ Summary }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }).simplified();
 					painter.drawText(QRect{ left, 0, std::max(0, right - left), height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ font() }.elidedText(flat, Qt::ElideRight, std::max(0, right - left)));
+				}
+				if (Proposed) {
+					// Grey, as a proposed stop's rail is, until it is accepted.
+					auto small = font();
+					small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
+					const auto right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
+																												  : width() - 6;
+					const auto pill  = QRectF{ static_cast<qreal>(right - proposed_pill_width()), (height() - QFontMetrics{ small }.height() - 4) / 2.0, static_cast<qreal>(proposed_pill_width()), QFontMetrics{ small }.height() + 4.0 };
+					const auto grey  = route_grey(palette());
+					painter.setPen(QPen{ grey, 1.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), pill.height() / 2.0, pill.height() / 2.0);
+					painter.setFont(small);
+					painter.setPen(grey);
+					painter.drawText(pill, Qt::AlignCenter, tr("Proposed"));
 				}
 				if (hasFocus()) {
 					painter.setPen(QPen{ accent, 2.0 });
 					painter.setBrush(Qt::NoBrush);
 					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 6.0, 6.0);
 				}
+			}
+			[[nodiscard]] auto proposed_pill_width() const -> int
+			{
+				auto small = font();
+				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
+				return QFontMetrics{ small }.horizontalAdvance(tr("Proposed")) + 14;
 			}
 
 		private:
@@ -1225,6 +1319,10 @@ namespace bpr::qt {
 		// each part's chat as the chat changes.
 		SideChat->set_change_observer([this] { mark_side_chat(); });
 		TourAgentPanel->set_chat_dispatch([this] { toggle_side_chat(core::tour_thread{ }); });
+		// [[BPR-1925]] v003, owner on v002: "this whole section probably just
+		// goes away and we move the accept into the stops directly". Each
+		// pending part of a proposal waits on the part it changes.
+		TourAgentPanel->set_proposal_placer([this] { begin_proposals(); }, [this](const std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) { return place_proposal(aIndex, aItem, aBox); });
 		DraftFailure = new failure_notice_card{ TourAgentPanel };
 		connect(static_cast<failure_notice_card*>(DraftFailure)->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
 		TourAgentPanel->set_failure_notice(DraftFailure);
@@ -2388,7 +2486,145 @@ namespace bpr::qt {
 	{
 		TourAgentPanel->present(aSession, aProposal);
 		SideChat->present(aSession, aProposal, Shown.Draft);
+		mark_proposed();
 		restyle_agent_features();
+	}
+	void review_tour_editor::begin_proposals()
+	{
+		// The boxes themselves are the panel's, and go with it; their frames
+		// and places are the tour's.
+		for (auto* const frame : ProposedStops->findChildren<QWidget*>(QStringLiteral("tourProposedStop"), Qt::FindDirectChildrenOnly)) {
+			frame->hide();
+			frame->deleteLater();
+		}
+		StopTextProposals.clear();
+		PartProposed      = { false, false };
+		ProposedStopCount = 0U;
+	}
+	auto review_tour_editor::place_proposal(const std::size_t /*aIndex*/, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool
+	{
+		// [[BPR-1925]] v003, owner on v002: "Missing syntax highlights in this
+		// part". Inline code in a proposed text reads in its part's language,
+		// as the side chat's does ([[BPR-1914]] v004): a stop's own file, or
+		// the language most of the tour's stops are in.
+		if (auto* const reader = static_cast<markdown_body_view*>(aBox->findChild<QWidget*>(QStringLiteral("tourProposalRendered"))); reader != nullptr) {
+			auto selector = std::string{ };
+			if (aItem.Part == core::tour_proposal_part::stop) {
+				selector = aItem.Stop.Path;
+			} else if (aItem.Part == core::tour_proposal_part::stop_text && Shown.Draft) {
+				if (const auto found = std::ranges::find(Shown.Draft->Stops, aItem.StopId, &core::tour_stop::Id); found != Shown.Draft->Stops.end()) {
+					const auto& source = found->Mapped ? found->Mapped : found->Original;
+					selector           = source ? source->Path : found->Destination ? found->Destination->Path
+																					: std::string{ };
+				}
+			}
+			if (selector.empty() && Shown.Draft) {
+				auto counts = std::map<std::string, std::size_t>{ };
+				auto best   = std::string{ };
+				for (const auto& stop : Shown.Draft->Stops) {
+					const auto& source = stop.Mapped ? stop.Mapped : stop.Original;
+					const auto  path   = source ? source->Path : stop.Destination ? stop.Destination->Path
+																				  : std::string{ };
+					const auto  dot    = path.rfind('.');
+					if (dot == std::string::npos || path.find('/', dot) != std::string::npos) {
+						continue;
+					}
+					const auto kind = path.substr(dot);
+					if (++counts[kind] > (best.empty() ? 0U : counts[best])) {
+						best = kind;
+					}
+				}
+				selector = best.empty() ? std::string{ } : "code" + best;
+			}
+			reader->set_inline_code_selector(selector);
+		}
+		switch (aItem.Part) {
+		case core::tour_proposal_part::problem:
+		case core::tour_proposal_part::solution: {
+			// On the part itself, under its own text: nothing changes there
+			// until it is accepted.
+			const auto field = aItem.Part == core::tour_proposal_part::problem ? 0 : 1;
+			static_cast<QVBoxLayout*>(BriefPanels[field]->layout())->insertWidget(1, aBox);
+			aBox->show();
+			PartProposed[static_cast<std::size_t>(field)] = true;
+			return true;
+		}
+		case core::tour_proposal_part::stop_text: {
+			// On that stop's card, where Ready, next is, while it is open.
+			if (!Shown.Draft || std::ranges::find(Shown.Draft->Stops, aItem.StopId, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
+				return false;
+			}
+			aBox->hide();
+			StopTextProposals[aItem.StopId.value()] = aBox;
+			return true;
+		}
+		case core::tour_proposal_part::stop: {
+			// On the route, after the tour's own stops, numbered on from them.
+			++ProposedStopCount;
+			const auto  number = static_cast<int>((Shown.Draft ? Shown.Draft->Stops.size() : 0U) + ProposedStopCount);
+			auto* const frame  = new proposed_stop_frame{ number, ProposedStops };
+			frame->layout()->addWidget(aBox);
+			aBox->show();
+			static_cast<QVBoxLayout*>(ProposedStops->layout())->addWidget(frame);
+			frame->show();
+			return true;
+		}
+		}
+		return false;
+	}
+	void review_tour_editor::mark_proposed()
+	{
+		for (int field = 0; field < 2; ++field) {
+			static_cast<tour_step_row*>(StepRows[field])->set_proposed(PartProposed[static_cast<std::size_t>(field)]);
+		}
+		static_cast<tour_step_row*>(StepRows[2])->set_proposed(ProposedStopCount > 0U);
+		ProposedStops->setVisible(ProposedStopCount > 0U);
+		place_stop_text_proposal();
+	}
+	void review_tour_editor::place_stop_text_proposal()
+	{
+		const auto* const stop  = selected_stop();
+		auto              shown = false;
+		for (auto& [id, box] : StopTextProposals) {
+			if (!box) {
+				continue;
+			}
+			if (stop != nullptr && stop->Id.value() == id) {
+				if (box->parentWidget() != StopFields) {
+					// Before the row Ready, next is in: its last row.
+					StopFieldsLayout->insertWidget(StopFieldsLayout->count() - 1, box);
+				}
+				box->show();
+				shown = true;
+			} else {
+				box->hide();
+			}
+		}
+		// One primary action at a time: Accept while the stop's new text is
+		// proposed, Ready, next once it is decided.
+		ShowsStopProposal = shown;
+		refresh_complete();
+	}
+	void review_tour_editor::refresh_complete()
+	{
+		if (Complete == nullptr) {
+			return;
+		}
+		const auto* const stop = selected_stop();
+		// [[BPR-1925]] v003, owner: "ready, next doesn't seem to do anything".
+		// It was refused: a stop is Ready only once its lines are confirmed in
+		// the code, and a stop the agent proposed has its lines as a place to
+		// look, not yet confirmed. Now it says so and waits, and Show in code
+		// leads until the lines are chosen with Use selected lines.
+		const auto ready = stop != nullptr && core::ready(*stop);
+		Complete->setVisible(!ShowsStopProposal);
+		Complete->setEnabled(ready);
+		Complete->setDefault(ready && !ShowsStopProposal);
+		if (ShowInCode != nullptr) {
+			ShowInCode->setDefault(!ready && !ShowsStopProposal);
+		}
+		Complete->setToolTip(ready ? tr("Mark this stop ready and go to the next (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText))
+								   : tr("Confirm the stop's lines first: Show in code, select its lines in the code, then Use selected lines."));
 	}
 	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
@@ -2700,6 +2936,13 @@ namespace bpr::qt {
 		UndoStructure = shortcut(QStringLiteral("tourUndo"), shortcut_command::tour_undo, this, [this] { trigger(tour_editor_action::undo_structure); });
 		RedoStructure = shortcut(QStringLiteral("tourRedo"), shortcut_command::tour_redo, this, [this] { trigger(tour_editor_action::redo_structure); });
 		outline->Move = [this](std::size_t aPosition) { structural(core::tour_command_kind::move, aPosition); };
+		// [[BPR-1925]] v003. Proposed stops wait under the route's own.
+		ProposedStops = new QWidget{ this };
+		ProposedStops->setObjectName(QStringLiteral("tourProposedStops"));
+		auto* const proposedColumn = new QVBoxLayout{ ProposedStops };
+		proposedColumn->setContentsMargins(0, 0, 0, 0);
+		proposedColumn->setSpacing(0);
+		ProposedStops->hide();
 		outline->viewport()->installEventFilter(this);
 		// [[BPR-1925]] v002. A stop's toggle on the route: its chat, or the
 		// column closed when that chat is the one in it.
@@ -2958,6 +3201,8 @@ namespace bpr::qt {
 		nav->setSpacing(6);
 		fields->addLayout(nav);
 		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
+		ShowInCode               = returnToTour;
+		StopFieldsLayout         = fields;
 		returnToTour->setToolTip(tr("Show the stop's lines in the code"));
 		nav->addStretch(1);
 		auto* complete = new QPushButton{ tr("Ready, next"), StopFields };
@@ -2966,7 +3211,22 @@ namespace bpr::qt {
 		complete->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
 		complete->setToolTip(tr("Mark this stop ready and go to the next (%1)").arg(complete->shortcut().toString(QKeySequence::NativeText)));
 		nav->addWidget(complete);
-		connect(complete, &QPushButton::clicked, this, [this] {structural(core::tour_command_kind::complete); if(const auto* stop=selected_stop();stop && stop->Preparation==core::tour_preparation::ready){next_stop(1);} });
+		Complete = complete;
+		// [[BPR-1925]] v003. Marking a stop Ready is the host's to apply: the
+		// move to the next stop waits until this stop shows as Ready (see
+		// `place_stop_card`), instead of looking before the host answered.
+		connect(complete, &QPushButton::clicked, this, [this] {
+			const auto* const stop = selected_stop();
+			if (stop == nullptr) {
+				return;
+			}
+			if (stop->Preparation == core::tour_preparation::ready) {
+				next_stop(1);
+				return;
+			}
+			AdvanceFrom = stop->Id;
+			structural(core::tour_command_kind::complete);
+		});
 		connect(Title, &QLineEdit::textEdited, this, [this] { edit_stop(); });
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
 			edit_stop();
@@ -3518,6 +3778,7 @@ namespace bpr::qt {
 			column->addStretch(1);
 			// [[BPR-1784]]. The route is step 3's body.
 			StopsSlot->layout()->addWidget(Outline);
+			StopsSlot->layout()->addWidget(ProposedStops);
 			StopsSlot->layout()->addWidget(OutlineTools);
 			for (int field = 0; field < 2; ++field) {
 				BriefSlots[field]->layout()->addWidget(BriefPanels[field]);
@@ -3539,7 +3800,8 @@ namespace bpr::qt {
 			}
 			left->insertWidget(1, Brief);
 			left->insertWidget(2, Outline, 1);
-			left->insertWidget(3, OutlineTools);
+			left->insertWidget(3, ProposedStops);
+			left->insertWidget(4, OutlineTools);
 			for (int field = 0; field < 2; ++field) {
 				BriefSlots[field]->hide();
 				BriefHosts[field]->layout()->addWidget(BriefPanels[field]);
@@ -3659,6 +3921,22 @@ namespace bpr::qt {
 	void review_tour_editor::place_stop_card()
 	{
 		place_stop_card_now();
+		place_stop_text_proposal();
+		// [[BPR-1925]] v003. Ready, next: once the host shows this stop Ready,
+		// go on.
+		if (AdvanceFrom) {
+			const auto* const stop = selected_stop();
+			if (stop != nullptr && stop->Id == *AdvanceFrom && stop->Preparation == core::tour_preparation::ready) {
+				AdvanceFrom.reset();
+				// After the presentation that showed it Ready, which takes no
+				// change of stop while it is applied.
+				QTimer::singleShot(0, this, [this] { next_stop(1); });
+				return;
+			}
+			if (stop == nullptr || stop->Id != *AdvanceFrom || Shown.Refusal != core::tour_refusal::none) {
+				AdvanceFrom.reset();
+			}
+		}
 		// [[BPR-1925]]. While a stop's chat is beside the tour, going to
 		// another stop brings that stop's chat: the chat follows the route.
 		// The keyboard stays where the reviewer put it.

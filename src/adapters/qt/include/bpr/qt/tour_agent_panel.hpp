@@ -66,6 +66,23 @@ namespace bpr::qt {
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
 		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
+		/// \brief [[BPR-1925]] v003, owner on v002: "I think this whole section
+		/// probably just goes away and we move the accept into the stops
+		/// directly". Each pending part of a proposal is offered to `aPlace`,
+		/// which puts its box (heading, text as it will read, Edit text,
+		/// Discard and Accept) in the tour, on the part it changes; a part it
+		/// does not place stays in this panel. `aBegin` is told first, each
+		/// time the proposal is laid out again, so the old places are cleared.
+		using proposal_placer = std::function<bool(std::size_t, const core::tour_proposal_item&, QWidget*)>;
+		void set_proposal_placer(std::function<void()> aBegin, proposal_placer aPlace)
+		{
+			PlaceBegin = std::move(aBegin);
+			Place      = std::move(aPlace);
+		}
+		/// \brief The proposal's one line: how many parts wait in the tour, and
+		/// Accept all.
+		[[nodiscard]] auto accept_all_button() const noexcept -> QPushButton* { return AcceptAll; }
+		[[nodiscard]] auto proposal_title() const noexcept -> QLabel* { return ProposalTitle; }
 		/// \brief [[BPR-1914]] v002. The thread for the tour as a whole, under
 		/// Draft the tour; Ask about the tour opens it.
 		/// \brief [[BPR-1914]] v003. Opens the side chat about the whole tour.
@@ -145,20 +162,25 @@ namespace bpr::qt {
 		/// [[BPR-1925]]. Conversation and the tour's chat glyph sit at the
 		/// right of Draft the tour, or on their own row under it when the
 		/// drawer is too narrow for both at their own widths.
-		void                                                                        fit_head();
-		QGridLayout*                                                                Head  = nullptr;
-		QWidget*                                                                    Trail = nullptr;
-		void                                                                        fit_readers();
-		void                                                                        rebuild_proposal();
-		void                                                                        rebuild_transcript();
-		void                                                                        show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
-		void                                                                        copy(const QString& aText, const QString& aSaid);
-		void                                                                        append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
-		void                                                                        refresh_toggle();
-		std::function<void()>                                                       DraftDispatch;
-		std::function<void()>                                                       StopDispatch;
-		decide_dispatch                                                             DecideDispatch;
-		std::function<void(std::size_t)>                                            RelocateDispatch;
+		void                             fit_head();
+		QGridLayout*                     Head  = nullptr;
+		QWidget*                         Trail = nullptr;
+		void                             fit_readers();
+		void                             rebuild_proposal();
+		void                             rebuild_transcript();
+		void                             show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
+		void                             copy(const QString& aText, const QString& aSaid);
+		void                             append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
+		void                             refresh_toggle();
+		std::function<void()>            DraftDispatch;
+		std::function<void()>            StopDispatch;
+		decide_dispatch                  DecideDispatch;
+		std::function<void(std::size_t)> RelocateDispatch;
+		std::function<void()>            PlaceBegin;
+		proposal_placer                  Place;
+		QPushButton*                     AcceptAll = nullptr;
+		/// [[BPR-1925]] v003. Each pending part's box, wherever it was placed.
+		std::map<std::size_t, QPointer<QWidget>>                                    Boxes;
 		std::map<std::size_t, markdown_body_view*>                                  Readers;
 		std::map<std::size_t, QPushButton*>                                         EditButtons;
 		std::set<std::size_t>                                                       Editing;
