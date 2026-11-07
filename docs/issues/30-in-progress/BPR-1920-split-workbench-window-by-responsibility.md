@@ -26,3 +26,26 @@ public `workbench_window.hpp`.
   workbench window, composed GitHub and composition courses; architecture,
   format and documentation gates.
 - AC3: Land the change, the completed card and a journal line on main.
+
+## Result
+
+Source `543e4e210`; `workbench_window.cpp` goes from 21,476 to 340 lines (its
+remaining helpers and static assertions). New files (lines): `workbench_window_central_surface.cpp` 2119, `workbench_window_queue_controls_and_menus.cpp` 1838, `workbench_window_home_landing.cpp` 1791, `workbench_window_defects_and_home_rows.cpp` 1764, `workbench_window_settings_and_layout.cpp` 1755, `workbench_window_github_presentation.cpp` 1750, `workbench_window_repositories_and_files.cpp` 1737, `workbench_window_comments_and_threads.cpp` 1722, `workbench_window_home_views.cpp` 1707, `workbench_window_drafts_and_behaviour.cpp` 1699, `workbench_window_header_and_queue_settings.cpp` 1562, `workbench_window_replies_and_review_composition.cpp` 1525, `workbench_window_construction.cpp` 860, `workbench_window_support.cpp` 352, `workbench_window_support.hpp` 207.
+
+One file exceeds the 2,000-line ceiling: `workbench_window_central_surface.cpp`
+(2,119) is the single 1,873-line `build_central_surface` plus its includes;
+going lower means splitting that function, which is a design change. The public
+`workbench_window.hpp` is unchanged. New files keep the original's include
+vocabulary, because `architecture_boundaries` lets the Qt adapter reach the
+application GitHub surface only through `github_projection.hpp`; a first cut
+included a declaring header directly and that rule caught it.
+
+Checks on macOS arm64: Qt adapter and composition library tests-off builds; full
+dev build except `agent_context_supplement_tests.cpp`, which `main` broke
+(BPR-1916 added a 17th field to `agent_context_supplement`; the test still
+binds 16); and 230 rows (every `qt_*` row, architecture, both composition
+contracts, the diff workbench, workbench composition and UIforETW courses): 221
+pass. The nine others fail identically at `main` `aff74307f` built separately:
+`qt_workbench_window_scale_*`, `qt_drawer_surfaces_fit_scale_*`,
+`qt_review_tour_steps`, `qt_feedback_label_settings` and
+`qt_current_file_unread_badge`. Windows and Linux were not built.
