@@ -44,7 +44,11 @@ namespace bpr::qt {
 		explicit drawer_count_pill(QWidget* aParent = nullptr);
 
 		/// \brief Shows the count; zero hides the pill.
-		void               set_count(std::size_t aCount);
+		void set_count(std::size_t aCount);
+		/// \brief [[BPR-1925]]. Paints the pill in `aFill` with `aText`'s
+		/// figures (the Tour tab's agent accent) instead of the palette's
+		/// highlight; nullopt returns to the highlight.
+		void               set_colours(std::optional<std::pair<QColor, QColor>> aColours);
 		[[nodiscard]] auto text() const -> const QString&;
 		[[nodiscard]] auto sizeHint() const -> QSize override;
 
@@ -52,7 +56,8 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		QString Text;
+		QString                                  Text;
+		std::optional<std::pair<QColor, QColor>> Colours;
 	};
 
 	/// \brief A drawer's header: its tabs at the left and the selected tab's

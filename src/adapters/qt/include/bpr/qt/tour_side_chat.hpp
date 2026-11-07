@@ -2,7 +2,6 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_SIDE_CHAT_HPP
 
 #include "bpr/application/markdown_code_syntax.hpp"
-#include "bpr/core/document_tabs.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
@@ -29,7 +28,6 @@ class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
-	class document_tab_strip;
 	class skill_completer;
 	/// \brief [[BPR-1914]] v003. One question for the tour agent from a side
 	/// chat: the chat's part, the passage quoted with it, the words, and
@@ -49,8 +47,15 @@ namespace bpr::qt {
 	/// `aPalette`'s button text, for the quiet "Open side chat" affordances.
 	[[nodiscard]] auto side_chat_icon(const QPalette& aPalette) -> QIcon;
 
-	/// \brief [[BPR-1914]] v003. Side chats with the tour agent, docked at the
-	/// window's right edge.
+	/// \brief [[BPR-1914]] v003, [[BPR-1925]]. Side chats with the tour
+	/// agent: the Tour tab's second column, beside the tour.
+	///
+	/// \details [[BPR-1925]], owner 2026-11-07: "it's kind of weird that the
+	/// sidechat is so decoupled from the tour when it's really about the
+	/// tour." It no longer docks at the window's edge: the window places this
+	/// column beside the tour, in the Tour tab, and it goes with that tab. The
+	/// part a chat is about is marked in the tour, each part's glyph opens its
+	/// chat, and there are no tabs: one chat shows at a time.
 	///
 	/// \details The owner rejected v002's inline threads (2026-11-06): "it's
 	/// too in the way and noisy. I think I need something more like a side
@@ -81,11 +86,12 @@ namespace bpr::qt {
 		/// \brief Show: brings the tour to the chat's part, and a stop's code
 		/// into the diff.
 		void set_reveal_dispatch(std::function<void(const core::tour_thread&)> aReveal) { RevealDispatch = std::move(aReveal); }
-		/// \brief The pane wants to be shown (true) or closed (false).
+		/// \brief The column wants to be shown (true) or closed (false).
 		void set_visibility_dispatch(std::function<void(bool)> aVisibility) { VisibilityDispatch = std::move(aVisibility); }
 		/// \brief Opens (or brings forward) the chat about `aThread`, with
-		/// `aPassage` quoted above its composer, and puts the keyboard there.
-		void open(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
+		/// `aPassage` quoted above its composer, and puts the keyboard there
+		/// unless `aFocus` is false (the chat following the route).
+		void open(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt, bool aFocus = true);
 		/// \brief Closes the chat about `aThread`; its turns stay in the
 		/// session, and reopening it shows them again.
 		void close(const core::tour_thread& aThread);
@@ -106,24 +112,32 @@ namespace bpr::qt {
 		void               present_skills(std::vector<core::skill_entry> aSkills);
 		[[nodiscard]] auto skill_completion() const noexcept -> skill_completer* { return SkillCompletion; }
 
+		/// \brief [[BPR-1925]]. Told when the chat shown, the column's state
+		/// or the session changes, so the tour can mark the part and count the
+		/// chats.
+		void               set_change_observer(std::function<void()> aObserver) { ChangeObserver = std::move(aObserver); }
 		[[nodiscard]] auto open_threads() const noexcept -> const std::vector<core::tour_thread>& { return Open; }
 		[[nodiscard]] auto current() const -> std::optional<core::tour_thread>;
-		/// \brief [[BPR-1914]] v004, owner look v003: "The side chat tabs
-		/// behave weirdly ... they don't stretch and I can't seem to close the
-		/// first tab or even select it", and "I liked the tabs I just wanted
-		/// them to behave more like our diff window tabs". The chats' tabs are
-		/// the diff window's own `document_tab_strip`: equal tabs that stretch
-		/// across the pane, a close button on each, the tab menu (Close Tab,
-		/// Close Other Tabs) and + for another chat.
+		/// \brief The parts whose chat was shown in this review, the shown one
+		/// among them.
 		[[nodiscard]] auto chat_count() const noexcept -> std::size_t { return Open.size(); }
-		[[nodiscard]] auto tab_strip() const noexcept -> document_tab_strip* { return Strip; }
-		/// \brief The open chat's place among the tabs, or -1.
+		/// \brief The shown chat's place among `open_threads()`, or -1.
 		[[nodiscard]] auto current_index() const noexcept -> int { return Current; }
 		void               select(int aIndex);
+		/// \brief [[BPR-1925]]. Whether the column is open (it shows while the
+		/// Tour tab does), and the part it is about while it is.
+		[[nodiscard]] auto column_open() const noexcept -> bool { return ColumnOpen; }
+		[[nodiscard]] auto discussed() const -> std::optional<core::tour_thread>;
+		/// \brief Opens or closes the column; closed, every chat is kept.
+		void set_column_open(bool aOpen);
+		/// \brief [[BPR-1925]]. Turns in `aThread`'s chat, for its glyph.
+		[[nodiscard]] auto turns_about(const core::tour_thread& aThread) const -> std::size_t;
+		/// \brief [[BPR-1925]]. How many parts have a chat, for the Tour tab's
+		/// badge (`core::chat_threads`).
+		[[nodiscard]] auto chat_parts() const -> std::size_t;
 		[[nodiscard]] auto composer() const noexcept -> QPlainTextEdit* { return Composer; }
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton* { return Send; }
 		[[nodiscard]] auto update_button() const noexcept -> QPushButton* { return Update; }
-		[[nodiscard]] auto add_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto close_button() const noexcept -> QToolButton* { return ClosePane; }
 		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowPart; }
@@ -150,12 +164,13 @@ namespace bpr::qt {
 
 	protected:
 		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
+		/// [[BPR-1925]]. The seam with the tour: a line of the agent's accent
+		/// down the column's left edge, and the faintest wash beside it.
+		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
 		void rebuild();
-		void rebuild_tabs();
-		void show_parts_menu();
-		void tab_gesture(const core::document_tab_intent& aIntent);
+		void changed();
 		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:
 		/// a stop's own file, or the language most of the tour's stops are in.
 		[[nodiscard]] auto inline_selector() const -> std::string;
@@ -174,6 +189,8 @@ namespace bpr::qt {
 		decide_dispatch                                                             DecideDispatch;
 		std::function<void(const core::tour_thread&)>                               RevealDispatch;
 		std::function<void(bool)>                                                   VisibilityDispatch;
+		std::function<void()>                                                       ChangeObserver;
+		bool                                                                        ColumnOpen = false;
 		core::tour_agent_session                                                    Session;
 		std::optional<core::tour_proposal>                                          Proposal;
 		std::shared_ptr<const core::review_tour>                                    Draft;
@@ -192,34 +209,31 @@ namespace bpr::qt {
 		qreal                                                                       TabStop = 0.0;
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
-		document_tab_strip*                                                         Strip = nullptr;
-		/// Each open chat's tab, in `Open`'s order.
-		std::vector<core::document_tab_id>         TabIds;
-		std::uint64_t                              LastTab         = 0U;
-		int                                        Current         = -1;
-		QToolButton*                               CopyChat        = nullptr;
-		QToolButton*                               ClosePane       = nullptr;
-		QLabel*                                    Subject         = nullptr;
-		QLabel*                                    Quote           = nullptr;
-		QPushButton*                               ShowPart        = nullptr;
-		QScrollArea*                               Scroll          = nullptr;
-		QVBoxLayout*                               Turns           = nullptr;
-		QPushButton*                               Update          = nullptr;
-		QWidget*                                   PassageRow      = nullptr;
-		QLabel*                                    PassageLine     = nullptr;
-		QToolButton*                               ClearPassage    = nullptr;
-		QPlainTextEdit*                            Composer        = nullptr;
-		QPushButton*                               Send            = nullptr;
-		skill_completer*                           SkillCompletion = nullptr;
-		std::vector<QWidget*>                      Bubbles;
-		std::vector<markdown_body_view*>           Replies;
-		std::vector<QToolButton*>                  Worked;
-		std::vector<QWidget*>                      Steps;
-		std::vector<QToolButton*>                  Copies;
-		std::vector<QPointer<markdown_body_view>>  Readers;
-		std::map<std::size_t, QPushButton*>        Accepts;
-		std::map<std::size_t, markdown_body_view*> ProposalReaders;
-		std::vector<QPointer<QWidget>>             Accented;
+		int                                                                         Current         = -1;
+		QLabel*                                                                     Glyph           = nullptr;
+		QToolButton*                                                                CopyChat        = nullptr;
+		QToolButton*                                                                ClosePane       = nullptr;
+		QLabel*                                                                     Subject         = nullptr;
+		QLabel*                                                                     Quote           = nullptr;
+		QPushButton*                                                                ShowPart        = nullptr;
+		QScrollArea*                                                                Scroll          = nullptr;
+		QVBoxLayout*                                                                Turns           = nullptr;
+		QPushButton*                                                                Update          = nullptr;
+		QWidget*                                                                    PassageRow      = nullptr;
+		QLabel*                                                                     PassageLine     = nullptr;
+		QToolButton*                                                                ClearPassage    = nullptr;
+		QPlainTextEdit*                                                             Composer        = nullptr;
+		QPushButton*                                                                Send            = nullptr;
+		skill_completer*                                                            SkillCompletion = nullptr;
+		std::vector<QWidget*>                                                       Bubbles;
+		std::vector<markdown_body_view*>                                            Replies;
+		std::vector<QToolButton*>                                                   Worked;
+		std::vector<QWidget*>                                                       Steps;
+		std::vector<QToolButton*>                                                   Copies;
+		std::vector<QPointer<markdown_body_view>>                                   Readers;
+		std::map<std::size_t, QPushButton*>                                         Accepts;
+		std::map<std::size_t, markdown_body_view*>                                  ProposalReaders;
+		std::vector<QPointer<QWidget>>                                              Accented;
 	};
 }
 

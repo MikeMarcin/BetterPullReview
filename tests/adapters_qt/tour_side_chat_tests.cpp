@@ -14,11 +14,11 @@
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
-#include "bpr/qt/document_tab_strip.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QListWidget>
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -169,7 +169,7 @@ auto main(int argc, char** argv) -> int
 	auto* const solution = editor.findChild<QPlainTextEdit*>(QStringLiteral("tourSolution"));
 	auto* const glyph    = editor.findChild<QToolButton*>(QStringLiteral("tourSolutionChat"));
 	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->toolButtonStyle() == Qt::ToolButtonIconOnly && glyph->toolTip() == QStringLiteral("Open a side chat about the Solution"), "the Solution has one quiet side chat glyph");
-	expect(!editor.isAncestorOf(chat) && chat->isWindow() && editor.findChildren<QPlainTextEdit*>(QStringLiteral("tourSideChatComposer")).isEmpty() == false, "the side chat is its own pane, out of the tour's column");
+	expect(!editor.isAncestorOf(chat) && chat->isWindow() && chat->findChild<QTabBar*>() == nullptr, "the chat is its own column, for the window to place beside the tour, with no tabs");
 	expect(!chat->isVisible() && shown.empty(), "no chat is open until asked for");
 	auto cursor = solution->textCursor();
 	cursor.setPosition(static_cast<int>(QStringLiteral("Each view now clears ").size()));
@@ -180,9 +180,12 @@ auto main(int argc, char** argv) -> int
 	glyph->click();
 	chat->show();
 	settle();
-	expect(!shown.empty() && shown.back(), "opening a chat asks for its dock");
-	expect(chat->chat_count() == 1U && chat->tab_strip()->tab_bar()->tabText(0) == QStringLiteral("Solution") && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution }, "its chip names its part");
-	expect(chat->subject()->text() == QStringLiteral("About the Solution") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text().contains(QStringLiteral("Each view now clears")), "the top says which part it is about and quotes it");
+	expect(!shown.empty() && shown.back() && chat->column_open(), "opening a chat asks for its column");
+	expect(chat->chat_count() == 1U && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution } && chat->discussed() == chat->current(), "it is the Solution's chat");
+	expect(chat->subject()->text() == QStringLiteral("Solution") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text().contains(QStringLiteral("Each view now clears")), "the top names the part and quotes it");
+	// [[BPR-1925]]. The part is marked: its glyph pressed while its chat is
+	// beside the tour.
+	expect(glyph->isChecked(), "the Solution's glyph is pressed while its chat shows");
 	expect(chat->passage() && chat->passage()->Text == "between begin and present" && chat->passage_line()->isVisibleTo(chat), "the selected passage is quoted above the composer");
 	expect(!chat->update_button()->isEnabled(), "Update waits until there is a chat to update from");
 	chat->composer()->setPlainText(QStringLiteral("What does this mean?"));
@@ -205,6 +208,9 @@ auto main(int argc, char** argv) -> int
 	editor.set_tour_running(std::nullopt, false, false);
 	editor.present_tour_session(session, std::nullopt);
 	settle();
+	// [[BPR-1925]]. Its glyph counts its turns.
+	expect(glyph->text() == QStringLiteral("1") && glyph->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && chat->turns_about(core::tour_thread{ .Kind = core::tour_thread_kind::solution }) == 1U, "the Solution's glyph counts its one turn");
+	expect(chat->chat_parts() == 1U, "one part has a chat");
 	expect(chat->turn_count() == 1U && chat->bubble(0) != nullptr && chat->bubble(0)->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->text() == QStringLiteral("What does this mean?"), "the author's words are a bubble");
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
 	expect(chat->worked_button(0)->text() == QStringLiteral("Worked for 7s") && !chat->steps(0)->isVisibleTo(chat), "Worked for 7s, its steps folded away");
@@ -276,9 +282,12 @@ auto main(int argc, char** argv) -> int
 	expect(stopGlyph != nullptr && stopGlyph->isVisibleTo(&editor), "an open stop has its glyph");
 	stopGlyph->click();
 	settle();
-	expect(chat->chat_count() == 2U && chat->tab_strip()->tab_bar()->tabText(1) == QStringLiteral("Stop 1") && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }, "a second chat, for the stop");
+	expect(chat->chat_count() == 2U && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }, "switching parts switches the chat: the stop's");
+	expect(stopGlyph->isChecked() && !glyph->isChecked(), "the stop's glyph is pressed now, the Solution's not");
+	auto* const route = editor.findChild<QListWidget*>(QStringLiteral("tourOutline"));
+	expect(route != nullptr && route->item(0)->data(Qt::UserRole + 10).toBool(), "the stop is marked on the route");
 	expect(std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "the stop's lines are shown in the code");
-	expect(chat->subject()->text() == QStringLiteral("About Stop 1, Why") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text() == QStringLiteral("src/item.cpp, lines 4 to 6"), "the top names the stop and its lines");
+	expect(chat->subject()->text() == QStringLiteral("Stop 1, Why") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text() == QStringLiteral("src/item.cpp, lines 4 to 6"), "the top names the stop and its lines");
 	actions.clear();
 	chat->show_button()->click();
 	expect(chat->show_button()->text() == QStringLiteral("Show in code") && std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "Show in code goes to it again");
@@ -288,39 +297,29 @@ auto main(int argc, char** argv) -> int
 	// The tour's own chat, from the panel.
 	editor.tour_agent()->chat_button()->click();
 	settle();
-	expect(chat->chat_count() == 3U && chat->tab_strip()->tab_bar()->tabText(2) == QStringLiteral("Tour"), "the tour as a whole has a chat too");
-	// [[BPR-1914]] v004, owner look v003: "I can't seem to close the first
-	// tab or even select it". The diff window's tabs: every tab, the first
-	// included, selects with one real click, and they share the row.
-	auto* const bar       = chat->tab_strip()->tab_bar();
-	const auto  realClick = [](QWidget* aWidget, const QPoint& aAt) {
-		auto press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
-		auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+	expect(chat->chat_count() == 3U && chat->current() == core::tour_thread{ } && chat->subject()->text() == QStringLiteral("The whole tour"), "the tour as a whole has a chat too");
+	// [[BPR-1925]]. Every part's chat stays: one real click on a part's glyph
+	// brings it back, with its turns, and it copies whole.
+	const auto realClick = [](QWidget* aWidget) {
+		const auto at      = aWidget->rect().center();
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ at }, aWidget->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ at }, aWidget->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
 		QApplication::sendEvent(aWidget, &press);
 		QApplication::sendEvent(aWidget, &release);
 		settle();
 	};
-	const auto closeOf = [bar](const int aIndex) -> QWidget* {
-		auto* const right = bar->tabButton(aIndex, QTabBar::RightSide);
-		return right != nullptr ? right : bar->tabButton(aIndex, QTabBar::LeftSide);
-	};
-	for (const auto order : { 0, 2, 1, 0 }) {
-		realClick(bar, bar->tabRect(order).center());
-		expect(chat->current_index() == order && bar->currentIndex() == order, "tab " + std::to_string(order + 1) + " selects with a click");
-	}
-	expect(chat->turn_count() == 2U, "the first tab shows the Solution's chat");
-	expect(std::abs(bar->tabRect(0).width() - bar->tabRect(2).width()) <= 2 && bar->tabRect(0).width() >= 96, "the tabs share the row, as the diff window's do");
-	// Each tab closes with its own close button, the first included.
-	expect(closeOf(0) != nullptr && closeOf(1) != nullptr && closeOf(2) != nullptr, "every tab has its close button");
-	realClick(closeOf(0), closeOf(0)->rect().center());
-	expect(chat->chat_count() == 2U && bar->tabText(0) == QStringLiteral("Stop 1") && chat->current_index() == 0, "the first tab closes; the next takes its place");
-	realClick(closeOf(1), closeOf(1)->rect().center());
-	expect(chat->chat_count() == 1U && bar->tabText(0) == QStringLiteral("Stop 1"), "the last tab closes");
-	realClick(closeOf(0), closeOf(0)->rect().center());
-	expect(chat->chat_count() == 0U && !shown.back(), "closing the last chat closes the pane");
+	editor.open_step(core::tour_step::solution);
+	settle();
+	realClick(glyph);
+	expect(chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution } && chat->turn_count() == 2U, "one click on the Solution's glyph brings its chat back, turns and all");
+	chat->copy_chat_button()->click();
+	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Solution")) && clipboard->text().contains(QStringLiteral("Update the Solution from our chat.")), "and it copies whole");
+	// Close: the column goes and every chat is kept.
+	realClick(chat->close_button());
+	expect(!chat->column_open() && !shown.back() && !chat->discussed() && !glyph->isChecked() && glyph->text() == QStringLiteral("2"), "close takes the column away; the glyph keeps its count");
 	chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
 	settle();
-	expect(chat->turn_count() == 2U, "reopened, a chat still has its turns");
+	expect(chat->turn_count() == 2U && chat->column_open(), "reopened, a chat still has its turns");
 
 	std::cout << "tour-side-chat:pass\n";
 	return EXIT_SUCCESS;

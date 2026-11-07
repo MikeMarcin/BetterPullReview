@@ -1226,6 +1226,46 @@ where we're editing the built-in prompts its a bit weak".
   skills brought in, and unsaved edits are marked and kept per prompt until
   saved or discarded. The owner's look on a frozen build decides it.
 
+### Amendment [[BPR-1925]] (2026-11-07): the chat inside the Tour tab
+
+The owner: "I'm starting to think it's kind of weird that the sidechat is so
+decoupled from the tour when it's really about the tour." With the drawer on
+Comments, BPR-1914 v004's pane at the window's edge still showed a stop's
+chat. From three mockups (`docs/design/BPR-1914-tour-chat-directions-v1/`)
+the owner chose A, the chat inside the Tour tab. This supersedes v004's
+window-level pane and its tab strip, and keeps everything else of v003 and
+v004: one replayed chat per part, Update the part from this chat with its
+[[BPR-1900]] proposal decided in the chat, Copy chat, "Worked for Ns",
+[[BPR-1919]]'s highlighting and [[BPR-1916]]'s `/skill` completion.
+
+- **Where it lives.** The Tour tab is two columns while a chat is open: the
+  tour on the left, the chat about its marked part on the right, with a line
+  of the agent's accent between them. The window's dock is gone; no chat
+  shows outside the Tour tab. While the chat is open the drawer widens to
+  hold both: 740 pixels at first (the mockup's 420 to 740), between 600 and
+  960, and a drag while the chat shows sets that width for as long as the
+  window is open. The drawer's own narrow width stays the one the host keeps,
+  and closing the chat gives it back. On the tour's own page the chat sits
+  beside the tour there.
+- **The part under discussion.** It carries the agent's rule: a faint wash of
+  the accent with its line down the left, on the Problem's or the Solution's
+  panel, or on the stop's row of the route. Each part's glyph is pressed while
+  its chat is open and shows how many turns the chat has; the route shows a
+  stop's count beside its title.
+- **Switching, no tabs.** A part's glyph, or Ask about this, brings that
+  part's chat; while a stop's chat is open, going to another stop on the route
+  brings that stop's chat, without taking the keyboard. The chat's title row
+  names the part (Problem, Solution, the whole tour, or the stop's number and
+  title), with Show (Show in code), Copy chat and close. Every part's chat is
+  kept for the review.
+- **Leaving the Tour tab.** The chat goes with the tab: on Comments, Notes or
+  Agent it is gone and the drawer is narrow again. The Tour tab carries a count
+  of the parts with a chat, in the agent's accent
+  (`core::chat_threads`), and coming back shows the chat as it was.
+- **Narrow drawers.** Conversation and the tour's chat glyph keep together at
+  the right of Draft the tour, and take their own row under it when the drawer
+  is too narrow for both at their own widths.
+
 ### Amendment [[BPR-1914]] v004 (2026-11-06): quieter controls, the diff window's tabs, no scroll jump
 
 The owner on v003: "can we simplify the enhance buttons to just the '<symbol>

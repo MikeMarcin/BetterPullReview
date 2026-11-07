@@ -3286,7 +3286,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Resealed again over the review skill's place among the built-in prompts
 	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "d76a2fce4eb160417a6fcd88fe3d1f8ee212ac247a15110973cb1f80b31485b0"
+        "cc23f860a5a7451eb6cb6ba343e107379db8e412241e9052279932cf75ad02d8"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

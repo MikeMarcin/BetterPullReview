@@ -105,6 +105,13 @@ namespace bpr::qt {
 
 	constexpr int conversation_drawer_maximum_width = 760;
 
+	/// \brief [[BPR-1925]]. The drawer's range while the Tour tab shows the
+	/// tour and the chat about its marked part side by side: the owner's
+	/// chosen mockup widened it from about 420 to about 740.
+	constexpr int tour_chat_drawer_minimum_width = 600;
+
+	constexpr int tour_chat_drawer_maximum_width = 960;
+
 	/// \brief [[BPR-1328]]. How long a press at a navigation bound says why
 	/// it did nothing.
 	constexpr int bounded_navigation_message_ms = 3000;

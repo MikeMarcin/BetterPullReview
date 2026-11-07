@@ -745,6 +745,12 @@ namespace bpr::qt {
 		if (ApplyingLayout || !LayoutWidths) {
 			return;
 		}
+		// [[BPR-1925]]. A drag while the Tour tab holds its chat is the chat's
+		// width; the drawer's own narrow width stays as the host keeps it.
+		if (aDrawer == core::workbench_drawer::conversations && tour_chat_wide()) {
+			TourChatWidth = static_cast<int>(aWidth);
+			return;
+		}
 		auto& retained = [this, aDrawer]() -> std::uint32_t& {
 			switch (aDrawer) {
 			case core::workbench_drawer::files:
@@ -824,6 +830,12 @@ namespace bpr::qt {
 		// so the grant is not reported back as a resize.
 		if (LayoutWidths->RepositoriesWidth == 0U) {
 			LayoutWidths->RepositoriesWidth = 300U;
+		}
+		// [[BPR-1925]]. The tour and its chat need the wider range.
+		if (tour_chat_wide()) {
+			Drawers[1].Panel->set_expanded_width_bounds(tour_chat_drawer_minimum_width, tour_chat_drawer_maximum_width);
+		} else {
+			Drawers[1].Panel->set_expanded_width_bounds(conversation_drawer_minimum_width, conversation_drawer_maximum_width);
 		}
 		CentralSplitter->setSizes(central_sizes());
 		ApplyingLayout = false;
@@ -941,10 +953,12 @@ namespace bpr::qt {
 		const auto files          = presented_files_state() == core::workbench_drawer_state::expanded
 			? granted(widths.FilesWidth, defaults.FilesWidth)
 			: collapsedWidth;
+		// [[BPR-1925]]. While the Tour tab shows the tour and its chat the
+		// drawer holds both, at the width the reviewer last gave it so.
 		const auto conversations
-			= DrawerStates.Conversations == core::workbench_drawer_state::expanded
-			? std::clamp(granted(widths.ConversationsWidth, conversation_drawer_default_width), conversation_drawer_minimum_width, conversation_drawer_maximum_width)
-			: collapsedWidth;
+			= DrawerStates.Conversations != core::workbench_drawer_state::expanded ? collapsedWidth
+			: tour_chat_wide()                                                     ? std::clamp(TourChatWidth, tour_chat_drawer_minimum_width, tour_chat_drawer_maximum_width)
+																				   : std::clamp(granted(widths.ConversationsWidth, conversation_drawer_default_width), conversation_drawer_minimum_width, conversation_drawer_maximum_width);
 		const auto repositories
 			= presented_repositories_state() == core::workbench_drawer_state::expanded
 			? granted(widths.RepositoriesWidth, defaults.RepositoriesWidth)

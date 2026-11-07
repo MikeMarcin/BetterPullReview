@@ -48,7 +48,6 @@
 #include <QColor>
 #include <QDialog>
 #include <QDialogButtonBox>
-#include <QDockWidget>
 #include <QElapsedTimer>
 #include <QEvent>
 #include <QFlags>
@@ -1511,6 +1510,11 @@ namespace bpr::qt {
 		TrayCommentsCount = new drawer_count_pill{ TrayTabs };
 		TrayCommentsCount->setObjectName(QStringLiteral("workbenchTrayCommentsCount"));
 		TrayCommentsCount->hide();
+		// [[BPR-1925]]. The Tour tab's count of parts with a chat, in the
+		// agent's accent: the chats go with the tab and this says they wait.
+		TrayTourCount = new drawer_count_pill{ TrayTabs };
+		TrayTourCount->setObjectName(QStringLiteral("workbenchTrayTourCount"));
+		TrayTourCount->hide();
 		TrayPages = new QStackedWidget{ conversationShell };
 		TrayPages->setObjectName(QStringLiteral("workbenchTrayPages"));
 		TrayPages->addWidget(CommentsScroll);
@@ -1523,28 +1527,25 @@ namespace bpr::qt {
 		tourHolding->setContentsMargins(0, 0, 0, 0);
 		TourEditor = new review_tour_editor{ TourHolder };
 		tourHolding->addWidget(TourEditor);
-		// [[BPR-1914]] v003, owner 2026-11-06: "something more like a side
-		// chat". The tour's side chats dock at the window's right edge, past
-		// the drawers, so the code, the comments and the tour keep their
-		// room; closed, they take none. The dock has no title bar: the side
-		// chat's own tabs, + and close are its title.
-		TourSideChatDock = new QDockWidget{ this };
-		TourSideChatDock->setObjectName(QStringLiteral("workbenchTourSideChat"));
-		TourSideChatDock->setWindowTitle(tr("Side chat"));
-		TourSideChatDock->setFeatures(QDockWidget::DockWidgetClosable);
-		TourSideChatDock->setAllowedAreas(Qt::RightDockWidgetArea);
-		TourSideChatDock->setTitleBarWidget(new QWidget{ TourSideChatDock });
-		TourSideChatDock->setWidget(TourEditor->side_chat());
-		addDockWidget(Qt::RightDockWidgetArea, TourSideChatDock);
-		resizeDocks({ TourSideChatDock }, { 380 }, Qt::Horizontal);
-		TourSideChatDock->hide();
-		TourEditor->set_side_chat_visibility_dispatch([this](const bool aShown) {
-			TourSideChatDock->setVisible(aShown);
-			if (aShown) {
-				resizeDocks({ TourSideChatDock }, { std::max(360, TourSideChatDock->width()) }, Qt::Horizontal);
-			}
-		});
-		TrayPages->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
+		// [[BPR-1925]], owner 2026-11-07: "it's kind of weird that the
+		// sidechat is so decoupled from the tour when it's really about the
+		// tour". BPR-1914 v004 docked the chats at the window's edge, where a
+		// Stop 1 chat stayed beside the Comments tab. The chat is now the Tour
+		// tab's second column: the tour on the left, the chat about its marked
+		// part on the right. It goes with the tab, and while it is open the
+		// drawer widens to hold both (`tour_chat_wide`).
+		TourChatSplit = new QSplitter{ Qt::Horizontal, conversationShell };
+		TourChatSplit->setObjectName(QStringLiteral("workbenchTourChatSplit"));
+		TourChatSplit->setChildrenCollapsible(false);
+		TourChatSplit->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
+		auto* const chat = TourEditor->side_chat();
+		TourChatSplit->addWidget(chat);
+		TourChatSplit->setStretchFactor(0, 9);
+		TourChatSplit->setStretchFactor(1, 11);
+		chat->hide();
+		TourEditor->set_side_chat_visibility_dispatch([this](const bool aShown) { show_tour_chat(aShown); });
+		TourEditor->set_side_chat_observer([this] { update_tour_chat_badge(); });
+		TrayPages->addWidget(TourChatSplit);
 		wire_tour_page();
 		TrayPages->addWidget(AgentHome);
 		// [[BPR-1290]]. The tab row carries the Comments tab's tools at its
@@ -1629,6 +1630,9 @@ namespace bpr::qt {
 				PrivateNotes->refresh_geometry();
 			}
 			apply_thread_marks();
+			// [[BPR-1925]]. The chat goes with the Tour tab; the drawer holds
+			// both while it shows and narrows again on the other tabs.
+			apply_drawer_widths();
 			const auto blocker = QSignalBlocker{ AiToolsAction };
 			AiToolsSelected    = aIndex == tray_findings_tab;
 			AiToolsAction->setChecked(AiToolsSelected);

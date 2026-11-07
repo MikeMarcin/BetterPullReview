@@ -307,6 +307,8 @@ namespace {
 		static_cast<void>(answer_tour_ask(threads, *onSolution, "That.", { }));
 		expect(thread_runs(threads, stopThread).size() == 1U && thread_runs(threads, stopThread).front()->Passage == code, "a stop's thread holds its turns, with the code they asked about");
 		expect(thread_runs(threads, tour_thread{ .Kind = tour_thread_kind::problem }).empty(), "another part's thread is empty");
+		// [[BPR-1925]]. The Tour tab's badge: each part with a chat, once.
+		expect(chat_threads(threads) == std::vector<tour_thread>{ stopThread, tour_thread{ .Kind = tour_thread_kind::solution } }, "the parts with chats, each once, in the order of their first turn");
 		expect(tour_conversation_of(threads).Turns.front().Thread == stopThread, "the replay says which thread each turn was in");
 		expect(!begin_tour_ask(threads, stopThread, tour_passage{ .Field = tour_passage_field::stop_code, .Text = "x", .FirstLine = 5U, .LastLine = 4U }, "Bad lines?"), "code lines out of order are refused");
 		const auto asked = propose_tour_changes(*onStop, answer, files, tour);

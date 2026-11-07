@@ -452,6 +452,9 @@ namespace bpr::core {
 	[[nodiscard]] auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal;
 	/// \brief [[BPR-1914]] v002. The ask turns of `aThread`, oldest first.
 	[[nodiscard]] auto thread_runs(const tour_agent_session& aSession, const tour_thread& aThread) -> std::vector<const tour_agent_run*>;
+	/// \brief [[BPR-1925]]. The parts that have a chat, each once, in the
+	/// order of their first turn: what the Tour tab's badge counts.
+	[[nodiscard]] auto chat_threads(const tour_agent_session& aSession) -> std::vector<tour_thread>;
 	/// \brief Whether proposal item `aItem` came from an ask turn, and so is
 	/// shown in that turn's thread rather than with a whole-tour draft.
 	[[nodiscard]] auto proposed_in_thread(const tour_agent_session& aSession, const tour_proposal_item& aItem) noexcept -> bool;

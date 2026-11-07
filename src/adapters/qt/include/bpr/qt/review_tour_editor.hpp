@@ -149,10 +149,13 @@ namespace bpr::qt {
 		/// here: the one entry point a reviewer's `/skill` references
 		/// ([[BPR-1916]]) are resolved through.
 		void set_tour_ask_dispatch(tour_side_chat::ask_dispatch aAsk);
-		/// \brief Shows (true) or closes (false) the dock that holds the side
-		/// chats; the window owns the dock.
+		/// \brief Shows (true) or closes (false) the chat column; the window
+		/// places it beside the tour, in the Tour tab ([[BPR-1925]]).
 		void set_side_chat_visibility_dispatch(std::function<void(bool)> aVisibility);
-		/// \brief The side chats, for the window to dock.
+		/// \brief [[BPR-1925]]. Told after the tour has marked the part under
+		/// discussion and counted the chats: the window's Tour tab badge.
+		void set_side_chat_observer(std::function<void()> aObserver) { SideChatObserver = std::move(aObserver); }
+		/// \brief The chat column, for the window to place in the Tour tab.
 		[[nodiscard]] auto side_chat() const noexcept -> tour_side_chat* { return SideChat; }
 		/// \brief Opens the side chat about `aThread`, quoting `aPassage`.
 		void open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
@@ -275,6 +278,7 @@ namespace bpr::qt {
 		void                                                                       refresh_steps();
 		void                                                                       focus_step();
 		void                                                                       place_stop_card();
+		void                                                                       place_stop_card_now();
 		void                                                                       fit_route();
 		void                                                                       fit_page_columns();
 		void                                                                       refresh_excerpt();
@@ -315,15 +319,24 @@ namespace bpr::qt {
 		agent_run_settings_picker* AgentPicker = nullptr;
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
-		QWidget*                                                                       AgentSetupCall   = nullptr;
-		QPushButton*                                                                   AgentSetupButton = nullptr;
-		QPushButton*                                                                   SuggestOutline   = nullptr;
-		std::function<void()>                                                          AgentSetupDispatch;
-		std::function<void()>                                                          ShownObserver;
-		agent_setup_readiness                                                          AgentReadiness = agent_setup_readiness::ready;
-		std::vector<std::function<void()>>                                             AgentLabels;
-		tour_side_chat*                                                                SideChat = nullptr;
-		std::vector<QToolButton*>                                                      ChatButtons;
+		QWidget*                           AgentSetupCall   = nullptr;
+		QPushButton*                       AgentSetupButton = nullptr;
+		QPushButton*                       SuggestOutline   = nullptr;
+		std::function<void()>              AgentSetupDispatch;
+		std::function<void()>              ShownObserver;
+		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
+		std::vector<std::function<void()>> AgentLabels;
+		tour_side_chat*                    SideChat = nullptr;
+		std::vector<QToolButton*>          ChatButtons;
+		std::function<void()>              SideChatObserver;
+		/// [[BPR-1925]]. The widgets that show a part, each with the part it
+		/// shows (empty while it shows none): marked with the agent's rule
+		/// while that part's chat is in the column.
+		std::vector<std::pair<QWidget*, std::function<std::optional<core::tour_thread>()>>> PartMarks;
+		void                                                                                mark_part(QWidget* aWidget, std::function<std::optional<core::tour_thread>()> aPart);
+		/// [[BPR-1925]]. Marks the part under discussion, counts each part's
+		/// turns on its glyph, and has the chat follow the route between stops.
+		void                                                                           mark_side_chat();
 		tour_side_chat::ask_dispatch                                                   TourAsk;
 		std::function<void()>                                                          TourStop;
 		std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> TourDecide;

@@ -114,6 +114,12 @@ namespace bpr::qt {
 		update();
 	}
 
+	void drawer_count_pill::set_colours(std::optional<std::pair<QColor, QColor>> aColours)
+	{
+		Colours = std::move(aColours);
+		update();
+	}
+
 	auto drawer_count_pill::text() const -> const QString&
 	{
 		return Text;
@@ -131,10 +137,10 @@ namespace bpr::qt {
 		auto painter = QPainter{ this };
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		painter.setPen(Qt::NoPen);
-		painter.setBrush(palette().color(QPalette::Active, QPalette::Highlight));
+		painter.setBrush(Colours ? Colours->first : palette().color(QPalette::Active, QPalette::Highlight));
 		const auto box = QRectF{ rect() };
 		painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
-		painter.setPen(palette().color(QPalette::Active, QPalette::HighlightedText));
+		painter.setPen(Colours ? Colours->second : palette().color(QPalette::Active, QPalette::HighlightedText));
 		painter.drawText(rect(), Qt::AlignCenter, Text);
 	}
 

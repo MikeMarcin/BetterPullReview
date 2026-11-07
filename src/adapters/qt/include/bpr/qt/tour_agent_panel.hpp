@@ -21,6 +21,7 @@ class QPushButton;
 class QScrollArea;
 class QTextBrowser;
 class QToolButton;
+class QGridLayout;
 class QVBoxLayout;
 class QTextCursor;
 
@@ -138,8 +139,15 @@ namespace bpr::qt {
 
 	protected:
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
+		void resizeEvent(QResizeEvent* aEvent) override;
 
 	private:
+		/// [[BPR-1925]]. Conversation and the tour's chat glyph sit at the
+		/// right of Draft the tour, or on their own row under it when the
+		/// drawer is too narrow for both at their own widths.
+		void                                                                        fit_head();
+		QGridLayout*                                                                Head  = nullptr;
+		QWidget*                                                                    Trail = nullptr;
 		void                                                                        fit_readers();
 		void                                                                        rebuild_proposal();
 		void                                                                        rebuild_transcript();

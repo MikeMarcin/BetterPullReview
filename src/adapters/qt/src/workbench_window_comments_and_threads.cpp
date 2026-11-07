@@ -3,6 +3,7 @@
 #include "bpr/core/review_publication_policy.hpp"
 #include "bpr/core/suggestion_draft.hpp"
 #include "bpr/core/thread_reply.hpp"
+#include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/compose_review_sheet.hpp"
 #include "bpr/qt/diff_workbench.hpp"
@@ -1047,9 +1048,12 @@ namespace bpr::qt {
 		connect(back, &QPushButton::clicked, this, [this] { close_tour_page(); });
 		bar->addWidget(back);
 		pageColumn->addLayout(bar);
-		TourPageBody           = new QWidget{ TourPage };
-		auto* const bodyColumn = new QVBoxLayout{ TourPageBody };
+		TourPageBody = new QWidget{ TourPage };
+		// [[BPR-1925]]. The tour, and beside it the chat about its marked
+		// part, as in the Tour tab.
+		auto* const bodyColumn = new QHBoxLayout{ TourPageBody };
 		bodyColumn->setContentsMargins(0, 0, 0, 0);
+		bodyColumn->setSpacing(0);
 		pageColumn->addWidget(TourPageBody, 1);
 		auto* const escape = new QShortcut{ shortcut_key(shortcut_command::leave_composer), TourPage };
 		escape->setObjectName(QStringLiteral("workbenchTourPageEscape"));
@@ -1129,8 +1133,14 @@ namespace bpr::qt {
 	void workbench_window::open_tour_page(const bool aPublication)
 	{
 		if (!TourPageOpen) {
-			TourPageOpen = true;
-			TourPageBody->layout()->addWidget(TourEditor);
+			TourPageOpen     = true;
+			auto* const body = static_cast<QHBoxLayout*>(TourPageBody->layout());
+			body->addWidget(TourEditor, 1);
+			// [[BPR-1925]]. The chat goes with the tour to its page.
+			auto* const chat = TourEditor->side_chat();
+			chat->setFixedWidth(std::max(chat->minimumSizeHint().width(), 420));
+			body->addWidget(chat, 0);
+			chat->setVisible(chat->column_open());
 			TourEditor->set_mode(tour_editor_mode::page);
 			if (Modality != nullptr && Modality->current() != review_modality::review) {
 				choose_modality(review_modality::review);
@@ -1160,6 +1170,12 @@ namespace bpr::qt {
 		}
 		TourPageOpen = false;
 		TourHolder->layout()->addWidget(TourEditor);
+		// [[BPR-1925]]. Back in the Tour tab's column.
+		auto* const chat = TourEditor->side_chat();
+		chat->setMinimumWidth(300);
+		chat->setMaximumWidth(QWIDGETSIZE_MAX);
+		TourChatSplit->insertWidget(1, chat);
+		chat->setVisible(chat->column_open());
 		TourEditor->set_mode(tour_editor_mode::route);
 		TourEditor->show();
 		apply_modality_surface();
@@ -1172,6 +1188,53 @@ namespace bpr::qt {
 	auto workbench_window::tour_page_open() const noexcept -> bool
 	{
 		return TourPageOpen;
+	}
+
+	auto workbench_window::tour_chat_wide() const -> bool
+	{
+		return TourChatSplit != nullptr && TourEditor != nullptr && !TourPageOpen && TourEditor->side_chat()->column_open() && TrayTabs != nullptr && TrayTabs->currentIndex() == tray_tour_tab
+			&& DrawerStates.Conversations == core::workbench_drawer_state::expanded;
+	}
+
+	void workbench_window::show_tour_chat(const bool aShown)
+	{
+		// [[BPR-1925]]. The column is the Tour tab's (or, on the tour's page,
+		// beside the tour there), so it shows with the tab and nowhere else.
+		auto* const chat = TourEditor->side_chat();
+		chat->setVisible(aShown);
+		// The first time, the chat takes a little more than half: it is read
+		// in paragraphs and the tour beside it in lines (the chosen mockup's
+		// 340 and 400).
+		if (aShown && !TourChatSized && chat->parentWidget() == TourChatSplit) {
+			TourChatSized = true;
+			TourChatSplit->setSizes({ 9'000, 11'000 });
+		}
+		if (aShown && !TourPageOpen && Drawers[1].Panel->state() != core::workbench_drawer_state::expanded) {
+			conversations_drawer_toggle_action()->trigger();
+		}
+		if (aShown && !TourPageOpen && TrayTabs != nullptr && TrayTabs->currentIndex() != tray_tour_tab) {
+			TrayTabs->setCurrentIndex(tray_tour_tab);
+		}
+		apply_drawer_widths();
+		update_tour_chat_badge();
+	}
+
+	void workbench_window::update_tour_chat_badge()
+	{
+		if (TrayTabs == nullptr || TrayTourCount == nullptr || TourEditor == nullptr) {
+			return;
+		}
+		const auto  parts = TourEditor->side_chat()->chat_parts();
+		auto* const pill  = static_cast<drawer_count_pill*>(TrayTourCount);
+		pill->set_colours(std::pair{ agent_accent(palette()), palette().color(QPalette::Active, QPalette::Window) });
+		pill->set_count(parts);
+		if (auto* const shown = parts != 0U ? TrayTourCount : nullptr; TrayTabs->tabButton(tray_tour_tab, QTabBar::RightSide) != shown) {
+			TrayTabs->setTabButton(tray_tour_tab, QTabBar::RightSide, shown);
+			TrayTourCount->setVisible(shown != nullptr);
+		}
+		TrayTabs->setAccessibleTabName(tray_tour_tab, parts == 0U ? tr("Tour") : parts == 1U ? tr("Tour, one part has a chat")
+																							 : tr("Tour, %1 parts have chats").arg(parts));
+		fit_tray_tabs();
 	}
 
 	auto workbench_window::compose_review_action() const noexcept -> QAction*
