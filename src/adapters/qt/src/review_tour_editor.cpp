@@ -39,6 +39,7 @@
 #include <QPlainTextEdit>
 #include <QPointer>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
 #include <QSignalBlocker>
@@ -55,6 +56,7 @@
 #include <array>
 #include <cmath>
 #include <limits>
+#include <set>
 #include <vector>
 namespace bpr::qt {
 	namespace {
@@ -73,11 +75,16 @@ namespace bpr::qt {
 		constexpr int chat_role      = Qt::UserRole + 9;
 		constexpr int discussed_role = Qt::UserRole + 10;
 		/// The route's measures: the grip, the circle's column, the text.
-		constexpr int grip_width   = 18;
-		constexpr int ring_left    = 22;
-		constexpr int ring_size    = 22;
-		constexpr int text_left    = ring_left + ring_size + 10;
-		constexpr int divider_band = 26;
+		constexpr int grip_width = 18;
+		constexpr int ring_left  = 22;
+		constexpr int ring_size  = 22;
+		constexpr int text_left  = ring_left + ring_size + 10;
+		/// [[BPR-1925]] v002. How far a stop's text box reaches round the
+		/// words, into the card's margin: sideways, and up and down (the
+		/// fields are six pixels apart).
+		constexpr qreal stop_text_room          = 8.0;
+		constexpr qreal stop_text_room_vertical = 6.0;
+		constexpr int   divider_band            = 26;
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -260,6 +267,83 @@ namespace bpr::qt {
 			std::function<bool()> Marked;
 		};
 
+		/// \brief [[BPR-1925]] v002, owner: the blue box on a stop's text "feels
+		/// cramping, I dont like it how it is". Edited in place, the text keeps
+		/// its place and its width, where it was read; the quiet box is drawn
+		/// round it, `stop_text_room` pixels out into the card's own margin, so
+		/// the words have room without moving or rewrapping. The box is the
+		/// card's ground shifted a shade, with a hairline edge that takes the
+		/// focus colour, one pixel either way, while the keyboard is in it.
+		/// No native focus rectangle or ring is drawn on the text itself.
+		class calm_text_box final : public QObject
+		{
+		public:
+			explicit calm_text_box(QPlainTextEdit& aText)
+				: QObject{ &aText }
+				, Text{ &aText }
+			{
+				setObjectName(QStringLiteral("tourStopTextBox"));
+				aText.installEventFilter(this);
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aWatched == Text) {
+					switch (aEvent->type()) {
+					case QEvent::FocusIn:
+					case QEvent::FocusOut:
+					case QEvent::Resize:
+					case QEvent::Move:
+					case QEvent::Show:
+					case QEvent::Hide:
+					case QEvent::ParentChange:
+						if (auto* const holder = host(); holder != nullptr) {
+							if (!Hosts.contains(holder)) {
+								Hosts.insert(holder);
+								holder->installEventFilter(this);
+							}
+							holder->update();
+						}
+						break;
+					default: break;
+					}
+				} else if (aEvent->type() == QEvent::Paint && aWatched == host() && Text->isVisible()) {
+					auto* const holder  = static_cast<QWidget*>(aWatched);
+					auto        painter = QPainter{ holder };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					const auto ground  = holder->palette().color(QPalette::Active, QPalette::Window);
+					const auto ink     = holder->palette().color(QPalette::Active, QPalette::WindowText);
+					const auto focused = Text->hasFocus();
+					const auto box     = QRectF{ QRect{ Text->mapTo(holder, QPoint{ 0, 0 }), Text->size() } }.adjusted(-stop_text_room, -stop_text_room_vertical, stop_text_room, stop_text_room_vertical);
+					painter.setPen(QPen{ focused ? focus_ring_colour(holder->palette(), QPalette::Window) : mixed(ground, ink, 0.16), 1.0 });
+					painter.setBrush(mixed(ground, ink, focused ? 0.05 : 0.03));
+					painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			/// The card (or page) the stop's fields sit in: it has the margin
+			/// the box reaches into.
+			[[nodiscard]] auto host() const -> QWidget*
+			{
+				auto* const fields = Text->parentWidget();
+				return fields != nullptr ? fields->parentWidget() : nullptr;
+			}
+			QPlainTextEdit*          Text = nullptr;
+			std::set<const QWidget*> Hosts;
+		};
+
+		/// \brief [[BPR-1925]] v002. Where a stop's chat toggle sits in its
+		/// route row: at the right, level with its ring.
+		[[nodiscard]] auto route_chat_box(const QRect& aRow, const bool aDivider, const QFont& aFont, const std::size_t aTurns) -> QRectF
+		{
+			const auto size = chat_toggle_size(aFont, aTurns);
+			const auto top  = aRow.top() + (aDivider ? divider_band : 0) + 8 + (ring_size - size.height()) / 2;
+			return QRectF{ static_cast<qreal>(aRow.right() - 8 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
+		}
+
 		/// \brief [[BPR-1593]]. RFC-BPR-0085 D4: each stop on the route, a
 		/// numbered circle on an amber line, its source in a code chip, its
 		/// readiness in its ring; a file divider where the route changes file.
@@ -434,25 +518,16 @@ namespace bpr::qt {
 				}
 				const auto left  = rect.left() + text_left;
 				auto       right = rect.right() - 10;
-				// [[BPR-1925]]. A stop with a chat: its glyph and its turns, in the
-				// agent's accent, at the right of its title.
-				if (const auto turns = aIndex.data(chat_role).toInt(); turns > 0) {
-					const auto figures = QString::number(turns);
-					const auto side    = 14;
-					const auto w       = QFontMetrics{ small }.horizontalAdvance(figures);
-					const auto glyph   = QRectF{ static_cast<qreal>(right - w - side - 4), ring.center().y() - side / 2.0, static_cast<qreal>(side), static_cast<qreal>(side) };
-					aPainter->setPen(QPen{ agent, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
-					aPainter->setBrush(Qt::NoBrush);
-					aPainter->drawRoundedRect(QRectF{ glyph.left() + 1.0, glyph.top() + 1.5, glyph.width() - 2.0, glyph.height() * 0.62 }, 3.0, 3.0);
-					auto tail = QPainterPath{ };
-					tail.moveTo(glyph.left() + 4.0, glyph.top() + 1.5 + glyph.height() * 0.62);
-					tail.lineTo(glyph.left() + 3.5, glyph.bottom() - 0.5);
-					tail.lineTo(glyph.left() + 7.5, glyph.top() + 1.5 + glyph.height() * 0.62);
-					aPainter->drawPath(tail);
-					aPainter->setFont(small);
-					aPainter->setPen(agent);
-					aPainter->drawText(QRect{ right - w, static_cast<int>(ring.top()), w + 1, ring_size }, Qt::AlignRight | Qt::AlignVCenter, figures);
-					right -= w + side + 10;
+				// [[BPR-1925]] v002. Every stop's chat toggle at the right of its
+				// title, as the Problem's and the Solution's sit in their
+				// headers: pressed while its chat is in the column. A click on
+				// it is the outline's (`route_chat_box`).
+				{
+					const auto turns = static_cast<std::size_t>(std::max(0, aIndex.data(chat_role).toInt()));
+					const auto box   = route_chat_box(rect, aIndex.data(divider_role).toBool(), aOption.font, turns);
+					aPainter->setFont(aOption.font);
+					paint_chat_toggle(*aPainter, box, palette, turns, discussed, hovered && box.contains(aOption.widget != nullptr ? QPointF{ aOption.widget->mapFromGlobal(QCursor::pos()) } : QPointF{ }));
+					right = static_cast<int>(box.left()) - 8;
 				}
 				if (aIndex.data(attention_role).toBool() || preparation == core::tour_preparation::needs_attention) {
 					const auto words        = QObject::tr("Lines changed");
@@ -579,6 +654,15 @@ namespace bpr::qt {
 			QString               Summary;
 			core::tour_step_state State  = core::tour_step_state::to_do;
 			step_change*          Change = nullptr;
+			/// [[BPR-1925]] v002. The part's chat toggle, at the header's right.
+			QWidget* Chat = nullptr;
+			void     set_chat(QWidget* aChat)
+			{
+				Chat = aChat;
+				Chat->setParent(this);
+				Chat->show();
+				place_change();
+			}
 
 			void present(const core::tour_step_state aState, const QString& aSummary)
 			{
@@ -679,7 +763,8 @@ namespace bpr::qt {
 				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
 				if (!Summary.isEmpty()) {
 					const auto left  = indent + nameWidth + 10;
-					const auto right = Change->isVisible() ? Change->x() - 6 : width() - 6;
+					const auto right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
+																												  : width() - 6;
 					painter.setFont(font());
 					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
 					const auto flat = QString{ Summary }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }).simplified();
@@ -697,6 +782,19 @@ namespace bpr::qt {
 			{
 				const auto hint = Change->sizeHint();
 				Change->setGeometry(width() - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
+				if (Chat != nullptr) {
+					const auto chat  = Chat->sizeHint();
+					const auto right = Change->isVisible() ? Change->x() - 6 : width();
+					Chat->setGeometry(right - chat.width(), (height() - chat.height()) / 2, chat.width(), chat.height());
+				}
+			}
+			bool event(QEvent* aEvent) override
+			{
+				// The toggle's count changes its width: it is placed again.
+				if (aEvent->type() == QEvent::LayoutRequest) {
+					place_change();
+				}
+				return QAbstractButton::event(aEvent);
 			}
 		};
 
@@ -804,12 +902,28 @@ namespace bpr::qt {
 		public:
 			using QListWidget::QListWidget;
 			std::function<void(std::size_t)> Move;
+			/// [[BPR-1925]] v002. A press on a stop's chat toggle, by row: the
+			/// toggle's, not the row's (the row would choose the stop).
+			std::function<void(int)> ChatToggle;
 
 		protected:
 			void mousePressEvent(QMouseEvent* aEvent) override
 			{
+				if (const auto row = chat_toggle_at(aEvent->position().toPoint()); aEvent->button() == Qt::LeftButton && row >= 0 && ChatToggle) {
+					aEvent->accept();
+					ChatToggle(row);
+					return;
+				}
 				DragFromHandle = aEvent->button() == Qt::LeftButton && on_handle(aEvent->position().toPoint());
 				QListWidget::mousePressEvent(aEvent);
+			}
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				if (chat_toggle_at(aEvent->position().toPoint()) >= 0) {
+					aEvent->accept();
+					return;
+				}
+				QListWidget::mouseReleaseEvent(aEvent);
 			}
 			void mouseMoveEvent(QMouseEvent* aEvent) override
 			{
@@ -852,6 +966,17 @@ namespace bpr::qt {
 			}
 
 		private:
+			/// The row whose painted toggle is under `aPosition`, or -1. The
+			/// current stop's toggle is a real button in its card.
+			[[nodiscard]] auto chat_toggle_at(const QPoint& aPosition) const -> int
+			{
+				const auto* item = itemAt(aPosition);
+				if (item == nullptr || item->data(current_role).toBool()) {
+					return -1;
+				}
+				const auto box = route_chat_box(visualItemRect(item), item->data(divider_role).toBool(), font(), static_cast<std::size_t>(std::max(0, item->data(chat_role).toInt())));
+				return box.contains(QPointF{ aPosition }) ? row(item) : -1;
+			}
 			bool on_handle(const QPoint& aPosition) const
 			{
 				const auto* item = itemAt(aPosition);
@@ -1099,7 +1224,7 @@ namespace bpr::qt {
 		// [[BPR-1925]]. The tour marks the part under discussion and counts
 		// each part's chat as the chat changes.
 		SideChat->set_change_observer([this] { mark_side_chat(); });
-		TourAgentPanel->set_chat_dispatch([this] { SideChat->open(core::tour_thread{ }); });
+		TourAgentPanel->set_chat_dispatch([this] { toggle_side_chat(core::tour_thread{ }); });
 		DraftFailure = new failure_notice_card{ TourAgentPanel };
 		connect(static_cast<failure_notice_card*>(DraftFailure)->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
 		TourAgentPanel->set_failure_notice(DraftFailure);
@@ -1500,6 +1625,10 @@ namespace bpr::qt {
 
 		for (auto* widget : findChildren<QWidget*>()) {
 			widget->installEventFilter(this);
+			// [[BPR-1925]] v002. The stop's text has its quiet box instead.
+			if (widget == Body || Body->isAncestorOf(widget)) {
+				continue;
+			}
 			widget->setAttribute(Qt::WA_MacShowFocusRect);
 			if (widget->focusPolicy() & Qt::TabFocus) {
 				// Inside the control's bounds, including scroll viewports: some
@@ -1838,15 +1967,25 @@ namespace bpr::qt {
 		};
 		AgentLabels.push_back(label);
 		// [[BPR-1914]] v003, owner 2026-11-06: "On each part I can pop open a
-		// side chat". One quiet glyph at the end of the field's helpers; with
-		// text selected it opens the chat quoting it. The editor's own menu
-		// offers the same.
-		auto* const chat = new QToolButton{ aEditor->parentWidget() };
+		// side chat". [[BPR-1925]] v002, owner on v001: "The mockup had the
+		// chat button on the right side of each of the sections and I prefer
+		// that, I also want the chat button to toggle it open and closed."
+		// The part's toggle sits at the right of its header: the Problem's and
+		// the Solution's step rows, the open stop's title row. With text
+		// selected it opens the chat quoting it; on the open part it closes
+		// the column. The editor's own menu offers Open side chat too.
+		const auto  part = aHook == core::writing_hook::problem ? tr("the Problem") : aHook == core::writing_hook::solution ? tr("the Solution")
+																															: tr("this stop");
+		auto* const chat = new part_chat_toggle{ part, aEditor->parentWidget() };
 		chat->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemChat") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionChat")
 																																			 : QStringLiteral("tourStopChat"));
-		chat->setAutoRaise(true);
-		chat->setFocusPolicy(Qt::TabFocus);
-		aLayout->addWidget(chat, 0, Qt::AlignLeft);
+		if (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution) {
+			static_cast<tour_step_row*>(StepRows[aHook == core::writing_hook::problem ? 0 : 1])->set_chat(chat);
+		} else if (StopTitleRow != nullptr) {
+			StopTitleRow->addWidget(chat, 0, Qt::AlignTop);
+		} else {
+			aLayout->addWidget(chat, 0, Qt::AlignLeft);
+		}
 		ChatButtons.push_back(chat);
 		const auto selected = [this, aEditor, aHook]() -> QString {
 			auto cursor = aEditor->textCursor();
@@ -1856,16 +1995,8 @@ namespace bpr::qt {
 			}
 			return cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n'));
 		};
-		const auto part  = aHook == core::writing_hook::problem ? tr("the Problem") : aHook == core::writing_hook::solution ? tr("the Solution")
-																															: tr("this stop");
-		const auto offer = [chat, selected, part] {
-			const auto passage = !selected().trimmed().isEmpty();
-			chat->setToolTip(passage ? QObject::tr("Open a side chat about the selected text") : QObject::tr("Open a side chat about %1").arg(part));
-			chat->setAccessibleName(chat->toolTip());
-		};
-		AgentLabels.push_back(offer);
 		const auto openChat = [this, aHook, selected] { open_side_chat_about(aHook, selected()); };
-		connect(chat, &QToolButton::clicked, this, openChat);
+		connect(chat, &QToolButton::clicked, this, [this, aHook, selected] { toggle_side_chat_about(aHook, selected()); });
 		aEditor->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(aEditor, &QWidget::customContextMenuRequested, this, [aEditor, openChat, selected, part](const QPoint& aAt) {
 			auto* const menu = aEditor->createStandardContextMenu(aAt);
@@ -1874,8 +2005,6 @@ namespace bpr::qt {
 			menu->addAction(selected().trimmed().isEmpty() ? QObject::tr("Open side chat about %1").arg(part) : QObject::tr("Open side chat about this"), openChat);
 			menu->popup(aEditor->viewport()->mapToGlobal(aAt));
 		});
-		connect(aEditor, &QPlainTextEdit::selectionChanged, this, offer);
-		offer();
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
 		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook, button] {
@@ -1959,6 +2088,13 @@ namespace bpr::qt {
 	{
 		if (aEvent->type() == QEvent::Wheel && HeldScroll) {
 			HeldScroll.reset();
+		}
+		// [[BPR-1925]] v002. The route narrows when the chat opens beside the
+		// tour: the open stop's card takes the new width, or its actions run
+		// past the route's edge.
+		if (Outline != nullptr && aWatched == Outline->viewport() && aEvent->type() == QEvent::Resize
+			&& static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
+			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
 		}
 		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
 		// as the Agent tab's pill hides with none.
@@ -2069,6 +2205,43 @@ namespace bpr::qt {
 			TourStop, TourDecide);
 	}
 	void review_tour_editor::open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage) { SideChat->open(aThread, std::move(aPassage)); }
+	void review_tour_editor::toggle_side_chat(const core::tour_thread& aThread)
+	{
+		// [[BPR-1925]] v002. The open part's toggle closes the column; any
+		// other part's opens (or switches to) its chat.
+		if (SideChat->discussed() == aThread) {
+			SideChat->set_column_open(false);
+			mark_side_chat();
+			return;
+		}
+		if (aThread.Kind == core::tour_thread_kind::stop) {
+			if (const auto* const stop = selected_stop(); stop == nullptr || stop->Id != aThread.Stop) {
+				go_to_stop(aThread.Stop);
+			}
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(aThread);
+		mark_side_chat();
+	}
+	void review_tour_editor::toggle_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
+	{
+		auto thread = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
+																																								: core::tour_thread_kind::stop };
+		if (thread.Kind == core::tour_thread_kind::stop) {
+			const auto* const stop = selected_stop();
+			if (stop == nullptr) {
+				mark_side_chat();
+				return;
+			}
+			thread.Stop = stop->Id;
+		}
+		if (SideChat->discussed() == thread) {
+			toggle_side_chat(thread);
+			return;
+		}
+		open_side_chat_about(aHook, aSelected);
+		mark_side_chat();
+	}
 	void review_tour_editor::open_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
 	{
 		auto              passage = std::optional<core::tour_passage>{ };
@@ -2128,10 +2301,13 @@ namespace bpr::qt {
 				thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id };
 			}
 			const auto turns = thread ? SideChat->turns_about(*thread) : 0U;
-			chat->setText(turns == 0U ? QString{ } : QString::number(turns));
-			chat->setToolButtonStyle(turns == 0U ? Qt::ToolButtonIconOnly : Qt::ToolButtonTextBesideIcon);
-			chat->setCheckable(true);
-			chat->setChecked(thread.has_value() && discussed == thread);
+			static_cast<part_chat_toggle*>(chat)->present(turns, thread.has_value() && discussed == thread);
+		}
+		// The tour's own toggle, by Draft the tour.
+		if (TourAgentPanel != nullptr) {
+			if (auto* const tour = dynamic_cast<part_chat_toggle*>(TourAgentPanel->chat_button()); tour != nullptr) {
+				tour->present(SideChat->turns_about(core::tour_thread{ }), discussed == core::tour_thread{ });
+			}
 		}
 		// The route: each stop's turns, and the stop under discussion.
 		if (Outline != nullptr && Shown.Draft) {
@@ -2524,6 +2700,14 @@ namespace bpr::qt {
 		UndoStructure = shortcut(QStringLiteral("tourUndo"), shortcut_command::tour_undo, this, [this] { trigger(tour_editor_action::undo_structure); });
 		RedoStructure = shortcut(QStringLiteral("tourRedo"), shortcut_command::tour_redo, this, [this] { trigger(tour_editor_action::redo_structure); });
 		outline->Move = [this](std::size_t aPosition) { structural(core::tour_command_kind::move, aPosition); };
+		outline->viewport()->installEventFilter(this);
+		// [[BPR-1925]] v002. A stop's toggle on the route: its chat, or the
+		// column closed when that chat is the one in it.
+		outline->ChatToggle = [this](const int aRow) {
+			if (Shown.Draft && aRow >= 0 && static_cast<std::size_t>(aRow) < Shown.Draft->Stops.size()) {
+				toggle_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id });
+			}
+		};
 		connect(Outline, &QListWidget::itemSelectionChanged, this, [this] { update_stop_actions(); });
 		connect(Outline, &QListWidget::customContextMenuRequested, this, [this, menu](const QPoint& aPosition) {
 			if (auto* item = Outline->itemAt(aPosition)) {
@@ -2635,6 +2819,7 @@ namespace bpr::qt {
 		DoneStop->setToolTip(tr("Read the stop as it will be shown (%1 or Esc). Your text is saved as you type.").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 		titleRow->addWidget(DoneStop, 0, Qt::AlignTop);
 		connect(DoneStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
+		StopTitleRow = titleRow;
 		fields->addLayout(titleRow);
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
@@ -2658,6 +2843,13 @@ namespace bpr::qt {
 		Body->setPlaceholderText(tr("What would you like checked?"));
 		Body->setMinimumHeight(110);
 		Body->setTabChangesFocus(true);
+		// [[BPR-1925]] v002. No frame, no native focus rectangle and no ring on
+		// the words: the card draws a quiet box round them (`calm_text_box`).
+		Body->setFrameShape(QFrame::NoFrame);
+		Body->setAttribute(Qt::WA_MacShowFocusRect, false);
+		Body->viewport()->setAutoFillBackground(false);
+		Body->document()->setDocumentMargin(0);
+		new calm_text_box{ *Body };
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
 		// [[BPR-1805]]. The explanation as the reviewer will read it, rendered
@@ -2985,6 +3177,8 @@ namespace bpr::qt {
 			if (!document) {
 				document = new QTextDocument{ this };
 				document->setDocumentLayout(new QPlainTextDocumentLayout{ document });
+				// [[BPR-1925]] v002. The words start where they were read.
+				document->setDocumentMargin(0);
 				document->setPlainText(QString::fromStdString(stop->Body));
 			}
 			Body->bind_document(document);
@@ -3546,7 +3740,7 @@ namespace bpr::qt {
 		card->layout()->activate();
 		const auto height  = std::max(card->layout()->hasHeightForWidth() ? card->layout()->totalHeightForWidth(width) : 0, card->layout()->totalSizeHint().height());
 		const auto divider = item->data(divider_role).toBool() ? divider_band : 0;
-		if (item->sizeHint().height() != height + divider) {
+		if (item->sizeHint() != QSize{ width, height + divider }) {
 			item->setSizeHint({ width, height + divider });
 		}
 		card->setContentsMargins(0, divider, 0, 0);

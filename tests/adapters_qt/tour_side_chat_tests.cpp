@@ -168,7 +168,13 @@ auto main(int argc, char** argv) -> int
 	settle();
 	auto* const solution = editor.findChild<QPlainTextEdit*>(QStringLiteral("tourSolution"));
 	auto* const glyph    = editor.findChild<QToolButton*>(QStringLiteral("tourSolutionChat"));
-	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->toolButtonStyle() == Qt::ToolButtonIconOnly && glyph->toolTip() == QStringLiteral("Open a side chat about the Solution"), "the Solution has one quiet side chat glyph");
+	// [[BPR-1925]] v002, owner on v001: "The mockup had the chat button on
+	// the right side of each of the sections". The toggle is at the right of
+	// the Solution's header row, and says what it does.
+	auto* const solutionRow = editor.findChild<QWidget*>(QStringLiteral("tourSolutionRow"));
+	expect(glyph != nullptr && glyph->isVisibleTo(&editor) && glyph->parentWidget() == solutionRow && glyph->isCheckable() && !glyph->isChecked(), "the Solution's chat toggle is in its header");
+	expect(glyph->geometry().right() >= solutionRow->width() - 2 - (solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange")) != nullptr && solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange"))->isVisible() ? solutionRow->findChild<QPushButton*>(QStringLiteral("tourSolutionChange"))->width() + 8 : 0), "at the header's right");
+	expect(glyph->accessibleName() == QStringLiteral("Open the chat about the Solution") && glyph->focusPolicy() == Qt::StrongFocus, "it says it opens the Solution's chat and takes the keyboard");
 	expect(!editor.isAncestorOf(chat) && chat->isWindow() && chat->findChild<QTabBar*>() == nullptr, "the chat is its own column, for the window to place beside the tour, with no tabs");
 	expect(!chat->isVisible() && shown.empty(), "no chat is open until asked for");
 	auto cursor = solution->textCursor();
@@ -176,7 +182,6 @@ auto main(int argc, char** argv) -> int
 	cursor.setPosition(static_cast<int>(QStringLiteral("Each view now clears between begin and present").size()), QTextCursor::KeepAnchor);
 	solution->setTextCursor(cursor);
 	settle();
-	expect(glyph->toolTip() == QStringLiteral("Open a side chat about the selected text"), "with text selected it opens a chat on that passage");
 	glyph->click();
 	chat->show();
 	settle();
@@ -209,7 +214,8 @@ auto main(int argc, char** argv) -> int
 	editor.present_tour_session(session, std::nullopt);
 	settle();
 	// [[BPR-1925]]. Its glyph counts its turns.
-	expect(glyph->text() == QStringLiteral("1") && glyph->toolButtonStyle() == Qt::ToolButtonTextBesideIcon && chat->turns_about(core::tour_thread{ .Kind = core::tour_thread_kind::solution }) == 1U, "the Solution's glyph counts its one turn");
+	expect(glyph->text() == QStringLiteral("1") && chat->turns_about(core::tour_thread{ .Kind = core::tour_thread_kind::solution }) == 1U, "the Solution's toggle counts its one turn");
+	expect(glyph->isChecked() && glyph->accessibleName() == QStringLiteral("Close the chat about the Solution"), "pressed, it says it closes the chat");
 	expect(chat->chat_parts() == 1U, "one part has a chat");
 	expect(chat->turn_count() == 1U && chat->bubble(0) != nullptr && chat->bubble(0)->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->text() == QStringLiteral("What does this mean?"), "the author's words are a bubble");
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");

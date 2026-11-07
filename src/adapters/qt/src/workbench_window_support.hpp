@@ -108,7 +108,7 @@ namespace bpr::qt {
 	/// \brief [[BPR-1925]]. The drawer's range while the Tour tab shows the
 	/// tour and the chat about its marked part side by side: the owner's
 	/// chosen mockup widened it from about 420 to about 740.
-	constexpr int tour_chat_drawer_minimum_width = 600;
+	constexpr int tour_chat_drawer_minimum_width = 660;
 
 	constexpr int tour_chat_drawer_maximum_width = 960;
 

@@ -10,6 +10,7 @@
 #include <QFont>
 #include <QIcon>
 #include <QPointer>
+#include <QToolButton>
 #include <QWidget>
 
 #include <functional>
@@ -20,11 +21,12 @@
 #include <vector>
 
 class QLabel;
+class QPainter;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
 class QHBoxLayout;
-class QToolButton;
+
 class QVBoxLayout;
 
 namespace bpr::qt {
@@ -46,6 +48,39 @@ namespace bpr::qt {
 	/// \brief The side chat's glyph: a small speech bubble, in the colour of
 	/// `aPalette`'s button text, for the quiet "Open side chat" affordances.
 	[[nodiscard]] auto side_chat_icon(const QPalette& aPalette) -> QIcon;
+
+	/// \brief [[BPR-1925]] v002. Draws a part's chat toggle in `aBox`: off, a
+	/// speech bubble outlined in the agent accent with the chat's turns
+	/// beside it; on, a pill filled with the accent and the bubble and turns
+	/// in the ground's colour. The route draws its stops' toggles with it.
+	void paint_chat_toggle(QPainter& aPainter, const QRectF& aBox, const QPalette& aPalette, std::size_t aTurns, bool aOn, bool aHovered);
+	/// \brief The size `paint_chat_toggle` needs for `aTurns` in `aFont`.
+	[[nodiscard]] auto chat_toggle_size(const QFont& aFont, std::size_t aTurns) -> QSize;
+
+	/// \brief [[BPR-1925]] v002, owner on v001: "The mockup had the chat button
+	/// on the right side of each of the sections and I prefer that, I also
+	/// want the chat button to toggle it open and closed." A part's chat
+	/// button, at the right of its header: pressed while that part's chat is
+	/// in the column, with the chat's turns. It is a checkable tool button,
+	/// so Space and Return work it and it shows the keyboard's focus; its
+	/// accessible name says whether it opens or closes the chat.
+	class part_chat_toggle final : public QToolButton
+	{
+	public:
+		part_chat_toggle(const QString& aPart, QWidget* aParent = nullptr);
+		/// \brief The chat's turns, and whether it is the one in the column.
+		void               present(std::size_t aTurns, bool aOn);
+		[[nodiscard]] auto turns() const noexcept -> std::size_t { return Turns; }
+		[[nodiscard]] auto sizeHint() const -> QSize override;
+		[[nodiscard]] auto minimumSizeHint() const -> QSize override { return sizeHint(); }
+
+	protected:
+		void paintEvent(QPaintEvent* aEvent) override;
+
+	private:
+		QString     Part;
+		std::size_t Turns = 0U;
+	};
 
 	/// \brief [[BPR-1914]] v003, [[BPR-1925]]. Side chats with the tour
 	/// agent: the Tour tab's second column, beside the tour.

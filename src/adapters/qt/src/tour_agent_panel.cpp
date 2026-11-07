@@ -246,11 +246,9 @@ namespace bpr::qt {
 		auto* const trailRow = new QHBoxLayout{ Trail };
 		trailRow->setContentsMargins(0, 0, 0, 0);
 		trailRow->setSpacing(8);
-		ChatTour = new QToolButton{ Trail };
+		// [[BPR-1925]] v002. The tour's own chat toggle, as each part's is.
+		ChatTour = new part_chat_toggle{ tr("the whole tour"), Trail };
 		ChatTour->setObjectName(QStringLiteral("tourChatAboutTour"));
-		ChatTour->setAutoRaise(true);
-		ChatTour->setFocusPolicy(Qt::TabFocus);
-		ChatTour->setAccessibleName(tr("Open side chat about the tour"));
 		trailRow->addWidget(ChatTour, 0, Qt::AlignVCenter);
 		TranscriptToggle = new quiet_push_button{ Trail };
 		TranscriptToggle->setObjectName(QStringLiteral("tourSessionTranscriptOpen"));
@@ -476,7 +474,9 @@ namespace bpr::qt {
 	{
 		Ready = aReady;
 		Why   = aWhy;
-		ChatTour->setToolTip(aReady ? tr("Open a side chat about the whole tour and the change. Each part of the tour has its own: use the chat glyph beside it.") : aWhy);
+		if (!aReady) {
+			ChatTour->setToolTip(aWhy);
+		}
 		set_running(RunningDraft, RunningAny);
 	}
 
@@ -735,10 +735,10 @@ namespace bpr::qt {
 		// The narrowest the panel goes is the wrapped head's, so a narrow
 		// drawer can reach the width at which the pair takes its own row.
 		setMinimumWidth(margins.left() + margins.right() + std::max(Draft->sizeHint().width(), Trail->sizeHint().width()));
-		const auto room = width() - margins.left() - margins.right();
-		const auto need = Draft->sizeHint().width() + Head->horizontalSpacing() + Trail->sizeHint().width();
-		const auto wrap    = room > 0 && need > room;
-		const auto index   = Head->indexOf(Trail);
+		const auto room  = width() - margins.left() - margins.right();
+		const auto need  = Draft->sizeHint().width() + Head->horizontalSpacing() + Trail->sizeHint().width();
+		const auto wrap  = room > 0 && need > room;
+		const auto index = Head->indexOf(Trail);
 		auto       row = 0, column = 0, rows = 0, columns = 0;
 		Head->getItemPosition(index, &row, &column, &rows, &columns);
 		if (wrap == (row == 1)) {
@@ -912,9 +912,11 @@ namespace bpr::qt {
 				reader->set_code_syntax_dispatch(CodeDispatch);
 			}
 			reader->set_height_observer([this] { fit_readers(); });
+			// [[BPR-1925]] v002. Among the readers before its body asks for
+			// colours: a cached answer comes inside that request.
+			Readers[index] = reader;
 			reader->set_body(editor->toPlainText().toStdString(), "tour-proposal:" + std::to_string(Proposal->Run.value()) + ":" + std::to_string(index) + ":" + std::to_string(qHash(editor->toPlainText())));
 			itemColumn->insertWidget(itemColumn->indexOf(frame), reader);
-			Readers[index]  = reader;
 			const auto edit = Editing.contains(index);
 			reader->setVisible(!edit);
 			frame->setVisible(edit);
