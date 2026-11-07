@@ -143,6 +143,22 @@ if(BPR_BUILD_QT)
             src/github_application/credential_prompt.cpp
             src/github_application/defect_identity.cpp
             src/github_application/device_authorization_composition.cpp
+            src/github_application/fixture_appearance_course.cpp
+            src/github_application/fixture_course_modality.cpp
+            src/github_application/fixture_course_support.cpp
+            src/github_application/fixture_defect_course.cpp
+            src/github_application/fixture_effect_holds_and_agent_evidence.cpp
+            src/github_application/fixture_label_authoring_course.cpp
+            src/github_application/fixture_reply_and_draft_courses.cpp
+            src/github_application/fixture_review_ledger_course.cpp
+            src/github_application/fixture_review_round_trip_course.cpp
+            src/github_application/fixture_start_and_evidence.cpp
+            src/github_application/fixture_start_review_course.cpp
+            src/github_application/fixture_threaded_reply_course.cpp
+            src/github_application/fixture_uiforetw_capture.cpp
+            src/github_application/fixture_uiforetw_course.cpp
+            src/github_application/fixture_uiforetw_observation.cpp
+            src/github_application/fixture_workbench_course.cpp
             src/github_application/github_presentation_projections.cpp
             src/github_application/insights_metrics.cpp
             src/github_application/profile_hosts.cpp
@@ -517,6 +533,24 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/defect_identity.hpp
 		src/app/src/github_application/device_authorization_composition.cpp
 		src/app/src/github_application/device_authorization_composition.hpp
+		src/app/src/github_application/fixture_appearance_course.cpp
+		src/app/src/github_application/fixture_course_modality.cpp
+		src/app/src/github_application/fixture_course_support.cpp
+		src/app/src/github_application/fixture_course_support.hpp
+		src/app/src/github_application/fixture_defect_course.cpp
+		src/app/src/github_application/fixture_effect_holds_and_agent_evidence.cpp
+		src/app/src/github_application/fixture_label_authoring_course.cpp
+		src/app/src/github_application/fixture_reply_and_draft_courses.cpp
+		src/app/src/github_application/fixture_review_ledger_course.cpp
+		src/app/src/github_application/fixture_review_round_trip_course.cpp
+		src/app/src/github_application/fixture_start_and_evidence.cpp
+		src/app/src/github_application/fixture_start_review_course.cpp
+		src/app/src/github_application/fixture_threaded_reply_course.cpp
+		src/app/src/github_application/fixture_uiforetw_capture.cpp
+		src/app/src/github_application/fixture_uiforetw_course.cpp
+		src/app/src/github_application/fixture_uiforetw_observation.cpp
+		src/app/src/github_application/fixture_uiforetw_observation.hpp
+		src/app/src/github_application/fixture_workbench_course.cpp
 		src/app/src/github_application/github_presentation_projections.cpp
 		src/app/src/github_application/github_presentation_projections.hpp
 		src/app/src/github_application/insights_metrics.cpp

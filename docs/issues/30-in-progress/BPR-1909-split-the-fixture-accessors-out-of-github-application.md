@@ -27,3 +27,8 @@ composition courses' drivers and evidence readers, with 77 anonymous helpers.
   contracts (source and Release), round-trip and every course whose driver
   moved; format and documentation gates.
 - AC4: Land the change, the completed card and a journal line on local main.
+
+Over main's BPR-1914/1915/1918 edits to the window files, the combined tree
+builds in both configurations and passes 67 of 69 composition, round-trip,
+tour, agent and architecture rows; the two failures are the pre-existing ones
+above.
