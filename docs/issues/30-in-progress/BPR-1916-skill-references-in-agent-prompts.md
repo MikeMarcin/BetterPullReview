@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1916"
 title: "Agent prompts can reference a skill from the person's own skills or the reviewed repository"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900"]
 priority: "P1"

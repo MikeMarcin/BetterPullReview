@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1917"
 title: "Agent settings' built-in prompt editor gets a real design"
-status: "Backlog"
+status: "In Progress"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"
