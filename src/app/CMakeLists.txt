@@ -140,6 +140,7 @@ if(BPR_BUILD_QT)
             src/github_application/agent_composition.cpp
             src/github_application/blob_sources.cpp
             src/github_application/cli_accounts.cpp
+            src/github_application/credential_prompt.cpp
             src/github_application/defect_identity.cpp
             src/github_application/device_authorization_composition.cpp
             src/github_application/github_presentation_projections.cpp
@@ -157,7 +158,24 @@ if(BPR_BUILD_QT)
             src/github_application/session_settings.cpp
             src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
+            src/github_application/window_agent_chat.cpp
+            src/github_application/window_agent_setup.cpp
+            src/github_application/window_commit_filter.cpp
+            src/github_application/window_composition.cpp
+            src/github_application/window_construction.cpp
+            src/github_application/window_defects.cpp
+            src/github_application/window_device_authorization.cpp
+            src/github_application/window_github_reads.cpp
+            src/github_application/window_navigation.cpp
+            src/github_application/window_read_state.cpp
+            src/github_application/window_review_drafts.cpp
             src/github_application/window_review_lanes.cpp
+            src/github_application/window_review_ledger.cpp
+            src/github_application/window_review_mutations.cpp
+            src/github_application/window_shutdown.cpp
+            src/github_application/window_sign_in.cpp
+            src/github_application/window_tours.cpp
+            src/github_application/window_workbench.cpp
             src/github_application/workbench_composition.cpp
             src/pane_find_controller.cpp
             src/pr_search_controller.cpp
@@ -493,6 +511,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/blob_sources.hpp
 		src/app/src/github_application/cli_accounts.cpp
 		src/app/src/github_application/cli_accounts.hpp
+		src/app/src/github_application/credential_prompt.cpp
+		src/app/src/github_application/credential_prompt.hpp
 		src/app/src/github_application/defect_identity.cpp
 		src/app/src/github_application/defect_identity.hpp
 		src/app/src/github_application/device_authorization_composition.cpp
@@ -522,8 +542,27 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/startup_failures.hpp
 		src/app/src/github_application/theme_document_file.cpp
 		src/app/src/github_application/theme_document_file.hpp
+		src/app/src/github_application/window_agent_chat.cpp
+		src/app/src/github_application/window_agent_setup.cpp
+		src/app/src/github_application/window_commit_filter.cpp
+		src/app/src/github_application/window_composition.cpp
+		src/app/src/github_application/window_composition.hpp
+		src/app/src/github_application/window_construction.cpp
+		src/app/src/github_application/window_defects.cpp
+		src/app/src/github_application/window_device_authorization.cpp
+		src/app/src/github_application/window_github_reads.cpp
+		src/app/src/github_application/window_navigation.cpp
+		src/app/src/github_application/window_probe_states.hpp
+		src/app/src/github_application/window_read_state.cpp
+		src/app/src/github_application/window_review_drafts.cpp
 		src/app/src/github_application/window_review_lanes.cpp
 		src/app/src/github_application/window_review_lanes.hpp
+		src/app/src/github_application/window_review_ledger.cpp
+		src/app/src/github_application/window_review_mutations.cpp
+		src/app/src/github_application/window_shutdown.cpp
+		src/app/src/github_application/window_sign_in.cpp
+		src/app/src/github_application/window_tours.cpp
+		src/app/src/github_application/window_workbench.cpp
 		src/app/src/github_application/workbench_composition.cpp
 		src/app/src/github_application/workbench_composition.hpp
 		src/app/src/review_submission_workflow.hpp

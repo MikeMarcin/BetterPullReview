@@ -9,6 +9,7 @@
 /// delivered finding, converting it produces one local draft, and no GitHub
 /// mutation call happens anywhere along the way.
 
+#include "composition_source.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 #include "right_side_change.hpp"
@@ -1751,14 +1752,7 @@ auto main(int argc, char** argv) -> int
 		// publication does round-trip through that one path, is
 		// `application_review_round_trip_composition_contract`, which pins
 		// this same file by digest.
-		auto composition = std::ifstream{
-			std::filesystem::path{ BPR_COMPOSITION_SOURCE },
-			std::ios::binary,
-		};
-		const auto source = std::string{
-			std::istreambuf_iterator<char>{ composition },
-			std::istreambuf_iterator<char>{ },
-		};
+		const auto source = bpr::tests::read_composition_source(std::filesystem::path{ BPR_COMPOSITION_SOURCE });
 		const auto occurrences
 			= [&source](const std::string_view aToken) -> std::size_t {
 			auto count = std::size_t{ 0U };

@@ -384,7 +384,7 @@ def cli_consent_gate_findings(composition_source: str) -> list[str]:
     if '"Confirm GitHub CLI publication"' in code:
         findings.append("ordinary strict CLI publication must not restore the transport warning")
     admission = re.search(
-        r"auto\s+admit_cli_publication\(.*?\n\s*->\s*std::expected<void,\s*application::review_mutation_failure>\s*\{(?P<body>.*?)\n\t\t\}",
+        r"auto\s+(?:[A-Za-z_]\w*::)*admit_cli_publication\(.*?\n\s*->\s*std::expected<void,\s*application::review_mutation_failure>\s*\{(?P<body>.*?)\n\t\}",
         code, re.DOTALL,
     )
     body = admission.group("body") if admission else ""
@@ -918,10 +918,11 @@ class CompositionContractTests(unittest.TestCase):
         read_gate = CLI_READ_CONSENT_GATE.search(strip_cxx_comments(composition_source))
         self.assertIsNotNone(read_gate)
         hostile_consent_sources = {
-            "read-consent-compiled-out-of-tests-enabled-graphs": composition_source.replace(
-                "#if defined(BPR_GITHUB_CLI_PLATFORM)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
-                "#if defined(BPR_GITHUB_CLI_PLATFORM) && !defined(BPR_BUILD_TESTING)\n\t\t\t\t\t\t\tif (profile->cli_account_login().empty()) {",
-                1,
+            "read-consent-compiled-out-of-tests-enabled-graphs": re.sub(
+                r"#if defined\(BPR_GITHUB_CLI_PLATFORM\)\n(\t+)if \(profile->cli_account_login\(\)\.empty\(\)\) \{",
+                r"#if defined(BPR_GITHUB_CLI_PLATFORM) \&\& !defined(BPR_BUILD_TESTING)\n\1if (profile->cli_account_login().empty()) {",
+                composition_source,
+                count=1,
             ),
             "strict-capability-admission-disabled": composition_source.replace(
                 "if (!lease || !lease->strict_cli()) {", "if (false) {", 1,
@@ -1078,7 +1079,7 @@ class CompositionContractTests(unittest.TestCase):
 
     def test_async_mutation_host_inventory_rejects_every_direct_bypass(self) -> None:
         source = read("src/app/src/github_application.cpp")
-        insertion_point = "\n\t\tvoid compose_review_mutation("
+        insertion_point = "\n\tvoid github_application::implementation::compose_review_mutation("
         self.assertEqual(source.count(insertion_point), 1)
         concrete_helper = (
             "\n#if !defined(BPR_BUILD_TESTING)\n"
@@ -1090,9 +1091,9 @@ class CompositionContractTests(unittest.TestCase):
             "#endif\n"
         )
         provider_success = (
-            "\t\t\tif (provider.has_value()) {\n"
-            "\t\t\t\tInlineReviewBinding = *selection;\n"
-            "\t\t\t\tauto erased         = "
+            "\t\tif (provider.has_value()) {\n"
+            "\t\t\tInlineReviewBinding = *selection;\n"
+            "\t\t\tauto erased         = "
             "std::unique_ptr<application::review_mutation_port>{"
         )
         self.assertEqual(source.count(provider_success), 1)
@@ -1134,9 +1135,9 @@ class CompositionContractTests(unittest.TestCase):
         }
         hostile_sources["existing-provider-indirection"] = source.replace(
             provider_success,
-            "\t\t\tif (provider.has_value()) {\n"
-            "\t\t\t\tstatic_cast<void>((*provider)->observe_target());\n"
-            "\t\t\t\tauto erased = "
+            "\t\tif (provider.has_value()) {\n"
+            "\t\t\tstatic_cast<void>((*provider)->observe_target());\n"
+            "\t\t\tauto erased = "
             "std::unique_ptr<application::review_mutation_port>{",
             1,
         )

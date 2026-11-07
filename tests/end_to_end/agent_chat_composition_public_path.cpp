@@ -34,6 +34,7 @@
 /// through the Agent tab's own Send, and a send refused before it is made is
 /// said beside the composer.
 
+#include "composition_source.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 #include "right_side_change.hpp"
@@ -611,14 +612,7 @@ auto main(int argc, char** argv) -> int
 	// The composition source itself: exactly one launch call site, reached from
 	// both the launch panel and the chat, so a chat turn cannot have grown its
 	// own workspace or its own frozen snapshot.
-	auto composition = std::ifstream{
-		std::filesystem::path{ BPR_COMPOSITION_SOURCE },
-		std::ios::binary,
-	};
-	const auto source = std::string{
-		std::istreambuf_iterator<char>{ composition },
-		std::istreambuf_iterator<char>{ },
-	};
+	const auto source        = bpr::tests::read_composition_source(std::filesystem::path{ BPR_COMPOSITION_SOURCE });
 	const auto oneLaunchPath = !source.empty()
 		&& occurrences(source, "AgentHost->dispatch(") == 1U
 		&& occurrences(source, "application::agent_chat_session_host>(") == 1U

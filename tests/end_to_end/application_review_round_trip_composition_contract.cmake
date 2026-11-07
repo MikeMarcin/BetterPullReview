@@ -1,3 +1,16 @@
+# [[BPR-1908]] refactoring reseal: github_application::implementation, one
+# window's composition, moves, unchanged in behavior, to
+# src/app/src/github_application/window_composition.hpp (declaration) and
+# window_*.cpp responsibility sources; its fixture probe states move to
+# window_probe_states.hpp. The pinned span, compose_review_mutation through
+# refresh_review_projection, stays in github_application.cpp as out-of-line
+# definitions of github_application::implementation, so the live provider's
+# single construction site does not move. Production mutation-branch reseal:
+# the tests-disabled branch between its #else and #endif is byte-identical to
+# the previous pin's after removing one leading tab from each of its 62 lines
+# (checked mechanically against 240c2d4d6); the markers that find the span now
+# match the qualified out-of-line names. No provider, credential, grant,
+# mutation or publication change.
 # [[BPR-1907]] refactoring reseal: github_profile_runtime moves, unchanged
 # in behavior, from github_application.cpp to src/app/src/github_application/
 # profile_runtime.hpp (declarations) and profile_runtime{,_construction,
@@ -2546,27 +2559,7 @@ endfunction()
 # journal transition, source inventory or production mutation-branch change.
 # The composed old-library regression fails; repeated cuts then restore must
 # resolve exactly one comment with no second POST. M3 independent recheck pending.
-# [[BPR-1907]]. The composition root is github_application.cpp and the
-# responsibility files split out of it under github_application/. Inventories
-# of what the composition composes read all of them, in a fixed order; the
-# full-application and mutation-branch digests still read the root alone, and
-# the manifest covers the split files. A split file's include lines are its
-# own dependencies, not composition, so they are left out of the inventory.
-function(bpr_read_composition_source root_file out_variable)
-    file(READ "${root_file}" bpr_composition_text)
-    get_filename_component(bpr_composition_directory "${root_file}" DIRECTORY)
-    file(GLOB bpr_composition_parts LIST_DIRECTORIES false
-        "${bpr_composition_directory}/github_application/*.cpp"
-        "${bpr_composition_directory}/github_application/*.hpp"
-    )
-    list(SORT bpr_composition_parts)
-    foreach(bpr_composition_part IN LISTS bpr_composition_parts)
-        file(READ "${bpr_composition_part}" bpr_composition_part_text)
-        string(REGEX REPLACE "(^|\n)[ \t]*#[ \t]*include[^\n]*" "\\1" bpr_composition_part_text "${bpr_composition_part_text}")
-        string(APPEND bpr_composition_text "\n${bpr_composition_part_text}")
-    endforeach()
-    set(${out_variable} "${bpr_composition_text}" PARENT_SCOPE)
-endfunction()
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_composition_source.cmake")
 
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
@@ -2757,7 +2750,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "6ba46c31e2823c6e75418db869a44fa4a95561dd44bfd8387da2cb728741e9e9"
+        "40aa9349a7b208834b64ac89b4a644ca85517c90b06914658daf0d311a81b7d7"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2802,6 +2795,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
         "src/github_application/cli_accounts.hpp"
+        "src/github_application/credential_prompt.cpp"
+        "src/github_application/credential_prompt.hpp"
         "src/github_application/defect_identity.cpp"
         "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
@@ -2831,8 +2826,27 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/window_agent_chat.cpp"
+        "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_commit_filter.cpp"
+        "src/github_application/window_composition.cpp"
+        "src/github_application/window_composition.hpp"
+        "src/github_application/window_construction.cpp"
+        "src/github_application/window_defects.cpp"
+        "src/github_application/window_device_authorization.cpp"
+        "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_navigation.cpp"
+        "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_read_state.cpp"
+        "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
+        "src/github_application/window_review_ledger.cpp"
+        "src/github_application/window_review_mutations.cpp"
+        "src/github_application/window_shutdown.cpp"
+        "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_tours.cpp"
+        "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
         "src/github_application/workbench_composition.hpp"
         "src/installed_resources.cpp"
@@ -2935,6 +2949,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/blob_sources.hpp"
         "src/github_application/cli_accounts.cpp"
         "src/github_application/cli_accounts.hpp"
+        "src/github_application/credential_prompt.cpp"
+        "src/github_application/credential_prompt.hpp"
         "src/github_application/defect_identity.cpp"
         "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
@@ -2964,8 +2980,27 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/window_agent_chat.cpp"
+        "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_commit_filter.cpp"
+        "src/github_application/window_composition.cpp"
+        "src/github_application/window_composition.hpp"
+        "src/github_application/window_construction.cpp"
+        "src/github_application/window_defects.cpp"
+        "src/github_application/window_device_authorization.cpp"
+        "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_navigation.cpp"
+        "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_read_state.cpp"
+        "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
+        "src/github_application/window_review_ledger.cpp"
+        "src/github_application/window_review_mutations.cpp"
+        "src/github_application/window_shutdown.cpp"
+        "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_tours.cpp"
+        "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
         "src/github_application/workbench_composition.hpp"
         "src/github_application_fixture_access.hpp"
@@ -3162,7 +3197,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	set(bpr_expected_production_app_manifest_digest
-        "1c518c7550202482b6bfbae1bda41276e1e9918b55d64f8b4543db05fc4811f6"
+        "600ed486dc42599c547825520eedb92251428184c1b9837ae270ddb0204e7c81"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -3430,12 +3465,12 @@ function(bpr_compute_production_mutation_host_digest source_variable out_variabl
     set(bpr_mutation_branch_source "${${source_variable}}")
     string(FIND
         "${bpr_mutation_branch_source}"
-        "void compose_review_mutation("
+        "::compose_review_mutation("
         bpr_mutation_compose_begin
     )
     string(FIND
         "${bpr_mutation_branch_source}"
-		"void refresh_review_projection("
+		"::refresh_review_projection("
         bpr_mutation_compose_end
     )
     if(bpr_mutation_compose_begin EQUAL -1
@@ -3511,7 +3546,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # call and answer and records github.review_mutation lines only; the
     # host still receives the one erased port. Was 53d6792a1.
     set(bpr_expected_mutation_production_digest
-        "70fe8a7e4bc59291cc0dc1722899dbb8d358136cff32be545db46ecf29099d91"
+        "6a1c1ca2977528795cb151cedef9589dc5c3c1926b281c17f57e1b5d2326d150"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest
@@ -3601,12 +3636,12 @@ bpr_verify_production_mutation_host_digest(bpr_application_source)
 bpr_verify_app_source_tree("${BPR_SOURCE_ROOT}/src/app")
 bpr_verify_replay_operator_surface("${BPR_SOURCE_ROOT}/src/app")
 string(FIND
-    "${bpr_application_source}"
+    "${bpr_composition_source}"
     "exercise_review_round_trip_composition("
     probe_begin
 )
 string(FIND
-    "${bpr_application_source}"
+    "${bpr_composition_source}"
     "review_round_trip_composition_evidence("
     probe_end
 )
@@ -3615,7 +3650,7 @@ if(probe_begin EQUAL -1 OR probe_end EQUAL -1 OR probe_end LESS_EQUAL probe_begi
 endif()
 math(EXPR probe_length "${probe_end} - ${probe_begin}")
 string(SUBSTRING
-    "${bpr_application_source}"
+    "${bpr_composition_source}"
     ${probe_begin}
     ${probe_length}
     probe_source
@@ -3661,12 +3696,12 @@ endforeach()
 
 string(FIND
     "${bpr_application_source}"
-    "void compose_review_mutation("
+    "::compose_review_mutation("
     mutation_composition_begin
 )
 string(FIND
     "${bpr_application_source}"
-	"void refresh_review_projection("
+	"::refresh_review_projection("
     mutation_composition_end
 )
 if(mutation_composition_begin EQUAL -1
