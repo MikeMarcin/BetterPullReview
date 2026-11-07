@@ -6531,6 +6531,32 @@ namespace {
 						QCoreApplication::processEvents();
 						static_cast<void>(editor->outline()->grab().save(root + QStringLiteral("/tour-route-revision") + theme + QStringLiteral(".png"), "PNG"));
 					}
+					// [[BPR-1931]] v002. With BPR_ATTENDED_TOUR_WRAP, the chat column
+					// closed, the narrowest drawer whose Tour tab keeps Draft the
+					// tour, Reset tour, Conversation and the chat toggle on one row.
+					if (!qEnvironmentVariable("BPR_ATTENDED_TOUR_WRAP").isEmpty()) {
+						if (auto* const close = chat->close_button(); close != nullptr && chat->isVisible()) {
+							close->click();
+						}
+						auto* const splitter = window.central_splitter();
+						const auto  oneRow   = [panel] {
+							QCoreApplication::processEvents();
+							return panel->chat_button()->mapTo(panel, QPoint{ }).y() < panel->draft_button()->mapTo(panel, QPoint{ }).y() + panel->draft_button()->height();
+						};
+						auto narrowest = 0;
+						for (auto drawer = 260; drawer <= 560; drawer += 4) {
+							splitter->move_handle(3, splitter->width() - drawer - splitter->handleWidth());
+							if (oneRow()) {
+								narrowest = window.conversations_drawer()->width();
+								break;
+							}
+						}
+						QTextStream{ stdout } << "ATTENDED_TOUR_HEAD_ONE_ROW_DRAWER:" << narrowest << '\n';
+						// The narrow drawer as it opens, 420 pixels.
+						splitter->move_handle(3, splitter->width() - 420 - splitter->handleWidth());
+						QCoreApplication::processEvents();
+						draw(QStringLiteral("app-tour-head-420"));
+					}
 					if (qEnvironmentVariable("BPR_ATTENDED_TOUR_RESET").isEmpty()) {
 						done(QStringLiteral("ATTENDED_TOUR_REVISION_SHOWN"));
 						return;

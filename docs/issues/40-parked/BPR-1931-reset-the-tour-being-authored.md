@@ -96,3 +96,35 @@ On `bdd57d419`, dev build:
 - Candidates `BPR-1930-whole-tour-feedback-v001` and `BPR-1931-reset-tour-v001`
   (revision `bdd57d419-v001`), one Accept/Reject question each.
 - Status: ready, awaiting the owner.
+
+### v001 rejected (2026-11-07)
+
+v001 was merged to `main` as `82270d817` with [[BPR-1930]], which the owner
+accepted. The owner rejected BPR-1931's look in session
+`d2e623413a8acad6fc6e91bb4f68a7b7`, with two pictures (the Agent tab's small
+history button, and the Tour tab's wrapped header), verbatim: "I think the
+resource tour button can get smaller like it is on agents so that top row
+doesn't have to wrap so early". The pictures stay in that session's state.
+The v001 host is stopped and its frozen root removed.
+
+## v002 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v002 is on branch
+`bpr1931-v002-compact-reset`, made from `origin/main` `d2f131e72`.
+
+- **Reset tour is an icon button.** It is made by `make_drawer_tool`, as the
+  Agent tab's history action is: auto-raised, icon only, and taking the
+  keyboard. It shows the drawer's clear arrow (`drawer_glyph::clear`).
+  - Its accessible name is "Reset tour".
+  - Its tooltip starts with "Reset tour", then says what it clears, or why it
+    can't.
+  - Its accessible description says the same.
+  - The question, Keep the tour, Reset tour and Undo reset are unchanged.
+- **The header wraps later:**
+  - In the real window with the chat column closed, the header keeps one row
+    down to a 388-pixel drawer (432 in v001). The narrow drawer opens at 420,
+    so it no longer wraps there.
+  - In `qt_tour_agent_session_view`, the Tour tab keeps one row down to 365
+    pixels (409 in v001).
+  - The look measures this with `BPR_ATTENDED_TOUR_WRAP`
+    (`ATTENDED_TOUR_HEAD_ONE_ROW_DRAWER`) and draws the header at 420.

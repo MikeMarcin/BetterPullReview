@@ -264,6 +264,30 @@ namespace {
 		editor.present_tour_reset(tally, true, false);
 		auto* const reset = panel->reset_button();
 		expect(reset->isEnabled() && !panel->reset_confirm()->isVisibleTo(&editor), "Reset tour is offered, and asks nothing yet");
+		// [[BPR-1931]] v002, owner on v001: "the reset tour button can get
+		// smaller like it is on agents so that top row doesn't have to wrap so
+		// early". The narrowest Tour tab at which Draft the tour, Reset tour,
+		// Conversation and the chat toggle still share one row.
+		{
+			const auto oneRow = [panel] {
+				QApplication::processEvents();
+				return panel->chat_button()->mapTo(panel, QPoint{ }).y() < panel->draft_button()->mapTo(panel, QPoint{ }).y() + panel->draft_button()->height();
+			};
+			auto widest = 900;
+			auto narrow = 200;
+			while (widest - narrow > 1) {
+				const auto middle = (widest + narrow) / 2;
+				editor.resize(middle, 1100);
+				(oneRow() ? widest : narrow) = middle;
+			}
+			std::cout << "TOUR_HEAD_ONE_ROW_FROM:" << widest << '\n';
+			// v001's worded button needed 409 pixels here.
+			expect(widest <= 380, "v002 the header keeps one row down to a narrower tab: " + std::to_string(widest));
+			expect(reset->toolButtonStyle() == Qt::ToolButtonIconOnly && reset->text().isEmpty() && !reset->icon().isNull() && reset->autoRaise(), "Reset tour is an icon button, as the Agent tab's header actions are");
+			expect(reset->accessibleName() == QStringLiteral("Reset tour") && reset->toolTip().startsWith(QStringLiteral("Reset tour\n")), "it is named for the keyboard, screen readers and its tooltip");
+			editor.resize(420, 1100);
+			QApplication::processEvents();
+		}
 		reset->click();
 		expect(panel->reset_confirm()->isVisibleTo(&editor), "it asks first");
 		const auto sentence = panel->reset_sentence()->text();
