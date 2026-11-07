@@ -142,6 +142,20 @@ add_library(
         src/usage_ring.cpp
         src/workbench_drawer.cpp
         src/workbench_window.cpp
+        src/workbench_window_central_surface.cpp
+        src/workbench_window_comments_and_threads.cpp
+        src/workbench_window_construction.cpp
+        src/workbench_window_defects_and_home_rows.cpp
+        src/workbench_window_drafts_and_behaviour.cpp
+        src/workbench_window_github_presentation.cpp
+        src/workbench_window_header_and_queue_settings.cpp
+        src/workbench_window_home_landing.cpp
+        src/workbench_window_home_views.cpp
+        src/workbench_window_queue_controls_and_menus.cpp
+        src/workbench_window_replies_and_review_composition.cpp
+        src/workbench_window_repositories_and_files.cpp
+        src/workbench_window_settings_and_layout.cpp
+        src/workbench_window_support.cpp
 )
 add_library(BetterPullReview::AdapterQt ALIAS better_pull_review_adapter_qt)
 

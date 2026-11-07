@@ -639,6 +639,21 @@ if(BPR_BUILD_QT)
 		src/adapters/qt/src/review_submission_editor.cpp
 		src/adapters/qt/include/bpr/qt/workbench_window.hpp
 		src/adapters/qt/src/workbench_window.cpp
+		src/adapters/qt/src/workbench_window_central_surface.cpp
+		src/adapters/qt/src/workbench_window_comments_and_threads.cpp
+		src/adapters/qt/src/workbench_window_construction.cpp
+		src/adapters/qt/src/workbench_window_defects_and_home_rows.cpp
+		src/adapters/qt/src/workbench_window_drafts_and_behaviour.cpp
+		src/adapters/qt/src/workbench_window_github_presentation.cpp
+		src/adapters/qt/src/workbench_window_header_and_queue_settings.cpp
+		src/adapters/qt/src/workbench_window_home_landing.cpp
+		src/adapters/qt/src/workbench_window_home_views.cpp
+		src/adapters/qt/src/workbench_window_queue_controls_and_menus.cpp
+		src/adapters/qt/src/workbench_window_replies_and_review_composition.cpp
+		src/adapters/qt/src/workbench_window_repositories_and_files.cpp
+		src/adapters/qt/src/workbench_window_settings_and_layout.cpp
+		src/adapters/qt/src/workbench_window_support.cpp
+		src/adapters/qt/src/workbench_window_support.hpp
 		src/application/CMakeLists.txt
 		src/application/include/bpr/application/review_mutation_application_host.hpp
 		src/application/include/bpr/application/review_mutation_recovery_port.hpp
