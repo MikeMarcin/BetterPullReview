@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1908"
 title: "Split the window composition out of github_application.cpp"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1907"]
 priority: "P2"
 metadata: {"baseline":"3e19d0e87","mandate":"Owner, 2026-11-06: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round, landing on local main without pushing; at most about 2,000 lines per file for this initial pass; subfolders welcome."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f57ecff2f","evidence":{"kind":"observation","detail":"window_composition.hpp declares the class; sixteen window_*.cpp responsibility sources define it unchanged; probe states in window_probe_states.hpp."}},{"criterion":"AC2","outcome":"pass","revision":"f57ecff2f","evidence":{"kind":"command","detail":"Pinned span stays in the root; the mutation branch is byte-identical after one-tab dedent of 62 lines; pin resealed; live_mutation_isolation and round-trip contract pass."}},{"criterion":"AC3","outcome":"pass","revision":"f57ecff2f","evidence":{"kind":"command","detail":"bpr_composition_source.cmake and composition_source.hpp; defect, UIforETW, workbench, ledger, round-trip, agent chat and finding contracts pass."}},{"criterion":"AC4","outcome":"pass","revision":"f57ecff2f","evidence":{"kind":"command","detail":"Full dev and tests-off builds; format 22; 100/105 on first cut and 12/12 scanner rerun on final bytes; two pre-existing failures recorded. Windows/Linux not built."}},{"criterion":"AC5","outcome":"pass","revision":"f57ecff2f","evidence":{"kind":"observation","detail":"Completed card and journal line accompany the source for the local main fast-forward."}}]
 ---
 
 # Split the window composition out of github_application.cpp
