@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1926"
 title: "Split epoch_catalog.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"cec2b3b57","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"f4e972f28","evidence":{"kind":"observation","detail":"Six epoch_catalog_* sources and a support header in epoch_catalog_detail; public header unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"f4e972f28","evidence":{"kind":"command","detail":"Tests-off build; dev build except main's broken test; 55/55 SQLite, epoch, architecture and coding rows pass. Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"d9ea4601a","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split epoch_catalog.cpp by responsibility
