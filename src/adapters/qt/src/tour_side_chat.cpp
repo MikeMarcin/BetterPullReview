@@ -247,9 +247,6 @@ namespace bpr::qt {
 		// Scrolling back through the chat lets it stay where the author put it.
 		connect(Scroll->verticalScrollBar(), &QScrollBar::sliderMoved, this, [this] { Stick = false; });
 		column->addWidget(Scroll, 1);
-		Empty = quiet(small(words({ }, this)));
-		Empty->setObjectName(QStringLiteral("tourSideChatEmpty"));
-		Empty->setAlignment(Qt::AlignLeft | Qt::AlignTop);
 
 		// The one action that changes the tour.
 		Update = new quiet_push_button{ this };

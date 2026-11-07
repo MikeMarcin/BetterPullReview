@@ -204,7 +204,6 @@ namespace bpr::qt {
 		QPushButton*                               ShowPart        = nullptr;
 		QScrollArea*                               Scroll          = nullptr;
 		QVBoxLayout*                               Turns           = nullptr;
-		QLabel*                                    Empty           = nullptr;
 		QPushButton*                               Update          = nullptr;
 		QWidget*                                   PassageRow      = nullptr;
 		QLabel*                                    PassageLine     = nullptr;
