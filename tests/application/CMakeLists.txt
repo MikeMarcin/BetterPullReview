@@ -1208,3 +1208,13 @@ target_link_libraries(test_pull_request_activity_host PRIVATE BetterPullReview::
 bpr_enable_hardening(test_pull_request_activity_host)
 bpr_enable_warnings(test_pull_request_activity_host)
 bpr_add_network_isolated_test(NAME application_pull_request_activity_host COMMAND test_pull_request_activity_host)
+
+# [[BPR-1914]], [[BPR-1915]]. A turn of the tour conversation: the request
+# replays the earlier turns with the passage and the question and carries the
+# style section, and the answer is read strictly.
+bpr_add_executable(test_better_pull_review_tour_agent_conversation_tests tour_agent_conversation_tests.cpp)
+target_link_libraries(test_better_pull_review_tour_agent_conversation_tests PRIVATE BetterPullReview::Application)
+bpr_enable_hardening(test_better_pull_review_tour_agent_conversation_tests)
+bpr_enable_warnings(test_better_pull_review_tour_agent_conversation_tests)
+bpr_add_network_isolated_test(NAME application_tour_agent_conversation COMMAND test_better_pull_review_tour_agent_conversation_tests)
+set_tests_properties(application_tour_agent_conversation PROPERTIES PASS_REGULAR_EXPRESSION "tour-agent-conversation:pass")

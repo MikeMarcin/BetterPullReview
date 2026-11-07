@@ -223,7 +223,8 @@ namespace bpr::core {
 		switch (aRequest) {
 		case tour_agent_request::draft_tour:
 		case tour_agent_request::draft_field:
-		case tour_agent_request::outline:     return tour_agent_tools::read_only;
+		case tour_agent_request::outline:
+		case tour_agent_request::ask:         return tour_agent_tools::read_only;
 		case tour_agent_request::rewrite:     return tour_agent_tools::none;
 		}
 		return tour_agent_tools::none;
@@ -559,5 +560,130 @@ namespace bpr::core {
 			.Mapping     = tour_mapping::unavailable,
 			.Destination = tour_code_destination{ .Commit = aHead, .Path = aStop.Path, .Side = diff_side::right, .FirstLine = aStop.FirstLine - 1U, .LastLine = aStop.LastLine - 1U },
 		};
+	}
+
+	namespace {
+		/// Cut to `aLimit` bytes at a character boundary.
+		void cut(std::string& aText, const std::size_t aLimit)
+		{
+			if (aText.size() <= aLimit) {
+				return;
+			}
+			auto size = aLimit;
+			while (size > 0U && (static_cast<unsigned char>(aText[size]) & 0xC0U) == 0x80U) {
+				--size;
+			}
+			aText.resize(size);
+		}
+		auto turn_bytes(const tour_conversation_turn& aTurn) -> std::size_t
+		{
+			return aTurn.Asked.size() + aTurn.Reply.size() + (aTurn.Passage ? aTurn.Passage->Text.size() + aTurn.Passage->StopTitle.size() : 0U);
+		}
+	}
+
+	auto begin_tour_ask(tour_agent_session& aSession, const std::optional<tour_passage>& aPassage, const std::string_view aQuestion) -> std::optional<tour_agent_run_id>
+	{
+		if (!nonblank(aQuestion) || aQuestion.size() > maximum_tour_question_bytes || !valid_writing_utf8(aQuestion)) {
+			return std::nullopt;
+		}
+		if (aPassage && (!nonblank(aPassage->Text) || aPassage->Text.size() > maximum_tour_passage_bytes || !valid_writing_utf8(aPassage->Text) || aPassage->StopTitle.size() > maximum_tour_passage_bytes || !valid_writing_utf8(aPassage->StopTitle))) {
+			return std::nullopt;
+		}
+		const auto run = begin_tour_run(aSession, tour_agent_request::ask, tools_for(tour_agent_request::ask), aQuestion);
+		if (run) {
+			auto& started    = aSession.Runs.back();
+			started.Passage  = aPassage;
+			started.Question = std::string{ aQuestion };
+		}
+		return run;
+	}
+
+	auto answer_tour_ask(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::string_view aReply, const tour_proposal_tally& aProposed) -> bool
+	{
+		auto* const run = running_run(aSession, aRun);
+		if (run == nullptr || run->Request != tour_agent_request::ask) {
+			return false;
+		}
+		run->Reply = std::string{ aReply };
+		cut(run->Reply, maximum_tour_reply_bytes);
+		run->Proposed = aProposed;
+		return finish_tour_run(aSession, aRun, tour_agent_run_state::answered, run->Reply);
+	}
+
+	auto tour_conversation_of(const tour_agent_session& aSession) -> tour_conversation
+	{
+		auto turns = std::vector<tour_conversation_turn>{ };
+		for (const auto& run : aSession.Runs) {
+			if (run.State != tour_agent_run_state::answered) {
+				continue;
+			}
+			if (run.Request == tour_agent_request::ask) {
+				turns.push_back({ run.Question, run.Passage, run.Reply });
+			} else if (run.Request == tour_agent_request::draft_tour) {
+				const auto answered = std::ranges::find(run.Entries, tour_transcript_kind::answered, &tour_transcript_entry::Kind);
+				turns.push_back({ "Draft the tour", std::nullopt, answered == run.Entries.end() ? std::string{ } : answered->Text });
+			}
+		}
+		auto conversation = tour_conversation{ };
+		auto bytes        = std::size_t{ 0U };
+		auto first        = turns.size();
+		while (first > 0U && turns.size() - first < maximum_replayed_tour_turns && bytes + turn_bytes(turns[first - 1U]) <= maximum_replayed_tour_bytes) {
+			bytes += turn_bytes(turns[first - 1U]);
+			--first;
+		}
+		conversation.Dropped = first;
+		conversation.Turns.assign(std::make_move_iterator(turns.begin() + static_cast<std::ptrdiff_t>(first)), std::make_move_iterator(turns.end()));
+		return conversation;
+	}
+
+	auto propose_tour_changes(const tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal
+	{
+		auto proposal = propose_tour(aRun, aAnswer.Changes, aFiles, aDraft);
+		auto seen     = std::vector<std::size_t>{ };
+		for (const auto& rewrite : aAnswer.StopTexts) {
+			if (rewrite.Stop == 0U || rewrite.Stop > aDraft.Stops.size() || !nonblank(rewrite.Explanation) || std::ranges::find(seen, rewrite.Stop) != seen.end()) {
+				continue;
+			}
+			seen.push_back(rewrite.Stop);
+			const auto& stop = aDraft.Stops[rewrite.Stop - 1U];
+			auto        item = tour_proposal_item{ .Part = tour_proposal_part::stop_text, .Text = rewrite.Explanation, .ReplacesAuthorText = nonblank(stop.Body), .StopId = stop.Id };
+			item.Stop.Title  = stop.Title;
+			proposal.Items.push_back(std::move(item));
+		}
+		return proposal;
+	}
+
+	auto tally_of(const tour_proposal& aProposal) noexcept -> tour_proposal_tally
+	{
+		auto tally = tour_proposal_tally{ };
+		for (const auto& item : aProposal.Items) {
+			switch (item.Part) {
+			case tour_proposal_part::problem:   tally.Problem = true; break;
+			case tour_proposal_part::solution:  tally.Solution = true; break;
+			case tour_proposal_part::stop:      ++tally.Stops; break;
+			case tour_proposal_part::stop_text: ++tally.StopTexts; break;
+			}
+		}
+		return tally;
+	}
+
+	auto merge_tour_proposal(const std::optional<tour_proposal>& aCurrent, tour_proposal aIncoming) -> std::optional<tour_proposal>
+	{
+		if (aIncoming.Items.empty()) {
+			return aCurrent;
+		}
+		if (aCurrent) {
+			const auto superseded = [&aIncoming](const tour_proposal_item& aItem) {
+				return std::ranges::any_of(aIncoming.Items, [&aItem](const tour_proposal_item& aNew) {
+					return aNew.Part == aItem.Part && (aItem.Part == tour_proposal_part::problem || aItem.Part == tour_proposal_part::solution || (aItem.Part == tour_proposal_part::stop_text && aNew.StopId == aItem.StopId));
+				});
+			};
+			for (const auto& item : aCurrent->Items) {
+				if (item.Decision == tour_proposal_decision::pending && !superseded(item)) {
+					aIncoming.Items.push_back(item);
+				}
+			}
+		}
+		return aIncoming;
 	}
 }

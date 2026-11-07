@@ -1,7 +1,10 @@
 #include "bpr/qt/tour_agent_panel.hpp"
 
+#include "markdown_github.hpp"
+
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/drawer_parts.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include <QAbstractTextDocumentLayout>
@@ -9,6 +12,7 @@
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QHBoxLayout>
+#include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
 #include <QPainter>
@@ -18,7 +22,9 @@
 #include <QSplitter>
 #include <QTextBlock>
 #include <QTextBrowser>
+#include <QTextCursor>
 #include <QTextDocument>
+#include <QTextDocumentFragment>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -156,6 +162,43 @@ namespace bpr::qt {
 			}
 			return { };
 		}
+		/// [[BPR-1914]]. Where a passage was selected, as a reader says it.
+		auto passage_words(const core::tour_passage& aPassage) -> QString
+		{
+			switch (aPassage.Field) {
+			case core::tour_passage_field::problem:  return QObject::tr("About the Problem");
+			case core::tour_passage_field::solution: return QObject::tr("About the Solution");
+			case core::tour_passage_field::stop:
+				return aPassage.StopTitle.empty() ? QObject::tr("About stop %1").arg(aPassage.Stop + 1U) : QObject::tr("About stop %1, %2").arg(aPassage.Stop + 1U).arg(QString::fromStdString(aPassage.StopTitle));
+			}
+			return { };
+		}
+		/// [[BPR-1914]]. Return asks; Shift+Return starts a new line.
+		class ask_keys final : public QObject
+		{
+		public:
+			ask_keys(QObject* aParent, std::function<void()> aSend)
+				: QObject{ aParent }
+				, Send{ std::move(aSend) }
+			{
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::KeyPress) {
+					const auto* key = static_cast<QKeyEvent*>(aEvent);
+					if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !(key->modifiers() & Qt::ShiftModifier)) {
+						Send();
+						return true;
+					}
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			std::function<void()> Send;
+		};
 		auto tools_words(const core::tour_agent_tools aTools) -> QString
 		{
 			return aTools == core::tour_agent_tools::read_only ? QObject::tr("read-only, in the review's workspace") : QObject::tr("no tools");
@@ -177,7 +220,10 @@ namespace bpr::qt {
 		void clear(QVBoxLayout* aLayout)
 		{
 			while (auto* const item = aLayout->takeAt(0)) {
+				// Hidden at once, so a part that is going never shows under
+				// the parts that replace it before it is deleted.
 				if (auto* const widget = item->widget()) {
+					widget->hide();
 					widget->deleteLater();
 				}
 				delete item;
@@ -214,7 +260,7 @@ namespace bpr::qt {
 		TranscriptToggle->setObjectName(QStringLiteral("tourSessionTranscriptOpen"));
 		TranscriptToggle->setFlat(true);
 		TranscriptToggle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		TranscriptToggle->setToolTip(tr("Opens what the tour session read and answered, run by run, in its own window. It never opens by itself."));
+		TranscriptToggle->setToolTip(tr("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
 		row->addWidget(TranscriptToggle, 0, Qt::AlignVCenter);
 		column->addLayout(row);
 		FailureSlot = new QVBoxLayout{ };
@@ -285,6 +331,7 @@ namespace bpr::qt {
 		proposalScroll->setMinimumHeight(300);
 		proposalScroll->setMaximumHeight(460);
 		ProposalScroll = proposalScroll;
+		proposalScroll->viewport()->installEventFilter(this);
 		proposalScroll->setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
 		auto* const proposalBody = new QWidget{ proposalScroll };
 		proposalBody->setAutoFillBackground(false);
@@ -299,24 +346,43 @@ namespace bpr::qt {
 
 		// [[BPR-1913]], RFC-BPR-0092 T2 amended. The transcript: a window of
 		// its own, opened from here or from a failure notice, never pushed in
-		// front. The runs on the left; the chosen run as one text, so a
-		// selection spans its entries; Copy run and Copy all runs.
+		// front. [[BPR-1914]]: it is the tour conversation. The turns on the
+		// left; the whole conversation as one text on the right, so a
+		// selection spans turns; the ask box under it; Copy turn and Copy
+		// conversation above it.
 		TranscriptWindow = new QWidget{ this, Qt::Window };
 		TranscriptWindow->setObjectName(QStringLiteral("tourSessionTranscript"));
-		TranscriptWindow->setWindowTitle(tr("Tour session transcript"));
-		TranscriptWindow->setAccessibleName(tr("Tour session transcript"));
-		TranscriptWindow->resize(760, 520);
+		TranscriptWindow->setWindowTitle(tr("Tour conversation"));
+		TranscriptWindow->setAccessibleName(tr("Tour conversation"));
+		TranscriptWindow->resize(820, 620);
 		auto* const windowColumn = new QVBoxLayout{ TranscriptWindow };
 		windowColumn->setContentsMargins(14, 12, 14, 12);
 		windowColumn->setSpacing(8);
-		auto* const about = small(paragraph(tr("The tour session is separate from the Agent tab's conversation. Each request is a fresh run that is given the tour so far."), TranscriptWindow));
+		auto* const top   = new QHBoxLayout{ };
+		auto* const about = small(paragraph(tr("Ask about the tour or a passage you select. The agent reads this pull request's code and remembers the conversation; it changes the tour only as a proposal you accept."), TranscriptWindow));
 		about->setForegroundRole(QPalette::PlaceholderText);
-		windowColumn->addWidget(about);
+		top->addWidget(about, 1);
+		CopyRun = new quiet_push_button{ tr("Copy turn"), TranscriptWindow };
+		CopyRun->setObjectName(QStringLiteral("tourSessionCopyRun"));
+		CopyRun->setFlat(true);
+		CopyRun->setToolTip(tr("Copies this turn as plain text: what was asked, each step and its command or path, and the reply or how it ended."));
+		CopyAll = new quiet_push_button{ tr("Copy conversation"), TranscriptWindow };
+		CopyAll->setObjectName(QStringLiteral("tourSessionCopyAll"));
+		CopyAll->setFlat(true);
+		CopyAll->setToolTip(tr("Copies every turn of this tour conversation as plain text, oldest first."));
+		top->addWidget(CopyRun, 0, Qt::AlignTop);
+		top->addWidget(CopyAll, 0, Qt::AlignTop);
+		windowColumn->addLayout(top);
+		Copied = small(paragraph({ }, TranscriptWindow));
+		Copied->setObjectName(QStringLiteral("tourSessionCopied"));
+		Copied->setForegroundRole(QPalette::PlaceholderText);
+		Copied->setAlignment(Qt::AlignRight);
+		windowColumn->addWidget(Copied);
 		auto* const split = new QSplitter{ Qt::Horizontal, TranscriptWindow };
 		split->setChildrenCollapsible(false);
 		RunList = new QListWidget{ split };
 		RunList->setObjectName(QStringLiteral("tourSessionRuns"));
-		RunList->setAccessibleName(tr("Runs"));
+		RunList->setAccessibleName(tr("Turns"));
 		RunList->setWordWrap(true);
 		RunList->setTextElideMode(Qt::ElideNone);
 		RunList->setUniformItemSizes(false);
@@ -324,32 +390,71 @@ namespace bpr::qt {
 		RunList->setSpacing(3);
 		RunView = new QTextBrowser{ split };
 		RunView->setObjectName(QStringLiteral("tourSessionRun"));
-		RunView->setAccessibleName(tr("Run"));
+		RunView->setAccessibleName(tr("Conversation"));
 		RunView->setOpenLinks(false);
 		RunView->setTextInteractionFlags(Qt::TextSelectableByMouse | Qt::TextSelectableByKeyboard);
-		RunView->document()->setDocumentMargin(10);
+		RunView->document()->setDocumentMargin(14);
 		split->addWidget(RunList);
 		split->addWidget(RunView);
 		split->setStretchFactor(0, 0);
 		split->setStretchFactor(1, 1);
-		split->setSizes({ 220, 520 });
+		split->setSizes({ 200, 600 });
 		windowColumn->addWidget(split, 1);
-		auto* const actions = new QHBoxLayout{ };
-		actions->setSpacing(8);
-		CopyRun = new quiet_push_button{ tr("Copy run"), TranscriptWindow };
-		CopyRun->setObjectName(QStringLiteral("tourSessionCopyRun"));
-		CopyRun->setToolTip(tr("Copies this run as plain text: each step, the command or path it was asked, and how it ended."));
-		CopyAll = new quiet_push_button{ tr("Copy all runs"), TranscriptWindow };
-		CopyAll->setObjectName(QStringLiteral("tourSessionCopyAll"));
-		CopyAll->setFlat(true);
-		CopyAll->setToolTip(tr("Copies every run of this tour session as plain text, oldest first."));
-		Copied = small(paragraph({ }, TranscriptWindow));
-		Copied->setObjectName(QStringLiteral("tourSessionCopied"));
-		Copied->setForegroundRole(QPalette::PlaceholderText);
-		actions->addWidget(CopyRun);
-		actions->addWidget(CopyAll);
-		actions->addWidget(Copied, 1);
-		windowColumn->addLayout(actions);
+		// [[BPR-1914]]. The ask box: the passage it is about, quoted on one
+		// quiet line with a way to drop it, then the question and Ask.
+		PassageRow             = new QWidget{ TranscriptWindow };
+		auto* const passageRow = new QHBoxLayout{ PassageRow };
+		passageRow->setContentsMargins(2, 0, 0, 0);
+		passageRow->setSpacing(4);
+		PassageLine = small(new QLabel{ PassageRow });
+		PassageLine->setObjectName(QStringLiteral("tourAskPassage"));
+		PassageLine->setTextFormat(Qt::PlainText);
+		PassageLine->setForegroundRole(QPalette::PlaceholderText);
+		PassageLine->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+		ClearPassage = new QToolButton{ PassageRow };
+		ClearPassage->setObjectName(QStringLiteral("tourAskPassageClear"));
+		ClearPassage->setAutoRaise(true);
+		ClearPassage->setToolTip(tr("Ask without this passage"));
+		ClearPassage->setAccessibleName(tr("Ask without this passage"));
+		passageRow->addWidget(PassageLine, 1);
+		passageRow->addWidget(ClearPassage, 0);
+		PassageRow->hide();
+		windowColumn->addWidget(PassageRow);
+		auto* const composer = new QHBoxLayout{ };
+		composer->setSpacing(8);
+		AskBox = new QPlainTextEdit{ TranscriptWindow };
+		AskBox->setObjectName(QStringLiteral("tourAskBox"));
+		AskBox->setAccessibleName(tr("Ask the tour agent"));
+		AskBox->setPlaceholderText(tr("Ask about the tour, or ask for a change. Return asks; Shift+Return starts a new line."));
+		AskBox->setTabChangesFocus(true);
+		AskBox->document()->setDocumentMargin(6);
+		AskBox->setFixedHeight(3 * AskBox->fontMetrics().lineSpacing() + 22);
+		AskBox->installEventFilter(new ask_keys{ AskBox, [this] { send_ask(); } });
+		Ask = new quiet_push_button{ tr("Ask"), TranscriptWindow };
+		Ask->setObjectName(QStringLiteral("tourAsk"));
+		Ask->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		composer->addWidget(AskBox, 1);
+		composer->addWidget(Ask, 0, Qt::AlignBottom);
+		windowColumn->addLayout(composer);
+		AskStatus = small(paragraph({ }, TranscriptWindow));
+		AskStatus->setObjectName(QStringLiteral("tourAskStatus"));
+		AskStatus->setForegroundRole(QPalette::PlaceholderText);
+		windowColumn->addWidget(AskStatus);
+		connect(Ask, &QPushButton::clicked, this, [this] {
+			if (RunningAsk) {
+				if (StopDispatch) {
+					StopDispatch();
+				}
+				return;
+			}
+			send_ask();
+		});
+		connect(ClearPassage, &QToolButton::clicked, this, [this] {
+			Passage.reset();
+			show_passage();
+			AskBox->setFocus(Qt::OtherFocusReason);
+		});
+		connect(AskBox, &QPlainTextEdit::textChanged, this, [this] { refresh_ask(); });
 		connect(RunList, &QListWidget::currentRowChanged, this, [this](const int aRow) {
 			if (aRow < 0) {
 				return;
@@ -360,10 +465,10 @@ namespace bpr::qt {
 		});
 		connect(CopyRun, &QPushButton::clicked, this, [this] {
 			if (const auto* run = ShownRun ? core::find_tour_run(Session, *ShownRun) : nullptr; run != nullptr) {
-				copy(run_text(*run), tr("Copied run %1.").arg(run->Id.value()));
+				copy(run_text(*run), tr("Copied turn %1.").arg(run->Id.value()));
 			}
 		});
-		connect(CopyAll, &QPushButton::clicked, this, [this] { copy(session_text(), tr("Copied all runs.")); });
+		connect(CopyAll, &QPushButton::clicked, this, [this] { copy(session_text(), tr("Copied the conversation.")); });
 		TranscriptWindow->hide();
 		refresh_toggle();
 		set_running(false, false);
@@ -387,6 +492,11 @@ namespace bpr::qt {
 			}
 		} else {
 			Edited.clear();
+			Editing.clear();
+		}
+		// [[BPR-1914]]. A new turn: the conversation follows it.
+		if (aSession.LastRun != Session.LastRun) {
+			FocusRun.reset();
 		}
 		Session  = aSession;
 		Proposal = aProposal;
@@ -397,14 +507,16 @@ namespace bpr::qt {
 		refresh_toggle();
 	}
 
-	void tour_agent_panel::set_running(const bool aDraftTour, const bool aAny)
+	void tour_agent_panel::set_running(const bool aDraftTour, const bool aAny, const bool aAsking)
 	{
 		RunningDraft = aDraftTour;
 		RunningAny   = aAny;
+		RunningAsk   = aAsking;
 		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft the tour"));
 		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one.")
 																																: Why);
 		Draft->setEnabled(Ready && (aDraftTour || !aAny));
+		refresh_ask();
 		// What it reads and where the proposal lands is the tab's notice
 		// line, under this panel; the control itself says it is running.
 		Status->hide();
@@ -415,7 +527,7 @@ namespace bpr::qt {
 	{
 		Ready = aReady;
 		Why   = aWhy;
-		set_running(RunningDraft, RunningAny);
+		set_running(RunningDraft, RunningAny, RunningAsk);
 	}
 
 	void tour_agent_panel::set_failure_notice(QWidget* aNotice)
@@ -456,6 +568,9 @@ namespace bpr::qt {
 			show_run(ShownRun, std::nullopt);
 		}
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
+		apply_agent_accent(*Ask, ground);
+		Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
+		ClearPassage->setIcon(drawer_icon(drawer_glyph::close, ClearPassage->palette()));
 		for (const auto& widget : Accented) {
 			if (widget) {
 				apply_agent_accent(*widget, aGround);
@@ -488,13 +603,32 @@ namespace bpr::qt {
 		const auto asked = aRun.Entries.empty() ? QString{ } : QString::fromStdString(aRun.Entries.front().Text);
 		auto       how   = tr("%1, %2.").arg(state_words(aRun.State), tools_words(aRun.Tools));
 		how[0]           = how[0].toUpper();
-		auto lines       = QStringList{ tr("## Run %1: %2").arg(aRun.Id.value()).arg(asked), QString{ }, how, QString{ } };
+		const auto ask   = aRun.Request == core::tour_agent_request::ask;
+		auto       lines = QStringList{ tr("## Run %1: %2").arg(aRun.Id.value()).arg(asked.section(QLatin1Char('\n'), 0, 0)), QString{ }, how, QString{ } };
+		// [[BPR-1914]]. An ask turn: the passage it was about, quoted.
+		if (ask && aRun.Passage) {
+			lines << QStringLiteral("> ") + passage_words(*aRun.Passage) + QLatin1Char(':');
+			for (const auto& line : QString::fromStdString(aRun.Passage->Text).split(QLatin1Char('\n'))) {
+				lines << QStringLiteral("> ") + line;
+			}
+			lines << QString{ };
+		}
 		for (const auto& entry : aRun.Entries) {
+			// The reply follows the steps, as written.
+			if (ask && entry.Kind == core::tour_transcript_kind::answered) {
+				continue;
+			}
 			const auto note = note_words(entry.Note);
 			lines << QStringLiteral("- ") + verb(entry.Kind) + QStringLiteral(": ") + QString::fromStdString(entry.Text) + (note.isEmpty() ? QString{ } : QStringLiteral(" (") + note + QLatin1Char(')'));
 		}
 		if (aRun.Dropped > 0U) {
 			lines << QStringLiteral("- ") + (aRun.Dropped == 1U ? tr("1 more step was not kept.") : tr("%1 more steps were not kept.").arg(aRun.Dropped));
+		}
+		if (ask && aRun.State == core::tour_agent_run_state::answered) {
+			lines << QString{ } << QString::fromStdString(aRun.Reply);
+			if (const auto proposed = proposed_words(aRun.Proposed); !proposed.isEmpty()) {
+				lines << QString{ } << QStringLiteral("_") + proposed + QStringLiteral("_");
+			}
 		}
 		return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
 	}
@@ -536,6 +670,111 @@ namespace bpr::qt {
 		return found == Placements.end() ? QString{ } : found->second->text();
 	}
 
+	void tour_agent_panel::fit_readers()
+	{
+		// [[BPR-1915]]. Each rendered text as tall as it reads at the
+		// proposal's width, so nothing scrolls inside it.
+		const auto width = std::max(1, ProposalScroll->viewport()->width() - ProposalItems->contentsMargins().left() - ProposalItems->contentsMargins().right());
+		for (const auto& [index, reader] : Readers) {
+			if (reader != nullptr) {
+				reader->setFixedHeight(reader->isHidden() ? 0 : reader->heightForWidth(width));
+			}
+		}
+	}
+
+	auto tour_agent_panel::eventFilter(QObject* aWatched, QEvent* aEvent) -> bool
+	{
+		if (aEvent->type() == QEvent::Resize && ProposalScroll != nullptr && aWatched == ProposalScroll->viewport()) {
+			QTimer::singleShot(0, this, [this] { fit_readers(); });
+		}
+		return QWidget::eventFilter(aWatched, aEvent);
+	}
+
+	auto tour_agent_panel::proposal_reader(const std::size_t aIndex) const -> markdown_body_view*
+	{
+		const auto found = Readers.find(aIndex);
+		return found == Readers.end() ? nullptr : found->second;
+	}
+
+	auto tour_agent_panel::edit_button(const std::size_t aIndex) const -> QPushButton*
+	{
+		const auto found = EditButtons.find(aIndex);
+		return found == EditButtons.end() ? nullptr : found->second;
+	}
+
+	auto tour_agent_panel::proposed_words(const core::tour_proposal_tally& aTally) -> QString
+	{
+		auto parts = QStringList{ };
+		if (aTally.Problem) {
+			parts << tr("a new Problem");
+		}
+		if (aTally.Solution) {
+			parts << tr("a new Solution");
+		}
+		if (aTally.Stops > 0U) {
+			parts << (aTally.Stops == 1U ? tr("1 new stop") : tr("%1 new stops").arg(aTally.Stops));
+		}
+		if (aTally.StopTexts > 0U) {
+			parts << (aTally.StopTexts == 1U ? tr("a new explanation for 1 stop") : tr("new explanations for %1 stops").arg(aTally.StopTexts));
+		}
+		if (parts.isEmpty()) {
+			return { };
+		}
+		auto joined = parts.front();
+		for (qsizetype index = 1; index < parts.size(); ++index) {
+			joined += (index + 1 == parts.size() ? tr(" and ") : QStringLiteral(", ")) + parts[index];
+		}
+		return tr("Proposed %1. Accept, edit or discard it in the Tour tab.").arg(joined);
+	}
+
+	void tour_agent_panel::ask_about(std::optional<core::tour_passage> aPassage)
+	{
+		Passage = std::move(aPassage);
+		show_passage();
+		open_transcript();
+		AskBox->setFocus(Qt::OtherFocusReason);
+	}
+
+	void tour_agent_panel::show_passage()
+	{
+		PassageRow->setVisible(Passage.has_value());
+		if (!Passage) {
+			PassageLine->clear();
+			return;
+		}
+		const auto quoted = QString::fromStdString(Passage->Text).simplified();
+		const auto words  = tr("%1: \u201C%2\u201D").arg(passage_words(*Passage), quoted);
+		PassageLine->setText(PassageLine->fontMetrics().elidedText(words, Qt::ElideRight, std::max(240, TranscriptWindow->width() - 72)));
+		PassageLine->setToolTip(QString::fromStdString(Passage->Text));
+	}
+
+	void tour_agent_panel::refresh_ask()
+	{
+		Ask->setText(RunningAsk ? tr("Stop") : tr("Ask"));
+		const auto blank = AskBox->toPlainText().trimmed().isEmpty();
+		Ask->setEnabled(Ready && (RunningAsk || (!RunningAny && !blank)));
+		Ask->setToolTip(!Ready           ? Why
+							: RunningAsk ? tr("The tour agent is answering in the background. Stop it; nothing in the tour changes.")
+										 : tr("Asks the tour agent, in the background. It reads the code and remembers this conversation; a change it proposes waits for your Accept."));
+		AskStatus->setText(RunningAsk       ? tr("Answering in the background. Keep working.")
+							   : RunningAny ? tr("The tour session is drafting. Ask when it finishes.")
+											: QString{ });
+		AskStatus->setVisible(!AskStatus->text().isEmpty());
+	}
+
+	void tour_agent_panel::send_ask()
+	{
+		const auto question = AskBox->toPlainText().trimmed();
+		if (question.isEmpty() || RunningAny || !Ready || !AskDispatch) {
+			return;
+		}
+		const auto passage = Passage;
+		AskDispatch(passage, question);
+		AskBox->clear();
+		Passage.reset();
+		show_passage();
+	}
+
 	auto tour_agent_panel::accept_button(const std::size_t aIndex) const -> QPushButton*
 	{
 		const auto found = Accepts.find(aIndex);
@@ -545,8 +784,10 @@ namespace bpr::qt {
 	void tour_agent_panel::refresh_toggle()
 	{
 		const auto count = Session.Runs.size();
-		TranscriptToggle->setText(count == 0U ? tr("Transcript") : tr("Transcript (%1)").arg(count));
-		TranscriptToggle->setEnabled(count > 0U);
+		// [[BPR-1914]]. Always offered: the conversation is where a question
+		// about the tour is asked, before any run.
+		TranscriptToggle->setText(count == 0U ? tr("Conversation") : tr("Conversation (%1)").arg(count));
+		TranscriptToggle->setEnabled(true);
 	}
 
 	void tour_agent_panel::rebuild_proposal()
@@ -556,6 +797,8 @@ namespace bpr::qt {
 		Accepts.clear();
 		Relocates.clear();
 		Placements.clear();
+		Readers.clear();
+		EditButtons.clear();
 		Accented.erase(std::remove_if(Accented.begin(), Accented.end(), [](const QPointer<QWidget>& aWidget) { return aWidget.isNull(); }), Accented.end());
 		Fields.clear();
 		if (!Proposal || Proposal->Items.empty()) {
@@ -592,6 +835,8 @@ namespace bpr::qt {
 				heading = tr("Problem");
 			} else if (item.Part == core::tour_proposal_part::solution) {
 				heading = tr("Solution");
+			} else if (item.Part == core::tour_proposal_part::stop_text) {
+				heading = tr("New explanation for %1").arg(QString::fromStdString(item.Stop.Title));
 			} else {
 				++stopNumber;
 				heading = tr("Stop %1. %2").arg(stopNumber).arg(QString::fromStdString(item.Stop.Title));
@@ -676,12 +921,27 @@ namespace bpr::qt {
 			Fields.emplace_back(frame);
 			frame->hold(editor);
 			itemColumn->addWidget(frame);
-			Editors[index]      = editor;
+			Editors[index] = editor;
+			// [[BPR-1915]]. Shown as it will read: rendered, as the preview and
+			// GitHub render it. Edit text shows the Markdown source instead.
+			auto* const reader = new markdown_body_view{ box };
+			reader->setObjectName(QStringLiteral("tourProposalRendered"));
+			reader->set_in_place(true);
+			reader->setFocusPolicy(Qt::NoFocus);
+			reader->set_height_observer([this] { fit_readers(); });
+			reader->set_body(editor->toPlainText().toStdString(), "tour-proposal:" + std::to_string(Proposal->Run.value()) + ":" + std::to_string(index) + ":" + std::to_string(qHash(editor->toPlainText())));
+			itemColumn->insertWidget(itemColumn->indexOf(frame), reader);
+			Readers[index]  = reader;
+			const auto edit = Editing.contains(index);
+			reader->setVisible(!edit);
+			frame->setVisible(edit);
 			auto* const buttons = new QHBoxLayout{ };
 			buttons->setSpacing(6);
 			auto* const accept = new quiet_push_button{ tr("Accept"), box };
 			accept->setObjectName(QStringLiteral("tourProposalAccept"));
-			accept->setToolTip(item.Part == core::tour_proposal_part::stop ? tr("Adds this stop at the end of the tour, with this explanation.") : tr("Puts this text in the tour's %1.").arg(heading));
+			accept->setToolTip(item.Part == core::tour_proposal_part::stop            ? tr("Adds this stop at the end of the tour, with this explanation.")
+								   : item.Part == core::tour_proposal_part::stop_text ? tr("Replaces this stop's explanation with this text.")
+																					  : tr("Puts this text in the tour's %1.").arg(heading));
 			auto* const discard = new quiet_push_button{ tr("Discard"), box };
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
 			discard->setFlat(true);
@@ -691,7 +951,30 @@ namespace bpr::qt {
 			// reaches both.
 			accept->setFocusPolicy(Qt::TabFocus);
 			discard->setFocusPolicy(Qt::TabFocus);
+			auto* const editText = new quiet_push_button{ edit ? tr("Show formatted") : tr("Edit text"), box };
+			editText->setObjectName(QStringLiteral("tourProposalEdit"));
+			editText->setFlat(true);
+			editText->setFocusPolicy(Qt::TabFocus);
+			editText->setToolTip(tr("Switches between this text as it will read and its Markdown source, which you can change before you accept it."));
+			EditButtons[index] = editText;
+			connect(editText, &QPushButton::clicked, this, [this, index, editor, reader, frame, editText] {
+				if (Editing.contains(index)) {
+					Editing.erase(index);
+					reader->set_body(editor->toPlainText().toStdString(), "tour-proposal:" + std::to_string(Proposal ? Proposal->Run.value() : 0U) + ":" + std::to_string(index) + ":" + std::to_string(qHash(editor->toPlainText())));
+					frame->hide();
+					reader->show();
+					fit_readers();
+					editText->setText(tr("Edit text"));
+				} else {
+					Editing.insert(index);
+					reader->hide();
+					frame->show();
+					editor->setFocus(Qt::OtherFocusReason);
+					editText->setText(tr("Show formatted"));
+				}
+			});
 			buttons->addWidget(accept);
+			buttons->addWidget(editText);
 			buttons->addWidget(discard);
 			buttons->addStretch(1);
 			itemColumn->addLayout(buttons);
@@ -711,6 +994,7 @@ namespace bpr::qt {
 		}
 		ProposalItems->addStretch(1);
 		ProposalBox->show();
+		QTimer::singleShot(0, this, [this] { fit_readers(); });
 		restyle(palette());
 	}
 
@@ -720,8 +1004,14 @@ namespace bpr::qt {
 		RunList->clear();
 		auto chosen = -1;
 		for (auto run = Session.Runs.rbegin(); run != Session.Runs.rend(); ++run) {
-			const auto  asked = run->Entries.empty() ? QString{ } : QString::fromStdString(run->Entries.front().Text);
-			auto* const item  = new QListWidgetItem{ tr("%1\nRun %2, %3").arg(asked).arg(run->Id.value()).arg(state_words(run->State)), RunList };
+			const auto asked = run->Entries.empty() ? QString{ } : QString::fromStdString(run->Entries.front().Text);
+			// A long question is cut to a few lines' worth in the list; the
+			// conversation has it whole.
+			auto first = asked.section(QLatin1Char('\n'), 0, 0);
+			if (first.size() > 90) {
+				first = first.left(88).trimmed() + QStringLiteral("\u2026");
+			}
+			auto* const item = new QListWidgetItem{ tr("%1\nRun %2, %3").arg(first).arg(run->Id.value()).arg(state_words(run->State)), RunList };
 			item->setData(Qt::UserRole, QVariant::fromValue<qulonglong>(run->Id.value()));
 			item->setToolTip(asked);
 			if (run->State == core::tour_agent_run_state::failed) {
@@ -748,40 +1038,118 @@ namespace bpr::qt {
 		ShownRun              = run == nullptr ? std::nullopt : aRun;
 		CopyRun->setEnabled(run != nullptr);
 		CopyAll->setEnabled(!Session.Runs.empty());
-		if (run == nullptr) {
-			RunView->clear();
-			return;
-		}
-		// One document: a selection runs across entries, and the platform's
-		// Copy takes it as text.
 		const auto muted = TranscriptWindow->palette().color(QPalette::Active, QPalette::PlaceholderText).name();
 		const auto code  = QFontDatabase::systemFont(QFontDatabase::FixedFont).family().toHtmlEscaped();
-		const auto asked = run->Entries.empty() ? QString{ } : QString::fromStdString(run->Entries.front().Text);
-		auto       html  = QStringLiteral("<p style=\"margin-bottom:2px\"><b>%1</b></p><p style=\"color:%2; margin-top:0\">%3</p><table cellspacing=\"0\" cellpadding=\"3\" width=\"100%\">")
-							   .arg(asked.toHtmlEscaped(), muted, tr("Run %1, %2, %3.").arg(run->Id.value()).arg(state_words(run->State), tools_words(run->Tools)).toHtmlEscaped());
-		for (std::size_t index = 1U; index < run->Entries.size(); ++index) {
-			const auto& entry = run->Entries[index];
+		if (Session.Runs.empty()) {
+			RunView->setHtml(QStringLiteral("<p style=\"color:%1\">%2</p>").arg(muted, tr("Nothing asked yet. Select a passage in the Problem, the Solution or a stop and press Ask about this, or ask below about the tour or the change.").toHtmlEscaped()));
+			return;
+		}
+		// [[BPR-1914]]. The whole conversation, oldest first, as one
+		// document: a selection runs across turns, and the platform's Copy
+		// takes it as text.
+		RunView->clear();
+		auto cursor = QTextCursor{ RunView->document() };
+		for (const auto& each : Session.Runs) {
+			append_run(cursor, each, muted, code);
+		}
+		if (run == nullptr) {
+			return;
+		}
+		const auto anchor = aEntry ? QStringLiteral("run-%1-entry-%2").arg(run->Id.value()).arg(*aEntry) : QStringLiteral("run-%1").arg(run->Id.value());
+		RunView->scrollToAnchor(anchor);
+	}
+
+	void tour_agent_panel::append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const
+	{
+		const auto ask    = aRun.Request == core::tour_agent_request::ask;
+		const auto accent = agent_accent(TranscriptWindow->palette()).name();
+		const auto asked  = ask ? QString::fromStdString(aRun.Question) : aRun.Entries.empty() ? QString{ }
+																							   : QString::fromStdString(aRun.Entries.front().Text);
+		auto       html   = QStringLiteral("<a name=\"run-%1\"></a>").arg(aRun.Id.value());
+		// What was asked: the passage, quoted, then the question.
+		if (ask && aRun.Passage) {
+			html += QStringLiteral("<p style=\"margin-top:16px; margin-bottom:0; color:%1\"><i>%2</i></p><blockquote style=\"margin-top:2px; margin-bottom:4px; margin-left:14px; color:%1\">\u201C%3\u201D</blockquote>")
+						.arg(aMuted, passage_words(*aRun.Passage).toHtmlEscaped(), QString::fromStdString(aRun.Passage->Text).toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>")));
+		}
+		html += QStringLiteral("<p style=\"margin-top:%1px; margin-bottom:2px\"><b>%2</b></p>").arg(ask && aRun.Passage ? 2 : 16).arg(asked.toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>")));
+		html += QStringLiteral("<p style=\"color:%1; margin-top:0; margin-bottom:4px; font-size:small\">%2</p>").arg(aMuted, tr("Run %1, %2, %3.").arg(aRun.Id.value()).arg(state_words(aRun.State), tools_words(aRun.Tools)).toHtmlEscaped());
+		// What it did: each step, quiet, as the transcript has always said it.
+		auto steps = QString{ };
+		auto said  = QString{ };
+		for (std::size_t index = 1U; index < aRun.Entries.size(); ++index) {
+			const auto& entry = aRun.Entries[index];
 			const auto  text  = QString::fromStdString(entry.Text).toHtmlEscaped().replace(QLatin1Char('\n'), QStringLiteral("<br>"));
-			const auto  tool  = entry.Kind == core::tour_transcript_kind::searched || entry.Kind == core::tour_transcript_kind::read || entry.Kind == core::tour_transcript_kind::ran;
-			auto        said  = tool ? QStringLiteral("<span style=\"font-family:'%1'\">%2</span>").arg(code, text) : text;
+			if (entry.Kind == core::tour_transcript_kind::answered) {
+				said = text;
+				continue;
+			}
+			const auto tool = entry.Kind == core::tour_transcript_kind::searched || entry.Kind == core::tour_transcript_kind::read || entry.Kind == core::tour_transcript_kind::ran;
+			auto       line = tool ? QStringLiteral("<span style=\"font-family:'%1'\">%2</span>").arg(aCode, text) : text;
 			// How a run ended: its first line is the headline, the failure's
 			// own log under it in the plain weight.
 			if (entry.Kind == core::tour_transcript_kind::ended) {
 				const auto split = text.indexOf(QStringLiteral("<br>"));
-				said             = split < 0 ? QStringLiteral("<b>%1</b>").arg(text) : QStringLiteral("<b>%1</b>%2").arg(text.left(split), text.mid(split));
+				line             = split < 0 ? QStringLiteral("<b>%1</b>").arg(text) : QStringLiteral("<b>%1</b>%2").arg(text.left(split), text.mid(split));
 			}
 			if (const auto note = note_words(entry.Note); !note.isEmpty()) {
-				said += QStringLiteral("<br><span style=\"color:%1\"><i>%2</i></span>").arg(muted, note.toHtmlEscaped());
+				line += QStringLiteral("<br><span style=\"color:%1\"><i>%2</i></span>").arg(aMuted, note.toHtmlEscaped());
 			}
-			html += QStringLiteral("<tr><td valign=\"top\" align=\"right\" style=\"color:%1; padding-right:10px\" width=\"72\"><a name=\"entry-%2\"></a>%3</td><td valign=\"top\">%4</td></tr>").arg(muted).arg(index).arg(verb(entry.Kind).toHtmlEscaped(), said);
+			steps += QStringLiteral("<tr><td valign=\"top\" align=\"right\" style=\"color:%1; padding-right:10px\" width=\"72\"><a name=\"run-%2-entry-%3\"></a><a name=\"entry-%3\"></a>%4</td><td valign=\"top\">%5</td></tr>")
+						 .arg(aMuted)
+						 .arg(aRun.Id.value())
+						 .arg(index)
+						 .arg(verb(entry.Kind).toHtmlEscaped(), line);
 		}
-		html += QStringLiteral("</table>");
-		if (run->Dropped > 0U) {
-			html += QStringLiteral("<p style=\"color:%1\">%2</p>").arg(muted, (run->Dropped == 1U ? tr("1 more step was not kept.") : tr("%1 more steps were not kept.").arg(run->Dropped)).toHtmlEscaped());
+		if (!steps.isEmpty()) {
+			html += QStringLiteral("<table cellspacing=\"0\" cellpadding=\"2\" width=\"100%\" style=\"font-size:small\">") + steps + QStringLiteral("</table>");
 		}
-		RunView->setHtml(html);
-		if (aEntry) {
-			RunView->scrollToAnchor(QStringLiteral("entry-%1").arg(*aEntry));
+		if (aRun.Dropped > 0U) {
+			html += QStringLiteral("<p style=\"color:%1; font-size:small\">%2</p>").arg(aMuted, (aRun.Dropped == 1U ? tr("1 more step was not kept.") : tr("%1 more steps were not kept.").arg(aRun.Dropped)).toHtmlEscaped());
+		}
+		const auto reply = ask && aRun.State == core::tour_agent_run_state::answered;
+		if (reply || !said.isEmpty()) {
+			html += QStringLiteral("<p style=\"margin-top:8px; margin-bottom:2px; color:%1\"><b>%2</b></p>").arg(accent, tr("Tour agent").toHtmlEscaped());
+		}
+		if (!reply && !said.isEmpty()) {
+			html += QStringLiteral("<p style=\"margin-top:0\">%1</p>").arg(said);
+		}
+		// Each turn starts a block of its own, never inside the last reply's
+		// list or paragraph.
+		aCursor.movePosition(QTextCursor::End);
+		if (!aCursor.atStart()) {
+			auto gap = QTextBlockFormat{ };
+			gap.setTopMargin(22);
+			aCursor.insertBlock(gap, QTextCharFormat{ });
+		}
+		aCursor.insertHtml(html);
+		if (!reply) {
+			return;
+		}
+		// [[BPR-1914]], [[BPR-1915]]. The reply as the agent wrote it, read as
+		// a body is read: paragraphs, lists, code.
+		auto scratch = QTextDocument{ };
+		scratch.setDefaultFont(RunView->document()->defaultFont());
+		detail::import_github_markdown(scratch, QString::fromStdString(aRun.Reply));
+		// Code in the code face the transcript's commands use.
+		auto codeFormat = QTextCharFormat{ };
+		codeFormat.setFontFamilies({ QFontDatabase::systemFont(QFontDatabase::FixedFont).family() });
+		for (auto block = scratch.begin(); block.isValid(); block = block.next()) {
+			for (auto part = block.begin(); !part.atEnd(); ++part) {
+				if (part.fragment().charFormat().fontFixedPitch()) {
+					auto span = QTextCursor{ &scratch };
+					span.setPosition(part.fragment().position());
+					span.setPosition(part.fragment().position() + part.fragment().length(), QTextCursor::KeepAnchor);
+					span.mergeCharFormat(codeFormat);
+				}
+			}
+		}
+		aCursor.movePosition(QTextCursor::End);
+		aCursor.insertBlock(QTextBlockFormat{ }, QTextCharFormat{ });
+		aCursor.insertFragment(QTextDocumentFragment{ &scratch });
+		if (const auto proposed = proposed_words(aRun.Proposed); !proposed.isEmpty()) {
+			aCursor.movePosition(QTextCursor::End);
+			aCursor.insertBlock(QTextBlockFormat{ }, QTextCharFormat{ });
+			aCursor.insertHtml(QStringLiteral("<p style=\"color:%1; margin-top:6px\"><i>%2</i></p>").arg(accent, proposed.toHtmlEscaped()));
 		}
 	}
 }

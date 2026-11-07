@@ -1348,6 +1348,7 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
 		// and each proposed field's or stop's Accept and Discard.
+		Window->tour_editor()->set_tour_ask_dispatch([this](const std::optional<core::tour_passage>& aPassage, const QString& aQuestion) { request_tour_ask(aPassage, aQuestion); });
 		Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
 #endif
 		WorkbenchHost = std::make_unique<

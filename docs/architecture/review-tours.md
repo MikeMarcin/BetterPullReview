@@ -191,6 +191,25 @@ run**, which opens that window at the run. Each
 request is a fresh run given the tour so far, never `--resume`. See the
 [AI agent boundary](ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900).
 
+Since [[BPR-1914]] (owner, 2026-11-06: "I want to ask questions, get back and
+forth and have it update it") that window is the **Tour conversation**, opened
+by **Conversation (n)**, which is always offered. Selecting text in the
+Problem, the Solution or a stop's explanation offers **Ask about this** beside
+the field's Enhance control; it opens the conversation with the passage quoted
+above the ask box. A question with no passage asks about the tour or the
+change. Each turn runs read-only in the workspace like a draft, and is given
+the tour as it is now and the earlier turns, so a follow-up keeps its context
+whatever the agent. The conversation reads as one selectable document, oldest
+first, with each reply rendered as Markdown; **Copy turn** and **Copy
+conversation** copy it as text. Asked to change the tour, the agent proposes:
+a changed Problem or Solution, new stops, or a new explanation for a stop
+already in the tour, which join the proposal under Draft the tour and change
+nothing until accepted. Since [[BPR-1915]] every built-in tour prompt asks for
+GitHub-flavoured Markdown that scans (short paragraphs, lists, inline code, no
+headings), and a proposed text shows rendered as the preview and GitHub show
+it, with **Edit text** for its source. See the
+[RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1914-bpr-1915-2026-11-06-the-tour-conversation-and-formatted-drafts).
+
 The stop editor retains native explanation documents by stop ID, with a
 wrapping outline and separate title, explanation and related-source controls.
 The context menu offers insert after, duplicate, merge selected adjacent stops,

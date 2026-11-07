@@ -23,6 +23,7 @@
 #include <variant>
 
 #if defined(BPR_AGENT_INTEGRATIONS)
+	#include "bpr/application/tour_agent_conversation.hpp"
 	#include "bpr/application/tour_agent_drafting.hpp"
 	#include "bpr/core/agent_entry.hpp"
 #endif
@@ -778,10 +779,11 @@ namespace bpr::app {
 	/// [[BPR-1900]]. The one way a tour request reaches the tour session:
 	/// the core starts the run in the session, then the launch path sends it
 	/// (`aRunFor` names the hook whose control shows it running).
-	auto github_application::implementation::dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor) -> bool
+	auto github_application::implementation::dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor, const std::optional<core::tour_passage>& aPassage) -> bool
 	{
+		adopt_tour_conversation();
 		const auto tools = core::tools_for(aKind);
-		const auto run   = core::begin_tour_run(TourAgent, aKind, tools, aAsked);
+		const auto run   = aKind == core::tour_agent_request::ask ? core::begin_tour_ask(TourAgent, aPassage, aAsked) : core::begin_tour_run(TourAgent, aKind, tools, aAsked);
 		if (!run) {
 			return false;
 		}
@@ -789,14 +791,14 @@ namespace bpr::app {
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
 		auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only };
-		if (aKind == core::tour_agent_request::draft_tour && WindowRead->accepted_snapshot()) {
+		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
 				if (file.Change != application::github_file_change::removed) {
 					launch.Measure.push_back(file.Path);
 				}
 			}
 		}
-		Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour);
+		Window->tour_editor()->set_tour_running(aRunFor, aKind == core::tour_agent_request::draft_tour, aKind == core::tour_agent_request::ask);
 		present_tour_session();
 		if (!dispatch_agent_invocation(aAgent, { }, { }, false, aPrompt, { }, core::agent_entry_point::ask_about_selection, { }, true, launch)) {
 			static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, "The tour session could not start this request."));
@@ -829,6 +831,7 @@ namespace bpr::app {
 			TourRun.reset();
 		}
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
+		TourAskPending = false;
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker at the bottom of this tab."));
@@ -860,10 +863,15 @@ namespace bpr::app {
 																						  : core::tour_agent_run_state::failed;
 			// [[BPR-1913]]. A failed run's transcript keeps why, as the
 			// failure's own log says it, so Copy run carries the reason.
-			auto last = state == core::tour_agent_run_state::answered ? tour_answer_words(aResult)
-				: state == core::tour_agent_run_state::cancelled      ? std::string{ "Stopped. Nothing in the tour changed." }
-																	  : (words + QStringLiteral("\n\n") + qt::agent_launch_panel::failure_log(aResult)).toStdString();
-			static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, state, last));
+			if (TourAskPending && state == core::tour_agent_run_state::answered) {
+				// [[BPR-1914]]. The reply, and any change as a proposal.
+				finish_tour_ask(*TourRun, aResult);
+			} else {
+				auto last = state == core::tour_agent_run_state::answered ? tour_answer_words(aResult)
+					: state == core::tour_agent_run_state::cancelled      ? std::string{ "Stopped. Nothing in the tour changed." }
+																		  : (words + QStringLiteral("\n\n") + qt::agent_launch_panel::failure_log(aResult)).toStdString();
+				static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, state, last));
+			}
 		}
 		const auto run = TourRun;
 		TourRun.reset();
@@ -872,10 +880,135 @@ namespace bpr::app {
 		if (TourDraftPending) {
 			TourDraftPending = false;
 			finish_tour_draft(run, aResult, words);
+		} else if (TourAskPending) {
+			TourAskPending = false;
 		} else {
 			finish_writing(aIdentity, aResult);
 		}
 		present_tour_session();
+	}
+
+	/// [[BPR-1914]], owner 2026-11-06: "I want to ask questions, get back
+	/// and forth and have it update it." The session is one conversation
+	/// per tour: a run started on another tour lets the earlier tour's
+	/// turns and proposal go (run numbers keep counting).
+	void github_application::implementation::adopt_tour_conversation()
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		if (!draft || core::running_tour_run(TourAgent) || TourConversationDraft == draft->Id) {
+			return;
+		}
+		if (TourConversationDraft) {
+			TourAgent = core::tour_agent_session{ .LastRun = TourAgent.LastRun };
+			TourProposal.reset();
+			TourAnchorFiles.clear();
+		}
+		TourConversationDraft = draft->Id;
+	}
+
+	/// [[BPR-1914]]. A turn of the tour conversation: a question about the
+	/// tour or a selected passage, or a change asked for in words. It runs
+	/// read-only in the workspace, as drafting does, and is given the
+	/// earlier turns.
+	void github_application::implementation::request_tour_ask(const std::optional<core::tour_passage>& aPassage, const QString& aQuestion)
+	{
+		const auto* const snapshot = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+		const auto        draft    = TourHost ? TourHost->presentation().Draft : nullptr;
+		const auto        question = aQuestion.trimmed().toStdString();
+		if (Closing || snapshot == nullptr || !draft || question.empty()) {
+			return;
+		}
+		const auto agent = writing_agent();
+		if (!agent || !tour_session_idle()) {
+			Window->tour_editor()->show_writing_notice(!agent ? QStringLiteral("Choose an agent with the agent picker at the bottom of this tab, or keep writing yourself.")
+															  : QStringLiteral("The tour session is busy. Ask when it finishes, or stop it."));
+			return;
+		}
+		adopt_tour_conversation();
+		// A turn that cannot run still lands in the conversation, saying why.
+		const auto refuse = [this, &aPassage, &question](const std::string& aWhy) {
+			if (const auto run = core::begin_tour_ask(TourAgent, aPassage, question)) {
+				static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, aWhy));
+			}
+			present_tour_session();
+		};
+		if (!reads_read_only(*agent)) {
+			refuse(QStringLiteral("%1 has no read-only mode to read the code with. Choose Claude or Codex with the agent picker at the bottom of the Tour tab.").arg(agent_display_name(*agent)).toStdString());
+			return;
+		}
+		auto files = std::vector<application::tour_draft_file>{ };
+		for (const auto& file : snapshot->Files) {
+			const auto change = file.Change == application::github_file_change::added ? "added"
+				: file.Change == application::github_file_change::removed             ? "removed"
+				: file.Change == application::github_file_change::renamed             ? "renamed"
+																					  : "modified";
+			files.push_back({ file.Path, change, file.HeadHunks });
+		}
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent), aPassage, question);
+		if (!prompt) {
+			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
+			return;
+		}
+		TourAskPending = true;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, *prompt, std::nullopt, aPassage)) {
+			TourAskPending = false;
+		}
+	}
+
+	/// [[BPR-1914]]. An answered turn: its reply in the conversation, and
+	/// any change it proposes added to the proposal, anchored as a draft's.
+	void github_application::implementation::finish_tour_ask(const core::tour_agent_run_id aRun, const application::agent_run_result& aResult)
+	{
+		const auto said   = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
+		const auto answer = application::decode_tour_ask_answer(said);
+		if (!answer) {
+			static_cast<void>(core::finish_tour_run(TourAgent, aRun, core::tour_agent_run_state::failed, "The agent's answer wasn't one this app can read. Nothing in the tour changed.\n\n" + said.substr(0U, std::min<std::size_t>(said.size(), 1500U))));
+			return;
+		}
+		const auto draft    = TourHost ? TourHost->presentation().Draft : nullptr;
+		auto       proposal = std::optional<core::tour_proposal>{ };
+		if (draft) {
+			auto files = tour_anchor_files(aResult);
+			proposal   = core::propose_tour_changes(aRun, *answer, files, *draft);
+			if (!proposal->Items.empty()) {
+				TourAnchorFiles = std::move(files);
+			}
+		}
+		static_cast<void>(core::answer_tour_ask(TourAgent, aRun, answer->Reply, proposal ? core::tally_of(*proposal) : core::tour_proposal_tally{ }));
+		if (!proposal) {
+			return;
+		}
+		static_cast<void>(core::note_finished_tour_run(TourAgent, aRun, core::left_out_entries(*proposal)));
+		if (!proposal->Items.empty()) {
+			TourProposal = core::merge_tour_proposal(TourProposal, std::move(*proposal));
+			Window->tour_editor()->show_writing_notice(QStringLiteral("The tour agent proposed a change. It's in the Tour tab; nothing changes until you accept it."));
+		}
+	}
+
+	/// [[BPR-1900]]. The host's facts the core anchors against: the pull
+	/// request's files, their hunks, and the head lines the host counted
+	/// before the agent ran.
+	auto github_application::implementation::tour_anchor_files(const application::agent_run_result& aResult) const -> std::vector<core::tour_anchor_file>
+	{
+		auto        files = std::vector<core::tour_anchor_file>{ };
+		const auto* snap  = WindowRead->accepted_snapshot() ? &*WindowRead->accepted_snapshot() : nullptr;
+		if (snap == nullptr) {
+			return files;
+		}
+		for (const auto& file : snap->Files) {
+			auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
+			if (file.HeadHunks) {
+				anchor.Hunks.emplace();
+				for (const auto& [first, last] : *file.HeadHunks) {
+					anchor.Hunks->push_back({ first, last });
+				}
+			}
+			if (const auto counted = std::ranges::find(aResult.MeasuredLines, file.Path, &std::pair<std::string, std::uint32_t>::first); counted != aResult.MeasuredLines.end()) {
+				anchor.HeadLines = counted->second;
+			}
+			files.push_back(std::move(anchor));
+		}
+		return files;
 	}
 
 	/// [[BPR-1900]]. What a run answered, as its transcript says it: a
@@ -968,24 +1101,9 @@ namespace bpr::app {
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The agent's answer wasn't a tour this app can read. Nothing in the tour changed."));
 			return;
 		}
-		// The host's facts the core anchors against: the pull request's
-		// files, and the head lines the host counted before the agent ran.
-		auto files = std::vector<core::tour_anchor_file>{ };
-		for (const auto& file : snap->Files) {
-			auto anchor = core::tour_anchor_file{ .Path = file.Path, .OnHead = file.Change != application::github_file_change::removed };
-			// [[BPR-1900]], owner 2026-11-06: stops strongly prefer the
-			// change; where it is comes from the file's patch.
-			if (file.HeadHunks) {
-				anchor.Hunks.emplace();
-				for (const auto& [first, last] : *file.HeadHunks) {
-					anchor.Hunks->push_back({ first, last });
-				}
-			}
-			if (const auto counted = std::ranges::find(aResult.MeasuredLines, file.Path, &std::pair<std::string, std::uint32_t>::first); counted != aResult.MeasuredLines.end()) {
-				anchor.HeadLines = counted->second;
-			}
-			files.push_back(std::move(anchor));
-		}
+		// [[BPR-1900]], owner 2026-11-06: stops strongly prefer the change;
+		// where it is comes from each file's patch.
+		auto files      = tour_anchor_files(aResult);
 		TourProposal    = core::propose_tour(*aRun, *answer, files, *draft);
 		TourAnchorFiles = std::move(files);
 		// [[BPR-1900]] owner look v002. Stops left out of the proposal are
@@ -1010,7 +1128,19 @@ namespace bpr::app {
 		const auto& item = decided.Items[aIndex];
 		if (aDecision == core::tour_proposal_decision::accepted) {
 			auto command = core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision };
-			if (item.Part == core::tour_proposal_part::stop) {
+			if (item.Part == core::tour_proposal_part::stop_text) {
+				// [[BPR-1914]]. A new explanation for a stop still in the tour.
+				const auto stop = std::ranges::find(draft->Stops, item.StopId, &core::tour_stop::Id);
+				if (stop == draft->Stops.end()) {
+					Window->tour_editor()->show_writing_notice(QStringLiteral("That stop is no longer in the tour, so its new explanation can't be added."));
+					return;
+				}
+				auto value    = *stop;
+				value.Body    = item.Text;
+				command.Kind  = core::tour_command_kind::edit_stop;
+				command.Stop  = value.Id;
+				command.Value = std::move(value);
+			} else if (item.Part == core::tour_proposal_part::stop) {
 				// After the stops already accepted from this proposal, in its order.
 				auto position    = draft->Stops.size();
 				command.Kind     = core::tour_command_kind::insert;

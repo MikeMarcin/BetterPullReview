@@ -1,5 +1,6 @@
 #include "bpr/application/agent_launch.hpp"
 
+#include "bpr/application/tour_writing_style.hpp"
 #include "bpr/application/writing_hooks.hpp"
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_wrapper.hpp"
@@ -1759,6 +1760,11 @@ namespace bpr::application {
 		}
 		auto prompt = std::string{ writing_application_contract() } + "\nSelected writing instructions:\n" + std::string{ effective_writing_hook(aSettings, aRequest.Target.Hook) };
 		prompt += "\nReturn exactly one JSON object. Schema: {\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"ok\",\"replacement_text\":string,\"notes\":[{\"kind\":\"recovered\"|\"inferred\"|\"uncertain\",\"text\":string,\"source_refs\":[supplied IDs]}]}. Insufficient context: {\"schema\":\"bpr.review-preparation.result.v1\",\"kind\":\"rewrite\",\"status\":\"insufficient_context\",\"reason\":string}. No extra keys, fences or wrappers. Empty input requires cited evidence notes.\n";
+		// [[BPR-1915]]. A field's text is Markdown that renders in the app and
+		// on GitHub; the outline writes no field text.
+		if (aRequest.Target.Hook != core::writing_hook::outline) {
+			prompt += tour_writing_style();
+		}
 		if (aRequest.Target.Hook == core::writing_hook::outline) {
 			prompt += "For this outline operation kind must be outline. The outline object has only schema,kind,stops (no status). Each stop has exactly title,anchor_ref,related_refs,reason,author_question. All refs name supplied source IDs. No bodies.\n";
 		}

@@ -35,9 +35,12 @@ namespace bpr::core {
 		outline,
 		/// A small rewrite: Enhance a field, Generate comment, a selection.
 		rewrite,
+		/// [[BPR-1914]]. A turn of the tour conversation: a question about the
+		/// tour or a selected passage, or a change asked for in words.
+		ask,
 	};
-	inline constexpr std::size_t tour_agent_request_count = 4U;
-	static_assert(static_cast<std::size_t>(tour_agent_request::rewrite) + 1U == tour_agent_request_count, "tour_agent_request_count must cover every request");
+	inline constexpr std::size_t tour_agent_request_count = 5U;
+	static_assert(static_cast<std::size_t>(tour_agent_request::ask) + 1U == tour_agent_request_count, "tour_agent_request_count must cover every request");
 
 	/// \brief Which tools a tour run gets.
 	enum class tour_agent_tools : std::uint8_t {
@@ -147,6 +150,39 @@ namespace bpr::core {
 
 	using tour_agent_run_id = strong_id<struct tour_agent_run_id_tag>;
 
+	/// \brief [[BPR-1914]]. Which part of the tour a selected passage is from.
+	enum class tour_passage_field : std::uint8_t {
+		problem,
+		solution,
+		stop,
+	};
+	/// \brief [[BPR-1914]]. The passage an Ask about this turn is about: the
+	/// selected text and where it was selected.
+	struct tour_passage
+	{
+		tour_passage_field Field = tour_passage_field::solution;
+		/// For a stop: its zero-based place in the tour when it was asked.
+		std::size_t Stop = 0U;
+		/// For a stop: its title then.
+		std::string StopTitle;
+		std::string Text;
+		auto        operator==(const tour_passage&) const -> bool = default;
+	};
+	inline constexpr std::size_t maximum_tour_passage_bytes  = 4096U;
+	inline constexpr std::size_t maximum_tour_question_bytes = 4096U;
+	inline constexpr std::size_t maximum_tour_reply_bytes    = 16U * 1024U;
+
+	/// \brief [[BPR-1914]]. What a turn proposed, counted for its line in the
+	/// conversation.
+	struct tour_proposal_tally
+	{
+		bool        Problem                                              = false;
+		bool        Solution                                             = false;
+		std::size_t Stops                                                = 0U;
+		std::size_t StopTexts                                            = 0U;
+		auto        operator==(const tour_proposal_tally&) const -> bool = default;
+	};
+
 	/// \brief One request of the tour session and what it did.
 	struct tour_agent_run
 	{
@@ -159,8 +195,15 @@ namespace bpr::core {
 		std::size_t Dropped = 0U;
 		/// [[BPR-1912]]. Shell commands outside the read-only list that Claude
 		/// ran, counted whether or not their entries were kept.
-		std::size_t OutsideList                                     = 0U;
-		auto        operator==(const tour_agent_run&) const -> bool = default;
+		std::size_t OutsideList = 0U;
+		/// [[BPR-1914]]. An ask turn: the passage it was about, if any, the
+		/// question in full, the reply as the agent wrote it (Markdown), and
+		/// what it proposed.
+		std::optional<tour_passage> Passage;
+		std::string                 Question;
+		std::string                 Reply;
+		tour_proposal_tally         Proposed;
+		auto                        operator==(const tour_agent_run&) const -> bool = default;
 	};
 
 	inline constexpr std::size_t maximum_tour_agent_runs         = 32U;
@@ -169,8 +212,11 @@ namespace bpr::core {
 
 	/// \brief The tour session of one review. Separate from the Agent tab's
 	/// conversation: nothing here is a chat turn and no chat turn is here.
-	/// Each request is a fresh run (no `--resume`): the tour so far is its
-	/// context, not an earlier conversation.
+	/// Each request is a fresh run (no `--resume`). [[BPR-1914]] supersedes
+	/// RFC-BPR-0092 T1: the session is one conversation per tour, replayed.
+	/// An ask turn is given the tour so far and the earlier turns kept here
+	/// (`tour_conversation_of`), so a follow-up keeps its context whatever
+	/// the agent.
 	struct tour_agent_session
 	{
 		std::vector<tour_agent_run> Runs;
@@ -278,6 +324,8 @@ namespace bpr::core {
 		problem,
 		solution,
 		stop,
+		/// [[BPR-1914]]. A new explanation for a stop already in the tour.
+		stop_text,
 	};
 	enum class tour_proposal_decision : std::uint8_t {
 		pending,
@@ -296,8 +344,11 @@ namespace bpr::core {
 		tour_stop_placement Placement = tour_stop_placement::on_change;
 		/// The author already wrote this field: accepting replaces it, and
 		/// says so before it does.
-		bool ReplacesAuthorText                                  = false;
-		auto operator==(const tour_proposal_item&) const -> bool = default;
+		bool ReplacesAuthorText = false;
+		/// For a stop_text: the stop of the tour it rewrites (its title is in
+		/// `Stop.Title`).
+		tour_stop_id StopId;
+		auto         operator==(const tour_proposal_item&) const -> bool = default;
 	};
 	/// \brief A proposed stop the core left out, and why.
 	struct tour_left_out_stop
@@ -344,5 +395,70 @@ namespace bpr::core {
 	/// \brief Adds lines to a run that has ended (the left-out stops are
 	/// known only once its answer is read); bounded as a running run's are.
 	auto note_finished_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, const std::vector<tour_transcript_entry>& aEntries) -> bool;
+
+	/// \brief [[BPR-1914]]. Starts an ask turn: `aQuestion` as asked (not
+	/// blank, valid UTF-8, at most `maximum_tour_question_bytes`) and the
+	/// passage it is about (its text not blank, at most
+	/// `maximum_tour_passage_bytes`). Refused as `begin_tour_run` is, and for
+	/// a question or passage outside those bounds.
+	[[nodiscard]] auto begin_tour_ask(tour_agent_session& aSession, const std::optional<tour_passage>& aPassage, std::string_view aQuestion) -> std::optional<tour_agent_run_id>;
+	/// \brief Ends a running ask turn as answered with the agent's reply (cut
+	/// to `maximum_tour_reply_bytes` at a character) and what it proposed.
+	auto answer_tour_ask(tour_agent_session& aSession, tour_agent_run_id aRun, std::string_view aReply, const tour_proposal_tally& aProposed) -> bool;
+
+	/// \brief One earlier turn as the next one is given it.
+	struct tour_conversation_turn
+	{
+		std::string                 Asked;
+		std::optional<tour_passage> Passage;
+		/// The reply, or for a Draft the tour run what it proposed.
+		std::string Reply;
+		auto        operator==(const tour_conversation_turn&) const -> bool = default;
+	};
+	struct tour_conversation
+	{
+		/// Oldest first.
+		std::vector<tour_conversation_turn> Turns;
+		/// Earlier turns left out to keep within the bounds.
+		std::size_t Dropped                                            = 0U;
+		auto        operator==(const tour_conversation&) const -> bool = default;
+	};
+	inline constexpr std::size_t maximum_replayed_tour_turns = 12U;
+	inline constexpr std::size_t maximum_replayed_tour_bytes = 48U * 1024U;
+	/// \brief The conversation a new turn replays: every answered ask turn and
+	/// every answered Draft the tour run, oldest first, keeping the newest
+	/// `maximum_replayed_tour_turns` that fit in `maximum_replayed_tour_bytes`.
+	/// Failed and stopped turns, and small rewrites, are not replayed.
+	[[nodiscard]] auto tour_conversation_of(const tour_agent_session& aSession) -> tour_conversation;
+
+	/// \brief A new explanation an ask turn proposes for stop `Stop` (one-based,
+	/// as the tour so far numbered it).
+	struct proposed_stop_text
+	{
+		std::size_t Stop = 0U;
+		std::string Explanation;
+		auto        operator==(const proposed_stop_text&) const -> bool = default;
+	};
+	/// \brief An ask turn's answer, as decoded: the reply, and any change it
+	/// proposes. Nothing here is checked yet.
+	struct tour_ask_answer
+	{
+		std::string                     Reply;
+		tour_draft_answer               Changes;
+		std::vector<proposed_stop_text> StopTexts;
+		auto                            operator==(const tour_ask_answer&) const -> bool = default;
+	};
+	/// \brief The proposal an ask turn makes: as `propose_tour` for the
+	/// Problem, the Solution and new stops, then a `stop_text` item for each
+	/// stop rewrite that names a stop of `aDraft` (others are dropped).
+	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal;
+	/// \brief What a proposal holds, counted.
+	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) noexcept -> tour_proposal_tally;
+	/// \brief The proposal shown after `aIncoming` arrives: `aIncoming`'s items,
+	/// then the pending items of `aCurrent` it does not supersede (a pending
+	/// Problem or Solution when it proposes one, a pending stop_text of the
+	/// same stop). Decided items of `aCurrent` are let go. Nothing proposed
+	/// leaves `aCurrent` as it is.
+	[[nodiscard]] auto merge_tour_proposal(const std::optional<tour_proposal>& aCurrent, tour_proposal aIncoming) -> std::optional<tour_proposal>;
 }
 #endif

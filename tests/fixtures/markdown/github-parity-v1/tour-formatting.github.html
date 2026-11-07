@@ -1,0 +1,15 @@
+<p>Each view now clears and draws its own target between <code class="notranslate">begin_frame()</code> and <code class="notranslate">present()</code>, so two views no longer share one frame's scene.</p>
+<ul>
+<li><code class="notranslate">renderer::clear()</code> takes the view it clears.</li>
+<li><code class="notranslate">renderer::draw()</code> draws only that view's scene.</li>
+<li><strong>Resize</strong> keeps the size it was given.</li>
+</ul>
+<p>The order in <code class="notranslate">src/engine/renderer.cpp</code> stays the same:</p>
+<div class="highlight highlight-source-c++"><pre class="notranslate"><span class="pl-en">begin_frame</span>();
+<span class="pl-en">clear</span>(view);
+<span class="pl-en">draw</span>(view);
+<span class="pl-en">present</span>();</pre></div>
+<ol>
+<li>Read <code class="notranslate">clear()</code> first.</li>
+<li>Then check that <code class="notranslate">draw()</code> never clears.</li>
+</ol>

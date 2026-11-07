@@ -3,6 +3,7 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <iterator>
 #include <optional>
@@ -59,6 +60,59 @@ namespace {
 		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-)" << aId << R"(","role":"assistant","content":[{"type":"tool_use","id":")" << aId << R"(","name":")" << aName << R"(","input":)" << aInput << "}]}}\n";
 		std::cout << R"({"type":"user","session_id":"fixture","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":")" << aId << R"(","content":")" << escape(aResult) << "\"}]}}\n"
 				  << std::flush;
+	}
+	void answer_with(const std::string& aResult)
+	{
+		const auto encoded = escape(aResult);
+		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-answer","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";
+		std::cout << "{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"fixture\",\"is_error\":false,\"result\":\"" << encoded << "\"}\n";
+	}
+	/// [[BPR-1914]]. A turn of the tour conversation. A question explains
+	/// the passage from the code it read. A follow-up that refers back
+	/// ("that") checks that the earlier turn came back with it
+	/// (`conversation_so_far` holds the first reply's words); without them it
+	/// says it has nothing to go on. Asked to rewrite, it proposes a new
+	/// Solution in Markdown.
+	auto ask_in_workspace(const std::string& aInput, const std::string& aFolder, const std::string& aTarget, const std::function<void()>& aPause) -> int
+	{
+		emit_tool("a1", "Bash", R"({"command":"rg -n \"begin_frame|present\" )" + escape(aTarget) + R"("})", "3:begin_frame(); 8:present();");
+		aPause();
+		emit_tool("a2", "Read", R"({"file_path":")" + escape(aFolder + "/" + aTarget) + R"("})", "read " + aTarget);
+		aPause();
+		const auto evidence = aInput.find("Untrusted evidence JSON");
+		const auto thisTurn = evidence == std::string::npos ? std::string::npos : aInput.find("this_turn", evidence);
+		// The question alone: canonical JSON sorts it after the passage and
+		// before tour_so_far.
+		const auto asked     = thisTurn == std::string::npos ? std::string::npos : aInput.find("question", thisTurn);
+		const auto after     = asked == std::string::npos ? std::string::npos : aInput.find("tour_so_far", asked);
+		const auto question  = asked == std::string::npos ? std::string{ } : aInput.substr(asked, after == std::string::npos ? std::string::npos : after - asked);
+		const auto rewrite   = question.find("ewrite") != std::string::npos;
+		const auto continued = aInput.find("conversation_so_far") != std::string::npos && aInput.find("the window in which one frame is drawn") != std::string::npos;
+		auto       reply     = std::string{ };
+		auto       solution  = std::string{ };
+		const auto refers    = question.find("that") != std::string::npos || question.find(" it ") != std::string::npos;
+		if (!continued && !refers) {
+			reply = "Here *between begin and present* means the window in which one frame is drawn:\n\n"
+					"- `begin_frame()` opens the frame (`"
+				+ aTarget + ":3`).\n"
+							"- Each view then calls `clear()` and `draw()` on its own target (`"
+				+ aTarget + ":4-7`).\n"
+							"- `present()` shows the finished frame (`"
+				+ aTarget + ":8`).\n\n"
+							"Before the change both views cleared the same target inside that window, so the second view drew over the first.";
+		} else if (!continued) {
+			reply = "I can't see what we said before, so I don't know what \"that\" refers to.";
+		} else if (rewrite) {
+			reply    = "I proposed a new Solution that keeps your point from my last answer: the views share one frame, and each clears its own target. It's in the Tour tab to accept, edit or discard.";
+			solution = "Both views still draw inside one frame, between `begin_frame()` and `present()`, but each now clears its own target first.\n\n"
+					   "- `clear()` takes the view whose target it clears.\n"
+					   "- `draw()` draws only that view's scene.\n\n"
+					   "So neither view can draw over the other's scene.";
+		} else {
+			reply = "Following on from the window in which one frame is drawn: `present()` (`" + aTarget + ":8`) is the only call that shows anything, so whatever a view clears or draws before it stays hidden until then.";
+		}
+		answer_with(R"({"schema":"bpr.tour-ask.v1","reply":")" + escape(reply) + R"(","problem":"","solution":")" + escape(solution) + R"(","stops":[],"stop_texts":[]})");
+		return 0;
 	}
 	/// [[BPR-1900]]. A drafting run in the review's workspace: it really looks
 	/// at the files there, says what it searched and read the way Claude Code
@@ -126,6 +180,10 @@ namespace {
 		};
 		pause();
 		const auto first = named.empty() ? std::string{ "." } : named.front().Relative;
+		if (input.find("bpr.tour-ask.v1") != std::string::npos) {
+			const auto renderer = std::ranges::find(named, std::string{ "src/engine/renderer.cpp" }, &file::Relative) != named.end();
+			return ask_in_workspace(input, folder.generic_string(), renderer ? std::string{ "src/engine/renderer.cpp" } : first, pause);
+		}
 		emit_tool("t1", "Grep", R"({"pattern":"draw","path":"."})", std::to_string(named.size()) + " files of this pull request found");
 		pause();
 		emit_tool("t2", "Bash", R"({"command":"rg -n \"clear|present\" )" + escape(first) + R"("})", "matches in " + first);
@@ -159,8 +217,12 @@ namespace {
 		std::string result;
 		{
 			std::string stops;
-			const char* titles[]       = { "Where the change starts", "What it calls next", "How it ends" };
-			const char* explanations[] = { "Start here: this is where the new behaviour enters. Read these lines first.", "These lines carry the change through. Check that every caller sees the new order.", "This is where the change finishes. Notice what happens when it fails." };
+			const char* titles[] = { "Where the change starts", "What it calls next", "How it ends" };
+			// [[BPR-1915]]. Drafted as the style section asks: short
+			// paragraphs, a list where it helps, inline code for names.
+			const char* explanations[] = { "Start here: this is where the new behaviour enters.\n\nRead `begin_frame()` first, then the `clear()` call under it.",
+										   "These lines carry the change through:\n\n- `clear()` now takes the view it clears.\n- `draw()` draws only that view's scene.\n\nCheck that every caller passes its own view.",
+										   "This is where the change finishes. Notice what `present()` does when a view drew nothing." };
 			const auto  stop           = [&stops](const std::string& aPath, const std::size_t aFirst, const std::size_t aLast, const std::string& aTitle, const std::string& aExplanation) {
 				stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":")" } + escape(aPath) + R"(","first_line":)" + std::to_string(aFirst) + R"(,"last_line":)" + std::to_string(aLast) + R"(,"title":")" + escape(aTitle) + R"(","explanation":")" + escape(aExplanation) + "\"}";
 			};
@@ -183,7 +245,7 @@ namespace {
 			}
 			// One stop the core leaves out: not a file of this pull request.
 			stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":"src/not_in_this_pull_request.cpp","first_line":3,"last_line":9,"title":"A file it imagined","explanation":"This file is not part of the change."})" };
-			result = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.","stops":[)" + stops + "]}";
+			result = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.\n\nIt happened whenever both views drew between one `begin_frame()` and its `present()`.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.\n\n- `renderer::clear()` takes the view it clears.\n- `renderer::draw()` draws only that view's scene.\n\nThe order of calls in `src/engine/renderer.cpp` is unchanged.","stops":[)" + stops + "]}";
 		}
 		const auto encoded = escape(result);
 		std::cout << R"({"type":"assistant","session_id":"fixture","message":{"id":"msg-answer","role":"assistant","content":[{"type":"text","text":")" << encoded << "\"}]}}\n";

@@ -1015,7 +1015,8 @@ and [review tours](../architecture/review-tours.md) describe the whole of it.
 The three questions the card left open are settled as recommended below; each
 waits on the owner's look on the card's attended review.
 
-- **T1. Fresh runs, not `--resume` (recommended).** Each tour request is a
+- **T1. Fresh runs, not `--resume` (superseded by [[BPR-1914]]: one
+  conversation per tour, replayed; see below).** Each tour request is a
   fresh run given the tour so far (the Problem, the Solution and each stop's
   title and lines) and the pull request, with session persistence off. The
   tour draft is the session's memory: it is what the author sees and edits,
@@ -1114,6 +1115,81 @@ same plainly, and the author can still choose its lines in the code with Use
 selected lines. A stop outside the pull request is left out as above. The
 proposal lists stops on the change first, then near, then off, each group in
 the agent's order. Nothing in the proposal is red or disabled.
+
+### Amendment [[BPR-1914]], [[BPR-1915]] (2026-11-06): the tour conversation, and formatted drafts
+
+The owner, 2026-11-06: "having used it for a while I want to do more than just
+enhance the tour text with my agent. I want to ask questions, get back and
+forth and have it update it. For example right now I have Solution section
+where the draft said something I don't understand, but I don't really have a
+way to ask for clarification. It also feels like the output of the draft is
+entirely devoid of any formatting. It feels just like big walls of text."
+
+- **T1 superseded: one conversation per tour, replayed.** The tour session
+  keeps one conversation per tour (`core::tour_agent_session`, in memory for
+  the open review; a run started on another tour draft lets the earlier
+  tour's turns and proposal go). An **ask** turn is a fresh read-only run in
+  the review's workspace, as a drafting run is, and is given the tour as it is
+  now (each stop's number, place and explanation), the pull request, this
+  turn's question and the passage it is about, and the earlier turns
+  (`core::tour_conversation_of`: every answered ask turn and every answered
+  Draft the tour run by what it proposed, oldest first, the newest 12 within
+  48 KiB, with how many were left out). Failed and stopped turns and the small
+  rewrites are not replayed.
+- **The resume mechanism, per agent kind: a replayed transcript for every
+  kind.** Claude Code: read-only runs keep `--no-session-persistence`, so
+  there is no session to `--resume`, and a resumed session would be bound to
+  the run's own workspace folder, which is new for each run, and would carry
+  tool results from a head the review may have moved past. Codex `exec`: its
+  read-only runs are one-shot `exec` calls, and `exec resume` would keep a
+  rollout in Codex's own store. The App Server and the plain-text harness have
+  no read-only mode and are refused with why, in the conversation. What is
+  stored where: the turns (question, passage, reply as written, what it
+  proposed, the steps it took) live in the app's memory for the review; no
+  agent keeps a session, and nothing about the conversation is written to
+  disk. T1's reasons still hold for the tour text itself: the tour so far is
+  the author's current text, and the request says to trust it over earlier
+  replies.
+- **Where it lives: the transcript window is the conversation** (T2's window,
+  renamed **Tour conversation**). The turns on the left (newest first, as
+  T2's runs were); the whole conversation on the right as one selectable
+  document, oldest first: the passage quoted, the question, each step quietly,
+  then the reply under **Tour agent**, rendered as Markdown, and what it
+  proposed. The ask box is under it (Return asks; Shift+Return starts a new
+  line), with the passage quoted above it on one quiet line that can be
+  dropped; **Ask** wears the agent accent and becomes **Stop** while a turn
+  runs. **Copy turn** and **Copy conversation** copy plain text that reads as
+  Markdown, the reply as written. **Conversation (n)** on the Tour tab replaces
+  Transcript (n) and is always offered, so a question can be asked before any
+  run. A compact ask box beside the selected field was not chosen: it would
+  take room from the editing column the owner asked to keep clear
+  ([[BPR-1913]]), and a back-and-forth needs the earlier turns in view.
+- **Ask about this.** Beside each field's Enhance control (Problem, Solution,
+  a stop's explanation), **Ask about this** appears while text is selected and
+  opens the conversation with that passage quoted and the keyboard in the ask
+  box.
+- **Changes are proposals.** An ask turn answers in `bpr.tour-ask.v1`: a reply,
+  and a changed Problem or Solution, new stops, or a new explanation for a stop
+  of the tour by its number (`stop_texts`), each empty when unchanged. The core
+  makes the proposal (`core::propose_tour_changes`): Problem, Solution and new
+  stops as a whole-tour draft's, anchored, placed and left out by the same
+  rules; a stop's new explanation names that stop and says accepting replaces
+  its words. It joins what is still pending (`core::merge_tour_proposal`: a
+  new Problem or Solution, or a stop's new explanation, supersedes the pending
+  one; decided parts go). Nothing changes without Accept.
+- **Formatting ([[BPR-1915]]).** Tour fields are GitHub-flavoured Markdown: the
+  Tour tab's preview and stop reader render them with the same reader GitHub
+  parity is tested against, and publishing posts the same bytes. Every
+  built-in tour prompt (Draft the tour, ask turns, and the writing hooks for
+  the Problem, the Solution and a stop's comment) carries one named style
+  section (`application::tour_writing_style`): short paragraphs, a bullet list
+  for parallel points, inline code for names and paths, a fenced block only
+  for a short excerpt, no headings, tables, HTML or images, and the length
+  bounds kept. It is the default a reviewer's own writing guidance
+  ([[BPR-1916]]) can replace. A proposed text shows rendered; **Edit text**
+  shows its Markdown source to change before Accept, and **Show formatted**
+  renders it again. A message that holds a fenced block inside a field is read
+  as the JSON it is before any fence is looked for.
 
 ## Acceptance criteria
 

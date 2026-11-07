@@ -1697,6 +1697,18 @@ same `files` answer the review already reads; no further request) as on, near
 or off the change, as tour publication will place it ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)).
 Nothing the agent proposes is applied until the author accepts that part.
 
+An ask turn of the tour conversation ([[BPR-1914]]) is a read-only run on the
+same terms: the same tools, allowlist, workspace and line counts. Its request
+(`application::build_tour_ask_prompt`, at most 160 KiB) gives the pull
+request, the tour as it is now, the earlier turns the core keeps
+(`core::tour_conversation_of`, at most 12 within 48 KiB) and the question and
+passage as untrusted evidence JSON, and its answer
+(`application::decode_tour_ask_answer`, `bpr.tour-ask.v1`) is read with exactly
+its keys: a reply of at most 16 KiB, and changes the core anchors and proposes
+(`core::propose_tour_changes`). The conversation is replayed, never resumed:
+no agent keeps a session for it, and it is held only in the app's memory for
+the review.
+
 ### Writing request and result bounds
 
 Moved from the Settings guide. Writing hooks hold text instructions only and

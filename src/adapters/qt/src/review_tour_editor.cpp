@@ -1750,6 +1750,48 @@ namespace bpr::qt {
 			}
 		};
 		AgentLabels.push_back(label);
+		// [[BPR-1914]]. Ask about this: offered beside it while a passage is
+		// selected; it opens the tour conversation with the passage quoted.
+		auto* const ask = new quiet_push_button{ tr("Ask about this"), aEditor->parentWidget() };
+		ask->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemAsk") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionAsk")
+																																		   : QStringLiteral("tourStopAsk"));
+		ask->setFocusPolicy(Qt::TabFocus);
+		ask->setFlat(true);
+		ask->setToolTip(tr("Asks the tour agent about the selected text, in the tour conversation. It reads the code to answer and changes nothing unless you accept a proposal."));
+		aLayout->addWidget(ask, 0, Qt::AlignLeft);
+		AskButtons.push_back(ask);
+		const auto offer = [this, aEditor, ask] {
+			ask->setVisible(aEditor->textCursor().hasSelection());
+			// [[BPR-1881]]. Disabled until the agent is set up, saying why.
+			ask->setToolTip(AgentReadiness == agent_setup_readiness::ready ? tr("Asks the tour agent about the selected text, in the tour conversation. It reads the code to answer and changes nothing unless you accept a proposal.")
+																		   : agent_unavailable_reason());
+		};
+		AgentLabels.push_back(offer);
+		connect(ask, &QPushButton::clicked, this, [this, aEditor, aHook] {
+			auto passage = core::tour_passage{ };
+			passage.Text = aEditor->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n')).toStdString();
+			if (aHook == core::writing_hook::problem) {
+				passage.Field = core::tour_passage_field::problem;
+			} else if (aHook == core::writing_hook::solution) {
+				passage.Field = core::tour_passage_field::solution;
+			} else {
+				passage.Field = core::tour_passage_field::stop;
+				if (const auto* stop = selected_stop(); stop != nullptr && Shown.Draft) {
+					passage.Stop      = static_cast<std::size_t>(stop - Shown.Draft->Stops.data());
+					passage.StopTitle = stop->Title;
+				}
+			}
+			if (passage.Text.size() > core::maximum_tour_passage_bytes) {
+				auto size = core::maximum_tour_passage_bytes;
+				while (size > 0U && (static_cast<unsigned char>(passage.Text[size]) & 0xC0U) == 0x80U) {
+					--size;
+				}
+				passage.Text.resize(size);
+			}
+			TourAgentPanel->ask_about(std::move(passage));
+		});
+		connect(aEditor, &QPlainTextEdit::selectionChanged, this, offer);
+		offer();
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
 		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook, button] {
@@ -1922,16 +1964,17 @@ namespace bpr::qt {
 			},
 			std::move(aStop), std::move(aDecide));
 	}
+	void review_tour_editor::set_tour_ask_dispatch(std::function<void(const std::optional<core::tour_passage>&, const QString&)> aAsk) { TourAgentPanel->set_ask_dispatch(std::move(aAsk)); }
 	void review_tour_editor::present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal)
 	{
 		TourAgentPanel->present(aSession, aProposal);
 		restyle_agent_features();
 	}
-	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour)
+	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
 		RunningHook  = aHook;
 		RunningDraft = aDraftTour;
-		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour);
+		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour || aAsking, aAsking);
 		refresh_agent_features();
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
@@ -2005,6 +2048,9 @@ namespace bpr::qt {
 			if (auto* const button = findChild<QPushButton*>(QString::fromLatin1(name)); button != nullptr) {
 				features.push_back(button);
 			}
+		}
+		for (auto* const ask : AskButtons) {
+			features.push_back(ask);
 		}
 		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(SuggestOutline), static_cast<QWidget*>(InsertOutline), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr), AgentField }) {
 			if (widget != nullptr) {

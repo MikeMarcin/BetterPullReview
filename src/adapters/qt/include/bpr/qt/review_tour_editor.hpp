@@ -139,7 +139,10 @@ namespace bpr::qt {
 		/// control of `aHook` (Draft from PR context, Suggest an outline), or
 		/// by Draft the tour. Its control says Stop drafting and stops it;
 		/// nothing else waits on it, and leaving the window does not stop it.
-		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour);
+		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour, bool aAsking = false);
+		/// \brief [[BPR-1914]]. Ask in the tour conversation: the passage, if
+		/// any, and the question.
+		void set_tour_ask_dispatch(std::function<void(const std::optional<core::tour_passage>&, const QString&)> aAsk);
 		/// \brief [[BPR-1900]]. Draft the tour failed, in BPR-1892's notice.
 		void show_tour_draft_failure(const QString& aWhy);
 		void clear_tour_draft_failure();
@@ -299,6 +302,7 @@ namespace bpr::qt {
 		std::function<void()>              ShownObserver;
 		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
 		std::vector<std::function<void()>> AgentLabels;
+		std::vector<QPushButton*>          AskButtons;
 		/// [[BPR-1892]]. Each request's failure notice, what its control
 		/// said when it was pressed, and where Show on the Agent tab goes.
 		std::map<core::writing_hook, QWidget*> FailureNotices;
