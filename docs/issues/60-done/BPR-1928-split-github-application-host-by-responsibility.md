@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1928"
 title: "Split github_application_host.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"8608b6ab7","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"74d867a99","evidence":{"kind":"observation","detail":"Private github_host_implementation.hpp, seven github_host_* sources and a support header; public header unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"74d867a99","evidence":{"kind":"command","detail":"Both builds; 342/354 rows pass; the twelve failures match the round-1 baseline (five are Debug timing only). Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"555c67621","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split github_application_host.cpp by responsibility
