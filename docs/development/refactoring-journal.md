@@ -11,3 +11,4 @@ One line per behavior-preserving restructuring round; linked cards hold scope, l
 - 2026-11-06 — [[BPR-1911]]: Split `epoch_application_host.cpp`'s pimpl into a declaration header and seven responsibility sources with one shared support header (11,625 to 411 lines; every new file under 1,650).
 - 2026-11-07 — [[BPR-1920]]: Split `workbench_window.cpp`'s out-of-line members into thirteen responsibility sources and one support header (21,476 to 340 lines); only the single 1,873-line `build_central_surface` file exceeds 2,000.
 - 2026-11-07 — [[BPR-1921]]: Split `diff_workbench.cpp` into three responsibility sources and a support header holding its widgets and nested types (7,145 to 85 lines; every new file under 2,000).
+- 2026-11-07 — [[BPR-1922]]: Split `github_mutation_contract.cpp` into five responsibility sources and a support header (6,972 to 46 lines; every new file under 1,900); the public contract header is unchanged.

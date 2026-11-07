@@ -27,3 +27,19 @@ parsing, edits and publication).
   live-mutation isolation, review-mutation application and composition
   courses; architecture, format and documentation gates.
 - AC3: Land the change, the completed card and a journal line on main.
+
+## Result
+
+Source `64e5dc0dd`; `github_mutation_contract.cpp` goes from 6,972 to 46 lines.
+New files (lines): `github_mutation_contract_edit_requests.cpp` 1898, `github_mutation_contract_responses_and_observation.cpp` 1506, `github_mutation_contract_review_and_meta_requests.cpp` 1341, `github_mutation_contract_publication.cpp` 927, `github_mutation_contract_edits.cpp` 627, `github_mutation_contract_support.cpp` 586, `github_mutation_contract_support.hpp` 483. All are under 2,000; a first cut at three sources put
+the private wire helpers beside their single users and reached 3,145 lines, so
+the round uses five narrower ones.
+
+Checks on macOS arm64: GitHub adapter and composition library tests-off builds;
+full dev build except `main`'s broken `agent_context_supplement_tests.cpp`; and
+47 rows (every `github_*` contract row, live review mutation provider and
+recovery rows, live-mutation isolation, designated live checks, review-mutation
+application rows, publication, reviewer, description and reaction courses, both
+composition contracts, the round-trip contract, architecture): 46 pass, and
+`application_review_tour_publication_manual` fails as it does at round 1.
+Windows and Linux were not built.
