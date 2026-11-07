@@ -364,7 +364,7 @@ function(bpr_acquire_syntax_highlighting)
         bpr_syntax_forward(forwarded "${name}")
     endforeach()
 
-    # [[BPR-1901]]. The parent re-stages this pinned dependency whenever its
+    # [[BPR-1904]]. The parent re-stages this pinned dependency whenever its
     # source or forwarded inputs change. Visual Studio's per-project CMake
     # checks otherwise race on data/CMakeFiles/generate.stamp during parallel
     # builds. Suppress only those nested checks; ordinary file dependencies

@@ -38,6 +38,7 @@ A fresh native syntax dependency build then failed after 76.969 seconds:
 parallel Visual Studio projects tried to restore the same CMake generation
 stamp and reran configuration concurrently. The parent deliberately discards
 an incomplete staging tree on retry, repeating completed compilation. The
-current fix removes nested regeneration checks for this pinned, parent-owned
-build; the existing source/option signature continues to own invalidation.
-Native fresh-build, repeat-build and changed-input verification is in progress.
+correction is tracked by [[BPR-1904]]: the existing source/option signature
+continues to own invalidation. Warm dependency retries did not get faster;
+the separate optimization target is narrowing volatile build fingerprints to
+the translation units that consume them, preserving their values and coverage.
