@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1924"
 title: "The agent/model/effort picker reads as a picker, not a text field, and wraps to a second row when the drawer is narrow"
-status: "Parked"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-07, BPR-1914 v004 look","related_cards":["BPR-1878","BPR-1914"]}
-parked_on: "human-review"
 acceptance: [{"criterion": "AC1 Offscreen pictures at 380, 520 and 900 px drawer widths, light and dark, show the picker as a picker; at narrow widths it sits on its own row with its full text", "outcome": "pass", "revision": "e64e658b2", "evidence": {"kind": "command", "detail": "qt_agent_picker_wrap with BPR_AGENT_PICKER_RENDER_ROOT draws the Agent and Tour tabs at 380, 520 and 900 in light and dark: a filled pill with an up-and-down chevron; wrapped under the tools with its whole words at 380 and 520, beside Send at 900; the Tour picker bare on its bar. The frozen look (--attended-agent-picker) printed ATTENDED_AGENT_PICKER_SHOWN:wrapped=1:drawer=380.", "path": "docs/issues/40-parked/BPR-1924-agent-picker-reads-as-a-picker-and-wraps.md#verification"}}, {"criterion": "AC2 A Qt test checks the wrap threshold, and that the picker never overlaps or truncates the question field", "outcome": "pass", "revision": "e64e658b2", "evidence": {"kind": "command", "detail": "qt_agent_picker_wrap sweeps the drawer from 380 to 900 by 4 in light and dark: the picker wraps exactly when scope + gap + picker + Send at their size hints exceed the row; it never intersects the composer, Send or the scope menu; the composer keeps the field's whole width; the picker keeps its size hint; once unwrapped it stays so as the drawer widens, and wraps again at 380. It also checks the chevron is drawn, the pill answers the pointer and no field is drawn round the Tour picker.", "path": "docs/issues/40-parked/BPR-1924-agent-picker-reads-as-a-picker-and-wraps.md#verification"}}, {"criterion": "AC3 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "e64e658b2", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/.codex/attended-builds/bpr1924-agent-picker-v001.mzvj9dl5 of e64e658b2; new short session 9c9dd1be31be491685541f4fd0be8f15, candidate BPR-1924-agent-picker-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1924-agent-picker-reads-as-a-picker-and-wraps.md#attended-review-v001"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "e64e658b2", "evidence": {"kind": "command", "detail": "verify_documentation.py --root . prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1924-agent-picker-reads-as-a-picker-and-wraps.md#verification"}}]
 ---
 
@@ -104,3 +103,7 @@ neither as a place to type. All colours come from the palette.
 - One candidate, `BPR-1924-agent-picker-v001` (revision `e64e658b2-v001`),
   with one Accept/Reject question.
 - Status: ready, awaiting the owner.
+
+## Accepted
+
+The owner accepted v001 on 2026-11-07 (attended review, no note).
