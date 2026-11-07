@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1909"
 title: "Split the fixture accessors out of github_application.cpp"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1908"]
 priority: "P2"
