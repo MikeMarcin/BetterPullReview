@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1911"
 title: "Split epoch_application_host.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"6beb7288f..BPR-1910","mandate":"Owner, 2026-11-06: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round, landing on local main without pushing; at most about 2,000 lines per file for this initial pass."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"00ffa053f","evidence":{"kind":"observation","detail":"epoch_host_implementation.hpp declares the class; seven responsibility sources define it; forwarders stay in the source."}},{"criterion":"AC2","outcome":"pass","revision":"00ffa053f","evidence":{"kind":"observation","detail":"Single-use helpers private; epoch_host_support declares 23 shared helpers."}},{"criterion":"AC3","outcome":"pass","revision":"00ffa053f","evidence":{"kind":"command","detail":"Tests-off and dev builds; 32/32 epoch, diff, composition and architecture rows pass. Windows/Linux not built."}},{"criterion":"AC4","outcome":"pass","revision":"00ffa053f","evidence":{"kind":"observation","detail":"Card and journal line committed; landing waits for main integration (pinned-origin confirmation)."}}]
 ---
 
 # Split epoch_application_host.cpp by responsibility
