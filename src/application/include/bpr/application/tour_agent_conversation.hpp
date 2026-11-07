@@ -25,6 +25,11 @@
 namespace bpr::application {
 	/// \brief The schema an ask turn answers in.
 	inline constexpr std::string_view tour_ask_schema = "bpr.tour-ask.v1";
+	/// \brief [[BPR-1930]]. The schema a turn of the tour chat answers in: an
+	/// ask turn's keys, and the revision of the tour's structure (stops to
+	/// remove, merge and split, a new order, a focus) and whether its stops
+	/// replace the proposed stops still waiting.
+	inline constexpr std::string_view tour_revise_schema = "bpr.tour-revise.v1";
 
 	/// \brief The request of one ask turn. Nothing when the evidence is not
 	/// valid UTF-8 or too large.
@@ -32,12 +37,20 @@ namespace bpr::application {
 	/// from; every turn names its thread, so a follow-up refers to its own.
 	/// v003: `aConversation` is that thread's side chat alone, and `aUpdate`
 	/// asks for the part rewritten from it.
+	/// [[BPR-1930]]. A turn in the tour's own chat answers in
+	/// `tour_revise_schema`, and is given `aWaiting`'s pending proposed stops,
+	/// numbered on from the tour's as the route shows them, so feedback given
+	/// while the draft's proposal waits revises it. `aFocus` is the focus the
+	/// author accepted, given to every turn.
 	[[nodiscard]] auto build_tour_ask_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, const core::tour_conversation& aConversation, const core::tour_thread& aThread,
-											 const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false) -> std::optional<std::string>;
+											 const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false, const std::optional<core::tour_proposal>& aWaiting = std::nullopt, std::string_view aFocus = { })
+		-> std::optional<std::string>;
 
 	/// \brief Reads an ask turn's answer from the agent's last message: one
 	/// JSON object of `tour_ask_schema`, alone or in one fenced block, with
 	/// exactly its keys. Nothing for anything else, or for an empty reply.
+	/// [[BPR-1930]]. Or one of `tour_revise_schema`, with exactly its keys,
+	/// read with its revision.
 	/// Paths, lines and stop numbers are not checked here; the core does
 	/// (`core::propose_tour_changes`).
 	[[nodiscard]] auto decode_tour_ask_answer(std::string_view aText) -> std::optional<core::tour_ask_answer>;

@@ -719,6 +719,16 @@ namespace bpr::app {
 		void               relocate_tour_proposal(const std::size_t aIndex);
 		void               present_tour_session();
 		void               cancel_tour_run();
+		/// [[BPR-1930]]. Sends the feedback kept while Draft the tour ran, as
+		/// the tour chat's next turn, once the session is idle.
+		void send_waiting_tour_feedback(int aTries = 0);
+		/// [[BPR-1930]]. Clears the remembered focus (its chip's ×).
+		void clear_tour_focus();
+		/// [[BPR-1931]]. Resets the tour being authored, keeping a snapshot to
+		/// undo it, and undoes that reset while the tour is as it left it.
+		void reset_tour();
+		void undo_tour_reset();
+		void present_tour_reset();
 #endif
 		auto outline_entries(const writing_operation& aOperation, const application::writing_result& aResult) const -> std::optional<std::vector<core::tour_outline_entry>>;
 		auto apply_writing_result(const writing_operation& aOperation, const application::writing_result& aResult) -> std::string;
@@ -2168,6 +2178,17 @@ namespace bpr::app {
 		std::optional<core::tour_proposal>    TourProposal;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
+		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while
+		/// the tour is still as the reset left it. The window's life only.
+		struct tour_reset_undo
+		{
+			core::review_tour                   Draft;
+			core::tour_agent_session            Session;
+			std::optional<core::tour_proposal>  Proposal;
+			std::vector<core::tour_anchor_file> Anchors;
+			std::uint64_t                       ResetRevision = 0U;
+		};
+		std::optional<tour_reset_undo> TourResetUndo;
 		// BPR-0532. Declared after the epoch host it resolves and materializes
 		// through, so it is destroyed before that host is.
 		std::unique_ptr<application::agent_realignment_port> Realigner;

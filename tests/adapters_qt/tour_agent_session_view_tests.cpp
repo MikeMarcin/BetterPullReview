@@ -116,6 +116,177 @@ namespace {
 	}
 }
 
+namespace {
+	auto accept_named(QWidget& aRoot, const QString& aWords) -> QPushButton*
+	{
+		for (auto* const button : aRoot.findChildren<QPushButton*>(QStringLiteral("tourProposalAccept"))) {
+			if (button->text() == aWords) {
+				return button;
+			}
+		}
+		return nullptr;
+	}
+
+	/// [[BPR-1930]] AC1-AC3, [[BPR-1931]] AC1. The tour's own chat proposes
+	/// the tour's shape: the stops it would remove, merge or move are marked
+	/// grey on the route, each part's box waits on the stop it changes with
+	/// Remove, Merge or Reorder at its right, the focus waits under the
+	/// panel's line and then shows as a chip; feedback is taken while the
+	/// draft runs; Reset tour asks first and offers Undo. Nothing is decided
+	/// here: every gesture is dispatched.
+	void whole_tour(const std::string& aPrefix)
+	{
+		auto        tour  = tests::review_tour_fixture();
+		const auto& first = *tour.Stops.front().Original;
+		for (std::uint64_t id = 2U; id <= 4U; ++id) {
+			auto source       = first;
+			source.First.Line = static_cast<std::uint32_t>(id * 10U);
+			source.Last.Line  = static_cast<std::uint32_t>(id * 10U + 3U);
+			auto stop         = core::tour_stop{ };
+			stop.Id           = core::tour_stop_id{ id };
+			stop.Title        = "Stop " + std::to_string(id);
+			stop.Body         = "Body " + std::to_string(id);
+			stop.Original     = source;
+			stop.Mapping      = core::tour_mapping::exact_original;
+			tour.Stops.push_back(std::move(stop));
+		}
+		tour.LastStopId = 4U;
+		qt::review_tour_editor editor;
+		editor.set_dispatch([](core::tour_command) { }, [](qt::tour_editor_action) { });
+		auto decided = std::vector<std::tuple<std::size_t, core::tour_proposal_decision, QString>>{ };
+		editor.set_tour_session_dispatch([] { }, [] { }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decided.emplace_back(aIndex, aDecision, aText); });
+		auto asked = std::vector<qt::tour_ask>{ };
+		editor.set_tour_ask_dispatch([&asked](const qt::tour_ask& aAsk) { asked.push_back(aAsk); });
+		auto cleared = 0, resets = 0, undone = 0;
+		editor.set_tour_shape_dispatch([&cleared] { ++cleared; }, [&resets] { ++resets; }, [&undone] { ++undone; });
+		editor.resize(420, 1100);
+		editor.show();
+		const auto shared = std::make_shared<const core::review_tour>(tour);
+		editor.present({ .Draft = shared });
+		editor.show_stops();
+		QApplication::processEvents();
+		auto* const panel = editor.tour_agent();
+
+		// AC3. While Draft the tour runs, the tour's chat still takes feedback.
+		editor.open_side_chat(core::tour_thread{ });
+		editor.set_tour_running(std::nullopt, true);
+		auto* const chat = editor.side_chat();
+		chat->composer()->setPlainText(QStringLiteral("Fewer stops"));
+		expect(chat->send_button()->isEnabled(), "AC3 the tour's chat takes feedback while the draft runs");
+		chat->send_button()->click();
+		expect(asked.size() == 1U && asked.back().Thread == core::tour_thread{ } && asked.back().Question == QStringLiteral("Fewer stops"), "the feedback is dispatched for the tour as a whole");
+		auto       session  = core::tour_agent_session{ };
+		const auto drafting = core::begin_tour_run(session, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
+		expect(core::queue_tour_feedback(session, "Fewer stops"), "the host keeps it");
+		editor.present_tour_session(session, std::nullopt);
+		QApplication::processEvents();
+		expect(chat->waiting_feedback() != nullptr && !chat->waiting_feedback()->isHidden() && chat->waiting_feedback()->findChild<QLabel*>()->text() == QStringLiteral("Fewer stops"), "the waiting feedback shows in the tour's chat");
+		render(editor, aPrefix, "whole-tour-feedback-waiting");
+		static_cast<void>(core::finish_tour_run(session, *drafting, core::tour_agent_run_state::answered, "Proposed."));
+		static_cast<void>(core::take_tour_feedback(session));
+		editor.set_tour_running(std::nullopt, false);
+		chat->composer()->setPlainText(QStringLiteral("Anything"));
+		editor.open_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
+		editor.set_tour_running(std::nullopt, true);
+		expect(!chat->send_button()->isEnabled(), "a part's chat still waits for the draft");
+		editor.set_tour_running(std::nullopt, false);
+		editor.open_side_chat(core::tour_thread{ });
+
+		// AC1. "Too many stops, merge 2 and 3, focus on the renderer".
+		const auto turn     = core::begin_tour_ask(session, core::tour_thread{ }, std::nullopt, "Too many stops. Merge 2 and 3, and focus on the renderer.");
+		auto       answer   = core::tour_ask_answer{ };
+		answer.Reply        = "Fewer stops.";
+		auto revision       = core::tour_revision{ };
+		revision.Remove     = { 4U };
+		revision.Merges     = { { .Stops = { 2U, 3U }, .Title = "Both", .Explanation = "One stop for `both`." } };
+		revision.Focus      = "the renderer";
+		answer.Revision     = std::move(revision);
+		const auto proposal = core::propose_tour_changes(*turn, answer, { }, tour);
+		static_cast<void>(core::answer_tour_ask(session, *turn, answer.Reply, core::tally_of(proposal)));
+		expect(proposal.Items.size() == 3U, "a merge, a removal and a focus are proposed");
+		editor.present_tour_session(session, proposal);
+		QApplication::processEvents();
+		const auto mark = [&editor](const int aRow) { return editor.route_mark(aRow); };
+		expect(mark(0).first == 0 && mark(1) == std::pair{ 2, QStringLiteral("Merge with 3") } && mark(2) == std::pair{ 2, QStringLiteral("Merges into 2") } && mark(3) == std::pair{ 1, QStringLiteral("Remove") }, "the stops it changes are marked on the route, in place");
+		expect(chat->in_tour_line() != nullptr && chat->in_tour_line()->text().startsWith(QStringLiteral("3 changes wait in the tour")), "the tour's chat says where its proposal waits");
+		expect(chat->findChildren<QPushButton*>(QStringLiteral("tourSideChatAccept")).isEmpty(), "nothing of it is decided in the chat");
+		expect(panel->proposal_title()->text().contains(QStringLiteral("3 parts wait in the tour")), "the panel's one line counts them");
+		auto* const focus = accept_named(*panel, QStringLiteral("Set focus"));
+		expect(focus != nullptr && focus->isVisibleTo(&editor), "the focus waits under the panel's line");
+		editor.go_to_stop(core::tour_stop_id{ 2 });
+		QApplication::processEvents();
+		auto* const merge = accept_named(editor, QStringLiteral("Merge"));
+		expect(merge != nullptr && merge->isVisibleTo(&editor), "the merge waits on stop 2's card, Merge at its right");
+		expect(merge->parentWidget()->findChildren<QLabel*>().size() > 2U && merge->parentWidget()->findChild<QLabel*>()->text() == QStringLiteral("Merge stops 2 and 3 into Both"), "it names the stops and the merged stop");
+		auto* const complete = editor.findChild<QPushButton*>(QStringLiteral("tourComplete"));
+		expect(complete == nullptr || !complete->isVisibleTo(&editor), "Ready, next gives way to it");
+		render(editor, aPrefix, "whole-tour-merge");
+		editor.go_to_stop(core::tour_stop_id{ 4 });
+		QApplication::processEvents();
+		auto* const remove = accept_named(editor, QStringLiteral("Remove"));
+		expect(remove != nullptr && remove->isVisibleTo(&editor) && (merge == nullptr || !accept_named(editor, QStringLiteral("Merge"))->isVisibleTo(&editor)), "the removal waits on stop 4's card, the merge with its own");
+		remove->click();
+		expect(!decided.empty() && std::get<1>(decided.back()) == core::tour_proposal_decision::accepted && proposal.Items[std::get<0>(decided.back())].Part == core::tour_proposal_part::remove_stop, "Remove dispatches the removal's acceptance");
+		accept_named(*panel, QStringLiteral("Set focus"))->click();
+		expect(proposal.Items[std::get<0>(decided.back())].Part == core::tour_proposal_part::focus && std::get<2>(decided.back()) == QStringLiteral("the renderer"), "Set focus dispatches its text");
+
+		// AC2. The focus the host remembered: a chip, and its × asks to clear it.
+		static_cast<void>(core::set_tour_focus(session, "the renderer"));
+		editor.present_tour_session(session, std::nullopt);
+		QApplication::processEvents();
+		expect(panel->focus_chip()->isVisibleTo(&editor) && panel->focus_text()->text() == QStringLiteral("Focus: the renderer"), "AC2 the focus shows as a chip");
+		expect(mark(1).first == 0 && mark(3).first == 0, "with nothing waiting, no stop is marked");
+		render(editor, aPrefix, "whole-tour-focus");
+		panel->focus_clear_button()->click();
+		expect(cleared == 1, "its × asks the host to clear it");
+
+		// A reorder: the new order above the route, the moved stops marked.
+		auto reorder       = core::tour_ask_answer{ };
+		reorder.Reply      = "Start at 3.";
+		auto order         = core::tour_revision{ };
+		order.Order        = { 1U, 3U, 2U, 4U };
+		reorder.Revision   = std::move(order);
+		const auto ordered = core::propose_tour_changes(*turn, reorder, { }, tour);
+		editor.present_tour_session(session, ordered);
+		QApplication::processEvents();
+		expect(editor.proposed_order()->isVisibleTo(&editor) && accept_named(*editor.proposed_order(), QStringLiteral("Reorder")) != nullptr, "the new order waits above the route, Reorder at its right");
+		expect(mark(1) == std::pair{ 4, QStringLiteral("Moves to 3") } && mark(2) == std::pair{ 4, QStringLiteral("Moves to 2") } && mark(0).first == 0, "the moved stops are marked");
+		expect(editor.proposed_order()->findChildren<QLabel*>(QStringLiteral("tourProposedOrderMoved")).size() == 2U, "the order lists the moved stops");
+		render(editor, aPrefix, "whole-tour-reorder");
+		editor.present_tour_session(session, std::nullopt);
+		QApplication::processEvents();
+		expect(!editor.proposed_order()->isVisibleTo(&editor), "decided, the order goes");
+
+		// [[BPR-1931]] AC1. Reset tour asks in a plain sentence; Keep the tour
+		// changes nothing; Reset tour dispatches; Undo reset is offered.
+		auto tally      = core::reset_tally_of(tour, session, std::nullopt);
+		tally.Published = true;
+		editor.present_tour_reset(tally, true, false);
+		auto* const reset = panel->reset_button();
+		expect(reset->isEnabled() && !panel->reset_confirm()->isVisibleTo(&editor), "Reset tour is offered, and asks nothing yet");
+		reset->click();
+		expect(panel->reset_confirm()->isVisibleTo(&editor), "it asks first");
+		const auto sentence = panel->reset_sentence()->text();
+		expect(sentence.startsWith(QStringLiteral("Reset clears the Problem, the Solution, all 4 stops, 1 chat and the focus.")) && sentence.contains(QStringLiteral("only your local draft")), "the question names what is lost, and that GitHub's tour stays: " + sentence.toStdString());
+		render(editor, aPrefix, "reset-question");
+		panel->reset_cancel_button()->click();
+		expect(resets == 0 && !panel->reset_confirm()->isVisibleTo(&editor), "Keep the tour changes nothing");
+		reset->click();
+		panel->reset_confirm_button()->click();
+		expect(resets == 1, "Reset tour asks the host to reset");
+		editor.present_tour_reset(core::tour_reset_tally{ }, true, true);
+		expect(panel->reset_done()->isVisibleTo(&editor) && !reset->isEnabled(), "Undo reset is offered, and an empty tour has nothing to reset");
+		render(editor, aPrefix, "reset-done");
+		panel->undo_reset_button()->click();
+		expect(undone == 1, "Undo reset asks the host to restore it");
+		editor.present_tour_reset(tally, true, false);
+		expect(!panel->reset_done()->isVisibleTo(&editor), "once the tour changes, Undo reset goes");
+		editor.set_tour_running(std::nullopt, true);
+		expect(!reset->isEnabled(), "nothing is reset while the agent runs");
+		editor.set_tour_running(std::nullopt, false);
+	}
+}
+
 auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
@@ -347,6 +518,7 @@ auto main(int argc, char** argv) -> int
 	}
 	formatted(editor, prefix);
 	skills_in_the_ask_box(editor);
+	whole_tour(prefix);
 	std::cout << "tour-agent-session-view:pass\n";
 	return EXIT_SUCCESS;
 }

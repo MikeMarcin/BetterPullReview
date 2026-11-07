@@ -246,16 +246,26 @@ namespace bpr::qt {
 		auto* const trailRow = new QHBoxLayout{ Trail };
 		trailRow->setContentsMargins(0, 0, 0, 0);
 		trailRow->setSpacing(8);
+		// [[BPR-1931]], owner: "the ability to reset/clear the tour that I'm
+		// authoring". A quiet action, never the row's emphasis; it asks first.
+		Reset = new quiet_push_button{ tr("Reset tour"), Trail };
+		Reset->setObjectName(QStringLiteral("tourResetTour"));
+		Reset->setFlat(true);
+		Reset->setFocusPolicy(Qt::TabFocus);
+		Reset->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		trailRow->addWidget(Reset, 0, Qt::AlignVCenter);
 		// [[BPR-1925]] v002. The tour's own chat toggle, as each part's is.
 		ChatTour = new part_chat_toggle{ tr("the whole tour"), Trail };
 		ChatTour->setObjectName(QStringLiteral("tourChatAboutTour"));
-		trailRow->addWidget(ChatTour, 0, Qt::AlignVCenter);
 		TranscriptToggle = new quiet_push_button{ Trail };
 		TranscriptToggle->setObjectName(QStringLiteral("tourSessionTranscriptOpen"));
 		TranscriptToggle->setFlat(true);
 		TranscriptToggle->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		TranscriptToggle->setToolTip(tr("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
 		trailRow->addWidget(TranscriptToggle, 0, Qt::AlignVCenter);
+		// [[BPR-1930]]. The whole tour's chat toggle at the header's right,
+		// as each part's sits at the right of its own header.
+		trailRow->addWidget(ChatTour, 0, Qt::AlignVCenter);
 		Trail->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Head->addWidget(Trail, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
 		column->addLayout(Head);
@@ -263,6 +273,106 @@ namespace bpr::qt {
 		connect(ChatTour, &QToolButton::clicked, this, [this] {
 			if (ChatDispatch) {
 				ChatDispatch();
+			}
+		});
+
+		// [[BPR-1930]] AC2. The remembered focus: a small chip in the agent's
+		// accent, its × clears it.
+		FocusChip = new QWidget{ this };
+		FocusChip->setObjectName(QStringLiteral("tourFocusChip"));
+		FocusChip->setAccessibleName(tr("Tour focus"));
+		auto* const chipRow = new QHBoxLayout{ FocusChip };
+		chipRow->setContentsMargins(10, 2, 4, 2);
+		chipRow->setSpacing(4);
+		FocusText = small(new QLabel{ FocusChip });
+		FocusText->setObjectName(QStringLiteral("tourFocusText"));
+		FocusText->setTextFormat(Qt::PlainText);
+		chipRow->addWidget(FocusText);
+		FocusClear = new QToolButton{ FocusChip };
+		FocusClear->setObjectName(QStringLiteral("tourFocusClear"));
+		FocusClear->setAutoRaise(true);
+		FocusClear->setText(QStringLiteral("×"));
+		FocusClear->setAccessibleName(tr("Clear the focus"));
+		FocusClear->setToolTip(tr("Clears the focus. Later drafts and chat turns cover the whole pull request again."));
+		FocusClear->setCursor(Qt::PointingHandCursor);
+		chipRow->addWidget(FocusClear);
+		FocusChip->installEventFilter(this);
+		FocusChip->hide();
+		auto* const chipLine = new QHBoxLayout{ };
+		chipLine->setContentsMargins(0, 0, 0, 0);
+		chipLine->addWidget(FocusChip, 0, Qt::AlignLeft);
+		chipLine->addStretch(1);
+		column->addLayout(chipLine);
+		connect(FocusClear, &QToolButton::clicked, this, [this] {
+			if (ClearFocusDispatch) {
+				ClearFocusDispatch();
+			}
+		});
+
+		// [[BPR-1931]] AC1. Reset tour asks in a plain sentence naming what
+		// is lost, then offers Undo reset.
+		ResetConfirm = new QWidget{ this };
+		ResetConfirm->setObjectName(QStringLiteral("tourResetConfirm"));
+		ResetConfirm->setAccessibleName(tr("Reset the tour?"));
+		auto* const confirmColumn = new QVBoxLayout{ ResetConfirm };
+		confirmColumn->setContentsMargins(12, 8, 8, 8);
+		confirmColumn->setSpacing(6);
+		ResetSentence = paragraph({ }, ResetConfirm);
+		ResetSentence->setObjectName(QStringLiteral("tourResetSentence"));
+		confirmColumn->addWidget(ResetSentence);
+		auto* const confirmButtons = new QHBoxLayout{ };
+		confirmButtons->setSpacing(6);
+		confirmButtons->addStretch(1);
+		ResetNo = new quiet_push_button{ tr("Keep the tour"), ResetConfirm };
+		ResetNo->setObjectName(QStringLiteral("tourResetCancel"));
+		ResetNo->setFlat(true);
+		ResetNo->setFocusPolicy(Qt::TabFocus);
+		ResetYes = new quiet_push_button{ tr("Reset tour"), ResetConfirm };
+		ResetYes->setObjectName(QStringLiteral("tourResetConfirmButton"));
+		ResetYes->setFocusPolicy(Qt::TabFocus);
+		confirmButtons->addWidget(ResetNo);
+		confirmButtons->addWidget(ResetYes);
+		confirmColumn->addLayout(confirmButtons);
+		ResetConfirm->installEventFilter(this);
+		ResetConfirm->hide();
+		column->addWidget(ResetConfirm);
+		ResetDone = new QWidget{ this };
+		ResetDone->setObjectName(QStringLiteral("tourResetDone"));
+		auto* const doneRow = new QHBoxLayout{ ResetDone };
+		doneRow->setContentsMargins(12, 6, 8, 6);
+		doneRow->setSpacing(8);
+		auto* const doneWords = small(paragraph(tr("Tour reset. Undo reset brings it all back while you haven't changed the tour since."), ResetDone));
+		doneWords->setObjectName(QStringLiteral("tourResetDoneText"));
+		doneRow->addWidget(doneWords, 1);
+		UndoReset = new quiet_push_button{ tr("Undo reset"), ResetDone };
+		UndoReset->setObjectName(QStringLiteral("tourResetUndo"));
+		UndoReset->setFocusPolicy(Qt::TabFocus);
+		doneRow->addWidget(UndoReset, 0, Qt::AlignVCenter);
+		Accented.emplace_back(UndoReset);
+		ResetDone->installEventFilter(this);
+		ResetDone->hide();
+		column->addWidget(ResetDone);
+		connect(Reset, &QPushButton::clicked, this, [this] {
+			ResetSentence->setText(reset_words(ResetTally));
+			ResetDone->hide();
+			ResetConfirm->setVisible(!ResetConfirm->isVisible());
+			if (ResetConfirm->isVisible()) {
+				ResetNo->setFocus(Qt::OtherFocusReason);
+			}
+		});
+		connect(ResetNo, &QPushButton::clicked, this, [this] {
+			ResetConfirm->hide();
+			Reset->setFocus(Qt::OtherFocusReason);
+		});
+		connect(ResetYes, &QPushButton::clicked, this, [this] {
+			ResetConfirm->hide();
+			if (ResetDispatch) {
+				ResetDispatch();
+			}
+		});
+		connect(UndoReset, &QPushButton::clicked, this, [this] {
+			if (UndoResetDispatch) {
+				UndoResetDispatch();
 			}
 		});
 		FailureSlot = new QVBoxLayout{ };
@@ -350,6 +460,12 @@ namespace bpr::qt {
 			open_transcript(Proposal->Run, entry);
 		});
 		proposalColumn->addWidget(OutsideList);
+		// [[BPR-1930]]. A proposed focus belongs to the tour as a whole: it
+		// waits here, under the line, at its own height.
+		FocusSlot = new QVBoxLayout{ };
+		FocusSlot->setContentsMargins(0, 2, 0, 2);
+		FocusSlot->setSpacing(6);
+		proposalColumn->addLayout(FocusSlot);
 		auto* const proposalScroll = new QScrollArea{ ProposalBox };
 		// [[BPR-1900]] owner look v001: a click in the proposal never parks
 		// the keyboard on the pane itself (which drew a box around it and
@@ -479,6 +595,7 @@ namespace bpr::qt {
 			rebuild_transcript();
 		}
 		refresh_toggle();
+		refresh_shape();
 	}
 
 	void tour_agent_panel::set_running(const bool aDraftTour, const bool aAny)
@@ -495,6 +612,7 @@ namespace bpr::qt {
 		// line, under this panel; the control itself says it is running.
 		Status->hide();
 		refresh_toggle();
+		refresh_shape();
 	}
 
 	void tour_agent_panel::set_available(const bool aReady, const QString& aWhy)
@@ -547,6 +665,12 @@ namespace bpr::qt {
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
 		apply_agent_accent(*ChatTour, aGround);
 		ChatTour->setIcon(side_chat_icon(ChatTour->palette()));
+		// [[BPR-1930]]. The focus chip reads in the agent's accent.
+		apply_agent_accent(*FocusText, aGround);
+		apply_agent_accent(*FocusClear, aGround);
+		FocusChip->update();
+		ResetConfirm->update();
+		ResetDone->update();
 		for (const auto& widget : Accented) {
 			if (widget) {
 				apply_agent_accent(*widget, aGround);
@@ -693,7 +817,194 @@ namespace bpr::qt {
 		if (aEvent->type() == QEvent::Resize && ProposalScroll != nullptr && (aWatched == ProposalScroll->viewport() || placedBox)) {
 			QTimer::singleShot(0, this, [this] { fit_readers(); });
 		}
+		// [[BPR-1930]], [[BPR-1931]]. The focus chip, a pill in the agent's
+		// accent; the reset's question, on a faint warning wash with its rule;
+		// and its done line, quiet. Drawn from the palette, no style sheet.
+		if (aEvent->type() == QEvent::Paint && (aWatched == FocusChip || aWatched == ResetConfirm || aWatched == ResetDone)) {
+			auto* const widget  = static_cast<QWidget*>(aWatched);
+			auto        painter = QPainter{ widget };
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			const auto base   = palette().color(QPalette::Active, QPalette::Base);
+			const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
+			const auto bounds = QRectF{ widget->rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+			if (aWatched == FocusChip) {
+				const auto accent = agent_accent(palette());
+				painter.setPen(QPen{ mixed(base, accent, 0.55), 1.0 });
+				painter.setBrush(mixed(base, accent, 0.10));
+				painter.drawRoundedRect(bounds, bounds.height() / 2.0, bounds.height() / 2.0);
+			} else {
+				const auto dark = palette().color(QPalette::Window).lightness() < 128;
+				const auto warn = aWatched == ResetConfirm ? (dark ? QColor{ 0xF8, 0x51, 0x49 } : QColor{ 0xCF, 0x22, 0x2E }) : mixed(base, ink, 0.45);
+				painter.setPen(QPen{ mixed(base, warn, 0.35), 1.0 });
+				painter.setBrush(mixed(base, warn, aWatched == ResetConfirm ? 0.06 : 0.04));
+				painter.drawRoundedRect(bounds, 8.0, 8.0);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(warn);
+				painter.drawRoundedRect(QRectF{ bounds.left(), bounds.top() + 6.0, 3.0, bounds.height() - 12.0 }, 1.5, 1.5);
+			}
+			return false;
+		}
 		return QWidget::eventFilter(aWatched, aEvent);
+	}
+
+	void tour_agent_panel::set_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset)
+	{
+		ClearFocusDispatch = std::move(aClearFocus);
+		ResetDispatch      = std::move(aReset);
+		UndoResetDispatch  = std::move(aUndoReset);
+	}
+
+	void tour_agent_panel::present_reset(const core::tour_reset_tally& aTally, const bool aAvailable, const bool aUndoable)
+	{
+		ResetTally     = aTally;
+		ResetAvailable = aAvailable;
+		ResetDone->setVisible(aUndoable);
+		if (aUndoable) {
+			ResetConfirm->hide();
+		}
+		ResetSentence->setText(reset_words(aTally));
+		refresh_shape();
+	}
+
+	auto tour_agent_panel::reset_words(const core::tour_reset_tally& aTally) -> QString
+	{
+		auto parts = QStringList{ };
+		if (aTally.Problem) {
+			parts << tr("the Problem");
+		}
+		if (aTally.Solution) {
+			parts << tr("the Solution");
+		}
+		if (aTally.Stops > 0U) {
+			parts << (aTally.Stops == 1U ? tr("its 1 stop") : tr("all %1 stops").arg(aTally.Stops));
+		}
+		if (aTally.Proposals > 0U) {
+			parts << (aTally.Proposals == 1U ? tr("1 waiting proposal") : tr("%1 waiting proposals").arg(aTally.Proposals));
+		}
+		if (aTally.Chats > 0U) {
+			parts << (aTally.Chats == 1U ? tr("1 chat") : tr("%1 chats").arg(aTally.Chats));
+		}
+		if (aTally.Focus) {
+			parts << tr("the focus");
+		}
+		if (parts.isEmpty()) {
+			return tr("The tour is empty. There is nothing to reset.");
+		}
+		auto joined = parts.front();
+		for (qsizetype index = 1; index < parts.size(); ++index) {
+			joined += (index + 1 == parts.size() ? tr(" and ") : QStringLiteral(", ")) + parts[index];
+		}
+		auto words = tr("Reset clears %1. You can undo it until you change the tour again.").arg(joined);
+		if (aTally.Published) {
+			words += QLatin1Char(' ') + tr("The tour published on GitHub stays as it is: this resets only your local draft.");
+		}
+		return words;
+	}
+
+	void tour_agent_panel::refresh_shape()
+	{
+		const auto focus = QString::fromStdString(Session.Focus);
+		FocusText->setText(tr("Focus: %1").arg(focus));
+		FocusText->setToolTip(tr("Later drafts and chat turns favour this part of the pull request. Clear it to cover the whole change again."));
+		FocusChip->setVisible(!focus.isEmpty());
+		const auto can = ResetAvailable && core::resettable(ResetTally) && !RunningAny;
+		Reset->setEnabled(can);
+		Reset->setToolTip(RunningAny                          ? tr("Wait for the tour agent to finish, or stop it, before resetting the tour.")
+							  : !core::resettable(ResetTally) ? tr("The tour is empty. There is nothing to reset.")
+															  : tr("Clears the Problem, the Solution, the stops, the proposals, the chats and the focus of this tour, after asking. You can undo it."));
+		if (!can) {
+			ResetConfirm->hide();
+		}
+		fit_head();
+	}
+
+	auto tour_agent_panel::stop_number(const core::tour_stop_id aStop) const -> int
+	{
+		if (!Tour) {
+			return 0;
+		}
+		const auto found = std::ranges::find(Tour->Stops, aStop, &core::tour_stop::Id);
+		return found == Tour->Stops.end() ? 0 : static_cast<int>(found - Tour->Stops.begin()) + 1;
+	}
+
+	auto tour_agent_panel::stop_title(const core::tour_stop_id aStop) const -> QString
+	{
+		if (!Tour) {
+			return { };
+		}
+		const auto found = std::ranges::find(Tour->Stops, aStop, &core::tour_stop::Id);
+		return found == Tour->Stops.end() || found->Title.empty() ? tr("Untitled stop") : QString::fromStdString(found->Title);
+	}
+
+	/// [[BPR-1930]]. What a structural part does, in the tour's own numbers:
+	/// the stop a removal takes out, the lines a merge keeps, a split's
+	/// pieces, the new order with the stops that move.
+	void tour_agent_panel::add_revision_lines(QVBoxLayout* aColumn, const core::tour_proposal_item& aItem, QWidget* aBox)
+	{
+		const auto quietLine = [aBox, aColumn](const QString& aText) {
+			auto* const line = small(paragraph(aText, aBox));
+			line->setForegroundRole(QPalette::PlaceholderText);
+			aColumn->addWidget(line);
+			return line;
+		};
+		switch (aItem.Part) {
+		case core::tour_proposal_part::remove_stop:
+			quietLine(tr("Takes this stop and its explanation out of the tour. Undo arrangement brings it back."));
+			break;
+		case core::tour_proposal_part::merge_stops: {
+			auto names = QStringList{ };
+			for (const auto stop : aItem.Stops) {
+				names << tr("%1, %2").arg(stop_number(stop)).arg(stop_title(stop));
+			}
+			quietLine(tr("Makes one stop of %1. It keeps the lines of each, and reads:").arg(names.join(tr("; "))));
+			break;
+		}
+		case core::tour_proposal_part::split_stop: {
+			const auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
+			for (std::size_t index = 0U; index < aItem.Pieces.size(); ++index) {
+				const auto& piece = aItem.Pieces[index];
+				auto* const title = small(paragraph(tr("%1. %2").arg(index + 1U).arg(QString::fromStdString(piece.Title)), aBox));
+				auto        heavy = title->font();
+				heavy.setWeight(QFont::DemiBold);
+				title->setFont(heavy);
+				aColumn->addWidget(title);
+				const auto  lines = piece.FirstLine == piece.LastLine ? tr("line %1").arg(piece.FirstLine) : tr("lines %1 to %2").arg(piece.FirstLine).arg(piece.LastLine);
+				auto* const where = quietLine(QString::fromStdString(piece.Path) + QStringLiteral(", ") + lines);
+				auto        face  = code;
+				face.setPointSizeF(where->font().pointSizeF());
+				where->setFont(face);
+				quietLine(QString::fromStdString(piece.Explanation).simplified());
+			}
+			quietLine(tr("Each new stop has its lines to confirm in the code."));
+			break;
+		}
+		case core::tour_proposal_part::reorder: {
+			auto at = 0;
+			for (const auto stop : aItem.Stops) {
+				const auto was = stop_number(stop);
+				if (was == 0) {
+					continue;
+				}
+				++at;
+				const auto  moved = was != at;
+				auto* const line  = small(paragraph(moved ? tr("%1. %2 (moved from %3)").arg(at).arg(stop_title(stop)).arg(was) : tr("%1. %2").arg(at).arg(stop_title(stop)), aBox));
+				line->setObjectName(moved ? QStringLiteral("tourProposedOrderMoved") : QStringLiteral("tourProposedOrderKept"));
+				if (moved) {
+					auto heavy = line->font();
+					heavy.setWeight(QFont::DemiBold);
+					line->setFont(heavy);
+				} else {
+					line->setForegroundRole(QPalette::PlaceholderText);
+				}
+				aColumn->addWidget(line);
+			}
+			break;
+		}
+		case core::tour_proposal_part::focus:
+			quietLine(tr("Remembered for this tour's later drafts and chat turns, until you clear it."));
+			break;
+		default: break;
+		}
 	}
 
 	auto tour_agent_panel::proposal_reader(const std::size_t aIndex) const -> markdown_body_view*
@@ -722,6 +1033,22 @@ namespace bpr::qt {
 		}
 		if (aTally.StopTexts > 0U) {
 			parts << (aTally.StopTexts == 1U ? tr("a new explanation for 1 stop") : tr("new explanations for %1 stops").arg(aTally.StopTexts));
+		}
+		// [[BPR-1930]]. A revision of the tour's shape.
+		if (aTally.Merges > 0U) {
+			parts << (aTally.Merges == 1U ? tr("a merge") : tr("%1 merges").arg(aTally.Merges));
+		}
+		if (aTally.Splits > 0U) {
+			parts << (aTally.Splits == 1U ? tr("a split") : tr("%1 splits").arg(aTally.Splits));
+		}
+		if (aTally.Removals > 0U) {
+			parts << (aTally.Removals == 1U ? tr("1 stop to remove") : tr("%1 stops to remove").arg(aTally.Removals));
+		}
+		if (aTally.Reorder) {
+			parts << tr("a new order");
+		}
+		if (aTally.Focus) {
+			parts << tr("a focus");
 		}
 		if (parts.isEmpty()) {
 			return { };
@@ -777,7 +1104,8 @@ namespace bpr::qt {
 		}
 		Head->removeWidget(Trail);
 		if (wrap) {
-			Head->addWidget(Trail, 1, 0, 1, 3, Qt::AlignLeft | Qt::AlignVCenter);
+			// [[BPR-1930]]. Wrapped, the row keeps the chat toggle at the right.
+			Head->addWidget(Trail, 1, 0, 1, 3, Qt::AlignRight | Qt::AlignVCenter);
 		} else {
 			Head->addWidget(Trail, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
 		}
@@ -798,6 +1126,7 @@ namespace bpr::qt {
 			PlaceBegin();
 		}
 		clear(ProposalItems);
+		clear(FocusSlot);
 		Editors.clear();
 		Accepts.clear();
 		Relocates.clear();
@@ -861,6 +1190,22 @@ namespace bpr::qt {
 				heading = tr("Proposed Solution");
 			} else if (item.Part == core::tour_proposal_part::stop_text) {
 				heading = tr("Proposed explanation");
+			} else if (item.Part == core::tour_proposal_part::remove_stop) {
+				// [[BPR-1930]]. A revision of the tour's shape, by its numbers.
+				heading = tr("Remove stop %1, %2").arg(stop_number(item.StopId)).arg(stop_title(item.StopId));
+			} else if (item.Part == core::tour_proposal_part::merge_stops) {
+				auto numbers = QStringList{ };
+				for (const auto stop : item.Stops) {
+					numbers << QString::number(stop_number(stop));
+				}
+				const auto last = numbers.takeLast();
+				heading         = tr("Merge stops %1 and %2 into %3").arg(numbers.join(QStringLiteral(", ")), last, QString::fromStdString(item.Stop.Title));
+			} else if (item.Part == core::tour_proposal_part::split_stop) {
+				heading = tr("Split stop %1, %2, into %3").arg(stop_number(item.StopId)).arg(stop_title(item.StopId)).arg(item.Pieces.size());
+			} else if (item.Part == core::tour_proposal_part::reorder) {
+				heading = tr("Proposed order");
+			} else if (item.Part == core::tour_proposal_part::focus) {
+				heading = tr("Proposed focus");
 			} else {
 				heading = QString::fromStdString(item.Stop.Title);
 			}
@@ -904,8 +1249,10 @@ namespace bpr::qt {
 					}
 				}
 			}
+			const auto textual = core::takes_text(item.Part);
+			add_revision_lines(itemColumn, item, box);
 			if (item.ReplacesAuthorText) {
-				auto* const note = small(paragraph(tr("Accepting replaces what you wrote here."), box));
+				auto* const note = small(paragraph(textual ? tr("Accepting replaces what you wrote here.") : tr("What you wrote for this stop goes with it."), box));
 				note->setForegroundRole(QPalette::PlaceholderText);
 				itemColumn->addWidget(note);
 			}
@@ -955,16 +1302,29 @@ namespace bpr::qt {
 			Readers[index] = reader;
 			reader->set_body(editor->toPlainText().toStdString(), "tour-proposal:" + std::to_string(Proposal->Run.value()) + ":" + std::to_string(index) + ":" + std::to_string(qHash(editor->toPlainText())));
 			itemColumn->insertWidget(itemColumn->indexOf(frame), reader);
-			const auto edit = Editing.contains(index);
-			reader->setVisible(!edit);
+			const auto edit = Editing.contains(index) && textual;
+			reader->setVisible(!edit && textual);
 			frame->setVisible(edit);
 			auto* const buttons = new QHBoxLayout{ };
 			buttons->setSpacing(6);
-			auto* const accept = new quiet_push_button{ tr("Accept"), box };
+			// [[BPR-1930]]. The primary action says what it does: Remove,
+			// Merge, Split, Reorder, Set focus.
+			const auto  acceptWords = item.Part == core::tour_proposal_part::remove_stop ? tr("Remove")
+				: item.Part == core::tour_proposal_part::merge_stops                     ? tr("Merge")
+				: item.Part == core::tour_proposal_part::split_stop                      ? tr("Split")
+				: item.Part == core::tour_proposal_part::reorder                         ? tr("Reorder")
+				: item.Part == core::tour_proposal_part::focus                           ? tr("Set focus")
+																						 : tr("Accept");
+			auto* const accept      = new quiet_push_button{ acceptWords, box };
 			accept->setObjectName(QStringLiteral("tourProposalAccept"));
-			accept->setToolTip(item.Part == core::tour_proposal_part::stop            ? tr("Adds this stop at the end of the tour, with this explanation.")
-								   : item.Part == core::tour_proposal_part::stop_text ? tr("Replaces this stop's explanation with this text.")
-																					  : tr("Puts this text in the tour's %1.").arg(heading));
+			accept->setToolTip(item.Part == core::tour_proposal_part::stop              ? tr("Adds this stop at the end of the tour, with this explanation.")
+								   : item.Part == core::tour_proposal_part::stop_text   ? tr("Replaces this stop's explanation with this text.")
+								   : item.Part == core::tour_proposal_part::remove_stop ? tr("Takes this stop out of the tour. Undo arrangement brings it back.")
+								   : item.Part == core::tour_proposal_part::merge_stops ? tr("Makes these stops one, keeping all their lines, with this explanation. Undo arrangement takes it back.")
+								   : item.Part == core::tour_proposal_part::split_stop  ? tr("Puts these stops in this stop's place. Undo arrangement takes it back.")
+								   : item.Part == core::tour_proposal_part::reorder     ? tr("Puts the stops in this order. Undo arrangement takes it back.")
+								   : item.Part == core::tour_proposal_part::focus       ? tr("Remembers this focus for the tour's later drafts and chat turns.")
+																						: tr("Puts this text in the tour's %1.").arg(heading));
 			auto* const discard = new quiet_push_button{ tr("Discard"), box };
 			discard->setObjectName(QStringLiteral("tourProposalDiscard"));
 			discard->setFlat(true);
@@ -979,6 +1339,7 @@ namespace bpr::qt {
 			editText->setFlat(true);
 			editText->setFocusPolicy(Qt::TabFocus);
 			editText->setToolTip(tr("Switches between this text as it will read and its Markdown source, which you can change before you accept it."));
+			editText->setVisible(textual);
 			EditButtons[index] = editText;
 			connect(editText, &QPushButton::clicked, this, [this, index, editor, reader, frame, editText] {
 				if (Editing.contains(index)) {
@@ -1018,7 +1379,18 @@ namespace bpr::qt {
 			Accented.emplace_back(accept);
 			Boxes[index] = box;
 			if (Place && Place(index, item, box)) {
-
+				// [[BPR-1930]]. A wrapped line's minimum is its height at a narrow
+				// width, which left gaps between the lines of a box on a stop's
+				// card; its height for the card's width is what it needs.
+				for (auto* const label : box->findChildren<QLabel*>()) {
+					if (label->wordWrap()) {
+						label->setMinimumSize(1, 1);
+					}
+				}
+				box->installEventFilter(this);
+			} else if (item.Part == core::tour_proposal_part::focus) {
+				// [[BPR-1930]]. The tour's focus waits under the line.
+				FocusSlot->addWidget(box);
 				box->installEventFilter(this);
 			} else {
 				ProposalItems->addWidget(box);

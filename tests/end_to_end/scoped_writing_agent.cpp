@@ -1,4 +1,5 @@
 #include <algorithm>
+#include <cctype>
 #include <chrono>
 #include <cstdlib>
 #include <filesystem>
@@ -144,6 +145,120 @@ namespace {
 		answer_with(R"({"schema":"bpr.tour-ask.v1","reply":")" + escape(reply) + R"(","problem":"","solution":")" + escape(solution) + R"(","stops":[],"stop_texts":[)" + stopTexts + "]}");
 		return 0;
 	}
+	/// [[BPR-1900]]. The stops the drafting run proposes on the
+	/// conventional-comments fixture, as JSON objects; `aSkip` leaves out
+	/// those whose title it names.
+	auto renderer_stops(const std::string& aSkip = { }) -> std::string
+	{
+		std::string stops;
+		const auto  stop = [&stops, &aSkip](const std::string& aPath, const std::size_t aFirst, const std::size_t aLast, const std::string& aTitle, const std::string& aExplanation) {
+			if (!aSkip.empty() && aSkip.find(aTitle) != std::string::npos) {
+				return;
+			}
+			stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":")" } + escape(aPath) + R"(","first_line":)" + std::to_string(aFirst) + R"(,"last_line":)" + std::to_string(aLast) + R"(,"title":")" + escape(aTitle) + R"(","explanation":")" + escape(aExplanation) + "\"}";
+		};
+		// [[BPR-1900]], owner 2026-11-06: one stop off the change on a single
+		// line (it still publishes), one off it on several lines (it offers
+		// Move to nearest change), and the rest on the conventional-comments
+		// fixture's hunks; listed off-change first, so the proposal's own
+		// order shows.
+		stop("src/main.cpp", 1U, 2U, "Where the program starts", "Worth reading first because main() decides the frame size before anything draws. These lines are above the change.");
+		stop("src/engine/renderer.cpp", 1U, 1U, "The header it draws with", "Worth a look because every call below comes from this header, which the change does not touch.");
+		stop("src/engine/renderer.cpp", 3U, 8U, "Where the change starts", "Start here: this is where the new behaviour enters.\n\nRead `begin_frame()` first, then the `clear()` call under it.");
+		stop("src/engine/renderer.h", 4U, 10U, "What it calls next", "These lines carry the change through:\n\n- `clear()` now takes the view it clears.\n- `draw()` draws only that view's scene.\n\nCheck that every caller passes its own view.");
+		stop("src/main.cpp", 3U, 9U, "How it ends", "This is where the change finishes. Notice what `present()` does when a view drew nothing.");
+		return stops;
+	}
+	/// [[BPR-1930]]. The stops of the tour so far, or the waiting ones, as the
+	/// request numbers them: each one's number and path.
+	/// The request reaches the agent as a JSON string inside its input
+	/// stream, so the evidence's own quotes arrive escaped: `\"key\":`.
+	auto quoted_key(const std::string& aKey) -> std::string { return std::string{ R"(\")" } + aKey + R"(\":)"; }
+	auto quoted_value(const std::string& aInput, const std::size_t aKeyAt, const std::string& aKey) -> std::string
+	{
+		const auto start = aKeyAt + quoted_key(aKey).size() + 2U;
+		const auto end   = aInput.find(R"(\")", start);
+		return end == std::string::npos ? std::string{ } : aInput.substr(start, end - start);
+	}
+	auto numbered_stops(const std::string& aInput, const std::string& aKey, const std::string& aEnd) -> std::vector<std::pair<std::size_t, std::string>>
+	{
+		auto       found = std::vector<std::pair<std::size_t, std::string>>{ };
+		const auto from  = aInput.rfind(quoted_key(aKey));
+		if (from == std::string::npos) {
+			return found;
+		}
+		const auto to = aEnd.empty() ? aInput.size() : std::min(aInput.size(), aInput.find(quoted_key(aEnd), from));
+		auto       at = from;
+		while ((at = aInput.find(quoted_key("number"), at)) != std::string::npos && at < to) {
+			at += quoted_key("number").size();
+			const auto number = static_cast<std::size_t>(std::strtoul(aInput.c_str() + at, nullptr, 10));
+			const auto path   = aInput.find(quoted_key("path"), at);
+			if (path == std::string::npos || path > to) {
+				break;
+			}
+			found.emplace_back(number, quoted_value(aInput, path, "path"));
+		}
+		return found;
+	}
+	/// [[BPR-1930]]. A turn of the tour's own chat. While the draft's stops
+	/// still wait, "fewer stops" revises them: the header-only stop is left
+	/// out and the rest replace the waiting ones. On a tour with stops, "too
+	/// many stops" or "merge" merges stops 2 and 3 and removes the stops in
+	/// `src/main.cpp` outside them; "focus on X" sets the focus to X.
+	auto revise_in_workspace(const std::string& aInput, const std::string& aTarget, const std::function<void()>& aPause) -> int
+	{
+		emit_tool("r1", "Bash", R"({"command":"rg -n \"clear|present\" )" + escape(aTarget) + R"("})", "3:begin_frame(); 8:present();");
+		aPause();
+		const auto thisTurn = aInput.rfind(quoted_key("this_turn"));
+		const auto asked    = thisTurn == std::string::npos ? std::string::npos : aInput.find(quoted_key("question"), thisTurn);
+		const auto question = asked == std::string::npos ? std::string{ } : quoted_value(aInput, asked, "question");
+		auto       lower    = question;
+		std::ranges::transform(lower, lower.begin(), [](const unsigned char aCharacter) { return static_cast<char>(std::tolower(aCharacter)); });
+		const auto tour    = numbered_stops(aInput, "tour_so_far", "waiting_stops");
+		const auto waiting = numbered_stops(aInput, "waiting_stops", "");
+		auto       focus   = std::string{ };
+		if (const auto on = lower.find("focus on "); on != std::string::npos) {
+			focus = question.substr(on + 9U, question.find_first_of(".,;!?", on + 9U) == std::string::npos ? std::string::npos : question.find_first_of(".,;!?", on + 9U) - on - 9U);
+		}
+		auto reply   = std::string{ };
+		auto stops   = std::string{ };
+		auto removed = std::string{ };
+		auto merges  = std::string{ };
+		auto replace = false;
+		if (tour.empty() && !waiting.empty()) {
+			// The draft revised before it is accepted: it starts at the header
+			// that declares the change, resize gets its own stop, and the two
+			// stops off the change go. Every stop is on a hunk, so this order
+			// is the order the proposal shows.
+			replace         = true;
+			const auto stop = [&stops](const std::string& aPath, const std::size_t aFirst, const std::size_t aLast, const std::string& aTitle, const std::string& aExplanation) {
+				stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":")" } + escape(aPath) + R"(","first_line":)" + std::to_string(aFirst) + R"(,"last_line":)" + std::to_string(aLast) + R"(,"title":")" + escape(aTitle) + R"(","explanation":")" + escape(aExplanation) + "\"}";
+			};
+			stop("src/engine/renderer.h", 4U, 10U, "What it declares", "Start here: the header declares the change.\n\n- `clear()` and `draw_scene()` now draw one view at a time.\n- `resize()` is new.");
+			stop("src/engine/renderer.cpp", 3U, 8U, "Where it draws", "Each view now clears and draws its own scene between `begin_frame()` and `present()`.");
+			stop("src/engine/renderer.cpp", 10U, 14U, "Where it resizes", "`resize()` keeps the size it is given, so the next frame draws at it.");
+			stop("src/main.cpp", 3U, 9U, "Where it's called", "`main()` sizes the renderer once, before its first `draw()`.");
+			reply = "I revised the draft before you accept it: it starts at the header that declares the change, `resize()` has a stop of its own, and the two stops off the change are gone. 4 stops wait.";
+		} else if (lower.find("too many") != std::string::npos || lower.find("merge") != std::string::npos) {
+			if (tour.size() >= 3U) {
+				merges = R"({"stops":[2,3],"title":"Where it draws and resizes","explanation":")" + escape("One stop for the renderer's change: each view clears and draws its own scene between `begin_frame()` and `present()`, and `resize()` keeps the size the next frame draws at.") + R"("})";
+			}
+			for (const auto& [number, path] : tour) {
+				if (path == "src/main.cpp" && number != 2U && number != 3U) {
+					removed += (removed.empty() ? "" : ",") + std::to_string(number);
+				}
+			}
+			reply = "Fewer stops: I'd merge stops 2 and 3, which read the same file, and remove the stop in `src/main.cpp`, which only calls the renderer.";
+		} else {
+			reply = "The tour reads well as it is. Tell me what to change: fewer stops, a merge, a better order, or a part to focus on.";
+		}
+		if (!focus.empty()) {
+			reply += " I'll keep the tour focused on " + focus + ".";
+		}
+		answer_with(R"({"schema":"bpr.tour-revise.v1","reply":")" + escape(reply) + R"(","problem":"","solution":"","stops":[)" + stops + R"(],"stop_texts":[],"remove_stops":[)" + removed + R"(],"merge_stops":[)" + merges + R"(],"split_stops":[],"order":[],"focus":")" + escape(focus)
+					+ R"(","replace_waiting_stops":)" + (replace ? "true" : "false") + "}");
+		return 0;
+	}
 	/// [[BPR-1900]]. A drafting run in the review's workspace: it really looks
 	/// at the files there, says what it searched and read the way Claude Code
 	/// does (tool uses and their results), and answers. Run as the `claude` in
@@ -210,6 +325,9 @@ namespace {
 		};
 		pause();
 		const auto first = named.empty() ? std::string{ "." } : named.front().Relative;
+		if (input.find("bpr.tour-revise.v1") != std::string::npos) {
+			return revise_in_workspace(input, first, pause);
+		}
 		if (input.find("bpr.tour-ask.v1") != std::string::npos) {
 			const auto renderer = std::ranges::find(named, std::string{ "src/engine/renderer.cpp" }, &file::Relative) != named.end();
 			return ask_in_workspace(input, folder.generic_string(), renderer ? std::string{ "src/engine/renderer.cpp" } : first, pause);
@@ -258,16 +376,7 @@ namespace {
 			};
 			const auto has = [&named](const std::string& aPath) { return std::ranges::find(named, aPath, &file::Relative) != named.end(); };
 			if (has("src/engine/renderer.cpp") && has("src/engine/renderer.h") && has("src/main.cpp")) {
-				// [[BPR-1900]], owner 2026-11-06: one stop off the change on a
-				// single line (it still publishes), one off it on several
-				// lines (it offers Move to nearest change), and the rest on
-				// the conventional-comments fixture's hunks; listed off-change
-				// first, so the proposal's own order shows.
-				stop("src/main.cpp", 1U, 2U, "Where the program starts", "Worth reading first because main() decides the frame size before anything draws. These lines are above the change.");
-				stop("src/engine/renderer.cpp", 1U, 1U, "The header it draws with", "Worth a look because every call below comes from this header, which the change does not touch.");
-				stop("src/engine/renderer.cpp", 3U, 8U, titles[0], explanations[0]);
-				stop("src/engine/renderer.h", 4U, 10U, titles[1], explanations[1]);
-				stop("src/main.cpp", 3U, 9U, titles[2], explanations[2]);
+				stops = renderer_stops();
 			} else {
 				for (std::size_t index = 0U; index < named.size() && index < 3U; ++index) {
 					stop(named[index].Relative, 1U, std::min<std::size_t>(named[index].Lines, 4U), titles[index], explanations[index]);

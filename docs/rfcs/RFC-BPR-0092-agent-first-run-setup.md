@@ -1353,6 +1353,68 @@ nothing changes until it is accepted, and nothing is silently overwritten.
   where Ready, next is. A proposed reorder can show as grey positions on the
   route. All of them stay grey until accepted.
 
+### Amendment [[BPR-1930]], [[BPR-1931]] (2026-11-07): feedback on the whole tour, and Reset tour
+
+The owner: "I want to be able to give general feedback on the tour and have it
+react, particularly during the initial agent draft but even after. For example
+I want to say too many stops/too few stops add/remove some or merge some. Or I
+want to say the tour should focus on <this particular part of the PR>." And:
+"I want the ability to reset/clear the tour that I'm authoring".
+
+- **The tour's own chat revises the tour.** It is the side chat for the tour
+  as a whole, opened by the same toggle as each part's, at the right of the
+  tour's header (after Conversation; a wrapped header keeps it at the right).
+  A turn there answers in `bpr.tour-revise.v1`: a turn of `bpr.tour-ask.v1`
+  plus `remove_stops`, `merge_stops` (two or more stop numbers, the merged
+  stop's title and explanation), `split_stops` (a stop and the stops it
+  becomes), `order` (every stop once, or empty), `focus` and
+  `replace_waiting_stops`. Part chats keep `bpr.tour-ask.v1`.
+- **The core decides the revision** (`core::propose_tour_changes`). Stop
+  numbers are the tour's. Removals, merges and splits name distinct stops of
+  the tour, none named twice. A merge keeps every line of its stops: all
+  confirmed (the others' lines become related lines), or all with lines to
+  confirm in one file within 400 lines (the merged stop spans them); a merge
+  that would lose lines is refused. A split's pieces anchor in the pull
+  request inside the stop's own lines. An order names every stop once and
+  differs from the tour's. A refused part is counted, never shown. Accepting a
+  structural part is `core::apply_tour_revision`: the tour host restores the
+  revised tour as one edit, so one Undo takes it back, and a published stop it
+  removes is retired as Remove retires it. A pending part that names a stop an
+  accepted part took away is discarded (`core::prune_tour_proposal`).
+- **In place, grey until accepted** ([[BPR-1925]] v003's style). The tour
+  chat's parts wait in the tour, not in the chat, which says how many wait.
+  The stops a part changes carry a grey dashed ground and ring on the route
+  and a grey pill: "Remove" (the title struck through), "Merge with 3" and
+  "Merges into 2", "Split in 2", "Moves to 1". The box of a removal, merge or
+  split waits on the card of the stop it leads, with **Remove**, **Merge** or
+  **Split** where Ready, next is. A proposed order waits above the route,
+  listing the new order with the moved stops in bold, with **Reorder**. The
+  Stops step carries the "Proposed" pill. Accept all takes every part.
+- **Focus.** A proposed focus waits under the panel's line with **Set
+  focus**. Once set it is the session's (`core::tour_agent_session::Focus`)
+  and rides every later Draft the tour and chat turn, shown as a chip under
+  the tour's header whose × clears it.
+- **During the initial draft.** While Draft the tour runs, the tour's chat
+  still takes feedback (part chats wait). The host keeps it
+  (`core::queue_tour_feedback`) and, once the draft proposes, sends it as the
+  tour chat's next turn with the proposed stops still waiting
+  (`waiting_stops`, numbered on from the tour's as the route shows them). A
+  turn that sets `replace_waiting_stops` revises them: its stops replace the
+  waiting ones (`core::merge_tour_proposal`). A draft that proposes nothing
+  leaves the feedback in the chat as not sent.
+- **Reset tour** ([[BPR-1931]]). A quiet action in the tour's header. It asks
+  first, in one sentence naming what is lost (the Problem, the Solution, the
+  stops, the waiting proposals, the chats and the focus), and for a published
+  tour that the tour on GitHub stays as it is and only the local draft is
+  reset. The core makes the empty draft (`core::reset_tour`: identity, head
+  and published binding kept, published stops retired); the host saves it as
+  any edit and keeps the session and proposal it cleared. **Undo reset**
+  restores all of them exactly while the tour is as the reset left it; it goes
+  once the tour changes. No GitHub request is made. Nothing is reset while the
+  tour agent runs.
+- Owner rules kept: nothing changes until accepted, and nothing the author
+  wrote is silently overwritten (a merge or removal says so on its box).
+
 ### Amendment [[BPR-1914]] v004 (2026-11-06): quieter controls, the diff window's tabs, no scroll jump
 
 The owner on v003: "can we simplify the enhance buttons to just the '<symbol>

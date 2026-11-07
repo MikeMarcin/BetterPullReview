@@ -578,10 +578,19 @@ namespace bpr::qt {
 		present(Session, Proposal, std::move(aDraft));
 	}
 
-	void tour_side_chat::set_running(const bool aAny)
+	void tour_side_chat::set_running(const bool aAny, const bool aDrafting)
 	{
-		Running = aAny;
+		Running  = aAny;
+		Drafting = aAny && aDrafting;
 		refresh_actions();
+	}
+
+	/// [[BPR-1930]], owner: "particularly during the initial agent draft".
+	/// While Draft the tour runs, the tour's own chat still takes feedback.
+	auto tour_side_chat::takes_feedback() const -> bool
+	{
+		const auto thread = current();
+		return Drafting && !Mine && thread && thread->Kind == core::tour_thread_kind::tour;
 	}
 
 	void tour_side_chat::set_available(const bool aReady, const QString& aWhy)
@@ -820,7 +829,7 @@ namespace bpr::qt {
 		Send->setToolTip(!Ready ? Why : Mine ? tr("Stop the tour agent; nothing in the tour changes.")
 											 : tr("Send (Return). Shift+Return starts a new line."));
 		Send->setAccessibleName(Mine ? tr("Stop") : tr("Send"));
-		Send->setEnabled(Ready && thread.has_value() && (Mine || (!Running && !blank)));
+		Send->setEnabled(Ready && thread.has_value() && (Mine || ((!Running || takes_feedback()) && !blank)));
 		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		const auto part = !thread                              ? QString{ }
 			: thread->Kind == core::tour_thread_kind::stop     ? tr("this stop")
@@ -832,14 +841,18 @@ namespace bpr::qt {
 		Update->setToolTip(!Ready          ? Why
 							   : !answered ? tr("Ask something first. Then this asks the agent to rewrite %1 from the chat; you accept, edit or discard what it proposes.").arg(part)
 										   : tr("Asks the agent to rewrite %1 from this chat. It comes back as a proposal here; nothing changes until you accept it.").arg(part));
-		Composer->setPlaceholderText(!thread ? QString{ } : tr("Ask about %1").arg(part));
+		// [[BPR-1930]]. The tour's chat is for feedback on its shape too.
+		Composer->setPlaceholderText(!thread                                            ? QString{ }
+										 : takes_feedback()                             ? tr("Feedback for the draft. It goes to the agent when the draft is ready")
+										 : thread->Kind == core::tour_thread_kind::tour ? tr("Ask about the tour, or say how to change it: fewer stops, merge two, focus on a part")
+																						: tr("Ask about %1").arg(part));
 		Composer->setEnabled(thread.has_value());
 	}
 
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate)
 	{
 		const auto thread = current();
-		if (!thread || aQuestion.isEmpty() || Running || !Ready || !AskDispatch) {
+		if (!thread || aQuestion.isEmpty() || (Running && !(takes_feedback() && !aUpdate)) || !Ready || !AskDispatch) {
 			return;
 		}
 		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::nullopt : passage(), .Question = aQuestion, .Update = aUpdate };
@@ -941,8 +954,16 @@ namespace bpr::qt {
 		const auto  runs     = thread ? core::thread_runs(Session, *thread) : std::vector<const core::tour_agent_run*>{ };
 		const auto  mono     = CodeFont != QFont{ } ? CodeFont : QFontDatabase::systemFont(QFontDatabase::FixedFont);
 		const auto  selector = inline_selector();
-		if (runs.empty()) {
-			auto* const empty = quiet(small(words(thread ? tr("Ask anything about this part: what a passage means, whether the code supports it, what a reviewer should notice. When the chat has what you want, Update rewrites the part from it.") : QString{ }, body)));
+		WaitingBubble        = nullptr;
+		InTour               = nullptr;
+		const auto wholeTour = thread && thread->Kind == core::tour_thread_kind::tour;
+		if (runs.empty() && !(wholeTour && Session.Waiting)) {
+			// [[BPR-1930]]. The tour's chat takes feedback on the tour's shape.
+			const auto  invite = !thread ? QString{ }
+				: wholeTour              ? tr("Give feedback on the whole tour: too many or too few stops, two to merge, one to add or split, a better order, or a part of the change to focus on. "
+											  "The changes wait in the tour, marked grey, until you accept them. This works while the draft runs, too.")
+										 : tr("Ask anything about this part: what a passage means, whether the code supports it, what a reviewer should notice. When the chat has what you want, Update rewrites the part from it.");
+			auto* const empty  = quiet(small(words(invite, body)));
 			empty->setObjectName(QStringLiteral("tourSideChatEmpty"));
 			Turns->addWidget(empty);
 		}
@@ -1062,8 +1083,23 @@ namespace bpr::qt {
 				const auto why   = ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).section(QLatin1Char('\n'), 0, 0);
 				column->addWidget(quiet(small(words(run->State == core::tour_agent_run_state::cancelled ? tr("Stopped. Nothing in the tour changed.") : tr("Didn't finish: %1").arg(why), answer))));
 			}
+			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself,
+			// on the stops it changes; here one line says so.
+			if (wholeTour && Proposal) {
+				const auto mine    = std::ranges::count_if(Proposal->Items, [run](const core::tour_proposal_item& aItem) { return aItem.Run == run->Id; });
+				const auto waiting = std::ranges::count_if(Proposal->Items, [run](const core::tour_proposal_item& aItem) { return aItem.Run == run->Id && aItem.Decision == core::tour_proposal_decision::pending; });
+				if (mine > 0) {
+					auto* const line = quiet(small(words(waiting == 0       ? tr("Its changes were decided in the tour.")
+															 : waiting == 1 ? tr("1 change waits in the tour, marked grey. Accept or discard it where it is.")
+																			: tr("%1 changes wait in the tour, marked grey. Accept or discard each where it is.").arg(waiting),
+														 answer)));
+					line->setObjectName(QStringLiteral("tourSideChatInTour"));
+					column->addWidget(line);
+					InTour = line;
+				}
+			}
 			// What it proposed, decided here.
-			if (Proposal) {
+			if (Proposal && !wholeTour) {
 				for (std::size_t index = 0U; index < Proposal->Items.size(); ++index) {
 					const auto& item = Proposal->Items[index];
 					if (item.Run != run->Id) {
@@ -1079,6 +1115,13 @@ namespace bpr::qt {
 					case core::tour_proposal_part::solution:  heading = tr("Proposed Solution"); break;
 					case core::tour_proposal_part::stop_text: heading = tr("Proposed explanation for %1").arg(QString::fromStdString(item.Stop.Title)); break;
 					case core::tour_proposal_part::stop:      heading = tr("Proposed stop: %1 (%2, lines %3 to %4)").arg(QString::fromStdString(item.Stop.Title), QString::fromStdString(item.Stop.Path)).arg(item.Stop.FirstLine).arg(item.Stop.LastLine); break;
+					// [[BPR-1930]]. Only the tour's chat proposes these, and they
+					// wait in the tour, not here.
+					case core::tour_proposal_part::remove_stop:
+					case core::tour_proposal_part::merge_stops:
+					case core::tour_proposal_part::split_stop:
+					case core::tour_proposal_part::reorder:
+					case core::tour_proposal_part::focus:       heading = tr("A change to the tour"); break;
 					}
 					auto* const title = small(words(heading, card));
 					auto        heavy = title->font();
@@ -1152,6 +1195,22 @@ namespace bpr::qt {
 			}
 			Turns->addWidget(answer);
 		}
+		// [[BPR-1930]] AC3. Feedback given while the draft runs, waiting for
+		// its proposal: the author's words, and when they go.
+		if (wholeTour && Session.Waiting) {
+			auto* const mineRow = new QHBoxLayout{ };
+			mineRow->addStretch(1);
+			auto* const bubble = new bubble_frame{ body };
+			bubble->setObjectName(QStringLiteral("tourSideChatWaiting"));
+			auto* const inside = new QVBoxLayout{ bubble };
+			inside->setContentsMargins(12, 8, 12, 8);
+			inside->setSpacing(3);
+			inside->addWidget(words(QString::fromStdString(*Session.Waiting), bubble));
+			inside->addWidget(quiet(small(words(tr("Sent when the draft is ready, to revise it."), bubble))));
+			mineRow->addWidget(bubble);
+			Turns->addLayout(mineRow);
+			WaitingBubble = bubble;
+		}
 		Turns->addStretch(1);
 		const auto grew = runs.size() != Shown || Mine;
 		Shown           = runs.size();
@@ -1166,7 +1225,11 @@ namespace bpr::qt {
 		// Each rendered text as tall as it reads at the chat's width; the
 		// author's bubbles at most four fifths of it.
 		const auto available = std::max(160, Scroll->viewport()->width() - Turns->contentsMargins().left() - Turns->contentsMargins().right());
-		for (auto* const bubble : Bubbles) {
+		auto       bubbles   = Bubbles;
+		if (WaitingBubble != nullptr) {
+			bubbles.push_back(WaitingBubble);
+		}
+		for (auto* const bubble : bubbles) {
 			const auto most = available * 4 / 5;
 			bubble->setMaximumWidth(most);
 			// A short question keeps to one line; a long one wraps at the

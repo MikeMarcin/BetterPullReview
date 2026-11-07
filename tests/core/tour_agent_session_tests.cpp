@@ -335,10 +335,221 @@ namespace {
 		static_cast<void>(answer_tour_ask(threads, *update, "Done.", { }));
 		expect(time_tour_run(threads, *update, 12U) && threads.Runs.back().Seconds == 12U, "an ended turn keeps how long it worked");
 	}
+	template <typename T>
+	auto identity(const unsigned char aSeed) -> T
+	{
+		std::array<std::uint8_t, 32> bytes{ };
+		bytes[0] = aSeed;
+		return T{ bytes };
+	}
+	auto head() -> git_commit_oid { return *parse_git_commit_oid("1111111111111111111111111111111111111111"); }
+	auto lines(const std::uint32_t aFirst, const std::uint32_t aLast, const std::string& aPath = "src/item.cpp") -> tour_source_range
+	{
+		const auto comparison = identity<file_comparison_digest>(2);
+		return { { comparison, diff_side::right, aFirst }, { comparison, diff_side::right, aLast }, head(), { }, aPath };
+	}
+	/// A tour of `aStops` stops, each on lines of its own: confirmed, or (with
+	/// `aToConfirm`) given as lines to confirm, as an accepted proposed stop is.
+	auto six_stop_tour(const std::size_t aStops = 6U, const bool aToConfirm = false) -> review_tour
+	{
+		auto tour = review_tour{ .Id = tour_draft_id{ 1 }, .Owner = { bpr_profile_id{ 1 }, git_host_id{ 2 }, identity<host_authority_fingerprint>(3), github_account_id{ 4 }, repository_id{ 5 }, pull_request_id{ 6 } }, .Base = *parse_git_commit_oid("2222222222222222222222222222222222222222"), .Head = head() };
+		for (std::size_t index = 0U; index < aStops; ++index) {
+			auto       insert = tour_command{ .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = tour_command_kind::insert, .Position = index };
+			const auto first  = static_cast<std::uint32_t>(index * 10U);
+			if (aToConfirm) {
+				insert.Value = tour_stop_of({ "src/item.cpp", first + 1U, first + 5U, "Stop " + std::to_string(index + 1U), "Body " + std::to_string(index + 1U) }, head());
+			} else {
+				insert.Value = { .Title = "Stop " + std::to_string(index + 1U), .Body = "Body " + std::to_string(index + 1U), .Original = lines(first, first + 4U), .Mapping = tour_mapping::exact_original };
+			}
+			const auto outcome = apply(tour, insert);
+			expect(outcome.Refusal == tour_refusal::none, "the fixture tour's stop is inserted");
+			tour = outcome.Accepted;
+		}
+		return tour;
+	}
+	auto ids(const review_tour& aTour) -> std::vector<tour_stop_id>
+	{
+		auto list = std::vector<tour_stop_id>{ };
+		for (const auto& stop : aTour.Stops) {
+			list.push_back(stop.Id);
+		}
+		return list;
+	}
+	auto find_part(const tour_proposal& aProposal, const tour_proposal_part aPart) -> const tour_proposal_item*
+	{
+		const auto found = std::ranges::find(aProposal.Items, aPart, &tour_proposal_item::Part);
+		return found == aProposal.Items.end() ? nullptr : &*found;
+	}
+
+	/// [[BPR-1930]] AC1, AC2. "Too many stops", "merge 2 and 3", "focus on
+	/// the renderer": the core checks each part against the tour, and
+	/// accepting a part changes the tour exactly as it says.
+	void revision()
+	{
+		const auto tour     = six_stop_tour();
+		const auto before   = ids(tour);
+		const auto files    = std::vector<tour_anchor_file>{ { .Path = "src/item.cpp", .HeadLines = 400U } };
+		auto       answer   = tour_ask_answer{ .Reply = "Fewer stops." };
+		answer.Revision     = tour_revision{ .Remove = { 5U }, .Merges = { { .Stops = { 3U, 2U }, .Title = "Both halves", .Explanation = "One stop for both." } }, .Focus = "  the renderer  " };
+		const auto proposal = propose_tour_changes(tour_agent_run_id{ 4 }, answer, files, tour);
+		expect(proposal.Items.size() == 3U && proposal.Refused == 0U, "a merge, a removal and a focus are proposed");
+		const auto* merge = find_part(proposal, tour_proposal_part::merge_stops);
+		expect(merge != nullptr && merge->Stops == std::vector{ before[1], before[2] } && merge->Stop.Title == "Both halves" && merge->ReplacesAuthorText, "the merge names stops 2 and 3, in tour order, and says it replaces their text");
+		const auto* removal = find_part(proposal, tour_proposal_part::remove_stop);
+		expect(removal != nullptr && removal->StopId == before[4] && removal->Stop.Title == "Stop 5", "the removal names stop 5");
+		const auto* focus = find_part(proposal, tour_proposal_part::focus);
+		expect(focus != nullptr && focus->Text == "the renderer", "the focus is proposed, trimmed");
+		expect(structural(tour_proposal_part::merge_stops) && !structural(tour_proposal_part::focus) && takes_text(tour_proposal_part::merge_stops) && !takes_text(tour_proposal_part::remove_stop), "parts say what they change and take");
+		const auto tally = tally_of(proposal);
+		expect(tally.Merges == 1U && tally.Removals == 1U && tally.Focus && !tally.Reorder, "the tally counts the revision");
+
+		// Nothing changes until accepted: the proposal is a value beside the tour.
+		expect(ids(tour) == before, "proposing changes nothing");
+		auto       decided    = proposal;
+		const auto mergeIndex = static_cast<std::size_t>(merge - proposal.Items.data());
+		expect(decide_tour_proposal(decided, mergeIndex, tour_proposal_decision::accepted, "One stop for both, edited."), "the merge is accepted with the author's edit");
+		const auto merged = apply_tour_revision(tour, decided.Items[mergeIndex]);
+		expect(merged && merged->Stops.size() == 5U, "accepting the merge leaves five stops");
+		expect(ids(*merged) == std::vector{ before[0], before[1], before[3], before[4], before[5] }, "the merged stop takes stop 2's place and stop 3 goes");
+		const auto& one = merged->Stops[1];
+		expect(one.Title == "Both halves" && one.Body == "One stop for both, edited.", "the merged stop has the accepted title and text");
+		expect(one.Original == tour.Stops[1].Original && std::ranges::find(one.Related, *tour.Stops[2].Original) != one.Related.end(), "the merged stop covers both sources' lines");
+		expect(validate(*merged) == tour_refusal::none, "the merged tour is valid");
+		const auto removalIndex = static_cast<std::size_t>(removal - proposal.Items.data());
+		expect(decide_tour_proposal(decided, removalIndex, tour_proposal_decision::accepted, { }), "a removal is accepted without a text");
+		const auto removed = apply_tour_revision(*merged, decided.Items[removalIndex]);
+		expect(removed && ids(*removed) == std::vector{ before[0], before[1], before[3], before[5] }, "accepting the removal takes stop 5 out, and only it");
+		expect(!apply_tour_revision(*removed, decided.Items[removalIndex]), "a removal of a stop no longer there is refused");
+
+		// A pending part that names a stop an accepted merge took is let go.
+		auto stale    = proposal;
+		auto otherCut = tour_proposal_item{ .Part = tour_proposal_part::remove_stop, .StopId = before[2] };
+		stale.Items.push_back(otherCut);
+		expect(prune_tour_proposal(stale, *merged) == 2U, "the merge itself and the removal of stop 3 name a stop that is gone");
+
+		// The core refuses what it can't do.
+		auto bad           = tour_ask_answer{ .Reply = "Hmm." };
+		bad.Revision       = tour_revision{ .Remove = { 2U, 9U, 0U }, .Merges = { { .Stops = { 2U, 7U }, .Explanation = "x" }, { .Stops = { 4U }, .Explanation = "x" } }, .Order = { 1U, 2U, 3U } };
+		const auto refused = propose_tour_changes(tour_agent_run_id{ 5 }, bad, files, tour);
+		expect(refused.Items.size() == 1U && refused.Items.front().Part == tour_proposal_part::remove_stop && refused.Items.front().StopId == before[1], "only the removal of stop 2 is valid");
+		expect(refused.Refused == 5U, "two merges, two removals and an order that isn't every stop are refused");
+		auto twice      = tour_ask_answer{ .Reply = "Twice." };
+		twice.Revision  = tour_revision{ .Remove = { 2U }, .Merges = { { .Stops = { 1U, 2U }, .Explanation = "x" } } };
+		const auto once = propose_tour_changes(tour_agent_run_id{ 6 }, twice, files, tour);
+		expect(once.Items.size() == 1U && once.Items.front().Part == tour_proposal_part::merge_stops && once.Refused == 1U, "a stop is named by one part only");
+
+		// A reorder: every stop once, in its new order.
+		auto reorder     = tour_ask_answer{ .Reply = "Start at the end." };
+		reorder.Revision = tour_revision{ .Order = { 6U, 1U, 2U, 3U, 4U, 5U } };
+		auto ordered     = propose_tour_changes(tour_agent_run_id{ 7 }, reorder, files, tour);
+		expect(ordered.Items.size() == 1U && ordered.Items.front().Part == tour_proposal_part::reorder && ordered.Items.front().Stops.front() == before[5], "the order is proposed by stop");
+		const auto reordered = apply_tour_revision(tour, ordered.Items.front());
+		expect(reordered && ids(*reordered) == std::vector{ before[5], before[0], before[1], before[2], before[3], before[4] }, "accepting the order puts the stops in it");
+		reorder.Revision->Order = { 1U, 2U, 3U, 4U, 5U, 6U };
+		expect(propose_tour_changes(tour_agent_run_id{ 8 }, reorder, files, tour).Items.empty(), "the same order proposes nothing");
+		// After a removal, the order still puts the stops that are left in it.
+		const auto shorter = apply_tour_revision(*reordered, tour_proposal_item{ .Part = tour_proposal_part::remove_stop, .StopId = before[0] });
+		expect(shorter && ids(*apply_tour_revision(tour, tour_proposal_item{ .Part = tour_proposal_part::remove_stop, .StopId = before[0] })).size() == 5U, "a stop is removed");
+		const auto lateOrder = apply_tour_revision(*apply_tour_revision(tour, tour_proposal_item{ .Part = tour_proposal_part::remove_stop, .StopId = before[0] }), ordered.Items.front());
+		expect(lateOrder && ids(*lateOrder) == std::vector{ before[5], before[1], before[2], before[3], before[4] }, "an order outliving a removal orders the stops left");
+
+		// A split: pieces inside the stop's own lines, each anchored.
+		auto split        = tour_ask_answer{ .Reply = "Two things happen here." };
+		split.Revision    = tour_revision{ .Splits = { { .Stop = 2U, .Into = { { "src/item.cpp", 11U, 12U, "First", "The first." }, { "src/item.cpp", 13U, 15U, "Second", "The second." } } } } };
+		const auto pieces = propose_tour_changes(tour_agent_run_id{ 9 }, split, files, tour);
+		expect(pieces.Items.size() == 1U && pieces.Items.front().Part == tour_proposal_part::split_stop && pieces.Items.front().StopId == before[1], "the split is proposed");
+		const auto halves = apply_tour_revision(tour, pieces.Items.front());
+		expect(halves && halves->Stops.size() == 7U && halves->Stops[1].Title == "First" && halves->Stops[2].Title == "Second" && halves->Stops[1].Destination && halves->Stops[1].Destination->FirstLine == 10U, "accepting the split puts its pieces in the stop's place");
+		split.Revision->Splits.front().Into.back().LastLine = 30U;
+		expect(propose_tour_changes(tour_agent_run_id{ 10 }, split, files, tour).Refused == 1U, "a piece outside the stop's lines is refused");
+
+		// Accepted proposed stops have lines still to confirm: merged in one
+		// file, the merged stop spans them all; in two files it can't.
+		const auto toConfirm = six_stop_tour(3U, true);
+		auto       spanning  = tour_ask_answer{ .Reply = "Merge." };
+		spanning.Revision    = tour_revision{ .Merges = { { .Stops = { 1U, 3U }, .Title = "Ends", .Explanation = "Both ends." } } };
+		const auto span      = propose_tour_changes(tour_agent_run_id{ 11 }, spanning, files, toConfirm);
+		expect(span.Items.size() == 1U, "a merge of stops to confirm in one file is proposed");
+		const auto spanned = apply_tour_revision(toConfirm, span.Items.front());
+		expect(spanned && spanned->Stops.size() == 2U && spanned->Stops.front().Destination && spanned->Stops.front().Destination->FirstLine == 0U && spanned->Stops.front().Destination->LastLine == 24U, "the merged stop spans its sources' lines");
+		auto mixed                       = toConfirm;
+		mixed.Stops[2].Destination->Path = "src/other.cpp";
+		expect(propose_tour_changes(tour_agent_run_id{ 12 }, spanning, files, mixed).Refused == 1U, "a merge that would lose a file's lines is refused");
+
+		// A whole-tour turn that revises the proposed stops still waiting.
+		auto waiting    = tour_proposal{ .Run = tour_agent_run_id{ 2 } };
+		waiting.Items   = { { .Part = tour_proposal_part::stop, .Text = "Old", .Stop = { "src/item.cpp", 1U, 2U, "Old", "Old" } }, { .Part = tour_proposal_part::problem, .Text = "Problem" } };
+		auto revised    = tour_proposal{ .Run = tour_agent_run_id{ 3 }, .RevisesWaitingStops = true };
+		revised.Items   = { { .Part = tour_proposal_part::stop, .Text = "New", .Stop = { "src/item.cpp", 3U, 4U, "New", "New" } } };
+		const auto both = merge_tour_proposal(waiting, revised);
+		expect(both && both->Items.size() == 2U && both->Items.front().Stop.Title == "New" && both->Items.back().Part == tour_proposal_part::problem, "the revised stops replace the waiting ones; the rest still waits");
+		revised.Items.clear();
+		const auto none = merge_tour_proposal(tour_proposal{ .Items = { waiting.Items.front() } }, revised);
+		expect(!none, "revising every waiting stop away leaves no proposal");
+		// A new structural part about the same stop supersedes the old.
+		auto       first      = tour_proposal{ .Items = { { .Part = tour_proposal_part::remove_stop, .StopId = before[1] }, { .Part = tour_proposal_part::reorder, .Stops = before } } };
+		auto       second     = tour_proposal{ .Items = { { .Part = tour_proposal_part::merge_stops, .Text = "x", .StopId = { }, .Stops = { before[1], before[2] } } } };
+		const auto superseded = merge_tour_proposal(first, second);
+		expect(superseded && superseded->Items.size() == 2U && superseded->Items.back().Part == tour_proposal_part::reorder, "a merge of stop 2 supersedes its removal, and the order stays");
+	}
+
+	/// [[BPR-1930]] AC2, AC3. The focus is remembered; feedback given while
+	/// Draft the tour runs waits for its proposal.
+	void focus_and_feedback()
+	{
+		auto session = tour_agent_session{ };
+		expect(!set_tour_focus(session, "  ") && session.Focus.empty(), "a blank focus is refused");
+		expect(set_tour_focus(session, " the renderer ") && session.Focus == "the renderer", "the focus is kept, trimmed");
+		expect(!set_tour_focus(session, std::string(maximum_tour_focus_bytes + 1U, 'x')), "an overlong focus is refused");
+		expect(clear_tour_focus(session) && session.Focus.empty() && !clear_tour_focus(session), "the focus clears once");
+		expect(!queue_tour_feedback(session, "Fewer stops"), "with no draft running there is nothing to wait for");
+		const auto draft = begin_tour_run(session, tour_agent_request::draft_tour, tour_agent_tools::read_only, "Draft the tour");
+		expect(queue_tour_feedback(session, "Fewer stops") && queue_tour_feedback(session, "Start at main()"), "feedback waits while the draft runs");
+		expect(session.Waiting == std::string{ "Fewer stops\n\nStart at main()" }, "both pieces wait, in order");
+		expect(!queue_tour_feedback(session, " "), "blank feedback is refused");
+		static_cast<void>(finish_tour_run(session, *draft, tour_agent_run_state::answered, "Proposed 6 stops."));
+		const auto taken = take_tour_feedback(session);
+		expect(taken && taken->starts_with("Fewer stops") && !session.Waiting && !take_tour_feedback(session), "the feedback is taken once");
+		// The tour chat's proposals wait in the tour; a part's stay in its chat.
+		const auto tourTurn = begin_tour_ask(session, tour_thread{ }, std::nullopt, "Too many stops");
+		static_cast<void>(answer_tour_ask(session, *tourTurn, "Fewer.", { }));
+		const auto partTurn = begin_tour_ask(session, tour_thread{ .Kind = tour_thread_kind::solution }, std::nullopt, "Rewrite");
+		static_cast<void>(answer_tour_ask(session, *partTurn, "Done.", { }));
+		expect(!proposed_in_thread(session, tour_proposal_item{ .Run = *tourTurn }) && proposed_in_thread(session, tour_proposal_item{ .Run = *partTurn }), "the tour chat's proposal waits in the tour");
+	}
+
+	/// [[BPR-1931]] AC1, AC2. Reset clears the draft's text and stops and
+	/// keeps its identity and published binding; a published stop is
+	/// retired, so GitHub keeps it until the author publishes again.
+	void reset()
+	{
+		auto tour                 = six_stop_tour(2U);
+		tour.Problem              = "P";
+		tour.Remote               = tour_remote_binding{ };
+		tour.Stops.front().Remote = tour_remote_binding{ };
+		auto session              = tour_agent_session{ };
+		static_cast<void>(set_tour_focus(session, "x"));
+		const auto turn = begin_tour_ask(session, tour_thread{ }, std::nullopt, "Hi");
+		static_cast<void>(answer_tour_ask(session, *turn, "Hello.", { }));
+		auto       proposal = tour_proposal{ .Items = { { .Part = tour_proposal_part::solution, .Text = "S" } } };
+		const auto tally    = reset_tally_of(tour, session, proposal);
+		expect(tally.Problem && !tally.Solution && tally.Stops == 2U && tally.Proposals == 1U && tally.Chats == 1U && tally.Focus && tally.Published && resettable(tally), "the reset says what it clears");
+		const auto cleared = reset_tour(tour);
+		expect(cleared.Stops.empty() && cleared.Problem.empty() && cleared.Solution.empty(), "nothing is left of the draft's text and stops");
+		expect(cleared.Id == tour.Id && cleared.Owner == tour.Owner && cleared.Head == tour.Head && cleared.Remote == tour.Remote, "its identity and its published binding stay");
+		expect(cleared.Retired.size() == 1U && cleared.Retired.front() == tour.Stops.front(), "the published stop is retired whole, as Remove retires it");
+		expect(!resettable(reset_tally_of(cleared, tour_agent_session{ }, std::nullopt)), "an empty tour has nothing to reset");
+		// The host restores the reset as it restores any tour: one Undo.
+		const auto restored = apply(cleared, tour_command{ .Draft = cleared.Id, .Owner = cleared.Owner, .ExpectedRevision = cleared.Revision, .Kind = tour_command_kind::restore, .Restore = tour });
+		expect(restored.Refusal == tour_refusal::none && restored.Accepted.Stops == tour.Stops && restored.Accepted.Problem == tour.Problem, "restoring the snapshot gives the draft back exactly");
+	}
 }
 
 int main()
 {
+	revision();
+	focus_and_feedback();
+	reset();
 	conversation();
 	placement();
 	tools_split();
