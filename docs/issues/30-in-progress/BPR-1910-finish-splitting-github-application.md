@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1910"
 title: "Finish splitting github_application.cpp"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1909"]
 priority: "P2"
