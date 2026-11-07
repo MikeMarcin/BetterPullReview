@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1921"
 title: "Split diff_workbench.cpp by responsibility"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
