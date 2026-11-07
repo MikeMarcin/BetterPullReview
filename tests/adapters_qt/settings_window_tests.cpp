@@ -7,6 +7,7 @@
 #include "bpr/qt/github_session_panel.hpp"
 #include "bpr/qt/resident_filter.hpp"
 #include "bpr/qt/settings_window.hpp"
+#include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/workbench_window.hpp"
 #include "bpr/qt/writing_hooks_panel.hpp"
 
@@ -554,14 +555,17 @@ auto main(int argc, char** argv) -> int
 	{
 		qt::workbench_window        window;
 		auto*                       panel = window.writing_hooks();
-		auto*                       hook  = panel->findChild<QComboBox*>("writingHookChoice");
+		auto*                       hook  = panel->findChild<QListWidget*>("writingHookChoice");
 		auto*                       text  = panel->findChild<QPlainTextEdit*>("writingHookInstructions");
 		unsigned                    tests = 0, saves = 0;
 		core::writing_hook_settings settings;
 		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { ++saves;settings.Overrides[static_cast<std::size_t>(aSelected)]=std::move(aInstructions);++settings.Revision;panel->present(settings);return true; }, [&](core::writing_hook) { ++tests; });
-		expect(hook->count() == 6 && hook->itemText(4).isEmpty() && hook->itemText(5) == "Review feedback" && !text->toPlainText().isEmpty(), "four tour hooks, a separator and review feedback preview without inference");
-		for (int i = 0; i < 4; ++i) {
-			hook->setCurrentIndex(i);
+		expect(hook->count() == 9 && hook->item(0)->text() == "Tour tab" && hook->item(5)->text() == "Comments" && hook->item(6)->text() == "Review feedback" && hook->item(7)->text() == "Agent tab"
+				   && hook->item(8)->text() == "Review skill" && !text->toPlainText().isEmpty(),
+			   "[[BPR-1917]] every built-in prompt is listed under where it is used: four tour prompts, review feedback and the review skill");
+		const std::array<core::writing_hook, 4> tourHooks = { core::writing_hook::problem, core::writing_hook::solution, core::writing_hook::outline, core::writing_hook::comment };
+		for (const auto tourHook : tourHooks) {
+			panel->select_hook(tourHook);
 			text->setPlainText("precise");
 			panel->findChild<QPushButton*>("writingHookSave")->click();
 		}
@@ -575,9 +579,9 @@ auto main(int argc, char** argv) -> int
 		auto* scope  = panel->findChild<QLabel*>("writingHookScope");
 		auto* source = panel->findChild<QLabel*>("writingHookSource");
 		auto* test   = panel->findChild<QPushButton*>("writingHookTest");
-		hook->setCurrentIndex(3);
+		panel->select_hook(core::writing_hook::comment);
 		expect(scope->isHidden() && test->isEnabled() && source->text().contains("review-preparation-v1"), "a tour hook shows no feedback line and can be tested");
-		hook->setCurrentIndex(5);
+		panel->select_hook(core::writing_hook::feedback);
 		expect(panel->selected_hook() == core::writing_hook::feedback && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "the feedback row previews the shipped guidance");
 		expect(!scope->isHidden() && scope->text().startsWith("Off.") && source->text().contains("Built-in") && source->text().contains("review-feedback-v1"), "with the label helper off the row says the guidance is off");
 		expect(!test->isEnabled() && !test->toolTip().isEmpty(), "the tour-field test is unavailable for the feedback hook, with the reason");
@@ -587,7 +591,7 @@ auto main(int argc, char** argv) -> int
 		expect(scope->text().startsWith("On."), "turning the label helper on turns the guidance on");
 		text->setPlainText("Team rule");
 		panel->findChild<QPushButton*>("writingHookSave")->click();
-		expect(settings.Overrides[4] == "Team rule" && settings.Overrides[0] == "precise" && source->text().contains("Profile override"), "the feedback override is its own");
+		expect(settings.Overrides[4] == "Team rule" && settings.Overrides[0] == "precise" && source->text().contains("Changed from built-in"), "the feedback override is its own");
 		panel->findChild<QPushButton*>("writingHookReset")->click();
 		expect(settings.Overrides[4].empty() && text->toPlainText().toUtf8().toStdString() == application::default_writing_hook(core::writing_hook::feedback), "Restore default brings back the shipped guidance");
 		panel->present_label_helper(application::review_label_helper::off);
@@ -602,10 +606,88 @@ auto main(int argc, char** argv) -> int
 			panel->present_label_helper(application::review_label_helper::on);
 			QApplication::processEvents();
 			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-feedback-on.png")), "the feedback row render is saved");
-			hook->setCurrentIndex(0);
+			panel->select_hook(core::writing_hook::problem);
 			QApplication::processEvents();
 			expect(panel->grab().save(directory + QStringLiteral("/writing-hooks-problem.png")), "the problem row render is saved");
 		}
+	}
+	{
+		// [[BPR-1917]] AC1, AC2. A changed prompt is marked in the list and
+		// beside its title; unsaved edits survive moving to another prompt;
+		// Reset to built-in restores the default and Undo reset brings the
+		// text back unsaved; the preview shows what the run receives, with a
+		// skill it names brought in ([[BPR-1916]] AC3: completion lists each
+		// skill with its source).
+		qt::workbench_window        window;
+		auto*                       panel = window.writing_hooks();
+		auto*                       list  = panel->findChild<QListWidget*>("writingHookChoice");
+		auto*                       text  = panel->findChild<QPlainTextEdit*>("writingHookInstructions");
+		auto*                       badge = panel->findChild<QLabel*>("writingHookBadge");
+		auto*                       state = panel->findChild<QLabel*>("writingHookSaveState");
+		auto*                       save  = panel->findChild<QPushButton*>("writingHookSave");
+		auto*                       reset = panel->findChild<QPushButton*>("writingHookReset");
+		auto*                       undo  = panel->findChild<QPushButton*>("writingHookUndo");
+		core::writing_hook_settings settings;
+		panel->set_dispatch([&](core::writing_hook aSelected, std::string aInstructions) { settings.Overrides[static_cast<std::size_t>(aSelected)] = std::move(aInstructions); ++settings.Revision; panel->present(settings); return true; }, [](core::writing_hook) { });
+		const auto row_marker = [list](const int aRow) { return list->item(aRow)->data(Qt::UserRole + 3).toString(); };
+		expect(badge->text() == "Built-in" && !save->isEnabled() && !reset->isEnabled() && row_marker(1).isEmpty(), "a built-in prompt says so and has nothing to save or reset");
+		const auto builtIn = text->toPlainText();
+		text->setPlainText(builtIn + "\nUse /fixture-technical-writer.");
+		expect(save->isEnabled() && row_marker(1) == "Unsaved" && state->text().startsWith("Unsaved"), "an edit is marked unsaved, in the list too");
+		panel->select_hook(core::writing_hook::solution);
+		panel->select_hook(core::writing_hook::problem);
+		expect(text->toPlainText().endsWith("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U, "moving to another prompt keeps the unsaved edit");
+		save->click();
+		expect(badge->text() == "Changed from built-in" && row_marker(1) == "Changed" && !save->isEnabled() && reset->isEnabled() && panel->unsaved_count() == 0U, "a saved change is marked changed");
+		auto library = application::make_skill_library(
+			{ *application::skill_document_of("---\nname: fixture-technical-writer\ndescription: Short paragraphs.\n---\nFIXTURE_WRITER_GUIDANCE\n", "fixture-technical-writer", core::skill_source::personal, "~/.claude/skills", { }) },
+			{ *application::skill_document_of("---\nname: fixture-technical-writer\ndescription: The team's.\n---\nTEAM\n", "fixture-technical-writer", core::skill_source::repository, ".claude/skills at base 1a2b3c4", { }) });
+		panel->present_skills(library);
+		panel->show_preview(true);
+		expect(panel->preview_text().contains("Use /fixture-technical-writer.") && panel->preview_text().contains("--- Skill /fixture-technical-writer (personal, ~/.claude/skills")
+				   && panel->preview_text().contains("FIXTURE_WRITER_GUIDANCE"),
+			   "the preview shows the prompt and the skill it names, brought in");
+		expect(panel->findChild<QLabel*>("writingHookSkills")->text().startsWith("Brings in /fixture-technical-writer (personal, ~/.claude/skills)"), "and says which skill, from where");
+		const auto directory = qEnvironmentVariable("BPR_SETTINGS_RENDER_DIR");
+		const auto render    = [&](const QString& aName) {
+			if (!directory.isEmpty()) {
+				window.settings()->present(qt::settings_page::agents_and_context);
+				window.settings()->resize(1100, 900);
+				panel->resize(900, 640);
+				QApplication::processEvents();
+				expect(panel->grab().save(directory + QStringLiteral("/") + aName), "the prompt editor render is saved");
+			}
+		};
+		render(QStringLiteral("prompt-editor-preview.png"));
+		panel->show_preview(false);
+		render(QStringLiteral("prompt-editor-changed.png"));
+		// Completion while typing, with each skill's source.
+		window.settings()->present(qt::settings_page::agents_and_context);
+		window.settings()->show();
+		text->setFocus();
+		QApplication::processEvents();
+		auto cursor = text->textCursor();
+		cursor.movePosition(QTextCursor::End);
+		text->setTextCursor(cursor);
+		text->insertPlainText(" Also /fix");
+		QApplication::processEvents();
+		auto* const completion = panel->skill_completion();
+		expect(completion != nullptr, "the prompt field completes skills");
+		{
+			const auto rows = completion->rows();
+			expect(rows.size() == 2 && rows[0] == "/fixture-technical-writer (Personal, ~/.claude/skills)" && rows[1] == "/repo:fixture-technical-writer (Repository, .claude/skills at base 1a2b3c4)",
+				   "completion lists the personal skill first and the repository's, with their sources");
+			if (!directory.isEmpty()) {
+				expect(completion->popup()->grab().save(directory + QStringLiteral("/skill-completion.png")), "the completion render is saved");
+			}
+			completion->accept_current();
+			expect(text->toPlainText().endsWith("Also /fixture-technical-writer "), "choosing a row inserts the name");
+		}
+		window.settings()->hide();
+		reset->click();
+		expect(settings.Overrides[0].empty() && badge->text() == "Built-in" && text->toPlainText() == builtIn && !undo->isHidden(), "Reset to built-in restores the default");
+		undo->click();
+		expect(text->toPlainText().contains("Use /fixture-technical-writer.") && panel->unsaved_count() == 1U && settings.Overrides[0].empty(), "Undo reset brings the text back, unsaved");
 	}
 
 	test_adopting_a_panel_replaces_the_notice();

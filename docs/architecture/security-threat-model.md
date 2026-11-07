@@ -1826,6 +1826,37 @@ relaxed_skill=N`, never what was used).
   used and cannot prevent or undo it. The wording asks the reviewer to turn
   it off only for repositories they trust.
 
+## Skills a prompt names (BPR-1916)
+
+A `/skill-name` in a prompt brings that skill's `SKILL.md` into the request
+([AI agent boundary](ai-agent-boundary.md#skills-a-prompt-names-bpr-1916)).
+
+- **Trust rule (owner, 2026-11-06).** A repository skill is content a pull
+  request can change. The owner first decided base-only ("you could be
+  reviewing a PR you dont trust"), then allowed the head on one condition:
+  "i guess head is fine. We will only run skills you configure right?" Only
+  skills the person names in a prompt reach a run; a skill no prompt names,
+  however its description lures, never does. The reader reads the
+  repository's skills at the pull request's base from the linked clone's
+  objects, so a pull request that adds or changes a skill changes nothing a
+  run receives (contract test `repository_skill_reader`), and shows each
+  repository skill's source. A personal skill wins over a repository skill
+  of the same name unless the person writes `/repo:name`.
+- **Mechanism (owner, 2026-11-06).** Inline only: the text rides in the
+  request's supplement, in escaped fields. Native loading through Claude's
+  settings, plugins or permission rules was rejected because a person's
+  wrapper can replace the settings this application passes (owner: "my
+  custom wrapper right now seems to throw away all my settings"; BPR-1896).
+  No run gains a tool. A wrapper that turns skills on anyway is caught by
+  the decoder: a `Skill` tool in a writing or read-only run's init frame, or
+  a `Skill` tool use, ends the run (`tool_refused`) with the refused line,
+  naming the skill, in its log.
+- **Residual.** A named skill's text is instruction data the person chose;
+  a repository skill they name is the base side's text and may still steer
+  the agent's prose. It grants no tool, publication or review authority.
+  The Agent tab's chat runs with the person's own Claude settings, so Claude
+  may load skills natively there, including the workspace's (the head's).
+
 ## Claude process wrapper (BPR-1301)
 
 A profile may name one program to run in place of `claude`

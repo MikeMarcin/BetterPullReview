@@ -206,6 +206,7 @@ namespace bpr::app {
 			CodexAgentExecutable    = aFixtureOptions.CodexAgentExecutable;
 			SparseAgentSetupLook    = aFixtureOptions.SparseAgentSetupLook;
 			ClaudeAgentExecutable   = aFixtureOptions.ClaudeAgentExecutable;
+			PersonalSkillHome       = aFixtureOptions.PersonalSkillHome;
 			ClaudeSearch            = aFixtureOptions.ClaudeSearch;
 			CodexSearch             = aFixtureOptions.CodexSearch;
 			RegisteredDeviceCourse  = aFixtureOptions.RegisteredDeviceCourse;

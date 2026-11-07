@@ -120,6 +120,10 @@ namespace bpr::application {
 		/// is about, already within its bounds (`core::bound_conversation`);
 		/// absent for every other launch.
 		std::optional<core::supplement_conversation> Conversation;
+		/// [[BPR-1916]]. Skills the prompt named, carried inline
+		/// (`application::inline_skills`); empty for every launch that named
+		/// none.
+		std::vector<core::supplement_skill> Skills;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};

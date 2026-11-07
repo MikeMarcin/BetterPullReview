@@ -164,6 +164,45 @@ namespace bpr::core {
 		return facts;
 	}
 
+	auto read_skill_front_matter(const std::string_view aText) -> std::optional<skill_front_matter>
+	{
+		if (aText.size() > maximum_review_skill_bytes || !valid_writing_utf8(aText)) {
+			return std::nullopt;
+		}
+		auto rest = aText;
+		auto line = [&rest]() -> std::optional<std::string_view> {
+			if (rest.empty()) {
+				return std::nullopt;
+			}
+			const auto end  = rest.find('\n');
+			const auto text = rest.substr(0U, end);
+			rest            = end == std::string_view::npos ? std::string_view{ } : rest.substr(end + 1U);
+			return text.ends_with('\r') ? text.substr(0U, text.size() - 1U) : text;
+		};
+		if (const auto first = line(); !first || trim(*first) != "---") {
+			return std::nullopt;
+		}
+		auto name        = std::optional<std::string>{ };
+		auto description = std::string{ };
+		while (const auto next = line()) {
+			if (trim(*next) == "---" && !next->starts_with(' ')) {
+				if (!name || name->empty()) {
+					return std::nullopt;
+				}
+				return skill_front_matter{ .Name = std::move(*name), .Description = std::string{ trim(description) } };
+			}
+			auto key = std::string_view{ };
+			if (const auto value = key_value(*next, 0U, key)) {
+				if (key == "name") {
+					name = scalar(*value);
+				} else if (key == "description") {
+					description = scalar(*value).value_or(std::string{ });
+				}
+			}
+		}
+		return std::nullopt;
+	}
+
 	auto newer_review_skill(const std::uint32_t aBuiltInVersion, const std::optional<review_skill_copy_record>& aCopy) noexcept -> std::optional<std::uint32_t>
 	{
 		if (!aCopy || aBuiltInVersion <= aCopy->BaseVersion || (aCopy->KeptVersion && *aCopy->KeptVersion >= aBuiltInVersion)) {

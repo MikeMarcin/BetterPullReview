@@ -7,6 +7,8 @@
 #include "bpr/application/agent_run_diagnosis.hpp"
 #include "bpr/application/review_brief.hpp"
 #include "bpr/application/review_skill_host.hpp"
+#include "bpr/application/skill_catalog.hpp"
+#include "bpr/application/skill_guidance.hpp"
 #include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/workbench_runtime_ports.hpp"
 #include "bpr/application/writing_hooks.hpp"
@@ -1484,6 +1486,99 @@ namespace {
 		expect(std::ranges::find(builtIn->AllowedEnvironment, "USER") != builtIn->AllowedEnvironment.end(), "the shipped Claude profile passes USER, which its keychain sign-in is filed under");
 	}
 
+	void write_text(const std::filesystem::path& aPath, const std::string& aText)
+	{
+		std::filesystem::create_directories(aPath.parent_path());
+		std::ofstream{ aPath, std::ios::binary } << aText;
+	}
+
+	/// [[BPR-1916]] AC1, AC3, AC4. A skill a prompt names reaches the run:
+	/// read from the person's own folders, natively for a read-only Claude
+	/// run (the staged plugin, the Skill tool approved for it alone) and
+	/// inline in the supplement for every other; no named skill leaves every
+	/// launch exactly as it was.
+	void test_skill_references_reach_the_run()
+	{
+		const auto home = std::filesystem::temp_directory_path() / ("bpr-skill-home-" + std::to_string(std::chrono::steady_clock::now().time_since_epoch().count()));
+		write_text(home / ".claude/skills/technical-book-humanizer/SKILL.md", "---\nname: technical-book-humanizer\ndescription: Fixture humanizer.\n---\nFIXTURE_HUMANIZER_GUIDANCE\tline two\n");
+		write_text(home / ".claude/skills/technical-book-humanizer/references/voice.md", "supporting");
+		write_text(home / ".agents/skills/fixture-voice/SKILL.md", "---\nname: fixture-voice\ndescription: Shared folder.\n---\nVOICE\n");
+		write_text(home / ".codex/skills/technical-book-humanizer/SKILL.md", "---\nname: technical-book-humanizer\ndescription: Shadowed.\n---\nCODEX_COPY\n");
+		write_text(home / ".claude/skills/no-front-matter/SKILL.md", "just text\n");
+		// A personal skill folder may be a link to where a manager keeps it.
+		write_text(home / "store/linked-skill/SKILL.md", "---\nname: linked-skill\ndescription: Linked.\n---\nLINKED\n");
+		std::error_code linkError;
+		std::filesystem::create_directory_symlink(home / "store/linked-skill", home / ".claude/skills/linked-skill", linkError);
+		const auto personal = application::read_personal_skills(application::personal_skill_roots(home));
+		auto       names    = std::vector<std::string>{ };
+		for (const auto& document : personal) {
+			names.push_back(document.Entry.Name + "@" + document.Entry.Origin);
+		}
+		expect(std::ranges::find(names, "technical-book-humanizer@~/.claude/skills") != names.end() && std::ranges::find(names, "fixture-voice@~/.agents/skills") != names.end(),
+			   "personal skills are read from ~/.claude/skills and ~/.agents/skills, named by where they are");
+		expect(linkError || std::ranges::find(names, "linked-skill@~/.claude/skills") != names.end(), "a linked skill folder is read");
+		expect(std::ranges::find(names, "no-front-matter@~/.claude/skills") == names.end(), "a SKILL.md naming no skill is skipped");
+		const auto library = application::make_skill_library(personal, { });
+		const auto entry   = std::ranges::find(library.Catalog, "technical-book-humanizer", &core::skill_entry::Name);
+		expect(entry != library.Catalog.end() && entry->Origin == "~/.claude/skills" && library.Documents[static_cast<std::size_t>(entry - library.Catalog.begin())].Supporting == std::vector<std::string>{ "references/voice.md" },
+			   "the first folder's copy wins, with its supporting files listed");
+
+		const auto texts    = std::array<std::string_view, 1>{ "Rewrite in the voice /technical-book-humanizer gives, and /missing-skill." };
+		const auto guidance = application::resolve_skill_guidance(library, texts);
+		expect(guidance.Skills.size() == 1U && guidance.Note && guidance.Note->find("/missing-skill") != std::string::npos, "the named skill resolves; an unknown one is a quiet note");
+
+		// Inline: a tool-free rewrite carries the SKILL.md in its supplement.
+		auto supplement    = built_supplement();
+		supplement.Skills  = application::inline_skills(library, guidance);
+		const auto writing = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .WritingOnly = true });
+		const auto input   = writing ? std::string{ writing->Input.begin(), writing->Input.end() } : std::string{ };
+		const auto fields  = application::encode_agent_supplement(supplement);
+		expect(writing && input.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos && fields.find("skill.0.name\ttechnical-book-humanizer\n") != std::string::npos
+				   && fields.find("skill.0.supporting.0\treferences/voice.md\n") != std::string::npos,
+			   "the run receives the skill's guidance inline, named, with its supporting files listed");
+		expect(fields.find("FIXTURE_HUMANIZER_GUIDANCE\\tline two\\n") != std::string::npos, "a skill's text cannot end its field: its tabs and newlines are escaped");
+		const auto plain      = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .WritingOnly = true });
+		const auto plainInput = plain ? std::string{ plain->Input.begin(), plain->Input.end() } : std::string{ };
+		expect(plain && plainInput.find("skill.") == std::string::npos, "a prompt that names none sends no skill field");
+
+		// No run gets the Skill tool: a read-only run is exactly BPR-1900's,
+		// whatever its prompt names, and Codex gets the skills inline too.
+		const auto readOnly = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), supplement, reader(), { .ReadOnlyTools = true });
+		auto       expected = std::vector<std::string>{ "-p", "--input-format", "stream-json", "--output-format", "stream-json", "--verbose" };
+		expected.insert(expected.end(), application::claude_read_only_restrictions.begin(), application::claude_read_only_restrictions.end());
+		expect(readOnly && readOnly->Arguments == expected && std::string{ readOnly->Input.begin(), readOnly->Input.end() }.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos,
+			   "a read-only run keeps its exact allowlist and receives the skill inline");
+		const auto codex = application::build_agent_launch(profile(core::agent_protocol::codex_jsonl_exec), supplement, reader(), { .ReadOnlyTools = true });
+		expect(codex && std::string{ codex->Input.begin(), codex->Input.end() }.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos, "Codex receives it inline too");
+
+		// Defence in depth: a wrapper that turns skills on gets nothing past
+		// the decoder. A Skill tool in the init frame, or a Skill tool use,
+		// ends a read-only run; a writing run refuses any tool at all.
+		const std::string skillInit   = R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Grep","Glob","Bash","Skill"],"mcp_servers":[],"plugins":[]})"
+										"\n";
+		const std::string plainInit   = R"({"type":"system","subtype":"init","session_id":"s","tools":["Read","Grep","Glob","Bash"],"mcp_servers":[],"plugins":[]})"
+										"\n";
+		const std::string lure        = R"({"type":"assistant","session_id":"s","message":{"id":"m","role":"assistant","content":[{"type":"tool_use","id":"t","name":"Skill","input":{"skill":"always-use-me"}}]}})"
+										"\n";
+		auto              initRefused = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+		expect(!initRefused.push(skillInit) && initRefused.rejected_line().find("Skill") != std::string::npos, "a read-only run whose init loads the Skill tool is refused, naming it");
+		auto       useRefused = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true };
+		const auto used       = useRefused.push(plainInit + lure);
+		expect(!used && used.error() == application::agent_protocol_failure::tool_refused && useRefused.rejected_line().find("always-use-me") != std::string::npos,
+			   "a Skill tool use ends the run as tool_refused, and its line names the skill");
+		const std::string writingInit    = R"({"type":"system","subtype":"init","session_id":"s","tools":["Skill"],"mcp_servers":[]})"
+										   "\n";
+		auto              writingRefused = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true };
+		expect(!writingRefused.push(writingInit), "a writing run that loads the Skill tool is refused");
+
+		// [[BPR-1917]]. The preview says what the run receives.
+		const auto preview = application::preview_writing_hook(core::writing_hook::problem, "Use /technical-book-humanizer.", library);
+		expect(preview.Guidance.Skills.size() == 1U && preview.Text.find("Selected writing instructions:\nUse /technical-book-humanizer.") != std::string::npos
+				   && preview.Text.find("--- Skill /technical-book-humanizer (personal, ~/.claude/skills") != std::string::npos && preview.Text.find("FIXTURE_HUMANIZER_GUIDANCE") != std::string::npos,
+			   "the preview shows the prompt with the skill brought in");
+		std::filesystem::remove_all(home, linkError);
+	}
+
 	/// [[BPR-1900]] AC1. A tour drafting run reads the workspace with
 	/// read-only tools: the exact argv for Claude and Codex, a search and a
 	/// read decoded for the transcript, and a write or edit refused.
@@ -2122,6 +2217,7 @@ auto main() -> int
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_read_only_tour_drafting();
+	test_skill_references_reach_the_run();
 	test_workspace_line_counts();
 	test_claude_decoder_reads_sign_in_and_benign_frames();
 	test_claude_writing_reports_the_plugins_it_loaded();

@@ -35,3 +35,22 @@ Keep the widget free of effects. Persistence goes through the host.
 - AC2. A changed prompt is visibly marked, and Reset restores the default.
 - AC3. Owner look: attended Accept/Reject on a frozen build of the redesigned settings.
 - AC4. The documentation gate passes.
+
+## Implementation (2026-11-06)
+
+Loaded `frontend-design:frontend-design` first. Settings, Agents & context:
+a list of every built-in prompt under where it is used (Tour tab, Comments,
+Agent tab; the review skill now listed with them and showing its own
+editor), each with its use on a second line and Changed or Unsaved on the
+right; the chosen prompt's name, what it is for and what uses it; Edit and
+Preview; a fixed-pitch, wrapping editor with `/skill` completion
+([[BPR-1916]]); Built-in or Changed from built-in; Save and Discard changes
+beside the save state and byte count; Reset to built-in (Undo reset brings
+the text back unsaved) and Test saved prompt. Unsaved edits are kept per
+prompt in the panel until saved or discarded, so moving between prompts or
+closing Settings loses nothing. Preview shows what a run receives
+(`application::preview_writing_hook`), opened at the prompt's own part, with
+named skills brought in. Persistence stays the host's: the panel's Save and
+Reset are intents. Fits the 760 by 480 minimum Settings window with no
+sideways scrolling. Tests: `qt_settings_window` (listing, marker, unsaved
+kept, Save, Reset, Undo reset, Preview with a skill).

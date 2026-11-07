@@ -13,6 +13,7 @@
 #include "bpr/core/model.hpp"
 #include "bpr/core/review_round_trip.hpp"
 #include "bpr/core/revisioned_review_draft.hpp"
+#include "skill_runs.hpp"
 
 #include <QString>
 
@@ -165,6 +166,8 @@ namespace bpr::app {
 	{
 		bool                     ReadOnly = false;
 		std::vector<std::string> Measure;
+		/// [[BPR-1916]]. The skills the run's prompt names, inline.
+		skill_run Skills;
 	};
 
 	/// \brief [[BPR-1900]]. The tour session's projection: its own, so a tour

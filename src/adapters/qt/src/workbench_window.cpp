@@ -4922,11 +4922,13 @@ namespace bpr::qt {
 		ClaudeWrapper = new claude_wrapper_panel{ this };
 		ClaudeWrapper->hide();
 		WritingHooks = new writing_hooks_panel{ agents };
+		column->addSpacing(12);
 		column->addWidget(WritingHooks);
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
+		// [[BPR-1917]]. The review skill is one of the built-in prompts: it is
+		// listed with them, under the Agent tab, and shows its own editor.
 		ReviewSkill = new review_skill_panel{ agents };
-		column->addSpacing(12);
-		column->addWidget(ReviewSkill);
+		WritingHooks->adopt_review_skill(ReviewSkill);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
 		// [[BPR-1856]], owner 2026-11-04: Add repository comes first on
 		// Repositories; the clone folders and linked clones follow it.

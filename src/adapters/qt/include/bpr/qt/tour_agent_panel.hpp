@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_AGENT_PANEL_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_AGENT_PANEL_HPP
 
+#include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 
 #include <QPointer>
@@ -24,6 +25,7 @@ class QTextCursor;
 
 namespace bpr::qt {
 	class markdown_body_view;
+	class skill_completer;
 	/// \brief [[BPR-1900]]. The Tour tab's own agent session, at the top of
 	/// the tab: Draft the tour (Stop drafting while it runs), the whole-tour
 	/// proposal to accept, edit or discard item by item, and the session's
@@ -68,6 +70,10 @@ namespace bpr::qt {
 		/// \brief The ask box, its Ask button (Stop while a turn runs), and the
 		/// quoted passage's line, shown while there is one.
 		[[nodiscard]] auto ask_box() const noexcept -> QPlainTextEdit* { return AskBox; }
+		/// \brief [[BPR-1916]]. The skills `/name` completion offers in the ask
+		/// box, each with where it came from.
+		void               present_skills(std::vector<core::skill_entry> aSkills);
+		[[nodiscard]] auto skill_completion() const noexcept -> skill_completer* { return SkillCompletion; }
 		[[nodiscard]] auto ask_button() const noexcept -> QPushButton* { return Ask; }
 		[[nodiscard]] auto passage_line() const noexcept -> QLabel* { return PassageLine; }
 		[[nodiscard]] auto clear_passage_button() const noexcept -> QToolButton* { return ClearPassage; }
@@ -158,13 +164,14 @@ namespace bpr::qt {
 		std::map<std::size_t, markdown_body_view*> Readers;
 		std::map<std::size_t, QPushButton*>        EditButtons;
 		std::set<std::size_t>                      Editing;
-		bool                                       RunningAsk   = false;
-		QPlainTextEdit*                            AskBox       = nullptr;
-		QPushButton*                               Ask          = nullptr;
-		QLabel*                                    PassageLine  = nullptr;
-		QToolButton*                               ClearPassage = nullptr;
-		QWidget*                                   PassageRow   = nullptr;
-		QLabel*                                    AskStatus    = nullptr;
+		bool                                       RunningAsk      = false;
+		QPlainTextEdit*                            AskBox          = nullptr;
+		skill_completer*                           SkillCompletion = nullptr;
+		QPushButton*                               Ask             = nullptr;
+		QLabel*                                    PassageLine     = nullptr;
+		QToolButton*                               ClearPassage    = nullptr;
+		QWidget*                                   PassageRow      = nullptr;
+		QLabel*                                    AskStatus       = nullptr;
 		std::map<std::size_t, QPushButton*>        Relocates;
 		std::map<std::size_t, QLabel*>             Placements;
 		core::tour_agent_session                   Session;

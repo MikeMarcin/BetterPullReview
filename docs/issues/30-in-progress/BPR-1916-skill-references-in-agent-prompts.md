@@ -35,3 +35,69 @@ acceptance: []
 - AC3. Completion lists personal and repository skills with their source.
 - AC4. Writing and read-only runs still pass every BPR-1375, BPR-1891, BPR-1896, BPR-1899 and BPR-1912 check.
 - AC5. `ai-agent-boundary.md`, `security-threat-model.md` and an RFC-BPR-0092 amendment record the sources, the trust rule and the mechanism, and the documentation gate passes.
+
+## Owner decisions (2026-11-06)
+
+- **Trust.** First "repository skills come from the base side only, never the
+  PR head" ("you could be reviewing a PR you dont trust"), then revised:
+  "i guess head is fine. We will only run skills you configure right?" Head
+  is allowed on the condition that only skills the person names in a prompt
+  reach a run. Recorded in the threat model.
+- **Mechanism.** Inline, for every run and agent kind: "unfortunately my
+  custom wrapper right now seems to throw away all my settings on load its
+  own, so we can't rely on that" (BPR-1896 found the same). No run gains the
+  `Skill` tool, a plugin, a setting source or a permission rule.
+
+## Native route, checked on installed Claude Code 2.1.310 (2026-11-06)
+
+In a scratch folder with a fixture project skill, print mode, stream JSON,
+BPR-1900's read-only flags:
+
+- `--setting-sources ""`: the init frame's `skills` lists only Claude's
+  bundled skills; neither a personal nor a project skill loads, so a
+  `.claude/skills` in the working folder (the head) is not picked up.
+- `--setting-sources project`: the folder's skill loads, and so does its
+  `CLAUDE.md` (the run obeyed an instruction in it); project
+  `permissions.allow` was ignored in an untrusted folder.
+- `--setting-sources user`: every user plugin, agent and setting comes too.
+  No narrow switch for skills alone; `--add-dir` does not load skills.
+- `--plugin-dir` with a staged plugin holding one skill loads only that
+  skill (`bpr-skills:NAME`, plugin listed in the init frame).
+  `Skill(bpr-skills:NAME)` in `--allowedTools` denied another skill the
+  model tried in print mode. `/name` at the start of a prompt expands with
+  no Skill tool; named mid-prompt it loads only if the model calls the tool.
+- The init frame reports `tools`, `skills`, `slash_commands`, `plugins`
+  (name, path, source) and `agents`.
+
+Rejected for the owner's reason above; recorded as evidence in the
+[AI agent boundary](../../architecture/ai-agent-boundary.md#skills-a-prompt-names-bpr-1916).
+
+## Implementation (2026-11-06)
+
+- Core `skill_references`: finding `/name` (`/repo:` and `/personal:`
+  qualifiers), resolution (personal first), the quiet note, completion rows
+  with source, the merged catalog. `read_skill_front_matter` beside the
+  review skill's reader.
+- Application: `skill_guidance` (documents, library, inline fields, the
+  directive, the BPR-1917 preview), `skill_catalog` (personal folders
+  `~/.claude/skills`, `~/.agents/skills`, `~/.codex/skills`; the loader on
+  the effect lane), `repository_skill_port`; supplement `skill.N.*` fields
+  (`core::supplement_skill`, bounded, refused whole outside bounds).
+- Git: `make_installed_git_skill_reader` reads `.claude/skills`,
+  `.agents/skills`, `.codex/skills` at the base commit from the linked
+  clone's objects through the publication catalog's private store.
+- App: the catalog loads on start, review change and clone link change; a
+  writing hook's skills ride on Draft from PR context, Suggest an outline,
+  Enhance, Generate comment and the Settings test; an Agent tab question's
+  skills ride with it. A fixture composition reads no personal skills unless
+  `--attended-skill-home` names a fixture home.
+- Qt: `skill_completer` on the Settings prompt editor, the Agent tab's
+  question field and the Tour conversation's ask box ([[BPR-1914]]); an ask
+  turn carries the skills its question names inline, as every run does
+  (`qt_tour_agent_session_view` checks completion and Return in the ask box).
+- Tests: `core_skill_references`, `application_agent_launch`
+  (`test_skill_references_reach_the_run`: inline fields for writing,
+  read-only and Codex runs, read-only argv unchanged, a `Skill` tool or
+  tool use refused), `repository_skill_reader` (base not head, a head-added
+  and a working-tree skill never reach a run, a lure skill never sent unless
+  named), `qt_settings_window` (completion rows with source).
