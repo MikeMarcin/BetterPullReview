@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1927"
 title: "Split pull_request_overview_page.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"5708dd5f2","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"ee22d8558","evidence":{"kind":"observation","detail":"Six pull_request_overview_* sources and a support header; constructor stays in pull_request_overview_page.cpp; public headers unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"ee22d8558","evidence":{"kind":"command","detail":"Both builds; 41/46 rows pass; the five failures reproduce on the pre-split source (format: BPR-1925's tour_agent_panel.cpp). Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"de14bd7c1","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split pull_request_overview_page.cpp by responsibility
