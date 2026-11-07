@@ -115,6 +115,15 @@ add_library(
         src/review_publication_recovery_contract.cpp
         src/off_hunk_fact.cpp
         src/epoch_application_host.cpp
+        src/epoch_host_blob_authority.cpp
+        src/epoch_host_catalog_and_history.cpp
+        src/epoch_host_dispatch_and_imports.cpp
+        src/epoch_host_implementation.cpp
+        src/epoch_host_materialization.cpp
+        src/epoch_host_requests_and_recovery.cpp
+        src/epoch_host_review_reads.cpp
+        src/epoch_host_source_search_and_diffs.cpp
+        src/epoch_host_support.cpp
         src/profile_epoch_actor_registry.cpp
         src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
