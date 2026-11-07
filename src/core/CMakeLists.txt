@@ -148,6 +148,7 @@ add_library(
         src/overview_tour.cpp
         src/tour_steps.cpp
         src/tour_agent_session.cpp
+        src/skill_references.cpp
         src/tour_stop_view.cpp
         src/description_edit.cpp
         src/window_title.cpp

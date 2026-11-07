@@ -2,6 +2,7 @@
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_publication.hpp"
 #include "bpr/adapters/process_support/process_supervision.hpp"
+#include "bpr/core/review_skill.hpp"
 #include "bpr/platform/windows_sharing_retry.hpp"
 #include "git_process_output.hpp"
 #include <glaze/json.hpp>
@@ -6895,7 +6896,8 @@ namespace bpr::adapters::git {
 		/// consulted and nothing is written there; the store never records the
 		/// checkout either.
 		class installed_git_publication final
-			: public application::publication_candidate_port
+			: public application::publication_candidate_port,
+			  public application::repository_skill_port
 		{
 		public:
 			installed_git_publication(
@@ -6952,6 +6954,120 @@ namespace bpr::adapters::git {
 					.Tree         = *tree,
 					.Entries      = std::move(*entries),
 				};
+			}
+
+			/// [[BPR-1916]]. The commit's skills, read in the private store
+			/// with the checkout's objects as an alternate: nothing of what the
+			/// checkout has checked out is read.
+			[[nodiscard]] auto read_skills(
+				const application::publication_repository& aRepository,
+				const core::git_commit_oid&                aCommit,
+				const std::stop_token                      aStop)
+				-> application::publication_git_result<std::vector<application::repository_skill_file>> override
+			{
+				if (!aCommit.valid() || aCommit.algorithm() != aRepository.Algorithm) {
+					return failure(application::publication_git_failure::invalid_repository);
+				}
+				const auto context = prepare(aRepository, aStop);
+				if (!context) {
+					return std::unexpected{ context.error() };
+				}
+				const auto commit = std::string{ core::canonical_hex(aCommit).view() };
+				const auto type   = run(*context, { "cat-file", "-t", commit }, standard_output_limit, aStop);
+				// A well-formed commit the checkout's objects cannot name is one
+				// it does not have: the clone has not fetched the base.
+				if (!type && type.error().Failure == application::publication_git_failure::unavailable) {
+					return failure(application::publication_git_failure::object_unavailable, type.error().Detail);
+				}
+				if (!type) {
+					return std::unexpected{ type.error() };
+				}
+				if (*type != "commit\n") {
+					return failure(application::publication_git_failure::object_unavailable);
+				}
+				auto arguments = std::vector<std::string>{ "ls-tree", "-r", "-z", "--full-tree", commit, "--" };
+				for (const auto root : application::repository_skill_roots) {
+					arguments.push_back(":(literal)" + std::string{ root });
+				}
+				const auto listed = run_arguments(*context, std::move(arguments), maximum_listing_bytes, aStop);
+				if (!listed) {
+					return std::unexpected{ missing_or(listed.error()) };
+				}
+				struct folder
+				{
+					std::string              Root;
+					std::string              Name;
+					std::string              Object;
+					std::vector<std::string> Supporting;
+				};
+				auto folders = std::vector<folder>{ };
+				auto rest    = std::string_view{ *listed };
+				while (!rest.empty()) {
+					const auto end = rest.find('\0');
+					if (end == std::string_view::npos) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					const auto record = rest.substr(0U, end);
+					rest.remove_prefix(end + 1U);
+					const auto tab    = record.find('\t');
+					const auto first  = record.find(' ');
+					const auto second = first == std::string_view::npos ? std::string_view::npos : record.find(' ', first + 1U);
+					if (tab == std::string_view::npos || second == std::string_view::npos || second > tab) {
+						return failure(application::publication_git_failure::malformed);
+					}
+					const auto mode   = record.substr(0U, first);
+					const auto kind   = record.substr(first + 1U, second - first - 1U);
+					const auto object = record.substr(second + 1U, tab - second - 1U);
+					const auto path   = record.substr(tab + 1U);
+					const auto root   = std::ranges::find_if(application::repository_skill_roots, [path](const std::string_view aRoot) {
+						return path.size() > aRoot.size() + 1U && path.starts_with(aRoot) && path[aRoot.size()] == '/';
+					});
+					if (root == application::repository_skill_roots.end()) {
+						continue;
+					}
+					const auto inside = path.substr(root->size() + 1U);
+					const auto slash  = inside.find('/');
+					if (slash == std::string_view::npos || slash == 0U) {
+						continue;
+					}
+					const auto name  = inside.substr(0U, slash);
+					const auto file  = inside.substr(slash + 1U);
+					auto       found = std::ranges::find_if(folders, [&](const folder& aFolder) { return aFolder.Root == *root && aFolder.Name == name; });
+					if (found == folders.end()) {
+						if (folders.size() == application::maximum_repository_skills) {
+							continue;
+						}
+						folders.push_back({ .Root = std::string{ *root }, .Name = std::string{ name } });
+						found = std::prev(folders.end());
+					}
+					// A link or a submodule is never read: only a regular blob.
+					if (file == "SKILL.md" && kind == "blob" && (mode == "100644" || mode == "100755")) {
+						found->Object = std::string{ object };
+					} else if (file != "SKILL.md" && found->Supporting.size() < application::maximum_repository_skill_files) {
+						found->Supporting.emplace_back(file);
+					}
+				}
+				auto skills = std::vector<application::repository_skill_file>{ };
+				for (auto& entry : folders) {
+					if (entry.Object.empty()) {
+						continue;
+					}
+					const auto size = run(*context, { "cat-file", "-s", entry.Object }, standard_output_limit, aStop);
+					if (!size) {
+						return std::unexpected{ missing_or(size.error()) };
+					}
+					auto       bytes  = std::uint64_t{ 0U };
+					const auto parsed = std::from_chars(size->data(), size->data() + size->size(), bytes);
+					if (parsed.ec != std::errc{ } || bytes > core::maximum_review_skill_bytes) {
+						continue;
+					}
+					auto text = run(*context, { "cat-file", "blob", entry.Object }, static_cast<std::size_t>(bytes) + 1U, aStop);
+					if (!text) {
+						return std::unexpected{ missing_or(text.error()) };
+					}
+					skills.push_back({ .Root = std::move(entry.Root), .Folder = std::move(entry.Name), .Text = std::move(*text), .Supporting = std::move(entry.Supporting) });
+				}
+				return skills;
 			}
 
 			[[nodiscard]] auto write_blob(
@@ -7874,6 +7990,23 @@ namespace bpr::adapters::git {
 			return std::unexpected{
 				application::git_process_failure::invalid_configuration
 			};
+		}
+	}
+
+	auto make_installed_git_skill_reader(const installed_git_publication_configuration& aConfiguration, const std::stop_token aStop)
+		-> std::expected<std::unique_ptr<application::repository_skill_port>, application::git_process_error>
+	{
+		try {
+			if (aStop.stop_requested()) {
+				return std::unexpected{ application::git_process_failure::cancelled };
+			}
+			auto bootstrapped = bootstrap_installed_git(aConfiguration.GitExecutable, aConfiguration.IsolationRoot, aConfiguration.WindowsSystemRoot, aStop);
+			if (!bootstrapped) {
+				return std::unexpected{ std::move(bootstrapped.error()) };
+			}
+			return std::unique_ptr<application::repository_skill_port>{ std::make_unique<installed_git_publication>(bootstrapped->Isolation, std::move(bootstrapped->Worker)) };
+		} catch (...) {
+			return std::unexpected{ application::git_process_failure::invalid_configuration };
 		}
 	}
 

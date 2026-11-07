@@ -81,6 +81,7 @@
 #include <QDateTime>
 #include <QDialog>
 #include <QDialogButtonBox>
+#include <QDockWidget>
 #include <QFont>
 #include <QFontMetrics>
 #include <QFontMetricsF>
@@ -3306,6 +3307,27 @@ namespace bpr::qt {
 		tourHolding->setContentsMargins(0, 0, 0, 0);
 		TourEditor = new review_tour_editor{ TourHolder };
 		tourHolding->addWidget(TourEditor);
+		// [[BPR-1914]] v003, owner 2026-11-06: "something more like a side
+		// chat". The tour's side chats dock at the window's right edge, past
+		// the drawers, so the code, the comments and the tour keep their
+		// room; closed, they take none. The dock has no title bar: the side
+		// chat's own tabs, + and close are its title.
+		TourSideChatDock = new QDockWidget{ this };
+		TourSideChatDock->setObjectName(QStringLiteral("workbenchTourSideChat"));
+		TourSideChatDock->setWindowTitle(tr("Side chat"));
+		TourSideChatDock->setFeatures(QDockWidget::DockWidgetClosable);
+		TourSideChatDock->setAllowedAreas(Qt::RightDockWidgetArea);
+		TourSideChatDock->setTitleBarWidget(new QWidget{ TourSideChatDock });
+		TourSideChatDock->setWidget(TourEditor->side_chat());
+		addDockWidget(Qt::RightDockWidgetArea, TourSideChatDock);
+		resizeDocks({ TourSideChatDock }, { 380 }, Qt::Horizontal);
+		TourSideChatDock->hide();
+		TourEditor->set_side_chat_visibility_dispatch([this](const bool aShown) {
+			TourSideChatDock->setVisible(aShown);
+			if (aShown) {
+				resizeDocks({ TourSideChatDock }, { std::max(360, TourSideChatDock->width()) }, Qt::Horizontal);
+			}
+		});
 		TrayPages->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
 		wire_tour_page();
 		TrayPages->addWidget(AgentHome);
@@ -4922,11 +4944,13 @@ namespace bpr::qt {
 		ClaudeWrapper = new claude_wrapper_panel{ this };
 		ClaudeWrapper->hide();
 		WritingHooks = new writing_hooks_panel{ agents };
+		column->addSpacing(12);
 		column->addWidget(WritingHooks);
 		WritingHooks->present_label_helper(Behaviour.LabelHelper);
+		// [[BPR-1917]]. The review skill is one of the built-in prompts: it is
+		// listed with them, under the Agent tab, and shows its own editor.
 		ReviewSkill = new review_skill_panel{ agents };
-		column->addSpacing(12);
-		column->addWidget(ReviewSkill);
+		WritingHooks->adopt_review_skill(ReviewSkill);
 		SettingsWindow->adopt_panel(settings_page::agents_and_context, agents);
 		// [[BPR-1856]], owner 2026-11-04: Add repository comes first on
 		// Repositories; the clone folders and linked clones follow it.

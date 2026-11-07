@@ -1,3 +1,7 @@
+# [[BPR-1910]]/[[BPR-1911]] merge reseal (2026-11-06): main 8b3b8a327
+# (BPR-1914 v003, BPR-1916, BPR-1917, BPR-1918, BPR-1919) combined with the
+# refactor's rounds 6 and 7; both sides kept. The manifest and full digests are
+# recomputed over the combined sources; the mutation-branch pin is unchanged.
 # [[BPR-1910]] refactoring reseal: the startup implementation, the public
 # github_application members and the startup fixture accessors move,
 # unchanged, from github_application.cpp to src/app/src/github_application/
@@ -2860,6 +2864,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
         "src/github_application/session_settings.hpp"
+        "src/github_application/skill_runs.cpp"
+        "src/github_application/skill_runs.hpp"
         "src/github_application/startup_failures.cpp"
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
@@ -2885,6 +2891,7 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/window_review_mutations.cpp"
         "src/github_application/window_shutdown.cpp"
         "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_skills.cpp"
         "src/github_application/window_tours.cpp"
         "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
@@ -3039,6 +3046,8 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
         "src/github_application/session_settings.hpp"
+        "src/github_application/skill_runs.cpp"
+        "src/github_application/skill_runs.hpp"
         "src/github_application/startup_failures.cpp"
         "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
@@ -3064,6 +3073,7 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/window_review_mutations.cpp"
         "src/github_application/window_shutdown.cpp"
         "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_skills.cpp"
         "src/github_application/window_tours.cpp"
         "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
@@ -3263,8 +3273,15 @@ function(bpr_verify_app_source_tree app_source_root)
 	# terminal diagnostic inventory and the release-only fixture repairs.
 	# [[BPR-1918]]. Resealed over main 2261fa371 for the custom agent's
 	# run-checks switch in window_agent_chat.cpp.
+	# [[BPR-1916]], [[BPR-1917]] reseal (2026-11-06): skill_runs.{hpp,cpp} and
+	# window_skills.cpp join the inventory; the catalog loader, the skills a
+	# writing hook, an Agent tab question or a tour ask names carried inline,
+	# and the attended prompt-editor look. No grant, provider, gh process,
+	# admission, mutation branch or publication change.
+	# Resealed again over the review skill's place among the built-in prompts
+	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "c76e97f916ac1ff7134cc22597b0111c5e447b07979159bb921406cf11f7fe12"
+        "e40e8d8dc0f8fe02e85518a220b0350e316dc735eb2f2cc889d6405b51228322"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

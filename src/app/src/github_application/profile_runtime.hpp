@@ -565,9 +565,12 @@ namespace bpr::app {
 #if defined(BPR_BUILD_TESTING)
 		/// [[BPR-1879]]. The attended Repository-step look shows a fixture
 		/// review's agent setup as a review read sparsely through `gh`.
-		bool                                             SparseAgentSetupLook = false;
-		std::optional<std::filesystem::path>             CodexAgentExecutable;
-		std::optional<std::filesystem::path>             ClaudeAgentExecutable;
+		bool                                 SparseAgentSetupLook = false;
+		std::optional<std::filesystem::path> CodexAgentExecutable;
+		std::optional<std::filesystem::path> ClaudeAgentExecutable;
+		/// [[BPR-1916]]. A fixture home whose skill folders are read instead
+		/// of none: a fixture never reads the person's own skills.
+		std::optional<std::filesystem::path>             PersonalSkillHome;
 		std::optional<detail::claude_search_environment> ClaudeSearch;
 		std::optional<detail::claude_search_environment> CodexSearch;
 #endif

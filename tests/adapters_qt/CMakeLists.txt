@@ -2691,3 +2691,10 @@ set_tests_properties(qt_pull_request_activity_notifications PROPERTIES
     PASS_REGULAR_EXPRESSION "pull-request-activity-notifications:pass"
     TIMEOUT 60
 )
+# [[BPR-1914]] v003, [[BPR-1919]]. Side chats on the tour's parts, and the agent's code highlighted.
+bpr_add_executable(test_tour_side_chat tour_side_chat_tests.cpp)
+target_link_libraries(test_tour_side_chat PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)
+bpr_enable_hardening(test_tour_side_chat)
+bpr_enable_warnings(test_tour_side_chat)
+bpr_add_network_isolated_test(NAME qt_tour_side_chat COMMAND test_tour_side_chat)
+set_tests_properties(qt_tour_side_chat PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-side-chat:pass" TIMEOUT 30)

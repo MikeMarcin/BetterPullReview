@@ -91,7 +91,37 @@ namespace {
 		auto       reply     = std::string{ };
 		auto       solution  = std::string{ };
 		const auto refers    = question.find("that") != std::string::npos || question.find(" it ") != std::string::npos;
-		if (!continued && !refers) {
+		// [[BPR-1914]] v002. A question about a stop's code: lines of it
+		// quoted in this turn's passage, sorted before its question.
+		const auto code = thisTurn != std::string::npos && asked != std::string::npos && aInput.find("stop_code", thisTurn) < asked;
+		// [[BPR-1914]] v003. "Update this section from our chat": the part
+		// rewritten, for the Solution's chat or a stop's (its number from the
+		// thread's name). Without the chat's earlier turns it has nothing to
+		// update from.
+		const auto updateAt  = question.find("update");
+		const auto update    = updateAt != std::string::npos && question.find("true", updateAt) != std::string::npos && question.find("true", updateAt) < updateAt + 12U;
+		auto       stopTexts = std::string{ };
+		if (update) {
+			const auto stopAt = question.find("thread");
+			const auto named  = stopAt == std::string::npos ? std::string::npos : question.find("stop ", stopAt);
+			if (!continued && question.find("stop ") == std::string::npos) {
+				reply = "There is nothing in this chat yet to update from.";
+			} else if (named != std::string::npos && named < stopAt + 16U) {
+				const auto number = question.substr(named + 5U, question.find_first_not_of("0123456789", named + 5U) - named - 5U);
+				reply             = "I rewrote this stop's explanation from our chat.";
+				stopTexts         = R"({"stop":)" + number + R"(,"explanation":")" + escape("Start here: `clear()` now runs before `draw()`, so each view starts from an empty target.\n\n- `begin_frame()` opens the frame.\n- `present()` shows it.") + R"("})";
+			} else {
+				reply    = "I rewrote the Solution from our chat: the views share one frame, and each clears its own target.";
+				solution = "Both views still draw inside one frame, between `begin_frame()` and `present()`, but each now clears its own target first.\n\n"
+						   "- `clear()` takes the view whose target it clears.\n"
+						   "- `draw()` draws only that view's scene.\n\n"
+						   "So neither view can draw over the other's scene.";
+			}
+		} else if (code) {
+			reply = "Here `clear()` (`" + aTarget + ":5`) runs before `draw()` (`" + aTarget + ":6`) so each view starts from an empty target:\n\n"
+																							   "```cpp\nclear();\ndraw_scene();\n```\n\n"
+																							   "Swapped, `clear()` would wipe what `draw()` just drew.";
+		} else if (!continued && !refers) {
 			reply = "Here *between begin and present* means the window in which one frame is drawn:\n\n"
 					"- `begin_frame()` opens the frame (`"
 				+ aTarget + ":3`).\n"
@@ -103,7 +133,7 @@ namespace {
 		} else if (!continued) {
 			reply = "I can't see what we said before, so I don't know what \"that\" refers to.";
 		} else if (rewrite) {
-			reply    = "I proposed a new Solution that keeps your point from my last answer: the views share one frame, and each clears its own target. It's in the Tour tab to accept, edit or discard.";
+			reply    = "I proposed a new Solution that keeps your point from my last answer: the views share one frame, and each clears its own target. Accept, edit or discard it right here, under this thread.";
 			solution = "Both views still draw inside one frame, between `begin_frame()` and `present()`, but each now clears its own target first.\n\n"
 					   "- `clear()` takes the view whose target it clears.\n"
 					   "- `draw()` draws only that view's scene.\n\n"
@@ -111,7 +141,7 @@ namespace {
 		} else {
 			reply = "Following on from the window in which one frame is drawn: `present()` (`" + aTarget + ":8`) is the only call that shows anything, so whatever a view clears or draws before it stays hidden until then.";
 		}
-		answer_with(R"({"schema":"bpr.tour-ask.v1","reply":")" + escape(reply) + R"(","problem":"","solution":")" + escape(solution) + R"(","stops":[],"stop_texts":[]})");
+		answer_with(R"({"schema":"bpr.tour-ask.v1","reply":")" + escape(reply) + R"(","problem":"","solution":")" + escape(solution) + R"(","stops":[],"stop_texts":[)" + stopTexts + "]}");
 		return 0;
 	}
 	/// [[BPR-1900]]. A drafting run in the review's workspace: it really looks

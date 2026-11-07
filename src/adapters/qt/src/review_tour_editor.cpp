@@ -1,5 +1,6 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 
 #include "bpr/core/tour_steps.hpp"
 
@@ -1032,7 +1033,13 @@ namespace bpr::qt {
 		// [[BPR-1900]]. The tour's own agent session: Draft the tour, its
 		// proposal, and the transcript, which opens only when asked.
 		TourAgentPanel = new tour_agent_panel{ this };
-		DraftFailure   = new failure_notice_card{ TourAgentPanel };
+		// [[BPR-1914]] v003. The side chats: docked at the window's right edge
+		// by the window; until then a window of their own.
+		SideChat = new tour_side_chat{ };
+		SideChat->setParent(this, Qt::Window);
+		SideChat->set_reveal_dispatch([this](const core::tour_thread& aThread) { reveal_part(aThread); });
+		TourAgentPanel->set_chat_dispatch([this] { SideChat->open(core::tour_thread{ }); });
+		DraftFailure = new failure_notice_card{ TourAgentPanel };
 		connect(static_cast<failure_notice_card*>(DraftFailure)->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
 		TourAgentPanel->set_failure_notice(DraftFailure);
 		layout->addWidget(TourAgentPanel);
@@ -1538,6 +1545,10 @@ namespace bpr::qt {
 				}
 			}
 		} const notify{ PresentedObserver };
+		// [[BPR-1914]] v003. The side chats name and quote the tour as it is.
+		if (SideChat != nullptr) {
+			SideChat->set_draft(aProjection.Draft);
+		}
 		Applying         = true;
 		SelectionChanged = false;
 		const bool same  = Shown.Draft && aProjection.Draft && Shown.Draft->Owner == aProjection.Draft->Owner && Shown.Draft->Id == aProjection.Draft->Id;
@@ -1750,45 +1761,42 @@ namespace bpr::qt {
 			}
 		};
 		AgentLabels.push_back(label);
-		// [[BPR-1914]]. Ask about this: offered beside it while a passage is
-		// selected; it opens the tour conversation with the passage quoted.
-		auto* const ask = new quiet_push_button{ tr("Ask about this"), aEditor->parentWidget() };
-		ask->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemAsk") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionAsk")
-																																		   : QStringLiteral("tourStopAsk"));
-		ask->setFocusPolicy(Qt::TabFocus);
-		ask->setFlat(true);
-		ask->setToolTip(tr("Asks the tour agent about the selected text, in the tour conversation. It reads the code to answer and changes nothing unless you accept a proposal."));
-		aLayout->addWidget(ask, 0, Qt::AlignLeft);
-		AskButtons.push_back(ask);
-		const auto offer = [this, aEditor, ask] {
-			ask->setVisible(aEditor->textCursor().hasSelection());
-			// [[BPR-1881]]. Disabled until the agent is set up, saying why.
-			ask->setToolTip(AgentReadiness == agent_setup_readiness::ready ? tr("Asks the tour agent about the selected text, in the tour conversation. It reads the code to answer and changes nothing unless you accept a proposal.")
-																		   : agent_unavailable_reason());
+		// [[BPR-1914]] v003, owner 2026-11-06: "On each part I can pop open a
+		// side chat". One quiet glyph at the end of the field's helpers; with
+		// text selected it opens the chat quoting it. The editor's own menu
+		// offers the same.
+		auto* const chat = new QToolButton{ aEditor->parentWidget() };
+		chat->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemChat") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionChat")
+																																			 : QStringLiteral("tourStopChat"));
+		chat->setAutoRaise(true);
+		chat->setFocusPolicy(Qt::TabFocus);
+		aLayout->addWidget(chat, 0, Qt::AlignLeft);
+		ChatButtons.push_back(chat);
+		const auto selected = [this, aEditor, aHook]() -> QString {
+			auto cursor = aEditor->textCursor();
+			// A stop is read rendered: what is selected there counts too.
+			if (!cursor.hasSelection() && aHook == core::writing_hook::comment && StopReader != nullptr && StopReader->isVisible()) {
+				cursor = StopReader->rendered_view()->textCursor();
+			}
+			return cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n'));
+		};
+		const auto part  = aHook == core::writing_hook::problem ? tr("the Problem") : aHook == core::writing_hook::solution ? tr("the Solution")
+																															: tr("this stop");
+		const auto offer = [chat, selected, part] {
+			const auto passage = !selected().trimmed().isEmpty();
+			chat->setToolTip(passage ? QObject::tr("Open a side chat about the selected text") : QObject::tr("Open a side chat about %1").arg(part));
+			chat->setAccessibleName(chat->toolTip());
 		};
 		AgentLabels.push_back(offer);
-		connect(ask, &QPushButton::clicked, this, [this, aEditor, aHook] {
-			auto passage = core::tour_passage{ };
-			passage.Text = aEditor->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n')).toStdString();
-			if (aHook == core::writing_hook::problem) {
-				passage.Field = core::tour_passage_field::problem;
-			} else if (aHook == core::writing_hook::solution) {
-				passage.Field = core::tour_passage_field::solution;
-			} else {
-				passage.Field = core::tour_passage_field::stop;
-				if (const auto* stop = selected_stop(); stop != nullptr && Shown.Draft) {
-					passage.Stop      = static_cast<std::size_t>(stop - Shown.Draft->Stops.data());
-					passage.StopTitle = stop->Title;
-				}
-			}
-			if (passage.Text.size() > core::maximum_tour_passage_bytes) {
-				auto size = core::maximum_tour_passage_bytes;
-				while (size > 0U && (static_cast<unsigned char>(passage.Text[size]) & 0xC0U) == 0x80U) {
-					--size;
-				}
-				passage.Text.resize(size);
-			}
-			TourAgentPanel->ask_about(std::move(passage));
+		const auto openChat = [this, aHook, selected] { open_side_chat_about(aHook, selected()); };
+		connect(chat, &QToolButton::clicked, this, openChat);
+		aEditor->setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(aEditor, &QWidget::customContextMenuRequested, this, [aEditor, openChat, selected, part](const QPoint& aAt) {
+			auto* const menu = aEditor->createStandardContextMenu(aAt);
+			menu->setAttribute(Qt::WA_DeleteOnClose);
+			menu->addSeparator();
+			menu->addAction(selected().trimmed().isEmpty() ? QObject::tr("Open side chat about %1").arg(part) : QObject::tr("Open side chat about this"), openChat);
+			menu->popup(aEditor->viewport()->mapToGlobal(aAt));
 		});
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, offer);
 		offer();
@@ -1962,19 +1970,132 @@ namespace bpr::qt {
 					draft();
 				}
 			},
-			std::move(aStop), std::move(aDecide));
+			aStop, aDecide);
+		TourStop   = std::move(aStop);
+		TourDecide = std::move(aDecide);
+		wire_side_chat();
 	}
-	void review_tour_editor::set_tour_ask_dispatch(std::function<void(const std::optional<core::tour_passage>&, const QString&)> aAsk) { TourAgentPanel->set_ask_dispatch(std::move(aAsk)); }
+	void review_tour_editor::set_tour_ask_dispatch(tour_side_chat::ask_dispatch aAsk)
+	{
+		TourAsk = std::move(aAsk);
+		wire_side_chat();
+	}
+	void review_tour_editor::set_side_chat_visibility_dispatch(std::function<void(bool)> aVisibility) { SideChat->set_visibility_dispatch(std::move(aVisibility)); }
+	void review_tour_editor::wire_side_chat()
+	{
+		SideChat->set_dispatch(
+			[this](const tour_ask& aAsk) {
+				if (TourAsk) {
+					TourAsk(aAsk);
+				}
+			},
+			TourStop, TourDecide);
+	}
+	void review_tour_editor::open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage) { SideChat->open(aThread, std::move(aPassage)); }
+	void review_tour_editor::open_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
+	{
+		auto              passage = std::optional<core::tour_passage>{ };
+		auto              thread  = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
+																																											  : core::tour_thread_kind::stop };
+		const auto* const stop    = selected_stop();
+		if (thread.Kind == core::tour_thread_kind::stop) {
+			if (stop == nullptr || !Shown.Draft) {
+				return;
+			}
+			thread.Stop = stop->Id;
+		}
+		if (!aSelected.trimmed().isEmpty()) {
+			passage        = core::tour_passage{ };
+			passage->Text  = aSelected.toStdString();
+			passage->Field = thread.Kind == core::tour_thread_kind::problem ? core::tour_passage_field::problem : thread.Kind == core::tour_thread_kind::solution ? core::tour_passage_field::solution
+																																								  : core::tour_passage_field::stop;
+			if (stop != nullptr && thread.Kind == core::tour_thread_kind::stop) {
+				passage->Stop      = static_cast<std::size_t>(stop - Shown.Draft->Stops.data());
+				passage->StopTitle = stop->Title;
+			}
+			if (passage->Text.size() > core::maximum_tour_passage_bytes) {
+				auto size = core::maximum_tour_passage_bytes;
+				while (size > 0U && (static_cast<unsigned char>(passage->Text[size]) & 0xC0U) == 0x80U) {
+					--size;
+				}
+				passage->Text.resize(size);
+			}
+		}
+		// A stop's chat opens with its lines shown in the code beside it.
+		if (thread.Kind == core::tour_thread_kind::stop) {
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(thread, std::move(passage));
+	}
+	void review_tour_editor::reveal_part(const core::tour_thread& aThread)
+	{
+		switch (aThread.Kind) {
+		case core::tour_thread_kind::tour:     return;
+		case core::tour_thread_kind::problem:  open_step(core::tour_step::problem); return;
+		case core::tour_thread_kind::solution: open_step(core::tour_step::solution); return;
+		case core::tour_thread_kind::stop:
+			show_stops();
+			go_to_stop(aThread.Stop);
+			trigger(tour_editor_action::navigate_stop);
+			return;
+		}
+	}
+	void review_tour_editor::ask_about_code(const std::optional<core::tour_source_range>& aSelected)
+	{
+		const auto* const stop = selected_stop();
+		if (stop == nullptr || !Shown.Draft) {
+			return;
+		}
+		const auto& own   = stop->Mapped ? stop->Mapped : stop->Original;
+		const auto  range = aSelected ? aSelected : own;
+		auto        code  = core::tour_passage{ .Field = core::tour_passage_field::stop_code, .Stop = static_cast<std::size_t>(stop - Shown.Draft->Stops.data()), .StopTitle = stop->Title };
+		if (range) {
+			code.Path      = range->Path;
+			code.FirstLine = range->First.Line + 1U;
+			code.LastLine  = range->Last.Line + 1U;
+			if (ExcerptSource) {
+				if (const auto excerpt = ExcerptSource(*range)) {
+					auto lines = QStringList{ };
+					for (std::size_t index = 0U; index < excerpt->Lines.size(); ++index) {
+						const auto line = excerpt->First + static_cast<std::uint32_t>(index);
+						if (line >= code.FirstLine && line <= code.LastLine) {
+							lines << excerpt->Lines[index];
+						}
+					}
+					code.Text = lines.join(QLatin1Char('\n')).toStdString();
+				}
+			}
+		} else if (stop->Destination) {
+			code.Path      = stop->Destination->Path;
+			code.FirstLine = stop->Destination->FirstLine + 1U;
+			code.LastLine  = stop->Destination->LastLine + 1U;
+		}
+		if (code.Text.find_first_not_of(" \t\r\n") == std::string::npos) {
+			code.Text = code.Path.empty() ? std::string{ "This stop's code." } : code.Path + ":" + std::to_string(code.FirstLine) + "-" + std::to_string(code.LastLine);
+		}
+		if (code.Text.size() > core::maximum_tour_passage_bytes) {
+			code.Text.resize(core::maximum_tour_passage_bytes);
+			while (!code.Text.empty() && (static_cast<unsigned char>(code.Text.back()) & 0xC0U) == 0x80U) {
+				code.Text.pop_back();
+			}
+		}
+		if (!aSelected) {
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id }, std::move(code));
+	}
 	void review_tour_editor::present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal)
 	{
 		TourAgentPanel->present(aSession, aProposal);
+		SideChat->present(aSession, aProposal, Shown.Draft);
 		restyle_agent_features();
 	}
 	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
 		RunningHook  = aHook;
 		RunningDraft = aDraftTour;
-		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour || aAsking, aAsking);
+		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour || aAsking);
+		SideChat->set_running(aHook.has_value() || aDraftTour || aAsking);
 		refresh_agent_features();
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
@@ -2049,9 +2170,6 @@ namespace bpr::qt {
 				features.push_back(button);
 			}
 		}
-		for (auto* const ask : AskButtons) {
-			features.push_back(ask);
-		}
 		for (auto* const widget : { static_cast<QWidget*>(StopMagic), static_cast<QWidget*>(SuggestOutline), static_cast<QWidget*>(InsertOutline), static_cast<QWidget*>(TourAgentPanel != nullptr ? TourAgentPanel->draft_button() : nullptr), AgentField }) {
 			if (widget != nullptr) {
 				features.push_back(widget);
@@ -2081,6 +2199,10 @@ namespace bpr::qt {
 			auto* const open = static_cast<failure_notice_card*>(notice)->Open;
 			apply_agent_accent(*open, ground);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
+		}
+		SideChat->restyle(ground);
+		for (auto* const chat : ChatButtons) {
+			chat->setIcon(side_chat_icon(chat->palette()));
 		}
 		if (TourAgentPanel != nullptr) {
 			TourAgentPanel->restyle(ground);
@@ -2118,6 +2240,7 @@ namespace bpr::qt {
 			SuggestOutline->setText(tr("Suggest an outline"));
 		}
 		TourAgentPanel->set_available(ready, agent_unavailable_reason());
+		SideChat->set_available(ready, agent_unavailable_reason());
 		InsertOutline->setToolTip(ready ? tr("Insert the checked suggestions as empty stops.") : agent_unavailable_reason());
 	}
 	void review_tour_editor::fit_agent_bar()
@@ -2445,6 +2568,14 @@ namespace bpr::qt {
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
 		fields->addWidget(add_failure_notice(core::writing_hook::comment, StopFields));
+		// [[BPR-1914]] v003. The read stop's own menu opens its side chat.
+		StopReader->set_context_menu_builder([this](QMenu& aMenu) {
+			aMenu.addSeparator();
+			aMenu.addAction(tr("Open side chat about this stop"), this, [this] {
+				const auto text = StopReader->rendered_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+				open_side_chat_about(core::writing_hook::comment, text);
+			});
+		});
 		// The first to stay is the first a stop is written with.
 		StopActions->yield(useLines, true);
 		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
@@ -3332,6 +3463,35 @@ namespace bpr::qt {
 				reader->set_code_font(code, tab);
 			}
 		}
+		apply_agent_code_style();
+	}
+
+	void review_tour_editor::apply_agent_code_style()
+	{
+		// [[BPR-1919]]. The agent's proposals and replies set their code as a
+		// stop does: the profile's code font, the panes' colours, the diff's
+		// highlighter.
+		const auto code = ReaderCodeFont.value_or(to_presentation_font(default_typography_settings().Code));
+		const auto tab  = 4.0 * QFontMetricsF{ code }.horizontalAdvance(QLatin1Char{ ' ' });
+		if (TourAgentPanel != nullptr) {
+			TourAgentPanel->set_code_style(code, tab, CodeTheme, CodeSyntaxDispatch);
+		}
+		if (SideChat != nullptr) {
+			SideChat->set_code_style(code, tab, CodeTheme, CodeSyntaxDispatch);
+		}
+	}
+
+	void review_tour_editor::set_code_theme(const markdown_code_theme& aTheme)
+	{
+		// [[BPR-1919]]. Fenced code in the tour's rendered text in the panes'
+		// colours for the appearance, as the diff draws the same tokens.
+		CodeTheme = aTheme;
+		for (auto* const reader : { StopReader, Preview, PublicationPreview }) {
+			if (reader != nullptr) {
+				reader->set_code_theme(aTheme);
+			}
+		}
+		apply_agent_code_style();
 	}
 
 	void review_tour_editor::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
@@ -3342,6 +3502,8 @@ namespace bpr::qt {
 				reader->request_code_syntax();
 			}
 		}
+		CodeSyntaxDispatch = std::move(aDispatch);
+		apply_agent_code_style();
 	}
 
 	void review_tour_editor::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
@@ -3351,6 +3513,12 @@ namespace bpr::qt {
 			if (reader != nullptr) {
 				reader->apply_code_syntax(aSpans);
 			}
+		}
+		if (TourAgentPanel != nullptr) {
+			TourAgentPanel->apply_code_syntax(aSpans);
+		}
+		if (SideChat != nullptr) {
+			SideChat->apply_code_syntax(aSpans);
 		}
 	}
 

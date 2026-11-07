@@ -256,6 +256,20 @@ if(TARGET Git::Git)
     bpr_add_network_isolated_test(NAME review_cycle_publisher WINDOWS_UNCONTAINED COMMAND test_review_cycle_publisher ${bpr_workspace_git_arguments})
 endif()
 
+# [[BPR-1916]] AC2. Repository skills are read at the pull request's base,
+# never its head, by the product's installed-Git skill reader.
+if(TARGET Git::Git)
+    bpr_add_executable(test_repository_skill_reader repository_skill_reader_tests.cpp)
+    target_link_libraries(test_repository_skill_reader PRIVATE BetterPullReview::AdapterSQLite BetterPullReview::AdapterGit BetterPullReview::Application)
+    bpr_enable_hardening(test_repository_skill_reader)
+    if(WIN32)
+        target_link_libraries(test_repository_skill_reader PRIVATE advapi32 BetterPullReview::Platform)
+    endif()
+    bpr_enable_warnings(test_repository_skill_reader)
+    bpr_add_network_isolated_test(NAME repository_skill_reader WINDOWS_UNCONTAINED COMMAND test_repository_skill_reader ${bpr_workspace_git_arguments})
+    set_tests_properties(repository_skill_reader PROPERTIES TIMEOUT 120)
+endif()
+
 # [[BPR-1177]]. Publish as Pull Request through the desktop's cycle host:
 # the preview's baselines, the finite plan, the association, privacy, an
 # externally published link and history after the squash.

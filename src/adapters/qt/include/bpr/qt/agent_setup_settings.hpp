@@ -198,9 +198,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto editor() const noexcept -> QPlainTextEdit* { return Editor; }
 		[[nodiscard]] auto status_text() const -> QString;
 		[[nodiscard]] auto offer() const noexcept -> QWidget* { return Offer; }
+		/// \brief [[BPR-1917]]. Shown as one of the built-in prompts: the
+		/// prompts pane gives its title, purpose and state, so its own heading
+		/// and introduction go, and its editor is the prompts' fixed-pitch one.
+		void show_as_built_in_prompt(const QFont& aEditorFont);
+		/// \brief Whether the profile has its own copy (Changed from built-in).
+		[[nodiscard]] auto changed() const noexcept -> bool { return Changed; }
 
 	private:
 		dispatch        Dispatch;
+		QLabel*         Heading    = nullptr;
+		QLabel*         Intro      = nullptr;
+		QPushButton*    Restore    = nullptr;
+		bool            Changed    = false;
 		std::uint64_t   Generation = 0U;
 		QPlainTextEdit* Editor     = nullptr;
 		QPlainTextEdit* Default    = nullptr;

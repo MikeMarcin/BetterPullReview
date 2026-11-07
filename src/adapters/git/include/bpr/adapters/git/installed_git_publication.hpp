@@ -3,6 +3,7 @@
 
 #include "bpr/application/git_process_port.hpp"
 #include "bpr/application/publication_candidate_port.hpp"
+#include "bpr/application/repository_skill_port.hpp"
 
 #include <expected>
 #include <filesystem>
@@ -31,6 +32,16 @@ namespace bpr::adapters::git {
 		std::stop_token                                aStop = { })
 		-> std::expected<
 			std::unique_ptr<application::publication_candidate_port>,
+			application::git_process_error>;
+
+	/// \brief [[BPR-1916]]. The same private catalog, read-only: a commit's
+	/// skills from a checkout's objects (`application::repository_skill_port`).
+	/// Give it its own isolation root, as publication has.
+	[[nodiscard]] auto make_installed_git_skill_reader(
+		const installed_git_publication_configuration& aConfiguration,
+		std::stop_token                                aStop = { })
+		-> std::expected<
+			std::unique_ptr<application::repository_skill_port>,
 			application::git_process_error>;
 }
 

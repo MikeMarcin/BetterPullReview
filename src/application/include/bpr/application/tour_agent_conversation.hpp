@@ -28,8 +28,12 @@ namespace bpr::application {
 
 	/// \brief The request of one ask turn. Nothing when the evidence is not
 	/// valid UTF-8 or too large.
-	[[nodiscard]] auto build_tour_ask_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, const core::tour_conversation& aConversation, const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion)
-		-> std::optional<std::string>;
+	/// [[BPR-1914]] v002. `aThread` is the part of the tour the turn was asked
+	/// from; every turn names its thread, so a follow-up refers to its own.
+	/// v003: `aConversation` is that thread's side chat alone, and `aUpdate`
+	/// asks for the part rewritten from it.
+	[[nodiscard]] auto build_tour_ask_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, const core::tour_conversation& aConversation, const core::tour_thread& aThread,
+											 const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false) -> std::optional<std::string>;
 
 	/// \brief Reads an ask turn's answer from the agent's last message: one
 	/// JSON object of `tour_ask_schema`, alone or in one fenced block, with

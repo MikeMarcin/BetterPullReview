@@ -378,10 +378,10 @@ namespace bpr::core {
 	{
 		auto proposal = tour_proposal{ .Run = aRun };
 		if (aAnswer.Problem && nonblank(*aAnswer.Problem)) {
-			proposal.Items.push_back({ .Part = tour_proposal_part::problem, .Text = *aAnswer.Problem, .ReplacesAuthorText = nonblank(aDraft.Problem) });
+			proposal.Items.push_back({ .Part = tour_proposal_part::problem, .Text = *aAnswer.Problem, .ReplacesAuthorText = nonblank(aDraft.Problem), .Run = aRun });
 		}
 		if (aAnswer.Solution && nonblank(*aAnswer.Solution)) {
-			proposal.Items.push_back({ .Part = tour_proposal_part::solution, .Text = *aAnswer.Solution, .ReplacesAuthorText = nonblank(aDraft.Solution) });
+			proposal.Items.push_back({ .Part = tour_proposal_part::solution, .Text = *aAnswer.Solution, .ReplacesAuthorText = nonblank(aDraft.Solution), .Run = aRun });
 		}
 		auto stops = std::vector<tour_proposal_item>{ };
 		for (std::size_t index = 0U; index < aAnswer.Stops.size() && index < maximum_proposed_tour_stops; ++index) {
@@ -392,7 +392,7 @@ namespace bpr::core {
 				continue;
 			}
 			const auto& file = *std::ranges::find(aFiles, stop.Path, &tour_anchor_file::Path);
-			stops.push_back({ .Part = tour_proposal_part::stop, .Text = stop.Explanation, .Stop = stop, .Verdict = verdict, .Placement = place_tour_stop(stop, file) });
+			stops.push_back({ .Part = tour_proposal_part::stop, .Text = stop.Explanation, .Stop = stop, .Verdict = verdict, .Placement = place_tour_stop(stop, file), .Run = aRun });
 		}
 		// On the change first, then near it, then off it; the agent's order
 		// within each.
@@ -581,12 +581,16 @@ namespace bpr::core {
 		}
 	}
 
-	auto begin_tour_ask(tour_agent_session& aSession, const std::optional<tour_passage>& aPassage, const std::string_view aQuestion) -> std::optional<tour_agent_run_id>
+	auto replay(const tour_agent_session& aSession, const std::optional<tour_thread>& aThread) -> tour_conversation;
+
+	auto begin_tour_ask(tour_agent_session& aSession, const tour_thread& aThread, const std::optional<tour_passage>& aPassage, const std::string_view aQuestion, const bool aUpdate) -> std::optional<tour_agent_run_id>
 	{
 		if (!nonblank(aQuestion) || aQuestion.size() > maximum_tour_question_bytes || !valid_writing_utf8(aQuestion)) {
 			return std::nullopt;
 		}
-		if (aPassage && (!nonblank(aPassage->Text) || aPassage->Text.size() > maximum_tour_passage_bytes || !valid_writing_utf8(aPassage->Text) || aPassage->StopTitle.size() > maximum_tour_passage_bytes || !valid_writing_utf8(aPassage->StopTitle))) {
+		if (aPassage
+			&& (!nonblank(aPassage->Text) || aPassage->Text.size() > maximum_tour_passage_bytes || !valid_writing_utf8(aPassage->Text) || aPassage->StopTitle.size() > maximum_tour_passage_bytes || !valid_writing_utf8(aPassage->StopTitle)
+				|| aPassage->Path.size() > maximum_tour_path_bytes || !valid_writing_utf8(aPassage->Path) || aPassage->LastLine < aPassage->FirstLine)) {
 			return std::nullopt;
 		}
 		const auto run = begin_tour_run(aSession, tour_agent_request::ask, tools_for(tour_agent_request::ask), aQuestion);
@@ -594,6 +598,8 @@ namespace bpr::core {
 			auto& started    = aSession.Runs.back();
 			started.Passage  = aPassage;
 			started.Question = std::string{ aQuestion };
+			started.Thread   = aThread;
+			started.Update   = aUpdate;
 		}
 		return run;
 	}
@@ -612,16 +618,56 @@ namespace bpr::core {
 
 	auto tour_conversation_of(const tour_agent_session& aSession) -> tour_conversation
 	{
+		return replay(aSession, std::nullopt);
+	}
+
+	auto tour_conversation_of(const tour_agent_session& aSession, const tour_thread& aThread) -> tour_conversation { return replay(aSession, aThread); }
+
+	auto time_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::uint32_t aSeconds) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end() || found->State == tour_agent_run_state::running) {
+			return false;
+		}
+		found->Seconds = aSeconds;
+		return true;
+	}
+
+	auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal
+	{
+		if (aThread.Kind == tour_thread_kind::tour) {
+			return aProposal;
+		}
+		std::erase_if(aProposal.Items, [&aThread](const tour_proposal_item& aItem) {
+			switch (aThread.Kind) {
+			case tour_thread_kind::problem:  return aItem.Part != tour_proposal_part::problem;
+			case tour_thread_kind::solution: return aItem.Part != tour_proposal_part::solution;
+			case tour_thread_kind::stop:     return aItem.Part != tour_proposal_part::stop_text || aItem.StopId != aThread.Stop;
+			case tour_thread_kind::tour:     return false;
+			}
+			return true;
+		});
+		aProposal.LeftOut.clear();
+		return aProposal;
+	}
+
+	auto replay(const tour_agent_session& aSession, const std::optional<tour_thread>& aThread) -> tour_conversation
+	{
 		auto turns = std::vector<tour_conversation_turn>{ };
 		for (const auto& run : aSession.Runs) {
 			if (run.State != tour_agent_run_state::answered) {
 				continue;
 			}
+			// [[BPR-1914]] v003. A side chat replays its own turns; the
+			// tour's chat also has the whole-tour drafts.
+			if (aThread && (run.Request == tour_agent_request::ask ? !(run.Thread == *aThread) : aThread->Kind != tour_thread_kind::tour)) {
+				continue;
+			}
 			if (run.Request == tour_agent_request::ask) {
-				turns.push_back({ run.Question, run.Passage, run.Reply });
+				turns.push_back({ run.Question, run.Passage, run.Reply, run.Thread });
 			} else if (run.Request == tour_agent_request::draft_tour) {
 				const auto answered = std::ranges::find(run.Entries, tour_transcript_kind::answered, &tour_transcript_entry::Kind);
-				turns.push_back({ "Draft the tour", std::nullopt, answered == run.Entries.end() ? std::string{ } : answered->Text });
+				turns.push_back({ "Draft the tour", std::nullopt, answered == run.Entries.end() ? std::string{ } : answered->Text, tour_thread{ } });
 			}
 		}
 		auto conversation = tour_conversation{ };
@@ -646,7 +692,7 @@ namespace bpr::core {
 			}
 			seen.push_back(rewrite.Stop);
 			const auto& stop = aDraft.Stops[rewrite.Stop - 1U];
-			auto        item = tour_proposal_item{ .Part = tour_proposal_part::stop_text, .Text = rewrite.Explanation, .ReplacesAuthorText = nonblank(stop.Body), .StopId = stop.Id };
+			auto        item = tour_proposal_item{ .Part = tour_proposal_part::stop_text, .Text = rewrite.Explanation, .ReplacesAuthorText = nonblank(stop.Body), .StopId = stop.Id, .Run = aRun };
 			item.Stop.Title  = stop.Title;
 			proposal.Items.push_back(std::move(item));
 		}
@@ -685,5 +731,22 @@ namespace bpr::core {
 			}
 		}
 		return aIncoming;
+	}
+
+	auto thread_runs(const tour_agent_session& aSession, const tour_thread& aThread) -> std::vector<const tour_agent_run*>
+	{
+		auto runs = std::vector<const tour_agent_run*>{ };
+		for (const auto& run : aSession.Runs) {
+			if (run.Request == tour_agent_request::ask && run.Thread == aThread) {
+				runs.push_back(&run);
+			}
+		}
+		return runs;
+	}
+
+	auto proposed_in_thread(const tour_agent_session& aSession, const tour_proposal_item& aItem) noexcept -> bool
+	{
+		const auto* const run = find_tour_run(aSession, aItem.Run);
+		return run != nullptr && run->Request == tour_agent_request::ask;
 	}
 }
