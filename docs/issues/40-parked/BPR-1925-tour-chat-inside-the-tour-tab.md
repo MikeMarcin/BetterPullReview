@@ -303,3 +303,105 @@ and `ATTENDED_TOUR_CONVERSATION_SHOWN`.
 - One candidate, `BPR-1925-tour-chat-toggle-v002` (revision
   `8f3b96703-v002`), with one Accept/Reject question.
 - Status: ready, awaiting the owner.
+
+### v002 rejected (2026-11-07)
+
+v002 was merged to `main` as `223c6f70e`. The owner rejected it in session
+`b14aff10f34c9163ecf5fb57705f474c`, with one picture of the "Proposed tour"
+box under Draft the tour, verbatim:
+
+> Overall fantastic.
+>
+> Missing syntax highlights in this part. In fact I think this whole section
+> probably just goes away and we move the accept into the stops directly.
+> probably where it says ready, next right now.
+>
+> In fact ready, next doesn't seem to do anything.
+>
+> Let's put a differnt color on the stop rails for stops that aren't
+> accepted, maybe grey and then turn them back yellow once accepted.
+
+The picture stays in that session's state, not in the repository. Both v002
+hosts are stopped and both v002 frozen roots removed.
+
+## v003 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v003 is on branch
+`bpr1925-v003-proposals-in-place`, made from `origin/main` `223c6f70e`. It
+leaves the core alone: BPR-1900's rules hold (each part decided on its own,
+nothing changes until accepted, nothing silently overwritten).
+
+- **The proposal waits in the tour.** `tour_agent_panel` still builds each
+  pending part's box, and offers each one to a placer
+  (`set_proposal_placer`). The editor puts it on what it changes:
+  - a proposed stop on the route, after the tour's own stops, numbered on
+    from them, in a `proposed_stop_frame`: a grey dashed ring and rail and a
+    dashed card. Accepted, it is a stop of the tour, with the amber ring;
+  - a stop's new explanation on that stop's card, before its last row, while
+    the stop is open;
+  - the proposed Problem or Solution under the part's own text.
+
+  The Problem's, Solution's or Stops' step header carries a quiet grey
+  "Proposed" pill while one of its parts waits. Each box has Edit text and
+  Discard, then Accept at the right, where Ready, next sits. Move to nearest
+  change and the placement notes come with the box. A decided part leaves.
+  Under Draft the tour one line stays: "N parts wait in the tour, marked
+  grey", with Accept all (shown for more than one), and the left-out and
+  outside-list lines. A part with no place in the tour stays listed there.
+- **Highlighting.** The fenced blocks were coloured, but the boxes' readers
+  had no language for inline code. The placer gives each reader its part's
+  language, as the side chat does: a stop's own file, or the tour's
+  commonest language.
+- **Ready, next did nothing.** Two causes:
+  - The core refused it: a stop is Ready only when its lines are confirmed
+    (`core::ready`). A stop the agent proposed carries its lines as a
+    destination with mapping `unavailable`, so Ready, and Reaffirm too, were
+    refused, and nothing said why.
+  - Its handler asked whether the stop was Ready right after dispatching,
+    before the host had answered, so it never went on.
+
+  Now:
+  - Ready, next is enabled only when `core::ready` holds. Otherwise its
+    tooltip says to confirm the stop's lines first (Show in code, select
+    them, Use selected lines), and Show in code is the card's default.
+  - A click remembers the stop, and once a presentation shows it Ready the
+    tour goes to the next stop, just after that presentation.
+  - One primary action at a time: Accept while proposed (Ready, next is
+    hidden while a new explanation waits), then Show in code and Use selected
+    lines while the lines are unconfirmed, then Ready, next.
+- **For [[BPR-1930]].** Proposed removals, merges and reorders can be placed
+  the same way: a box with Accept on the stops they change, grey until
+  accepted.
+- RFC-BPR-0092 amendment v003 and `review-tours.md` say this.
+
+### Verification (v003, focused)
+
+On `0ea0dc19f`, dev build, 19 tests pass.
+
+`qt_tour_chat_in_tab` adds, after the chat column's colour checks (dark and
+light):
+- one line saying three parts wait, and no list in the panel;
+- the proposed stop on the route in its grey frame, with its Accept on it, at
+  the right of Discard;
+- that stop's `cpp` block and inline code coloured;
+- the Problem's under its own text;
+- Stop 1's new explanation on its card, with Ready, next hidden and its
+  inline code coloured;
+- Accept on the proposed stop accepting it;
+- with everything decided, no line and no grey stops, and Ready, next back;
+- Ready, next on a stop with confirmed lines dispatching `complete`,
+  waiting, then going to Stop 2 once the stop shows Ready;
+- a stop with unconfirmed lines: Ready, next disabled with its reason, and
+  Show in code the default.
+
+`qt_tour_agent_session_view` follows the parts into the tour (on the
+Solution, on the route). The rest pass as for v002: the drawer-fit tests at
+100, 125 and 200, the tour editor tests, `qt_tour_side_chat`,
+`qt_tour_click_scroll`, `qt_scoped_prose_editor`, `core_tour_agent_session`,
+the architecture tests and the composition contract.
+
+`coding-format-check` passes, and `verify_documentation.py` prints
+`DOCUMENTATION_OK`. The offscreen look on the dev build reaches
+`ATTENDED_TOUR_CONVERSATION_SHOWN`. Its picture shows Stop 1 accepted (amber,
+lines to confirm, Ready, next waiting) and Stop 2 proposed under a grey rail,
+with coloured inline code and Accept.
