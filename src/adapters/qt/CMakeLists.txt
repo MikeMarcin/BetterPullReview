@@ -121,6 +121,10 @@ add_library(
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
+		src/diff_workbench_find_and_editing.cpp
+		src/diff_workbench_marks_and_navigation.cpp
+		src/diff_workbench_presentation.cpp
+		src/diff_workbench_support.cpp
         src/source_find_bar.cpp
         src/source_search_panel.cpp
         src/line_details_pane.cpp
