@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1928"
 title: "Split github_application_host.cpp by responsibility"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
