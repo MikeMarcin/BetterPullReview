@@ -194,6 +194,27 @@ def read(relative_path: str) -> str:
     return (REPOSITORY_ROOT / relative_path).read_text(encoding="utf-8")
 
 
+# The composition root is `github_application.cpp` and the responsibility files
+# split out of it under `github_application/` ([[BPR-1905]] onward). A scan of
+# what the composition composes reads all of them, in a fixed order.
+COMPOSITION_ROOT_PATH = "src/app/src/github_application.cpp"
+COMPOSITION_ROOT_DIRECTORY = "src/app/src/github_application"
+
+
+def composition_root_paths() -> list[str]:
+    directory = REPOSITORY_ROOT / COMPOSITION_ROOT_DIRECTORY
+    parts = sorted(
+        path.relative_to(REPOSITORY_ROOT).as_posix()
+        for path in directory.iterdir()
+        if path.suffix in (".cpp", ".hpp")
+    )
+    return [COMPOSITION_ROOT_PATH, *parts]
+
+
+def read_composition_source() -> str:
+    return "\n".join(read(path) for path in composition_root_paths())
+
+
 def strip_cxx_comments(source: str) -> str:
     """Blank out C++ comments, keeping string and character literals intact.
 
@@ -307,7 +328,7 @@ CLI_READ_OFFERED_DEFINITION = re.compile(
 # asked; the accounts exist only with a fixture (checked below), other graphs
 # still answer false, and the shipped graph still asks its one question.
 CLI_READ_OFFERED_HERE_DEFINITION = re.compile(
-    r"auto\s+cli_read_offered_here\(\s*\)\s*const\s+noexcept\s*->\s*bool\s*\{\s*"
+    r"auto\s+(?:[A-Za-z_]\w*::)*cli_read_offered_here\(\s*\)\s*const\s+noexcept\s*->\s*bool\s*\{\s*"
     r"#\s*if\s+defined\(BPR_BUILD_TESTING\)\s*"
     r"#\s*if\s+defined\(BPR_GITHUB_CLI_PLATFORM\)\s*"
     r"return\s+GithubCliDiscoveryAccounts\.has_value\(\)\s*\|\|\s*"
@@ -431,7 +452,15 @@ def automated_test_boundary_reader_findings(sources: dict[str, str]) -> list[str
             "the composition must read the marker exactly once, in "
             "inside_automated_test_boundary, and only in the tests-enabled graph"
         )
-    if len(AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER.findall(composition)) != 1:
+    profile_composition = strip_cxx_comments(
+        "\n".join(
+            text
+            for path, text in sorted(sources.items())
+            if path == AUTOMATED_TEST_BOUNDARY_READER_PATH
+            or path.startswith(COMPOSITION_ROOT_DIRECTORY + "/")
+        )
+    )
+    if len(AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER.findall(profile_composition)) != 1:
         findings.append(
             "a profile's composition must take InsideAutomatedTestBoundary "
             "from the one reader together with the fixture"
@@ -841,7 +870,7 @@ class CompositionContractTests(unittest.TestCase):
         self.assertNotIn("GITHUB_FIXTURE", completed.stdout)
 
     def test_concrete_github_selection_is_owned_by_composition(self) -> None:
-        composition_source = read("src/app/src/github_application.cpp")
+        composition_source = read_composition_source()
         required_selection = (
             "make_github_provider(",
             "native_github_wire_transport_factory",
@@ -956,10 +985,15 @@ class CompositionContractTests(unittest.TestCase):
         reader = AUTOMATED_TEST_BOUNDARY_READER.search(composition)
         self.assertIsNotNone(reader)
         reader_text = reader.group(0) if reader is not None else ""
-        profile_answer = AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER.search(composition)
+        profile_answer = AUTOMATED_TEST_BOUNDARY_PROFILE_ANSWER.search(
+            "\n".join(sources[path] for path in composition_root_paths())
+        )
         self.assertIsNotNone(profile_answer)
         profile_answer_text = (
             profile_answer.group(0) if profile_answer is not None else ""
+        )
+        profile_answer_path = next(
+            path for path in composition_root_paths() if profile_answer_text in sources[path]
         )
         # [[BPR-0983]]. The updater and the update lifetime ask the reader.
         for asker in (
@@ -1028,7 +1062,7 @@ class CompositionContractTests(unittest.TestCase):
             },
             "profile-ignores-the-reader": {
                 **sources,
-                AUTOMATED_TEST_BOUNDARY_READER_PATH: composition.replace(
+                profile_answer_path: sources[profile_answer_path].replace(
                     profile_answer_text,
                     "InsideAutomatedTestBoundary = aFixture.has_value();",
                     1,
@@ -1115,6 +1149,11 @@ class CompositionContractTests(unittest.TestCase):
             temporary_root = Path(temporary_directory)
             baseline_path = temporary_root / "baseline-github-application.cpp"
             baseline_path.write_text(source, encoding="utf-8")
+            # The inventory reads a root's split composition files beside it.
+            shutil.copytree(
+                REPOSITORY_ROOT / COMPOSITION_ROOT_DIRECTORY,
+                temporary_root / Path(COMPOSITION_ROOT_DIRECTORY).name,
+            )
 
             def verify(
                 candidate: Path,

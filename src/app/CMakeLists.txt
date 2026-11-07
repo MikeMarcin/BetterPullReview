@@ -139,14 +139,23 @@ if(BPR_BUILD_QT)
             src/github_application.cpp
             src/github_application/agent_composition.cpp
             src/github_application/blob_sources.cpp
+            src/github_application/cli_accounts.cpp
+            src/github_application/defect_identity.cpp
             src/github_application/device_authorization_composition.cpp
             src/github_application/github_presentation_projections.cpp
+            src/github_application/insights_metrics.cpp
             src/github_application/profile_hosts.cpp
+            src/github_application/profile_runtime.cpp
+            src/github_application/profile_runtime_construction.cpp
+            src/github_application/profile_runtime_release_access.cpp
+            src/github_application/profile_runtime_shutdown.cpp
+            src/github_application/profile_runtime_sign_in.cpp
             src/github_application/public_preview_wire_self_check.cpp
             src/github_application/public_preview_wire_transport.cpp
             src/github_application/queue_notifications.cpp
             src/github_application/review_mutation_selection.cpp
             src/github_application/session_settings.cpp
+            src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
             src/github_application/window_review_lanes.cpp
             src/github_application/workbench_composition.cpp
@@ -482,12 +491,24 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/agent_composition.hpp
 		src/app/src/github_application/blob_sources.cpp
 		src/app/src/github_application/blob_sources.hpp
+		src/app/src/github_application/cli_accounts.cpp
+		src/app/src/github_application/cli_accounts.hpp
+		src/app/src/github_application/defect_identity.cpp
+		src/app/src/github_application/defect_identity.hpp
 		src/app/src/github_application/device_authorization_composition.cpp
 		src/app/src/github_application/device_authorization_composition.hpp
 		src/app/src/github_application/github_presentation_projections.cpp
 		src/app/src/github_application/github_presentation_projections.hpp
+		src/app/src/github_application/insights_metrics.cpp
+		src/app/src/github_application/insights_metrics.hpp
 		src/app/src/github_application/profile_hosts.cpp
 		src/app/src/github_application/profile_hosts.hpp
+		src/app/src/github_application/profile_runtime.cpp
+		src/app/src/github_application/profile_runtime.hpp
+		src/app/src/github_application/profile_runtime_construction.cpp
+		src/app/src/github_application/profile_runtime_release_access.cpp
+		src/app/src/github_application/profile_runtime_shutdown.cpp
+		src/app/src/github_application/profile_runtime_sign_in.cpp
 		src/app/src/github_application/public_preview_wire_self_check.cpp
 		src/app/src/github_application/public_preview_wire_transport.cpp
 		src/app/src/github_application/public_preview_wire_transport.hpp
@@ -497,6 +518,8 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/review_mutation_selection.hpp
 		src/app/src/github_application/session_settings.cpp
 		src/app/src/github_application/session_settings.hpp
+		src/app/src/github_application/startup_failures.cpp
+		src/app/src/github_application/startup_failures.hpp
 		src/app/src/github_application/theme_document_file.cpp
 		src/app/src/github_application/theme_document_file.hpp
 		src/app/src/github_application/window_review_lanes.cpp
