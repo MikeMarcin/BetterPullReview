@@ -3,6 +3,7 @@
 
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/qt/markdown_body_view.hpp"
 
 #include <QPointer>
 #include <QWidget>
@@ -25,7 +26,6 @@ class QTextCursor;
 
 namespace bpr::qt {
 	class markdown_body_view;
-	class skill_completer;
 	/// \brief [[BPR-1900]]. The Tour tab's own agent session, at the top of
 	/// the tab: Draft the tour (Stop drafting while it runs), the whole-tour
 	/// proposal to accept, edit or discard item by item, and the session's
@@ -42,8 +42,13 @@ namespace bpr::qt {
 	/// \details [[BPR-1914]], RFC-BPR-0092 T1 superseded. The window is the
 	/// tour conversation: every turn, oldest first, as one selectable
 	/// document (what was asked and about which passage, what it read, and the
-	/// reply rendered as Markdown), and an ask box under it. Ask about this on
-	/// a selected passage opens it with the passage quoted above the box.
+	/// reply rendered as Markdown). v002 (owner, 2026-11-06: "how do I do that
+	/// if I can't see the tour or the code?"): it is a secondary, copyable
+	/// record only. Questions are asked in threads under the part of the tour
+	/// they are about. v003: in side chats docked at the window's right edge
+	/// (`tour_side_chat`); this panel opens the chat for
+	/// the tour as a whole, under Draft the tour, and leaves the parts an ask
+	/// turn proposed to that turn's thread.
 	/// [[BPR-1915]]. A proposed text shows rendered, as the preview and GitHub
 	/// show it; Edit text shows its Markdown source to change before Accept.
 	///
@@ -55,30 +60,20 @@ namespace bpr::qt {
 	{
 	public:
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
-		/// \brief [[BPR-1914]]. Ask: the passage, if any, and the question.
-		using ask_dispatch = std::function<void(const std::optional<core::tour_passage>&, const QString&)>;
 
 		explicit tour_agent_panel(QWidget* aParent = nullptr);
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
 		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
 		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
-		/// \brief [[BPR-1914]]. Ask in the conversation.
-		void set_ask_dispatch(ask_dispatch aAsk) { AskDispatch = std::move(aAsk); }
-		/// \brief [[BPR-1914]]. Opens the conversation with `aPassage` quoted
-		/// above the ask box, or none, and puts the keyboard in the box.
-		void ask_about(std::optional<core::tour_passage> aPassage);
-		/// \brief The ask box, its Ask button (Stop while a turn runs), and the
-		/// quoted passage's line, shown while there is one.
-		[[nodiscard]] auto ask_box() const noexcept -> QPlainTextEdit* { return AskBox; }
-		/// \brief [[BPR-1916]]. The skills `/name` completion offers in the ask
-		/// box, each with where it came from.
-		void               present_skills(std::vector<core::skill_entry> aSkills);
-		[[nodiscard]] auto skill_completion() const noexcept -> skill_completer* { return SkillCompletion; }
-		[[nodiscard]] auto ask_button() const noexcept -> QPushButton* { return Ask; }
-		[[nodiscard]] auto passage_line() const noexcept -> QLabel* { return PassageLine; }
-		[[nodiscard]] auto clear_passage_button() const noexcept -> QToolButton* { return ClearPassage; }
-		/// \brief The passage the next Ask is about.
-		[[nodiscard]] auto passage() const noexcept -> const std::optional<core::tour_passage>& { return Passage; }
+		/// \brief [[BPR-1914]] v002. The thread for the tour as a whole, under
+		/// Draft the tour; Ask about the tour opens it.
+		/// \brief [[BPR-1914]] v003. Opens the side chat about the whole tour.
+		void               set_chat_dispatch(std::function<void()> aChat) { ChatDispatch = std::move(aChat); }
+		[[nodiscard]] auto chat_button() const noexcept -> QToolButton* { return ChatTour; }
+		/// \brief [[BPR-1919]]. Proposed texts' code: font, colours and the
+		/// highlighter.
+		void set_code_style(const QFont& aFont, qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch);
+		void apply_code_syntax(const application::markdown_code_syntax_publication& aSpans);
 		/// \brief [[BPR-1915]]. A pending item's rendered text, and its Edit
 		/// text button, which shows the Markdown source instead.
 		[[nodiscard]] auto proposal_reader(std::size_t aIndex) const -> markdown_body_view*;
@@ -92,7 +87,7 @@ namespace bpr::qt {
 		void               present(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
 		/// \brief A Draft the tour run is running (its button says Stop
 		/// drafting), or any run of the session is.
-		void set_running(bool aDraftTour, bool aAny, bool aAsking = false);
+		void set_running(bool aDraftTour, bool aAny);
 		/// \brief Usable once the agent is set up; otherwise disabled with why.
 		void set_available(bool aReady, const QString& aWhy);
 		/// \brief Puts BPR-1892's failure notice for Draft the tour under the
@@ -145,64 +140,57 @@ namespace bpr::qt {
 		auto eventFilter(QObject* aWatched, QEvent* aEvent) -> bool override;
 
 	private:
-		void                                       fit_readers();
-		void                                       rebuild_proposal();
-		void                                       rebuild_transcript();
-		void                                       show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
-		void                                       copy(const QString& aText, const QString& aSaid);
-		void                                       send_ask();
-		void                                       refresh_ask();
-		void                                       show_passage();
-		void                                       append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
-		void                                       refresh_toggle();
-		std::function<void()>                      DraftDispatch;
-		std::function<void()>                      StopDispatch;
-		decide_dispatch                            DecideDispatch;
-		std::function<void(std::size_t)>           RelocateDispatch;
-		ask_dispatch                               AskDispatch;
-		std::optional<core::tour_passage>          Passage;
-		std::map<std::size_t, markdown_body_view*> Readers;
-		std::map<std::size_t, QPushButton*>        EditButtons;
-		std::set<std::size_t>                      Editing;
-		bool                                       RunningAsk      = false;
-		QPlainTextEdit*                            AskBox          = nullptr;
-		skill_completer*                           SkillCompletion = nullptr;
-		QPushButton*                               Ask             = nullptr;
-		QLabel*                                    PassageLine     = nullptr;
-		QToolButton*                               ClearPassage    = nullptr;
-		QWidget*                                   PassageRow      = nullptr;
-		QLabel*                                    AskStatus       = nullptr;
-		std::map<std::size_t, QPushButton*>        Relocates;
-		std::map<std::size_t, QLabel*>             Placements;
-		core::tour_agent_session                   Session;
-		std::optional<core::tour_proposal>         Proposal;
-		std::map<std::size_t, QString>             Edited;
-		std::map<std::size_t, QPlainTextEdit*>     Editors;
-		std::map<std::size_t, QPushButton*>        Accepts;
-		std::optional<core::tour_agent_run_id>     FocusRun;
-		std::optional<core::tour_agent_run_id>     ShownRun;
-		bool                                       RunningDraft = false;
-		bool                                       RunningAny   = false;
-		bool                                       Ready        = true;
-		QString                                    Why;
-		QPushButton*                               Draft            = nullptr;
-		QPushButton*                               TranscriptToggle = nullptr;
-		QLabel*                                    Status           = nullptr;
-		QVBoxLayout*                               FailureSlot      = nullptr;
-		QWidget*                                   ProposalBox      = nullptr;
-		QVBoxLayout*                               ProposalItems    = nullptr;
-		QLabel*                                    ProposalTitle    = nullptr;
-		QLabel*                                    LeftOut          = nullptr;
-		QLabel*                                    OutsideList      = nullptr;
-		QWidget*                                   TranscriptWindow = nullptr;
-		QListWidget*                               RunList          = nullptr;
-		QTextBrowser*                              RunView          = nullptr;
-		QPushButton*                               CopyRun          = nullptr;
-		QPushButton*                               CopyAll          = nullptr;
-		QLabel*                                    Copied           = nullptr;
-		QScrollArea*                               ProposalScroll   = nullptr;
-		std::vector<QPointer<QWidget>>             Accented;
-		std::vector<QPointer<QWidget>>             Fields;
+		void                                                                        fit_readers();
+		void                                                                        rebuild_proposal();
+		void                                                                        rebuild_transcript();
+		void                                                                        show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
+		void                                                                        copy(const QString& aText, const QString& aSaid);
+		void                                                                        append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
+		void                                                                        refresh_toggle();
+		std::function<void()>                                                       DraftDispatch;
+		std::function<void()>                                                       StopDispatch;
+		decide_dispatch                                                             DecideDispatch;
+		std::function<void(std::size_t)>                                            RelocateDispatch;
+		std::map<std::size_t, markdown_body_view*>                                  Readers;
+		std::map<std::size_t, QPushButton*>                                         EditButtons;
+		std::set<std::size_t>                                                       Editing;
+		QToolButton*                                                                ChatTour = nullptr;
+		std::function<void()>                                                       ChatDispatch;
+		QFont                                                                       CodeFont;
+		qreal                                                                       TabStop = 0.0;
+		std::optional<markdown_code_theme>                                          CodeTheme;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
+		std::map<std::size_t, QPushButton*>                                         Relocates;
+		std::map<std::size_t, QLabel*>                                              Placements;
+		core::tour_agent_session                                                    Session;
+		std::optional<core::tour_proposal>                                          Proposal;
+		std::map<std::size_t, QString>                                              Edited;
+		std::map<std::size_t, QPlainTextEdit*>                                      Editors;
+		std::map<std::size_t, QPushButton*>                                         Accepts;
+		std::optional<core::tour_agent_run_id>                                      FocusRun;
+		std::optional<core::tour_agent_run_id>                                      ShownRun;
+		bool                                                                        RunningDraft = false;
+		bool                                                                        RunningAny   = false;
+		bool                                                                        Ready        = true;
+		QString                                                                     Why;
+		QPushButton*                                                                Draft            = nullptr;
+		QPushButton*                                                                TranscriptToggle = nullptr;
+		QLabel*                                                                     Status           = nullptr;
+		QVBoxLayout*                                                                FailureSlot      = nullptr;
+		QWidget*                                                                    ProposalBox      = nullptr;
+		QVBoxLayout*                                                                ProposalItems    = nullptr;
+		QLabel*                                                                     ProposalTitle    = nullptr;
+		QLabel*                                                                     LeftOut          = nullptr;
+		QLabel*                                                                     OutsideList      = nullptr;
+		QWidget*                                                                    TranscriptWindow = nullptr;
+		QListWidget*                                                                RunList          = nullptr;
+		QTextBrowser*                                                               RunView          = nullptr;
+		QPushButton*                                                                CopyRun          = nullptr;
+		QPushButton*                                                                CopyAll          = nullptr;
+		QLabel*                                                                     Copied           = nullptr;
+		QScrollArea*                                                                ProposalScroll   = nullptr;
+		std::vector<QPointer<QWidget>>                                              Accented;
+		std::vector<QPointer<QWidget>>                                              Fields;
 	};
 }
 

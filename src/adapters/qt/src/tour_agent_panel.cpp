@@ -6,7 +6,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
-#include "bpr/qt/skill_completer.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 
 #include <QAbstractTextDocumentLayout>
 #include <QClipboard>
@@ -172,35 +172,11 @@ namespace bpr::qt {
 			case core::tour_passage_field::solution: return QObject::tr("About the Solution");
 			case core::tour_passage_field::stop:
 				return aPassage.StopTitle.empty() ? QObject::tr("About stop %1").arg(aPassage.Stop + 1U) : QObject::tr("About stop %1, %2").arg(aPassage.Stop + 1U).arg(QString::fromStdString(aPassage.StopTitle));
+			case core::tour_passage_field::stop_code:
+				return QObject::tr("About the code of stop %1, %2, lines %3 to %4").arg(aPassage.Stop + 1U).arg(QString::fromStdString(aPassage.Path)).arg(aPassage.FirstLine).arg(aPassage.LastLine);
 			}
 			return { };
 		}
-		/// [[BPR-1914]]. Return asks; Shift+Return starts a new line.
-		class ask_keys final : public QObject
-		{
-		public:
-			ask_keys(QObject* aParent, std::function<void()> aSend)
-				: QObject{ aParent }
-				, Send{ std::move(aSend) }
-			{
-			}
-
-		protected:
-			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
-			{
-				if (aEvent->type() == QEvent::KeyPress) {
-					const auto* key = static_cast<QKeyEvent*>(aEvent);
-					if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && !(key->modifiers() & Qt::ShiftModifier)) {
-						Send();
-						return true;
-					}
-				}
-				return QObject::eventFilter(aWatched, aEvent);
-			}
-
-		private:
-			std::function<void()> Send;
-		};
 		auto tools_words(const core::tour_agent_tools aTools) -> QString
 		{
 			return aTools == core::tour_agent_tools::read_only ? QObject::tr("read-only, in the review's workspace") : QObject::tr("no tools");
@@ -265,6 +241,19 @@ namespace bpr::qt {
 		TranscriptToggle->setToolTip(tr("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
 		row->addWidget(TranscriptToggle, 0, Qt::AlignVCenter);
 		column->addLayout(row);
+		// [[BPR-1914]] v003. A side chat about the tour as a whole: one quiet
+		// glyph beside Conversation; the chat docks at the window's edge.
+		ChatTour = new QToolButton{ this };
+		ChatTour->setObjectName(QStringLiteral("tourChatAboutTour"));
+		ChatTour->setAutoRaise(true);
+		ChatTour->setFocusPolicy(Qt::TabFocus);
+		ChatTour->setAccessibleName(tr("Open side chat about the tour"));
+		row->insertWidget(row->indexOf(TranscriptToggle), ChatTour, 0, Qt::AlignVCenter);
+		connect(ChatTour, &QToolButton::clicked, this, [this] {
+			if (ChatDispatch) {
+				ChatDispatch();
+			}
+		});
 		FailureSlot = new QVBoxLayout{ };
 		FailureSlot->setContentsMargins(0, 0, 0, 0);
 		column->addLayout(FailureSlot);
@@ -361,7 +350,7 @@ namespace bpr::qt {
 		windowColumn->setContentsMargins(14, 12, 14, 12);
 		windowColumn->setSpacing(8);
 		auto* const top   = new QHBoxLayout{ };
-		auto* const about = small(paragraph(tr("Ask about the tour or a passage you select. The agent reads this pull request's code and remembers the conversation; it changes the tour only as a proposal you accept."), TranscriptWindow));
+		auto* const about = small(paragraph(tr("Every side chat and draft of this tour, in order, with what the agent read and answered. Open a side chat from the chat glyph beside any part of the tour."), TranscriptWindow));
 		about->setForegroundRole(QPalette::PlaceholderText);
 		top->addWidget(about, 1);
 		CopyRun = new quiet_push_button{ tr("Copy turn"), TranscriptWindow };
@@ -402,64 +391,6 @@ namespace bpr::qt {
 		split->setStretchFactor(1, 1);
 		split->setSizes({ 200, 600 });
 		windowColumn->addWidget(split, 1);
-		// [[BPR-1914]]. The ask box: the passage it is about, quoted on one
-		// quiet line with a way to drop it, then the question and Ask.
-		PassageRow             = new QWidget{ TranscriptWindow };
-		auto* const passageRow = new QHBoxLayout{ PassageRow };
-		passageRow->setContentsMargins(2, 0, 0, 0);
-		passageRow->setSpacing(4);
-		PassageLine = small(new QLabel{ PassageRow });
-		PassageLine->setObjectName(QStringLiteral("tourAskPassage"));
-		PassageLine->setTextFormat(Qt::PlainText);
-		PassageLine->setForegroundRole(QPalette::PlaceholderText);
-		PassageLine->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		ClearPassage = new QToolButton{ PassageRow };
-		ClearPassage->setObjectName(QStringLiteral("tourAskPassageClear"));
-		ClearPassage->setAutoRaise(true);
-		ClearPassage->setToolTip(tr("Ask without this passage"));
-		ClearPassage->setAccessibleName(tr("Ask without this passage"));
-		passageRow->addWidget(PassageLine, 1);
-		passageRow->addWidget(ClearPassage, 0);
-		PassageRow->hide();
-		windowColumn->addWidget(PassageRow);
-		auto* const composer = new QHBoxLayout{ };
-		composer->setSpacing(8);
-		AskBox = new QPlainTextEdit{ TranscriptWindow };
-		AskBox->setObjectName(QStringLiteral("tourAskBox"));
-		AskBox->setAccessibleName(tr("Ask the tour agent"));
-		AskBox->setPlaceholderText(tr("Ask about the tour, or ask for a change. Return asks; Shift+Return starts a new line."));
-		AskBox->setTabChangesFocus(true);
-		AskBox->document()->setDocumentMargin(6);
-		AskBox->setFixedHeight(3 * AskBox->fontMetrics().lineSpacing() + 22);
-		AskBox->installEventFilter(new ask_keys{ AskBox, [this] { send_ask(); } });
-		// [[BPR-1916]]. `/name` completion; installed after Return's filter,
-		// so Return chooses a row while the list is open.
-		SkillCompletion = new skill_completer{ AskBox };
-		Ask             = new quiet_push_button{ tr("Ask"), TranscriptWindow };
-		Ask->setObjectName(QStringLiteral("tourAsk"));
-		Ask->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		composer->addWidget(AskBox, 1);
-		composer->addWidget(Ask, 0, Qt::AlignBottom);
-		windowColumn->addLayout(composer);
-		AskStatus = small(paragraph({ }, TranscriptWindow));
-		AskStatus->setObjectName(QStringLiteral("tourAskStatus"));
-		AskStatus->setForegroundRole(QPalette::PlaceholderText);
-		windowColumn->addWidget(AskStatus);
-		connect(Ask, &QPushButton::clicked, this, [this] {
-			if (RunningAsk) {
-				if (StopDispatch) {
-					StopDispatch();
-				}
-				return;
-			}
-			send_ask();
-		});
-		connect(ClearPassage, &QToolButton::clicked, this, [this] {
-			Passage.reset();
-			show_passage();
-			AskBox->setFocus(Qt::OtherFocusReason);
-		});
-		connect(AskBox, &QPlainTextEdit::textChanged, this, [this] { refresh_ask(); });
 		connect(RunList, &QListWidget::currentRowChanged, this, [this](const int aRow) {
 			if (aRow < 0) {
 				return;
@@ -512,16 +443,15 @@ namespace bpr::qt {
 		refresh_toggle();
 	}
 
-	void tour_agent_panel::set_running(const bool aDraftTour, const bool aAny, const bool aAsking)
+	void tour_agent_panel::set_running(const bool aDraftTour, const bool aAny)
 	{
 		RunningDraft = aDraftTour;
 		RunningAny   = aAny;
-		RunningAsk   = aAsking;
 		Draft->setText(aDraftTour ? tr("Stop drafting") : tr("Draft the tour"));
 		Draft->setToolTip(aDraftTour ? tr("Drafting the tour in the background. Stop it; nothing in the tour changes.") : Ready ? tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one.")
 																																: Why);
 		Draft->setEnabled(Ready && (aDraftTour || !aAny));
-		refresh_ask();
+		ChatTour->setEnabled(true);
 		// What it reads and where the proposal lands is the tab's notice
 		// line, under this panel; the control itself says it is running.
 		Status->hide();
@@ -532,7 +462,8 @@ namespace bpr::qt {
 	{
 		Ready = aReady;
 		Why   = aWhy;
-		set_running(RunningDraft, RunningAny, RunningAsk);
+		ChatTour->setToolTip(aReady ? tr("Open a side chat about the whole tour and the change. Each part of the tour has its own: use the chat glyph beside it.") : aWhy);
+		set_running(RunningDraft, RunningAny);
 	}
 
 	void tour_agent_panel::set_failure_notice(QWidget* aNotice)
@@ -573,9 +504,8 @@ namespace bpr::qt {
 			show_run(ShownRun, std::nullopt);
 		}
 		CopyRun->setIcon(drawer_icon(drawer_glyph::copy, CopyRun->palette()));
-		apply_agent_accent(*Ask, ground);
-		Ask->setIcon(drawer_icon(drawer_glyph::send, Ask->palette()));
-		ClearPassage->setIcon(drawer_icon(drawer_glyph::close, ClearPassage->palette()));
+		apply_agent_accent(*ChatTour, aGround);
+		ChatTour->setIcon(side_chat_icon(ChatTour->palette()));
 		for (const auto& widget : Accented) {
 			if (widget) {
 				apply_agent_accent(*widget, aGround);
@@ -675,6 +605,32 @@ namespace bpr::qt {
 		return found == Placements.end() ? QString{ } : found->second->text();
 	}
 
+	void tour_agent_panel::set_code_style(const QFont& aFont, const qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
+	{
+		CodeFont     = aFont;
+		TabStop      = aTabStopDistance;
+		CodeTheme    = aTheme;
+		CodeDispatch = aDispatch;
+		for (const auto& [index, reader] : Readers) {
+			reader->set_code_font(CodeFont, TabStop);
+			if (CodeTheme) {
+				reader->set_code_theme(*CodeTheme);
+			}
+			if (CodeDispatch) {
+				reader->set_code_syntax_dispatch(CodeDispatch);
+				reader->request_code_syntax();
+			}
+		}
+		fit_readers();
+	}
+
+	void tour_agent_panel::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
+	{
+		for (const auto& [index, reader] : Readers) {
+			reader->apply_code_syntax(aSpans);
+		}
+	}
+
 	void tour_agent_panel::fit_readers()
 	{
 		// [[BPR-1915]]. Each rendered text as tall as it reads at the
@@ -732,54 +688,6 @@ namespace bpr::qt {
 		return tr("Proposed %1. Accept, edit or discard it in the Tour tab.").arg(joined);
 	}
 
-	void tour_agent_panel::ask_about(std::optional<core::tour_passage> aPassage)
-	{
-		Passage = std::move(aPassage);
-		show_passage();
-		open_transcript();
-		AskBox->setFocus(Qt::OtherFocusReason);
-	}
-
-	void tour_agent_panel::show_passage()
-	{
-		PassageRow->setVisible(Passage.has_value());
-		if (!Passage) {
-			PassageLine->clear();
-			return;
-		}
-		const auto quoted = QString::fromStdString(Passage->Text).simplified();
-		const auto words  = tr("%1: \u201C%2\u201D").arg(passage_words(*Passage), quoted);
-		PassageLine->setText(PassageLine->fontMetrics().elidedText(words, Qt::ElideRight, std::max(240, TranscriptWindow->width() - 72)));
-		PassageLine->setToolTip(QString::fromStdString(Passage->Text));
-	}
-
-	void tour_agent_panel::refresh_ask()
-	{
-		Ask->setText(RunningAsk ? tr("Stop") : tr("Ask"));
-		const auto blank = AskBox->toPlainText().trimmed().isEmpty();
-		Ask->setEnabled(Ready && (RunningAsk || (!RunningAny && !blank)));
-		Ask->setToolTip(!Ready           ? Why
-							: RunningAsk ? tr("The tour agent is answering in the background. Stop it; nothing in the tour changes.")
-										 : tr("Asks the tour agent, in the background. It reads the code and remembers this conversation; a change it proposes waits for your Accept."));
-		AskStatus->setText(RunningAsk       ? tr("Answering in the background. Keep working.")
-							   : RunningAny ? tr("The tour session is drafting. Ask when it finishes.")
-											: QString{ });
-		AskStatus->setVisible(!AskStatus->text().isEmpty());
-	}
-
-	void tour_agent_panel::send_ask()
-	{
-		const auto question = AskBox->toPlainText().trimmed();
-		if (question.isEmpty() || RunningAny || !Ready || !AskDispatch) {
-			return;
-		}
-		const auto passage = Passage;
-		AskDispatch(passage, question);
-		AskBox->clear();
-		Passage.reset();
-		show_passage();
-	}
-
 	auto tour_agent_panel::accept_button(const std::size_t aIndex) const -> QPushButton*
 	{
 		const auto found = Accepts.find(aIndex);
@@ -811,7 +719,15 @@ namespace bpr::qt {
 			OutsideList->hide();
 			return;
 		}
-		const auto pending = std::ranges::count_if(Proposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending; });
+		// [[BPR-1914]] v002. A part an ask turn proposed is decided in that
+		// turn's thread, beside what it changes; here only a draft's.
+		const auto here    = [this](const core::tour_proposal_item& aItem) { return !core::proposed_in_thread(Session, aItem); };
+		const auto pending = std::ranges::count_if(Proposal->Items, [&here](const core::tour_proposal_item& aItem) { return here(aItem) && aItem.Decision == core::tour_proposal_decision::pending; });
+		if (std::ranges::none_of(Proposal->Items, here)) {
+			ProposalBox->hide();
+			OutsideList->hide();
+			return;
+		}
 		if (Proposal->LeftOut.size() == 1U) {
 			LeftOut->setText(tr("1 suggested stop pointed outside this pull request and was left out."));
 		} else {
@@ -830,7 +746,10 @@ namespace bpr::qt {
 		int         stopNumber = 0;
 		for (std::size_t index = 0U; index < Proposal->Items.size(); ++index) {
 			const auto& item = Proposal->Items[index];
-			auto* const box  = new QWidget{ parent };
+			if (!here(item)) {
+				continue;
+			}
+			auto* const box = new QWidget{ parent };
 			box->setObjectName(QStringLiteral("tourProposalItem"));
 			auto* const itemColumn = new QVBoxLayout{ box };
 			itemColumn->setContentsMargins(0, 0, 0, 0);
@@ -933,6 +852,16 @@ namespace bpr::qt {
 			reader->setObjectName(QStringLiteral("tourProposalRendered"));
 			reader->set_in_place(true);
 			reader->setFocusPolicy(Qt::NoFocus);
+			// [[BPR-1919]]. Its code as the diff's: font, colours, highlighter.
+			if (CodeFont != QFont{ }) {
+				reader->set_code_font(CodeFont, TabStop);
+			}
+			if (CodeTheme) {
+				reader->set_code_theme(*CodeTheme);
+			}
+			if (CodeDispatch) {
+				reader->set_code_syntax_dispatch(CodeDispatch);
+			}
 			reader->set_height_observer([this] { fit_readers(); });
 			reader->set_body(editor->toPlainText().toStdString(), "tour-proposal:" + std::to_string(Proposal->Run.value()) + ":" + std::to_string(index) + ":" + std::to_string(qHash(editor->toPlainText())));
 			itemColumn->insertWidget(itemColumn->indexOf(frame), reader);
@@ -1158,10 +1087,4 @@ namespace bpr::qt {
 		}
 	}
 
-	void tour_agent_panel::present_skills(std::vector<core::skill_entry> aSkills)
-	{
-		if (SkillCompletion != nullptr) {
-			SkillCompletion->present(std::move(aSkills));
-		}
-	}
 }

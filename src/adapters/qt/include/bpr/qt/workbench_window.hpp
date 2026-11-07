@@ -90,6 +90,7 @@ class QTabWidget;
 #include <vector>
 
 class QCheckBox;
+class QDockWidget;
 class QComboBox;
 class QEvent;
 class QElapsedTimer;
@@ -3060,23 +3061,25 @@ namespace bpr::qt {
 		bool                       EnteringOpeningModality = false;
 		github_conversation_panel* ConversationPanel       = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                                   ApplyingConversationAnchor       = false;
-		bool                                   LeftConversationEndpointCurrent  = false;
-		bool                                   RightConversationEndpointCurrent = false;
-		agent_launch_panel*                    AgentPanel                       = nullptr;
-		private_notes_panel*                   PrivateNotes                     = nullptr;
-		review_tour_editor*                    TourEditor                       = nullptr;
-		QAction*                               PrepareTourAction                = nullptr;
-		QAction*                               AddTourStopAction                = nullptr;
-		private_review_panel*                  PrivateReview                    = nullptr;
-		side_chat_panel*                       SideChat                         = nullptr;
-		finding_queue_view*                    FindingQueue                     = nullptr;
-		review_draft_editor*                   ReviewEditor                     = nullptr;
-		defect_card_view*                      DefectCard                       = nullptr;
-		QLabel*                                DefectCountLabel                 = nullptr;
-		QAction*                               ClassifyDefect                   = nullptr;
-		QAction*                               PreviousDefect                   = nullptr;
-		QAction*                               NextDefect                       = nullptr;
+		bool                 ApplyingConversationAnchor       = false;
+		bool                 LeftConversationEndpointCurrent  = false;
+		bool                 RightConversationEndpointCurrent = false;
+		agent_launch_panel*  AgentPanel                       = nullptr;
+		private_notes_panel* PrivateNotes                     = nullptr;
+		review_tour_editor*  TourEditor                       = nullptr;
+		/// [[BPR-1914]] v003. The dock the tour's side chats sit in.
+		QDockWidget*                           TourSideChatDock  = nullptr;
+		QAction*                               PrepareTourAction = nullptr;
+		QAction*                               AddTourStopAction = nullptr;
+		private_review_panel*                  PrivateReview     = nullptr;
+		side_chat_panel*                       SideChat          = nullptr;
+		finding_queue_view*                    FindingQueue      = nullptr;
+		review_draft_editor*                   ReviewEditor      = nullptr;
+		defect_card_view*                      DefectCard        = nullptr;
+		QLabel*                                DefectCountLabel  = nullptr;
+		QAction*                               ClassifyDefect    = nullptr;
+		QAction*                               PreviousDefect    = nullptr;
+		QAction*                               NextDefect        = nullptr;
 		std::vector<core::defect_history>      Defects;
 		std::map<core::defect_id, std::string> DefectThreads;
 		std::optional<std::string>             PendingDefectDialog;

@@ -8,6 +8,7 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include <QFont>
 #include <QPointer>
 #include <QWidget>
@@ -28,6 +29,7 @@ class QLabel;
 class QPushButton;
 class QToolButton;
 class QBoxLayout;
+class QHBoxLayout;
 class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
@@ -54,7 +56,10 @@ namespace bpr::qt {
 												   reconcile_publication,
 												   stop_publication,
 												   suggest_outline,
-												   insert_outline };
+												   insert_outline,
+												   /// [[BPR-1914]] v002. Ask about the open stop's code: the
+												   /// lines selected in the code, or the stop's own.
+												   ask_code };
 	/// \brief [[BPR-1593]]. Where the tour is shown: the route in the drawer's
 	/// Tour tab (RFC-BPR-0085 D4, layout A), or the tour page in the main pane
 	/// (layout C).
@@ -140,9 +145,25 @@ namespace bpr::qt {
 		/// by Draft the tour. Its control says Stop drafting and stops it;
 		/// nothing else waits on it, and leaving the window does not stop it.
 		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour, bool aAsking = false);
-		/// \brief [[BPR-1914]]. Ask in the tour conversation: the passage, if
-		/// any, and the question.
-		void set_tour_ask_dispatch(std::function<void(const std::optional<core::tour_passage>&, const QString&)> aAsk);
+		/// \brief [[BPR-1914]] v003. Every side chat's composer and Update send
+		/// here: the one entry point a reviewer's `/skill` references
+		/// ([[BPR-1916]]) are resolved through.
+		void set_tour_ask_dispatch(tour_side_chat::ask_dispatch aAsk);
+		/// \brief Shows (true) or closes (false) the dock that holds the side
+		/// chats; the window owns the dock.
+		void set_side_chat_visibility_dispatch(std::function<void(bool)> aVisibility);
+		/// \brief The side chats, for the window to dock.
+		[[nodiscard]] auto side_chat() const noexcept -> tour_side_chat* { return SideChat; }
+		/// \brief Opens the side chat about `aThread`, quoting `aPassage`.
+		void open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
+		/// \brief Opens the open stop's side chat on its code: `aSelected` (the
+		/// lines selected in the code) or the stop's own.
+		void ask_about_code(const std::optional<core::tour_source_range>& aSelected);
+		/// \brief Brings the tour to a chat's part, and a stop's lines into
+		/// the code.
+		void reveal_part(const core::tour_thread& aThread);
+		/// \brief [[BPR-1919]]. The panes' code colours for rendered tour text.
+		void set_code_theme(const markdown_code_theme& aTheme);
 		/// \brief [[BPR-1900]]. Draft the tour failed, in BPR-1892's notice.
 		void show_tour_draft_failure(const QString& aWhy);
 		void clear_tour_draft_failure();
@@ -295,14 +316,23 @@ namespace bpr::qt {
 		void                       fit_agent_bar();
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
-		QWidget*                           AgentSetupCall   = nullptr;
-		QPushButton*                       AgentSetupButton = nullptr;
-		QPushButton*                       SuggestOutline   = nullptr;
-		std::function<void()>              AgentSetupDispatch;
-		std::function<void()>              ShownObserver;
-		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
-		std::vector<std::function<void()>> AgentLabels;
-		std::vector<QPushButton*>          AskButtons;
+		QWidget*                                                                       AgentSetupCall   = nullptr;
+		QPushButton*                                                                   AgentSetupButton = nullptr;
+		QPushButton*                                                                   SuggestOutline   = nullptr;
+		std::function<void()>                                                          AgentSetupDispatch;
+		std::function<void()>                                                          ShownObserver;
+		agent_setup_readiness                                                          AgentReadiness = agent_setup_readiness::ready;
+		std::vector<std::function<void()>>                                             AgentLabels;
+		tour_side_chat*                                                                SideChat = nullptr;
+		std::vector<QToolButton*>                                                      ChatButtons;
+		tour_side_chat::ask_dispatch                                                   TourAsk;
+		std::function<void()>                                                          TourStop;
+		std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> TourDecide;
+		std::optional<markdown_code_theme>                                             CodeTheme;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)>    CodeSyntaxDispatch;
+		void                                                                           wire_side_chat();
+		void                                                                           open_side_chat_about(core::writing_hook aHook, const QString& aSelected);
+		void                                                                           apply_agent_code_style();
 		/// [[BPR-1892]]. Each request's failure notice, what its control
 		/// said when it was pressed, and where Show on the Agent tab goes.
 		std::map<core::writing_hook, QWidget*> FailureNotices;

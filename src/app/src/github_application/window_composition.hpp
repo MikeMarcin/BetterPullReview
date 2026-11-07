@@ -704,14 +704,14 @@ namespace bpr::app {
 		[[nodiscard]] auto tour_reading_notice() const -> QString;
 		[[nodiscard]] auto reads_read_only(const core::agent_profile_id aProfile) const -> bool;
 		[[nodiscard]] auto dispatch_tour_run(const core::agent_profile_id aAgent, const core::tour_agent_request aKind, const std::string& aAsked, const std::string& aPrompt, const std::optional<core::writing_hook> aRunFor,
-											 const std::optional<core::tour_passage>& aPassage = std::nullopt, skill_run aSkills = { }) -> bool;
+											 const std::optional<core::tour_passage>& aPassage = std::nullopt, const core::tour_thread& aThread = { }, bool aUpdate = false, skill_run aSkills = { }) -> bool;
 		void               tour_run_admitted(const application::agent_invocation_projection_identity& aIdentity);
 		void               tour_run_refused(const std::string_view aReason);
 		void               tour_run_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
 		[[nodiscard]] auto tour_answer_words(const application::agent_run_result& aResult) const -> std::string;
 		void               request_tour_draft();
 		void               adopt_tour_conversation();
-		void               request_tour_ask(const std::optional<core::tour_passage>& aPassage, const QString& aQuestion);
+		void               request_tour_ask(const core::tour_thread& aThread, const std::optional<core::tour_passage>& aPassage, const QString& aQuestion, bool aUpdate = false);
 		void               finish_tour_ask(const core::tour_agent_run_id aRun, const application::agent_run_result& aResult);
 		[[nodiscard]] auto tour_anchor_files(const application::agent_run_result& aResult) const -> std::vector<core::tour_anchor_file>;
 		void               finish_tour_draft(const std::optional<core::tour_agent_run_id> aRun, const application::agent_run_result& aResult, const QString& aWords);
@@ -2163,7 +2163,9 @@ namespace bpr::app {
 		/// conversation belongs to.
 		bool                               TourAskPending = false;
 		std::optional<core::tour_draft_id> TourConversationDraft;
-		std::optional<core::tour_proposal> TourProposal;
+		/// [[BPR-1914]] v003. When the run in flight started, for "Worked for Ns".
+		std::chrono::steady_clock::time_point TourRunStarted;
+		std::optional<core::tour_proposal>    TourProposal;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		// BPR-0532. Declared after the epoch host it resolves and materializes

@@ -9,7 +9,7 @@ parked_on: "human-review"
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-06, coordinator chat after using BPR-1900","related_cards":["BPR-1900","BPR-1912","BPR-1913","BPR-1915","BPR-1916"]}
-acceptance: [{"criterion": "AC1 Selecting a passage in Solution and asking \"what does this mean?\" gets an answer in the conversation that cites the code it read", "outcome": "pass", "revision": "da676456a", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view: a Solution selection offers Ask about this, which opens the conversation with the passage quoted; Return sends passage and question; the answer citing src/engine/renderer.cpp:3 is in the conversation, its list and inline code rendered. Offscreen look of the frozen build: ATTENDED_TOUR_ANSWER cites renderer.cpp:3, 4-7 and 8 after Read and rg steps.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC2 A follow-up question keeps context from the earlier turn (stub checks the resumed context)", "outcome": "pass", "revision": "da676456a", "evidence": {"kind": "command", "detail": "core_tour_agent_session (tour_conversation_of replays answered turns, bounded), application_tour_agent_conversation (conversation_so_far carries the earlier reply). The stub answers a follow-up that refers to \"that\" only when conversation_so_far holds its first reply's words; the look's follow-up got the rewrite, not \"I can't see what we said before\".", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC3 \"Rewrite that so it says X\" returns a proposal for that field, and accepting it updates the field; nothing changes without acceptance", "outcome": "pass", "revision": "da676456a", "evidence": {"kind": "command", "detail": "core_tour_agent_session (propose_tour_changes, stop_text, merge_tour_proposal); offscreen look: the follow-up proposes a Solution, the Tour tab shows it pending, Accept makes the draft's Solution the rewrite (ATTENDED_TOUR_SOLUTION).", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC4 The conversation is copyable as a whole (BPR-1913's rules)", "outcome": "pass", "revision": "da676456a", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view reads the clipboard after Copy conversation: every turn, the quoted passage, steps and replies as written, the proposal line; a selection spans turns.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC5 Owner look: attended Accept/Reject on a frozen build that shows ask, answer, follow-up and an accepted rewrite", "outcome": "pending", "revision": "da676456a", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/bpr1914-tour-conversation-v001.6cph2wud of da676456a; new short session ac06de1b29f46bbf0be650bd3943fbf6, candidate BPR-1914-tour-conversation, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#attended-review-ac5"}}, {"criterion": "AC6 The RFC amendment supersedes T1 and records the resume mechanism, and the documentation gate passes", "outcome": "pass", "revision": "da676456a", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1914, BPR-1915 supersedes T1 (one conversation per tour, replayed for every agent kind; what is stored where); review-tours.md and ai-agent-boundary.md updated; verify_documentation.py prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#implementation-2026-11-06"}}]
+acceptance: [{"criterion": "AC1 Selecting a passage in Solution and asking \"what does this mean?\" gets an answer in the conversation that cites the code it read", "outcome": "pass", "revision": "dce73be36", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view: a Solution selection offers Ask about this, which opens the conversation with the passage quoted; Return sends passage and question; the answer citing src/engine/renderer.cpp:3 is in the conversation, its list and inline code rendered. Offscreen look of the frozen build: ATTENDED_TOUR_ANSWER cites renderer.cpp:3, 4-7 and 8 after Read and rg steps. v002: qt_tour_thread_view repeats it in the Solution's thread under the field (ask, answer, follow-up, Accept in the thread), and the frozen look runs it in context.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC2 A follow-up question keeps context from the earlier turn (stub checks the resumed context)", "outcome": "pass", "revision": "dce73be36", "evidence": {"kind": "command", "detail": "core_tour_agent_session (tour_conversation_of replays answered turns, bounded), application_tour_agent_conversation (conversation_so_far carries the earlier reply). The stub answers a follow-up that refers to \"that\" only when conversation_so_far holds its first reply's words; the look's follow-up got the rewrite, not \"I can't see what we said before\". v002: qt_tour_thread_view repeats it in the Solution's thread under the field (ask, answer, follow-up, Accept in the thread), and the frozen look runs it in context.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC3 \"Rewrite that so it says X\" returns a proposal for that field, and accepting it updates the field; nothing changes without acceptance", "outcome": "pass", "revision": "dce73be36", "evidence": {"kind": "command", "detail": "core_tour_agent_session (propose_tour_changes, stop_text, merge_tour_proposal); offscreen look: the follow-up proposes a Solution, the Tour tab shows it pending, Accept makes the draft's Solution the rewrite (ATTENDED_TOUR_SOLUTION). v002: qt_tour_thread_view repeats it in the Solution's thread under the field (ask, answer, follow-up, Accept in the thread), and the frozen look runs it in context.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC4 The conversation is copyable as a whole (BPR-1913's rules)", "outcome": "pass", "revision": "dce73be36", "evidence": {"kind": "command", "detail": "qt_tour_agent_session_view reads the clipboard after Copy conversation: every turn, the quoted passage, steps and replies as written, the proposal line; a selection spans turns. v002: qt_tour_thread_view repeats it in the Solution's thread under the field (ask, answer, follow-up, Accept in the thread), and the frozen look runs it in context.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#verification"}}, {"criterion": "AC5 Owner look: attended Accept/Reject on a frozen build that shows ask, answer, follow-up and an accepted rewrite", "outcome": "pending", "revision": "dce73be36", "evidence": {"kind": "observation", "detail": "v001 rejected by the owner (in-context asking). v002: frozen build /Users/jaeger/bpr1914-tour-threads-v002.h3uvepo1 of dce73be36; new short session 2ebe870c371ac8ddd6d5c490add563b5, candidate BPR-1914-tour-threads, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#v002-asking-in-context-2026-11-06"}}, {"criterion": "AC6 The RFC amendment supersedes T1 and records the resume mechanism, and the documentation gate passes", "outcome": "pass", "revision": "da676456a", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1914, BPR-1915 supersedes T1 (one conversation per tour, replayed for every agent kind; what is stored where); review-tours.md and ai-agent-boundary.md updated; verify_documentation.py prints DOCUMENTATION_OK.", "path": "docs/issues/40-parked/BPR-1914-tour-session-conversation.md#implementation-2026-11-06"}}]
 ---
 
 # BPR-1914: The tour session is a conversation: ask about the tour, get answers, and have it propose edits
@@ -123,3 +123,87 @@ past BPR-1908, which moved the tour session code into
 there. On the rebased commit the 16 focused tests, the format check, the
 documentation gate and the offscreen look (`ATTENDED_TOUR_CONVERSATION_SHOWN`)
 pass again, with the composition pin resealed.
+
+### v001 rejected (2026-11-06)
+
+The owner, verbatim: "I don't understand this editing interface. Like I want
+to ask questions about the specific parts of the tour, how do I do that if I
+can't see the tour or the code?" Session `ac06de1b29f46bbf0be650bd3943fbf6`
+recorded the Reject; its host is stopped and the v001 frozen root removed.
+Coordinator direction for v002: ask where the part is shown (a passage in the
+Problem or Solution, a stop's explanation, or the stop's code lines), the
+answer attached there as an inline thread, follow-ups and rewrites in that
+thread, the full conversation only a secondary view, and a stop's code visible
+next to its thread.
+
+## v002: asking in context (2026-11-06)
+
+`frontend-design:frontend-design` was loaded first. The one memorable element
+is the thread: a margin note in the agent accent (a 2 px rule and a faint
+wash) that hangs under the part it is about, so the tour text sits above it
+and, for a stop, the diff beside it shows the stop's lines. Everything else
+stays quiet.
+
+- **Core**: `tour_thread` (tour, Problem, Solution, stop) on every ask turn
+  (`begin_tour_ask` takes it); a `stop_code` passage with path and lines;
+  `thread_runs`; `tour_proposal_item::Run` and `proposed_in_thread`; the
+  replay names each turn's thread.
+- **Application**: the request names each turn's thread and this turn's, says
+  a follow-up refers first to its own thread, and carries a code passage's
+  path and lines.
+- **Qt** (`tour_thread_view`): each turn shows the passage (code in the code
+  face with its path and lines), the question, one quiet line of what the
+  agent read, the reply rendered, and its proposed parts with Accept, Edit
+  text and Discard. The ask box under them takes follow-ups (Return asks), and
+  Ask becomes Stop while the thread's own turn runs. A new answer scrolls the
+  drawer to it. The editor has one thread under the Problem, one under the
+  Solution and one under the open stop; the panel has one for the tour as a
+  whole, opened by **Ask about the tour** on its own row under Draft the tour.
+  **Ask about the Problem/Solution/this stop** sits beside each Enhance
+  control, reading **Ask about this** with text selected. Under a stop, **Ask
+  about this stop** and **Ask about its code** are stacked on their own rows so
+  the narrow route keeps their words. Asking in a stop's thread triggers Show
+  in code. The proposal box under Draft the tour shows only a draft's parts.
+  The conversation window keeps its turns list, document and Copy actions; its
+  ask box is gone. Every thread's ask box sends through the editor's single
+  `set_tour_ask_dispatch` entry point (thread, passage, question), the one
+  entry point for BPR-1916's skill wiring.
+- **Composition** (`window_tours.cpp`): `request_tour_ask` takes the thread;
+  `tour_editor_action::ask_code` reads the diff's selected lines
+  (`selected_tour_source`) and opens the stop's thread on them.
+- **Look**: `--attended-tour-drafting --attended-tour-conversation` drafts with
+  the stub and accepts the Problem and Solution. It selects "between begin and
+  present", presses Ask about this, asks and follows up with a rewrite in the
+  Solution's thread, and accepts the rewrite there. It then accepts the
+  draft's first stop, opens it, presses Ask about its code and asks why
+  `clear()` comes first. The stop's lines show in the diff, and the reply (with
+  a highlighted C++ block) shows under the stop.
+
+### Verification (v002, focused)
+
+`qt_tour_thread_view` (new: ask in context, Return, Stop, two turns under the
+Solution, Accept in the thread, nothing in the draft's box, Ask about its code
+with the stop's own lines and Show in code, highlighted reply and proposal),
+`qt_tour_agent_session_view`, `qt_review_tour_agent_failure`,
+`qt_review_tour_agent_help`, `qt_review_tour_agent_setup_call`,
+`qt_review_tour_stop_view`, `core_tour_agent_session`,
+`application_tour_agent_conversation`, `application_agent_launch`,
+`application_writing_delivery`, `application_review_tour_writing` (+ wrapper),
+`qt_markdown_github_1_0`, `application_review_tour_composition_public_path`,
+`application_agent_chat_composition_contract`,
+`application_review_round_trip_composition_contract` (resealed),
+`architecture_boundaries`, `architecture_boundary_contract`: 18 of 18 pass.
+`coding-format-check` passes; `verify_documentation.py` prints
+`DOCUMENTATION_OK`. Offscreen look on the dev build and the frozen executable:
+`ATTENDED_TOUR_ANSWER`, `ATTENDED_TOUR_FOLLOW_UP`, `ATTENDED_TOUR_SOLUTION`
+(the accepted rewrite), `ATTENDED_TOUR_CODE:src/engine/renderer.cpp:3-8 ...`,
+`ATTENDED_AGENT_TAB_TURNS:0`, `ATTENDED_TOUR_CONVERSATION_SHOWN`.
+
+### Attended review (v002)
+
+Frozen build `/Users/jaeger/bpr1914-tour-threads-v002.h3uvepo1` of `dce73be36` (executable SHA-256 `96db7fca290af2bf2719bd1f3811fd423c6f5b5e299812b3239e5c0270c1a1b2`); the launcher's
+own offscreen check reached `ATTENDED_TOUR_CONVERSATION_SHOWN`. Launch:
+`python3 /Users/jaeger/bpr1914-tour-threads-v002.h3uvepo1/launch.py`. New short session `2ebe870c371ac8ddd6d5c490add563b5`, state `/Users/jaeger/.codex/attended-review/bpr1914-v002-Pfb36H/state`, host started with
+`serve --tailscale`. Candidate `BPR-1914-tour-threads` (revision
+`dce73be36-v002`), one Accept/Reject question; BPR-1919 is the session's second
+candidate. Status: ready, awaiting the owner.

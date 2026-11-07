@@ -50,86 +50,6 @@ namespace {
 }
 
 namespace {
-	/// [[BPR-1914]]. Ask about this on a selected Solution passage opens the
-	/// conversation with it quoted; Ask sends it and the question; the reply
-	/// reads as rendered Markdown in one selectable document; a follow-up is
-	/// another turn in it; Copy conversation takes it all.
-	void conversation(qt::review_tour_editor& aEditor, const std::string& aPrefix)
-	{
-		auto* const panel = aEditor.tour_agent();
-		auto        asked = std::vector<std::pair<std::optional<core::tour_passage>, QString>>{ };
-		aEditor.set_tour_ask_dispatch([&asked](const std::optional<core::tour_passage>& aPassage, const QString& aQuestion) { asked.emplace_back(aPassage, aQuestion); });
-		aEditor.open_step(core::tour_step::solution);
-		auto* const solution = aEditor.findChild<QPlainTextEdit*>(QStringLiteral("tourSolution"));
-		expect(solution != nullptr, "the Solution field");
-		solution->setPlainText(QStringLiteral("Each view now clears between begin and present."));
-		QApplication::processEvents();
-		auto* const askAbout = aEditor.findChild<QPushButton*>(QStringLiteral("tourSolutionAsk"));
-		expect(askAbout != nullptr && !askAbout->isVisibleTo(&aEditor), "Ask about this waits for a selection");
-		auto cursor = solution->textCursor();
-		cursor.setPosition(static_cast<int>(QStringLiteral("Each view now clears ").size()));
-		cursor.setPosition(static_cast<int>(QStringLiteral("Each view now clears between begin and present").size()), QTextCursor::KeepAnchor);
-		solution->setTextCursor(cursor);
-		QApplication::processEvents();
-		expect(askAbout->isVisibleTo(&aEditor) && askAbout->text() == QStringLiteral("Ask about this"), "AC1 selecting a passage offers Ask about this");
-		askAbout->click();
-		expect(panel->transcript()->isVisible() && panel->passage() && panel->passage()->Field == core::tour_passage_field::solution && panel->passage()->Text == "between begin and present", "it opens the conversation with the passage");
-		expect(panel->passage_line()->isVisibleTo(panel->transcript()) && panel->passage_line()->text().startsWith(QStringLiteral("About the Solution: \u201Cbetween begin and present")), "the passage is quoted above the ask box: " + panel->passage_line()->text().toStdString());
-		expect(!panel->ask_button()->isEnabled(), "Ask waits for a question");
-		panel->ask_box()->setPlainText(QStringLiteral("What does this mean?"));
-		expect(panel->ask_button()->isEnabled() && panel->ask_button()->text() == QStringLiteral("Ask"), "a question can be asked");
-		// Return asks.
-		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(panel->ask_box(), &enter);
-		expect(asked.size() == 1U && asked[0].first && asked[0].first->Text == "between begin and present" && asked[0].second == QStringLiteral("What does this mean?"), "Return sends the passage and the question");
-		expect(panel->ask_box()->toPlainText().isEmpty() && !panel->passage() && !panel->passage_line()->isVisibleTo(panel->transcript()), "the box clears for the next question");
-
-		// The turn runs: Ask says Stop; then it answers.
-		auto       session = core::tour_agent_session{ };
-		const auto first   = core::begin_tour_ask(session, asked[0].first, "What does this mean?");
-		aEditor.set_tour_running(std::nullopt, false, true);
-		aEditor.present_tour_session(session, std::nullopt);
-		expect(panel->ask_button()->text() == QStringLiteral("Stop") && panel->ask_button()->isEnabled(), "a running turn is stopped from Ask");
-		expect(!panel->draft_button()->isEnabled(), "one thing at a time");
-		static_cast<void>(core::record_tour_activity(session, *first, { { core::tour_transcript_kind::read, "src/engine/renderer.cpp" } }));
-		static_cast<void>(core::answer_tour_ask(session, *first, "Here it means the frame window:\n\n- `begin_frame()` opens it (`src/engine/renderer.cpp:3`).\n- `present()` shows it (`src/engine/renderer.cpp:8`).", { }));
-		aEditor.set_tour_running(std::nullopt, false, false);
-		aEditor.present_tour_session(session, std::nullopt);
-		auto* const view     = panel->transcript_view();
-		const auto  rendered = view->toPlainText();
-		expect(rendered.contains(QStringLiteral("What does this mean?")) && rendered.contains(QStringLiteral("between begin and present")) && rendered.contains(QStringLiteral("src/engine/renderer.cpp:3")), "AC1 the answer is in the conversation, citing the code: " + rendered.toStdString());
-		expect(!rendered.contains(QStringLiteral("- `begin_frame()`")), "[[BPR-1915]] the reply is rendered, not shown as Markdown source");
-		auto lists = 0;
-		auto code  = false;
-		for (auto block = view->document()->begin(); block.isValid(); block = block.next()) {
-			lists += block.textList() != nullptr ? 1 : 0;
-			for (auto fragment = block.begin(); !fragment.atEnd(); ++fragment) {
-				if (fragment.fragment().text().contains(QStringLiteral("begin_frame()")) && fragment.fragment().charFormat().fontFixedPitch()) {
-					code = true;
-				}
-			}
-		}
-		expect(lists == 2 && code, "the reply's list and inline code are a list and code in the document");
-		expect(panel->ask_button()->text() == QStringLiteral("Ask"), "Ask again once it answered");
-		// A follow-up is a second turn of the same conversation.
-		const auto second = core::begin_tour_ask(session, std::nullopt, "Rewrite that so it says each view clears its own target.");
-		static_cast<void>(core::answer_tour_ask(session, *second, "I proposed a new Solution.", core::tour_proposal_tally{ .Solution = true }));
-		aEditor.present_tour_session(session, std::nullopt);
-		const auto both = view->toPlainText();
-		expect(both.indexOf(QStringLiteral("What does this mean?")) < both.indexOf(QStringLiteral("Rewrite that")) && both.contains(QStringLiteral("Proposed a new Solution. Accept, edit or discard it in the Tour tab.")), "the follow-up follows, saying what it proposed");
-		expect(panel->transcript_runs()->count() == 2, "each turn is listed");
-		render(*panel->transcript(), aPrefix, "conversation");
-		// AC4. Copyable as a whole.
-		auto* const clipboard = QGuiApplication::clipboard();
-		panel->copy_all_button()->click();
-		const auto all = clipboard->text();
-		expect(all.contains(QStringLiteral("> About the Solution:\n> between begin and present")) && all.contains(QStringLiteral("- `begin_frame()` opens it")) && all.contains(QStringLiteral("## Run 2: Rewrite that")) && all.contains(QStringLiteral("_Proposed a new Solution.")), "AC4 Copy conversation takes every turn, the passage and the replies as written: " + all.toStdString());
-		view->selectAll();
-		const auto selected = view->textCursor().selection().toPlainText();
-		expect(selected.contains(QStringLiteral("What does this mean?")) && selected.contains(QStringLiteral("I proposed a new Solution.")), "a selection spans turns");
-		panel->transcript()->hide();
-	}
-
 	/// [[BPR-1915]]. A proposed Solution and a stop's new explanation render
 	/// their Markdown; the source stays editable, and Accept sends it.
 	void formatted(qt::review_tour_editor& aEditor, const std::string& aPrefix)
@@ -139,10 +59,11 @@ namespace {
 		aEditor.set_tour_session_dispatch([] { }, [] { }, [&decided](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decided.emplace_back(aIndex, aDecision, aText); });
 		auto       tour     = tests::review_tour_fixture();
 		auto       session  = core::tour_agent_session{ };
-		const auto run      = core::begin_tour_ask(session, std::nullopt, "Rewrite it");
+		const auto run      = core::begin_tour_run(session, core::tour_agent_request::draft_tour, core::tour_agent_tools::read_only, "Draft the tour");
 		const auto answer   = core::tour_ask_answer{ .Reply = "Done.", .Changes = { .Solution = std::string{ "Each view clears its own target.\n\n- `clear()` takes the view.\n- `draw()` draws only it." } }, .StopTexts = { { 1U, "Read `begin_frame()` first." } } };
 		const auto proposal = core::propose_tour_changes(*run, answer, { }, tour);
 		aEditor.present_tour_session(session, proposal);
+		QApplication::processEvents();
 		auto* const reader = panel->proposal_reader(0);
 		expect(reader != nullptr && reader->isVisibleTo(&aEditor), "the proposed Solution shows rendered");
 		auto lists = 0;
@@ -160,34 +81,36 @@ namespace {
 }
 
 namespace {
-	/// [[BPR-1916]]. `/name` completion in the conversation's ask box: the
-	/// rows say where each skill came from, Return chooses a row while the
-	/// list is open and only then asks, with the name in the question.
+	/// [[BPR-1916]]. `/name` completion in a side chat's composer
+	/// ([[BPR-1914]] v003): the rows say where each skill came from, Return
+	/// chooses a row while the list is open and only then sends, with the
+	/// name in the question.
 	void skills_in_the_ask_box(qt::review_tour_editor& aEditor)
 	{
-		auto* const panel = aEditor.tour_agent();
+		auto* const chat  = aEditor.side_chat();
 		auto        asked = std::vector<QString>{ };
-		aEditor.set_tour_ask_dispatch([&asked](const std::optional<core::tour_passage>&, const QString& aQuestion) { asked.push_back(aQuestion); });
-		panel->present_skills({ { .Name = "fixture-technical-writer", .Description = "Short paragraphs.", .Source = core::skill_source::personal, .Origin = "~/.claude/skills" },
-								{ .Name = "team-voice", .Description = "The team's.", .Source = core::skill_source::repository, .Origin = "this pull request's repository, .claude/skills at base 1a2b3c4" } });
-		panel->ask_about(std::nullopt);
-		panel->transcript()->activateWindow();
-		panel->ask_box()->setFocus();
+		aEditor.set_tour_ask_dispatch([&asked](const qt::tour_ask& aAsk) { asked.push_back(aAsk.Question); });
+		chat->present_skills({ { .Name = "fixture-technical-writer", .Description = "Short paragraphs.", .Source = core::skill_source::personal, .Origin = "~/.claude/skills" },
+							   { .Name = "team-voice", .Description = "The team's.", .Source = core::skill_source::repository, .Origin = "this pull request's repository, .claude/skills at base 1a2b3c4" } });
+		chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
+		chat->show();
+		chat->activateWindow();
+		chat->composer()->setFocus();
 		QApplication::processEvents();
-		expect(panel->skill_completion() != nullptr, "the ask box completes skills");
-		panel->ask_box()->clear();
-		panel->ask_box()->insertPlainText(QStringLiteral("Rewrite the Solution as /fix"));
+		expect(chat->skill_completion() != nullptr, "the composer completes skills");
+		chat->composer()->clear();
+		chat->composer()->insertPlainText(QStringLiteral("Rewrite the Solution as /fix"));
 		QApplication::processEvents();
-		const auto rows = panel->skill_completion()->rows();
+		const auto rows = chat->skill_completion()->rows();
 		expect(rows == QStringList{ QStringLiteral("/fixture-technical-writer (Personal, ~/.claude/skills)") }, "completion lists the matching skill with its source");
 		auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
-		QApplication::sendEvent(panel->ask_box(), &enter);
-		expect(asked.empty() && panel->ask_box()->toPlainText() == QStringLiteral("Rewrite the Solution as /fixture-technical-writer "), "Return chooses the row and does not ask yet");
-		panel->ask_box()->insertPlainText(QStringLiteral("says."));
+		QApplication::sendEvent(chat->composer(), &enter);
+		expect(asked.empty() && chat->composer()->toPlainText() == QStringLiteral("Rewrite the Solution as /fixture-technical-writer "), "Return chooses the row and does not send yet");
+		chat->composer()->insertPlainText(QStringLiteral("says."));
 		QApplication::processEvents();
-		QApplication::sendEvent(panel->ask_box(), &enter);
+		QApplication::sendEvent(chat->composer(), &enter);
 		expect(asked.size() == 1U && asked[0] == QStringLiteral("Rewrite the Solution as /fixture-technical-writer says."), "the question carries the skill's name");
-		panel->transcript()->hide();
+		chat->hide();
 	}
 }
 
@@ -415,7 +338,6 @@ auto main(int argc, char** argv) -> int
 		panel->restyle(editor.palette());
 		panel->transcript()->hide();
 	}
-	conversation(editor, prefix);
 	formatted(editor, prefix);
 	skills_in_the_ask_box(editor);
 	std::cout << "tour-agent-session-view:pass\n";

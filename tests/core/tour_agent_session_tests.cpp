@@ -230,19 +230,19 @@ namespace {
 	{
 		expect(tools_for(tour_agent_request::ask) == tour_agent_tools::read_only, "an ask turn reads the repository");
 		auto session = tour_agent_session{ };
-		expect(!begin_tour_ask(session, std::nullopt, "  \n"), "a blank question is not asked");
-		expect(!begin_tour_ask(session, tour_passage{ .Field = tour_passage_field::solution, .Text = " " }, "What?"), "a blank passage is not asked about");
-		expect(!begin_tour_ask(session, std::nullopt, std::string(maximum_tour_question_bytes + 1U, 'x')), "an oversized question is refused");
+		expect(!begin_tour_ask(session, tour_thread{ }, std::nullopt, "  \n"), "a blank question is not asked");
+		expect(!begin_tour_ask(session, tour_thread{ }, tour_passage{ .Field = tour_passage_field::solution, .Text = " " }, "What?"), "a blank passage is not asked about");
+		expect(!begin_tour_ask(session, tour_thread{ }, std::nullopt, std::string(maximum_tour_question_bytes + 1U, 'x')), "an oversized question is refused");
 		const auto passage = tour_passage{ .Field = tour_passage_field::solution, .Text = "between begin and present" };
-		const auto first   = begin_tour_ask(session, passage, "What does this mean?");
+		const auto first   = begin_tour_ask(session, tour_thread{ }, passage, "What does this mean?");
 		expect(first.has_value() && session.Runs.back().Request == tour_agent_request::ask && session.Runs.back().Passage == passage && session.Runs.back().Question == "What does this mean?", "an ask turn keeps its passage and question");
-		expect(!begin_tour_ask(session, std::nullopt, "And?"), "one turn at a time");
+		expect(!begin_tour_ask(session, tour_thread{ }, std::nullopt, "And?"), "one turn at a time");
 		expect(tour_conversation_of(session).Turns.empty(), "a running turn is not replayed");
 		expect(answer_tour_ask(session, *first, "It is the frame window: `begin_frame()` to `present()`.", tour_proposal_tally{ }), "the reply ends the turn");
 		expect(session.Runs.back().State == tour_agent_run_state::answered && session.Runs.back().Reply == "It is the frame window: `begin_frame()` to `present()`.", "the reply is kept as written");
 		expect(!answer_tour_ask(session, *first, "again", { }), "an answered turn is not answered again");
 		// A failed turn and a rewrite are not replayed; a draft is, by what it proposed.
-		const auto failed = begin_tour_ask(session, std::nullopt, "Broken?");
+		const auto failed = begin_tour_ask(session, tour_thread{ }, std::nullopt, "Broken?");
 		static_cast<void>(finish_tour_run(session, *failed, tour_agent_run_state::failed, "It ended."));
 		const auto rewrite = begin_tour_run(session, tour_agent_request::rewrite, tour_agent_tools::none, "Enhance solution");
 		static_cast<void>(finish_tour_run(session, *rewrite, tour_agent_run_state::answered, "rewritten"));
@@ -250,25 +250,25 @@ namespace {
 		static_cast<void>(finish_tour_run(session, *draft, tour_agent_run_state::answered, "Proposed a Solution and 2 stops."));
 		const auto replayed = tour_conversation_of(session);
 		expect(replayed.Turns.size() == 2U && replayed.Dropped == 0U, "two turns are replayed");
-		expect(replayed.Turns[0] == tour_conversation_turn{ "What does this mean?", passage, "It is the frame window: `begin_frame()` to `present()`." }, "the ask turn comes back whole, oldest first");
+		expect(replayed.Turns[0] == tour_conversation_turn{ "What does this mean?", passage, "It is the frame window: `begin_frame()` to `present()`.", tour_thread{ } }, "the ask turn comes back whole, oldest first");
 		expect(replayed.Turns[1].Asked == "Draft the tour" && replayed.Turns[1].Reply == "Proposed a Solution and 2 stops.", "a draft comes back by what it proposed");
 		// Bounded: the newest turns, by count and by bytes.
 		auto many = tour_agent_session{ };
 		for (std::size_t index = 0U; index < maximum_replayed_tour_turns + 3U; ++index) {
-			const auto run = begin_tour_ask(many, std::nullopt, "Q" + std::to_string(index));
+			const auto run = begin_tour_ask(many, tour_thread{ }, std::nullopt, "Q" + std::to_string(index));
 			static_cast<void>(answer_tour_ask(many, *run, "A" + std::to_string(index), { }));
 		}
 		const auto kept = tour_conversation_of(many);
 		expect(kept.Turns.size() == maximum_replayed_tour_turns && kept.Dropped == 3U && kept.Turns.front().Asked == "Q3" && kept.Turns.back().Asked == "Q14", "the newest turns are kept, the oldest counted as left out");
 		auto large = tour_agent_session{ };
 		for (std::size_t index = 0U; index < 6U; ++index) {
-			const auto run = begin_tour_ask(large, std::nullopt, "Q" + std::to_string(index));
+			const auto run = begin_tour_ask(large, tour_thread{ }, std::nullopt, "Q" + std::to_string(index));
 			static_cast<void>(answer_tour_ask(large, *run, std::string(maximum_tour_reply_bytes, 'r'), { }));
 		}
 		const auto bounded = tour_conversation_of(large);
 		expect(bounded.Turns.size() == 2U && bounded.Dropped == 4U && bounded.Turns.back().Asked == "Q5", "replies past the byte bound are left out, oldest first");
 		auto       longReply = tour_agent_session{ };
-		const auto cut       = begin_tour_ask(longReply, std::nullopt, "Long?");
+		const auto cut       = begin_tour_ask(longReply, tour_thread{ }, std::nullopt, "Long?");
 		static_cast<void>(answer_tour_ask(longReply, *cut, std::string(maximum_tour_reply_bytes + 10U, 'x'), { }));
 		expect(longReply.Runs.back().Reply.size() == maximum_tour_reply_bytes, "a reply is cut to its bound");
 
@@ -295,6 +295,43 @@ namespace {
 		expect(merged && merged->Run == tour_agent_run_id{ 4 } && merged->Items.size() == 2U && merged->Items[0].Text == "A better solution." && merged->Items[1].Part == tour_proposal_part::stop_text, "the new Solution leads; the pending stop text is kept; the old Solution and decided parts go");
 		expect(merge_tour_proposal(pending, tour_proposal{ .Run = tour_agent_run_id{ 5 } }) == std::optional{ pending }, "a turn that proposes nothing leaves the proposal as it is");
 		expect(merge_tour_proposal(std::nullopt, incoming) == std::optional{ incoming }, "with nothing pending it is the proposal");
+
+		// [[BPR-1914]] v002. Threads: each turn belongs to the part it was
+		// asked from; a turn's proposed parts know their run.
+		auto       threads    = tour_agent_session{ };
+		const auto stopThread = tour_thread{ .Kind = tour_thread_kind::stop, .Stop = tour_stop_id{ 7 } };
+		const auto code       = tour_passage{ .Field = tour_passage_field::stop_code, .Text = "clear();", .Path = "src/a.cpp", .FirstLine = 4U, .LastLine = 4U };
+		const auto onStop     = begin_tour_ask(threads, stopThread, code, "Why clear here?");
+		static_cast<void>(answer_tour_ask(threads, *onStop, "Because.", { }));
+		const auto onSolution = begin_tour_ask(threads, tour_thread{ .Kind = tour_thread_kind::solution }, std::nullopt, "And this?");
+		static_cast<void>(answer_tour_ask(threads, *onSolution, "That.", { }));
+		expect(thread_runs(threads, stopThread).size() == 1U && thread_runs(threads, stopThread).front()->Passage == code, "a stop's thread holds its turns, with the code they asked about");
+		expect(thread_runs(threads, tour_thread{ .Kind = tour_thread_kind::problem }).empty(), "another part's thread is empty");
+		expect(tour_conversation_of(threads).Turns.front().Thread == stopThread, "the replay says which thread each turn was in");
+		expect(!begin_tour_ask(threads, stopThread, tour_passage{ .Field = tour_passage_field::stop_code, .Text = "x", .FirstLine = 5U, .LastLine = 4U }, "Bad lines?"), "code lines out of order are refused");
+		const auto asked = propose_tour_changes(*onStop, answer, files, tour);
+		expect(std::ranges::all_of(asked.Items, [&](const tour_proposal_item& aItem) { return aItem.Run == *onStop && proposed_in_thread(threads, aItem); }), "an ask turn's parts are its thread's");
+		const auto drafted = begin_tour_run(threads, tour_agent_request::draft_tour, tour_agent_tools::read_only, "Draft the tour");
+		expect(!proposed_in_thread(threads, propose_tour(*drafted, answer.Changes, files, tour).Items.front()), "a draft's parts are not");
+
+		// [[BPR-1914]] v003. One side chat is one thread: it replays only its
+		// own turns; Update turns propose only their part; the host's timing.
+		const auto own = tour_conversation_of(threads, stopThread);
+		expect(own.Turns.size() == 1U && own.Turns.front().Asked == "Why clear here?", "a stop's chat replays its own turns only");
+		expect(tour_conversation_of(threads, tour_thread{ .Kind = tour_thread_kind::solution }).Turns.front().Asked == "And this?", "the Solution's chat its own");
+		expect(tour_conversation_of(threads, tour_thread{ .Kind = tour_thread_kind::problem }).Turns.empty(), "an empty chat replays nothing");
+		static_cast<void>(finish_tour_run(threads, *drafted, tour_agent_run_state::answered, "Proposed 1 stop."));
+		expect(tour_conversation_of(threads, tour_thread{ }).Turns.size() == 1U && tour_conversation_of(threads, tour_thread{ }).Turns.front().Asked == "Draft the tour", "the tour's chat has the whole-tour drafts");
+		const auto update = begin_tour_ask(threads, stopThread, std::nullopt, "Update this stop from our chat", true);
+		expect(update && threads.Runs.back().Update, "an Update turn says so");
+		const auto everything = propose_tour_changes(*update, answer, files, tour);
+		const auto partOnly   = keep_thread_part(everything, stopThread);
+		expect(partOnly.Items.size() == 1U && partOnly.Items.front().Part == tour_proposal_part::stop_text && partOnly.Items.front().StopId == tour_stop_id{ 7 }, "an Update keeps only its stop's new explanation");
+		expect(keep_thread_part(everything, tour_thread{ .Kind = tour_thread_kind::solution }).Items.front().Part == tour_proposal_part::solution, "a Solution chat's Update keeps the Solution");
+		expect(keep_thread_part(everything, tour_thread{ }).Items.size() == everything.Items.size(), "the tour's chat keeps everything");
+		expect(!time_tour_run(threads, *update, 12U), "a running turn has no time yet");
+		static_cast<void>(answer_tour_ask(threads, *update, "Done.", { }));
+		expect(time_tour_run(threads, *update, 12U) && threads.Runs.back().Seconds == 12U, "an ended turn keeps how long it worked");
 	}
 }
 

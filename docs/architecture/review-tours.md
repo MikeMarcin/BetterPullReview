@@ -191,6 +191,20 @@ run**, which opens that window at the run. Each
 request is a fresh run given the tour so far, never `--resume`. See the
 [AI agent boundary](ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900).
 
+Since [[BPR-1914]] v003 (owner, 2026-11-06: "something more like a side chat")
+each part of the tour (the tour as a whole, the Problem, the Solution, each
+stop) has its own side chat, docked at the window's right edge so the tour
+and the code keep their room. A quiet speech-bubble glyph beside each part,
+or Open side chat in its menu, opens it, quoting the selected text; a stop's
+chat shows the stop's lines in the diff, and Ask about its code quotes them.
+The chat is plain: the author's bubbles, the agent's rendered replies with
+highlighted code ([[BPR-1919]]), a folded "Worked for Ns", Copy per reply and
+for the chat. **Update the Solution from this chat** (or the Problem, this
+stop, the tour) asks for the part rewritten from the chat, and the proposal is
+accepted, edited or discarded in the chat. Each chat is its own thread,
+replayed alone with the part's current text. The conversation window described
+next is the copyable record of every chat.
+
 Since [[BPR-1914]] (owner, 2026-11-06: "I want to ask questions, get back and
 forth and have it update it") that window is the **Tour conversation**, opened
 by **Conversation (n)**, which is always offered. Selecting text in the
