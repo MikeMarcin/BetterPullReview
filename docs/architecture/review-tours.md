@@ -196,7 +196,7 @@ the tour (a merge keeps every line of its stops), and the stops a part changes
 are marked grey on the route with a pill ("Remove", "Merge with 3", "Moves to
 1"). Its box waits on the card of the stop it leads, with **Remove**, **Merge**
 or **Split** at the right; a new order waits above the route with
-**Reorder**. A set focus shows as a chip under the tour's header and rides
+**Reorder**. A focus from the chat applies at once, with Undo on its answer; it shows as a chip under the header and rides
 every later draft and chat turn. Feedback given while Draft Tour runs is
 sent once it proposes, and revises the stops still waiting. **Reset tour**
 ([[BPR-1931]]) asks first, naming what is lost, clears the draft, its

@@ -1390,10 +1390,18 @@ want to say the tour should focus on <this particular part of the PR>." And:
   **Split** where Ready, next is. A proposed order waits above the route,
   listing the new order with the moved stops in bold, with **Reorder**. The
   Stops step carries the "Proposed" pill. Accept all takes every part.
-- **Focus.** A proposed focus waits under the panel's line with **Set
-  focus**. Once set it is the session's (`core::tour_agent_session::Focus`)
-  and rides every later Draft the tour and chat turn, shown as a chip under
-  the tour's header whose × clears it.
+- **Focus.** A focus from the tour's chat applies at once. It is the author's
+  own instruction and changes no text of the tour, so it is not a proposal
+  (follow-up, owner: "I dont really understand the focus changes button. I
+  clicked it and couldnt tell what it did then it went away"). The core reads
+  it beside the parts (`core::tour_proposal::Focus`), and the host applies it
+  (`core::apply_tour_focus`). The turn's answer in the chat ends with one line,
+  "Focus set to “…” · Undo". Undo brings back the focus it replaced
+  (`core::undo_tour_focus`) while that focus still holds. The focus is the
+  session's (`core::tour_agent_session::Focus`). It rides every later draft and
+  chat turn, and shows as a chip under the tour's header, "Focus: …". The
+  chip's tooltip says later drafts and chat answers favour that part, and its ×
+  clears it.
 - **During the initial draft.** While Draft the tour runs, the tour's chat
   still takes feedback (part chats wait). The host keeps it
   (`core::queue_tour_feedback`) and, once the draft proposes, sends it as the

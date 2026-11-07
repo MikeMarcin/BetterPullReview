@@ -2705,8 +2705,7 @@ namespace bpr::qt {
 			StructureProposed = true;
 			return true;
 		}
-		case core::tour_proposal_part::focus: return false;
-		case core::tour_proposal_part::stop:  {
+		case core::tour_proposal_part::stop: {
 			// On the route, after the tour's own stops, numbered on from them.
 			++ProposedStopCount;
 			const auto  number = static_cast<int>((Shown.Draft ? Shown.Draft->Stops.size() : 0U) + ProposedStopCount);

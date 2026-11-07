@@ -422,7 +422,7 @@ namespace bpr::core {
 			// [[BPR-1930]]. A removal, a split or a reorder has no text of its
 			// own to take.
 			if (takes_text(item.Part)) {
-				const auto limit = item.Part == tour_proposal_part::focus ? maximum_tour_focus_bytes : maximum_tour_field_bytes;
+				const auto limit = maximum_tour_field_bytes;
 				if (!nonblank(aText) || aText.size() > limit || !valid_writing_utf8(aText)) {
 					return false;
 				}
@@ -844,7 +844,7 @@ namespace bpr::core {
 				if (aRevision.Focus.size() > maximum_tour_focus_bytes || !valid_writing_utf8(aRevision.Focus)) {
 					++aProposal.Refused;
 				} else {
-					aProposal.Items.push_back({ .Part = tour_proposal_part::focus, .Text = std::string{ trimmed(aRevision.Focus) }, .Run = run });
+					aProposal.Focus = std::string{ trimmed(aRevision.Focus) };
 				}
 			}
 			aProposal.RevisesWaitingStops = aRevision.ReplaceWaitingStops;
@@ -884,9 +884,9 @@ namespace bpr::core {
 			case tour_proposal_part::merge_stops: ++tally.Merges; break;
 			case tour_proposal_part::split_stop:  ++tally.Splits; break;
 			case tour_proposal_part::reorder:     tally.Reorder = true; break;
-			case tour_proposal_part::focus:       tally.Focus = true; break;
 			}
 		}
+		tally.Focus = !aProposal.Focus.empty();
 		return tally;
 	}
 
@@ -919,7 +919,7 @@ namespace bpr::core {
 						return std::ranges::any_of(named(aNew), [&mine](const tour_stop_id aStop) { return std::ranges::find(mine, aStop) != mine.end(); });
 					}
 					return aNew.Part == aItem.Part
-						&& (aItem.Part == tour_proposal_part::problem || aItem.Part == tour_proposal_part::solution || aItem.Part == tour_proposal_part::focus || (aItem.Part == tour_proposal_part::stop_text && aNew.StopId == aItem.StopId));
+						&& (aItem.Part == tour_proposal_part::problem || aItem.Part == tour_proposal_part::solution || (aItem.Part == tour_proposal_part::stop_text && aNew.StopId == aItem.StopId));
 				});
 			};
 			for (const auto& item : aCurrent->Items) {
@@ -987,6 +987,35 @@ namespace bpr::core {
 			return false;
 		}
 		aSession.Focus.clear();
+		return true;
+	}
+	auto apply_tour_focus(tour_agent_session& aSession, const tour_agent_run_id aRun, const std::string_view aFocus) -> bool
+	{
+		const auto run = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (run == aSession.Runs.end() || run->State == tour_agent_run_state::running) {
+			return false;
+		}
+		auto before = aSession.Focus;
+		if (!set_tour_focus(aSession, aFocus)) {
+			return false;
+		}
+		run->FocusSet    = aSession.Focus;
+		run->FocusBefore = std::move(before);
+		run->FocusUndone = false;
+		return true;
+	}
+	auto tour_focus_undoable(const tour_agent_session& aSession, const tour_agent_run& aRun) noexcept -> bool
+	{
+		return !aRun.FocusSet.empty() && !aRun.FocusUndone && aSession.Focus == aRun.FocusSet;
+	}
+	auto undo_tour_focus(tour_agent_session& aSession, const tour_agent_run_id aRun) -> bool
+	{
+		const auto run = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (run == aSession.Runs.end() || !tour_focus_undoable(aSession, *run)) {
+			return false;
+		}
+		aSession.Focus   = run->FocusBefore;
+		run->FocusUndone = true;
 		return true;
 	}
 	auto queue_tour_feedback(tour_agent_session& aSession, const std::string_view aFeedback) -> bool

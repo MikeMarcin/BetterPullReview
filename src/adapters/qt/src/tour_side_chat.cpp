@@ -956,6 +956,7 @@ namespace bpr::qt {
 		const auto  selector = inline_selector();
 		WaitingBubble        = nullptr;
 		InTour               = nullptr;
+		FocusLine            = nullptr;
 		const auto wholeTour = thread && thread->Kind == core::tour_thread_kind::tour;
 		if (runs.empty() && !(wholeTour && Session.Waiting)) {
 			// [[BPR-1930]]. The tour's chat takes feedback on the tour's shape.
@@ -1083,6 +1084,31 @@ namespace bpr::qt {
 				const auto why   = ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).section(QLatin1Char('\n'), 0, 0);
 				column->addWidget(quiet(small(words(run->State == core::tour_agent_run_state::cancelled ? tr("Stopped. Nothing in the tour changed.") : tr("Didn't finish: %1").arg(why), answer))));
 			}
+			// [[BPR-1930]] follow-up, owner: "I dont really understand the focus
+			// changes button. I clicked it and couldnt tell what it did then it
+			// went away." A focus applies at once; one line says so, with Undo
+			// while it is still the focus.
+			if (wholeTour && !run->FocusSet.empty()) {
+				const auto  focus = QString::fromStdString(run->FocusSet).toHtmlEscaped();
+				const auto  undo  = core::tour_focus_undoable(Session, *run);
+				auto* const line  = quiet(small(new QLabel{ answer }));
+				line->setObjectName(QStringLiteral("tourSideChatFocus"));
+				line->setWordWrap(true);
+				line->setTextFormat(Qt::RichText);
+				line->setText(run->FocusUndone ? tr("Focus set to %1%2%3, then undone.").arg(QString{ open_quote }, focus, QString{ close_quote })
+								  : undo       ? tr("Focus set to %1%2%3 · <a href=\"#undo\">Undo</a>").arg(QString{ open_quote }, focus, QString{ close_quote })
+											   : tr("Focus set to %1%2%3.").arg(QString{ open_quote }, focus, QString{ close_quote }));
+				line->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+				line->setToolTip(tr("Later drafts and chat answers favour this part of the pull request. It shows as a chip under the tour's header."));
+				const auto turn = run->Id;
+				connect(line, &QLabel::linkActivated, this, [this, turn] {
+					if (FocusUndoDispatch) {
+						FocusUndoDispatch(turn);
+					}
+				});
+				column->addWidget(line);
+				FocusLine = line;
+			}
 			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself,
 			// on the stops it changes; here one line says so.
 			if (wholeTour && Proposal) {
@@ -1120,8 +1146,7 @@ namespace bpr::qt {
 					case core::tour_proposal_part::remove_stop:
 					case core::tour_proposal_part::merge_stops:
 					case core::tour_proposal_part::split_stop:
-					case core::tour_proposal_part::reorder:
-					case core::tour_proposal_part::focus:       heading = tr("A change to the tour"); break;
+					case core::tour_proposal_part::reorder:     heading = tr("A change to the tour"); break;
 					}
 					auto* const title = small(words(heading, card));
 					auto        heavy = title->font();

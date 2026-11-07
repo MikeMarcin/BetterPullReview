@@ -392,14 +392,15 @@ namespace {
 		auto       answer   = tour_ask_answer{ .Reply = "Fewer stops." };
 		answer.Revision     = tour_revision{ .Remove = { 5U }, .Merges = { { .Stops = { 3U, 2U }, .Title = "Both halves", .Explanation = "One stop for both." } }, .Focus = "  the renderer  " };
 		const auto proposal = propose_tour_changes(tour_agent_run_id{ 4 }, answer, files, tour);
-		expect(proposal.Items.size() == 3U && proposal.Refused == 0U, "a merge, a removal and a focus are proposed");
+		expect(proposal.Items.size() == 2U && proposal.Refused == 0U, "a merge and a removal are proposed");
 		const auto* merge = find_part(proposal, tour_proposal_part::merge_stops);
 		expect(merge != nullptr && merge->Stops == std::vector{ before[1], before[2] } && merge->Stop.Title == "Both halves" && merge->ReplacesAuthorText, "the merge names stops 2 and 3, in tour order, and says it replaces their text");
 		const auto* removal = find_part(proposal, tour_proposal_part::remove_stop);
 		expect(removal != nullptr && removal->StopId == before[4] && removal->Stop.Title == "Stop 5", "the removal names stop 5");
-		const auto* focus = find_part(proposal, tour_proposal_part::focus);
-		expect(focus != nullptr && focus->Text == "the renderer", "the focus is proposed, trimmed");
-		expect(structural(tour_proposal_part::merge_stops) && !structural(tour_proposal_part::focus) && takes_text(tour_proposal_part::merge_stops) && !takes_text(tour_proposal_part::remove_stop), "parts say what they change and take");
+		// [[BPR-1930]] follow-up. The focus is no part to accept: it is read,
+		// trimmed, for the host to apply at once.
+		expect(proposal.Focus == "the renderer", "the focus is read, trimmed, beside the parts");
+		expect(structural(tour_proposal_part::merge_stops) && !structural(tour_proposal_part::stop_text) && takes_text(tour_proposal_part::merge_stops) && !takes_text(tour_proposal_part::remove_stop), "parts say what they change and take");
 		const auto tally = tally_of(proposal);
 		expect(tally.Merges == 1U && tally.Removals == 1U && tally.Focus && !tally.Reorder, "the tally counts the revision");
 
@@ -502,6 +503,22 @@ namespace {
 		expect(set_tour_focus(session, " the renderer ") && session.Focus == "the renderer", "the focus is kept, trimmed");
 		expect(!set_tour_focus(session, std::string(maximum_tour_focus_bytes + 1U, 'x')), "an overlong focus is refused");
 		expect(clear_tour_focus(session) && session.Focus.empty() && !clear_tour_focus(session), "the focus clears once");
+		// [[BPR-1930]] follow-up. A whole-tour turn's focus applies at once and
+		// its turn keeps what it replaced, for Undo.
+		{
+			auto       focused = tour_agent_session{ };
+			const auto first   = begin_tour_ask(focused, tour_thread{ }, std::nullopt, "Focus on the renderer");
+			expect(!apply_tour_focus(focused, *first, "the renderer"), "a running turn sets no focus yet");
+			static_cast<void>(answer_tour_ask(focused, *first, "Focused.", { }));
+			expect(apply_tour_focus(focused, *first, "the renderer") && focused.Focus == "the renderer" && focused.Runs.back().FocusSet == "the renderer" && focused.Runs.back().FocusBefore.empty(), "it applies at once, remembering there was none");
+			const auto second = begin_tour_ask(focused, tour_thread{ }, std::nullopt, "Now the shaders");
+			static_cast<void>(answer_tour_ask(focused, *second, "Focused.", { }));
+			expect(apply_tour_focus(focused, *second, "the shaders") && focused.Runs.back().FocusBefore == "the renderer", "a later focus remembers the one it replaced");
+			expect(!tour_focus_undoable(focused, focused.Runs.front()) && !undo_tour_focus(focused, *first), "an older turn's Undo goes once its focus is replaced");
+			expect(undo_tour_focus(focused, *second) && focused.Focus == "the renderer" && focused.Runs.back().FocusUndone, "Undo brings the earlier focus back");
+			expect(!undo_tour_focus(focused, *second), "and only once");
+			expect(undo_tour_focus(focused, *first) && focused.Focus.empty(), "the first turn's Undo is back with its focus, and clears it");
+		}
 		expect(!queue_tour_feedback(session, "Fewer stops"), "with no draft running there is nothing to wait for");
 		const auto draft = begin_tour_run(session, tour_agent_request::draft_tour, tour_agent_tools::read_only, "Draft the tour");
 		expect(queue_tour_feedback(session, "Fewer stops") && queue_tour_feedback(session, "Start at main()"), "feedback waits while the draft runs");

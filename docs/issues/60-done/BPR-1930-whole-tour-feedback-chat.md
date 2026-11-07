@@ -154,3 +154,34 @@ On `bdd57d419`, dev build:
 ## Accepted
 
 The owner accepted v001 on 2026-11-07 (attended review, no note).
+
+## Follow-up: focus applies at once (2026-11-07)
+
+The owner, after the acceptance: "I dont really understand the focus changes
+button. I clicked it and couldnt tell what it did then it went away." On
+branch `tour-draft-label`, with the "Draft Tour" rename,
+`frontend-design:frontend-design` loaded:
+
+- **No Set focus proposal or button.** A focus from the tour's chat applies at
+  once. It is the author's own instruction and changes no text of the tour.
+  - `core::tour_proposal::Focus` replaces the `focus` part.
+  - `core::apply_tour_focus`, `core::undo_tour_focus` and
+    `core::tour_focus_undoable` keep the focus a turn set, and the focus it
+    replaced, on that turn.
+- **Undo in the chat.** The turn's answer ends with one line, "Focus set to
+  “…” · Undo". Undo brings back the earlier focus while the turn's focus still
+  holds; after that the line says "then undone".
+- **The chip reads clearly.** "Focus: …" under the tour's header has a
+  tooltip: later drafts and chat answers favour that part, and × clears it.
+- **Tests.**
+  - `core_tour_agent_session`: apply, undo, replaced focus.
+  - `qt_tour_agent_session_view`: no Set focus, the chip and its tooltip, the
+    line and its Undo dispatch, the line after undo.
+  - The offscreen look prints
+    `ATTENDED_TOUR_FOCUS_LINE:Focus set to “the renderer changes” · Undo` and
+    the chip.
+  - These pass too: the Tour tests, `qt_drawer_surfaces_fit_scale_*`, the
+    composition contract (resealed from its output, `c8d432aa…`), the format
+    check and the documentation gate.
+- **No look.** The owner waived a review for this follow-up: "I dont need
+  another round of reviews just land straight away."

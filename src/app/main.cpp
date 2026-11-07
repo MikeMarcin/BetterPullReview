@@ -6494,19 +6494,20 @@ namespace {
 					*settled = 0;
 					QTextStream{ stdout } << "ATTENDED_TOUR_REVISION_REPLY:" << QString::fromStdString(panel->session().Runs.back().Reply) << '\n';
 					auto parts = QStringList{ };
-					for (const auto* words : { "Merge", "Remove", "Split", "Reorder", "Set focus" }) {
+					for (const auto* words : { "Merge", "Remove", "Split", "Reorder" }) {
 						const auto count = accepts(QString::fromUtf8(words)).size();
 						if (count > 0U) {
 							parts << QStringLiteral("%1=%2").arg(QString::fromUtf8(words)).arg(count);
 						}
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_REVISION:" << parts.join(QLatin1Char(',')) << '\n';
-					const auto focus = accepts(QStringLiteral("Set focus"));
-					if (focus.empty() || accepts(QStringLiteral("Merge")).empty()) {
+					// [[BPR-1930]] follow-up. The focus applied at once, said on
+					// the turn with Undo.
+					if (accepts(QStringLiteral("Merge")).empty() || chat->focus_line() == nullptr) {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-revision"));
 						return;
 					}
-					focus.front()->click();
+					QTextStream{ stdout } << "ATTENDED_TOUR_FOCUS_LINE:" << chat->focus_line()->text() << '\n';
 					*step = 43;
 					return;
 				}

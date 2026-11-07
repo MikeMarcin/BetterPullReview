@@ -724,6 +724,8 @@ namespace bpr::app {
 		void send_waiting_tour_feedback(int aTries = 0);
 		/// [[BPR-1930]]. Clears the remembered focus (its chip's ×).
 		void clear_tour_focus();
+		/// [[BPR-1930]] follow-up. Undo on a turn's "Focus set to" line.
+		void undo_tour_focus(core::tour_agent_run_id aRun);
 		/// [[BPR-1931]]. Resets the tour being authored, keeping a snapshot to
 		/// undo it, and undoes that reset while the tour is as it left it.
 		void reset_tour();
