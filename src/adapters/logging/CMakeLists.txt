@@ -1,5 +1,5 @@
 if(BPR_BUILD_QT)
-    add_library(better_pull_review_adapter_logging STATIC src/quill_log.cpp src/session_files.cpp)
+    add_library(better_pull_review_adapter_logging STATIC src/quill_log.cpp src/session_files.cpp src/build_fingerprint.cpp)
     add_library(BetterPullReview::AdapterLogging ALIAS better_pull_review_adapter_logging)
     target_include_directories(better_pull_review_adapter_logging PUBLIC include)
     target_link_libraries(better_pull_review_adapter_logging PUBLIC BetterPullReview::Application PRIVATE quill::quill)
@@ -21,7 +21,9 @@ if(BPR_BUILD_QT)
         set(bpr_diagnostic_build "${BPR_RELEASE_COHORT_DIGEST}")
         set(bpr_diagnostic_release "-build.${BPR_RELEASE_BUILD_NUMBER}-${BPR_RELEASE_CONFIGURATION_DIGEST}")
     endif()
-    target_compile_definitions(better_pull_review_adapter_logging PRIVATE
+    # [[BPR-1901]]. A source identity update recompiles only its small owner,
+    # not the logger and session storage that consume the unchanged interface.
+    set_property(SOURCE src/build_fingerprint.cpp APPEND PROPERTY COMPILE_DEFINITIONS
         "BPR_DIAGNOSTIC_BUILD=\"${PROJECT_VERSION}-${bpr_diagnostic_build}${bpr_diagnostic_release}-$<CONFIG>\"")
     target_compile_features(better_pull_review_adapter_logging PUBLIC cxx_std_23)
     if(WIN32)

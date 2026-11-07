@@ -7,6 +7,7 @@
 #include "bpr/core/discovery_diagnosis.hpp"
 #include "bpr/core/github_model.hpp"
 #include "bpr/core/operation_diagnosis.hpp"
+#include "build_fingerprint.hpp"
 #include "session_files.hpp"
 
 #include <algorithm>
@@ -662,7 +663,7 @@ namespace bpr::adapters::logging {
 				record.number("elapsed_us", static_cast<std::uint64_t>(std::chrono::duration_cast<std::chrono::microseconds>(std::chrono::steady_clock::now() - Started).count()));
 				record.text("session", Session);
 				record.number("sequence", ++Sequence);
-				record.text("build", BPR_DIAGNOSTIC_BUILD);
+				record.text("build", diagnostic_build_fingerprint);
 				record.text("op", operations[operation]);
 				record.text("outcome", outcomes[outcome]);
 				record.number("request", Preferences.Privacy == application::diagnostic_privacy::include_locally ? aEvent.Request : 0U);
@@ -808,7 +809,7 @@ namespace bpr::adapters::logging {
 			std::lock_guard lock{ Mutex };
 			refresh_context();
 			flush();
-			application::diagnostic_export_capture result{ Session, Sequence, { }, BPR_DIAGNOSTIC_BUILD };
+			application::diagnostic_export_capture result{ Session, Sequence, { }, std::string{ diagnostic_build_fingerprint } };
 			if (aIncludeRecent) {
 				result.Recent.reserve(Recent.size());
 				for (const auto& item : Recent) {

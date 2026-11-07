@@ -23,6 +23,7 @@
 #include "bpr/qt/suggestion_mark.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include "src/attended_source_identity.hpp"
 #include "src/installed_resources.hpp"
 #include "src/installed_runtime.hpp"
 #include "src/terminal_diagnostics.hpp"
@@ -394,7 +395,7 @@ namespace {
 			}
 			received += static_cast<std::size_t>(count);
 		}
-		const auto expected = std::string{ BPR_ATTENDED_REVIEW_SOURCE_SHA256 } + "\n";
+		const auto expected = std::string{ bpr::app::attended_source_sha256 } + "\n";
 		if (std::string_view{ challenge.data(), challenge.size() } != expected) {
 			return EXIT_FAILURE;
 		}
@@ -9806,7 +9807,7 @@ auto main(int argc, char** argv) -> int
 			config.ApplicationDataRoot            = applicationDataRoot;
 			config.RunningExecutable              = std::filesystem::path{ std::string{
 				executableUtf8.constData(), static_cast<std::size_t>(executableUtf8.size()) } };
-			config.AttendedSourceSha256           = BPR_ATTENDED_REVIEW_SOURCE_SHA256;
+			config.AttendedSourceSha256           = bpr::app::attended_source_sha256;
 			config.BuildConfiguration             = BPR_BUILD_CONFIGURATION;
 			config.BuildTesting                   = false;
 	#if !defined(__APPLE__)
