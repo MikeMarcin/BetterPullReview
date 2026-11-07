@@ -165,3 +165,122 @@ the dev build reaches `ATTENDED_TOUR_CONVERSATION_SHOWN` with the line above.
 - One candidate, `BPR-1925-tour-chat-in-tab-v001` (revision
   `ec9eb504c-v001`), with one Accept/Reject question.
 - Status: ready, awaiting the owner.
+
+### v001 rejected (2026-11-07)
+
+v001 was merged to `main` as `9791aa4db`. The owner rejected the look in
+session `59c3bc2a7ab71976b6b630ad892c4159`, verbatim: "The mockup had the chat
+button on the right side of each of the sections and I prefer that, I also
+want the chat button to toggle it open and closed."
+
+They also reported that syntax highlighting was gone again in the Tour tab's
+chat. Stop 1's answer showed its fenced block (`clear(); draw_scene();`) and
+its inline code (`clear()`, `draw()`) in plain monospace.
+
+The v001 host is stopped and its frozen root removed.
+
+## v002 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v002 is on branch
+`bpr1925-v002-chat-toggle`, made from `origin/main` `9791aa4db`.
+
+- **A toggle at the right of each part.** `part_chat_toggle` is a checkable
+  `QToolButton` in the agent accent. It shows its chat's turns: an outlined
+  speech bubble when off, a filled pill when on. One painter
+  (`paint_chat_toggle`) draws it, so the route's painted toggles match the
+  buttons. It sits:
+  - at the right of the Problem's and the Solution's step rows, before
+    Change (`tour_step_row::set_chat`);
+  - at the right of the open stop's title row, after its pencil;
+  - on every other stop's route row, where the route delegate paints it and
+    `tour_outline` takes its click as the toggle's, not the row's
+    (`route_chat_box`);
+  - by Draft the tour, for the tour as a whole.
+
+  The fields' helper rows no longer carry the glyph. The object names stay
+  (`tourProblemChat`, `tourSolutionChat`, `tourStopChat`,
+  `tourChatAboutTour`).
+- **It toggles** (`review_tour_editor::toggle_side_chat`):
+  - a click opens that part's chat (a stop's with its lines in the code);
+  - on the part whose chat is open it closes the column;
+  - on another part it switches.
+
+  Space works it, it shows focus, and its accessible name and tooltip say
+  whether it opens or closes the chat and how many turns it has.
+- **Coloured code again.** The cause: when the highlighter has classified a
+  text before, it answers inside the request, synchronously. A chat reader
+  joined `Readers` only after `set_body` had asked, so every reader the chat
+  made again (on each presentation of the session) missed that answer and
+  stayed plain. Offscreen tests queue their answers, so they hid it. Now
+  `tour_side_chat::reader` adds the view first, and `tour_agent_panel` does
+  the same for its proposal readers.
+- **The open stop's card fits.** The route never refitted the card when the
+  chat narrowed the column, so its actions and the toggle ran past the edge.
+  Now:
+  - the card takes the route viewport's new width (an event filter, and
+    `place_stop_card_now` comparing the whole size);
+  - the tour and the chat share the drawer evenly at first;
+  - while the chat is open the tour keeps 340 pixels and the drawer stays
+    between 660 and 960.
+- **A calm edit box for a stop's text.** The coordinator relayed the owner on
+  the in-place editor: the blue box "feels cramping, I dont like it how it
+  is". It had a thick blue focus border hugging the text, with no inner
+  padding. Now:
+  - The stop's `Body` has no frame and no native focus rectangle, and the
+    editor's keyboard-ring pass leaves it out.
+  - The stop documents have no document margin, so the words keep the
+    reader's place and width.
+  - `calm_text_box` paints on the card behind them: a box 8 pixels out at the
+    sides and 6 above and below, the ground a shade off. Its hairline edge
+    takes the focus colour, still one pixel, while the keyboard is in it.
+  - Insetting the reader instead was tried first. It changed the reader's
+    width, which set off a scroll-bar resize loop between the tour's
+    `QScrollArea` and the editor, and that crashed
+    `qt_drawer_surfaces_fit` with a stack overflow. That approach was dropped.
+- RFC-BPR-0092's BPR-1925 amendment and `review-tours.md` say this.
+
+### Verification (v002, focused)
+
+On `0f6617456`, dev build, 18 tests pass.
+
+`qt_tour_chat_in_tab` now covers, in a real window, dark and light:
+- the reply's `cpp` block and its inline code coloured inside the Tour tab's
+  column, when it first shows, after leaving the Tour tab and coming back,
+  after a new presentation, when the answer comes inside the request
+  (immediate lanes, which failed before the fix), and after the appearance is
+  applied again;
+- the toggles in the Problem's and the Solution's headers, at their right;
+- the Solution's toggle opening, the Problem's switching, and the Problem's
+  again closing the column, with the narrow drawer back;
+- Space opening and closing the Solution's chat, with the accessible name
+  following;
+- the next stop's toggle on the route opening its chat, and the open stop's
+  own toggle closing it;
+- the pencil opening a stop's text with the keyboard in it, and that text:
+  - has no native focus rectangle, no frame and no ring;
+  - has its quiet box with room inside the card;
+  - starts its first line where it was read (within two pixels across and
+    three down).
+
+The calm edit box, on the next commit, passes the same set and
+`qt_scoped_prose_editor`: 19 tests.
+
+`qt_tour_side_chat` reads the Solution's header toggle: in its row, at the
+right, its name, pressed with its count.
+
+The rest pass too:
+- `qt_drawer_surfaces_fit_scale_100`, `_125` and `_200`;
+- `qt_review_tour_steps`, `qt_review_tour_agent_help`,
+  `qt_review_tour_agent_setup_call`, `qt_review_tour_agent_failure`,
+  `qt_review_tour_stop_view`, `qt_tour_stop_card` and
+  `qt_review_tour_publication_working`;
+- `qt_tour_click_scroll` and `qt_tour_agent_session_view`;
+- `core_tour_agent_session`;
+- `architecture_boundaries` and `architecture_boundary_contract`;
+- `application_review_round_trip_composition_contract`, whose app source is
+  unchanged.
+
+`coding-format-check` passes, and `verify_documentation.py` prints
+`DOCUMENTATION_OK`. The offscreen look on the dev build prints
+`ATTENDED_TOUR_CHAT_PLACE:workbenchTourChatSplit:drawer=740:chat=368:parts=2`
+and `ATTENDED_TOUR_CONVERSATION_SHOWN`.
