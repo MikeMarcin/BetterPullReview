@@ -35,6 +35,7 @@ class QPushButton;
 class QScrollArea;
 class QStackedWidget;
 class QToolButton;
+class QHBoxLayout;
 class QVBoxLayout;
 
 namespace bpr::qt {
@@ -256,6 +257,9 @@ namespace bpr::qt {
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief [[BPR-1924]]. The picker has its own row under the field's
+		/// tools, because the one row cannot hold it whole.
+		[[nodiscard]] auto run_settings_wrapped() const noexcept -> bool { return RunSettingsWrapped; }
 		/// \brief [[BPR-1878]]. What the agent picker shows, for another
 		/// picker (the Tour tab's) that is the same choice.
 		[[nodiscard]] auto run_settings_source() const noexcept -> const std::shared_ptr<agent_run_settings_source>& { return RunSettingsSource; }
@@ -507,7 +511,11 @@ namespace bpr::qt {
 		agent_run_settings_dispatch                RunSettingsDispatch;
 		std::shared_ptr<agent_run_settings_source> RunSettingsSource;
 		agent_run_settings_picker*                 RunSettings = nullptr;
-		QLabel*                                    Notice      = nullptr;
+		/// [[BPR-1924]]. The field's tool row, and the row the picker wraps to.
+		QHBoxLayout* AskRow             = nullptr;
+		QHBoxLayout* PickerRow          = nullptr;
+		bool         RunSettingsWrapped = false;
+		QLabel*      Notice             = nullptr;
 		/// [[BPR-1817]]. The refusal beside the composer.
 		QWidget*                 Refusal      = nullptr;
 		QLabel*                  RefusalText  = nullptr;

@@ -1,7 +1,6 @@
 #include "bpr/qt/agent_run_settings_picker.hpp"
 
 #include "bpr/qt/agent_launch_panel.hpp"
-#include "bpr/qt/drawer_parts.hpp"
 
 #include <QAction>
 #include <QActionGroup>
@@ -17,6 +16,7 @@
 #include <QTimer>
 
 #include <algorithm>
+#include <array>
 
 namespace bpr::qt {
 	namespace {
@@ -97,6 +97,7 @@ namespace bpr::qt {
 			present();
 		});
 		connect(menu(), &QMenu::aboutToHide, this, [this] {
+			update();
 			if (MenuStale) {
 				QTimer::singleShot(0, this, [this] { present(); });
 			}
@@ -114,22 +115,15 @@ namespace bpr::qt {
 		}
 	}
 
-	void agent_run_settings_picker::set_narrow(const bool aNarrow)
-	{
-		if (Narrow != aNarrow) {
-			Narrow = aNarrow;
-			fit();
-		}
-	}
-
 	void agent_run_settings_picker::fit()
 	{
-		// A narrow field keeps the pill as an icon with its words in the
-		// tooltip, as the Codex composer does.
-		setText(Narrow ? QString{ } : Full);
-		setIcon(Narrow ? drawer_icon(drawer_glyph::agent, palette()) : QIcon{ });
-		setToolTip(Narrow ? tr("Choose the agent and model: %1").arg(Full) + QStringLiteral("\n") + Tip : Tip);
+		// [[BPR-1924]]. The whole words always: a narrow field gives the
+		// picker a row of its own rather than an icon. The tooltip leads with
+		// them, for the rare row narrower still.
+		setText(Full);
+		setToolTip(tr("Choose the agent and model: %1").arg(Full) + QStringLiteral("\n") + Tip);
 		updateGeometry();
+		update();
 	}
 
 	void agent_run_settings_picker::present()
@@ -313,36 +307,50 @@ namespace bpr::qt {
 	/// letters, so a narrow row keeps every other control whole.
 	auto agent_run_settings_picker::minimumSizeHint() const -> QSize
 	{
-		const auto hint = QToolButton::sizeHint();
-		return { std::min(hint.width(), fontMetrics().horizontalAdvance(QStringLiteral("Mmmm…")) + 12), hint.height() };
+		return { std::min(sizeHint().width(), fontMetrics().horizontalAdvance(QStringLiteral("Mmmm…")) + chrome_width), sizeHint().height() };
 	}
 
 	auto agent_run_settings_picker::sizeHint() const -> QSize
 	{
 		const auto hint = QToolButton::sizeHint();
-		const auto wide = text().isEmpty() ? 28 : fontMetrics().horizontalAdvance(text()) + 22;
-		return { wide, std::max(hint.height(), fontMetrics().height() + 8) };
+		return { fontMetrics().horizontalAdvance(text()) + chrome_width, std::max(hint.height(), fontMetrics().height() + 10) };
 	}
 
-	/// Drawn as a rounded pill in the field's own colours, as the agent
-	/// drawers draw their model chip.
+	/// [[BPR-1924]], owner look on BPR-1914 v004 ("this box around the model
+	/// picker looks more like a text entry field than a dropdown/picker"). A
+	/// filled pill with the up-and-down chevron the scope menu beside it
+	/// carries, so the two pickers in the row read as one kind of control
+	/// and neither as a place to type. It deepens under the pointer and
+	/// deeper again while pressed or open, and shows the keyboard focus as a
+	/// ring in the highlight. Every colour comes from the palette.
 	void agent_run_settings_picker::paintEvent(QPaintEvent* /*aEvent*/)
 	{
 		auto       painter = QPainter{ this };
-		const auto ink     = palette().color(QPalette::Active, QPalette::WindowText);
+		const auto group   = isEnabled() ? QPalette::Active : QPalette::Disabled;
+		const auto ink     = palette().color(group, QPalette::WindowText);
 		const auto base    = palette().color(QPalette::Active, QPalette::Base);
+		const auto open    = isDown() || (menu() != nullptr && menu()->isVisible());
 		painter.setRenderHint(QPainter::Antialiasing, true);
 		painter.setPen(Qt::NoPen);
-		painter.setBrush(mixed(base, ink, underMouse() || isDown() ? 0.16 : 0.08));
-		const auto box = QRectF{ rect() }.adjusted(0.5, 1.5, -0.5, -1.5);
+		painter.setBrush(mixed(base, ink, open ? 0.26 : underMouse() ? 0.18
+																	 : 0.11));
+		const auto box = QRectF{ rect() }.adjusted(1.0, 1.5, -1.0, -1.5);
 		painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
-		if (!icon().isNull() && text().isEmpty()) {
-			const auto side = std::min(16, height() - 6);
-			icon().paint(&painter, QRect{ (width() - side) / 2, (height() - side) / 2, side, side });
-			return;
+		if (hasFocus()) {
+			painter.setBrush(Qt::NoBrush);
+			painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
+			painter.drawRoundedRect(box, box.height() / 2.0, box.height() / 2.0);
 		}
+		// The chevron: two strokes meeting above the middle and two below.
+		const auto quiet  = underMouse() || open ? ink : mixed(base, ink, 0.7);
+		const auto middle = QPointF{ width() - chevron_right - chevron_width / 2.0, height() / 2.0 };
+		const auto half   = chevron_width / 2.0;
+		painter.setPen(QPen{ quiet, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+		painter.drawPolyline(std::array{ middle + QPointF{ -half, -1.5 }, middle + QPointF{ 0.0, -1.5 - half }, middle + QPointF{ half, -1.5 } }.data(), 3);
+		painter.drawPolyline(std::array{ middle + QPointF{ -half, 1.5 }, middle + QPointF{ 0.0, 1.5 + half }, middle + QPointF{ half, 1.5 } }.data(), 3);
 		painter.setPen(ink);
-		painter.drawText(rect().adjusted(10, 0, -10, 0), Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, width() - 20)));
+		const auto words = rect().adjusted(text_left, 0, -(chrome_width - text_left), 0);
+		painter.drawText(words, Qt::AlignVCenter | Qt::AlignLeft, fontMetrics().elidedText(text(), Qt::ElideRight, std::max(0, words.width())));
 	}
 
 	void agent_run_settings_picker::enterEvent(QEnterEvent* aEvent)
@@ -357,11 +365,4 @@ namespace bpr::qt {
 		update();
 	}
 
-	void agent_run_settings_picker::changeEvent(QEvent* aEvent)
-	{
-		QToolButton::changeEvent(aEvent);
-		if (aEvent->type() == QEvent::PaletteChange && Narrow) {
-			fit();
-		}
-	}
 }

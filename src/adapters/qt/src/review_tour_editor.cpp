@@ -176,27 +176,6 @@ namespace bpr::qt {
 			QString              Text;
 		};
 
-		/// \brief [[BPR-1878]]. The Agent tab's question field, drawn as it
-		/// draws it: one rounded field on the base colour. [[BPR-1881]]: an
-		/// agent feature, so it is outlined in the agent accent.
-		class agent_bar_field final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto base = palette().color(QPalette::Active, QPalette::Base);
-				const auto box  = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				painter.setPen(QPen{ mixed(base, agent_accent(palette()), 0.6), 1.0 });
-				painter.setBrush(base);
-				painter.drawRoundedRect(box, 8.0, 8.0);
-			}
-		};
-
 		/// \brief [[BPR-1881]]. The call to action's ground: the window
 		/// washed with the agent accent, outlined in it.
 		class agent_setup_call_frame final : public QWidget
@@ -1347,15 +1326,19 @@ namespace bpr::qt {
 		// margins, the same rounded field, the agent · model · effort pill on
 		// the right. The draft's state and Preview and publish sit just above
 		// it, so nothing is below the picker.
+		// [[BPR-1924]], owner look on BPR-1914 v004 ("this box around the
+		// model picker looks more like a text entry field than a
+		// dropdown/picker"). The Tour tab has nothing to type here, so the
+		// picker stands on the bar by itself, its right edge on Preview and
+		// publish's, with no field drawn round it.
 		AgentBar = new QWidget{ this };
 		AgentBar->setObjectName(QStringLiteral("tourAgentBar"));
 		auto* const barColumn = new QVBoxLayout{ AgentBar };
 		barColumn->setContentsMargins(10, 8, 10, 10);
-		AgentField = new agent_bar_field{ AgentBar };
+		AgentField = new QWidget{ AgentBar };
 		AgentField->setObjectName(QStringLiteral("tourAgentField"));
-		AgentField->installEventFilter(this);
 		auto* const barRow = new QHBoxLayout{ AgentField };
-		barRow->setContentsMargins(8, 6, 6, 6);
+		barRow->setContentsMargins(0, 0, 0, 0);
 		barRow->setSpacing(2);
 		barRow->addStretch(1);
 		barColumn->addWidget(AgentField);
@@ -1898,9 +1881,6 @@ namespace bpr::qt {
 		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
 			AgentBar->setVisible(AgentPicker->isVisibleTo(AgentBar));
 		}
-		if (aWatched == AgentField && aEvent->type() == QEvent::Resize) {
-			fit_agent_bar();
-		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
 			if (static_cast<QInputMethodEvent*>(aEvent)->preeditString().isEmpty()) {
@@ -2155,7 +2135,6 @@ namespace bpr::qt {
 		aPicker->installEventFilter(this);
 		aPicker->present();
 		AgentBar->setVisible(aPicker->isVisibleTo(AgentBar));
-		fit_agent_bar();
 		restyle_agent_features();
 	}
 	void review_tour_editor::set_agent_setup_dispatch(std::function<void()> aDispatch) { AgentSetupDispatch = std::move(aDispatch); }
@@ -2258,14 +2237,6 @@ namespace bpr::qt {
 		TourAgentPanel->set_available(ready, agent_unavailable_reason());
 		SideChat->set_available(ready, agent_unavailable_reason());
 		InsertOutline->setToolTip(ready ? tr("Insert the checked suggestions as empty stops.") : agent_unavailable_reason());
-	}
-	void review_tour_editor::fit_agent_bar()
-	{
-		// The Agent tab's rule: a field narrower than 300 keeps the pill as
-		// an icon with its words in the tooltip.
-		if (AgentPicker != nullptr) {
-			AgentPicker->set_narrow(AgentField->width() > 0 && AgentField->width() < 300);
-		}
 	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
 	void review_tour_editor::hold_scroll()
@@ -3487,7 +3458,6 @@ namespace bpr::qt {
 		QWidget::resizeEvent(aEvent);
 		fit_page_columns();
 		place_stop_card();
-		fit_agent_bar();
 	}
 
 	void review_tour_editor::fit_page_columns()

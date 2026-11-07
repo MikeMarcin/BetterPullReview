@@ -1,3 +1,8 @@
+# [[BPR-1924]] reseal: main.cpp's tests-on tour authoring look gains
+# --attended-agent-picker, which finds only the fixture `claude`, drags the
+# Comments drawer to 380 pixels and opens the Agent tab on the wrapped agent
+# picker. No provider, credential, grant, mutation or inventory change; the
+# mutation-branch pin is unchanged.
 # [[BPR-1910]]/[[BPR-1911]] merge reseal (2026-11-06): main 8b3b8a327
 # (BPR-1914 v003, BPR-1916, BPR-1917, BPR-1918, BPR-1919) combined with the
 # refactor's rounds 6 and 7; both sides kept. The manifest and full digests are
@@ -3281,7 +3286,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Resealed again over the review skill's place among the built-in prompts
 	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "ce4757e5c405777ab7b29236214cd35b46e540f563138354eaf48f3ca799b9df"
+        "d76a2fce4eb160417a6fcd88fe3d1f8ee212ac247a15110973cb1f80b31485b0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
