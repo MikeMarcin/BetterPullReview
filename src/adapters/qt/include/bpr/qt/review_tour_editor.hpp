@@ -12,6 +12,7 @@
 #include <QFont>
 #include <QPointer>
 #include <QWidget>
+#include <array>
 #include <functional>
 #include <map>
 #include <optional>
@@ -368,29 +369,47 @@ namespace bpr::qt {
 		std::function<void()>                  AgentFailureDispatch;
 		/// [[BPR-1900]]. The tour session's panel, Draft the tour's failure
 		/// notice, and the drafting run in flight.
-		tour_agent_panel*                 TourAgentPanel = nullptr;
-		QWidget*                          DraftFailure   = nullptr;
-		std::optional<core::writing_hook> RunningHook;
-		bool                              RunningDraft = false;
-		void                              open_failed_run();
-		auto                              add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
-		void                              refresh_agent_features();
-		void                              restyle_agent_features();
-		QWidget*                          Foot               = nullptr;
-		QLabel*                           FootState          = nullptr;
-		QPushButton*                      PreviewPublish     = nullptr;
-		QLabel*                           StopState          = nullptr;
-		QPushButton*                      Reaffirm           = nullptr;
-		QPushButton*                      Previous           = nullptr;
-		QPushButton*                      Next               = nullptr;
-		QComboBox*                        PublicationMode    = nullptr;
-		QCheckBox*                        DescriptionEdit    = nullptr;
-		QLabel*                           PublicationStatus  = nullptr;
-		markdown_body_view*               PublicationPreview = nullptr;
-		QPushButton*                      PublishTour        = nullptr;
-		QPushButton*                      ResumeTour         = nullptr;
-		QPushButton*                      ReconcileTour      = nullptr;
-		QPushButton*                      StopTour           = nullptr;
+		tour_agent_panel* TourAgentPanel = nullptr;
+		QWidget*          DraftFailure   = nullptr;
+		/// [[BPR-1925]] v003. The proposal waits in the tour, on the parts it
+		/// changes: proposed stops under the route, grey until accepted; a
+		/// stop's new explanation on its card; the Problem's and the
+		/// Solution's under their own text.
+		QWidget*                                   ProposedStops = nullptr;
+		std::map<std::uint64_t, QPointer<QWidget>> StopTextProposals;
+		std::array<bool, 2>                        PartProposed{ false, false };
+		std::size_t                                ProposedStopCount = 0U;
+		bool                                       ShowsStopProposal = false;
+		QVBoxLayout*                               StopFieldsLayout  = nullptr;
+		QPushButton*                               Complete          = nullptr;
+		QPushButton*                               ShowInCode        = nullptr;
+		std::optional<core::tour_stop_id>          AdvanceFrom;
+		void                                       begin_proposals();
+		[[nodiscard]] auto                         place_proposal(std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool;
+		void                                       mark_proposed();
+		void                                       place_stop_text_proposal();
+		void                                       refresh_complete();
+		std::optional<core::writing_hook>          RunningHook;
+		bool                                       RunningDraft = false;
+		void                                       open_failed_run();
+		auto                                       add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
+		void                                       refresh_agent_features();
+		void                                       restyle_agent_features();
+		QWidget*                                   Foot               = nullptr;
+		QLabel*                                    FootState          = nullptr;
+		QPushButton*                               PreviewPublish     = nullptr;
+		QLabel*                                    StopState          = nullptr;
+		QPushButton*                               Reaffirm           = nullptr;
+		QPushButton*                               Previous           = nullptr;
+		QPushButton*                               Next               = nullptr;
+		QComboBox*                                 PublicationMode    = nullptr;
+		QCheckBox*                                 DescriptionEdit    = nullptr;
+		QLabel*                                    PublicationStatus  = nullptr;
+		markdown_body_view*                        PublicationPreview = nullptr;
+		QPushButton*                               PublishTour        = nullptr;
+		QPushButton*                               ResumeTour         = nullptr;
+		QPushButton*                               ReconcileTour      = nullptr;
+		QPushButton*                               StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;

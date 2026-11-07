@@ -1305,6 +1305,54 @@ button to toggle it open and closed."
   between 660 and 960), and the open stop's card takes the route's new width
   when the chat narrows it.
 
+v003 (2026-11-07). The owner on v002: "Overall fantastic. Missing syntax
+highlights in this part. In fact I think this whole section probably just goes
+away and we move the accept into the stops directly. probably where it says
+ready, next right now. In fact ready, next doesn't seem to do anything. Let's
+put a different color on the stop rails for stops that aren't accepted, maybe
+grey and then turn them back yellow once accepted." This amends
+[[BPR-1900]]'s proposal box. Its rules hold: each part is decided on its own,
+nothing changes until it is accepted, and nothing is silently overwritten.
+
+- **The proposal waits in the tour, on what it changes.** The separate list
+  under Draft the tour is gone. Each pending part's box (heading, text as it
+  will read, Edit text, Discard, and Accept at the right, where Ready, next
+  sits) is placed:
+  - a proposed stop on the route, after the tour's own stops, numbered on from
+    them, under a grey dashed ring and rail. Accepted, it is a stop of the tour
+    and wears the amber of the rest. Move to nearest change and the placement
+    notes come with it;
+  - a stop's new explanation on that stop's card, standing where Ready, next
+    is while it waits: one primary action at a time;
+  - the proposed Problem or Solution under the part's own text, with a quiet
+    "Proposed" pill on its step's header; the Stops step's header carries one
+    too while a stop waits.
+
+  What stays under Draft the tour is one line, "N parts wait in the tour,
+  marked grey", with Accept all, and the existing left-out and outside-list
+  lines. A part with no place in the tour (a new explanation for a stop since
+  removed) stays there as before.
+- **Highlighting.** A proposed text's inline code reads in its part's
+  language, as the side chat's does: a stop's own file, or the tour's commonest
+  language. Fenced blocks were already coloured.
+- **Ready, next.** It did nothing visible because it was refused. A stop is
+  Ready only once its lines are confirmed in the code (`core::ready`), and a
+  stop the agent proposed carries its lines as a place to look, not yet
+  confirmed. Its handler also looked for Ready before the host had answered.
+  Now:
+  - Ready, next is enabled only for a stop that can be Ready, and otherwise
+    says "Confirm the stop's lines first: Show in code, select its lines in
+    the code, then Use selected lines". Show in code is then the card's
+    default.
+  - The move to the next stop waits until the host shows the stop Ready.
+  - The card's primary action goes Accept (while proposed), then Show in code
+    and Use selected lines (lines unconfirmed), then Ready, next.
+- **For whole-tour proposals** ([[BPR-1930]]). The placer gives each kind of
+  part its place on the route. A proposed removal or merge can take the same
+  form as a stop's new explanation, a box on the stops it changes with Accept
+  where Ready, next is. A proposed reorder can show as grey positions on the
+  route. All of them stay grey until accepted.
+
 ### Amendment [[BPR-1914]] v004 (2026-11-06): quieter controls, the diff window's tabs, no scroll jump
 
 The owner on v003: "can we simplify the enhance buttons to just the '<symbol>

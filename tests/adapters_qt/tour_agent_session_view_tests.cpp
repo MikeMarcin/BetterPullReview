@@ -63,6 +63,8 @@ namespace {
 		const auto answer   = core::tour_ask_answer{ .Reply = "Done.", .Changes = { .Solution = std::string{ "Each view clears its own target.\n\n- `clear()` takes the view.\n- `draw()` draws only it." } }, .StopTexts = { { 1U, "Read `begin_frame()` first." } } };
 		const auto proposal = core::propose_tour_changes(*run, answer, { }, tour);
 		aEditor.present_tour_session(session, proposal);
+		// [[BPR-1925]] v003. The proposed Solution waits on the Solution.
+		aEditor.open_step(core::tour_step::solution);
 		QApplication::processEvents();
 		auto* const reader = panel->proposal_reader(0);
 		expect(reader != nullptr && reader->isVisibleTo(&aEditor), "the proposed Solution shows rendered");
@@ -73,7 +75,7 @@ namespace {
 		expect(lists == 2 && !reader->rendered_view()->toPlainText().contains(QLatin1Char('`')), "its list is a list and its code is not backticks");
 		expect(panel->proposal_editor(0)->toPlainText().contains(QStringLiteral("- `clear()` takes the view.")), "the Markdown source is kept to edit");
 		expect(proposal.Items.size() == 2U && proposal.Items[1].Part == core::tour_proposal_part::stop_text && panel->proposal_reader(1) != nullptr, "a stop's new explanation is proposed too");
-		render(*panel->proposal_items(), aPrefix, "formatted-proposal");
+		render(aEditor, aPrefix, "formatted-proposal");
 		panel->accept_button(0)->click();
 		expect(!decided.empty() && std::get<2>(decided.back()).startsWith(QStringLiteral("Each view clears its own target.\n\n- `clear()`")), "Accept sends the Markdown source");
 		aEditor.present_tour_session(session, std::nullopt);
@@ -209,8 +211,10 @@ auto main(int argc, char** argv) -> int
 	// Owner look v002 ("What's up with this?"): the stop outside the pull
 	// request is not shown; one quiet line says so; nothing is disabled.
 	expect(panel->accept_button(2) != nullptr && panel->accept_button(2)->isEnabled() && panel->proposal_editor(2)->isEnabled() && panel->accept_button(3) == nullptr, "only parts that can be accepted are shown");
-	expect(panel->proposal_items()->findChild<QWidget*>(QStringLiteral("tourProposalFlag")) == nullptr, "no red flag");
-	for (auto* const button : panel->proposal_items()->findChildren<QPushButton*>()) {
+	// [[BPR-1925]] v003. The parts wait in the tour itself, not in a list.
+	expect(panel->proposal_items()->findChildren<QWidget*>(QStringLiteral("tourProposalItem")).isEmpty(), "no list of parts in the panel");
+	expect(editor.findChild<QWidget*>(QStringLiteral("tourProposalFlag")) == nullptr, "no red flag");
+	for (auto* const button : editor.findChildren<QPushButton*>(QStringLiteral("tourProposalAccept"))) {
 		expect(button->isEnabled(), "no disabled button in the proposal");
 	}
 	expect(panel->left_out()->isVisibleTo(&editor) && panel->left_out()->text() == QStringLiteral("1 suggested stop pointed outside this pull request and was left out."), "one quiet line says one stop was left out");
@@ -222,13 +226,15 @@ auto main(int argc, char** argv) -> int
 	render(editor, prefix, "proposal");
 	panel->accept_button(0)->click();
 	expect(decided.size() == 1U && std::get<0>(decided[0]) == 0U && std::get<1>(decided[0]) == core::tour_proposal_decision::accepted && std::get<2>(decided[0]) == QStringLiteral("Edited by the author."), "Accept sends the author's edit");
-	auto* const discard = panel->proposal_items()->findChildren<QPushButton*>(QStringLiteral("tourProposalDiscard")).at(2);
+	auto* const discard = panel->accept_button(2)->parentWidget()->findChild<QPushButton*>(QStringLiteral("tourProposalDiscard"));
 	discard->click();
 	expect(decided.size() == 2U && std::get<0>(decided[1]) == 2U && std::get<1>(decided[1]) == core::tour_proposal_decision::discarded, "Discard sends the part's index");
 	// Owner look v001, rejected: "the first click on accept highlights a box in
 	// the pane and doesnt click accept and that box makes the text feel
 	// cramped". One real click, while a proposed field holds the keyboard,
 	// accepts; it moves no focus, and focusing a field shrinks nothing.
+	// [[BPR-1925]] v003. The proposed stop waits on the route: the Stops step.
+	editor.show_stops();
 	auto* const field = panel->proposal_editor(1);
 	editor.activateWindow();
 	for (int settle = 0; settle < 5; ++settle) {
@@ -248,7 +254,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(field->hasFocus() && field->contentsRect() == rest, "focusing a proposed field keeps its room for the text");
 	expect(!field->testAttribute(Qt::WA_MacShowFocusRect), "no native focus ring is drawn inside the field");
-	expect(panel->proposal_items()->parentWidget()->parentWidget()->focusPolicy() == Qt::NoFocus, "the proposal pane never takes the keyboard");
+	expect(panel->accept_button(1)->parentWidget()->focusPolicy() == Qt::NoFocus, "the proposed part never takes the keyboard itself");
 	auto* const accept = panel->accept_button(1);
 	expect(accept->focusPolicy() == Qt::TabFocus, "Accept is reached with Tab, not focused by a press");
 	const auto centre    = accept->rect().center();
@@ -288,8 +294,9 @@ auto main(int argc, char** argv) -> int
 	auto kept = core::propose_tour(core::tour_agent_run_id{ 12 }, placed, hunked, draft);
 	static_cast<void>(core::decide_tour_proposal(kept, 2U, core::tour_proposal_decision::accepted, "Off the change."));
 	editor.present_tour_session(session, kept);
-	const auto items = panel->proposal_items()->findChildren<QLabel*>();
-	expect(std::ranges::any_of(items, [](const QLabel* aLabel) { return aLabel->text().startsWith(QStringLiteral("Added to the tour. It won't appear when the tour is published until it's on changed lines")); }), "accepted as it is, it says plainly it won't publish until moved");
+	// [[BPR-1925]] v003. Accepted, it is a stop of the tour: nothing of it
+	// waits as a proposal any more; its card says its lines are to confirm.
+	expect(panel->accept_button(2) == nullptr && panel->proposal_reader(2) == nullptr, "accepted, it no longer waits as a proposal");
 	// [[BPR-1912]] AC4, [[BPR-1913]] AC2/AC3. A failed run in which Claude ran
 	// a command outside the read-only list.
 	{
