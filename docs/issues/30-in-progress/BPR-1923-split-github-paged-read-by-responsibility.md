@@ -27,3 +27,26 @@ timeline, point reads, personal discovery and the pull-request read).
   review replay and composition rows; architecture, format and documentation
   gates.
 - AC3: Land the change, the completed card and a journal line on main.
+
+## Result
+
+Source `200218758`; `github_paged_read.cpp` goes from 6,407 to 42 lines.
+New files (lines): `github_paged_read_pull_request.cpp` 1909,
+`github_paged_read_personal_discovery.cpp` 1352,
+`github_paged_read_page_wire.cpp` 1153, `github_paged_read_record_parsing.cpp`
+1018, `github_paged_read_point_reads.cpp` 446,
+`github_paged_read_metadata_and_timeline.cpp` 426,
+`github_paged_read_page_wire.hpp` 361 and
+`github_paged_read_record_parsing.hpp` 218. All are under 2,000. One support
+header for every shared helper would have reached 2,250 lines, so the shared
+helpers are split in two: page limits, JSON access, failures, rate limits and
+link paging; and actor, state, connection and record parsers with the
+collection reads. The pull-request source is long because its private
+helpers serve only `perform_paged_github_read`.
+
+Checks on macOS arm64: GitHub adapter and full tests-off builds; full dev
+build except `main`'s broken `agent_context_supplement_tests.cpp`; format
+gate; and 84 rows (every `github_*` row, large review replay, markdown image
+resolution, architecture, composition and coding rows): 83 pass, and
+`application_agent_invocation_composition_contract` fails its seed step as it
+has in every run since round 1's baseline. Windows and Linux were not built.
