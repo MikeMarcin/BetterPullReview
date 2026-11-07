@@ -2,11 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1921"
 title: "Split diff_workbench.cpp by responsibility"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P2"
 metadata: {"baseline":"f17e57017","mandate":"Owner, 2026-11-06/07: keep going until the behavior-preserving refactor of the largest C++ files is done, round by round; at most about 2,000 lines per file for this initial pass; push and pull as needed."}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"a9fd5c1ba","evidence":{"kind":"observation","detail":"Three diff_workbench_* sources and diff_workbench_support (widgets, nested types, shared helpers); public header unchanged."}},{"criterion":"AC2","outcome":"pass","revision":"a9fd5c1ba","evidence":{"kind":"command","detail":"Tests-off builds; dev build except main's broken test; 221/231 rows pass; one load-sensitive row passes alone; nine fail identically at main. Windows/Linux not built."}},{"criterion":"AC3","outcome":"pass","revision":"a9fd5c1ba","evidence":{"kind":"observation","detail":"Card and journal line accompany the source for the main landing and push."}}]
 ---
 
 # Split diff_workbench.cpp by responsibility
