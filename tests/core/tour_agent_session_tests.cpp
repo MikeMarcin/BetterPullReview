@@ -4,6 +4,7 @@
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/tour_agent_session.hpp"
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <string_view>
@@ -121,7 +122,7 @@ namespace {
 
 	void proposal()
 	{
-		const auto files  = std::vector<tour_anchor_file>{ { "src/renderer.cpp", true, 40U }, { "src/old.cpp", false, std::nullopt }, { "src/huge.bin", true, std::nullopt } };
+		const auto files  = std::vector<tour_anchor_file>{ { "src/renderer.cpp", true, 40U, std::nullopt }, { "src/old.cpp", false, std::nullopt, std::nullopt }, { "src/huge.bin", true, std::nullopt, std::nullopt } };
 		auto       draft  = review_tour{ };
 		draft.Problem     = "The author's own problem.";
 		const auto answer = tour_draft_answer{
@@ -137,17 +138,25 @@ namespace {
 			},
 		};
 		auto made = propose_tour(tour_agent_run_id{ 7 }, answer, files, draft);
-		expect(made.Run.value() == 7U && made.Items.size() == 8U, "Problem, Solution and six stops");
+		expect(made.Run.value() == 7U && made.Items.size() == 3U && made.LeftOut.size() == 5U, "Problem, Solution and the one stop that anchors; five left out");
 		expect(made.Items[0].Part == tour_proposal_part::problem && made.Items[0].ReplacesAuthorText, "the Problem says it replaces the author's text");
 		expect(made.Items[1].Part == tour_proposal_part::solution && !made.Items[1].ReplacesAuthorText, "an empty Solution replaces nothing");
 		expect(made.Items[2].Verdict == tour_anchor_verdict::anchored, "real lines of a pull request file anchor");
-		expect(made.Items[3].Verdict == tour_anchor_verdict::not_in_pull_request, "a file outside the pull request is flagged");
-		expect(made.Items[4].Verdict == tour_anchor_verdict::beyond_file, "lines past the end are flagged");
-		expect(made.Items[5].Verdict == tour_anchor_verdict::not_on_head, "a deleted file is flagged");
-		expect(made.Items[6].Verdict == tour_anchor_verdict::invalid_lines, "line zero is flagged");
-		expect(made.Items[7].Verdict == tour_anchor_verdict::unmeasured, "an unmeasured file is flagged");
-		expect(!acceptable(made.Items[3]) && !decide_tour_proposal(made, 3U, tour_proposal_decision::accepted, "x"), "a stop that does not anchor cannot be accepted");
-		expect(decide_tour_proposal(made, 3U, tour_proposal_decision::discarded, ""), "it can be discarded");
+		// Owner look v002 ("What's up with this?"): a stop that does not anchor
+		// is never an item; it is left out, with why, in the agent's order.
+		expect(made.LeftOut[0].Verdict == tour_anchor_verdict::not_in_pull_request && made.LeftOut[0].Stop.Path == "src/missing.cpp", "a file outside the pull request is left out");
+		expect(made.LeftOut[1].Verdict == tour_anchor_verdict::beyond_file, "lines past the end are left out");
+		expect(made.LeftOut[2].Verdict == tour_anchor_verdict::not_on_head, "a deleted file is left out");
+		expect(made.LeftOut[3].Verdict == tour_anchor_verdict::invalid_lines, "line zero is left out");
+		expect(made.LeftOut[4].Verdict == tour_anchor_verdict::unmeasured, "an unmeasured file is left out");
+		expect(std::ranges::all_of(made.Items, [](const tour_proposal_item& aItem) { return acceptable(aItem); }), "every part shown can be accepted");
+		const auto kept = left_out_entries(made);
+		expect(kept.size() == 5U && kept[0].Kind == tour_transcript_kind::left_out && kept[0].Text == "\"Not here\", src/missing.cpp, lines 1 to 2: not a file of this pull request", "the transcript keeps each left-out stop and why");
+		auto       ended = tour_agent_session{ };
+		const auto ran   = begin_tour_run(ended, tour_agent_request::draft_tour, tour_agent_tools::read_only, "Draft the tour");
+		expect(!note_finished_tour_run(ended, *ran, kept), "notes wait for the run to end");
+		static_cast<void>(finish_tour_run(ended, *ran, tour_agent_run_state::answered, "Proposed"));
+		expect(note_finished_tour_run(ended, *ran, kept) && ended.Runs[0].Entries.size() == 7U, "an ended run keeps them");
 		expect(decide_tour_proposal(made, 0U, tour_proposal_decision::accepted, "Edited by the author."), "the Problem is accepted with the author's edit");
 		expect(made.Items[0].Text == "Edited by the author." && !decide_tour_proposal(made, 0U, tour_proposal_decision::discarded, ""), "an item is decided once");
 		expect(!decide_tour_proposal(made, 1U, tour_proposal_decision::accepted, "   "), "blank text is not accepted");
@@ -158,10 +167,56 @@ namespace {
 		auto empty = propose_tour(tour_agent_run_id{ 8 }, tour_draft_answer{ .Problem = std::string{ "  " } }, files, draft);
 		expect(empty.Items.empty(), "blank fields are left out");
 	}
+
+	/// [[BPR-1900]], owner 2026-11-06: "It should strongly prefer on hunk.
+	/// I'm okay with high value off-hunk that will work on live or i can
+	/// relocate to on a hunk or in the PR".
+	void placement()
+	{
+		const auto hunks = parse_patch_head_hunks("@@ -2,4 +2,5 @@ void draw()\n \n-old\n+new\n@@ -20,3 +21,6 @@\n+a\n@@ -40,2 +46,0 @@\n-gone");
+		expect(hunks && *hunks == std::vector<tour_line_span>{ { 2U, 6U }, { 21U, 26U } }, "a patch's hunks are read as head lines, a deletion-only hunk skipped");
+		expect(parse_patch_head_hunks("@@ -0,0 +1 @@\n+one") == std::optional{ std::vector<tour_line_span>{ { 1U, 1U } } }, "a count of one may be left out");
+		expect(!parse_patch_head_hunks("@@ -1,2 +x,3 @@"), "a header it cannot read is refused");
+		expect(parse_patch_head_hunks("") == std::optional{ std::vector<tour_line_span>{ } }, "no hunks is an empty list");
+
+		const auto file = tour_anchor_file{ .Path = "src/a.cpp", .OnHead = true, .HeadLines = 60U, .Hunks = *hunks };
+		expect(place_tour_stop({ "src/a.cpp", 3U, 5U, "", "" }, file) == tour_stop_placement::on_change, "(a) wholly inside a hunk is on the change");
+		expect(place_tour_stop({ "src/a.cpp", 21U, 26U, "", "" }, file) == tour_stop_placement::on_change, "a whole hunk is on the change");
+		expect(place_tour_stop({ "src/a.cpp", 12U, 12U, "", "" }, file) == tour_stop_placement::near_change, "(b) one line off the change still publishes");
+		expect(place_tour_stop({ "src/a.cpp", 10U, 14U, "", "" }, file) == tour_stop_placement::off_change, "(c) several lines off the change do not publish as they are");
+		expect(place_tour_stop({ "src/a.cpp", 5U, 8U, "", "" }, file) == tour_stop_placement::off_change, "a range across a hunk's edge does not publish as it is");
+		expect(place_tour_stop({ "src/a.cpp", 10U, 14U, "", "" }, tour_anchor_file{ .Path = "src/a.cpp", .HeadLines = 60U }) == tour_stop_placement::on_change, "unknown hunks publish natively, as publication places them");
+
+		const auto files  = std::vector<tour_anchor_file>{ file };
+		const auto answer = tour_draft_answer{ .Stops = {
+												   { "src/a.cpp", 10U, 14U, "Off", "Off the change." },
+												   { "src/a.cpp", 12U, 12U, "Near", "One line near." },
+												   { "src/a.cpp", 3U, 5U, "On", "On the change." },
+												   { "src/a.cpp", 22U, 23U, "On too", "Also on it." },
+												   { "src/elsewhere.cpp", 1U, 1U, "Not here", "(d)" },
+											   } };
+		auto       made   = propose_tour(tour_agent_run_id{ 3 }, answer, files, review_tour{ });
+		expect(made.Items.size() == 4U && made.LeftOut.size() == 1U, "(d) a file outside the pull request is left out");
+		expect(made.Items[0].Stop.Title == "On" && made.Items[1].Stop.Title == "On too" && made.Items[2].Stop.Title == "Near" && made.Items[3].Stop.Title == "Off", "on the change first, then near, then off, the agent's order within each");
+		expect(made.Items[2].Placement == tour_stop_placement::near_change && made.Items[3].Placement == tour_stop_placement::off_change, "each says where it is");
+
+		// Move to nearest change.
+		expect(relocate_tour_stop(made, 3U, files), "an off-change stop moves");
+		expect(made.Items[3].Stop.FirstLine == 2U && made.Items[3].Stop.LastLine == 6U && made.Items[3].Placement == tour_stop_placement::on_change, "onto the nearest hunk, keeping as many lines as fit");
+		expect(place_tour_stop(made.Items[3].Stop, file) == tour_stop_placement::on_change, "and it is then on the change");
+		auto far = propose_tour(tour_agent_run_id{ 4 }, tour_draft_answer{ .Stops = { { "src/a.cpp", 40U, 41U, "Far", "Below." } } }, files, review_tour{ });
+		expect(relocate_tour_stop(far, 0U, files) && far.Items[0].Stop.FirstLine == 25U && far.Items[0].Stop.LastLine == 26U, "below every hunk it moves to the last one's end");
+		auto near = propose_tour(tour_agent_run_id{ 5 }, tour_draft_answer{ .Stops = { { "src/a.cpp", 18U, 18U, "Near", "One." } } }, files, review_tour{ });
+		expect(relocate_tour_stop(near, 0U, files) && near.Items[0].Stop.FirstLine == 21U && near.Items[0].Stop.LastLine == 21U, "a near stop moves to the closest hunk");
+		expect(!relocate_tour_stop(near, 0U, std::vector<tour_anchor_file>{ tour_anchor_file{ .Path = "src/a.cpp", .HeadLines = 60U } }) && !relocate_tour_stop(near, 9U, files), "no hunks or no such part: nothing moves");
+		static_cast<void>(decide_tour_proposal(near, 0U, tour_proposal_decision::discarded, ""));
+		expect(!relocate_tour_stop(near, 0U, files), "a decided part does not move");
+	}
 }
 
 int main()
 {
+	placement();
 	tools_split();
 	read_only_tools();
 	transcript();

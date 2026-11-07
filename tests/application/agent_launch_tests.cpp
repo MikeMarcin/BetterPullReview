@@ -1573,6 +1573,8 @@ namespace {
 		expect(!application::decode_tour_draft_answer(R"({"schema":"other","problem":"P","solution":"S","stops":[]})"), "another schema is refused");
 		expect(!application::decode_tour_draft_answer("not json"), "prose is refused");
 		const auto prompt = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified" } }, core::review_tour{ .Problem = "Mine" });
+		const auto hunked = application::build_tour_draft_prompt("Title", "Body", std::vector<application::tour_draft_file>{ { "src/a.cpp", "modified", std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 3U, 14U } } } }, core::review_tour{ });
+		expect(hunked && hunked->find("\"changed_lines\":[[3,14]]") != std::string::npos && hunked->find("Strongly prefer stops on the change") != std::string::npos, "the request gives each file's hunks and asks for stops on them");
 		expect(prompt && prompt->find("bpr.tour-draft.v1") != std::string::npos && prompt->find("src/a.cpp") != std::string::npos && prompt->find("\"problem\":\"Mine\"") != std::string::npos, "the request carries the schema, the files and the tour so far");
 	}
 

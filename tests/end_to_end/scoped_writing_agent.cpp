@@ -146,11 +146,27 @@ namespace {
 			std::string stops;
 			const char* titles[]       = { "Where the change starts", "What it calls next", "How it ends" };
 			const char* explanations[] = { "Start here: this is where the new behaviour enters. Read these lines first.", "These lines carry the change through. Check that every caller sees the new order.", "This is where the change finishes. Notice what happens when it fails." };
-			for (std::size_t index = 0U; index < named.size() && index < 3U; ++index) {
-				const auto last = std::min<std::size_t>(named[index].Lines, 4U);
-				stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":")" } + escape(named[index].Relative) + R"(","first_line":1,"last_line":)" + std::to_string(last) + R"(,"title":")" + titles[index] + R"(","explanation":")" + explanations[index] + "\"}";
+			const auto  stop           = [&stops](const std::string& aPath, const std::size_t aFirst, const std::size_t aLast, const std::string& aTitle, const std::string& aExplanation) {
+				stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":")" } + escape(aPath) + R"(","first_line":)" + std::to_string(aFirst) + R"(,"last_line":)" + std::to_string(aLast) + R"(,"title":")" + escape(aTitle) + R"(","explanation":")" + escape(aExplanation) + "\"}";
+			};
+			const auto has = [&named](const std::string& aPath) { return std::ranges::find(named, aPath, &file::Relative) != named.end(); };
+			if (has("src/engine/renderer.cpp") && has("src/engine/renderer.h") && has("src/main.cpp")) {
+				// [[BPR-1900]], owner 2026-11-06: one stop off the change on a
+				// single line (it still publishes), one off it on several
+				// lines (it offers Move to nearest change), and the rest on
+				// the conventional-comments fixture's hunks; listed off-change
+				// first, so the proposal's own order shows.
+				stop("src/main.cpp", 1U, 2U, "Where the program starts", "Worth reading first because main() decides the frame size before anything draws. These lines are above the change.");
+				stop("src/engine/renderer.cpp", 1U, 1U, "The header it draws with", "Worth a look because every call below comes from this header, which the change does not touch.");
+				stop("src/engine/renderer.cpp", 3U, 8U, titles[0], explanations[0]);
+				stop("src/engine/renderer.h", 4U, 10U, titles[1], explanations[1]);
+				stop("src/main.cpp", 3U, 9U, titles[2], explanations[2]);
+			} else {
+				for (std::size_t index = 0U; index < named.size() && index < 3U; ++index) {
+					stop(named[index].Relative, 1U, std::min<std::size_t>(named[index].Lines, 4U), titles[index], explanations[index]);
+				}
 			}
-			// One stop the core has to flag: not a file of this pull request.
+			// One stop the core leaves out: not a file of this pull request.
 			stops += (stops.empty() ? "" : ",") + std::string{ R"({"path":"src/not_in_this_pull_request.cpp","first_line":3,"last_line":9,"title":"A file it imagined","explanation":"This file is not part of the change."})" };
 			result = R"({"schema":"bpr.tour-draft.v1","problem":"Two views that cleared in the same frame drew over each other, so the second view showed the first one's scene.","solution":"Each view now clears and draws its own scene between begin and present, so the frames no longer overlap.","stops":[)" + stops + "]}";
 		}

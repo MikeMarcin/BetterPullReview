@@ -35,7 +35,13 @@ namespace bpr::qt {
 
 		explicit tour_agent_panel(QWidget* aParent = nullptr);
 		void set_dispatch(std::function<void()> aDraft, std::function<void()> aStop, decide_dispatch aDecide);
-		void present(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
+		/// \brief [[BPR-1900]]. Move to nearest change on a stop off the change.
+		void set_relocate_dispatch(std::function<void(std::size_t)> aRelocate) { RelocateDispatch = std::move(aRelocate); }
+		/// \brief Its Move to nearest change button, while it is offered.
+		[[nodiscard]] auto relocate_button(std::size_t aIndex) const -> QPushButton*;
+		/// \brief The quiet words under a stop's place, when it has some.
+		[[nodiscard]] auto placement_text(std::size_t aIndex) const -> QString;
+		void               present(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
 		/// \brief A Draft the tour run is running (its button says Stop
 		/// drafting), or any run of the session is.
 		void set_running(bool aDraftTour, bool aAny);
@@ -56,6 +62,8 @@ namespace bpr::qt {
 		/// \brief The proposal's items at their full height, for a picture.
 		[[nodiscard]] auto proposal_items() const -> QWidget*;
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
+		/// \brief The quiet line saying how many stops were left out.
+		[[nodiscard]] auto left_out() const noexcept -> QLabel* { return LeftOut; }
 		[[nodiscard]] auto session() const noexcept -> const core::tour_agent_session& { return Session; }
 		/// \brief The transcript as its lines read, newest run first.
 		[[nodiscard]] auto transcript_text() const -> QString;
@@ -71,6 +79,9 @@ namespace bpr::qt {
 		std::function<void()>                  DraftDispatch;
 		std::function<void()>                  StopDispatch;
 		decide_dispatch                        DecideDispatch;
+		std::function<void(std::size_t)>       RelocateDispatch;
+		std::map<std::size_t, QPushButton*>    Relocates;
+		std::map<std::size_t, QLabel*>         Placements;
 		core::tour_agent_session               Session;
 		std::optional<core::tour_proposal>     Proposal;
 		std::map<std::size_t, QString>         Edited;
@@ -88,6 +99,7 @@ namespace bpr::qt {
 		QWidget*                               ProposalBox      = nullptr;
 		QVBoxLayout*                           ProposalItems    = nullptr;
 		QLabel*                                ProposalTitle    = nullptr;
+		QLabel*                                LeftOut          = nullptr;
 		QWidget*                               TranscriptBox    = nullptr;
 		QVBoxLayout*                           TranscriptItems  = nullptr;
 		QScrollArea*                           TranscriptScroll = nullptr;

@@ -239,6 +239,11 @@ namespace bpr::application {
 		std::uint64_t              Deletions   = 0;
 		github_file_content_kind   ContentKind = github_file_content_kind::unknown;
 		github_file_viewed_state   ViewedState = github_file_viewed_state::unavailable;
+		/// [[BPR-1900]]. The head lines of each hunk of the file's patch
+		/// (`core::parse_patch_head_hunks`), one-based first and last; absent
+		/// when GitHub sent no patch (a binary or very large file) or it could
+		/// not be read.
+		std::optional<std::vector<std::pair<std::uint32_t, std::uint32_t>>> HeadHunks;
 
 		auto operator<=>(const github_file_record&) const = default;
 	};
