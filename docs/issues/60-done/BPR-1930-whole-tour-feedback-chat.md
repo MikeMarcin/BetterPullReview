@@ -2,13 +2,12 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1930"
 title: "General feedback on the whole tour: the agent revises stops, focus and structure as one proposal"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1925"]
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-07, coordinator chat","related_cards":["BPR-1900","BPR-1914","BPR-1925"]}
-parked_on: "human-review"
 acceptance: [{"criterion": "AC1 \"Too many stops\" or \"merge 2 and 3\" on a 6-stop tour returns a proposal that removes or merges stops. Accepting it changes the tour exactly as shown. Covered by core and Qt tests with a stub agent", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session: on a 6-stop tour a merge of 2 and 3 and a removal of 5 are proposed and accepted exactly as shown (ids in order, merged title and text, both sources' lines kept); qt_tour_agent_session_view: marks and Remove/Merge in place; frozen look prints ATTENDED_TOUR_REVISION:Merge=1,Remove=1", "path": "docs/issues/40-parked/BPR-1930-whole-tour-feedback-chat.md#verification-v001-focused"}}, {"criterion": "AC2 \"Focus on <part>\" yields a proposal whose stops favour that part. The focus chip persists for later turns until cleared", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session (set/clear focus); application_tour_agent_conversation (focus rides the revise and draft prompts); qt_tour_agent_session_view (chip, x dispatches clear); frozen look ATTENDED_TOUR_FOCUS_CHIP", "path": "docs/issues/40-parked/BPR-1930-whole-tour-feedback-chat.md#verification-v001-focused"}}, {"criterion": "AC3 The same feedback works while the initial draft's proposal is still pending, and revises it", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "core_tour_agent_session (queue_tour_feedback, replace waiting stops); qt_tour_agent_session_view (tour chat sends while drafting); frozen look ATTENDED_TOUR_FEEDBACK_WAITING:1 then ATTENDED_TOUR_DRAFT_REVISED:waiting=4:header=0", "path": "docs/issues/40-parked/BPR-1930-whole-tour-feedback-chat.md#verification-v001-focused"}}, {"criterion": "AC4 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "bdd57d419", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/.codex/attended-builds/bpr1930-whole-tour-v001.5kfcmu7t of bdd57d419; new short session d2e623413a8acad6fc6e91bb4f68a7b7, candidate BPR-1930-whole-tour-feedback-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1930-whole-tour-feedback-chat.md#attended-review-v001"}}, {"criterion": "AC5 The RFC amendment and the documentation gate pass", "outcome": "pass", "revision": "bdd57d419", "evidence": {"kind": "command", "detail": "RFC-BPR-0092 Amendment BPR-1930, BPR-1931; review-tours.md; verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1930-whole-tour-feedback-chat.md#implementation-v001-2026-11-07"}}]
 ---
 
@@ -151,3 +150,7 @@ On `bdd57d419`, dev build:
 - Candidates `BPR-1930-whole-tour-feedback-v001` and `BPR-1931-reset-tour-v001`
   (revision `bdd57d419-v001`), one Accept/Reject question each.
 - Status: ready, awaiting the owner.
+
+## Accepted
+
+The owner accepted v001 on 2026-11-07 (attended review, no note).
