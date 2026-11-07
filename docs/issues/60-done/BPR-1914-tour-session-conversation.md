@@ -2,10 +2,9 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1914"
 title: "The tour session is a conversation: ask about the tour, get answers, and have it propose edits"
-status: "Parked"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1900","BPR-1913"]
-parked_on: "human-review"
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-06, coordinator chat after using BPR-1900","related_cards":["BPR-1900","BPR-1912","BPR-1913","BPR-1915","BPR-1916"]}
@@ -449,3 +448,7 @@ a real click on "Stop 1" did.
   point along the tab row belongs to the tab strip. Before the fix it failed
   on the first click ("one click selects tab 1 (now 2)"). The label was under
   the tab.
+
+## Accepted
+
+The owner accepted v004 on 2026-11-07 (attended review), with the side chat tab click fix landed after it. Note: "So I like everything now except this box around the model picker looks more like a text entry field than a dropdown/picker. It also makes me think that maybe the picker needs to wrap to a 2nd row on the agent tab if the drawer is narrow." Follow-up card filed.

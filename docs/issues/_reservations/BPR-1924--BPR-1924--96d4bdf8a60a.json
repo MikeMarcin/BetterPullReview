@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1924"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Agent picker looks like a picker and wraps",
+  "created": "2026-11-07T17:02:33.536314+00:00",
+  "base": "f17e570170c37ee5fc89359537c7a451f7597d63"
+}
