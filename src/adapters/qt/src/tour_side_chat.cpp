@@ -173,6 +173,106 @@ namespace bpr::qt {
 		return QIcon{ pixmap };
 	}
 
+	namespace {
+		/// The bubble inside a toggle's box: its rounded body and its tail.
+		void draw_bubble(QPainter& aPainter, const QRectF& aGlyph, const QColor& aInk)
+		{
+			aPainter.setPen(QPen{ aInk, 1.4, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+			aPainter.setBrush(Qt::NoBrush);
+			const auto body = QRectF{ aGlyph.left() + 0.5, aGlyph.top() + 1.0, aGlyph.width() - 1.0, aGlyph.height() * 0.66 };
+			aPainter.drawRoundedRect(body, 3.0, 3.0);
+			auto tail = QPainterPath{ };
+			tail.moveTo(body.left() + 3.0, body.bottom());
+			tail.lineTo(body.left() + 2.5, aGlyph.bottom() - 0.5);
+			tail.lineTo(body.left() + 6.5, body.bottom());
+			aPainter.drawPath(tail);
+		}
+	}
+
+	auto chat_toggle_size(const QFont& aFont, const std::size_t aTurns) -> QSize
+	{
+		const auto metrics = QFontMetrics{ aFont };
+		const auto glyph   = 14;
+		const auto figures = aTurns == 0U ? 0 : metrics.horizontalAdvance(QString::number(aTurns)) + 4;
+		return { 8 + glyph + figures + 8, std::max(22, metrics.height() + 6) };
+	}
+
+	void paint_chat_toggle(QPainter& aPainter, const QRectF& aBox, const QPalette& aPalette, const std::size_t aTurns, const bool aOn, const bool aHovered)
+	{
+		aPainter.save();
+		aPainter.setRenderHint(QPainter::Antialiasing, true);
+		const auto ground = aPalette.color(QPalette::Active, QPalette::Window);
+		const auto accent = agent_accent(aPalette);
+		const auto pill   = aBox.adjusted(0.5, 0.5, -0.5, -0.5);
+		const auto radius = pill.height() / 2.0;
+		if (aOn) {
+			aPainter.setPen(Qt::NoPen);
+			aPainter.setBrush(accent);
+			aPainter.drawRoundedRect(pill, radius, radius);
+		} else {
+			aPainter.setPen(QPen{ mixed(ground, accent, aHovered ? 0.85 : 0.55), 1.0 });
+			aPainter.setBrush(mixed(ground, accent, aHovered ? 0.16 : 0.07));
+			aPainter.drawRoundedRect(pill, radius, radius);
+		}
+		const auto ink   = aOn ? ground : accent;
+		const auto glyph = QRectF{ pill.left() + 8.0, pill.center().y() - 7.0, 14.0, 14.0 };
+		draw_bubble(aPainter, glyph, ink);
+		if (aTurns != 0U) {
+			auto font = aPainter.font();
+			font.setWeight(QFont::DemiBold);
+			aPainter.setFont(font);
+			aPainter.setPen(ink);
+			aPainter.drawText(QRectF{ glyph.right() + 4.0, pill.top(), pill.right() - glyph.right() - 4.0 - 6.0, pill.height() }, Qt::AlignLeft | Qt::AlignVCenter, QString::number(aTurns));
+		}
+		aPainter.restore();
+	}
+
+	part_chat_toggle::part_chat_toggle(const QString& aPart, QWidget* aParent)
+		: QToolButton{ aParent }
+		, Part{ aPart }
+	{
+		setCheckable(true);
+		setAutoRaise(true);
+		setFocusPolicy(Qt::StrongFocus);
+		setCursor(Qt::PointingHandCursor);
+		setAttribute(Qt::WA_Hover, true);
+		setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
+		present(0U, false);
+	}
+
+	void part_chat_toggle::present(const std::size_t aTurns, const bool aOn)
+	{
+		const auto resized = Turns != aTurns;
+		Turns              = aTurns;
+		setChecked(aOn);
+		setText(aTurns == 0U ? QString{ } : QString::number(aTurns));
+		const auto turns = aTurns == 0U ? tr("no turns yet") : aTurns == 1U ? tr("one turn")
+																			: tr("%1 turns").arg(aTurns);
+		setAccessibleName(aOn ? tr("Close the chat about %1").arg(Part) : tr("Open the chat about %1").arg(Part));
+		setAccessibleDescription(turns);
+		setToolTip(aOn ? tr("Close the chat about %1 (%2). Every chat is kept.").arg(Part, turns) : tr("Open the chat about %1 beside the tour (%2)").arg(Part, turns));
+		if (resized) {
+			updateGeometry();
+		}
+		update();
+	}
+
+	auto part_chat_toggle::sizeHint() const -> QSize { return chat_toggle_size(font(), Turns); }
+
+	void part_chat_toggle::paintEvent(QPaintEvent* /*aEvent*/)
+	{
+		auto painter = QPainter{ this };
+		painter.setFont(font());
+		const auto box = QRectF{ rect() }.adjusted(1.0, (height() - chat_toggle_size(font(), Turns).height()) / 2.0 + 1.0, -1.0, -(height() - chat_toggle_size(font(), Turns).height()) / 2.0 - 1.0);
+		paint_chat_toggle(painter, box, palette(), Turns, isChecked(), underMouse() || isDown());
+		if (hasFocus()) {
+			painter.setRenderHint(QPainter::Antialiasing, true);
+			painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 2.0 });
+			painter.setBrush(Qt::NoBrush);
+			painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), height() / 2.0 - 1.0, height() / 2.0 - 1.0);
+		}
+	}
+
 	tour_side_chat::tour_side_chat(QWidget* aParent)
 		: QWidget{ aParent }
 	{
@@ -812,8 +912,12 @@ namespace bpr::qt {
 			view->set_code_syntax_dispatch(CodeDispatch);
 		}
 		view->set_height_observer([this] { QTimer::singleShot(0, this, [this] { fit(); }); });
-		view->set_body(aBody, aIdentity);
+		// [[BPR-1925]] v002, owner on v001: the chat's code was plain again.
+		// Setting the body asks for its colours, and a text the host has
+		// classified before is answered inside that request; the reader is
+		// already among those an answer reaches, or that answer misses it.
 		Readers.emplace_back(view);
+		view->set_body(aBody, aIdentity);
 		return view;
 	}
 

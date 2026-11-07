@@ -1266,6 +1266,34 @@ v004: one replayed chat per part, Update the part from this chat with its
   the right of Draft the tour, and take their own row under it when the drawer
   is too narrow for both at their own widths.
 
+v002 (2026-11-07). The owner on v001: "The mockup had the chat button on the
+right side of each of the sections and I prefer that, I also want the chat
+button to toggle it open and closed."
+
+- **A toggle at each part's right.** Each part's chat button sits at the right
+  of its header, as in mockup A:
+  - the Problem's and the Solution's step rows, before Change;
+  - the open stop's title row, after its pencil;
+  - every other stop's row on the route;
+  - the tour's own, by Draft the tour.
+
+  Its fields' helper rows no longer carry it. The button is `part_chat_toggle`
+  in the agent accent with its chat's turns. Off, it is a speech bubble
+  outlined in the accent; on, a pill filled with the accent.
+- **What it does.** A click opens that part's chat in the column. On the part
+  whose chat is open it closes the column, and on another part it switches.
+  It is a checkable button that takes the keyboard: Space toggles it, it shows
+  focus, and its accessible name says "Open the chat about the Solution" or
+  "Close the chat about the Solution".
+- **Coloured code, whatever the timing.** A text the code highlighter has
+  classified before is answered inside the request. A chat reader is among
+  those an answer reaches before its body asks, so a chat rebuilt for a new
+  presentation keeps its colours (the owner saw v001's plain).
+- **The open stop's card fits.** The tour and the chat share the drawer evenly
+  at first. The tour keeps 340 pixels while the chat is open (the drawer
+  between 660 and 960), and the open stop's card takes the route's new width
+  when the chat narrows it.
+
 ### Amendment [[BPR-1914]] v004 (2026-11-06): quieter controls, the diff window's tabs, no scroll jump
 
 The owner on v003: "can we simplify the enhance buttons to just the '<symbol>

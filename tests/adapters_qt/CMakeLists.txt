@@ -2713,7 +2713,7 @@ bpr_add_network_isolated_test(NAME qt_tour_click_scroll COMMAND test_tour_click_
 set_tests_properties(qt_tour_click_scroll PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "tour-click-scroll:pass" TIMEOUT 30)
 # [[BPR-1925]]. The tour's chat is inside the Tour tab, in a real window.
 bpr_add_executable(test_tour_chat_in_tab tour_chat_in_tab_tests.cpp)
-target_link_libraries(test_tour_chat_in_tab PRIVATE BetterPullReview::AdapterQt)
+target_link_libraries(test_tour_chat_in_tab PRIVATE BetterPullReview::AdapterQt BetterPullReview::AdapterSyntax)
 bpr_enable_hardening(test_tour_chat_in_tab)
 bpr_enable_warnings(test_tour_chat_in_tab)
 bpr_add_network_isolated_test(NAME qt_tour_chat_in_tab COMMAND test_tour_chat_in_tab)
