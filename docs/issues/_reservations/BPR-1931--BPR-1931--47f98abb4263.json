@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1931"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Reset the tour being authored",
+  "created": "2026-11-07T18:56:30.071940+00:00",
+  "base": "5708dd5f2fa40b747ffc0000dcd4a8d1a43172e4"
+}
