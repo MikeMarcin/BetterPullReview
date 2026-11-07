@@ -3196,8 +3196,10 @@ function(bpr_verify_app_source_tree app_source_root)
 # main a2e2ca244 with the sign-out reset sources above; both sides kept.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
+	# [[BPR-1918]]. Resealed over main 2261fa371 for the custom agent's
+	# run-checks switch in window_agent_chat.cpp.
 	set(bpr_expected_production_app_manifest_digest
-        "c8e0f5e9b5ca83fc18a8f74b827d7e75d6b217637ab1d1cf5b07045485677734"
+        "ed4d0528d0b6f01561359d69692d69d679008c849d7675161891f79b714ce06c"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

@@ -114,3 +114,11 @@ detached (`serve --tailscale`). One question: candidate
 `/Users/jaeger/BPR-attended/BPR-1918-v001.3azwjmgj`, launched with
 `python3 /Users/jaeger/BPR-attended/BPR-1918-v001.3azwjmgj/launch.py`.
 On Accept the card moves to Done; on Reject the note says what to change.
+
+The frozen build was exported from 3ea2736c3, before the branch was rebased
+onto main 2261fa371 (BPR-1914/1915). The rebase was clean and left the
+BPR-1918 change unchanged; it is 58b68530c on the branch. The rebase also
+reseals the production-app manifest digest in
+`tests/end_to_end/application_review_round_trip_composition_contract.cmake`
+for the `window_agent_chat.cpp` edit. That contract and the focused tests
+pass on the rebased tree.
