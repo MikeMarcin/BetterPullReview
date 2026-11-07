@@ -7,6 +7,7 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 #include <QApplication>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <cstdlib>
@@ -125,6 +126,32 @@ auto main(int argc, char** argv) -> int
 	auto* const discard = panel->proposal_items()->findChildren<QPushButton*>(QStringLiteral("tourProposalDiscard")).at(2);
 	discard->click();
 	expect(decided.size() == 2U && std::get<0>(decided[1]) == 2U && std::get<1>(decided[1]) == core::tour_proposal_decision::discarded, "Discard sends the part's index");
+	// Owner look v001, rejected: "the first click on accept highlights a box in
+	// the pane and doesnt click accept and that box makes the text feel
+	// cramped". One real click, while a proposed field holds the keyboard,
+	// accepts; it moves no focus, and focusing a field shrinks nothing.
+	auto* const field = panel->proposal_editor(1);
+	editor.activateWindow();
+	for (int settle = 0; settle < 5; ++settle) {
+		QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+		QApplication::processEvents();
+	}
+	const auto rest = field->contentsRect();
+	field->setFocus(Qt::MouseFocusReason);
+	QApplication::processEvents();
+	expect(field->hasFocus() && field->contentsRect() == rest, "focusing a proposed field keeps its room for the text");
+	expect(!field->testAttribute(Qt::WA_MacShowFocusRect), "no native focus ring is drawn inside the field");
+	expect(panel->proposal_items()->parentWidget()->parentWidget()->focusPolicy() == Qt::NoFocus, "the proposal pane never takes the keyboard");
+	auto* const accept = panel->accept_button(1);
+	expect(accept->focusPolicy() == Qt::TabFocus, "Accept is reached with Tab, not focused by a press");
+	const auto centre    = accept->rect().center();
+	auto       press     = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ centre }, accept->mapToGlobal(QPointF{ centre }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+	auto       release   = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ centre }, accept->mapToGlobal(QPointF{ centre }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+	const auto decisions = decided.size();
+	QApplication::sendEvent(accept, &press);
+	expect(field->hasFocus(), "the press leaves the keyboard where it was");
+	QApplication::sendEvent(accept, &release);
+	expect(decided.size() == decisions + 1U && std::get<0>(decided.back()) == 1U && std::get<1>(decided.back()) == core::tour_proposal_decision::accepted, "one click on Accept accepts");
 	std::cout << "tour-agent-session-view:pass\n";
 	return EXIT_SUCCESS;
 }

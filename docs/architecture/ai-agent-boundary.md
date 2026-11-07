@@ -1646,11 +1646,23 @@ an empty strict MCP configuration, no setting sources, no slash commands, no
 saved session, `claude_writing_settings` and auto-memory off. In print mode a
 tool use outside the allowed list is denied without a prompt. The decoder then
 holds the run to the list itself: an init frame that loads another tool or any
-MCP server, or a `tool_use` that `core::decide_read_only_tool` refuses (a tool
-outside the four, or a shell command that is not one plain pipeline of the
-admitted programs, or one with an argument that writes or runs something such
-as `find -delete`, `sort -o`, `rg --pre`, Git's `-c`, `--output` or
-`--ext-diff`), ends the run as `tool_refused`. A read-only Codex launch is
+MCP server, or a `tool_use` of a tool outside the four, ends the run as
+`tool_refused`. A shell command `core::decide_read_only_tool` refuses (one
+that is not plain commands of the admitted programs joined by `|`, `&&`, `||`
+or `;`, with no redirection but to `/dev/null`, or one with an argument that
+writes or runs something such as `find -delete`, `sort -o`, `sed -i`,
+`rg --pre`, Git's `-c`, `--output` or `--ext-diff`) is held until its result:
+Claude's own allowlist denies it (`is_error`), the transcript says it was not
+run and the run goes on; a result that says it ran ends the run as
+`tool_refused`. Installed Claude Code 2.1.310, checked on 2026-11-06 with these
+exact arguments in an empty folder, lists exactly `Bash`, `Glob`, `Grep` and
+`Read`, no MCP server and no plugin; it chains commands (`git show --stat HEAD
+&& git show HEAD | head -400`), runs `cd` into the workspace and `sed -n` on
+its own, and tries `for` loops it then denies. The admitted programs are
+therefore `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `sort`,
+`uniq`, `cut`, `tr`, `diff`, `file`, `stat`, `du`, `tree`, `basename`,
+`dirname`, `realpath`, `cd`, `pwd`, `echo`, `printf`, `find`, `sed` (print
+only) and `git log|show|blame|diff|grep|ls-files|status|rev-parse|shortlog|describe|cat-file|ls-tree|merge-base|name-rev`. A read-only Codex launch is
 `codex exec --json --sandbox read-only -c approval_policy="never" -c mcp_servers={} -c tools.web_search=false -`:
 Codex's own sandbox holds it to reading with no network; its commands are
 shown in the transcript and not re-checked. The App Server and the plain-text

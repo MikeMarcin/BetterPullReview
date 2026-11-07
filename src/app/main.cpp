@@ -6132,7 +6132,9 @@ namespace {
 				QTextStream{ stdout } << aLine << '\n';
 				QTextStream{ stdout }.flush();
 			};
-			if (++*ticks > 1'000) {
+			// [[BPR-1900]]. A real agent drafting a whole tour takes minutes,
+			// not the stub's seconds: the drafting look waits up to ten.
+			if (++*ticks > (drafting ? 7'500 : 1'000)) {
 				const auto* const status = editor->findChild<QLabel*>(QStringLiteral("tourWritingStatus"));
 				done(QStringLiteral("ATTENDED_TOUR_FAILED:setup-timeout:step=%1:readiness=%2:writing=%3").arg(*step).arg(static_cast<int>(editor->agent_readiness())).arg(status != nullptr ? status->text() : QString{ }));
 				return;
@@ -6227,6 +6229,13 @@ namespace {
 				const auto  fixedWidth = items->width();
 				items->resize(fixedWidth, items->sizeHint().height());
 				closeUp(items, QStringLiteral("tour-proposal-items"));
+				// Owner look v001: a proposed field with the keyboard in it.
+				if (auto* const field = panel->proposal_editor(0); field != nullptr) {
+					window.activateWindow();
+					field->setFocus(Qt::MouseFocusReason);
+					QCoreApplication::processEvents();
+					closeUp(panel->proposal(), QStringLiteral("tour-proposal-focused"));
+				}
 				panel->open_transcript();
 				QCoreApplication::processEvents();
 				draw(QStringLiteral("app-tour-drafting-transcript"));

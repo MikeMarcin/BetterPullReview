@@ -62,8 +62,15 @@ namespace bpr::core {
 	/// \brief The programs a read-only run's shell command may start, each
 	/// segment of a pipeline on its own. Git is admitted only with
 	/// `read_only_git_commands`.
-	inline constexpr std::array<std::string_view, 12> read_only_programs     = { "rg", "grep", "ls", "cat", "head", "tail", "wc", "sort", "uniq", "find", "git", "nl" };
-	inline constexpr std::array<std::string_view, 6>  read_only_git_commands = { "log", "show", "blame", "diff", "grep", "ls-files" };
+	///
+	/// \details [[BPR-1900]], installed Claude Code 2.1.310: Claude runs its
+	/// own read-only commands (`cd` into the workspace, `wc`, `sort`, `uniq`,
+	/// `cut`, `sed -n`) without asking, so the check admits the read-only ones
+	/// it may run and still refuses anything that writes, runs a script or
+	/// reaches the network. `sed` is admitted only to print (`-n` and a line
+	/// script ending in `p`).
+	inline constexpr std::array<std::string_view, 27> read_only_programs     = { "rg", "grep", "ls", "cat", "head", "tail", "wc", "sort", "uniq", "find", "git", "nl", "cd", "pwd", "echo", "printf", "cut", "tr", "diff", "file", "stat", "du", "basename", "dirname", "realpath", "sed", "tree" };
+	inline constexpr std::array<std::string_view, 14> read_only_git_commands = { "log", "show", "blame", "diff", "grep", "ls-files", "status", "rev-parse", "shortlog", "describe", "cat-file", "ls-tree", "merge-base", "name-rev" };
 
 	/// \brief Why a tool use is refused, or `none`.
 	enum class tour_tool_refusal : std::uint8_t {

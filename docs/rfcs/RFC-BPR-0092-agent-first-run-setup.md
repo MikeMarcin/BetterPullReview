@@ -1043,9 +1043,12 @@ waits on the owner's look on the card's attended review.
   an empty strict MCP configuration, no setting sources, no slash commands, no
   saved session, hooks and auto-memory off. The app also holds the run to the
   list from Claude's own frames (`core::decide_read_only_tool`): another tool
-  in the init frame, any MCP server, or a tool use outside the list (including
-  a shell command that is more than one plain pipeline of those programs, or
-  one with an argument that writes or runs something) ends the run. Codex:
+  in the init frame, any MCP server, or a tool outside the four ends the run; a
+  shell command the app does not admit is held, and ends the run only if its
+  result says it ran (Claude denies it otherwise and the model goes on).
+  Checked against installed Claude Code 2.1.310 on 2026-11-06: its init lists
+  exactly the four tools, no MCP server and no plugin, and a whole-tour draft
+  of the fixture pull request ran to a 12-stop proposal ([[BPR-1900]]). Codex:
   `codex exec --json --sandbox read-only` with approvals off, no MCP server and
   no web search; Codex's sandbox enforces it, and its commands are shown, not
   re-checked. Codex's App Server and the plain-text harness have no read-only
