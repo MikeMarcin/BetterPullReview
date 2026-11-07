@@ -69,6 +69,11 @@ namespace bpr::qt {
 		explicit document_tab_strip(QWidget* aParent = nullptr);
 
 		void set_dispatch(document_tab_dispatch aDispatch);
+		/// \brief [[BPR-1914]] v004. The narrowest a tab gets before the tabs
+		/// scroll sideways; `minimum_tab_width` unless a narrower holder (the
+		/// tour's side chats) sets its own.
+		void               set_minimum_tab_width(int aWidth);
+		[[nodiscard]] auto minimum_width_of_tab() const noexcept -> int { return MinimumTab; }
 		/// \brief Shows the tabs the core published, in order.
 		void present(std::vector<document_tab_presentation> aTabs);
 		/// \brief The comparison's status; shown only while `aNotable`.
@@ -113,6 +118,7 @@ namespace bpr::qt {
 		QToolButton*                       NewTab     = nullptr;
 		QLabel*                            Status     = nullptr;
 		bool                               Rebuilding = false;
+		int                                MinimumTab = minimum_tab_width;
 	};
 } // namespace bpr::qt
 
