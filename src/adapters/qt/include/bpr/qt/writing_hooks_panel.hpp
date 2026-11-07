@@ -15,6 +15,7 @@ class QPushButton;
 class QStackedWidget;
 namespace bpr::qt {
 	class skill_completer;
+	class review_skill_panel;
 	/// \brief [[BPR-1917]]. Agent settings' built-in prompts: a list of every
 	/// prompt with what it is for and where it is used, a roomy editor that
 	/// says when a prompt is changed from its built-in text, Reset to
@@ -80,6 +81,7 @@ namespace bpr::qt {
 		QLabel*                                                          ReviewTitle   = nullptr;
 		QLabel*                                                          ReviewBadge   = nullptr;
 		bool                                                             ReviewChanged = false;
+		review_skill_panel*                                              ReviewSkill   = nullptr;
 		QWidget*                                                         HookPage;
 		QLabel*                                                          Title;
 		QLabel*                                                          Badge;

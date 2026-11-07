@@ -700,6 +700,7 @@ auto main(int argc, char** argv) -> int
 		expect(skill->editor()->font() == text->font() && skill->findChild<QPushButton*>("reviewSkillRestore")->text() == "Reset to built-in", "its editor and Reset are the others'");
 		const auto headings = skill->findChildren<QLabel*>();
 		expect(std::ranges::none_of(headings, [skill](const QLabel* aLabel) { return aLabel->text() == "Review skill" && aLabel->isVisibleTo(skill); }), "its own heading is not shown twice");
+		render(QStringLiteral("prompt-editor-review-skill.png"));
 		panel->present_review_skill_changed(true);
 		expect(skillBadge->text() == "Changed from built-in" && list->item(list->count() - 1)->data(Qt::UserRole + 3).toString() == "Changed", "a changed review skill is marked as the others are");
 	}

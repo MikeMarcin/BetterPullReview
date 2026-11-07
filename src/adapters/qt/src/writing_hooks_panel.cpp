@@ -446,8 +446,9 @@ namespace bpr::qt {
 		ReviewBadge = make_label(page, QStringLiteral("reviewSkillBadge"), false);
 		stateRow->addWidget(ReviewBadge);
 		pageColumn->addLayout(stateRow);
-		if (auto* const skill = dynamic_cast<review_skill_panel*>(aPanel); skill != nullptr) {
-			skill->show_as_built_in_prompt(Instructions->font());
+		ReviewSkill = dynamic_cast<review_skill_panel*>(aPanel);
+		if (ReviewSkill != nullptr) {
+			ReviewSkill->show_as_built_in_prompt(Instructions->font());
 		}
 		aPanel->setParent(page);
 		pageColumn->addWidget(aPanel, 1);
@@ -527,6 +528,11 @@ namespace bpr::qt {
 		Preview->setFont(fixed);
 		if (ReviewTitle != nullptr) {
 			ReviewTitle->setFont(title);
+		}
+		// The owner, on v001: "I think code font is probably more
+		// appropriate" for the review skill too.
+		if (ReviewSkill != nullptr) {
+			ReviewSkill->show_as_built_in_prompt(fixed);
 		}
 	}
 

@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1917"
 title: "Agent settings' built-in prompt editor gets a real design"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: []
 priority: "P1"
@@ -87,5 +86,17 @@ reads Reset to built-in. What stays different on purpose: no Preview or Test
 (the skill's text is itself what every review request carries, in its brief,
 and it runs from the Agent tab), and its version offer (Compare, Use version N,
 Keep mine) and "Save my copy to Downloads first", which only the versioned
-review skill has. `qt_settings_window` checks it. BPR-1917 has no recorded
-decision yet; the fix is not in the v001 build.
+review skill has. `qt_settings_window` checks it. The fix is not in the v001
+build.
+
+## Accepted
+
+The owner accepted `BPR-1917-prompt-editor` on 2026-11-06 in session
+`4b8b91fc663e6c51243591fe761ba0f5` (frozen build v001): "this skill ux popup
+with the / command is awesome. aside: agent tab is still rendering its skill
+way different than review tab. I think code font is probably more
+appropriate", with two screenshots of v001's review skill row (its second
+heading and proportional editor beside Review feedback's code font). The fix
+above answers it: the review skill's editor is the prompts' fixed-pitch code
+font, kept on font changes, under the same title, use line and state as the
+others. The coordinator ruled no new look is needed for it.
