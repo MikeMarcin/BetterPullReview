@@ -6527,7 +6527,7 @@ namespace {
 				closeUp(QStringLiteral("tour-side-chat-stop"));
 				const auto& last = panel->session().Runs.back();
 				QTextStream{ stdout } << "ATTENDED_TOUR_CODE:" << QString::fromStdString(last.Passage ? last.Passage->Path + ":" + std::to_string(last.Passage->FirstLine) + "-" + std::to_string(last.Passage->LastLine) : std::string{ }) << " " << QString::fromStdString(last.Reply).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
-				QTextStream{ stdout } << "ATTENDED_TOUR_CHATS:" << chat->tabs()->count() << '\n';
+				QTextStream{ stdout } << "ATTENDED_TOUR_CHATS:" << chat->chat_count() << '\n';
 				QTextStream{ stdout } << "ATTENDED_AGENT_TAB_TURNS:" << window.agent_tab()->turn_count() << '\n';
 				done(QStringLiteral("ATTENDED_TOUR_CONVERSATION_SHOWN"));
 				return;

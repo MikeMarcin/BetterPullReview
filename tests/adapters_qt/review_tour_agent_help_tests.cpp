@@ -208,7 +208,8 @@ auto main(int argc, char** argv) -> int
 	expect_plain_labels(editor, "agents offered");
 	editor.problem_editor()->setPlainText(QStringLiteral("Reading can crash."));
 	QApplication::processEvents();
-	expect(magic->text() == QStringLiteral("Enhance problem statement"), "a written field's helper says it rewrites the problem statement");
+	// [[BPR-1914]] v004: the spark and "Enhance"; the tooltip says what it does.
+	expect(magic->text() == QStringLiteral("Enhance") && magic->toolTip().contains(QStringLiteral("rewrite this whole field")), "a written field's helper is Enhance, and its tooltip says it rewrites the field");
 
 	// AC1. With no agent the picker is hidden, as the Agent tab's is; writing
 	// by hand stays open (the host's notice on a click says why).

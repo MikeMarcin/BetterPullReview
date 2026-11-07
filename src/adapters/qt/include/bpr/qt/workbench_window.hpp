@@ -1104,7 +1104,7 @@ namespace bpr::qt {
 		void               go_to_private_note(std::uint64_t aId);
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
-		void               open_review_tour();
+		void               open_review_tour(bool aKeepStep = false);
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
 		///
 		/// \details [[BPR-1133]]. It answers the selected review thread when

@@ -2,6 +2,7 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_SIDE_CHAT_HPP
 
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/core/document_tabs.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
@@ -23,11 +24,12 @@ class QLabel;
 class QPlainTextEdit;
 class QPushButton;
 class QScrollArea;
-class QTabBar;
+class QHBoxLayout;
 class QToolButton;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class document_tab_strip;
 	class skill_completer;
 	/// \brief [[BPR-1914]] v003. One question for the tour agent from a side
 	/// chat: the chat's part, the passage quoted with it, the words, and
@@ -106,11 +108,22 @@ namespace bpr::qt {
 
 		[[nodiscard]] auto open_threads() const noexcept -> const std::vector<core::tour_thread>& { return Open; }
 		[[nodiscard]] auto current() const -> std::optional<core::tour_thread>;
-		[[nodiscard]] auto tabs() const noexcept -> QTabBar* { return Tabs; }
+		/// \brief [[BPR-1914]] v004, owner look v003: "The side chat tabs
+		/// behave weirdly ... they don't stretch and I can't seem to close the
+		/// first tab or even select it", and "I liked the tabs I just wanted
+		/// them to behave more like our diff window tabs". The chats' tabs are
+		/// the diff window's own `document_tab_strip`: equal tabs that stretch
+		/// across the pane, a close button on each, the tab menu (Close Tab,
+		/// Close Other Tabs) and + for another chat.
+		[[nodiscard]] auto chat_count() const noexcept -> std::size_t { return Open.size(); }
+		[[nodiscard]] auto tab_strip() const noexcept -> document_tab_strip* { return Strip; }
+		/// \brief The open chat's place among the tabs, or -1.
+		[[nodiscard]] auto current_index() const noexcept -> int { return Current; }
+		void               select(int aIndex);
 		[[nodiscard]] auto composer() const noexcept -> QPlainTextEdit* { return Composer; }
 		[[nodiscard]] auto send_button() const noexcept -> QPushButton* { return Send; }
 		[[nodiscard]] auto update_button() const noexcept -> QPushButton* { return Update; }
-		[[nodiscard]] auto add_button() const noexcept -> QToolButton* { return Add; }
+		[[nodiscard]] auto add_button() const noexcept -> QToolButton*;
 		[[nodiscard]] auto close_button() const noexcept -> QToolButton* { return ClosePane; }
 		[[nodiscard]] auto copy_chat_button() const noexcept -> QToolButton* { return CopyChat; }
 		[[nodiscard]] auto show_button() const noexcept -> QPushButton* { return ShowPart; }
@@ -139,7 +152,13 @@ namespace bpr::qt {
 		bool eventFilter(QObject* aWatched, QEvent* aEvent) override;
 
 	private:
-		void               rebuild();
+		void rebuild();
+		void rebuild_tabs();
+		void show_parts_menu();
+		void tab_gesture(const core::document_tab_intent& aIntent);
+		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:
+		/// a stop's own file, or the language most of the tour's stops are in.
+		[[nodiscard]] auto inline_selector() const -> std::string;
 		void               refresh_header();
 		void               refresh_actions();
 		void               show_passage();
@@ -147,7 +166,7 @@ namespace bpr::qt {
 		void               fit();
 		void               to_bottom();
 		[[nodiscard]] auto name_of(const core::tour_thread& aThread) const -> QString;
-		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity) -> markdown_body_view*;
+		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector) -> markdown_body_view*;
 		[[nodiscard]] auto index_of(const core::tour_thread& aThread) const -> int;
 
 		ask_dispatch                                                                AskDispatch;
@@ -173,32 +192,35 @@ namespace bpr::qt {
 		qreal                                                                       TabStop = 0.0;
 		std::optional<markdown_code_theme>                                          CodeTheme;
 		std::function<void(std::vector<application::markdown_code_syntax_request>)> CodeDispatch;
-		QTabBar*                                                                    Tabs            = nullptr;
-		QToolButton*                                                                Add             = nullptr;
-		QToolButton*                                                                CopyChat        = nullptr;
-		QToolButton*                                                                ClosePane       = nullptr;
-		QLabel*                                                                     Subject         = nullptr;
-		QLabel*                                                                     Quote           = nullptr;
-		QPushButton*                                                                ShowPart        = nullptr;
-		QScrollArea*                                                                Scroll          = nullptr;
-		QVBoxLayout*                                                                Turns           = nullptr;
-		QLabel*                                                                     Empty           = nullptr;
-		QPushButton*                                                                Update          = nullptr;
-		QWidget*                                                                    PassageRow      = nullptr;
-		QLabel*                                                                     PassageLine     = nullptr;
-		QToolButton*                                                                ClearPassage    = nullptr;
-		QPlainTextEdit*                                                             Composer        = nullptr;
-		QPushButton*                                                                Send            = nullptr;
-		skill_completer*                                                            SkillCompletion = nullptr;
-		std::vector<QWidget*>                                                       Bubbles;
-		std::vector<markdown_body_view*>                                            Replies;
-		std::vector<QToolButton*>                                                   Worked;
-		std::vector<QWidget*>                                                       Steps;
-		std::vector<QToolButton*>                                                   Copies;
-		std::vector<QPointer<markdown_body_view>>                                   Readers;
-		std::map<std::size_t, QPushButton*>                                         Accepts;
-		std::map<std::size_t, markdown_body_view*>                                  ProposalReaders;
-		std::vector<QPointer<QWidget>>                                              Accented;
+		document_tab_strip*                                                         Strip = nullptr;
+		/// Each open chat's tab, in `Open`'s order.
+		std::vector<core::document_tab_id>         TabIds;
+		std::uint64_t                              LastTab         = 0U;
+		int                                        Current         = -1;
+		QToolButton*                               CopyChat        = nullptr;
+		QToolButton*                               ClosePane       = nullptr;
+		QLabel*                                    Subject         = nullptr;
+		QLabel*                                    Quote           = nullptr;
+		QPushButton*                               ShowPart        = nullptr;
+		QScrollArea*                               Scroll          = nullptr;
+		QVBoxLayout*                               Turns           = nullptr;
+		QLabel*                                    Empty           = nullptr;
+		QPushButton*                               Update          = nullptr;
+		QWidget*                                   PassageRow      = nullptr;
+		QLabel*                                    PassageLine     = nullptr;
+		QToolButton*                               ClearPassage    = nullptr;
+		QPlainTextEdit*                            Composer        = nullptr;
+		QPushButton*                               Send            = nullptr;
+		skill_completer*                           SkillCompletion = nullptr;
+		std::vector<QWidget*>                      Bubbles;
+		std::vector<markdown_body_view*>           Replies;
+		std::vector<QToolButton*>                  Worked;
+		std::vector<QWidget*>                      Steps;
+		std::vector<QToolButton*>                  Copies;
+		std::vector<QPointer<markdown_body_view>>  Readers;
+		std::map<std::size_t, QPushButton*>        Accepts;
+		std::map<std::size_t, markdown_body_view*> ProposalReaders;
+		std::vector<QPointer<QWidget>>             Accented;
 	};
 }
 

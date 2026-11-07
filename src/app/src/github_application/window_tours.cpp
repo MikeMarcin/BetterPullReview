@@ -158,7 +158,8 @@ namespace bpr::app {
 
 	void github_application::implementation::navigate_tour_source(const std::optional<core::tour_code_destination>& aSource)
 	{
-		Window->open_review_tour();
+		// [[BPR-1914]] v004. From the Tour tab itself: the step stays open.
+		Window->open_review_tour(true);
 		Window->tour_editor()->show_stops();
 		if (!aSource || !WorkbenchHost || !WorkbenchHost->contains_file(core::file_identity_of(aSource->Path))) {
 			Window->tour_editor()->show_notice(QStringLiteral("Source is unavailable in this comparison. The stop stays editable and the normal file path remains available."));

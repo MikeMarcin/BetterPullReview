@@ -14,10 +14,12 @@
 #include "bpr/qt/tour_agent_panel.hpp"
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "bpr/qt/document_tab_strip.hpp"
 #include <QApplication>
 #include <QClipboard>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
 #include <QTabBar>
@@ -179,7 +181,7 @@ auto main(int argc, char** argv) -> int
 	chat->show();
 	settle();
 	expect(!shown.empty() && shown.back(), "opening a chat asks for its dock");
-	expect(chat->tabs()->count() == 1 && chat->tabs()->tabText(0) == QStringLiteral("Solution") && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution }, "its tab names its part");
+	expect(chat->chat_count() == 1U && chat->tab_strip()->tab_bar()->tabText(0) == QStringLiteral("Solution") && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::solution }, "its chip names its part");
 	expect(chat->subject()->text() == QStringLiteral("About the Solution") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text().contains(QStringLiteral("Each view now clears")), "the top says which part it is about and quotes it");
 	expect(chat->passage() && chat->passage()->Text == "between begin and present" && chat->passage_line()->isVisibleTo(chat), "the selected passage is quoted above the composer");
 	expect(!chat->update_button()->isEnabled(), "Update waits until there is a chat to update from");
@@ -223,7 +225,7 @@ auto main(int argc, char** argv) -> int
 	const auto update  = core::begin_tour_ask(session, asked[1].Thread, std::nullopt, asked[1].Question.toStdString(), true);
 	const auto answer  = core::tour_ask_answer{ .Reply = "Rewritten.", .Changes = { .Solution = std::string{ "Both views share one frame:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n" } } };
 	const auto changes = core::keep_thread_part(core::propose_tour_changes(*update, answer, { }, draft), asked[1].Thread);
-	static_cast<void>(core::answer_tour_ask(session, *update, "I rewrote the Solution from our chat.", core::tally_of(changes)));
+	static_cast<void>(core::answer_tour_ask(session, *update, "I rewrote the Solution from our chat, around `auto x = 1;`.", core::tally_of(changes)));
 	editor.present_tour_session(session, changes);
 	settle();
 	expect(chat->turn_count() == 2U && chat->accept_button(0) != nullptr && chat->proposal_reader(0) != nullptr, "the proposed Solution is in the chat, with Accept");
@@ -245,6 +247,25 @@ auto main(int argc, char** argv) -> int
 	expect(colours(*chat->reply(0), QStringLiteral("scoped_lock")) == stopOwn, "AC1 the reply's C++ in the same colours");
 	expect(colours(*chat->proposal_reader(0), QStringLiteral("scoped_lock")) == stopOwn, "AC1 the proposal's too");
 	expect(colours(*chat->reply(0), QStringLiteral("plain_text")).size() <= 1U, "AC2 an unknown language stays plain");
+	// [[BPR-1914]] v004, owner look v003: "it seems like inline code isnt
+	// being highlighted only blocks". Inline code reads in the language of
+	// the chat's part (here the tour's stops, all C++).
+	const auto inlineAt = [](qt::markdown_body_view& aReader, const QString& aText) {
+		auto seen = std::set<QRgb>{ };
+		for (auto block = aReader.rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+			if (!block.text().contains(aText) || block.layout() == nullptr) {
+				continue;
+			}
+			const auto start = block.text().indexOf(aText);
+			for (const auto& range : block.layout()->formats()) {
+				if (range.start < start + aText.size() && range.start + range.length > start) {
+					seen.insert(range.format.foreground().color().rgb());
+				}
+			}
+		}
+		return seen;
+	};
+	expect(inlineAt(*chat->reply(1), QStringLiteral("auto x = 1;")).size() >= 2U, "inline code in a reply is coloured as the part's language");
 
 	// (5) A stop's chat: its glyph shows the stop's lines in the code, the top
 	// names its file and lines, Show in code goes there again, and Ask about
@@ -255,7 +276,7 @@ auto main(int argc, char** argv) -> int
 	expect(stopGlyph != nullptr && stopGlyph->isVisibleTo(&editor), "an open stop has its glyph");
 	stopGlyph->click();
 	settle();
-	expect(chat->tabs()->count() == 2 && chat->tabs()->tabText(1) == QStringLiteral("Stop 1") && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }, "a second chat, for the stop");
+	expect(chat->chat_count() == 2U && chat->tab_strip()->tab_bar()->tabText(1) == QStringLiteral("Stop 1") && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }, "a second chat, for the stop");
 	expect(std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "the stop's lines are shown in the code");
 	expect(chat->subject()->text() == QStringLiteral("About Stop 1, Why") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text() == QStringLiteral("src/item.cpp, lines 4 to 6"), "the top names the stop and its lines");
 	actions.clear();
@@ -264,17 +285,39 @@ auto main(int argc, char** argv) -> int
 	editor.ask_about_code(std::nullopt);
 	expect(chat->passage() && chat->passage()->Field == core::tour_passage_field::stop_code && chat->passage()->Path == "src/item.cpp" && chat->passage()->FirstLine == 4U, "its code is quoted for the next question");
 	render(*chat, prefix, "side-chat-stop");
-	// The tour's own chat, from the panel; the chats switch by tab; closing
-	// every tab closes the pane.
+	// The tour's own chat, from the panel.
 	editor.tour_agent()->chat_button()->click();
-	expect(chat->tabs()->count() == 3 && chat->tabs()->tabText(2) == QStringLiteral("Tour"), "the tour as a whole has a chat too");
-	chat->tabs()->setCurrentIndex(0);
 	settle();
-	expect(chat->turn_count() == 2U, "switching tabs shows that part's chat");
-	for (int tab = chat->tabs()->count(); tab-- > 0;) {
-		emit chat->tabs()->tabCloseRequested(tab);
+	expect(chat->chat_count() == 3U && chat->tab_strip()->tab_bar()->tabText(2) == QStringLiteral("Tour"), "the tour as a whole has a chat too");
+	// [[BPR-1914]] v004, owner look v003: "I can't seem to close the first
+	// tab or even select it". The diff window's tabs: every tab, the first
+	// included, selects with one real click, and they share the row.
+	auto* const bar       = chat->tab_strip()->tab_bar();
+	const auto  realClick = [](QWidget* aWidget, const QPoint& aAt) {
+		auto press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::LeftButton, Qt::NoModifier };
+		auto release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ aAt }, aWidget->mapToGlobal(QPointF{ aAt }), Qt::LeftButton, Qt::NoButton, Qt::NoModifier };
+		QApplication::sendEvent(aWidget, &press);
+		QApplication::sendEvent(aWidget, &release);
+		settle();
+	};
+	const auto closeOf = [bar](const int aIndex) -> QWidget* {
+		auto* const right = bar->tabButton(aIndex, QTabBar::RightSide);
+		return right != nullptr ? right : bar->tabButton(aIndex, QTabBar::LeftSide);
+	};
+	for (const auto order : { 0, 2, 1, 0 }) {
+		realClick(bar, bar->tabRect(order).center());
+		expect(chat->current_index() == order && bar->currentIndex() == order, "tab " + std::to_string(order + 1) + " selects with a click");
 	}
-	expect(chat->tabs()->count() == 0 && !shown.back(), "closing the last chat closes the pane");
+	expect(chat->turn_count() == 2U, "the first tab shows the Solution's chat");
+	expect(std::abs(bar->tabRect(0).width() - bar->tabRect(2).width()) <= 2 && bar->tabRect(0).width() >= 96, "the tabs share the row, as the diff window's do");
+	// Each tab closes with its own close button, the first included.
+	expect(closeOf(0) != nullptr && closeOf(1) != nullptr && closeOf(2) != nullptr, "every tab has its close button");
+	realClick(closeOf(0), closeOf(0)->rect().center());
+	expect(chat->chat_count() == 2U && bar->tabText(0) == QStringLiteral("Stop 1") && chat->current_index() == 0, "the first tab closes; the next takes its place");
+	realClick(closeOf(1), closeOf(1)->rect().center());
+	expect(chat->chat_count() == 1U && bar->tabText(0) == QStringLiteral("Stop 1"), "the last tab closes");
+	realClick(closeOf(0), closeOf(0)->rect().center());
+	expect(chat->chat_count() == 0U && !shown.back(), "closing the last chat closes the pane");
 	chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
 	settle();
 	expect(chat->turn_count() == 2U, "reopened, a chat still has its turns");

@@ -37,8 +37,10 @@
 #include <QPainterPath>
 #include <QPlainTextDocumentLayout>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -46,6 +48,7 @@
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QTextOption>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
@@ -1736,11 +1739,17 @@ namespace bpr::qt {
 		const auto label = [this, aEditor, aHook, button] {
 			const auto whole = aHook == core::writing_hook::problem ? tr("Enhance problem statement") : aHook == core::writing_hook::solution ? tr("Enhance solution")
 																																			  : tr("Enhance comment");
+			// [[BPR-1914]] v004, owner look v003: "can we simplify the enhance
+			// buttons to just the '<symbol> Enhance' and leave the tooltips in
+			// place." The spark and one word; what it rewrites is in the
+			// tooltip, and the longer name still names the request.
 			if (aEditor->textCursor().hasSelection()) {
-				button->setText(tr("Enhance selection"));
+				button->setText(tr("Enhance"));
+				button->setProperty("requestName", tr("Enhance selection"));
 				button->setToolTip(tr("Asks the drafting agent to rewrite only the selected text. Undo restores it."));
 			} else if (!core::writing_blank(aEditor->raw())) {
-				button->setText(whole);
+				button->setText(tr("Enhance"));
+				button->setProperty("requestName", whole);
 				button->setToolTip(tr("Asks the drafting agent to rewrite this whole field, keeping your meaning. Undo restores your text."));
 			} else if (aHook == core::writing_hook::comment) {
 				button->setText(tr("Generate comment"));
@@ -1811,7 +1820,8 @@ namespace bpr::qt {
 			}
 			if (!aEditor->isReadOnly() && WritingRequest) {
 				// [[BPR-1892]]. Made again: the last failure no longer stands.
-				RequestNames[aHook] = button->text();
+				const auto named    = button->property("requestName").toString();
+				RequestNames[aHook] = button->text() == tr("Enhance") && !named.isEmpty() ? named : button->text();
 				clear_agent_failure(aHook);
 				if (auto captured = aEditor->capture()) {
 					WritingRequest(aHook, std::move(*captured));
@@ -1880,6 +1890,9 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		if (aEvent->type() == QEvent::Wheel && HeldScroll) {
+			HeldScroll.reset();
+		}
 		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
 		// as the Agent tab's pill hides with none.
 		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
@@ -2201,7 +2214,10 @@ namespace bpr::qt {
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
 		SideChat->restyle(ground);
+		// [[BPR-1914]] v004, owner look v003: "The side chat buttons should be
+		// in the agent color."
 		for (auto* const chat : ChatButtons) {
+			apply_agent_accent(*chat, ground);
 			chat->setIcon(side_chat_icon(chat->palette()));
 		}
 		if (TourAgentPanel != nullptr) {
@@ -2252,6 +2268,56 @@ namespace bpr::qt {
 		}
 	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
+	void review_tour_editor::hold_scroll()
+	{
+		// The scroll area the Tour tab sits in (the drawer's, or the page's).
+		QScrollArea* outer = nullptr;
+		for (auto* parent = parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+			if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr && scroll->widget() != nullptr && scroll->widget()->isAncestorOf(this)) {
+				outer = scroll;
+				break;
+			}
+		}
+		if (outer == nullptr) {
+			return;
+		}
+		auto* const bar = outer->verticalScrollBar();
+		// Whatever the click sets off settles over a few turns of the event
+		// loop: the cards placed again, the keyboard moved, the window
+		// answering with a file and the tour presented again. Until it has,
+		// any move the person did not make is put back; dragging the bar or
+		// turning the wheel ends the hold at once.
+		HeldScroll = bar->value();
+		++HeldScrollGeneration;
+		const auto generation = HeldScrollGeneration;
+		QObject::disconnect(HeldScrollWatch);
+		QObject::disconnect(HeldScrollRelease);
+		HeldScrollWatch   = connect(bar, &QScrollBar::valueChanged, this, [this, bar](const int aValue) {
+			if (HeldScroll && aValue != *HeldScroll && !bar->isSliderDown() && *HeldScroll <= bar->maximum()) {
+				const auto block = QSignalBlocker{ bar };
+				bar->setValue(*HeldScroll);
+			}
+		});
+		HeldScrollRelease = connect(bar, &QScrollBar::actionTriggered, this, [this](const int) {
+			HeldScroll.reset();
+		});
+		outer->viewport()->installEventFilter(this);
+		const auto restore = [this, guard = QPointer<QScrollBar>{ bar }, generation] {
+			if (guard && generation == HeldScrollGeneration && HeldScroll && guard->value() != *HeldScroll) {
+				guard->setValue(std::min(*HeldScroll, guard->maximum()));
+			}
+		};
+		for (const auto delay : { 0, 30, 90, 200, 400 }) {
+			QTimer::singleShot(delay, this, restore);
+		}
+		QTimer::singleShot(600, this, [this, generation] {
+			if (generation == HeldScrollGeneration) {
+				HeldScroll.reset();
+				QObject::disconnect(HeldScrollWatch);
+				QObject::disconnect(HeldScrollRelease);
+			}
+		});
+	}
 	void review_tour_editor::trigger(tour_editor_action aAction)
 	{
 		if (Shown.Refusal == core::tour_refusal::bounds && aAction != tour_editor_action::retry_save && aAction != tour_editor_action::use_saved_copy && aAction != tour_editor_action::navigate_stop && aAction != tour_editor_action::navigate_related) {
@@ -2261,6 +2327,13 @@ namespace bpr::qt {
 		if (aAction == tour_editor_action::suggest_outline) {
 			RequestNames[core::writing_hook::outline] = tr("Suggest an outline");
 			clear_agent_failure(core::writing_hook::outline);
+		}
+		// [[BPR-1914]] v004, owner look v003: "a single left-click to
+		// activate (1) but it scrolls almost all the way off the top of the
+		// screen". Going to a stop's code is answered by the window (a file
+		// opened, the tour presented again); the Tour tab stays where it was.
+		if (aAction == tour_editor_action::navigate_stop || aAction == tour_editor_action::navigate_related) {
+			hold_scroll();
 		}
 		if (Action) {
 			Action(aAction);
@@ -2654,6 +2727,9 @@ namespace bpr::qt {
 			if (WritingCancel) {
 				WritingCancel();
 			}
+			// [[BPR-1914]] v004. Choosing a stop opens it where it is: the
+			// drawer keeps its place while the cards change.
+			hold_scroll();
 			Selected         = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
 			SelectionChanged = false;
 			// [[BPR-1784]]. Choosing a stop is working on the stops.
@@ -2830,6 +2906,12 @@ namespace bpr::qt {
 		// read yet; the open one keeps its mode, as a save presents it again.
 		ReadTitle->setText(stop->Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop->Title));
 		ReadTitle->setForegroundRole(stop->Title.empty() ? QPalette::PlaceholderText : QPalette::WindowText);
+		// [[BPR-1914]] v004. Its inline code reads as its own file's code.
+		if (const auto& source = stop->Mapped ? stop->Mapped : stop->Original; source) {
+			StopReader->set_inline_code_selector(source->Path);
+		} else if (stop->Destination) {
+			StopReader->set_inline_code_selector(stop->Destination->Path);
+		}
 		StopReader->set_body(stop->Body, "tour-stop-" + std::to_string(stop->Id.value()));
 		view_stop(core::tour_stop_view_event::open);
 		// [[BPR-1783]]. A stop with no title yet, a new one above all, takes
