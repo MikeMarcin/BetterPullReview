@@ -1220,6 +1220,22 @@ namespace bpr::application {
 						++blockIndex;
 						continue;
 					}
+					// [[BPR-1916]]. No run is given the Skill tool: skills a prompt
+					// names ride inline. A Skill use a wrapper made possible names
+					// a skill no reference brought in. Strict, it ends the run;
+					// relaxed ([[BPR-1918]]), it is named, with the skill.
+					if ((aWritingOnly || aReadOnly) && *type == "assistant" && *blockType == "tool_use") {
+						if (const auto* tool = string_member(block, "name"); tool != nullptr && *tool == "Skill") {
+							if (!relaxed) {
+								return std::unexpected(agent_protocol_failure::tool_refused);
+							}
+							const auto* input = object_member(block, "input");
+							const auto* skill = input == nullptr ? nullptr : string_member(*input, "skill");
+							relax(events, relaxed_check::skill, "Skill", (skill == nullptr ? std::string{ "a skill" } : *skill) + ", which no prompt named");
+							++blockIndex;
+							continue;
+						}
+					}
 					if (aWritingOnly && *blockType != "text") {
 						if (!relaxed) {
 							return std::unexpected(

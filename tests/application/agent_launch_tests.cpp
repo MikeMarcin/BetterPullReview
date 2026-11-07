@@ -1570,6 +1570,30 @@ namespace {
 										   "\n";
 		auto              writingRefused = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true };
 		expect(!writingRefused.push(writingInit), "a writing run that loads the Skill tool is refused");
+		// [[BPR-1918]]. A custom agent with relaxed checks: the Skill use is
+		// named with its skill and counted as `skill`, and the run answers; a
+		// strict run ends at the same use.
+		const std::string answer       = R"({"type":"assistant","session_id":"s","message":{"id":"m-a","role":"assistant","content":[{"type":"text","text":"done"}]}})"
+										 "\n"
+										 R"({"type":"result","subtype":"success","session_id":"s","is_error":false,"result":"done"})"
+										 "\n";
+		const auto        skillRelaxed = [](const std::vector<application::agent_protocol_event>& aEvents) {
+			return std::ranges::any_of(aEvents, [](const application::agent_protocol_event& aEvent) { return aEvent.Kind == application::agent_protocol_event_kind::check_relaxed && aEvent.Text == "skill"; })
+				&& std::ranges::any_of(aEvents, [](const application::agent_protocol_event& aEvent) {
+					   return aEvent.Kind == application::agent_protocol_event_kind::tool_activity && aEvent.Text == "Skill" && aEvent.Item.find("always-use-me, which no prompt named") != std::string::npos;
+				   });
+		};
+		auto relaxedRead = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, false, application::agent_launch_purpose::conversation, true, application::agent_run_checks::relaxed };
+		auto readEvents  = relaxedRead.push(plainInit + lure + answer);
+		expect(readEvents && skillRelaxed(*readEvents) && relaxedRead.finish(), "relaxed, a read-only run names the Skill use and answers");
+		const std::string emptyInit    = R"({"type":"system","subtype":"init","session_id":"s","tools":[],"mcp_servers":[]})"
+										 "\n";
+		auto              relaxedWrite = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true, application::agent_launch_purpose::conversation, false, application::agent_run_checks::relaxed };
+		auto              writeEvents  = relaxedWrite.push(emptyInit + lure + answer);
+		expect(writeEvents && skillRelaxed(*writeEvents) && relaxedWrite.finish(), "relaxed, a writing run names the Skill use and answers");
+		auto       strictWrite = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json, true };
+		const auto ended       = strictWrite.push(emptyInit + lure);
+		expect(!ended && ended.error() == application::agent_protocol_failure::tool_refused, "strict, a writing run ends at a Skill use");
 
 		// [[BPR-1917]]. The preview says what the run receives.
 		const auto preview = application::preview_writing_hook(core::writing_hook::problem, "Use /technical-book-humanizer.", library);
