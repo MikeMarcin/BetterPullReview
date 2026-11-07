@@ -6550,6 +6550,10 @@ namespace {
 				const auto& last = panel->session().Runs.back();
 				QTextStream{ stdout } << "ATTENDED_TOUR_CODE:" << QString::fromStdString(last.Passage ? last.Passage->Path + ":" + std::to_string(last.Passage->FirstLine) + "-" + std::to_string(last.Passage->LastLine) : std::string{ }) << " " << QString::fromStdString(last.Reply).replace(QLatin1Char('\n'), QStringLiteral(" | ")) << '\n';
 				QTextStream{ stdout } << "ATTENDED_TOUR_CHATS:" << chat->chat_count() << '\n';
+				// [[BPR-1925]]. The chat is the Tour tab's second column, beside
+				// the tour, and the drawer holds both.
+				const auto* const split = chat->parentWidget();
+				QTextStream{ stdout } << "ATTENDED_TOUR_CHAT_PLACE:" << (split != nullptr ? split->objectName() : QString{ }) << ":drawer=" << (split != nullptr ? split->width() : 0) << ":chat=" << chat->width() << ":parts=" << chat->chat_parts() << '\n';
 				QTextStream{ stdout } << "ATTENDED_AGENT_TAB_TURNS:" << window.agent_tab()->turn_count() << '\n';
 				done(QStringLiteral("ATTENDED_TOUR_CONVERSATION_SHOWN"));
 				return;

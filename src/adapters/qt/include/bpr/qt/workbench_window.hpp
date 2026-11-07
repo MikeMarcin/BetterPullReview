@@ -90,7 +90,6 @@ class QTabWidget;
 #include <vector>
 
 class QCheckBox;
-class QDockWidget;
 class QComboBox;
 class QEvent;
 class QElapsedTimer;
@@ -3067,8 +3066,22 @@ namespace bpr::qt {
 		agent_launch_panel*  AgentPanel                       = nullptr;
 		private_notes_panel* PrivateNotes                     = nullptr;
 		review_tour_editor*  TourEditor                       = nullptr;
-		/// [[BPR-1914]] v003. The dock the tour's side chats sit in.
-		QDockWidget*                           TourSideChatDock  = nullptr;
+		/// [[BPR-1925]]. The Tour tab: the tour, and beside it the chat about
+		/// its marked part while one is open.
+		QSplitter* TourChatSplit = nullptr;
+		/// [[BPR-1925]]. The drawer's width while the Tour tab shows a chat:
+		/// the design's 740 until the reviewer drags it, then theirs for as
+		/// long as the window is open. The narrow width stays the host's.
+		int  TourChatWidth = 740;
+		bool TourChatSized = false;
+		/// [[BPR-1925]]. How many parts have a chat, on the Tour tab.
+		QWidget* TrayTourCount = nullptr;
+		/// [[BPR-1925]]. Opens or closes the chat column (in the Tour tab, or
+		/// beside the tour on its page) and widens or narrows the drawer.
+		void show_tour_chat(bool aShown);
+		void update_tour_chat_badge();
+		/// [[BPR-1925]]. Whether the drawer holds the tour and its chat now.
+		[[nodiscard]] auto                     tour_chat_wide() const -> bool;
 		QAction*                               PrepareTourAction = nullptr;
 		QAction*                               AddTourStopAction = nullptr;
 		private_review_panel*                  PrivateReview     = nullptr;
