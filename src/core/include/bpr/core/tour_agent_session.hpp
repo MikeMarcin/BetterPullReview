@@ -456,7 +456,12 @@ namespace bpr::core {
 		std::vector<tour_stop_id> Stops;
 		/// [[BPR-1930]]. For a split, the stops it becomes.
 		std::vector<proposed_tour_stop> Pieces;
-		auto                            operator==(const tour_proposal_item&) const -> bool = default;
+		/// [[BPR-1900]] follow-up, owner 2026-11-07: "Why did my tour draft
+		/// have this warning at every stop". The head the proposing run read:
+		/// a stop made from this part is at that head, and affirmed there, so
+		/// it asks to be reaffirmed only once the pull request's head moves on.
+		std::optional<git_commit_oid> Head;
+		auto                          operator==(const tour_proposal_item&) const -> bool = default;
 	};
 	/// \brief A proposed stop the core left out, and why.
 	struct tour_left_out_stop
@@ -493,8 +498,9 @@ namespace bpr::core {
 	/// Problem, Solution, then the anchored stops: those on a change first,
 	/// then those near one, then those off it, each group in the agent's
 	/// order. A stop that does not anchor goes to `LeftOut`, never to `Items`.
-	/// Empty fields of the answer are left out.
-	[[nodiscard]] auto propose_tour(tour_agent_run_id aRun, const tour_draft_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal;
+	/// Empty fields of the answer are left out. Every part carries
+	/// `aReadHead`, the head the run read, or else the draft's observed head.
+	[[nodiscard]] auto propose_tour(tour_agent_run_id aRun, const tour_draft_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead = std::nullopt) -> tour_proposal;
 	/// \brief Whether an item may still be accepted: pending, with text, and
 	/// for a stop, anchored.
 	[[nodiscard]] auto acceptable(const tour_proposal_item& aItem) noexcept -> bool;
@@ -508,8 +514,13 @@ namespace bpr::core {
 	/// pending stop, or whose file's hunks are unknown or empty.
 	auto relocate_tour_stop(tour_proposal& aProposal, std::size_t aIndex, const std::vector<tour_anchor_file>& aFiles) -> bool;
 	/// \brief The stop an accepted proposed stop becomes: at its head lines
-	/// as a destination (zero-based), to be confirmed in the code.
+	/// as a destination (zero-based), to be confirmed in the code. It is
+	/// affirmed at `aHead`, the head its run read; that is not Ready, which
+	/// still waits for the author to confirm its lines.
 	[[nodiscard]] auto tour_stop_of(const proposed_tour_stop& aStop, const git_commit_oid& aHead) -> tour_stop;
+	/// \brief [[BPR-1900]] follow-up. The head a part's stops are made at:
+	/// the head its run read, or else the draft's observed head.
+	[[nodiscard]] auto proposal_head(const tour_proposal_item& aItem, const review_tour& aDraft) -> git_commit_oid;
 	/// \brief The transcript lines that keep a proposal's left-out stops:
 	/// each stop's path, lines, title and why it was left out.
 	[[nodiscard]] auto left_out_entries(const tour_proposal& aProposal) -> std::vector<tour_transcript_entry>;
@@ -633,8 +644,9 @@ namespace bpr::core {
 	/// so the merged stop keeps every line; a split's pieces anchor in the
 	/// pull request inside the stop's own lines; an order names every stop
 	/// once and differs from the tour's; a focus is not blank. A part that
-	/// fails is counted in `Refused`, never shown.
-	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal;
+	/// fails is counted in `Refused`, never shown. Every part carries
+	/// `aReadHead` as `propose_tour`'s do.
+	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead = std::nullopt) -> tour_proposal;
 	/// \brief What a proposal holds, counted.
 	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) noexcept -> tour_proposal_tally;
 	/// \brief The proposal shown after `aIncoming` arrives: `aIncoming`'s items,

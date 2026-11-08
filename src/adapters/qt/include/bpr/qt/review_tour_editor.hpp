@@ -246,6 +246,14 @@ namespace bpr::qt {
 		[[nodiscard]] auto outline() const -> QListWidget* { return Outline; }
 		[[nodiscard]] auto stop_title() const -> QLineEdit* { return Title; }
 		[[nodiscard]] auto stop_body() const -> QPlainTextEdit* { return Body; }
+		/// [[BPR-1900]] follow-up, owner 2026-11-07. The open stop's "Head
+		/// changed" chip, beside its title and outside its explanation; a
+		/// click asks "Still accurate?" in place, with Confirm and Edit.
+		[[nodiscard]] auto head_chip() const -> QToolButton* { return HeadChip; }
+		[[nodiscard]] auto head_confirm() const -> QWidget* { return HeadConfirm; }
+		[[nodiscard]] auto head_question() const -> QLabel* { return HeadQuestion; }
+		[[nodiscard]] auto head_confirm_button() const -> QPushButton* { return HeadConfirmYes; }
+		[[nodiscard]] auto head_edit_button() const -> QPushButton* { return HeadEdit; }
 		[[nodiscard]] auto problem_editor() const -> QPlainTextEdit* { return Problem; }
 		[[nodiscard]] auto solution_editor() const -> QPlainTextEdit* { return Solution; }
 		[[nodiscard]] auto roadmap() const -> QTabWidget* { return Roadmap; }
@@ -286,6 +294,8 @@ namespace bpr::qt {
 		void                                                                       view_stop(core::tour_stop_view_event aEvent);
 		void                                                                       present_stop_view();
 		void                                                                       structural(core::tour_command_kind aKind, std::size_t aPosition = 0);
+		void                                                                       reaffirm_stop(core::tour_stop_id aStop);
+		void                                                                       present_head_chip(const core::tour_stop& aStop);
 		[[nodiscard]] auto                                                         selected_stops() const -> std::vector<core::tour_stop_id>;
 		void                                                                       select_stops(const std::vector<core::tour_stop_id>& aStops);
 		void                                                                       update_stop_actions();
@@ -420,7 +430,11 @@ namespace bpr::qt {
 		QLabel*                                          FootState          = nullptr;
 		QPushButton*                                     PreviewPublish     = nullptr;
 		QLabel*                                          StopState          = nullptr;
-		QPushButton*                                     Reaffirm           = nullptr;
+		QToolButton*                                     HeadChip           = nullptr;
+		QWidget*                                         HeadConfirm        = nullptr;
+		QLabel*                                          HeadQuestion       = nullptr;
+		QPushButton*                                     HeadConfirmYes     = nullptr;
+		QPushButton*                                     HeadEdit           = nullptr;
 		QPushButton*                                     Previous           = nullptr;
 		QPushButton*                                     Next               = nullptr;
 		QComboBox*                                       PublicationMode    = nullptr;

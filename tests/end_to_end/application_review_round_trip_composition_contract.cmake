@@ -1,3 +1,11 @@
+# [[BPR-1931]]/[[BPR-1900]] follow-up reseal (2026-11-07): window_tours.cpp
+# resets a tour empty but for its waiting proposals without asking the tour
+# host to restore an unchanged draft, lets Undo reset go once a later run
+# exists, and passes the tour run's workspace PinnedHead to the proposals
+# (window_composition.hpp keeps it). main.cpp's tests-on drafting look, with
+# BPR_ATTENDED_TOUR_RESET, resets unaccepted proposals and undoes it. No
+# provider, credential, grant, mutation or inventory change; the
+# mutation-branch pin is unchanged.
 # [[BPR-1924]] reseal: main.cpp's tests-on tour authoring look gains
 # --attended-agent-picker, which finds only the fixture `claude`, drags the
 # Comments drawer to 380 pixels and opens the Agent tab on the wrapped agent
@@ -3288,7 +3296,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Resealed again over the review skill's place among the built-in prompts
 	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "e220c0501013bc6dfdc146d1aad41fdd00444f9b0e6332b15863e1b5ef167b17"
+        "64142046e4bb8d9ee8a9b625ba32ffe327a2a9da04352e940aa931be9afd87f3"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

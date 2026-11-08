@@ -164,3 +164,39 @@ On `bf4fa23d2`, dev build:
 ## Accepted
 
 The owner accepted v002 on 2026-11-07, with: "It's good, can we just change it to say Draft tour instead of Draft the tour to get some space back." (follow-up landed separately)
+
+## Follow-up: reset of unaccepted draft proposals (2026-11-07)
+
+The owner, 2026-11-07: "Reset tour doesn't seem to reset unaccepted draft
+tour suggestions."
+
+- **Cause.** A tour that is empty but for Draft Tour's waiting proposals
+  is already the reset tour. The host asked the tour host to restore the
+  empty draft anyway. Core `apply` reports a restore that changes nothing
+  as no change, so `reset_tour` said "The tour couldn't be reset. Nothing
+  changed." and returned before clearing the proposal, the chats and the
+  focus. The grey proposed stops, the Proposed parts and Accept all stayed.
+  Undo had the same flaw.
+- **Fix** (`window_tours.cpp`). When the draft is already the reset tour,
+  no restore is sent, and only the proposals, chats and focus go. Undo
+  restores no draft in that case. Undo reset now also goes once the tour's
+  conversation has a later run, so it never overwrites newer turns. Reset
+  is also refused while a run is pending or the session is busy, as well as
+  while a run is running.
+- **Evidence.** `core_tour_agent_session` shows that an empty tour with
+  proposals is resettable and already reset, and that restoring it changes
+  nothing. The offscreen look with the stub agent
+  (`--attended-tour-drafting --attended-tour-revision`,
+  `BPR_ATTENDED_TOUR_RESET=1`) leaves the draft's proposals unaccepted and
+  then resets:
+  - `ATTENDED_TOUR_RESET_WHILE_DRAFTING:enabled=0`
+  - `ATTENDED_TOUR_RESET_PROPOSALS_DONE:waiting=0:proposal=0:accepts=0:route=0:chats=0`
+  - `ATTENDED_TOUR_RESET_PROPOSALS_UNDONE:waiting=4:before=4:chats=1`
+  - after Accept all and a whole-tour revision,
+    `ATTENDED_TOUR_RESET_DONE:...:accepts=0:marks=0`, then
+    `ATTENDED_TOUR_RESET_UNDONE:...:merge=1:marks=3`.
+
+  The same look against the previous host stops after
+  `ATTENDED_TOUR_RESET_PROPOSALS_ASKS`, because the reset never completes.
+- It shares a branch and an attended review with the [[BPR-1900]] head
+  follow-up.

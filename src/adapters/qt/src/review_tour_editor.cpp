@@ -3208,6 +3208,24 @@ namespace bpr::qt {
 		ReadTitle->setTextInteractionFlags(Qt::TextSelectableByMouse);
 		ReadTitle->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
 		titleRow->addWidget(ReadTitle, 1);
+		// [[BPR-1900]] follow-up, owner 2026-11-07: "Turn it into a
+		// badge/chip on the stop outside of the main stop comment content
+		// box ... Then click it I guess to ask to clear it in a second click".
+		// A stop whose explanation was written before the pull request's head
+		// moved wears one small amber chip by its title. It is the stop's
+		// state, never its text: nothing of it is published.
+		HeadChip = new QToolButton{ StopFields };
+		HeadChip->setObjectName(QStringLiteral("tourHeadChip"));
+		HeadChip->setText(tr("Head changed"));
+		HeadChip->setCheckable(true);
+		HeadChip->setToolButtonStyle(Qt::ToolButtonTextOnly);
+		HeadChip->setCursor(Qt::PointingHandCursor);
+		HeadChip->setFocusPolicy(Qt::StrongFocus);
+		HeadChip->setAccessibleName(tr("Head changed"));
+		HeadChip->setToolTip(tr("The pull request's head moved since this explanation was written. Click to confirm it still holds, or edit it."));
+		HeadChip->setAccessibleDescription(HeadChip->toolTip());
+		HeadChip->hide();
+		titleRow->addWidget(HeadChip, 0, Qt::AlignTop);
 		StopState = new QLabel{ StopFields };
 		StopState->setObjectName(QStringLiteral("tourStopState"));
 		StopState->setForegroundRole(QPalette::PlaceholderText);
@@ -3233,6 +3251,47 @@ namespace bpr::qt {
 		connect(DoneStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
 		StopTitleRow = titleRow;
 		fields->addLayout(titleRow);
+		// The chip's second step, in place under the title: the question, then
+		// Confirm (the stop's explanation holds at this head) and Edit.
+		HeadConfirm = new QWidget{ StopFields };
+		HeadConfirm->setObjectName(QStringLiteral("tourHeadConfirm"));
+		{
+			auto* const row = new QHBoxLayout{ HeadConfirm };
+			row->setContentsMargins(0, 0, 0, 0);
+			row->setSpacing(8);
+			HeadQuestion = new QLabel{ HeadConfirm };
+			HeadQuestion->setObjectName(QStringLiteral("tourHeadQuestion"));
+			HeadQuestion->setWordWrap(true);
+			HeadQuestion->setTextFormat(Qt::PlainText);
+			HeadQuestion->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
+			row->addWidget(HeadQuestion, 1);
+			HeadConfirmYes = new quiet_push_button{ tr("Confirm"), HeadConfirm };
+			HeadConfirmYes->setObjectName(QStringLiteral("tourHeadConfirmYes"));
+			HeadConfirmYes->setAccessibleName(tr("Confirm the explanation still holds"));
+			row->addWidget(HeadConfirmYes, 0, Qt::AlignTop);
+			HeadEdit = new quiet_push_button{ tr("Edit"), HeadConfirm };
+			HeadEdit->setObjectName(QStringLiteral("tourHeadEdit"));
+			HeadEdit->setAccessibleName(tr("Edit the explanation"));
+			row->addWidget(HeadEdit, 0, Qt::AlignTop);
+		}
+		HeadConfirm->hide();
+		fields->addWidget(HeadConfirm);
+		connect(HeadChip, &QToolButton::toggled, this, [this](const bool aOpen) {
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
+				HeadConfirm->setVisible(aOpen);
+				present_head_chip(*stop);
+			}
+		});
+		connect(HeadConfirmYes, &QPushButton::clicked, this, [this] {
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
+				reaffirm_stop(stop->Id);
+			}
+		});
+		connect(HeadEdit, &QPushButton::clicked, this, [this] {
+			HeadChip->setChecked(false);
+			begin_stop_edit();
+			Body->setFocus(Qt::OtherFocusReason);
+		});
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
 		Source->setFont(code_font_of(font()));
@@ -3362,10 +3421,6 @@ namespace bpr::qt {
 		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this](const int aRow) { StopActions->want(RemoveRelated, aRow >= 0 && Mode == tour_editor_mode::page); });
 		Related->setToolTip(tr("Double-click a related source to inspect it. Show in code restores this stop."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
-		Reaffirm = new quiet_push_button{ tr("Reaffirm explanation for current head"), StopFields };
-		Reaffirm->setObjectName(QStringLiteral("tourReaffirm"));
-		fields->addWidget(Reaffirm, 0, Qt::AlignLeft);
-		connect(Reaffirm, &QPushButton::clicked, this, [this] { structural(core::tour_command_kind::reaffirm); });
 		auto* nav = new QHBoxLayout;
 		nav->setSpacing(6);
 		fields->addLayout(nav);
@@ -3603,6 +3658,11 @@ namespace bpr::qt {
 		}
 		update_stop_actions();
 		const bool changed = Editing != stop->Id;
+		if (changed && HeadChip->isChecked()) {
+			// Another stop's card: its chip opens closed.
+			const QSignalBlocker quiet{ HeadChip };
+			HeadChip->setChecked(false);
+		}
 		if (changed) {
 			auto& document = BodyDocuments[stop->Id];
 			if (!document) {
@@ -3676,9 +3736,6 @@ namespace bpr::qt {
 				Source->setText(Source->text() + tr("\nAuthor question: ") + QString::fromStdString(suggestion.Question));
 			}
 		}
-		if (Shown.Draft->ObservedHead && stop->ReaffirmedHead != Shown.Draft->ObservedHead) {
-			Source->setText(Source->text() + tr("\nHead or surrounding contract changed. Reaffirm or revise the explanation before publishing; identical selected bytes are not proof."));
-		}
 		if (stop->Mapping != core::tour_mapping::exact_original && stop->Mapping != core::tour_mapping::unchanged_material) {
 			Source->setText(Source->text() + tr("\nSource needs attention; original destination is retained."));
 		}
@@ -3686,17 +3743,17 @@ namespace bpr::qt {
 		// request, and said only when something needs doing.
 		{
 			const auto details   = Source->text();
-			const auto attention = details.contains(tr("Source needs attention")) || details.contains(tr("Head or surrounding contract changed"));
+			const auto attention = details.contains(tr("Source needs attention"));
 			Source->setToolTip(details);
 			auto chip = Outline->item(row)->data(source_role).toString();
 			if (chip.isEmpty()) {
 				chip = tr("Source unavailable — your text remains editable.");
 			}
 			if (attention) {
-				chip += QStringLiteral("  ·  ") + (details.contains(tr("Head or surrounding contract changed")) ? tr("The head changed: reaffirm or revise before publishing") : tr("Source needs attention"));
+				chip += QStringLiteral("  ·  ") + tr("Source needs attention");
 			}
 			Source->setText(chip);
-			Reaffirm->setVisible(Shown.Draft->ObservedHead && stop->ReaffirmedHead != Shown.Draft->ObservedHead);
+			present_head_chip(*stop);
 			StopState->setText(stop->Preparation == core::tour_preparation::ready ? tr("Ready") : stop->Preparation == core::tour_preparation::needs_attention ? tr("Needs attention")
 								   : stop->Preparation == core::tour_preparation::suggested                                                                    ? tr("Suggested")
 																																							   : tr("Editing"));
@@ -3838,6 +3895,55 @@ namespace bpr::qt {
 		if (aKind == core::tour_command_kind::move && Shown.Refusal == core::tour_refusal::none) {
 			select_stops(selection);
 		}
+	}
+	/// [[BPR-1900]] follow-up. Marks `aStop`'s explanation current at the
+	/// observed head; a refusal is said on the card in plain words.
+	void review_tour_editor::reaffirm_stop(const core::tour_stop_id aStop)
+	{
+		if (!Dispatch || !Shown.Draft || std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
+			return;
+		}
+		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::reaffirm, .Stop = aStop });
+		if (Shown.Refusal != core::tour_refusal::none) {
+			HeadChip->setChecked(true);
+			HeadConfirm->show();
+			HeadQuestion->setText(Shown.Refusal == core::tour_refusal::incomplete ? tr("This explanation can't be confirmed yet: it needs a title, an explanation and lines confirmed in the code.")
+																				  : tr("The tour changed before this could be confirmed. Nothing changed; try again."));
+		}
+	}
+	/// [[BPR-1900]] follow-up. The chip shows while the stop's explanation
+	/// was written at another head than the one the tour observes. Open, it
+	/// asks whether the explanation still holds; where confirming can't apply
+	/// yet it says what is missing; the card's own Show in code and Use selected
+	/// lines are the way to it.
+	void review_tour_editor::present_head_chip(const core::tour_stop& aStop)
+	{
+		const auto stale = Shown.Draft && Shown.Draft->ObservedHead && aStop.ReaffirmedHead != Shown.Draft->ObservedHead;
+		if (!stale) {
+			const QSignalBlocker quiet{ HeadChip };
+			HeadChip->setChecked(false);
+			HeadChip->hide();
+			HeadConfirm->hide();
+			return;
+		}
+		const auto dark  = palette().color(QPalette::Window).lightness() < 128;
+		const auto amber = builtin_attention_color(dark ? core::appearance_variant::dark : core::appearance_variant::light, attention_tone::needs_me);
+		auto       wash  = amber;
+		wash.setAlphaF(dark ? 0.18F : 0.12F);
+		auto open = amber;
+		open.setAlphaF(dark ? 0.30F : 0.22F);
+		HeadChip->setStyleSheet(QStringLiteral("QToolButton#tourHeadChip { color: %1; background: %2; border: 1px solid %1; border-radius: 9px; padding: 0px 8px; }"
+											   "QToolButton#tourHeadChip:checked { background: %3; }"
+											   "QToolButton#tourHeadChip:focus { border-width: 2px; padding: 0px 7px; }")
+									.arg(amber.name(QColor::HexArgb), wash.name(QColor::HexArgb), open.name(QColor::HexArgb)));
+		HeadChip->show();
+		const auto need = core::reaffirm_need(aStop);
+		HeadQuestion->setText(need == core::tour_reaffirm_need::title                 ? tr("The head moved. Give this stop a title, then confirm its explanation.")
+								  : need == core::tour_reaffirm_need::explanation     ? tr("The head moved. Write this stop's explanation, then confirm it.")
+								  : need == core::tour_reaffirm_need::confirmed_lines ? tr("The head moved, and this stop's lines aren't confirmed yet. Show it in the code, select its lines, then Use selected lines.")
+																					  : tr("The head moved since you wrote this. Still accurate?"));
+		HeadConfirmYes->setVisible(need == core::tour_reaffirm_need::nothing);
+		HeadConfirm->setVisible(HeadChip->isChecked());
 	}
 	auto review_tour_editor::selected_stops() const -> std::vector<core::tour_stop_id>
 	{
@@ -4386,6 +4492,10 @@ namespace bpr::qt {
 				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
 			}
 			EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+			// The Head changed chip's amber follows the theme.
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
+				present_head_chip(*stop);
+			}
 		}
 	}
 

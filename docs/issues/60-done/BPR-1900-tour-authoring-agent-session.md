@@ -349,3 +349,73 @@ work on live or i can relocate to on a hunk or in the PR".
 ## Accepted
 
 The owner accepted v003 on 2026-11-06 (attended review, no note).
+
+## Follow-up: drafted stops and the head-changed state (2026-11-07)
+
+The owner, 2026-11-07:
+- "Why did my tour draft have this warning at every stop: 'the head
+  changed reaffirm or revise before publishing'"
+- "there's this button 'Reaffirm explanation for current head' which
+  doesnt seem to do anything"
+- "I think it's very weird for any of that to be included in the text
+  that would get posted to the PR. ... Turn it into a badge/chip on the
+  stop outside of the main stop comment content box ... Then click it I
+  guess to ask to clear it in a second click maybe."
+
+**Causes.**
+- A stop accepted from a proposal (`tour_stop_of`), a split's pieces and
+  outline skeletons never recorded the head they were made at
+  (`ReaffirmedHead`). The editor compares that head with the tour's
+  observed head, so every drafted stop said the head changed when it had
+  not.
+- The Reaffirm button sent `reaffirm` for the open stop. Core refuses it
+  for a stop with no confirmed lines (no `Original`, not published), which
+  is what a drafted stop is until Use selected lines. The refusal showed
+  only in the tour's status line, worded for marking a stop Ready, so the
+  click seemed to do nothing. The button did act on its own card's stop.
+  Every per-card action dispatches the stop the card shows, `Selected`;
+  only the route's Move, Duplicate, Merge and Remove use the route
+  selection.
+- The warning was never published. It lived only in the editor's source
+  line and its tooltip, and the publication renderers never read it.
+  `ReaffirmedHead` is local SQLite state with no GitHub channel.
+
+**Fix.**
+- **Core.** Each proposal part carries `Head`, the head its run read: the
+  workspace's `PinnedHead`, or else the draft's observed head.
+  `tour_stop_of` affirms the stop at that head, and its destination is at
+  that head too. Splits use the part's head. Outline skeletons are affirmed
+  at the captured tour's head. `reaffirm_need` names what confirming still
+  needs: a title, an explanation, or confirmed lines.
+- **Host.** The tour run's `PinnedHead` is kept with its workspace path and
+  passed to `propose_tour` and `propose_tour_changes`.
+- **Qt** (`frontend-design:frontend-design` loaded first). The separate
+  button and the source-line warning are gone. A stale stop wears one
+  small amber "Head changed" chip by its title, outside the explanation.
+  Clicking the chip opens, in place under the title, "The head moved since
+  you wrote this. Still accurate?" with Confirm and Edit. Confirm reaffirms
+  that card's stop, and Edit opens its explanation. Where confirming can't
+  apply yet, the chip names what is missing (for a drafted stop, its lines:
+  the card's own Show in code and Use selected lines) and offers no Confirm.
+  A refusal is said there in plain words.
+- Ready still means the author confirmed the lines. A drafted stop is
+  never made Ready by this change.
+
+**Evidence.**
+- `core_tour_agent_session`: parts carry the run's head or the observed
+  head; the accepted stop is at and affirmed at the run's head, is not
+  Ready, and needs its lines before it can be confirmed; split pieces use
+  the part's head.
+- `qt_review_tour_reaffirm` (new):
+  - the chip shows with no stop chosen first, and on a card other than the
+    route's selection;
+  - Confirm clears exactly that card's stop;
+  - a drafted stop from an old head asks for its lines, with no Confirm;
+  - a refusal is said on the card;
+  - Edit opens the explanation;
+  - a stop drafted at the observed head has no chip;
+  - after a real head change it has one again;
+  - neither the source line nor the text carries the state.
+- `application_review_tour_publication_*`: the cold-profile course now
+  confirms through the chip, and still makes zero remote writes and keeps
+  the imported subject and comment.

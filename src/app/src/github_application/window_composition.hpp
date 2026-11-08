@@ -2175,7 +2175,9 @@ namespace bpr::app {
 		std::optional<core::tour_agent_run_id>                           TourRun;
 		std::optional<application::agent_invocation_projection_identity> TourInvocation;
 		std::string                                                      TourWorkspacePath;
-		bool                                                             TourDraftPending = false;
+		/// [[BPR-1900]] follow-up. The head the tour run's workspace holds.
+		std::optional<core::git_commit_oid> TourWorkspaceHead;
+		bool                                TourDraftPending = false;
 		/// [[BPR-1914]]. An ask turn is in flight, and the tour its
 		/// conversation belongs to.
 		bool                               TourAskPending = false;
@@ -2194,6 +2196,8 @@ namespace bpr::app {
 			std::optional<core::tour_proposal>  Proposal;
 			std::vector<core::tour_anchor_file> Anchors;
 			std::uint64_t                       ResetRevision = 0U;
+			/// The session's last run when it reset; a later run lets Undo go.
+			std::uint64_t ResetRun = 0U;
 		};
 		std::optional<tour_reset_undo> TourResetUndo;
 		// BPR-0532. Declared after the epoch host it resolves and materializes

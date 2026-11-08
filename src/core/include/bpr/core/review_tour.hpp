@@ -263,6 +263,18 @@ namespace bpr::core {
 	/// \brief Conservative encoded-size budget including identities, metadata and length prefixes.
 	[[nodiscard]] auto retained_tour_bytes(const review_tour& aTour) noexcept -> std::size_t;
 	[[nodiscard]] auto ready(const tour_stop& aStop) noexcept -> bool;
+	/// \brief [[BPR-1900]] follow-up, owner 2026-11-07: "there's this button
+	/// 'Reaffirm explanation for current head' which doesnt seem to do
+	/// anything". What marking a stop's explanation current at the observed
+	/// head still needs, first need first; `nothing` when `reaffirm` applies.
+	enum class tour_reaffirm_need : std::uint8_t {
+		nothing,
+		title,
+		explanation,
+		/// Lines confirmed in the code (or a published stop's place).
+		confirmed_lines,
+	};
+	[[nodiscard]] auto reaffirm_need(const tour_stop& aStop) noexcept -> tour_reaffirm_need;
 	[[nodiscard]] auto visible_tour_stop(const tour_stop& aStop, const tour_attention& aAttention, bool aRequireSource) noexcept -> bool;
 	/// \brief Applies local authoring only. No command produces publication or review receipts.
 	[[nodiscard]] auto apply(const review_tour& aTour, const tour_command& aCommand) -> tour_outcome;

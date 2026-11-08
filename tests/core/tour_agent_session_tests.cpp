@@ -462,6 +462,12 @@ namespace {
 		expect(pieces.Items.size() == 1U && pieces.Items.front().Part == tour_proposal_part::split_stop && pieces.Items.front().StopId == before[1], "the split is proposed");
 		const auto halves = apply_tour_revision(tour, pieces.Items.front());
 		expect(halves && halves->Stops.size() == 7U && halves->Stops[1].Title == "First" && halves->Stops[2].Title == "Second" && halves->Stops[1].Destination && halves->Stops[1].Destination->FirstLine == 10U, "accepting the split puts its pieces in the stop's place");
+		// [[BPR-1900]] follow-up. Its pieces are affirmed at the head the
+		// proposing run read: the tour's own here, so none asks again.
+		expect(pieces.Items.front().Head == tour.Head && halves->Stops[1].ReaffirmedHead == tour.Head && halves->Stops[2].ReaffirmedHead == tour.Head, "split pieces are affirmed at the run's head");
+		auto movedOn = pieces.Items.front();
+		movedOn.Head = *parse_git_commit_oid("4444444444444444444444444444444444444444");
+		expect(apply_tour_revision(tour, movedOn)->Stops[1].ReaffirmedHead == movedOn.Head && apply_tour_revision(tour, movedOn)->Stops[1].Destination->Commit == *movedOn.Head, "a piece is at the head its run read");
 		split.Revision->Splits.front().Into.back().LastLine = 30U;
 		expect(propose_tour_changes(tour_agent_run_id{ 10 }, split, files, tour).Refused == 1U, "a piece outside the stop's lines is refused");
 
@@ -560,6 +566,38 @@ namespace {
 		// The host restores the reset as it restores any tour: one Undo.
 		const auto restored = apply(cleared, tour_command{ .Draft = cleared.Id, .Owner = cleared.Owner, .ExpectedRevision = cleared.Revision, .Kind = tour_command_kind::restore, .Restore = tour });
 		expect(restored.Refusal == tour_refusal::none && restored.Accepted.Stops == tour.Stops && restored.Accepted.Problem == tour.Problem, "restoring the snapshot gives the draft back exactly");
+		// [[BPR-1931]] follow-up, owner: "Reset tour doesn't seem to reset
+		// unaccepted draft tour suggestions." A tour empty but for the agent's
+		// proposals still has something to reset, yet is already its own reset:
+		// the tour host takes restoring it as no change, so the host clears the
+		// proposals without asking it to.
+		expect(resettable(reset_tally_of(cleared, tour_agent_session{ }, proposal)) && reset_tour(cleared) == cleared, "an empty tour with proposals is resettable and already reset");
+		const auto same = apply(cleared, tour_command{ .Draft = cleared.Id, .Owner = cleared.Owner, .ExpectedRevision = cleared.Revision, .Kind = tour_command_kind::restore, .Restore = reset_tour(cleared) });
+		expect(same.Refusal == tour_refusal::none && !same.Changed, "restoring the tour as it is changes nothing");
+	}
+
+	/// [[BPR-1900]] follow-up, owner 2026-11-07: "Why did my tour draft have
+	/// this warning at every stop". A drafted stop is affirmed at the head its
+	/// run read, so it asks to be reaffirmed only once the head moves on, and
+	/// is still not Ready until its lines are confirmed.
+	void proposal_heads()
+	{
+		const auto files    = std::vector<tour_anchor_file>{ { "src/renderer.cpp", true, 40U, std::nullopt } };
+		const auto read     = *parse_git_commit_oid("2222222222222222222222222222222222222222");
+		const auto observed = *parse_git_commit_oid("3333333333333333333333333333333333333333");
+		auto       draft    = review_tour{ };
+		draft.ObservedHead  = observed;
+		const auto answer   = tour_draft_answer{ .Problem = std::string{ "P" }, .Stops = { { "src/renderer.cpp", 2U, 5U, "Where drawing starts", "draw() is the one entry point." } } };
+		const auto made     = propose_tour(tour_agent_run_id{ 1 }, answer, files, draft, read);
+		expect(made.Items.size() == 2U && std::ranges::all_of(made.Items, [&read](const tour_proposal_item& aItem) { return aItem.Head == read; }), "every part carries the head its run read");
+		const auto fallback = propose_tour(tour_agent_run_id{ 2 }, answer, files, draft);
+		expect(std::ranges::all_of(fallback.Items, [&observed](const tour_proposal_item& aItem) { return aItem.Head == observed; }), "without the run's head, the tour's observed head");
+		const auto asked = propose_tour_changes(tour_agent_run_id{ 3 }, tour_ask_answer{ .Reply = "r", .Changes = answer }, files, draft, read);
+		expect(!asked.Items.empty() && std::ranges::all_of(asked.Items, [&read](const tour_proposal_item& aItem) { return aItem.Head == read; }), "a chat turn's parts carry its head too");
+		const auto stop = tour_stop_of(made.Items[1].Stop, proposal_head(made.Items[1], draft));
+		expect(stop.ReaffirmedHead == read && stop.Destination && stop.Destination->Commit == read, "the accepted stop is at, and affirmed at, the run's head");
+		expect(!ready(stop) && reaffirm_need(stop) == tour_reaffirm_need::confirmed_lines, "it is not Ready, and reaffirming it waits for its lines");
+		expect(reaffirm_need(tour_stop{ .Title = "t" }) == tour_reaffirm_need::explanation && reaffirm_need(tour_stop{ .Body = "b" }) == tour_reaffirm_need::title, "a missing title or explanation is named first");
 	}
 }
 
@@ -568,6 +606,7 @@ int main()
 	revision();
 	focus_and_feedback();
 	reset();
+	proposal_heads();
 	conversation();
 	placement();
 	tools_split();
