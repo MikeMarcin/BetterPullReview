@@ -84,9 +84,21 @@ namespace {
 		const auto thisTurn = evidence == std::string::npos ? std::string::npos : aInput.find("this_turn", evidence);
 		// The question alone: canonical JSON sorts it after the passage and
 		// before tour_so_far.
-		const auto asked     = thisTurn == std::string::npos ? std::string::npos : aInput.find("question", thisTurn);
-		const auto after     = asked == std::string::npos ? std::string::npos : aInput.find("tour_so_far", asked);
-		const auto question  = asked == std::string::npos ? std::string{ } : aInput.substr(asked, after == std::string::npos ? std::string::npos : after - asked);
+		const auto asked    = thisTurn == std::string::npos ? std::string::npos : aInput.find("question", thisTurn);
+		const auto after    = asked == std::string::npos ? std::string::npos : aInput.find("tour_so_far", asked);
+		const auto question = asked == std::string::npos ? std::string{ } : aInput.substr(asked, after == std::string::npos ? std::string::npos : after - asked);
+		// [[BPR-1941]]. For the tour chat's status look: one question fails
+		// as a crashed agent does, and one is thought over for minutes, so
+		// the live line can be watched and the turn stopped.
+		if (question.find("under load") != std::string::npos) {
+			std::cerr << "fixture: the agent stopped before answering\n";
+			return 1;
+		}
+		if (question.find("every caller") != std::string::npos) {
+			for (int second = 0; second < 600; ++second) {
+				std::this_thread::sleep_for(std::chrono::seconds{ 1 });
+			}
+		}
 		const auto rewrite   = question.find("ewrite") != std::string::npos;
 		const auto continued = aInput.find("conversation_so_far") != std::string::npos && aInput.find("the window in which one frame is drawn") != std::string::npos;
 		auto       reply     = std::string{ };

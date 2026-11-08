@@ -71,19 +71,6 @@ namespace bpr::qt {
 				delete item;
 			}
 		}
-		auto verb(const core::tour_transcript_kind aKind) -> QString
-		{
-			switch (aKind) {
-			case core::tour_transcript_kind::asked:    return QObject::tr("Asked");
-			case core::tour_transcript_kind::searched: return QObject::tr("Searched");
-			case core::tour_transcript_kind::read:     return QObject::tr("Read");
-			case core::tour_transcript_kind::ran:      return QObject::tr("Ran");
-			case core::tour_transcript_kind::answered: return QObject::tr("Answered");
-			case core::tour_transcript_kind::ended:    return QObject::tr("Ended");
-			case core::tour_transcript_kind::left_out: return QObject::tr("Left out");
-			}
-			return { };
-		}
 		auto passage_heading(const core::tour_passage& aPassage) -> QString
 		{
 			switch (aPassage.Field) {
@@ -583,9 +570,58 @@ namespace bpr::qt {
 
 	void tour_side_chat::set_running(const bool aAny, const bool aDrafting)
 	{
-		Running  = aAny;
-		Drafting = aAny && aDrafting;
+		const auto wasDrafting = Drafting;
+		Running                = aAny;
+		Drafting               = aAny && aDrafting;
+		// [[BPR-1941]]. The run's time counts from when it was asked for, as
+		// the Agent tab's does; it ends with the run.
+		if (aAny && !LiveClock.isValid()) {
+			LiveClock.start();
+		} else if (!aAny) {
+			LiveClock.invalidate();
+			Live.reset();
+		}
+		if (wasDrafting != Drafting) {
+			rebuild();
+			return;
+		}
 		refresh_actions();
+	}
+
+	void tour_side_chat::present_run_status(std::optional<agent_run_status> aStatus)
+	{
+		if (aStatus && !LiveClock.isValid()) {
+			LiveClock.start();
+		}
+		Live = std::move(aStatus);
+		if (!Live) {
+			return;
+		}
+		if (const auto running = core::running_tour_run(Session)) {
+			RunAgents[running->value()] = Live->Agent;
+		}
+		for (auto* const line : { LiveLine.data(), DraftLine }) {
+			if (line != nullptr && line->live()) {
+				line->present(*Live, LiveClock);
+			}
+		}
+	}
+
+	auto tour_side_chat::live_status() const -> agent_run_status
+	{
+		if (Live) {
+			return *Live;
+		}
+		auto status  = agent_run_status{ };
+		status.Agent = tr("The tour agent");
+		status.Stage = agent_run_stage::thinking;
+		return status;
+	}
+
+	auto tour_side_chat::agent_of(const core::tour_agent_run_id aRun) const -> QString
+	{
+		const auto found = RunAgents.find(aRun.value());
+		return found == RunAgents.end() || found->second.isEmpty() ? tr("The tour agent") : found->second;
 	}
 
 	/// [[BPR-1930]], owner: "particularly during the initial agent draft".
@@ -723,7 +759,9 @@ namespace bpr::qt {
 		Update->setIcon(drawer_icon(drawer_glyph::agent, Update->palette()));
 		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		for (auto* const copy : Copies) {
-			copy->setIcon(drawer_icon(drawer_glyph::copy, palette()));
+			if (copy != nullptr) {
+				copy->setIcon(drawer_icon(drawer_glyph::copy, palette()));
+			}
 		}
 		update();
 	}
@@ -737,9 +775,10 @@ namespace bpr::qt {
 
 	auto tour_side_chat::bubble(const std::size_t aTurn) const -> QWidget* { return aTurn < Bubbles.size() ? Bubbles[aTurn] : nullptr; }
 	auto tour_side_chat::reply(const std::size_t aTurn) const -> markdown_body_view* { return aTurn < Replies.size() ? Replies[aTurn] : nullptr; }
-	auto tour_side_chat::worked_button(const std::size_t aTurn) const -> QToolButton* { return aTurn < Worked.size() ? Worked[aTurn] : nullptr; }
-	auto tour_side_chat::steps(const std::size_t aTurn) const -> QWidget* { return aTurn < Steps.size() ? Steps[aTurn] : nullptr; }
+	auto tour_side_chat::status_line(const std::size_t aTurn) const -> agent_run_status_line* { return aTurn < Endings.size() ? Endings[aTurn] : nullptr; }
 	auto tour_side_chat::copy_reply_button(const std::size_t aTurn) const -> QToolButton* { return aTurn < Copies.size() ? Copies[aTurn] : nullptr; }
+	auto tour_side_chat::resend_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Resends.size() ? Resends[aTurn] : nullptr; }
+	auto tour_side_chat::delete_button(const std::size_t aTurn) const -> QPushButton* { return aTurn < Deletes.size() ? Deletes[aTurn] : nullptr; }
 
 	auto tour_side_chat::accept_button(const std::size_t aIndex) const -> QPushButton*
 	{
@@ -772,10 +811,10 @@ namespace bpr::qt {
 			}
 			lines << tr("**You:** %1").arg(QString::fromStdString(run->Question)) << QString{ };
 			if (run->State == core::tour_agent_run_state::answered) {
-				lines << (run->Seconds ? tr("**Tour agent** (worked for %1s):").arg(*run->Seconds) : tr("**Tour agent:**")) << QString{ } << reply_text(*run) << QString{ };
+				lines << (run->Seconds ? tr("**%1** (answered in %2):").arg(agent_of(run->Id), agent_elapsed_words(*run->Seconds)) : tr("**%1:**").arg(agent_of(run->Id))) << QString{ } << reply_text(*run) << QString{ };
 			} else {
 				const auto ended = std::ranges::find(run->Entries, core::tour_transcript_kind::ended, &core::tour_transcript_entry::Kind);
-				lines << tr("**Tour agent** did not answer: %1").arg(ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).section(QLatin1Char('\n'), 0, 0)) << QString{ };
+				lines << tr("**%1** did not answer: %2").arg(agent_of(run->Id), ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).section(QLatin1Char('\n'), 0, 0)) << QString{ };
 			}
 		}
 		return lines.join(QLatin1Char('\n'));
@@ -1084,9 +1123,12 @@ namespace bpr::qt {
 		Suggestions = nullptr;
 		Bubbles.clear();
 		Replies.clear();
-		Worked.clear();
-		Steps.clear();
+		Endings.clear();
 		Copies.clear();
+		Resends.clear();
+		Deletes.clear();
+		LiveLine  = nullptr;
+		DraftLine = nullptr;
 		Accepts.clear();
 		ProposalReaders.clear();
 		Readers.erase(std::remove_if(Readers.begin(), Readers.end(), [](const QPointer<markdown_body_view>& aView) { return aView.isNull(); }), Readers.end());
@@ -1158,79 +1200,124 @@ namespace bpr::qt {
 			Turns->addLayout(mineRow);
 			Bubbles.push_back(bubble);
 
-			// The agent's answer, on the left: how long it worked (its steps
-			// behind it), the reply, Copy.
+			// The agent's answer, on the left: the reply, then the Agent tab's
+			// ending line ([[BPR-1941]]): live while it runs, then who answered
+			// and how long it took, and Copy; or, for a turn that ended
+			// without an answer, why, with Resend and Delete.
 			auto* const answer = new QWidget{ body };
 			auto* const column = new QVBoxLayout{ answer };
 			column->setContentsMargins(0, 0, 0, 0);
 			column->setSpacing(4);
+			const auto  id      = run->Id.value();
 			const auto  running = run->State == core::tour_agent_run_state::running;
-			auto* const worked  = new QToolButton{ answer };
-			worked->setObjectName(QStringLiteral("tourSideChatWorked"));
-			worked->setAutoRaise(true);
-			worked->setToolButtonStyle(Qt::ToolButtonTextBesideIcon);
-			const auto open = Expanded.contains(run->Id.value()) || running;
-			worked->setArrowType(open ? Qt::DownArrow : Qt::RightArrow);
-			worked->setText(running ? tr("Working") + ellipsis : run->Seconds ? tr("Worked for %1s").arg(*run->Seconds)
-																			  : tr("Steps"));
-			worked->setForegroundRole(QPalette::PlaceholderText);
-			auto smaller = worked->font();
-			smaller.setPointSizeF(smaller.pointSizeF() * 0.92);
-			worked->setFont(smaller);
-			column->addWidget(worked, 0, Qt::AlignLeft);
-			auto* const steps = new QWidget{ answer };
-			steps->setObjectName(QStringLiteral("tourSideChatSteps"));
-			auto* const stepColumn = new QVBoxLayout{ steps };
-			stepColumn->setContentsMargins(18, 0, 0, 2);
-			stepColumn->setSpacing(1);
-			for (std::size_t index = 1U; index < run->Entries.size(); ++index) {
-				const auto& entry = run->Entries[index];
-				if (entry.Kind == core::tour_transcript_kind::answered) {
-					continue;
-				}
-				auto* const step = quiet(small(words(verb(entry.Kind) + QStringLiteral("  ") + QString::fromStdString(entry.Text).section(QLatin1Char('\n'), 0, 0), steps)));
-				auto        face = mono;
-				face.setPointSizeF(step->font().pointSizeF());
-				step->setFont(face);
-				stepColumn->addWidget(step);
-			}
-			steps->setVisible(open);
-			column->addWidget(steps);
-			const auto id = run->Id.value();
-			connect(worked, &QToolButton::clicked, this, [this, id] {
-				if (!Expanded.insert(id).second) {
-					Expanded.erase(id);
-				}
-				rebuild();
-			});
-			Worked.push_back(worked);
-			Steps.push_back(steps);
+			auto* const ending  = new agent_run_status_line{ answer };
+			ending->setObjectName(QStringLiteral("tourSideChatStatus"));
+			small(ending);
+			Endings.push_back(ending);
+			auto* said = static_cast<markdown_body_view*>(nullptr);
 			if (running) {
 				Mine = true;
-			} else if (run->State == core::tour_agent_run_state::answered) {
-				auto* const said = reader(answer, run->Reply, "tour-side-chat:" + std::to_string(id), selector);
-				said->setObjectName(QStringLiteral("tourSideChatReply"));
-				column->addWidget(said);
-				Replies.push_back(said);
-				auto* const copy = new QToolButton{ answer };
-				copy->setObjectName(QStringLiteral("tourSideChatCopyReply"));
-				copy->setAutoRaise(true);
-				copy->setToolTip(tr("Copy this reply"));
-				copy->setAccessibleName(tr("Copy reply"));
-				copy->setIcon(drawer_icon(drawer_glyph::copy, palette()));
-				const auto text = reply_text(*run);
-				connect(copy, &QToolButton::clicked, this, [text] {
-					if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
-						clipboard->setText(text);
-					}
-				});
-				column->addWidget(copy, 0, Qt::AlignLeft);
-				Copies.push_back(copy);
+				if (Live) {
+					RunAgents[id] = Live->Agent;
+				}
+				ending->present(live_status(), LiveClock);
+				LiveLine = ending;
+				column->addWidget(ending);
 			} else {
-				const auto ended = std::ranges::find(run->Entries, core::tour_transcript_kind::ended, &core::tour_transcript_entry::Kind);
-				const auto why   = ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).section(QLatin1Char('\n'), 0, 0);
-				column->addWidget(quiet(small(words(run->State == core::tour_agent_run_state::cancelled ? tr("Stopped. Nothing in the tour changed.") : tr("Didn't finish: %1").arg(why), answer))));
+				auto failure = QString{ };
+				if (run->State == core::tour_agent_run_state::answered) {
+					said = reader(answer, run->Reply, "tour-side-chat:" + std::to_string(id), selector);
+					said->setObjectName(QStringLiteral("tourSideChatReply"));
+					column->addWidget(said);
+				} else {
+					const auto ended = std::ranges::find(run->Entries, core::tour_transcript_kind::ended, &core::tour_transcript_entry::Kind);
+					failure          = ended == run->Entries.end() ? QString{ } : QString::fromStdString(ended->Text).trimmed();
+					const auto  why  = failure.section(QLatin1Char('\n'), 0, 0);
+					auto* const line = words(run->State == core::tour_agent_run_state::cancelled ? tr("Stopped. Nothing in the tour changed.") : why.isEmpty() ? tr("It didn't finish.")
+																																							   : tr("Didn't finish: %1").arg(why),
+											 answer);
+					line->setObjectName(QStringLiteral("tourSideChatFailure"));
+					column->addWidget(line);
+				}
+				// The core decides an ended turn's actions, as it does for the
+				// Agent tab's turns.
+				const auto answered = run->State == core::tour_agent_run_state::answered;
+				const auto outcome  = answered                            ? core::agent_turn_outcome::answered
+					: run->State == core::tour_agent_run_state::cancelled ? core::agent_turn_outcome::stopped
+																		  : core::agent_turn_outcome::exited_with_error;
+				const auto actions  = core::decide_agent_turn_actions({
+					.Outcome = outcome,
+					.HasText = answered ? !run->Reply.empty() : !failure.isEmpty(),
+					.Latest  = run == runs.back(),
+					.Working = Running,
+				});
+				const auto agent    = agent_of(run->Id);
+				ending->settle(answered ? (run->Seconds ? agent_run_answered_words(agent, *run->Seconds) + QStringLiteral(".") : tr("%1 answered.").arg(agent))
+										: (run->Seconds ? agent_run_stopped_words(*run->Seconds) + QStringLiteral(".") : tr("Stopped.")),
+							   answered);
+				// One row in the narrow column: the ending, then its actions.
+				auto* const row = new QHBoxLayout{ };
+				row->setContentsMargins(0, 0, 0, 0);
+				row->setSpacing(2);
+				row->addWidget(ending, 1, Qt::AlignVCenter);
+				auto* copy = static_cast<QToolButton*>(nullptr);
+				if (actions.Copy) {
+					copy = new QToolButton{ answer };
+					copy->setObjectName(QStringLiteral("tourSideChatCopyReply"));
+					copy->setAutoRaise(true);
+					copy->setToolTip(answered ? tr("Copy this reply") : tr("Copy what went wrong"));
+					copy->setAccessibleName(answered ? tr("Copy reply") : tr("Copy error"));
+					copy->setIcon(drawer_icon(drawer_glyph::copy, palette()));
+					const auto text = answered ? reply_text(*run) : failure;
+					connect(copy, &QToolButton::clicked, this, [text] {
+						if (auto* const clipboard = QGuiApplication::clipboard(); clipboard != nullptr) {
+							clipboard->setText(text);
+						}
+					});
+					row->addWidget(copy);
+				}
+				auto* resend = static_cast<QPushButton*>(nullptr);
+				if (actions.Recovery == core::agent_turn_recovery::resend) {
+					resend = new quiet_push_button{ tr("Resend"), answer };
+					resend->setObjectName(QStringLiteral("tourSideChatResend"));
+					resend->setFlat(true);
+					resend->setFocusPolicy(Qt::TabFocus);
+					resend->setToolTip(tr("Send this message to the agent again"));
+					resend->setEnabled(Ready);
+					auto again = tour_ask{ .Thread = run->Thread, .Passage = run->Passage, .Question = QString::fromStdString(run->Question), .Update = run->Update };
+					connect(resend, &QPushButton::clicked, this, [this, again] {
+						if (Ready && !Running && AskDispatch) {
+							AskDispatch(again);
+						}
+					});
+					row->addWidget(resend);
+				}
+				auto* remove = static_cast<QPushButton*>(nullptr);
+				if (actions.Delete && DeleteDispatch) {
+					remove = new quiet_push_button{ tr("Delete"), answer };
+					remove->setObjectName(QStringLiteral("tourSideChatDelete"));
+					remove->setFlat(true);
+					remove->setFocusPolicy(Qt::TabFocus);
+					remove->setToolTip(tr("Remove this message from the chat. Later questions are asked without it."));
+					const auto turn = run->Id;
+					connect(remove, &QPushButton::clicked, this, [this, turn] {
+						if (!Running && DeleteDispatch) {
+							DeleteDispatch(turn);
+						}
+					});
+					row->addWidget(remove);
+				}
+				column->addLayout(row);
+				Copies.push_back(copy);
+				Resends.push_back(resend);
+				Deletes.push_back(remove);
 			}
+			if (running) {
+				Copies.push_back(nullptr);
+				Resends.push_back(nullptr);
+				Deletes.push_back(nullptr);
+			}
+			Replies.push_back(said);
 			// [[BPR-1930]] follow-up, owner: "I dont really understand the focus
 			// changes button. I clicked it and couldnt tell what it did then it
 			// went away." A focus applies at once; one line says so, with Undo
@@ -1413,6 +1500,28 @@ namespace bpr::qt {
 			mineRow->addWidget(bubble);
 			Turns->addLayout(mineRow);
 			WaitingBubble = bubble;
+		}
+		// [[BPR-1941]]. A running Draft Tour, in the whole tour's chat, as
+		// the Agent tab says a running turn.
+		if (wholeTour && Drafting) {
+			auto* const drafting = new QWidget{ body };
+			drafting->setObjectName(QStringLiteral("tourSideChatDrafting"));
+			auto* const lines = new QVBoxLayout{ drafting };
+			lines->setContentsMargins(0, 0, 0, 0);
+			lines->setSpacing(2);
+			auto* const heading = small(words(tr("Draft Tour"), drafting));
+			heading->setObjectName(QStringLiteral("tourSideChatDraftHeading"));
+			auto heavy = heading->font();
+			heavy.setWeight(QFont::DemiBold);
+			heading->setFont(heavy);
+			Accented.emplace_back(heading);
+			lines->addWidget(heading);
+			DraftLine = new agent_run_status_line{ drafting };
+			DraftLine->setObjectName(QStringLiteral("tourSideChatDraftStatus"));
+			small(DraftLine);
+			DraftLine->present(live_status(), LiveClock);
+			lines->addWidget(DraftLine);
+			Turns->addWidget(drafting);
 		}
 		// [[BPR-1934]], owner 2026-11-07: "Tour side chat should get
 		// suggestions like the agent tab has." The Agent tab's own component,

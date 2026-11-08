@@ -267,6 +267,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-revision" },
 		bpr::app::command_line_option{ .Name = "attended-tour-prompts" },
 		bpr::app::command_line_option{ .Name = "attended-tour-cards" },
+		bpr::app::command_line_option{ .Name = "attended-tour-chat-status" },
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
@@ -6190,6 +6191,10 @@ namespace {
 	// [[BPR-1930]]. Feedback while the draft runs, and the round on the tour.
 	constexpr const char* attended_revision_while_drafting = "Start at the header that declares the change, give resize its own stop, and drop the stops off the change.";
 	constexpr const char* attended_revision_round          = "Too many stops. Merge 2 and 3, and focus on the renderer changes.";
+	// [[BPR-1941]]. A question the drafting stub fails, and one it takes its
+	// time over (minutes, until Stop).
+	constexpr const char* attended_status_failing_question = "Does this hold under load?";
+	constexpr const char* attended_status_slow_question    = "Walk me through every caller.";
 	void                  schedule_attended_tour_setup_look(bpr::app::github_application& aApplication)
 	{
 		const auto failure  = QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-agent-failure"));
@@ -6210,8 +6215,13 @@ namespace {
 		// [[BPR-1936]]. The drafted tour accepted, then its second stop given
 		// a long title through its own editor and saved, and left open on the
 		// route for the person: collapse, edit, Cancel and Save, the trash.
-		const auto  cards = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-cards"));
-		auto* const timer = new QTimer{ &aApplication.window() };
+		const auto cards = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-cards"));
+		// [[BPR-1941]]. The drafted tour accepted, then three turns in the
+		// Solution's chat: one answered, one the agent fails, and one it
+		// takes its time over, left running for the person to watch its
+		// live line and Stop.
+		const auto  chatStatus = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-chat-status"));
+		auto* const timer      = new QTimer{ &aApplication.window() };
 		timer->setInterval(80);
 		const auto step    = std::make_shared<int>(0);
 		const auto ticks   = std::make_shared<int>(0);
@@ -6222,7 +6232,7 @@ namespace {
 		// them), and Undo reset brings back this many waiting stops.
 		const auto resetting     = revision && !qEnvironmentVariable("BPR_ATTENDED_TOUR_RESET").isEmpty();
 		const auto proposedCount = std::make_shared<int>(-1);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, revision, prompts, cards, settled, resetting, proposedCount, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, revision, prompts, cards, chatStatus, settled, resetting, proposedCount, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6395,9 +6405,10 @@ namespace {
 					*step = 40;
 					return;
 				}
-				if (prompts || cards) {
+				if (prompts || cards || chatStatus) {
 					panel->accept_all_button()->click();
-					*step = cards ? 80 : 70;
+					*step = cards ? 80 : chatStatus ? 90
+													: 70;
 					return;
 				}
 				draw(QStringLiteral("app-tour-drafting-proposal"));
@@ -6448,6 +6459,69 @@ namespace {
 					return;
 				}
 				done(QStringLiteral("ATTENDED_TOUR_DRAFTING_SHOWN"));
+				return;
+			}
+			if (*step >= 90 && *step <= 93) {
+				// [[BPR-1941]]. The Solution's chat: answered, failed, running.
+				const auto& shown = editor->shown();
+				if (!shown.Draft || shown.Saving) {
+					return;
+				}
+				auto* const chat    = editor->side_chat();
+				const auto  thread  = bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution };
+				const auto& session = editor->tour_agent()->session();
+				const auto  runs    = bpr::core::thread_runs(session, thread);
+				const auto  ended   = static_cast<std::size_t>(std::ranges::count_if(runs, [](const bpr::core::tour_agent_run* aRun) { return aRun->State != bpr::core::tour_agent_run_state::running; }));
+				const auto  idle    = !bpr::core::running_tour_run(session);
+				const auto  ask     = [chat](const char* aQuestion) {
+					chat->composer()->setPlainText(QString::fromUtf8(aQuestion));
+					chat->send_button()->click();
+					QCoreApplication::processEvents();
+				};
+				if (*step == 90) {
+					chat->open(thread, std::nullopt, false);
+					QCoreApplication::processEvents();
+					ask(attended_conversation_question);
+					*step = 91;
+					return;
+				}
+				// The tour session finishes its last run's cleanup a moment
+				// after the turn ends; a question sent sooner is refused.
+				const auto rested = [settled, ended, idle](const std::size_t aEnded) {
+					if (ended < aEnded || !idle) {
+						*settled = 0;
+						return false;
+					}
+					return ++*settled >= 25;
+				};
+				if (*step == 91 && rested(1U)) {
+					*settled = 0;
+					ask(attended_status_failing_question);
+					*step = 92;
+					return;
+				}
+				if (*step == 92 && rested(2U)) {
+					*settled = 0;
+					ask(attended_status_slow_question);
+					*step = 93;
+					return;
+				}
+				if (*step == 93) {
+					auto* const line = chat->status_line(2U);
+					if (line == nullptr || !line->live() || !line->text().contains(QStringLiteral("0:03"))) {
+						return;
+					}
+					draw(QStringLiteral("app-tour-chat-status"));
+					if (!root.isEmpty()) {
+						QCoreApplication::processEvents();
+						static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-status") + theme + QStringLiteral(".png"), "PNG"));
+					}
+					const auto said = [chat](const std::size_t aTurn) { return chat->status_line(aTurn) != nullptr ? chat->status_line(aTurn)->text() : QString{ }; };
+					QTextStream{ stdout } << "ATTENDED_TOUR_CHAT_STATUS:answered=" << said(0U) << ":failed=" << said(1U) << ":running=" << line->text() << '\n';
+					const auto good = chat->reply(0U) != nullptr && said(0U).contains(QStringLiteral(" answered in ")) && chat->reply(1U) == nullptr && said(1U).startsWith(QStringLiteral("Stopped after ")) && line->text().startsWith(QStringLiteral("● "))
+						&& line->text().contains(QStringLiteral(" is thinking, "));
+					done(good ? QStringLiteral("ATTENDED_TOUR_CHAT_STATUS_SHOWN") : QStringLiteral("ATTENDED_TOUR_FAILED:chat-status"));
+				}
 				return;
 			}
 			if (*step == 80 || *step == 81) {

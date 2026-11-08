@@ -154,11 +154,12 @@ namespace bpr::app {
 		return binding.good() && alignment.good();
 	}
 #endif
-	tour_session_projection::tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse)
+	tour_session_projection::tour_session_projection(identity_sink aAdmit, start_sink aStart, run_sink aFinish, refuse_sink aRefuse, identity_sink aStream)
 		: Admit{ std::move(aAdmit) }
 		, Start{ std::move(aStart) }
 		, Finish{ std::move(aFinish) }
 		, Refuse{ std::move(aRefuse) }
+		, Stream{ std::move(aStream) }
 	{
 	}
 
@@ -170,7 +171,12 @@ namespace bpr::app {
 
 	void tour_session_projection::start(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace) { Start(aIdentity, aWorkspace); }
 
-	void tour_session_projection::stream(const application::agent_invocation_projection_identity&, const application::agent_stream_event&) { }
+	void tour_session_projection::stream(const application::agent_invocation_projection_identity& aIdentity, const application::agent_stream_event&)
+	{
+		if (Stream) {
+			Stream(aIdentity);
+		}
+	}
 
 	void tour_session_projection::finish(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { Finish(aIdentity, aResult); }
 

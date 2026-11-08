@@ -1,3 +1,10 @@
+# [[BPR-1941]] reseal: window_tours.cpp relays the tour session's run events
+# (admitted, workspace made, first output) to the tour chat's live line as
+# qt::agent_run_status, and window_construction.cpp wires Delete on a failed
+# tour chat turn to core::remove_tour_run; agent_composition forwards the tour
+# projection's stream events. main.cpp's tests-on drafting look gains
+# --attended-tour-chat-status. No provider, credential, grant, mutation or
+# inventory change; the mutation-branch pin is unchanged.
 # [[BPR-1936]] reseal (merged over main fa2b870a1, BPR-1937): main.cpp's tests-on drafting look gains
 # --attended-tour-cards, which accepts the drafted tour, gives stop 2 a long
 # title through its own editor and saves it; its stop-title step sets the
@@ -3309,13 +3316,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# revision of the tour's shape replace the waiting plan even when it is
 	# refused whole, and names refused parts in the tour's notice. No grant,
 	# provider, gh process, admission, mutation branch or publication change.
-	# [[BPR-1940]] native compile-closure reseal over acdb0bb2b: direct
+	# [[BPR-1940]] native compile-closure reseal, reconciled over b3e0966e9: direct
 	# <cstdint> in defect_identity.hpp; explicit empty optional then guarded
 	# copy in window_agent_chat.cpp. Same writing-only exclusion, explicit
 	# intent priority, fallback, move and dispatch. No source inventory,
 	# production mutation branch or authority changes.
 	set(bpr_expected_production_app_manifest_digest
-        "87e6df9b12f9c5859091bfaeee6d2cb0e0b89b6c1bf6de65e11d30723fa12a36"
+        "51f86c4a1713325a3a779983f1fa4857b073f597b7bd9dbb0d4654f1a0e4de91"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
