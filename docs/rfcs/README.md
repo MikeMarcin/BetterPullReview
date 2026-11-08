@@ -734,3 +734,11 @@ The owner chose in chat: the pull request's own Agent thread with a removable
 conversation chip, Use as reply, and notes sent as a Private history copy.
 After the owner's look of 2026-10-27 (r2), Draft comment on every answer
 replaces Use as reply.
+
+## Stable diff scroll geometry
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0095](RFC-BPR-0095-stable-diff-gutters-and-find.md) | Keep diff gutters aligned and Find stationary | Proposed | None |
+
+[Import](assets/diff-scroll-geometry-v1.LIVE_IMPORT.md), owner report 2026-11-08.

@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "diff-scroll-geometry-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0095"
+    ],
+    "issues": [
+      "BPR-1947"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "stationary-diff-geometry",
+      "outcome": "Unified gutters track rendered source rows and floating Find stays anchored to the displayed pane through scrolling and layout changes.",
+      "work": [
+        {
+          "issue": "BPR-1947"
+        },
+        {
+          "rfc": "RFC-BPR-0095"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "AC01\u2013AC03 pass rendered geometry and interaction checks at 100%, 125% and 200% scale.",
+        "AC04 passes the production composition through installed Git/cache with a full-window render and bounded scroll work.",
+        "Documentation gates pass and the exact candidate, evidence, commits and quiescent command state are recorded."
+      ],
+      "boundary": "Local Qt geometry and regression coverage only; preserve existing scrolling, search and layout contracts."
+    }
+  ],
+  "unplanned_work": []
+}

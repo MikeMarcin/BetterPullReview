@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1947"
+  ],
+  "reserve_for": "diff-scroll-geometry-v1",
+  "purpose": "",
+  "created": "2026-11-08T23:23:13.335263+00:00",
+  "base": "31559e616707ed106d0bd98f8d047df785c38fc0"
+}
