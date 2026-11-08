@@ -713,6 +713,12 @@ namespace bpr::app {
 		void               tour_run_admitted(const application::agent_invocation_projection_identity& aIdentity);
 		void               tour_run_refused(const std::string_view aReason);
 		void               tour_run_finished(const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult);
+		/// \brief [[BPR-1941]]. The running tour request's events, said as the
+		/// Agent tab's live line says them: its workspace made, then the first
+		/// output, which is when it writes.
+		void               tour_run_started(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace);
+		void               tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity);
+		void               present_tour_live(std::optional<qt::agent_run_status> aStatus);
 		[[nodiscard]] auto tour_answer_words(const application::agent_run_result& aResult) const -> std::string;
 		void               request_tour_draft();
 		void               adopt_tour_conversation();
@@ -2184,7 +2190,10 @@ namespace bpr::app {
 		std::optional<core::tour_draft_id> TourConversationDraft;
 		/// [[BPR-1914]] v003. When the run in flight started, for "Worked for Ns".
 		std::chrono::steady_clock::time_point TourRunStarted;
-		std::optional<core::tour_proposal>    TourProposal;
+		/// [[BPR-1941]]. What the run in flight is doing now, as its live
+		/// line in the tour chat says it.
+		std::optional<qt::agent_run_status> TourLive;
+		std::optional<core::tour_proposal>  TourProposal;
 		/// [[BPR-1900]]. The files the proposal was anchored against.
 		std::vector<core::tour_anchor_file> TourAnchorFiles;
 		/// [[BPR-1931]]. What the last Reset tour cleared, for its Undo, while

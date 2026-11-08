@@ -163,6 +163,12 @@ namespace bpr::qt {
 		/// by Draft the tour. Its control says Stop drafting and stops it;
 		/// nothing else waits on it, and leaving the window does not stop it.
 		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour, bool aAsking = false);
+		/// \brief [[BPR-1941]]. What the tour session's running request is
+		/// doing now, from its run events; none once it ends. The side chat's
+		/// running turn says it, and Draft Tour says it under the tab's
+		/// notice, with the Agent tab's live line.
+		void               present_run_status(std::optional<agent_run_status> aStatus);
+		[[nodiscard]] auto draft_status_line() const noexcept -> agent_run_status_line* { return DraftStatus; }
 		/// \brief [[BPR-1914]] v003. Every side chat's composer and Update send
 		/// here: the one entry point a reviewer's `/skill` references
 		/// ([[BPR-1916]]) are resolved through.
@@ -549,14 +555,18 @@ namespace bpr::qt {
 		application::tour_presentation               Shown;
 		std::function<void(core::tour_command)>      Dispatch;
 		std::function<void(tour_editor_action)>      Action;
-		scoped_prose_editor*                         Problem           = nullptr;
-		scoped_prose_editor*                         Solution          = nullptr;
-		QPlainTextEdit*                              Conflict          = nullptr;
-		QTabWidget*                                  Roadmap           = nullptr;
-		markdown_body_view*                          Preview           = nullptr;
-		QLabel*                                      RevisionChanges   = nullptr;
-		QPushButton*                                 NextChanged       = nullptr;
-		QLabel*                                      WritingStatus     = nullptr;
+		scoped_prose_editor*                         Problem         = nullptr;
+		scoped_prose_editor*                         Solution        = nullptr;
+		QPlainTextEdit*                              Conflict        = nullptr;
+		QTabWidget*                                  Roadmap         = nullptr;
+		markdown_body_view*                          Preview         = nullptr;
+		QLabel*                                      RevisionChanges = nullptr;
+		QPushButton*                                 NextChanged     = nullptr;
+		QLabel*                                      WritingStatus   = nullptr;
+		agent_run_status_line*                       DraftStatus     = nullptr;
+		void                                         show_draft_status();
+		std::optional<agent_run_status>              DraftLive;
+		QElapsedTimer                                DraftClock;
 		QLabel*                                      Status            = nullptr;
 		QPushButton*                                 Retry             = nullptr;
 		QPushButton*                                 UseSaved          = nullptr;

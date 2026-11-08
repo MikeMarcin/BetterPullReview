@@ -1433,6 +1433,30 @@ want to say the tour should focus on <this particular part of the PR>." And:
 - Owner rules kept: nothing changes until accepted, and nothing the author
   wrote is silently overwritten (a merge or removal says so on its box).
 
+### Amendment [[BPR-1941]] (2026-11-08): the Agent tab's run line in the tour chats
+
+The owner, 2026-11-08: "the '<agent> is thinking <elapsed time>' ... is much
+better than the tour side chat's little status disclosure thingy that has no
+useful info." This supersedes [[BPR-1914]] v003's folded "Worked for Ns".
+
+- **One line, shared.** A tour chat turn ends with the Agent tab's
+  `agent_run_status_line`: live, the agent, what it is doing and the time;
+  ended, "<agent> answered in m:ss." or, without an answer, "Stopped after
+  m:ss." in italics. The words come from one place
+  (`agent_run_status_words`), which the Agent tab's turns use too.
+- **The run's events.** The tour session's projection hears its run being
+  admitted, its workspace made and its first output, and the host relays them
+  as `qt::agent_run_status`. Neither surface sees which tool a run is using
+  while it runs; tool activity reaches the tour session only with the result.
+- **Error turns.** A turn that ended without an answer offers Copy, Resend and
+  Delete as `core::decide_agent_turn_actions` decides for the Agent tab;
+  Delete is `core::remove_tour_run`, which removes only an ended, unanswered
+  ask turn. "Fixed since" ([[BPR-1876]]) is not shown: a tour run's failure
+  names no setup check.
+- **Draft Tour** shows the same live line under the Tour tab's notice and at
+  the end of the whole tour's chat. The steps a run took stay in the
+  conversation window.
+
 ### Amendment [[BPR-1935]] (2026-11-07): the tour prompt's own carrier
 
 The owner, 2026-11-07: a question in the Solution's side chat on a 12-stop

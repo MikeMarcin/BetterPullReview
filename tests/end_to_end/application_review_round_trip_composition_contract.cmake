@@ -1,3 +1,10 @@
+# [[BPR-1941]] reseal: window_tours.cpp relays the tour session's run events
+# (admitted, workspace made, first output) to the tour chat's live line as
+# qt::agent_run_status, and window_construction.cpp wires Delete on a failed
+# tour chat turn to core::remove_tour_run; agent_composition forwards the tour
+# projection's stream events. main.cpp's tests-on drafting look gains
+# --attended-tour-chat-status. No provider, credential, grant, mutation or
+# inventory change; the mutation-branch pin is unchanged.
 # [[BPR-1936]] reseal (merged over main fa2b870a1, BPR-1937): main.cpp's tests-on drafting look gains
 # --attended-tour-cards, which accepts the drafted tour, gives stop 2 a long
 # title through its own editor and saves it; its stop-title step sets the
@@ -3310,7 +3317,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# refused whole, and names refused parts in the tour's notice. No grant,
 	# provider, gh process, admission, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "0113c751d28d075d7393d0011ee74af829c17be9f8ac97d6b96bcf5668e77a7f"
+        "ab83c7ed71d74a0fd45441f37188f6fc172011754986219447ad0e32fa2b8d38"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

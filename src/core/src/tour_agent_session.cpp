@@ -664,6 +664,16 @@ namespace bpr::core {
 		return true;
 	}
 
+	auto remove_tour_run(tour_agent_session& aSession, const tour_agent_run_id aRun) -> bool
+	{
+		const auto found = std::ranges::find(aSession.Runs, aRun, &tour_agent_run::Id);
+		if (found == aSession.Runs.end() || found->Request != tour_agent_request::ask || found->State == tour_agent_run_state::running || found->State == tour_agent_run_state::answered) {
+			return false;
+		}
+		aSession.Runs.erase(found);
+		return true;
+	}
+
 	auto keep_thread_part(tour_proposal aProposal, const tour_thread& aThread) -> tour_proposal
 	{
 		if (aThread.Kind == tour_thread_kind::tour) {

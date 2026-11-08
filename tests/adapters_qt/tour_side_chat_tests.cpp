@@ -1,7 +1,8 @@
 // [[BPR-1914]] v003 and [[BPR-1919]]. Side chats: each part of the tour opens
 // its own chat from a quiet glyph or its menu, docked beside the tour while
 // the tour stays as it is; a plain chat with the author's bubbles, rendered
-// replies, Worked for Ns and Copy; Update the part from this chat comes back
+// replies, the Agent tab's run line ([[BPR-1941]]) and Copy; Update the part
+// from this chat comes back
 // as the part's proposal, decided in the chat. Fenced code in replies and
 // proposals is highlighted as the stop's own explanation is, and code in an
 // unknown language stays plain.
@@ -18,6 +19,7 @@
 
 #include <QApplication>
 #include <QClipboard>
+#include <QElapsedTimer>
 #include <QKeyEvent>
 #include <QLabel>
 #include <QListWidget>
@@ -234,17 +236,49 @@ auto main(int argc, char** argv) -> int
 	expect(asked.size() == 1U && asked[0].Thread.Kind == core::tour_thread_kind::solution && asked[0].Passage && asked[0].Question == QStringLiteral("What does this mean?") && !asked[0].Update, "Return asks in the Solution's chat, with the passage");
 	expect(chat->composer()->toPlainText().isEmpty() && !chat->passage(), "the composer clears");
 
-	// (2) A plain chat: the bubble, Worked for Ns with its steps behind it,
-	// the reply rendered, Copy on it and on the whole chat.
+	// (2) A plain chat: the bubble, the Agent tab's live line while it runs
+	// ([[BPR-1941]]), the reply rendered, who answered and how long it took,
+	// Copy on it and on the whole chat.
 	auto       session = core::tour_agent_session{ };
 	const auto first   = core::begin_tour_ask(session, asked[0].Thread, asked[0].Passage, "What does this mean?");
 	editor.set_tour_running(std::nullopt, false, true);
 	editor.present_tour_session(session, std::nullopt);
 	settle();
 	expect(chat->send_button()->text() == QStringLiteral("Stop") && chat->send_button()->isEnabled(), "a running turn is stopped from Send");
+	// [[BPR-1941]] AC1. The run's events, as the host relays them: the
+	// workspace, then thinking, then writing; the time counts by itself.
+	{
+		auto live  = qt::agent_run_status{ };
+		live.Agent = QStringLiteral("Claude Code");
+		live.Stage = qt::agent_run_stage::preparing;
+		editor.present_run_status(live);
+		settle();
+		auto* const line = chat->status_line(0);
+		expect(line != nullptr && line->live() && line->isVisibleTo(chat) && line->text() == QStringLiteral("● Claude Code is making its workspace at the head, 0:00."), "AC1 the running turn says its agent and what it does: " + (line != nullptr ? line->text().toStdString() : std::string{ }));
+		expect(chat->findChild<QToolButton*>(QStringLiteral("tourSideChatWorked")) == nullptr, "the Working disclosure is gone");
+		live.Stage = qt::agent_run_stage::thinking;
+		editor.present_run_status(live);
+		expect(line->text() == qt::agent_run_status_words(live, 0), "then it thinks, in the Agent tab's words");
+		expect(line->text() == QStringLiteral("● Claude Code is thinking, 0:00."), "the same words the Agent tab's turn says");
+		auto clock = QElapsedTimer{ };
+		clock.start();
+		while (clock.elapsed() < 1300) {
+			QApplication::processEvents(QEventLoop::AllEvents, 50);
+		}
+		expect(line->text() == QStringLiteral("● Claude Code is thinking, 0:01."), "AC1 the time counts live: " + line->text().toStdString());
+		live.Stage = qt::agent_run_stage::writing;
+		editor.present_run_status(live);
+		expect(line->text() == QStringLiteral("● Claude Code is writing, 0:01."), "and it writes");
+		// A redraw of the chat keeps the run's time.
+		editor.present_tour_session(session, std::nullopt);
+		settle();
+		expect(chat->status_line(0)->text() == QStringLiteral("● Claude Code is writing, 0:01."), "the chat drawn again keeps its time");
+		render(*chat, prefix, "side-chat-running");
+	}
 	static_cast<void>(core::record_tour_activity(session, *first, { { core::tour_transcript_kind::read, "src/item.cpp" }, { core::tour_transcript_kind::searched, "rg -n lock src" } }));
 	static_cast<void>(core::answer_tour_ask(session, *first, "It is the frame window:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n\n```nosuchlanguage\nauto lock = plain_text{ };\n```\n", { }));
 	static_cast<void>(core::time_tour_run(session, *first, 7U));
+	editor.present_run_status(std::nullopt);
 	editor.set_tour_running(std::nullopt, false, false);
 	editor.present_tour_session(session, std::nullopt);
 	settle();
@@ -256,15 +290,14 @@ auto main(int argc, char** argv) -> int
 	expect(offered() == QStringList{ QStringLiteral("Explain the selected block") } && !chat->suggestions()->lead()->isVisibleTo(chat),
 		   "AC1 the part's prompts go once the chat has a turn; Explain the selected block stays while text is selected");
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
-	expect(chat->worked_button(0)->text() == QStringLiteral("Worked for 7s") && !chat->steps(0)->isVisibleTo(chat), "Worked for 7s, its steps folded away");
-	chat->worked_button(0)->click();
-	settle();
-	expect(chat->steps(0)->isVisibleTo(chat) && chat->steps(0)->findChildren<QLabel*>().size() == 2, "unfolded: what it read and searched");
+	expect(!chat->status_line(0)->live() && chat->status_line(0)->text() == QStringLiteral("Claude Code answered in 0:07.") && !chat->status_line(0)->font().italic(), "AC2 its ending says who answered and how long it took, as the Agent tab's does: " + chat->status_line(0)->text().toStdString());
+	expect(chat->status_line(0)->geometry().top() >= chat->reply(0)->geometry().bottom(), "under the reply");
+	expect(chat->resend_button(0) == nullptr && chat->delete_button(0) == nullptr, "an answer offers no Resend or Delete");
 	auto* const clipboard = QGuiApplication::clipboard();
 	chat->copy_reply_button(0)->click();
 	expect(clipboard->text().startsWith(QStringLiteral("It is the frame window:")), "Copy takes the reply as written");
 	chat->copy_chat_button()->click();
-	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Solution")) && clipboard->text().contains(QStringLiteral("**You:** What does this mean?")) && clipboard->text().contains(QStringLiteral("(worked for 7s)")), "Copy chat takes the whole chat: " + clipboard->text().toStdString());
+	expect(clipboard->text().startsWith(QStringLiteral("## Side chat: Solution")) && clipboard->text().contains(QStringLiteral("**You:** What does this mean?")) && clipboard->text().contains(QStringLiteral("**Claude Code** (answered in 0:07):")), "Copy chat takes the whole chat: " + clipboard->text().toStdString());
 
 	// (3) Update this section from our chat: an Update turn, and its proposal
 	// for the Solution decided in the chat, not in the draft's box.
@@ -427,6 +460,52 @@ auto main(int argc, char** argv) -> int
 	chat->open(core::tour_thread{ .Kind = core::tour_thread_kind::solution });
 	settle();
 	expect(chat->turn_count() == 2U && chat->column_open(), "reopened, a chat still has its turns");
+
+	// (6) [[BPR-1941]] AC2. A turn that ended without an answer, as the Agent
+	// tab's error turns: why, "Stopped after", Resend and Delete.
+	{
+		auto deleted = std::vector<core::tour_agent_run_id>{ };
+		chat->set_delete_dispatch([&deleted](const core::tour_agent_run_id aRun) { deleted.push_back(aRun); });
+		const auto problem = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
+		chat->open(problem);
+		const auto broken = core::begin_tour_ask(session, problem, std::nullopt, "Is the Problem right?");
+		static_cast<void>(core::finish_tour_run(session, *broken, core::tour_agent_run_state::failed, "Claude Code exited with an error.\n\nexit 1"));
+		static_cast<void>(core::time_tour_run(session, *broken, 3U));
+		editor.present_tour_session(session, std::nullopt);
+		settle();
+		auto* const failure = chat->findChild<QLabel*>(QStringLiteral("tourSideChatFailure"));
+		expect(chat->turn_count() == 1U && chat->reply(0) == nullptr && failure != nullptr && failure->text() == QStringLiteral("Didn't finish: Claude Code exited with an error."), "AC2 the failed turn says why");
+		expect(chat->status_line(0)->text() == QStringLiteral("Stopped after 0:03.") && chat->status_line(0)->font().italic(), "AC2 and ends as the Agent tab's error turns do, in italics");
+		expect(chat->resend_button(0) != nullptr && chat->resend_button(0)->isVisibleTo(chat) && chat->delete_button(0) != nullptr && chat->delete_button(0)->isVisibleTo(chat), "AC2 Resend and Delete");
+		render(*chat, prefix, "side-chat-failed");
+		const auto before = asked.size();
+		chat->resend_button(0)->click();
+		expect(asked.size() == before + 1U && asked.back().Thread == problem && asked.back().Question == QStringLiteral("Is the Problem right?") && !asked.back().Update, "AC2 Resend asks the same again in the same chat");
+		chat->delete_button(0)->click();
+		expect(deleted.size() == 1U && deleted.front() == *broken, "AC2 Delete asks for the turn to go");
+		static_cast<void>(core::remove_tour_run(session, *broken));
+		editor.present_tour_session(session, std::nullopt);
+		settle();
+		expect(chat->turn_count() == 0U, "and it goes");
+	}
+	// (7) [[BPR-1941]]. Draft Tour running: the whole tour's chat and the
+	// tab's notice say it with the same live line.
+	{
+		chat->open(core::tour_thread{ });
+		editor.set_tour_running(std::nullopt, true);
+		auto live  = qt::agent_run_status{ };
+		live.Agent = QStringLiteral("Claude Code");
+		live.Stage = qt::agent_run_stage::thinking;
+		editor.present_run_status(live);
+		settle();
+		expect(chat->draft_status_line() != nullptr && chat->draft_status_line()->isVisibleTo(chat) && chat->draft_status_line()->text() == QStringLiteral("● Claude Code is thinking, 0:00."), "the tour's chat says the draft runs");
+		expect(editor.draft_status_line()->isVisibleTo(&editor) && editor.draft_status_line()->text() == chat->draft_status_line()->text(), "the tab's notice says it the same way");
+		render(*chat, prefix, "side-chat-drafting");
+		editor.present_run_status(std::nullopt);
+		editor.set_tour_running(std::nullopt, false);
+		settle();
+		expect(chat->draft_status_line() == nullptr && !editor.draft_status_line()->isVisibleTo(&editor), "both go when it ends");
+	}
 
 	std::cout << "tour-side-chat:pass\n";
 	return EXIT_SUCCESS;

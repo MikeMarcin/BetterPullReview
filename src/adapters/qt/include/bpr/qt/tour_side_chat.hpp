@@ -6,9 +6,11 @@
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
+#include <QElapsedTimer>
 #include <QFont>
 #include <QIcon>
 #include <QPointer>
@@ -105,11 +107,20 @@ namespace bpr::qt {
 	/// top says which part a chat is about and Show takes the tour (and a
 	/// stop's code in the diff) there. The chat itself is plain: the author's
 	/// words in bubbles on the right, the agent's replies as rendered Markdown
-	/// on the left with their code highlighted ([[BPR-1919]]), "Worked for Ns"
-	/// to see what it read, Copy on each reply and Copy chat for all of it.
+	/// on the left with their code highlighted ([[BPR-1919]]), Copy on each
+	/// reply and Copy chat for all of it.
 	/// One clear action, Update the part from this chat, asks for the part
 	/// rewritten from the conversation; the result is the part's proposal,
 	/// accepted, edited or discarded right in the chat.
+	///
+	/// \details [[BPR-1941]], owner 2026-11-08: "bring the agent status
+	/// updates from the agent tabs over to the tour tab's side chat". A turn
+	/// ends with the Agent tab's own line (`agent_run_status_line`): while it
+	/// runs, the agent, what it is doing and the time it has taken, live;
+	/// then "Claude answered in 0:12." with Copy, or, for a turn that ended
+	/// without an answer, "Stopped after 0:12." with Resend and Delete, as
+	/// the core decides for the Agent tab's error turns. The whole tour's
+	/// chat says a running Draft Tour the same way.
 	///
 	/// \details Presents `core::tour_agent_session` and `core::tour_proposal`
 	/// and sends gestures; it decides and performs nothing.
@@ -143,6 +154,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1930]]. `aDrafting`: the run is Draft the tour, and the
 		/// tour's chat still takes feedback, which waits for its proposal.
 		void set_running(bool aAny, bool aDrafting = false);
+		/// \brief [[BPR-1941]]. What the running request is doing now, from
+		/// the tour session's run events, as the Agent tab's turn says it;
+		/// none once it ends. Its time is counted from the run's start here.
+		void present_run_status(std::optional<agent_run_status> aStatus);
+		/// \brief [[BPR-1941]]. Delete on a turn that ended without an answer.
+		void set_delete_dispatch(std::function<void(core::tour_agent_run_id)> aDelete) { DeleteDispatch = std::move(aDelete); }
 		void set_available(bool aReady, const QString& aWhy);
 		/// \brief [[BPR-1934]]. Where an empty chat's suggested prompts come
 		/// from. Without one, an empty chat offers none.
@@ -218,12 +235,19 @@ namespace bpr::qt {
 		[[nodiscard]] auto passage() const -> std::optional<core::tour_passage>;
 		/// \brief How many turns the open chat shows.
 		[[nodiscard]] auto turn_count() const noexcept -> std::size_t { return Bubbles.size(); }
-		/// \brief Turn `aTurn`'s bubble, reply, Worked disclosure and Copy.
+		/// \brief Turn `aTurn`'s bubble, its reply (none when it has no
+		/// answer), its ending line ([[BPR-1941]]: live while it runs) and Copy.
 		[[nodiscard]] auto bubble(std::size_t aTurn) const -> QWidget*;
 		[[nodiscard]] auto reply(std::size_t aTurn) const -> markdown_body_view*;
-		[[nodiscard]] auto worked_button(std::size_t aTurn) const -> QToolButton*;
-		[[nodiscard]] auto steps(std::size_t aTurn) const -> QWidget*;
+		[[nodiscard]] auto status_line(std::size_t aTurn) const -> agent_run_status_line*;
 		[[nodiscard]] auto copy_reply_button(std::size_t aTurn) const -> QToolButton*;
+		/// \brief [[BPR-1941]]. Resend and Delete on a turn that ended without
+		/// an answer, when the core offers them; otherwise none.
+		[[nodiscard]] auto resend_button(std::size_t aTurn) const -> QPushButton*;
+		[[nodiscard]] auto delete_button(std::size_t aTurn) const -> QPushButton*;
+		/// \brief [[BPR-1941]]. The whole tour's chat's line while Draft Tour
+		/// runs; otherwise none.
+		[[nodiscard]] auto draft_status_line() const noexcept -> agent_run_status_line* { return DraftLine; }
 		/// \brief Proposal item `aIndex`'s Accept and rendered text, while it is
 		/// pending and shown in the open chat.
 		[[nodiscard]] auto accept_button(std::size_t aIndex) const -> QPushButton*;
@@ -262,6 +286,10 @@ namespace bpr::qt {
 		[[nodiscard]] auto name_of(const core::tour_thread& aThread) const -> QString;
 		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector) -> markdown_body_view*;
 		[[nodiscard]] auto index_of(const core::tour_thread& aThread) const -> int;
+		/// [[BPR-1941]]. The running request as its line says it, and the
+		/// agent that ran `aRun`, as the live status named it.
+		[[nodiscard]] auto live_status() const -> agent_run_status;
+		[[nodiscard]] auto agent_of(core::tour_agent_run_id aRun) const -> QString;
 
 		ask_dispatch                                                                AskDispatch;
 		std::function<void()>                                                       StopDispatch;
@@ -275,7 +303,6 @@ namespace bpr::qt {
 		std::shared_ptr<const core::review_tour>                                    Draft;
 		std::vector<core::tour_thread>                                              Open;
 		std::map<std::size_t, core::tour_passage>                                   Passages;
-		std::set<std::uint64_t>                                                     Expanded;
 		std::map<std::size_t, QString>                                              Edited;
 		std::set<std::size_t>                                                       Editing;
 		bool                                                                        Running       = false;
@@ -314,15 +341,24 @@ namespace bpr::qt {
 		skill_completer*                                                            SkillCompletion = nullptr;
 		std::vector<QWidget*>                                                       Bubbles;
 		std::vector<markdown_body_view*>                                            Replies;
-		std::vector<QToolButton*>                                                   Worked;
-		std::vector<QWidget*>                                                       Steps;
+		std::vector<agent_run_status_line*>                                         Endings;
 		std::vector<QToolButton*>                                                   Copies;
-		std::vector<QPointer<markdown_body_view>>                                   Readers;
-		std::map<std::size_t, QPushButton*>                                         Accepts;
-		std::map<std::size_t, markdown_body_view*>                                  ProposalReaders;
-		std::vector<QPointer<QWidget>>                                              Accented;
-		prompt_source                                                               PromptSource;
-		QPointer<agent_suggestion_list>                                             Suggestions;
+		std::vector<QPushButton*>                                                   Resends;
+		std::vector<QPushButton*>                                                   Deletes;
+		/// [[BPR-1941]]. The running request: what it does, its clock, the
+		/// lines saying it, and the agent each turn ran with.
+		std::optional<agent_run_status>              Live;
+		QElapsedTimer                                LiveClock;
+		QPointer<agent_run_status_line>              LiveLine;
+		agent_run_status_line*                       DraftLine = nullptr;
+		std::map<std::uint64_t, QString>             RunAgents;
+		std::function<void(core::tour_agent_run_id)> DeleteDispatch;
+		std::vector<QPointer<markdown_body_view>>    Readers;
+		std::map<std::size_t, QPushButton*>          Accepts;
+		std::map<std::size_t, markdown_body_view*>   ProposalReaders;
+		std::vector<QPointer<QWidget>>               Accented;
+		prompt_source                                PromptSource;
+		QPointer<agent_suggestion_list>              Suggestions;
 		/// [[BPR-1934]] v002. The selected text, the part it is in, and the
 		/// label its prompt has now.
 		struct offered_selection
