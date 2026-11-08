@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1943"
 title: "Wait for current round-trip fixture input before the off-hunk gesture"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
 metadata: {"kind":"test-correctness","found_by":"BPR-1942 normal native round-trip failure and bounded diagnostic","related_cards":["BPR-1942"],"milestone_plan":{"id":"bpr-1943-current-fallback-input","path":"docs/rfcs/plans/bpr-1943-current-fallback-input/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c3936cb5ad659a7487a44b7d17ebddadf1207ca","evidence":{"kind":"observation","detail":"Test-only current publication/display/private readiness wait precedes exact original off-hunk gesture loop; once-only existing modality choice. Mechanical phase enum/transitions,15sSince/40sbudgets/provider/verdict sequence unchanged; product guard files untouched; temporary phase snapshots/relay absent; useful bounded failure facts retained."}},{"criterion":"AC2","outcome":"pass","revision":"9c3936cb5ad659a7487a44b7d17ebddadf1207ca","evidence":{"kind":"observation","detail":"Independent unchanged142-file inventory baseline51f86 ->913e8b over exactly fixture/header, maintainedprinter agrees, other pins unchanged. Exact9c uninstrumented native app/helper build and actual normal original2+5tooling+3preflight PASS with configured guarded root. OriginalR1functional failure and R2diagnostic positive remain explicit and distinct."}},{"criterion":"AC3","outcome":"pass","revision":"9c3936cb5ad659a7487a44b7d17ebddadf1207ca","evidence":{"kind":"observation","detail":"Source9c intentionally pushed main including latest8f, with format22/tidy22/docs/board pass, exact source/src/tests/binary/runtime mappings and quiescent ownership receipt. No full-release/trust/publication acceptance inferred."}}]
 ---
 
 # BPR-1943: Current fallback fixture input
