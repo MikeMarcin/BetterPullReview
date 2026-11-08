@@ -3472,8 +3472,11 @@ namespace bpr::qt {
 		titleRow->addWidget(EditStop, 0, Qt::AlignTop);
 		connect(EditStop, &QToolButton::clicked, this, [this] { begin_stop_edit(); });
 		// [[BPR-1936]], owner: "Maybe there needs to be another way to remove
-		// a stop like trash can button." The comments' trash, beside the
-		// pencil; it removes this card's stop, and Undo brings it back.
+		// a stop like trash can button." The comments' trash; it removes this
+		// card's stop, and Undo brings it back. v002, owner on v001: "Takes
+		// too much space from the title. Move the trashcan to the edit mode
+		// down to the left of cancel." It sits at the foot's left while the
+		// stop is written, apart from Cancel and Save at the right.
 		RemoveStop = new QToolButton{ StopFields };
 		RemoveStop->setObjectName(QStringLiteral("tourStopRemove"));
 		RemoveStop->setIcon(conversation_icon(conversation_glyph::trash, palette()));
@@ -3484,7 +3487,6 @@ namespace bpr::qt {
 		RemoveStop->setFocusPolicy(Qt::StrongFocus);
 		RemoveStop->setAccessibleName(tr("Remove stop"));
 		RemoveStop->setToolTip(tr("Remove stop (%1 undoes it)").arg(QKeySequence{ QKeySequence::Undo }.toString(QKeySequence::NativeText)));
-		titleRow->addWidget(RemoveStop, 0, Qt::AlignTop);
 		connect(RemoveStop, &QToolButton::clicked, this, [this] {
 			if (const auto* const stop = selected_stop(); stop != nullptr) {
 				remove_stop(stop->Id);
@@ -3684,6 +3686,8 @@ namespace bpr::qt {
 		auto* nav = new QHBoxLayout;
 		nav->setSpacing(6);
 		fields->addLayout(nav);
+		RemoveStop->setParent(StopFields);
+		nav->addWidget(RemoveStop);
 		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
 		ShowInCode               = returnToTour;
 		StopFieldsLayout         = fields;
@@ -4108,6 +4112,7 @@ namespace bpr::qt {
 		// lines by the location; the pencil and Ready, next give way.
 		SaveStop->setVisible(writing);
 		CancelStop->setVisible(writing);
+		RemoveStop->setVisible(writing);
 		SaveStop->setDefault(writing);
 		StopActions->want(UseLines, writing);
 		if (Retarget != nullptr) {

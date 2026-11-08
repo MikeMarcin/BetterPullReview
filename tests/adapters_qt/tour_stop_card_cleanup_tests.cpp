@@ -300,7 +300,26 @@ auto main(int argc, char** argv) -> int
 	show();
 	settle();
 	auto* const trash = editor->stop_remove_button();
-	expect(trash != nullptr && trash->isVisible() && trash->accessibleName() == QStringLiteral("Remove stop") && trash->toolTip().startsWith(QStringLiteral("Remove stop")), "the card's trash is named Remove stop");
+	// v002, owner: the trash takes no room from the title; it is in the
+	// editor's foot, at the left, apart from Cancel and Save.
+	expect(trash != nullptr && !trash->isVisible(), "a read stop's card has no trash by its title");
+	editor->begin_stop_edit();
+	settle();
+	{
+		auto* const cancelButton = editor->findChild<QPushButton*>(QStringLiteral("tourStopCancel"));
+		auto* const saveButton   = editor->findChild<QPushButton*>(QStringLiteral("tourStopSave"));
+		auto* const fields       = editor->findChild<QWidget*>(QStringLiteral("tourStopFields"));
+		const auto  trashAt      = trash->mapTo(fields, QPoint{ 0, 0 });
+		const auto  cancelAt     = cancelButton->mapTo(fields, QPoint{ 0, 0 });
+		expect(trash->isVisible() && trash->accessibleName() == QStringLiteral("Remove stop") && trash->toolTip().startsWith(QStringLiteral("Remove stop")), "written, the trash is named Remove stop");
+		expect(std::abs((trashAt.y() + trash->height() / 2) - (cancelAt.y() + cancelButton->height() / 2)) <= 4 && trashAt.x() < fields->width() / 3 && cancelAt.x() - (trashAt.x() + trash->width()) > 40 && cancelAt.x() < saveButton->mapTo(fields, QPoint{ 0, 0 }).x(),
+			   "on the foot's row, at its left, well apart from Cancel and Save at the right");
+		if (!prefix.isEmpty()) {
+			expect(card_of(*editor)->grab().save(prefix + QStringLiteral("card-edit-whole.png")), "render saved");
+		}
+		const auto titleRight = editor->stop_title()->mapTo(fields, QPoint{ editor->stop_title()->width(), 0 }).x();
+		expect(titleRight >= fields->width() - 50, "the title has the row but for the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
+	}
 	const auto count = draft.Stops.size();
 	trash->click();
 	settle();
