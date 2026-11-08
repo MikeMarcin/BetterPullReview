@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1946-elapsed-clock-boundaries",
+  "scope": {
+    "issues": [
+      "BPR-1946"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "elapsed-second-boundaries",
+      "outcome": "The shared live run clock updates at actual elapsed whole-second boundaries even when a native precise timer callback arrives early, under the original observable deadlines.",
+      "work": [
+        {
+          "issue": "BPR-1946",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "One owned single-shot precise timer re-arms to the next actual elapsed second boundary; preserve floor formatting, nominal1Hz visible updates, status/start/settle/lifetime and activity-refresh continuity.",
+        "Retain rejected42 original and exact contained Windows negative; extended8phase semantics and focused local/native chat/Agent controls pass with unchanged first1300ms Release and per-boundary allowances.",
+        "Focused format/tidy/docs/board and latest authoritative main landing pass, protected42 snapshot verified, exact development/native ownership and remaining frozen-release obligations handed back."
+      ],
+      "boundary": "Owning shared clock cpp, existing Qt regression, issue/plan/evidence. No timer budget/assertion waiver, elapsed rounding, product policy/layout change, broad matrix, Linux job, signed package or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
