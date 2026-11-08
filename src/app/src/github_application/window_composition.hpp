@@ -1,5 +1,10 @@
 #ifndef BPR_APP_GITHUB_APPLICATION_WINDOW_COMPOSITION_HPP
 #define BPR_APP_GITHUB_APPLICATION_WINDOW_COMPOSITION_HPP
+
+#if defined(_WIN32)
+	#include "windows_title_row_host.hpp"
+#endif
+
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/app/github_application.hpp"
