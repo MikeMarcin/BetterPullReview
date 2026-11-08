@@ -32,9 +32,11 @@
 #include <QTextBlock>
 #include <QTextEdit>
 #include <QTextLayout>
+#include <QTimer>
 #include <QToolButton>
 
 #include <algorithm>
+#include <array>
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -60,6 +62,53 @@ namespace {
 			QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
 			QApplication::processEvents();
 		}
+	}
+	void verify_first_live_second()
+	{
+		// [[BPR-1945]]. A coarse first tick may arrive before a whole
+		// second and keep 0:00 until the next tick. Vary the start phase so
+		// the shared line must show its first second at the same deadline
+		// as the composed chat, independently of the timer's alignment.
+#ifdef NDEBUG
+		constexpr auto liveBudget = 1300;
+#else
+		constexpr auto liveBudget = 3000;
+#endif
+		struct live_probe
+		{
+			qt::agent_run_status_line Line{ };
+			QElapsedTimer             Started;
+			bool                      Checked = false;
+		};
+		auto probes = std::array<live_probe, 8>{ };
+		for (std::size_t index = 0; index < probes.size(); ++index) {
+			auto& probe = probes[index];
+			QTimer::singleShot(static_cast<int>(index) * 137, Qt::PreciseTimer, &probe.Line, [&probe] {
+				probe.Started.start();
+				auto status  = qt::agent_run_status{ };
+				status.Agent = QStringLiteral("Claude Code");
+				probe.Line.present(status, probe.Started);
+			});
+		}
+		auto clock = QElapsedTimer{ };
+		clock.start();
+		const auto complete = [&probes] { return std::ranges::all_of(probes, [](const live_probe& aProbe) { return aProbe.Checked; }); };
+		while (!complete() && clock.elapsed() < liveBudget + 2000) {
+			QApplication::processEvents(QEventLoop::AllEvents, 50);
+			for (auto& probe : probes) {
+				if (!probe.Started.isValid() || probe.Checked) {
+					continue;
+				}
+				if (probe.Line.text() == QStringLiteral("● Claude Code is thinking, 0:01.")) {
+					expect(probe.Line.live() && probe.Started.elapsed() >= 1000, "the live line reads a whole elapsed second");
+					probe.Line.settle(QStringLiteral("Stopped after 0:01"), false);
+					probe.Checked = true;
+				} else {
+					expect(probe.Started.elapsed() < liveBudget, "the shared live line counts its first second at every start phase: " + probe.Line.text().toStdString());
+				}
+			}
+		}
+		expect(complete(), "each staggered live-clock check ran");
 	}
 	void render(QWidget& aWidget, const std::string& aPrefix, const char* aName)
 	{
@@ -146,6 +195,7 @@ auto main(int argc, char** argv) -> int
 {
 	QApplication application{ argc, argv };
 	const auto   prefix = argc > 1 ? std::string{ argv[1] } : std::string{ };
+	verify_first_live_second();
 
 	auto draft                    = tests::review_tour_fixture();
 	draft.Problem                 = "Reads crash.";
