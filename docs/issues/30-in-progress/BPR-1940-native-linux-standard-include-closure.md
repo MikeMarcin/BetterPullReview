@@ -143,3 +143,44 @@ compile/check with Clang locally; clang-format22 and warnings-as-errors
 tidy22 pass. The retry will finish the same three normal graphs and run the
 six named existing courses once on native Release; no duplicate semantic
 matrix is added.
+
+## Corrected native builds and retained runtime failures
+
+Corrected private native source `34d97535d3dfdb6c98eac05dbea022b5568fa6a9`
+has exactly the same `src` and `tests` Git trees as isolated source
+`c586ebdd3b01a342d6b9f96aeeacfe3b0dd6dd92`. All three full keep-going
+development builds pass: Release 67.15 s, Debug 781.52 s, tests-off 35.99 s.
+The protected 67/67/59 cache feature/flag keys have no changes, and each graph
+retains an empty cohort/producer. The two original optimized failures remain
+in the first-sweep receipts; no warning was suppressed.
+
+The six approved native Release controls were run once. Agent chat composition
+and conversation pass (21.06/22.51 s). Invocation passes both explicit-private
+seed and reopen phases, then its setup-wrapper phase reaches the original
+90 s outer limit. Tour writing also reaches its original 90 s limit.
+Round-trip fails at its original 40 s internal open-stage budget; private
+review fails in seed stage 2 while entering Review, with three workbench
+requests outstanding. These are actual failures, not acceptance. The private
+course has not reached a private source selection or agent request at that
+stage. The exact CTest environment uses the same offscreen backend, Windows
+Qt style, sanitized boundary and network sandbox for the passing and failing
+courses. Authoritative-main landing remains held pending diagnosis.
+
+One coordinator-approved repeat of the unchanged private-review course adds
+only an external, identity-bound read-only process sampler. It reaches the
+original Python 110 s limit. Its application and workers are observed blocked
+on page I/O and ext4 journal commits; two worker IDs have journal-wait samples
+spanning 32.06/30.06 s. These spans do not claim continuous waits. Build and
+fixture temporary storage both use the existing D-backed ext4 loop image.
+This is concrete evidence of I/O blocking, with no additional source defect
+established. A coordinator-approved single diagnostic comparison changes only
+the bounded, owned fixture temporary directory to native root ext4, with an
+explicit 256 MiB forecast, unchanged C32 GiB reserve and original D guard.
+It does not change source, predicates, time limits or durability.
+
+External `native-final-r2`, `private-diagnostic-r3`,
+`preserved-cache-review-r2.json` and the runtime checkpoint retain exact
+commands, source identities, JUnit and raw outputs. Every command in both
+completed iterations has no owned descendants remaining; source and configured
+cache bytes remain unchanged after the diagnostic. Neither developer build
+nor diagnostic is frozen-source release qualification.
