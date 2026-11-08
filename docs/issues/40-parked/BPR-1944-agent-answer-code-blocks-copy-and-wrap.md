@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1944"
 title: "Code blocks in agent answers get a header with the language, Wrap and Copy"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P2"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-08, coordinator chat, with a reference screenshot of another desktop chat app's code block header","related_cards":["BPR-1919","BPR-1941"]}
-acceptance: []
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"command","detail":"Visible Agent tab at 1.0/1.25/2.0, tour side chat and Conversation headers verified by qt_markdown_code, qt_tour_side_chat, qt_tour_agent_session_view and qt_tour_chat_in_tab.","path":"/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx/final-rechecks2.log"}},{"criterion":"AC2","outcome":"pass","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"command","detail":"Qt clipboard reads exact code, with no fence or added newline; empty code, Unicode and tabs pass in the body and Conversation tests.","path":"/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx/final-rechecks2.log"}},{"criterion":"AC3","outcome":"pass","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"command","detail":"Keyboard Wrap changes only its own block, grows layout, removes its horizontal scroll range and preserves wrap across the same answer refresh.","path":"/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx/final-rechecks2.log"}},{"criterion":"AC4","outcome":"pass","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"command","detail":"The composed packaged classifier colours Agent, tour and Conversation editors with the shared code-store formats; existing Markdown/GitHub/suggestion checks pass.","path":"/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx/final-rechecks2.log"}},{"criterion":"AC7","outcome":"pass","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"command","detail":"A 400-character line is bounded inside its block in Agent, tour chat and Conversation, with zero horizontal scroll range in their containing message/pane.","path":"/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx/final-rechecks2.log"}},{"criterion":"AC6","outcome":"pass","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"command","detail":"DOCUMENTATION_OK after main integration; 67 documentation contract tests pass. LLVM22 format, focused tidy and architecture checks pass; retained initial failures and final affected rechecks are described on the card.","path":"/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx/documentation.log"}},{"criterion":"AC5","outcome":"pending","revision":"017913e0133356ccce1c2524a76bfa9e82bd1db0","evidence":{"kind":"artifact","detail":"Owner look pending in fresh short attended session d9bc945cb28815c3507ca78caba64983. Frozen 017913e01 build passes its own launcher check: ATTENDED_TOUR_CONVERSATION_SHOWN. Executable SHA-256 59dc5696272b89e953535452f886ad3bb07d092d10a51cf9d6182f476e3e504e.","path":"/Users/jaeger/.codex/attended-review/bpr1944-v001-5ja9my8d/state"}}]
+parked_on: "human-review"
 ---
 
 # BPR-1944: Code blocks in agent answers get a header with the language, Wrap and Copy
@@ -149,3 +150,27 @@ macOS arm64, Qt 6.12.0, Debug, 2026-11-08:
 
 These are offscreen layout and interaction observations. Native appearance
 judgment belongs to AC5; Windows and Linux native UI were not exercised.
+
+## Frozen owner review (v001)
+
+- Source implementation `90c3cca93`; current main integrated at
+  `017913e0133356ccce1c2524a76bfa9e82bd1db0` without changes to the feature.
+- Frozen root
+  `/Users/jaeger/.codex/attended-builds/bpr1944-code-blocks-v001.66n6ohxp`.
+  Source and build live within it; committed conventional-comments fixtures
+  were exported, and the synthetic agent wrapper was generated inside its
+  source through `freeze_attended_build.py --generate`. It only enriches
+  the existing fixture agent's tour replies with the two code examples.
+- The freeze ran the launcher's own `--check`, reached
+  `ATTENDED_TOUR_CONVERSATION_SHOWN` and froze the source read-only.
+  Executable SHA-256:
+  `59dc5696272b89e953535452f886ad3bb07d092d10a51cf9d6182f476e3e504e`.
+- Launch:
+  `python3 /Users/jaeger/.codex/attended-builds/bpr1944-code-blocks-v001.66n6ohxp/launch.py`.
+- Fresh short attended session `d9bc945cb28815c3507ca78caba64983`, external
+  state `/Users/jaeger/.codex/attended-review/bpr1944-v001-5ja9my8d/state`.
+  Candidate `BPR-1944-code-blocks-v001`, revision `017913e01-v001`, one
+  Accept/Reject question for AC5. Authentication-bearing URLs stay in the
+  external session state.
+- AC5 awaits the owner. Main has not been changed and the task worktree
+  remains until the exact candidate is accepted.
