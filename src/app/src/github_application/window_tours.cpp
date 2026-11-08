@@ -1051,8 +1051,20 @@ namespace bpr::app {
 				Window->tour_editor()->show_writing_notice(QStringLiteral("Focus set. Later drafts and chat answers favour %1.").arg(QString::fromStdString(TourAgent.Focus)));
 			}
 		}
-		if (!proposal->Items.empty() || proposal->RevisesWaitingStops) {
+		// [[BPR-1937]]. The core decides what waits: a newer plan for the
+		// tour's shape replaces the earlier one whole, even refused whole.
+		const auto refused = proposal->Refused.size();
+		const auto items   = !proposal->Items.empty();
+		if (items || proposal->RevisesWaitingStops || proposal->RevisesStructure) {
 			TourProposal = core::merge_tour_proposal(TourProposal, std::move(*proposal));
+		}
+		if (refused > 0U) {
+			// [[BPR-1937]] AC2. A refused part is said, with why, on the tour
+			// as in the chat.
+			const auto refusal = refused == 1U ? QStringLiteral("1 part of the tour agent's answer couldn't be proposed. The chat says why.")
+											   : QStringLiteral("%1 parts of the tour agent's answer couldn't be proposed. The chat says why.").arg(refused);
+			Window->tour_editor()->show_writing_notice(items ? QStringLiteral("The tour agent's other changes wait in the tour, marked grey. ") + refusal : refusal);
+		} else if (items) {
 			// [[BPR-1930]]. The tour chat's proposal waits in the tour itself.
 			Window->tour_editor()->show_writing_notice(whole ? QStringLiteral("The tour agent's changes wait in the tour, marked grey. Nothing changes until you accept them.")
 															 : QStringLiteral("The tour agent proposed a change in the side chat. Nothing changes until you accept it."));
