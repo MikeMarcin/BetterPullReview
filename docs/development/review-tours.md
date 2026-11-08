@@ -8,6 +8,13 @@ Reviewers need nothing installed; they see ordinary GitHub comments and a
 Start one with **Prepare review tour** (`Alt+T`) and add stops with **Add tour
 stop** (`Alt+Shift+T`).
 
+## Pointing a stop at other lines
+
+Edit the stop, then choose **Use selected lines** to point it at the lines
+selected in the comparison. With the tour outline focused, **Alt+Shift+U**
+(Option+Shift+U on macOS) does the same while the stop is being edited.
+Reading or collapsing the stop withholds that action; no code is copied.
+
 ## Before you publish
 
 - Nothing reaches GitHub until you confirm the publication plan. **Ready** on

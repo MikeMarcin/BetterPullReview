@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1938-retarget-fixture",
+  "scope": {
+    "issues": [
+      "BPR-1938"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "qualify-edit-only-key",
+      "outcome": "The composed retarget shortcut course matches the accepted edit-only action without weakening key, focus or exactly-once coverage.",
+      "work": [
+        {
+          "issue": "BPR-1938",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Read/collapsed and edit-mode dispatch behavior is directly exercised in the assembled window.",
+        "Original three scale rows and focused Tour/keyboard checks pass with all existing boundaries retained.",
+        "Format/docs gates pass and test/documentation correction is integrated into main; frozen37 remains untouched."
+      ],
+      "boundary": "BPR-1938 fixture, operator documentation and metadata for the existing Escape Keep shortcut only; no product behavior, key choice, shortcut context or release publication change."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

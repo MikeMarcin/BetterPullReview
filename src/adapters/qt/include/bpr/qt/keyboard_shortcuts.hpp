@@ -148,6 +148,8 @@ namespace bpr::qt {
 		tour_move_down,
 		tour_duplicate,
 		tour_remove,
+		/// [[BPR-1938]]. Keep a stop when its removal question has the keyboard.
+		tour_keep_stop,
 		tour_retarget,
 		tour_ready_next,
 		tour_undo,

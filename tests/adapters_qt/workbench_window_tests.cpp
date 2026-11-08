@@ -10315,8 +10315,9 @@ namespace {
 	}
 
 	/// \brief [[BPR-1241]]. In the assembled window, with a stop selected in the
-	/// tour outline, Option-Shift-U retargets the stop and Option-R still composes
-	/// the review; away from the outline Option-Shift-U retargets nothing.
+	/// tour outline, Option-Shift-U retargets the stop while editing and Option-R
+	/// still composes the review. Reading, collapsed, or away from the outline,
+	/// Option-Shift-U retargets nothing ([[BPR-1936]], [[BPR-1938]]).
 	void test_tour_retarget_key_reaches_only_the_outline()
 	{
 		qt::workbench_window window;
@@ -10350,16 +10351,48 @@ namespace {
 		outline->setFocus(Qt::OtherFocusReason);
 		process_events();
 		expect(outline->hasFocus() && editor->selected_stop() != nullptr, "the stop is selected and the outline has focus");
+		// [[BPR-1936]]. Use selected lines is an editing command, including
+		// its route-menu shortcut. A selected read stop does not expose it.
+		expect(editor->stop_view().Mode == core::tour_stop_view_mode::read && !retarget->isVisible(), "a read stop withholds Use selected lines");
+		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
+		expect(fired.empty() && stack->currentWidget() == start, "Option-Shift-U while reading retargets nothing and opens no page");
+		const auto editSelected = [&] {
+			auto* const pencil = editor->findChild<QToolButton*>(QStringLiteral("tourStopEdit"));
+			expect(pencil != nullptr && pencil->isVisible() && pencil->isEnabled(), "the selected stop offers its pencil");
+			pencil->click();
+			process_events();
+			expect(editor->stop_view().Mode == core::tour_stop_view_mode::edit && retarget->isVisible() && retarget->isEnabled(), "editing offers Use selected lines and its shortcut");
+			outline->setFocus(Qt::OtherFocusReason);
+			process_events();
+			expect(outline->hasFocus(), "the outline owns the retarget key while the selected stop is edited");
+		};
+		editSelected();
 		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
 		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start,
-			   "Option-Shift-U on the outline retargets the selected stop once and opens nothing else");
+			   "Option-Shift-U on the outline retargets the edited stop once and opens nothing else");
+		{
+			auto* const collapse = editor->stop_collapse_button();
+			expect(collapse != nullptr, "the selected card has its collapse control");
+			collapse->click();
+		}
+		process_events();
+		outline->setFocus(Qt::OtherFocusReason);
+		process_events();
+		expect(editor->stop_collapsed() && editor->stop_view().Mode == core::tour_stop_view_mode::read && !retarget->isVisible(), "collapsing finishes editing and withholds retarget");
+		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
+		expect(fired.size() == 1U && stack->currentWidget() == start, "Option-Shift-U on a collapsed stop retargets nothing and opens no page");
+		window_key(window, Qt::Key_Space, Qt::NoModifier);
+		expect(!editor->stop_collapsed(), "Space on the outline reopens the stop");
+		editSelected();
+		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
+		expect(fired == std::vector{ qt::tour_editor_action::retarget_stop, qt::tour_editor_action::retarget_stop } && stack->currentWidget() == start, "editing the reopened stop re-enables exactly one retarget per key press");
 		window_key(window, Qt::Key_R, Qt::AltModifier);
-		expect(fired.size() == 1U && window.review_sheet_open(), "Option-R on the outline composes the review and does not retarget");
+		expect(fired.size() == 2U && window.review_sheet_open(), "Option-R on the outline composes the review and does not retarget");
 		window_key(window, Qt::Key_Escape, Qt::NoModifier);
 		window.modality()->button(qt::review_modality::review)->setFocus(Qt::OtherFocusReason);
 		process_events();
 		window_key(window, Qt::Key_U, Qt::AltModifier | Qt::ShiftModifier);
-		expect(fired.size() == 1U, "Option-Shift-U away from the outline retargets nothing");
+		expect(fired.size() == 2U, "Option-Shift-U away from the outline retargets nothing");
 		window.hide();
 	}
 

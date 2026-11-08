@@ -8,6 +8,7 @@
 // removed, from its menu and from its card's trash. Pass a path prefix to save
 // renders.
 #include "../support/review_tour_fixture.hpp"
+#include "../support/window_system_keys.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 
 #include <QAbstractButton>
@@ -352,6 +353,17 @@ auto main(int argc, char** argv) -> int
 	editor->findChild<QPushButton*>(QStringLiteral("tourStopRemoveKeep"))->click();
 	settle();
 	expect(!confirm->isVisible() && draft.Stops.size() == count, "Keep keeps the stop");
+	// [[BPR-1938]]. The catalogued Escape stays local to the question:
+	// it keeps this stop without ending the card's edit or removing anything.
+	click(trash, trash->rect().center());
+	auto* const keep = editor->findChild<QPushButton*>(QStringLiteral("tourStopRemoveKeep"));
+	scroll.activateWindow();
+	keep->setFocus(Qt::OtherFocusReason);
+	settle();
+	expect(confirm->isVisible() && keep->hasFocus(), "the removal question owns the Escape key");
+	tests::window_system_key(*editor, Qt::Key_Escape);
+	settle();
+	expect(!confirm->isVisible() && draft.Stops.size() == count && editor->stop_view().Mode == core::tour_stop_view_mode::edit, "Escape keeps the stop and its edit, closing only the removal question");
 	click(trash, trash->rect().center());
 	editor->findChild<QPushButton*>(QStringLiteral("tourStopRemoveYes"))->click();
 	settle();
