@@ -6,6 +6,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstring>
 #include <expected>
 #include <memory>
 #include <mutex>

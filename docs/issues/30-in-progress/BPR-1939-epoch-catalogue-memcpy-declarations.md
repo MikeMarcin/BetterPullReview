@@ -44,3 +44,55 @@ external shadow implementation directory and redirects every generated output.
 No release source, configured flags, producer outputs, package identity or
 published asset is changed. Final release compilation and qualification remain
 separate coordinator obligations.
+
+
+## Native correction evidence
+
+The release coordinator retained the real build38 native GCC failure in
+external `candidate38/linux-compile-failure/`: the shared-header error was
+reported from the main, append-finalization and append-reservation translation
+units, with a second reservation-owned `std::memcpy` error. No source or flag
+was changed to collect that failure.
+
+The corrected slice adds exactly one `<cstring>` include to each of the three
+owners. All three corrected file hashes are bound in external
+`candidate38/implementer1939/corrected-inputs.json` and checked by the native
+proof before compiling. The native Ubuntu compiler is GCC 15.2.0. The proof
+reads each exact command from the configured Ninja graph, retaining `-O3`,
+`-DNDEBUG`, C++23, all warning/hardening flags, `-Werror`, definitions and
+module/dependency flags. It copies the unchanged `$root .` module mapper into
+an external working directory, changes only the primary input source path,
+and creates object, dependency, module and temporary outputs there. No forced
+include or warning suppression is used.
+
+The three original failing TUs all fail again in an unmodified shadow with
+the missing `std::memcpy` declaration. The corrected shadow then compiles all
+eight epoch-catalogue TUs successfully: main, append finalization, append
+reservation, maintenance operations, open, prune/cache delete, reads and
+support. The source directory, original object directory, compile database,
+source revision and clean status are unchanged before/after. The raw proof,
+commands, source hashes and receipt live in external
+`candidate38/implementer1939/native-proof-r2/`.
+
+The first external launcher attempt stopped before a compiler ran because
+Ninja was absent from the noninteractive PATH; its failed receipt remains.
+The proof uses the exact `CMAKE_MAKE_PROGRAM` from the existing cache instead.
+This operational retry changes no product source or compiler flags.
+
+## Focused verification and limits
+
+The isolated macOS build recompiles the affected library and passes the
+existing `sqlite_epoch_catalog_storage_contract` (0.47 s),
+`sqlite_epoch_catalog_behavior_contract` (12.60 s) and
+`sqlite_anonymous_epoch_authority` (0.37 s). Clang-format22 checks all three
+include owners. Clang-tidy22 with warnings as errors passes both changed
+implementation TUs, including their shared header; no fixes or check exclusions
+are used. Documentation and board validation must pass at closeout.
+
+These controls establish the include correction and retain unchanged storage
+semantics. They do not grant full release, package, native desktop, vault or
+trust acceptance. Frozen build38 remains
+`c916a0573c2612c4ca7170bc1073d520feadded5`; the implementer changed neither that
+source nor any accepted output. The shared PC has been handed back idle to
+the coordinator. Final frozen-source compilation and qualification remain
+coordinator obligations.

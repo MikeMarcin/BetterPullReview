@@ -1,6 +1,7 @@
 #include "epoch_catalog_support.hpp"
 
 #include <algorithm>
+#include <cstring>
 #include <vector>
 
 namespace bpr::adapters::sqlite::epoch_catalog_detail {
