@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1939"
 title: "Include the declaration of memcpy in epoch catalogue owners"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"portability","found_by":"v0.4.2 build38 native Ubuntu GCC Release compilation","milestone_plan":{"id":"bpr-1939-epoch-cstring","path":"docs/rfcs/plans/bpr-1939-epoch-cstring/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"1631a5306d8192e0f2069e1c69b6e172295b049a","evidence":{"kind":"observation","detail":"The source diff adds exactly three #include <cstring> lines: shared epoch_catalog_support.hpp read_oid, epoch_catalog_append_reservation.cpp read_pack, epoch_catalog_support.cpp read_blob. No behavior, flag, assertion or schema changes."}},{"criterion":"AC2","outcome":"pass","revision":"1631a5306d8192e0f2069e1c69b6e172295b049a","evidence":{"kind":"command","detail":"Native Ubuntu GCC15.2 native-proof-r2/receipt.json: original three failed TUs reproduce missing std::memcpy; all eight corrected TUs compile. Exact Ninja GCC argv preserved except primary source path, external cwd with unchanged copied module mapper and all object/dependency/module/temp outputs external. Corrected bytes match this source revision by SHA256. sourceUnchanged/objectsUnchanged/compileCommandsUnchanged/sourceClean/sourceRevisionUnchanged all true. Original full release failure and first launcher PATH failure retained."}},{"criterion":"AC3","outcome":"pass","revision":"1631a5306d8192e0f2069e1c69b6e172295b049a","evidence":{"kind":"command","detail":"Source revision landed/pushed authoritative main. Existing sqlite_epoch_catalog_storage_contract, sqlite_epoch_catalog_behavior_contract and sqlite_anonymous_epoch_authority pass in isolated macOS build; format22 all3 files and warnings-as-errors tidy22 both implementation TUs/shared header pass. Documentation gate DOCUMENTATION_OK, board valid and diff check clean. Frozen release38 c916a0573 source/accepted outputs untouched; native diagnostic ownership returned idle, no release acceptance claimed."}}]
 ---
 
 # BPR-1939: Epoch catalogue memcpy declarations
@@ -96,3 +97,8 @@ trust acceptance. Frozen build38 remains
 source nor any accepted output. The shared PC has been handed back idle to
 the coordinator. Final frozen-source compilation and qualification remain
 coordinator obligations.
+
+Source integration: `1631a5306d8192e0f2069e1c69b6e172295b049a` was pushed to authoritative
+main after the native and focused checks above passed. The final source diff
+contains only the three direct includes; issue/plan records are separate
+bookkeeping. No other main advance occurred during this slice.
