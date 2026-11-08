@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement     = core::agent_context_supplement;
-		const auto whole     = supplement{ };
+		using supplement         = core::agent_context_supplement;
+		const auto whole         = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -237,7 +237,8 @@ namespace {
 					 guidance,
 					 brief,
 					 conversation,
-					 skills] = whole;
+					 skills,
+					 tourPrompt] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
@@ -289,13 +290,16 @@ namespace {
 		[[maybe_unused]] const auto& [namedSkillName, namedSkillSource, namedSkillOrigin, namedSkillText, namedSkillSupporting] = core::supplement_skill{ };
 		static_assert(std::is_same_v<decltype(namedSkillText), const std::string>);
 		static_assert(std::is_same_v<decltype(namedSkillSupporting), const std::vector<std::string>>);
+		// [[BPR-1935]]. A tour run's composed prompt: bounded prose, no
+		// argv, environment or token.
+		static_assert(std::is_same_v<decltype(tourPrompt), const std::string>);
 		expect(
 			version == core::agent_supplement_schema_version
 				&& applicationSession.value() == 0U && run.Id.value() == 0U
 				&& url.empty() && message.empty() && !previous && !lastReviewed
 				&& files.empty() && defects.empty() && !selection && notes.empty()
 				&& drafts.empty() && !operation && !guidance && !brief
-				&& !conversation && skills.empty(),
+				&& !conversation && skills.empty() && tourPrompt.empty(),
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 
@@ -594,6 +598,67 @@ namespace {
 			"a question is not the question that was asked");
 	}
 
+	/// [[BPR-1935]]. A tour run's composed prompt has its own carrier and
+	/// bound, larger than a typed message's, travels for its own session
+	/// only, and is the whole of what its request asks.
+	void test_a_tour_prompt_travels_alone_within_its_own_bound()
+	{
+		using prompt                                = core::agent_tour_prompt;
+		[[maybe_unused]] const auto& [keyed, built] = prompt{ };
+		static_assert(std::is_same_v<decltype(keyed), const core::agent_session_id>);
+		static_assert(std::is_same_v<decltype(built), const std::string>);
+		static_assert(sizeof(prompt) == sizeof(core::agent_session_id) + sizeof(std::string), "agent_tour_prompt gained a field. A tour prompt is the session it is sent under and the text the application built.");
+		static_assert(core::maximum_tour_prompt_bytes >= 160U * 1024U && core::maximum_tour_prompt_bytes > core::maximum_chat_message_bytes, "the tour prompt's bound holds what its builders accept, which is more than a typed message");
+
+		expect(core::build_agent_supplement(minimal_request())->TourPrompt.empty(), "a launch that is not a tour run carries no tour prompt");
+
+		auto request       = minimal_request();
+		request.TourPrompt = prompt{ .Session = request.Session.Id, .Text = std::string(core::maximum_chat_message_bytes * 4U, 't') };
+		const auto large   = core::build_agent_supplement(request);
+		expect(large && large->TourPrompt == request.TourPrompt->Text && large->Message.empty(), "a tour prompt four times a chat message's bound travels whole, and not as a chat message");
+
+		auto atBound             = request;
+		atBound.TourPrompt->Text = std::string(core::maximum_tour_prompt_bytes, 't');
+		expect(core::build_agent_supplement(atBound).has_value(), "a tour prompt exactly at its bound is admitted");
+		auto oversize             = request;
+		oversize.TourPrompt->Text = std::string(core::maximum_tour_prompt_bytes + 1U, 't');
+		expect(!core::build_agent_supplement(oversize), "one byte past it is refused whole");
+
+		auto other                = request;
+		other.TourPrompt->Session = core::agent_session_id{ request.Session.Id.value() + 1U };
+		expect(!core::build_agent_supplement(other), "a tour prompt for another session is refused");
+		auto empty             = request;
+		empty.TourPrompt->Text = std::string{ };
+		expect(!core::build_agent_supplement(empty), "an empty tour prompt is refused, not sent as no prompt");
+		auto invalid             = request;
+		invalid.TourPrompt->Text = std::string{ "\xff" };
+		expect(!core::build_agent_supplement(invalid), "a tour prompt that is not UTF-8 is refused");
+
+		auto typed    = request;
+		typed.Message = core::agent_chat_message{ .Session = request.Session.Id, .Text = "and this?" };
+		expect(!core::build_agent_supplement(typed), "a tour prompt never rides with a typed message");
+		auto workshop      = request;
+		workshop.Operation = core::workshop_operation::clarify;
+		expect(!core::build_agent_supplement(workshop), "nor with a workshop operation");
+		auto briefed  = request;
+		briefed.Brief = core::bound_review_brief({ .Title = "t" });
+		expect(!core::build_agent_supplement(briefed), "nor with a review brief: the tour prompt already says what the brief would");
+		auto selected      = request;
+		selected.Selection = semantic_context();
+		expect(!core::build_agent_supplement(selected), "nor with a selection");
+
+		// It does not pass the private notes and drafts opt-in: a tour prompt
+		// carries no private prose, opted into or not.
+		auto prose          = private_request();
+		prose.Selection     = std::nullopt;
+		prose.TourPrompt    = request.TourPrompt;
+		const auto optedIn  = core::agent_private_context_optin{ .Session = prose.Session.Id, .Notes = true, .Drafts = true };
+		const auto optedOut = core::agent_private_context_optin{ .Session = prose.Session.Id };
+		expect(!core::build_agent_supplement(prose) && !core::build_agent_supplement(prose, optedIn) && !core::build_agent_supplement(prose, optedOut), "a tour prompt beside selected notes or drafts is refused, whatever the opt-in says");
+		const auto plain = core::build_agent_supplement(request, optedIn);
+		expect(plain && plain->Notes.empty() && plain->Drafts.empty() && plain->TourPrompt == request.TourPrompt->Text, "an opted-in tour run still carries no note or draft");
+	}
+
 	void test_invalid_or_oversize_context_is_refused_whole()
 	{
 		auto request = minimal_request();
@@ -785,6 +850,7 @@ auto main() -> int
 	test_no_field_can_hold_presentation_or_credential_authority();
 	test_private_prose_travels_only_where_this_session_opted_in();
 	test_a_chat_message_is_admitted_only_for_its_own_session();
+	test_a_tour_prompt_travels_alone_within_its_own_bound();
 	test_a_workshop_operation_travels_and_changes_nothing_else();
 	test_feedback_guidance_travels_only_with_a_workshop_operation();
 	test_invalid_or_oversize_context_is_refused_whole();

@@ -539,7 +539,10 @@ namespace bpr::app {
 		if (continuing) {
 			turnBinding = aTurnSession->Binding;
 		}
-		auto observation = application::agent_context_observation{
+		// [[BPR-1935]]. A read-only tour run's prompt is composed, not typed,
+		// and travels in the tour prompt's own carrier and bound.
+		const auto tourPrompt  = aWritingOnly && aTour.ReadOnly;
+		auto       observation = application::agent_context_observation{
 			.ApplicationSession = state.ApplicationSession,
 			.Binding            = turnBinding,
 			.PullRequestUrl     = "https://" + AgentReview->Hostname + "/"
@@ -548,10 +551,13 @@ namespace bpr::app {
 			.Private           = std::move(privateObservation),
 			.IncludedNotes     = aIncludedNotes,
 			.IncludedDraft     = aIncludedDraft,
-			.ChatMessage       = std::string{ aChatMessage },
+			.ChatMessage       = tourPrompt ? std::string{ } : std::string{ aChatMessage },
 			.EntryPoint        = aEntryPoint,
 			.WorkshopOperation = aWorkshopOperation,
 		};
+		if (tourPrompt) {
+			observation.TourPrompt = std::string{ aChatMessage };
+		}
 		// [[BPR-1916]]. The skills an Agent tab question names ride with
 		// it, inline. A tour writing run's come from its hook (see
 		// skill_run_for), not from its prompt's template text.

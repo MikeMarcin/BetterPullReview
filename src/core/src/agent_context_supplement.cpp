@@ -170,6 +170,20 @@ namespace bpr::core {
 					&& aMessage->Text.size() <= maximum_chat_message_bytes);
 		}
 
+		/// \brief [[BPR-1935]]. A tour prompt is the session's own, within its
+		/// bound, UTF-8, and the whole of what its request asks: nothing typed,
+		/// no operation, guidance, brief, conversation or selection, and no
+		/// private prose, whatever the opt-in says.
+		[[nodiscard]] auto valid_tour_prompt(const agent_supplement_request& aRequest) noexcept -> bool
+		{
+			if (!aRequest.TourPrompt) {
+				return true;
+			}
+			const auto& prompt = *aRequest.TourPrompt;
+			return prompt.Session == aRequest.Session.Id && !prompt.Text.empty() && prompt.Text.size() <= maximum_tour_prompt_bytes && valid_writing_utf8(prompt.Text) && !aRequest.Message && !aRequest.Operation
+				&& !aRequest.FeedbackGuidance && !aRequest.Brief && !aRequest.Conversation && !aRequest.Selection && aRequest.SelectedNotes.empty() && aRequest.SelectedDrafts.empty();
+		}
+
 		/// \brief [[BPR-1091]]. Guidance rides only on a workshop request,
 		/// whole, bounded and UTF-8, naming the version it was taken from.
 		/// \details The operation is the gate because
@@ -225,6 +239,7 @@ namespace bpr::core {
 			|| (aRequest.PreviousUpload && !aRequest.PreviousUpload->valid())
 			|| (aRequest.LastReviewedHead && !aRequest.LastReviewedHead->valid())
 			|| !valid_chat_message(aRequest.Session, aRequest.Message)
+			|| !valid_tour_prompt(aRequest)
 			|| (aRequest.Operation && !declared(*aRequest.Operation))
 			|| (aRequest.FeedbackGuidance && !valid_feedback_guidance(aRequest.Operation, *aRequest.FeedbackGuidance))
 			|| (aRequest.Brief && !valid_brief(*aRequest.Brief))
@@ -269,6 +284,7 @@ namespace bpr::core {
 			.Brief              = aRequest.Brief,
 			.Conversation       = aRequest.Conversation,
 			.Skills             = aRequest.Skills,
+			.TourPrompt         = aRequest.TourPrompt ? aRequest.TourPrompt->Text : std::string{ },
 		};
 	}
 
