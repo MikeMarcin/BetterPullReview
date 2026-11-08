@@ -419,3 +419,25 @@ The owner, 2026-11-07:
 - `application_review_tour_publication_*`: the cold-profile course now
   confirms through the chip, and still makes zero remote writes and keeps
   the imported subject and comment.
+
+### Attended review (follow-up v001)
+
+- Commit `6454480df` on branch `worktree-agent-ad49329075ef77ea5`, not
+  landed: the owner asked to look before landing.
+- Frozen build
+  `/Users/jaeger/.codex/attended-builds/bpr1931-1900-head-chip-v001.zopy_1jf`
+  (executable SHA-256
+  `c815cf8626d3bd900e05b6ec8a0321d7d6bba45bc07162df77efa35368004698`). The
+  launcher's own check reached `ATTENDED_TOUR_REVISION_SHOWN`, and the
+  pictures are that build's own offscreen renders.
+- Launch:
+  `python3 /Users/jaeger/.codex/attended-builds/bpr1931-1900-head-chip-v001.zopy_1jf/launch.py`.
+  The chip look is that build's
+  `src/build/app-release-tests/tests/adapters_qt/review_tour_reaffirm --look`.
+- New short session `7600c02d09fb1415cb1b7f2ac35695a4`, state
+  `/Users/jaeger/.codex/attended-review/bpr1931-1900-chip-v001-Hq7c2T/state`,
+  host started with `serve --tailscale`.
+- Candidates, revision `6454480df-v001`, one Accept/Reject question each:
+  - `BPR-1900-head-changed-chip-v001` (the chip UX);
+  - `BPR-1931-BPR-1900-fixes-v001` (the reset and drafted-head fixes).
+- Status: ready, awaiting the owner.
