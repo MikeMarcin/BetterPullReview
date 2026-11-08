@@ -116,3 +116,67 @@ Dev build:
 - One candidate, `BPR-1934-tour-chat-prompts-v001` (revision
   `5173d9274-v001`), with one Accept/Reject question.
 - Status: ready, awaiting the owner.
+
+### v001 rejected (2026-11-07)
+
+v001 was merged to `main` as `96c0f45cd`. The owner rejected the look in
+session `f8b3689b6fcc266cd0a0467817211a15` (decision
+`328e62a3-7f7c-42e7-a4bc-ed98c556f77e`, actor human, 2026-11-08T05:12:39Z),
+verbatim: "I want a suggest prompt for explain selection like agent has for
+code, but mine for the selected block on the tour."
+
+The v001 host is stopped and its frozen root removed.
+
+## v002 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v002 is on branch
+`bpr1934-v002-explain-selection`, made from `origin/main` `15d215651`.
+
+- **Explain the selected block.** It is a prompt in
+  `application::tour_chat_prompts`, marked `Selection`, for a stop's chat and
+  for the Problem's and the Solution's. It is the Agent tab's Explain the
+  selected block for code, made for the tour's text.
+- **What the chat hears.** `review_tour_editor` tells the chat what is
+  selected in each part as it changes. This covers the Problem's and the
+  Solution's editors, a stop's source, and its rendered explanation
+  (`subject_about`, the same passage the chat toggle quotes, and
+  `tour_side_chat::offer_selection`). An empty selection, or going to
+  another stop, ends it.
+- **What it offers.** While text is selected, the chat offers Explain the
+  selected block first:
+  - In an empty chat it comes before the part's other prompts.
+  - In a chat with turns it is the only chip, with no "Or try:" line.
+  - In another part's chat it names the part ("Explain the selected block in
+    the Solution", "… in Stop 1").
+  - With nothing selected it is not offered.
+- **Pressing it.** A press asks about exactly the selected text, quoted as
+  the turn's passage, in that part's chat. It opens that chat first if
+  another one is shown. Shift-click puts it in the composer with the
+  passage quoted, as the Agent tab does. The core's
+  `decide_agent_suggestion_press` decides the press.
+- **Look.** The `--attended-tour-prompts` look now ends on the Solution. Its
+  first sentence is selected and its chat is open, offering Explain the
+  selected block. It prints `ATTENDED_TOUR_EXPLAIN_SELECTION:…` before
+  `ATTENDED_TOUR_PROMPTS_SHOWN`.
+- `review-tours.md` says what v002 adds.
+
+### Verification (v002, focused)
+
+Dev build:
+- `qt_tour_side_chat`:
+  - With text selected in the Solution, Explain the selected block leads
+    its prompts. After a turn it is the only chip, and it goes when the
+    selection ends.
+  - New: text selected in the stop's rendered explanation, then Explain the
+    selected block, asks in the stop's thread with exactly "Clear first"
+    quoted (field `stop`).
+  - From the whole tour's chat, "Explain the selected block in Stop 1"
+    opens the stop's chat and asks there.
+- `qt_tour_chat_in_tab`, `qt_tour_agent_session_view`, `qt_tour_stop_card`
+  and `qt_tour_click_scroll` pass.
+- `application_review_round_trip_composition_contract` passes, its app
+  source pin resealed from its own output after rebasing onto `a50008ca9` (`54523137…`).
+- `coding-format-check` passes (clang-format 22.1.8), and
+  `verify_documentation.py` prints `DOCUMENTATION_OK`.
+- The offscreen look on the dev build prints
+  `ATTENDED_TOUR_EXPLAIN_SELECTION:Explain the selected block|Make this clearer|What's missing?|Make it shorter`.

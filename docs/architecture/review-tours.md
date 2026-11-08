@@ -263,6 +263,18 @@ go with the chat's first turn. The lists live in one place in the application
 layer (`application::tour_chat_prompts`); the window hands them to the chat,
 so Agent settings can later make them editable.
 
+BPR-1934 v002 (owner on v001: "I want a suggest prompt for explain selection
+like agent has for code, but mine for the selected block on the tour") adds
+**Explain the selected block**, as the Agent tab offers Explain the selected
+block for code. While text is selected in the Problem, the Solution or a
+stop's explanation (its source or its rendered text), the chat offers it
+first, even when the chat already has turns. In another part's chat it names
+the part ("Explain the selected block in Stop 1"). Pressing it opens that
+part's chat if needed and asks about exactly the selected text, quoted as the
+turn's passage. With nothing selected it is not offered. The tour tells the
+chat as the selection changes (`tour_side_chat::offer_selection`). The prompt
+is in the same list, marked `Selection`.
+
 Since [[BPR-1914]] (owner, 2026-11-06: "I want to ask questions, get back and
 forth and have it update it") that window is the **Tour conversation**, opened
 by **Conversation (n)**, which is always offered. Selecting text in the

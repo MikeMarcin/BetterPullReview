@@ -2144,6 +2144,19 @@ namespace bpr::qt {
 			return cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n'));
 		};
 		const auto openChat = [this, aHook, selected] { open_side_chat_about(aHook, selected()); };
+		// [[BPR-1934]] v002, owner on v001: "I want a suggest prompt for
+		// explain selection like agent has for code, but mine for the
+		// selected block on the tour." The chat hears what is selected in
+		// the part, as it changes, and offers Explain the selected block.
+		const auto offer = [this, aHook, selected] {
+			if (auto subject = subject_about(aHook, selected())) {
+				SideChat->offer_selection(subject->Thread, std::move(subject->Passage));
+			}
+		};
+		connect(aEditor, &QPlainTextEdit::selectionChanged, this, offer);
+		if (aHook == core::writing_hook::comment && StopReader != nullptr) {
+			connect(StopReader->rendered_view(), &QTextEdit::selectionChanged, this, offer);
+		}
 		connect(chat, &QToolButton::clicked, this, [this, aHook, selected] { toggle_side_chat_about(aHook, selected()); });
 		aEditor->setContextMenuPolicy(Qt::CustomContextMenu);
 		connect(aEditor, &QWidget::customContextMenuRequested, this, [aEditor, openChat, selected, part](const QPoint& aAt) {
@@ -2392,13 +2405,25 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::open_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
 	{
+		auto subject = subject_about(aHook, aSelected);
+		if (!subject) {
+			return;
+		}
+		// A stop's chat opens with its lines shown in the code beside it.
+		if (subject->Thread.Kind == core::tour_thread_kind::stop) {
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(subject->Thread, std::move(subject->Passage));
+	}
+	auto review_tour_editor::subject_about(const core::writing_hook aHook, const QString& aSelected) const -> std::optional<side_chat_subject>
+	{
 		auto              passage = std::optional<core::tour_passage>{ };
 		auto              thread  = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
 																																											  : core::tour_thread_kind::stop };
 		const auto* const stop    = selected_stop();
 		if (thread.Kind == core::tour_thread_kind::stop) {
 			if (stop == nullptr || !Shown.Draft) {
-				return;
+				return std::nullopt;
 			}
 			thread.Stop = stop->Id;
 		}
@@ -2419,11 +2444,10 @@ namespace bpr::qt {
 				passage->Text.resize(size);
 			}
 		}
-		// A stop's chat opens with its lines shown in the code beside it.
-		if (thread.Kind == core::tour_thread_kind::stop) {
-			trigger(tour_editor_action::navigate_stop);
-		}
-		SideChat->open(thread, std::move(passage));
+		auto subject    = side_chat_subject{ };
+		subject.Thread  = thread;
+		subject.Passage = std::move(passage);
+		return subject;
 	}
 	void review_tour_editor::mark_part(QWidget* aWidget, std::function<std::optional<core::tour_thread>()> aPart)
 	{

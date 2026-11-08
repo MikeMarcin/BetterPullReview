@@ -5,12 +5,14 @@
 namespace bpr::application {
 	namespace {
 		constexpr auto stop_prompts = std::array{
+			tour_chat_prompt{ .Text = "Explain the selected block", .Selection = true },
 			tour_chat_prompt{ .Text = "What does this code do?" },
 			tour_chat_prompt{ .Text = "Why does this change matter?" },
 			tour_chat_prompt{ .Text = "Rewrite this explanation more simply" },
 			tour_chat_prompt{ .Text = "Is this the right place for this stop?" },
 		};
 		constexpr auto part_prompts = std::array{
+			tour_chat_prompt{ .Text = "Explain the selected block", .Selection = true },
 			tour_chat_prompt{ .Text = "Make this clearer" },
 			tour_chat_prompt{ .Text = "What's missing?" },
 			tour_chat_prompt{ .Text = "Make it shorter" },

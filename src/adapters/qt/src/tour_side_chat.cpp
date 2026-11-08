@@ -620,9 +620,26 @@ namespace bpr::qt {
 		// composer, with its words there to be completed.
 		auto text   = aPrompt;
 		auto finish = false;
+		// [[BPR-1934]] v002. Explain the selected block: asked in the
+		// selected part's chat, opened if it is not the one shown, with
+		// exactly the selected text quoted.
+		if (Selection && !SelectionLabel.isEmpty() && aPrompt == SelectionLabel) {
+			const auto chosen = *Selection;
+			for (const auto& prompt : PromptSource(chosen.Thread.Kind)) {
+				if (prompt.Selection) {
+					text = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
+				}
+			}
+			if (chosen.Thread != *thread) {
+				open(chosen.Thread, chosen.Passage, false);
+			} else {
+				Passages[static_cast<std::size_t>(Current)] = chosen.Passage;
+				show_passage();
+			}
+		}
 		for (const auto& prompt : PromptSource(thread->Kind)) {
 			const auto written = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
-			if (prompt.Finish && aPrompt == written + ellipsis) {
+			if (prompt.Finish && aPrompt == written + ellipsis && text == aPrompt) {
 				text   = written;
 				finish = true;
 			}
@@ -904,12 +921,72 @@ namespace bpr::qt {
 										 : thread->Kind == core::tour_thread_kind::tour ? tr("Ask about the tour, or say how to change it: fewer stops, merge two, focus on a part")
 																						: tr("Ask about %1").arg(part));
 		Composer->setEnabled(thread.has_value());
+		refresh_prompts();
+	}
+
+	void tour_side_chat::offer_selection(const core::tour_thread& aThread, std::optional<core::tour_passage> aSelected)
+	{
+		if (aSelected && !aSelected->Text.empty()) {
+			Selection.emplace();
+			Selection->Thread  = aThread;
+			Selection->Passage = std::move(*aSelected);
+		} else if (Selection && Selection->Thread.Kind == aThread.Kind) {
+			// A stop's text is one editor for every stop: going to another
+			// stop ends what was selected in the last.
+			Selection.reset();
+		}
+		refresh_prompts();
+	}
+
+	auto tour_side_chat::prompt_labels() -> QStringList
+	{
+		auto       labels = QStringList{ };
+		const auto thread = current();
+		SelectionLabel.clear();
+		if (!thread || !PromptSource) {
+			return labels;
+		}
+		const auto text = [](const application::tour_chat_prompt& aPrompt) { return QString::fromUtf8(aPrompt.Text.data(), static_cast<qsizetype>(aPrompt.Text.size())); };
+		// [[BPR-1934]] v002. Explain the selected block leads while text is
+		// selected in a part, whatever the chat holds already; for another
+		// part than this chat's, it names the part.
+		if (Selection) {
+			for (const auto& prompt : PromptSource(Selection->Thread.Kind)) {
+				if (prompt.Selection) {
+					const auto part = Selection->Thread.Kind == core::tour_thread_kind::problem ? tr("the Problem")
+						: Selection->Thread.Kind == core::tour_thread_kind::solution            ? tr("the Solution")
+																								: name_of(Selection->Thread);
+					SelectionLabel  = Selection->Thread == *thread ? text(prompt) : tr("%1 in %2").arg(text(prompt), part);
+					labels << SelectionLabel;
+					break;
+				}
+			}
+		}
+		// The rest are for an empty chat, and go with its first turn.
+		const auto empty = core::thread_runs(Session, *thread).empty() && !(thread->Kind == core::tour_thread_kind::tour && Session.Waiting);
+		if (empty) {
+			for (const auto& prompt : PromptSource(thread->Kind)) {
+				if (!prompt.Selection) {
+					labels << (prompt.Finish ? text(prompt) + ellipsis : text(prompt));
+				}
+			}
+		}
+		return labels;
+	}
+
+	void tour_side_chat::refresh_prompts()
+	{
+		if (Suggestions == nullptr) {
+			return;
+		}
 		// [[BPR-1934]]. The suggested prompts, only once the agent is set up
 		// ([[BPR-1881]]); usable whenever a question could be sent.
-		if (Suggestions != nullptr) {
-			Suggestions->setVisible(Ready);
-			Suggestions->set_usable(prompts_usable());
-		}
+		const auto labels = prompt_labels();
+		const auto thread = current();
+		Suggestions->present(labels);
+		Suggestions->lead()->setVisible(thread && core::thread_runs(Session, *thread).empty());
+		Suggestions->setVisible(Ready && !labels.isEmpty());
+		Suggestions->set_usable(prompts_usable());
 	}
 
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate)
@@ -1031,25 +1108,6 @@ namespace bpr::qt {
 			auto* const empty  = quiet(small(words(invite, body)));
 			empty->setObjectName(QStringLiteral("tourSideChatEmpty"));
 			Turns->addWidget(empty);
-			// [[BPR-1934]], owner 2026-11-07: "Tour side chat should get
-			// suggestions like the agent tab has." The Agent tab's own
-			// component, with the prompts for this kind of chat, in the
-			// agent's accent. They go with the first turn.
-			if (thread && PromptSource) {
-				auto labels = QStringList{ };
-				for (const auto& prompt : PromptSource(thread->Kind)) {
-					const auto written = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
-					labels << (prompt.Finish ? written + ellipsis : written);
-				}
-				if (!labels.isEmpty()) {
-					Suggestions = new agent_suggestion_list{ tr("Or try:"), body };
-					Suggestions->setObjectName(QStringLiteral("tourSideChatSuggestions"));
-					Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
-					Suggestions->present(labels);
-					Accented.emplace_back(Suggestions.data());
-					Turns->addWidget(Suggestions);
-				}
-			}
 		}
 		for (const auto* run : runs) {
 			// The author's words, on the right.
@@ -1318,6 +1376,18 @@ namespace bpr::qt {
 			mineRow->addWidget(bubble);
 			Turns->addLayout(mineRow);
 			WaitingBubble = bubble;
+		}
+		// [[BPR-1934]], owner 2026-11-07: "Tour side chat should get
+		// suggestions like the agent tab has." The Agent tab's own component,
+		// the chat's last item, in the agent's accent: the prompts for this
+		// kind of chat while it is empty, and Explain the selected block
+		// while text is selected (v002).
+		if (thread && PromptSource) {
+			Suggestions = new agent_suggestion_list{ tr("Or try:"), body };
+			Suggestions->setObjectName(QStringLiteral("tourSideChatSuggestions"));
+			Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
+			Accented.emplace_back(Suggestions.data());
+			Turns->addWidget(Suggestions);
 		}
 		Turns->addStretch(1);
 		const auto grew = runs.size() != Shown || Mine;

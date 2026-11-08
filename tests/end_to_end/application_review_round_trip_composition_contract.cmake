@@ -3301,7 +3301,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# inside its bound and says a size refusal in words. No grant, provider,
 	# gh process, admission, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "09301a839942e9559eac73d0dd45b645b2f6b5f2479fa567358cda72aa9e915b"
+        "54523137ea2fba366d3baacaaeaeee60d98e73d89b0ea35c83698377a4591084"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

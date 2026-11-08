@@ -151,6 +151,11 @@ namespace bpr::qt {
 		/// Agent tab's component, while the chat has no turns; otherwise null.
 		/// Hidden while the agent is not set up ([[BPR-1881]]).
 		[[nodiscard]] auto suggestions() const noexcept -> agent_suggestion_list* { return Suggestions; }
+		/// \brief [[BPR-1934]] v002. The text selected now in `aThread`'s part,
+		/// or none: while there is some, the chat offers "Explain the selected
+		/// block", which asks about exactly that text, quoted, in that part's
+		/// chat. The tour tells the chat as the selection changes.
+		void offer_selection(const core::tour_thread& aThread, std::optional<core::tour_passage> aSelected);
 		/// \brief [[BPR-1930]]. Feedback kept until the draft proposes, shown
 		/// in the tour's chat while it waits.
 		[[nodiscard]] auto waiting_feedback() const noexcept -> QWidget* { return WaitingBubble; }
@@ -243,6 +248,9 @@ namespace bpr::qt {
 		/// composer to edit or finish, as the core decides for the Agent tab.
 		void               choose_prompt(const QString& aPrompt, bool aEditFirst);
 		[[nodiscard]] auto prompts_usable() const -> bool;
+		/// [[BPR-1934]]. The prompts the open chat offers now, and shows them.
+		[[nodiscard]] auto prompt_labels() -> QStringList;
+		void               refresh_prompts();
 		void               fit();
 		void               to_bottom();
 		[[nodiscard]] auto name_of(const core::tour_thread& aThread) const -> QString;
@@ -307,6 +315,15 @@ namespace bpr::qt {
 		std::vector<QPointer<QWidget>>                                              Accented;
 		prompt_source                                                               PromptSource;
 		QPointer<agent_suggestion_list>                                             Suggestions;
+		/// [[BPR-1934]] v002. The selected text, the part it is in, and the
+		/// label its prompt has now.
+		struct offered_selection
+		{
+			core::tour_thread  Thread;
+			core::tour_passage Passage;
+		};
+		std::optional<offered_selection> Selection;
+		QString                          SelectionLabel;
 	};
 }
 
