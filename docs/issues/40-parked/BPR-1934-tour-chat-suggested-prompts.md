@@ -9,7 +9,7 @@ priority: "P2"
 parked_on: "human-review"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-07: 'Tour side chat should get suggestions like the agent tab has'","related_cards":["BPR-1877","BPR-1925","BPR-1930"]}
-acceptance: [{"criterion": "AC1 Each tour chat kind, when empty, shows its prompts. A click sends it, and the prompts hide after the first turn (Qt test)", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: empty Solution, stop and whole-tour chats offer their lists; one click on 'Too many stops?' asks it in the tour thread; 'Focus on ...' goes to the composer; none while the agent is not set up; hidden after the first turn. Frozen look prints ATTENDED_TOUR_PROMPTS_SHOWN", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#verification-v001-focused"}}, {"criterion": "AC2 Reuses the Agent tab's suggestion component", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "agent_suggestion_list is the Agent tab's component (agent_tab_view uses it) and the tour chat's; qt_workbench_agent_send_refusal and qt_tour_side_chat pass", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#implementation-v001-2026-11-07"}}, {"criterion": "AC3 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "5173d9274", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/.codex/attended-builds/bpr1934-tour-chat-prompts-v001.qfzgw748 of 5173d9274; new short session f8b3689b6fcc266cd0a0467817211a15, candidate BPR-1934-tour-chat-prompts-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#attended-review-v001"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#verification-v001-focused"}}]
+acceptance: [{"criterion": "AC1 Each tour chat kind, when empty, shows its prompts. A click sends it, and the prompts hide after the first turn (Qt test)", "outcome": "pass", "revision": "faf9be2b2", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: empty Solution, stop and whole-tour chats offer their lists; one click on 'Too many stops?' asks it in the tour thread; 'Focus on ...' goes to the composer; none while the agent is not set up; hidden after the first turn. Frozen look prints ATTENDED_TOUR_PROMPTS_SHOWN", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#verification-v001-focused"}}, {"criterion": "AC2 Reuses the Agent tab's suggestion component", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "agent_suggestion_list is the Agent tab's component (agent_tab_view uses it) and the tour chat's; qt_workbench_agent_send_refusal and qt_tour_side_chat pass", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#implementation-v001-2026-11-07"}}, {"criterion": "AC3 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "faf9be2b2", "evidence": {"kind": "observation", "detail": "v001 rejected by the owner (session f8b3689b6fcc266cd0a0467817211a15, decision 328e62a3-7f7c-42e7-a4bc-ed98c556f77e): 'I want a suggest prompt for explain selection like agent has for code, but mine for the selected block on the tour.' v002: frozen build /Users/jaeger/.codex/attended-builds/bpr1934-explain-selection-v002.6zrzozfp of faf9be2b2; new short session 82e972203f836e1bc33af33df3cab54e, candidate BPR-1934-explain-selection-v002, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#attended-review-v002"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#verification-v001-focused"}}]
 ---
 
 # BPR-1934: Tour chats offer suggested prompts, as the Agent tab does
@@ -115,4 +115,85 @@ Dev build:
   started with `serve --tailscale`.
 - One candidate, `BPR-1934-tour-chat-prompts-v001` (revision
   `5173d9274-v001`), with one Accept/Reject question.
+- Status: ready, awaiting the owner.
+
+### v001 rejected (2026-11-07)
+
+v001 was merged to `main` as `96c0f45cd`. The owner rejected the look in
+session `f8b3689b6fcc266cd0a0467817211a15` (decision
+`328e62a3-7f7c-42e7-a4bc-ed98c556f77e`, actor human, 2026-11-08T05:12:39Z),
+verbatim: "I want a suggest prompt for explain selection like agent has for
+code, but mine for the selected block on the tour."
+
+The v001 host is stopped and its frozen root removed.
+
+## v002 (2026-11-07)
+
+`frontend-design:frontend-design` was loaded first. v002 is on branch
+`bpr1934-v002-explain-selection`, made from `origin/main` `15d215651`.
+
+- **Explain the selected block.** It is a prompt in
+  `application::tour_chat_prompts`, marked `Selection`, for a stop's chat and
+  for the Problem's and the Solution's. It is the Agent tab's Explain the
+  selected block for code, made for the tour's text.
+- **What the chat hears.** `review_tour_editor` tells the chat what is
+  selected in each part as it changes. This covers the Problem's and the
+  Solution's editors, a stop's source, and its rendered explanation
+  (`subject_about`, the same passage the chat toggle quotes, and
+  `tour_side_chat::offer_selection`). An empty selection, or going to
+  another stop, ends it.
+- **What it offers.** While text is selected, the chat offers Explain the
+  selected block first:
+  - In an empty chat it comes before the part's other prompts.
+  - In a chat with turns it is the only chip, with no "Or try:" line.
+  - In another part's chat it names the part ("Explain the selected block in
+    the Solution", "… in Stop 1").
+  - With nothing selected it is not offered.
+- **Pressing it.** A press asks about exactly the selected text, quoted as
+  the turn's passage, in that part's chat. It opens that chat first if
+  another one is shown. Shift-click puts it in the composer with the
+  passage quoted, as the Agent tab does. The core's
+  `decide_agent_suggestion_press` decides the press.
+- **Look.** The `--attended-tour-prompts` look now ends on the Solution. Its
+  first sentence is selected and its chat is open, offering Explain the
+  selected block. It prints `ATTENDED_TOUR_EXPLAIN_SELECTION:…` before
+  `ATTENDED_TOUR_PROMPTS_SHOWN`.
+- `review-tours.md` says what v002 adds.
+
+### Verification (v002, focused)
+
+Dev build:
+- `qt_tour_side_chat`:
+  - With text selected in the Solution, Explain the selected block leads
+    its prompts. After a turn it is the only chip, and it goes when the
+    selection ends.
+  - New: text selected in the stop's rendered explanation, then Explain the
+    selected block, asks in the stop's thread with exactly "Clear first"
+    quoted (field `stop`).
+  - From the whole tour's chat, "Explain the selected block in Stop 1"
+    opens the stop's chat and asks there.
+- `qt_tour_chat_in_tab`, `qt_tour_agent_session_view`, `qt_tour_stop_card`
+  and `qt_tour_click_scroll` pass.
+- `application_review_round_trip_composition_contract` passes, its app
+  source pin resealed from its own output after rebasing onto `a50008ca9` (`54523137…`).
+- `coding-format-check` passes (clang-format 22.1.8), and
+  `verify_documentation.py` prints `DOCUMENTATION_OK`.
+- The offscreen look on the dev build prints
+  `ATTENDED_TOUR_EXPLAIN_SELECTION:Explain the selected block|Make this clearer|What's missing?|Make it shorter`.
+
+### Attended review (v002)
+
+- Frozen build `/Users/jaeger/.codex/attended-builds/bpr1934-explain-selection-v002.6zrzozfp`
+  of `faf9be2b2` (executable SHA-256
+  `fc9983de106b1496f508e00203e05413730a11b813d580e852baffe9962f9e4b`). Its
+  launcher's own offscreen check reached `ATTENDED_TOUR_PROMPTS_SHOWN`. The
+  frozen executable, offscreen, prints
+  `ATTENDED_TOUR_EXPLAIN_SELECTION:Explain the selected block|Make this clearer|What's missing?|Make it shorter`
+  in light and dark. The pictures in the session are its own renders.
+- Launch: `python3 /Users/jaeger/.codex/attended-builds/bpr1934-explain-selection-v002.6zrzozfp/launch.py`.
+- New short session `82e972203f836e1bc33af33df3cab54e`, state
+  `/Users/jaeger/.codex/attended-review/bpr1934-v002-nUio5i/state`, host
+  started with `serve --tailscale`.
+- One candidate, `BPR-1934-explain-selection-v002` (revision
+  `faf9be2b2-v002`), with one Accept/Reject question.
 - Status: ready, awaiting the owner.

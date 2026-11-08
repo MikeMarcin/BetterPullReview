@@ -6470,7 +6470,30 @@ namespace {
 					static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-prompts") + theme + QStringLiteral(".png"), "PNG"));
 				}
 				QTextStream{ stdout } << "ATTENDED_TOUR_PROMPTS:stop=" << stop.join(QLatin1Char('|')) << ":solution=" << solution.join(QLatin1Char('|')) << ":tour=" << tour.join(QLatin1Char('|')) << '\n';
-				done(stop.size() == 4 && solution.size() == 3 && tour.size() == 4 ? QStringLiteral("ATTENDED_TOUR_PROMPTS_SHOWN") : QStringLiteral("ATTENDED_TOUR_FAILED:prompts"));
+				// [[BPR-1934]] v002. The Solution's first sentence selected, and
+				// its chat open offering Explain the selected block, for the
+				// person to press.
+				editor->open_step(bpr::core::tour_step::solution);
+				QCoreApplication::processEvents();
+				auto* const field = editor->solution_editor();
+				const auto  words = field->toPlainText();
+				const auto  end   = words.indexOf(QLatin1Char('.'));
+				auto        block = field->textCursor();
+				block.setPosition(0);
+				block.setPosition(static_cast<int>(end > 0 ? end + 1 : std::min<qsizetype>(words.size(), 60)), QTextCursor::KeepAnchor);
+				field->setTextCursor(block);
+				chat->open(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution }, std::nullopt, false);
+				QCoreApplication::processEvents();
+				auto* const explain = chat->suggestions();
+				const auto  labels  = explain == nullptr || !explain->isVisibleTo(chat) ? QStringList{ } : explain->prompts();
+				QTextStream{ stdout } << "ATTENDED_TOUR_EXPLAIN_SELECTION:" << labels.join(QLatin1Char('|')) << '\n';
+				if (!root.isEmpty()) {
+					QCoreApplication::processEvents();
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-explain-selection") + theme + QStringLiteral(".png"), "PNG"));
+					static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-explain-selection") + theme + QStringLiteral(".png"), "PNG"));
+				}
+				const auto shownAll = stop.size() == 4 && solution.size() == 3 && tour.size() == 4 && !labels.isEmpty() && labels.front() == QStringLiteral("Explain the selected block");
+				done(shownAll ? QStringLiteral("ATTENDED_TOUR_PROMPTS_SHOWN") : QStringLiteral("ATTENDED_TOUR_FAILED:prompts"));
 				return;
 			}
 			if (*step >= 40 && *step <= 52) {

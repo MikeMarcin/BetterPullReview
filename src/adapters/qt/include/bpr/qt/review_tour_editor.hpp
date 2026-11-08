@@ -380,6 +380,15 @@ namespace bpr::qt {
 		QMetaObject::Connection HeldScrollWatch;
 		QMetaObject::Connection HeldScrollRelease;
 		void                    open_side_chat_about(core::writing_hook aHook, const QString& aSelected);
+		/// [[BPR-1934]] v002. The chat about `aHook`'s part, and `aSelected`
+		/// quoted as its passage when there is any; none for a stop's part
+		/// while no stop is open.
+		struct side_chat_subject
+		{
+			core::tour_thread                 Thread;
+			std::optional<core::tour_passage> Passage;
+		};
+		[[nodiscard]] auto subject_about(core::writing_hook aHook, const QString& aSelected) const -> std::optional<side_chat_subject>;
 		/// [[BPR-1925]] v002. A part's toggle: opens its chat, switches to it,
 		/// or, on the part whose chat is open, closes the column.
 		void         toggle_side_chat_about(core::writing_hook aHook, const QString& aSelected);

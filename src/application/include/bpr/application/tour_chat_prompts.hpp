@@ -22,10 +22,16 @@ namespace bpr::application {
 	{
 		std::string_view Text;
 		bool             Finish = false;
+		/// [[BPR-1934]] v002, owner on v001: "I want a suggest prompt for
+		/// explain selection like agent has for code, but mine for the
+		/// selected block on the tour." Offered only while text is selected
+		/// in the part, and sent with that text quoted.
+		bool Selection = false;
 	};
 
 	/// \brief The prompts for a chat about `aKind`: a stop, the Problem or
-	/// the Solution, or the whole tour. In the order they are offered.
+	/// the Solution, or the whole tour. In the order they are offered; a
+	/// `Selection` prompt only while text is selected in the part.
 	[[nodiscard]] auto tour_chat_prompts(core::tour_thread_kind aKind) noexcept -> std::span<const tour_chat_prompt>;
 }
 
