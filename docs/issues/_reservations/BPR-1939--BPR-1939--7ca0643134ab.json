@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1939"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Direct cstring includes for native GCC epoch catalog compilation",
+  "created": "2026-11-08T12:06:59.263480+00:00",
+  "base": "c8f806a9410b2471de560ceae1e81e47c1655d4e"
+}

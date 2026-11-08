@@ -13,6 +13,7 @@
 
 #include <array>
 #include <cstddef>
+#include <cstring>
 #include <expected>
 #include <limits>
 #include <memory>
