@@ -1,3 +1,8 @@
+# [[BPR-1936]] reseal: main.cpp's tests-on drafting look gains
+# --attended-tour-cards, which accepts the drafted tour, gives stop 2 a long
+# title through its own editor and saves it; its stop-title step sets the
+# wrapping title editor's text. No provider, credential, grant, mutation or
+# inventory change; the mutation-branch pin is unchanged.
 # [[BPR-1931]]/[[BPR-1900]] follow-up reseal (2026-11-07): window_tours.cpp
 # resets a tour empty but for its waiting proposals without asking the tour
 # host to restore an unchanged draft, lets Undo reset go once a later run
@@ -3301,7 +3306,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# inside its bound and says a size refusal in words. No grant, provider,
 	# gh process, admission, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "54523137ea2fba366d3baacaaeaeee60d98e73d89b0ea35c83698377a4591084"
+        "c592dffdde170e20f9f159b27dd5a833975bb89a10acfa13918760bcf097df7f"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

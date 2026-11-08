@@ -139,12 +139,12 @@ auto main(int argc, char** argv) -> int
 		select_file(window, "review.cpp");
 		select_range(window, core::diff_side::right, 2, 4);
 		window.add_tour_stop_action()->trigger();
-		editor.stop_title()->setText(QStringLiteral("Capture the original"));
+		editor.stop_title()->setPlainText(QStringLiteral("Capture the original"));
 		editor.stop_body()->setPlainText(QStringLiteral("Retain this exact source interval."));
 		select_file(window, "secondary.cpp");
 		select_range(window, core::diff_side::right, 1, 3);
 		window.add_tour_stop_action()->trigger();
-		editor.stop_title()->setText(QStringLiteral("Use the retained source"));
+		editor.stop_title()->setPlainText(QStringLiteral("Use the retained source"));
 		editor.stop_body()->setPlainText(QStringLiteral("Connect the explanation to the original decision."));
 		saved(editor);
 		if (mode == "manual") {
@@ -517,7 +517,7 @@ auto main(int argc, char** argv) -> int
 			select_file(activeWindow, "review.cpp");
 			select_range(activeWindow, core::diff_side::right, 2, 4);
 			activeWindow.add_tour_stop_action()->trigger();
-			activeEditor.stop_title()->setText("Later batch insertion");
+			activeEditor.stop_title()->setPlainText("Later batch insertion");
 			activeEditor.stop_body()->setPlainText("A later idea preserves the original discussion.");
 			saved(activeEditor);
 			activeEditor.findChild<QAction*>(QStringLiteral("tourMoveUp"))->trigger();
