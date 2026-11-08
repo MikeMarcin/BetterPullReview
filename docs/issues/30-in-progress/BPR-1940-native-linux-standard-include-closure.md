@@ -1,7 +1,7 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1940"
-title: "Close native Linux missing standard includes through full development builds"
+title: "Close native Linux compile failures through full development builds"
 status: "In Progress"
 rfcs: []
 depends_on: []
@@ -10,7 +10,7 @@ platforms: ["mac", "win", "linux"]
 metadata: {"kind":"portability","found_by":"v0.4.2 build39 native Ubuntu GCC Release compilation","related_cards":["BPR-1939"],"milestone_plan":{"id":"bpr-1940-linux-include-closure","path":"docs/rfcs/plans/bpr-1940-linux-include-closure/milestone-plan.json"}}
 ---
 
-# BPR-1940: Native Linux standard include closure
+# BPR-1940: Native Linux compile closure
 
 ## Acceptance
 
@@ -18,7 +18,10 @@ metadata: {"kind":"portability","found_by":"v0.4.2 build39 native Ubuntu GCC Rel
   fixed-width integer declarations, preserve its existing `<cstddef>`, and
   correct any further missing standard includes exposed by the full native
   build only at their direct owners. No behavior, flags, assertions or unrelated
-  style changes.
+  style changes. Under the explicitly approved compiler-closure extension,
+  default-initialize `privateRun` and copy `ExplicitPrivateRun` only inside
+  `if (!aWritingOnly)`; preserve fallback, request move/construction, guards
+  and the single dispatch, with original-warning and semantic controls.
 - AC2. Finish complete native Linux Release and Debug development builds with
   keep-going, retaining every initial failure and correction iteration. Bind
   private source revisions/patches, configured features and original compiler,
@@ -75,3 +78,37 @@ private branch, records the source commit and configured feature/flag choices,
 and serially finishes Release/Debug and the supported tests-off graph with
 keep-going. Source changes remain unlanded on authoritative main until these
 full development builds complete or a concrete out-of-scope error is reported.
+
+
+## Explicit scope amendment — GCC optional construction
+
+The full keep-going Release graph exposed `window_agent_chat.cpp:742` under
+GCC15 `-O3 -Werror=maybe-uninitialized`. Both ternary branches construct a valid
+optional, and engaged copies/assignments construct the vector payload; no
+source-level uninitialized state was found in that path. A compiler false
+positive remains a hypothesis until original-flags negative/positive and
+semantic controls support it. The raw diagnostic points to destruction at823
+and is retained in `release-observation1.stdout.log`.
+
+After reviewing the owning code path and minimal correction plan, the
+coordinator explicitly approved exactly default initialization followed by a
+guarded copy for non-writing requests. Fallback, request construction/move,
+all guards and the sole dispatch stay unchanged. This supersedes the original
+include-only scope for this one additional diagnostic, without authorizing
+warning suppression or other cleanup. The live plan retains every original
+obligation/exit and adds this explicit check; its amendment receipt is external.
+No C++ edit is made until the current three native graphs finish.
+
+The semantic cases are: writing-only always has no private intent and never
+asks the fallback; a non-writing explicit intent is copied exactly and takes
+precedence; a non-writing empty explicit intent may receive the same fallback
+for the same binding/conversation flag; an unavailable/empty fallback stays
+empty. Named existing controls will include
+`application_agent_invocation_composition_contract` (exact explicit private
+sources), `application_agent_chat_composition_contract`,
+`application_agent_chat_conversation_contract`,
+`application_private_review_native`, `application_review_tour_writing`
+(writing-only) and `application_review_round_trip_composition_contract`.
+Source inspection and the two-file content-binding review retain the unchanged
+fallback and dispatch mechanics; no test replaces those checks with a copy of
+the rewritten conditional.
