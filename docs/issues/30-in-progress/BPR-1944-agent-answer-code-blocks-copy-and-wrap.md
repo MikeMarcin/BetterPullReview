@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1944"
 title: "Code blocks in agent answers get a header with the language, Wrap and Copy"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P2"
@@ -44,6 +44,17 @@ Load `frontend-design:frontend-design` first.
 - Theme tokens only, light and dark. Keyboard reachable, with accessible
   names.
 
+## Owner addition (2026-11-08)
+
+"It would also be good if those blocks were the width of the pane but
+scrolled independently like codex instead of the whole pane expanding."
+
+- Each code block is exactly the chat column's width. Unwrapped, a long line
+  scrolls sideways inside that block only, by its own scroll bar or the
+  trackpad. The chat pane and the message never widen and never get a
+  pane-level horizontal scroll bar because of a long code line. This holds in
+  the Agent tab chat, tour chats and the Conversation window.
+
 ## Acceptance
 
 - AC1. A code block in an Agent tab answer and in a tour chat answer shows
@@ -51,5 +62,8 @@ Load `frontend-design:frontend-design` first.
 - AC2. Copy puts exactly the code on the clipboard (Qt test reads it).
 - AC3. Wrap toggles wrapping for that block only (geometry test).
 - AC4. Highlighting is unchanged.
+- AC7. A block with a 400-character line keeps the message as wide as the
+  column; the block scrolls inside itself, and the pane has no horizontal
+  scroll range (geometry test).
 - AC5. Owner look: Accept/Reject on a frozen build.
 - AC6. The documentation gate passes.
