@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1939-epoch-cstring",
+  "scope": {
+    "issues": [
+      "BPR-1939"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "qualify-direct-includes",
+      "outcome": "The epoch catalogue compiles with its own memcpy declarations on native GCC without changing release flags or frozen inputs.",
+      "work": [
+        {
+          "issue": "BPR-1939",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Direct cstring ownership is explicit in each of the three memcpy owners.",
+        "Native baseline failure and corrected all-eight-TU compile proof are retained with original argv flags and external outputs.",
+        "Existing focused contracts, format/docs and main integration pass; frozen build38 remains untouched."
+      ],
+      "boundary": "Three epoch catalogue include owners and their issue/plan documentation only; no storage behavior, flags, assertions, packaging or release allocation changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
