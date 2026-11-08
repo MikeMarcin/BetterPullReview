@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1941"
 title: "Tour chats show the Agent tab's live run status and adopt its chat polish"
-status: "In Progress"
+status: "Parked"
+parked_on: "human-review"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-08, coordinator chat","related_cards":["BPR-1914","BPR-1925","BPR-1934","BPR-1876","BPR-1880"]}
-acceptance: []
+acceptance: [{"criterion": "AC1 A running tour chat turn shows the agent, its current activity and a live elapsed time, the same as the Agent tab (Qt test with a stub run)", "outcome": "pass", "revision": "678230dd6", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: stub run events through review_tour_editor::present_run_status; the turn says making its workspace, thinking, then writing in agent_run_status_words, ticks to 0:01 by itself and keeps its time when redrawn. The frozen look prints ATTENDED_TOUR_CHAT_STATUS ... running=● Claude Code is thinking, 0:03.", "path": "docs/issues/40-parked/BPR-1941-tour-chat-adopts-agent-tab-chat-polish.md#verification-v001-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC2 Each adopted Agent tab behaviour works in tour chats. The card lists what was adopted and what was skipped", "outcome": "pass", "revision": "678230dd6", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: answered in, Stopped after in italics, Resend asks again, Delete dispatches; core_tour_agent_session remove_tour_run; Draft Tour line. Adopted and skipped listed on the card.", "path": "docs/issues/40-parked/BPR-1941-tour-chat-adopts-agent-tab-chat-polish.md#adopted-and-skipped-ac2"}}, {"criterion": "AC3 Tour-specific features are unchanged (existing tests stay green)", "outcome": "pass", "revision": "678230dd6", "evidence": {"kind": "command", "detail": "20 qt_tour_*, qt_review_tour_*, qt_agent_*, core_tour_agent_session and application_tour_agent_conversation tests pass; qt_workbench_window_scale_100 and qt_workbench_agent_send_refusal pass", "path": "docs/issues/40-parked/BPR-1941-tour-chat-adopts-agent-tab-chat-polish.md#verification-v001-focused-owner-dont-wait-for-tests"}}, {"criterion": "AC4 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "678230dd6", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/.codex/attended-builds/bpr1941-tour-chat-status-v001.5w2du995 of 678230dd6; new short session 0ecccbbe9c645b26c26080b97f44808d, candidate BPR-1941-tour-chat-status-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1941-tour-chat-adopts-agent-tab-chat-polish.md#attended-review-v001"}}, {"criterion": "AC5 The documentation gate passes", "outcome": "pass", "revision": "678230dd6", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1941-tour-chat-adopts-agent-tab-chat-polish.md#verification-v001-focused-owner-dont-wait-for-tests"}}]
 ---
 
 # BPR-1941: Tour chats show the Agent tab's live run status and adopt its chat polish
@@ -150,3 +151,21 @@ Dev build, macOS:
 - The offscreen look on the dev build, light and dark, prints
   `ATTENDED_TOUR_CHAT_STATUS:answered=Claude Code answered in 0:03.:failed=Stopped after 0:03.:running=● Claude Code is thinking, 0:03.`
   then `ATTENDED_TOUR_CHAT_STATUS_SHOWN`.
+
+### Attended review (v001)
+
+- Frozen build `/Users/jaeger/.codex/attended-builds/bpr1941-tour-chat-status-v001.5w2du995`
+  of `678230dd6` (executable SHA-256
+  `581314d5c0bcdd6f5db3a86ea97d81f19ab7c400bba002713d195a34858117fd`). Its
+  launcher's own offscreen check reached `ATTENDED_TOUR_CHAT_STATUS_SHOWN`.
+  The frozen executable, offscreen, light and dark, prints
+  `ATTENDED_TOUR_CHAT_STATUS:answered=Claude Code answered in 0:02.:failed=Stopped after 0:02.:running=● Claude Code is thinking, 0:03.`;
+  the pictures in the session are its own renders.
+- Launch: `python3 /Users/jaeger/.codex/attended-builds/bpr1941-tour-chat-status-v001.5w2du995/launch.py`.
+- New short session `0ecccbbe9c645b26c26080b97f44808d`, state
+  `/Users/jaeger/.codex/attended-review/bpr1941-v001-tCIzL4/state`, host
+  started with `serve --tailscale`.
+- One candidate, `BPR-1941-tour-chat-status-v001` (revision
+  `678230dd6-v001`), with one Accept/Reject question.
+- Status: ready, awaiting the owner. Branch `worktree-agent-acca666ced3cb9c6e`,
+  not pushed or merged.
