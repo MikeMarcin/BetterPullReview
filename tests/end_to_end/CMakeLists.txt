@@ -1,3 +1,6 @@
+include("${PROJECT_SOURCE_DIR}/cmake/BprTestRuntime.cmake")
+bpr_test_runtime_directory(bpr_end_to_end_runtime_directory "${CMAKE_CURRENT_BINARY_DIR}")
+
 if(APPLE OR WIN32 OR CMAKE_SYSTEM_NAME STREQUAL "Linux")
     set(bpr_native_platform_vault_self_test_result "true")
 else()
@@ -1833,7 +1836,7 @@ foreach(
 				"-DBPR_APPLICATION_SOURCE=${CMAKE_CURRENT_SOURCE_DIR}/agent_invocation_composition_public_path.cpp"
 				"-DBPR_CANARY=$<TARGET_FILE:test_better_pull_review_agent_canary>"
 				"-DBPR_GIT_WRAPPER=$<TARGET_FILE:test_better_pull_review_git_diagnostic_wrapper>"
-				"-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/agent-invocation-composition-contract"
+				"-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/agent-invocation-composition-contract"
 				-P
 				"${CMAKE_CURRENT_SOURCE_DIR}/application_agent_invocation_composition_contract.cmake"
 		)
@@ -1877,7 +1880,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:test_better_pull_review_queue_composition_public_path>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/queue-composition-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/queue-composition-contract"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_queue_composition_contract.cmake"
 )
@@ -1902,7 +1905,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/native-notification-attended-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/native-notification-attended-contract"
         "-DBPR_SOURCE=${CMAKE_SOURCE_DIR}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_native_notification_attended_contract.cmake"
@@ -2118,7 +2121,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/uiforetw-selected-diff-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/uiforetw-selected-diff-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         -P
@@ -2186,7 +2189,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-		"-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/workbench-composition-contract"
+		"-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/workbench-composition-contract"
 		"-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
 		"-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         -P
@@ -2219,7 +2222,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-ledger-composition-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/review-ledger-composition-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         "-DBPR_SINGLE_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
@@ -2247,7 +2250,7 @@ bpr_add_network_isolated_test(
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
         "-DBPR_APP_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-round-trip-composition-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/review-round-trip-composition-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         "-DBPR_SOURCE_ROOT=${PROJECT_SOURCE_DIR}"
         -P
@@ -2272,7 +2275,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/defect-composition-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/defect-composition-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         "-DBPR_SOURCE=${PROJECT_SOURCE_DIR}/src/app/src/github_application.cpp"
         -P
@@ -2299,7 +2302,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/overview-since-review-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/overview-since-review-contract"
         # [[BPR-0901]]. An epoch fixture phase, not a fixture render: this row
         # drives `--epoch-fixture-phase` four times and pays the seed's Git
         # object cache and SQLite catalog each time. On the render budget it
@@ -2345,7 +2348,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-behaviour-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/review-behaviour-contract"
         # [[BPR-0901]]. The same epoch fixture phase its sibling above drives,
         # on the same render budget, and the clearest evidence that the budget
         # is the fault rather than anything this dispatch changed: it expires
@@ -2381,7 +2384,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/saved-server-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/saved-server-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_saved_server_contract.cmake"
@@ -2631,7 +2634,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/reply-draft-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/reply-draft-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_reply_draft_contract.cmake"
@@ -2659,7 +2662,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/start-review-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/start-review-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_start_review_contract.cmake"
@@ -2687,7 +2690,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/draft-delete-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/draft-delete-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_draft_delete_contract.cmake"
@@ -2714,7 +2717,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/review-progress-push-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/review-progress-push-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_fixture_run_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/application_review_progress_push_contract.cmake"
@@ -2767,7 +2770,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-theme-customization-root"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-theme-customization-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/contrast-safe-theme.bprtheme"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
         -P
@@ -2796,7 +2799,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-older-theme-root"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-older-theme-root"
         "-DBPR_THEME=${CMAKE_SOURCE_DIR}/tests/fixtures/appearance/older-theme.bprtheme"
         "-DBPR_THEME_FILLED_ROLES=syntax_namespace #b8d7a3ff,syntax_enum_member #d6a05aff,find_match_background #5c4214ff,find_current_match_background #754d00ff"
         "-DBPR_RUN_BUDGET_MS=${bpr_appearance_theme_budget_ms}"
@@ -3065,7 +3068,7 @@ foreach(
             "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
             "-DBPR_FIXTURE=${fixture_name}"
             "-DBPR_FIXTURE_LABEL=${fixture_label}"
-            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-persistence-${fixture_test_name}"
+            "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/epoch-persistence-${fixture_test_name}"
             "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
             -P
             "${CMAKE_CURRENT_SOURCE_DIR}/epoch_persistence_contract.cmake"
@@ -3097,7 +3100,7 @@ if(UNIX)
         COMMAND
             "${CMAKE_COMMAND}"
             "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-fixture-noncanonical-root"
+            "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/epoch-fixture-noncanonical-root"
             "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
             -P
             "${CMAKE_CURRENT_SOURCE_DIR}/epoch_fixture_noncanonical_root_contract.cmake"
@@ -3139,7 +3142,7 @@ if(UNIX)
         COMMAND
             "${CMAKE_COMMAND}"
             "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/startup-failure-source"
+            "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/startup-failure-source"
             "-DBPR_RUN_BUDGET_MS=${bpr_self_test_budget_ms}"
             -P
             "${CMAKE_CURRENT_SOURCE_DIR}/startup_failure_source_contract.cmake"
@@ -3170,7 +3173,7 @@ if(UNIX)
         COMMAND
             "${CMAKE_COMMAND}"
             "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-            "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/startup-data-root"
+            "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/startup-data-root"
             "-DBPR_RUN_BUDGET_MS=${bpr_self_test_budget_ms}"
             -P
             "${CMAKE_CURRENT_SOURCE_DIR}/startup_data_root_contract.cmake"
@@ -3196,7 +3199,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/epoch-maintenance-public-path"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/epoch-maintenance-public-path"
         "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/epoch_maintenance_public_path_contract.cmake"
@@ -3222,7 +3225,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-gesture-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-gesture-contract"
         "-DBPR_RUN_BUDGET_MS=${bpr_epoch_phase_budget_ms}"
         -P
         "${CMAKE_CURRENT_SOURCE_DIR}/appearance_gesture_contract.cmake"
@@ -3248,7 +3251,7 @@ bpr_add_network_isolated_test(
     COMMAND
         "${CMAKE_COMMAND}"
         "-DBPR_APPLICATION=$<TARGET_FILE:app_better_pull_review>"
-        "-DBPR_ROOT=${CMAKE_CURRENT_BINARY_DIR}/appearance-store-fallback-contract"
+        "-DBPR_ROOT=${bpr_end_to_end_runtime_directory}/appearance-store-fallback-contract"
         # An epoch fixture seed, not a fixture render: this row drives
         # `--epoch-fixture-phase` and was one of the four BPR-0555 named. Under
         # the render budget it had 40 s for work measured at 33-35 s on a

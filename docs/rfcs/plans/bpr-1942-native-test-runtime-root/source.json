@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Root-authorized BPR-1940 follow-on: native full-suite runtime storage must use configured registrations, not engineering-only projection.",
+  "source_basis": "a5aa6caed6554f92ac0eb101018d983c333171ff"
+}

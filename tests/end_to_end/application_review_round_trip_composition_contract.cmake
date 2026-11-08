@@ -1,3 +1,8 @@
+# [[BPR-1943]] fixture-input reseal: the tests-only roundtrip waits for
+# current publication/display/private readiness before its unchanged off-hunk
+# gesture. One test-state bool keeps the existing Review choice once while
+# waiting. Original budgets, provider sequence, verdicts, inventory and
+# production mutation branch are unchanged; no product guard is relaxed.
 # [[BPR-1941]] reseal: window_tours.cpp relays the tour session's run events
 # (admitted, workspace made, first output) to the tour chat's live line as
 # qt::agent_run_status, and window_construction.cpp wires Delete on a failed
@@ -3322,7 +3327,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# intent priority, fallback, move and dispatch. No source inventory,
 	# production mutation branch or authority changes.
 	set(bpr_expected_production_app_manifest_digest
-        "51f86c4a1713325a3a779983f1fa4857b073f597b7bd9dbb0d4654f1a0e4de91"
+        "913e8b38770b835ddb1aa6a8e7fca85d363764901c4ce608a930113824e9ef26"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

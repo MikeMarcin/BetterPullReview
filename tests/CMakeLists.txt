@@ -1498,6 +1498,10 @@ add_subdirectory(logging)
 bpr_add_network_isolated_test(NAME test_suite_runner_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_suite_runner_tests.py")
 
+bpr_add_network_isolated_test(NAME test_runtime_root_contract
+    COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/test_runtime_root_tests.py")
+set_tests_properties(test_runtime_root_contract PROPERTIES TIMEOUT 30)
+
 bpr_add_network_isolated_test(NAME command_correctness_registry_contract
     COMMAND Python3::Interpreter "${CMAKE_CURRENT_SOURCE_DIR}/scripts/command_correctness_registry_tests.py")
 

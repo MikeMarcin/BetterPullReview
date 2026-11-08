@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1943-current-fallback-input",
+  "scope": {
+    "issues": [
+      "BPR-1943"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "current-fallback-input",
+      "outcome": "The composed fallback course sends its unchanged public gesture only on current admissible input and passes normal native verification without changing product guards or budgets.",
+      "work": [
+        {
+          "issue": "BPR-1943",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "A bounded fixture-only readiness wait precedes the same off-hunk gesture; original budgets, verdict/provider sequence and product guards are unchanged; temporary instrumentation is absent.",
+        "The independently reviewed142-file binding and final uninstrumented affected build/original registered native courses and tooling/preflight pass; all negatives and provenance are retained.",
+        "Focused gates and latest authoritative main integration pass; exact source/runtime/ownership and remaining frozen release obligations are handed back."
+      ],
+      "boundary": "Existing round-trip fixture input readiness and useful failure facts, corresponding source binding, focused evidence and docs/card. No product policy, replay/extra gesture, budget/assertion relaxation, projection acceptance or release publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

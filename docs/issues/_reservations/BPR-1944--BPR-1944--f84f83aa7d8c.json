@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1944"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Code block copy and wrap buttons in agent answers",
+  "created": "2026-11-08T18:45:48.352694+00:00",
+  "base": "e0892f8c7ceb336558b6b5f62d8fbe92bed849cf"
+}
