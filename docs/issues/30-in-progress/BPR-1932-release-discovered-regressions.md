@@ -118,3 +118,17 @@ The adopted plan's explicit binding resolves all four criteria. The generic
 checkpoint helper's unrelated-plan recovery scan refuses an existing plan's
 `amendments` field; its failure is retained in the external continuation.
 No historical plan was altered or acceptance inferred from that helper.
+
+
+### Measured Debug watchdogs
+
+The native Windows Debug courses passed with outer watchdogs of 600 seconds:
+composed hosts in 30.34 seconds, submission at 100% in 87.52 seconds, at 125%
+in 92.61 seconds, and a diagnostic 200% run in 99.86 seconds. The former 30/90
+second registrations could cut off their functional checks. Their CMake test
+properties now give Debug 120 seconds for composed hosts and 600 seconds for
+the three submission courses. Release retains 30/90 seconds. Every functional
+predicate remains, including the own-approval internal twenty-second wait.
+Configured CTest JSON from both graphs proves the exact values
+(`implementer/watchdog-configured-values.json`); the manifest check passes.
+These are bounded watchdogs and give no Debug timing/performance credit.
