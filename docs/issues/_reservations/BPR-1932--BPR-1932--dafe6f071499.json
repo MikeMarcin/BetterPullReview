@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1932"
+  ],
+  "reserve_for": "release-fixes-v042",
+  "purpose": "Land release-discovered portability and presentation regressions; prevent Tour geometry recursion",
+  "created": "2026-11-08T02:58:17.379037+00:00",
+  "base": "16042757648bfedf937ee60e46dc7535a1f210a1"
+}
