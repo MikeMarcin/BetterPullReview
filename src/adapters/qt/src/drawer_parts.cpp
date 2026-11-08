@@ -381,6 +381,42 @@ namespace bpr::qt {
 				aPainter.drawLine(QPointF{ 9.0 * unit, 18.0 * unit }, QPointF{ 12.5 * unit, 18.0 * unit });
 			},
 									  ink, disabled);
+		case drawer_glyph::code:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 13.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				const auto unit = aSide / 24.0;
+				aPainter.drawLine(QPointF{ 8.0 * unit, 7.0 * unit }, QPointF{ 3.5 * unit, 12.0 * unit });
+				aPainter.drawLine(QPointF{ 3.5 * unit, 12.0 * unit }, QPointF{ 8.0 * unit, 17.0 * unit });
+				aPainter.drawLine(QPointF{ 16.0 * unit, 7.0 * unit }, QPointF{ 20.5 * unit, 12.0 * unit });
+				aPainter.drawLine(QPointF{ 20.5 * unit, 12.0 * unit }, QPointF{ 16.0 * unit, 17.0 * unit });
+				aPainter.drawLine(QPointF{ 13.5 * unit, 5.5 * unit }, QPointF{ 10.5 * unit, 18.5 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::wrap:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 13.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				aPainter.setBrush(Qt::NoBrush);
+				const auto unit = aSide / 24.0;
+				aPainter.drawLine(QPointF{ 4.0 * unit, 6.5 * unit }, QPointF{ 20.0 * unit, 6.5 * unit });
+				auto turn = QPainterPath{ QPointF{ 4.0 * unit, 12.0 * unit } };
+				turn.lineTo(16.5 * unit, 12.0 * unit);
+				turn.quadTo(QPointF{ 20.0 * unit, 12.0 * unit }, QPointF{ 20.0 * unit, 14.75 * unit });
+				turn.quadTo(QPointF{ 20.0 * unit, 17.5 * unit }, QPointF{ 16.5 * unit, 17.5 * unit });
+				turn.lineTo(12.5 * unit, 17.5 * unit);
+				aPainter.drawPath(turn);
+				aPainter.drawLine(QPointF{ 12.5 * unit, 17.5 * unit }, QPointF{ 14.5 * unit, 15.5 * unit });
+				aPainter.drawLine(QPointF{ 12.5 * unit, 17.5 * unit }, QPointF{ 14.5 * unit, 19.5 * unit });
+				aPainter.drawLine(QPointF{ 4.0 * unit, 17.5 * unit }, QPointF{ 8.0 * unit, 17.5 * unit });
+			},
+									  ink, disabled);
+		case drawer_glyph::check:
+			return painted_glyph_icon([](QPainter& aPainter, const qreal aSide, const QColor& aInk) {
+				aPainter.setPen(QPen{ aInk, aSide / 11.0, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin });
+				const auto unit = aSide / 24.0;
+				aPainter.drawLine(QPointF{ 5.0 * unit, 12.5 * unit }, QPointF{ 10.0 * unit, 17.0 * unit });
+				aPainter.drawLine(QPointF{ 10.0 * unit, 17.0 * unit }, QPointF{ 19.0 * unit, 7.0 * unit });
+			},
+									  ink, disabled);
 		}
 		return { };
 	}

@@ -3,6 +3,7 @@
 #include "bpr/qt/quiet_push_button.hpp"
 
 #include "markdown_code.hpp"
+#include "markdown_code_block.hpp"
 #include "markdown_document.hpp"
 #include "markdown_github.hpp"
 #include "markdown_images.hpp"
@@ -314,6 +315,10 @@ namespace bpr::qt {
 	{
 		const auto prepared = detail::prepare_github_markdown(aSource);
 		aDocument.setMarkdown(prepared.Text, markdown_features);
+		if (!restore_code_tabs(aDocument, prepared.Text)) {
+			aDocument.setPlainText(aSource);
+			return;
+		}
 		detail::present_github_markdown(aDocument, prepared);
 	}
 
@@ -684,9 +689,13 @@ namespace bpr::qt {
 		// timer moves animated images on while the reader is visible.
 		Images = new detail::markdown_image_store{ *Rendered };
 		Rendered->document()->documentLayout()->registerHandler(detail::markdown_image_object, Images);
-		Code                 = std::make_shared<detail::markdown_code_store>();
-		Rendered->Code       = Code.get();
-		Rendered->ImageLabel = [this](const int aPosition) -> QString {
+		Code           = std::make_shared<detail::markdown_code_store>();
+		Rendered->Code = Code.get();
+		// [[BPR-1944]]. Framed code's places are sized by their boxes, which
+		// follow them as the document is laid out and the viewport moves.
+		Frames                = new detail::markdown_code_block_objects{ *Rendered };
+		Frames->HeightChanged = [this] { height_changed(); };
+		Rendered->ImageLabel  = [this](const int aPosition) -> QString {
 			const auto* slot = Images->slot_at(*Rendered->document(), aPosition);
 			return slot == nullptr ? QString{ } : detail::markdown_image_store::placeholder_of(*slot);
 		};
@@ -780,6 +789,7 @@ namespace bpr::qt {
 		const auto retainSource = source_visible() && Identity == aIdentity;
 		if (Identity != aIdentity) {
 			Snippets.clear();
+			Frames->reset_wrap();
 		}
 		Body            = std::move(aBody);
 		Identity        = std::move(aIdentity);
@@ -1062,6 +1072,7 @@ namespace bpr::qt {
 		RenderedAvailable = Fallback.isEmpty();
 		auto* document    = Rendered->document();
 		document->setLayoutEnabled(false);
+		Frames->clear();
 		document->clear();
 		Rendered->AlertBars.clear();
 		Standing.clear();
@@ -1115,13 +1126,14 @@ namespace bpr::qt {
 			auto prepared = detail::prepare_github_markdown(placements.empty() && snippets.empty() ? source : QString::fromStdString(rendered),
 															PermalinkRepository ? &*PermalinkRepository : nullptr);
 			// [[BPR-1564]]. An empty suggestion keeps a line for its rows.
-			detail::markdown_code_store::prepare(prepared.Text, Suggestions.has_value());
+			detail::markdown_code_store::prepare(prepared.Text, Suggestions.has_value(), CodeTools);
 			document->setMarkdown(prepared.Text, markdown_features);
 			if (restore_code_tabs(*document, prepared.Text)) {
 				detail::present_github_markdown(*document, prepared);
 				// [[BPR-1562]]. Each fenced block found by its lines; suggestions
 				// laid out before images are placed.
-				Code->place(*document, prepared.Text, Suggestions, snippets);
+				Code->place(*document, prepared.Text, Suggestions, snippets, CodeTools);
+				Frames->create(*Code);
 				SnippetsShown = static_cast<std::size_t>(std::ranges::count_if(Code->blocks(), [](const auto& aBlock) { return aBlock.Snippet.has_value(); }));
 				// RFC-BPR-0084. With a holder to ask, images become objects that
 				// load; without one they stay the accessible placeholder.
@@ -1169,6 +1181,7 @@ namespace bpr::qt {
 			} else {
 				Fallback          = QStringLiteral("This tab-bearing construct cannot be rendered without changing whitespace. The complete source is available.");
 				RenderedAvailable = false;
+				Frames->clear();
 				document->clear();
 				Code->clear();
 			}
@@ -1185,9 +1198,11 @@ namespace bpr::qt {
 		Notice->setVisible(!Notice->text().isEmpty());
 		Toggle->setEnabled(RenderedAvailable);
 		if (!RenderedAvailable) {
+			Frames->clear();
 			Images->clear();
 			Code->clear();
 		}
+		Frames->place();
 		dispatch_images();
 		dispatch_code();
 		dispatch_permalinks();
@@ -1449,17 +1464,30 @@ namespace bpr::qt {
 	}
 	auto markdown_body_view::selected_markdown(const QTextCursor& aCursor) const -> QString
 	{
-		// Qt serializes an image object as U+FFFC; each becomes its Markdown again.
+		// Qt serializes objects as U+FFFC. Code's layout placeholder adds
+		// no text; its hidden lines already serialize as fenced Markdown.
 		auto        markdown = QTextDocumentFragment{ aCursor }.toMarkdown(markdown_features);
-		const auto* document = Rendered->document();
+		auto* const document = Rendered->document();
 		auto        from     = qsizetype{ 0 };
 		for (auto position = aCursor.selectionStart(); position < aCursor.selectionEnd(); ++position) {
 			if (document->characterAt(position) != QChar::ObjectReplacementCharacter) {
 				continue;
 			}
+			const auto at = markdown.indexOf(QChar::ObjectReplacementCharacter, from);
+			if (at < 0) {
+				continue;
+			}
+			auto cursor = QTextCursor{ document };
+			cursor.setPosition(position);
+			cursor.movePosition(QTextCursor::NextCharacter, QTextCursor::KeepAnchor);
+			if (cursor.charFormat().objectType() == detail::markdown_code_block_object) {
+				markdown.remove(at, 1);
+				from = at;
+				continue;
+			}
 			const auto* slot = Images->slot_at(*document, position);
-			const auto  at   = markdown.indexOf(QChar::ObjectReplacementCharacter, from);
-			if (slot == nullptr || at < 0) {
+			if (slot == nullptr) {
+				from = at + 1;
 				continue;
 			}
 			const auto text = detail::markdown_image_store::markdown_of(*slot);
@@ -1677,6 +1705,24 @@ namespace bpr::qt {
 			theme              = markdown_code_theme{ .Colors = code_role_colors_of(builtin_appearance_palette(variant)), .Variant = variant };
 		}
 		Code->style(*Rendered->document(), detail::markdown_code_colours_of(*theme, palette()), theme->Colors, theme->Variant, font(), CodeFont);
+		Frames->style(*Code, theme->Colors, font(), CodeFont, TabStopDistance);
+	}
+
+	void markdown_body_view::set_code_block_tools(const bool aShown)
+	{
+		if (CodeTools == aShown) {
+			return;
+		}
+		CodeTools = aShown;
+		if (!Body.empty()) {
+			prepare_rendered();
+			height_changed();
+		}
+	}
+
+	auto markdown_body_view::code_block_tools() const noexcept -> bool
+	{
+		return CodeTools;
 	}
 
 	void markdown_body_view::set_inline_code_selector(std::string aSelector)

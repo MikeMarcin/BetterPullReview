@@ -30,6 +30,7 @@
 #include <QSplitter>
 #include <QTabBar>
 #include <QTextBlock>
+#include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextLayout>
 #include <QToolButton>
@@ -153,10 +154,10 @@ namespace {
 		}
 	};
 	/// The colours a reader draws `aText` in, by the formats of its block.
-	[[nodiscard]] auto colours_of(qt::markdown_body_view& aReader, const QString& aText) -> std::set<QRgb>
+	[[nodiscard]] auto colours_of(QTextEdit& aReader, const QString& aText) -> std::set<QRgb>
 	{
 		auto seen = std::set<QRgb>{ };
-		for (auto block = aReader.rendered_view()->document()->begin(); block.isValid(); block = block.next()) {
+		for (auto block = aReader.document()->begin(); block.isValid(); block = block.next()) {
 			const auto at = block.text().indexOf(aText);
 			if (at < 0 || block.layout() == nullptr) {
 				continue;
@@ -170,13 +171,18 @@ namespace {
 		return seen;
 	}
 
+	[[nodiscard]] auto colours_of(qt::markdown_body_view& aReader, const QString& aText) -> std::set<QRgb>
+	{
+		return colours_of(*aReader.rendered_view(), aText);
+	}
+
 	[[nodiscard]] auto drawer_width(qt::workbench_window& aWindow) -> int
 	{
 		// The conversations drawer is the central splitter's last widget.
 		return aWindow.central_splitter()->sizes().value(3);
 	}
 
-	void draw(qt::workbench_window& aWindow, const QString& aName, const QString& aTheme)
+	void draw(QWidget& aWindow, const QString& aName, const QString& aTheme)
 	{
 		const auto root = qEnvironmentVariable("BPR_TOUR_CHAT_RENDER");
 		if (!root.isEmpty()) {
@@ -275,6 +281,16 @@ namespace {
 			expect(colours_of(*reply, QStringLiteral("begin_frame()")).size() >= 2U, "the reply's inline code is coloured " + aWhen);
 		};
 		coloured("when it first shows");
+		editor->tour_agent()->open_transcript();
+		syntax.deliver(window);
+		const auto boxes = editor->tour_agent()->transcript_view()->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+		expect(!boxes.isEmpty(), "BPR-1944 the Conversation window frames its reply's code");
+		auto* const codeText = boxes.front()->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+		expect(codeText != nullptr && colours_of(*codeText, QStringLiteral("return *Table")).size() >= 2U, "AC4 Conversation code takes the composed classifier's colours");
+		draw(*editor->tour_agent()->transcript(), QStringLiteral("conversation-code-blocks"), aTheme);
+		editor->tour_agent()->transcript()->hide();
+		window.activateWindow();
+		settle();
 		// The application's own lanes: a text it has classified answers
 		// inside the request. A reader the chat makes again (a new
 		// presentation rebuilds the turns) is coloured at once.

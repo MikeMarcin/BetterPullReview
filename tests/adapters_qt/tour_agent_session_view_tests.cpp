@@ -24,6 +24,7 @@
 #include <QTextDocumentFragment>
 #include <QTextEdit>
 #include <QTextList>
+#include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <cstdlib>
@@ -99,6 +100,43 @@ namespace {
 }
 
 namespace {
+	void transcript_code_blocks(const std::string& aPrefix)
+	{
+		auto       panel   = qt::tour_agent_panel{ };
+		auto       session = core::tour_agent_session{ };
+		const auto code    = std::string{ "\tconst auto text = \"Ω 日本語 😀\";" };
+		const auto first   = core::begin_tour_ask(session, core::tour_thread{ }, std::nullopt, "Show Unicode");
+		static_cast<void>(core::answer_tour_ask(session, *first, "```cpp\n" + code + "\n```", { }));
+		const auto second = core::begin_tour_ask(session, core::tour_thread{ }, std::nullopt, "Show wide code");
+		static_cast<void>(core::answer_tour_ask(session, *second, "```\n" + std::string(400, 'w') + "\n```", { }));
+		panel.present(session, std::nullopt);
+		panel.open_transcript();
+		QApplication::processEvents();
+		QApplication::processEvents();
+		auto* const view  = panel.transcript_view();
+		auto        boxes = view->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+		std::ranges::sort(boxes, [](const QWidget* aLeft, const QWidget* aRight) { return aLeft->y() < aRight->y(); });
+		expect(boxes.size() == 2, "BPR-1944 Conversation frames code in both turns");
+		auto* const text = boxes[1]->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+		expect(text->horizontalScrollBar()->maximum() > 0 && view->horizontalScrollBar()->maximum() == 0, "AC7 Conversation scrolls a 400-character line inside its block only");
+		for (auto* const box : boxes) {
+			expect(box->width() <= view->viewport()->width() && box->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockWrap")) != nullptr, "Conversation headers have Wrap and stay inside the pane");
+		}
+		boxes[0]->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockCopy"))->click();
+		expect(QApplication::clipboard()->text() == QString::fromStdString(code), "AC2 Conversation Copy preserves tabs and Unicode exactly");
+		auto* const wrap   = boxes[1]->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockWrap"));
+		const auto  before = boxes[1]->height();
+		wrap->click();
+		QApplication::processEvents();
+		QApplication::processEvents();
+		expect(boxes[1]->height() > before && text->horizontalScrollBar()->maximum() == 0, "Conversation Wrap grows that block");
+		view->selectAll();
+		view->copy();
+		const auto copied = QApplication::clipboard()->text();
+		expect(copied.contains(QStringLiteral("Show Unicode")) && copied.contains(QStringLiteral("Show wide code")) && copied.contains(QString::fromStdString(code)) && !copied.contains(QChar::ObjectReplacementCharacter), "selection spans Conversation turns without layout objects");
+		render(*panel.transcript(), aPrefix, "conversation-code-blocks");
+	}
+
 	/// [[BPR-1915]]. A proposed Solution and a stop's new explanation render
 	/// their Markdown; the source stays editable, and Accept sends it.
 	void formatted(qt::review_tour_editor& aEditor, const std::string& aPrefix)
@@ -600,6 +638,7 @@ auto main(int argc, char** argv) -> int
 		panel->restyle(editor.palette());
 		panel->transcript()->hide();
 	}
+	transcript_code_blocks(prefix);
 	formatted(editor, prefix);
 	skills_in_the_ask_box(editor);
 	header_wrap_measurements();

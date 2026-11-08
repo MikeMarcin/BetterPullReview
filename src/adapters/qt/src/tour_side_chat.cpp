@@ -1089,10 +1089,14 @@ namespace bpr::qt {
 		return best.empty() ? std::string{ } : "code" + best;
 	}
 
-	auto tour_side_chat::reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector) -> markdown_body_view*
+	auto tour_side_chat::reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector, const bool aFramed) -> markdown_body_view*
 	{
 		auto* const view = new markdown_body_view{ aParent };
 		view->set_in_place(true);
+		// [[BPR-1944]]. A reply's code is a box as wide as the chat, its long
+		// lines scrolling inside it, with Wrap and Copy. A proposal keeps the
+		// look its stop will have once published, as the stop reader shows it.
+		view->set_code_block_tools(aFramed);
 		// [[BPR-1914]] v004, owner look v003: "it seems like inline code isnt
 		// being highlighted only blocks". Inline code reads as the part's
 		// code does; with no language it stays plain monospace on its wash.
@@ -1226,7 +1230,7 @@ namespace bpr::qt {
 			} else {
 				auto failure = QString{ };
 				if (run->State == core::tour_agent_run_state::answered) {
-					said = reader(answer, run->Reply, "tour-side-chat:" + std::to_string(id), selector);
+					said = reader(answer, run->Reply, "tour-side-chat:" + std::to_string(id), selector, true);
 					said->setObjectName(QStringLiteral("tourSideChatReply"));
 					column->addWidget(said);
 				} else {

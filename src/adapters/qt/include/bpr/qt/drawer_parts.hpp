@@ -123,6 +123,12 @@ namespace bpr::qt {
 		history,
 		/// A square with a pen: a new session.
 		new_session,
+		/// [[BPR-1944]]. Two angle brackets and a slash: a code block.
+		code,
+		/// [[BPR-1944]]. Lines whose last turns back under itself: wrap lines.
+		wrap,
+		/// [[BPR-1944]]. A tick: done, as Copy says it copied.
+		check,
 	};
 	[[nodiscard]] auto drawer_icon(drawer_glyph aGlyph, const QPalette& aPalette) -> QIcon;
 

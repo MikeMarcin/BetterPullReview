@@ -284,7 +284,9 @@ namespace bpr::qt {
 		void               fit();
 		void               to_bottom();
 		[[nodiscard]] auto name_of(const core::tour_thread& aThread) const -> QString;
-		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector) -> markdown_body_view*;
+		/// [[BPR-1944]]. `aFramed`: the agent's reply, whose code blocks are
+		/// boxes with Wrap and Copy; a proposal reads as its stop will.
+		[[nodiscard]] auto reader(QWidget* aParent, const std::string& aBody, const std::string& aIdentity, const std::string& aInlineSelector, bool aFramed = false) -> markdown_body_view*;
 		[[nodiscard]] auto index_of(const core::tour_thread& aThread) const -> int;
 		/// [[BPR-1941]]. The running request as its line says it, and the
 		/// agent that ran `aRun`, as the live status named it.

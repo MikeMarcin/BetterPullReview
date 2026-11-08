@@ -1291,6 +1291,9 @@ namespace bpr::qt {
 		auto* const answer = new markdown_body_view{ reply };
 		answer->setObjectName(QStringLiteral("agentTurnAnswer"));
 		answer->set_in_place(true);
+		// [[BPR-1944]]. Its code blocks are boxes as wide as the chat, with
+		// Wrap and Copy; a long line scrolls inside its box.
+		answer->set_code_block_tools(true);
 		answer->set_height_observer([this, answer] { fit_answer(*answer); });
 		// A reference the answer makes a link opens its file at its line;
 		// any other link does nothing.

@@ -1,5 +1,6 @@
 #include "markdown_code.hpp"
 
+#include "markdown_code_block.hpp"
 #include "markdown_github.hpp"
 
 #include "bpr/core/appearance_contrast.hpp"
@@ -173,20 +174,20 @@ namespace bpr::qt::detail {
 		return colours;
 	}
 
-	void markdown_code_store::prepare(QString& aText, const bool aSuggestions)
+	void markdown_code_store::prepare(QString& aText, const bool aSuggestions, const bool aFramed)
 	{
-		if (!aSuggestions || aText.contains(anchor_mark)) {
+		if ((!aSuggestions && !aFramed) || aText.contains(anchor_mark)) {
 			return;
 		}
 		const auto utf8   = aText.toUtf8();
 		const auto fences = core::scan_markdown_fenced_code(std::string_view{ utf8.constData(), static_cast<std::size_t>(utf8.size()) });
-		const auto empty  = std::ranges::any_of(fences, [](const core::markdown_fenced_code& aFence) {
-			return aFence.Lines.empty() && core::markdown_code_language_of(aFence.Info).Kind == core::markdown_code_kind::suggestion;
+		const auto empty  = std::ranges::any_of(fences, [aFramed](const core::markdown_fenced_code& aFence) {
+			return aFence.Lines.empty() && (aFramed || core::markdown_code_language_of(aFence.Info).Kind == core::markdown_code_kind::suggestion);
 		});
 		if (!empty) {
 			return;
 		}
-		// A top-level empty suggestion is its opening fence followed by its
+		// A top-level empty block is its opening fence followed by its
 		// closing one; a mark goes between them.
 		const auto leading = [](const QStringView aLine) {
 			auto count = qsizetype{ 0 };
@@ -206,7 +207,7 @@ namespace bpr::qt::detail {
 				++count;
 			}
 			const auto info = opening.mid(count).trimmed();
-			if (count < 3 || core::markdown_code_language_of(info.toUtf8().toStdString()).Kind != core::markdown_code_kind::suggestion) {
+			if (count < 3 || (!aFramed && core::markdown_code_language_of(info.toUtf8().toStdString()).Kind != core::markdown_code_kind::suggestion)) {
 				continue;
 			}
 			const auto closing = QStringView{ lines[index + 1] }.trimmed();
@@ -219,7 +220,18 @@ namespace bpr::qt::detail {
 				++index;
 			}
 		}
-		aText = lines.join(QLatin1Char{ '\n' });
+		const auto prepared = lines.join(QLatin1Char{ '\n' });
+		const auto bytes    = prepared.toUtf8();
+		const auto checked  = core::scan_markdown_fenced_code(std::string_view{ bytes.constData(), static_cast<std::size_t>(bytes.size()) });
+		// Fence-looking text inside another block must stay literal. Accept
+		// only insertions that the existing fence scanner identifies as an
+		// empty block, with every other block unchanged.
+		if (std::ranges::equal(fences, checked, [](const auto& aBefore, const auto& aAfter) {
+				return aBefore.Info == aAfter.Info && aBefore.Closed == aAfter.Closed
+					&& (aBefore.Lines == aAfter.Lines || (aBefore.Lines.empty() && aAfter.Lines == std::vector<std::string>{ QString{ anchor_mark }.toStdString() }));
+			})) {
+			aText = prepared;
+		}
 	}
 
 	void markdown_code_store::clear()
@@ -367,7 +379,7 @@ namespace bpr::qt::detail {
 	} // namespace
 
 	void markdown_code_store::place(QTextDocument& aDocument, const QString& aPrepared, const std::optional<markdown_suggestion_presentation>& aSuggestions,
-									const std::span<const markdown_code_snippet> aSnippets)
+									const std::span<const markdown_code_snippet> aSnippets, const bool aFramed)
 	{
 		Blocks.clear();
 		const auto utf8   = aPrepared.toUtf8();
@@ -543,6 +555,50 @@ namespace bpr::qt::detail {
 				cursor.insertText(QString::fromStdString(row.Text), rowChars);
 			}
 		}
+		// [[BPR-1944]]. Each other block's place: one object character its
+		// box is laid over, before its lines, which stay for copy and search
+		// but are hidden, so a long line never widens the document.
+		for (auto it = Blocks.rbegin(); aFramed && it != Blocks.rend(); ++it) {
+			if (!it->Placed || it->Suggestion || it->Snippet) {
+				continue;
+			}
+			const auto ordinal = static_cast<int>(it->Fence.Ordinal);
+			const auto first   = first_line(aDocument, ordinal);
+			if (!first.isValid()) {
+				continue;
+			}
+			const auto rowFormat = first.blockFormat();
+			const auto rowChars  = first.begin().atEnd() ? first.charFormat() : first.begin().fragment().charFormat();
+			auto       object    = QTextCharFormat{ };
+			object.setObjectType(markdown_code_block_object);
+			object.setProperty(markdown_code_block_ordinal, ordinal);
+			auto cursor = QTextCursor{ &aDocument };
+			cursor.setPosition(first.position());
+			cursor.insertText(QString{ QChar::ObjectReplacementCharacter }, object);
+			cursor.insertBlock(rowFormat, rowChars);
+			const auto spot   = aDocument.findBlock(first.position());
+			auto       format = spot.blockFormat();
+			format.clearProperty(QTextFormat::BlockCodeFence);
+			format.clearProperty(QTextFormat::BlockCodeLanguage);
+			format.clearProperty(markdown_code_ordinal_property);
+			format.clearProperty(markdown_code_line_property);
+			format.setNonBreakableLines(false);
+			format.clearBackground();
+			format.setProperty(markdown_code_frame_property, ordinal);
+			set_block_format(aDocument, spot, format);
+			for (auto row = spot.next(); row.isValid() && row.blockFormat().hasProperty(markdown_code_ordinal_property) && row.blockFormat().intProperty(markdown_code_ordinal_property) == ordinal;
+				 row      = row.next()) {
+				auto hidden = row.blockFormat();
+				hidden.setProperty(markdown_hidden_property, true);
+				set_block_format(aDocument, row, hidden);
+				auto handle = row;
+				handle.setVisible(false);
+			}
+			it->Framed = true;
+		}
+		if (aFramed) {
+			aDocument.markContentsDirty(0, aDocument.characterCount());
+		}
 		place_inline(aDocument);
 	}
 
@@ -709,6 +765,17 @@ namespace bpr::qt::detail {
 		}
 		for (auto current = aDocument.begin(); current.isValid(); current = current.next()) {
 			auto format = current.blockFormat();
+			if (format.hasProperty(markdown_code_frame_property)) {
+				// [[BPR-1944]]. A box's place: the box's own height, with the
+				// room a paragraph keeps around it.
+				format.setTopMargin(block_gap);
+				format.setBottomMargin(current.next().isValid() ? block_gap : 0.0);
+				format.setLineHeight(100.0, QTextBlockFormat::ProportionalHeight);
+				format.setNonBreakableLines(false);
+				format.clearBackground();
+				set_block_format(aDocument, current, format);
+				continue;
+			}
 			if (!format.hasProperty(markdown_code_ordinal_property)) {
 				continue;
 			}
@@ -783,6 +850,38 @@ namespace bpr::qt::detail {
 									   at < entry.Rows.size() ? row_formats(entry.Rows[at], removed ? entry.RemovedSpans : entry.Spans, index, aRoles, aColours, aVariant)
 															  : QList<QTextLayout::FormatRange>{ });
 		}
+	}
+
+	auto markdown_code_store::line_formats_of(const block& aBlock, const std::uint32_t aLine, const code_role_colors& aRoles) const -> QList<QTextLayout::FormatRange>
+	{
+		if (aLine >= aBlock.Fence.Lines.size()) {
+			return { };
+		}
+		switch (aBlock.Language.Kind) {
+		case core::markdown_code_kind::language:
+			return line_formats(aBlock.Fence.Lines[aLine], aBlock.Spans, aLine, aRoles);
+		case core::markdown_code_kind::diff:
+			return diff_formats(aBlock.Fence.Lines[aLine], Colours);
+		case core::markdown_code_kind::plain:
+		case core::markdown_code_kind::suggestion:
+			break;
+		}
+		return { };
+	}
+
+	auto markdown_code_store::language_label(const block& aBlock) -> QString
+	{
+		if (!aBlock.Language.Name.empty()) {
+			return QString::fromUtf8(aBlock.Language.Name.data(), static_cast<qsizetype>(aBlock.Language.Name.size()));
+		}
+		auto word = QString::fromStdString(aBlock.Fence.Info).trimmed();
+		for (qsizetype at = 0; at < word.size(); ++at) {
+			if (word[at].isSpace() || word[at] == QLatin1Char{ ',' } || word[at] == QLatin1Char{ '{' }) {
+				word.truncate(at);
+				break;
+			}
+		}
+		return word.isEmpty() ? QStringLiteral("Plain text") : word;
 	}
 
 	void markdown_code_store::style_snippet(QTextDocument& aDocument, const QTextBlock& aBlock, const block& aEntry, const std::uint32_t aIndex, const code_role_colors& aRoles,

@@ -24,8 +24,10 @@
 #include <QTextFragment>
 #include <QTextList>
 #include <QTextTable>
+#include <QToolButton>
 #include <QUrl>
 
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 #include <random>
@@ -577,6 +579,109 @@ Final content: Ω 日本語 😀
 			expect(place(width), "with the mark's row shown, the body still shows all of its lines");
 		}
 	}
+
+	/// [[BPR-1944]]. An agent's answer: each fenced block a box as wide as
+	/// the reader, with its language, Wrap and Copy; a long line scrolls
+	/// inside its box and never widens the reader.
+	void check_code_block_tools()
+	{
+		auto holder = QWidget{ };
+		holder.resize(800, 900);
+		auto* const reader = new qt::markdown_body_view{ &holder };
+		reader->set_in_place(true);
+		reader->set_code_block_tools(true);
+		holder.show();
+		const auto long_line = std::string(365, 'x') + " // the end of a 400 character line";
+		const auto body      = "Two blocks:\n\n```cpp\nauto lock = std::scoped_lock{ Mutex };\nreturn *Table;\n```\n\nThen:\n\n```\n" + long_line + "\n```\n\nDone.\n";
+		reader->set_body(body, "agent-answer:1");
+		constexpr auto column = 460;
+		const auto     place  = [&] {
+			reader->setGeometry(0, 0, column, reader->heightForWidth(column));
+			settle();
+			settle();
+		};
+		place();
+		auto boxes = reader->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+		std::ranges::sort(boxes, [](const QWidget* aFirst, const QWidget* aSecond) { return aFirst->y() < aSecond->y(); });
+		expect(boxes.size() == 2, "AC1 each fenced block is a box");
+		auto* const code  = boxes.size() == 2 ? boxes[0] : nullptr;
+		auto* const plain = boxes.size() == 2 ? boxes[1] : nullptr;
+		if (code == nullptr || plain == nullptr) {
+			return;
+		}
+		expect(code->accessibleName() == QStringLiteral("C++ code") && plain->accessibleName() == QStringLiteral("Plain text code"), "AC1 the header names the language, Plain text without one: " + code->accessibleName().toStdString());
+		const auto tool = [](QWidget* aBox, const char* aName) { return aBox->findChild<QToolButton*>(QString::fromLatin1(aName)); };
+		for (auto* const box : { code, plain }) {
+			auto* const wrap = tool(box, "markdownCodeBlockWrap");
+			auto* const copy = tool(box, "markdownCodeBlockCopy");
+			expect(wrap != nullptr && copy != nullptr, "AC1 its header has Wrap and Copy");
+			if (wrap == nullptr || copy == nullptr) {
+				return;
+			}
+			expect(wrap->toolTip() == QStringLiteral("Wrap lines") && wrap->isCheckable() && !wrap->isChecked() && copy->toolTip() == QStringLiteral("Copy code"), "AC1 named Wrap lines and Copy code, unwrapped by default");
+			expect((wrap->focusPolicy() & Qt::TabFocus) != 0 && (copy->focusPolicy() & Qt::TabFocus) != 0 && !wrap->accessibleName().isEmpty() && !copy->accessibleName().isEmpty(), "both reachable by Tab, with accessible names");
+			expect(box->isVisibleTo(reader) && box->x() == 0 && box->width() == reader->rendered_view()->viewport()->width(), "AC7 the box is as wide as the column: " + std::to_string(box->x()) + "+" + std::to_string(box->width()));
+			expect(wrap->geometry().right() < box->width() && copy->geometry().right() < box->width() && copy->x() > wrap->x() && copy->y() < 12, "in its upper right");
+		}
+		auto* const page   = reader->rendered_view();
+		auto* const scroll = plain->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+		expect(scroll != nullptr && scroll->horizontalScrollBar()->maximum() > 0, "AC7 the long line scrolls inside its box");
+		expect(page->horizontalScrollBar()->maximum() == 0 && page->document()->idealWidth() <= column + 0.5, "AC7 the reader has no horizontal scroll range: " + std::to_string(page->document()->idealWidth()));
+		expect(reader->width() == column && reader->heightForWidth(column) == reader->height(), "AC7 the message keeps the column's width");
+		expect(page->height() >= plain->geometry().bottom(), "the reader's height holds the boxes");
+		expect(page->document()->toPlainText().contains(QString::fromStdString(long_line)), "the lines stay in the document, hidden");
+		capture(*reader, QStringLiteral("code-block-tools"));
+		// AC2. Copy takes exactly the code.
+		tool(plain, "markdownCodeBlockCopy")->click();
+		expect(QApplication::clipboard()->text() == QString::fromStdString(long_line), "AC2 Copy puts exactly the block's code on the clipboard");
+		expect(tool(plain, "markdownCodeBlockCopy")->toolTip() == QStringLiteral("Copied"), "and says it copied");
+		tool(code, "markdownCodeBlockCopy")->click();
+		expect(QApplication::clipboard()->text() == QStringLiteral("auto lock = std::scoped_lock{ Mutex };\nreturn *Table;"), "AC2 no fence, no language, no trailing newline");
+		// Partial prose selections crossing a box keep its code, without
+		// leaking the layout's object replacement character into Markdown.
+		auto selected = page->document()->find(QStringLiteral("blocks:"));
+		selected.setPosition(page->document()->find(QStringLiteral("Done.")).selectionEnd(), QTextCursor::KeepAnchor);
+		page->setTextCursor(selected);
+		page->copy();
+		const auto copied = QApplication::clipboard()->text();
+		expect(!copied.contains(QChar::ObjectReplacementCharacter) && copied.contains(QStringLiteral("scoped_lock")) && copied.contains(QString::fromStdString(long_line)), "partial selection keeps code without layout placeholders");
+		// AC3. Wrap toggles that block only.
+		const auto codeHeight  = code->height();
+		const auto plainHeight = plain->height();
+		const auto before      = reader->heightForWidth(column);
+		tool(plain, "markdownCodeBlockWrap")->setFocus(Qt::TabFocusReason);
+		key(*tool(plain, "markdownCodeBlockWrap"), Qt::Key_Space);
+		place();
+		expect(tool(plain, "markdownCodeBlockWrap")->isChecked() && tool(plain, "markdownCodeBlockWrap")->toolTip() == QStringLiteral("Don't wrap"), "AC3 pressed, Wrap says Don't wrap");
+		expect(tool(plain, "markdownCodeBlockWrap")->accessibleName() == QStringLiteral("Don't wrap"), "the accessible action follows the wrap state");
+		expect(plain->height() > plainHeight && scroll->horizontalScrollBar()->maximum() == 0, "AC3 the long line wraps inside its box: " + std::to_string(plainHeight) + " to " + std::to_string(plain->height()));
+		expect(code->height() == codeHeight && !tool(code, "markdownCodeBlockWrap")->isChecked(), "AC3 the other block is untouched");
+		expect(reader->heightForWidth(column) > before && plain->width() == code->width() && page->horizontalScrollBar()->maximum() == 0, "the reader grows with it and keeps its width");
+		capture(*reader, QStringLiteral("code-block-tools-wrapped"));
+		// The same body again keeps the wrap; a new identity starts unwrapped.
+		reader->set_body(body + "\nMore.\n", "agent-answer:1");
+		place();
+		auto again = reader->findChildren<QToolButton*>(QStringLiteral("markdownCodeBlockWrap"));
+		expect(std::ranges::count_if(again, [](const QToolButton* aTool) { return aTool->isChecked(); }) == 1, "a growing answer keeps the block wrapped");
+		reader->set_body(body, "agent-answer:2");
+		place();
+		again = reader->findChildren<QToolButton*>(QStringLiteral("markdownCodeBlockWrap"));
+		expect(again.size() == 2 && std::ranges::none_of(again, [](const QToolButton* aTool) { return aTool->isChecked(); }), "another answer starts unwrapped");
+		reader->set_body("```\n```\n\n```cpp\n\tconst auto value = \"Ω 😀\";\n```", "agent-answer:empty-and-unicode");
+		place();
+		auto emptyBoxes = reader->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+		std::ranges::sort(emptyBoxes, [](const QWidget* aFirst, const QWidget* aSecond) { return aFirst->y() < aSecond->y(); });
+		expect(emptyBoxes.size() == 2, "empty fenced blocks also have their controls");
+		tool(emptyBoxes[0], "markdownCodeBlockCopy")->click();
+		expect(QApplication::clipboard()->text().isEmpty(), "Copy of an empty block adds no content");
+		tool(emptyBoxes[1], "markdownCodeBlockCopy")->click();
+		expect(QApplication::clipboard()->text() == QStringLiteral("\tconst auto value = \"Ω 😀\";"), "Copy preserves Unicode and tabs");
+		// Without the tools a body draws its code as before.
+		reader->set_body(body, "agent-answer:2");
+		reader->set_code_block_tools(false);
+		place();
+		expect(reader->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock")).isEmpty() && page->document()->idealWidth() > column, "off, the code is the document's own, as other bodies have it");
+	}
 } // namespace
 
 int main(int aArgc, char** aArgv)
@@ -596,6 +701,7 @@ try {
 	check_appearance_and_overflow(view);
 	check_labelled_bodies(view);
 	check_in_place_height();
+	check_code_block_tools();
 	std::cout << "markdown-body-view-tests:pass\n";
 	return EXIT_SUCCESS;
 } catch (...) {
