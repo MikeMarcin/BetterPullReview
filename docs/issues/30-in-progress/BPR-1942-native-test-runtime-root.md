@@ -116,3 +116,44 @@ source files are deliberately restored, and its binary remains explicitly
 rebuild-required. BPR-1943 owns the separate bounded fixture readiness correction;
 this card's failed original round-trip remains unmet until final normal native
 verification. Full release acceptance remains with the coordinator.
+
+
+## Final normal native acceptance and main integration
+
+Final uninstrumented combined source 9c3936cb5ad659a7487a44b7d17ebddadf1207ca
+is rebuilt and verified on the native Linux station, then intentionally pushed
+to authoritative main including latest 8f3102c2a. The affected app, invocation
+and helpers build passes 159.63 s with all 79 protected feature/compiler/hardening/
+tool/cache keys unchanged. The source is clean; main and invocation binaries
+contain no temporary diagnostic markers, and the app contains the real input
+guard. The normal 927-node configured graph changes exactly 25 writable root
+arguments and their exact logical-command mirrors; all other properties are
+identical and compile commands do not change across root selection.
+
+The ordinary suite runner passes all seven selected original registered rows:
+invocation 6.16 s, round-trip 1.92 s, the new runtime-root contract and four existing
+network-manifest/structure, suite-runner and command-registry tooling gates.
+Its three original documentation/issue/allocation preflight rows also pass.
+No projection, assertion/gesture/provider-sequence change or budget relaxation
+supplies these results. The 14-bit composition evidence and source contract
+remain enforced by the original registered course. The R1 functional negative
+and R2 diagnostic positive remain separately retained; the latter is not acceptance.
+
+The final full Git source is exact on both machines, with `src` tree
+67f3e76a720956a9ae653e699bd48825610b54d3 and `tests` tree
+eafc2a4942e4b48bfaf3cff919d8ec34d83c63e7. Native app SHA256 is
+8b232d317fa9e52309d91ce6e254b7fd80d12bec9fe5baf1016a31a6cb430dbc;
+invocation SHA256 is
+f7402c3337b7b1352b31bc2deeb49de9ab9dbe2c9871e3262aea3fd0b5f22dc2.
+Raw receipts/XML/stdout/cache/graph proofs are external
+candidate39/implementer1942/native-final-r3 and verification-r3-results.json.
+The guarded runtime peaks at 3,997,696 allocated bytes (256 MiB cap, original
+D guard, C32 GiB/root8 GiB reserves). Every owned descendant is reaped,
+normal empty-root cache restored and the exact owned runtime root removed.
+
+Focused format22/tidy22, documentation and board checks pass. This closes the
+bounded engineering criteria; selected 7+preflight 3 is not comprehensive or
+frozen-source release qualification. The coordinator owns the final frozen
+Mac/Windows/Linux graphs, full suites, security/trust/package/publication and
+full-suite runtime forecasts. Native development ownership is returned only
+after the final clean/idle handback.
