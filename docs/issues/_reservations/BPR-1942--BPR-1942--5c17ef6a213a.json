@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1942"
+  ],
+  "reserve_for": "codex-bpr-runtime-root",
+  "purpose": "Supported native full-suite runtime storage after BPR-1940",
+  "created": "2026-11-08T17:46:18.383996+00:00",
+  "base": "a5aa6caed6554f92ac0eb101018d983c333171ff"
+}
