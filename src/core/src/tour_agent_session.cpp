@@ -374,7 +374,20 @@ namespace bpr::core {
 		return aStop.LastLine > *file->HeadLines ? tour_anchor_verdict::beyond_file : tour_anchor_verdict::anchored;
 	}
 
-	auto propose_tour(const tour_agent_run_id aRun, const tour_draft_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal
+	namespace {
+		/// [[BPR-1900]] follow-up. Each part carries the head its run read.
+		void stamp_head(tour_proposal& aProposal, const std::optional<git_commit_oid>& aReadHead, const review_tour& aDraft)
+		{
+			const auto head = aReadHead.value_or(aDraft.ObservedHead.value_or(aDraft.Head));
+			for (auto& item : aProposal.Items) {
+				if (!item.Head) {
+					item.Head = head;
+				}
+			}
+		}
+	}
+
+	auto propose_tour(const tour_agent_run_id aRun, const tour_draft_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal
 	{
 		auto proposal = tour_proposal{ .Run = aRun };
 		if (aAnswer.Problem && nonblank(*aAnswer.Problem)) {
@@ -398,6 +411,7 @@ namespace bpr::core {
 		// within each.
 		std::ranges::stable_sort(stops, { }, &tour_proposal_item::Placement);
 		proposal.Items.insert(proposal.Items.end(), std::make_move_iterator(stops.begin()), std::make_move_iterator(stops.end()));
+		stamp_head(proposal, aReadHead, aDraft);
 		return proposal;
 	}
 
@@ -567,7 +581,15 @@ namespace bpr::core {
 			.Body        = aStop.Explanation,
 			.Mapping     = tour_mapping::unavailable,
 			.Destination = tour_code_destination{ .Commit = aHead, .Path = aStop.Path, .Side = diff_side::right, .FirstLine = aStop.FirstLine - 1U, .LastLine = aStop.LastLine - 1U },
+			// [[BPR-1900]] follow-up, owner 2026-11-07: "Why did my tour draft
+			// have this warning at every stop". Affirmed at the head its run
+			// read; a head that moves on since asks for it again.
+			.ReaffirmedHead = aHead,
 		};
+	}
+	auto proposal_head(const tour_proposal_item& aItem, const review_tour& aDraft) -> git_commit_oid
+	{
+		return aItem.Head.value_or(aDraft.ObservedHead.value_or(aDraft.Head));
 	}
 
 	namespace {
@@ -851,9 +873,9 @@ namespace bpr::core {
 		}
 	}
 
-	auto propose_tour_changes(const tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft) -> tour_proposal
+	auto propose_tour_changes(const tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal
 	{
-		auto proposal = propose_tour(aRun, aAnswer.Changes, aFiles, aDraft);
+		auto proposal = propose_tour(aRun, aAnswer.Changes, aFiles, aDraft, aReadHead);
 		auto seen     = std::vector<std::size_t>{ };
 		for (const auto& rewrite : aAnswer.StopTexts) {
 			if (rewrite.Stop == 0U || rewrite.Stop > aDraft.Stops.size() || !nonblank(rewrite.Explanation) || std::ranges::find(seen, rewrite.Stop) != seen.end()) {
@@ -868,6 +890,7 @@ namespace bpr::core {
 		if (aAnswer.Revision) {
 			propose_revision(proposal, *aAnswer.Revision, aFiles, aDraft);
 		}
+		stamp_head(proposal, aReadHead, aDraft);
 		return proposal;
 	}
 
@@ -1123,7 +1146,7 @@ namespace bpr::core {
 			if (!applied(tour, remove)) {
 				return std::nullopt;
 			}
-			const auto head = aDraft.ObservedHead.value_or(aDraft.Head);
+			const auto head = proposal_head(aItem, aDraft);
 			for (std::size_t index = 0U; index < aItem.Pieces.size(); ++index) {
 				auto insert     = command_for(tour, tour_command_kind::insert);
 				insert.Value    = tour_stop_of(aItem.Pieces[index], head);

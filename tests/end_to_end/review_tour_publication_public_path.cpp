@@ -447,7 +447,10 @@ auto main(int argc, char** argv) -> int
 			expect(access::reaccept_fixture_revision(*application, true), "changed-head fixture enters actual accepted-revision path");
 			wait([&] { return cold.shown().Draft && cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Preparation == core::tour_preparation::needs_attention; }, "changed head exposes explanation attention");
 			cold.outline()->setCurrentRow(0);
-			cold.findChild<QPushButton*>(QStringLiteral("tourReaffirm"))->click();
+			// [[BPR-1900]] follow-up. The Head changed chip by the stop's title, then
+			// its in-place Confirm.
+			cold.findChild<QToolButton*>(QStringLiteral("tourHeadChip"))->click();
+			cold.findChild<QPushButton*>(QStringLiteral("tourHeadConfirmYes"))->click();
 			saved(cold);
 			expect(cold.shown().Draft->Stops.front().ReaffirmedHead == cold.shown().Draft->ObservedHead && cold.shown().Draft->Stops.front().Remote == originalStops.front().Remote && cold.shown().Draft->Stops.front().Destination == originalStops.front().Destination, "explicit reaffirmation preserves original imported subject and comment");
 			{

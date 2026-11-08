@@ -755,7 +755,10 @@ namespace bpr::app {
 		TourDiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*TourEntryProcess, DiagnosticLog);
 		TourProjection       = std::make_unique<tour_session_projection>(
 			[this](const application::agent_invocation_projection_identity& aIdentity) { tour_run_admitted(aIdentity); },
-			[this](const application::agent_invocation_projection_identity&, const application::prepared_workspace& aWorkspace) { TourWorkspacePath = aWorkspace.Path; },
+			[this](const application::agent_invocation_projection_identity&, const application::prepared_workspace& aWorkspace) {
+				TourWorkspacePath = aWorkspace.Path;
+				TourWorkspaceHead = aWorkspace.PinnedHead;
+			},
 			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { tour_run_finished(aIdentity, aResult); },
 			[this](const std::string_view aReason) { tour_run_refused(aReason); });
 		TourSession = std::make_unique<application::agent_invocation_host>(
@@ -808,6 +811,7 @@ namespace bpr::app {
 		TourRunStarted = std::chrono::steady_clock::now();
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
+		TourWorkspaceHead.reset();
 		auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
@@ -1023,7 +1027,7 @@ namespace bpr::app {
 		auto       proposal = std::optional<core::tour_proposal>{ };
 		if (draft) {
 			auto files = tour_anchor_files(aResult);
-			proposal   = core::propose_tour_changes(aRun, *answer, files, *draft);
+			proposal   = core::propose_tour_changes(aRun, *answer, files, *draft, TourWorkspaceHead);
 			// [[BPR-1914]] v003. An Update proposes only its chat's part.
 			if (const auto* const asked = core::find_tour_run(TourAgent, aRun); asked != nullptr && asked->Update) {
 				proposal = core::keep_thread_part(std::move(*proposal), asked->Thread);
@@ -1099,20 +1103,27 @@ namespace bpr::app {
 	void github_application::implementation::reset_tour()
 	{
 		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
-		if (Closing || !draft || draft->ReadOnly || core::running_tour_run(TourAgent) || !core::resettable(core::reset_tally_of(*draft, TourAgent, TourProposal))) {
+		if (Closing || !draft || draft->ReadOnly || core::running_tour_run(TourAgent) || TourDraftPending || TourAskPending || (TourSession && !TourSession->is_quiescent()) || !core::resettable(core::reset_tally_of(*draft, TourAgent, TourProposal))) {
 			return;
 		}
-		auto       snapshot = tour_reset_undo{ .Draft = *draft, .Session = TourAgent, .Proposal = TourProposal, .Anchors = TourAnchorFiles };
-		const auto revision = draft->Revision;
-		TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = core::reset_tour(*draft) });
-		const auto after = TourHost->presentation().Draft;
-		if (!after || after->Revision == revision) {
-			Window->tour_editor()->show_writing_notice(QStringLiteral("The tour couldn't be reset. Nothing changed."));
-			return;
+		auto snapshot = tour_reset_undo{ .Draft = *draft, .Session = TourAgent, .Proposal = TourProposal, .Anchors = TourAnchorFiles, .ResetRevision = draft->Revision, .ResetRun = TourAgent.LastRun };
+		// [[BPR-1931]] follow-up, owner 2026-11-07: "Reset tour doesn't seem
+		// to reset unaccepted draft tour suggestions." A tour that is empty
+		// but for the agent's proposals is already the empty draft: the tour
+		// host refuses a restore that changes nothing, so only the proposals,
+		// chats and focus go.
+		if (const auto empty = core::reset_tour(*draft); empty != *draft) {
+			const auto revision = draft->Revision;
+			TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = empty });
+			const auto after = TourHost->presentation().Draft;
+			if (!after || after->Revision == revision) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("The tour couldn't be reset. Nothing changed."));
+				return;
+			}
+			snapshot.ResetRevision = after->Revision;
 		}
-		snapshot.ResetRevision = after->Revision;
-		TourResetUndo          = std::move(snapshot);
-		TourAgent              = core::tour_agent_session{ .LastRun = TourAgent.LastRun };
+		TourResetUndo = std::move(snapshot);
+		TourAgent     = core::tour_agent_session{ .LastRun = TourAgent.LastRun };
 		TourProposal.reset();
 		TourAnchorFiles.clear();
 		Window->tour_editor()->show_writing_notice({ });
@@ -1123,7 +1134,7 @@ namespace bpr::app {
 	void github_application::implementation::undo_tour_reset()
 	{
 		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
-		if (Closing || !draft || !TourResetUndo || draft->Revision != TourResetUndo->ResetRevision || core::running_tour_run(TourAgent)) {
+		if (Closing || !draft || !TourResetUndo || draft->Revision != TourResetUndo->ResetRevision || TourAgent.LastRun != TourResetUndo->ResetRun || core::running_tour_run(TourAgent)) {
 			TourResetUndo.reset();
 			present_tour_reset();
 			return;
@@ -1131,12 +1142,16 @@ namespace bpr::app {
 		// Taken first: the restore's own presentation lets a stale undo go.
 		auto undo = std::move(*TourResetUndo);
 		TourResetUndo.reset();
-		TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = undo.Draft });
-		const auto after = TourHost->presentation().Draft;
-		if (!after || after->Revision == draft->Revision) {
-			TourResetUndo = std::move(undo);
-			Window->tour_editor()->show_writing_notice(QStringLiteral("The reset couldn't be undone. The tour is as the reset left it."));
-			return;
+		// A reset that left the draft as it was (only proposals, chats or
+		// focus went) restores no draft either.
+		if (undo.Draft != *draft) {
+			TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = undo.Draft });
+			const auto after = TourHost->presentation().Draft;
+			if (!after || after->Revision == draft->Revision) {
+				TourResetUndo = std::move(undo);
+				Window->tour_editor()->show_writing_notice(QStringLiteral("The reset couldn't be undone. The tour is as the reset left it."));
+				return;
+			}
 		}
 		const auto last   = TourAgent.LastRun;
 		TourAgent         = std::move(undo.Session);
@@ -1156,7 +1171,9 @@ namespace bpr::app {
 		if (Window == nullptr) {
 			return;
 		}
-		if (TourResetUndo && (!draft || draft->Revision != TourResetUndo->ResetRevision)) {
+		// Undo reset goes once the tour or its conversation changes: a later
+		// run's turns are never overwritten by an Undo.
+		if (TourResetUndo && (!draft || draft->Revision != TourResetUndo->ResetRevision || TourAgent.LastRun != TourResetUndo->ResetRun)) {
 			TourResetUndo.reset();
 		}
 		const auto tally = draft ? core::reset_tally_of(*draft, TourAgent, TourProposal) : core::tour_reset_tally{ };
@@ -1283,7 +1300,7 @@ namespace bpr::app {
 		// [[BPR-1900]], owner 2026-11-06: stops strongly prefer the change;
 		// where it is comes from each file's patch.
 		auto files      = tour_anchor_files(aResult);
-		TourProposal    = core::propose_tour(*aRun, *answer, files, *draft);
+		TourProposal    = core::propose_tour(*aRun, *answer, files, *draft, TourWorkspaceHead);
 		TourAnchorFiles = std::move(files);
 		// [[BPR-1900]] owner look v002. Stops left out of the proposal are
 		// kept in the run's transcript, so nothing the agent said is lost.
@@ -1340,7 +1357,7 @@ namespace bpr::app {
 				// After the stops already accepted from this proposal, in its order.
 				auto position    = draft->Stops.size();
 				command.Kind     = core::tour_command_kind::insert;
-				command.Value    = core::tour_stop_of(item.Stop, draft->ObservedHead.value_or(draft->Head));
+				command.Value    = core::tour_stop_of(item.Stop, core::proposal_head(item, *draft));
 				command.Position = position;
 			} else {
 				command.Kind = item.Part == core::tour_proposal_part::problem ? core::tour_command_kind::problem : core::tour_command_kind::solution;
