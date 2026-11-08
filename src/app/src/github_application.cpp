@@ -1485,18 +1485,5 @@ namespace bpr::app {
 			QCoreApplication::exit(aExitCode);
 		}
 	}
-#if defined(BPR_BUILD_TESTING)
-	namespace {
-	#if defined(__APPLE__)
-	#elif defined(_WIN32)
-		inline constexpr int uiforetw_capture_open_height_floor   = 850;
-		inline constexpr int uiforetw_capture_folded_height_floor = 884;
-	#else
-		inline constexpr int uiforetw_capture_open_height_floor   = 842;
-		inline constexpr int uiforetw_capture_folded_height_floor = 876;
-	#endif
 
-	} // namespace
-
-#endif
 }

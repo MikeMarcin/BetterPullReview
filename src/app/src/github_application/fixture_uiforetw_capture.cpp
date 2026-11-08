@@ -127,6 +127,12 @@ namespace bpr::app {
 		inline constexpr int uiforetw_capture_open_height_floor = 838;
 
 		inline constexpr int uiforetw_capture_folded_height_floor = 872;
+	#elif defined(_WIN32)
+		inline constexpr int uiforetw_capture_open_height_floor   = 850;
+		inline constexpr int uiforetw_capture_folded_height_floor = 884;
+	#else
+		inline constexpr int uiforetw_capture_open_height_floor   = 842;
+		inline constexpr int uiforetw_capture_folded_height_floor = 876;
 	#endif
 		/// \brief [[BPR-1036]]. Names what shares the capture window with the
 		/// comparison when the comparison is under a layout floor.
