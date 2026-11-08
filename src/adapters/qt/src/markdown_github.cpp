@@ -2072,7 +2072,7 @@ namespace bpr::qt::detail {
 		auto changed = false;
 		for (auto block = aDocument.begin(); block.isValid(); block = block.next()) {
 			const auto path    = block.blockFormat().stringProperty(markdown_details_path_property);
-			auto       visible = true;
+			auto       visible = !block.blockFormat().boolProperty(markdown_hidden_property);
 			for (const auto& id : QStringView{ path }.split(QLatin1Char{ '/' }, Qt::SkipEmptyParts)) {
 				visible = visible && open[id.toInt()];
 			}

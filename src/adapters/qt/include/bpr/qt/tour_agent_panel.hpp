@@ -27,6 +27,10 @@ class QVBoxLayout;
 class QTextCursor;
 
 namespace bpr::qt {
+	namespace detail {
+		class markdown_code_store;
+		class markdown_code_block_objects;
+	}
 	class markdown_body_view;
 	/// \brief [[BPR-1900]]. The Tour tab's own agent session, at the top of
 	/// the tab: Draft the tour (Stop drafting while it runs), the whole-tour
@@ -200,6 +204,7 @@ namespace bpr::qt {
 		void                             show_run(std::optional<core::tour_agent_run_id> aRun, std::optional<std::size_t> aEntry);
 		void                             copy(const QString& aText, const QString& aSaid);
 		void                             append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const;
+		void                             style_transcript_code();
 		void                             refresh_toggle();
 		std::function<void()>            DraftDispatch;
 		std::function<void()>            StopDispatch;
@@ -245,6 +250,8 @@ namespace bpr::qt {
 		QWidget*                                                                    TranscriptWindow = nullptr;
 		QListWidget*                                                                RunList          = nullptr;
 		QTextBrowser*                                                               RunView          = nullptr;
+		std::shared_ptr<detail::markdown_code_store>                                TranscriptCode;
+		detail::markdown_code_block_objects*                                        TranscriptFrames = nullptr;
 		QPushButton*                                                                CopyRun          = nullptr;
 		QPushButton*                                                                CopyAll          = nullptr;
 		QLabel*                                                                     Copied           = nullptr;

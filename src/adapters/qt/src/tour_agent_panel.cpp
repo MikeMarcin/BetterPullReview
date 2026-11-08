@@ -1,8 +1,11 @@
 #include "bpr/qt/tour_agent_panel.hpp"
 
+#include "markdown_code.hpp"
+#include "markdown_code_block.hpp"
 #include "markdown_github.hpp"
 
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -17,6 +20,7 @@
 #include <QLabel>
 #include <QLayout>
 #include <QListWidget>
+#include <QMimeData>
 #include <QPainter>
 #include <QPlainTextEdit>
 #include <QPushButton>
@@ -36,6 +40,32 @@
 
 namespace bpr::qt {
 	namespace {
+		// A selection spans the whole transcript; code's layout objects
+		// contribute no text, while their hidden code lines still do.
+		class transcript_browser final : public QTextBrowser
+		{
+		public:
+			using QTextBrowser::QTextBrowser;
+
+		protected:
+			QMimeData* createMimeDataFromSelection() const override
+			{
+				auto selected = QTextDocument{ };
+				auto cursor   = QTextCursor{ &selected };
+				cursor.insertFragment(textCursor().selection());
+				for (auto position = selected.characterCount() - 2; position >= 0; --position) {
+					cursor.setPosition(position);
+					cursor.setPosition(position + 1, QTextCursor::KeepAnchor);
+					if (cursor.charFormat().objectType() == detail::markdown_code_block_object) {
+						cursor.removeSelectedText();
+					}
+				}
+				auto* mime = new QMimeData;
+				mime->setText(selected.toPlainText());
+				return mime;
+			}
+		};
+
 		auto mixed(const QColor& aFrom, const QColor& aTo, const double aAmount) -> QColor
 		{
 			return QColor::fromRgbF(static_cast<float>(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aAmount), static_cast<float>(aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aAmount),
@@ -615,7 +645,9 @@ namespace bpr::qt {
 		RunList->setUniformItemSizes(false);
 		RunList->setMinimumWidth(170);
 		RunList->setSpacing(3);
-		RunView = new QTextBrowser{ split };
+		RunView          = new transcript_browser{ split };
+		TranscriptCode   = std::make_shared<detail::markdown_code_store>();
+		TranscriptFrames = new detail::markdown_code_block_objects{ *RunView };
 		RunView->setObjectName(QStringLiteral("tourSessionRun"));
 		RunView->setAccessibleName(tr("Conversation"));
 		RunView->setOpenLinks(false);
@@ -873,6 +905,12 @@ namespace bpr::qt {
 				reader->request_code_syntax();
 			}
 		}
+		style_transcript_code();
+		if (CodeDispatch) {
+			if (auto requests = TranscriptCode->requests(); !requests.empty()) {
+				CodeDispatch(std::move(requests));
+			}
+		}
 		fit_readers();
 	}
 
@@ -880,6 +918,9 @@ namespace bpr::qt {
 	{
 		for (const auto& [index, reader] : Readers) {
 			reader->apply_code_syntax(aSpans);
+		}
+		if (TranscriptCode->apply(aSpans)) {
+			style_transcript_code();
 		}
 	}
 
@@ -1548,7 +1589,10 @@ namespace bpr::qt {
 		CopyAll->setEnabled(!Session.Runs.empty());
 		const auto muted = TranscriptWindow->palette().color(QPalette::Active, QPalette::PlaceholderText).name();
 		const auto code  = QFontDatabase::systemFont(QFontDatabase::FixedFont).family().toHtmlEscaped();
+		TranscriptFrames->clear();
+		TranscriptCode->clear();
 		if (Session.Runs.empty()) {
+			TranscriptFrames->reset_wrap();
 			RunView->setHtml(QStringLiteral("<p style=\"color:%1\">%2</p>").arg(muted, tr("Nothing asked yet. Select a passage in the Problem, the Solution or a stop and press Ask about this, or ask below about the tour or the change.").toHtmlEscaped()));
 			return;
 		}
@@ -1556,15 +1600,42 @@ namespace bpr::qt {
 		// document: a selection runs across turns, and the platform's Copy
 		// takes it as text.
 		RunView->clear();
-		auto cursor = QTextCursor{ RunView->document() };
+		auto cursor  = QTextCursor{ RunView->document() };
+		auto replies = QString{ };
 		for (const auto& each : Session.Runs) {
 			append_run(cursor, each, muted, code);
+			if (each.Request == core::tour_agent_request::ask && each.State == core::tour_agent_run_state::answered) {
+				auto prepared = QString::fromStdString(each.Reply);
+				detail::markdown_code_store::prepare(prepared, false, true);
+				replies += prepared + QStringLiteral("\n\n");
+			}
+		}
+		TranscriptCode->place(*RunView->document(), replies, std::nullopt, { }, true);
+		TranscriptFrames->create(*TranscriptCode);
+		style_transcript_code();
+		TranscriptFrames->place();
+		if (CodeDispatch) {
+			if (auto requests = TranscriptCode->requests(); !requests.empty()) {
+				CodeDispatch(std::move(requests));
+			}
 		}
 		if (run == nullptr) {
 			return;
 		}
 		const auto anchor = aEntry ? QStringLiteral("run-%1-entry-%2").arg(run->Id.value()).arg(*aEntry) : QStringLiteral("run-%1").arg(run->Id.value());
 		RunView->scrollToAnchor(anchor);
+	}
+
+	void tour_agent_panel::style_transcript_code()
+	{
+		auto theme = CodeTheme;
+		if (!theme) {
+			const auto variant = RunView->palette().color(QPalette::Base).lightness() < 128 ? core::appearance_variant::dark : core::appearance_variant::light;
+			theme              = markdown_code_theme{ .Colors = code_role_colors_of(builtin_appearance_palette(variant)), .Variant = variant };
+		}
+		const auto codeFont = CodeFont == QFont{ } ? QFontDatabase::systemFont(QFontDatabase::FixedFont) : CodeFont;
+		TranscriptCode->style(*RunView->document(), detail::markdown_code_colours_of(*theme, RunView->palette()), theme->Colors, theme->Variant, RunView->font(), codeFont);
+		TranscriptFrames->style(*TranscriptCode, theme->Colors, RunView->font(), codeFont, TabStop);
 	}
 
 	void tour_agent_panel::append_run(QTextCursor& aCursor, const core::tour_agent_run& aRun, const QString& aMuted, const QString& aCode) const
@@ -1637,7 +1708,9 @@ namespace bpr::qt {
 		// a body is read: paragraphs, lists, code.
 		auto scratch = QTextDocument{ };
 		scratch.setDefaultFont(RunView->document()->defaultFont());
-		detail::import_github_markdown(scratch, QString::fromStdString(aRun.Reply));
+		auto prepared = QString::fromStdString(aRun.Reply);
+		detail::markdown_code_store::prepare(prepared, false, true);
+		detail::import_github_markdown(scratch, prepared);
 		// Code in the code face the transcript's commands use.
 		auto codeFormat = QTextCharFormat{ };
 		codeFormat.setFontFamilies({ QFontDatabase::systemFont(QFontDatabase::FixedFont).family() });
@@ -1652,7 +1725,7 @@ namespace bpr::qt {
 			}
 		}
 		aCursor.movePosition(QTextCursor::End);
-		aCursor.insertBlock(QTextBlockFormat{ }, QTextCharFormat{ });
+		aCursor.insertBlock(scratch.begin().blockFormat(), QTextCharFormat{ });
 		aCursor.insertFragment(QTextDocumentFragment{ &scratch });
 		if (const auto proposed = proposed_words(aRun.Proposed); !proposed.isEmpty()) {
 			aCursor.movePosition(QTextCursor::End);

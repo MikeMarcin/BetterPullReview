@@ -96,6 +96,7 @@ add_library(
         src/markdown_images.cpp
         src/markdown_github.cpp
         src/markdown_code.cpp
+        src/markdown_code_block.cpp
         src/markdown_github_html.cpp
         src/markdown_github_math.cpp
         src/pull_request_overview_page.cpp

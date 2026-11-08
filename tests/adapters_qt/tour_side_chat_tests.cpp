@@ -26,12 +26,15 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTabBar>
 #include <QTextBlock>
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QToolButton>
 
+#include <algorithm>
 #include <cstdlib>
 #include <deque>
 #include <iostream>
@@ -262,7 +265,14 @@ auto main(int argc, char** argv) -> int
 		expect(line->text() == QStringLiteral("● Claude Code is thinking, 0:00."), "the same words the Agent tab's turn says");
 		auto clock = QElapsedTimer{ };
 		clock.start();
-		while (clock.elapsed() < 1300) {
+		// Debug qualifies the live update, with room for a coalesced timer;
+		// its scheduling latency is not a performance acceptance gate.
+#ifdef NDEBUG
+		constexpr auto liveBudget = 1300;
+#else
+		constexpr auto liveBudget = 3000;
+#endif
+		while (clock.elapsed() < liveBudget && line->text() == QStringLiteral("● Claude Code is thinking, 0:00.")) {
 			QApplication::processEvents(QEventLoop::AllEvents, 50);
 		}
 		expect(line->text() == QStringLiteral("● Claude Code is thinking, 0:01."), "AC1 the time counts live: " + line->text().toStdString());
@@ -329,6 +339,53 @@ auto main(int argc, char** argv) -> int
 	expect(colours(*chat->reply(0), QStringLiteral("scoped_lock")) == stopOwn, "AC1 the reply's C++ in the same colours");
 	expect(colours(*chat->proposal_reader(0), QStringLiteral("scoped_lock")) == stopOwn, "AC1 the proposal's too");
 	expect(colours(*chat->reply(0), QStringLiteral("plain_text")).size() <= 1U, "AC2 an unknown language stays plain");
+	// [[BPR-1944]]. The reply's blocks are boxes as wide as the chat, each
+	// with its language, Wrap and Copy, coloured as before; a proposal's code
+	// reads as its stop will once published.
+	{
+		auto boxes = chat->reply(0)->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock"));
+		std::ranges::sort(boxes, [](const QWidget* aFirst, const QWidget* aSecond) { return aFirst->y() < aSecond->y(); });
+		expect(boxes.size() == 2 && boxes[0]->accessibleName() == QStringLiteral("C++ code") && boxes[1]->accessibleName() == QStringLiteral("nosuchlanguage code"), "AC1 the tour chat's reply shows each block as a box named by its language");
+		for (auto* const box : boxes) {
+			expect(box->isVisibleTo(chat->reply(0)) && box->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockWrap")) != nullptr && box->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockCopy")) != nullptr, "AC1 with Wrap and Copy");
+			expect(box->width() == chat->reply(0)->rendered_view()->viewport()->width(), "AC7 as wide as the reply");
+		}
+		expect(chat->reply(0)->rendered_view()->horizontalScrollBar()->maximum() == 0, "AC7 the reply has no horizontal scroll range");
+		if (boxes.size() == 2) {
+			auto  boxed = std::set<QRgb>{ };
+			auto* text  = boxes[0]->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+			for (auto block = text->document()->begin(); block.isValid(); block = block.next()) {
+				if (block.text().contains(QStringLiteral("scoped_lock")) && block.layout() != nullptr) {
+					for (const auto& range : block.layout()->formats()) {
+						boxed.insert(range.format.foreground().color().rgb());
+					}
+				}
+			}
+			expect(boxed == stopOwn, "AC4 the box's C++ in the stop reader's colours");
+			boxes[0]->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockCopy"))->click();
+			expect(QGuiApplication::clipboard()->text() == QStringLiteral("auto lock = std::scoped_lock{ Mutex };\nreturn *Table;"), "AC2 Copy in the tour chat takes exactly the code");
+		}
+		expect(chat->proposal_reader(0)->findChildren<QWidget*>(QStringLiteral("markdownCodeBlock")).isEmpty(), "a proposal's code reads as its stop will");
+	}
+	// The composed chat stays bounded with genuinely wide code too.
+	{
+		auto       wideSession = session;
+		const auto wideRun     = core::begin_tour_ask(wideSession, asked[0].Thread, std::nullopt, "Show a long line");
+		expect(wideRun.has_value(), "start the wide-code turn");
+		static_cast<void>(core::answer_tour_ask(wideSession, *wideRun, "```\n" + std::string(400, 'w') + "\n```", { }));
+		editor.present_tour_session(wideSession, changes);
+		settle();
+		auto* const view = chat->reply(chat->turn_count() - 1U);
+		auto* const box  = view->findChild<QWidget*>(QStringLiteral("markdownCodeBlock"));
+		auto* const text = box == nullptr ? nullptr : box->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+		auto* const pane = chat->findChild<QScrollArea*>(QStringLiteral("tourSideChatScroll"));
+		expect(text != nullptr && text->horizontalScrollBar()->maximum() > 0, "AC7 a 400-character line scrolls inside the tour reply's code block");
+		expect(pane != nullptr && pane->horizontalScrollBar()->maximum() == 0 && view->rendered_view()->horizontalScrollBar()->maximum() == 0, "AC7 neither tour pane nor message has a horizontal scroll range");
+		expect(box != nullptr && box->width() == view->rendered_view()->viewport()->width() && view->width() <= pane->viewport()->width(), "AC7 the tour reply stays inside the column");
+		editor.present_tour_session(session, changes);
+		settle();
+		syntax.deliver(editor);
+	}
 	// [[BPR-1914]] v004, owner look v003: "it seems like inline code isnt
 	// being highlighted only blocks". Inline code reads in the language of
 	// the chat's part (here the tour's stops, all C++).

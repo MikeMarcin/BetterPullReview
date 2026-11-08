@@ -73,6 +73,9 @@ namespace bpr::qt::detail {
 	/// Character property: the colour a formula's `\color` gave its text
 	/// ([[BPR-1792]]), kept through the styling that recolours summaries.
 	inline constexpr auto markdown_math_colour_property = QTextFormat::UserProperty + 0x0B5B;
+	/// Block property: a block kept hidden whatever its `<details>` say: a
+	/// fenced line another widget shows ([[BPR-1944]]).
+	inline constexpr auto markdown_hidden_property = QTextFormat::UserProperty + 0x0B5C;
 	/// The in-body target that toggles `<details>` number N is `details:N`.
 	inline constexpr auto markdown_details_target = QLatin1StringView{ "details:" };
 

@@ -11,6 +11,7 @@
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/core/markdown_code.hpp"
+#include "bpr/qt/agent_launch_panel.hpp"
 #include "bpr/qt/agent_tab_view.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/code_sample_painter.hpp"
@@ -20,6 +21,7 @@
 #include <QAbstractButton>
 #include <QAbstractTextDocumentLayout>
 #include <QApplication>
+#include <QClipboard>
 #include <QDir>
 #include <QElapsedTimer>
 #include <QFile>
@@ -36,6 +38,7 @@
 #include <QTextDocument>
 #include <QTextEdit>
 #include <QTextLayout>
+#include <QToolButton>
 #include <QVBoxLayout>
 
 #include <array>
@@ -528,6 +531,16 @@ namespace {
 		window.set_markdown_code_dispatch([&host](std::vector<application::markdown_code_syntax_request> aRequests) { host.request(aRequests); });
 		window.resize(1'200, 800);
 		window.show();
+		auto opened   = application::workbench_projection{ };
+		auto commands = core::workbench_command_delta{ };
+		for (std::size_t index = 0U; index < core::workbench_command_count; ++index) {
+			commands.Commands[index] = { .Id = static_cast<core::workbench_command_id>(index), .Enabled = true, .DisabledReason = core::workbench_reason_code::none };
+		}
+		opened.Commands = commands;
+		opened.Drawers  = core::workbench_drawer_delta{ .Files = core::workbench_drawer_state::expanded, .Conversations = core::workbench_drawer_state::expanded };
+		window.publish(opened);
+		window.choose_modality(qt::review_modality::review);
+		window.open_agent_question();
 		settle();
 		const auto drain = [&effects, &decisions] {
 			while (!effects.Tasks.empty() || !decisions.Tasks.empty()) {
@@ -541,8 +554,14 @@ namespace {
 			}
 			settle();
 		};
-		auto* const agent = window.agent_tab();
-		const auto  kept  = std::vector<qt::agent_thread_turn>{ {
+		auto* const agent   = window.agent_tab();
+		auto        profile = core::agent_profile{ };
+		profile.Id          = core::agent_profile_id{ 1U };
+		profile.DisplayName = "Fixture agent";
+		profile.Executable  = "/usr/bin/true";
+		window.agent_panel()->offer_profiles(std::vector{ profile });
+		agent->refresh();
+		const auto kept = std::vector<qt::agent_thread_turn>{ {
 			.Question = QStringLiteral("Show the check"),
 			.Answer   = QStringLiteral("It returns early:\n\n```cpp\nif (!validate(scale)) {\n\treturn false;\n}\n```"),
 			.Footer   = QStringLiteral("answered"),
@@ -576,6 +595,53 @@ namespace {
 		settle();
 		expect(host.classifications() == classified && host.cache_hits() > hits && effects.Tasks.empty(), "the thread shown again is answered from the cache, inside the ask");
 		expect(runs() == live, "the thread shown again is coloured exactly as it was the first time");
+		// [[BPR-1944]]. The answer's block is a box with its language, Wrap
+		// and Copy, its code coloured exactly as the document's lines are.
+		{
+			auto* const view = agent->turn_answer_view(0U);
+			auto* const box  = view == nullptr ? nullptr : view->findChild<QWidget*>(QStringLiteral("markdownCodeBlock"));
+			expect(box != nullptr && box->isVisible() && box->accessibleName() == QStringLiteral("C++ code"), "AC1 the visible Agent tab's answer shows its C++ block as a box");
+			expect(box != nullptr && box->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockWrap")) != nullptr && box->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockCopy")) != nullptr, "AC1 with Wrap and Copy");
+			auto* const text  = box == nullptr ? nullptr : box->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+			auto        boxed = std::vector<std::pair<QString, QRgb>>{ };
+			for (auto block = text == nullptr ? QTextBlock{ } : text->document()->begin(); block.isValid(); block = block.next()) {
+				for (const auto& range : formats_of(block)) {
+					if (range.format.hasProperty(QTextFormat::ForegroundBrush)) {
+						boxed.emplace_back(block.text().mid(range.start, range.length), range.format.foreground().color().rgba());
+					}
+				}
+			}
+			expect(!boxed.empty() && boxed == live, "AC4 the box's code is highlighted exactly as before");
+			const auto renderRoot = qEnvironmentVariable("BPR_MARKDOWN_RENDER_DIR");
+			if (!renderRoot.isEmpty()) {
+				expect(QDir{ }.mkpath(renderRoot) && window.grab().save(renderRoot + QStringLiteral("/agent-code-blocks.png")), "render the composed Agent answer");
+			}
+			box->findChild<QToolButton*>(QStringLiteral("markdownCodeBlockCopy"))->click();
+			expect(QApplication::clipboard()->text() == QStringLiteral("if (!validate(scale)) {\n\treturn false;\n}"), "AC2 Copy in the Agent tab takes exactly the code");
+		}
+		// AC7. A 400-character line keeps the answer the column's width and
+		// scrolls inside its box.
+		{
+			const auto wide = std::vector<qt::agent_thread_turn>{ {
+				.Question = QStringLiteral("Show the long line"),
+				.Answer   = QStringLiteral("Here:\n\n```\n") + QString{ 400, QLatin1Char{ 'w' } } + QStringLiteral("\n```"),
+				.Footer   = QStringLiteral("answered"),
+			} };
+			agent->present_thread(wide);
+			settle();
+			drain();
+			auto* const view = agent->turn_answer_view(0U);
+			auto* const box  = view == nullptr ? nullptr : view->findChild<QWidget*>(QStringLiteral("markdownCodeBlock"));
+			auto* const text = box == nullptr ? nullptr : box->findChild<QTextEdit*>(QStringLiteral("markdownCodeBlockText"));
+			auto* const card = view == nullptr ? nullptr : view->parentWidget();
+			expect(text != nullptr && text->horizontalScrollBar()->maximum() > 0, "AC7 the long line scrolls inside its box");
+			expect(view != nullptr && view->rendered_view()->horizontalScrollBar()->maximum() == 0 && box->width() == view->rendered_view()->viewport()->width(),
+				   "AC7 the answer has no horizontal scroll range and the box is its width");
+			expect(card != nullptr && view->geometry().right() < card->width() && card->width() <= agent->width(), "AC7 the answer stays inside its card and the card inside the chat");
+			agent->present_thread(kept);
+			settle();
+			drain();
+		}
 		window.set_markdown_code_dispatch({ });
 		host.shutdown();
 	}

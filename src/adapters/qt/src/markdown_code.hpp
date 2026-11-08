@@ -11,6 +11,7 @@
 #include <QPointF>
 #include <QString>
 #include <QTextFormat>
+#include <QTextLayout>
 
 #include <memory>
 #include <optional>
@@ -47,6 +48,9 @@ namespace bpr::qt::detail {
 	/// Block property: a suggestion row's gutter width, and of that its numbers'.
 	inline constexpr auto markdown_code_gutter_property  = QTextFormat::UserProperty + 0x0B64;
 	inline constexpr auto markdown_code_numbers_property = QTextFormat::UserProperty + 0x0B65;
+	/// Block property: [[BPR-1944]]. The place of a framed block, by its
+	/// ordinal: one object character its box is laid over.
+	inline constexpr auto markdown_code_frame_property = QTextFormat::UserProperty + 0x0B67;
 
 	enum class markdown_code_row : int {
 		none = 0,
@@ -121,12 +125,14 @@ namespace bpr::qt::detail {
 			/// [[BPR-1802]]. A permalink's snippet box, by its place in the
 			/// reader's list.
 			std::optional<markdown_code_snippet> Snippet;
+			/// [[BPR-1944]]. Shown as its own box over its place, its lines
+			/// hidden in the document.
+			bool Framed = false;
 		};
 
-		/// \brief Before the import: an empty suggestion gets one marked line,
-		/// so the import keeps a block where its rows go. Nothing changes when
-		/// suggestions are not shown or the body holds the mark.
-		static void prepare(QString& aText, bool aSuggestions);
+		/// \brief Keeps a marked line for an empty suggestion or framed fence
+		/// before import, so its box can be placed. Leaves other code intact.
+		static void prepare(QString& aText, bool aSuggestions, bool aFramed = false);
 
 		/// \brief Owner look v004 ([[BPR-1753]]): the file name inline
 		/// code is classified as, such as `code.cpp`; empty, the default,
@@ -145,8 +151,10 @@ namespace bpr::qt::detail {
 		/// shows each suggestion when `aSuggestions` says this body is a line
 		/// comment.
 		/// [[BPR-1802]]: and each fence `aSnippets` names as a snippet box.
+		/// [[BPR-1944]]: and, with `aFramed`, each other placed block as a
+		/// place for its box, its lines kept but hidden.
 		void place(QTextDocument& aDocument, const QString& aPrepared, const std::optional<markdown_suggestion_presentation>& aSuggestions,
-				   std::span<const markdown_code_snippet> aSnippets = { });
+				   std::span<const markdown_code_snippet> aSnippets = { }, bool aFramed = false);
 		void clear();
 
 		/// \brief Every text to classify, once each.
@@ -165,6 +173,14 @@ namespace bpr::qt::detail {
 		void paint_over(QPainter& aPainter, const QTextDocument& aDocument, QPointF aOffset) const;
 
 		[[nodiscard]] auto blocks() const noexcept -> const std::vector<block>& { return Blocks; }
+		/// \brief [[BPR-1944]]. One line's colours as `style` gives the
+		/// document's line: its language's, or a `diff` block's marks.
+		[[nodiscard]] auto line_formats_of(const block& aBlock, std::uint32_t aLine, const code_role_colors& aRoles) const -> QList<QTextLayout::FormatRange>;
+		/// \brief [[BPR-1944]]. A block's language as its box names it: the
+		/// language's name, else the info string's first word, else "Plain text".
+		[[nodiscard]] static auto language_label(const block& aBlock) -> QString;
+		/// \brief The colours of the last `style`.
+		[[nodiscard]] auto colours() const noexcept -> const markdown_code_colours& { return Colours; }
 		[[nodiscard]] auto suggestions() const noexcept -> bool;
 		/// \brief [[BPR-1802]]. Whether any block is a snippet box.
 		[[nodiscard]] auto snippets() const noexcept -> bool;

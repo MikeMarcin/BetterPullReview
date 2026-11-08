@@ -41,6 +41,7 @@ namespace bpr::qt {
 	namespace detail {
 		class markdown_image_store;
 		class markdown_code_store;
+		class markdown_code_block_objects;
 	}
 
 	/// \brief [[BPR-1562]]. The theme fenced code is drawn in: the review
@@ -155,6 +156,15 @@ namespace bpr::qt {
 		/// or as plain code without a presentation (descriptions, issue
 		/// comments, review summaries), as GitHub does.
 		void set_suggestions(std::optional<markdown_suggestion_presentation> aSuggestions);
+		/// \brief [[BPR-1944]]. Shows each fenced block (not a suggestion or
+		/// a permalink's box) as its own box: a header with its language,
+		/// Wrap and Copy, over its code, as wide as the reader, a long line
+		/// scrolling sideways inside the box rather than widening the reader.
+		/// Off by default; an agent's answer turns it on.
+		/// \details Copy writes the clipboard, which is presentation. Wrap is
+		/// kept by block while the identity stays.
+		void               set_code_block_tools(bool aShown);
+		[[nodiscard]] auto code_block_tools() const noexcept -> bool;
 		/// \brief The current body's fenced code, for tests and accessibility.
 		[[nodiscard]] auto code_store() const noexcept -> const detail::markdown_code_store*;
 		/// \brief Switches modes, retaining independent positions and selections.
@@ -283,7 +293,11 @@ namespace bpr::qt {
 		std::vector<core::markdown_blob_permalink>                                   Standing;
 		std::vector<held_snippet>                                                    Snippets;
 		std::optional<std::pair<std::size_t, std::size_t>>                           RenderedLead;
-		std::size_t                                                                  SnippetsShown = 0U;
+		/// [[BPR-1944]]. Framed code: whether it is on, each box's place's
+		/// sizes, and the blocks the reader wrapped.
+		bool                                 CodeTools     = false;
+		detail::markdown_code_block_objects* Frames        = nullptr;
+		std::size_t                          SnippetsShown = 0U;
 	};
 } // namespace bpr::qt
 

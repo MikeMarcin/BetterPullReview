@@ -236,6 +236,20 @@ GitHub does. Indented code blocks and inline code spans are not coloured,
 because GitHub does not colour them either. Source, copy and publication keep
 the original bytes, and colours never change a line's text or geometry.
 
+**Agent answers.** [[BPR-1944]] adds a language header, Wrap toggle and
+Copy button to fenced code in the Agent tab, tour side chats and the Tour
+conversation window. Each block fills the available column width and starts
+unwrapped; long lines scroll inside that block. Wrap changes only its own
+block and survives a refresh of the same answer. Copy takes the code alone,
+with no fence, language line or added trailing newline, and briefly confirms
+"Copied". The controls have accessible names and take keyboard focus. Syntax
+formats, code fonts and theme colours come from the existing code store; the
+conversation window uses that store too. The transcript remains one selectable
+document, including its code, and turn navigation and whole-conversation Copy
+remain available. Tour proposals retain the stop reader's presentation so the
+proposed text previews the text that will be published. Other Markdown readers
+keep their existing code presentation.
+
 **Finding the blocks.** `core::scan_markdown_fenced_code` reads the prepared
 text that Qt imports: fences at top level, in block quotes and in list items,
 each block's lines with container prefixes and fence indentation removed

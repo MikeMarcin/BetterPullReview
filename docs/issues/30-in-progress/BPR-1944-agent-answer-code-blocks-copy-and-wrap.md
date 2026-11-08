@@ -67,3 +67,85 @@ scrolled independently like codex instead of the whole pane expanding."
   scroll range (geometry test).
 - AC5. Owner look: Accept/Reject on a frozen build.
 - AC6. The documentation gate passes.
+
+## Implementation and review (2026-11-08)
+
+The owner transferred the unfinished Claude worktree to Codex for direct
+implementation, review, landing on main and cleanup after acceptance.
+`frontend-design:frontend-design` and its desktop guidance were loaded.
+
+The shared code store places a bounded widget over each fenced block's place
+in the text document. The code stays selectable in the continuous document;
+long lines scroll in the block's own read-only editor. The shared widget owns
+its language header, keyboard-reachable Wrap and Copy, copied confirmation,
+theme colours and syntax formats. Wrap is kept per block for the same answer.
+
+The Agent tab and tour replies opt into this presentation. The Conversation
+window now uses the same block store and widget while retaining its original
+transcript, turn anchors, continuous selection and Copy turn/conversation.
+Tour proposals keep the stop reader's look: they preview what will be
+published rather than an agent answer.
+
+Direct self-review found and corrected the missing Conversation surface,
+layout markers leaking into selection Copy, a Windows SDK macro collision,
+leading-tab expansion and the first fence's block format being lost when a
+reply fragment entered the transcript. Empty top-level fences keep their
+controls and copy an empty string. Fence-looking text inside another block is
+validated with the existing scanner before inserting an empty-block marker.
+
+The initial integration run passed 27/29. Its failures were an existing Debug
+live-timer deadline (later semantic checks were unreached) and focus after the
+new transcript-window check. The Debug course now allows a bounded three-second
+watchdog for the live semantic update, consistent with the permanent Debug
+timing policy; Release retains its 1.3-second bound. The window test explicitly
+restores its main-window activation after hiding the transcript. These are
+rechecked below; neither failure is relabelled a passing initial run.
+
+AC5 remains open for the owner's exact frozen candidate. No landing or
+worktree cleanup is claimed before that verdict.
+
+## Automated verification
+
+macOS arm64, Qt 6.12.0, Debug, 2026-11-08:
+
+- AC1/AC4: `qt_markdown_code_1_0`, `_1_25`, `_2_0` exercise the visible
+  Agent tab and its composed classifier; `qt_tour_side_chat` exercises the
+  tour answer; `qt_tour_chat_in_tab` exercises the window's tour chat and
+  Conversation window with the composed classifier. Header controls and
+  language labels are present and the token colours are retained.
+- AC2/AC3: `qt_markdown_body_1_0`, `_1_25`, `_2_0` verify exact clipboard
+  text, empty blocks, Unicode/tabs, keyboard Wrap, independent wrapping,
+  geometry and identity-bound wrap retention. `qt_tour_agent_session_view`
+  verifies Conversation Copy/Wrap and selection spanning turns without
+  layout-object characters.
+- AC7: 400-character lines are tested in the Agent tab, tour chat and
+  Conversation; each block scrolls horizontally and its containing message
+  and pane have no horizontal scroll range.
+- The integration selector covered 29 checks: architecture boundaries and
+  their negative contract, composed GitHub, Markdown body, GitHub Markdown,
+  CommonMark, HTML, composed Markdown, images, code and the three tour
+  surfaces. Initial result 27/29, with the two failures retained above.
+  After the corrections, the five affected checks (three code scales,
+  side chat and composed tour chat) pass. Strengthening the Agent check to
+  require actual visibility first exposed its fixture's missing configured
+  agent; the fixture now offers an inert profile and the final three scales
+  pass with a rendered visible answer. No process is launched by that profile.
+- The built application, offscreen on `conventional-comments-v1`, with the
+  existing tour-conversation course and a generated synthetic agent fixture,
+  reaches `ATTENDED_TOUR_CONVERSATION_SHOWN`. Its rendered answer includes
+  highlighted C++ and an independently scrolling 400-character plain line.
+  An initial probe used an unsupported epoch phase and refused configuration;
+  the corrected `single` phase passed. No live agent or GitHub is involved.
+- `verify_documentation.py --root .`: `DOCUMENTATION_OK`.
+  `verify_documentation_tests.py`: 67 pass. The Claude worktree lacks the
+  ignored skill deployment link, so these commands use the installed
+  implement-rfc scripts on `PYTHONPATH`.
+- Clang-format 22.1.8 checks the 20 touched C++ files; focused clang-tidy 22
+  passes for `markdown_code_block.cpp`, `markdown_code.cpp`,
+  `markdown_body_view.cpp` and `tour_agent_panel.cpp`, warnings as errors.
+  `git diff --check` passes. No dedicated Debug performance course is run.
+- Evidence and direct-strategy continuation are outside Git at
+  `/Users/jaeger/.codex/task-runs/bpr1944-kw0n7hzx`.
+
+These are offscreen layout and interaction observations. Native appearance
+judgment belongs to AC5; Windows and Linux native UI were not exercised.
