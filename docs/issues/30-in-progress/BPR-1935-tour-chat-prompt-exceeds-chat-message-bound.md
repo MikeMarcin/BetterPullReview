@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1935"
 title: "A tour chat turn is refused as invalid_agent_context once its prompt passes the 16 KiB chat-message bound"
-status: "Backlog"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1914"]
 priority: "P1"
