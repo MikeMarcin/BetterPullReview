@@ -59,9 +59,16 @@ namespace bpr::qt {
 		std::uint32_t        BracketLast  = 1U;
 		QFont                Code;
 	};
-#if !defined(_WIN32)
+#if defined(_WIN32)
+	// [[BPR-0653]]. On Windows the strip also carries the menu control and
+	// the three 46-pixel caption buttons. With the modality segments at their
+	// three-character prefixes every control is top level from 902 pixels,
+	// and the owner chose that floor on 2026-09-17.
+	inline constexpr int platform_floor_width = 902;
+#else
 	inline constexpr int platform_floor_width = 900;
 #endif
+
 	/// \brief [[BPR-1134]]. The right tray's tabs, in order.
 	constexpr int tray_comments_tab = 0;
 

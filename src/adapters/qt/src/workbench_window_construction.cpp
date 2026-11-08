@@ -29,6 +29,7 @@
 #include <QList>
 #include <QMainWindow>
 #include <QMenu>
+#include <QMenuBar>
 #include <QMetaObject>
 #include <QObject>
 #include <QPushButton>
