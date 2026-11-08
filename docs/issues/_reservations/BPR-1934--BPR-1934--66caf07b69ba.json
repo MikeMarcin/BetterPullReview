@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1934"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour chat suggested prompts",
+  "created": "2026-11-08T04:01:29.305299+00:00",
+  "base": "944afdf439cfc948c57df7ca258655c253fcea51"
+}
