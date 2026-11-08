@@ -201,7 +201,7 @@ auto main(int aArgc, char** aArgv) -> int
 				select_file(window, "review.cpp");
 				select_range(window, 2, 4);
 				window.add_tour_stop_action()->trigger();
-				editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
+				editor.stop_title()->insertPlainText(QStringLiteral("Why this boundary matters"));
 				editor.stop_body()->insertPlainText(QStringLiteral("Review the invariant and its limits."));
 			}
 			while (editor.shown().Draft->Stops.size() < count) {

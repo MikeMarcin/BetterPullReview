@@ -19,6 +19,9 @@
 #include <set>
 #include <vector>
 class QAction;
+class QMenu;
+class QPoint;
+class QAbstractButton;
 class QHBoxLayout;
 class QCheckBox;
 class QComboBox;
@@ -238,13 +241,26 @@ namespace bpr::qt {
 		/// \brief [[BPR-1805]]. The pencil: opens the stop's title and source,
 		/// with the keyboard in them. Refused while the draft cannot be written.
 		void begin_stop_edit();
-		/// \brief [[BPR-1805]]. Done: reads the stop again, unless the editors
-		/// hold text the draft has not taken.
+		/// \brief [[BPR-1805]], [[BPR-1936]]. Save: reads the stop again, unless
+		/// the editors hold text the draft has not taken. The text is saved in
+		/// the private draft as it is typed; Save closes the editor.
 		void finish_stop_edit();
+		/// \brief [[BPR-1936]]. Cancel: the title and explanation go back to
+		/// what they were when the editor opened, and the stop reads again.
+		void cancel_stop_edit();
+		/// \brief [[BPR-1936]]. The open stop's card is collapsed: its row
+		/// stays current on the route without its card.
+		[[nodiscard]] auto stop_collapsed() const noexcept -> bool { return CollapsedStop.value() != 0U && CollapsedStop == Selected; }
+		/// \brief [[BPR-1936]]. The open card's ring, which collapses it; null
+		/// while no card is open.
+		[[nodiscard]] auto stop_collapse_button() const -> QAbstractButton*;
+		/// \brief [[BPR-1936]]. The open card's trash: removes that stop.
+		[[nodiscard]] auto stop_remove_button() const -> QToolButton* { return RemoveStop; }
 		/// \brief [[BPR-1805]]. The stop's rendered explanation.
 		[[nodiscard]] auto stop_reader() const -> markdown_body_view* { return StopReader; }
 		[[nodiscard]] auto outline() const -> QListWidget* { return Outline; }
-		[[nodiscard]] auto stop_title() const -> QLineEdit* { return Title; }
+		/// [[BPR-1936]]. A wrapping editor: a long title stays whole while written.
+		[[nodiscard]] auto stop_title() const -> QPlainTextEdit* { return Title; }
 		[[nodiscard]] auto stop_body() const -> QPlainTextEdit* { return Body; }
 		/// [[BPR-1900]] follow-up, owner 2026-11-07. The open stop's "Head
 		/// changed" chip, beside its title and outside its explanation; a
@@ -309,6 +325,7 @@ namespace bpr::qt {
 		void                                                                       place_stop_card();
 		void                                                                       place_stop_card_now();
 		void                                                                       fit_route();
+		void                                                                       toggle_stop_card();
 		void                                                                       fit_page_columns();
 		void                                                                       refresh_excerpt();
 		void                                                                       refresh_foot();
@@ -438,7 +455,6 @@ namespace bpr::qt {
 		QWidget*                                         Foot               = nullptr;
 		QLabel*                                          FootState          = nullptr;
 		QPushButton*                                     PreviewPublish     = nullptr;
-		QLabel*                                          StopState          = nullptr;
 		QToolButton*                                     HeadChip           = nullptr;
 		QWidget*                                         HeadConfirm        = nullptr;
 		QLabel*                                          HeadQuestion       = nullptr;
@@ -469,18 +485,52 @@ namespace bpr::qt {
 		QPushButton*         InsertOutline      = nullptr;
 		QListWidget*         Outline            = nullptr;
 		QListWidget*         Related            = nullptr;
-		QLineEdit*           Title              = nullptr;
+		QPlainTextEdit*      Title              = nullptr;
 		scoped_prose_editor* Body               = nullptr;
 		QLabel*              Source             = nullptr;
 		/// [[BPR-1805]]. The stop read: its title, its rendered explanation,
-		/// the pencil; and Done while it is written.
+		/// the pencil. [[BPR-1936]]: written, Cancel and Save at its foot, as
+		/// the overview's description editor has them.
 		core::tour_stop_view StopView;
-		QLabel*              ReadTitle        = nullptr;
-		markdown_body_view*  StopReader       = nullptr;
-		QToolButton*         EditStop         = nullptr;
-		QPushButton*         DoneStop         = nullptr;
-		QWidget*             StopMagic        = nullptr;
-		bool                 StopPlacePending = false;
+		QLabel*              ReadTitle  = nullptr;
+		markdown_body_view*  StopReader = nullptr;
+		QToolButton*         EditStop   = nullptr;
+		QPushButton*         SaveStop   = nullptr;
+		QPushButton*         CancelStop = nullptr;
+		QPushButton*         UseLines   = nullptr;
+		QAction*             Retarget   = nullptr;
+		/// [[BPR-1936]]. The card's trash, and the stop menu its card and row share.
+		QToolButton* RemoveStop = nullptr;
+		/// [[BPR-1936]] v003. The trash's question under the foot, and its stop.
+		QWidget*           RemoveConfirm = nullptr;
+		QPushButton*       RemoveKeep    = nullptr;
+		QPushButton*       RemoveYes     = nullptr;
+		core::tour_stop_id ConfirmingStop;
+		void               restyle_remove_confirm();
+		QMenu*             StopMenu = nullptr;
+		void               remove_stop(core::tour_stop_id aStop);
+		void               popup_stop_menu(const QPoint& aGlobal);
+		/// [[BPR-1936]]. The stop's title and explanation as the editor opened
+		/// on them, for Cancel.
+		struct stop_edit_origin
+		{
+			core::tour_stop_id Stop;
+			std::string        Title;
+			std::string        Body;
+		};
+		std::optional<stop_edit_origin> EditOrigin;
+		/// [[BPR-1936]]. The stop whose card is collapsed on the route, and
+		/// whether the open step (Problem, Solution or Stops) is closed.
+		core::tour_stop_id CollapsedStop;
+		bool               StepCollapsed = false;
+
+	public:
+		/// [[BPR-1936]]. The open step's body is closed by its header.
+		[[nodiscard]] auto step_collapsed() const noexcept -> bool { return StepCollapsed; }
+
+	private:
+		QWidget* StopMagic        = nullptr;
+		bool     StopPlacePending = false;
 		/// [[BPR-1805]] repair. The readers' code font, once the window
 		/// hands the profile's; and applying it to every reader.
 		std::optional<QFont>                         ReaderCodeFont;

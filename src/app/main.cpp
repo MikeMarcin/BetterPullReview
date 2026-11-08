@@ -266,6 +266,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-conversation" },
 		bpr::app::command_line_option{ .Name = "attended-tour-revision" },
 		bpr::app::command_line_option{ .Name = "attended-tour-prompts" },
+		bpr::app::command_line_option{ .Name = "attended-tour-cards" },
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
@@ -6205,8 +6206,12 @@ namespace {
 		const auto revision = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-revision"));
 		// [[BPR-1934]]. The drafted tour accepted, then each kind of empty
 		// chat's suggested prompts; the whole tour's chat is left open.
-		const auto  prompts = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-prompts"));
-		auto* const timer   = new QTimer{ &aApplication.window() };
+		const auto prompts = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-prompts"));
+		// [[BPR-1936]]. The drafted tour accepted, then its second stop given
+		// a long title through its own editor and saved, and left open on the
+		// route for the person: collapse, edit, Cancel and Save, the trash.
+		const auto  cards = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-cards"));
+		auto* const timer = new QTimer{ &aApplication.window() };
 		timer->setInterval(80);
 		const auto step    = std::make_shared<int>(0);
 		const auto ticks   = std::make_shared<int>(0);
@@ -6217,7 +6222,7 @@ namespace {
 		// them), and Undo reset brings back this many waiting stops.
 		const auto resetting     = revision && !qEnvironmentVariable("BPR_ATTENDED_TOUR_RESET").isEmpty();
 		const auto proposedCount = std::make_shared<int>(-1);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, revision, prompts, settled, resetting, proposedCount, alive = aApplication.liveness()] {
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, revision, prompts, cards, settled, resetting, proposedCount, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6390,9 +6395,9 @@ namespace {
 					*step = 40;
 					return;
 				}
-				if (prompts) {
+				if (prompts || cards) {
 					panel->accept_all_button()->click();
-					*step = 70;
+					*step = cards ? 80 : 70;
 					return;
 				}
 				draw(QStringLiteral("app-tour-drafting-proposal"));
@@ -6443,6 +6448,40 @@ namespace {
 					return;
 				}
 				done(QStringLiteral("ATTENDED_TOUR_DRAFTING_SHOWN"));
+				return;
+			}
+			if (*step == 80 || *step == 81) {
+				// [[BPR-1936]]. A long title written in the stop's own editor.
+				const auto& shown = editor->shown();
+				if (!shown.Draft || shown.Saving || shown.Draft->Stops.size() < 2U) {
+					return;
+				}
+				const auto second = shown.Draft->Stops[1].Id;
+				const auto title  = QStringLiteral("Why the renderer clears the back buffer before it presents, and what a view that draws in the same frame can still see afterwards");
+				if (*step == 80) {
+					editor->go_to_stop(second);
+					QCoreApplication::processEvents();
+					editor->begin_stop_edit();
+					editor->stop_title()->setPlainText(title);
+					*step = 81;
+					return;
+				}
+				if (editor->selected_stop() == nullptr || editor->selected_stop()->Id != second || QString::fromStdString(editor->selected_stop()->Title) != title) {
+					return;
+				}
+				draw(QStringLiteral("app-tour-card-editing"));
+				const auto wrapped = editor->stop_title()->height() >= 2 * editor->stop_title()->fontMetrics().lineSpacing();
+				editor->findChild<QPushButton*>(QStringLiteral("tourStopSave"))->click();
+				QCoreApplication::processEvents();
+				auto* const outline = editor->outline();
+				auto* const card    = outline->currentItem() != nullptr ? outline->itemWidget(outline->currentItem()) : nullptr;
+				auto* const ready   = editor->findChild<QPushButton*>(QStringLiteral("tourComplete"));
+				const auto  read    = editor->stop_view().Mode == bpr::core::tour_stop_view_mode::read;
+				draw(QStringLiteral("app-tour-card-read"));
+				QTextStream{ stdout } << "ATTENDED_TOUR_CARDS:wrapped=" << (wrapped ? 1 : 0) << ":read=" << (read ? 1 : 0) << ":card=" << (card != nullptr ? 1 : 0) << ":disabled_ready=" << (ready != nullptr && ready->isVisible() && !ready->isEnabled() ? 1 : 0)
+									  << ":trash=" << (editor->stop_remove_button() != nullptr && editor->stop_remove_button()->isVisible() ? 1 : 0) << '\n';
+				const auto good = wrapped && read && card != nullptr && !(ready != nullptr && ready->isVisible() && !ready->isEnabled()) && editor->stop_remove_button() != nullptr;
+				done(good ? QStringLiteral("ATTENDED_TOUR_CARDS_SHOWN") : QStringLiteral("ATTENDED_TOUR_FAILED:cards"));
 				return;
 			}
 			if (*step == 70) {
@@ -7061,8 +7100,7 @@ namespace {
 					if (shown.Draft->Stops.size() != index + 1U || editor->selected_stop() == nullptr) {
 						return;
 					}
-					editor->stop_title()->setText(stop.Title);
-					Q_EMIT editor->stop_title()->textEdited(stop.Title);
+					editor->stop_title()->setPlainText(stop.Title);
 					++*step;
 					return;
 				}

@@ -21,6 +21,7 @@
 #include <QApplication>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QContextMenuEvent>
 #include <QDrag>
 #include <QDropEvent>
 #include <QFontDatabase>
@@ -32,6 +33,7 @@
 #include <QLineEdit>
 #include <QListWidget>
 #include <QMenu>
+#include <QMimeData>
 #include <QMouseEvent>
 #include <QPainter>
 #include <QPainterPath>
@@ -42,6 +44,7 @@
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -63,11 +66,12 @@ namespace bpr::qt {
 		constexpr int preparation_role = Qt::UserRole + 1;
 
 		/// \brief The outline's rows carry what the route draws of each stop.
-		constexpr int number_role    = Qt::UserRole + 2;
-		constexpr int source_role    = Qt::UserRole + 3;
-		constexpr int excerpt_role   = Qt::UserRole + 4;
-		constexpr int file_role      = Qt::UserRole + 5;
-		constexpr int divider_role   = Qt::UserRole + 6;
+		constexpr int number_role  = Qt::UserRole + 2;
+		constexpr int source_role  = Qt::UserRole + 3;
+		constexpr int excerpt_role = Qt::UserRole + 4;
+		/// [[BPR-1936]]. The current stop's card is open over its row (it
+		/// draws its own title); collapsed, the row draws it as any other.
+		constexpr int card_role      = Qt::UserRole + 5;
 		constexpr int current_role   = Qt::UserRole + 7;
 		constexpr int attention_role = Qt::UserRole + 8;
 		/// [[BPR-1925]]. The turns in a stop's chat, and whether that chat is
@@ -88,7 +92,6 @@ namespace bpr::qt {
 		/// fields are six pixels apart).
 		constexpr qreal stop_text_room          = 8.0;
 		constexpr qreal stop_text_room_vertical = 6.0;
-		constexpr int   divider_band            = 26;
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -406,18 +409,330 @@ namespace bpr::qt {
 			}
 		};
 
+		/// \brief [[BPR-1936]], owner 2026-11-08: "I'm also not a big fan of
+		/// the title going from word wrapped to not in edit mode". The stop's
+		/// title written as it reads: wrapped, as tall as its lines, one
+		/// paragraph. Return goes on to the explanation; a pasted line break
+		/// becomes a space.
+		class stop_title_editor final : public QPlainTextEdit
+		{
+		public:
+			explicit stop_title_editor(QWidget* aParent)
+				: QPlainTextEdit{ aParent }
+			{
+				setLineWrapMode(QPlainTextEdit::WidgetWidth);
+				setWordWrapMode(QTextOption::WrapAtWordBoundaryOrAnywhere);
+				setVerticalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+				setHorizontalScrollBarPolicy(Qt::ScrollBarAlwaysOff);
+				setFrameShape(QFrame::NoFrame);
+				setAttribute(Qt::WA_MacShowFocusRect, false);
+				setTabChangesFocus(true);
+				viewport()->setAutoFillBackground(false);
+				document()->setDocumentMargin(0);
+				setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Fixed);
+				connect(document()->documentLayout(), &QAbstractTextDocumentLayout::documentSizeChanged, this, [this] { fit(); });
+				fit();
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { 200, height() }; }
+
+		protected:
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if ((aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) && (aEvent->modifiers() & ~Qt::KeypadModifier) == Qt::NoModifier) {
+					aEvent->accept();
+					focusNextChild();
+					return;
+				}
+				QPlainTextEdit::keyPressEvent(aEvent);
+			}
+			void insertFromMimeData(const QMimeData* aSource) override
+			{
+				if (aSource != nullptr && aSource->hasText()) {
+					insertPlainText(aSource->text().replace(QStringLiteral("\r\n"), QStringLiteral(" ")).replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }).replace(QLatin1Char{ '\r' }, QLatin1Char{ ' ' }));
+				}
+			}
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QPlainTextEdit::resizeEvent(aEvent);
+				fit();
+			}
+
+		private:
+			/// As tall as its wrapped lines at its width.
+			void fit()
+			{
+				// The plain text layout measures its document in lines.
+				const auto lines = static_cast<int>(std::ceil(document()->documentLayout()->documentSize().height()));
+				const auto tall  = std::max(1, lines) * fontMetrics().lineSpacing() + 2 * frameWidth();
+				if (height() != tall || minimumHeight() != tall) {
+					setFixedHeight(tall);
+				}
+			}
+		};
+
+		/// \brief [[BPR-1936]] v003, owner: "make trash can red like discords",
+		/// then: red only while Shift is held, saying a click will remove
+		/// without asking. Discord's own danger red where the ground is dark,
+		/// and a deeper shade of it on a light ground, so the glyph keeps at
+		/// least 3:1 against either.
+		[[nodiscard]] auto danger_red(const QPalette& aPalette) -> QColor
+		{
+			const auto dark = aPalette.color(QPalette::Active, QPalette::Window).lightness() < 128;
+			return dark ? QColor{ 0xED, 0x42, 0x45 } : QColor{ 0xD2, 0x2D, 0x31 };
+		}
+
+		/// \brief [[BPR-1936]] v003. The stop's trash: the comments' glyph in the
+		/// icons' own ink on no frame, a quiet rounded square behind it under
+		/// the pointer, a focus ring for the keyboard. While Shift is held and
+		/// the pointer is on it or the keyboard is in its card, it turns the
+		/// danger red: a click now removes without asking. It remembers
+		/// whether Shift was held for the press that clicked it.
+		class danger_icon_button final : public QToolButton
+		{
+		public:
+			explicit danger_icon_button(QWidget* aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+				setIconSize(QSize{ 16, 16 });
+				setToolButtonStyle(Qt::ToolButtonIconOnly);
+				setAutoRaise(true);
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+				restyle();
+			}
+			/// Shift was held for the press that clicked it.
+			bool Shifted = false;
+			void restyle()
+			{
+				Neutral = conversation_icon(conversation_glyph::trash, palette());
+				Danger  = conversation_icon(conversation_glyph::trash, danger_red(palette()));
+				refresh();
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { 26, 26 }; }
+			/// Drawn red now: Shift held, with the pointer on it or the
+			/// keyboard in its card.
+			[[nodiscard]] auto danger() const noexcept -> bool { return Red; }
+
+		protected:
+			bool event(QEvent* aEvent) override
+			{
+				switch (aEvent->type()) {
+				case QEvent::Show:
+					// Shift is followed only while the trash shows.
+					qApp->installEventFilter(this);
+					ShiftDown = QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier);
+					refresh();
+					break;
+				case QEvent::Hide:
+					qApp->removeEventFilter(this);
+					ShiftDown = false;
+					refresh();
+					break;
+				case QEvent::Enter:
+				case QEvent::HoverEnter:
+					ShiftDown = ShiftDown || QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier);
+					refresh();
+					break;
+				case QEvent::Leave:
+				case QEvent::HoverLeave: refresh(); break;
+				default:                 break;
+				}
+				return QToolButton::event(aEvent);
+			}
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::KeyRelease) {
+					const auto* const key = static_cast<const QKeyEvent*>(aEvent);
+					if (key->key() == Qt::Key_Shift) {
+						ShiftDown = aEvent->type() == QEvent::KeyPress;
+					} else {
+						ShiftDown = key->modifiers().testFlag(Qt::ShiftModifier);
+					}
+					refresh();
+				} else if (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut || aEvent->type() == QEvent::ApplicationDeactivate) {
+					if (aEvent->type() == QEvent::ApplicationDeactivate) {
+						ShiftDown = false;
+					}
+					refresh();
+				}
+				return QToolButton::eventFilter(aWatched, aEvent);
+			}
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				Shifted = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+				QToolButton::mousePressEvent(aEvent);
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				Shifted = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+				QToolButton::keyPressEvent(aEvent);
+			}
+			void changeEvent(QEvent* aEvent) override
+			{
+				QToolButton::changeEvent(aEvent);
+				if (aEvent->type() == QEvent::PaletteChange) {
+					restyle();
+				}
+			}
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto window = palette().color(QPalette::Active, QPalette::Window);
+				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
+				const auto box    = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				if (isEnabled() && (underMouse() || isDown() || isChecked())) {
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(mixed(window, ink, isDown() ? 0.14 : 0.08));
+					painter.drawRoundedRect(box, 5.0, 5.0);
+				}
+				const auto glyph = (Red ? Danger : Neutral).pixmap(iconSize(), devicePixelRatioF(), isEnabled() ? QIcon::Normal : QIcon::Disabled);
+				const auto at    = QPointF{ (width() - iconSize().width()) / 2.0, (height() - iconSize().height()) / 2.0 };
+				painter.drawPixmap(at, glyph);
+				if (hasFocus()) {
+					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box, 5.0, 5.0);
+				}
+			}
+
+		private:
+			void refresh()
+			{
+				auto* const focused = window()->focusWidget();
+				auto* const card    = parentWidget();
+				const auto  near    = underMouse() || hasFocus() || (card != nullptr && focused != nullptr && card->isAncestorOf(focused));
+				const auto  red     = isVisible() && ShiftDown && near;
+				if (red != Red) {
+					Red = red;
+					setProperty("danger", Red);
+					update();
+				}
+			}
+			QIcon Neutral;
+			QIcon Danger;
+			bool  ShiftDown = false;
+			bool  Red       = false;
+		};
+
+		/// \brief [[BPR-1936]], owner 2026-11-08: "I think clicking at least
+		/// the number should collapse the card." The ring the route draws
+		/// under the open stop's card, as a button: a click, Space or Return
+		/// collapses the card. It paints only its focus ring; the route paints
+		/// the number.
+		class card_ring final : public QAbstractButton
+		{
+		public:
+			explicit card_ring(QWidget* aParent)
+				: QAbstractButton{ aParent }
+			{
+				setObjectName(QStringLiteral("tourStopCollapse"));
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+				setAccessibleName(tr("Collapse stop"));
+				setToolTip(tr("Collapse this stop (Space)"));
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { ring_size + 4, ring_size + 4 }; }
+
+		protected:
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Return || aEvent->key() == Qt::Key_Enter) {
+					click();
+					return;
+				}
+				QAbstractButton::keyPressEvent(aEvent);
+			}
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				if (!hasFocus()) {
+					return;
+				}
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 2.0 });
+				painter.setBrush(Qt::NoBrush);
+				painter.drawEllipse(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0));
+			}
+		};
+
+		/// \brief [[BPR-1936]]. The open stop's card over its route row. A press
+		/// in its header's empty space (beside the title, round the ring)
+		/// collapses it, as the ring does.
+		class stop_card final : public QWidget
+		{
+		public:
+			explicit stop_card(std::function<void()> aToggle, std::function<int()> aHeaderBottom)
+				: Toggle{ std::move(aToggle) }
+				, HeaderBottom{ std::move(aHeaderBottom) }
+			{
+				setObjectName(QStringLiteral("tourStopCard"));
+				setAutoFillBackground(false);
+				Ring = new card_ring{ this };
+				connect(Ring, &QAbstractButton::clicked, this, [this] {
+					if (Toggle) {
+						Toggle();
+					}
+				});
+				place_ring();
+			}
+			card_ring* Ring = nullptr;
+
+		protected:
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				const auto bottom = std::max(8 + ring_size + 4, HeaderBottom ? HeaderBottom() : 0);
+				if (aEvent->button() == Qt::LeftButton && aEvent->position().y() <= bottom && Toggle) {
+					aEvent->accept();
+					Toggle();
+					return;
+				}
+				QWidget::mousePressEvent(aEvent);
+			}
+			void resizeEvent(QResizeEvent* aEvent) override
+			{
+				QWidget::resizeEvent(aEvent);
+				place_ring();
+			}
+			void contextMenuEvent(QContextMenuEvent* aEvent) override
+			{
+				// [[BPR-1936]]. The open card's own menu is its row's.
+				if (Menu) {
+					aEvent->accept();
+					Menu(aEvent->globalPos());
+					return;
+				}
+				QWidget::contextMenuEvent(aEvent);
+			}
+
+		public:
+			std::function<void(const QPoint&)> Menu;
+
+		private:
+			void place_ring()
+			{
+				Ring->setGeometry(ring_left - 2, 8 - 2, ring_size + 4, ring_size + 4);
+				Ring->raise();
+			}
+			std::function<void()> Toggle;
+			std::function<int()>  HeaderBottom;
+		};
+
 		/// \brief [[BPR-1925]] v002. Where a stop's chat toggle sits in its
 		/// route row: at the right, level with its ring.
-		[[nodiscard]] auto route_chat_box(const QRect& aRow, const bool aDivider, const QFont& aFont, const std::size_t aTurns) -> QRectF
+		[[nodiscard]] auto route_chat_box(const QRect& aRow, const QFont& aFont, const std::size_t aTurns) -> QRectF
 		{
 			const auto size = chat_toggle_size(aFont, aTurns);
-			const auto top  = aRow.top() + (aDivider ? divider_band : 0) + 8 + (ring_size - size.height()) / 2;
+			const auto top  = aRow.top() + 8 + (ring_size - size.height()) / 2;
 			return QRectF{ static_cast<qreal>(aRow.right() - 8 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
 		}
 
 		/// \brief [[BPR-1593]]. RFC-BPR-0085 D4: each stop on the route, a
 		/// numbered circle on an amber line, its source in a code chip, its
-		/// readiness in its ring; a file divider where the route changes file.
+		/// readiness in its ring. [[BPR-1936]]: no file divider between stops.
+		/// Each stop's chip already names its file, and the divider's chip sat
+		/// on the rail and opened an empty band above a selected card.
 		class route_delegate final : public QStyledItemDelegate
 		{
 		public:
@@ -439,9 +754,6 @@ namespace bpr::qt {
 					const auto lines = std::min(2, static_cast<int>(std::ceil(static_cast<double>(metrics.horizontalAdvance(excerpt)) / std::max(1, width - text_left - 10))));
 					height += lines * metrics.lineSpacing() + 2;
 				}
-				if (aIndex.data(divider_role).toBool()) {
-					height += divider_band;
-				}
 				return { width, height + 6 };
 			}
 
@@ -449,35 +761,21 @@ namespace bpr::qt {
 			{
 				aPainter->save();
 				aPainter->setRenderHint(QPainter::Antialiasing, true);
-				const auto& palette  = aOption.palette;
-				const auto  ink      = palette.color(QPalette::Active, QPalette::WindowText);
-				const auto  faint    = palette.color(QPalette::Active, QPalette::PlaceholderText);
-				const auto  base     = palette.color(QPalette::Active, QPalette::Base);
-				const auto  window   = palette.color(QPalette::Active, QPalette::Window);
-				const auto  amber    = route_amber(palette);
-				const auto  rect     = aOption.rect;
-				const auto  current  = aIndex.data(current_role).toBool();
-				const auto  selected = aOption.state.testFlag(QStyle::State_Selected);
-				const auto  hovered  = aOption.state.testFlag(QStyle::State_MouseOver);
-				const auto  model    = aIndex.model();
-				const auto  last     = aIndex.row() + 1 == model->rowCount();
-				const auto  first    = aIndex.row() == 0;
-				auto        top      = rect.top();
-				if (aIndex.data(divider_role).toBool()) {
-					// The file the route enters, in a code chip.
-					const auto code  = code_font_of(aOption.font);
-					const auto file  = aIndex.data(file_role).toString();
-					const auto width = QFontMetrics{ code }.horizontalAdvance(file) + 12;
-					const auto chip  = QRectF{ static_cast<qreal>(rect.left() + grip_width - 6), top + 6.0, static_cast<qreal>(width), divider_band - 10.0 };
-					aPainter->setPen(QPen{ mixed(window, ink, 0.18), 1.0 });
-					aPainter->setBrush(mixed(window, ink, 0.05));
-					aPainter->drawRoundedRect(chip, 4.0, 4.0);
-					aPainter->setFont(code);
-					aPainter->setPen(mixed(ink, window, 0.25));
-					aPainter->drawText(chip, Qt::AlignCenter, file);
-					top += divider_band;
-				}
-				const auto ringCentre = QPointF{ rect.left() + ring_left + ring_size / 2.0, top + 8.0 + ring_size / 2.0 };
+				const auto& palette    = aOption.palette;
+				const auto  ink        = palette.color(QPalette::Active, QPalette::WindowText);
+				const auto  faint      = palette.color(QPalette::Active, QPalette::PlaceholderText);
+				const auto  base       = palette.color(QPalette::Active, QPalette::Base);
+				const auto  window     = palette.color(QPalette::Active, QPalette::Window);
+				const auto  amber      = route_amber(palette);
+				const auto  rect       = aOption.rect;
+				const auto  current    = aIndex.data(current_role).toBool();
+				const auto  selected   = aOption.state.testFlag(QStyle::State_Selected);
+				const auto  hovered    = aOption.state.testFlag(QStyle::State_MouseOver);
+				const auto  model      = aIndex.model();
+				const auto  last       = aIndex.row() + 1 == model->rowCount();
+				const auto  first      = aIndex.row() == 0;
+				const auto  top        = rect.top();
+				const auto  ringCentre = QPointF{ rect.left() + ring_left + ring_size / 2.0, top + 8.0 + ring_size / 2.0 };
 				// The route line, through every stop.
 				auto line = amber;
 				line.setAlphaF(0.55F);
@@ -507,7 +805,7 @@ namespace bpr::qt {
 				const auto revision = current ? 0 : aIndex.data(revision_role).toInt();
 				const auto grey     = route_grey(palette);
 				if (!discussed && revision != 0) {
-					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2 + (top - rect.top()), -2, -2) };
+					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
 					aPainter->setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
 					aPainter->setBrush(hovered || selected ? QBrush{ mixed(window, ink, 0.04) } : QBrush{ Qt::NoBrush });
 					aPainter->drawRoundedRect(ground, 8.0, 8.0);
@@ -601,7 +899,7 @@ namespace bpr::qt {
 				}
 				// The current stop writes its own title, source and words, in its
 				// card over this row.
-				if (current && !Page) {
+				if (current && !Page && aIndex.data(card_role).toBool()) {
 					aPainter->restore();
 					return;
 				}
@@ -622,7 +920,7 @@ namespace bpr::qt {
 				// it is the outline's (`route_chat_box`).
 				{
 					const auto turns = static_cast<std::size_t>(std::max(0, aIndex.data(chat_role).toInt()));
-					const auto box   = route_chat_box(rect, aIndex.data(divider_role).toBool(), aOption.font, turns);
+					const auto box   = route_chat_box(rect, aOption.font, turns);
 					aPainter->setFont(aOption.font);
 					paint_chat_toggle(*aPainter, box, palette, turns, discussed, hovered && box.contains(aOption.widget != nullptr ? QPointF{ aOption.widget->mapFromGlobal(QCursor::pos()) } : QPointF{ }));
 					right = static_cast<int>(box.left()) - 8;
@@ -1049,6 +1347,9 @@ namespace bpr::qt {
 			/// [[BPR-1925]] v002. A press on a stop's chat toggle, by row: the
 			/// toggle's, not the row's (the row would choose the stop).
 			std::function<void(int)> ChatToggle;
+			/// [[BPR-1936]]. A press on the current stop's row while its card
+			/// is collapsed, or Space on it, opens or closes its card.
+			std::function<void()> CardToggle;
 
 		protected:
 			void mousePressEvent(QMouseEvent* aEvent) override
@@ -1056,6 +1357,11 @@ namespace bpr::qt {
 				if (const auto row = chat_toggle_at(aEvent->position().toPoint()); aEvent->button() == Qt::LeftButton && row >= 0 && ChatToggle) {
 					aEvent->accept();
 					ChatToggle(row);
+					return;
+				}
+				if (const auto* const item = itemAt(aEvent->position().toPoint()); aEvent->button() == Qt::LeftButton && aEvent->modifiers() == Qt::NoModifier && item != nullptr && item->data(current_role).toBool() && !item->data(card_role).toBool() && !on_handle(aEvent->position().toPoint()) && CardToggle) {
+					aEvent->accept();
+					CardToggle();
 					return;
 				}
 				DragFromHandle = aEvent->button() == Qt::LeftButton && on_handle(aEvent->position().toPoint());
@@ -1068,6 +1374,15 @@ namespace bpr::qt {
 					return;
 				}
 				QListWidget::mouseReleaseEvent(aEvent);
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				if (aEvent->key() == Qt::Key_Space && aEvent->modifiers() == Qt::NoModifier && currentItem() != nullptr && currentItem()->data(current_role).toBool() && CardToggle) {
+					aEvent->accept();
+					CardToggle();
+					return;
+				}
+				QListWidget::keyPressEvent(aEvent);
 			}
 			void mouseMoveEvent(QMouseEvent* aEvent) override
 			{
@@ -1115,10 +1430,10 @@ namespace bpr::qt {
 			[[nodiscard]] auto chat_toggle_at(const QPoint& aPosition) const -> int
 			{
 				const auto* item = itemAt(aPosition);
-				if (item == nullptr || item->data(current_role).toBool()) {
+				if (item == nullptr || (item->data(current_role).toBool() && item->data(card_role).toBool())) {
 					return -1;
 				}
-				const auto box = route_chat_box(visualItemRect(item), item->data(divider_role).toBool(), font(), static_cast<std::size_t>(std::max(0, item->data(chat_role).toInt())));
+				const auto box = route_chat_box(visualItemRect(item), font(), static_cast<std::size_t>(std::max(0, item->data(chat_role).toInt())));
 				return box.contains(QPointF{ aPosition }) ? row(item) : -1;
 			}
 			bool on_handle(const QPoint& aPosition) const
@@ -1463,7 +1778,21 @@ namespace bpr::qt {
 			const auto open                               = [this, aIndex] {
 				choose_step(aIndex == 2 ? -1 : aIndex);
 			};
-			connect(row, &QAbstractButton::clicked, this, open);
+			// [[BPR-1936]], owner: "You also cant collapse a tour stop (or
+			// problem/solution for that matter)". The open step's header, its
+			// number or its empty space, closes it, and opens it again.
+			connect(row, &QAbstractButton::clicked, this, [this, aIndex, open] {
+				if ((aIndex == 2 ? BriefOpen < 0 : BriefOpen == aIndex)) {
+					hold_scroll();
+					StepCollapsed = !StepCollapsed;
+					open_brief(BriefOpen);
+					if (!StepCollapsed) {
+						focus_step();
+					}
+					return;
+				}
+				open();
+			});
 			connect(row->Change, &QPushButton::clicked, this, open);
 			auto* const slot = new QWidget{ step };
 			auto* const body = new QVBoxLayout{ slot };
@@ -2216,6 +2545,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::show_problem()
 	{
+		StepCollapsed = false;
 		open_brief(0);
 		Problem->setFocus();
 	}
@@ -2274,15 +2604,24 @@ namespace bpr::qt {
 		}
 		if (aEvent->type() == QEvent::ShortcutOverride || aEvent->type() == QEvent::KeyPress) {
 			auto* key = static_cast<QKeyEvent*>(aEvent);
-			// [[BPR-1805]]. As a comment's editor takes them: Return in the
-			// read stop writes it; Escape or Command/Control+Return reads it again.
-			const bool enter    = key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter;
-			const bool reading  = StopReader != nullptr && aWatched == StopReader->rendered_view() && enter && key->modifiers() == Qt::NoModifier;
-			const bool finished = (aWatched == Title || aWatched == Body) && !composing() && ((key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier) || (enter && (key->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier));
-			if (reading || finished) {
+			// [[BPR-1805]], [[BPR-1936]]. As the description editor takes them:
+			// Return in the read stop writes it; Command/Control+Return saves
+			// and Escape cancels.
+			const bool enter     = key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter;
+			const bool reading   = StopReader != nullptr && aWatched == StopReader->rendered_view() && enter && key->modifiers() == Qt::NoModifier;
+			const bool inStop    = (aWatched == Title || aWatched == Body) && !composing();
+			const bool finished  = inStop && enter && (key->modifiers() & ~Qt::KeypadModifier) == Qt::ControlModifier;
+			const bool cancelled = inStop && key->key() == Qt::Key_Escape && key->modifiers() == Qt::NoModifier;
+			if (reading || finished || cancelled) {
 				key->accept();
 				if (aEvent->type() == QEvent::KeyPress) {
-					reading ? begin_stop_edit() : finish_stop_edit();
+					if (reading) {
+						begin_stop_edit();
+					} else if (finished) {
+						finish_stop_edit();
+					} else {
+						cancel_stop_edit();
+					}
 				}
 				return true;
 			}
@@ -2802,15 +3141,25 @@ namespace bpr::qt {
 		// the code, and a stop the agent proposed has its lines as a place to
 		// look, not yet confirmed. Now it says so and waits, and Show in code
 		// leads until the lines are chosen with Use selected lines.
-		const auto ready = stop != nullptr && core::ready(*stop);
-		Complete->setVisible(!ShowsStopProposal);
+		//
+		// [[BPR-1936]], owner 2026-11-08: "The (Ready, next) button seems
+		// vestigial now, it's always greyed out for me". It stays as the step
+		// that marks a stop Ready (publishing needs every outline-suggested
+		// stop marked Ready, and every stop's lines confirmed), but shows only
+		// when it can act: never a primary button that is always disabled.
+		// Unconfirmed lines are said on the location line instead, and Show
+		// in code leads; a stop already Ready needs no button, and while the
+		// stop is written Save is the card's one primary action.
+		const auto ready   = stop != nullptr && core::ready(*stop);
+		const auto writing = StopView.Mode == core::tour_stop_view_mode::edit;
+		const auto offered = ready && stop->Preparation != core::tour_preparation::ready && !ShowsStopProposal && !writing;
+		Complete->setVisible(offered);
 		Complete->setEnabled(ready);
-		Complete->setDefault(ready && !ShowsStopProposal);
+		Complete->setDefault(offered);
 		if (ShowInCode != nullptr) {
-			ShowInCode->setDefault(!ready && !ShowsStopProposal);
+			ShowInCode->setDefault(!ready && !ShowsStopProposal && !writing);
 		}
-		Complete->setToolTip(ready ? tr("Mark this stop ready and go to the next (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText))
-								   : tr("Confirm the stop's lines first: Show in code, select its lines in the code, then Use selected lines."));
+		Complete->setToolTip(tr("Mark this stop ready and go to the next (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText)));
 	}
 	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
@@ -3041,6 +3390,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::show_stops()
 	{
+		StepCollapsed = false;
 		open_brief(-1);
 		Roadmap->setCurrentIndex(2);
 		place_stop_card();
@@ -3139,12 +3489,14 @@ namespace bpr::qt {
 		outline->viewport()->installEventFilter(this);
 		// [[BPR-1925]] v002. A stop's toggle on the route: its chat, or the
 		// column closed when that chat is the one in it.
+		outline->CardToggle = [this] { toggle_stop_card(); };
 		outline->ChatToggle = [this](const int aRow) {
 			if (Shown.Draft && aRow >= 0 && static_cast<std::size_t>(aRow) < Shown.Draft->Stops.size()) {
 				toggle_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id });
 			}
 		};
 		connect(Outline, &QListWidget::itemSelectionChanged, this, [this] { update_stop_actions(); });
+		StopMenu = menu;
 		connect(Outline, &QListWidget::customContextMenuRequested, this, [this, menu](const QPoint& aPosition) {
 			if (auto* item = Outline->itemAt(aPosition)) {
 				Outline->setCurrentItem(item, item->isSelected() ? QItemSelectionModel::NoUpdate : QItemSelectionModel::ClearAndSelect);
@@ -3211,17 +3563,17 @@ namespace bpr::qt {
 		fields->setSpacing(6);
 		auto* const titleRow = new QHBoxLayout{ };
 		titleRow->setSpacing(6);
-		Title = new QLineEdit{ StopFields };
+		Title = new stop_title_editor{ StopFields };
 		Title->setObjectName(QStringLiteral("tourStopTitle"));
 		Title->setAccessibleName(tr("Stop title"));
 		Title->setPlaceholderText(tr("What should the reviewer notice?"));
-		Title->setMaxLength(std::numeric_limits<int>::max());
-		Title->setFrame(false);
 		auto titleFont = Title->font();
 		titleFont.setWeight(QFont::DemiBold);
 		Title->setFont(titleFont);
+		// [[BPR-1936]]. The quiet box the explanation has, round the title too.
+		new calm_text_box{ *Title };
 		Title->installEventFilter(this);
-		titleRow->addWidget(Title, 1);
+		titleRow->addWidget(Title, 1, Qt::AlignTop);
 		// [[BPR-1805]]. Read, the title is text, as a comment's author line
 		// is; the pencil beside it opens the title and source.
 		ReadTitle = new QLabel{ StopFields };
@@ -3250,10 +3602,9 @@ namespace bpr::qt {
 		HeadChip->setAccessibleDescription(HeadChip->toolTip());
 		HeadChip->hide();
 		titleRow->addWidget(HeadChip, 0, Qt::AlignTop);
-		StopState = new QLabel{ StopFields };
-		StopState->setObjectName(QStringLiteral("tourStopState"));
-		StopState->setForegroundRole(QPalette::PlaceholderText);
-		titleRow->addWidget(StopState, 0, Qt::AlignTop);
+		// [[BPR-1936]]. No state word beside the title: the ring says Ready,
+		// Suggested or Needs attention, and written or read, the title keeps
+		// the row.
 		EditStop = new QToolButton{ StopFields };
 		EditStop->setObjectName(QStringLiteral("tourStopEdit"));
 		// The comments' pencil, as Edit comment draws it.
@@ -3267,12 +3618,41 @@ namespace bpr::qt {
 		EditStop->setToolTip(tr("Edit the stop's title and explanation (Return)"));
 		titleRow->addWidget(EditStop, 0, Qt::AlignTop);
 		connect(EditStop, &QToolButton::clicked, this, [this] { begin_stop_edit(); });
-		DoneStop = new quiet_push_button{ tr("Done"), StopFields };
-		DoneStop->setObjectName(QStringLiteral("tourStopDone"));
-		DoneStop->setAccessibleName(tr("Done editing stop"));
-		DoneStop->setToolTip(tr("Read the stop as it will be shown (%1 or Esc). Your text is saved as you type.").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
-		titleRow->addWidget(DoneStop, 0, Qt::AlignTop);
-		connect(DoneStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
+		// [[BPR-1936]], owner: "Maybe there needs to be another way to remove
+		// a stop like trash can button." The comments' trash; it removes this
+		// card's stop, and Undo brings it back. v002, owner on v001: "Takes
+		// too much space from the title. Move the trashcan to the edit mode
+		// down to the left of cancel." It sits at the foot's left while the
+		// stop is written, apart from Cancel and Save at the right.
+		// v003, owner on v002: "trash can clicks should have a confirmation
+		// (unless you shift click it) and show in code shouldnt move, it
+		// should go on the right of that and left of cancel"; "also make trash
+		// can red like discords". Red always, a quiet square under the
+		// pointer; a click asks in place under the foot, a Shift-click
+		// removes at once, and Undo brings the stop back either way.
+		auto* const trash = new danger_icon_button{ StopFields };
+		RemoveStop        = trash;
+		RemoveStop->setObjectName(QStringLiteral("tourStopRemove"));
+		RemoveStop->setAccessibleName(tr("Remove stop"));
+		RemoveStop->setAccessibleDescription(tr("Asks before removing the stop. Shift-click removes it at once; %1 brings it back.").arg(QKeySequence{ QKeySequence::Undo }.toString(QKeySequence::NativeText)));
+		RemoveStop->setToolTip(tr("Remove stop (Shift-click to skip confirmation)"));
+		RemoveStop->setProperty("danger", false);
+		connect(RemoveStop, &QToolButton::clicked, this, [this, trash] {
+			const auto* const stop = selected_stop();
+			if (stop == nullptr) {
+				return;
+			}
+			if (trash->Shifted) {
+				trash->Shifted = false;
+				RemoveConfirm->hide();
+				remove_stop(stop->Id);
+				return;
+			}
+			ConfirmingStop = stop->Id;
+			RemoveConfirm->show();
+			RemoveKeep->setFocus(Qt::OtherFocusReason);
+			place_stop_card();
+		});
 		StopTitleRow = titleRow;
 		fields->addLayout(titleRow);
 		// The chip's second step, in place under the title: the question, then
@@ -3387,9 +3767,20 @@ namespace bpr::qt {
 		StopActions         = new stop_action_row{ StopFields };
 		auto* const sources = StopActions->row();
 		add_writing_button(Body, core::writing_hook::comment, sources);
-		StopMagic            = StopFields->findChild<QPushButton*>(QStringLiteral("tourStopMagic"));
-		auto* const useLines = button(tr("Use selected lines"), QStringLiteral("tourUseSelectedLines"), sources, [retarget] { retarget->trigger(); });
-		useLines->setToolTip(retarget->toolTip());
+		StopMagic = StopFields->findChild<QPushButton*>(QStringLiteral("tourStopMagic"));
+		// [[BPR-1936]], owner: "'Use selected lines' is weird, I don't think
+		// it belongs outside of edit mode ... I also wonder if it's too
+		// prominent of a button for a niche task." Written, a quiet link after
+		// the drafting help sets the stop's lines from the code's selection;
+		// read, it is not offered. In a narrow card it waits behind More.
+		UseLines = new step_change{ tr("Use selected lines"), StopFields };
+		UseLines->setObjectName(QStringLiteral("tourUseSelectedLines"));
+		UseLines->setCursor(Qt::PointingHandCursor);
+		UseLines->setAccessibleName(tr("Use the lines selected in the code"));
+		UseLines->setToolTip(retarget->toolTip());
+		connect(UseLines, &QPushButton::clicked, this, [retarget] { retarget->trigger(); });
+		sources->addWidget(UseLines);
+		Retarget               = retarget;
 		auto* const addRelated = button(tr("Related source"), QStringLiteral("tourAddRelated"), sources, [this] { trigger(tour_editor_action::add_related); });
 		addRelated->setToolTip(tr("Link the lines selected in the code as related source"));
 		auto* const removeRelated = button(tr("Remove link"), QStringLiteral("tourRemoveRelated"), sources, [this] {
@@ -3437,22 +3828,94 @@ namespace bpr::qt {
 				const auto text = StopReader->rendered_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
 				open_side_chat_about(core::writing_hook::comment, text);
 			});
+			// [[BPR-1936]]. The read stop's menu removes it too.
+			aMenu.addSeparator();
+			auto* const remove = aMenu.addAction(tr("Remove stop"), this, [this] {
+				if (const auto* const stop = selected_stop(); stop != nullptr) {
+					remove_stop(stop->Id);
+				}
+			});
+			remove->setObjectName(QStringLiteral("tourReaderRemove"));
+			remove->setEnabled(RemoveStop != nullptr && RemoveStop->isEnabled());
 		});
-		// The first to stay is the first a stop is written with.
-		StopActions->yield(useLines, true);
+		StopActions->yield(UseLines, false);
 		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
 		StopActions->yield(removeRelated, false);
 		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this](const int aRow) { StopActions->want(RemoveRelated, aRow >= 0 && Mode == tour_editor_mode::page); });
 		Related->setToolTip(tr("Double-click a related source to inspect it. Show in code restores this stop."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
+		// The foot: its row, and the trash's question under it, as one item,
+		// so a proposal placed before the foot never comes between them.
+		auto* const foot = new QVBoxLayout;
+		foot->setContentsMargins(0, 0, 0, 0);
+		foot->setSpacing(6);
+		fields->addLayout(foot);
 		auto* nav = new QHBoxLayout;
 		nav->setSpacing(6);
-		fields->addLayout(nav);
+		foot->addLayout(nav);
 		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
 		ShowInCode               = returnToTour;
 		StopFieldsLayout         = fields;
 		returnToTour->setToolTip(tr("Show the stop's lines in the code"));
+		// v003. Show in code keeps its place; the trash is right of it.
+		RemoveStop->setParent(StopFields);
+		nav->addWidget(RemoveStop);
 		nav->addStretch(1);
+		RemoveConfirm = new QWidget{ StopFields };
+		RemoveConfirm->setObjectName(QStringLiteral("tourStopRemoveConfirm"));
+		{
+			auto* const row = new QHBoxLayout{ RemoveConfirm };
+			row->setContentsMargins(0, 0, 0, 0);
+			row->setSpacing(8);
+			auto* const question = new QLabel{ tr("Remove this stop?"), RemoveConfirm };
+			question->setObjectName(QStringLiteral("tourStopRemoveQuestion"));
+			question->setTextFormat(Qt::PlainText);
+			row->addWidget(question, 1);
+			RemoveKeep = new quiet_push_button{ tr("Keep"), RemoveConfirm };
+			RemoveKeep->setObjectName(QStringLiteral("tourStopRemoveKeep"));
+			RemoveKeep->setAccessibleName(tr("Keep the stop"));
+			row->addWidget(RemoveKeep);
+			RemoveYes = new quiet_push_button{ tr("Remove"), RemoveConfirm };
+			RemoveYes->setObjectName(QStringLiteral("tourStopRemoveYes"));
+			RemoveYes->setAccessibleName(tr("Remove the stop"));
+			restyle_remove_confirm();
+			row->addWidget(RemoveYes);
+			auto* const keepKey = new QShortcut{ QKeySequence{ Qt::Key_Escape }, RemoveConfirm };
+			keepKey->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(keepKey, &QShortcut::activated, RemoveKeep, &QPushButton::click);
+		}
+		RemoveConfirm->hide();
+		foot->addWidget(RemoveConfirm);
+		connect(RemoveKeep, &QPushButton::clicked, this, [this] {
+			RemoveConfirm->hide();
+			ConfirmingStop = { };
+			RemoveStop->setFocus(Qt::OtherFocusReason);
+			place_stop_card();
+		});
+		connect(RemoveYes, &QPushButton::clicked, this, [this] {
+			const auto stop = ConfirmingStop;
+			RemoveConfirm->hide();
+			ConfirmingStop = { };
+			if (stop.value() != 0U) {
+				remove_stop(stop);
+			}
+		});
+		// [[BPR-1936]], owner: "in our other places like the overview
+		// description the pencil goes away and we get cancel / save at the
+		// bottom". The description editor's foot: Cancel, then Save, the
+		// default, at the card's bottom right while the stop is written.
+		CancelStop = new quiet_push_button{ tr("Cancel"), StopFields };
+		CancelStop->setObjectName(QStringLiteral("tourStopCancel"));
+		CancelStop->setAccessibleDescription(tr("Puts the title and explanation back as they were when you began editing."));
+		CancelStop->setToolTip(tr("Undo this edit's text changes (Esc)"));
+		nav->addWidget(CancelStop);
+		connect(CancelStop, &QPushButton::clicked, this, [this] { cancel_stop_edit(); });
+		SaveStop = new QPushButton{ tr("Save"), StopFields };
+		SaveStop->setObjectName(QStringLiteral("tourStopSave"));
+		SaveStop->setAccessibleDescription(tr("Closes the editor. The stop is kept in your private tour draft; nothing is sent to GitHub."));
+		SaveStop->setToolTip(tr("Save (%1)").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
+		nav->addWidget(SaveStop);
+		connect(SaveStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
 		auto* complete = new QPushButton{ tr("Ready, next"), StopFields };
 		complete->setObjectName(QStringLiteral("tourComplete"));
 		complete->setDefault(true);
@@ -3475,7 +3938,7 @@ namespace bpr::qt {
 			AdvanceFrom = stop->Id;
 			structural(core::tour_command_kind::complete);
 		});
-		connect(Title, &QLineEdit::textEdited, this, [this] { edit_stop(); });
+		connect(Title, &QPlainTextEdit::textChanged, this, [this] { edit_stop(); });
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
 			edit_stop();
 			place_stop_card();
@@ -3633,16 +4096,6 @@ namespace bpr::qt {
 				where = QStringLiteral("%1:%2").arg(path.section(QLatin1Char{ '/' }, -1)).arg(stop.Destination->FirstLine + 1U);
 			}
 			item->setData(source_role, where);
-			item->setData(file_role, path.section(QLatin1Char{ '/' }, -1));
-			auto previousPath = QString{ };
-			if (index > 0U) {
-				const auto& before = Shown.Draft->Stops[index - 1U];
-				const auto* prior  = before.Original ? &*before.Original : before.Mapped ? &*before.Mapped
-																						 : nullptr;
-				previousPath       = prior != nullptr ? QString::fromStdString(prior->Path) : before.Destination ? QString::fromStdString(before.Destination->Path)
-																												 : QString{ };
-			}
-			item->setData(divider_role, index > 0U && !path.isEmpty() && path != previousPath);
 			auto words = QString::fromStdString(stop.Body).simplified();
 			item->setData(excerpt_role, words.left(240));
 			item->setData(attention_role, stop.Mapping != core::tour_mapping::exact_original && stop.Mapping != core::tour_mapping::unchanged_material && stop.Mapping != core::tour_mapping::unavailable);
@@ -3666,7 +4119,10 @@ namespace bpr::qt {
 		RedoStructure->setEnabled(Shown.CanRedo);
 		update_stop_actions();
 		if (!stop) {
-			Title->clear();
+			{
+				const QSignalBlocker quiet{ Title };
+				Title->clear();
+			}
 			Body->clear();
 			Source->setText(tr("Select source in the comparison, then add a tour stop. You can keep writing the brief while source is unavailable."));
 			Related->clear();
@@ -3700,10 +4156,17 @@ namespace bpr::qt {
 			Editing = stop->Id;
 		}
 		if (changed || Shown.Refusal == core::tour_refusal::none) {
-			if (Title->text() != QString::fromStdString(stop->Title)) {
-				Title->setText(QString::fromStdString(stop->Title));
-				if (!Title->hasFocus()) {
-					Title->setCursorPosition(0);
+			if (Title->toPlainText() != QString::fromStdString(stop->Title)) {
+				const QSignalBlocker quiet{ Title };
+				if (Title->hasFocus()) {
+					// Another presentation of the title keeps the author's caret.
+					const auto caret = Title->textCursor().position();
+					Title->setPlainText(QString::fromStdString(stop->Title));
+					auto cursor = Title->textCursor();
+					cursor.setPosition(std::min(caret, Title->document()->characterCount() - 1));
+					Title->setTextCursor(cursor);
+				} else {
+					Title->setPlainText(QString::fromStdString(stop->Title));
 				}
 			}
 			Body->present(stop->Body);
@@ -3776,11 +4239,18 @@ namespace bpr::qt {
 			if (attention) {
 				chip += QStringLiteral("  ·  ") + tr("Source needs attention");
 			}
+			// [[BPR-1936]]. Lines the agent proposed are a place to look until
+			// the author confirms them; publishing needs them confirmed. Said
+			// here, by the lines, rather than by a button that cannot act.
+			auto probe  = *stop;
+			probe.Title = "-";
+			probe.Body  = "-";
+			if (!core::ready(probe)) {
+				chip += QStringLiteral("  ·  ") + tr("Lines not confirmed");
+				Source->setToolTip(details + tr("\n\nTo confirm them: Show in code, select the lines, then edit the stop and choose Use selected lines."));
+			}
 			Source->setText(chip);
 			present_head_chip(*stop);
-			StopState->setText(stop->Preparation == core::tour_preparation::ready ? tr("Ready") : stop->Preparation == core::tour_preparation::needs_attention ? tr("Needs attention")
-								   : stop->Preparation == core::tour_preparation::suggested                                                                    ? tr("Suggested")
-																																							   : tr("Editing"));
 			StopHeading->setText(tr("Stop %1 of %2").arg(row + 1).arg(Outline->count()));
 			Previous->setEnabled(row > 0);
 			Next->setEnabled(row + 1 < Outline->count());
@@ -3813,7 +4283,7 @@ namespace bpr::qt {
 			return;
 		}
 		auto value  = *selected_stop();
-		value.Title = Title->text().toUtf8().toStdString();
+		value.Title = Title->toPlainText().toUtf8().toStdString();
 		value.Body  = Body->raw();
 		EditingKind = core::tour_command_kind::edit_stop;
 		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::edit_stop, .Stop = value.Id, .Value = std::move(value) });
@@ -3821,7 +4291,7 @@ namespace bpr::qt {
 	void review_tour_editor::view_stop(const core::tour_stop_view_event aEvent)
 	{
 		const auto* const stop  = selected_stop();
-		const auto        title = Title->text().toUtf8().toStdString();
+		const auto        title = Title->toPlainText().toUtf8().toStdString();
 		auto              input = core::tour_stop_view_input{ .Stop = stop, .Event = aEvent, .Editable = Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly, .Composing = composing() };
 		if (stop != nullptr && Editing == stop->Id) {
 			input.Held = core::tour_stop_held_text{ .Title = title, .Body = Body->raw() };
@@ -3836,7 +4306,7 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::present_stop_view()
 	{
-		if (StopReader == nullptr || ReadTitle == nullptr || EditStop == nullptr || DoneStop == nullptr) {
+		if (StopReader == nullptr || ReadTitle == nullptr || EditStop == nullptr || SaveStop == nullptr) {
 			return;
 		}
 		const bool writing = StopView.Mode == core::tour_stop_view_mode::edit;
@@ -3845,21 +4315,36 @@ namespace bpr::qt {
 		const bool onRead  = focused != nullptr && (focused == EditStop || focused == StopReader->rendered_view());
 		Title->setVisible(writing);
 		Body->setVisible(writing);
-		DoneStop->setVisible(writing);
+		// [[BPR-1936]]. Written: Cancel and Save at the foot, Use selected
+		// lines by the location; the pencil and Ready, next give way.
+		SaveStop->setVisible(writing);
+		CancelStop->setVisible(writing);
+		RemoveStop->setVisible(writing);
+		if (RemoveConfirm != nullptr && !RemoveConfirm->isHidden() && (!writing || ConfirmingStop != StopView.Stop)) {
+			RemoveConfirm->hide();
+			ConfirmingStop = { };
+		}
+		SaveStop->setDefault(writing);
+		StopActions->want(UseLines, writing);
+		if (Retarget != nullptr) {
+			// The route's and More's menus offer it only while written too.
+			Retarget->setVisible(writing);
+		}
 		if (StopMagic != nullptr) {
 			StopMagic->setVisible(writing);
 		}
 		ReadTitle->setVisible(!writing);
 		StopReader->setVisible(!writing);
 		EditStop->setVisible(!writing);
-		// [[BPR-1805]] repair (owner review, 2026-10-29). A stop being written
-		// but not yet ready says "Editing" only while its editor is open: read,
-		// that word beside the pencil made the reader look like the editor.
-		// Ready, Needs attention and Suggested still show either way.
-		if (StopState != nullptr) {
-			const auto* const stop = selected_stop();
-			StopState->setVisible(writing || (stop != nullptr && stop->Preparation != core::tour_preparation::editing));
+		if (writing && (!EditOrigin || EditOrigin->Stop != StopView.Stop)) {
+			// What Cancel puts back: the stop as the editor opened on it.
+			if (const auto* const stop = selected_stop(); stop != nullptr) {
+				EditOrigin = stop_edit_origin{ .Stop = stop->Id, .Title = stop->Title, .Body = stop->Body };
+			}
+		} else if (!writing) {
+			EditOrigin.reset();
 		}
+		refresh_complete();
 		EditStop->setEnabled(Shown.Draft && !Shown.Loading && !Shown.Draft->ReadOnly);
 		// The keyboard stays with the stop as it changes between read and written.
 		if (writing && onRead) {
@@ -3901,6 +4386,53 @@ namespace bpr::qt {
 		}
 		place_stop_card();
 	}
+	void review_tour_editor::restyle_remove_confirm()
+	{
+		// The confirming Remove says it in the trash's red.
+		if (RemoveYes != nullptr) {
+			const auto red     = danger_red(palette());
+			auto       colours = QPalette{ };
+			for (const auto role : { QPalette::WindowText, QPalette::ButtonText, QPalette::Text }) {
+				colours.setColor(QPalette::Active, role, red);
+				colours.setColor(QPalette::Inactive, role, red);
+			}
+			RemoveYes->setPalette(colours);
+		}
+	}
+	void review_tour_editor::remove_stop(const core::tour_stop_id aStop)
+	{
+		if (!Dispatch || !Shown.Draft || Shown.Draft->ReadOnly || Shown.Loading || std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
+			return;
+		}
+		if (Shown.Refusal == core::tour_refusal::bounds) {
+			show_notice(tr("Shorten the unsaved text or use native Undo before arranging stops. Your full text is retained."));
+			return;
+		}
+		const auto number = static_cast<int>(std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id) - Shown.Draft->Stops.begin()) + 1;
+		hold_scroll();
+		Dispatch({ .Draft = Shown.Draft->Id, .Owner = Shown.Draft->Owner, .ExpectedRevision = Shown.Draft->Revision, .Kind = core::tour_command_kind::remove, .Stop = aStop, .Selection = { aStop } });
+		if (Shown.Refusal == core::tour_refusal::none) {
+			show_notice(tr("Removed stop %1. %2 brings it back.").arg(number).arg(QKeySequence{ QKeySequence::Undo }.toString(QKeySequence::NativeText)));
+		}
+	}
+	void review_tour_editor::cancel_stop_edit()
+	{
+		const auto* const stop = selected_stop();
+		if (stop == nullptr || StopView.Mode != core::tour_stop_view_mode::edit) {
+			return;
+		}
+		if (EditOrigin && EditOrigin->Stop == stop->Id && (EditOrigin->Title != stop->Title || EditOrigin->Body != stop->Body || Title->toPlainText().toUtf8().toStdString() != EditOrigin->Title || Body->raw() != EditOrigin->Body)) {
+			// The editors take the text back, and the draft with them, as one edit.
+			{
+				const QSignalBlocker quietTitle{ Title };
+				const QSignalBlocker quietBody{ Body };
+				Title->setPlainText(QString::fromStdString(EditOrigin->Title));
+				Body->present(EditOrigin->Body);
+			}
+			edit_stop();
+		}
+		finish_stop_edit();
+	}
 	void review_tour_editor::structural(core::tour_command_kind aKind, std::size_t aPosition)
 	{
 		if (!Dispatch || !selected_stop()) {
@@ -3911,7 +4443,12 @@ namespace bpr::qt {
 			return;
 		}
 		const bool grouped   = aKind == core::tour_command_kind::move || aKind == core::tour_command_kind::duplicate || aKind == core::tour_command_kind::merge_next || aKind == core::tour_command_kind::remove;
-		const auto selection = grouped ? selected_stops() : std::vector<core::tour_stop_id>{ };
+		auto       selection = grouped ? selected_stops() : std::vector<core::tour_stop_id>{ };
+		// [[BPR-1936]]. The open stop is what an empty selection means: the
+		// route can show a stop open with no row selected.
+		if (grouped && selection.empty() && aKind != core::tour_command_kind::merge_next) {
+			selection.push_back(Selected);
+		}
 		if (grouped && selection.empty()) {
 			return;
 		}
@@ -3992,9 +4529,19 @@ namespace bpr::qt {
 	void review_tour_editor::update_stop_actions()
 	{
 		const auto selection = selected_stops();
-		const bool editable  = Shown.Draft && !Shown.Draft->ReadOnly && !Shown.Loading && Shown.Refusal == core::tour_refusal::none;
-		DuplicateStops->setEnabled(editable && !selection.empty());
-		RemoveStops->setEnabled(editable && !selection.empty());
+		// [[BPR-1936]], owner: "'Remove' for a stop appears inconsistently in
+		// the context menu". It was disabled whenever no row was selected
+		// (a stop opened by the host or the keyboard is current, not
+		// selected) and after any refused command, such as Ready refused.
+		// Only unsaved text past the limit, a read-only or loading draft,
+		// or no stop at all now holds it back.
+		const bool editable = Shown.Draft && !Shown.Draft->ReadOnly && !Shown.Loading && Shown.Refusal != core::tour_refusal::bounds;
+		const bool any      = !selection.empty() || selected_stop() != nullptr;
+		DuplicateStops->setEnabled(editable && any);
+		RemoveStops->setEnabled(editable && any);
+		if (RemoveStop != nullptr) {
+			RemoveStop->setEnabled(editable && selected_stop() != nullptr);
+		}
 		bool adjacent = selection.size() >= 2;
 		if (adjacent && Shown.Draft) {
 			const auto first = std::ranges::find(Shown.Draft->Stops, selection.front(), &core::tour_stop::Id);
@@ -4143,6 +4690,9 @@ namespace bpr::qt {
 
 	void review_tour_editor::open_brief(const int aField)
 	{
+		if (aField != BriefOpen) {
+			StepCollapsed = false;
+		}
 		BriefOpen = aField;
 		for (int field = 0; field < 3; ++field) {
 			auto* const row = static_cast<QAbstractButton*>(StepRows[field]);
@@ -4152,7 +4702,7 @@ namespace bpr::qt {
 				row->setChecked(on);
 			}
 			if (auto* const slot = field == 2 ? StopsSlot : BriefSlots[field]; slot != nullptr && Mode == tour_editor_mode::route) {
-				slot->setVisible(on);
+				slot->setVisible(on && !StepCollapsed);
 			}
 		}
 		refresh_steps();
@@ -4169,6 +4719,7 @@ namespace bpr::qt {
 
 	void review_tour_editor::choose_step(const int aField)
 	{
+		StepCollapsed = false;
 		if (aField < 0) {
 			show_stops();
 			return;
@@ -4284,10 +4835,14 @@ namespace bpr::qt {
 			return;
 		}
 		// The current stop opens in place on the route, under its title.
+		// [[BPR-1936]]. A collapsed stop keeps its row, current, without its card.
 		const auto* const stop = selected_stop();
-		const auto        row  = stop != nullptr && Shown.Draft ? static_cast<int>(stop - Shown.Draft->Stops.data()) : -1;
+		const auto        row  = stop != nullptr && Shown.Draft && !stop_collapsed() ? static_cast<int>(stop - Shown.Draft->Stops.data()) : -1;
 		for (int index = 0; index < Outline->count(); ++index) {
 			auto* const item = Outline->item(index);
+			if (item->data(card_role).toBool() != (index == row)) {
+				item->setData(card_role, index == row);
+			}
 			if (index != row && Outline->itemWidget(item) != nullptr) {
 				if (Outline->itemWidget(item)->isAncestorOf(StopFields)) {
 					StopFields->setParent(this);
@@ -4306,10 +4861,10 @@ namespace bpr::qt {
 		auto* const item = Outline->item(row);
 		auto*       card = Outline->itemWidget(item);
 		if (card == nullptr) {
-			card = new QWidget{ };
-			card->setObjectName(QStringLiteral("tourStopCard"));
-			card->setAutoFillBackground(false);
-			auto* const column = new QVBoxLayout{ card };
+			card                                = new stop_card{ [this] { toggle_stop_card(); },
+																 [this] { return StopTitleRow != nullptr && StopFields->parentWidget() != nullptr ? StopFields->mapToParent(QPoint{ 0, StopTitleRow->geometry().bottom() }).y() : 0; } };
+			static_cast<stop_card*>(card)->Menu = [this](const QPoint& aAt) { popup_stop_menu(aAt); };
+			auto* const column                  = new QVBoxLayout{ card };
 			column->setContentsMargins(text_left - 6, 10, 12, 10);
 			column->addWidget(StopFields);
 			StopFields->show();
@@ -4322,17 +4877,61 @@ namespace bpr::qt {
 		// [[BPR-1930]]. Wrapped words in a waiting part's box ask for more
 		// height at their size hint than at the card's width; the card takes
 		// its height for that width, and never less than its minimum.
-		const auto height  = card->layout()->hasHeightForWidth() ? std::max(card->layout()->totalHeightForWidth(width), card->layout()->totalMinimumSize().height()) : card->layout()->totalSizeHint().height();
-		const auto divider = item->data(divider_role).toBool() ? divider_band : 0;
-		if (item->sizeHint() != QSize{ width, height + divider }) {
-			item->setSizeHint({ width, height + divider });
+		const auto height = card->layout()->hasHeightForWidth() ? std::max(card->layout()->totalHeightForWidth(width), card->layout()->totalMinimumSize().height()) : card->layout()->totalSizeHint().height();
+		if (item->sizeHint() != QSize{ width, height }) {
+			item->setSizeHint({ width, height });
 		}
-		card->setContentsMargins(0, divider, 0, 0);
 		fit_route();
 		if (RefocusStop != nullptr && RefocusStop->isVisible()) {
 			RefocusStop->setFocus(Qt::OtherFocusReason);
 			RefocusStop = nullptr;
 		}
+	}
+
+	void review_tour_editor::popup_stop_menu(const QPoint& aGlobal)
+	{
+		// [[BPR-1936]]. The open card's stop, selected, so the menu acts on it.
+		if (const auto* const item = Outline->currentItem(); item != nullptr && !item->isSelected()) {
+			Outline->setCurrentItem(Outline->currentItem(), QItemSelectionModel::ClearAndSelect);
+		}
+		update_stop_actions();
+		StopMenu->popup(aGlobal);
+	}
+
+	void review_tour_editor::toggle_stop_card()
+	{
+		if (Mode != tour_editor_mode::route || selected_stop() == nullptr) {
+			return;
+		}
+		// [[BPR-1936]]. The tour stays where it is; the keyboard goes to the
+		// route, or to the card's ring, as the card closes or opens.
+		hold_scroll();
+		const auto collapsing = !stop_collapsed();
+		if (collapsing && StopView.Mode == core::tour_stop_view_mode::edit) {
+			// Collapsing is not Cancel: what was typed stays, read.
+			view_stop(core::tour_stop_view_event::finish_edit);
+			if (StopView.Mode == core::tour_stop_view_mode::edit) {
+				show_notice(tr("This stop's text has not been saved yet, so it stays open. Your full text is retained."));
+				return;
+			}
+		}
+		const auto refocus = StopFields->isAncestorOf(QApplication::focusWidget()) || (QApplication::focusWidget() != nullptr && QApplication::focusWidget()->objectName() == QStringLiteral("tourStopCollapse"));
+		CollapsedStop      = collapsing ? Selected : core::tour_stop_id{ };
+		place_stop_card();
+		Outline->viewport()->update();
+		if (collapsing && refocus) {
+			Outline->setFocus(Qt::OtherFocusReason);
+		} else if (!collapsing && Outline->hasFocus()) {
+			if (auto* const card = Outline->currentItem() != nullptr ? Outline->itemWidget(Outline->currentItem()) : nullptr; card != nullptr) {
+				static_cast<stop_card*>(card)->Ring->setFocus(Qt::OtherFocusReason);
+			}
+		}
+	}
+
+	auto review_tour_editor::stop_collapse_button() const -> QAbstractButton*
+	{
+		auto* const card = Outline != nullptr && Outline->currentItem() != nullptr ? Outline->itemWidget(Outline->currentItem()) : nullptr;
+		return card != nullptr ? static_cast<stop_card*>(card)->Ring : nullptr;
 	}
 
 	void review_tour_editor::fit_route()
@@ -4516,6 +5115,7 @@ namespace bpr::qt {
 				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
 			}
 			EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
+			restyle_remove_confirm();
 			// The Head changed chip's amber follows the theme.
 			if (const auto* const stop = selected_stop(); stop != nullptr) {
 				present_head_chip(*stop);

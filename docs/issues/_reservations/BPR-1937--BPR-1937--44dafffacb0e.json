@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1937"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Whole-tour revision applies a stale proposal",
+  "created": "2026-11-08T07:30:32.148323+00:00",
+  "base": "8c49f461d0ba652c81f2e6cf71532336fc3ca8e0"
+}

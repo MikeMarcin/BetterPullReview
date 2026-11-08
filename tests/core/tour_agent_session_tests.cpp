@@ -251,7 +251,7 @@ namespace {
 		static_cast<void>(finish_tour_run(session, *draft, tour_agent_run_state::answered, "Proposed a Solution and 2 stops."));
 		const auto replayed = tour_conversation_of(session);
 		expect(replayed.Turns.size() == 2U && replayed.Dropped == 0U, "two turns are replayed");
-		expect(replayed.Turns[0] == tour_conversation_turn{ "What does this mean?", passage, "It is the frame window: `begin_frame()` to `present()`.", tour_thread{ } }, "the ask turn comes back whole, oldest first");
+		expect(replayed.Turns[0] == tour_conversation_turn{ "What does this mean?", passage, "It is the frame window: `begin_frame()` to `present()`.", tour_thread{ }, { } }, "the ask turn comes back whole, oldest first");
 		expect(replayed.Turns[1].Asked == "Draft the tour" && replayed.Turns[1].Reply == "Proposed a Solution and 2 stops.", "a draft comes back by what it proposed");
 		// Bounded: the newest turns, by count and by bytes.
 		auto many = tour_agent_session{ };
@@ -393,7 +393,7 @@ namespace {
 		auto       answer   = tour_ask_answer{ .Reply = "Fewer stops." };
 		answer.Revision     = tour_revision{ .Remove = { 5U }, .Merges = { { .Stops = { 3U, 2U }, .Title = "Both halves", .Explanation = "One stop for both." } }, .Focus = "  the renderer  " };
 		const auto proposal = propose_tour_changes(tour_agent_run_id{ 4 }, answer, files, tour);
-		expect(proposal.Items.size() == 2U && proposal.Refused == 0U, "a merge and a removal are proposed");
+		expect(proposal.Items.size() == 2U && proposal.Refused.empty(), "a merge and a removal are proposed");
 		const auto* merge = find_part(proposal, tour_proposal_part::merge_stops);
 		expect(merge != nullptr && merge->Stops == std::vector{ before[1], before[2] } && merge->Stop.Title == "Both halves" && merge->ReplacesAuthorText, "the merge names stops 2 and 3, in tour order, and says it replaces their text");
 		const auto* removal = find_part(proposal, tour_proposal_part::remove_stop);
@@ -434,11 +434,17 @@ namespace {
 		bad.Revision       = tour_revision{ .Remove = { 2U, 9U, 0U }, .Merges = { { .Stops = { 2U, 7U }, .Explanation = "x" }, { .Stops = { 4U }, .Explanation = "x" } }, .Order = { 1U, 2U, 3U } };
 		const auto refused = propose_tour_changes(tour_agent_run_id{ 5 }, bad, files, tour);
 		expect(refused.Items.size() == 1U && refused.Items.front().Part == tour_proposal_part::remove_stop && refused.Items.front().StopId == before[1], "only the removal of stop 2 is valid");
-		expect(refused.Refused == 5U, "two merges, two removals and an order that isn't every stop are refused");
+		expect(refused.Refused.size() == 5U, "two merges, two removals and an order that isn't every stop are refused");
+		// [[BPR-1937]] AC2. Each refused part says which stops and why.
+		const auto refusedAs = [&refused](const tour_revision_kind aKind, const std::vector<std::size_t>& aStops, const tour_revision_refusal aReason) { return std::ranges::find(refused.Refused, tour_refused_part{ .Kind = aKind, .Stops = aStops, .Reason = aReason }) != refused.Refused.end(); };
+		expect(refusedAs(tour_revision_kind::merge, { 2U, 7U }, tour_revision_refusal::not_in_tour) && refusedAs(tour_revision_kind::merge, { 4U }, tour_revision_refusal::too_few_stops) && refusedAs(tour_revision_kind::remove, { 9U }, tour_revision_refusal::not_in_tour)
+				   && refusedAs(tour_revision_kind::remove, { 0U }, tour_revision_refusal::not_in_tour) && refusedAs(tour_revision_kind::order, { 1U, 2U, 3U }, tour_revision_refusal::not_every_stop),
+			   "each refusal names its part, its stops and why");
+		expect(refused.RevisesStructure && tally_of(refused).Refused == refused.Refused, "the turn revised the tour's shape, and its tally keeps the refusals");
 		auto twice      = tour_ask_answer{ .Reply = "Twice." };
 		twice.Revision  = tour_revision{ .Remove = { 2U }, .Merges = { { .Stops = { 1U, 2U }, .Explanation = "x" } } };
 		const auto once = propose_tour_changes(tour_agent_run_id{ 6 }, twice, files, tour);
-		expect(once.Items.size() == 1U && once.Items.front().Part == tour_proposal_part::merge_stops && once.Refused == 1U, "a stop is named by one part only");
+		expect(once.Items.size() == 1U && once.Items.front().Part == tour_proposal_part::merge_stops && once.Refused.size() == 1U, "a stop is named by one part only");
 
 		// A reorder: every stop once, in its new order.
 		auto reorder     = tour_ask_answer{ .Reply = "Start at the end." };
@@ -469,7 +475,7 @@ namespace {
 		movedOn.Head = *parse_git_commit_oid("4444444444444444444444444444444444444444");
 		expect(apply_tour_revision(tour, movedOn)->Stops[1].ReaffirmedHead == movedOn.Head && apply_tour_revision(tour, movedOn)->Stops[1].Destination->Commit == *movedOn.Head, "a piece is at the head its run read");
 		split.Revision->Splits.front().Into.back().LastLine = 30U;
-		expect(propose_tour_changes(tour_agent_run_id{ 10 }, split, files, tour).Refused == 1U, "a piece outside the stop's lines is refused");
+		expect(propose_tour_changes(tour_agent_run_id{ 10 }, split, files, tour).Refused.size() == 1U, "a piece outside the stop's lines is refused");
 
 		// Accepted proposed stops have lines still to confirm: merged in one
 		// file, the merged stop spans them all; in two files it can't.
@@ -482,7 +488,7 @@ namespace {
 		expect(spanned && spanned->Stops.size() == 2U && spanned->Stops.front().Destination && spanned->Stops.front().Destination->FirstLine == 0U && spanned->Stops.front().Destination->LastLine == 24U, "the merged stop spans its sources' lines");
 		auto mixed                       = toConfirm;
 		mixed.Stops[2].Destination->Path = "src/other.cpp";
-		expect(propose_tour_changes(tour_agent_run_id{ 12 }, spanning, files, mixed).Refused == 1U, "a merge that would lose a file's lines is refused");
+		expect(propose_tour_changes(tour_agent_run_id{ 12 }, spanning, files, mixed).Refused.size() == 1U, "a merge that would lose a file's lines is refused");
 
 		// A whole-tour turn that revises the proposed stops still waiting.
 		auto waiting    = tour_proposal{ .Run = tour_agent_run_id{ 2 } };
@@ -499,6 +505,22 @@ namespace {
 		auto       second     = tour_proposal{ .Items = { { .Part = tour_proposal_part::merge_stops, .Text = "x", .StopId = { }, .Stops = { before[1], before[2] } } } };
 		const auto superseded = merge_tour_proposal(first, second);
 		expect(superseded && superseded->Items.size() == 2U && superseded->Items.back().Part == tour_proposal_part::reorder, "a merge of stop 2 supersedes its removal, and the order stays");
+		expect(propose_tour_changes(tour_agent_run_id{ 12 }, spanning, files, mixed).Refused.front().Reason == tour_revision_refusal::different_files, "[[BPR-1937]] a merge across files says so");
+
+		// [[BPR-1937]] AC1. A newer revision of the tour's shape replaces the
+		// earlier plan whole, even naming other stops, and even when every
+		// part of it was refused; a Problem waiting stays.
+		auto earlier    = tour_proposal{ .Items = { { .Part = tour_proposal_part::remove_stop, .StopId = before[5] }, { .Part = tour_proposal_part::problem, .Text = "Problem" } } };
+		auto newer      = tour_ask_answer{ .Reply = "Merge instead." };
+		newer.Revision  = tour_revision{ .Merges = { { .Stops = { 1U, 2U }, .Explanation = "x" } } };
+		const auto plan = merge_tour_proposal(earlier, propose_tour_changes(tour_agent_run_id{ 13 }, newer, files, tour));
+		expect(plan && plan->Items.size() == 2U && plan->Items.front().Part == tour_proposal_part::merge_stops && plan->Items.back().Part == tour_proposal_part::problem, "the newer plan replaces the earlier one; the Problem still waits");
+		newer.Revision         = tour_revision{ .Merges = { { .Stops = { 1U, 9U }, .Explanation = "x" } } };
+		const auto refusedPlan = merge_tour_proposal(earlier, propose_tour_changes(tour_agent_run_id{ 14 }, newer, files, tour));
+		expect(refusedPlan && refusedPlan->Items.size() == 1U && refusedPlan->Items.front().Part == tour_proposal_part::problem && refusedPlan->Refused.size() == 1U, "a newer plan refused whole still withdraws the earlier one, and says why");
+		auto question     = tour_ask_answer{ .Reply = "It reads well." };
+		question.Revision = tour_revision{ };
+		expect(merge_tour_proposal(earlier, propose_tour_changes(tour_agent_run_id{ 15 }, question, files, tour)) == earlier, "an answer with no revision of the shape leaves the plan waiting");
 	}
 
 	/// [[BPR-1930]] AC2, AC3. The focus is remembered; feedback given while

@@ -1,6 +1,7 @@
 // [[BPR-1805]]. A tour stop opens to read: its title, its explanation
 // rendered as a comment is, and a pencil that opens the title and Markdown
-// source. Done, Escape or Command/Control+Return reads it again; Return on the
+// source. Save or Command/Control+Return reads it again, and Cancel or Escape
+// puts the text back first ([[BPR-1936]], as the description editor); Return on the
 // read explanation writes it. A stop with nothing to read yet opens to be
 // written, and text the draft has not taken keeps the editor open. Pass a
 // path prefix to save light and dark renders.
@@ -253,10 +254,12 @@ auto main(int argc, char** argv) -> int
 	auto* const body      = editor.stop_body();
 	auto* const reader    = editor.stop_reader();
 	auto* const pencil    = child<QToolButton>(editor, "tourStopEdit");
-	auto* const done      = child<QPushButton>(editor, "tourStopDone");
+	auto* const done      = child<QPushButton>(editor, "tourStopSave");
+	auto* const cancel    = child<QPushButton>(editor, "tourStopCancel");
+	auto* const useLines  = child<QPushButton>(editor, "tourUseSelectedLines");
 	auto* const readTitle = child<QLabel>(editor, "tourStopReadTitle");
-	const auto  reading   = [&] { return editor.stop_view().Mode == mode::read && reader->isVisible() && readTitle->isVisible() && pencil->isVisible() && !title->isVisible() && !body->isVisible() && !done->isVisible(); };
-	const auto  writing   = [&] { return editor.stop_view().Mode == mode::edit && title->isVisible() && body->isVisible() && done->isVisible() && !reader->isVisible() && !pencil->isVisible(); };
+	const auto  reading   = [&] { return editor.stop_view().Mode == mode::read && reader->isVisible() && readTitle->isVisible() && pencil->isVisible() && !title->isVisible() && !body->isVisible() && !done->isVisible() && !cancel->isVisible() && !useLines->isVisible(); };
+	const auto  writing   = [&] { return editor.stop_view().Mode == mode::edit && title->isVisible() && body->isVisible() && done->isVisible() && cancel->isVisible() && useLines->isVisible() && !reader->isVisible() && !pencil->isVisible(); };
 
 	// A written stop opens to read: the title as text, the explanation rendered, the pencil named.
 	expect(editor.stop_view().Stop == core::tour_stop_id{ 1 } && reading(), "a written stop opens to read, not in the editor");
@@ -287,12 +290,32 @@ auto main(int argc, char** argv) -> int
 	expect(editor.stop_view().Stop == core::tour_stop_id{ 1 } && reading(), "going back to a stop shows it read, not in the editor");
 	expect(reader->rendered_view()->toPlainText().contains(QStringLiteral("never filled twice")), "the reader shows what was written");
 
-	// Return on the read explanation writes; Escape reads, putting the keyboard on the pencil.
+	// Return on the read explanation writes; Escape cancels, putting the keyboard on the pencil.
 	reader->rendered_view()->setFocus(Qt::OtherFocusReason);
 	press(reader->rendered_view(), Qt::Key_Return);
 	expect(writing() && editor.focusWidget() == body, "Return on the read explanation opens the source, as the pencil does");
+	// [[BPR-1936]]. Cancel and Save at the card's foot, Save at the right and
+	// the default, below the explanation, as the description editor has them.
+	expect(done->isDefault() && cancel->x() < done->x() && cancel->mapTo(&editor, QPoint{ }).y() > body->mapTo(&editor, QPoint{ }).y(), "Cancel then Save, at the foot below the explanation");
+	expect(!child<QPushButton>(editor, "tourComplete")->isVisible(), "while written, Save is the card's one primary action");
+	const auto before = draft.Stops.front();
+	body->moveCursor(QTextCursor::End);
+	body->insertPlainText(QStringLiteral(" Typed then cancelled."));
+	title->moveCursor(QTextCursor::End);
+	title->insertPlainText(QStringLiteral(" (draft)"));
+	QApplication::processEvents();
+	expect(draft.Stops.front().Body.ends_with("Typed then cancelled.") && draft.Stops.front().Title.ends_with("(draft)"), "text is saved as it is typed");
 	press(body, Qt::Key_Escape);
-	expect(reading() && editor.focusWidget() == pencil, "Escape in the source reads the stop, the keyboard on its pencil");
+	expect(reading() && editor.focusWidget() == pencil, "Escape in the source cancels and reads the stop, the keyboard on its pencil");
+	expect(draft.Stops.front().Body == before.Body && draft.Stops.front().Title == before.Title, "Cancel puts the title and explanation back as they were");
+	pencil->click();
+	QApplication::processEvents();
+	body->moveCursor(QTextCursor::End);
+	body->insertPlainText(QStringLiteral(" Gone again."));
+	QApplication::processEvents();
+	cancel->click();
+	QApplication::processEvents();
+	expect(reading() && draft.Stops.front().Body == before.Body, "so does the Cancel button");
 	pencil->click();
 	QApplication::processEvents();
 	title->setFocus(Qt::OtherFocusReason);
@@ -302,7 +325,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	done->click();
 	QApplication::processEvents();
-	expect(reading(), "Done reads the stop");
+	expect(reading(), "Save reads the stop");
 
 	// Text the draft has not taken keeps the editor open, with the text.
 	pencil->click();
@@ -314,16 +337,16 @@ auto main(int argc, char** argv) -> int
 	expect(refusal == core::tour_refusal::bounds && !draft.Stops.front().Body.ends_with("Unsaved words."), "the edit is refused and not saved");
 	done->click();
 	QApplication::processEvents();
-	expect(writing() && body->toPlainText().endsWith(QStringLiteral("Unsaved words.")), "Done keeps unsaved text in the editor");
-	press(body, Qt::Key_Escape);
-	expect(writing(), "so does Escape");
+	expect(writing() && body->toPlainText().endsWith(QStringLiteral("Unsaved words.")), "Save keeps unsaved text in the editor");
+	press(body, Qt::Key_Return, Qt::ControlModifier);
+	expect(writing(), "so does Command/Control+Return");
 	refuse = false;
 	body->insertPlainText(QStringLiteral(" Saved."));
 	QApplication::processEvents();
 	expect(refusal == core::tour_refusal::none && draft.Stops.front().Body.ends_with("Unsaved words. Saved."), "the next edit is taken whole");
 	done->click();
 	QApplication::processEvents();
-	expect(reading() && reader->rendered_view()->toPlainText().contains(QStringLiteral("Unsaved words. Saved.")), "once taken, Done reads it");
+	expect(reading() && reader->rendered_view()->toPlainText().contains(QStringLiteral("Unsaved words. Saved.")), "once taken, Save reads it");
 
 	// A new, empty stop opens to be written, the keyboard in its title (BPR-1783).
 	draft.Stops.push_back(stop(3, { }, { }));
@@ -336,7 +359,7 @@ auto main(int argc, char** argv) -> int
 	QApplication::processEvents();
 	expect(editor.stop_view().Stop == core::tour_stop_id{ 3 } && writing() && editor.focusWidget() == title, "a new, empty stop opens to be written with the keyboard in its title");
 	render(editor, prefix, "route-new");
-	// Done on an unwritten stop reads it, saying there is nothing yet.
+	// Save on an unwritten stop reads it, saying there is nothing yet.
 	done->click();
 	QApplication::processEvents();
 	expect(reading() && readTitle->text() == QStringLiteral("Untitled stop") && reader->rendered_view()->toPlainText().isEmpty(), "an unwritten stop read says it is untitled and has no explanation yet");
@@ -363,7 +386,7 @@ auto main(int argc, char** argv) -> int
 	// emphasis, a list, inline and fenced C++ code, a table and a link reads
 	// rendered, on the route and on the page, and nothing says it is being
 	// edited while it is read.
-	auto* const state = child<QLabel>(editor, "tourStopState");
+	expect(editor.findChild<QLabel*>(QStringLiteral("tourStopState")) == nullptr, "no state word sits beside the title");
 	draft.Stops.push_back(stop(4, "Why the table is parsed once", rich_body));
 	draft.LastStopId = 4;
 	++draft.Revision;
@@ -374,7 +397,6 @@ auto main(int argc, char** argv) -> int
 	editor.resize(440, 1180);
 	QApplication::processEvents();
 	expect(editor.stop_view().Stop == core::tour_stop_id{ 4 } && reading(), "a richly written stop opens to read");
-	expect(!state->isVisible(), "a read stop does not say Editing beside its pencil");
 	const auto rich = reader->rendered_view()->toPlainText();
 	for (const auto* const shown : { "What changed", "parse_table()", "auto table_cache::get() -> const table&", "Table = parse_table(Source); // once", "first get()", "the locking notes" }) {
 		expect(rich.contains(QString::fromUtf8(shown)), std::string{ "the rendered stop shows " } + shown + ": " + rich.toStdString());
@@ -427,16 +449,16 @@ auto main(int argc, char** argv) -> int
 	expect(reading(), "rendering does not open the editor");
 	pencil->click();
 	QApplication::processEvents();
-	expect(writing() && state->isVisible() && state->text() == QStringLiteral("Editing"), "writing, the stop says Editing");
+	expect(writing(), "the pencil writes the rich stop");
 	render_themed(editor, prefix, "route-edit-rich");
 	done->click();
 	QApplication::processEvents();
-	expect(reading() && !state->isVisible(), "read again, it does not");
+	expect(reading(), "and Save reads it again");
 	editor.set_mode(qt::tour_editor_mode::page);
 	editor.resize(1180, 1000);
 	editor.show_stops();
 	QApplication::processEvents();
-	expect(editor.stop_view().Stop == core::tour_stop_id{ 4 } && reading() && !state->isVisible(), "on the tour page the rich stop reads too");
+	expect(editor.stop_view().Stop == core::tour_stop_id{ 4 } && reading(), "on the tour page the rich stop reads too");
 	syntax.deliver(editor);
 	render_themed(editor, prefix, "page-read-rich");
 	editor.set_code_syntax_dispatch({ });

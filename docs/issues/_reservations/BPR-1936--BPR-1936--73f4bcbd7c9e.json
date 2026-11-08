@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1936"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour stop card cleanup",
+  "created": "2026-11-08T07:27:21.314660+00:00",
+  "base": "a159d2e2c3925dde0f836711e482e764b10615bb"
+}
