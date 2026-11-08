@@ -3309,11 +3309,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# revision of the tour's shape replace the waiting plan even when it is
 	# refused whole, and names refused parts in the tour's notice. No grant,
 	# provider, gh process, admission, mutation branch or publication change.
-	# [[BPR-1940]] include ownership reseal: defect_identity.hpp directly
-	# includes <cstdint> for its public integer types. No source inventory,
-	# production mutation branch, authority or runtime behavior changes.
+	# [[BPR-1940]] native compile-closure reseal over acdb0bb2b: direct
+	# <cstdint> in defect_identity.hpp; explicit empty optional then guarded
+	# copy in window_agent_chat.cpp. Same writing-only exclusion, explicit
+	# intent priority, fallback, move and dispatch. No source inventory,
+	# production mutation branch or authority changes.
 	set(bpr_expected_production_app_manifest_digest
-        "2c0c2c9e7bac78f18517682cc15e1110f2b5ca037d66ea68e16e8e24db24bff2"
+        "87e6df9b12f9c5859091bfaeee6d2cb0e0b89b6c1bf6de65e11d30723fa12a36"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

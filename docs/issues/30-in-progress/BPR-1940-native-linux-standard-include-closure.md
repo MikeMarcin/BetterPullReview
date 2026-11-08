@@ -112,3 +112,34 @@ sources), `application_agent_chat_composition_contract`,
 Source inspection and the two-file content-binding review retain the unchanged
 fallback and dispatch mechanics; no test replaces those checks with a copy of
 the rewritten conditional.
+
+
+## Complete initial native sweep and approved correction
+
+Private native source `26844c207575eb55789564775a0bbc53fd4da19b` finished all
+three ordinary graphs before the optional code was edited: Release exit1
+(1067.09 s), Debug exit0 (3014.04 s), tests-off exit1 (589.15 s). Each optimized
+failure is exactly `window_agent_chat.cpp`'s recorded optional/vector warning;
+there are no additional missing-standard-include diagnostics. All owned
+compiler descendants were reaped. The raw terminal logs/receipts and original
+flags are retained in external `release-terminal-r1`, `debug-terminal-r1`,
+`tests-off-terminal-r1` and `native-r1-final-receipt.json`.
+
+Only after that terminal boundary, the approved default construction and
+`if (!aWritingOnly)` copy were applied on the isolated branch. Source review
+retains all four cases in `optional-structure-review.md`, including read-only
+Tour suppression and unchanged exception/unwind behavior. No fallback, request
+move, admission/privacy guard or dispatch was edited. The false-positive
+classification remains a hypothesis pending unchanged-flags native positives
+and the six existing semantic courses.
+
+The two reviewed app-file hashes are bound by the unchanged ordered142-file
+manifest, independently computed as
+`87e6df9b12f9c5859091bfaeee6d2cb0e0b89b6c1bf6de65e11d30723fa12a36`
+and confirmed by the maintained CMake digest printer. The full-main and
+production mutation-branch pins remain unchanged. The digest printer verifies
+nothing by itself and receives no runtime acceptance credit. Both changed TUs
+compile/check with Clang locally; clang-format22 and warnings-as-errors
+tidy22 pass. The retry will finish the same three normal graphs and run the
+six named existing courses once on native Release; no duplicate semantic
+matrix is added.

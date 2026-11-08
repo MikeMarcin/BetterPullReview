@@ -739,7 +739,11 @@ namespace bpr::app {
 			Window->agent_panel()->refuse("Choose immutable revisions or findings in Private history, then Ask agent using selected sources.");
 			return false;
 		}
-		auto privateRun = aWritingOnly ? std::optional<application::private_run_intent>{ } : ExplicitPrivateRun;
+		// [[BPR-1940]]. Keep the empty path explicit in optimized builds.
+		auto privateRun = std::optional<application::private_run_intent>{ };
+		if (!aWritingOnly) {
+			privateRun = ExplicitPrivateRun;
+		}
 		// [[BPR-1375]], owner 2026-10-09. A Claude request names the
 		// profile's saved model unless the request already names one.
 		auto requested = PrivateRequested;
