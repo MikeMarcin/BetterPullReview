@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1936"
 title: "Tour cards collapse, edit like the overview description, and lose their vestigial and misplaced controls"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: []
 priority: "P1"
+parked_on: "human-review"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-08, coordinator chat (author view of the Tour tab)","related_cards":["BPR-1900","BPR-1925","BPR-1930"]}
-acceptance: []
+acceptance: [{"criterion": "AC1 No overlap between any route label and the rail; the filename chip is removed or repositioned per the recorded decision", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup: a stop entering a new file is as tall as one in the same file (no divider band); the chip and its roles are removed (decision 1)", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC2 Clicking the number collapses and expands stops, Problem and Solution; a Qt test checks this, plus no scroll jump", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup: ring click, header empty space, Space on the route and Return on the ring toggle the card, scroll held within 4 px; Problem and Solution collapse by their headers; qt_tour_click_scroll passes", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC3 Ready, next works or is gone, per the recorded decision; no permanently disabled primary button remains", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup and qt_tour_chat_in_tab: offered only for a ready, not-yet-Ready read stop; unconfirmed lines show 'Lines not confirmed' and Show in code leads; never visible disabled (decision 3)", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC4 'Use selected lines' appears only in edit mode, as a secondary action, and still works (test)", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup and qt_review_tour_stop_view: hidden (and its menu item) while read, a quiet link while written; application_review_tour_composition_public_path still retargets through it", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC5 Editing keeps the title wrapped and unobscured, with no mode label; Cancel and Save at the bottom like the overview description (Qt test)", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup: the long title wraps over several lines, nothing overlaps it, no tourStopState or Done; Cancel then Save (default) below the explanation; qt_review_tour_stop_view: Esc and Cancel restore the text, Save and Cmd+Return read", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC6 A selected card has no empty top space (a Qt test on geometry)", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup: the open card's title is within 14 px of its row top and the card sits at its row's top", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC7 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "7006c9149", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/bpr1936-tour-stop-cards-v001._sl3fspd of 7006c9149; new short session 31c583b9e1f98a618d85351ab5e23da9, candidate BPR-1936-tour-stop-cards-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#attended-review-v001"}}, {"criterion": "AC8 The documentation gate passes", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK on the merge with main", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}, {"criterion": "AC9 Every stop's context menu offers Remove, enabled, and the card's trash removes exactly its own stop (Qt test)", "outcome": "pass", "revision": "7006c9149", "evidence": {"kind": "command", "detail": "qt_tour_stop_card_cleanup: Remove enabled in each of four stops' menus with no row selected and after a refused command; the trash removes only its own stop (decision 7)", "path": "docs/issues/40-parked/BPR-1936-tour-stop-card-cleanup.md#verification-v001-focused"}}]
 ---
 
 # BPR-1936: Tour cards collapse, edit like the overview description, and lose their vestigial and misplaced controls
@@ -174,3 +175,39 @@ commands (edit, remove, complete, retarget).
 `--attended-tour-cards` (with `--attended-tour-drafting`) drafts the tour with
 the stub agent, accepts it, gives stop 2 a long title through its editor, saves
 and leaves the card open: `ATTENDED_TOUR_CARDS_SHOWN`.
+
+### Verification (v001, focused)
+
+On `5f4851e21` and again on the merge with main `7006c9149` (BPR-1937), dev
+build:
+- `qt_tour_stop_card_cleanup` (new, `tests/adapters_qt/tour_stop_card_cleanup_tests.cpp`):
+  AC1 to AC6 and AC9.
+- `qt_review_tour_stop_view` (updated for Cancel/Save), `qt_tour_chat_in_tab`
+  (updated for Ready, next), `qt_tour_click_scroll`, `qt_review_tour_reaffirm`,
+  `qt_review_tour_steps`, `qt_tour_agent_session_view`, `qt_tour_side_chat`,
+  `qt_drawer_surfaces_fit_scale_100/125/200`: pass.
+- `application_review_tour_composition_public_path` and
+  `application_review_tour_publication_native` pass (on `5f4851e21`).
+- `application_review_round_trip_composition_contract` passes, its app source
+  digest resealed from its own output (`0113c751…` after the merge).
+- `coding-format-check` passes; `verify_documentation.py` prints
+  `DOCUMENTATION_OK`.
+- The offscreen look on the dev build prints
+  `ATTENDED_TOUR_CARDS:wrapped=1:read=1:card=1:disabled_ready=0:trash=1` and
+  `ATTENDED_TOUR_CARDS_SHOWN`, light and dark.
+- Not run: `test_profile_tour_handoff_public_path` is not built in this
+  configuration; its change is the same mechanical title-editor rename.
+
+### Attended review (v001)
+
+- Frozen build `/Users/jaeger/bpr1936-tour-stop-cards-v001._sl3fspd` of
+  `7006c9149` (executable SHA-256
+  `7ec10ecd07a73c934b0a0a46d78e810087800d66ab5dd991c1cc7c9031b03a27`). Its
+  launcher's own offscreen check reached `ATTENDED_TOUR_CARDS_SHOWN`.
+- Launch: `python3 /Users/jaeger/bpr1936-tour-stop-cards-v001._sl3fspd/launch.py`.
+- New short session `31c583b9e1f98a618d85351ab5e23da9`, state
+  `/Users/jaeger/.codex/attended-review/bpr1936-v001/state`, host started with
+  `serve --tailscale`.
+- One candidate, `BPR-1936-tour-stop-cards-v001` (revision
+  `7006c9149-v001`), with one Accept/Reject question.
+- Status: ready, awaiting the owner.
