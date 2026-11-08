@@ -2,13 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1937"
 title: "A later whole-tour revision doesn't replace the earlier one: asking for 8 stops applies the first 10-stop plan"
-status: "In Progress"
+status: "Done"
 rfcs: ["RFC-BPR-0092"]
 depends_on: ["BPR-1930"]
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"defect","found_by":"owner, 2026-11-08, coordinator chat","related_cards":["BPR-1930","BPR-1934","BPR-1925"]}
-acceptance: []
+acceptance: [{"criterion": "AC1 A stub-driven course of the sequence ends at 8 stops after apply (application and Qt tests)", "outcome": "pass", "revision": "da7c70381", "evidence": {"kind": "command", "detail": "application_tour_agent_conversation stale_revision A-D (6 and 10 stops before the fix; 8 after; D: Update the tour from this chat yields the merge of 4 and 5 and the new order, applied exactly); qt_tour_side_chat Update link", "path": "docs/issues/60-done/BPR-1937-whole-tour-revision-applies-a-stale-proposal.md#verification-2026-11-08"}}, {"criterion": "AC2 A refused part is named with its reason in the chat and on the tour", "outcome": "pass", "revision": "da7c70381", "evidence": {"kind": "command", "detail": "core_tour_agent_session refusal reasons; qt_tour_side_chat tourSideChatRefused words; tour notice and tourProposalRefused line", "path": "docs/issues/60-done/BPR-1937-whole-tour-revision-applies-a-stale-proposal.md#verification-2026-11-08"}}, {"criterion": "AC3 The replay after an applied revision reflects the applied tour", "outcome": "pass", "revision": "da7c70381", "evidence": {"kind": "command", "detail": "application_tour_agent_conversation: after Accept all the next request numbers 8 stops, merged titles, empty waiting_revision", "path": "docs/issues/60-done/BPR-1937-whole-tour-revision-applies-a-stale-proposal.md#verification-2026-11-08"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "da7c70381", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/60-done/BPR-1937-whole-tour-revision-applies-a-stale-proposal.md#verification-2026-11-08"}}]
 ---
 
 # BPR-1937: A later whole-tour revision doesn't replace the earlier one: asking for 8 stops applies the first 10-stop plan
@@ -121,3 +121,21 @@ request at all.
   newest whole-tour answer that changed nothing says so, with a link to
   Update the tour from this chat. The host (`window_tours.cpp`) names
   refusals in the tour's notice. No change to `review_tour_editor.cpp`.
+
+## Verification (2026-11-08)
+
+Candidate `da7c70381` (branch `worktree-agent-a2bff040333042320`, on
+origin/main `7f52de800`).
+
+- `ctest --preset dev -R "core_tour_agent_session|application_tour_agent_conversation|qt_tour"`:
+  7 of 7 pass. Before the fix the new course failed at A (6 stops) and B
+  (10 stops, the owner's result).
+- `ctest --preset dev -R application_review_round_trip_composition_contract`:
+  passes after resealing the production manifest digest for
+  `window_tours.cpp`.
+- `coding-format-check` passes (clang-format 22.1.8);
+  `scripts/verify_documentation.py --root .` prints `DOCUMENTATION_OK`.
+
+No owner look: the visible change is chat and notice wording, one quiet
+line with an Update link under a whole-tour answer that changed nothing,
+and the whole-tour Update button's tooltip.
