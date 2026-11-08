@@ -1471,7 +1471,7 @@ auto main(int argc, char** argv) -> int
 		editor.findChild<QPushButton*>(QStringLiteral("tourReturn"))->click();
 		wait([&] { return window.comparison_surface()->current_context() && window.comparison_surface()->current_context()->Key.File == core::file_identity_of("review.cpp") && window.comparison_surface()->selected_source_range() && window.comparison_surface()->selected_source_range()->second.Line == 4U; }, "Return to tour restores exact source range after normal file excursion");
 		editor.findChild<QPushButton*>(QStringLiteral("tourComplete"))->click();
-		expect(editor.shown().Draft->Stops.front().Preparation == core::tour_preparation::ready && editor.selected_stop()->Id == thirdId, "Save and next marks authored stop Ready and follows conceptual order");
+		wait([&] { return editor.shown().Draft->Stops.front().Preparation == core::tour_preparation::ready && editor.selected_stop()->Id == thirdId; }, "Ready, next marks authored stop Ready and follows conceptual order");
 		saved(editor);
 		const auto beforeInsert = editor.shown().Draft->Stops;
 		select_file(window, "secondary.cpp");
