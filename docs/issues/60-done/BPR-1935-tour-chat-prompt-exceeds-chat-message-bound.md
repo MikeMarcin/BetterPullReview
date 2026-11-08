@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1935"
 title: "A tour chat turn is refused as invalid_agent_context once its prompt passes the 16 KiB chat-message bound"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: ["BPR-1914"]
 priority: "P1"
@@ -184,3 +184,59 @@ for example `agent_context_too_large`, and to a sentence in
   summarizing earlier turns). Whether that is worth doing can be judged once
   the prompt is no longer capped at 16 KiB.
 - Raising `maximum_chat_message_bytes` for typed messages.
+
+## Resolution (2026-11-07)
+
+- **Carrier.** `core::agent_tour_prompt` (session-keyed text) rides
+  `agent_supplement_request::TourPrompt` and
+  `agent_context_supplement::TourPrompt`, bounded by
+  `core::maximum_tour_prompt_bytes` (160 KiB). The core refuses it for
+  another session, empty, over the bound, not UTF-8, or beside a chat
+  message, operation, guidance, brief, conversation, selection, note or
+  draft (so it never passes the private notes and drafts opt-in).
+  `encode_agent_supplement` writes it once as `tour_prompt`, after
+  `chat_message`, only when present; every other launch keeps its bytes.
+- **Admission.** `build_agent_context_supplement` takes an
+  `agent_context_run`; the invocation host passes `read_only_tour` for a
+  `ReadOnlyTools` run. New failures `too_large`, `tour_prompt_missing` and
+  `tour_prompt_outside_tour_run` refuse as `agent_context_too_large`,
+  `tour_prompt_missing` and `tour_prompt_outside_tour_run`
+  (`application::refusal_name`); every other failure stays
+  `invalid_agent_context`. `dispatch_agent_invocation` puts a read-only tour
+  run's prompt in `TourPrompt`; the tool-free rewrites and the Agent tab keep
+  `ChatMessage` and its 16 KiB.
+- **One bound.** `build_tour_ask_prompt` and `build_tour_draft_prompt` take
+  the skill directive, append it, then check `maximum_tour_prompt_bytes`;
+  `request_tour_ask` passes the directive in, so its "too large to send"
+  refusal fires before dispatch.
+- **Words.** `application::tour_refusal_words` turns
+  `agent_context_too_large` into a sentence in the side chat; Draft Tour's
+  failure says the pull request is too large. The log keeps the code.
+- **Open question settled as recommended: no review brief on a tour run.**
+  Tour runs never had one (`dispatch_agent_invocation` attaches it only to
+  non-writing launches); the core now refuses a tour prompt beside a brief.
+  The probe confirms each prompt carries the pull request's title,
+  description and every changed file.
+
+Probe (now kept in `application_tour_agent_conversation`): 15 files with
+three hunks, a 3 KB description, Problem 600 B, Solution 700 B, 12 stops of
+1000 B, one earlier turn; the draft fixture has 150 files, since a draft
+carries stop titles only and the first 8 KiB of the description.
+
+```text
+PROBE draft_prompt_bytes=22005 ask_prompt_bytes=23661 chat_cap=16384 tour_cap=163840
+```
+
+Verification: `core_agent_context_supplement`,
+`application_tour_agent_conversation`, `application_agent_launch`,
+`application_agent_invocation_host` (a 48 KiB tour prompt reaches the
+process spy exactly once and finishes; over-bound, misplaced and missing
+prompts are refused by name before any effect), `qt_tour_chat_in_tab`,
+`qt_tour_side_chat`, `architecture_boundaries`,
+`application_review_tour_composition_public_path` and
+`application_review_round_trip_composition_contract` (resealed) pass; the
+format check and the documentation gate pass. The card's composed app-level
+side-chat course with a >16 KiB tour was not added: the invocation-host
+course covers the stub receiving the prompt once, and the Qt side-chat
+courses are unchanged. No attended review: a defect fix with no visible
+design change.
