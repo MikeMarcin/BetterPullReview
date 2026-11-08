@@ -162,6 +162,12 @@ namespace bpr::qt {
 		/// \brief [[BPR-1930]]. The tour chat's line saying where its proposal
 		/// waits, for the newest turn that proposed.
 		[[nodiscard]] auto in_tour_line() const noexcept -> QLabel* { return InTour; }
+		/// \brief [[BPR-1937]]. The newest whole-tour turn's refused parts, each
+		/// with why, when it had any.
+		[[nodiscard]] auto refused_line() const noexcept -> QLabel* { return RefusedLine; }
+		/// \brief [[BPR-1937]]. Under the newest whole-tour answer that changed
+		/// nothing: Update the tour from this chat, offered in place.
+		[[nodiscard]] auto unchanged_line() const noexcept -> QLabel* { return UnchangedLine; }
 		/// \brief [[BPR-1930]] follow-up. Undo on a turn's "Focus set to"
 		/// line; the host restores the focus it replaced.
 		void set_focus_undo_dispatch(std::function<void(core::tour_agent_run_id)> aUndo) { FocusUndoDispatch = std::move(aUndo); }
@@ -276,6 +282,8 @@ namespace bpr::qt {
 		bool                                                                        Drafting      = false;
 		QWidget*                                                                    WaitingBubble = nullptr;
 		QLabel*                                                                     InTour        = nullptr;
+		QLabel*                                                                     RefusedLine   = nullptr;
+		QLabel*                                                                     UnchangedLine = nullptr;
 		QLabel*                                                                     FocusLine     = nullptr;
 		std::function<void(core::tour_agent_run_id)>                                FocusUndoDispatch;
 		[[nodiscard]] auto                                                          takes_feedback() const -> bool;

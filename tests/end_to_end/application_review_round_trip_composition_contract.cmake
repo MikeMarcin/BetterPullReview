@@ -3300,8 +3300,12 @@ function(bpr_verify_app_source_tree app_source_root)
 	# message; window_tours.cpp builds the ask prompt with the skill directive
 	# inside its bound and says a size refusal in words. No grant, provider,
 	# gh process, admission, mutation branch or publication change.
+	# [[BPR-1937]] reseal (2026-11-08): window_tours.cpp lets a tour chat
+	# revision of the tour's shape replace the waiting plan even when it is
+	# refused whole, and names refused parts in the tour's notice. No grant,
+	# provider, gh process, admission, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "54523137ea2fba366d3baacaaeaeee60d98e73d89b0ea35c83698377a4591084"
+        "acee5450d0499cc2e57fe391cacc9193935eeddfb5a1080bae33725f3cc31b25"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

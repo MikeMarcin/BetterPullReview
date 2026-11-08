@@ -5,6 +5,7 @@
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
 
 #include <QClipboard>
 #include <QFontDatabase>
@@ -914,7 +915,10 @@ namespace bpr::qt {
 		Update->setEnabled(Ready && thread.has_value() && answered && !Running);
 		Update->setToolTip(!Ready          ? Why
 							   : !answered ? tr("Ask something first. Then this asks the agent to rewrite %1 from the chat; you accept, edit or discard what it proposes.").arg(part)
-										   : tr("Asks the agent to rewrite %1 from this chat. It comes back as a proposal here; nothing changes until you accept it.").arg(part));
+							   : thread->Kind == core::tour_thread_kind::tour
+							   // [[BPR-1937]]. The whole tour's update takes its shape too.
+							   ? tr("Asks the agent for every change this chat agreed on, merges, removals and a new order included. It waits in the tour, marked grey; nothing changes until you accept it.")
+							   : tr("Asks the agent to rewrite %1 from this chat. It comes back as a proposal here; nothing changes until you accept it.").arg(part));
 		// [[BPR-1930]]. The tour's chat is for feedback on its shape too.
 		Composer->setPlaceholderText(!thread                                            ? QString{ }
 										 : takes_feedback()                             ? tr("Feedback for the draft. It goes to the agent when the draft is ready")
@@ -1097,6 +1101,8 @@ namespace bpr::qt {
 		const auto  selector = inline_selector();
 		WaitingBubble        = nullptr;
 		InTour               = nullptr;
+		RefusedLine          = nullptr;
+		UnchangedLine        = nullptr;
 		FocusLine            = nullptr;
 		const auto wholeTour = thread && thread->Kind == core::tour_thread_kind::tour;
 		if (runs.empty() && !(wholeTour && Session.Waiting)) {
@@ -1264,6 +1270,37 @@ namespace bpr::qt {
 					column->addWidget(line);
 					InTour = line;
 				}
+			}
+			// [[BPR-1937]], owner 2026-11-08: asked for 8 stops, the refused
+			// merges went unsaid and the earlier plan was applied. Each part of
+			// this turn's revision that couldn't be proposed, and why.
+			if (wholeTour && run->State == core::tour_agent_run_state::answered && !run->Proposed.Refused.empty()) {
+				auto refused = QStringList{ };
+				for (const auto& part : run->Proposed.Refused) {
+					refused << tour_agent_panel::refused_words(part);
+				}
+				auto* const line = quiet(small(words(refused.join(QLatin1Char('\n')), answer)));
+				line->setObjectName(QStringLiteral("tourSideChatRefused"));
+				column->addWidget(line);
+				RefusedLine = line;
+			}
+			// [[BPR-1937]]. A plan described only in words changes nothing:
+			// under the newest whole-tour answer that proposed nothing, the
+			// way to ask for the change itself.
+			if (wholeTour && run == runs.back() && run->State == core::tour_agent_run_state::answered && run->Proposed == core::tour_proposal_tally{ } && run->FocusSet.empty()) {
+				auto* const line = quiet(small(new QLabel{ answer }));
+				line->setObjectName(QStringLiteral("tourSideChatUnchanged"));
+				line->setWordWrap(true);
+				line->setTextFormat(Qt::RichText);
+				line->setText(tr("Nothing in the tour changed. If this answer describes a change, <a href=\"#update\">Update the tour from this chat</a> asks the agent for it."));
+				line->setTextInteractionFlags(Qt::LinksAccessibleByMouse | Qt::LinksAccessibleByKeyboard);
+				connect(line, &QLabel::linkActivated, this, [this] {
+					if (Update->isEnabled()) {
+						Update->click();
+					}
+				});
+				column->addWidget(line);
+				UnchangedLine = line;
 			}
 			// What it proposed, decided here.
 			if (Proposal && !wholeTour) {

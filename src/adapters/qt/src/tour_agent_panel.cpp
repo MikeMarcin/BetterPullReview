@@ -535,6 +535,13 @@ namespace bpr::qt {
 			open_transcript(Proposal->Run, entry);
 		});
 		proposalColumn->addWidget(OutsideList);
+		// [[BPR-1937]]. Parts of the newest revision that couldn't be
+		// proposed, each with why: what waits is all that applies.
+		RefusedLine = small(paragraph({ }, ProposalBox));
+		RefusedLine->setObjectName(QStringLiteral("tourProposalRefused"));
+		RefusedLine->setForegroundRole(QPalette::PlaceholderText);
+		RefusedLine->hide();
+		proposalColumn->addWidget(RefusedLine);
 		// [[BPR-1930]]. A proposed focus belongs to the tour as a whole: it
 		// waits here, under the line, at its own height.
 		FocusSlot = new QVBoxLayout{ };
@@ -805,6 +812,9 @@ namespace bpr::qt {
 			lines << QString{ } << QString::fromStdString(aRun.Reply);
 			if (const auto proposed = proposed_words(aRun.Proposed); !proposed.isEmpty()) {
 				lines << QString{ } << QStringLiteral("_") + proposed + QStringLiteral("_");
+			}
+			for (const auto& part : aRun.Proposed.Refused) {
+				lines << QString{ } << QStringLiteral("_") + refused_words(part) + QStringLiteral("_");
 			}
 		}
 		return lines.join(QLatin1Char('\n')) + QLatin1Char('\n');
@@ -1140,6 +1150,43 @@ namespace bpr::qt {
 		return tr("Proposed %1. Accept, edit or discard it in the Tour tab.").arg(joined);
 	}
 
+	auto tour_agent_panel::refused_words(const core::tour_refused_part& aPart) -> QString
+	{
+		auto numbers = QStringList{ };
+		for (const auto stop : aPart.Stops) {
+			numbers << QString::number(stop);
+		}
+		auto listed = numbers.isEmpty() ? QString{ } : numbers.front();
+		for (qsizetype index = 1; index < numbers.size(); ++index) {
+			listed += (index + 1 == numbers.size() ? tr(" and ") : QStringLiteral(", ")) + numbers[index];
+		}
+		const auto many = numbers.size() > 1;
+		auto       what = QString{ };
+		switch (aPart.Kind) {
+		case core::tour_revision_kind::remove: what = tr("Removing stop %1").arg(listed); break;
+		case core::tour_revision_kind::merge:  what = many ? tr("Merging stops %1").arg(listed) : tr("Merging stop %1").arg(listed); break;
+		case core::tour_revision_kind::split:  what = tr("Splitting stop %1").arg(listed); break;
+		case core::tour_revision_kind::order:  what = tr("The new order"); break;
+		case core::tour_revision_kind::focus:  what = tr("The focus"); break;
+		}
+		auto why = QString{ };
+		switch (aPart.Reason) {
+		case core::tour_revision_refusal::not_in_tour:       why = tr("the tour has no stop with that number. A stop still waiting to be accepted can't be removed or merged yet"); break;
+		case core::tour_revision_refusal::named_twice:       why = tr("another part of the same answer already changes that stop"); break;
+		case core::tour_revision_refusal::too_few_stops:     why = tr("a merge needs two or more stops"); break;
+		case core::tour_revision_refusal::no_text:           why = tr("the agent gave it no explanation"); break;
+		case core::tour_revision_refusal::no_lines:          why = tr("a stop has no lines in the code to keep"); break;
+		case core::tour_revision_refusal::different_files:   why = tr("their lines are in different files and not confirmed yet, so one stop can't keep them all"); break;
+		case core::tour_revision_refusal::confirmed_and_not: why = tr("some of their lines are confirmed and some are not yet"); break;
+		case core::tour_revision_refusal::too_far_apart:     why = tr("their lines are too far apart for one stop"); break;
+		case core::tour_revision_refusal::outside_stop:      why = tr("a piece falls outside the stop's own lines"); break;
+		case core::tour_revision_refusal::piece_count:       why = tr("a split needs two to six pieces"); break;
+		case core::tour_revision_refusal::not_every_stop:    why = tr("it doesn't name every stop exactly once"); break;
+		case core::tour_revision_refusal::focus_invalid:     why = tr("it is too long"); break;
+		}
+		return tr("%1 wasn't proposed: %2.").arg(what, why);
+	}
+
 	auto tour_agent_panel::accept_button(const std::size_t aIndex) const -> QPushButton*
 	{
 		const auto found = Accepts.find(aIndex);
@@ -1210,6 +1257,13 @@ namespace bpr::qt {
 			LeftOut->setText(tr("%1 suggested stops pointed outside this pull request and were left out.").arg(Proposal->LeftOut.size()));
 		}
 		LeftOut->setVisible(!Proposal->LeftOut.empty());
+		// [[BPR-1937]].
+		auto refused = QStringList{ };
+		for (const auto& part : Proposal->Refused) {
+			refused << refused_words(part);
+		}
+		RefusedLine->setText(refused.join(QLatin1Char('\n')));
+		RefusedLine->setVisible(!refused.isEmpty());
 		// [[BPR-1912]]. Only Claude's commands are checked against the list.
 		const auto* const proposed = core::find_tour_run(Session, Proposal->Run);
 		const auto        outside  = proposed == nullptr ? std::size_t{ 0U } : proposed->OutsideList;
