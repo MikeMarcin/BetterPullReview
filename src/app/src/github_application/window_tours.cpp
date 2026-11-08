@@ -845,14 +845,17 @@ namespace bpr::app {
 			return;
 		}
 		if (TourRun) {
-			static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, core::tour_agent_run_state::failed, "Refused before it started: " + std::string{ aReason }));
+			// [[BPR-1935]]. A refusal for size says so in words.
+			static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, core::tour_agent_run_state::failed, application::tour_refusal_words(aReason)));
 			TourRun.reset();
 		}
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		TourAskPending = false;
 		if (TourDraftPending) {
 			TourDraftPending = false;
-			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker at the bottom of this tab."));
+			Window->tour_editor()->show_tour_draft_failure(aReason == "agent_context_too_large"
+															   ? QStringLiteral("This pull request is too large to describe to the agent in one request.")
+															   : QStringLiteral("The selected agent can't draft with read-only tools. Choose Claude or Codex with the agent picker at the bottom of this tab."));
 		}
 		present_tour_session();
 		if (!PendingWriting) {
@@ -987,21 +990,21 @@ namespace bpr::app {
 																					  : "modified";
 			files.push_back({ file.Path, change, file.HeadHunks });
 		}
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent, aThread), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus);
+		// [[BPR-1916]]. The skills the question names, inline; an unknown
+		// name stays text, said once in the notice. [[BPR-1935]]: the
+		// directive is part of the prompt the bound below is checked on.
+		const auto texts  = std::array{ std::string_view{ question } };
+		auto       skills = prepare_skill_run(SkillLibrary, texts);
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent, aThread), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive);
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
 		}
-		// [[BPR-1916]]. The skills the question names, inline; an unknown
-		// name stays text, said once in the notice.
-		const auto texts  = std::array{ std::string_view{ question } };
-		auto       skills = prepare_skill_run(SkillLibrary, texts);
 		if (skills.Note) {
 			Window->tour_editor()->show_writing_notice(QString::fromStdString(*skills.Note));
 		}
-		const auto text = *prompt + skills.Directive;
-		TourAskPending  = true;
-		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, text, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
+		TourAskPending = true;
+		if (!dispatch_tour_run(*agent, core::tour_agent_request::ask, question, *prompt, std::nullopt, aPassage, aThread, aUpdate, std::move(skills))) {
 			TourAskPending = false;
 		}
 	}

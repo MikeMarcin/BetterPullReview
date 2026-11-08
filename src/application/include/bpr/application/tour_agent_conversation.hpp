@@ -42,9 +42,19 @@ namespace bpr::application {
 	/// numbered on from the tour's as the route shows them, so feedback given
 	/// while the draft's proposal waits revises it. `aFocus` is the focus the
 	/// author accepted, given to every turn.
+	/// [[BPR-1935]]. `aDirective` is the [[BPR-1916]] skill directive, added
+	/// last. The whole request, directive included, is refused when it is
+	/// longer than `core::maximum_tour_prompt_bytes`, the bound of the carrier
+	/// it travels in (`core::agent_tour_prompt`).
 	[[nodiscard]] auto build_tour_ask_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, const core::tour_conversation& aConversation, const core::tour_thread& aThread,
-											 const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false, const std::optional<core::tour_proposal>& aWaiting = std::nullopt, std::string_view aFocus = { })
-		-> std::optional<std::string>;
+											 const std::optional<core::tour_passage>& aPassage, std::string_view aQuestion, bool aUpdate = false, const std::optional<core::tour_proposal>& aWaiting = std::nullopt, std::string_view aFocus = { },
+											 std::string_view aDirective = { }) -> std::optional<std::string>;
+
+	/// \brief [[BPR-1935]]. What the tour's side chat says when the tour
+	/// session refused a run before it started: `aReason` is the refusal's
+	/// stable name. A request too large to send says so in words; any other
+	/// refusal keeps its name, after "Refused before it started: ".
+	[[nodiscard]] auto tour_refusal_words(std::string_view aReason) -> std::string;
 
 	/// \brief Reads an ask turn's answer from the agent's last message: one
 	/// JSON object of `tour_ask_schema`, alone or in one fenced block, with

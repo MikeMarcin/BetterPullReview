@@ -6,7 +6,9 @@
 #include "bpr/application/tour_agent_conversation.hpp"
 #include "bpr/application/tour_agent_drafting.hpp"
 #include "bpr/application/tour_writing_style.hpp"
+#include "bpr/core/agent_context_supplement.hpp"
 
+#include <cstdint>
 #include <cstdlib>
 #include <iostream>
 #include <string>
@@ -57,6 +59,72 @@ namespace {
 		const auto draft = application::build_tour_draft_prompt("Fix overdraw", "Body", files, tour);
 		expect(draft && contains(*draft, std::string{ application::tour_writing_style() }), "the whole-tour draft asks for the formatting that renders");
 		expect(contains(std::string{ application::tour_writing_style() }, "Inline code") && contains(std::string{ application::tour_writing_style() }, "No headings"), "the style asks for inline code and no headings");
+	}
+
+	/// [[BPR-1935]]. Shaped like the observed pull request: 15 modified files
+	/// with three hunks each, a long description, a 12-stop tour and an
+	/// earlier turn. Its prompts pass the typed message's 16 KiB and stay
+	/// within the tour prompt's own bound, which the builders check with the
+	/// skill directive included.
+	void bound()
+	{
+		auto files = std::vector<application::tour_draft_file>{ };
+		for (std::uint32_t index = 1U; index <= 15U; ++index) {
+			files.push_back({ "src/engine/module_" + std::to_string(index) + ".cpp", "modified", std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 3U, 20U }, { 40U, 61U }, { 90U, 118U } } });
+		}
+		const auto sentence = [](const std::string_view aWords, const std::size_t aBytes) {
+			auto result = std::string{ };
+			while (result.size() < aBytes) {
+				result += aWords;
+			}
+			return result;
+		};
+		const auto description = "DESCRIPTION_CANARY " + sentence("Each view now clears its own target before it draws. ", 3000U);
+		auto       tour        = core::review_tour{ };
+		tour.Problem           = sentence("Two views drew over each other when they cleared in the same frame. ", 600U);
+		tour.Solution          = sentence("Each view clears between begin and present, so its frame is its own. ", 700U);
+		for (std::uint64_t index = 1U; index <= 12U; ++index) {
+			tour.Stops.push_back(core::tour_stop{ .Id = core::tour_stop_id{ index }, .Title = "Stop " + std::to_string(index), .Body = sentence("This stop shows where the clear moved and why the draw follows it. ", 1000U) });
+		}
+		const auto passage      = core::tour_passage{ .Field = core::tour_passage_field::solution, .Text = "between begin and present" };
+		const auto conversation = core::tour_conversation{ .Turns = { { "What does this mean?", passage, sentence("It means the clear and the draw happen inside one frame. ", 1500U), core::tour_thread{ .Kind = core::tour_thread_kind::solution } } } };
+		const auto thread       = core::tour_thread{ .Kind = core::tour_thread_kind::solution };
+		const auto ask          = application::build_tour_ask_prompt("Fix overdraw", description, files, tour, conversation, thread, passage, "What does this mean?");
+		// The draft request carries the stops' titles only and the first 8 KiB
+		// of the description, so its fixture is a wider pull request: 150 files.
+		auto draftFiles = files;
+		for (std::uint32_t index = 16U; index <= 150U; ++index) {
+			draftFiles.push_back({ "src/engine/module_" + std::to_string(index) + ".cpp", "modified", std::vector<std::pair<std::uint32_t, std::uint32_t>>{ { 3U, 20U }, { 40U, 61U }, { 90U, 118U } } });
+		}
+		const auto draft = application::build_tour_draft_prompt("Fix overdraw", description, draftFiles, tour);
+		expect(ask && draft, "both prompts build");
+		std::cout << "PROBE draft_prompt_bytes=" << draft->size() << " ask_prompt_bytes=" << ask->size() << " chat_cap=" << core::maximum_chat_message_bytes << " tour_cap=" << core::maximum_tour_prompt_bytes << '\n';
+		expect(ask->size() > core::maximum_chat_message_bytes && ask->size() <= core::maximum_tour_prompt_bytes, "AC1 the ask prompt passes the typed message's bound and stays within its own");
+		expect(draft->size() > core::maximum_chat_message_bytes && draft->size() <= core::maximum_tour_prompt_bytes, "AC3 so does the draft prompt");
+		// No review brief rides a tour run: each prompt already carries what
+		// the brief says about the pull request.
+		for (const auto* const prompt : { &*ask, &*draft }) {
+			expect(contains(*prompt, "\"title\":\"Fix overdraw\"") && contains(*prompt, "DESCRIPTION_CANARY"), "the prompt carries the pull request's title and description");
+			for (const auto& file : files) {
+				expect(contains(*prompt, "\"path\":\"" + file.Path + "\""), "the prompt names every changed file: " + file.Path);
+			}
+		}
+		expect(contains(*ask, "Stop 12") && contains(*ask, "It means the clear and the draw") && contains(*ask, "\"question\":\"What does this mean?\""), "the ask prompt carries the whole tour, the earlier turn and the question");
+
+		// AC2. The bound counts the directive: a prompt that reaches the bound
+		// with it builds, and one byte more is refused.
+		const auto room      = core::maximum_tour_prompt_bytes - ask->size();
+		const auto atBound   = application::build_tour_ask_prompt("Fix overdraw", description, files, tour, conversation, thread, passage, "What does this mean?", false, std::nullopt, { }, std::string(room, 'd'));
+		const auto overBound = application::build_tour_ask_prompt("Fix overdraw", description, files, tour, conversation, thread, passage, "What does this mean?", false, std::nullopt, { }, std::string(room + 1U, 'd'));
+		expect(atBound && atBound->size() == core::maximum_tour_prompt_bytes && atBound->ends_with("d"), "a prompt that reaches the bound with its directive builds, the directive last");
+		expect(!overBound, "AC2 one byte past the bound is refused where the prompt is built");
+		const auto draftRoom = core::maximum_tour_prompt_bytes - draft->size();
+		expect(application::build_tour_draft_prompt("Fix overdraw", description, draftFiles, tour, { }, std::string(draftRoom, 'd')) && !application::build_tour_draft_prompt("Fix overdraw", description, draftFiles, tour, { }, std::string(draftRoom + 1U, 'd')), "the draft prompt checks the same bound");
+
+		// AC6. A refusal for size says so in words; another keeps its name.
+		const auto large = application::tour_refusal_words("agent_context_too_large");
+		expect(contains(large, "too large to send") && !contains(large, "agent_context") && !contains(large, "invalid_agent_context"), "a size refusal is a sentence: " + large);
+		expect(application::tour_refusal_words("profile_unknown") == "Refused before it started: profile_unknown", "another refusal keeps its name");
 	}
 
 	void answer()
@@ -117,6 +185,7 @@ namespace {
 int main()
 {
 	request();
+	bound();
 	answer();
 	revision();
 	std::cout << "tour-agent-conversation:pass\n";

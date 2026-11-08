@@ -1606,6 +1606,63 @@ namespace {
 	/// [[BPR-1900]] AC1. A tour drafting run reads the workspace with
 	/// read-only tools: the exact argv for Claude and Codex, a search and a
 	/// read decoded for the transcript, and a write or edit refused.
+	[[nodiscard]] auto occurrences(const std::string_view aText, const std::string_view aPart) -> std::size_t
+	{
+		auto count = std::size_t{ 0U };
+		for (auto at = aText.find(aPart); at != std::string_view::npos; at = aText.find(aPart, at + aPart.size())) {
+			++count;
+		}
+		return count;
+	}
+
+	/// [[BPR-1935]]. A tour run's composed prompt travels in its own
+	/// carrier, past the typed message's 16 KiB, only on a read-only tour
+	/// run; a misplaced, missing or oversized one is refused by name, and the
+	/// typed message keeps its own bound.
+	void test_a_tour_prompt_crosses_only_on_a_read_only_tour_run()
+	{
+		const auto tourObservation = [](std::string aPrompt) {
+			return application::agent_context_observation{
+				.ApplicationSession = core::application_session_id{ 1U },
+				.Binding            = session().Binding,
+				.PullRequestUrl     = "https://github.example/octo/app/pull/30",
+				.TourPrompt         = std::move(aPrompt),
+			};
+		};
+		const auto prompt = "TOUR_PROMPT_CANARY " + std::string(core::maximum_chat_message_bytes * 3U, 'p');
+		const auto built  = application::build_agent_context_supplement(tourObservation(prompt), session(), application::agent_context_run::read_only_tour);
+		expect(built && built->TourPrompt == prompt && built->Message.empty() && !built->Brief, "a tour prompt three times a typed message's bound builds for a read-only tour run, as itself and without a brief");
+		const auto wire = application::encode_agent_supplement(*built);
+		expect(occurrences(wire, "\ntour_prompt\t" + prompt + "\n") == 1U && occurrences(wire, "\nchat_message\t\n") == 1U, "it is written once, at its own position beside an empty chat message");
+		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_jsonl_exec }) {
+			const auto launch = application::build_agent_launch(profile(protocol), *built, reader(), { .ReadOnlyTools = true });
+			expect(launch && occurrences(launch->Input, "TOUR_PROMPT_CANARY") == 1U, "the read-only launch sends the prompt exactly once");
+		}
+		expect(occurrences(application::encode_agent_supplement(built_supplement()), "tour_prompt") == 0U, "every other launch keeps its exact bytes: no tour prompt line");
+
+		const auto outside = application::build_agent_context_supplement(tourObservation(prompt), session());
+		expect(!outside && outside.error() == application::agent_context_failure::tour_prompt_outside_tour_run && application::refusal_name(outside.error()) == "tour_prompt_outside_tour_run",
+			   "AC5 a tour prompt on a launch that is not a read-only tour run is refused by name");
+		const auto missing = application::build_agent_context_supplement(tourObservation({ }), session(), application::agent_context_run::read_only_tour);
+		expect(!missing && missing.error() == application::agent_context_failure::tour_prompt_missing && application::refusal_name(missing.error()) == "tour_prompt_missing", "a tour run without its prompt is refused by name, not sent empty");
+		const auto atBound = application::build_agent_context_supplement(tourObservation(std::string(core::maximum_tour_prompt_bytes, 'p')), session(), application::agent_context_run::read_only_tour);
+		expect(atBound.has_value(), "a tour prompt at its bound builds");
+		const auto oversize = application::build_agent_context_supplement(tourObservation(std::string(core::maximum_tour_prompt_bytes + 1U, 'p')), session(), application::agent_context_run::read_only_tour);
+		expect(!oversize && oversize.error() == application::agent_context_failure::too_large && application::refusal_name(oversize.error()) == "agent_context_too_large", "AC6 one past it is refused as too large, not as invalid context");
+
+		// AC4. The typed message keeps its bound, on the Agent tab and on a
+		// tour run alike.
+		auto typed        = observation();
+		typed.ChatMessage = std::string(core::maximum_chat_message_bytes + 1U, 'q');
+		const auto chat   = application::build_agent_context_supplement(typed, session());
+		expect(!chat && chat.error() == application::agent_context_failure::invalid_observation && application::refusal_name(chat.error()) == "invalid_agent_context", "a typed message over its bound is still refused");
+		auto smuggled        = tourObservation(prompt);
+		smuggled.ChatMessage = std::string(core::maximum_chat_message_bytes + 1U, 'q');
+		expect(!application::build_agent_context_supplement(smuggled, session(), application::agent_context_run::read_only_tour), "and is not admitted beside a tour prompt");
+		typed.ChatMessage = std::string(core::maximum_chat_message_bytes, 'q');
+		expect(application::build_agent_context_supplement(typed, session()).has_value(), "a typed message at its bound still builds");
+	}
+
 	void test_read_only_tour_drafting()
 	{
 		const auto claude   = application::build_agent_launch(profile(core::agent_protocol::claude_stream_json), built_supplement(), reader(), { .ReadOnlyTools = true });
@@ -2241,6 +2298,7 @@ auto main() -> int
 	test_claude_takes_only_a_model_as_one_argument();
 	test_claude_writing_argv_reads_the_account_sign_in();
 	test_read_only_tour_drafting();
+	test_a_tour_prompt_crosses_only_on_a_read_only_tour_run();
 	test_skill_references_reach_the_run();
 	test_workspace_line_counts();
 	test_claude_decoder_reads_sign_in_and_benign_frames();

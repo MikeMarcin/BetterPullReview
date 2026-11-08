@@ -1974,10 +1974,31 @@ namespace bpr::application {
 		return aRequiresEvidence && !evidence ? std::nullopt : std::optional{ std::move(result) };
 	}
 
+	auto refusal_name(const agent_context_failure aFailure) noexcept -> std::string_view
+	{
+		switch (aFailure) {
+		case agent_context_failure::too_large:
+			return "agent_context_too_large";
+		case agent_context_failure::tour_prompt_missing:
+			return "tour_prompt_missing";
+		case agent_context_failure::tour_prompt_outside_tour_run:
+			return "tour_prompt_outside_tour_run";
+		case agent_context_failure::invalid_observation:
+		case agent_context_failure::selected_note_missing:
+		case agent_context_failure::duplicate_selected_note:
+		case agent_context_failure::selected_draft_missing:
+		case agent_context_failure::selected_draft_stale:
+		case agent_context_failure::selected_draft_invalid:
+			break;
+		}
+		return "invalid_agent_context";
+	}
+
 #if defined(BPR_AGENT_INTEGRATIONS)
 	auto build_agent_context_supplement(
 		const agent_context_observation& aObservation,
-		const core::agent_session&       aSession)
+		const core::agent_session&       aSession,
+		const agent_context_run          aRun)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>
 	{
 		if (
@@ -1988,6 +2009,20 @@ namespace bpr::application {
 			|| aObservation.IncludedNotes.size() > core::maximum_selected_notes
 			|| aObservation.ChatMessage.size() > core::maximum_chat_message_bytes) {
 			return std::unexpected(agent_context_failure::invalid_observation);
+		}
+		// [[BPR-1935]]. A tour prompt rides only on a read-only tour run, and
+		// a tour run carries one: refused by name either way, never dropped
+		// or sent as something else. One over its bound is refused as too
+		// large, so the side chat can say so in words.
+		const auto tourRun = aRun == agent_context_run::read_only_tour;
+		if (!tourRun && !aObservation.TourPrompt.empty()) {
+			return std::unexpected(agent_context_failure::tour_prompt_outside_tour_run);
+		}
+		if (tourRun && aObservation.TourPrompt.empty()) {
+			return std::unexpected(agent_context_failure::tour_prompt_missing);
+		}
+		if (aObservation.TourPrompt.size() > core::maximum_tour_prompt_bytes) {
+			return std::unexpected(agent_context_failure::too_large);
 		}
 		// BPR-0533. The entry point decides whether an operation may be
 		// carried, and `workshop_operation_for` is the single place that
@@ -2022,6 +2057,9 @@ namespace bpr::application {
 			.Conversation       = aObservation.Conversation,
 			.Skills             = aObservation.Skills,
 		};
+		if (tourRun) {
+			request.TourPrompt = core::agent_tour_prompt{ .Session = aSession.Id, .Text = aObservation.TourPrompt };
+		}
 		if (!aObservation.ChatMessage.empty()) {
 			// Bound here, to the session this build is for, because that is
 			// the session the turn runs under: the launch path allocates the
@@ -2306,6 +2344,13 @@ namespace bpr::application {
 			// is the supplement's whole wire form: a question placed in the framing
 			// as well would reach the agent twice and it would have been asked once.
 			append_field(aResult, "chat_message", aSupplement.Message);
+			// [[BPR-1935]]: the one position a tour run's composed prompt
+			// occupies, beside the typed question it never rides with.
+			// Written only when present, so every launch that is not a tour
+			// run keeps its exact bytes.
+			if (!aSupplement.TourPrompt.empty()) {
+				append_field(aResult, "tour_prompt", aSupplement.TourPrompt);
+			}
 			// BPR-0533: the one position the asked-for comment-workshop operation
 			// occupies. Written unconditionally and empty when the launch is not a
 			// workshop request, for the reason the message above is: a reader must

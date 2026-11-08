@@ -1695,6 +1695,48 @@ namespace {
 		}
 	}
 
+	/// [[BPR-1935]]. A read-only tour run whose prompt is past the typed
+	/// message's 16 KiB reaches the agent with the prompt exactly once; one
+	/// past the tour prompt's bound is refused as too large before any
+	/// effect; a tour prompt on another launch is refused by name.
+	void test_a_tour_prompt_past_the_chat_bound_reaches_the_agent_once()
+	{
+		const auto hostId = core::git_host_id{ 1U };
+		const auto prompt = "TOUR_PROMPT_CANARY " + std::string(core::maximum_chat_message_bytes * 3U, 'p');
+		{
+			auto test = harness{ };
+			test.Host.observe(core::application_session_id{ 1U }, authority(hostId), binding(hostId));
+			auto asked               = request(hostId, core::codex_jsonl_profile_id);
+			asked.ReadOnlyTools      = true;
+			asked.Context.TourPrompt = prompt;
+			test.Host.dispatch(std::move(asked));
+			test.settle();
+			auto count = std::size_t{ 0U };
+			if (test.Processes.LastRequest) {
+				const auto& input = test.Processes.LastRequest->Input;
+				for (auto at = input.find("TOUR_PROMPT_CANARY"); at != std::string::npos; at = input.find("TOUR_PROMPT_CANARY", at + 1U)) {
+					++count;
+				}
+			}
+			expect(test.Projection.Refusals.empty() && test.Processes.Starts == 1U && count == 1U && test.Processes.LastRequest->ReadOnlyTools && !test.Projection.Finished.empty()
+					   && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success,
+				   "AC1 a tour prompt three times the typed bound reaches the agent once, and its answer comes back");
+		}
+		const auto refused = [&](const bool aReadOnly, std::string aPrompt, const std::string_view aName) {
+			auto test = harness{ };
+			test.Host.observe(core::application_session_id{ 1U }, authority(hostId), binding(hostId));
+			auto asked               = request(hostId, core::codex_jsonl_profile_id);
+			asked.ReadOnlyTools      = aReadOnly;
+			asked.Context.TourPrompt = std::move(aPrompt);
+			test.Host.dispatch(std::move(asked));
+			test.settle();
+			return !test.Projection.Refusals.empty() && test.Projection.Refusals.back() == aName && test.Processes.Starts == 0U && test.Workspaces.Starts == 0U && test.Sessions.AdmissionAttempts == 0U;
+		};
+		expect(refused(true, std::string(core::maximum_tour_prompt_bytes + 1U, 'p'), "agent_context_too_large"), "AC2 AC6 one past the bound is refused as too large, before any effect");
+		expect(refused(false, prompt, "tour_prompt_outside_tour_run"), "AC5 a tour prompt on a launch that is not a read-only tour run is refused by name");
+		expect(refused(true, { }, "tour_prompt_missing"), "a read-only tour run without its prompt is refused by name");
+	}
+
 	/// [[BPR-1753]], owner decision 2026-10-23 ("I guess we can keep a
 	/// timeout as an option, but i wouldnt want it on by default for my
 	/// work"). A run is given no time limit unless the request names one.
@@ -1781,6 +1823,7 @@ auto main() -> int
 	test_workspace_probe_makes_and_removes_a_workspace_without_a_session();
 	test_the_brief_names_the_workspace_that_was_made();
 	test_a_run_has_no_time_limit_unless_one_is_set();
+	test_a_tour_prompt_past_the_chat_bound_reaches_the_agent_once();
 	std::cout << "agent-invocation-host-tests:pass\n";
 	return EXIT_SUCCESS;
 }

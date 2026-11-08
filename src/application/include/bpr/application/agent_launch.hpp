@@ -124,6 +124,13 @@ namespace bpr::application {
 		/// (`application::inline_skills`); empty for every launch that named
 		/// none.
 		std::vector<core::supplement_skill> Skills;
+		/// [[BPR-1935]]. A read-only tour run's composed prompt: the whole
+		/// request the tour session sends, built by the application and never
+		/// by typed text alone. It travels in its own carrier
+		/// (`core::agent_tour_prompt`, bounded by
+		/// `core::maximum_tour_prompt_bytes`), not in `ChatMessage`, whose
+		/// bound is for what a reviewer types. Empty for every other launch.
+		std::string TourPrompt;
 
 		auto operator<=>(const agent_context_observation&) const = default;
 	};
@@ -135,12 +142,40 @@ namespace bpr::application {
 		selected_draft_missing,
 		selected_draft_stale,
 		selected_draft_invalid,
+		/// [[BPR-1935]]. A tour prompt longer than its carrier's bound.
+		too_large,
+		/// [[BPR-1935]]. A read-only tour run with no tour prompt.
+		tour_prompt_missing,
+		/// [[BPR-1935]]. A tour prompt on a launch that is not a read-only
+		/// tour run.
+		tour_prompt_outside_tour_run,
+	};
+
+	/// \brief [[BPR-1935]]. The stable name an invocation's refusal carries
+	/// for a context failure: `agent_context_too_large`,
+	/// `tour_prompt_missing`, `tour_prompt_outside_tour_run`, and
+	/// `invalid_agent_context` for every other failure.
+	[[nodiscard]] auto refusal_name(agent_context_failure aFailure) noexcept -> std::string_view;
+
+	/// \brief What kind of launch a context is built for.
+	enum class agent_context_run : std::uint8_t {
+		/// Every launch that is not a read-only tour run.
+		ordinary,
+		/// [[BPR-1935]]. A read-only tour run ([[BPR-1900]]): the only launch
+		/// a tour prompt is admitted on, and one that must carry one.
+		read_only_tour,
 	};
 
 	/// \brief Builds context only from caller-supplied bounded observations.
+	///
+	/// \details [[BPR-1935]]. `aRun` says whether this is a read-only tour
+	/// run. A tour prompt on any other launch is refused as
+	/// `tour_prompt_outside_tour_run`, a tour run without one as
+	/// `tour_prompt_missing`, and one over its bound as `too_large`.
 	[[nodiscard]] auto build_agent_context_supplement(
 		const agent_context_observation& aObservation,
-		const core::agent_session&       aSession)
+		const core::agent_session&       aSession,
+		agent_context_run                aRun = agent_context_run::ordinary)
 		-> std::expected<core::agent_context_supplement, agent_context_failure>;
 
 	/// \brief One store-validated full body, ordered exactly as the admitted selection.

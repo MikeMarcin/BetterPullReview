@@ -3287,8 +3287,13 @@ function(bpr_verify_app_source_tree app_source_root)
 	# admission, mutation branch or publication change.
 	# Resealed again over the review skill's place among the built-in prompts
 	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
+	# [[BPR-1935]] reseal (2026-11-07): window_agent_chat.cpp sends a
+	# read-only tour run's prompt as the tour prompt, not the typed chat
+	# message; window_tours.cpp builds the ask prompt with the skill directive
+	# inside its bound and says a size refusal in words. No grant, provider,
+	# gh process, admission, mutation branch or publication change.
 	set(bpr_expected_production_app_manifest_digest
-        "87cf2778f5a267b6f5d2c427ab9002a6860b91100fdfbfc3929e2178cbdb2afc"
+        "bbbe0b59d2ab826645fbc46aafc69e94c5a523fc44074f0f4ba0a1e912f0b6d7"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
