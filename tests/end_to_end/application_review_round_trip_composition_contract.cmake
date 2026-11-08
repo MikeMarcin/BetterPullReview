@@ -2774,7 +2774,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "e3dba678fe08e1ea888bfcca6b1214224783dfafe219f51d3eb8ad54647e0646"
+        "3ba90d7ea9ee80cb0da8c555c9c5c5830f6a6781c6ae308e7f5c403c5c6cd614"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2803,6 +2803,8 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
 		"main.cpp"
 		"src/about_desktop.cpp"
 		"src/about_desktop.hpp"
+		"src/attended_source_identity.cpp"
+		"src/attended_source_identity.hpp"
 		"src/command_line.cpp"
 		"src/designated_live_macos_supervisor.cpp"
 		"src/designated_live_macos_supervisor_identity.cpp"
@@ -3286,7 +3288,7 @@ function(bpr_verify_app_source_tree app_source_root)
 	# Resealed again over the review skill's place among the built-in prompts
 	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "c8d432aa0ed473d5f40483009bf05bb0a13bb644718cd817d961807686f2ae2d"
+        "e220c0501013bc6dfdc146d1aad41fdd00444f9b0e6332b15863e1b5ef167b17"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest

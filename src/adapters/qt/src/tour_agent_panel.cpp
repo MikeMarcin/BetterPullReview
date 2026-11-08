@@ -11,11 +11,11 @@
 #include <QAbstractTextDocumentLayout>
 #include <QClipboard>
 #include <QFontDatabase>
-#include <QGridLayout>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QLayout>
 #include <QListWidget>
 #include <QPainter>
 #include <QPlainTextEdit>
@@ -41,6 +41,83 @@ namespace bpr::qt {
 			return QColor::fromRgbF(static_cast<float>(aFrom.redF() + (aTo.redF() - aFrom.redF()) * aAmount), static_cast<float>(aFrom.greenF() + (aTo.greenF() - aFrom.greenF()) * aAmount),
 									static_cast<float>(aFrom.blueF() + (aTo.blueF() - aFrom.blueF()) * aAmount));
 		}
+
+		/// [[BPR-1932]]. Measure both header rows at the requested width.
+		/// Moving widgets between grid rows during resize changed the minimum
+		/// while QScrollArea was negotiating its scrollbar, recursively toggling
+		/// the column between the widths with and without that scrollbar.
+		class tour_head_layout final : public QLayout
+		{
+		public:
+			~tour_head_layout() override
+			{
+				while (auto* item = takeAt(0)) {
+					delete item;
+				}
+			}
+			void               addItem(QLayoutItem* aItem) override { Items.push_back(aItem); }
+			[[nodiscard]] auto count() const -> int override { return static_cast<int>(Items.size()); }
+			[[nodiscard]] auto itemAt(const int aIndex) const -> QLayoutItem* override { return aIndex >= 0 && aIndex < count() ? Items[static_cast<std::size_t>(aIndex)] : nullptr; }
+			auto               takeAt(const int aIndex) -> QLayoutItem* override
+			{
+				if (aIndex < 0 || aIndex >= count()) {
+					return nullptr;
+				}
+				auto* const item = Items[static_cast<std::size_t>(aIndex)];
+				Items.erase(Items.begin() + aIndex);
+				return item;
+			}
+			[[nodiscard]] auto hasHeightForWidth() const -> bool override { return true; }
+			[[nodiscard]] auto minimumSize() const -> QSize override
+			{
+				if (count() != 3) {
+					return { };
+				}
+				const auto first = Items[0]->sizeHint();
+				const auto last  = Items[2]->sizeHint();
+				return { std::max(first.width(), last.width()), std::max(first.height(), last.height()) };
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override
+			{
+				if (count() != 3) {
+					return { };
+				}
+				const auto width = Items[0]->sizeHint().width() + 8 + Items[2]->sizeHint().width();
+				return { width, heightForWidth(width) };
+			}
+			[[nodiscard]] auto heightForWidth(const int aWidth) const -> int override
+			{
+				if (count() != 3) {
+					return 0;
+				}
+				const auto first        = Items[0]->sizeHint();
+				const auto last         = Items[2]->sizeHint();
+				const auto wrap         = first.width() + 8 + last.width() > aWidth;
+				const auto statusWidth  = std::max(0, aWidth - first.width() - 8 - (wrap ? 0 : last.width() + 8));
+				const auto statusHeight = Items[1]->hasHeightForWidth() ? Items[1]->heightForWidth(statusWidth) : Items[1]->sizeHint().height();
+				const auto firstHeight  = std::max(first.height(), statusHeight);
+				return wrap ? firstHeight + 4 + last.height() : std::max(firstHeight, last.height());
+			}
+			void setGeometry(const QRect& aRect) override
+			{
+				QLayout::setGeometry(aRect);
+				if (count() != 3) {
+					return;
+				}
+				const auto first       = Items[0]->sizeHint();
+				const auto last        = Items[2]->sizeHint();
+				const auto wrap        = first.width() + 8 + last.width() > aRect.width();
+				const auto firstHeight = heightForWidth(aRect.width()) - (wrap ? last.height() + 4 : 0);
+				Items[0]->setGeometry({ aRect.left(), aRect.top() + (firstHeight - first.height()) / 2, first.width(), first.height() });
+				const auto statusLeft  = aRect.left() + first.width() + 8;
+				const auto statusRight = wrap ? aRect.right() + 1 : aRect.right() + 1 - last.width() - 8;
+				Items[1]->setGeometry({ statusLeft, aRect.top(), std::max(0, statusRight - statusLeft), firstHeight });
+				Items[2]->setGeometry({ aRect.right() + 1 - last.width(), wrap ? aRect.top() + firstHeight + 4 : aRect.top() + (firstHeight - last.height()) / 2, last.width(), last.height() });
+			}
+
+		private:
+			std::vector<QLayoutItem*> Items;
+		};
 
 		/// The agent's words, not yet the author's: a faint accent wash with
 		/// a solid accent rule down the left, as a margin note.
@@ -224,20 +301,17 @@ namespace bpr::qt {
 		// bordered action, at its own width on the left; Transcript is a bare
 		// action with a page glyph at the far end, never checkable, and opens
 		// a window. Nothing here is a pair of equal segments.
-		Head = new QGridLayout{ };
+		Head = new tour_head_layout{ };
 		Head->setContentsMargins(0, 0, 0, 0);
-		Head->setHorizontalSpacing(8);
-		Head->setVerticalSpacing(4);
 		Draft = new quiet_push_button{ tr("Draft Tour"), this };
 		Draft->setObjectName(QStringLiteral("tourDraftTour"));
 		Draft->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
 		Draft->setToolTip(tr("Asks the drafting agent, in the background, to read this pull request's code and propose the Problem, the Solution and the stops. You accept, edit or discard each one."));
-		Head->addWidget(Draft, 0, 0, Qt::AlignVCenter);
+		Head->addWidget(Draft);
 		Status = small(paragraph({ }, this));
 		Status->setObjectName(QStringLiteral("tourDraftStatus"));
 		Status->setSizePolicy(QSizePolicy::Ignored, QSizePolicy::Preferred);
-		Head->addWidget(Status, 0, 1, Qt::AlignVCenter);
-		Head->setColumnStretch(1, 1);
+		Head->addWidget(Status);
 		// [[BPR-1914]] v003. A side chat about the tour as a whole: one quiet
 		// glyph beside Conversation. [[BPR-1925]]. The pair keeps together
 		// and takes its own row under Draft the tour when the drawer is too
@@ -268,7 +342,7 @@ namespace bpr::qt {
 		// as each part's sits at the right of its own header.
 		trailRow->addWidget(ChatTour, 0, Qt::AlignVCenter);
 		Trail->setSizePolicy(QSizePolicy::Fixed, QSizePolicy::Fixed);
-		Head->addWidget(Trail, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		Head->addWidget(Trail);
 		column->addLayout(Head);
 		fit_head();
 		connect(ChatTour, &QToolButton::clicked, this, [this] {
@@ -1082,38 +1156,13 @@ namespace bpr::qt {
 		fit_head();
 	}
 
-	void tour_agent_panel::resizeEvent(QResizeEvent* aEvent)
-	{
-		QWidget::resizeEvent(aEvent);
-		fit_head();
-	}
-
 	void tour_agent_panel::fit_head()
 	{
-		if (Head == nullptr || Trail == nullptr) {
-			return;
-		}
-		// The row's own width inside the panel's margins, against what Draft
-		// the tour and the pair need at their size hints with the gap.
-		const auto margins = layout()->contentsMargins();
-		// The narrowest the panel goes is the wrapped head's, so a narrow
-		// drawer can reach the width at which the pair takes its own row.
-		setMinimumWidth(margins.left() + margins.right() + std::max(Draft->sizeHint().width(), Trail->sizeHint().width()));
-		const auto room  = width() - margins.left() - margins.right();
-		const auto need  = Draft->sizeHint().width() + Head->horizontalSpacing() + Trail->sizeHint().width();
-		const auto wrap  = room > 0 && need > room;
-		const auto index = Head->indexOf(Trail);
-		auto       row = 0, column = 0, rows = 0, columns = 0;
-		Head->getItemPosition(index, &row, &column, &rows, &columns);
-		if (wrap == (row == 1)) {
-			return;
-		}
-		Head->removeWidget(Trail);
-		if (wrap) {
-			// [[BPR-1930]]. Wrapped, the row keeps the chat toggle at the right.
-			Head->addWidget(Trail, 1, 0, 1, 3, Qt::AlignRight | Qt::AlignVCenter);
-		} else {
-			Head->addWidget(Trail, 0, 2, Qt::AlignRight | Qt::AlignVCenter);
+		if (Head != nullptr && Trail != nullptr) {
+			const auto margins = layout()->contentsMargins();
+			setMinimumWidth(margins.left() + margins.right() + Head->minimumSize().width());
+			Head->invalidate();
+			updateGeometry();
 		}
 	}
 
