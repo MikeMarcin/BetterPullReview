@@ -65,10 +65,10 @@ namespace {
 	}
 	void verify_first_live_second()
 	{
-		// [[BPR-1945]]. A coarse first tick may arrive before a whole
-		// second and keep 0:00 until the next tick. Vary the start phase so
-		// the shared line must show its first second at the same deadline
-		// as the composed chat, independently of the timer's alignment.
+		// [[BPR-1945]], [[BPR-1946]]. Vary the start phase: even a native
+		// precise tick can arrive before the actual whole second. Count
+		// two seconds with an activity refresh between them, keeping the
+		// composed chat's deadline allowance at each elapsed boundary.
 #ifdef NDEBUG
 		constexpr auto liveBudget = 1300;
 #else
@@ -78,6 +78,7 @@ namespace {
 		{
 			qt::agent_run_status_line Line{ };
 			QElapsedTimer             Started;
+			qint64                    Second  = 1;
 			bool                      Checked = false;
 		};
 		auto probes = std::array<live_probe, 8>{ };
@@ -93,18 +94,27 @@ namespace {
 		auto clock = QElapsedTimer{ };
 		clock.start();
 		const auto complete = [&probes] { return std::ranges::all_of(probes, [](const live_probe& aProbe) { return aProbe.Checked; }); };
-		while (!complete() && clock.elapsed() < liveBudget + 2000) {
+		while (!complete() && clock.elapsed() < liveBudget + 3000) {
 			QApplication::processEvents(QEventLoop::AllEvents, 50);
 			for (auto& probe : probes) {
 				if (!probe.Started.isValid() || probe.Checked) {
 					continue;
 				}
-				if (probe.Line.text() == QStringLiteral("● Claude Code is thinking, 0:01.")) {
-					expect(probe.Line.live() && probe.Started.elapsed() >= 1000, "the live line reads a whole elapsed second");
-					probe.Line.settle(QStringLiteral("Stopped after 0:01"), false);
-					probe.Checked = true;
+				const auto expected = probe.Second == 1 ? QStringLiteral("● Claude Code is thinking, 0:01.") : QStringLiteral("● Claude Code is writing, 0:02.");
+				if (probe.Line.text() == expected) {
+					expect(probe.Line.live() && probe.Started.elapsed() >= probe.Second * 1000, "the live line reads a whole elapsed second");
+					if (probe.Second == 1) {
+						auto status  = qt::agent_run_status{ };
+						status.Agent = QStringLiteral("Claude Code");
+						status.Stage = qt::agent_run_stage::writing;
+						probe.Line.present(status, probe.Started);
+						probe.Second = 2;
+					} else {
+						probe.Line.settle(QStringLiteral("Stopped after 0:02"), false);
+						probe.Checked = true;
+					}
 				} else {
-					expect(probe.Started.elapsed() < liveBudget, "the shared live line counts its first second at every start phase: " + probe.Line.text().toStdString());
+					expect(probe.Started.elapsed() < liveBudget + (probe.Second - 1) * 1000, "the shared live line counts each second at every start phase: " + probe.Line.text().toStdString());
 				}
 			}
 		}

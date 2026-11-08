@@ -44,6 +44,7 @@ namespace bpr::qt {
 		// [[BPR-1945]]. An early coarse tick still reads 0:00 and loses
 		// the first whole second until the following tick.
 		Ticker->setTimerType(Qt::PreciseTimer);
+		Ticker->setSingleShot(true);
 		Ticker->setInterval(1000);
 		connect(Ticker, &QTimer::timeout, this, [this] { tick(); });
 	}
@@ -58,9 +59,6 @@ namespace bpr::qt {
 			setFont(upright);
 		}
 		tick();
-		if (!Ticker->isActive()) {
-			Ticker->start();
-		}
 	}
 
 	void agent_run_status_line::settle(const QString& aWords, const bool aAnswered)
@@ -79,11 +77,16 @@ namespace bpr::qt {
 			Ticker->stop();
 			return;
 		}
-		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
+		const auto elapsed = Started.isValid() ? qMax(qint64{ 0 }, Started.elapsed()) : 0;
+		const auto seconds = elapsed / 1000;
 		const auto words   = agent_run_status_words(*Status, seconds);
 		// Its text is its accessible name; the tick is not announced.
 		if (text() != words) {
 			setText(words);
 		}
+		// [[BPR-1946]]. Even a native precise callback may arrive before
+		// the whole second. Recheck at the actual clock's next boundary,
+		// rather than losing that update for another complete period.
+		Ticker->start(static_cast<int>(1000 - elapsed % 1000));
 	}
 }
