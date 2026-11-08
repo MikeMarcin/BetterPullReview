@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1941"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour chat adopts Agent tab chat polish",
+  "created": "2026-11-08T16:38:48.995262+00:00",
+  "base": "f8e80944dd4f6cdd46d68bc4b639ac8cdd7a41fd"
+}
