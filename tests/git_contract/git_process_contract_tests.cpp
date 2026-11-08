@@ -4296,9 +4296,19 @@ namespace {
 	auto run_borrowed_history_workspace_contract(const bool aInventoryControl = false) -> void
 	{
 		temporary_root root{ "git-borrowed-history-workspace" };
-		auto           adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, root.Path);
+		temporary_root cacheRoot{ "git-workspace-copy-source" };
+		// [[BPR-1940]]. The command's one read-only alternate must retain
+		// separators and quotes as path bytes, never as extra object stores.
+#if defined(_WIN32)
+		const auto cacheIsolation = cacheRoot.Path / "cache; with spaces";
+#else
+		const auto cacheIsolation = cacheRoot.Path / std::filesystem::path{ u8"cache: with \"quote\" \\ tab\t line\n é" };
+#endif
+		require(std::filesystem::create_directory(cacheIsolation), "create an owned special-path cache isolation");
+		std::filesystem::permissions(cacheIsolation, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+		auto adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation);
 		// The complete cache: the base and the head with their whole history.
-		const auto cache = repository_path(root.Path, '1');
+		const auto cache = repository_path(cacheIsolation, '1');
 		initialize_repository(*adapter, cache, application::git_hash_algorithm::sha1);
 		const auto code     = run_fixture_git(cache, { "hash-object", "-w", "--stdin" }, "int main() { return 0; }\n");
 		const auto nested   = run_fixture_git(cache, { "mktree" }, "100644 blob " + code + "\tmain.cpp\n");
@@ -4355,8 +4365,10 @@ namespace {
 			return made;
 		};
 
-		const auto made = adapter->materialize_agent_workspace(request(1U, clone), { });
+		const auto cacheBefore = file_inventory(cache);
+		const auto made        = adapter->materialize_agent_workspace(request(1U, clone), { });
 		require(made.has_value() && made->Workspace.BorrowsHistory, "a workspace borrows the linked clone's history");
+		require(file_inventory(cache) == cacheBefore, "workspace pack copying leaves the source cache unchanged");
 		const auto workspace = std::filesystem::path{ made->Workspace.Path };
 		require(read_text(workspace / ".git" / "objects" / "info" / "alternates") == std::filesystem::canonical(clone / ".git" / "objects").string() + "\n",
 				"its one alternates line names the clone's objects");
@@ -4369,6 +4381,7 @@ namespace {
 		report_inventory_changes(cloneBefore, cloneAfter, "materialization");
 		require(cloneAfter == cloneBefore, "nothing is written to the reviewer's clone");
 		require(adapter->cleanup_agent_workspace(*made, { }).has_value() && !std::filesystem::exists(workspace), "the borrowed workspace cleans up normally");
+		require(file_inventory(cache) == cacheBefore, "workspace cleanup leaves the source cache unchanged");
 		const auto cloneCleaned = file_inventory(clone);
 		report_inventory_changes(cloneBefore, cloneCleaned, "cleanup");
 		require(cloneCleaned == cloneBefore, "cleanup leaves the clone as it was");
@@ -4422,12 +4435,14 @@ namespace {
 		require(!refused.has_value(), "a folder that is not a clone is refused");
 		require(std::filesystem::is_empty(workspaceParent.Path), "and leaves no workspace behind");
 
-		const auto plain = adapter->materialize_agent_workspace(request(4U, std::nullopt), { });
+		const auto cacheBeforePlain = file_inventory(cache);
+		const auto plain            = adapter->materialize_agent_workspace(request(4U, std::nullopt), { });
 		require(plain.has_value() && !plain->Workspace.BorrowsHistory && !std::filesystem::exists(std::filesystem::path{ plain->Workspace.Path } / ".git" / "objects" / "info" / "alternates"),
 				"without a clone the workspace is the private copy, as before");
 		require(!plain->Workspace.Shallow && run_fixture_git(std::filesystem::path{ plain->Workspace.Path } / ".git", { "cat-file", "-t", base }) == "commit",
 				"and holds the base, so the brief's diff against it works ([[BPR-1752]])");
 		require(adapter->cleanup_agent_workspace(*plain, { }).has_value(), "and it cleans up");
+		require(file_inventory(cache) == cacheBeforePlain, "the private copy and cleanup read the special-path cache without changing it");
 	}
 
 	auto run_fsck_severity_contract() -> void

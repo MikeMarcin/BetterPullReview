@@ -15,6 +15,7 @@
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
+#include "bpr/qt/agent_run_status.hpp"
 #include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -539,16 +540,16 @@ namespace bpr::qt {
 			bool              Done   = false;
 			QPointer<QWidget> Widget;
 			/// The answer as written, shown as Markdown.
-			QPointer<markdown_body_view> Answer;
-			QString                      AnswerText;
-			QPointer<QLabel>             Footer;
-			QPointer<QPushButton>        SaveNote;
-			QPointer<QVBoxLayout>        CardColumn;
-			QPointer<QToolButton>        Copy;
-			QPointer<QLabel>             AskedTime;
-			QPointer<QLabel>             AnsweredTime;
-			QDateTime                    AskedAt;
-			QDateTime                    AnsweredAt;
+			QPointer<markdown_body_view>    Answer;
+			QString                         AnswerText;
+			QPointer<agent_run_status_line> Footer;
+			QPointer<QPushButton>           SaveNote;
+			QPointer<QVBoxLayout>           CardColumn;
+			QPointer<QToolButton>           Copy;
+			QPointer<QLabel>                AskedTime;
+			QPointer<QLabel>                AnsweredTime;
+			QDateTime                       AskedAt;
+			QDateTime                       AnsweredAt;
 			/// Names the answer's body, so its code is coloured as its own.
 			std::uint64_t Serial = 0U;
 			/// The note Save as note made; 0 for none.

@@ -1743,6 +1743,12 @@ namespace bpr::qt {
 		WritingStatus->setObjectName(QStringLiteral("tourWritingStatus"));
 		WritingStatus->setForegroundRole(QPalette::PlaceholderText);
 		notes->addWidget(WritingStatus);
+		// [[BPR-1941]]. A running Draft Tour says what the agent is doing and
+		// for how long, with the Agent tab's live line.
+		DraftStatus = new agent_run_status_line{ Notices };
+		DraftStatus->setObjectName(QStringLiteral("tourDraftLiveStatus"));
+		DraftStatus->hide();
+		notes->addWidget(DraftStatus);
 		layout->addWidget(Notices);
 
 		// The section stack: the brief's fields, the stop, the local preview.
@@ -3163,11 +3169,43 @@ namespace bpr::qt {
 	}
 	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
-		RunningHook  = aHook;
-		RunningDraft = aDraftTour;
+		const auto wasDrafting = RunningDraft;
+		RunningHook            = aHook;
+		RunningDraft           = aDraftTour;
 		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour || aAsking);
 		SideChat->set_running(aHook.has_value() || aDraftTour || aAsking, aDraftTour);
+		if (aDraftTour && !wasDrafting) {
+			DraftClock.start();
+		} else if (!aDraftTour) {
+			DraftClock.invalidate();
+			DraftLive.reset();
+		}
+		show_draft_status();
 		refresh_agent_features();
+	}
+
+	void review_tour_editor::present_run_status(std::optional<agent_run_status> aStatus)
+	{
+		SideChat->present_run_status(aStatus);
+		if (RunningDraft && aStatus) {
+			DraftLive = std::move(aStatus);
+		}
+		show_draft_status();
+	}
+
+	void review_tour_editor::show_draft_status()
+	{
+		if (!RunningDraft) {
+			DraftStatus->settle({ }, true);
+			DraftStatus->hide();
+			return;
+		}
+		auto shown = DraftLive.value_or(agent_run_status{ });
+		if (shown.Agent.isEmpty()) {
+			shown.Agent = tr("The tour agent");
+		}
+		DraftStatus->present(shown, DraftClock);
+		DraftStatus->show();
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
 	{

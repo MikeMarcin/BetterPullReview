@@ -1354,6 +1354,12 @@ namespace bpr::app {
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.
 		Window->tour_editor()->set_tour_shape_dispatch([this] { clear_tour_focus(); }, [this] { reset_tour(); }, [this] { undo_tour_reset(); });
 		Window->tour_editor()->side_chat()->set_focus_undo_dispatch([this](const core::tour_agent_run_id aRun) { undo_tour_focus(aRun); });
+		// [[BPR-1941]]. Delete on a chat turn that ended without an answer.
+		Window->tour_editor()->side_chat()->set_delete_dispatch([this](const core::tour_agent_run_id aRun) {
+			if (core::remove_tour_run(TourAgent, aRun)) {
+				present_tour_session();
+			}
+		});
 		Window->tour_editor()->set_tour_session_dispatch([this] { request_tour_draft(); }, [this] { cancel_tour_run(); }, [this](const std::size_t aIndex, const core::tour_proposal_decision aDecision, const QString& aText) { decide_tour_proposal(aIndex, aDecision, aText); }, [this](const std::size_t aIndex) { relocate_tour_proposal(aIndex); });
 #endif
 		WorkbenchHost = std::make_unique<

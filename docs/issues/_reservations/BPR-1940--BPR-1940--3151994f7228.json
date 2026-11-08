@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1940"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Native Linux standard include closure through full development compile graphs",
+  "created": "2026-11-08T13:35:53.247093+00:00",
+  "base": "acdb0bb2bbeb33f47b87acf58c8d0bf131abb60e"
+}

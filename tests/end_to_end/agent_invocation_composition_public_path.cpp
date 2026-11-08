@@ -19,10 +19,13 @@
 
 #include <QAction>
 #include <QApplication>
+#include <QByteArray>
 #include <QCheckBox>
 #include <QComboBox>
+#include <QCryptographicHash>
 #include <QDir>
 #include <QEventLoop>
+#include <QFile>
 #include <QItemSelectionModel>
 #include <QLabel>
 #include <QLineEdit>
@@ -52,6 +55,7 @@
 #include <optional>
 #include <string>
 #include <string_view>
+#include <tuple>
 #include <utility>
 #include <vector>
 
@@ -61,6 +65,52 @@ namespace {
 	using e2e::default_agent_budget;
 	using e2e::extended_agent_budget;
 	using e2e::wait_terms;
+
+	using fixture_cache_inventory = std::map<std::filesystem::path,
+											 std::tuple<std::filesystem::file_type, std::filesystem::perms, std::uintmax_t, QByteArray>>;
+
+	/// [[BPR-1940]]. Only this course's small, owned cache; no links or bodies
+	/// enter the report. The snapshot surrounds the real Stop/retry gesture.
+	auto snapshot_fixture_cache(const std::filesystem::path& aRoot) -> std::optional<fixture_cache_inventory>
+	{
+		auto error = std::error_code{ };
+		if (!std::filesystem::is_directory(std::filesystem::symlink_status(aRoot, error)) || error) {
+			return std::nullopt;
+		}
+		auto seen  = fixture_cache_inventory{ };
+		auto total = std::uintmax_t{ 0U };
+		for (auto entry = std::filesystem::recursive_directory_iterator{ aRoot, std::filesystem::directory_options::none, error };
+			 !error && entry != std::filesystem::recursive_directory_iterator{ }; entry.increment(error)) {
+			const auto path   = entry->path();
+			const auto status = std::filesystem::symlink_status(path, error);
+			if (error || std::filesystem::is_symlink(status) || seen.size() >= 256U) {
+				return std::nullopt;
+			}
+			auto bytes  = std::uintmax_t{ 0U };
+			auto digest = QByteArray{ };
+			if (std::filesystem::is_regular_file(status)) {
+				bytes = std::filesystem::file_size(path, error);
+				if (error || bytes > 1024U * 1024U || total + bytes > 8U * 1024U * 1024U) {
+					return std::nullopt;
+				}
+				total += bytes;
+				auto input = QFile{ QString::fromStdU16String(path.u16string()) };
+				if (!input.open(QIODevice::ReadOnly)) {
+					return std::nullopt;
+				}
+				const auto content = input.read(1024 * 1024 + 1);
+				if (input.error() != QFileDevice::NoError || static_cast<std::uintmax_t>(content.size()) != bytes
+					|| std::filesystem::symlink_status(path, error) != status || error) {
+					return std::nullopt;
+				}
+				digest = QCryptographicHash::hash(content, QCryptographicHash::Sha256);
+			} else if (!std::filesystem::is_directory(status)) {
+				return std::nullopt;
+			}
+			seen.emplace(path.lexically_relative(aRoot), std::tuple{ status.type(), status.permissions(), bytes, std::move(digest) });
+		}
+		return error ? std::nullopt : std::optional{ std::move(seen) };
+	}
 	inline constexpr std::string_view workspace_failure_marker
 		= ".bpr-fail-workspace-pack";
 	inline constexpr std::string_view redacted_git_diagnostic
@@ -956,6 +1006,10 @@ auto main(int argc, char** argv) -> int
 		}
 		// Stop reaches the workspace's token, and retry remains unavailable
 		// until that cancelled materialization has settled and cleaned up.
+		const auto cacheBeforeStop = snapshot_fixture_cache(dataRoot / "repositories" / "v1");
+		if (!cacheBeforeStop) {
+			return fail(*application, "wrapper-cache-before-stop");
+		}
 		button(QStringLiteral("agentSetupStop"))->click();
 		std::filesystem::remove(workspaceHold);
 		if (!wait_until([&] { return button(QStringLiteral("agentSetupCheck")) != nullptr; }, extended_agent_budget)) {
@@ -964,6 +1018,9 @@ auto main(int argc, char** argv) -> int
 		button(QStringLiteral("agentSetupCheck"))->click();
 		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
 			return fail(*application, "wrapper-setup-ready");
+		}
+		if (snapshot_fixture_cache(dataRoot / "repositories" / "v1") != cacheBeforeStop) {
+			return fail(*application, "wrapper-cancellation-and-retry-keeps-source-cache");
 		}
 		// The wrapper reports third-party Bedrock sign-in as pretty JSON,
 		// and needs its saved --no-extra-output argument for a readable answer.

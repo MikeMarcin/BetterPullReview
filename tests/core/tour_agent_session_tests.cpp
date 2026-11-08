@@ -335,6 +335,17 @@ namespace {
 		expect(!time_tour_run(threads, *update, 12U), "a running turn has no time yet");
 		static_cast<void>(answer_tour_ask(threads, *update, "Done.", { }));
 		expect(time_tour_run(threads, *update, 12U) && threads.Runs.back().Seconds == 12U, "an ended turn keeps how long it worked");
+		// [[BPR-1941]]. Delete takes a turn that ended without an answer out
+		// of its thread; an answer, a running turn and a draft stay.
+		expect(!remove_tour_run(threads, *update), "an answered turn is not deleted");
+		const auto unanswered = begin_tour_ask(threads, stopThread, std::nullopt, "Is this safe?");
+		expect(!remove_tour_run(threads, *unanswered), "a running turn is not deleted");
+		static_cast<void>(finish_tour_run(threads, *unanswered, tour_agent_run_state::failed, "Claude Code exited with an error."));
+		const auto before = threads.Runs.size();
+		expect(remove_tour_run(threads, *unanswered) && threads.Runs.size() == before - 1U && find_tour_run(threads, *unanswered) == nullptr, "a failed turn is deleted");
+		expect(tour_conversation_of(threads, stopThread).Turns.size() == 2U, "its thread replays the rest");
+		expect(!remove_tour_run(threads, *unanswered), "once");
+		expect(!remove_tour_run(threads, *drafted), "a draft is not a chat turn to delete");
 	}
 	template <typename T>
 	auto identity(const unsigned char aSeed) -> T

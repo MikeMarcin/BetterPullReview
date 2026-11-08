@@ -252,8 +252,19 @@ tour there. The button,
 or Open side chat in its menu, opens it, quoting the selected text; a stop's
 chat shows the stop's lines in the diff, and Ask about its code quotes them.
 The chat is plain: the author's bubbles, the agent's rendered replies with
-highlighted code ([[BPR-1919]]), a folded "Worked for Ns", Copy per reply and
-for the chat. **Update the Solution from this chat** (or the Problem, this
+highlighted code ([[BPR-1919]]), Copy per reply and for the chat. Since
+[[BPR-1941]] each turn ends with the Agent tab's own line
+(`agent_run_status_line`): while it runs, "● Claude Code is thinking, 0:12."
+with the agent, what it is doing (making its workspace, thinking, writing)
+and the time, counting by itself; then "Claude Code answered in 0:12." with
+Copy, or, for a turn that ended without an answer, why and "Stopped after
+0:12." with Resend and Delete, as the core's `decide_agent_turn_actions`
+decides for the Agent tab's error turns. The host relays the tour session's
+run events (admitted, workspace made, first output) as `qt::agent_run_status`;
+Delete is `core::remove_tour_run`. A running Draft Tour shows the same line
+under the tab's notice and at the end of the whole tour's chat. The folded
+"Worked for Ns" and its steps are gone from the chat; the conversation window
+below keeps every run's steps. **Update the Solution from this chat** (or the Problem, this
 stop, the tour) asks for the part rewritten from the chat, and the proposal is
 accepted, edited or discarded in the chat. Each chat is its own thread,
 replayed alone with the part's current text. The conversation window described

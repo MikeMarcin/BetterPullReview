@@ -1302,11 +1302,10 @@ namespace bpr::qt {
 		auto* const cards = new QVBoxLayout{ };
 		cards->setSpacing(8);
 		replyColumn->addLayout(cards);
-		// While the agent works, and how it ended: one quiet line.
-		auto* const footer = new QLabel{ reply };
+		// While the agent works, and how it ended: one quiet line, the one
+		// the tour chats' turns show too ([[BPR-1941]]).
+		auto* const footer = new agent_run_status_line{ reply };
 		footer->setObjectName(QStringLiteral("agentTurnFooter"));
-		footer->setForegroundRole(QPalette::PlaceholderText);
-		footer->setWordWrap(true);
 		replyColumn->addWidget(footer);
 		auto* const footerRow = new QHBoxLayout{ };
 		footerRow->setSpacing(2);
@@ -1866,24 +1865,25 @@ namespace bpr::qt {
 		auto&      current = Turns.back();
 		const auto agent   = Launch.profile_selector()->currentText();
 		const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
-		const auto elapsed = QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
 		const auto written = Launch.output_text().trimmed();
 		switch (Launch.current_phase()) {
-		case agent_launch_panel::phase::preparing:
+		case agent_launch_panel::phase::preparing: {
 			set_answer(current, written);
-			current.Footer->setText(QStringLiteral("● ") + tr("%1 is making its workspace at the head, %2.").arg(agent, elapsed));
+			auto status  = agent_run_status{ };
+			status.Agent = agent;
+			status.Stage = agent_run_stage::preparing;
+			current.Footer->present(status, Started);
 			return;
+		}
 		case agent_launch_panel::phase::running: {
 			set_answer(current, written);
-			auto line = written.isEmpty() ? tr("%1 is thinking, %2.").arg(agent, elapsed) : tr("%1 is writing, %2.").arg(agent, elapsed);
-			if (const auto latest = Launch.latest_output_line(); written.isEmpty() && !latest.isEmpty()) {
-				line += QStringLiteral(" ") + latest.left(120);
-			}
-			// [[BPR-1873]]. A sparse review with no clone: said while it runs.
-			if (Launch.pull_request_files_only()) {
-				line += QStringLiteral(" ") + tr("It sees only this pull request's files.");
-			}
-			current.Footer->setText(QStringLiteral("● ") + line);
+			// [[BPR-1941]]. The words the tour chats' running turns say too.
+			auto status      = agent_run_status{ };
+			status.Agent     = agent;
+			status.Stage     = written.isEmpty() ? agent_run_stage::thinking : agent_run_stage::writing;
+			status.Latest    = written.isEmpty() ? Launch.latest_output_line() : QString{ };
+			status.FilesOnly = Launch.pull_request_files_only();
+			current.Footer->present(status, Started);
 			return;
 		}
 		case agent_launch_panel::phase::idle:
@@ -1921,7 +1921,7 @@ namespace bpr::qt {
 				RunSettingsSource->report_model(profile->value(), reported);
 			}
 		}
-		auto footer = succeeded ? tr("%1 answered in %2").arg(ran, elapsed) : tr("Stopped after %1").arg(elapsed);
+		auto footer = succeeded ? agent_run_answered_words(ran, seconds) : agent_run_stopped_words(seconds);
 		footer += Launch.last_reported_cost().isEmpty() ? QStringLiteral(".") : tr(" for $%1.").arg(Launch.last_reported_cost());
 		if (succeeded && Launch.pull_request_files_only()) {
 			footer += QStringLiteral(" ") + tr("It saw only this pull request's files.");
@@ -1929,7 +1929,7 @@ namespace bpr::qt {
 		if (succeeded && findings > 0U && FindingsPresented != FindingsAtTurn) {
 			footer += QStringLiteral(" ") + (findings == 1U ? tr("1 finding, above.") : tr("%1 findings, above.").arg(findings));
 		}
-		current.Footer->setText(footer);
+		current.Footer->settle(footer, succeeded);
 		current.AnsweredAt = QDateTime::currentDateTime();
 		settle_reply_footer(current);
 		if (succeeded && FindingsPresented != FindingsAtTurn) {
@@ -1945,9 +1945,7 @@ namespace bpr::qt {
 	{
 		// Stopped reads as the agent drawers' Interrupted: in italics.
 		if (aTurn.Footer != nullptr) {
-			auto font = aTurn.Footer->font();
-			font.setItalic(aTurn.Outcome != core::agent_turn_outcome::answered);
-			aTurn.Footer->setFont(font);
+			aTurn.Footer->settle(aTurn.Footer->text(), aTurn.Outcome == core::agent_turn_outcome::answered);
 		}
 		if (aTurn.AnsweredTime != nullptr) {
 			show_time(*aTurn.AnsweredTime, aTurn.AnsweredAt);
@@ -2233,7 +2231,7 @@ namespace bpr::qt {
 			}
 			BannerTitle->setText(tr("%1 is working").arg(Launch.profile_selector()->currentText()));
 			const auto seconds = Started.isValid() ? Started.elapsed() / 1000 : 0;
-			const auto elapsed = QStringLiteral("%1:%2").arg(seconds / 60).arg(seconds % 60, 2, 10, QLatin1Char{ '0' });
+			const auto elapsed = agent_elapsed_words(seconds);
 			auto       line    = Launch.current_phase() == agent_launch_panel::phase::running
 				? tr("Running, %1. The answer and any findings appear here when it finishes.").arg(elapsed)
 				: tr("Making the agent's workspace at the head, %1.").arg(elapsed);
