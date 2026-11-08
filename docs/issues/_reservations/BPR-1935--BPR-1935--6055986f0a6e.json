@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1935"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Tour chat prompt exceeds chat message bound",
+  "created": "2026-11-08T04:15:08.043638+00:00",
+  "base": "83d5d45812b54ab8d4ce5926abdd20001aa477af"
+}

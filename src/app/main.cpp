@@ -265,6 +265,7 @@ namespace {
 		bpr::app::command_line_option{ .Name = "attended-tour-drafting" },
 		bpr::app::command_line_option{ .Name = "attended-tour-conversation" },
 		bpr::app::command_line_option{ .Name = "attended-tour-revision" },
+		bpr::app::command_line_option{ .Name = "attended-tour-prompts" },
 		bpr::app::command_line_option{ .Name = "attended-agent-picker" },
 		bpr::app::command_line_option{ .Name = "attended-conversation-look" },
 		bpr::app::command_line_option{ .Name = "attended-agent-look", .TakesValue = true },
@@ -6201,14 +6202,22 @@ namespace {
 		// drafts, then a "too many stops" round shown in place with its focus
 		// chip; with BPR_ATTENDED_TOUR_RESET, Reset tour, its question, and
 		// Undo reset.
-		const auto  revision = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-revision"));
-		auto* const timer    = new QTimer{ &aApplication.window() };
+		const auto revision = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-revision"));
+		// [[BPR-1934]]. The drafted tour accepted, then each kind of empty
+		// chat's suggested prompts; the whole tour's chat is left open.
+		const auto  prompts = drafting && QCoreApplication::arguments().contains(QStringLiteral("--attended-tour-prompts"));
+		auto* const timer   = new QTimer{ &aApplication.window() };
 		timer->setInterval(80);
 		const auto step    = std::make_shared<int>(0);
 		const auto ticks   = std::make_shared<int>(0);
 		const auto open    = qEnvironmentVariable("BPR_ATTENDED_TOUR_SETUP") == QStringLiteral("open");
 		const auto settled = std::make_shared<int>(0);
-		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, revision, settled, alive = aApplication.liveness()] {
+		// [[BPR-1931]] follow-up. With BPR_ATTENDED_TOUR_RESET, the draft's
+		// proposals are reset before any is accepted (the tour empty but for
+		// them), and Undo reset brings back this many waiting stops.
+		const auto resetting     = revision && !qEnvironmentVariable("BPR_ATTENDED_TOUR_RESET").isEmpty();
+		const auto proposedCount = std::make_shared<int>(-1);
+		QObject::connect(timer, &QTimer::timeout, timer, [&aApplication, timer, step, ticks, open, failure, drafting, picker, conversation, revision, prompts, settled, resetting, proposedCount, alive = aApplication.liveness()] {
 			if (alive.expired()) {
 				return;
 			}
@@ -6341,7 +6350,17 @@ namespace {
 						return;
 					}
 					editor->show_problem();
-					editor->problem_editor()->setPlainText(QString::fromUtf8(attended_drafting_problem));
+					// [[BPR-1931]] follow-up. Reset is not offered while it drafts,
+					// and the tour stays empty but for what the draft proposes.
+					if (resetting) {
+						QTextStream{ stdout } << "ATTENDED_TOUR_RESET_WHILE_DRAFTING:enabled=" << (panel->reset_button()->isEnabled() ? 1 : 0) << '\n';
+						if (panel->reset_button()->isEnabled()) {
+							done(QStringLiteral("ATTENDED_TOUR_FAILED:reset-while-drafting"));
+							return;
+						}
+					} else {
+						editor->problem_editor()->setPlainText(QString::fromUtf8(attended_drafting_problem));
+					}
 					QCoreApplication::processEvents();
 					// [[BPR-1930]] AC3. Feedback on the whole tour while it drafts:
 					// the tour's chat takes it, and it waits for the proposal.
@@ -6369,6 +6388,11 @@ namespace {
 				}
 				if (revision) {
 					*step = 40;
+					return;
+				}
+				if (prompts) {
+					panel->accept_all_button()->click();
+					*step = 70;
 					return;
 				}
 				draw(QStringLiteral("app-tour-drafting-proposal"));
@@ -6421,6 +6445,57 @@ namespace {
 				done(QStringLiteral("ATTENDED_TOUR_DRAFTING_SHOWN"));
 				return;
 			}
+			if (*step == 70) {
+				// [[BPR-1934]]. Every kind of empty chat offers its prompts.
+				const auto& shown = editor->shown();
+				if (!shown.Draft || shown.Saving || shown.Draft->Stops.empty()) {
+					return;
+				}
+				auto* const chat    = editor->side_chat();
+				const auto  offered = [chat](const bpr::core::tour_thread& aThread) {
+					chat->open(aThread, std::nullopt, false);
+					QCoreApplication::processEvents();
+					auto* const list = chat->suggestions();
+					return list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();
+				};
+				const auto stop     = offered(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::stop, .Stop = shown.Draft->Stops.front().Id });
+				const auto solution = offered(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution });
+				editor->tour_agent()->chat_button()->click();
+				QCoreApplication::processEvents();
+				auto* const list = chat->suggestions();
+				const auto  tour = list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();
+				draw(QStringLiteral("app-tour-chat-prompts"));
+				if (!root.isEmpty()) {
+					QCoreApplication::processEvents();
+					static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-prompts") + theme + QStringLiteral(".png"), "PNG"));
+				}
+				QTextStream{ stdout } << "ATTENDED_TOUR_PROMPTS:stop=" << stop.join(QLatin1Char('|')) << ":solution=" << solution.join(QLatin1Char('|')) << ":tour=" << tour.join(QLatin1Char('|')) << '\n';
+				// [[BPR-1934]] v002. The Solution's first sentence selected, and
+				// its chat open offering Explain the selected block, for the
+				// person to press.
+				editor->open_step(bpr::core::tour_step::solution);
+				QCoreApplication::processEvents();
+				auto* const field = editor->solution_editor();
+				const auto  words = field->toPlainText();
+				const auto  end   = words.indexOf(QLatin1Char('.'));
+				auto        block = field->textCursor();
+				block.setPosition(0);
+				block.setPosition(static_cast<int>(end > 0 ? end + 1 : std::min<qsizetype>(words.size(), 60)), QTextCursor::KeepAnchor);
+				field->setTextCursor(block);
+				chat->open(bpr::core::tour_thread{ .Kind = bpr::core::tour_thread_kind::solution }, std::nullopt, false);
+				QCoreApplication::processEvents();
+				auto* const explain = chat->suggestions();
+				const auto  labels  = explain == nullptr || !explain->isVisibleTo(chat) ? QStringList{ } : explain->prompts();
+				QTextStream{ stdout } << "ATTENDED_TOUR_EXPLAIN_SELECTION:" << labels.join(QLatin1Char('|')) << '\n';
+				if (!root.isEmpty()) {
+					QCoreApplication::processEvents();
+					static_cast<void>(window.grab().save(root + QStringLiteral("/app-tour-explain-selection") + theme + QStringLiteral(".png"), "PNG"));
+					static_cast<void>(chat->grab().save(root + QStringLiteral("/tour-chat-explain-selection") + theme + QStringLiteral(".png"), "PNG"));
+				}
+				const auto shownAll = stop.size() == 4 && solution.size() == 3 && tour.size() == 4 && !labels.isEmpty() && labels.front() == QStringLiteral("Explain the selected block");
+				done(shownAll ? QStringLiteral("ATTENDED_TOUR_PROMPTS_SHOWN") : QStringLiteral("ATTENDED_TOUR_FAILED:prompts"));
+				return;
+			}
 			if (*step >= 40 && *step <= 52) {
 				// [[BPR-1930]]. The whole tour's chat: the draft revised by the
 				// feedback given while it ran, then a round on the accepted tour.
@@ -6450,6 +6525,76 @@ namespace {
 					}
 					return found;
 				};
+				// What waits in the tour: proposed stops on the route, and
+				// Accept on any part.
+				const auto waitingStops = [editor] {
+					auto count = 0;
+					for (auto* const frame : editor->findChild<QWidget*>(QStringLiteral("tourProposedStops"))->findChildren<QWidget*>(QStringLiteral("tourProposedStop"), Qt::FindDirectChildrenOnly)) {
+						count += frame->isHidden() ? 0 : 1;
+					}
+					return count;
+				};
+				const auto shownAccepts = [editor] {
+					auto count = 0;
+					for (auto* const button : editor->findChildren<QPushButton*>(QStringLiteral("tourProposalAccept"))) {
+						count += button->isVisibleTo(editor) ? 1 : 0;
+					}
+					return count;
+				};
+				const auto routeMarks = [editor, &shown] {
+					auto count = 0;
+					for (int row = 0; shown.Draft && row < static_cast<int>(shown.Draft->Stops.size()); ++row) {
+						count += editor->route_mark(row).first != 0 ? 1 : 0;
+					}
+					return count;
+				};
+				if (*step == 45) {
+					// [[BPR-1931]] follow-up, owner: "Reset tour doesn't seem to
+					// reset unaccepted draft tour suggestions."
+					panel->reset_button()->click();
+					QCoreApplication::processEvents();
+					if (!panel->reset_confirm()->isVisibleTo(panel)) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-reset-question-for-proposals"));
+						return;
+					}
+					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_PROPOSALS_ASKS:" << panel->reset_sentence()->text() << '\n';
+					panel->reset_confirm_button()->click();
+					*step = 46;
+					return;
+				}
+				if (*step == 46) {
+					if (!panel->reset_done()->isVisibleTo(panel)) {
+						return;
+					}
+					QCoreApplication::processEvents();
+					const auto waiting = waitingStops();
+					const auto box     = panel->proposal()->isVisible() ? 1 : 0;
+					const auto buttons = shownAccepts();
+					const auto rest    = (editor->findChild<QWidget*>(QStringLiteral("tourProposedStops"))->isVisibleTo(editor) ? 1 : 0) + (panel->accept_all_button()->isVisibleTo(panel) ? 1 : 0);
+					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_PROPOSALS_DONE:waiting=" << waiting << ":proposal=" << box << ":accepts=" << buttons << ":route=" << rest << ":chats=" << bpr::core::chat_threads(panel->session()).size() << '\n';
+					draw(QStringLiteral("app-tour-reset-proposals"));
+					if (waiting + box + buttons + rest != 0 || !bpr::core::chat_threads(panel->session()).empty()) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:proposals-survive-reset"));
+						return;
+					}
+					panel->undo_reset_button()->click();
+					*step = 47;
+					return;
+				}
+				if (*step == 47) {
+					if (!panel->proposal()->isVisible()) {
+						return;
+					}
+					QCoreApplication::processEvents();
+					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_PROPOSALS_UNDONE:waiting=" << waitingStops() << ":before=" << *proposedCount << ":chats=" << bpr::core::chat_threads(panel->session()).size() << '\n';
+					if (waitingStops() != *proposedCount) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:proposals-not-restored"));
+						return;
+					}
+					panel->accept_all_button()->click();
+					*step = 41;
+					return;
+				}
 				if (*step == 40) {
 					if (!settledAt(1U)) {
 						return;
@@ -6468,6 +6613,11 @@ namespace {
 					draw(QStringLiteral("app-tour-draft-revised"));
 					if (!panel->accept_all_button()->isVisible()) {
 						done(QStringLiteral("ATTENDED_TOUR_FAILED:no-accept-all"));
+						return;
+					}
+					if (resetting && *proposedCount < 0) {
+						*proposedCount = waiting;
+						*step          = 45;
 						return;
 					}
 					panel->accept_all_button()->click();
@@ -6584,14 +6734,18 @@ namespace {
 						return;
 					}
 					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_DONE:stops=0:problem=" << (shown.Draft->Problem.empty() ? 0 : 1) << ":chats=" << bpr::core::chat_threads(panel->session()).size() << ":focus=" << (panel->focus_chip()->isVisibleTo(panel) ? 1 : 0)
-										  << ":proposal=" << (panel->proposal()->isVisible() ? 1 : 0) << '\n';
+										  << ":proposal=" << (panel->proposal()->isVisible() ? 1 : 0) << ":accepts=" << shownAccepts() << ":marks=" << routeMarks() << '\n';
+					if (shownAccepts() + routeMarks() != 0) {
+						done(QStringLiteral("ATTENDED_TOUR_FAILED:revision-survives-reset"));
+						return;
+					}
 					draw(QStringLiteral("app-tour-reset-done"));
 					panel->undo_reset_button()->click();
 					*step = 52;
 					return;
 				}
 				if (shown.Draft && !shown.Saving && shown.Draft->Stops.size() >= 4U) {
-					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_UNDONE:stops=" << shown.Draft->Stops.size() << ":chats=" << bpr::core::chat_threads(panel->session()).size() << ":focus=" << panel->focus_text()->text() << ":merge=" << accepts(QStringLiteral("Merge")).size() << '\n';
+					QTextStream{ stdout } << "ATTENDED_TOUR_RESET_UNDONE:stops=" << shown.Draft->Stops.size() << ":chats=" << bpr::core::chat_threads(panel->session()).size() << ":focus=" << panel->focus_text()->text() << ":merge=" << accepts(QStringLiteral("Merge")).size() << ":marks=" << routeMarks() << '\n';
 					done(QStringLiteral("ATTENDED_TOUR_REVISION_SHOWN"));
 				}
 				return;

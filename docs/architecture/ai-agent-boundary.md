@@ -964,6 +964,21 @@ receives the question exactly once, and
 `application_agent_chat_continued_contract` drives
 `continue_against_old_revision` to one further turn under the kept session.
 
+A tour run's prompt is not the typed message. Since
+[BPR-1935](../issues/60-done/BPR-1935-tour-chat-prompt-exceeds-chat-message-bound.md)
+a read-only tour run's composed prompt is a separate, application-built field,
+`core::agent_tour_prompt`, with its own bound (`maximum_tour_prompt_bytes`,
+160 KiB) and its own wire position, `tour_prompt`, written once after
+`chat_message` and only when present. It is never filled from typed text
+alone: the tour prompt builders compose it from the pull request, the tour and
+the conversation, add the skill directive, and check that bound. The core
+admits it only for its own session and only alone: never beside a typed
+message, a workshop operation, guidance, a brief, a conversation, a selection,
+a note or a draft. `build_agent_context_supplement` admits it only on a
+read-only tour run, refuses it elsewhere as `tour_prompt_outside_tour_run`,
+refuses a tour run without one as `tour_prompt_missing`, and refuses one over
+its bound as `agent_context_too_large`.
+
 ### The two stale continuations
 
 After head movement a session is stale and is never retargeted.
@@ -1699,7 +1714,9 @@ Nothing the agent proposes is applied until the author accepts that part.
 
 An ask turn of the tour conversation ([[BPR-1914]]) is a read-only run on the
 same terms: the same tools, allowlist, workspace and line counts. Its request
-(`application::build_tour_ask_prompt`, at most 160 KiB) gives the pull
+(`application::build_tour_ask_prompt`, at most `core::maximum_tour_prompt_bytes`,
+160 KiB, with the skill directive, and carried as the tour prompt, not the
+typed message) gives the pull
 request, the tour as it is now, the earlier turns the core keeps
 (`core::tour_conversation_of`, at most 12 within 48 KiB) and the question and
 passage as untrusted evidence JSON, and its answer

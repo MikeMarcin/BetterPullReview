@@ -1433,6 +1433,37 @@ want to say the tour should focus on <this particular part of the PR>." And:
 - Owner rules kept: nothing changes until accepted, and nothing the author
   wrote is silently overwritten (a merge or removal says so on its box).
 
+### Amendment [[BPR-1935]] (2026-11-07): the tour prompt's own carrier
+
+The owner, 2026-11-07: a question in the Solution's side chat on a 12-stop
+tour ended "Refused before it started: invalid_agent_context". The tour
+prompts of [[BPR-1900]] and [[BPR-1914]] rode the supplement's typed chat
+message, whose 16 KiB bound ([[BPR-0517]]) is for what a reviewer types; the
+prompt builders accepted up to 160 KiB, so a long tour passed one bound and
+was refused at the other.
+
+- **The carrier.** A read-only tour run's composed prompt travels as
+  `core::agent_tour_prompt`, keyed to the run's session, bounded by
+  `core::maximum_tour_prompt_bytes` (160 KiB), and written once on the wire
+  as `tour_prompt`, after `chat_message`, only when present. The text is the
+  same the agent read before; only its field moved. The tour session's
+  read-only runs (Draft Tour, the tour chats, Draft from PR context and
+  Suggest an outline) use it; the tool-free rewrites and the Agent tab keep
+  `chat_message` and its 16 KiB.
+- **One bound, checked where the prompt is built.** `build_tour_ask_prompt`
+  and `build_tour_draft_prompt` add the [[BPR-1916]] skill directive and then
+  check the carrier's bound, so a request too large to send is refused in the
+  chat with "too large to send in one request", before any agent starts.
+- **Refused by name.** A tour prompt on a launch that is not a read-only tour
+  run is `tour_prompt_outside_tour_run`, a tour run without one
+  `tour_prompt_missing`, and a prompt over the bound `agent_context_too_large`,
+  which the side chat says in words.
+- **No review brief on a tour run** (the card's open question, settled as
+  recommended). The tour prompt already carries the pull request's title,
+  description and every changed file; the core refuses a tour prompt beside a
+  brief, a typed message, an operation, a conversation, a selection, a note or
+  a draft.
+
 ### Amendment [[BPR-1914]] v004 (2026-11-06): quieter controls, the diff window's tabs, no scroll jump
 
 The owner on v003: "can we simplify the enhance buttons to just the '<symbol>

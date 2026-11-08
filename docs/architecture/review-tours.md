@@ -246,6 +246,35 @@ accepted, edited or discarded in the chat. Each chat is its own thread,
 replayed alone with the part's current text. The conversation window described
 next is the copyable record of every chat.
 
+Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
+like the agent tab has") an empty chat offers suggested prompts under its
+invitation, in the Agent tab's own component (`agent_suggestion_list`,
+[[BPR-1877]]) and the agent's accent. A stop's chat offers "What does this
+code do?", "Why does this change matter?", "Rewrite this explanation more
+simply" and "Is this the right place for this stop?". The Problem's and the
+Solution's offer "Make this clearer", "What's missing?" and "Make it
+shorter". The whole tour's offers "Too many stops?", "Suggest a better
+order", "Focus on …" and "What's not covered?". A click sends the prompt as
+if typed, with any quoted passage. Shift-click puts it in the composer to
+edit, and "Focus on …" always goes there to be finished. The core's
+`decide_agent_suggestion_press` decides the press, as it does for the Agent
+tab. The prompts show only once the agent is set up ([[BPR-1881]]), and they
+go with the chat's first turn. The lists live in one place in the application
+layer (`application::tour_chat_prompts`); the window hands them to the chat,
+so Agent settings can later make them editable.
+
+BPR-1934 v002 (owner on v001: "I want a suggest prompt for explain selection
+like agent has for code, but mine for the selected block on the tour") adds
+**Explain the selected block**, as the Agent tab offers Explain the selected
+block for code. While text is selected in the Problem, the Solution or a
+stop's explanation (its source or its rendered text), the chat offers it
+first, even when the chat already has turns. In another part's chat it names
+the part ("Explain the selected block in Stop 1"). Pressing it opens that
+part's chat if needed and asks about exactly the selected text, quoted as the
+turn's passage. With nothing selected it is not offered. The tour tells the
+chat as the selection changes (`tour_side_chat::offer_selection`). The prompt
+is in the same list, marked `Selection`.
+
 Since [[BPR-1914]] (owner, 2026-11-06: "I want to ask questions, get back and
 forth and have it update it") that window is the **Tour conversation**, opened
 by **Conversation (n)**, which is always offered. Selecting text in the

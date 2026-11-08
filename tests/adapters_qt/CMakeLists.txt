@@ -2152,6 +2152,12 @@ bpr_enable_hardening(test_review_tour_stop_view)
 bpr_enable_warnings(test_review_tour_stop_view)
 bpr_add_network_isolated_test(NAME qt_review_tour_stop_view COMMAND test_review_tour_stop_view)
 set_tests_properties(qt_review_tour_stop_view PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-stop-view:pass" TIMEOUT 30)
+bpr_add_executable(test_review_tour_reaffirm review_tour_reaffirm_tests.cpp) # [[BPR-1900]] follow-up
+target_link_libraries(test_review_tour_reaffirm PRIVATE BetterPullReview::AdapterQt)
+bpr_enable_hardening(test_review_tour_reaffirm)
+bpr_enable_warnings(test_review_tour_reaffirm)
+bpr_add_network_isolated_test(NAME qt_review_tour_reaffirm COMMAND test_review_tour_reaffirm)
+set_tests_properties(qt_review_tour_reaffirm PROPERTIES ENVIRONMENT "${bpr_qt_github_common_environment}" PASS_REGULAR_EXPRESSION "review-tour-reaffirm:pass" TIMEOUT 30)
 
 bpr_add_executable(test_private_review_panel private_review_panel_tests.cpp)
 target_link_libraries(test_private_review_panel PRIVATE BetterPullReview::AdapterQt)

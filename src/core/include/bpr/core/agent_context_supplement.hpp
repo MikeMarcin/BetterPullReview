@@ -42,6 +42,15 @@ namespace bpr::core {
 	/// reason: it is prose a person typed, and a message longer than the
 	/// longest comment they could have written is not a question.
 	inline constexpr std::size_t maximum_chat_message_bytes = 16U * 1024U;
+	/// \brief [[BPR-1935]]. The longest prompt one tour run may carry.
+	///
+	/// \details A tour run's prompt is not typed: the application composes it
+	/// from the pull request, the draft tour and the conversation so far, and
+	/// it grows with every stop and turn. It has its own carrier
+	/// (`agent_tour_prompt`) and this bound, which is the bound the tour prompt
+	/// builders check, the [[BPR-1916]] skill directive included. Escaped
+	/// twice it stays far inside the launch's whole input bound.
+	inline constexpr std::size_t maximum_tour_prompt_bytes = 160U * 1024U;
 
 	/// \brief One file's exact local review state.
 	struct supplement_file_state
@@ -129,6 +138,23 @@ namespace bpr::core {
 		std::string      Text;
 
 		auto operator<=>(const agent_chat_message&) const = default;
+	};
+
+	/// \brief [[BPR-1935]]. One tour run's composed prompt, keyed to the
+	/// session it is sent under.
+	///
+	/// \details The application builds it (`build_tour_ask_prompt`,
+	/// `build_tour_draft_prompt`, a read-only writing request) and it is never
+	/// filled from typed text alone. It is the whole of what a tour run asks:
+	/// a request carrying it carries no chat message, workshop operation,
+	/// guidance, brief, conversation, selection, note or draft, and is refused
+	/// whole otherwise. Absent for every launch that is not a tour run.
+	struct agent_tour_prompt
+	{
+		agent_session_id Session;
+		std::string      Text;
+
+		auto operator<=>(const agent_tour_prompt&) const = default;
 	};
 
 	/// \brief [[BPR-1091]]. The longest review-feedback guidance one
@@ -476,6 +502,8 @@ namespace bpr::core {
 		/// [[BPR-1916]]. Skills the prompt named, inline; outside their
 		/// bounds the request is refused whole.
 		std::vector<supplement_skill> Skills;
+		/// [[BPR-1935]]. A tour run's composed prompt; see `agent_tour_prompt`.
+		std::optional<agent_tour_prompt> TourPrompt;
 
 		auto operator<=>(const agent_supplement_request&) const = default;
 	};
@@ -526,6 +554,9 @@ namespace bpr::core {
 		/// [[BPR-1916]]. Skills the prompt named, carried inline; empty for
 		/// every launch whose prompt named none.
 		std::vector<supplement_skill> Skills;
+		/// [[BPR-1935]]. A tour run's composed prompt, admitted from the
+		/// request's `agent_tour_prompt`; empty for every other launch.
+		std::string TourPrompt;
 
 		auto operator<=>(const agent_context_supplement&) const = default;
 	};
@@ -537,6 +568,12 @@ namespace bpr::core {
 	/// exactly as an oversize note or an out-of-session opt-in is. Truncating
 	/// it would send the agent half a question, and dropping it would send a
 	/// turn the reviewer asked for with nothing in it.
+	///
+	/// [[BPR-1935]]. A request carrying a tour prompt is refused whole when the
+	/// prompt names another session, is empty, longer than
+	/// `maximum_tour_prompt_bytes` or not UTF-8, or rides beside anything else
+	/// that asks or attaches: a chat message, an operation, guidance, a brief,
+	/// a conversation, a selection, a note or a draft.
 	[[nodiscard]] auto build_agent_supplement(
 		const agent_supplement_request& aRequest)
 		-> std::optional<agent_context_supplement>;

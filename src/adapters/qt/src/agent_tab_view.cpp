@@ -704,17 +704,9 @@ namespace bpr::qt {
 		// they're in the chat window rather than attached to the bottom pane.
 		// That way they show up after the last chat message not overtop of
 		// it"): they are the thread's last item and scroll with it.
-		Suggestions = new QWidget{ content };
-		Suggestions->setObjectName(QStringLiteral("agentSuggestions"));
-		SuggestionColumn = new QVBoxLayout{ Suggestions };
-		SuggestionColumn->setContentsMargins(0, 2, 0, 0);
-		SuggestionColumn->setSpacing(6);
-		auto* const suggestLine = new QLabel{ tr("Ask about this pull request, or try:"), Suggestions };
-		SuggestionsLine         = suggestLine;
-		suggestLine->setObjectName(QStringLiteral("agentSuggestionsLine"));
-		suggestLine->setForegroundRole(QPalette::PlaceholderText);
-		suggestLine->setWordWrap(true);
-		SuggestionColumn->addWidget(suggestLine);
+		// [[BPR-1934]]. One component, which the tour chats show too.
+		Suggestions = new agent_suggestion_list{ tr("Ask about this pull request, or try:"), content };
+		Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
 		contentCol->addWidget(Suggestions);
 		// [[BPR-1847]], owner 2026-11-03: "doesn't make sense to show
 		// suggested prompts before the wizard completes." While the setup
@@ -1723,18 +1715,9 @@ namespace bpr::qt {
 		refresh_suggestions();
 	}
 
-	auto agent_tab_view::suggestions() const -> QStringList { return Prompts; }
+	auto agent_tab_view::suggestions() const -> QStringList { return Suggestions->prompts(); }
 
-	auto agent_tab_view::suggestion_buttons() const -> std::vector<QPushButton*>
-	{
-		auto result = std::vector<QPushButton*>{ };
-		for (const auto& button : PromptButtons) {
-			if (button != nullptr) {
-				result.push_back(button);
-			}
-		}
-		return result;
-	}
+	auto agent_tab_view::suggestion_buttons() const -> std::vector<QPushButton*> { return Suggestions->buttons(); }
 
 	void agent_tab_view::send_prompt(const QString& aPrompt) { choose_prompt(aPrompt, false); }
 
@@ -1822,41 +1805,10 @@ namespace bpr::qt {
 			}
 		}
 		const auto usable = Chat.send_action()->isEnabled() && State != agent_tab_state::working;
-		if (prompts != Prompts) {
-			Prompts = prompts;
-			for (auto& button : PromptButtons) {
-				if (button != nullptr) {
-					button->hide();
-					SuggestionColumn->removeWidget(button);
-					button->deleteLater();
-				}
-			}
-			PromptButtons.clear();
-			for (const auto& prompt : Prompts) {
-				auto* const button = new quiet_push_button{ Suggestions };
-				button->setObjectName(QStringLiteral("agentSuggestion"));
-				// A long path is shortened in its middle; the prompt sent is whole.
-				button->setText(button->fontMetrics().elidedText(prompt, Qt::ElideMiddle, 320));
-				// [[BPR-1872]]. A click sends; Shift edits first. Said where the
-				// prompt is pointed at, and to a screen reader.
-				button->setToolTip(tr("%1\nClick to send. Shift-click to edit before sending.").arg(prompt));
-				button->setAccessibleName(prompt);
-				button->setAccessibleDescription(tr("Sends this prompt to the agent. Shift-click or %1 puts it in the question field to edit before sending.")
-													 .arg(QKeySequence{ Qt::SHIFT | Qt::Key_Return }.toString(QKeySequence::NativeText)));
-				button->setProperty("agentPrompt", prompt);
-				button->installEventFilter(this);
-				connect(button, &QPushButton::clicked, this, [this, prompt] { choose_prompt(prompt, std::exchange(PressEditFirst, false)); });
-				SuggestionColumn->addWidget(button, 0, Qt::AlignLeft);
-				PromptButtons.emplace_back(button);
-			}
-		}
-		for (const auto& button : PromptButtons) {
-			if (button != nullptr) {
-				button->setEnabled(usable);
-			}
-		}
+		Suggestions->present(prompts);
+		Suggestions->set_usable(usable);
 		const auto conversing = State != agent_tab_state::not_set_up && State != agent_tab_state::setting_up;
-		SuggestionsLine->setVisible(Turns.empty());
+		Suggestions->lead()->setVisible(Turns.empty());
 		// [[BPR-1755]], the owner's accept of look v007 ("Hide
 		// suggestions until the the agent is done thinking"): none while a
 		// turn runs; they return when it has finished. [[BPR-1847]]: none
@@ -3000,25 +2952,6 @@ namespace bpr::qt {
 			if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && (key->modifiers() & (Qt::ControlModifier | Qt::MetaModifier)) != 0) {
 				ask();
 				return true;
-			}
-		}
-		// [[BPR-1872]]. A suggested prompt reads Shift on the press that
-		// clicks it; Return and Enter choose it too, as Space does.
-		if (aWatched->objectName() == QStringLiteral("agentSuggestion")) {
-			if (aEvent->type() == QEvent::MouseButtonRelease) {
-				PressEditFirst = (static_cast<QMouseEvent*>(aEvent)->modifiers() & Qt::ShiftModifier) != 0;
-			} else if (aEvent->type() == QEvent::KeyRelease || aEvent->type() == QEvent::KeyPress) {
-				const auto* const key   = static_cast<QKeyEvent*>(aEvent);
-				const auto        shift = (key->modifiers() & Qt::ShiftModifier) != 0;
-				if (key->key() == Qt::Key_Space) {
-					PressEditFirst = shift;
-				} else if ((key->key() == Qt::Key_Return || key->key() == Qt::Key_Enter) && aEvent->type() == QEvent::KeyPress) {
-					auto* const button = static_cast<QPushButton*>(aWatched);
-					if (button->isEnabled() && !key->isAutoRepeat()) {
-						choose_prompt(button->property("agentPrompt").toString(), shift);
-					}
-					return true;
-				}
 			}
 		}
 		// A resize, or a control in the field changing its size (the

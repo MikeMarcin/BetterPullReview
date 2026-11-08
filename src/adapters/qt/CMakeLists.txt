@@ -65,6 +65,7 @@ add_library(
         src/defect_card_view.cpp
         src/private_notes_panel.cpp
         src/agent_tab_view.cpp
+        src/agent_suggestion_list.cpp
         src/agent_run_settings_picker.cpp
         src/agent_feature.cpp
         src/agent_setup_view.cpp

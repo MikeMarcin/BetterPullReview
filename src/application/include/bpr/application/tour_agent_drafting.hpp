@@ -37,7 +37,11 @@ namespace bpr::application {
 	/// Nothing when the evidence is not valid UTF-8 or too large.
 	/// [[BPR-1930]]. `aFocus` is the focus the author accepted for this tour,
 	/// if any; the draft favours it.
-	[[nodiscard]] auto build_tour_draft_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, std::string_view aFocus = { }) -> std::optional<std::string>;
+	/// [[BPR-1935]]. `aDirective` is the [[BPR-1916]] skill directive, added
+	/// last; the whole request is refused when it is longer than
+	/// `core::maximum_tour_prompt_bytes`, the bound of its carrier.
+	[[nodiscard]] auto build_tour_draft_prompt(std::string_view aTitle, std::string_view aDescription, std::span<const tour_draft_file> aFiles, const core::review_tour& aDraft, std::string_view aFocus = { }, std::string_view aDirective = { })
+		-> std::optional<std::string>;
 
 	/// \brief What a read-only Draft from PR context or Suggest an outline
 	/// request is prefixed with: it may read and search the repository, and

@@ -404,10 +404,13 @@ namespace bpr::application {
 				.Profile = profile->Id,
 				.Binding = aRequest.Context.Binding,
 			};
+			// [[BPR-1935]]. A read-only run is a tour run, and its prompt
+			// travels in the tour prompt's own carrier; a refusal for size or
+			// for a misplaced prompt says so by name.
 			auto supplement = build_agent_context_supplement(
-				aRequest.Context, provisionalSession);
+				aRequest.Context, provisionalSession, aRequest.ReadOnlyTools ? agent_context_run::read_only_tour : agent_context_run::ordinary);
 			if (!supplement.has_value()) {
-				project_refuse("invalid_agent_context");
+				project_refuse(refusal_name(supplement.error()));
 				return;
 			}
 			if (aRequest.FrozenFiles.size() > core::maximum_supplement_paths) {

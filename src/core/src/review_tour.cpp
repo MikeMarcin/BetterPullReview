@@ -106,7 +106,9 @@ namespace bpr::core {
 			}
 			auto position = aCommand.Position;
 			for (const auto& entry : aCommand.Outline) {
-				tour_stop stop{ .Id = new_id(aTour), .Title = entry.Title, .Original = entry.Source, .Mapping = entry.Source ? tour_mapping::exact_original : tour_mapping::unavailable, .Related = entry.Related, .Preparation = tour_preparation::suggested, .Suggestion = entry.Suggestion };
+				// [[BPR-1900]] follow-up. A skeleton is made at the head the
+				// outline run read: the captured tour's, or it is refused.
+				tour_stop stop{ .Id = new_id(aTour), .Title = entry.Title, .Original = entry.Source, .Mapping = entry.Source ? tour_mapping::exact_original : tour_mapping::unavailable, .Related = entry.Related, .Preparation = tour_preparation::suggested, .ReaffirmedHead = aTour.ObservedHead.value_or(aTour.Head), .Suggestion = entry.Suggestion };
 				stop.Suggestion->Visited = false;
 				if (!aSelected.value()) {
 					aSelected = stop.Id;
@@ -233,7 +235,7 @@ namespace bpr::core {
 				aSelected = aTour.Stops.empty() ? tour_stop_id{ } : aTour.Stops[std::min(index, aTour.Stops.size() - 1U)].Id;
 				return tour_refusal::none;
 			case tour_command_kind::reaffirm:
-				if (!nonblank(found->Title) || !nonblank(found->Body) || (!found->Original && !(found->Remote && found->Destination))) {
+				if (reaffirm_need(*found) != tour_reaffirm_need::nothing) {
 					return tour_refusal::incomplete;
 				}
 				found->ReaffirmedHead = aTour.ObservedHead.value_or(aTour.Head);
@@ -457,6 +459,19 @@ namespace bpr::core {
 		return expected && valid(*aAttention.Source) && expected->Commit == aAttention.Source->Commit && expected->Blob == aAttention.Source->Blob
 			&& expected->Path == aAttention.Source->Path && expected->First.Side == aAttention.Source->First.Side
 			&& expected->First.Line == aAttention.Source->First.Line && expected->Last.Line == aAttention.Source->Last.Line;
+	}
+	auto reaffirm_need(const tour_stop& aStop) noexcept -> tour_reaffirm_need
+	{
+		if (!nonblank(aStop.Title)) {
+			return tour_reaffirm_need::title;
+		}
+		if (!nonblank(aStop.Body)) {
+			return tour_reaffirm_need::explanation;
+		}
+		if (!aStop.Original && !(aStop.Remote && aStop.Destination)) {
+			return tour_reaffirm_need::confirmed_lines;
+		}
+		return tour_reaffirm_need::nothing;
 	}
 	auto ready(const tour_stop& aStop) noexcept -> bool
 	{
