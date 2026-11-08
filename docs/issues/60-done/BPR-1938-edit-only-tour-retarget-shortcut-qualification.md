@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1938"
 title: "Qualify the Tour retarget shortcut in its accepted edit-only mode"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"verification","found_by":"v0.4.2 build37 Mac focused scale courses","related_cards":["BPR-1241","BPR-1936"],"milestone_plan":{"id":"bpr-1938-retarget-fixture","path":"docs/rfcs/plans/bpr-1938-retarget-fixture/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"cf33d6b90d8b2839673b1316798ce5c74b0b04ca","evidence":{"kind":"command","detail":"Original qt_workbench_window_scale_100/125/200 pass on final source in window-scales-final.xml/log (25.77/26.62/31.16 sec); assembled fixture now drives read and collapsed negative cases, actual pencil edit, exactly-once retarget, reopen/edit and a second exactly-once press."}},{"criterion":"AC2","outcome":"pass","revision":"cf33d6b90d8b2839673b1316798ce5c74b0b04ca","evidence":{"kind":"command","detail":"Final catalogue-focused-final.xml/log: qt_dif_workshop_placement, qt_keyboard_shortcuts_scale_100/125/200, qt_review_tour_stop_view and qt_tour_stop_card_cleanup all pass. Same Alt+Shift+U key/WidgetShortcut context, Option-R composition, unchanged page and non-outline guards; existing Escape Keep action/context preserved and catalogued; real window-system Escape keeps stop/edit, closes only confirmation. Original explicit Remove and Shift-click predicates retained."}},{"criterion":"AC3","outcome":"pass","revision":"cf33d6b90d8b2839673b1316798ce5c74b0b04ca","evidence":{"kind":"observation","detail":"Source cf33d6b90 landed and pushed authoritative main. Exact five C++ files pass clang-format22; final documentation gate DOCUMENTATION_OK, all67 verifier tests pass; diff --check clean. Original frozen37 failures, missing catalogue failure and initial focus-precondition failure retained externally. Release clone e193fba8 source unchanged by implementer; no packaging/tag/native qualification claimed."}}]
 ---
 
 # BPR-1938: Edit-only Tour retarget shortcut qualification
@@ -84,3 +85,9 @@ The bounded plan refinement records only the existing Escape binding inventory;
 all original obligations and exits remain. Native release qualification and
 publication are separately owned by the coordinator; these offscreen source
 checks do not grant release acceptance.
+
+Final source integration: `cf33d6b90d8b2839673b1316798ce5c74b0b04ca`
+was pushed to authoritative main. All three full window scales pass on this
+source (25.77, 26.62 and 31.16 seconds), as do all six focused courses.
+Clang-format 22 checks all five C++ files, the documentation gate reports
+`DOCUMENTATION_OK`, and all 67 documentation verifier tests pass.
