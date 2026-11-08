@@ -755,12 +755,14 @@ namespace bpr::app {
 		TourDiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*TourEntryProcess, DiagnosticLog);
 		TourProjection       = std::make_unique<tour_session_projection>(
 			[this](const application::agent_invocation_projection_identity& aIdentity) { tour_run_admitted(aIdentity); },
-			[this](const application::agent_invocation_projection_identity&, const application::prepared_workspace& aWorkspace) {
+			[this](const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace) {
 				TourWorkspacePath = aWorkspace.Path;
 				TourWorkspaceHead = aWorkspace.PinnedHead;
+				tour_run_started(aIdentity, aWorkspace);
 			},
 			[this](const application::agent_invocation_projection_identity& aIdentity, const application::agent_run_result& aResult) { tour_run_finished(aIdentity, aResult); },
-			[this](const std::string_view aReason) { tour_run_refused(aReason); });
+			[this](const std::string_view aReason) { tour_run_refused(aReason); },
+			[this](const application::agent_invocation_projection_identity& aIdentity) { tour_run_streamed(aIdentity); });
 		TourSession = std::make_unique<application::agent_invocation_host>(
 			aProfiles, aPolicies, AgentWorkspaceNeighbourhood, *this, *EpochHost, *TourDiagnosedProcess,
 			[](const std::string& aName) -> std::optional<std::string> {
@@ -841,6 +843,42 @@ namespace bpr::app {
 		if (PendingWriting && !PendingWriting->Invocation) {
 			PendingWriting->Invocation = aIdentity;
 		}
+		// [[BPR-1941]]. It makes its workspace first, as the Agent tab says.
+		auto live  = qt::agent_run_status{ };
+		live.Agent = agent_display_name(aIdentity.Session.Profile);
+		live.Stage = qt::agent_run_stage::preparing;
+		present_tour_live(std::move(live));
+	}
+
+	void github_application::implementation::tour_run_started(const application::agent_invocation_projection_identity& aIdentity, const application::prepared_workspace& aWorkspace)
+	{
+		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity }) {
+			return;
+		}
+		auto live      = TourLive.value_or(qt::agent_run_status{ });
+		live.Agent     = agent_display_name(aIdentity.Session.Profile);
+		live.Stage     = qt::agent_run_stage::thinking;
+		live.FilesOnly = aWorkspace.Shallow;
+		present_tour_live(std::move(live));
+	}
+
+	void github_application::implementation::tour_run_streamed(const application::agent_invocation_projection_identity& aIdentity)
+	{
+		// Only a change of what it does is said; each event is not.
+		if (Closing || Window == nullptr || TourInvocation != std::optional{ aIdentity } || !TourLive || TourLive->Stage == qt::agent_run_stage::writing) {
+			return;
+		}
+		auto live  = *TourLive;
+		live.Stage = qt::agent_run_stage::writing;
+		present_tour_live(std::move(live));
+	}
+
+	void github_application::implementation::present_tour_live(std::optional<qt::agent_run_status> aStatus)
+	{
+		TourLive = std::move(aStatus);
+		if (Window != nullptr && Window->tour_editor() != nullptr) {
+			Window->tour_editor()->present_run_status(TourLive);
+		}
 	}
 
 	void github_application::implementation::tour_run_refused(const std::string_view aReason)
@@ -853,6 +891,7 @@ namespace bpr::app {
 			static_cast<void>(core::finish_tour_run(TourAgent, *TourRun, core::tour_agent_run_state::failed, application::tour_refusal_words(aReason)));
 			TourRun.reset();
 		}
+		present_tour_live(std::nullopt);
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		TourAskPending = false;
 		if (TourDraftPending) {
@@ -905,6 +944,7 @@ namespace bpr::app {
 		}
 		TourRun.reset();
 		TourInvocation.reset();
+		present_tour_live(std::nullopt);
 		Window->tour_editor()->set_tour_running(std::nullopt, false);
 		if (TourDraftPending) {
 			TourDraftPending = false;

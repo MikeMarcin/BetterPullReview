@@ -594,6 +594,12 @@ namespace bpr::core {
 	/// \brief [[BPR-1914]] v003. Records how long a run worked, once it has
 	/// ended; false for a running or unknown run.
 	auto time_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun, std::uint32_t aSeconds) -> bool;
+	/// \brief [[BPR-1941]]. Delete on a tour chat turn that ended without an
+	/// answer, as the Agent tab's error turns have ([[BPR-1876]],
+	/// [[BPR-1880]]): the ask turn leaves its thread, and later turns are
+	/// asked without it. False for an unknown run, a run that is not an ask,
+	/// and one that is running or answered.
+	auto remove_tour_run(tour_agent_session& aSession, tour_agent_run_id aRun) -> bool;
 	/// \brief [[BPR-1914]] v003. An Update turn proposes only its thread's part:
 	/// the Problem, the Solution, or the stop's new explanation; the tour's
 	/// thread keeps everything. The rest is left out of the proposal.

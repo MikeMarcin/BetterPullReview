@@ -66,6 +66,7 @@ add_library(
         src/private_notes_panel.cpp
         src/agent_tab_view.cpp
         src/agent_suggestion_list.cpp
+        src/agent_run_status.cpp
         src/agent_run_settings_picker.cpp
         src/agent_feature.cpp
         src/agent_setup_view.cpp
