@@ -184,11 +184,10 @@ try {
 	wait_for([&] { return window.github_open_action()->isEnabled(); }, "fixture account connects");
 	window.home_open_bar()->setText(QStringLiteral("bpr-fixtures/nested-folders#21"));
 	window.home_open_action()->trigger();
-	wait_for([&] { return window.showing_overview() && window.overview_page()->projection().has_value(); }, "the pull request opens on Overview");
+	wait_for([&] { return window.showing_overview() && window.overview_page()->projection().has_value() && window.overview_page()->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "the pull request opens on Overview with file read progress loaded");
 	auto* const page  = window.overview_page();
 	const auto  total = page->projection()->Progress.FilesTotal;
 	expect(total >= 3U, "the pull request has at least three files");
-	wait_for([&] { return page->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "the first visit has loaded file read progress");
 	const auto filesRead = [&] { return page->value_label(qt::overview_value::files_read)->text(); };
 	const auto doneOf    = [&](const std::size_t aDone) { return QStringLiteral("%1 of %2").arg(aDone).arg(total); };
 	const auto notRead   = [&](const std::size_t aDone) { return QStringLiteral(", %1 not read").arg(total - aDone); };
