@@ -3,6 +3,7 @@
 #include <array>
 #include <compare>
 #include <cstddef>
+#include <cstdint>
 #include <string_view>
 
 // The durable identity of a local defect thread.
