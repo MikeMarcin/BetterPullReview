@@ -1,0 +1,53 @@
+---
+schema: "implement-rfc.card.v1"
+id: "BPR-1942"
+title: "Configure owned native runtime storage for the full test graph"
+status: "Ready"
+rfcs: []
+depends_on: []
+priority: "P1"
+platforms: ["linux"]
+metadata: {"kind":"test-tooling","found_by":"BPR-1940 native D-loop fixture I/O diagnosis","related_cards":["BPR-1940"],"milestone_plan":{"id":"bpr-1942-native-test-runtime-root","path":"docs/rfcs/plans/bpr-1942-native-test-runtime-root/milestone-plan.json"}}
+---
+
+# BPR-1942: Configured native test runtime storage
+
+## Acceptance
+
+- AC1. Provide an optional validated `BPR_TEST_RUNTIME_ROOT` for the writable
+  end-to-end `BPR_ROOT` leaves. Empty/default registrations remain byte-equivalent.
+  Opt-in accepts an existing absolute canonical no-link POSIX root owned by the
+  current user with mode 0700; refuse unsafe/list/control and source/build/home
+  collisions, while permitting a dedicated child of home. Windows defaults are
+  unchanged and opt-in refuses without inventing an ACL checker. No product,
+  compiler, timeout, predicate, network-isolation or source-audit-root changes.
+- AC2. Verify default/custom/refusal configuration and compare the actual full
+  configured graph: only the expanded writable `BPR_ROOT` arguments may differ.
+  Normal registered native invocation and round-trip courses and relevant
+  source/inventory/preflight controls pass with original properties, sandbox,
+  environment modifications, predicates and timeouts. Runtime storage is owned,
+  bounded and guarded; no external projection supplies release credit.
+- AC3. Document supported normal configure/full-suite usage and its ownership,
+  environment and storage obligations; preserve all BPR-1940 negatives. Land the
+  bounded tooling change on authoritative latest main, with exact source/config
+  receipts and native ownership state. Frozen release qualification and
+  packaging/publication remain coordinator obligations.
+
+## Mandate and plan
+
+The coordinator explicitly authorizes this follow-on after BPR-1940's main
+integration. Its six-course external projection is engineering-only. The
+original full graph still places persistent application data in the D-backed
+build image; unchanged private review passes 4.63 s on native ext4 after journal
+waits caused the original functional course to fail. `TMPDIR` alone does not
+move hardcoded CMake `BPR_ROOT` arguments.
+
+Use one optional cache string (to reject relative paths before CMake silently
+normalizes a PATH value), a small CMake runtime-directory selector and a
+read-only configure validator. Replace only the 24 writable E2E root expressions;
+observe their expanded graph count. Source-audit roots, binaries, helpers,
+committed fixture sources and normal output artifacts retain their paths.
+The caller explicitly designates a dedicated private directory and keeps one
+per graph. No marker/namespace manager or arbitrary directory cleanup is added.
+The native operator retains exact root identity and capacity guards and records
+inherited `TMPDIR`/`TMP`/`TEMP`; the option does not relax durability or budgets.
