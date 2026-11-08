@@ -16,12 +16,15 @@
 #include <QMouseEvent>
 #include <QPlainTextEdit>
 #include <QPushButton>
+#include <QScrollArea>
+#include <QScrollBar>
 #include <QTextBlock>
 #include <QTextBrowser>
 #include <QTextCursor>
 #include <QTextDocumentFragment>
 #include <QTextEdit>
 #include <QTextList>
+#include <QVBoxLayout>
 #include <algorithm>
 #include <cstdlib>
 #include <iostream>
@@ -39,6 +42,51 @@ namespace {
 			std::exit(EXIT_FAILURE);
 		}
 	}
+	/// [[BPR-1932]]. A scroll area asks about widths before applying one.
+	/// The answer must not depend on whether the header is currently wrapped.
+	void header_wrap_measurements()
+	{
+		auto scroll = QScrollArea{ };
+		scroll.setWidgetResizable(true);
+		auto* const contents = new QWidget{ };
+		auto* const column   = new QVBoxLayout{ contents };
+		column->setContentsMargins(0, 0, 0, 0);
+		column->setSpacing(0);
+		auto* const panel = new qt::tour_agent_panel{ contents };
+		column->addWidget(panel);
+		auto* const rest = new QWidget{ contents };
+		rest->setFixedHeight(400);
+		column->addWidget(rest);
+		scroll.setWidget(contents);
+		scroll.resize(900, 500);
+		scroll.show();
+		QApplication::processEvents();
+		const auto        margins     = panel->layout()->contentsMargins();
+		const auto* const trail       = panel->chat_button()->parentWidget();
+		const auto        boundary    = panel->draft_button()->sizeHint().width() + 8 + trail->sizeHint().width() + margins.left() + margins.right();
+		const auto        narrow      = boundary - 1;
+		const auto        wide        = boundary + 30;
+		const auto        shortHeight = panel->heightForWidth(wide);
+		const auto        tallHeight  = panel->heightForWidth(narrow);
+		expect(panel->hasHeightForWidth() && tallHeight >= shortHeight + trail->sizeHint().height(), "the header declares its extra row before it is resized: " + std::to_string(shortHeight) + ", " + std::to_string(tallHeight));
+		const auto minimum = panel->minimumSizeHint();
+		scroll.resize(wide, 500);
+		scroll.show();
+		for (const auto width : { narrow, wide, narrow, wide }) {
+			for (int height = 430; height <= 500; height += 5) {
+				scroll.resize(width + 2 * scroll.frameWidth(), height);
+				for (int turn = 0; turn < 4; ++turn) {
+					QApplication::sendPostedEvents(nullptr, QEvent::LayoutRequest);
+					QApplication::processEvents();
+				}
+				expect(panel->heightForWidth(wide) == shortHeight && panel->heightForWidth(narrow) == tallHeight && panel->minimumSizeHint() == minimum, "width negotiation keeps stable hints across wrapping and scrollbar changes");
+				const auto before = contents->size();
+				QApplication::processEvents();
+				expect(contents->size() == before, "the scroll column settles at the header's wrap boundary");
+			}
+		}
+	}
+
 	void render(QWidget& aWidget, const std::string& aPrefix, const char* aName)
 	{
 		if (aPrefix.empty()) {
@@ -554,6 +602,7 @@ auto main(int argc, char** argv) -> int
 	}
 	formatted(editor, prefix);
 	skills_in_the_ask_box(editor);
+	header_wrap_measurements();
 	whole_tour(prefix);
 	std::cout << "tour-agent-session-view:pass\n";
 	return EXIT_SUCCESS;
