@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1938"
+  ],
+  "reserve_for": "release-retarget-fixture",
+  "purpose": "Reconcile composed retarget shortcut course with accepted edit-only Tour action",
+  "created": "2026-11-08T09:01:53.372134+00:00",
+  "base": "1707156d723744b2d8950aa8370a1023218f589d"
+}
