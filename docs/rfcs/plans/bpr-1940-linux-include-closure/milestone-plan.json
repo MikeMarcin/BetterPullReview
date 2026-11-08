@@ -9,7 +9,7 @@
   "milestones": [
     {
       "id": "close-native-compiler-includes",
-      "outcome": "Native Linux full development builds complete after direct standard include closure and the explicitly approved optional-construction rewrite, with frozen release39 evidence preserved.",
+      "outcome": "Native Linux full development builds and composed semantic controls complete after direct standard include closure, approved optional construction and cancellation-safe workspace pack copying, with frozen release39 evidence preserved.",
       "work": [
         {
           "issue": "BPR-1940",
@@ -27,9 +27,10 @@
         "Complete native Linux Release and Debug development builds pass with keep-going and unchanged compiler/hardening/warning flags, retaining failed iterations.",
         "Mac/Windows frozen39 inputs remain protected, any agreed tests-off build has ordinary development identity, and no release acceptance is invented.",
         "Focused verification, format/docs and authoritative main integration pass; exact revisions, commands and pending release obligations are handed back.",
-        "The approved default-initialize/guarded-copy privateRun structure passes original GCC flags and named existing composed agent/private/Tour courses; the initial optimizer warning and semantic branch comparison remain recorded."
+        "The approved default-initialize/guarded-copy privateRun structure passes original GCC flags and named existing composed agent/private/Tour courses; the initial optimizer warning and semantic branch comparison remain recorded.",
+        "Workspace pack-objects reads cache objects as a single correctly quoted read-only alternate and creates temporary packs only inside its exactly owned workspace; cancellation/retry and special-path composed adapter checks preserve strict source-cache inventory, containment, privacy and original budgets."
       ],
-      "boundary": "Direct missing-standard-include closure plus the coordinator-approved default-initialize/guarded-copy privateRun rewrite in window_agent_chat.cpp and associated source-content binding; private development source/graphs and issue/plan records only, with no unrelated behavior, flags, packaging, allocation or publication changes."
+      "boundary": "Direct missing-standard-include closure; approved default-initialize/guarded-copy privateRun and its source binding; approved installed Git workspace pack-command ownership and single-path alternate quoting with focused existing adapter/cancellation controls; private development graphs and issue/plan records only. No unrelated behavior, inventory relaxation, pattern deletion, flags, packaging, allocation or publication changes."
     }
   ],
   "coverage": "complete",

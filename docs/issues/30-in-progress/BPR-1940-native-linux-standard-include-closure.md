@@ -1,7 +1,7 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1940"
-title: "Close native Linux compile failures through full development builds"
+title: "Close native Linux compiler and workspace cancellation failures"
 status: "In Progress"
 rfcs: []
 depends_on: []
@@ -21,17 +21,23 @@ metadata: {"kind":"portability","found_by":"v0.4.2 build39 native Ubuntu GCC Rel
   style changes. Under the explicitly approved compiler-closure extension,
   default-initialize `privateRun` and copy `ExplicitPrivateRun` only inside
   `if (!aWritingOnly)`; preserve fallback, request move/construction, guards
-  and the single dispatch, with original-warning and semantic controls.
+  and the single dispatch, with original-warning and semantic controls. Under
+  the separately approved cancellation correction, run workspace pack copying
+  in its exactly owned object directory with one correctly quoted read-only
+  source-cache alternate; preserve inventory, privacy, authority, cleanup,
+  containment and all other behavior. Never delete unknown cache entries.
 - AC2. Finish complete native Linux Release and Debug development builds with
   keep-going, retaining every initial failure and correction iteration. Bind
   private source revisions/patches, configured features and original compiler,
   optimization, hardening and warning flags; do not stop at a single-TU proof.
+  Complete the real wrapper cancellation/retry and six existing semantic
+  controls, recording any explicitly approved fixture-storage path deltas.
 - AC3. Keep frozen Mac and Windows build39 inputs/output bytes untouched. Any
   explicitly agreed tests-off feature build uses an ordinary unsealed
   development identity; never forge build39, bypass a release proof or claim
   release acceptance for development output.
 - AC4. Focused source/compile checks, formatting and documentation pass, then
-  integrate the complete bounded include correction into authoritative main.
+  integrate the complete bounded corrections into authoritative main.
   Retain full release qualification as a separate coordinator obligation.
 
 ## Diagnosis and authorized development boundary
@@ -184,3 +190,78 @@ commands, source identities, JUnit and raw outputs. Every command in both
 completed iterations has no owned descendants remaining; source and configured
 cache bytes remain unchanged after the diagnostic. Neither developer build
 nor diagnostic is frozen-source release qualification.
+
+The first actual native-root comparison passes the unchanged private-review
+course in 4.63 s, including all three phases. Its only environment delta is
+`TMPDIR`/`TMP`/`TEMP` to the newly owned native ext4 root. The original D guard
+continues to run; C retains its 32 GiB reserve and the forecast is 256 MiB.
+The fixture root peaks at 2,285,568 allocated bytes and is removed only after
+the sampler stops and all owned processes are reaped. Source/cache bytes are
+unchanged. The earlier R4 operator attempt passed bytes to a GiB argument;
+the capacity guard correctly refused before launching any test and removed
+its owned root. The corrected R5 receipt records exactly 268,435,456 forecast
+bytes. Both attempts remain in external evidence.
+
+This comparison strongly identifies the D-loop fixture I/O as the cause of
+the private-review failure; it does not establish that all other failures
+have the same cause. Invocation and round-trip also have fixed build-tree
+fixture roots that a temporary-directory change alone does not move. Further
+controls or operational routing require a bounded explicit decision; no
+source or timeout change is inferred from this diagnostic pass.
+
+The reviewed external six-course CTest projection retains all original
+properties, sandbox commands, working directories and budgets, with exactly
+two physical `BPR_ROOT` argument changes and inherited temporary-directory
+changes. Original graph, source trees, cache and static input/binary hashes
+are verified before/after. It finishes with five passes: chat composition
+1.73 s, conversation 1.62 s, round-trip 2.62 s, Tour writing 9.21 s and private
+review 3.96 s. Invocation still passes both explicit-private phases, then
+fails its existing `wrapper-setup-ready` predicate after 49.83 s. That failure
+is retained in external `six-semantics-r6`; five passes are not six-course
+acceptance. No original-registration or release qualification is claimed.
+
+The remaining predicate follows an intentional workspace failure, private-copy
+retry, Stop, and a final Check. Its existing output does not distinguish
+agent, workspace and UI readiness. The coordinator authorizes bounded
+test-only failure facts and one setup-wrapper diagnostic phase, with the same
+predicates and budgets, before any product correction. The temporary source
+and binary are explicitly diagnostic; original source bytes are restored
+deliberately after the probe, and its binary cannot receive uninstrumented
+acceptance credit.
+
+## Explicit scope amendment — cancelled pack ownership
+
+The enum-only R9 trace identifies the final retry's first failure as source
+cache `validated_inventory` returning `invalid_repository`, before a new
+workspace Git command starts. The R10 read-only nofollow metadata sampler
+finds a newly created `objects/pack/tmp_pack_*` in that source cache after the
+cancelled copy. Existing pack/index identities and config/HEAD/manifest hashes
+remain intact. The strict inventory correctly refuses that unknown pack entry.
+The original failures and exact metadata remain external; no pattern-based
+deletion or inventory relaxation is authorized.
+
+The coordinator explicitly approves changing only the copy branch's
+`pack-objects` primary repository to the exactly owned workspace, with cache
+objects supplied as one command-scoped read-only alternate through the
+existing environment facility. The same tips, exclusions, output basename,
+hash verification, timeout, stop token and lifetime guard remain. Git's
+temporary pack is then owned by the workspace's existing cleanup. No lasting
+cache alternate is written; an existing linked-clone alternate stays as it was.
+Single-path Git quoting must retain separators, quotes, controls, backslashes
+and UTF-8 as one entry, without broadening inherited environment authority.
+
+The live plan retains the original obligations and adds this bounded owning
+correction and focused coverage. Its checked amendment receipt is external
+`plan-amendment-r3.json`. Required verification includes the existing real
+wrapper Stop/retry negative control, final six controls, meaningful adapter
+coverage for source-cache preservation and special paths, affected normal
+native graphs, format/tidy/source/documentation checks and authoritative main.
+This is source engineering acceptance; full frozen-source native release
+qualification and supported final runtime routing remain the coordinator's
+separate obligations.
+
+The earlier bare-`argv[0]` Git wrapper hypothesis is not this fix: R8 proves
+the synthetic bare invocation refuses, but actual Git 2.53 re-entry uses the
+absolute wrapper path and passes. No unrelated wrapper-path patch is adopted.
+All R7/R9 temporary source diagnostics were restored; their binaries remain
+explicitly diagnostic and receive no uninstrumented acceptance credit.
