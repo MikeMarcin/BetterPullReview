@@ -202,6 +202,55 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_tour_question_bytes = 4096U;
 	inline constexpr std::size_t maximum_tour_reply_bytes    = 16U * 1024U;
 
+	/// \brief [[BPR-1937]], owner 2026-11-08: asked for 8 stops, the tour
+	/// chat's merges were refused without a word and the earlier 10-stop
+	/// plan was applied instead. A part of a whole-tour revision the core
+	/// refused, with why, so the chat, the tour and the next turn's request
+	/// can say it.
+	enum class tour_revision_kind : std::uint8_t {
+		remove,
+		merge,
+		split,
+		order,
+		focus,
+	};
+	enum class tour_revision_refusal : std::uint8_t {
+		/// A stop number the tour doesn't have (a stop still waiting to be
+		/// accepted has no number to merge or remove by).
+		not_in_tour,
+		/// A stop another part of the same revision already names.
+		named_twice,
+		/// A merge of fewer than two stops.
+		too_few_stops,
+		/// A merge without its explanation, or a split piece without its
+		/// title or explanation.
+		no_text,
+		/// A stop with no lines to keep.
+		no_lines,
+		/// Lines still to confirm in different files: one stop can't keep them.
+		different_files,
+		/// Some stops' lines confirmed and some still to confirm.
+		confirmed_and_not,
+		/// Lines still to confirm too far apart for one stop.
+		too_far_apart,
+		/// A split piece outside its stop's lines or outside the pull request.
+		outside_stop,
+		/// A split into fewer than two pieces, or more than allowed.
+		piece_count,
+		/// An order that doesn't name every stop exactly once.
+		not_every_stop,
+		/// A focus too long or not valid text.
+		focus_invalid,
+	};
+	struct tour_refused_part
+	{
+		tour_revision_kind Kind = tour_revision_kind::merge;
+		/// The stop numbers it named, as the turn's tour numbered them.
+		std::vector<std::size_t> Stops;
+		tour_revision_refusal    Reason                                             = tour_revision_refusal::not_in_tour;
+		auto                     operator==(const tour_refused_part&) const -> bool = default;
+	};
+
 	/// \brief [[BPR-1914]]. What a turn proposed, counted for its line in the
 	/// conversation.
 	struct tour_proposal_tally
@@ -211,12 +260,14 @@ namespace bpr::core {
 		std::size_t Stops     = 0U;
 		std::size_t StopTexts = 0U;
 		/// [[BPR-1930]]. A whole-tour revision's parts.
-		std::size_t Removals                                             = 0U;
-		std::size_t Merges                                               = 0U;
-		std::size_t Splits                                               = 0U;
-		bool        Reorder                                              = false;
-		bool        Focus                                                = false;
-		auto        operator==(const tour_proposal_tally&) const -> bool = default;
+		std::size_t Removals = 0U;
+		std::size_t Merges   = 0U;
+		std::size_t Splits   = 0U;
+		bool        Reorder  = false;
+		bool        Focus    = false;
+		/// [[BPR-1937]]. The revision's parts the core refused, and why.
+		std::vector<tour_refused_part> Refused;
+		auto                           operator==(const tour_proposal_tally&) const -> bool = default;
 	};
 
 	/// \brief One request of the tour session and what it did.
@@ -484,8 +535,14 @@ namespace bpr::core {
 		bool RevisesWaitingStops = false;
 		/// [[BPR-1930]]. Revision parts the core refused (a stop number not in
 		/// the tour, a merge whose lines can't be kept, an order that isn't
-		/// every stop once), counted for the reply's line.
-		std::size_t Refused = 0U;
+		/// every stop once). [[BPR-1937]]: each with why, for the chat, the
+		/// tour and the next turn's request.
+		std::vector<tour_refused_part> Refused;
+		/// [[BPR-1937]]. The turn answered with a revision of the tour's
+		/// shape (a removal, merge, split or order, proposed or refused): it
+		/// replaces every structural part still waiting, so what waits is
+		/// the newest plan alone.
+		bool RevisesStructure = false;
 		/// [[BPR-1930]] follow-up, owner: "I dont really understand the focus
 		/// changes button". A focus the whole-tour turn read from the author's
 		/// words, trimmed and checked; not a part to accept. It changes no
@@ -561,7 +618,10 @@ namespace bpr::core {
 		/// The reply, or for a Draft the tour run what it proposed.
 		std::string Reply;
 		tour_thread Thread;
-		auto        operator==(const tour_conversation_turn&) const -> bool = default;
+		/// [[BPR-1937]]. The parts of its revision the core refused, and why,
+		/// so the next turn knows they never reached the tour.
+		std::vector<tour_refused_part> Refused;
+		auto                           operator==(const tour_conversation_turn&) const -> bool = default;
 	};
 	struct tour_conversation
 	{
@@ -644,16 +704,19 @@ namespace bpr::core {
 	/// so the merged stop keeps every line; a split's pieces anchor in the
 	/// pull request inside the stop's own lines; an order names every stop
 	/// once and differs from the tour's; a focus is not blank. A part that
-	/// fails is counted in `Refused`, never shown. Every part carries
+	/// fails is kept in `Refused` with why ([[BPR-1937]]). Every part carries
 	/// `aReadHead` as `propose_tour`'s do.
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead = std::nullopt) -> tour_proposal;
 	/// \brief What a proposal holds, counted.
-	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) noexcept -> tour_proposal_tally;
+	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) -> tour_proposal_tally;
 	/// \brief The proposal shown after `aIncoming` arrives: `aIncoming`'s items,
 	/// then the pending items of `aCurrent` it does not supersede (a pending
 	/// Problem or Solution when it proposes one, a pending stop_text of the
 	/// same stop). Decided items of `aCurrent` are let go. Nothing proposed
-	/// leaves `aCurrent` as it is.
+	/// leaves `aCurrent` as it is. [[BPR-1937]]: a revision of the tour's
+	/// shape (`RevisesStructure`) replaces every structural part of
+	/// `aCurrent`, even when all of its own parts were refused: the newest
+	/// plan is the one shown and applied, never an earlier one beside it.
 	[[nodiscard]] auto merge_tour_proposal(const std::optional<tour_proposal>& aCurrent, tour_proposal aIncoming) -> std::optional<tour_proposal>;
 	/// \brief [[BPR-1930]]. The tour after accepting a structural part, as one
 	/// value the host restores, so one Undo takes it back: a removal or a

@@ -381,6 +381,25 @@ auto main(int argc, char** argv) -> int
 	editor.present_tour_session(session, std::nullopt);
 	settle();
 	expect(chat->turn_count() == 1U && offered() == QStringList{ QStringLiteral("Explain the selected block in Stop 1") }, "AC1 and they hide after the first turn");
+	// [[BPR-1937]]. An answer that changed nothing offers Update the tour
+	// from this chat in place, so a plan given in words can be asked for.
+	expect(chat->unchanged_line() != nullptr && chat->unchanged_line()->isVisibleTo(chat) && chat->unchanged_line()->text().contains(QStringLiteral("Nothing in the tour changed")), "BPR-1937 an answer that changed nothing says so");
+	const auto beforeUpdate = asked.size();
+	emit       chat->unchanged_line()->linkActivated(QStringLiteral("#update"));
+	settle();
+	expect(asked.size() == beforeUpdate + 1U && asked.back().Update && asked.back().Thread == core::tour_thread{ } && asked.back().Question == QStringLiteral("Update the tour from our chat."), "BPR-1937 its link asks for the tour updated from the chat");
+	// [[BPR-1937]] AC2. A revision whose merge was refused says which and why.
+	{
+		const auto refusedTurn = core::begin_tour_ask(session, core::tour_thread{ }, std::nullopt, "Lower, please.");
+		auto       tally       = core::tour_proposal_tally{ };
+		tally.Refused          = { { .Kind = core::tour_revision_kind::merge, .Stops = { 4U, 9U }, .Reason = core::tour_revision_refusal::different_files } };
+		static_cast<void>(core::answer_tour_ask(session, *refusedTurn, "Merge 4 and 9 too.", tally));
+		editor.present_tour_session(session, std::nullopt);
+		settle();
+		expect(chat->refused_line() != nullptr && chat->refused_line()->text() == QStringLiteral("Merging stops 4 and 9 wasn't proposed: their lines are in different files and not confirmed yet, so one stop can't keep them all."),
+			   "BPR-1937 AC2 the refused merge is named with why: " + (chat->refused_line() != nullptr ? chat->refused_line()->text().toStdString() : std::string{ }));
+		expect(chat->unchanged_line() == nullptr, "BPR-1937 a turn with a refusal is not said to have changed nothing");
+	}
 	// v002. From another part's chat, Explain the selected block opens the
 	// selected part's chat and asks there.
 	expect(choose(QStringLiteral("Explain the selected block in Stop 1")) && chat->current() == core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = core::tour_stop_id{ 1 } }

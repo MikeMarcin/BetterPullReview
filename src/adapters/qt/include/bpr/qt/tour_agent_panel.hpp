@@ -123,6 +123,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto edit_button(std::size_t aIndex) const -> QPushButton*;
 		/// \brief [[BPR-1914]]. The words a turn's proposal is said in.
 		[[nodiscard]] static auto proposed_words(const core::tour_proposal_tally& aTally) -> QString;
+		/// \brief [[BPR-1937]]. A part of a revision the core refused, said
+		/// in plain words: which part, which stops, and why.
+		[[nodiscard]] static auto refused_words(const core::tour_refused_part& aPart) -> QString;
 		/// \brief Its Move to nearest change button, while it is offered.
 		[[nodiscard]] auto relocate_button(std::size_t aIndex) const -> QPushButton*;
 		/// \brief The quiet words under a stop's place, when it has some.
@@ -163,6 +166,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto status() const noexcept -> QLabel* { return Status; }
 		/// \brief The quiet line saying how many stops were left out.
 		[[nodiscard]] auto left_out() const noexcept -> QLabel* { return LeftOut; }
+		/// \brief [[BPR-1937]]. The parts of the newest revision the core refused.
+		[[nodiscard]] auto refused_line() const noexcept -> QLabel* { return RefusedLine; }
 		[[nodiscard]] auto session() const noexcept -> const core::tour_agent_session& { return Session; }
 		/// \brief The transcript as its lines read, newest run first.
 		[[nodiscard]] auto transcript_text() const -> QString;
@@ -235,6 +240,7 @@ namespace bpr::qt {
 		QVBoxLayout*                                                                ProposalItems    = nullptr;
 		QLabel*                                                                     ProposalTitle    = nullptr;
 		QLabel*                                                                     LeftOut          = nullptr;
+		QLabel*                                                                     RefusedLine      = nullptr;
 		QLabel*                                                                     OutsideList      = nullptr;
 		QWidget*                                                                    TranscriptWindow = nullptr;
 		QListWidget*                                                                RunList          = nullptr;

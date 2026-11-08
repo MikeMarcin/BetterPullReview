@@ -607,7 +607,8 @@ namespace bpr::core {
 		}
 		auto turn_bytes(const tour_conversation_turn& aTurn) -> std::size_t
 		{
-			return aTurn.Asked.size() + aTurn.Reply.size() + (aTurn.Passage ? aTurn.Passage->Text.size() + aTurn.Passage->StopTitle.size() : 0U);
+			// [[BPR-1937]]. A refused part is replayed as about a line of words.
+			return aTurn.Asked.size() + aTurn.Reply.size() + (aTurn.Passage ? aTurn.Passage->Text.size() + aTurn.Passage->StopTitle.size() : 0U) + aTurn.Refused.size() * 160U;
 		}
 	}
 
@@ -694,10 +695,10 @@ namespace bpr::core {
 				continue;
 			}
 			if (run.Request == tour_agent_request::ask) {
-				turns.push_back({ run.Question, run.Passage, run.Reply, run.Thread });
+				turns.push_back({ run.Question, run.Passage, run.Reply, run.Thread, run.Proposed.Refused });
 			} else if (run.Request == tour_agent_request::draft_tour) {
 				const auto answered = std::ranges::find(run.Entries, tour_transcript_kind::answered, &tour_transcript_entry::Kind);
-				turns.push_back({ "Draft the tour", std::nullopt, answered == run.Entries.end() ? std::string{ } : answered->Text, tour_thread{ } });
+				turns.push_back({ "Draft the tour", std::nullopt, answered == run.Entries.end() ? std::string{ } : answered->Text, tour_thread{ }, { } });
 			}
 		}
 		auto conversation = tour_conversation{ };
@@ -735,34 +736,36 @@ namespace bpr::core {
 		}
 		/// A merge keeps every line of its stops: all confirmed (the others'
 		/// lines are kept as related lines), or all to confirm in one file and
-		/// commit within the bound (the merged stop spans them).
-		auto mergeable(const std::vector<const tour_stop*>& aStops) -> bool
+		/// commit within the bound (the merged stop spans them). Nothing when
+		/// it can; otherwise why not ([[BPR-1937]]).
+		auto merge_refusal(const std::vector<const tour_stop*>& aStops) -> std::optional<tour_revision_refusal>
 		{
 			auto places = std::vector<stop_place>{ };
 			for (const auto* stop : aStops) {
 				const auto place = place_of(*stop);
 				if (!place) {
-					return false;
+					return tour_revision_refusal::no_lines;
 				}
 				places.push_back(*place);
 			}
 			if (std::ranges::all_of(places, &stop_place::Confirmed) && std::ranges::all_of(aStops, [](const tour_stop* aStop) { return aStop->Original.has_value(); })) {
-				return true;
+				return std::nullopt;
 			}
 			if (std::ranges::any_of(places, &stop_place::Confirmed)) {
-				return false;
+				return tour_revision_refusal::confirmed_and_not;
 			}
 			const auto& first = places.front();
 			auto        low = first.First, high = first.Last;
 			for (const auto& place : places) {
 				if (place.Path != first.Path || place.Commit != first.Commit) {
-					return false;
+					return tour_revision_refusal::different_files;
 				}
 				low  = std::min(low, place.First);
 				high = std::max(high, place.Last);
 			}
-			return high - low + 1U <= maximum_proposed_stop_lines;
+			return high - low + 1U <= maximum_proposed_stop_lines ? std::nullopt : std::optional{ tour_revision_refusal::too_far_apart };
 		}
+		auto mergeable(const std::vector<const tour_stop*>& aStops) -> bool { return !merge_refusal(aStops); }
 		auto command_for(const review_tour& aTour, const tour_command_kind aKind) -> tour_command
 		{
 			return tour_command{ .Draft = aTour.Id, .Owner = aTour.Owner, .ExpectedRevision = aTour.Revision, .Kind = aKind };
@@ -785,21 +788,39 @@ namespace bpr::core {
 			auto       claimed = std::vector<std::size_t>{ };
 			const auto valid   = [count](const std::size_t aStop) { return aStop >= 1U && aStop <= count; };
 			const auto free    = [&claimed](const std::size_t aStop) { return std::ranges::find(claimed, aStop) == claimed.end(); };
+			const auto refuse  = [&aProposal](const tour_revision_kind aKind, std::vector<std::size_t> aStops, const tour_revision_refusal aReason) {
+				aProposal.Refused.push_back({ .Kind = aKind, .Stops = std::move(aStops), .Reason = aReason });
+			};
+			// [[BPR-1937]]. Any part of the tour's shape, proposed or refused,
+			// makes this the newest plan.
+			aProposal.RevisesStructure = !aRevision.Remove.empty() || !aRevision.Merges.empty() || !aRevision.Splits.empty() || !aRevision.Order.empty();
 			// Merges first: "merge 2 and 3" is the part most often asked for.
 			for (const auto& merge : aRevision.Merges) {
 				auto stops = merge.Stops;
 				std::ranges::sort(stops);
 				const auto unique = std::ranges::adjacent_find(stops) == stops.end();
-				if (stops.size() < 2U || !unique || !std::ranges::all_of(stops, valid) || !std::ranges::all_of(stops, free) || !nonblank(merge.Explanation)) {
-					++aProposal.Refused;
+				if (stops.size() < 2U || !unique) {
+					refuse(tour_revision_kind::merge, stops, stops.size() < 2U ? tour_revision_refusal::too_few_stops : tour_revision_refusal::named_twice);
+					continue;
+				}
+				if (!std::ranges::all_of(stops, valid)) {
+					refuse(tour_revision_kind::merge, stops, tour_revision_refusal::not_in_tour);
+					continue;
+				}
+				if (!std::ranges::all_of(stops, free)) {
+					refuse(tour_revision_kind::merge, stops, tour_revision_refusal::named_twice);
+					continue;
+				}
+				if (!nonblank(merge.Explanation)) {
+					refuse(tour_revision_kind::merge, stops, tour_revision_refusal::no_text);
 					continue;
 				}
 				auto sources = std::vector<const tour_stop*>{ };
 				for (const auto stop : stops) {
 					sources.push_back(&aDraft.Stops[stop - 1U]);
 				}
-				if (!mergeable(sources)) {
-					++aProposal.Refused;
+				if (const auto why = merge_refusal(sources)) {
+					refuse(tour_revision_kind::merge, stops, *why);
 					continue;
 				}
 				auto item       = tour_proposal_item{ .Part = tour_proposal_part::merge_stops, .Text = merge.Explanation, .ReplacesAuthorText = std::ranges::any_of(sources, [](const tour_stop* aStop) { return nonblank(aStop->Body); }), .Run = run };
@@ -811,18 +832,31 @@ namespace bpr::core {
 				aProposal.Items.push_back(std::move(item));
 			}
 			for (const auto& split : aRevision.Splits) {
-				if (!valid(split.Stop) || !free(split.Stop) || split.Into.size() < 2U || split.Into.size() > maximum_split_pieces) {
-					++aProposal.Refused;
+				const auto named = std::vector<std::size_t>{ split.Stop };
+				if (!valid(split.Stop)) {
+					refuse(tour_revision_kind::split, named, tour_revision_refusal::not_in_tour);
+					continue;
+				}
+				if (!free(split.Stop)) {
+					refuse(tour_revision_kind::split, named, tour_revision_refusal::named_twice);
+					continue;
+				}
+				if (split.Into.size() < 2U || split.Into.size() > maximum_split_pieces) {
+					refuse(tour_revision_kind::split, named, tour_revision_refusal::piece_count);
+					continue;
+				}
+				if (!std::ranges::all_of(split.Into, [](const proposed_tour_stop& aPiece) { return nonblank(aPiece.Title) && nonblank(aPiece.Explanation); })) {
+					refuse(tour_revision_kind::split, named, tour_revision_refusal::no_text);
 					continue;
 				}
 				const auto& stop  = aDraft.Stops[split.Stop - 1U];
 				const auto  place = place_of(stop);
 				// Each piece a stop of the pull request, inside the stop's lines.
 				const auto inside = place && std::ranges::all_of(split.Into, [&](const proposed_tour_stop& aPiece) {
-										return aPiece.Path == place->Path && aPiece.FirstLine >= place->First && aPiece.LastLine <= place->Last && nonblank(aPiece.Title) && nonblank(aPiece.Explanation) && anchor_tour_stop(aPiece, aFiles) == tour_anchor_verdict::anchored;
+										return aPiece.Path == place->Path && aPiece.FirstLine >= place->First && aPiece.LastLine <= place->Last && anchor_tour_stop(aPiece, aFiles) == tour_anchor_verdict::anchored;
 									});
 				if (!inside) {
-					++aProposal.Refused;
+					refuse(tour_revision_kind::split, named, place ? tour_revision_refusal::outside_stop : tour_revision_refusal::no_lines);
 					continue;
 				}
 				auto item       = tour_proposal_item{ .Part = tour_proposal_part::split_stop, .ReplacesAuthorText = nonblank(stop.Body), .StopId = stop.Id, .Run = run, .Pieces = split.Into };
@@ -834,8 +868,16 @@ namespace bpr::core {
 			std::ranges::sort(removed);
 			for (std::size_t index = 0U; index < removed.size(); ++index) {
 				const auto stop = removed[index];
-				if (!valid(stop) || !free(stop) || (index > 0U && removed[index - 1U] == stop)) {
-					++aProposal.Refused;
+				if (index > 0U && removed[index - 1U] == stop) {
+					refuse(tour_revision_kind::remove, { stop }, tour_revision_refusal::named_twice);
+					continue;
+				}
+				if (!valid(stop)) {
+					refuse(tour_revision_kind::remove, { stop }, tour_revision_refusal::not_in_tour);
+					continue;
+				}
+				if (!free(stop)) {
+					refuse(tour_revision_kind::remove, { stop }, tour_revision_refusal::named_twice);
 					continue;
 				}
 				const auto& gone = aDraft.Stops[stop - 1U];
@@ -852,9 +894,9 @@ namespace bpr::core {
 					every = sorted[index] == index + 1U;
 				}
 				const auto same = std::ranges::equal(aRevision.Order, sorted);
-				if (!every || same) {
-					aProposal.Refused += every ? 0U : 1U;
-				} else {
+				if (!every) {
+					refuse(tour_revision_kind::order, aRevision.Order, tour_revision_refusal::not_every_stop);
+				} else if (!same) {
 					auto item = tour_proposal_item{ .Part = tour_proposal_part::reorder, .Run = run };
 					for (const auto stop : aRevision.Order) {
 						item.Stops.push_back(aDraft.Stops[stop - 1U].Id);
@@ -864,7 +906,7 @@ namespace bpr::core {
 			}
 			if (nonblank(aRevision.Focus)) {
 				if (aRevision.Focus.size() > maximum_tour_focus_bytes || !valid_writing_utf8(aRevision.Focus)) {
-					++aProposal.Refused;
+					refuse(tour_revision_kind::focus, { }, tour_revision_refusal::focus_invalid);
 				} else {
 					aProposal.Focus = std::string{ trimmed(aRevision.Focus) };
 				}
@@ -894,7 +936,7 @@ namespace bpr::core {
 		return proposal;
 	}
 
-	auto tally_of(const tour_proposal& aProposal) noexcept -> tour_proposal_tally
+	auto tally_of(const tour_proposal& aProposal) -> tour_proposal_tally
 	{
 		auto tally = tour_proposal_tally{ };
 		for (const auto& item : aProposal.Items) {
@@ -909,13 +951,14 @@ namespace bpr::core {
 			case tour_proposal_part::reorder:     tally.Reorder = true; break;
 			}
 		}
-		tally.Focus = !aProposal.Focus.empty();
+		tally.Focus   = !aProposal.Focus.empty();
+		tally.Refused = aProposal.Refused;
 		return tally;
 	}
 
 	auto merge_tour_proposal(const std::optional<tour_proposal>& aCurrent, tour_proposal aIncoming) -> std::optional<tour_proposal>
 	{
-		if (aIncoming.Items.empty() && !(aIncoming.RevisesWaitingStops && aCurrent)) {
+		if (aIncoming.Items.empty() && !((aIncoming.RevisesWaitingStops || aIncoming.RevisesStructure) && aCurrent)) {
 			return aCurrent;
 		}
 		if (aCurrent) {
@@ -931,6 +974,11 @@ namespace bpr::core {
 			const auto superseded = [&aIncoming, &named](const tour_proposal_item& aItem) {
 				// The proposed stops still waiting, when the new turn revised them.
 				if (aIncoming.RevisesWaitingStops && aItem.Part == tour_proposal_part::stop) {
+					return true;
+				}
+				// [[BPR-1937]]. The earlier plan for the tour's shape, when the
+				// new turn answered with one of its own.
+				if (aIncoming.RevisesStructure && structural(aItem.Part)) {
 					return true;
 				}
 				return std::ranges::any_of(aIncoming.Items, [&aItem, &named](const tour_proposal_item& aNew) {

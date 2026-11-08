@@ -42,6 +42,10 @@ namespace bpr::application {
 	/// numbered on from the tour's as the route shows them, so feedback given
 	/// while the draft's proposal waits revises it. `aFocus` is the focus the
 	/// author accepted, given to every turn.
+	/// [[BPR-1937]]. The tour chat is also given `aWaiting`'s structural parts
+	/// still pending (`waiting_revision`, by the tour's stop numbers now),
+	/// which a new revision replaces whole, and each earlier turn carries the
+	/// parts of its revision the core refused, with why.
 	/// [[BPR-1935]]. `aDirective` is the [[BPR-1916]] skill directive, added
 	/// last. The whole request, directive included, is refused when it is
 	/// longer than `core::maximum_tour_prompt_bytes`, the bound of the carrier
