@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1940"
 title: "Close native Linux compiler and workspace cancellation failures"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"portability","found_by":"v0.4.2 build39 native Ubuntu GCC Release compilation","related_cards":["BPR-1939"],"milestone_plan":{"id":"bpr-1940-linux-include-closure","path":"docs/rfcs/plans/bpr-1940-linux-include-closure/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"4efa875f7908a36e6642bc859fb8d1c3bccc0a3e","evidence":{"kind":"observation","detail":"Direct cstdint include, equivalent guarded optional construction and exact-owned workspace pack copying/read-only quoted cache alternate; source/semantic self-review, unchanged strict inventory/guards/budgets and actual Git special-path + cancellation snapshot positive controls."}},{"criterion":"AC2","outcome":"pass","revision":"4efa875f7908a36e6642bc859fb8d1c3bccc0a3e","evidence":{"kind":"observation","detail":"Full native ordinary Release/Debug/tests-off PASS159.62/1362.82/25.28s at db864/6f37 identical src/tests; 67/67/59 feature/flag keys unchanged; first2 and final6 PASS with exact documented runtime path deltas; all initial negatives/raw receipts retained; combined native UI qualification explicitly pending coordinator."}},{"criterion":"AC3","outcome":"pass","revision":"4efa875f7908a36e6642bc859fb8d1c3bccc0a3e","evidence":{"kind":"observation","detail":"Frozen Mac/Windows39 inputs untouched; all native development graphs empty cohort/producer; all owned descendants reaped, native source clean, exact owned runtime root removed; no release/package/publication credit."}},{"criterion":"AC4","outcome":"pass","revision":"4efa875f7908a36e6642bc859fb8d1c3bccc0a3e","evidence":{"kind":"observation","detail":"Authoritative main pushed4efa875f7908a36e6642bc859fb8d1c3bccc0a3e including accepted latestb3e0966; combined actual4/4contract/Tour controls and build PASS; format22/tidy22/architecture/docs/board PASS with source bindings retained. Full release qualification separately pending."}}]
 ---
 
 # BPR-1940: Native Linux compile closure
@@ -139,7 +140,7 @@ move, admission/privacy guard or dispatch was edited. The false-positive
 classification remains a hypothesis pending unchanged-flags native positives
 and the six existing semantic courses.
 
-The two reviewed app-file hashes are bound by the unchanged ordered142-file
+The two reviewed app-file hashes are bound by the unchanged ordered 142-file
 manifest, independently computed as
 `87e6df9b12f9c5859091bfaeee6d2cb0e0b89b6c1bf6de65e11d30723fa12a36`
 and confirmed by the maintained CMake digest printer. The full-main and
@@ -265,3 +266,103 @@ the synthetic bare invocation refuses, but actual Git 2.53 re-entry uses the
 absolute wrapper path and passes. No unrelated wrapper-path patch is adopted.
 All R7/R9 temporary source diagnostics were restored; their binaries remain
 explicitly diagnostic and receive no uninstrumented acceptance credit.
+
+
+## Cancellation correction and complete native positive
+
+Source `6f37c4e36107ba9a2cc5a1df551d4a083320b1b2` implements the approved
+copy-branch ownership correction. Its adapter-local single-path quoting passes
+Git itself using a source-cache path with separators, quotes, backslash,
+controls and UTF-8 on POSIX. The test selects its legal separator/space form
+on Windows; that corrected-source native platform proof remains with the
+coordinator. Existing
+borrowed/plain copy and cleanup checks now compare source-cache inventory.
+The existing wrapper course snapshots its known owned cache before Stop and
+requires exact file metadata and SHA256 equality after the final retry is
+ready. The snapshot refuses links and is bounded to 256 entries, 1 MiB per file
+and 8 MiB total; it emits no file bodies. Assertions, budgets, operation flow,
+strict cache inventory and cleanup ownership remain intact.
+
+Private native source `db8641f9046c3cea7fe3a25974d1b3f84cbfff4e` has exactly
+the same `src`/`tests` Git trees as that source:
+`35b021b67f71a4bc49d9aeb28f569f55eb7f9682` /
+`b00330917d5cadd2e02788f04af30d6b14c0208a`.
+All three complete keep-going graphs pass with original compiler, optimization,
+hardening and warning flags: Release 159.62 s, Debug 1362.82 s, tests-off 25.28 s.
+The protected 67/67/59 cache feature/flag keys are unchanged; all graphs use an
+ordinary empty cohort/producer. No diagnostic marker remains in the main or
+invocation binary.
+
+The first native controls pass: real wrapper Stop/retry with the new exact
+cache snapshot 3.27 s, and the special-source-path borrowed/plain inventory
+control 0.29 s. The final six existing semantic controls all pass:
+
+| Existing course | Seconds |
+|---|---:|
+| `application_agent_chat_composition_contract` | 1.60 |
+| `application_agent_chat_conversation_contract` | 1.97 |
+| `application_agent_invocation_composition_contract` | 7.14 |
+| `application_review_round_trip_composition_contract` | 2.02 |
+| `application_review_tour_writing` | 8.99 |
+| `application_private_review_native` | 3.82 |
+
+These controls use the explicitly reviewed external CTest projection: all
+original properties, environment modifications, working directories,
+sandbox/binary commands and timeouts are preserved, except exactly two
+physical `BPR_ROOT` arguments and inherited `TMPDIR`/`TMP`/`TEMP` route fixtures
+to the owned native-root ext4 directory. Runtime usage stays under 256 MiB,
+with the original D storage guard, C32 GiB reserve and root 8 GiB reserve.
+Original configured graph and all static source/binary inputs are verified
+unchanged before/after. This is engineering evidence with path deltas,
+not original-registration or frozen-release qualification credit.
+
+R11's full Release build passed, then its external driver stopped before any
+semantic test with a string/Path helper error. Its complete raw receipt remains
+in `candidate39/implementer1940/native-final-r11`. After exact source/cache/input
+seals and terminal idle proof, R12 corrects only that operator helper and reuses
+the completed Release proof. Its raw JUnit, logs, complete source/ownership and
+receipt are in `native-final-r12`; `verification-r12-results.json` independently
+checks them. Both iterations have no owned descendants remaining. The native
+source is clean and the exact owned runtime root is removed. Earlier compile,
+runtime, operator and diagnostic negatives remain retained as above.
+
+Local focused real-Git special-path control, warnings-as-errors clang-tidy22
+for all three changed TUs, clang-format22, architecture boundaries and the
+prior source/optional controls pass. Review finds no source-level uninitialized
+optional payload; the equivalent explicit construction passes the original
+GCC flags and the real writing/private/fallback compositions without a warning
+suppression. These observations support the optimizer false-positive diagnosis
+without changing dispatch or admission policy.
+
+
+## Authoritative integration and acceptance boundary
+
+Accepted main `b3e0966e94f7fad64f0174a6dd84252f86683d52` (BPR-1941, owner
+accepted) is reconciled in `4efa875f7908a36e6642bc859fb8d1c3bccc0a3e` and
+intentionally pushed to authoritative main. The only merge overlap is the app
+manifest pin: the unchanged ordered 142-file inventory independently reproduces
+main's `ab83c7ed…`, then binds the combined source as
+`51f86c4a1713325a3a779983f1fa4857b073f597b7bd9dbb0d4654f1a0e4de91`.
+The maintained printer agrees; full-app and production-mutation pins remain
+unchanged. Compared with accepted main, exactly the two reviewed BPR-1940 app
+files differ. BPR-1941's source and reseal comments are retained.
+
+The combined local app and three Tour control targets build successfully.
+Original registered `core_tour_agent_session`,
+`application_tour_agent_conversation`, `qt_tour_side_chat` and
+`application_review_round_trip_composition_contract` all pass (4/4, 4.80 s).
+Clang-format22 on all 24 changed C++ files, documentation and board validation
+pass. External `composition-reseal-r13.json`, `combined-build-r13.log`,
+`combined-controls-r13.xml`, `combined-format-r13.log` and
+`combined-docs-r13.log` retain the actual observations. Combined `src`/`tests`
+trees are `6793870ef44b30314482920e24e536114f9757c4` /
+`09d71640ba35fc901b567acd60523e78e59c360f`.
+
+The earlier native three-graph and six-course evidence belongs to the exact
+pre-merge fix source; it does not cover BPR-1941's new UI/native composition.
+Full frozen-source native qualification, supported full-suite Ubuntu runtime
+storage, and all package/signing/trust/publication obligations remain with the
+release coordinator. The coordinator authorizes a separate bounded tooling
+issue for the missing configured test-runtime-root route; it is not folded
+into this completed source correction. No release output was packaged,
+signed, allocated or published by this card.
