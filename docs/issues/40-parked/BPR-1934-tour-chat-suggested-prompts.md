@@ -2,13 +2,14 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1934"
 title: "Tour chats offer suggested prompts, as the Agent tab does"
-status: "In Progress"
+status: "Parked"
 rfcs: []
 depends_on: ["BPR-1925", "BPR-1930"]
 priority: "P2"
+parked_on: "human-review"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"feature","found_by":"owner, 2026-11-07: 'Tour side chat should get suggestions like the agent tab has'","related_cards":["BPR-1877","BPR-1925","BPR-1930"]}
-acceptance: []
+acceptance: [{"criterion": "AC1 Each tour chat kind, when empty, shows its prompts. A click sends it, and the prompts hide after the first turn (Qt test)", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "qt_tour_side_chat: empty Solution, stop and whole-tour chats offer their lists; one click on 'Too many stops?' asks it in the tour thread; 'Focus on ...' goes to the composer; none while the agent is not set up; hidden after the first turn. Frozen look prints ATTENDED_TOUR_PROMPTS_SHOWN", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#verification-v001-focused"}}, {"criterion": "AC2 Reuses the Agent tab's suggestion component", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "agent_suggestion_list is the Agent tab's component (agent_tab_view uses it) and the tour chat's; qt_workbench_agent_send_refusal and qt_tour_side_chat pass", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#implementation-v001-2026-11-07"}}, {"criterion": "AC3 Owner look: Accept/Reject on a frozen build", "outcome": "pending", "revision": "5173d9274", "evidence": {"kind": "observation", "detail": "Frozen build /Users/jaeger/.codex/attended-builds/bpr1934-tour-chat-prompts-v001.qfzgw748 of 5173d9274; new short session f8b3689b6fcc266cd0a0467817211a15, candidate BPR-1934-tour-chat-prompts-v001, one Accept/Reject question, ready and awaiting the owner.", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#attended-review-v001"}}, {"criterion": "AC4 The documentation gate passes", "outcome": "pass", "revision": "5173d9274", "evidence": {"kind": "command", "detail": "verify_documentation.py prints DOCUMENTATION_OK", "path": "docs/issues/40-parked/BPR-1934-tour-chat-suggested-prompts.md#verification-v001-focused"}}]
 ---
 
 # BPR-1934: Tour chats offer suggested prompts, as the Agent tab does
@@ -98,3 +99,20 @@ Dev build:
 - `coding-format-check` passes (clang-format 22.1.8).
 - The offscreen look on the dev build, light and dark, prints
   `ATTENDED_TOUR_PROMPTS_SHOWN`.
+- `verify_documentation.py` prints `DOCUMENTATION_OK`.
+
+### Attended review (v001)
+
+- Frozen build `/Users/jaeger/.codex/attended-builds/bpr1934-tour-chat-prompts-v001.qfzgw748`
+  of `5173d9274` (executable SHA-256
+  `718fc3199092548bfb6c46b6d43dd11037c8909a67057a14f6bc3590e87743de`). Its
+  launcher's own offscreen check reached `ATTENDED_TOUR_PROMPTS_SHOWN`; the
+  pictures in the session are the frozen executable's own offscreen renders,
+  light and dark.
+- Launch: `python3 /Users/jaeger/.codex/attended-builds/bpr1934-tour-chat-prompts-v001.qfzgw748/launch.py`.
+- New short session `f8b3689b6fcc266cd0a0467817211a15`, state
+  `/Users/jaeger/.codex/attended-review/bpr1934-v001-0vNUF6/state`, host
+  started with `serve --tailscale`.
+- One candidate, `BPR-1934-tour-chat-prompts-v001` (revision
+  `5173d9274-v001`), with one Accept/Reject question.
+- Status: ready, awaiting the owner.
