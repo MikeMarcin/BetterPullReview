@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1942"
 title: "Configure owned native runtime storage for the full test graph"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
 metadata: {"kind":"test-tooling","found_by":"BPR-1940 native D-loop fixture I/O diagnosis","related_cards":["BPR-1940"],"milestone_plan":{"id":"bpr-1942-native-test-runtime-root","path":"docs/rfcs/plans/bpr-1942-native-test-runtime-root/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"9c3936cb5ad659a7487a44b7d17ebddadf1207ca","evidence":{"kind":"observation","detail":"Optional validated POSIX owner-private canonical root and unchanged empty/default registrations; Windows opt-in refuses; existing source/audit/binary/helper/output paths and product/compiler/budget/isolation policy preserved. Seven validator and nine CMake probes; local942existing-node equality plus one new contained contract."}},{"criterion":"AC2","outcome":"pass","revision":"9c3936cb5ad659a7487a44b7d17ebddadf1207ca","evidence":{"kind":"observation","detail":"Exact9c native affected build159.63s,79protected keys unchanged; actual927-node graph25 root argv+exact logical mirrors only; normal original invocation6.16s/roundtrip1.92s +5tooling and3preflight PASS, no skips/missing/unexpected. R1actual failure and R2diagnostic retained separately; no projection acceptance; guarded root removed and default cache restored."}},{"criterion":"AC3","outcome":"pass","revision":"9c3936cb5ad659a7487a44b7d17ebddadf1207ca","evidence":{"kind":"observation","detail":"Supported normal configure/suite operator docs added and source9c pushed authoritative main including latest8f card/reservation; final format/tidy/docs/board and exact source/binary/runtime/job receipts retained. Full frozen release and full-suite capacity forecast separately coordinator-owned."}}]
 ---
 
 # BPR-1942: Configured native test runtime storage
