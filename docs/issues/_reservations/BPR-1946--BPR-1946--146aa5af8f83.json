@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1946"
+  ],
+  "reserve_for": "codex-bpr1946-clock-boundary",
+  "purpose": "Correct Windows early precise timer callback using actual elapsed whole-second boundaries",
+  "created": "2026-11-08T21:42:57.563710+00:00",
+  "base": "ac75b2295047cbcc726d09c1e8164a7696f333a0"
+}
