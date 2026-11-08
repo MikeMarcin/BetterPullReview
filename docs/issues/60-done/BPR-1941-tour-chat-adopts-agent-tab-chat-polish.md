@@ -2,8 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1941"
 title: "Tour chats show the Agent tab's live run status and adopt its chat polish"
-status: "Parked"
-parked_on: "human-review"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
@@ -169,3 +168,7 @@ Dev build, macOS:
   `678230dd6-v001`), with one Accept/Reject question.
 - Status: ready, awaiting the owner. Branch `worktree-agent-acca666ced3cb9c6e`,
   not pushed or merged.
+
+## Accepted
+
+The owner accepted v001 on 2026-11-08 (attended review, no note).
