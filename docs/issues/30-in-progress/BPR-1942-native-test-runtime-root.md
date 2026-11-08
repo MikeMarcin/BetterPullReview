@@ -51,3 +51,39 @@ The caller explicitly designates a dedicated private directory and keeps one
 per graph. No marker/namespace manager or arbitrary directory cleanup is added.
 The native operator retains exact root identity and capacity guards and records
 inherited `TMPDIR`/`TMP`/`TEMP`; the option does not relax durability or budgets.
+
+
+## Local implementation and direct proof
+
+The optional cache value remains a STRING so a relative caller input is
+refused rather than normalized into authority. The helper selects the existing
+default directory unchanged when empty; opt-in reads the existing imported
+`Python3::Interpreter` location and invokes a read-only POSIX validator. It
+never creates, chmods or removes the designated root. Only the 24 writable E2E
+root prefixes use the selector. The new contained Python validator contract is
+the only added test row; no Windows uncontained exception is added.
+
+Seven filesystem validation tests and nine real minimal-CMake default/custom/
+refusal probes pass, including an empty default with no Python target, relative
+and false-like inputs, separator, shared directory, missing directory, link and
+protected build root. Shared mode and link identities remain unchanged.
+The initial custom configure correctly failed when the implementation used a
+scoped-away Python variable; the helper is corrected to the existing imported
+target location. The first failure is retained in external
+`candidate39/implementer1942/local-custom-configure.log`.
+
+The actual complete local configured graph has 943 nodes. All 942 previous
+nodes' commands and properties are byte-equivalent in the default graph; the
+one added node is `test_runtime_root_contract`. The custom graph changes 25
+expanded writable `BPR_ROOT` arguments. `BPR_LOGICAL_COMMAND` must mirror those
+same path substitutions truthfully; the coordinator explicitly accepts that
+exact derived metadata delta. Every other property, environment modification,
+working directory, sandbox command, label, lock, predicate and timeout is
+unchanged. Raw JSON and the strict comparator retain the full observations.
+
+Original registered `test_runtime_root_contract`, `test_suite_runner_contract`,
+`command_correctness_registry_contract`, `test_network_isolation_manifest` and
+`test_network_isolation_structure_contract` all pass, as does the real
+`application_review_round_trip_composition_contract` with the configured custom
+root. Native normal registered invocation/round-trip and suite preflight
+remain pending; no local or external projection is substituted for them.
