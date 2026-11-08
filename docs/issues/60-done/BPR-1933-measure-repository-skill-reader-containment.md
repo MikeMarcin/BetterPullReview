@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1933"
 title: "Measure the repository skill reader's Windows containment boundary"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"kind":"verification","found_by":"v0.4.2 build34 native Windows manifest gate","mandate":"Owner requires release fixes implemented and landed on main; measure the existing exception without weakening the gate.","milestone_plan":{"id":"bpr-1933-skill-containment","path":"docs/rfcs/plans/bpr-1933-skill-containment/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"2e8bec0224bf92b0c86c11c9d00c269df8dd49f8","evidence":{"kind":"observation","detail":"Native sourcea30ed6f5b: unchanged registered Release course passes0.798313s; same image/argv/cwd/configured ENVIRONMENT and ordered ENVIRONMENT_MODIFICATION through maintained zero-capability AppContainer exits3 at FAILED: fixture git command. Image SHA and frozen source clean/unchanged receipts retained."}},{"criterion":"AC2","outcome":"pass","revision":"2e8bec0224bf92b0c86c11c9d00c269df8dd49f8","evidence":{"kind":"observation","detail":"Exact measured inventory correction passes original native Windows Release test_network_isolation_manifest1.35s. Existing registration and all assertions/capabilities/gate behavior retained; only the observed fixture-git-command-failed category replaces unmeasured. Scoped patch reversed, script SHA restored, source unchanged and clean."}},{"criterion":"AC3","outcome":"pass","revision":"2e8bec0224bf92b0c86c11c9d00c269df8dd49f8","evidence":{"kind":"observation","detail":"Correction landed authoritative main2e8bec0224bf92b0c86c11c9d00c269df8dd49f8. Focused verifier74tests pass, Mac manifest passes0.55s, docs DOCUMENTATION_OK plus67doc tests. Independent BPR1934 card/counter preserved. Frozen34 original failure retained; final new-cohort release qualification remains separate."}}]
 ---
 
 # BPR-1933: Native skill-reader containment measurement
