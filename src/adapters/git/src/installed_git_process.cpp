@@ -138,7 +138,7 @@ namespace bpr::adapters::git {
 			failed_output_summarizer                                   SummarizeFailedOutput = nullptr;
 			std::optional<application::agent_workspace_lifetime_guard> WorkspaceGuard;
 			/// Variables added to the fixed environment for this one command.
-			/// Only the publication catalog sets any, from a closed list.
+			/// Publication and workspace copying set only their closed lists.
 			std::vector<std::pair<std::string, std::string>> Environment;
 		};
 
@@ -154,6 +154,28 @@ namespace bpr::adapters::git {
 #else
 			return aPath.string();
 #endif
+		}
+
+		/// [[BPR-1940]]. One alternate, including separators and control bytes.
+		[[nodiscard]] auto quoted_object_alternate(const std::filesystem::path& aObjects) -> std::string
+		{
+			auto quoted = std::string{ "\"" };
+			for (const auto character : path_text(aObjects)) {
+				const auto byte = static_cast<unsigned int>(static_cast<unsigned char>(character));
+				if (character == '\\' || character == '"') {
+					quoted.push_back('\\');
+					quoted.push_back(character);
+				} else if (byte < 0x20U || byte == 0x7fU) {
+					quoted.push_back('\\');
+					quoted.push_back("01234567"[(byte >> 6U) & 7U]);
+					quoted.push_back("01234567"[(byte >> 3U) & 7U]);
+					quoted.push_back("01234567"[byte & 7U]);
+				} else {
+					quoted.push_back(character);
+				}
+			}
+			quoted.push_back('"');
+			return quoted;
 		}
 
 		// The exec-path reply's wire encoding is UTF-8, matching path_text's
@@ -4752,7 +4774,11 @@ namespace bpr::adapters::git {
 						return fail(git_process_error{ git_process_failure::object_unavailable, "The fetched objects do not complete the head.\n" });
 					}
 				} else {
-					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+					// [[BPR-1940]]. Git makes its temporary pack in its primary
+					// object directory. Keep that work inside the exactly owned
+					// workspace, so cancellation cannot leave a tmp_pack in the
+					// strictly inventoried source cache. Read cache objects only.
+					arguments = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(
 						arguments,
 						"pack-objects",
@@ -4782,9 +4808,10 @@ namespace bpr::adapters::git {
 					}
 					const auto packed = submitWorkspace(
 						process_request{
-							.Arguments = std::move(arguments),
-							.Input     = memory_input{ std::move(tips) },
-							.Timeout   = pack_process_timeout,
+							.Arguments   = std::move(arguments),
+							.Input       = memory_input{ std::move(tips) },
+							.Timeout     = pack_process_timeout,
+							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
 						},
 						aStop);
 					if (
