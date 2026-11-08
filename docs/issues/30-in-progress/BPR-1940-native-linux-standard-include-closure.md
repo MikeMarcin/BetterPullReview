@@ -36,8 +36,8 @@ metadata: {"kind":"portability","found_by":"v0.4.2 build39 native Ubuntu GCC Rel
 `defect_identity.hpp` declares `std::uint64_t` and `std::uint8_t` without
 `<cstdint>`; it already owns `std::size_t` via `<cstddef>`. Native GCC exposes
 this missing declaration, then emits cascading aggregate-initializer errors in
-the implementation. The declaration header was introduced by BPR-1906
-(`240c2d4d6a`). The initial correction is one direct include; the milestone
+the implementation. The declaration header was introduced by the profile
+runtime split (`240c2d4d6a`). The initial correction is one direct include; the milestone
 also owns only additional missing-standard-include closure found by the full
 native compiler.
 
@@ -50,3 +50,28 @@ caches keep their normal flags and features and run with keep-going. A numbered
 release cohort is not reused for changed source; ordinary local configuration
 has an empty cohort/producer and build number zero. No package, signer,
 publication or cohort allocation is part of this card.
+
+
+## Initial correction and verification binding
+
+The first source commit `fe05c06dc` adds `<cstdint>` to the declaration header;
+its existing `<cstddef>` is retained. The matching implementation compiles on
+macOS and focused clang-tidy22/format22 pass. The application source-content
+contract correctly rejected the changed header before its binding was updated.
+An independent recomputation first reproduces the original ordered 142-file
+manifest digest, then proves that only this header changed. Its new digest is
+resealed without changing any inventory member, production mutation-branch
+pin, assertion or grant. The original composed source contract then passes
+(1.93 s). The actual drift failure and before/after manifests are retained in
+external `candidate39/implementer1940/`.
+
+Native development is pending full compile closure. The original build39
+source and three cache metadata sets were archived by the coordinator before
+handing over the rejected Linux checkout. The initial SSH-context launcher
+correctly refused the missing D-host storage proof before any source switch or
+compiler ran; the maintained guard is not weakened. The exact same driver is
+to run through the established Limited interactive context. It creates a
+private branch, records the source commit and configured feature/flag choices,
+and serially finishes Release/Debug and the supported tests-off graph with
+keep-going. Source changes remain unlanded on authoritative main until these
+full development builds complete or a concrete out-of-scope error is reported.

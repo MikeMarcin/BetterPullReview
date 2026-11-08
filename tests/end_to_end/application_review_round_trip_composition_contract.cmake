@@ -3309,8 +3309,11 @@ function(bpr_verify_app_source_tree app_source_root)
 	# revision of the tour's shape replace the waiting plan even when it is
 	# refused whole, and names refused parts in the tour's notice. No grant,
 	# provider, gh process, admission, mutation branch or publication change.
+	# [[BPR-1940]] include ownership reseal: defect_identity.hpp directly
+	# includes <cstdint> for its public integer types. No source inventory,
+	# production mutation branch, authority or runtime behavior changes.
 	set(bpr_expected_production_app_manifest_digest
-        "0113c751d28d075d7393d0011ee74af829c17be9f8ac97d6b96bcf5668e77a7f"
+        "2c0c2c9e7bac78f18517682cc15e1110f2b5ca037d66ea68e16e8e24db24bff2"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
