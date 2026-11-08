@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1942-native-test-runtime-root",
+  "scope": {
+    "issues": [
+      "BPR-1942"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "configured-native-runtime",
+      "outcome": "Normal full-suite registrations can use explicitly owned native runtime storage without changing default registrations, semantics, isolation or release acceptance.",
+      "work": [
+        {
+          "issue": "BPR-1942",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Default registrations are byte-equivalent; validated opt-in changes only writable E2E BPR_ROOT arguments and accepts a dedicated private canonical POSIX root.",
+        "Focused refusal/configuration and actual full-graph delta checks pass; original registered native invocation and round-trip and relevant inventory/preflight checks pass under explicit bounded storage guards.",
+        "Latest authoritative main contains the bounded tooling and documentation; raw negatives, exact source/config identities, ownership and separate full-release obligations are handed back."
+      ],
+      "boundary": "Optional test runtime-root configuration, read-only validation, writable E2E root selection, focused tooling/regression coverage and docs/card only. No product behavior, compiler flags, source-audit roots, binaries/helpers/fixture sources/output paths, timeouts, predicates, sandbox grants, markers or release publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

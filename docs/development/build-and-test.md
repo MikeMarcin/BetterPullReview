@@ -376,6 +376,42 @@ checkout pays for that first build.
 > Every `ctest` invocation rewrites `LastTest.log`, so search it before running
 > `ctest` again. Details: [A passing row can leave cases unchecked](build-and-test-reference.md#a-passing-row-can-leave-cases-unchecked).
 
+### Native test runtime storage
+
+On POSIX hosts, `BPR_TEST_RUNTIME_ROOT` optionally moves writable end-to-end
+`BPR_ROOT` data directories out of the build tree. This is useful when a
+native filesystem handles the application databases better than a mounted
+build image. The default is empty and keeps every existing test path.
+Source-audit roots, executables, helpers, committed fixtures and normal output
+artifacts keep their paths. Windows supports the empty default; a nonempty
+override is refused.
+
+Designate a fresh, dedicated directory for each build graph, owned by the
+current user with mode 0700. Use its existing absolute canonical path without
+symbolic links, list separators or control characters. It must be separate
+from source/build trees and cannot be the home directory or its ancestor;
+a dedicated child of home is allowed. Tests replace their named data
+subdirectories. Configure checks the root without creating, narrowing or
+removing it. Do not share it between graphs or concurrent full-suite runs.
+
+For example, after making a dedicated directory on the native filesystem:
+
+```sh
+cmake --preset dev -DBPR_TEST_RUNTIME_ROOT:STRING=/absolute/native/bpr-test-runtime
+cmake --build --preset dev
+TMPDIR=/absolute/native/bpr-test-runtime TMP=/absolute/native/bpr-test-runtime TEMP=/absolute/native/bpr-test-runtime \
+  python3 scripts/run_test_suite.py --preset dev
+```
+
+The inherited temporary-directory variables also move random scratch fixtures;
+the configured option moves persistent CMake contract roots. Keep both choices
+in the run's source/configuration receipt, inspect `ctest --preset dev
+--show-only=json-v1`, and retain the normal suite preflight, sandbox, assertions
+and budgets. A native operator must still guard the directory's exact identity,
+capacity forecast and host/filesystem free-space reserves. This option neither
+establishes a capacity bound nor supplies release acceptance. Remove only the
+operator-owned directory after all its test processes have been reaped.
+
 ### The Qt-free core
 
 ```sh
