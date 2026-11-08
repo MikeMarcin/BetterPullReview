@@ -2,9 +2,11 @@
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_SIDE_CHAT_HPP
 
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/application/tour_chat_prompts.hpp"
 #include "bpr/core/review_tour.hpp"
 #include "bpr/core/skill_references.hpp"
 #include "bpr/core/tour_agent_session.hpp"
+#include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <QFont>
@@ -18,6 +20,7 @@
 #include <memory>
 #include <optional>
 #include <set>
+#include <span>
 #include <vector>
 
 class QLabel;
@@ -115,6 +118,9 @@ namespace bpr::qt {
 	public:
 		using ask_dispatch    = std::function<void(const tour_ask&)>;
 		using decide_dispatch = std::function<void(std::size_t, core::tour_proposal_decision, const QString&)>;
+		/// \brief [[BPR-1934]]. The suggested prompts for a chat kind, from
+		/// the application's one list (`application::tour_chat_prompts`).
+		using prompt_source = std::function<std::span<const application::tour_chat_prompt>(core::tour_thread_kind)>;
 
 		explicit tour_side_chat(QWidget* aParent = nullptr);
 		void set_dispatch(ask_dispatch aAsk, std::function<void()> aStop, decide_dispatch aDecide);
@@ -138,6 +144,13 @@ namespace bpr::qt {
 		/// tour's chat still takes feedback, which waits for its proposal.
 		void set_running(bool aAny, bool aDrafting = false);
 		void set_available(bool aReady, const QString& aWhy);
+		/// \brief [[BPR-1934]]. Where an empty chat's suggested prompts come
+		/// from. Without one, an empty chat offers none.
+		void set_prompt_source(prompt_source aSource);
+		/// \brief [[BPR-1934]]. The open chat's suggested prompts, in the
+		/// Agent tab's component, while the chat has no turns; otherwise null.
+		/// Hidden while the agent is not set up ([[BPR-1881]]).
+		[[nodiscard]] auto suggestions() const noexcept -> agent_suggestion_list* { return Suggestions; }
 		/// \brief [[BPR-1930]]. Feedback kept until the draft proposes, shown
 		/// in the tour's chat while it waits.
 		[[nodiscard]] auto waiting_feedback() const noexcept -> QWidget* { return WaitingBubble; }
@@ -226,6 +239,10 @@ namespace bpr::qt {
 		void               refresh_actions();
 		void               show_passage();
 		void               send(const QString& aQuestion, bool aUpdate);
+		/// [[BPR-1934]]. A suggested prompt chosen: sent, or put in the
+		/// composer to edit or finish, as the core decides for the Agent tab.
+		void               choose_prompt(const QString& aPrompt, bool aEditFirst);
+		[[nodiscard]] auto prompts_usable() const -> bool;
 		void               fit();
 		void               to_bottom();
 		[[nodiscard]] auto name_of(const core::tour_thread& aThread) const -> QString;
@@ -288,6 +305,8 @@ namespace bpr::qt {
 		std::map<std::size_t, QPushButton*>                                         Accepts;
 		std::map<std::size_t, markdown_body_view*>                                  ProposalReaders;
 		std::vector<QPointer<QWidget>>                                              Accented;
+		prompt_source                                                               PromptSource;
+		QPointer<agent_suggestion_list>                                             Suggestions;
 	};
 }
 

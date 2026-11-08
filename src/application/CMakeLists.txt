@@ -29,6 +29,7 @@ add_library(
         src/tour_agent_drafting.cpp
         src/tour_agent_conversation.cpp
         src/tour_writing_style.cpp
+        src/tour_chat_prompts.cpp
         src/skill_guidance.cpp
         src/skill_catalog.cpp
         src/review_tour_import.cpp

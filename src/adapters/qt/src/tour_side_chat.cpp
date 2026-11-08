@@ -1,5 +1,6 @@
 #include "bpr/qt/tour_side_chat.hpp"
 
+#include "bpr/core/agent_turn.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
@@ -17,6 +18,7 @@
 #include <QPushButton>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QTextCursor>
 #include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
@@ -600,6 +602,61 @@ namespace bpr::qt {
 		refresh_actions();
 	}
 
+	void tour_side_chat::set_prompt_source(prompt_source aSource)
+	{
+		PromptSource = std::move(aSource);
+		rebuild();
+	}
+
+	auto tour_side_chat::prompts_usable() const -> bool { return Ready && !Mine && (!Running || takes_feedback()); }
+
+	void tour_side_chat::choose_prompt(const QString& aPrompt, const bool aEditFirst)
+	{
+		const auto thread = current();
+		if (!thread || !PromptSource) {
+			return;
+		}
+		// A prompt the reviewer finishes ("Focus on …") is always put in the
+		// composer, with its words there to be completed.
+		auto text   = aPrompt;
+		auto finish = false;
+		for (const auto& prompt : PromptSource(thread->Kind)) {
+			const auto written = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
+			if (prompt.Finish && aPrompt == written + ellipsis) {
+				text   = written;
+				finish = true;
+			}
+		}
+		const auto draft  = Composer->toPlainText();
+		const auto press  = core::decide_agent_suggestion_press({
+			.EditFirst = aEditFirst || finish,
+			.DraftHeld = !draft.trimmed().isEmpty(),
+			.Usable    = prompts_usable(),
+		});
+		const auto to_end = [this] {
+			auto cursor = Composer->textCursor();
+			cursor.movePosition(QTextCursor::End);
+			Composer->setTextCursor(cursor);
+		};
+		switch (press) {
+		case core::agent_suggestion_press::ignored: return;
+		case core::agent_suggestion_press::send:    send(text, false); return;
+		case core::agent_suggestion_press::send_keeping_draft:
+			// Sent alone, as if typed and sent; the reviewer's words stay.
+			send(text, false);
+			Composer->setPlainText(draft);
+			to_end();
+			return;
+		case core::agent_suggestion_press::edit: Composer->setPlainText(text); break;
+		case core::agent_suggestion_press::edit_after_draft:
+			to_end();
+			Composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + text);
+			break;
+		}
+		Composer->setFocus(Qt::OtherFocusReason);
+		to_end();
+	}
+
 	void tour_side_chat::set_code_style(const QFont& aFont, const qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
 	{
 		CodeFont     = aFont;
@@ -847,6 +904,12 @@ namespace bpr::qt {
 										 : thread->Kind == core::tour_thread_kind::tour ? tr("Ask about the tour, or say how to change it: fewer stops, merge two, focus on a part")
 																						: tr("Ask about %1").arg(part));
 		Composer->setEnabled(thread.has_value());
+		// [[BPR-1934]]. The suggested prompts, only once the agent is set up
+		// ([[BPR-1881]]); usable whenever a question could be sent.
+		if (Suggestions != nullptr) {
+			Suggestions->setVisible(Ready);
+			Suggestions->set_usable(prompts_usable());
+		}
 	}
 
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate)
@@ -937,6 +1000,7 @@ namespace bpr::qt {
 	void tour_side_chat::rebuild()
 	{
 		clear(Turns);
+		Suggestions = nullptr;
 		Bubbles.clear();
 		Replies.clear();
 		Worked.clear();
@@ -967,6 +1031,25 @@ namespace bpr::qt {
 			auto* const empty  = quiet(small(words(invite, body)));
 			empty->setObjectName(QStringLiteral("tourSideChatEmpty"));
 			Turns->addWidget(empty);
+			// [[BPR-1934]], owner 2026-11-07: "Tour side chat should get
+			// suggestions like the agent tab has." The Agent tab's own
+			// component, with the prompts for this kind of chat, in the
+			// agent's accent. They go with the first turn.
+			if (thread && PromptSource) {
+				auto labels = QStringList{ };
+				for (const auto& prompt : PromptSource(thread->Kind)) {
+					const auto written = QString::fromUtf8(prompt.Text.data(), static_cast<qsizetype>(prompt.Text.size()));
+					labels << (prompt.Finish ? written + ellipsis : written);
+				}
+				if (!labels.isEmpty()) {
+					Suggestions = new agent_suggestion_list{ tr("Or try:"), body };
+					Suggestions->setObjectName(QStringLiteral("tourSideChatSuggestions"));
+					Suggestions->set_choose_dispatch([this](const QString& aPrompt, const bool aEditFirst) { choose_prompt(aPrompt, aEditFirst); });
+					Suggestions->present(labels);
+					Accented.emplace_back(Suggestions.data());
+					Turns->addWidget(Suggestions);
+				}
+			}
 		}
 		for (const auto* run : runs) {
 			// The author's words, on the right.
