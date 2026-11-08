@@ -367,7 +367,7 @@ namespace {
 		expect(keepCard != nullptr && keepTitle != nullptr && keepSize != nullptr && keepCost != nullptr && keepTitle->text() == QStringLiteral("Keep a clone for me")
 				   && before(test.View.findChild<QWidget*>(QStringLiteral("agentSetupLinkCard")), keepCard)
 				   && before(keepCard, test.View.findChild<QWidget*>(QStringLiteral("agentSetupPullRequestOnlyCard"))) && keepSize->text() == QStringLiteral("126 MB")
-				   && keepCost->text().startsWith(QStringLiteral("Full history, kept in ")) && keepCost->toolTip().endsWith(QStringLiteral("agent-clones-v1/github.com-42"))
+				   && keepCost->text().startsWith(QStringLiteral("Full history, kept in ")) && keepCost->toolTip().endsWith(QDir::toNativeSeparators(QStringLiteral("agent-clones-v1/github.com-42")))
 				   && test.button(QStringLiteral("agentSetupChooseFolder"))->isDefault(),
 			   "AC1: keeping a clone is the second card, with its size and where it goes; choosing a folder stays the default");
 		render(test.View, QStringLiteral("keep-offer"));
