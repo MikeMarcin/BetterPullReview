@@ -907,12 +907,16 @@ auto main(int argc, char** argv) -> int
 			window.ai_tools_action()->trigger();
 		}
 		window.tray_tabs()->setCurrentIndex(3);
-		auto* const setup  = window.agent_setup();
-		const auto  button = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
-		if (!wait_until([&] { return button(QStringLiteral("agentSetupFindClones")) != nullptr; })) {
+		auto* const setup            = window.agent_setup();
+		const auto  button           = [setup](const QString& aName) { return setup->findChild<QPushButton*>(aName); };
+		const auto  changeRepository = [setup] {
+			auto* const step = setup->findChild<QWidget*>(QStringLiteral("agentSetupStep2"));
+			return step != nullptr ? step->findChild<QPushButton*>(QStringLiteral("agentSetupChange")) : nullptr;
+		};
+		if (!wait_until([&] { return changeRepository() != nullptr; })) {
 			return fail(*application, "wrapper-setup-clone-search", setup->step_text().toStdString());
 		}
-		button(QStringLiteral("agentSetupFindClones"))->click();
+		changeRepository()->click();
 		if (!wait_until([&] { return setup->isVisible() && button(QStringLiteral("agentSetupUseClone")) != nullptr && button(QStringLiteral("agentSetupUseClone"))->isEnabled(); })) {
 			return fail(*application, "wrapper-setup-repository", setup->step_text().toStdString());
 		}
@@ -2040,7 +2044,7 @@ auto main(int argc, char** argv) -> int
 		briefSays = field("brief.title") == "Keep review snapshots deterministic" && field("brief.base_branch") == "main"
 			&& field("brief.workspace") == "private_copy" && field("brief.diff") == "git diff " + std::string{ fixture.BaseOid } + "..." + std::string{ fixture.HeadOneOid }
 			&& field("brief.description.cut_bytes") == "0" && field("brief.file.count") != "0" && field("brief.skill.source") == "built_in"
-			&& field("brief.skill.version") == "3" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
+			&& field("brief.skill.version") == "4" && field("brief.skill.text").find("name: bpr-pr-review") != std::string::npos
 			// [[BPR-1753]], owner decision (b): the first turn about this
 			// pull request carries no earlier one.
 			&& field("brief.conversation.count") == "0" && field("brief.conversation.omitted") == "0";

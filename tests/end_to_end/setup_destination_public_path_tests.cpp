@@ -1375,6 +1375,22 @@ namespace {
 			if (word.Where.startsWith(QStringLiteral("QToolButton agentConversationChipClose ("))) {
 				text.remove(QStringLiteral("Stop asking about this conversation"));
 			}
+			// The accepted Tour transcript is an agent conversation, separate
+			// from the pull request's review threads.
+			if (word.Where.startsWith(QStringLiteral("QPushButton tourSessionCopyAll ("))) {
+				text.remove(QStringLiteral("Copy conversation"));
+				text.remove(QStringLiteral("Copies every turn of this tour conversation as plain text, oldest first."));
+			}
+			if (word.Where.startsWith(QStringLiteral("QPushButton tourSessionTranscriptOpen ("))) {
+				text.remove(QStringLiteral("Conversation"));
+				text.remove(QStringLiteral("Opens the tour conversation in its own window: ask about the tour, and read what each run read and answered. It never opens by itself."));
+			}
+			if (word.Where.startsWith(QStringLiteral("QTextBrowser tourSessionRun ("))) {
+				text.remove(QStringLiteral("Conversation"));
+			}
+			if (word.Where.startsWith(QStringLiteral("QWidget tourSessionTranscript ("))) {
+				text.remove(QStringLiteral("Tour conversation"));
+			}
 			if (text.contains(QStringLiteral("conversation"), Qt::CaseInsensitive)) {
 				found.insert(word.Where + QStringLiteral(": ") + word.Text);
 			}
@@ -1400,6 +1416,8 @@ namespace {
 		// wording elsewhere, or an extra offending sentence in its tooltip.
 		const auto bad = review_thread_conversation_words({
 			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Back to the conversation") },
+			{ QStringLiteral("QPushButton tourSessionTranscriptOpen (tooltip)"), QStringLiteral("Conversation. Resolve this conversation.") },
+			{ QStringLiteral("QWidget tourSessionTranscript (window title)"), QStringLiteral("Tour conversation. Resolve this conversation.") },
 			{ QStringLiteral("QPushButton agentHistoryBack (text)"), QStringLiteral("Back to the conversation; resolve this conversation") },
 			{ QStringLiteral("QAction showWorkbenchAiToolsAction (tooltip)"), QStringLiteral("Agent conversations, findings and private history. Nothing here is published; promote an item to a draft in Comments to publish it. Resolve the conversation.") },
 			{ QStringLiteral("QLabel reviewThread (text)"), QStringLiteral("Pull request conversation") },
@@ -1407,9 +1425,11 @@ namespace {
 			{ QStringLiteral("QToolButton agentConversationChipClose (tooltip)"), QStringLiteral("Stop asking about this conversation. Resolve this conversation.") },
 			{ QStringLiteral("QMainWindow workbenchWindow (accessible tree description)"), QStringLiteral("Agent conversations about this pull request. Nothing here is published. Resolve the conversation.") },
 		});
-		expect(bad.size() == 7U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
+		expect(bad.size() == 9U, "accepted surface wording exceptions still reject unrelated or extra review-thread conversation wording");
 		expect(review_thread_conversation_words({
 													{ QStringLiteral("QAbstractButton pullRequestCommentsChip (text)"), QStringLiteral("Pull request conversation") },
+													{ QStringLiteral("QWidget tourSessionTranscript (window title)"), QStringLiteral("Tour conversation") },
+													{ QStringLiteral("QPushButton tourSessionTranscriptOpen (text)"), QStringLiteral("Conversation") },
 													{ QStringLiteral("QAbstractButton pullRequestCommentsChip (accessible tree name)"), QStringLiteral("Pull request conversation: 39 comments, 38 new") },
 													{ QStringLiteral("QTabBar overviewStatusTabs (tab tooltip)"), QStringLiteral("Comments\nThe pull request's conversation: its comments and reviews, newest last, and a new comment") },
 													{ QStringLiteral("QTabBar overviewStatusTabs (tab tooltip)"), QStringLiteral("Agent\nAgent conversations about this pull request. Nothing here is published.") },

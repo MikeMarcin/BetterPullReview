@@ -16110,9 +16110,15 @@ namespace {
 		// [[BPR-1290]]. Next new reply and the filters sit on the tab row, at
 		// its right; the defect queue's row shows only while there are defects.
 		const auto onTabRow = [&window, tabs](const QWidget* const aWidget) {
-			const auto top    = aWidget->mapTo(&window, QPoint{ 0, 0 }).y();
-			const auto tabTop = tabs->mapTo(&window, QPoint{ 0, 0 }).y();
-			return top >= tabTop - 4 && top < tabTop + tabs->height();
+			const auto        top    = aWidget->mapTo(&window, QPoint{ 0, 0 }).y();
+			const auto        tabTop = tabs->mapTo(&window, QPoint{ 0, 0 }).y();
+			const auto* const header = dynamic_cast<qt::drawer_header*>(window.findChild<QWidget*>(QStringLiteral("workbenchTrayHeader")));
+			if (header == nullptr || !header->isAncestorOf(aWidget)) {
+				return false;
+			}
+			const auto bottom = aWidget->mapTo(header, aWidget->rect().bottomLeft()).y();
+			return bottom < header->height()
+				&& (header->wrapped() ? top >= tabTop + tabs->height() : top >= tabTop - 4 && top < tabTop + tabs->height());
 		};
 		const auto below = [&window, tabs](const QWidget* const aWidget) {
 			return aWidget->mapTo(&window, QPoint{ 0, 0 }).y() >= tabs->mapTo(&window, QPoint{ 0, tabs->height() }).y();
@@ -16124,7 +16130,7 @@ namespace {
 				   && window.next_new_comment_button()->defaultAction() == window.next_new_comment_action()
 				   && !window.agent_panel()->isVisible() && !window.side_chat()->isVisible()
 				   && !window.finding_queue()->isVisible() && !window.defect_count_label()->isVisible(),
-			   "the Comments tab shows the notes with Only new, Hide resolved and Next new on the tab row, and nothing of Notes");
+			   "Comments controls stay in the header tools row, wrapping below the tabs when needed, with private tools hidden");
 		const auto save = [&window](const QString& aSuffix) {
 			const auto rendered = window.grab();
 			expect(!rendered.isNull(), "the right tray renders in the composed window");

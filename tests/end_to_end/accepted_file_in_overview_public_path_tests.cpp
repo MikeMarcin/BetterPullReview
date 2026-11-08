@@ -188,6 +188,7 @@ try {
 	auto* const page  = window.overview_page();
 	const auto  total = page->projection()->Progress.FilesTotal;
 	expect(total >= 3U, "the pull request has at least three files");
+	wait_for([&] { return page->projection()->Progress.FilesReadiness == application::overview_readiness::ready; }, "the first visit has loaded file read progress");
 	const auto filesRead = [&] { return page->value_label(qt::overview_value::files_read)->text(); };
 	const auto doneOf    = [&](const std::size_t aDone) { return QStringLiteral("%1 of %2").arg(aDone).arg(total); };
 	const auto notRead   = [&](const std::size_t aDone) { return QStringLiteral(", %1 not read").arg(total - aDone); };
