@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Coordinator approved concrete stale fixture input correction after BPR-1942 diagnostic; original actual failure retained.",
+  "source_basis": "861be27005fd8190727bc488b742ddf611b1afe8"
+}
