@@ -189,6 +189,7 @@ namespace bpr::qt {
 		if (aActivity == Activity && aHasContent == HasContent && aPartial == Partial && aWords == Words) {
 			return;
 		}
+		++PresentationRevision;
 		Activity   = aActivity;
 		HasContent = aHasContent;
 		Partial    = aPartial;
@@ -412,12 +413,9 @@ namespace bpr::qt {
 
 	void pending_veil::announce(const core::pending_look aBefore, const core::pending_look aAfter)
 	{
-		// A pane nobody can see says nothing: its wait is said where it shows.
-		if (!Announces || Target == nullptr || !Target->isVisible()) {
-			return;
-		}
-		auto said = QString{ };
-		switch (core::pending_announcement_between(aBefore, aAfter)) {
+		auto       said         = QString{ };
+		const auto announcement = core::pending_announcement_between(aBefore, aAfter);
+		switch (announcement) {
 		case core::pending_announcement::none:
 			return;
 		case core::pending_announcement::started:
@@ -436,9 +434,21 @@ namespace bpr::qt {
 		if (said.isEmpty()) {
 			return;
 		}
-		auto event = QAccessibleAnnouncementEvent{ Target, said };
-		event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
-		QAccessible::updateAccessibility(&event);
+		const auto notify = [this, revision = PresentationRevision, said] {
+			// A pane nobody can see says nothing. A newer presentation also
+			// supersedes a completion waiting for its visibility handoff.
+			if (revision != PresentationRevision || !Announces || Target == nullptr || !Target->isVisible()) {
+				return;
+			}
+			auto event = QAccessibleAnnouncementEvent{ Target, said };
+			event.setPoliteness(QAccessible::AnnouncementPoliteness::Polite);
+			QAccessible::updateAccessibility(&event);
+		};
+		if (announcement == core::pending_announcement::finished) {
+			QTimer::singleShot(0, this, notify);
+		} else {
+			notify();
+		}
 	}
 
 	void pending_veil::follow_area()
