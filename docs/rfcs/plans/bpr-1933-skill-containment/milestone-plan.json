@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1933-skill-containment",
+  "scope": {
+    "issues": [
+      "BPR-1933"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "measure-and-land",
+      "outcome": "The repository skill-reader Windows containment entry is based on paired native evidence and the native manifest gate passes.",
+      "work": [
+        {
+          "issue": "BPR-1933",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Unchanged native baseline and zero-capability course have exact retained observations.",
+        "Observed containment result determines exception retirement or precise inventory entry without bypassing assertions or gate.",
+        "Corrected native manifest, focused script/docs checks and authoritative main integration are recorded."
+      ],
+      "boundary": "BPR-1933 only; preserve frozen build34 and release coordinator command ownership."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

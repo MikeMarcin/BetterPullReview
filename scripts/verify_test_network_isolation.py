@@ -131,10 +131,12 @@ WINDOWS_UNCONTAINED_LABEL = "bpr_windows_uncontained"
 # fail with Win32 1114 for their Qt module; Qt-linked images fail startup with
 # STATUS_DLL_INIT_FAILED. Turning redirection off preserves that Qt failure.
 WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
-    # [[BPR-1932]]. BPR-1916 registered the installed-Git skill course with
-    # WINDOWS_UNCONTAINED; its existing boundary needs an explicit inventory
-    # entry. Native contained measurement remains pending, not inferred.
-    "repository_skill_reader": "unmeasured (registered on macOS)",
+    # [[BPR-1933]]. Native Limited interactive Windows Release, source
+    # a30ed6f5b, 2026-11-08 UTC: the unchanged course passes normally. The
+    # byte-identical image, argv, cwd and configured environment/modifications
+    # fail inside the maintained zero-capability AppContainer at
+    # "FAILED: fixture git command" (child exit 3). No Win32 cause inferred.
+    "repository_skill_reader": "fixture-git-command-failed",
     # [[BPR-1825]]. Source864f98ad9, native Release, 2026-10-30:
     # same-image ordinary custom-agent passes; the unchanged zero-capability
     # helper reaches agent-chat-composition-failure:private-test-root.

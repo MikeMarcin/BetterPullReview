@@ -766,6 +766,10 @@ class ConfiguredManifestTests(unittest.TestCase):
                 "private-root-permissions-refused",
                 "fresh-view-filter-store-predicate-failed",
                 "fresh-activity-store-predicate-failed",
+                # [[BPR-1933]]. The identical Release skill-reader image
+                # passes normally; contained, its fixture Git command fails.
+                # The measured predicate makes no lower-level cause claim.
+                "fixture-git-command-failed",
                 # RFC-BPR-0093 measured native loader refusals.
                 "cmake-dll-initialization",
                 "qt-dll-initialization",
