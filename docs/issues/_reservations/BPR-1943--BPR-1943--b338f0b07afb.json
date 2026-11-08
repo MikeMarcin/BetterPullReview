@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1943"
+  ],
+  "reserve_for": "codex-bpr-fallback-input",
+  "purpose": "Await current published comparison before the round-trip fixture gesture",
+  "created": "2026-11-08T18:39:00.282204+00:00",
+  "base": "f6d21fc146f9e70dba35d83f1755d150f94feefc"
+}
