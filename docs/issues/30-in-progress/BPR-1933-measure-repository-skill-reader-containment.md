@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1933"
 title: "Measure the repository skill reader's Windows containment boundary"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
