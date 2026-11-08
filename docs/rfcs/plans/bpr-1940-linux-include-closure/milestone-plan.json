@@ -1,0 +1,36 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1940-linux-include-closure",
+  "scope": {
+    "issues": [
+      "BPR-1940"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "close-native-compiler-includes",
+      "outcome": "Native Linux full development builds complete after direct missing-standard-include corrections, with frozen release39 evidence preserved.",
+      "work": [
+        {
+          "issue": "BPR-1940",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The defect identity header and any native-discovered include owners declare their own required standard types without semantic changes.",
+        "Complete native Linux Release and Debug development builds pass with keep-going and unchanged compiler/hardening/warning flags, retaining failed iterations.",
+        "Mac/Windows frozen39 inputs remain protected, any agreed tests-off build has ordinary development identity, and no release acceptance is invented.",
+        "Focused verification, format/docs and authoritative main integration pass; exact revisions, commands and pending release obligations are handed back."
+      ],
+      "boundary": "Direct missing-standard-include closure only, private development source/native graphs and issue/plan records; no unrelated style, behavior, packaging, cohort allocation or publication changes."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
