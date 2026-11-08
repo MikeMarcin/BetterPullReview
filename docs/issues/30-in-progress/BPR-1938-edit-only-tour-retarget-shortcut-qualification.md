@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1938"
 title: "Qualify the Tour retarget shortcut in its accepted edit-only mode"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
