@@ -172,6 +172,7 @@ namespace bpr::qt {
 			shortcut_entry{ .Command = command::tour_move_down, .Group = tours, .Binding = bound, .Title = "Move the stop down", .Place = in_outline, .Keys = "Alt+Shift+Down", .Objects = "tourMoveDown" },
 			shortcut_entry{ .Command = command::tour_duplicate, .Group = tours, .Binding = bound, .Title = "Duplicate the stop", .Place = in_outline, .Keys = "Ctrl+D", .Objects = "tourDuplicate" },
 			shortcut_entry{ .Command = command::tour_remove, .Group = tours, .Binding = bound, .Title = "Remove the stop", .Place = in_outline, .Keys = "Del;Backspace", .Objects = "tourRemove" },
+			shortcut_entry{ .Command = command::tour_keep_stop, .Group = tours, .Binding = bound, .Title = "Keep the stop", .Place = "In the stop removal question", .Keys = "Escape", .Objects = "tourStopRemoveKeepKey" },
 			shortcut_entry{ .Command = command::tour_retarget, .Group = tours, .Binding = bound, .Title = "Point the stop at the selected lines", .Place = in_outline, .Keys = "Alt+Shift+U", .Objects = "tourRetarget" },
 			shortcut_entry{ .Command = command::tour_ready_next, .Group = tours, .Binding = bound, .Title = "Next step, or ready and the next stop", .Place = in_editor, .Keys = "Alt+Return", .Objects = "tourComplete;tourProblemNext;tourSolutionNext" },
 			shortcut_entry{ .Command = command::tour_undo, .Group = tours, .Binding = bound, .Title = "Undo a change to the stops", .Place = in_editor, .Standard = QKeySequence::Undo, .Objects = "tourUndo" },

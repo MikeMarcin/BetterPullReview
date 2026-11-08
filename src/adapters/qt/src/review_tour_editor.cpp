@@ -3880,7 +3880,8 @@ namespace bpr::qt {
 			RemoveYes->setAccessibleName(tr("Remove the stop"));
 			restyle_remove_confirm();
 			row->addWidget(RemoveYes);
-			auto* const keepKey = new QShortcut{ QKeySequence{ Qt::Key_Escape }, RemoveConfirm };
+			auto* const keepKey = new QShortcut{ shortcut_key(shortcut_command::tour_keep_stop), RemoveConfirm };
+			keepKey->setObjectName(QStringLiteral("tourStopRemoveKeepKey"));
 			keepKey->setContext(Qt::WidgetWithChildrenShortcut);
 			connect(keepKey, &QShortcut::activated, RemoveKeep, &QPushButton::click);
 		}
