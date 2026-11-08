@@ -105,6 +105,6 @@ Draft validation is separate from implementation acceptance.
 
 ## Execution
 
-One milestone, [BPR-1947](../issues/20-ready/BPR-1947-close-rfc-0095.md), adopts this correction.
+One milestone, [BPR-1947](../issues/30-in-progress/BPR-1947-close-rfc-0095.md), adopts this correction.
 RFC_BASE_SHA: `31559e616707ed106d0bd98f8d047df785c38fc0`.
 [Milestone plan](plans/diff-scroll-geometry-v1/MILESTONES.md).
