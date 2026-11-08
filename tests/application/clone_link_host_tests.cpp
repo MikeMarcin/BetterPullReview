@@ -11,6 +11,7 @@
 #include <chrono>
 #include <cstdlib>
 #include <expected>
+#include <filesystem>
 #include <iostream>
 #include <map>
 #include <mutex>
@@ -221,7 +222,7 @@ namespace {
 		f.Host->load();
 		f.Host->observe_repository(keepable());
 		f.settle();
-		expect(f.view().ManagedLocation == "/profile/agent-clones-v1/github.com-42" && f.view().Repository->ApproximateBytes == 4096U,
+		expect(std::filesystem::path{ f.view().ManagedLocation } == std::filesystem::path{ "/profile/agent-clones-v1/github.com-42" } && f.view().Repository->ApproximateBytes == 4096U,
 			   "AC1: where it would live and GitHub's size are known before it starts");
 		f.Host->keep_clone();
 		expect(f.view().Keeping.State == application::managed_clone_state::downloading, "it starts downloading at once");
@@ -230,10 +231,10 @@ namespace {
 		expect(f.Prepared == 1 && !f.Host->repository_chosen(), "a second press starts no other; the step is not done while it runs");
 		f.Release = true;
 		expect(f.wait([&f] { return f.Host->repository_chosen(); }), "AC1: once it is in place the question can continue");
-		expect(f.view().Linked && f.view().Linked->Managed && f.view().Linked->Path == "/profile/agent-clones-v1/github.com-42" && f.view().Linked->Remote == "origin"
+		expect(f.view().Linked && f.view().Linked->Managed && std::filesystem::path{ f.view().Linked->Path } == std::filesystem::path{ "/profile/agent-clones-v1/github.com-42" } && f.view().Linked->Remote == "origin"
 				   && f.view().Keeping.State == application::managed_clone_state::none,
 			   "it is linked as the clone BetterPullReview keeps");
-		expect(f.Store.Links.size() == 1U && f.Store.Links.front().Path == "/profile/agent-clones-v1/github.com-42" && !f.Store.Links.front().PrivateCopy, "and remembered");
+		expect(f.Store.Links.size() == 1U && std::filesystem::path{ f.Store.Links.front().Path } == std::filesystem::path{ "/profile/agent-clones-v1/github.com-42" } && !f.Store.Links.front().PrivateCopy, "and remembered");
 
 		// AC2: a new window reuses it without a download.
 		auto again  = fixture{ };
@@ -292,7 +293,7 @@ namespace {
 		other.Repository = 43U;
 		other.Name       = "other";
 		moved.Host->observe_repository(other);
-		expect(moved.view().Keeping.State == application::managed_clone_state::none && moved.view().ManagedLocation == "/profile/agent-clones-v1/github.com-43",
+		expect(moved.view().Keeping.State == application::managed_clone_state::none && std::filesystem::path{ moved.view().ManagedLocation } == std::filesystem::path{ "/profile/agent-clones-v1/github.com-43" },
 			   "another repository stops the download and has its own location");
 		expect(moved.wait([&moved] { return moved.Host->is_quiescent(); }) && moved.Store.Links.empty(), "and the stopped download links nothing");
 	}
