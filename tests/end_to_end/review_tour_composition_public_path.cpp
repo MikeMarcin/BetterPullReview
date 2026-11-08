@@ -355,7 +355,7 @@ namespace {
 			aWindow.add_tour_stop_action()->trigger();
 			// [[BPR-1783]]. A new stop starts in its title, and Tab goes on to its body.
 			wait([&] { return editor.selected_stop() && editor.selected_stop()->Title.empty() && editor.stop_title()->hasFocus(); }, "a new stop takes the keyboard in its title");
-			editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
+			editor.stop_title()->insertPlainText(QStringLiteral("Why this boundary matters"));
 			key(editor.stop_title(), QKeyCombination{ Qt::Key_Tab });
 			expect(editor.stop_body()->hasFocus(), "Tab from a new stop's title reaches its body");
 			editor.stop_body()->insertPlainText(QStringLiteral("The explanation and source stay together. Review the invariant and its limits.\n\n") + QString(944, QLatin1Char{ 'x' }));
@@ -729,20 +729,20 @@ auto main(int argc, char** argv) -> int
 			select_file(window, "review.cpp");
 			select_range(window, core::diff_side::right, 1, 2);
 			window.add_tour_stop_action()->trigger();
-			editor.stop_title()->insert(QStringLiteral("Manual stop"));
+			editor.stop_title()->insertPlainText(QStringLiteral("Manual stop"));
 			editor.stop_body()->insertPlainText(QStringLiteral("Keep manual body."));
 			saved(editor);
 			const auto firstStop = editor.selected_stop()->Id;
 			select_range(window, core::diff_side::right, 3, 4);
 			window.add_tour_stop_action()->trigger();
-			editor.stop_title()->insert(QStringLiteral("Current stop"));
+			editor.stop_title()->insertPlainText(QStringLiteral("Current stop"));
 			saved(editor);
 			wait([&] { return selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())) >= 0; }, "agent available after source navigation");
 			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())));
 			infer(editor.findChild<QPushButton*>(QStringLiteral("tourStopMagic")));
 			{
 				const auto first = std::ranges::find(editor.shown().Draft->Stops, firstStop, &core::tour_stop::Id);
-				report("stop-empty", { { QStringLiteral("title"), editor.stop_title()->text() }, { QStringLiteral("after"), text(editor.selected_stop()->Body) }, { QStringLiteral("ready"), editor.selected_stop()->Preparation == core::tour_preparation::ready }, { QStringLiteral("other_stop_kept"), first != editor.shown().Draft->Stops.end() && first->Body == "Keep manual body." } });
+				report("stop-empty", { { QStringLiteral("title"), editor.stop_title()->toPlainText() }, { QStringLiteral("after"), text(editor.selected_stop()->Body) }, { QStringLiteral("ready"), editor.selected_stop()->Preparation == core::tour_preparation::ready }, { QStringLiteral("other_stop_kept"), first != editor.shown().Draft->Stops.end() && first->Body == "Keep manual body." } });
 				expect(first != editor.shown().Draft->Stops.end() && first->Body == "Keep manual body." && editor.selected_stop()->Preparation != core::tour_preparation::ready, "stop writing touches only the current stop and leaves it unready");
 			}
 
@@ -1028,13 +1028,13 @@ auto main(int argc, char** argv) -> int
 			select_file(window, "review.cpp");
 			select_range(window, core::diff_side::right, 1, 2);
 			window.add_tour_stop_action()->trigger();
-			editor.stop_title()->insert(QStringLiteral("Manual stop"));
+			editor.stop_title()->insertPlainText(QStringLiteral("Manual stop"));
 			editor.stop_body()->insertPlainText(QStringLiteral("Keep manual body."));
 			saved(editor);
 			const auto firstStop = editor.selected_stop()->Id;
 			select_range(window, core::diff_side::right, 3, 4);
 			window.add_tour_stop_action()->trigger();
-			editor.stop_title()->insert(QStringLiteral("Current stop"));
+			editor.stop_title()->insertPlainText(QStringLiteral("Current stop"));
 			saved(editor);
 			wait([&] { return selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())) >= 0; }, "agent available after source navigation");
 			selector->setCurrentIndex(selector->findData(QVariant::fromValue<qulonglong>(core::claude_stream_json_profile_id.value())));
@@ -1378,7 +1378,7 @@ auto main(int argc, char** argv) -> int
 		key(editor.outline(), QKeySequence{ QKeySequence::Redo }[0]);
 		expect(editor.shown().Draft->Stops.size() == 1 && editor.selected_stop()->Id == firstId, "standard Redo restores the same source and stable stop identity");
 		tab_leaves(write(editor));
-		editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
+		editor.stop_title()->insertPlainText(QStringLiteral("Why this boundary matters"));
 		editor.stop_body()->insertPlainText(QStringLiteral("First thought.\n\nSecond thought."));
 		key(write(editor), QKeySequence{ QKeySequence::Undo }[0]);
 		expect(editor.selected_stop()->Body.empty() && editor.shown().Draft->Stops.size() == 1, "later typing gives standard Undo back to the native text editor");
@@ -1389,7 +1389,7 @@ auto main(int argc, char** argv) -> int
 		expect(editor.selected_stop()->Related.size() == 1 && editor.selected_stop()->Related.front().First.Side == core::diff_side::left, "related base source is retained without new native write authority");
 		select_range(window, core::diff_side::right, 0, 0);
 		window.add_tour_stop_action()->trigger();
-		editor.stop_title()->insert(QStringLiteral("Why this boundary matters"));
+		editor.stop_title()->insertPlainText(QStringLiteral("Why this boundary matters"));
 		editor.stop_body()->insertPlainText(QStringLiteral("A different thought in the same file."));
 		const auto secondId = editor.selected_stop()->Id;
 		select_file(window, "secondary.cpp");
@@ -1397,7 +1397,7 @@ auto main(int argc, char** argv) -> int
 		const auto viewedCommands   = access::scaling_evidence(*application).Ledger.Commands;
 		select_range(window, core::diff_side::right, 1, 2);
 		window.add_tour_stop_action()->trigger();
-		editor.stop_title()->insert(QStringLiteral("Cross-file invariant"));
+		editor.stop_title()->insertPlainText(QStringLiteral("Cross-file invariant"));
 		editor.stop_body()->insertPlainText(QStringLiteral("Keep this relationship intact."));
 		const auto thirdId = editor.selected_stop()->Id;
 		window.raise();

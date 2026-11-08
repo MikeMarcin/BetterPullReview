@@ -362,7 +362,8 @@ namespace {
 		settle();
 		expect(editor->selected_stop() != nullptr && editor->selected_stop()->Id == core::tour_stop_id{ 2 }, "Ready shown, it goes on to the next stop");
 		// A stop the agent proposed, accepted with its lines not yet chosen:
-		// Ready, next waits, says why, and Show in code leads.
+		// [[BPR-1936]]: no disabled Ready, next; the location line says why,
+		// and Show in code leads.
 		auto unconfirmed                 = marked;
 		unconfirmed.Stops[1].Original    = std::nullopt;
 		unconfirmed.Stops[1].Mapping     = core::tour_mapping::unavailable;
@@ -373,7 +374,7 @@ namespace {
 		editor->present(unconfirmedPresentation);
 		settle();
 		auto* const showInCode = editor->findChild<QPushButton*>(QStringLiteral("tourReturn"));
-		expect(!complete->isEnabled() && complete->toolTip().startsWith(QStringLiteral("Confirm the stop's lines first")) && showInCode->isDefault(), "unconfirmed lines: Ready, next waits and says why; Show in code leads");
+		expect(!complete->isVisible() && editor->findChild<QLabel*>(QStringLiteral("tourStopSource"))->text().contains(QStringLiteral("Lines not confirmed")) && showInCode->isDefault(), "unconfirmed lines: no disabled Ready, next; the location says why; Show in code leads");
 		draw(window, QStringLiteral("tour-chat-stop"), aTheme);
 
 		// AC2. Switching parts switches the chat: the route's next stop.

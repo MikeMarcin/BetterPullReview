@@ -91,9 +91,19 @@ fetch destination.
 
 Since [[BPR-1593]] (RFC-BPR-0085 D4) the Tour tab is the route: the brief as
 one card whose Problem and Solution rows open in place, then the stops as
-numbered rings on an amber line, a file chip where the route changes file, and
-the current stop's title, source, explanation and actions written in place on
-the route. Readiness reads from the ring: a green tick for Ready, an amber
+numbered rings on an amber line, and the current stop's title, source,
+explanation and actions written in place on the route. Since [[BPR-1936]] no
+file chip divides the route (each stop's own chip names its file), and the
+open stop's card collapses and opens again by its number, its header's empty
+space, Space on the route or Return on the number; Problem, Solution and Stops
+collapse by their headers the same way, and the tour does not scroll. A stop is
+edited as the overview's description is: the pencil hides, the title is a
+wrapping editor that stays whole, nothing else sits on the title row but the
+trash and the chat toggle, and **Cancel** (Esc, the text as the editor opened
+on it) and **Save** (Command/Control+Return, the default) sit at the card's
+foot. **Use selected lines** is a quiet link offered only while the stop is
+written. The card's trash and every stop's menu remove that stop; Undo brings
+it back. Readiness reads from the ring: a green tick for Ready, an amber
 number for Editing, a warning on the ring for Needs attention, a dashed ring
 for Suggested. **Expand** opens the tour page in the main pane, with no
 drawers: the brief and outline at the left, the stop with its code excerpt
@@ -187,9 +197,12 @@ ring and rail that turn amber once it is accepted. A stop's new explanation
 sits on its card, where **Ready, next** is. A proposed Problem or Solution sits
 under the part's own text, with a "Proposed" pill on its step. Each has
 **Accept** at the right, with **Edit text** and **Discard** before it. One line
-under the button counts them, with **Accept all**. **Ready, next** is offered
-once a stop's lines are confirmed in the code (Show in code, then Use selected
-lines), and it goes on to the next stop when the stop shows as Ready. Since
+under the button counts them, with **Accept all**. **Ready, next** shows only
+when it can act: a read stop whose title, explanation and lines are confirmed
+and which is not yet Ready. Until the lines are confirmed (Show in code, then
+Use selected lines while editing) the location line says "Lines not
+confirmed" and Show in code leads; a Ready stop needs no button. Pressed, it
+goes on to the next stop when the stop shows as Ready ([[BPR-1936]]). Since
 [[BPR-1930]] the tour's own chat proposes the tour's shape too: stops to
 remove, merge, split or reorder, and a focus. The core checks each part against
 the tour (a merge keeps every line of its stops), and the stops a part changes

@@ -13998,7 +13998,7 @@ namespace {
 		// [[BPR-1776]], the owner's photograph of 2026-10-26 ("don't even
 		// appear to be buttons"): every stop action is the raised shared
 		// chip, and More is one sign that still opens its menu.
-		for (const auto* const name : { "tourStopMagic", "tourUseSelectedLines", "tourAddRelated", "tourRemoveRelated", "tourReturn", "tourSuggestOutline" }) {
+		for (const auto* const name : { "tourStopMagic", "tourAddRelated", "tourRemoveRelated", "tourReturn", "tourSuggestOutline" }) {
 			const auto* const action = editor->findChild<QPushButton*>(QString::fromLatin1(name));
 			expect(action != nullptr && dynamic_cast<const qt::quiet_push_button*>(action) != nullptr && !action->isFlat(), std::string{ name } + " is a raised chip, not bare text");
 		}
