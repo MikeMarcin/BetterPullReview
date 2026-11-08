@@ -1511,7 +1511,12 @@ RFC-BPR-0073 applies the containing native row and the remaining within-line
 pixels as one origin: the native viewport is placed and clipped, so its text,
 selection and pointer coordinates move together. The fixed overscan is bounded
 by font metrics; fractional events do not resize the viewport or remeasure the
-file. Static gutters and link-map bands use that same applied origin. Qt-local
+file. Static gutters and link-map bands use that same applied origin. Unified
+base/head headings and their clipping boundary stay fixed above those rows;
+number hits and thread indications apply the within-row displacement once.
+Floating source Find anchors to the stationary displayed pane area, excluding
+backing-widget overscan, so scrolling and match reveals do not move it
+(RFC-BPR-0095). Qt-local
 pixel-gesture state suppresses perpendicular drift on the predominant axis before
 scrollbar clamping. Recent directional evidence can release or change that
 preference; discarded motion is never banked, and momentum retains the established

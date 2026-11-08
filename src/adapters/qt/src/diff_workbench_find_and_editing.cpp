@@ -227,9 +227,8 @@ namespace bpr::qt {
 			target = OnePaneEnabled ? Unified : Right->isVisible() ? Right
 																   : Left;
 		}
-		const auto* viewport = target->viewport();
-		const auto  origin   = viewport->mapTo(this, QPoint{ 0, 0 });
-		const auto  area     = QRect{ origin, viewport->size() };
+		const auto displayed = static_cast<const source_pane*>(target)->displayed_source_area();
+		const auto area      = QRect{ target->mapTo(this, displayed.topLeft()), displayed.size() };
 		// Inset from the pane's top-right corner as VS Code's widget is. A
 		// narrow pane keeps every control: the panel then extends left over
 		// the neighbouring pane rather than dropping any of them.

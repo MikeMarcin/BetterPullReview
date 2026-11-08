@@ -35,6 +35,7 @@
 #include <QTextBlock>
 #include <QThread>
 #include <QToolButton>
+#include <QWheelEvent>
 #include <iostream>
 
 namespace {
@@ -124,9 +125,82 @@ namespace {
 	/// [[BPR-1503]]. The find widget floats over its pane's top-right corner.
 	void expect_floating(qt::diff_workbench& aSurface, qt::source_find_bar& aBar, const QPlainTextEdit& aPane, const char* aMessage)
 	{
-		const auto pane = QRect{ aPane.viewport()->mapTo(&aSurface, QPoint{ 0, 0 }), aPane.viewport()->size() };
+		const auto* viewport = aPane.viewport();
+		const auto  clip     = viewport->mask().isEmpty() ? viewport->rect() : viewport->mask().boundingRect().intersected(viewport->rect());
+		const auto  pane     = QRect{ viewport->mapTo(&aSurface, clip.topLeft()), clip.size() };
 		expect(aBar.parentWidget() == &aSurface && aSurface.layout()->indexOf(&aBar) < 0, "the find widget is in no layout");
-		expect(pane.contains(aBar.geometry().topRight()) && aBar.geometry().top() - pane.top() <= 8 && pane.right() - aBar.geometry().right() <= 12, aMessage);
+		expect(aBar.geometry().top() == pane.top() + 4
+				   && (pane.right() + 1 >= aBar.width() + 8 ? pane.right() - aBar.geometry().right() == 8 : aBar.geometry().left() == 0),
+			   aMessage);
+	}
+	/// Find placement is observed in window coordinates while native pixel scrolling
+	/// displaces the backing widget. A layout refresh must preserve the same anchor.
+	void expect_stationary_find(qt::workbench_window& aWindow, qt::diff_workbench& aSurface, qt::source_find_bar& aBar, QPlainTextEdit& aPane)
+	{
+		settle();
+		const auto rectangle = [&] { return QRect{ aBar.mapTo(&aWindow, QPoint{ }), aBar.size() }; };
+		const auto original  = rectangle();
+		const auto before    = aSurface.statistics();
+		for (const auto delta : { QPoint{ 0, -3 }, QPoint{ 0, -5 }, QPoint{ 0, -29 }, QPoint{ 0, 11 }, QPoint{ -17, 0 }, QPoint{ 17, 0 } }) {
+			auto wheel = QWheelEvent{ QPointF{ 80, 80 }, QPointF{ aPane.viewport()->mapToGlobal(QPoint{ 80, 80 }) }, delta, { }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(aPane.viewport(), &wheel);
+			QApplication::processEvents();
+			expect(rectangle() == original, "scroll leaves Find exactly stationary in the window");
+		}
+		expect(aPane.viewport()->mask().boundingRect().top() > 0, "stationary Find course reaches a nonzero within-row residual");
+		expect_floating(aSurface, aBar, aPane, "Find uses the displayed clipped area after fractional scroll");
+		// The bar's ordinary height notification asks production to place it again.
+		auto refresh = QEvent{ QEvent::LayoutRequest };
+		QApplication::sendEvent(&aBar, &refresh);
+		QApplication::processEvents();
+		expect(rectangle() == original, "placement refresh at a residual never jumps Find");
+		aSurface.navigate_source_find(core::change_navigation_direction::next);
+		settle();
+		if (rectangle() != original) {
+			std::cerr << "FIND_REVEAL before=" << original.x() << ',' << original.y() << ',' << original.width() << ',' << original.height()
+					  << " after=" << rectangle().x() << ',' << rectangle().y() << ',' << rectangle().width() << ',' << rectangle().height() << '\n';
+		}
+		expect(rectangle() == original, "revealing the next match retains Find's window rectangle");
+		const auto after = aSurface.statistics();
+		expect(after.GeometryRebuilds == before.GeometryRebuilds && after.PaneMeasurements == before.PaneMeasurements
+				   && after.SemanticIndexAdoptions == before.SemanticIndexAdoptions && after.FindMatchingRuns == before.FindMatchingRuns,
+			   "ordinary scroll retains measured geometry, semantic index and source matches");
+	}
+	/// The installed-Git composition paints the same changed-row fields beside
+	/// the native text, including both clipped edges and whole-row crossings.
+	void expect_composed_gutter_alignment(qt::workbench_window& aWindow, QPlainTextEdit& aPane)
+	{
+		auto* gutter = aPane.findChild<QWidget*>(QStringLiteral("diffSourceLineNumbers"));
+		expect(gutter && gutter->isVisible(), "composed unified gutter is displayed");
+		auto home = QWheelEvent{ { }, { }, QPoint{ 0, 2'000 }, { }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+		QApplication::sendEvent(aPane.viewport(), &home);
+		QApplication::processEvents();
+		const auto gutterTop = gutter->mapTo(&aWindow, QPoint{ }).y();
+		const auto header    = aPane.viewport()->mapTo(&aWindow, QPoint{ }).y() - gutterTop;
+		const auto reference = gutter->grab().toImage();
+		const auto ratio     = reference.devicePixelRatio();
+		const auto heading   = reference.copy(0, 0, reference.width(), qRound(header * ratio));
+		for (const auto delta : { -3, -5, -17, 7, 11 }) {
+			auto wheel = QWheelEvent{ { }, { }, QPoint{ 0, delta }, { }, Qt::NoButton, Qt::NoModifier, Qt::NoScrollPhase, false };
+			QApplication::sendEvent(aPane.viewport(), &wheel);
+			QApplication::processEvents();
+			const auto numbers = gutter->grab().toImage();
+			const auto source  = aPane.viewport()->grab().toImage();
+			expect(numbers.copy(0, 0, numbers.width(), heading.height()) == heading, "composed base/head heading stays fixed");
+			const auto viewportTop = aPane.viewport()->mapTo(&aWindow, QPoint{ }).y() - gutterTop;
+			for (auto row = 0; row < 4; ++row) {
+				const auto cell = aPane.cursorRect(QTextCursor{ aPane.document()->findBlockByNumber(row) });
+				for (auto y = std::max(header + 1, viewportTop + cell.top() + 1); y < viewportTop + cell.bottom(); ++y) {
+					const auto numberGround = numbers.pixelColor(qRound(2 * ratio), qRound(y * ratio));
+					const auto textGround   = source.pixelColor(source.width() - qRound(20 * ratio), qRound((y - viewportTop) * ratio));
+					if (numberGround != textGround) {
+						std::cerr << "GUTTER_GROUND row=" << row << " y=" << y << " header=" << header << " delta=" << delta
+								  << " number=" << numberGround.name(QColor::HexArgb).toStdString() << " text=" << textGround.name(QColor::HexArgb).toStdString() << '\n';
+					}
+					expect(numberGround == textGround, "composed changed-row and selection fields meet native text within one device pixel");
+				}
+			}
+		}
 	}
 	/// [[BPR-1503]]. How many find washes a pane paints, in the light theme's
 	/// match and current-match colours.
@@ -157,7 +231,7 @@ namespace {
 	}
 }
 int main(int aArgc, char** aArgv)
-{
+try {
 	QApplication  applicationQt{ aArgc, aArgv };
 	QTemporaryDir temporary{ QDir::tempPath() + QStringLiteral("/bpr-source-find-XXXXXX") };
 	auto          options       = app::detail::github_public_path_fixture_options{ };
@@ -216,6 +290,7 @@ int main(int aArgc, char** aArgv)
 	expect(bar->projection().Summary.Matches == 1U && surface->right_pane()->textCursor().selectedText() == QStringLiteral("offscreen needle"), "Find reaches full offscreen unchanged source");
 	expect(surface->left_pane()->textCursor().selectedText().isEmpty() && surface->selection()->PreferredLine.Side == core::diff_side::right, "right Find does not select left source");
 	expect(surface->source_line_visible(core::diff_side::right, 1102U), "shared controller reveals offscreen actual row");
+	expect_stationary_find(window, *surface, *bar, *surface->right_pane());
 	render(window, QStringLiteral("01-split-offscreen"));
 	query(*application, *bar, QStringLiteral("needle"));
 	expect(bar->projection().Summary.Matches == 2U, "complete match count");
@@ -292,6 +367,7 @@ int main(int aArgc, char** aArgv)
 	findAction->trigger();
 	query(*application, *bar, QStringLiteral("earlier only"));
 	expect(bar->projection().Summary.Matches == 1U && surface->left_pane()->textCursor().selectedText() == QStringLiteral("earlier only"), "explicit left Find retargets exact earlier source");
+	expect_stationary_find(window, *surface, *bar, *surface->left_pane());
 	surface->close_source_find();
 	settle();
 	auto caret = QTextCursor{ surface->left_pane()->document() };
@@ -414,6 +490,9 @@ int main(int aArgc, char** aArgv)
 	findAction->trigger();
 	query(*application, *bar, QStringLiteral("offscreen needle"));
 	expect(bar->projection().Summary.Matches == 1U, "unified unchanged row is searched once");
+	auto* scrollingUnified = surface->findChild<QPlainTextEdit*>(QStringLiteral("diffUnifiedSource"));
+	expect_stationary_find(window, *surface, *bar, *scrollingUnified);
+	render(window, QStringLiteral("02-unified-fractional"));
 	query(*application, *bar, QStringLiteral("removed bridge\nadded bridge"));
 	expect(bar->projection().NoResults, "unified adjacency cannot fabricate cross-version match");
 	query(*application, *bar, QStringLiteral("removed bridge"));
@@ -435,10 +514,32 @@ int main(int aArgc, char** aArgv)
 	bar->query_editor()->setFocus();
 	query(*application, *bar, QStringLiteral("added bridge"));
 	expect(bar->projection().Summary.Matches == 1U && surface->selection()->PreferredLine.Side == core::diff_side::right, "unified added hit selects actual version");
+	expect_composed_gutter_alignment(window, *unified);
+	expect_stationary_find(window, *surface, *bar, *unified);
 	render(window, QStringLiteral("02-unified"));
 	window.resize(1920, 1080);
 	settle();
 	expect_floating(*surface, *bar, *unified, "Find stays on the unified pane's top-right corner at full width");
+	expect_stationary_find(window, *surface, *bar, *unified);
+	window.zoom_in_action()->trigger();
+	settle();
+	expect_floating(*surface, *bar, *unified, "code zoom keeps Find on the displayed pane");
+	expect_stationary_find(window, *surface, *bar, *unified);
+	window.line_numbers_action()->trigger();
+	settle();
+	expect_floating(*surface, *bar, *unified, "hiding numbers moves Find to the new displayed area");
+	expect_stationary_find(window, *surface, *bar, *unified);
+	window.line_numbers_action()->trigger();
+	settle();
+	expect_stationary_find(window, *surface, *bar, *unified);
+	const auto shortQueryCorner = bar->geometry().topRight();
+	const auto shortQueryHeight = bar->height();
+	query(*application, *bar, QStringLiteral("removed bridge\n// unchanged source row 0000"));
+	expect(bar->height() > shortQueryHeight && bar->geometry().topRight() == shortQueryCorner, "query growth keeps the upper-right anchor while changing height");
+	expect_stationary_find(window, *surface, *bar, *unified);
+	query(*application, *bar, QStringLiteral("added bridge"));
+	window.zoom_out_action()->trigger();
+	settle();
 	render(window, QStringLiteral("02-unified-full"));
 	window.resize(1280, 860);
 	settle();
@@ -453,6 +554,7 @@ int main(int aArgc, char** aArgv)
 			  << " bar=" << bar->geometry().x() << ',' << bar->geometry().y() << ',' << bar->width() << 'x' << bar->height()
 			  << " minimum=" << bar->minimumSizeHint().width() << " query=" << bar->query_editor()->width() << '\n';
 	expect(bar->width() >= bar->minimumSizeHint().width() && bar->query_editor()->width() >= 48 && bar->geometry().right() < surface->width() && bar->geometry().left() >= 0, "the floating widget fits the supported 900-pixel window, every drawer open");
+	expect_stationary_find(window, *surface, *bar, *surface->right_pane());
 	render(window, QStringLiteral("03-narrow-900"));
 	window.resize(720, 640);
 	settle();
@@ -555,4 +657,6 @@ int main(int aArgc, char** aArgv)
 	wait_for([&] { return application->status().ShutdownComplete; }, "pane search and all composed workers quiesce");
 	std::cout << "SOURCE_FIND_PUBLIC_PATH_OK platform=" << QSysInfo::productVersion().toStdString() << " qt=" << qVersion() << " scale=" << window.devicePixelRatioF() << " width=" << window.width() << " lines=1106 navigation=1000\n";
 	return 0;
+} catch (...) {
+	return tests::failing_exit();
 }

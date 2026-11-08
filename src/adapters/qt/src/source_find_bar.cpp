@@ -317,12 +317,30 @@ namespace bpr::qt {
 	void source_find_bar::adapt_font()
 	{
 		setFont(QApplication::font());
-		const auto metrics = fontMetrics();
-		// A compact panel reserves only what the count says now; otherwise room
-		// for "99 of 999", so typing does not make the controls jump.
-		Count->setMinimumWidth(metrics.horizontalAdvance(Compact ? Count->text() : QStringLiteral("99 of 999")) + 7);
+		Count->setMinimumWidth(count_width());
 		fit_query_height();
 		updateGeometry();
+	}
+	auto source_find_bar::count_width() const -> int
+	{
+		const auto metrics = fontMetrics();
+		if (!Compact) {
+			return metrics.horizontalAdvance(QStringLiteral("99 of 999")) + 7;
+		}
+		auto measured = metrics.horizontalAdvance(Count->text());
+		if (Projection.CurrentMatch && Projection.Summary.Matches) {
+			// Reserve every possible current ordinal for this accepted result,
+			// including proportional digits and crossing a digit boundary.
+			auto digitWidth = 0;
+			for (const auto digit : QStringLiteral("0123456789")) {
+				digitWidth = std::max(digitWidth, metrics.horizontalAdvance(digit));
+			}
+			const auto digits = static_cast<int>(QString::number(Projection.Summary.Matches).size());
+			const auto suffix = Projection.Status == core::source_search_status::result_limit ? QStringLiteral("+") : Projection.Status == core::source_search_status::partial ? QStringLiteral("?")
+																																											   : QString{ };
+			measured          = std::max(measured, 2 * digits * digitWidth + metrics.horizontalAdvance(QStringLiteral(" of ") + suffix));
+		}
+		return measured + 7;
 	}
 	void source_find_bar::fit_query_height()
 	{
@@ -618,7 +636,7 @@ namespace bpr::qt {
 		const auto shown = aShort.isEmpty() ? (StatusText == QStringLiteral("Type to find") ? QString{ } : StatusText) : std::move(aShort);
 		Count->setText(shown);
 		if (Compact) {
-			Count->setMinimumWidth(fontMetrics().horizontalAdvance(shown) + 7);
+			Count->setMinimumWidth(count_width());
 		}
 		Count->setToolTip(shown == StatusText ? QString{ } : StatusText);
 		if (Error != aError) {

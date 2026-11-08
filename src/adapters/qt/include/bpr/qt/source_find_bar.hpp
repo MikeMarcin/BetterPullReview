@@ -110,6 +110,7 @@ namespace bpr::qt {
 		application::source_search_projection Projection;
 		void                                  schedule();
 		void                                  adapt_font();
+		[[nodiscard]] auto                    count_width() const -> int;
 		void                                  fit_query_height();
 		void                                  set_status(QString aWords, QString aShort, bool aError);
 	};

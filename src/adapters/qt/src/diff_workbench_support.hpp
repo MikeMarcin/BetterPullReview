@@ -279,8 +279,8 @@ namespace bpr::qt {
 		/// \brief [[BPR-1335]]. The thread on a line, if any, by bisection.
 		[[nodiscard]] auto mark_on(const std::uint32_t aLine) const -> const diff_line_mark*;
 
-		/// \brief How far the viewport sits below the gutter's top: a
-		/// unified pane's heading row, nothing in a split pane.
+		/// \brief The fixed heading above displayed source rows, independent
+		/// of the backing viewport's within-line displacement.
 		[[nodiscard]] auto gutter_header() const -> int;
 
 		/// \brief [[BPR-1335]]. A line's number cell, in the gutter's coordinates.
@@ -426,6 +426,9 @@ namespace bpr::qt {
 		[[nodiscard]] auto placing_origin() const noexcept -> bool;
 		[[nodiscard]] auto changes_viewport_extent(const QSize aSize) const noexcept -> bool;
 		[[nodiscard]] auto viewport_extent() const noexcept -> int;
+		/// \brief Stationary displayed source area in pane coordinates,
+		/// excluding the displaced backing widget's overscan.
+		[[nodiscard]] auto displayed_source_area() const noexcept -> QRect;
 		[[nodiscard]] auto within_line_position() const noexcept -> qreal;
 		void               reset_pixel_gesture();
 		void               set_scroll_observer(std::function<void()> aObserver);
