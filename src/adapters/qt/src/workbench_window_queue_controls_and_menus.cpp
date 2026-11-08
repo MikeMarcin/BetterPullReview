@@ -72,6 +72,7 @@
 #include <QToolButton>
 #include <QVariant>
 #include <QWidget>
+#include <QWindow>
 
 #include <algorithm>
 #include <array>
@@ -87,6 +88,27 @@
 #include <vector>
 
 namespace bpr::qt {
+	namespace {
+#if defined(Q_OS_WIN)
+		/// \brief [[BPR-1336]]. Lets an editable field keep an AltGr character.
+		class typed_text_yield final : public QObject
+		{
+		public:
+			using QObject::QObject;
+
+		protected:
+			[[nodiscard]] auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
+			{
+				if (aEvent->type() == QEvent::ShortcutOverride && editor_keeps_typed_text(aWatched, *static_cast<QKeyEvent*>(aEvent))) {
+					aEvent->accept();
+					return true;
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+		};
+#endif
+	}
+
 	namespace {
 		/// \brief [[BPR-1328]]. The owner's final keys, 2026-10-08: "Okay final
 		/// choice: option cmd down next file. Option down next change".

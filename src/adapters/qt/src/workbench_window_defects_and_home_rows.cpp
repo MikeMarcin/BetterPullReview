@@ -52,6 +52,7 @@
 #include <QTreeView>
 #include <QVariant>
 #include <QWidget>
+#include <QWindow>
 
 #include <algorithm>
 #include <array>

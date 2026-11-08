@@ -158,14 +158,6 @@
 namespace bpr::qt {
 
 	namespace {
-#if defined(_WIN32)
-		// [[BPR-0653]]. On Windows the strip also carries the menu control and
-		// the three 46-pixel caption buttons. With the modality segments at their
-		// three-character prefixes every control is top level from 902 pixels,
-		// and the owner chose that floor on 2026-09-17.
-		inline constexpr int platform_floor_width = 902;
-#else
-#endif
 		// The navigation entries are exactly the core's navigation commands in the
 		// core's order, so entry `i` reads `workbench_command_id{ i }` and the
 		// window needs no second mapping between the two.
@@ -184,25 +176,6 @@ namespace bpr::qt {
 		static_assert(
 			static_cast<std::size_t>(application::file_receipt_action_id::excluded)
 			== 3U);
-
-#if defined(Q_OS_WIN)
-		/// \brief [[BPR-1336]]. Lets an editable field keep an AltGr character.
-		class typed_text_yield final : public QObject
-		{
-		public:
-			using QObject::QObject;
-
-		protected:
-			[[nodiscard]] auto eventFilter(QObject* const aWatched, QEvent* const aEvent) -> bool override
-			{
-				if (aEvent->type() == QEvent::ShortcutOverride && editor_keeps_typed_text(aWatched, *static_cast<QKeyEvent*>(aEvent))) {
-					aEvent->accept();
-					return true;
-				}
-				return QObject::eventFilter(aWatched, aEvent);
-			}
-		};
-#endif
 
 	}
 
