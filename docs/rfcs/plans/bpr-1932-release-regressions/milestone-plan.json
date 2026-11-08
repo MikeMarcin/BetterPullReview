@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1932-release-regressions",
+  "scope": {
+    "issues": [
+      "BPR-1932"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "land-release-regressions",
+      "outcome": "Release-discovered source and tooling fixes are reviewed, verified and landed on main; the Tour column no longer recursively resizes.",
+      "work": [
+        {
+          "issue": "BPR-1932",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Reviewed portability, accessible completion and accepted-behavior corrections land on main with focused evidence.",
+        "Tour header measurement is stable before resize and across wrapping; the original composed failure is retained and corrected composition passes.",
+        "Formatting, documentation and relevant architecture/network isolation checks pass; native release acceptance remains coordinator-owned."
+      ],
+      "boundary": "BPR-1932 engineering and main integration only; no package or release publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

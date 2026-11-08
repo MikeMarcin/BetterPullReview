@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
-metadata: {"kind":"bug","found_by":"v0.4.2 native qualification","mandate":"Owner 2026-11-07: an implementer owns crash/fix implementation and lands it on main before release qualification resumes."}
+metadata: {"kind":"bug","found_by":"v0.4.2 native qualification","mandate":"Owner 2026-11-07: an implementer owns crash/fix implementation and lands it on main before release qualification resumes.","milestone_plan":{"id":"bpr-1932-release-regressions","path":"docs/rfcs/plans/bpr-1932-release-regressions/milestone-plan.json"}}
 ---
 
 # BPR-1932: Release-discovered regressions
@@ -28,7 +28,7 @@ metadata: {"kind":"bug","found_by":"v0.4.2 native qualification","mandate":"Owne
 
 ## Bounded milestone
 
-One engineering milestone owns AC1–AC4 and integration. It does not accept
+One engineering milestone owns the four acceptance criteria and integration. It does not accept
 native full-release qualification, signing, security or publication. Source
 baseline is `160427576`; prior release-only fixes are reviewed before adoption.
 
@@ -39,3 +39,82 @@ SIGSEGV and a macOS stack-overflow report: repeated `QScrollArea::eventFilter`
 and `QWidget::resize`. A registered repeat reproduced it after nine passes.
 External evidence is under the release run's `candidate34` directory, not in
 this repository. The coordinator owns release artifacts and final qualification.
+
+
+## Engineering (2026-11-07)
+
+`frontend-design:frontend-design` was loaded. Source changes preserve the
+accepted controls, palette, spacing and one/two-row header arrangement.
+
+- Reviewed and adopted the release-only portability corrections: Windows
+  menu/window declarations, title-row host ownership, caption capture control,
+  New Window shortcut ownership, platform fixture height floors, native path
+  comparisons, move-only expected result, and strict GCC test anchor lifetime.
+- Kept new recent visits while the initial stored history loads; merge older
+  entries behind them, fill only missing facts, and retain a removed entry's
+  tombstone until that load finishes. Core checks cover the late read/removal.
+- Reconciled the seeded refresh recording order with the accepted conversation-
+  first refresh; request shapes and exact recording checks remain enforced.
+- Accessible Overview completion waits until the presentation handoff ends,
+  once, with a revision guard; superseded and still-hidden completions are
+  silent. Unit and composed readiness courses cover it.
+- Reconciled tests with accepted wrapping, Tour conversation wording, built-in
+  skill version, clone selection, host-applied Ready/next and loaded progress.
+  Negative wording controls remain. Source navigation dispatches real event
+  turns through the already-shared helper.
+- Replaced the Tour agent header's resize-time grid row mutation with a local
+  Qt layout that measures its two rows at the requested width. Its minimum
+  and height-for-width do not depend on its current width. Controls remain
+  fixed at their own sizes and the trailing group remains right-aligned.
+- Inventoried the repository skill reader's existing Windows uncontained
+  registration. Its contained native measurement is explicitly **unmeasured**;
+  no successful containment or native product claim follows from the entry.
+
+### Exact source and retained evidence
+
+Engineering source: `f1ee8ed41b0ec66a06df6a605b879582fc8eb4e8`, with the
+inventory follow-up `0ab4159ef`. Evidence stays outside source, under
+`/Users/jaeger/.codex/release-runs/v0.4.2-20261104/candidate34`.
+
+- Original failure: `final-focused.xml` and `tour-publication-repeat.xml`.
+  The repeat passed nine times then crashed with a stack overflow. The scoped
+  resize trace (`implementer-trace.log`) shows the Tour holder recursively
+  alternating 320×661 and 302×676 as the header wraps and the scrollbar appears.
+- Negative control: `implementer-negative.xml` rejects the original header's
+  missing requested-width sizing before geometry changes.
+- Corrected regression: `implementer-regression-r4.xml` passes, including sixty
+  sizes around the header wrap and scrollbar boundary with stable hints and a
+  settled column. Existing reset, focus, proposal, transcript and header checks
+  remain in the same course.
+- The original manual publication course passes 25 consecutive quiet runs
+  (`implementer-quiet-repeat.xml`, 113.93 seconds). Temporary tracing was removed.
+  The scoped release source was restored exactly to `df00de349`, clean, with
+  `implementer-release-source-restored.json`; release coordination owns it again.
+- Own Release architecture and architecture-contract courses pass (18.58 and
+  180.04 seconds). Own core-only restoration, Tour agent and architecture courses
+  pass (three checks, 22.63 seconds). Own pending-veil and click-scroll courses
+  pass. Exact own-source manifest, round-trip composition, review submission at 100%, 125% and 200%, and manual Tour publication all pass (six courses, 50.19 seconds; `implementer-exact-public.xml`).
+- clang-format 22 passes all 33 changed C++ files. The documentation gate prints
+  `DOCUMENTATION_OK`; its 67 tests and the network isolation verifier's 74 tests
+  pass. Exact application composition pins were emitted by their own verifier.
+- Initial partial-build failures remain in `implementer-final.xml`: the manifest
+  identified the missing skill entry and absent Git helper, and the round-trip
+  app binary had not yet been built. The targeted build and reruns retain that
+  distinction; they do not rewrite the failed run.
+
+### Separate native release obligations
+
+Windows focused compiler/clone proofs are in the coordinator's build-34 records.
+The longer Debug watchdog passed composed hosts, default review submission and
+125% review submission. The 200% course failed an own-approval-settlement
+predicate after its internal twenty-second wait; an implementer-authored
+structural diagnostic is running on the native host. That failure remains open.
+Full native release qualification, Cocoa observation, artifact/source/security,
+signing and publication remain coordinator-owned and are not accepted here.
+
+### Workflow tooling observation
+
+The adopted plan's explicit binding resolves all four criteria. The generic
+checkpoint helper's unrelated-plan recovery scan refuses an existing plan's
+`amendments` field; its failure is retained in the external continuation.
+No historical plan was altered or acceptance inferred from that helper.
