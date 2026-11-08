@@ -12,6 +12,7 @@
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
 #include "bpr/core/agent_turn.hpp"
+#include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
@@ -34,9 +35,11 @@ class QPushButton;
 class QScrollArea;
 class QStackedWidget;
 class QToolButton;
+class QHBoxLayout;
 class QVBoxLayout;
 
 namespace bpr::qt {
+	class skill_completer;
 	class agent_launch_panel;
 	class agent_setup_view;
 	class drawer_empty_state;
@@ -254,6 +257,9 @@ namespace bpr::qt {
 		void               present_run_settings(std::vector<agent_run_settings> aSettings);
 		void               set_run_settings_dispatch(agent_run_settings_dispatch aDispatch);
 		[[nodiscard]] auto run_settings_button() const noexcept -> QToolButton* { return RunSettings; }
+		/// \brief [[BPR-1924]]. The picker has its own row under the field's
+		/// tools, because the one row cannot hold it whole.
+		[[nodiscard]] auto run_settings_wrapped() const noexcept -> bool { return RunSettingsWrapped; }
 		/// \brief [[BPR-1878]]. What the agent picker shows, for another
 		/// picker (the Tour tab's) that is the same choice.
 		[[nodiscard]] auto run_settings_source() const noexcept -> const std::shared_ptr<agent_run_settings_source>& { return RunSettingsSource; }
@@ -409,6 +415,10 @@ namespace bpr::qt {
 		/// \brief The cards a turn brought, under its answer.
 		[[nodiscard]] auto turn_cards(std::size_t aTurn) const -> std::vector<QWidget*>;
 		[[nodiscard]] auto ask_button() const noexcept -> QPushButton* { return Ask; }
+		/// \brief [[BPR-1916]]. The skills `/name` completion offers in the
+		/// question field.
+		void               present_skills(std::vector<core::skill_entry> aSkills);
+		[[nodiscard]] auto skill_completion() const noexcept -> skill_completer* { return SkillCompletion; }
 		/// \brief [[BPR-1817]]. Says beside the composer why a send produced
 		/// no turn. `aDetail` is the host's own words for a refusal the core
 		/// did not name, shown after the composer's sentence.
@@ -501,7 +511,11 @@ namespace bpr::qt {
 		agent_run_settings_dispatch                RunSettingsDispatch;
 		std::shared_ptr<agent_run_settings_source> RunSettingsSource;
 		agent_run_settings_picker*                 RunSettings = nullptr;
-		QLabel*                                    Notice      = nullptr;
+		/// [[BPR-1924]]. The field's tool row, and the row the picker wraps to.
+		QHBoxLayout* AskRow             = nullptr;
+		QHBoxLayout* PickerRow          = nullptr;
+		bool         RunSettingsWrapped = false;
+		QLabel*      Notice             = nullptr;
 		/// [[BPR-1817]]. The refusal beside the composer.
 		QWidget*                 Refusal      = nullptr;
 		QLabel*                  RefusalText  = nullptr;
@@ -640,14 +654,15 @@ namespace bpr::qt {
 		bool          AnswerPending = false;
 		QElapsedTimer Started;
 		/// The last request ended well and nothing has run since.
-		bool         Finished   = false;
-		QWidget*     ReadyCard  = nullptr;
-		QLabel*      ReadyTitle = nullptr;
-		QLabel*      ReadyText  = nullptr;
-		QLabel*      ReadyGets  = nullptr;
-		QPushButton* Ask        = nullptr;
-		QToolButton* Context    = nullptr;
-		QLabel*      Chips      = nullptr;
+		bool             Finished        = false;
+		QWidget*         ReadyCard       = nullptr;
+		QLabel*          ReadyTitle      = nullptr;
+		QLabel*          ReadyText       = nullptr;
+		QLabel*          ReadyGets       = nullptr;
+		QPushButton*     Ask             = nullptr;
+		skill_completer* SkillCompletion = nullptr;
+		QToolButton*     Context         = nullptr;
+		QLabel*          Chips           = nullptr;
 		/// [[BPR-1773]]. The conversation chip and what it is now.
 		QWidget*                                   ConversationChip  = nullptr;
 		QLabel*                                    ConversationText  = nullptr;

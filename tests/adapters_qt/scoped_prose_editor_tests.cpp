@@ -212,7 +212,7 @@ namespace {
 		cursor.setPosition(5, QTextCursor::KeepAnchor);
 		prose->setTextCursor(cursor);
 		auto* magic = editor.findChild<QPushButton*>(QStringLiteral("tourProblemMagic"));
-		expect(magic && magic->text() == "Enhance selection", "whitespace has selection label");
+		expect(magic && magic->text() == "Enhance" && magic->toolTip().contains(QStringLiteral("selected text")), "whitespace has the selection's tooltip");
 		magic->click();
 		expect(calls == 1 && captured && captured->Raw.substr(captured->Selection.Begin, captured->Selection.End - captured->Selection.Begin) == "  \t", "toolbar preserves captured whitespace selection");
 		editor.roadmap()->setCurrentIndex(1);

@@ -310,6 +310,13 @@ namespace bpr::qt {
 		const auto markdown_features = QTextDocument::MarkdownFeatures::fromInt((QTextDocument::MarkdownFeatures{ QTextDocument::MarkdownDialectGitHub } | QTextDocument::MarkdownNoHTML).toInt() & ~(md4c_underline | qt_front_matter | md4c_autolinks));
 	} // namespace
 
+	void detail::import_github_markdown(QTextDocument& aDocument, const QString& aSource)
+	{
+		const auto prepared = detail::prepare_github_markdown(aSource);
+		aDocument.setMarkdown(prepared.Text, markdown_features);
+		detail::present_github_markdown(aDocument, prepared);
+	}
+
 	class markdown_text_view final : public QTextEdit
 	{
 	public:

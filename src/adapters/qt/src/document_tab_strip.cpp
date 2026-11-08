@@ -25,11 +25,12 @@ namespace bpr::qt {
 		{
 		public:
 			using QTabBar::QTabBar;
-			int  Room = 0;
+			int  Room    = 0;
+			int  Minimum = document_tab_strip::minimum_tab_width;
 			auto tabSizeHint(int aIndex) const -> QSize override
 			{
 				const auto total = std::max(1, count());
-				return { std::max(document_tab_strip::minimum_tab_width, Room / total + (aIndex < Room % total ? 1 : 0)), document_tab_strip::height_pixels };
+				return { std::max(Minimum, Room / total + (aIndex < Room % total ? 1 : 0)), document_tab_strip::height_pixels };
 			}
 			auto minimumTabSizeHint(int aIndex) const -> QSize override { return tabSizeHint(aIndex); }
 		};
@@ -225,6 +226,13 @@ namespace bpr::qt {
 		Dispatch = std::move(aDispatch);
 	}
 
+	void document_tab_strip::set_minimum_tab_width(const int aWidth)
+	{
+		MinimumTab = std::max(48, aWidth);
+		setMinimumWidth(minimumSizeHint().width());
+		layout_tabs();
+	}
+
 	void document_tab_strip::present(std::vector<document_tab_presentation> aTabs)
 	{
 		if (aTabs == Tabs) {
@@ -318,7 +326,7 @@ namespace bpr::qt {
 		// strip keeps room for one tab at its minimum beside the plus. The
 		// strip's horizontal policy is Ignored, which makes a layout read the
 		// explicit minimum width, so this is also what the strip sets.
-		return QSize{ minimum_tab_width + (NewTab != nullptr ? NewTab->sizeHint().width() : 0), height_pixels };
+		return QSize{ MinimumTab + (NewTab != nullptr ? NewTab->sizeHint().width() : 0), height_pixels };
 	}
 
 	void document_tab_strip::resizeEvent(QResizeEvent* const aEvent)
@@ -345,7 +353,8 @@ namespace bpr::qt {
 		auto*      bar  = static_cast<equal_tab_bar*>(Bar);
 		const auto room = std::max(0, Scroll->viewport()->width());
 		bar->Room       = room;
-		bar->setFixedSize(std::max(room, bar->count() * minimum_tab_width), height_pixels);
+		bar->Minimum    = MinimumTab;
+		bar->setFixedSize(std::max(room, bar->count() * MinimumTab), height_pixels);
 		bar->setExpanding(true);
 		bar->updateGeometry();
 		reveal_active();

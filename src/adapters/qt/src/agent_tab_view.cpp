@@ -2,6 +2,7 @@
 
 #include "bpr/qt/quiet_push_button.hpp"
 #include "bpr/qt/quiet_tool_button.hpp"
+#include "bpr/qt/skill_completer.hpp"
 
 #include "bpr/core/agent_answer_findings.hpp"
 #include "bpr/core/agent_finding.hpp"
@@ -58,6 +59,9 @@ namespace bpr::qt {
 		/// A reply card's side margins; its answer is this much narrower.
 		constexpr auto reply_left_margin  = 12;
 		constexpr auto reply_right_margin = 10;
+		/// [[BPR-1924]]. The least room kept between the scope menu and the
+		/// agent picker when they share the tool row.
+		constexpr auto run_settings_gap = 12;
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -785,6 +789,8 @@ namespace bpr::qt {
 		composer->setParent(field);
 		composer->setFrameShape(QFrame::NoFrame);
 		composer->setPlaceholderText(tr("Ask about this pull request…"));
+		// [[BPR-1916]]. `/name` completion of the person's own skills.
+		SkillCompletion = new skill_completer{ composer };
 		composer->setMaximumHeight(90);
 		composer->viewport()->setAutoFillBackground(false);
 		fieldCol->addWidget(composer);
@@ -798,6 +804,7 @@ namespace bpr::qt {
 		rule->setObjectName(QStringLiteral("agentComposerRule"));
 		fieldCol->addWidget(rule);
 		auto* const askRow = new QHBoxLayout{ };
+		AskRow             = askRow;
 		askRow->setSpacing(2);
 		Context = make_drawer_tool(field, drawer_icon(drawer_glyph::plus, palette()), Chat.add_context_action()->toolTip().isEmpty() ? tr("Add the lines selected in the code") : Chat.add_context_action()->toolTip(),
 								   QStringLiteral("agentAddContext"));
@@ -829,7 +836,8 @@ namespace bpr::qt {
 		askRow->addWidget(scope);
 		askRow->addStretch(1);
 		// Owner decision (c) and amendment 2026-10-23: the agent, model and
-		// effort as a pill in the field; an icon alone when the field is narrow.
+		// effort as a pill in the field. [[BPR-1924]]: a row of its own under
+		// the tools when the field is too narrow for it whole.
 		// [[BPR-1878]]: one source behind this pill and the Tour tab's.
 		RunSettingsSource           = std::make_shared<agent_run_settings_source>(Launch);
 		RunSettingsSource->Choose   = [this](const std::uint64_t aProfile) { return choose_agent(aProfile); };
@@ -881,6 +889,10 @@ namespace bpr::qt {
 		});
 		askRow->addWidget(Ask);
 		fieldCol->addLayout(askRow);
+		PickerRow = new QHBoxLayout{ };
+		PickerRow->setSpacing(0);
+		PickerRow->addStretch(1);
+		fieldCol->addLayout(PickerRow);
 		// [[BPR-1817]]. Why the last send produced no turn, said directly
 		// above the field it came from, in the danger look the stopped
 		// banner uses, until the reviewer sends again or closes it.
@@ -2825,6 +2837,13 @@ namespace bpr::qt {
 		}
 	} // namespace
 
+	void agent_tab_view::present_skills(std::vector<core::skill_entry> aSkills)
+	{
+		if (SkillCompletion != nullptr) {
+			SkillCompletion->present(std::move(aSkills));
+		}
+	}
+
 	void agent_tab_view::refuse_send(core::agent_send_refusal aRefusal, const QString& aDetail)
 	{
 		if (!panels_alive() || aRefusal == core::agent_send_refusal::none) {
@@ -2877,9 +2896,39 @@ namespace bpr::qt {
 
 	void agent_tab_view::fit_run_settings()
 	{
-		// A narrow field keeps the pill as an icon with its words in the
-		// tooltip, as the Codex composer does.
-		RunSettings->set_narrow(Field != nullptr && Field->width() > 0 && Field->width() < 300);
+		// [[BPR-1924]], owner look on BPR-1914 v004 ("maybe the picker needs
+		// to wrap to a 2nd row on the agent tab if the drawer is narrow"). The
+		// picker stays beside Send while the row holds every control at its
+		// whole width with a gap to spare; otherwise it takes a row of its own
+		// under the tools, left-aligned, with its whole words. The choice
+		// depends only on the field's width and the controls' own sizes, never
+		// on where the picker is now, so moving it cannot flip it back.
+		if (Field == nullptr || RunSettings == nullptr || AskRow == nullptr || Field->width() <= 0) {
+			return;
+		}
+		const auto margins   = Field->layout()->contentsMargins();
+		const auto available = Field->width() - margins.left() - margins.right();
+		auto       needed    = 0;
+		auto       count     = 0;
+		for (auto* const widget : { static_cast<QWidget*>(Context), static_cast<QWidget*>(SuggestionsMenu), static_cast<QWidget*>(Chat.scope_selector()), static_cast<QWidget*>(RunSettings), static_cast<QWidget*>(Ask) }) {
+			if (widget != nullptr && widget->isVisibleTo(Field)) {
+				needed += widget->sizeHint().width();
+				++count;
+			}
+		}
+		needed += AskRow->spacing() * std::max(0, count - 1) + run_settings_gap;
+		const auto wrap = RunSettings->isVisibleTo(Field) && needed > available;
+		if (wrap == RunSettingsWrapped) {
+			return;
+		}
+		RunSettingsWrapped = wrap;
+		if (wrap) {
+			AskRow->removeWidget(RunSettings);
+			PickerRow->insertWidget(0, RunSettings);
+		} else {
+			PickerRow->removeWidget(RunSettings);
+			AskRow->insertWidget(AskRow->indexOf(Ask), RunSettings);
+		}
 	}
 
 	void agent_tab_view::present_run_settings_button() { RunSettingsSource->refresh(); }
@@ -2972,7 +3021,9 @@ namespace bpr::qt {
 				}
 			}
 		}
-		if (aEvent->type() == QEvent::Resize && aWatched == Field) {
+		// A resize, or a control in the field changing its size (the
+		// picker's words, the scope's, the picker shown or hidden).
+		if ((aEvent->type() == QEvent::Resize || aEvent->type() == QEvent::LayoutRequest) && aWatched == Field) {
 			fit_run_settings();
 			return false;
 		}

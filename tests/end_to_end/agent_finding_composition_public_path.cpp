@@ -9,6 +9,7 @@
 /// delivered finding, converting it produces one local draft, and no GitHub
 /// mutation call happens anywhere along the way.
 
+#include "composition_source.hpp"
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 #include "right_side_change.hpp"
@@ -725,16 +726,14 @@ auto main(int argc, char** argv) -> int
 	auto settingsScope           = std::string{ };
 	if (guidanceCourse) {
 		auto* const hooks        = window.writing_hooks();
-		auto* const choice       = hooks != nullptr ? hooks->findChild<QComboBox*>(QStringLiteral("writingHookChoice")) : nullptr;
 		auto* const instructions = hooks != nullptr ? hooks->findChild<QPlainTextEdit*>(QStringLiteral("writingHookInstructions")) : nullptr;
 		auto* const save         = hooks != nullptr ? hooks->findChild<QPushButton*>(QStringLiteral("writingHookSave")) : nullptr;
 		auto* const source       = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookSource")) : nullptr;
 		auto* const scope        = hooks != nullptr ? hooks->findChild<QLabel*>(QStringLiteral("writingHookScope")) : nullptr;
-		const auto  feedbackRow  = choice != nullptr ? choice->findData(QVariant::fromValue(static_cast<int>(core::writing_hook::feedback))) : -1;
-		if (instructions == nullptr || save == nullptr || source == nullptr || scope == nullptr || feedbackRow < 0) {
+		if (hooks == nullptr || instructions == nullptr || save == nullptr || source == nullptr || scope == nullptr) {
 			return fail(*application, "guidance-settings-row");
 		}
-		choice->setCurrentIndex(feedbackRow);
+		hooks->select_hook(core::writing_hook::feedback);
 		QApplication::processEvents();
 		auto helperOn = wait_terms{ };
 		if (!wait_until_reporting(helperOn, [scope, &settingsScope](wait_terms& aTerms) {
@@ -752,7 +751,7 @@ auto main(int argc, char** argv) -> int
 			auto saved = wait_terms{ };
 			if (!wait_until_reporting(saved, [source, instructions](wait_terms& aTerms) {
 					aTerms.note_identifier("source", source->text().toStdString());
-					return aTerms.require("profile-override-accepted", source->text().startsWith(QStringLiteral("Profile override")))
+					return aTerms.require("profile-override-accepted", source->text().startsWith(QStringLiteral("Changed from built-in")))
 						&& aTerms.require("override-shown-as-written", instructions->toPlainText().toStdString() == custom_guidance);
 				})) {
 				return fail(*application, "guidance-override", saved.render());
@@ -1751,14 +1750,7 @@ auto main(int argc, char** argv) -> int
 		// publication does round-trip through that one path, is
 		// `application_review_round_trip_composition_contract`, which pins
 		// this same file by digest.
-		auto composition = std::ifstream{
-			std::filesystem::path{ BPR_COMPOSITION_SOURCE },
-			std::ios::binary,
-		};
-		const auto source = std::string{
-			std::istreambuf_iterator<char>{ composition },
-			std::istreambuf_iterator<char>{ },
-		};
+		const auto source = bpr::tests::read_composition_source(std::filesystem::path{ BPR_COMPOSITION_SOURCE });
 		const auto occurrences
 			= [&source](const std::string_view aToken) -> std::size_t {
 			auto count = std::size_t{ 0U };

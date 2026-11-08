@@ -138,17 +138,67 @@ if(BPR_BUILD_QT)
             src/foundation_application.cpp
             src/github_application.cpp
             src/github_application/agent_composition.cpp
+            src/github_application/application_desktop.cpp
+            src/github_application/application_startup.cpp
+            src/github_application/application_windows.cpp
             src/github_application/blob_sources.cpp
+            src/github_application/cli_accounts.cpp
+            src/github_application/credential_prompt.cpp
+            src/github_application/defect_identity.cpp
             src/github_application/device_authorization_composition.cpp
+            src/github_application/fixture_appearance_course.cpp
+            src/github_application/fixture_course_modality.cpp
+            src/github_application/fixture_course_support.cpp
+            src/github_application/fixture_defect_course.cpp
+            src/github_application/fixture_effect_holds_and_agent_evidence.cpp
+            src/github_application/fixture_label_authoring_course.cpp
+            src/github_application/fixture_reply_and_draft_courses.cpp
+            src/github_application/fixture_review_ledger_course.cpp
+            src/github_application/fixture_review_round_trip_course.cpp
+            src/github_application/fixture_start_and_evidence.cpp
+            src/github_application/fixture_start_review_course.cpp
+            src/github_application/fixture_startup.cpp
+            src/github_application/fixture_threaded_reply_course.cpp
+            src/github_application/fixture_uiforetw_capture.cpp
+            src/github_application/fixture_uiforetw_course.cpp
+            src/github_application/fixture_uiforetw_observation.cpp
+            src/github_application/fixture_workbench_course.cpp
             src/github_application/github_presentation_projections.cpp
+            src/github_application/insights_metrics.cpp
             src/github_application/profile_hosts.cpp
+            src/github_application/profile_runtime.cpp
+            src/github_application/profile_runtime_construction.cpp
+            src/github_application/profile_runtime_release_access.cpp
+            src/github_application/profile_runtime_shutdown.cpp
+            src/github_application/profile_runtime_sign_in.cpp
             src/github_application/public_preview_wire_self_check.cpp
             src/github_application/public_preview_wire_transport.cpp
             src/github_application/queue_notifications.cpp
             src/github_application/review_mutation_selection.cpp
             src/github_application/session_settings.cpp
+            src/github_application/skill_runs.cpp
+            src/github_application/startup_failures.cpp
             src/github_application/theme_document_file.cpp
+            src/github_application/tour_owner_replies.cpp
+            src/github_application/window_agent_chat.cpp
+            src/github_application/window_agent_setup.cpp
+            src/github_application/window_commit_filter.cpp
+            src/github_application/window_composition.cpp
+            src/github_application/window_construction.cpp
+            src/github_application/window_defects.cpp
+            src/github_application/window_device_authorization.cpp
+            src/github_application/window_github_reads.cpp
+            src/github_application/window_navigation.cpp
+            src/github_application/window_read_state.cpp
+            src/github_application/window_review_drafts.cpp
             src/github_application/window_review_lanes.cpp
+            src/github_application/window_review_ledger.cpp
+            src/github_application/window_review_mutations.cpp
+            src/github_application/window_shutdown.cpp
+            src/github_application/window_sign_in.cpp
+            src/github_application/window_skills.cpp
+            src/github_application/window_tours.cpp
+            src/github_application/window_workbench.cpp
             src/github_application/workbench_composition.cpp
             src/pane_find_controller.cpp
             src/pr_search_controller.cpp
@@ -480,14 +530,51 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application.cpp
 		src/app/src/github_application/agent_composition.cpp
 		src/app/src/github_application/agent_composition.hpp
+		src/app/src/github_application/application_desktop.cpp
+		src/app/src/github_application/application_startup.cpp
+		src/app/src/github_application/application_startup.hpp
+		src/app/src/github_application/application_windows.cpp
 		src/app/src/github_application/blob_sources.cpp
 		src/app/src/github_application/blob_sources.hpp
+		src/app/src/github_application/cli_accounts.cpp
+		src/app/src/github_application/cli_accounts.hpp
+		src/app/src/github_application/credential_prompt.cpp
+		src/app/src/github_application/credential_prompt.hpp
+		src/app/src/github_application/defect_identity.cpp
+		src/app/src/github_application/defect_identity.hpp
 		src/app/src/github_application/device_authorization_composition.cpp
 		src/app/src/github_application/device_authorization_composition.hpp
+		src/app/src/github_application/fixture_appearance_course.cpp
+		src/app/src/github_application/fixture_course_modality.cpp
+		src/app/src/github_application/fixture_course_support.cpp
+		src/app/src/github_application/fixture_course_support.hpp
+		src/app/src/github_application/fixture_defect_course.cpp
+		src/app/src/github_application/fixture_effect_holds_and_agent_evidence.cpp
+		src/app/src/github_application/fixture_label_authoring_course.cpp
+		src/app/src/github_application/fixture_reply_and_draft_courses.cpp
+		src/app/src/github_application/fixture_review_ledger_course.cpp
+		src/app/src/github_application/fixture_review_round_trip_course.cpp
+		src/app/src/github_application/fixture_start_and_evidence.cpp
+		src/app/src/github_application/fixture_start_review_course.cpp
+		src/app/src/github_application/fixture_startup.cpp
+		src/app/src/github_application/fixture_threaded_reply_course.cpp
+		src/app/src/github_application/fixture_uiforetw_capture.cpp
+		src/app/src/github_application/fixture_uiforetw_course.cpp
+		src/app/src/github_application/fixture_uiforetw_observation.cpp
+		src/app/src/github_application/fixture_uiforetw_observation.hpp
+		src/app/src/github_application/fixture_workbench_course.cpp
 		src/app/src/github_application/github_presentation_projections.cpp
 		src/app/src/github_application/github_presentation_projections.hpp
+		src/app/src/github_application/insights_metrics.cpp
+		src/app/src/github_application/insights_metrics.hpp
 		src/app/src/github_application/profile_hosts.cpp
 		src/app/src/github_application/profile_hosts.hpp
+		src/app/src/github_application/profile_runtime.cpp
+		src/app/src/github_application/profile_runtime.hpp
+		src/app/src/github_application/profile_runtime_construction.cpp
+		src/app/src/github_application/profile_runtime_release_access.cpp
+		src/app/src/github_application/profile_runtime_shutdown.cpp
+		src/app/src/github_application/profile_runtime_sign_in.cpp
 		src/app/src/github_application/public_preview_wire_self_check.cpp
 		src/app/src/github_application/public_preview_wire_transport.cpp
 		src/app/src/github_application/public_preview_wire_transport.hpp
@@ -497,10 +584,36 @@ if(BPR_BUILD_QT)
 		src/app/src/github_application/review_mutation_selection.hpp
 		src/app/src/github_application/session_settings.cpp
 		src/app/src/github_application/session_settings.hpp
+		src/app/src/github_application/skill_runs.cpp
+		src/app/src/github_application/skill_runs.hpp
+		src/app/src/github_application/startup_failures.cpp
+		src/app/src/github_application/startup_failures.hpp
 		src/app/src/github_application/theme_document_file.cpp
 		src/app/src/github_application/theme_document_file.hpp
+		src/app/src/github_application/tour_owner_replies.cpp
+		src/app/src/github_application/tour_owner_replies.hpp
+		src/app/src/github_application/window_agent_chat.cpp
+		src/app/src/github_application/window_agent_setup.cpp
+		src/app/src/github_application/window_commit_filter.cpp
+		src/app/src/github_application/window_composition.cpp
+		src/app/src/github_application/window_composition.hpp
+		src/app/src/github_application/window_construction.cpp
+		src/app/src/github_application/window_defects.cpp
+		src/app/src/github_application/window_device_authorization.cpp
+		src/app/src/github_application/window_github_reads.cpp
+		src/app/src/github_application/window_navigation.cpp
+		src/app/src/github_application/window_probe_states.hpp
+		src/app/src/github_application/window_read_state.cpp
+		src/app/src/github_application/window_review_drafts.cpp
 		src/app/src/github_application/window_review_lanes.cpp
 		src/app/src/github_application/window_review_lanes.hpp
+		src/app/src/github_application/window_review_ledger.cpp
+		src/app/src/github_application/window_review_mutations.cpp
+		src/app/src/github_application/window_shutdown.cpp
+		src/app/src/github_application/window_sign_in.cpp
+		src/app/src/github_application/window_skills.cpp
+		src/app/src/github_application/window_tours.cpp
+		src/app/src/github_application/window_workbench.cpp
 		src/app/src/github_application/workbench_composition.cpp
 		src/app/src/github_application/workbench_composition.hpp
 		src/app/src/review_submission_workflow.hpp
@@ -526,6 +639,21 @@ if(BPR_BUILD_QT)
 		src/adapters/qt/src/review_submission_editor.cpp
 		src/adapters/qt/include/bpr/qt/workbench_window.hpp
 		src/adapters/qt/src/workbench_window.cpp
+		src/adapters/qt/src/workbench_window_central_surface.cpp
+		src/adapters/qt/src/workbench_window_comments_and_threads.cpp
+		src/adapters/qt/src/workbench_window_construction.cpp
+		src/adapters/qt/src/workbench_window_defects_and_home_rows.cpp
+		src/adapters/qt/src/workbench_window_drafts_and_behaviour.cpp
+		src/adapters/qt/src/workbench_window_github_presentation.cpp
+		src/adapters/qt/src/workbench_window_header_and_queue_settings.cpp
+		src/adapters/qt/src/workbench_window_home_landing.cpp
+		src/adapters/qt/src/workbench_window_home_views.cpp
+		src/adapters/qt/src/workbench_window_queue_controls_and_menus.cpp
+		src/adapters/qt/src/workbench_window_replies_and_review_composition.cpp
+		src/adapters/qt/src/workbench_window_repositories_and_files.cpp
+		src/adapters/qt/src/workbench_window_settings_and_layout.cpp
+		src/adapters/qt/src/workbench_window_support.cpp
+		src/adapters/qt/src/workbench_window_support.hpp
 		src/application/CMakeLists.txt
 		src/application/include/bpr/application/review_mutation_application_host.hpp
 		src/application/include/bpr/application/review_mutation_recovery_port.hpp
@@ -537,6 +665,13 @@ if(BPR_BUILD_QT)
 		src/adapters/github/CMakeLists.txt
 		src/adapters/github/src/github_mutation_contract.hpp
 		src/adapters/github/src/github_mutation_contract.cpp
+		src/adapters/github/src/github_mutation_contract_edit_requests.cpp
+		src/adapters/github/src/github_mutation_contract_edits.cpp
+		src/adapters/github/src/github_mutation_contract_publication.cpp
+		src/adapters/github/src/github_mutation_contract_responses_and_observation.cpp
+		src/adapters/github/src/github_mutation_contract_review_and_meta_requests.cpp
+		src/adapters/github/src/github_mutation_contract_support.cpp
+		src/adapters/github/src/github_mutation_contract_support.hpp
 		src/adapters/github/src/designated_review_public_observer.hpp
 		src/adapters/github/src/designated_live_public_observer.hpp
 		src/adapters/github/src/designated_live_public_observer.cpp

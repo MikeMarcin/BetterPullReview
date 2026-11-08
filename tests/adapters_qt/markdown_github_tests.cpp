@@ -5,6 +5,7 @@
 // compare the reader's document with that structure.
 
 #include "../support/test_expectation.hpp"
+#include "bpr/core/review_tour_markdown.hpp"
 #include "bpr/qt/appearance_profile.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
@@ -462,6 +463,63 @@ namespace {
 		expect(reserved_marks(document) == 0, "no mark reaches the reader");
 	}
 
+	/// [[BPR-1915]] AC2. A formatted tour narrative, as the drafting prompts
+	/// ask for it, reads in the Tour tab as GitHub shows it once published:
+	/// the same paragraphs, list items, inline code, bold and code block, in
+	/// order; and publishing a stop carries the narrative's bytes unchanged.
+	void check_tour_formatting(qt::markdown_body_view& aView)
+	{
+		const auto source = fixture(QStringLiteral("tour-formatting"));
+		show(aView, source, "tour-formatting:1");
+		auto&      document   = document_of(aView);
+		const auto github     = reference(QStringLiteral("tour-formatting"));
+		auto       paragraphs = QStringList{ }, items = QStringList{ }, ordered = QStringList{ }, code = QStringList{ }, bold = QStringList{ }, fenced = QStringList{ };
+		for (auto block = document.begin(); block.isValid(); block = block.next()) {
+			if (block.text().trimmed().isEmpty()) {
+				continue;
+			}
+			const auto fence = block.blockFormat().hasProperty(QTextFormat::BlockCodeFence) || block.blockFormat().nonBreakableLines();
+			if (fence) {
+				fenced.push_back(block.text());
+				continue;
+			}
+			if (const auto* list = block.textList(); list != nullptr) {
+				(list->format().style() == QTextListFormat::ListDecimal ? ordered : items).push_back(block.text());
+			} else {
+				paragraphs.push_back(block.text());
+			}
+			for (auto part = block.begin(); !part.atEnd(); ++part) {
+				const auto format = part.fragment().charFormat();
+				if (format.fontFixedPitch() || format.fontFamilies().toStringList().join(QLatin1Char{ ',' }).contains(QStringLiteral("mono"), Qt::CaseInsensitive)) {
+					code.push_back(part.fragment().text());
+				} else if (format.fontWeight() >= QFont::Bold) {
+					bold.push_back(part.fragment().text());
+				}
+			}
+		}
+		const auto words = [](QStringList aHtml) {
+			// Inline tags join their words, as the reader's spans do.
+			for (auto& each : aHtml) {
+				each.remove(QRegularExpression{ QStringLiteral("<[^>]*>") });
+				each = reference_text(each);
+			}
+			return aHtml;
+		};
+		const auto ul = matches(github, QStringLiteral("(?s)<ul>(.*?)</ul>")).join(QString{ });
+		const auto ol = matches(github, QStringLiteral("(?s)<ol>(.*?)</ol>")).join(QString{ });
+		expect(paragraphs == words(matches(github, QStringLiteral("(?s)<p>(.*?)</p>"))), "the paragraphs are GitHub's: " + paragraphs.join(QStringLiteral(" | ")).toStdString());
+		expect(items == words(matches(ul, QStringLiteral("(?s)<li>(.*?)</li>"))), "the bullet items are GitHub's: " + items.join(QStringLiteral(" | ")).toStdString());
+		expect(ordered == words(matches(ol, QStringLiteral("(?s)<li>(.*?)</li>"))), "the numbered items are GitHub's: " + ordered.join(QStringLiteral(" | ")).toStdString());
+		expect(code == matches(github, QStringLiteral("<code class=\"notranslate\">([^<]*)</code>")), "the inline code is GitHub's, in order: " + code.join(QStringLiteral(" | ")).toStdString());
+		expect(bold == matches(github, QStringLiteral("<strong>([^<]*)</strong>")), "the bold is GitHub's");
+		const auto pre = matches(github, QStringLiteral("(?s)<pre[^>]*>(.*?)</pre>"));
+		expect(pre.size() == 1 && fenced.join(QLatin1Char{ '\n' }) == QString{ pre.front() }.remove(QRegularExpression{ QStringLiteral("<[^>]*>") }), "the code block is GitHub's, line for line: " + fenced.join(QStringLiteral(" | ")).toStdString());
+		const auto overview  = std::array{ core::tour_markdown_link{ "Tour overview", "https://github.com/MikeMarcin/BPR-Test/pull/1#issuecomment-1" } };
+		const auto published = core::render_tour_stop("Where the change starts", 1U, source, overview);
+		expect(published && published->find(source.substr(0U, source.size() - 1U)) != std::string::npos, "a published stop carries the narrative's bytes as they are");
+		expect(reserved_marks(document) == 0, "no mark reaches the reader");
+	}
+
 	void check_bounds(qt::markdown_body_view& aView)
 	{
 		// Within every preview budget (2,048 lines, 8,192 formatting marks)
@@ -694,6 +752,7 @@ try {
 	check_alerts(view);
 	check_footnotes(view);
 	check_template(view);
+	check_tour_formatting(view);
 	check_math(view);
 	check_underscores(view);
 	check_autolinks(view);

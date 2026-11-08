@@ -9,7 +9,8 @@ endforeach()
 # The attended capture must traverse the shipped drawer selection wire. Keep
 # the test-only direct-diff helper compiled so the runtime counter can prove it
 # was available but unused.
-file(READ "${BPR_SOURCE}" bpr_application_source)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_composition_source.cmake")
+bpr_read_composition_source("${BPR_SOURCE}" bpr_application_source)
 string(FIND
     "${bpr_application_source}"
     "auto detail::github_application_fixture_access::exercise_uiforetw_selected_diff("

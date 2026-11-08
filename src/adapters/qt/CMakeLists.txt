@@ -7,6 +7,7 @@ add_library(
         src/insights_calendar.cpp
         src/review_tour_editor.cpp
         src/tour_agent_panel.cpp
+        src/tour_side_chat.cpp
         src/waiting_panel.cpp
         src/scoped_prose_editor.cpp
         src/suggestion_editor.cpp
@@ -36,6 +37,7 @@ add_library(
         src/keyboard_shortcuts_window.cpp
         src/about_window.cpp
         src/writing_hooks_panel.cpp
+        src/skill_completer.cpp
         src/claude_wrapper_panel.cpp
         src/release_maintenance_panel.cpp
         src/profile_data_reset_views.cpp
@@ -95,6 +97,13 @@ add_library(
         src/markdown_github_html.cpp
         src/markdown_github_math.cpp
         src/pull_request_overview_page.cpp
+        src/pull_request_overview_chips_and_details.cpp
+        src/pull_request_overview_delegate_and_rows.cpp
+        src/pull_request_overview_file_model.cpp
+        src/pull_request_overview_files_interaction.cpp
+        src/pull_request_overview_people_and_status.cpp
+        src/pull_request_overview_presentation.cpp
+        src/pull_request_overview_support.cpp
         src/reviewer_picker.cpp
         src/draft_state_chip.cpp
         src/conversation_cards_view.cpp
@@ -119,6 +128,10 @@ add_library(
         src/comparison_scroll_controller.cpp
         src/diff_link_map.cpp
 		src/diff_workbench.cpp
+		src/diff_workbench_find_and_editing.cpp
+		src/diff_workbench_marks_and_navigation.cpp
+		src/diff_workbench_presentation.cpp
+		src/diff_workbench_support.cpp
         src/source_find_bar.cpp
         src/source_search_panel.cpp
         src/line_details_pane.cpp
@@ -140,6 +153,20 @@ add_library(
         src/usage_ring.cpp
         src/workbench_drawer.cpp
         src/workbench_window.cpp
+        src/workbench_window_central_surface.cpp
+        src/workbench_window_comments_and_threads.cpp
+        src/workbench_window_construction.cpp
+        src/workbench_window_defects_and_home_rows.cpp
+        src/workbench_window_drafts_and_behaviour.cpp
+        src/workbench_window_github_presentation.cpp
+        src/workbench_window_header_and_queue_settings.cpp
+        src/workbench_window_home_landing.cpp
+        src/workbench_window_home_views.cpp
+        src/workbench_window_queue_controls_and_menus.cpp
+        src/workbench_window_replies_and_review_composition.cpp
+        src/workbench_window_repositories_and_files.cpp
+        src/workbench_window_settings_and_layout.cpp
+        src/workbench_window_support.cpp
 )
 add_library(BetterPullReview::AdapterQt ALIAS better_pull_review_adapter_qt)
 

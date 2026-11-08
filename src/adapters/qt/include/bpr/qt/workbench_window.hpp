@@ -1103,7 +1103,7 @@ namespace bpr::qt {
 		void               go_to_private_note(std::uint64_t aId);
 		[[nodiscard]] auto open_agent_action() const noexcept -> QAction* { return OpenAgentAction; }
 		[[nodiscard]] auto ask_agent_action() const noexcept -> QAction* { return AskAgentAction; }
-		void               open_review_tour();
+		void               open_review_tour(bool aKeepStep = false);
 		/// \brief [[BPR-1129]]. Comment: Option-C (Alt+C), window-owned.
 		///
 		/// \details [[BPR-1133]]. It answers the selected review thread when
@@ -3060,23 +3060,39 @@ namespace bpr::qt {
 		bool                       EnteringOpeningModality = false;
 		github_conversation_panel* ConversationPanel       = nullptr;
 		/// Prevents the drawer refilter from clearing the anchor that triggered it.
-		bool                                   ApplyingConversationAnchor       = false;
-		bool                                   LeftConversationEndpointCurrent  = false;
-		bool                                   RightConversationEndpointCurrent = false;
-		agent_launch_panel*                    AgentPanel                       = nullptr;
-		private_notes_panel*                   PrivateNotes                     = nullptr;
-		review_tour_editor*                    TourEditor                       = nullptr;
-		QAction*                               PrepareTourAction                = nullptr;
-		QAction*                               AddTourStopAction                = nullptr;
-		private_review_panel*                  PrivateReview                    = nullptr;
-		side_chat_panel*                       SideChat                         = nullptr;
-		finding_queue_view*                    FindingQueue                     = nullptr;
-		review_draft_editor*                   ReviewEditor                     = nullptr;
-		defect_card_view*                      DefectCard                       = nullptr;
-		QLabel*                                DefectCountLabel                 = nullptr;
-		QAction*                               ClassifyDefect                   = nullptr;
-		QAction*                               PreviousDefect                   = nullptr;
-		QAction*                               NextDefect                       = nullptr;
+		bool                 ApplyingConversationAnchor       = false;
+		bool                 LeftConversationEndpointCurrent  = false;
+		bool                 RightConversationEndpointCurrent = false;
+		agent_launch_panel*  AgentPanel                       = nullptr;
+		private_notes_panel* PrivateNotes                     = nullptr;
+		review_tour_editor*  TourEditor                       = nullptr;
+		/// [[BPR-1925]]. The Tour tab: the tour, and beside it the chat about
+		/// its marked part while one is open.
+		QSplitter* TourChatSplit = nullptr;
+		/// [[BPR-1925]]. The drawer's width while the Tour tab shows a chat:
+		/// the design's 740 until the reviewer drags it, then theirs for as
+		/// long as the window is open. The narrow width stays the host's.
+		int  TourChatWidth = 740;
+		bool TourChatSized = false;
+		/// [[BPR-1925]]. How many parts have a chat, on the Tour tab.
+		QWidget* TrayTourCount = nullptr;
+		/// [[BPR-1925]]. Opens or closes the chat column (in the Tour tab, or
+		/// beside the tour on its page) and widens or narrows the drawer.
+		void show_tour_chat(bool aShown);
+		void update_tour_chat_badge();
+		/// [[BPR-1925]]. Whether the drawer holds the tour and its chat now.
+		[[nodiscard]] auto                     tour_chat_wide() const -> bool;
+		QAction*                               PrepareTourAction = nullptr;
+		QAction*                               AddTourStopAction = nullptr;
+		private_review_panel*                  PrivateReview     = nullptr;
+		side_chat_panel*                       SideChat          = nullptr;
+		finding_queue_view*                    FindingQueue      = nullptr;
+		review_draft_editor*                   ReviewEditor      = nullptr;
+		defect_card_view*                      DefectCard        = nullptr;
+		QLabel*                                DefectCountLabel  = nullptr;
+		QAction*                               ClassifyDefect    = nullptr;
+		QAction*                               PreviousDefect    = nullptr;
+		QAction*                               NextDefect        = nullptr;
 		std::vector<core::defect_history>      Defects;
 		std::map<core::defect_id, std::string> DefectThreads;
 		std::optional<std::string>             PendingDefectDialog;

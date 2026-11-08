@@ -525,6 +525,9 @@ namespace bpr::app::detail {
 		/// on; the external terminal has none and refuses one by design.
 		std::optional<std::filesystem::path> CodexAgentExecutable;
 		std::optional<std::filesystem::path> ClaudeAgentExecutable;
+		/// [[BPR-1916]]. The home folder whose `.claude/skills`,
+		/// `.agents/skills` and `.codex/skills` stand in for the person's.
+		std::optional<std::filesystem::path> PersonalSkillHome;
 		/// [[BPR-1879]]. The agent setup treats the fixture review as one read
 		/// sparsely through `gh`, so a look shows the Repository step's choice.
 		bool SparseAgentSetupLook = false;

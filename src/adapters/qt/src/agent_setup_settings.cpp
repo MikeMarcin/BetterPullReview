@@ -555,8 +555,10 @@ namespace bpr::qt {
 		setObjectName(QStringLiteral("reviewSkillPanel"));
 		auto* const column = new QVBoxLayout{ this };
 		column->setContentsMargins(0, 0, 0, 0);
-		column->addWidget(heading(tr("Review skill"), this));
-		column->addWidget(note(tr("How the agent reviews: sent with every review request, the same for every agent, and written to no harness's configuration. It grants nothing; the agent's own tools and permissions still govern."), this));
+		Heading = heading(tr("Review skill"), this);
+		column->addWidget(Heading);
+		Intro = note(tr("How the agent reviews: sent with every review request, the same for every agent, and written to no harness's configuration. It grants nothing; the agent's own tools and permissions still govern."), this);
+		column->addWidget(Intro);
 		Source = note({ }, this);
 		Source->setObjectName(QStringLiteral("reviewSkillSource"));
 		column->addWidget(Source);
@@ -613,6 +615,7 @@ namespace bpr::qt {
 		});
 		row->addWidget(save);
 		auto* const restore = new quiet_push_button{ tr("Restore default"), this };
+		Restore             = restore;
 		restore->setObjectName(QStringLiteral("reviewSkillRestore"));
 		connect(restore, &QPushButton::clicked, this, [this] {
 			if (Dispatch.UseBuiltIn) {
@@ -633,6 +636,17 @@ namespace bpr::qt {
 
 	void review_skill_panel::set_dispatch(dispatch aDispatch) { Dispatch = std::move(aDispatch); }
 
+	void review_skill_panel::show_as_built_in_prompt(const QFont& aEditorFont)
+	{
+		Heading->hide();
+		Intro->hide();
+		Editor->setFont(aEditorFont);
+		Default->setFont(aEditorFont);
+		Editor->setMinimumHeight(300);
+		// The other prompts' words for the same action.
+		Restore->setText(tr("Reset to built-in"));
+	}
+
 	auto review_skill_panel::status_text() const -> QString { return Status->text(); }
 
 	void review_skill_panel::show_answer(const application::review_skill_answer aAnswer)
@@ -651,6 +665,7 @@ namespace bpr::qt {
 			return;
 		}
 		Generation = aProjection.Generation;
+		Changed    = aProjection.Source == core::review_skill_source::profile_copy;
 		// A refused save keeps what the reviewer wrote.
 		if (!aProjection.Refusal) {
 			Editor->setPlainText(text_of(aProjection.Text));

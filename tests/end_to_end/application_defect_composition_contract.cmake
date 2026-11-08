@@ -9,7 +9,8 @@ endforeach()
 
 include("${CMAKE_CURRENT_LIST_DIR}/bpr_narrow_owner_private.cmake")
 
-file(READ "${BPR_SOURCE}" bpr_application_source)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_composition_source.cmake")
+bpr_read_composition_source("${BPR_SOURCE}" bpr_application_source)
 string(FIND
     "${bpr_application_source}"
     "exercise_defect_composition("

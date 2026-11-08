@@ -52,6 +52,20 @@ namespace bpr::core {
 	/// other rules; a value it cannot read is treated as absent.
 	[[nodiscard]] auto inspect_review_skill(std::string_view aText) -> std::expected<review_skill_facts, review_skill_refusal>;
 
+	/// \brief [[BPR-1916]]. Any skill's `name` and `description`, read by
+	/// the same front matter subset as `inspect_review_skill`.
+	struct skill_front_matter
+	{
+		std::string Name;
+		std::string Description;
+
+		auto operator<=>(const skill_front_matter&) const = default;
+	};
+	/// \brief The front matter of a `SKILL.md` that is UTF-8, at most
+	/// `maximum_review_skill_bytes`, opens with a closed `---` block and names
+	/// a `name`; nothing otherwise. The description may be empty.
+	[[nodiscard]] auto read_skill_front_matter(std::string_view aText) -> std::optional<skill_front_matter>;
+
 	/// \brief Where the skill a request carries comes from.
 	enum class review_skill_source : std::uint8_t {
 		/// The default built into this application.

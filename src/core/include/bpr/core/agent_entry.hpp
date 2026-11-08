@@ -54,6 +54,13 @@ namespace bpr::core {
 		/// checks only that the program can be launched. A popular agent keeps
 		/// its sign-in status check and has none.
 		std::vector<std::string> CheckArguments;
+		/// [[BPR-1918]] (owner, 2026-11-06: "If we're going to build
+		/// something strict which should have an opt out for custom agents at
+		/// least"). Off, a writing or read-only run of this custom agent
+		/// reports what a wrapper's or policy's settings let it do instead of
+		/// ending on it (`application::agent_run_checks::relaxed`). A popular
+		/// agent keeps strict checks: only a custom agent may turn them off.
+		bool StrictRunChecks = true;
 
 		auto operator<=>(const agent_entry&) const = default;
 	};
@@ -72,6 +79,8 @@ namespace bpr::core {
 		invalid_effort,
 		too_many_entries,
 		unknown_entry,
+		/// [[BPR-1918]]. A popular agent keeps strict run checks.
+		relaxed_popular_agent,
 	};
 	[[nodiscard]] auto stable_name(agent_entry_refusal aRefusal) noexcept -> std::string_view;
 	/// \brief One line for the reviewer.

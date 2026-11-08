@@ -1633,7 +1633,7 @@ the same Claude wrapper, program and added-agent ports, and the agent, model
 and effort the Tour tab's agent bar shows.
 
 `core::tools_for` records the split ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)):
-**Draft the tour**, **Draft from PR context** on an empty Problem or Solution,
+**Draft Tour**, **Draft from PR context** on an empty Problem or Solution,
 and **Suggest an outline** run in the review's private workspace (BPR-1873's,
 from the linked or kept clone, or "This pull request only") with read-only
 tools; Enhance, Enhance selection, Generate comment and the Settings test stay
@@ -1696,6 +1696,97 @@ Each anchored stop is placed against the hunks of its file's patch (from the
 same `files` answer the review already reads; no further request) as on, near
 or off the change, as tour publication will place it ([RFC-BPR-0092 amendment](../rfcs/RFC-BPR-0092-agent-first-run-setup.md#amendment-bpr-1900-2026-11-06-the-tour-session)).
 Nothing the agent proposes is applied until the author accepts that part.
+
+An ask turn of the tour conversation ([[BPR-1914]]) is a read-only run on the
+same terms: the same tools, allowlist, workspace and line counts. Its request
+(`application::build_tour_ask_prompt`, at most 160 KiB) gives the pull
+request, the tour as it is now, the earlier turns the core keeps
+(`core::tour_conversation_of`, at most 12 within 48 KiB) and the question and
+passage as untrusted evidence JSON, and its answer
+(`application::decode_tour_ask_answer`, `bpr.tour-ask.v1`) is read with exactly
+its keys: a reply of at most 16 KiB, and changes the core anchors and proposes
+(`core::propose_tour_changes`). The conversation is replayed, never resumed:
+no agent keeps a session for it, and it is held only in the app's memory for
+the review.
+
+### Skills a prompt names (BPR-1916)
+
+A prompt the person writes or edits can name a skill as `/skill-name`: a
+built-in prompt in Settings (the tour's Problem, Solution, outline and stop
+comment, used by Draft from PR context, Suggest an outline, Enhance and
+Generate comment), an Agent tab question, and a question in the Tour
+conversation's ask box, including one opened by Ask about this
+([[BPR-1914]]). Typing `/` offers completion of the skills found, each with
+where it came from.
+
+**Sources.** The person's own skills, `NAME/SKILL.md` under
+`~/.claude/skills` (Claude Code), `~/.agents/skills` (the shared Agent Skills
+folder) and `~/.codex/skills` (Codex), read in that order, a name taken from
+the first folder that has it; a skill folder may be a link, as skill
+managers make them. And the reviewed repository's skills under
+`.claude/skills`, `.agents/skills` and `.codex/skills`, read from the linked
+or kept clone's Git objects at the pull request's base commit by a private
+installed-Git catalog (`make_installed_git_skill_reader`): the clone's
+objects are a read-only alternate of a store of the application's own, and
+nothing the clone has checked out, its index or its configuration is read.
+Without a linked clone, or a clone without the base, the repository has no
+skills listed and the Settings line says why. A personal skill wins over a
+repository skill of the same name; `/repo:name` picks the repository's and
+`/personal:name` the person's. An unknown `/name` is left as text, with a
+quiet note. Bounds: a `SKILL.md` of at most 64 KiB is read, at most 32 KiB
+of it is sent, at most four skills per prompt, supporting files (at most 24,
+three folders deep) named and never read.
+
+**Mechanism: inline, for every run and agent kind (owner, 2026-11-06).** The
+host reads each skill the prompt names and its `SKILL.md` rides in the
+request's supplement as its own `skill.N.name`, `.source`, `.origin`,
+`.text` and `.supporting.M` fields, each one escaped line, so a skill's text
+cannot end its field or pose as another; the prompt ends with one sentence
+saying what those fields are. A prompt that names none sends no field and
+keeps its exact bytes. No run gets the `Skill` tool, a plugin, a setting
+source or a permission rule for skills: BPR-1375's writing restrictions,
+BPR-1900's read-only allowlist and the init checks of BPR-1891, BPR-1896,
+BPR-1899 and BPR-1912 are unchanged.
+
+Native loading was evaluated and rejected. Checked against installed Claude
+Code 2.1.310 on 2026-11-06 in a scratch folder: with `--setting-sources ""`
+no personal or project skill loads (only Claude's bundled ones); `project`
+loads the working folder's skills and also its `CLAUDE.md`, which the run
+then obeyed; `user` brings every user plugin, agent and setting. A narrow
+route exists (`--plugin-dir` with a staged plugin holding only the named
+skills, the `Skill` tool, and `Skill(bpr-skills:NAME)` in `--allowedTools`,
+which denied every other skill in print mode), and `/name` at the start of
+a print-mode prompt expands natively, but a skill named mid-prompt loads only
+if the model chooses to call the tool. The owner, 2026-11-06: "unfortunately
+my custom wrapper right now seems to throw away all my settings on load its
+own, so we can't rely on that"; BPR-1896 found the same, a wrapper's
+`--settings` replacing this application's. So nothing depends on Claude's
+settings or permission rules.
+
+**Referenced only (owner, 2026-11-06).** Only skills a prompt names reach a
+run. A skill no prompt names is never sent, whatever its description asks
+(the repository skill reader's contract test carries a lure skill whose
+description says to load it always). As defence in depth, a wrapper that
+turns skills on gets nothing past the decoder: a writing run refuses an init
+frame with any tool; a read-only run refuses an init frame that loads
+`Skill` and ends at a `Skill` tool use (`tool_refused`), the refused line,
+which names the skill, kept in the run's log ([[BPR-1827]]). A custom agent
+with relaxed run checks ([[BPR-1918]]) is not stopped there: the use is named
+in the transcript with its skill ("which no prompt named") and counted as the
+`skill` check, and the run goes on.
+
+**Head allowed (owner, 2026-11-06).** The owner first ruled repository skills
+base-only ("you could be reviewing a PR you dont trust"), then allowed the
+head: "i guess head is fine. We will only run skills you configure right?",
+on the condition that only skills the person names run. The reader reads at
+the base commit, which a linked clone holds; reading the head is permitted
+and not needed. Completion and the preview name a repository skill's source
+as "this pull request's repository, ROOT at base COMMIT".
+
+The Agent tab's chat still runs Claude with the person's own settings
+(unchanged): a skill its question names is carried inline as above, and
+Claude may also load skills natively there, from the person's folders and
+from the workspace, which is the pull request's head.
 
 ### Writing request and result bounds
 

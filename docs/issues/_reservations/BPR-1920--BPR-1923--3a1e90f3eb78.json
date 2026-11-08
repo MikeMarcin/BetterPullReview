@@ -1,0 +1,13 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1920",
+    "BPR-1921",
+    "BPR-1922",
+    "BPR-1923"
+  ],
+  "reserve_for": "refactor-github-application",
+  "purpose": "Refactor rounds 8-11: next-largest C++ files",
+  "created": "2026-11-07T15:19:15.712563+00:00",
+  "base": "aff74307fdbfc6d38cf686a267d6e6d995e5173d"
+}

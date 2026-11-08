@@ -8,6 +8,7 @@
 #include <functional>
 #include <optional>
 
+class QCheckBox;
 class QComboBox;
 class QDialogButtonBox;
 class QLabel;
@@ -36,6 +37,8 @@ namespace bpr::qt {
 		[[nodiscard]] auto model() const noexcept -> QLineEdit* { return Model; }
 		[[nodiscard]] auto check() const noexcept -> QPlainTextEdit* { return Check; }
 		[[nodiscard]] auto effort() const noexcept -> QComboBox* { return Effort; }
+		/// [[BPR-1918]]. Strict run checks; none for a popular agent.
+		[[nodiscard]] auto strict_checks() const noexcept -> QCheckBox* { return StrictChecks; }
 		[[nodiscard]] auto problem() const noexcept -> QLabel* { return Problem; }
 		[[nodiscard]] auto buttons() const noexcept -> QDialogButtonBox* { return Buttons; }
 
@@ -44,15 +47,16 @@ namespace bpr::qt {
 		void offer_efforts();
 
 		core::agent_entry Base;
-		QLineEdit*        Name      = nullptr;
-		QComboBox*        Protocol  = nullptr;
-		QLineEdit*        Program   = nullptr;
-		QPlainTextEdit*   Arguments = nullptr;
-		QPlainTextEdit*   Check     = nullptr;
-		QLineEdit*        Model     = nullptr;
-		QComboBox*        Effort    = nullptr;
-		QLabel*           Problem   = nullptr;
-		QDialogButtonBox* Buttons   = nullptr;
+		QLineEdit*        Name         = nullptr;
+		QComboBox*        Protocol     = nullptr;
+		QLineEdit*        Program      = nullptr;
+		QPlainTextEdit*   Arguments    = nullptr;
+		QPlainTextEdit*   Check        = nullptr;
+		QLineEdit*        Model        = nullptr;
+		QComboBox*        Effort       = nullptr;
+		QCheckBox*        StrictChecks = nullptr;
+		QLabel*           Problem      = nullptr;
+		QDialogButtonBox* Buttons      = nullptr;
 	};
 
 	/// \brief How a view asks for an entry to be added or edited: the entry

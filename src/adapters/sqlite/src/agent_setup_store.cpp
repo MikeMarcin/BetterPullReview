@@ -113,6 +113,11 @@ namespace bpr::adapters::sqlite {
 									"effort TEXT NOT NULL CHECK(length(CAST(effort AS BLOB)) <= 16),"
 									"preset INTEGER NOT NULL CHECK(preset BETWEEN -1 AND 1),"
 									"check_arguments TEXT NOT NULL CHECK(length(CAST(check_arguments AS BLOB)) <= 4200)) STRICT")
+				// [[BPR-1918]]. The custom agents whose strict run checks are
+				// off, by entry id; an entry with no row keeps them on.
+				|| !detail::execute(db,
+									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
+									"id INTEGER PRIMARY KEY CHECK(id BETWEEN 1 AND 64)) STRICT")
 				// Owner decision 2026-10-23: the run time limit; none means off.
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_run_limit("
@@ -253,6 +258,19 @@ namespace bpr::adapters::sqlite {
 					const auto check = join_arguments(entry.CheckArguments);
 					bind(row->Value, 10, check);
 					committed = sqlite3_step(row->Value) == SQLITE_DONE;
+				}
+			}
+			if (committed) {
+				committed = detail::execute(aDatabase, "DELETE FROM agent_entry_relaxed_checks").has_value();
+			}
+			for (std::size_t index = 0U; committed && index < aPreferences.Agents.size(); ++index) {
+				if (const auto& entry = aPreferences.Agents[index]; !entry.StrictRunChecks) {
+					auto row  = detail::prepare(aDatabase, "INSERT INTO agent_entry_relaxed_checks VALUES(?1)");
+					committed = row.has_value();
+					if (committed) {
+						sqlite3_bind_int64(row->Value, 1, entry.Id);
+						committed = sqlite3_step(row->Value) == SQLITE_DONE;
+					}
 				}
 			}
 			if (committed) {
@@ -596,6 +614,16 @@ namespace bpr::adapters::sqlite {
 							}
 							entry.CheckArguments = split_arguments(column_text(rows->Value, 8).value_or(std::string{ }));
 							loaded.Agents.push_back(std::move(entry));
+						}
+					}
+					if (auto relaxed = detail::prepare(store->Database.get(), "SELECT id FROM agent_entry_relaxed_checks"); relaxed) {
+						while (sqlite3_step(relaxed->Value) == SQLITE_ROW) {
+							const auto id = sqlite3_column_int64(relaxed->Value, 0);
+							for (auto& entry : loaded.Agents) {
+								if (entry.Id == id && !entry.Preset) {
+									entry.StrictRunChecks = false;
+								}
+							}
 						}
 					}
 					if (core::inspect_agent_entries(loaded.Agents)) {

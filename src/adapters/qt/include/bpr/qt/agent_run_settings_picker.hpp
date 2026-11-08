@@ -103,8 +103,9 @@ namespace bpr::qt {
 
 	/// \brief Owner decision (c) and amendment 2026-10-23: the agent, model
 	/// and effort as a pill ("agent · model · effort"); its menu chooses the
-	/// agent, the model and the effort, and opens Agent settings. An icon
-	/// alone when narrow. Hidden while no agent is chosen; "Unavailable:"
+	/// agent, the model and the effort, and opens Agent settings. Its whole
+	/// words always; a narrow field gives it a row of its own ([[BPR-1924]]).
+	/// Hidden while no agent is chosen; "Unavailable:"
 	/// when the chosen agent went (BPR-1823). [[BPR-1878]]: one component,
 	/// used by the Agent tab and the Tour tab over one source.
 	class agent_run_settings_picker final : public QToolButton
@@ -118,8 +119,6 @@ namespace bpr::qt {
 		/// Shows the source's current agent and rebuilds the menu (later, if
 		/// the menu is open).
 		void present();
-		/// Icon only, words in the tooltip.
-		void set_narrow(bool aNarrow);
 		/// The pill's whole words, however it is shortened.
 		[[nodiscard]] auto full_text() const -> QString { return Full; }
 		[[nodiscard]] auto source() const -> const std::shared_ptr<agent_run_settings_source>& { return Source; }
@@ -130,7 +129,6 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 		void enterEvent(QEnterEvent* aEvent) override;
 		void leaveEvent(QEvent* aEvent) override;
-		void changeEvent(QEvent* aEvent) override;
 
 	private:
 		void present_unavailable();
@@ -140,8 +138,14 @@ namespace bpr::qt {
 		std::shared_ptr<agent_run_settings_source> Source;
 		QString                                    Full;
 		QString                                    Tip;
-		bool                                       Narrow    = false;
 		bool                                       MenuStale = false;
+
+		/// The words' inset, and the chevron's width and inset on the right.
+		static constexpr int text_left     = 10;
+		static constexpr int chevron_width = 7;
+		static constexpr int chevron_right = 9;
+		/// Everything around the words: their inset, a gap, the chevron.
+		static constexpr int chrome_width = text_left + 6 + chevron_width + chevron_right;
 	};
 }
 #endif

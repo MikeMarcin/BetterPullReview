@@ -9,7 +9,8 @@ foreach(required IN ITEMS BPR_APPLICATION BPR_ROOT BPR_RUN_BUDGET_MS BPR_SOURCE)
     endif()
 endforeach()
 
-file(READ "${BPR_SOURCE}" bpr_application_source)
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_composition_source.cmake")
+bpr_read_composition_source("${BPR_SOURCE}" bpr_application_source)
 string(FIND
     "${bpr_application_source}"
     "auto detail::github_application_fixture_access::exercise_workbench_composition("

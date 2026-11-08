@@ -8,15 +8,18 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
 #include "bpr/qt/scoped_prose_editor.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include <QFont>
 #include <QPointer>
 #include <QWidget>
+#include <array>
 #include <functional>
 #include <map>
 #include <optional>
 #include <set>
 #include <vector>
 class QAction;
+class QHBoxLayout;
 class QCheckBox;
 class QComboBox;
 class QListWidget;
@@ -28,6 +31,7 @@ class QLabel;
 class QPushButton;
 class QToolButton;
 class QBoxLayout;
+class QHBoxLayout;
 class QVBoxLayout;
 namespace bpr::qt {
 	class markdown_body_view;
@@ -54,7 +58,10 @@ namespace bpr::qt {
 												   reconcile_publication,
 												   stop_publication,
 												   suggest_outline,
-												   insert_outline };
+												   insert_outline,
+												   /// [[BPR-1914]] v002. Ask about the open stop's code: the
+												   /// lines selected in the code, or the stop's own.
+												   ask_code };
 	/// \brief [[BPR-1593]]. Where the tour is shown: the route in the drawer's
 	/// Tour tab (RFC-BPR-0085 D4, layout A), or the tour page in the main pane
 	/// (layout C).
@@ -135,11 +142,50 @@ namespace bpr::qt {
 		/// \brief [[BPR-1900]]. The tour session and its proposal, as last
 		/// decided.
 		void present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal);
+		/// \brief [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour
+		/// (confirmed) and Undo reset; the host performs each.
+		void set_tour_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset);
+		/// \brief [[BPR-1931]]. What Reset tour would clear, whether it can
+		/// (an editable draft), and whether the last reset can be undone.
+		void present_tour_reset(const core::tour_reset_tally& aTally, bool aAvailable, bool aUndoable);
+		/// \brief [[BPR-1930]]. The proposed order of the stops, above the
+		/// route, while one waits.
+		[[nodiscard]] auto proposed_order() const noexcept -> QWidget* { return ProposedOrder; }
+		/// \brief [[BPR-1930]]. How a route row is marked by a structural
+		/// part waiting on it: 0 none, 1 removed, 2 merged, 3 split, 4 moved;
+		/// and the words of its grey pill.
+		[[nodiscard]] auto route_mark(int aRow) const -> std::pair<int, QString>;
 		/// \brief [[BPR-1900]]. A drafting run is running: started by the
 		/// control of `aHook` (Draft from PR context, Suggest an outline), or
 		/// by Draft the tour. Its control says Stop drafting and stops it;
 		/// nothing else waits on it, and leaving the window does not stop it.
-		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour);
+		void set_tour_running(std::optional<core::writing_hook> aHook, bool aDraftTour, bool aAsking = false);
+		/// \brief [[BPR-1914]] v003. Every side chat's composer and Update send
+		/// here: the one entry point a reviewer's `/skill` references
+		/// ([[BPR-1916]]) are resolved through.
+		void set_tour_ask_dispatch(tour_side_chat::ask_dispatch aAsk);
+		/// \brief Shows (true) or closes (false) the chat column; the window
+		/// places it beside the tour, in the Tour tab ([[BPR-1925]]).
+		void set_side_chat_visibility_dispatch(std::function<void(bool)> aVisibility);
+		/// \brief [[BPR-1925]]. Told after the tour has marked the part under
+		/// discussion and counted the chats: the window's Tour tab badge.
+		void set_side_chat_observer(std::function<void()> aObserver) { SideChatObserver = std::move(aObserver); }
+		/// \brief The chat column, for the window to place in the Tour tab.
+		[[nodiscard]] auto side_chat() const noexcept -> tour_side_chat* { return SideChat; }
+		/// \brief Opens the side chat about `aThread`, quoting `aPassage`.
+		void open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage = std::nullopt);
+		/// \brief [[BPR-1925]] v002. What a part's chat toggle does: opens the
+		/// chat about `aThread` (a stop's with its lines in the code), or
+		/// closes the column when that chat is the one in it.
+		void toggle_side_chat(const core::tour_thread& aThread);
+		/// \brief Opens the open stop's side chat on its code: `aSelected` (the
+		/// lines selected in the code) or the stop's own.
+		void ask_about_code(const std::optional<core::tour_source_range>& aSelected);
+		/// \brief Brings the tour to a chat's part, and a stop's lines into
+		/// the code.
+		void reveal_part(const core::tour_thread& aThread);
+		/// \brief [[BPR-1919]]. The panes' code colours for rendered tour text.
+		void set_code_theme(const markdown_code_theme& aTheme);
 		/// \brief [[BPR-1900]]. Draft the tour failed, in BPR-1892's notice.
 		void show_tour_draft_failure(const QString& aWhy);
 		void clear_tour_draft_failure();
@@ -251,6 +297,7 @@ namespace bpr::qt {
 		void                                                                       refresh_steps();
 		void                                                                       focus_step();
 		void                                                                       place_stop_card();
+		void                                                                       place_stop_card_now();
 		void                                                                       fit_route();
 		void                                                                       fit_page_columns();
 		void                                                                       refresh_excerpt();
@@ -289,7 +336,6 @@ namespace bpr::qt {
 		QWidget*                   AgentBar    = nullptr;
 		QWidget*                   AgentField  = nullptr;
 		agent_run_settings_picker* AgentPicker = nullptr;
-		void                       fit_agent_bar();
 		/// [[BPR-1881]]. The call to action, its button, and the setup's
 		/// readiness; the helpers' labels, run again when it changes.
 		QWidget*                           AgentSetupCall   = nullptr;
@@ -299,6 +345,36 @@ namespace bpr::qt {
 		std::function<void()>              ShownObserver;
 		agent_setup_readiness              AgentReadiness = agent_setup_readiness::ready;
 		std::vector<std::function<void()>> AgentLabels;
+		tour_side_chat*                    SideChat = nullptr;
+		std::vector<QToolButton*>          ChatButtons;
+		std::function<void()>              SideChatObserver;
+		/// [[BPR-1925]]. The widgets that show a part, each with the part it
+		/// shows (empty while it shows none): marked with the agent's rule
+		/// while that part's chat is in the column.
+		std::vector<std::pair<QWidget*, std::function<std::optional<core::tour_thread>()>>> PartMarks;
+		void                                                                                mark_part(QWidget* aWidget, std::function<std::optional<core::tour_thread>()> aPart);
+		/// [[BPR-1925]]. Marks the part under discussion, counts each part's
+		/// turns on its glyph, and has the chat follow the route between stops.
+		void                                                                           mark_side_chat();
+		tour_side_chat::ask_dispatch                                                   TourAsk;
+		std::function<void()>                                                          TourStop;
+		std::function<void(std::size_t, core::tour_proposal_decision, const QString&)> TourDecide;
+		std::optional<markdown_code_theme>                                             CodeTheme;
+		std::function<void(std::vector<application::markdown_code_syntax_request>)>    CodeSyntaxDispatch;
+		void                                                                           wire_side_chat();
+		/// [[BPR-1914]] v004. Keeps the Tour tab's scroll position through what a
+		/// click sets off.
+		void                    hold_scroll();
+		std::optional<int>      HeldScroll;
+		std::uint64_t           HeldScrollGeneration = 0U;
+		QMetaObject::Connection HeldScrollWatch;
+		QMetaObject::Connection HeldScrollRelease;
+		void                    open_side_chat_about(core::writing_hook aHook, const QString& aSelected);
+		/// [[BPR-1925]] v002. A part's toggle: opens its chat, switches to it,
+		/// or, on the part whose chat is open, closes the column.
+		void         toggle_side_chat_about(core::writing_hook aHook, const QString& aSelected);
+		QHBoxLayout* StopTitleRow = nullptr;
+		void         apply_agent_code_style();
 		/// [[BPR-1892]]. Each request's failure notice, what its control
 		/// said when it was pressed, and where Show on the Agent tab goes.
 		std::map<core::writing_hook, QWidget*> FailureNotices;
@@ -306,29 +382,55 @@ namespace bpr::qt {
 		std::function<void()>                  AgentFailureDispatch;
 		/// [[BPR-1900]]. The tour session's panel, Draft the tour's failure
 		/// notice, and the drafting run in flight.
-		tour_agent_panel*                 TourAgentPanel = nullptr;
-		QWidget*                          DraftFailure   = nullptr;
-		std::optional<core::writing_hook> RunningHook;
-		bool                              RunningDraft = false;
-		void                              open_failed_run();
-		auto                              add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
-		void                              refresh_agent_features();
-		void                              restyle_agent_features();
-		QWidget*                          Foot               = nullptr;
-		QLabel*                           FootState          = nullptr;
-		QPushButton*                      PreviewPublish     = nullptr;
-		QLabel*                           StopState          = nullptr;
-		QPushButton*                      Reaffirm           = nullptr;
-		QPushButton*                      Previous           = nullptr;
-		QPushButton*                      Next               = nullptr;
-		QComboBox*                        PublicationMode    = nullptr;
-		QCheckBox*                        DescriptionEdit    = nullptr;
-		QLabel*                           PublicationStatus  = nullptr;
-		markdown_body_view*               PublicationPreview = nullptr;
-		QPushButton*                      PublishTour        = nullptr;
-		QPushButton*                      ResumeTour         = nullptr;
-		QPushButton*                      ReconcileTour      = nullptr;
-		QPushButton*                      StopTour           = nullptr;
+		tour_agent_panel* TourAgentPanel = nullptr;
+		QWidget*          DraftFailure   = nullptr;
+		/// [[BPR-1925]] v003. The proposal waits in the tour, on the parts it
+		/// changes: proposed stops under the route, grey until accepted; a
+		/// stop's new explanation on its card; the Problem's and the
+		/// Solution's under their own text.
+		QWidget* ProposedStops = nullptr;
+		/// [[BPR-1930]]. A stop's waiting parts (a new explanation, its
+		/// removal, a merge or a split it leads), shown on its card while open.
+		std::multimap<std::uint64_t, QPointer<QWidget>> StopTextProposals;
+		/// [[BPR-1930]]. The proposed order, above the route; each stop's mark
+		/// on the route: its kind and its pill's words.
+		QWidget*                                         ProposedOrder = nullptr;
+		std::map<std::uint64_t, std::pair<int, QString>> RouteMarks;
+		bool                                             StructureProposed = false;
+		void                                             apply_route_marks();
+		std::array<bool, 2>                              PartProposed{ false, false };
+		std::size_t                                      ProposedStopCount = 0U;
+		bool                                             ShowsStopProposal = false;
+		QVBoxLayout*                                     StopFieldsLayout  = nullptr;
+		QPushButton*                                     Complete          = nullptr;
+		QPushButton*                                     ShowInCode        = nullptr;
+		std::optional<core::tour_stop_id>                AdvanceFrom;
+		void                                             begin_proposals();
+		[[nodiscard]] auto                               place_proposal(std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool;
+		void                                             mark_proposed();
+		void                                             place_stop_text_proposal();
+		void                                             refresh_complete();
+		std::optional<core::writing_hook>                RunningHook;
+		bool                                             RunningDraft = false;
+		void                                             open_failed_run();
+		auto                                             add_failure_notice(core::writing_hook aHook, QWidget* aParent) -> QWidget*;
+		void                                             refresh_agent_features();
+		void                                             restyle_agent_features();
+		QWidget*                                         Foot               = nullptr;
+		QLabel*                                          FootState          = nullptr;
+		QPushButton*                                     PreviewPublish     = nullptr;
+		QLabel*                                          StopState          = nullptr;
+		QPushButton*                                     Reaffirm           = nullptr;
+		QPushButton*                                     Previous           = nullptr;
+		QPushButton*                                     Next               = nullptr;
+		QComboBox*                                       PublicationMode    = nullptr;
+		QCheckBox*                                       DescriptionEdit    = nullptr;
+		QLabel*                                          PublicationStatus  = nullptr;
+		markdown_body_view*                              PublicationPreview = nullptr;
+		QPushButton*                                     PublishTour        = nullptr;
+		QPushButton*                                     ResumeTour         = nullptr;
+		QPushButton*                                     ReconcileTour      = nullptr;
+		QPushButton*                                     StopTour           = nullptr;
 		/// [[BPR-1782]]. Compose review's waiting panel, for the tour's Publish:
 		/// what is being sent while it runs, and why it did not finish.
 		QWidget*             PublicationWorking = nullptr;

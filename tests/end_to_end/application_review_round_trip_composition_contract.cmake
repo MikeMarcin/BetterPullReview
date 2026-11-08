@@ -1,3 +1,48 @@
+# [[BPR-1924]] reseal: main.cpp's tests-on tour authoring look gains
+# --attended-agent-picker, which finds only the fixture `claude`, drags the
+# Comments drawer to 380 pixels and opens the Agent tab on the wrapped agent
+# picker. No provider, credential, grant, mutation or inventory change; the
+# mutation-branch pin is unchanged.
+# [[BPR-1910]]/[[BPR-1911]] merge reseal (2026-11-06): main 8b3b8a327
+# (BPR-1914 v003, BPR-1916, BPR-1917, BPR-1918, BPR-1919) combined with the
+# refactor's rounds 6 and 7; both sides kept. The manifest and full digests are
+# recomputed over the combined sources; the mutation-branch pin is unchanged.
+# [[BPR-1910]] refactoring reseal: the startup implementation, the public
+# github_application members and the startup fixture accessors move,
+# unchanged, from github_application.cpp to src/app/src/github_application/
+# (application_startup, application_desktop, application_windows,
+# fixture_startup), and the root's include list keeps only what its remaining
+# code uses. The pinned span and the boundary reader stay. No provider,
+# credential, grant, mutation or publication change; the mutation-branch pin
+# is unchanged.
+# [[BPR-1909]] refactoring reseal: github_application.cpp's tests-only
+# github_application_fixture_access members move, unchanged, to course files
+# under src/app/src/github_application/ (fixture_*.cpp), with
+# fixture_course_support and fixture_uiforetw_observation declaring the few
+# helpers several courses share. All of it stays under BPR_BUILD_TESTING. No
+# production, provider, credential, grant, mutation or publication change;
+# the mutation-branch pin is unchanged.
+# [[BPR-1908]] refactoring reseal: github_application::implementation, one
+# window's composition, moves, unchanged in behavior, to
+# src/app/src/github_application/window_composition.hpp (declaration) and
+# window_*.cpp responsibility sources; its fixture probe states move to
+# window_probe_states.hpp. The pinned span, compose_review_mutation through
+# refresh_review_projection, stays in github_application.cpp as out-of-line
+# definitions of github_application::implementation, so the live provider's
+# single construction site does not move. Production mutation-branch reseal:
+# the tests-disabled branch between its #else and #endif is byte-identical to
+# the previous pin's after removing one leading tab from each of its 62 lines
+# (checked mechanically against 240c2d4d6); the markers that find the span now
+# match the qualified out-of-line names. No provider, credential, grant,
+# mutation or publication change.
+# [[BPR-1907]] refactoring reseal: github_profile_runtime moves, unchanged
+# in behavior, from github_application.cpp to src/app/src/github_application/
+# profile_runtime.hpp (declarations) and profile_runtime{,_construction,
+# _sign_in,_release_access,_shutdown}.cpp; the root's remaining shared helpers
+# move to cli_accounts, startup_failures, defect_identity and
+# insights_metrics. The provider using-declarations and the test boundary
+# reader stay in the root. No provider, credential, grant, mutation or
+# publication change; the mutation-branch pin is unchanged.
 # [[BPR-1906]] refactoring reseal: github_application.cpp's composition
 # adapters move unchanged in behavior to src/app/src/github_application/:
 # review_mutation_selection, queue_notifications, profile_hosts,
@@ -2538,6 +2583,8 @@ endfunction()
 # journal transition, source inventory or production mutation-branch change.
 # The composed old-library regression fails; repeated cuts then restore must
 # resolve exactly one comment with no second POST. M3 independent recheck pending.
+include("${CMAKE_CURRENT_LIST_DIR}/bpr_composition_source.cmake")
+
 function(bpr_lf_normalized_sha256 content out_variable)
     string(REPLACE "\r\n" "\n" bpr_normalized "${content}")
     string(REPLACE "\r" "\n" bpr_normalized "${bpr_normalized}")
@@ -2727,7 +2774,7 @@ function(bpr_verify_full_application_digest source_variable)
 	# github_application.cpp combined with the sign-out reset step above; both
 	# sides kept, nothing else changed.
 	set(bpr_expected_full_application_digest
-        "28e0c73c8ddb403178aa5c359b005579de1c58f47aebda2dc8ba89dbbcdbd697"
+        "e3dba678fe08e1ea888bfcca6b1214224783dfafe219f51d3eb8ad54647e0646"
 	)
     if(NOT bpr_full_application_digest STREQUAL
         bpr_expected_full_application_digest
@@ -2770,14 +2817,51 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application.cpp"
         "src/github_application/agent_composition.cpp"
         "src/github_application/agent_composition.hpp"
+        "src/github_application/application_desktop.cpp"
+        "src/github_application/application_startup.cpp"
+        "src/github_application/application_startup.hpp"
+        "src/github_application/application_windows.cpp"
         "src/github_application/blob_sources.cpp"
         "src/github_application/blob_sources.hpp"
+        "src/github_application/cli_accounts.cpp"
+        "src/github_application/cli_accounts.hpp"
+        "src/github_application/credential_prompt.cpp"
+        "src/github_application/credential_prompt.hpp"
+        "src/github_application/defect_identity.cpp"
+        "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
         "src/github_application/device_authorization_composition.hpp"
+        "src/github_application/fixture_appearance_course.cpp"
+        "src/github_application/fixture_course_modality.cpp"
+        "src/github_application/fixture_course_support.cpp"
+        "src/github_application/fixture_course_support.hpp"
+        "src/github_application/fixture_defect_course.cpp"
+        "src/github_application/fixture_effect_holds_and_agent_evidence.cpp"
+        "src/github_application/fixture_label_authoring_course.cpp"
+        "src/github_application/fixture_reply_and_draft_courses.cpp"
+        "src/github_application/fixture_review_ledger_course.cpp"
+        "src/github_application/fixture_review_round_trip_course.cpp"
+        "src/github_application/fixture_start_and_evidence.cpp"
+        "src/github_application/fixture_start_review_course.cpp"
+        "src/github_application/fixture_startup.cpp"
+        "src/github_application/fixture_threaded_reply_course.cpp"
+        "src/github_application/fixture_uiforetw_capture.cpp"
+        "src/github_application/fixture_uiforetw_course.cpp"
+        "src/github_application/fixture_uiforetw_observation.cpp"
+        "src/github_application/fixture_uiforetw_observation.hpp"
+        "src/github_application/fixture_workbench_course.cpp"
         "src/github_application/github_presentation_projections.cpp"
         "src/github_application/github_presentation_projections.hpp"
+        "src/github_application/insights_metrics.cpp"
+        "src/github_application/insights_metrics.hpp"
         "src/github_application/profile_hosts.cpp"
         "src/github_application/profile_hosts.hpp"
+        "src/github_application/profile_runtime.cpp"
+        "src/github_application/profile_runtime.hpp"
+        "src/github_application/profile_runtime_construction.cpp"
+        "src/github_application/profile_runtime_release_access.cpp"
+        "src/github_application/profile_runtime_shutdown.cpp"
+        "src/github_application/profile_runtime_sign_in.cpp"
         "src/github_application/public_preview_wire_self_check.cpp"
         "src/github_application/public_preview_wire_transport.cpp"
         "src/github_application/public_preview_wire_transport.hpp"
@@ -2787,10 +2871,36 @@ function(bpr_compute_production_app_manifest_digest app_source_root out_variable
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
         "src/github_application/session_settings.hpp"
+        "src/github_application/skill_runs.cpp"
+        "src/github_application/skill_runs.hpp"
+        "src/github_application/startup_failures.cpp"
+        "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/tour_owner_replies.cpp"
+        "src/github_application/tour_owner_replies.hpp"
+        "src/github_application/window_agent_chat.cpp"
+        "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_commit_filter.cpp"
+        "src/github_application/window_composition.cpp"
+        "src/github_application/window_composition.hpp"
+        "src/github_application/window_construction.cpp"
+        "src/github_application/window_defects.cpp"
+        "src/github_application/window_device_authorization.cpp"
+        "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_navigation.cpp"
+        "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_read_state.cpp"
+        "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
+        "src/github_application/window_review_ledger.cpp"
+        "src/github_application/window_review_mutations.cpp"
+        "src/github_application/window_shutdown.cpp"
+        "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_skills.cpp"
+        "src/github_application/window_tours.cpp"
+        "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
         "src/github_application/workbench_composition.hpp"
         "src/installed_resources.cpp"
@@ -2889,14 +2999,51 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application.cpp"
         "src/github_application/agent_composition.cpp"
         "src/github_application/agent_composition.hpp"
+        "src/github_application/application_desktop.cpp"
+        "src/github_application/application_startup.cpp"
+        "src/github_application/application_startup.hpp"
+        "src/github_application/application_windows.cpp"
         "src/github_application/blob_sources.cpp"
         "src/github_application/blob_sources.hpp"
+        "src/github_application/cli_accounts.cpp"
+        "src/github_application/cli_accounts.hpp"
+        "src/github_application/credential_prompt.cpp"
+        "src/github_application/credential_prompt.hpp"
+        "src/github_application/defect_identity.cpp"
+        "src/github_application/defect_identity.hpp"
         "src/github_application/device_authorization_composition.cpp"
         "src/github_application/device_authorization_composition.hpp"
+        "src/github_application/fixture_appearance_course.cpp"
+        "src/github_application/fixture_course_modality.cpp"
+        "src/github_application/fixture_course_support.cpp"
+        "src/github_application/fixture_course_support.hpp"
+        "src/github_application/fixture_defect_course.cpp"
+        "src/github_application/fixture_effect_holds_and_agent_evidence.cpp"
+        "src/github_application/fixture_label_authoring_course.cpp"
+        "src/github_application/fixture_reply_and_draft_courses.cpp"
+        "src/github_application/fixture_review_ledger_course.cpp"
+        "src/github_application/fixture_review_round_trip_course.cpp"
+        "src/github_application/fixture_start_and_evidence.cpp"
+        "src/github_application/fixture_start_review_course.cpp"
+        "src/github_application/fixture_startup.cpp"
+        "src/github_application/fixture_threaded_reply_course.cpp"
+        "src/github_application/fixture_uiforetw_capture.cpp"
+        "src/github_application/fixture_uiforetw_course.cpp"
+        "src/github_application/fixture_uiforetw_observation.cpp"
+        "src/github_application/fixture_uiforetw_observation.hpp"
+        "src/github_application/fixture_workbench_course.cpp"
         "src/github_application/github_presentation_projections.cpp"
         "src/github_application/github_presentation_projections.hpp"
+        "src/github_application/insights_metrics.cpp"
+        "src/github_application/insights_metrics.hpp"
         "src/github_application/profile_hosts.cpp"
         "src/github_application/profile_hosts.hpp"
+        "src/github_application/profile_runtime.cpp"
+        "src/github_application/profile_runtime.hpp"
+        "src/github_application/profile_runtime_construction.cpp"
+        "src/github_application/profile_runtime_release_access.cpp"
+        "src/github_application/profile_runtime_shutdown.cpp"
+        "src/github_application/profile_runtime_sign_in.cpp"
         "src/github_application/public_preview_wire_self_check.cpp"
         "src/github_application/public_preview_wire_transport.cpp"
         "src/github_application/public_preview_wire_transport.hpp"
@@ -2906,10 +3053,36 @@ function(bpr_verify_app_source_tree app_source_root)
         "src/github_application/review_mutation_selection.hpp"
         "src/github_application/session_settings.cpp"
         "src/github_application/session_settings.hpp"
+        "src/github_application/skill_runs.cpp"
+        "src/github_application/skill_runs.hpp"
+        "src/github_application/startup_failures.cpp"
+        "src/github_application/startup_failures.hpp"
         "src/github_application/theme_document_file.cpp"
         "src/github_application/theme_document_file.hpp"
+        "src/github_application/tour_owner_replies.cpp"
+        "src/github_application/tour_owner_replies.hpp"
+        "src/github_application/window_agent_chat.cpp"
+        "src/github_application/window_agent_setup.cpp"
+        "src/github_application/window_commit_filter.cpp"
+        "src/github_application/window_composition.cpp"
+        "src/github_application/window_composition.hpp"
+        "src/github_application/window_construction.cpp"
+        "src/github_application/window_defects.cpp"
+        "src/github_application/window_device_authorization.cpp"
+        "src/github_application/window_github_reads.cpp"
+        "src/github_application/window_navigation.cpp"
+        "src/github_application/window_probe_states.hpp"
+        "src/github_application/window_read_state.cpp"
+        "src/github_application/window_review_drafts.cpp"
         "src/github_application/window_review_lanes.cpp"
         "src/github_application/window_review_lanes.hpp"
+        "src/github_application/window_review_ledger.cpp"
+        "src/github_application/window_review_mutations.cpp"
+        "src/github_application/window_shutdown.cpp"
+        "src/github_application/window_sign_in.cpp"
+        "src/github_application/window_skills.cpp"
+        "src/github_application/window_tours.cpp"
+        "src/github_application/window_workbench.cpp"
         "src/github_application/workbench_composition.cpp"
         "src/github_application/workbench_composition.hpp"
         "src/github_application_fixture_access.hpp"
@@ -3105,8 +3278,17 @@ function(bpr_verify_app_source_tree app_source_root)
 # main a2e2ca244 with the sign-out reset sources above; both sides kept.
 	# [[BPR-1811]]. The same combined-source restart preserves the incoming
 	# terminal diagnostic inventory and the release-only fixture repairs.
+	# [[BPR-1918]]. Resealed over main 2261fa371 for the custom agent's
+	# run-checks switch in window_agent_chat.cpp.
+	# [[BPR-1916]], [[BPR-1917]] reseal (2026-11-06): skill_runs.{hpp,cpp} and
+	# window_skills.cpp join the inventory; the catalog loader, the skills a
+	# writing hook, an Agent tab question or a tour ask names carried inline,
+	# and the attended prompt-editor look. No grant, provider, gh process,
+	# admission, mutation branch or publication change.
+	# Resealed again over the review skill's place among the built-in prompts
+	# (window_construction.cpp, window_agent_setup.cpp pass its Changed state).
 	set(bpr_expected_production_app_manifest_digest
-        "c382227ef4d7f8e0bdae2ec8c16aec822c0361d12655bb291c5a95a2ecfb17af"
+        "81d94f3a4d817cf004ed07d2a82c26f18a2a04d5cc55386951090b48104c7c18"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
@@ -3374,12 +3556,12 @@ function(bpr_compute_production_mutation_host_digest source_variable out_variabl
     set(bpr_mutation_branch_source "${${source_variable}}")
     string(FIND
         "${bpr_mutation_branch_source}"
-        "void compose_review_mutation("
+        "::compose_review_mutation("
         bpr_mutation_compose_begin
     )
     string(FIND
         "${bpr_mutation_branch_source}"
-		"void refresh_review_projection("
+		"::refresh_review_projection("
         bpr_mutation_compose_end
     )
     if(bpr_mutation_compose_begin EQUAL -1
@@ -3455,7 +3637,7 @@ function(bpr_verify_production_mutation_host_digest source_variable)
     # call and answer and records github.review_mutation lines only; the
     # host still receives the one erased port. Was 53d6792a1.
     set(bpr_expected_mutation_production_digest
-        "70fe8a7e4bc59291cc0dc1722899dbb8d358136cff32be545db46ecf29099d91"
+        "6a1c1ca2977528795cb151cedef9589dc5c3c1926b281c17f57e1b5d2326d150"
     )
     if(NOT bpr_mutation_production_digest STREQUAL
         bpr_expected_mutation_production_digest
@@ -3509,7 +3691,11 @@ if(DEFINED BPR_PROVIDER_INVENTORY_SOURCE_FILE)
         bpr_provider_inventory_source
     )
     bpr_verify_full_application_digest(bpr_provider_inventory_source)
-    bpr_verify_async_mutation_host_inventory(bpr_provider_inventory_source)
+    bpr_read_composition_source(
+        "${BPR_PROVIDER_INVENTORY_SOURCE_FILE}"
+        bpr_provider_inventory_composition
+    )
+    bpr_verify_async_mutation_host_inventory(bpr_provider_inventory_composition)
     bpr_verify_production_mutation_host_digest(
         bpr_provider_inventory_source
     )
@@ -3534,18 +3720,19 @@ foreach(required IN ITEMS
 endforeach()
 
 file(READ "${BPR_APP_SOURCE}" bpr_application_source)
+bpr_read_composition_source("${BPR_APP_SOURCE}" bpr_composition_source)
 bpr_verify_full_application_digest(bpr_application_source)
-bpr_verify_async_mutation_host_inventory(bpr_application_source)
+bpr_verify_async_mutation_host_inventory(bpr_composition_source)
 bpr_verify_production_mutation_host_digest(bpr_application_source)
 bpr_verify_app_source_tree("${BPR_SOURCE_ROOT}/src/app")
 bpr_verify_replay_operator_surface("${BPR_SOURCE_ROOT}/src/app")
 string(FIND
-    "${bpr_application_source}"
+    "${bpr_composition_source}"
     "exercise_review_round_trip_composition("
     probe_begin
 )
 string(FIND
-    "${bpr_application_source}"
+    "${bpr_composition_source}"
     "review_round_trip_composition_evidence("
     probe_end
 )
@@ -3554,7 +3741,7 @@ if(probe_begin EQUAL -1 OR probe_end EQUAL -1 OR probe_end LESS_EQUAL probe_begi
 endif()
 math(EXPR probe_length "${probe_end} - ${probe_begin}")
 string(SUBSTRING
-    "${bpr_application_source}"
+    "${bpr_composition_source}"
     ${probe_begin}
     ${probe_length}
     probe_source
@@ -3590,7 +3777,7 @@ foreach(required_product IN ITEMS
     "set_selection_sink("
 	"refresh_review_projection(aTerminal)"
 )
-    string(FIND "${bpr_application_source}" "${required_product}" found)
+    string(FIND "${bpr_composition_source}" "${required_product}" found)
     if(found EQUAL -1)
         message(FATAL_ERROR
             "review round-trip product composition omitted ${required_product}"
@@ -3600,12 +3787,12 @@ endforeach()
 
 string(FIND
     "${bpr_application_source}"
-    "void compose_review_mutation("
+    "::compose_review_mutation("
     mutation_composition_begin
 )
 string(FIND
     "${bpr_application_source}"
-	"void refresh_review_projection("
+	"::refresh_review_projection("
     mutation_composition_end
 )
 if(mutation_composition_begin EQUAL -1

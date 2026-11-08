@@ -35,6 +35,13 @@ add_library(
         src/review_ledger_store.cpp
         src/review_mutation_recovery_store.cpp
         src/epoch_catalog.cpp
+        src/epoch_catalog_append_finalization.cpp
+        src/epoch_catalog_append_reservation.cpp
+        src/epoch_catalog_maintenance_operations.cpp
+        src/epoch_catalog_open.cpp
+        src/epoch_catalog_prune_and_cache_delete.cpp
+        src/epoch_catalog_reads.cpp
+        src/epoch_catalog_support.cpp
 )
 add_library(
     BetterPullReview::AdapterSQLite

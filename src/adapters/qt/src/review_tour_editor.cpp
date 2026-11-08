@@ -1,5 +1,6 @@
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 
 #include "bpr/core/tour_steps.hpp"
 
@@ -36,8 +37,11 @@
 #include <QPainterPath>
 #include <QPlainTextDocumentLayout>
 #include <QPlainTextEdit>
+#include <QPointer>
 #include <QPushButton>
+#include <QResizeEvent>
 #include <QScrollArea>
+#include <QScrollBar>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -45,12 +49,14 @@
 #include <QTextEdit>
 #include <QTextLayout>
 #include <QTextOption>
+#include <QTimer>
 #include <QToolButton>
 #include <QVBoxLayout>
 #include <algorithm>
 #include <array>
 #include <cmath>
 #include <limits>
+#include <set>
 #include <vector>
 namespace bpr::qt {
 	namespace {
@@ -64,12 +70,25 @@ namespace bpr::qt {
 		constexpr int divider_role   = Qt::UserRole + 6;
 		constexpr int current_role   = Qt::UserRole + 7;
 		constexpr int attention_role = Qt::UserRole + 8;
+		/// [[BPR-1925]]. The turns in a stop's chat, and whether that chat is
+		/// the one beside the tour now.
+		constexpr int chat_role      = Qt::UserRole + 9;
+		constexpr int discussed_role = Qt::UserRole + 10;
+		/// [[BPR-1930]]. A structural part waiting on the stop (0 none, 1
+		/// removed, 2 merged, 3 split, 4 moved) and its grey pill's words.
+		constexpr int revision_role      = Qt::UserRole + 11;
+		constexpr int revision_note_role = Qt::UserRole + 12;
 		/// The route's measures: the grip, the circle's column, the text.
-		constexpr int grip_width   = 18;
-		constexpr int ring_left    = 22;
-		constexpr int ring_size    = 22;
-		constexpr int text_left    = ring_left + ring_size + 10;
-		constexpr int divider_band = 26;
+		constexpr int grip_width = 18;
+		constexpr int ring_left  = 22;
+		constexpr int ring_size  = 22;
+		constexpr int text_left  = ring_left + ring_size + 10;
+		/// [[BPR-1925]] v002. How far a stop's text box reaches round the
+		/// words, into the card's margin: sideways, and up and down (the
+		/// fields are six pixels apart).
+		constexpr qreal stop_text_room          = 8.0;
+		constexpr qreal stop_text_room_vertical = 6.0;
+		constexpr int   divider_band            = 26;
 
 		[[nodiscard]] auto mixed(const QColor& aFrom, const QColor& aTo, const qreal aShare) -> QColor
 		{
@@ -172,27 +191,6 @@ namespace bpr::qt {
 			QString              Text;
 		};
 
-		/// \brief [[BPR-1878]]. The Agent tab's question field, drawn as it
-		/// draws it: one rounded field on the base colour. [[BPR-1881]]: an
-		/// agent feature, so it is outlined in the agent accent.
-		class agent_bar_field final : public QWidget
-		{
-		public:
-			using QWidget::QWidget;
-
-		protected:
-			void paintEvent(QPaintEvent* /*aEvent*/) override
-			{
-				auto painter = QPainter{ this };
-				painter.setRenderHint(QPainter::Antialiasing, true);
-				const auto base = palette().color(QPalette::Active, QPalette::Base);
-				const auto box  = QRectF{ rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
-				painter.setPen(QPen{ mixed(base, agent_accent(palette()), 0.6), 1.0 });
-				painter.setBrush(base);
-				painter.drawRoundedRect(box, 8.0, 8.0);
-			}
-		};
-
 		/// \brief [[BPR-1881]]. The call to action's ground: the window
 		/// washed with the agent accent, outlined in it.
 		class agent_setup_call_frame final : public QWidget
@@ -221,6 +219,14 @@ namespace bpr::qt {
 			return dark ? QColor{ 0xE3, 0xB3, 0x41 } : QColor{ 0xC3, 0x8A, 0x10 };
 		}
 
+		/// \brief [[BPR-1925]] v003. The rail of a part not yet accepted: grey,
+		/// readable on either ground, until it is the tour's and turns amber.
+		[[nodiscard]] auto route_grey(const QPalette& aPalette) -> QColor
+		{
+			const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
+			return dark ? QColor{ 0x8B, 0x94, 0x9E } : QColor{ 0x6E, 0x77, 0x81 };
+		}
+
 		[[nodiscard]] auto route_green(const QPalette& aPalette) -> QColor
 		{
 			const auto dark = aPalette.color(QPalette::Window).lightness() < 128;
@@ -232,6 +238,181 @@ namespace bpr::qt {
 			auto code = QFontDatabase::systemFont(QFontDatabase::FixedFont);
 			code.setPointSizeF(std::max(1.0, aFont.pointSizeF() * 0.86));
 			return code;
+		}
+
+		/// \brief [[BPR-1925]]. Paints the agent's mark under a widget that
+		/// shows a part while that part's chat is beside the tour: a faint
+		/// wash of the accent and its rule down the left, as the route marks a
+		/// stop. It paints before the widget does, so everything the widget
+		/// and its children draw stays on top.
+		class part_marker final : public QObject
+		{
+		public:
+			part_marker(QObject* aParent, std::function<bool()> aMarked)
+				: QObject{ aParent }
+				, Marked{ std::move(aMarked) }
+			{
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::Paint && Marked && Marked()) {
+					auto* const widget  = static_cast<QWidget*>(aWatched);
+					auto        painter = QPainter{ widget };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					const auto& palette = widget->palette();
+					const auto  base    = palette.color(QPalette::Active, QPalette::Window);
+					const auto  agent   = agent_accent(palette);
+					const auto  ground  = QRectF{ widget->rect() }.adjusted(0.5, 0.5, -0.5, -0.5);
+					painter.setPen(QPen{ mixed(base, agent, 0.45), 1.0 });
+					painter.setBrush(mixed(base, agent, 0.10));
+					painter.drawRoundedRect(ground, 6.0, 6.0);
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(agent);
+					painter.drawRoundedRect(QRectF{ ground.left(), ground.top() + 4.0, 3.0, std::max(0.0, ground.height() - 8.0) }, 1.5, 1.5);
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			std::function<bool()> Marked;
+		};
+
+		/// \brief [[BPR-1925]] v002, owner: the blue box on a stop's text "feels
+		/// cramping, I dont like it how it is". Edited in place, the text keeps
+		/// its place and its width, where it was read; the quiet box is drawn
+		/// round it, `stop_text_room` pixels out into the card's own margin, so
+		/// the words have room without moving or rewrapping. The box is the
+		/// card's ground shifted a shade, with a hairline edge that takes the
+		/// focus colour, one pixel either way, while the keyboard is in it.
+		/// No native focus rectangle or ring is drawn on the text itself.
+		class calm_text_box final : public QObject
+		{
+		public:
+			explicit calm_text_box(QPlainTextEdit& aText)
+				: QObject{ &aText }
+				, Text{ &aText }
+			{
+				setObjectName(QStringLiteral("tourStopTextBox"));
+				aText.installEventFilter(this);
+			}
+
+		protected:
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aWatched == Text) {
+					switch (aEvent->type()) {
+					case QEvent::FocusIn:
+					case QEvent::FocusOut:
+					case QEvent::Resize:
+					case QEvent::Move:
+					case QEvent::Show:
+					case QEvent::Hide:
+					case QEvent::ParentChange:
+						if (auto* const holder = host(); holder != nullptr) {
+							if (!Hosts.contains(holder)) {
+								Hosts.insert(holder);
+								holder->installEventFilter(this);
+							}
+							holder->update();
+						}
+						break;
+					default: break;
+					}
+				} else if (aEvent->type() == QEvent::Paint && aWatched == host() && Text->isVisible()) {
+					auto* const holder  = static_cast<QWidget*>(aWatched);
+					auto        painter = QPainter{ holder };
+					painter.setRenderHint(QPainter::Antialiasing, true);
+					const auto ground  = holder->palette().color(QPalette::Active, QPalette::Window);
+					const auto ink     = holder->palette().color(QPalette::Active, QPalette::WindowText);
+					const auto focused = Text->hasFocus();
+					const auto box     = QRectF{ QRect{ Text->mapTo(holder, QPoint{ 0, 0 }), Text->size() } }.adjusted(-stop_text_room, -stop_text_room_vertical, stop_text_room, stop_text_room_vertical);
+					painter.setPen(QPen{ focused ? focus_ring_colour(holder->palette(), QPalette::Window) : mixed(ground, ink, 0.16), 1.0 });
+					painter.setBrush(mixed(ground, ink, focused ? 0.05 : 0.03));
+					painter.drawRoundedRect(box.adjusted(0.5, 0.5, -0.5, -0.5), 6.0, 6.0);
+				}
+				return QObject::eventFilter(aWatched, aEvent);
+			}
+
+		private:
+			/// The card (or page) the stop's fields sit in: it has the margin
+			/// the box reaches into.
+			[[nodiscard]] auto host() const -> QWidget*
+			{
+				auto* const fields = Text->parentWidget();
+				return fields != nullptr ? fields->parentWidget() : nullptr;
+			}
+			QPlainTextEdit*          Text = nullptr;
+			std::set<const QWidget*> Hosts;
+		};
+
+		/// \brief [[BPR-1925]] v003, owner on v002: "Let's put a different
+		/// color on the stop rails for stops that aren't accepted, maybe grey
+		/// and then turn them back yellow once accepted." A proposed stop on
+		/// the route: its number in a grey ring on a grey rail, and its card
+		/// (title, file and lines, its text as it will read, Edit text,
+		/// Discard and Accept where Ready, next sits on an accepted stop).
+		/// Accepted, it is a stop of the tour and wears the amber of the rest.
+		class proposed_stop_frame final : public QWidget
+		{
+		public:
+			proposed_stop_frame(const int aNumber, QWidget* aParent)
+				: QWidget{ aParent }
+				, Number{ aNumber }
+			{
+				setObjectName(QStringLiteral("tourProposedStop"));
+				auto* const column = new QVBoxLayout{ this };
+				column->setContentsMargins(text_left - 6, 10, 12, 10);
+			}
+			int Number = 0;
+
+		protected:
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto base   = palette().color(QPalette::Active, QPalette::Base);
+				const auto grey   = route_grey(palette());
+				const auto ground = QRectF{ rect().adjusted(grip_width - 4, 2, -2, -2) };
+				painter.setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
+				painter.setBrush(Qt::NoBrush);
+				painter.drawRoundedRect(ground, 8.0, 8.0);
+				painter.setPen(Qt::NoPen);
+				painter.setBrush(grey);
+				painter.drawRoundedRect(QRectF{ ground.left(), ground.top() + 6.0, 3.0, ground.height() - 12.0 }, 1.5, 1.5);
+				// [[BPR-1930]]. A proposed order is about the route, not a stop
+				// on it: no ring of its own.
+				if (Number <= 0) {
+					return;
+				}
+				// The rail from the stop before, and the ring.
+				const auto centre = QPointF{ ring_left + ring_size / 2.0, 10.0 + ring_size / 2.0 };
+				auto       rail   = grey;
+				rail.setAlphaF(0.55F);
+				painter.setPen(QPen{ rail, 2.0, Qt::DashLine });
+				painter.drawLine(QPointF{ centre.x(), 0.0 }, QPointF{ centre.x(), centre.y() - ring_size / 2.0 });
+				painter.drawLine(QPointF{ centre.x(), centre.y() + ring_size / 2.0 }, QPointF{ centre.x(), static_cast<qreal>(height()) });
+				const auto ring = QRectF{ centre.x() - ring_size / 2.0, centre.y() - ring_size / 2.0, static_cast<qreal>(ring_size), static_cast<qreal>(ring_size) };
+				painter.setPen(QPen{ grey, 1.6 });
+				painter.setBrush(base);
+				painter.drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
+				auto number = font();
+				number.setWeight(QFont::DemiBold);
+				number.setPointSizeF(std::max(1.0, number.pointSizeF() * 0.86));
+				painter.setFont(number);
+				painter.setPen(grey);
+				painter.drawText(ring, Qt::AlignCenter, QString::number(Number));
+			}
+		};
+
+		/// \brief [[BPR-1925]] v002. Where a stop's chat toggle sits in its
+		/// route row: at the right, level with its ring.
+		[[nodiscard]] auto route_chat_box(const QRect& aRow, const bool aDivider, const QFont& aFont, const std::size_t aTurns) -> QRectF
+		{
+			const auto size = chat_toggle_size(aFont, aTurns);
+			const auto top  = aRow.top() + (aDivider ? divider_band : 0) + 8 + (ring_size - size.height()) / 2;
+			return QRectF{ static_cast<qreal>(aRow.right() - 8 - size.width()), static_cast<qreal>(top), static_cast<qreal>(size.width()), static_cast<qreal>(size.height()) };
 		}
 
 		/// \brief [[BPR-1593]]. RFC-BPR-0085 D4: each stop on the route, a
@@ -307,8 +488,35 @@ namespace bpr::qt {
 				if (!last) {
 					aPainter->drawLine(QPointF{ ringCentre.x(), ringCentre.y() + ring_size / 2.0 }, QPointF{ ringCentre.x(), static_cast<qreal>(rect.bottom() + 1) });
 				}
+				// [[BPR-1925]]. The stop whose chat is beside the tour: the agent's
+				// rule and a faint wash of its accent, under everything else.
+				const auto agent     = agent_accent(palette);
+				const auto discussed = aIndex.data(discussed_role).toBool();
+				if (discussed) {
+					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
+					aPainter->setPen(QPen{ mixed(base, agent, 0.45), 1.0 });
+					aPainter->setBrush(mixed(base, agent, 0.10));
+					aPainter->drawRoundedRect(ground, 8.0, 8.0);
+					aPainter->setPen(Qt::NoPen);
+					aPainter->setBrush(agent);
+					aPainter->drawRoundedRect(QRectF{ ground.left(), ground.top() + 6.0, 3.0, ground.height() - 12.0 }, 1.5, 1.5);
+				}
+				// [[BPR-1930]]. A stop a waiting part would remove, merge, split or
+				// move: the proposal's grey, dashed, as a proposed stop is, until
+				// the part is accepted.
+				const auto revision = current ? 0 : aIndex.data(revision_role).toInt();
+				const auto grey     = route_grey(palette);
+				if (!discussed && revision != 0) {
+					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2 + (top - rect.top()), -2, -2) };
+					aPainter->setPen(QPen{ mixed(base, grey, 0.55), 1.0, Qt::DashLine });
+					aPainter->setBrush(hovered || selected ? QBrush{ mixed(window, ink, 0.04) } : QBrush{ Qt::NoBrush });
+					aPainter->drawRoundedRect(ground, 8.0, 8.0);
+					aPainter->setPen(Qt::NoPen);
+					aPainter->setBrush(grey);
+					aPainter->drawRoundedRect(QRectF{ ground.left(), ground.top() + 6.0, 3.0, ground.height() - 12.0 }, 1.5, 1.5);
+				}
 				// The current stop's ground, and the selection's.
-				if (current || selected || hovered) {
+				if (!discussed && revision == 0 && (current || selected || hovered)) {
 					const auto ground = QRectF{ rect.adjusted(grip_width - 4, 2, -2, -2) };
 					aPainter->setPen(current ? QPen{ mixed(base, amber, 0.55), 1.0 } : Qt::NoPen);
 					aPainter->setBrush(current ? base : mixed(window, ink, selected ? 0.07 : 0.04));
@@ -337,7 +545,25 @@ namespace bpr::qt {
 				small.setWeight(QFont::DemiBold);
 				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
 				aPainter->setFont(small);
-				switch (preparation) {
+				if (revision != 0) {
+					// [[BPR-1930]]. The grey ring of a stop a waiting part changes.
+					aPainter->setPen(QPen{ grey, 1.6, revision == 1 ? Qt::DashLine : Qt::SolidLine });
+					aPainter->setBrush(base);
+					aPainter->drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
+					aPainter->setPen(grey);
+					aPainter->drawText(ring, Qt::AlignCenter, number);
+				}
+				switch (revision != 0 ? core::tour_preparation::suggested : preparation) {
+				case core::tour_preparation::suggested:
+					if (revision != 0) {
+						break;
+					}
+					aPainter->setPen(QPen{ faint, 1.4, Qt::DashLine });
+					aPainter->setBrush(base);
+					aPainter->drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
+					aPainter->setPen(faint);
+					aPainter->drawText(ring, Qt::AlignCenter, number);
+					break;
 				case core::tour_preparation::ready: {
 					const auto green = route_green(palette);
 					aPainter->setPen(QPen{ green, 1.6 });
@@ -351,13 +577,6 @@ namespace bpr::qt {
 					aPainter->drawPath(tick);
 					break;
 				}
-				case core::tour_preparation::suggested:
-					aPainter->setPen(QPen{ faint, 1.4, Qt::DashLine });
-					aPainter->setBrush(base);
-					aPainter->drawEllipse(ring.adjusted(1.0, 1.0, -1.0, -1.0));
-					aPainter->setPen(faint);
-					aPainter->drawText(ring, Qt::AlignCenter, number);
-					break;
 				case core::tour_preparation::editing:
 				case core::tour_preparation::needs_attention:
 					aPainter->setPen(QPen{ amber, 1.6 });
@@ -393,8 +612,35 @@ namespace bpr::qt {
 					title.setWeight(QFont::Normal);
 					title.setItalic(true);
 				}
+				// [[BPR-1930]]. A stop proposed for removal reads struck through.
+				title.setStrikeOut(revision == 1);
 				const auto left  = rect.left() + text_left;
 				auto       right = rect.right() - 10;
+				// [[BPR-1925]] v002. Every stop's chat toggle at the right of its
+				// title, as the Problem's and the Solution's sit in their
+				// headers: pressed while its chat is in the column. A click on
+				// it is the outline's (`route_chat_box`).
+				{
+					const auto turns = static_cast<std::size_t>(std::max(0, aIndex.data(chat_role).toInt()));
+					const auto box   = route_chat_box(rect, aIndex.data(divider_role).toBool(), aOption.font, turns);
+					aPainter->setFont(aOption.font);
+					paint_chat_toggle(*aPainter, box, palette, turns, discussed, hovered && box.contains(aOption.widget != nullptr ? QPointF{ aOption.widget->mapFromGlobal(QCursor::pos()) } : QPointF{ }));
+					right = static_cast<int>(box.left()) - 8;
+				}
+				// [[BPR-1930]]. What the waiting part does to this stop, in a grey
+				// pill: Remove, Merges with 3, Split in 2, Moves to 1.
+				if (const auto note = aIndex.data(revision_note_role).toString(); revision != 0 && !note.isEmpty()) {
+					const auto metrics = QFontMetrics{ small };
+					const auto width   = metrics.horizontalAdvance(note) + 14;
+					const auto pill    = QRectF{ static_cast<qreal>(right - width), ring.center().y() - (metrics.height() + 4) / 2.0, static_cast<qreal>(width), metrics.height() + 4.0 };
+					aPainter->setPen(QPen{ mixed(base, grey, 0.6), 1.0 });
+					aPainter->setBrush(mixed(base, grey, 0.12));
+					aPainter->drawRoundedRect(pill, pill.height() / 2.0, pill.height() / 2.0);
+					aPainter->setFont(small);
+					aPainter->setPen(mixed(ink, grey, 0.4));
+					aPainter->drawText(pill, Qt::AlignCenter, note);
+					right -= width + 8;
+				}
 				if (aIndex.data(attention_role).toBool() || preparation == core::tour_preparation::needs_attention) {
 					const auto words        = QObject::tr("Lines changed");
 					const auto smallMetrics = QFontMetrics{ small };
@@ -414,7 +660,7 @@ namespace bpr::qt {
 					right -= w + 20;
 				}
 				aPainter->setFont(title);
-				aPainter->setPen(preparation == core::tour_preparation::suggested ? faint : ink);
+				aPainter->setPen(preparation == core::tour_preparation::suggested || revision == 1 ? faint : ink);
 				const auto words = QFontMetrics{ title }.elidedText(aIndex.data(Qt::DisplayRole).toString(), Qt::ElideRight, std::max(10, right - left));
 				aPainter->drawText(QRect{ left, static_cast<int>(ring.top()), std::max(10, right - left), ring_size }, Qt::AlignLeft | Qt::AlignVCenter, words);
 				// Its source, in the code's figures.
@@ -520,6 +766,25 @@ namespace bpr::qt {
 			QString               Summary;
 			core::tour_step_state State  = core::tour_step_state::to_do;
 			step_change*          Change = nullptr;
+			/// [[BPR-1925]] v002. The part's chat toggle, at the header's right.
+			QWidget* Chat = nullptr;
+			/// [[BPR-1925]] v003. A proposed part waits on this step, grey
+			/// until accepted: a quiet pill says so in the header.
+			bool Proposed = false;
+			void set_proposed(const bool aProposed)
+			{
+				if (Proposed != aProposed) {
+					Proposed = aProposed;
+					update();
+				}
+			}
+			void set_chat(QWidget* aChat)
+			{
+				Chat = aChat;
+				Chat->setParent(this);
+				Chat->show();
+				place_change();
+			}
 
 			void present(const core::tour_step_state aState, const QString& aSummary)
 			{
@@ -620,11 +885,28 @@ namespace bpr::qt {
 				painter.drawText(QRect{ indent, 0, nameWidth + 2, height() }, Qt::AlignLeft | Qt::AlignVCenter, Name);
 				if (!Summary.isEmpty()) {
 					const auto left  = indent + nameWidth + 10;
-					const auto right = Change->isVisible() ? Change->x() - 6 : width() - 6;
+					auto       right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
+																												  : width() - 6;
+					right -= Proposed ? proposed_pill_width() + 6 : 0;
 					painter.setFont(font());
 					painter.setPen(State == core::tour_step_state::needs_attention ? attention_red(palette()) : mixed(ink, window, 0.35));
 					const auto flat = QString{ Summary }.replace(QLatin1Char{ '\n' }, QLatin1Char{ ' ' }).simplified();
 					painter.drawText(QRect{ left, 0, std::max(0, right - left), height() }, Qt::AlignLeft | Qt::AlignVCenter, QFontMetrics{ font() }.elidedText(flat, Qt::ElideRight, std::max(0, right - left)));
+				}
+				if (Proposed) {
+					// Grey, as a proposed stop's rail is, until it is accepted.
+					auto small = font();
+					small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
+					const auto right = Chat != nullptr && !Chat->isHidden() ? Chat->x() - 6 : Change->isVisible() ? Change->x() - 6
+																												  : width() - 6;
+					const auto pill  = QRectF{ static_cast<qreal>(right - proposed_pill_width()), (height() - QFontMetrics{ small }.height() - 4) / 2.0, static_cast<qreal>(proposed_pill_width()), QFontMetrics{ small }.height() + 4.0 };
+					const auto grey  = route_grey(palette());
+					painter.setPen(QPen{ grey, 1.0 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(pill.adjusted(0.5, 0.5, -0.5, -0.5), pill.height() / 2.0, pill.height() / 2.0);
+					painter.setFont(small);
+					painter.setPen(grey);
+					painter.drawText(pill, Qt::AlignCenter, tr("Proposed"));
 				}
 				if (hasFocus()) {
 					painter.setPen(QPen{ accent, 2.0 });
@@ -632,12 +914,31 @@ namespace bpr::qt {
 					painter.drawRoundedRect(QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0), 6.0, 6.0);
 				}
 			}
+			[[nodiscard]] auto proposed_pill_width() const -> int
+			{
+				auto small = font();
+				small.setPointSizeF(std::max(1.0, small.pointSizeF() * 0.86));
+				return QFontMetrics{ small }.horizontalAdvance(tr("Proposed")) + 14;
+			}
 
 		private:
 			void place_change()
 			{
 				const auto hint = Change->sizeHint();
 				Change->setGeometry(width() - hint.width(), (height() - hint.height()) / 2, hint.width(), hint.height());
+				if (Chat != nullptr) {
+					const auto chat  = Chat->sizeHint();
+					const auto right = Change->isVisible() ? Change->x() - 6 : width();
+					Chat->setGeometry(right - chat.width(), (height() - chat.height()) / 2, chat.width(), chat.height());
+				}
+			}
+			bool event(QEvent* aEvent) override
+			{
+				// The toggle's count changes its width: it is placed again.
+				if (aEvent->type() == QEvent::LayoutRequest) {
+					place_change();
+				}
+				return QAbstractButton::event(aEvent);
 			}
 		};
 
@@ -745,12 +1046,28 @@ namespace bpr::qt {
 		public:
 			using QListWidget::QListWidget;
 			std::function<void(std::size_t)> Move;
+			/// [[BPR-1925]] v002. A press on a stop's chat toggle, by row: the
+			/// toggle's, not the row's (the row would choose the stop).
+			std::function<void(int)> ChatToggle;
 
 		protected:
 			void mousePressEvent(QMouseEvent* aEvent) override
 			{
+				if (const auto row = chat_toggle_at(aEvent->position().toPoint()); aEvent->button() == Qt::LeftButton && row >= 0 && ChatToggle) {
+					aEvent->accept();
+					ChatToggle(row);
+					return;
+				}
 				DragFromHandle = aEvent->button() == Qt::LeftButton && on_handle(aEvent->position().toPoint());
 				QListWidget::mousePressEvent(aEvent);
+			}
+			void mouseReleaseEvent(QMouseEvent* aEvent) override
+			{
+				if (chat_toggle_at(aEvent->position().toPoint()) >= 0) {
+					aEvent->accept();
+					return;
+				}
+				QListWidget::mouseReleaseEvent(aEvent);
 			}
 			void mouseMoveEvent(QMouseEvent* aEvent) override
 			{
@@ -793,6 +1110,17 @@ namespace bpr::qt {
 			}
 
 		private:
+			/// The row whose painted toggle is under `aPosition`, or -1. The
+			/// current stop's toggle is a real button in its card.
+			[[nodiscard]] auto chat_toggle_at(const QPoint& aPosition) const -> int
+			{
+				const auto* item = itemAt(aPosition);
+				if (item == nullptr || item->data(current_role).toBool()) {
+					return -1;
+				}
+				const auto box = route_chat_box(visualItemRect(item), item->data(divider_role).toBool(), font(), static_cast<std::size_t>(std::max(0, item->data(chat_role).toInt())));
+				return box.contains(QPointF{ aPosition }) ? row(item) : -1;
+			}
 			bool on_handle(const QPoint& aPosition) const
 			{
 				const auto* item = itemAt(aPosition);
@@ -1032,7 +1360,20 @@ namespace bpr::qt {
 		// [[BPR-1900]]. The tour's own agent session: Draft the tour, its
 		// proposal, and the transcript, which opens only when asked.
 		TourAgentPanel = new tour_agent_panel{ this };
-		DraftFailure   = new failure_notice_card{ TourAgentPanel };
+		// [[BPR-1914]] v003. The side chats: docked at the window's right edge
+		// by the window; until then a window of their own.
+		SideChat = new tour_side_chat{ };
+		SideChat->setParent(this, Qt::Window);
+		SideChat->set_reveal_dispatch([this](const core::tour_thread& aThread) { reveal_part(aThread); });
+		// [[BPR-1925]]. The tour marks the part under discussion and counts
+		// each part's chat as the chat changes.
+		SideChat->set_change_observer([this] { mark_side_chat(); });
+		TourAgentPanel->set_chat_dispatch([this] { toggle_side_chat(core::tour_thread{ }); });
+		// [[BPR-1925]] v003, owner on v002: "this whole section probably just
+		// goes away and we move the accept into the stops directly". Each
+		// pending part of a proposal waits on the part it changes.
+		TourAgentPanel->set_proposal_placer([this] { begin_proposals(); }, [this](const std::size_t aIndex, const core::tour_proposal_item& aItem, QWidget* aBox) { return place_proposal(aIndex, aItem, aBox); });
+		DraftFailure = new failure_notice_card{ TourAgentPanel };
 		connect(static_cast<failure_notice_card*>(DraftFailure)->Open, &QPushButton::clicked, this, [this] { open_failed_run(); });
 		TourAgentPanel->set_failure_notice(DraftFailure);
 		layout->addWidget(TourAgentPanel);
@@ -1144,7 +1485,12 @@ namespace bpr::qt {
 			Roadmap->addTab(host, aTitle);
 			auto* const panel  = new QWidget{ BriefSlots[aIndex] };
 			auto* const column = new QVBoxLayout{ panel };
-			column->setContentsMargins(0, 0, 0, 0);
+			// [[BPR-1925]]. Room inside the panel for the agent's mark while
+			// this part's chat is beside the tour.
+			column->setContentsMargins(8, 6, 6, 6);
+			mark_part(panel, [aKind]() -> std::optional<core::tour_thread> {
+				return core::tour_thread{ .Kind = aKind == core::tour_command_kind::problem ? core::tour_thread_kind::problem : core::tour_thread_kind::solution };
+			});
 			column->setSpacing(6);
 			BriefPanels[aIndex] = panel;
 			slot->addWidget(panel);
@@ -1337,15 +1683,19 @@ namespace bpr::qt {
 		// margins, the same rounded field, the agent · model · effort pill on
 		// the right. The draft's state and Preview and publish sit just above
 		// it, so nothing is below the picker.
+		// [[BPR-1924]], owner look on BPR-1914 v004 ("this box around the
+		// model picker looks more like a text entry field than a
+		// dropdown/picker"). The Tour tab has nothing to type here, so the
+		// picker stands on the bar by itself, its right edge on Preview and
+		// publish's, with no field drawn round it.
 		AgentBar = new QWidget{ this };
 		AgentBar->setObjectName(QStringLiteral("tourAgentBar"));
 		auto* const barColumn = new QVBoxLayout{ AgentBar };
 		barColumn->setContentsMargins(10, 8, 10, 10);
-		AgentField = new agent_bar_field{ AgentBar };
+		AgentField = new QWidget{ AgentBar };
 		AgentField->setObjectName(QStringLiteral("tourAgentField"));
-		AgentField->installEventFilter(this);
 		auto* const barRow = new QHBoxLayout{ AgentField };
-		barRow->setContentsMargins(8, 6, 6, 6);
+		barRow->setContentsMargins(0, 0, 0, 0);
 		barRow->setSpacing(2);
 		barRow->addStretch(1);
 		barColumn->addWidget(AgentField);
@@ -1423,6 +1773,10 @@ namespace bpr::qt {
 
 		for (auto* widget : findChildren<QWidget*>()) {
 			widget->installEventFilter(this);
+			// [[BPR-1925]] v002. The stop's text has its quiet box instead.
+			if (widget == Body || Body->isAncestorOf(widget)) {
+				continue;
+			}
 			widget->setAttribute(Qt::WA_MacShowFocusRect);
 			if (widget->focusPolicy() & Qt::TabFocus) {
 				// Inside the control's bounds, including scroll viewports: some
@@ -1538,6 +1892,10 @@ namespace bpr::qt {
 				}
 			}
 		} const notify{ PresentedObserver };
+		// [[BPR-1914]] v003. The side chats name and quote the tour as it is.
+		if (SideChat != nullptr) {
+			SideChat->set_draft(aProjection.Draft);
+		}
 		Applying         = true;
 		SelectionChanged = false;
 		const bool same  = Shown.Draft && aProjection.Draft && Shown.Draft->Owner == aProjection.Draft->Owner && Shown.Draft->Id == aProjection.Draft->Id;
@@ -1725,11 +2083,17 @@ namespace bpr::qt {
 		const auto label = [this, aEditor, aHook, button] {
 			const auto whole = aHook == core::writing_hook::problem ? tr("Enhance problem statement") : aHook == core::writing_hook::solution ? tr("Enhance solution")
 																																			  : tr("Enhance comment");
+			// [[BPR-1914]] v004, owner look v003: "can we simplify the enhance
+			// buttons to just the '<symbol> Enhance' and leave the tooltips in
+			// place." The spark and one word; what it rewrites is in the
+			// tooltip, and the longer name still names the request.
 			if (aEditor->textCursor().hasSelection()) {
-				button->setText(tr("Enhance selection"));
+				button->setText(tr("Enhance"));
+				button->setProperty("requestName", tr("Enhance selection"));
 				button->setToolTip(tr("Asks the drafting agent to rewrite only the selected text. Undo restores it."));
 			} else if (!core::writing_blank(aEditor->raw())) {
-				button->setText(whole);
+				button->setText(tr("Enhance"));
+				button->setProperty("requestName", whole);
 				button->setToolTip(tr("Asks the drafting agent to rewrite this whole field, keeping your meaning. Undo restores your text."));
 			} else if (aHook == core::writing_hook::comment) {
 				button->setText(tr("Generate comment"));
@@ -1750,6 +2114,45 @@ namespace bpr::qt {
 			}
 		};
 		AgentLabels.push_back(label);
+		// [[BPR-1914]] v003, owner 2026-11-06: "On each part I can pop open a
+		// side chat". [[BPR-1925]] v002, owner on v001: "The mockup had the
+		// chat button on the right side of each of the sections and I prefer
+		// that, I also want the chat button to toggle it open and closed."
+		// The part's toggle sits at the right of its header: the Problem's and
+		// the Solution's step rows, the open stop's title row. With text
+		// selected it opens the chat quoting it; on the open part it closes
+		// the column. The editor's own menu offers Open side chat too.
+		const auto  part = aHook == core::writing_hook::problem ? tr("the Problem") : aHook == core::writing_hook::solution ? tr("the Solution")
+																															: tr("this stop");
+		auto* const chat = new part_chat_toggle{ part, aEditor->parentWidget() };
+		chat->setObjectName(aHook == core::writing_hook::problem ? QStringLiteral("tourProblemChat") : aHook == core::writing_hook::solution ? QStringLiteral("tourSolutionChat")
+																																			 : QStringLiteral("tourStopChat"));
+		if (aHook == core::writing_hook::problem || aHook == core::writing_hook::solution) {
+			static_cast<tour_step_row*>(StepRows[aHook == core::writing_hook::problem ? 0 : 1])->set_chat(chat);
+		} else if (StopTitleRow != nullptr) {
+			StopTitleRow->addWidget(chat, 0, Qt::AlignTop);
+		} else {
+			aLayout->addWidget(chat, 0, Qt::AlignLeft);
+		}
+		ChatButtons.push_back(chat);
+		const auto selected = [this, aEditor, aHook]() -> QString {
+			auto cursor = aEditor->textCursor();
+			// A stop is read rendered: what is selected there counts too.
+			if (!cursor.hasSelection() && aHook == core::writing_hook::comment && StopReader != nullptr && StopReader->isVisible()) {
+				cursor = StopReader->rendered_view()->textCursor();
+			}
+			return cursor.selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n')).replace(QChar::LineSeparator, QLatin1Char('\n'));
+		};
+		const auto openChat = [this, aHook, selected] { open_side_chat_about(aHook, selected()); };
+		connect(chat, &QToolButton::clicked, this, [this, aHook, selected] { toggle_side_chat_about(aHook, selected()); });
+		aEditor->setContextMenuPolicy(Qt::CustomContextMenu);
+		connect(aEditor, &QWidget::customContextMenuRequested, this, [aEditor, openChat, selected, part](const QPoint& aAt) {
+			auto* const menu = aEditor->createStandardContextMenu(aAt);
+			menu->setAttribute(Qt::WA_DeleteOnClose);
+			menu->addSeparator();
+			menu->addAction(selected().trimmed().isEmpty() ? QObject::tr("Open side chat about %1").arg(part) : QObject::tr("Open side chat about this"), openChat);
+			menu->popup(aEditor->viewport()->mapToGlobal(aAt));
+		});
 		connect(aEditor, &QPlainTextEdit::selectionChanged, this, label);
 		connect(aEditor, &QPlainTextEdit::textChanged, this, label);
 		connect(button, &QPushButton::clicked, this, [this, aEditor, aHook, button] {
@@ -1761,7 +2164,8 @@ namespace bpr::qt {
 			}
 			if (!aEditor->isReadOnly() && WritingRequest) {
 				// [[BPR-1892]]. Made again: the last failure no longer stands.
-				RequestNames[aHook] = button->text();
+				const auto named    = button->property("requestName").toString();
+				RequestNames[aHook] = button->text() == tr("Enhance") && !named.isEmpty() ? named : button->text();
 				clear_agent_failure(aHook);
 				if (auto captured = aEditor->capture()) {
 					WritingRequest(aHook, std::move(*captured));
@@ -1830,13 +2234,20 @@ namespace bpr::qt {
 	}
 	bool review_tour_editor::eventFilter(QObject* aWatched, QEvent* aEvent)
 	{
+		if (aEvent->type() == QEvent::Wheel && HeldScroll) {
+			HeldScroll.reset();
+		}
+		// [[BPR-1925]] v002. The route narrows when the chat opens beside the
+		// tour: the open stop's card takes the new width, or its actions run
+		// past the route's edge.
+		if (Outline != nullptr && aWatched == Outline->viewport() && aEvent->type() == QEvent::Resize
+			&& static_cast<QResizeEvent*>(aEvent)->size().width() != static_cast<QResizeEvent*>(aEvent)->oldSize().width()) {
+			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
+		}
 		// [[BPR-1878]]. The bar shows while its picker does (an agent chosen),
 		// as the Agent tab's pill hides with none.
 		if (AgentPicker != nullptr && aWatched == AgentPicker && (aEvent->type() == QEvent::ShowToParent || aEvent->type() == QEvent::HideToParent)) {
 			AgentBar->setVisible(AgentPicker->isVisibleTo(AgentBar));
-		}
-		if (aWatched == AgentField && aEvent->type() == QEvent::Resize) {
-			fit_agent_bar();
 		}
 		if (aEvent->type() == QEvent::InputMethod) {
 			// Preedit text is not committed text: another presentation must wait for it, not flush it.
@@ -1920,23 +2331,474 @@ namespace bpr::qt {
 					draft();
 				}
 			},
-			std::move(aStop), std::move(aDecide));
+			aStop, aDecide);
+		TourStop   = std::move(aStop);
+		TourDecide = std::move(aDecide);
+		wire_side_chat();
+	}
+	void review_tour_editor::set_tour_ask_dispatch(tour_side_chat::ask_dispatch aAsk)
+	{
+		TourAsk = std::move(aAsk);
+		wire_side_chat();
+	}
+	void review_tour_editor::set_side_chat_visibility_dispatch(std::function<void(bool)> aVisibility) { SideChat->set_visibility_dispatch(std::move(aVisibility)); }
+	void review_tour_editor::wire_side_chat()
+	{
+		SideChat->set_dispatch(
+			[this](const tour_ask& aAsk) {
+				if (TourAsk) {
+					TourAsk(aAsk);
+				}
+			},
+			TourStop, TourDecide);
+	}
+	void review_tour_editor::open_side_chat(const core::tour_thread& aThread, std::optional<core::tour_passage> aPassage) { SideChat->open(aThread, std::move(aPassage)); }
+	void review_tour_editor::toggle_side_chat(const core::tour_thread& aThread)
+	{
+		// [[BPR-1925]] v002. The open part's toggle closes the column; any
+		// other part's opens (or switches to) its chat.
+		if (SideChat->discussed() == aThread) {
+			SideChat->set_column_open(false);
+			mark_side_chat();
+			return;
+		}
+		if (aThread.Kind == core::tour_thread_kind::stop) {
+			if (const auto* const stop = selected_stop(); stop == nullptr || stop->Id != aThread.Stop) {
+				go_to_stop(aThread.Stop);
+			}
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(aThread);
+		mark_side_chat();
+	}
+	void review_tour_editor::toggle_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
+	{
+		auto thread = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
+																																								: core::tour_thread_kind::stop };
+		if (thread.Kind == core::tour_thread_kind::stop) {
+			const auto* const stop = selected_stop();
+			if (stop == nullptr) {
+				mark_side_chat();
+				return;
+			}
+			thread.Stop = stop->Id;
+		}
+		if (SideChat->discussed() == thread) {
+			toggle_side_chat(thread);
+			return;
+		}
+		open_side_chat_about(aHook, aSelected);
+		mark_side_chat();
+	}
+	void review_tour_editor::open_side_chat_about(const core::writing_hook aHook, const QString& aSelected)
+	{
+		auto              passage = std::optional<core::tour_passage>{ };
+		auto              thread  = core::tour_thread{ .Kind = aHook == core::writing_hook::problem ? core::tour_thread_kind::problem : aHook == core::writing_hook::solution ? core::tour_thread_kind::solution
+																																											  : core::tour_thread_kind::stop };
+		const auto* const stop    = selected_stop();
+		if (thread.Kind == core::tour_thread_kind::stop) {
+			if (stop == nullptr || !Shown.Draft) {
+				return;
+			}
+			thread.Stop = stop->Id;
+		}
+		if (!aSelected.trimmed().isEmpty()) {
+			passage        = core::tour_passage{ };
+			passage->Text  = aSelected.toStdString();
+			passage->Field = thread.Kind == core::tour_thread_kind::problem ? core::tour_passage_field::problem : thread.Kind == core::tour_thread_kind::solution ? core::tour_passage_field::solution
+																																								  : core::tour_passage_field::stop;
+			if (stop != nullptr && thread.Kind == core::tour_thread_kind::stop) {
+				passage->Stop      = static_cast<std::size_t>(stop - Shown.Draft->Stops.data());
+				passage->StopTitle = stop->Title;
+			}
+			if (passage->Text.size() > core::maximum_tour_passage_bytes) {
+				auto size = core::maximum_tour_passage_bytes;
+				while (size > 0U && (static_cast<unsigned char>(passage->Text[size]) & 0xC0U) == 0x80U) {
+					--size;
+				}
+				passage->Text.resize(size);
+			}
+		}
+		// A stop's chat opens with its lines shown in the code beside it.
+		if (thread.Kind == core::tour_thread_kind::stop) {
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(thread, std::move(passage));
+	}
+	void review_tour_editor::mark_part(QWidget* aWidget, std::function<std::optional<core::tour_thread>()> aPart)
+	{
+		aWidget->installEventFilter(new part_marker{ aWidget, [this, aPart] {
+														const auto part = aPart();
+														return part.has_value() && SideChat != nullptr && SideChat->discussed() == part;
+													} });
+		PartMarks.emplace_back(aWidget, std::move(aPart));
+	}
+
+	void review_tour_editor::mark_side_chat()
+	{
+		const auto discussed = SideChat->discussed();
+		// The glyph beside each part: its chat's turns, and pressed while
+		// that chat is the one beside the tour.
+		for (auto* const chat : ChatButtons) {
+			auto thread = std::optional<core::tour_thread>{ };
+			if (chat->objectName() == QStringLiteral("tourProblemChat")) {
+				thread = core::tour_thread{ .Kind = core::tour_thread_kind::problem };
+			} else if (chat->objectName() == QStringLiteral("tourSolutionChat")) {
+				thread = core::tour_thread{ .Kind = core::tour_thread_kind::solution };
+			} else if (const auto* const stop = selected_stop(); stop != nullptr) {
+				thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id };
+			}
+			const auto turns = thread ? SideChat->turns_about(*thread) : 0U;
+			static_cast<part_chat_toggle*>(chat)->present(turns, thread.has_value() && discussed == thread);
+		}
+		// The tour's own toggle, by Draft the tour.
+		if (TourAgentPanel != nullptr) {
+			if (auto* const tour = dynamic_cast<part_chat_toggle*>(TourAgentPanel->chat_button()); tour != nullptr) {
+				tour->present(SideChat->turns_about(core::tour_thread{ }), discussed == core::tour_thread{ });
+			}
+		}
+		// The route: each stop's turns, and the stop under discussion.
+		if (Outline != nullptr && Shown.Draft) {
+			for (int index = 0; index < Outline->count() && static_cast<std::size_t>(index) < Shown.Draft->Stops.size(); ++index) {
+				const auto  thread = core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = Shown.Draft->Stops[static_cast<std::size_t>(index)].Id };
+				auto* const item   = Outline->item(index);
+				item->setData(chat_role, static_cast<int>(SideChat->turns_about(thread)));
+				item->setData(discussed_role, discussed == thread);
+			}
+			Outline->viewport()->update();
+		}
+		for (const auto& [widget, part] : PartMarks) {
+			widget->update();
+		}
+		if (SideChatObserver) {
+			SideChatObserver();
+		}
+	}
+
+	void review_tour_editor::reveal_part(const core::tour_thread& aThread)
+	{
+		switch (aThread.Kind) {
+		case core::tour_thread_kind::tour:     return;
+		case core::tour_thread_kind::problem:  open_step(core::tour_step::problem); return;
+		case core::tour_thread_kind::solution: open_step(core::tour_step::solution); return;
+		case core::tour_thread_kind::stop:
+			show_stops();
+			go_to_stop(aThread.Stop);
+			trigger(tour_editor_action::navigate_stop);
+			return;
+		}
+	}
+	void review_tour_editor::ask_about_code(const std::optional<core::tour_source_range>& aSelected)
+	{
+		const auto* const stop = selected_stop();
+		if (stop == nullptr || !Shown.Draft) {
+			return;
+		}
+		const auto& own   = stop->Mapped ? stop->Mapped : stop->Original;
+		const auto  range = aSelected ? aSelected : own;
+		auto        code  = core::tour_passage{ .Field = core::tour_passage_field::stop_code, .Stop = static_cast<std::size_t>(stop - Shown.Draft->Stops.data()), .StopTitle = stop->Title };
+		if (range) {
+			code.Path      = range->Path;
+			code.FirstLine = range->First.Line + 1U;
+			code.LastLine  = range->Last.Line + 1U;
+			if (ExcerptSource) {
+				if (const auto excerpt = ExcerptSource(*range)) {
+					auto lines = QStringList{ };
+					for (std::size_t index = 0U; index < excerpt->Lines.size(); ++index) {
+						const auto line = excerpt->First + static_cast<std::uint32_t>(index);
+						if (line >= code.FirstLine && line <= code.LastLine) {
+							lines << excerpt->Lines[index];
+						}
+					}
+					code.Text = lines.join(QLatin1Char('\n')).toStdString();
+				}
+			}
+		} else if (stop->Destination) {
+			code.Path      = stop->Destination->Path;
+			code.FirstLine = stop->Destination->FirstLine + 1U;
+			code.LastLine  = stop->Destination->LastLine + 1U;
+		}
+		if (code.Text.find_first_not_of(" \t\r\n") == std::string::npos) {
+			code.Text = code.Path.empty() ? std::string{ "This stop's code." } : code.Path + ":" + std::to_string(code.FirstLine) + "-" + std::to_string(code.LastLine);
+		}
+		if (code.Text.size() > core::maximum_tour_passage_bytes) {
+			code.Text.resize(core::maximum_tour_passage_bytes);
+			while (!code.Text.empty() && (static_cast<unsigned char>(code.Text.back()) & 0xC0U) == 0x80U) {
+				code.Text.pop_back();
+			}
+		}
+		if (!aSelected) {
+			trigger(tour_editor_action::navigate_stop);
+		}
+		SideChat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id }, std::move(code));
 	}
 	void review_tour_editor::present_tour_session(const core::tour_agent_session& aSession, const std::optional<core::tour_proposal>& aProposal)
 	{
+		// [[BPR-1930]]. A structural part names the stops by the tour's numbers.
+		TourAgentPanel->set_draft(Shown.Draft);
 		TourAgentPanel->present(aSession, aProposal);
+		SideChat->present(aSession, aProposal, Shown.Draft);
+		mark_proposed();
 		restyle_agent_features();
 	}
-	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour)
+	void review_tour_editor::begin_proposals()
+	{
+		// The boxes themselves are the panel's, and go with it; their frames
+		// and places are the tour's.
+		for (auto* const frame : ProposedStops->findChildren<QWidget*>(QStringLiteral("tourProposedStop"), Qt::FindDirectChildrenOnly)) {
+			frame->hide();
+			frame->deleteLater();
+		}
+		for (auto* const frame : ProposedOrder->findChildren<QWidget*>(QStringLiteral("tourProposedStop"), Qt::FindDirectChildrenOnly)) {
+			frame->hide();
+			frame->deleteLater();
+		}
+		StopTextProposals.clear();
+		RouteMarks.clear();
+		StructureProposed = false;
+		PartProposed      = { false, false };
+		ProposedStopCount = 0U;
+	}
+	void review_tour_editor::set_tour_shape_dispatch(std::function<void()> aClearFocus, std::function<void()> aReset, std::function<void()> aUndoReset)
+	{
+		TourAgentPanel->set_shape_dispatch(std::move(aClearFocus), std::move(aReset), std::move(aUndoReset));
+	}
+	void review_tour_editor::present_tour_reset(const core::tour_reset_tally& aTally, const bool aAvailable, const bool aUndoable)
+	{
+		TourAgentPanel->present_reset(aTally, aAvailable, aUndoable);
+	}
+	auto review_tour_editor::route_mark(const int aRow) const -> std::pair<int, QString>
+	{
+		auto* const item = Outline != nullptr && aRow >= 0 && aRow < Outline->count() ? Outline->item(aRow) : nullptr;
+		return item == nullptr ? std::pair<int, QString>{ 0, QString{ } } : std::pair<int, QString>{ item->data(revision_role).toInt(), item->data(revision_note_role).toString() };
+	}
+	void review_tour_editor::apply_route_marks()
+	{
+		if (Outline == nullptr) {
+			return;
+		}
+		for (int index = 0; index < Outline->count(); ++index) {
+			auto* const item  = Outline->item(index);
+			const auto  found = RouteMarks.find(item->data(Qt::UserRole).toULongLong());
+			item->setData(revision_role, found == RouteMarks.end() ? 0 : found->second.first);
+			item->setData(revision_note_role, found == RouteMarks.end() ? QString{ } : found->second.second);
+		}
+		Outline->viewport()->update();
+	}
+	auto review_tour_editor::place_proposal(const std::size_t /*aIndex*/, const core::tour_proposal_item& aItem, QWidget* aBox) -> bool
+	{
+		// [[BPR-1925]] v003, owner on v002: "Missing syntax highlights in this
+		// part". Inline code in a proposed text reads in its part's language,
+		// as the side chat's does ([[BPR-1914]] v004): a stop's own file, or
+		// the language most of the tour's stops are in.
+		if (auto* const reader = static_cast<markdown_body_view*>(aBox->findChild<QWidget*>(QStringLiteral("tourProposalRendered"))); reader != nullptr) {
+			auto selector = std::string{ };
+			if (aItem.Part == core::tour_proposal_part::stop) {
+				selector = aItem.Stop.Path;
+			} else if (aItem.Part == core::tour_proposal_part::stop_text && Shown.Draft) {
+				if (const auto found = std::ranges::find(Shown.Draft->Stops, aItem.StopId, &core::tour_stop::Id); found != Shown.Draft->Stops.end()) {
+					const auto& source = found->Mapped ? found->Mapped : found->Original;
+					selector           = source ? source->Path : found->Destination ? found->Destination->Path
+																					: std::string{ };
+				}
+			}
+			if (selector.empty() && Shown.Draft) {
+				auto counts = std::map<std::string, std::size_t>{ };
+				auto best   = std::string{ };
+				for (const auto& stop : Shown.Draft->Stops) {
+					const auto& source = stop.Mapped ? stop.Mapped : stop.Original;
+					const auto  path   = source ? source->Path : stop.Destination ? stop.Destination->Path
+																				  : std::string{ };
+					const auto  dot    = path.rfind('.');
+					if (dot == std::string::npos || path.find('/', dot) != std::string::npos) {
+						continue;
+					}
+					const auto kind = path.substr(dot);
+					if (++counts[kind] > (best.empty() ? 0U : counts[best])) {
+						best = kind;
+					}
+				}
+				selector = best.empty() ? std::string{ } : "code" + best;
+			}
+			reader->set_inline_code_selector(selector);
+		}
+		switch (aItem.Part) {
+		case core::tour_proposal_part::problem:
+		case core::tour_proposal_part::solution: {
+			// On the part itself, under its own text: nothing changes there
+			// until it is accepted.
+			const auto field = aItem.Part == core::tour_proposal_part::problem ? 0 : 1;
+			static_cast<QVBoxLayout*>(BriefPanels[field]->layout())->insertWidget(1, aBox);
+			aBox->show();
+			PartProposed[static_cast<std::size_t>(field)] = true;
+			return true;
+		}
+		case core::tour_proposal_part::stop_text: {
+			// On that stop's card, where Ready, next is, while it is open.
+			if (!Shown.Draft || std::ranges::find(Shown.Draft->Stops, aItem.StopId, &core::tour_stop::Id) == Shown.Draft->Stops.end()) {
+				return false;
+			}
+			aBox->hide();
+			StopTextProposals.emplace(aItem.StopId.value(), aBox);
+			return true;
+		}
+		case core::tour_proposal_part::remove_stop:
+		case core::tour_proposal_part::merge_stops:
+		case core::tour_proposal_part::split_stop:  {
+			// [[BPR-1930]], owner: proposals in place. The stops it changes are
+			// marked grey on the route; its box, with Remove, Merge or Split
+			// where Ready, next is, waits on the card of the stop it leads.
+			if (!Shown.Draft) {
+				return false;
+			}
+			const auto number = [this](const core::tour_stop_id aStop) {
+				const auto found = std::ranges::find(Shown.Draft->Stops, aStop, &core::tour_stop::Id);
+				return found == Shown.Draft->Stops.end() ? 0 : static_cast<int>(found - Shown.Draft->Stops.begin()) + 1;
+			};
+			const auto lead = aItem.Part == core::tour_proposal_part::merge_stops ? (aItem.Stops.empty() ? core::tour_stop_id{ } : aItem.Stops.front()) : aItem.StopId;
+			if (number(lead) == 0) {
+				return false;
+			}
+			if (aItem.Part == core::tour_proposal_part::remove_stop) {
+				RouteMarks[lead.value()] = { 1, tr("Remove") };
+			} else if (aItem.Part == core::tour_proposal_part::split_stop) {
+				RouteMarks[lead.value()] = { 3, tr("Split in %1").arg(aItem.Pieces.size()) };
+			} else {
+				for (const auto stop : aItem.Stops) {
+					auto others = QStringList{ };
+					for (const auto other : aItem.Stops) {
+						if (other != stop) {
+							others << QString::number(number(other));
+						}
+					}
+					RouteMarks[stop.value()] = { 2, stop == lead ? tr("Merge with %1").arg(others.join(QStringLiteral(", "))) : tr("Merges into %1").arg(number(lead)) };
+				}
+			}
+			aBox->hide();
+			StopTextProposals.emplace(lead.value(), aBox);
+			StructureProposed = true;
+			return true;
+		}
+		case core::tour_proposal_part::reorder: {
+			// [[BPR-1930]]. The new order above the route, the moved stops
+			// marked on it, and Reorder at the box's right.
+			if (!Shown.Draft) {
+				return false;
+			}
+			auto at = 0;
+			for (const auto stop : aItem.Stops) {
+				const auto found = std::ranges::find(Shown.Draft->Stops, stop, &core::tour_stop::Id);
+				if (found == Shown.Draft->Stops.end()) {
+					continue;
+				}
+				++at;
+				const auto was = static_cast<int>(found - Shown.Draft->Stops.begin()) + 1;
+				if (was != at && !RouteMarks.contains(stop.value())) {
+					RouteMarks[stop.value()] = { 4, tr("Moves to %1").arg(at) };
+				}
+			}
+			auto* const frame = new proposed_stop_frame{ 0, ProposedOrder };
+			frame->layout()->addWidget(aBox);
+			aBox->show();
+			static_cast<QVBoxLayout*>(ProposedOrder->layout())->addWidget(frame);
+			frame->show();
+			StructureProposed = true;
+			return true;
+		}
+		case core::tour_proposal_part::stop: {
+			// On the route, after the tour's own stops, numbered on from them.
+			++ProposedStopCount;
+			const auto  number = static_cast<int>((Shown.Draft ? Shown.Draft->Stops.size() : 0U) + ProposedStopCount);
+			auto* const frame  = new proposed_stop_frame{ number, ProposedStops };
+			frame->layout()->addWidget(aBox);
+			aBox->show();
+			static_cast<QVBoxLayout*>(ProposedStops->layout())->addWidget(frame);
+			frame->show();
+			return true;
+		}
+		}
+		return false;
+	}
+	void review_tour_editor::mark_proposed()
+	{
+		for (int field = 0; field < 2; ++field) {
+			static_cast<tour_step_row*>(StepRows[field])->set_proposed(PartProposed[static_cast<std::size_t>(field)]);
+		}
+		static_cast<tour_step_row*>(StepRows[2])->set_proposed(ProposedStopCount > 0U || StructureProposed);
+		ProposedStops->setVisible(ProposedStopCount > 0U);
+		const auto orders = ProposedOrder->findChildren<QWidget*>(QStringLiteral("tourProposedStop"), Qt::FindDirectChildrenOnly);
+		ProposedOrder->setVisible(std::ranges::any_of(orders, [](const QWidget* aFrame) { return !aFrame->isHidden(); }));
+		apply_route_marks();
+		place_stop_text_proposal();
+	}
+	void review_tour_editor::place_stop_text_proposal()
+	{
+		const auto* const stop  = selected_stop();
+		auto              shown = false;
+		for (auto& [id, box] : StopTextProposals) {
+			if (!box) {
+				continue;
+			}
+			if (stop != nullptr && stop->Id.value() == id) {
+				if (box->parentWidget() != StopFields) {
+					// Before the row Ready, next is in: its last row.
+					StopFieldsLayout->insertWidget(StopFieldsLayout->count() - 1, box);
+				}
+				box->show();
+				// [[BPR-1930]]. Its parts were shown or hidden while it waited
+				// unseen; its size is asked for afresh, or the card keeps room
+				// for a hidden editor.
+				box->layout()->invalidate();
+				box->layout()->activate();
+				box->updateGeometry();
+				shown = true;
+			} else {
+				box->hide();
+			}
+		}
+		// One primary action at a time: Accept while the stop's new text is
+		// proposed, Ready, next once it is decided.
+		const auto changed = ShowsStopProposal != shown;
+		ShowsStopProposal  = shown;
+		refresh_complete();
+		// [[BPR-1930]]. The card is as tall as what it holds now: a box placed
+		// on it, or gone from it, refits it once its words have their width.
+		if (shown || changed) {
+			QTimer::singleShot(0, this, [this] { place_stop_card_now(); });
+		}
+	}
+	void review_tour_editor::refresh_complete()
+	{
+		if (Complete == nullptr) {
+			return;
+		}
+		const auto* const stop = selected_stop();
+		// [[BPR-1925]] v003, owner: "ready, next doesn't seem to do anything".
+		// It was refused: a stop is Ready only once its lines are confirmed in
+		// the code, and a stop the agent proposed has its lines as a place to
+		// look, not yet confirmed. Now it says so and waits, and Show in code
+		// leads until the lines are chosen with Use selected lines.
+		const auto ready = stop != nullptr && core::ready(*stop);
+		Complete->setVisible(!ShowsStopProposal);
+		Complete->setEnabled(ready);
+		Complete->setDefault(ready && !ShowsStopProposal);
+		if (ShowInCode != nullptr) {
+			ShowInCode->setDefault(!ready && !ShowsStopProposal);
+		}
+		Complete->setToolTip(ready ? tr("Mark this stop ready and go to the next (%1)").arg(Complete->shortcut().toString(QKeySequence::NativeText))
+								   : tr("Confirm the stop's lines first: Show in code, select its lines in the code, then Use selected lines."));
+	}
+	void review_tour_editor::set_tour_running(const std::optional<core::writing_hook> aHook, const bool aDraftTour, const bool aAsking)
 	{
 		RunningHook  = aHook;
 		RunningDraft = aDraftTour;
-		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour);
+		TourAgentPanel->set_running(aDraftTour, aHook.has_value() || aDraftTour || aAsking);
+		SideChat->set_running(aHook.has_value() || aDraftTour || aAsking, aDraftTour);
 		refresh_agent_features();
 	}
 	void review_tour_editor::show_tour_draft_failure(const QString& aWhy)
 	{
-		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft the tour"), aWhy);
+		static_cast<failure_notice_card*>(DraftFailure)->say(tr("Draft Tour"), aWhy);
 		restyle_agent_features();
 	}
 	void review_tour_editor::clear_tour_draft_failure() { DraftFailure->hide(); }
@@ -1978,7 +2840,6 @@ namespace bpr::qt {
 		aPicker->installEventFilter(this);
 		aPicker->present();
 		AgentBar->setVisible(aPicker->isVisibleTo(AgentBar));
-		fit_agent_bar();
 		restyle_agent_features();
 	}
 	void review_tour_editor::set_agent_setup_dispatch(std::function<void()> aDispatch) { AgentSetupDispatch = std::move(aDispatch); }
@@ -2036,6 +2897,13 @@ namespace bpr::qt {
 			apply_agent_accent(*open, ground);
 			open->setIcon(drawer_icon(drawer_glyph::agent, open->palette()));
 		}
+		SideChat->restyle(ground);
+		// [[BPR-1914]] v004, owner look v003: "The side chat buttons should be
+		// in the agent color."
+		for (auto* const chat : ChatButtons) {
+			apply_agent_accent(*chat, ground);
+			chat->setIcon(side_chat_icon(chat->palette()));
+		}
 		if (TourAgentPanel != nullptr) {
 			TourAgentPanel->restyle(ground);
 			auto* const open = static_cast<failure_notice_card*>(DraftFailure)->Open;
@@ -2072,17 +2940,60 @@ namespace bpr::qt {
 			SuggestOutline->setText(tr("Suggest an outline"));
 		}
 		TourAgentPanel->set_available(ready, agent_unavailable_reason());
+		SideChat->set_available(ready, agent_unavailable_reason());
 		InsertOutline->setToolTip(ready ? tr("Insert the checked suggestions as empty stops.") : agent_unavailable_reason());
 	}
-	void review_tour_editor::fit_agent_bar()
-	{
-		// The Agent tab's rule: a field narrower than 300 keeps the pill as
-		// an icon with its words in the tooltip.
-		if (AgentPicker != nullptr) {
-			AgentPicker->set_narrow(AgentField->width() > 0 && AgentField->width() < 300);
-		}
-	}
 	void review_tour_editor::show_notice(const QString& aText) { Status->setText(aText); }
+	void review_tour_editor::hold_scroll()
+	{
+		// The scroll area the Tour tab sits in (the drawer's, or the page's).
+		QScrollArea* outer = nullptr;
+		for (auto* parent = parentWidget(); parent != nullptr; parent = parent->parentWidget()) {
+			if (auto* const scroll = qobject_cast<QScrollArea*>(parent); scroll != nullptr && scroll->widget() != nullptr && scroll->widget()->isAncestorOf(this)) {
+				outer = scroll;
+				break;
+			}
+		}
+		if (outer == nullptr) {
+			return;
+		}
+		auto* const bar = outer->verticalScrollBar();
+		// Whatever the click sets off settles over a few turns of the event
+		// loop: the cards placed again, the keyboard moved, the window
+		// answering with a file and the tour presented again. Until it has,
+		// any move the person did not make is put back; dragging the bar or
+		// turning the wheel ends the hold at once.
+		HeldScroll = bar->value();
+		++HeldScrollGeneration;
+		const auto generation = HeldScrollGeneration;
+		QObject::disconnect(HeldScrollWatch);
+		QObject::disconnect(HeldScrollRelease);
+		HeldScrollWatch   = connect(bar, &QScrollBar::valueChanged, this, [this, bar](const int aValue) {
+			if (HeldScroll && aValue != *HeldScroll && !bar->isSliderDown() && *HeldScroll <= bar->maximum()) {
+				const auto block = QSignalBlocker{ bar };
+				bar->setValue(*HeldScroll);
+			}
+		});
+		HeldScrollRelease = connect(bar, &QScrollBar::actionTriggered, this, [this](const int) {
+			HeldScroll.reset();
+		});
+		outer->viewport()->installEventFilter(this);
+		const auto restore = [this, guard = QPointer<QScrollBar>{ bar }, generation] {
+			if (guard && generation == HeldScrollGeneration && HeldScroll && guard->value() != *HeldScroll) {
+				guard->setValue(std::min(*HeldScroll, guard->maximum()));
+			}
+		};
+		for (const auto delay : { 0, 30, 90, 200, 400 }) {
+			QTimer::singleShot(delay, this, restore);
+		}
+		QTimer::singleShot(600, this, [this, generation] {
+			if (generation == HeldScrollGeneration) {
+				HeldScroll.reset();
+				QObject::disconnect(HeldScrollWatch);
+				QObject::disconnect(HeldScrollRelease);
+			}
+		});
+	}
 	void review_tour_editor::trigger(tour_editor_action aAction)
 	{
 		if (Shown.Refusal == core::tour_refusal::bounds && aAction != tour_editor_action::retry_save && aAction != tour_editor_action::use_saved_copy && aAction != tour_editor_action::navigate_stop && aAction != tour_editor_action::navigate_related) {
@@ -2092,6 +3003,13 @@ namespace bpr::qt {
 		if (aAction == tour_editor_action::suggest_outline) {
 			RequestNames[core::writing_hook::outline] = tr("Suggest an outline");
 			clear_agent_failure(core::writing_hook::outline);
+		}
+		// [[BPR-1914]] v004, owner look v003: "a single left-click to
+		// activate (1) but it scrolls almost all the way off the top of the
+		// screen". Going to a stop's code is answered by the window (a file
+		// opened, the tour presented again); the Tour tab stays where it was.
+		if (aAction == tour_editor_action::navigate_stop || aAction == tour_editor_action::navigate_related) {
+			hold_scroll();
 		}
 		if (Action) {
 			Action(aAction);
@@ -2180,6 +3098,28 @@ namespace bpr::qt {
 		UndoStructure = shortcut(QStringLiteral("tourUndo"), shortcut_command::tour_undo, this, [this] { trigger(tour_editor_action::undo_structure); });
 		RedoStructure = shortcut(QStringLiteral("tourRedo"), shortcut_command::tour_redo, this, [this] { trigger(tour_editor_action::redo_structure); });
 		outline->Move = [this](std::size_t aPosition) { structural(core::tour_command_kind::move, aPosition); };
+		// [[BPR-1925]] v003. Proposed stops wait under the route's own.
+		ProposedStops = new QWidget{ this };
+		ProposedStops->setObjectName(QStringLiteral("tourProposedStops"));
+		auto* const proposedColumn = new QVBoxLayout{ ProposedStops };
+		proposedColumn->setContentsMargins(0, 0, 0, 0);
+		proposedColumn->setSpacing(0);
+		ProposedStops->hide();
+		// [[BPR-1930]]. A proposed order waits above the route it reorders.
+		ProposedOrder = new QWidget{ this };
+		ProposedOrder->setObjectName(QStringLiteral("tourProposedOrder"));
+		auto* const orderColumn = new QVBoxLayout{ ProposedOrder };
+		orderColumn->setContentsMargins(0, 0, 0, 4);
+		orderColumn->setSpacing(0);
+		ProposedOrder->hide();
+		outline->viewport()->installEventFilter(this);
+		// [[BPR-1925]] v002. A stop's toggle on the route: its chat, or the
+		// column closed when that chat is the one in it.
+		outline->ChatToggle = [this](const int aRow) {
+			if (Shown.Draft && aRow >= 0 && static_cast<std::size_t>(aRow) < Shown.Draft->Stops.size()) {
+				toggle_side_chat(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id });
+			}
+		};
 		connect(Outline, &QListWidget::itemSelectionChanged, this, [this] { update_stop_actions(); });
 		connect(Outline, &QListWidget::customContextMenuRequested, this, [this, menu](const QPoint& aPosition) {
 			if (auto* item = Outline->itemAt(aPosition)) {
@@ -2291,6 +3231,7 @@ namespace bpr::qt {
 		DoneStop->setToolTip(tr("Read the stop as it will be shown (%1 or Esc). Your text is saved as you type.").arg(QKeySequence{ Qt::CTRL | Qt::Key_Return }.toString(QKeySequence::NativeText)));
 		titleRow->addWidget(DoneStop, 0, Qt::AlignTop);
 		connect(DoneStop, &QPushButton::clicked, this, [this] { finish_stop_edit(); });
+		StopTitleRow = titleRow;
 		fields->addLayout(titleRow);
 		Source = paragraph({ }, StopFields);
 		Source->setObjectName(QStringLiteral("tourStopSource"));
@@ -2314,6 +3255,13 @@ namespace bpr::qt {
 		Body->setPlaceholderText(tr("What would you like checked?"));
 		Body->setMinimumHeight(110);
 		Body->setTabChangesFocus(true);
+		// [[BPR-1925]] v002. No frame, no native focus rectangle and no ring on
+		// the words: the card draws a quiet box round them (`calm_text_box`).
+		Body->setFrameShape(QFrame::NoFrame);
+		Body->setAttribute(Qt::WA_MacShowFocusRect, false);
+		Body->viewport()->setAutoFillBackground(false);
+		Body->document()->setDocumentMargin(0);
+		new calm_text_box{ *Body };
 		Body->installEventFilter(this);
 		fields->addWidget(Body);
 		// [[BPR-1805]]. The explanation as the reviewer will read it, rendered
@@ -2399,6 +3347,14 @@ namespace bpr::qt {
 		sources->addStretch(1);
 		fields->addWidget(StopActions);
 		fields->addWidget(add_failure_notice(core::writing_hook::comment, StopFields));
+		// [[BPR-1914]] v003. The read stop's own menu opens its side chat.
+		StopReader->set_context_menu_builder([this](QMenu& aMenu) {
+			aMenu.addSeparator();
+			aMenu.addAction(tr("Open side chat about this stop"), this, [this] {
+				const auto text = StopReader->rendered_view()->textCursor().selectedText().replace(QChar::ParagraphSeparator, QLatin1Char('\n'));
+				open_side_chat_about(core::writing_hook::comment, text);
+			});
+		});
 		// The first to stay is the first a stop is written with.
 		StopActions->yield(useLines, true);
 		StopActions->yield(addRelated, Mode == tour_editor_mode::page);
@@ -2414,6 +3370,8 @@ namespace bpr::qt {
 		nav->setSpacing(6);
 		fields->addLayout(nav);
 		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
+		ShowInCode               = returnToTour;
+		StopFieldsLayout         = fields;
 		returnToTour->setToolTip(tr("Show the stop's lines in the code"));
 		nav->addStretch(1);
 		auto* complete = new QPushButton{ tr("Ready, next"), StopFields };
@@ -2422,7 +3380,22 @@ namespace bpr::qt {
 		complete->setShortcut(shortcut_key(shortcut_command::tour_ready_next));
 		complete->setToolTip(tr("Mark this stop ready and go to the next (%1)").arg(complete->shortcut().toString(QKeySequence::NativeText)));
 		nav->addWidget(complete);
-		connect(complete, &QPushButton::clicked, this, [this] {structural(core::tour_command_kind::complete); if(const auto* stop=selected_stop();stop && stop->Preparation==core::tour_preparation::ready){next_stop(1);} });
+		Complete = complete;
+		// [[BPR-1925]] v003. Marking a stop Ready is the host's to apply: the
+		// move to the next stop waits until this stop shows as Ready (see
+		// `place_stop_card`), instead of looking before the host answered.
+		connect(complete, &QPushButton::clicked, this, [this] {
+			const auto* const stop = selected_stop();
+			if (stop == nullptr) {
+				return;
+			}
+			if (stop->Preparation == core::tour_preparation::ready) {
+				next_stop(1);
+				return;
+			}
+			AdvanceFrom = stop->Id;
+			structural(core::tour_command_kind::complete);
+		});
 		connect(Title, &QLineEdit::textEdited, this, [this] { edit_stop(); });
 		connect(Body, &QPlainTextEdit::textChanged, this, [this] {
 			edit_stop();
@@ -2477,6 +3450,9 @@ namespace bpr::qt {
 			if (WritingCancel) {
 				WritingCancel();
 			}
+			// [[BPR-1914]] v004. Choosing a stop opens it where it is: the
+			// drawer keeps its place while the cards change.
+			hold_scroll();
 			Selected         = Shown.Draft->Stops[static_cast<std::size_t>(aRow)].Id;
 			SelectionChanged = false;
 			// [[BPR-1784]]. Choosing a stop is working on the stops.
@@ -2599,6 +3575,8 @@ namespace bpr::qt {
 		while (Outline->count() > static_cast<int>(count)) {
 			delete Outline->takeItem(Outline->count() - 1);
 		}
+		// [[BPR-1930]]. The waiting structural parts stay marked on their stops.
+		apply_route_marks();
 		if (!selected_stop()) {
 			Selected         = count ? Shown.Draft->Stops.front().Id : core::tour_stop_id{ };
 			SelectionChanged = count != 0;
@@ -2630,6 +3608,8 @@ namespace bpr::qt {
 			if (!document) {
 				document = new QTextDocument{ this };
 				document->setDocumentLayout(new QPlainTextDocumentLayout{ document });
+				// [[BPR-1925]] v002. The words start where they were read.
+				document->setDocumentMargin(0);
 				document->setPlainText(QString::fromStdString(stop->Body));
 			}
 			Body->bind_document(document);
@@ -2653,6 +3633,12 @@ namespace bpr::qt {
 		// read yet; the open one keeps its mode, as a save presents it again.
 		ReadTitle->setText(stop->Title.empty() ? tr("Untitled stop") : QString::fromStdString(stop->Title));
 		ReadTitle->setForegroundRole(stop->Title.empty() ? QPalette::PlaceholderText : QPalette::WindowText);
+		// [[BPR-1914]] v004. Its inline code reads as its own file's code.
+		if (const auto& source = stop->Mapped ? stop->Mapped : stop->Original; source) {
+			StopReader->set_inline_code_selector(source->Path);
+		} else if (stop->Destination) {
+			StopReader->set_inline_code_selector(stop->Destination->Path);
+		}
 		StopReader->set_body(stop->Body, "tour-stop-" + std::to_string(stop->Id.value()));
 		view_stop(core::tour_stop_view_event::open);
 		// [[BPR-1783]]. A stop with no title yet, a new one above all, takes
@@ -2962,7 +3948,9 @@ namespace bpr::qt {
 			column->insertWidget(0, Brief);
 			column->addStretch(1);
 			// [[BPR-1784]]. The route is step 3's body.
+			StopsSlot->layout()->addWidget(ProposedOrder);
 			StopsSlot->layout()->addWidget(Outline);
+			StopsSlot->layout()->addWidget(ProposedStops);
 			StopsSlot->layout()->addWidget(OutlineTools);
 			for (int field = 0; field < 2; ++field) {
 				BriefSlots[field]->layout()->addWidget(BriefPanels[field]);
@@ -2983,8 +3971,10 @@ namespace bpr::qt {
 				delete column->takeAt(column->count() - 1);
 			}
 			left->insertWidget(1, Brief);
-			left->insertWidget(2, Outline, 1);
-			left->insertWidget(3, OutlineTools);
+			left->insertWidget(2, ProposedOrder);
+			left->insertWidget(3, Outline, 1);
+			left->insertWidget(4, ProposedStops);
+			left->insertWidget(5, OutlineTools);
 			for (int field = 0; field < 2; ++field) {
 				BriefSlots[field]->hide();
 				BriefHosts[field]->layout()->addWidget(BriefPanels[field]);
@@ -3103,6 +4093,38 @@ namespace bpr::qt {
 
 	void review_tour_editor::place_stop_card()
 	{
+		place_stop_card_now();
+		place_stop_text_proposal();
+		// [[BPR-1925]] v003. Ready, next: once the host shows this stop Ready,
+		// go on.
+		if (AdvanceFrom) {
+			const auto* const stop = selected_stop();
+			if (stop != nullptr && stop->Id == *AdvanceFrom && stop->Preparation == core::tour_preparation::ready) {
+				AdvanceFrom.reset();
+				// After the presentation that showed it Ready, which takes no
+				// change of stop while it is applied.
+				QTimer::singleShot(0, this, [this] { next_stop(1); });
+				return;
+			}
+			if (stop == nullptr || stop->Id != *AdvanceFrom || Shown.Refusal != core::tour_refusal::none) {
+				AdvanceFrom.reset();
+			}
+		}
+		// [[BPR-1925]]. While a stop's chat is beside the tour, going to
+		// another stop brings that stop's chat: the chat follows the route.
+		// The keyboard stays where the reviewer put it.
+		if (SideChat != nullptr) {
+			const auto discussed = SideChat->discussed();
+			if (const auto* const stop = selected_stop(); stop != nullptr && discussed && discussed->Kind == core::tour_thread_kind::stop && discussed->Stop != stop->Id) {
+				SideChat->open(core::tour_thread{ .Kind = core::tour_thread_kind::stop, .Stop = stop->Id }, std::nullopt, false);
+				return;
+			}
+			mark_side_chat();
+		}
+	}
+
+	void review_tour_editor::place_stop_card_now()
+	{
 		if (Outline == nullptr || StopFields == nullptr) {
 			return;
 		}
@@ -3167,9 +4189,12 @@ namespace bpr::qt {
 		StopFields->show();
 		StopFields->layout()->activate();
 		card->layout()->activate();
-		const auto height  = std::max(card->layout()->hasHeightForWidth() ? card->layout()->totalHeightForWidth(width) : 0, card->layout()->totalSizeHint().height());
+		// [[BPR-1930]]. Wrapped words in a waiting part's box ask for more
+		// height at their size hint than at the card's width; the card takes
+		// its height for that width, and never less than its minimum.
+		const auto height  = card->layout()->hasHeightForWidth() ? std::max(card->layout()->totalHeightForWidth(width), card->layout()->totalMinimumSize().height()) : card->layout()->totalSizeHint().height();
 		const auto divider = item->data(divider_role).toBool() ? divider_band : 0;
-		if (item->sizeHint().height() != height + divider) {
+		if (item->sizeHint() != QSize{ width, height + divider }) {
 			item->setSizeHint({ width, height + divider });
 		}
 		card->setContentsMargins(0, divider, 0, 0);
@@ -3228,7 +4253,6 @@ namespace bpr::qt {
 		QWidget::resizeEvent(aEvent);
 		fit_page_columns();
 		place_stop_card();
-		fit_agent_bar();
 	}
 
 	void review_tour_editor::fit_page_columns()
@@ -3286,6 +4310,35 @@ namespace bpr::qt {
 				reader->set_code_font(code, tab);
 			}
 		}
+		apply_agent_code_style();
+	}
+
+	void review_tour_editor::apply_agent_code_style()
+	{
+		// [[BPR-1919]]. The agent's proposals and replies set their code as a
+		// stop does: the profile's code font, the panes' colours, the diff's
+		// highlighter.
+		const auto code = ReaderCodeFont.value_or(to_presentation_font(default_typography_settings().Code));
+		const auto tab  = 4.0 * QFontMetricsF{ code }.horizontalAdvance(QLatin1Char{ ' ' });
+		if (TourAgentPanel != nullptr) {
+			TourAgentPanel->set_code_style(code, tab, CodeTheme, CodeSyntaxDispatch);
+		}
+		if (SideChat != nullptr) {
+			SideChat->set_code_style(code, tab, CodeTheme, CodeSyntaxDispatch);
+		}
+	}
+
+	void review_tour_editor::set_code_theme(const markdown_code_theme& aTheme)
+	{
+		// [[BPR-1919]]. Fenced code in the tour's rendered text in the panes'
+		// colours for the appearance, as the diff draws the same tokens.
+		CodeTheme = aTheme;
+		for (auto* const reader : { StopReader, Preview, PublicationPreview }) {
+			if (reader != nullptr) {
+				reader->set_code_theme(aTheme);
+			}
+		}
+		apply_agent_code_style();
 	}
 
 	void review_tour_editor::set_code_syntax_dispatch(std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
@@ -3296,6 +4349,8 @@ namespace bpr::qt {
 				reader->request_code_syntax();
 			}
 		}
+		CodeSyntaxDispatch = std::move(aDispatch);
+		apply_agent_code_style();
 	}
 
 	void review_tour_editor::apply_code_syntax(const application::markdown_code_syntax_publication& aSpans)
@@ -3305,6 +4360,12 @@ namespace bpr::qt {
 			if (reader != nullptr) {
 				reader->apply_code_syntax(aSpans);
 			}
+		}
+		if (TourAgentPanel != nullptr) {
+			TourAgentPanel->apply_code_syntax(aSpans);
+		}
+		if (SideChat != nullptr) {
+			SideChat->apply_code_syntax(aSpans);
 		}
 	}
 

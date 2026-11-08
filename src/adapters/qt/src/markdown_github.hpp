@@ -103,6 +103,12 @@ namespace bpr::qt::detail {
 	/// separators, alert blocks and footnote links.
 	void present_github_markdown(QTextDocument& aDocument, const prepared_markdown& aPrepared);
 
+	/// \brief [[BPR-1914]], [[BPR-1915]]. Reads `aSource` into `aDocument` as a
+	/// body is read (preparation, Qt's GitHub dialect with the body view's
+	/// features, presentation), without the body view's images, code colours
+	/// or snippets: an agent's reply or proposal shown in a document of its own.
+	void import_github_markdown(QTextDocument& aDocument, const QString& aSource);
+
 	/// \brief An alert's title as GitHub writes it: "Note", "Tip",
 	/// "Important", "Warning" or "Caution".
 	[[nodiscard]] auto markdown_alert_title(markdown_alert aAlert) -> QString;

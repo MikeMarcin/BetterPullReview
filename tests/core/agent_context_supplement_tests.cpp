@@ -219,8 +219,8 @@ namespace {
 
 	void test_no_field_can_hold_presentation_or_credential_authority()
 	{
-		using supplement           = core::agent_context_supplement;
-		const auto whole           = supplement{ };
+		using supplement     = core::agent_context_supplement;
+		const auto whole     = supplement{ };
 		const auto& [version,
 					 applicationSession,
 					 run,
@@ -236,7 +236,8 @@ namespace {
 					 operation,
 					 guidance,
 					 brief,
-					 conversation] = whole;
+					 conversation,
+					 skills] = whole;
 		static_assert(std::is_same_v<decltype(version), const std::uint32_t>);
 		static_assert(std::is_same_v<
 					  decltype(applicationSession),
@@ -281,12 +282,20 @@ namespace {
 		static_assert(std::is_same_v<decltype(briefSkill), const std::optional<core::brief_review_skill>>);
 		[[maybe_unused]] const auto& [skillSource, skillVersion, skillText] = core::brief_review_skill{ };
 		static_assert(std::is_same_v<decltype(skillText), const std::string>);
+		// [[BPR-1916]]. Skills the prompt named: name, source, origin, the
+		// author's text and the supporting files' names; no argv,
+		// environment or token.
+		static_assert(std::is_same_v<decltype(skills), const std::vector<core::supplement_skill>>);
+		[[maybe_unused]] const auto& [namedSkillName, namedSkillSource, namedSkillOrigin, namedSkillText, namedSkillSupporting] = core::supplement_skill{ };
+		static_assert(std::is_same_v<decltype(namedSkillText), const std::string>);
+		static_assert(std::is_same_v<decltype(namedSkillSupporting), const std::vector<std::string>>);
 		expect(
 			version == core::agent_supplement_schema_version
 				&& applicationSession.value() == 0U && run.Id.value() == 0U
 				&& url.empty() && message.empty() && !previous && !lastReviewed
 				&& files.empty() && defects.empty() && !selection && notes.empty()
-				&& drafts.empty() && !operation && !guidance && !brief,
+				&& drafts.empty() && !operation && !guidance && !brief
+				&& !conversation && skills.empty(),
 			"the complete type contains only domain identity, bounded source/prose, "
 			"and explicit absence - no argv, environment, token, Qt index, or coordinate");
 

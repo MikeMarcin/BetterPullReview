@@ -4,6 +4,7 @@
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/diagnostic_log_port.hpp"
 
+#include <array>
 #include <compare>
 #include <cstddef>
 #include <cstdint>
@@ -26,7 +27,10 @@ namespace bpr::application {
 	/// reported an auto-memory folder, never the folder ([[BPR-1896]]);
 	/// `thinking=on` when it wrote a thinking block, never its content
 	/// ([[BPR-1899]]); and for a read-only Claude run how many shell commands
-	/// outside the read-only list ran, never which ([[BPR-1912]]).
+	/// outside the read-only list ran, never which ([[BPR-1912]]); and for a
+	/// run whose custom profile opted out of strict run checks, `relaxed=on`
+	/// and how many times each relaxed check let something pass, never what
+	/// ([[BPR-1918]]).
 	struct agent_run_diagnosis
 	{
 		core::agent_protocol                  Protocol = core::agent_protocol::claude_stream_json;
@@ -46,6 +50,9 @@ namespace bpr::application {
 		/// Never the commands: they can hold the repository's paths and
 		/// search terms.
 		std::optional<std::uint64_t> OutsideList;
+		/// [[BPR-1918]]. A relaxed run's counts by `relaxed_check`; absent
+		/// for a strict run.
+		std::optional<std::array<std::uint64_t, relaxed_check_count>> Relaxed;
 
 		auto operator<=>(const agent_run_diagnosis&) const = default;
 	};
@@ -56,7 +63,9 @@ namespace bpr::application {
 	/// `plugins=cc-plugin-sec-default@builtin` when plugins were reported,
 	/// then `memory=on` when an auto-memory folder was, then `thinking=on`
 	/// when a thinking block was, then `outside_list=N` for a read-only
-	/// Claude run ([[BPR-1912]]).
+	/// Claude run ([[BPR-1912]]), then `relaxed=on relaxed_init=N
+	/// relaxed_tool=N relaxed_block=N relaxed_skill=N` for a relaxed run
+	/// ([[BPR-1918]]).
 	[[nodiscard]] auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string;
 	/// \brief Reads exactly what `describe` writes, and nothing else.
 	[[nodiscard]] auto parse_agent_run_diagnosis(std::string_view aText) -> std::optional<agent_run_diagnosis>;

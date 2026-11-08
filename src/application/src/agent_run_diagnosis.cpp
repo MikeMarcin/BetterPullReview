@@ -11,9 +11,9 @@
 namespace bpr::application {
 	namespace {
 		inline constexpr std::size_t agent_run_outcome_count = static_cast<std::size_t>(agent_run_outcome::stale_result) + 1U;
-		/// The longest line `describe` writes: the counts, and every plugin
+		/// The longest line `describe` writes: the counts (with a relaxed run's), and every plugin
 		/// token with its separator.
-		inline constexpr std::size_t maximum_agent_run_diagnosis_bytes = 256U + (maximum_reported_plugins + 1U) * (maximum_reported_plugin_bytes + 1U);
+		inline constexpr std::size_t maximum_agent_run_diagnosis_bytes = 512U + (maximum_reported_plugins + 1U) * (maximum_reported_plugin_bytes + 1U);
 
 		/// [[BPR-1891]]. Exactly the list a `plugins_reported` event carries.
 		[[nodiscard]] auto plugin_list(std::string_view aText) -> bool
@@ -45,6 +45,17 @@ namespace bpr::application {
 			}
 			return value;
 		}
+
+		/// [[BPR-1918]]. A relaxed run's counts, for its line.
+		[[nodiscard]] auto relaxed_counts(const agent_launch_request& aRequest, const agent_run_result& aResult) -> std::optional<std::array<std::uint64_t, relaxed_check_count>>
+		{
+			if (aRequest.RunChecks != agent_run_checks::relaxed) {
+				return std::nullopt;
+			}
+			auto counts = std::array<std::uint64_t, relaxed_check_count>{ };
+			std::ranges::copy(aResult.RelaxedCounts, counts.begin());
+			return counts;
+		}
 	} // namespace
 
 	auto describe(const agent_run_diagnosis& aDiagnosis) -> std::string
@@ -72,6 +83,12 @@ namespace bpr::application {
 		}
 		if (aDiagnosis.OutsideList) {
 			text += " outside_list=" + std::to_string(*aDiagnosis.OutsideList);
+		}
+		if (aDiagnosis.Relaxed) {
+			text += " relaxed=on";
+			for (std::size_t check = 0U; check < relaxed_check_count; ++check) {
+				text += " relaxed_" + std::string{ relaxed_check_name(static_cast<relaxed_check>(check)) } + "=" + std::to_string((*aDiagnosis.Relaxed)[check]);
+			}
 		}
 		return text;
 	}
@@ -137,6 +154,26 @@ namespace bpr::application {
 				if (!result.OutsideList) {
 					return std::nullopt;
 				}
+			} else if (key == "relaxed") {
+				if (value != "on") {
+					return std::nullopt;
+				}
+				result.Relaxed.emplace();
+			} else if (key.starts_with("relaxed_") && result.Relaxed) {
+				auto known = false;
+				for (std::size_t check = 0U; check < relaxed_check_count; ++check) {
+					if (key.substr(8U) == relaxed_check_name(static_cast<relaxed_check>(check))) {
+						const auto count = read_number<std::uint64_t>(value);
+						if (!count) {
+							return std::nullopt;
+						}
+						(*result.Relaxed)[check] = *count;
+						known                    = true;
+					}
+				}
+				if (!known) {
+					return std::nullopt;
+				}
 			} else if (key == "thinking") {
 				if (value != "on") {
 					return std::nullopt;
@@ -189,6 +226,7 @@ namespace bpr::application {
 				   .AutoMemory          = result.ReportedAutoMemory,
 				   .Thinking            = result.ReportedThinking,
 				   .OutsideList         = aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json ? std::optional<std::uint64_t>{ result.OutsideListCommands } : std::nullopt,
+				   .Relaxed             = relaxed_counts(aRequest, result),
 			   });
 		return result;
 	}

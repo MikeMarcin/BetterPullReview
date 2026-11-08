@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1930"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Whole-tour feedback chat",
+  "created": "2026-11-07T18:56:29.543545+00:00",
+  "base": "5708dd5f2fa40b747ffc0000dcd4a8d1a43172e4"
+}

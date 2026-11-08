@@ -27,6 +27,10 @@ add_library(
         src/remembered_connection_host.cpp
         src/writing_hooks.cpp
         src/tour_agent_drafting.cpp
+        src/tour_agent_conversation.cpp
+        src/tour_writing_style.cpp
+        src/skill_guidance.cpp
+        src/skill_catalog.cpp
         src/review_tour_import.cpp
         src/review_tour_host.cpp
         src/review_cycle_capture.cpp
@@ -113,9 +117,26 @@ add_library(
         src/review_publication_recovery_contract.cpp
         src/off_hunk_fact.cpp
         src/epoch_application_host.cpp
+        src/epoch_host_blob_authority.cpp
+        src/epoch_host_catalog_and_history.cpp
+        src/epoch_host_dispatch_and_imports.cpp
+        src/epoch_host_implementation.cpp
+        src/epoch_host_materialization.cpp
+        src/epoch_host_requests_and_recovery.cpp
+        src/epoch_host_review_reads.cpp
+        src/epoch_host_source_search_and_diffs.cpp
+        src/epoch_host_support.cpp
         src/profile_epoch_actor_registry.cpp
         src/epoch_runtime_ports.cpp
         src/github_application_host.cpp
+        src/github_host_credential_refresh_and_store.cpp
+        src/github_host_dispatch_and_enrollment.cpp
+        src/github_host_failure_and_shutdown.cpp
+        src/github_host_profile_sessions.cpp
+        src/github_host_public_preview_and_projection.cpp
+        src/github_host_retained_refresh_and_delete.cpp
+        src/github_host_support.cpp
+        src/github_host_viewer_and_capabilities.cpp
         src/github_window_read_host.cpp
         src/reference_page.cpp
         src/home_open_host.cpp

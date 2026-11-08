@@ -1797,6 +1797,68 @@ workspace.
   nothing, it does not end the run ([[BPR-1912]]), a write or delete
   included.
 
+## Custom agent opt-out of strict run checks (BPR-1918)
+
+A custom agent profile may turn off **Strict run checks** in Agent settings
+(on by default; owner, 2026-11-06). Off, a writing or read-only run of that
+profile does not end on a check that a wrapper's or policy's settings can
+trip: tools or MCP servers in init beyond what the run asked for, a tool_use
+outside the list, a block that is not text in a writing answer, and
+[[BPR-1916]]'s unreferenced Skill tool_use. Each is named in the transcript
+("not stopped, strict run checks are off") and counted in the `agent.run`
+diagnostic (`relaxed=on relaxed_init=N relaxed_tool=N relaxed_block=N
+relaxed_skill=N`, never what was used).
+
+- **What stays.** The app still passes its restrictive arguments, so a
+  wrapper that honours them stays tool-free or read-only. The run still
+  works in the private, disposable workspace or an empty writing folder,
+  never in the reviewer's own checkout. Only text blocks become tour text,
+  a finding payload outside the result is still refused, and a proposal
+  still needs the author's acceptance.
+- **Popular agents.** The built-in Claude Code and Codex entries keep strict
+  checks; the store and the core refuse the switch for them. Whether to offer
+  it there is left for later.
+- **Residual.** With the switch off, what a tour run can do is whatever the
+  wrapper's or policy's settings allow, bounded by the private workspace and
+  the agent's own permissions. A tool that edits or writes can change the
+  disposable workspace, and a tool with network access can send what the run
+  can read: the pull request's files and the brief. The app reports what was
+  used and cannot prevent or undo it. The wording asks the reviewer to turn
+  it off only for repositories they trust.
+
+## Skills a prompt names (BPR-1916)
+
+A `/skill-name` in a prompt brings that skill's `SKILL.md` into the request
+([AI agent boundary](ai-agent-boundary.md#skills-a-prompt-names-bpr-1916)).
+
+- **Trust rule (owner, 2026-11-06).** A repository skill is content a pull
+  request can change. The owner first decided base-only ("you could be
+  reviewing a PR you dont trust"), then allowed the head on one condition:
+  "i guess head is fine. We will only run skills you configure right?" Only
+  skills the person names in a prompt reach a run; a skill no prompt names,
+  however its description lures, never does. The reader reads the
+  repository's skills at the pull request's base from the linked clone's
+  objects, so a pull request that adds or changes a skill changes nothing a
+  run receives (contract test `repository_skill_reader`), and shows each
+  repository skill's source. A personal skill wins over a repository skill
+  of the same name unless the person writes `/repo:name`.
+- **Mechanism (owner, 2026-11-06).** Inline only: the text rides in the
+  request's supplement, in escaped fields. Native loading through Claude's
+  settings, plugins or permission rules was rejected because a person's
+  wrapper can replace the settings this application passes (owner: "my
+  custom wrapper right now seems to throw away all my settings"; BPR-1896).
+  No run gains a tool. A wrapper that turns skills on anyway is caught by
+  the decoder: a `Skill` tool in a writing or read-only run's init frame, or
+  a `Skill` tool use, ends the run (`tool_refused`) with the refused line,
+  naming the skill, in its log. A custom agent whose person turned strict run
+  checks off ([[BPR-1918]]) names the use with its skill and counts it as the
+  `skill` check instead, and the run goes on.
+- **Residual.** A named skill's text is instruction data the person chose;
+  a repository skill they name is the base side's text and may still steer
+  the agent's prose. It grants no tool, publication or review authority.
+  The Agent tab's chat runs with the person's own Claude settings, so Claude
+  may load skills natively there, including the workspace's (the head's).
+
 ## Claude process wrapper (BPR-1301)
 
 A profile may name one program to run in place of `claude`

@@ -635,6 +635,15 @@ namespace {
 		expect(dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled() && described.Arguments == std::vector<std::string>{ "--codex", "--profile work" } && described.Effort == "minimal"
 				   && described.CheckArguments == std::vector<std::string>{ "--codex", "login", "status" },
 			   "a full entry may be kept, each line one argument, and Codex's efforts offered");
+		// [[BPR-1918]] AC3. Strict run checks: on by default, a custom
+		// agent's own to turn off, and not offered for a popular agent.
+		expect(dialog.strict_checks() != nullptr && dialog.strict_checks()->isChecked() && described.StrictRunChecks, "a custom agent starts with strict run checks on");
+		const auto* const meaning = dialog.findChild<QLabel*>(QStringLiteral("agentEntryStrictChecksMeaning"));
+		expect(meaning != nullptr && meaning->text().contains(QStringLiteral("repositories you trust")) && meaning->text().contains(QStringLiteral("instead of stopping it")), "it says plainly what turning it off means");
+		dialog.strict_checks()->setChecked(false);
+		expect(!dialog.entry().StrictRunChecks && dialog.buttons()->button(QDialogButtonBox::Ok)->isEnabled(), "turned off, the entry keeps it off and may be kept");
+		auto popular = qt::agent_entry_dialog{ core::preset_agent_entry(core::setup_agent::claude_code, core::codex_protocol_choice::app_server, { }) };
+		expect(popular.strict_checks() == nullptr && popular.entry().StrictRunChecks, "a popular agent shows no switch and keeps strict checks");
 
 		auto folders = qt::clone_folders_panel{ };
 		auto asked   = std::vector<std::string>{ };

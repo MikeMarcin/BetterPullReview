@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1919"
+  ],
+  "reserve_for": "coordinator",
+  "purpose": "Syntax highlighting in rendered tour Markdown",
+  "created": "2026-11-07T05:23:26.962500+00:00",
+  "base": "66b1a2b774b0f9d07436bd23f1f2faab2e388b92"
+}
