@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Coordinator-approved bounded accuracy correction after candidate41 and exact owning-source early-tick negative control.",
+  "source_basis": "efb3f424ae880cfaa67d141a0b8ace8e4fdaf90a"
+}

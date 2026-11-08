@@ -41,6 +41,9 @@ namespace bpr::qt {
 		setWordWrap(true);
 		setTextFormat(Qt::PlainText);
 		Ticker = new QTimer{ this };
+		// [[BPR-1945]]. An early coarse tick still reads 0:00 and loses
+		// the first whole second until the following tick.
+		Ticker->setTimerType(Qt::PreciseTimer);
 		Ticker->setInterval(1000);
 		connect(Ticker, &QTimer::timeout, this, [this] { tick(); });
 	}

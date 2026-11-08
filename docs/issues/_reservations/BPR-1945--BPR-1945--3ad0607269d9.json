@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1945"
+  ],
+  "reserve_for": "codex-bpr1945-status-clock",
+  "purpose": "Fix the live agent clock early coarse tick found in release candidate41",
+  "created": "2026-11-08T20:38:29.763322+00:00",
+  "base": "efb3f424ae880cfaa67d141a0b8ace8e4fdaf90a"
+}

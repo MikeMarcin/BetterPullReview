@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1945-live-agent-clock",
+  "scope": {
+    "issues": [
+      "BPR-1945"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "accurate-live-second",
+      "outcome": "The shared agent run line counts its first whole second under the existing Release budget without an early coarse tick losing that update.",
+      "work": [
+        {
+          "issue": "BPR-1945",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Keep actual elapsed formatting,1000ms interval,shared Agent/Tour presentation and start-stop lifetime; select a timer that cannot fire early.",
+        "Retain candidate41 and causal phase-varied negative evidence; a meaningful first-second regression and affected original Qt courses pass under unchanged budgets.",
+        "Focused format22/tidy22/docs/board and latest-main intentional integration pass, with exact source/ownership handback and no release qualification claim."
+      ],
+      "boundary": "Shared live status timer accuracy and existing Qt test regression, plan/card/evidence. No UI redesign, wording/elapsed/start-stop/interval change, budget/assertion relaxation, release source edits or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
