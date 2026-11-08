@@ -7,7 +7,7 @@ rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["linux"]
-metadata: {"kind":"test-correctness","found_by":"BPR-1942 normal native round-trip failure and bounded diagnostic","related_cards":["BPR-1942"]}
+metadata: {"kind":"test-correctness","found_by":"BPR-1942 normal native round-trip failure and bounded diagnostic","related_cards":["BPR-1942"],"milestone_plan":{"id":"bpr-1943-current-fallback-input","path":"docs/rfcs/plans/bpr-1943-current-fallback-input/milestone-plan.json"}}
 ---
 
 # BPR-1943: Current fallback fixture input
@@ -52,3 +52,25 @@ original budgets; no product-policy change, extra/replayed gesture or weaker
 verdict. Reuse one final normal registered invocation/round-trip +tooling/
 preflight run for this correction and BPR-1942. Diagnostics are deliberately
 restored, with their private commits retained and binary labelled rebuild-required.
+
+
+## Bounded correction and self-review
+
+A test-only probe-state boolean makes the existing Review choice once. The
+same phase then awaits a current selected publication, matching host generation
+and selected file, its displayed semantic comparison, and existing private
+readiness/settled command-selection work. The exact off-hunk gesture loop is
+byte-identical to source 861be. No product guard, phase value/transition,
+provider/verdict sequence, gesture retry or timer changes. `keep_waiting` keeps
+the same phase Since value even when its diagnostic term changes, so the 15 s
+watchdog and 40 s course budget remain the original bounds. Five useful boolean
+failure facts remain; temporary phase snapshots and relay are absent.
+
+The unchanged 142-file manifest independently reproduces 51f86c4a… and binds the
+two reviewed test-only files as 913e8b38770b835ddb1aa6a8e7fca85d363764901c4ce608a930113824e9ef26.
+The maintained digest printer agrees; other pins and inventories are unchanged.
+Focused clang-format22 and warnings-as-errors clang-tidy22 pass, as does the
+documentation gate after merging main 8f3102c2a's BPR-1944 card/reservation
+without any functional source delta. Native uninstrumented normal verification
+is pending. External fixture-self-review-r3.json records the mechanical
+sequence/timer/source-contract comparisons and retained failure evidence.

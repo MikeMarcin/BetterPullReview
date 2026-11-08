@@ -87,3 +87,32 @@ Original registered `test_runtime_root_contract`, `test_suite_runner_contract`,
 `application_review_round_trip_composition_contract` with the configured custom
 root. Native normal registered invocation/round-trip and suite preflight
 remain pending; no local or external projection is substituted for them.
+
+
+## Actual native route and retained functional failure
+
+Source 861be27005fd8190727bc488b742ddf611b1afe8 is checked out exactly on a
+fresh private native development branch, preserving the earlier branch. The
+normal affected app/invocation/helper build passes 255.78 s; both app and
+invocation binaries are newly linked and source-bound. All 79 protected feature,
+compiler/hardening/tool/cache keys remain unchanged. The native full graph has
+927 nodes; custom configuration changes exactly 25 writable root arguments and
+their exact logical mirrors. Compile commands are identical across root choice.
+The normal suite runner's original three preflight rows pass. Its selected
+rows have 6 PASS/1 FAIL: original invocation 12.76 s and all five tooling gates pass,
+but round-trip fails 18.53 s at its 15 s fallback-draft predicate. Its 40 s outer
+budget has not expired. This is an actual functional negative, not acceptance.
+Raw native-final-r1 retains the real runner/CTest/JUnit/source/cache proofs.
+The private runtime peaks at 4,165,632 allocated bytes; default cache is restored,
+all processes reaped, source clean and the exact owned root removed.
+
+The one approved diagnostic at source 22f9064ca passes and supplies no
+uninstrumented credit. It observes the off-hunk gesture while private readiness
+is absent, file rows zero, and publication generation/file matches false.
+Later both matches/private readiness are true and the draft exists. The
+fixture sends stale input that the presenter's guards correctly refuse;
+no direct causality is inferred from BPR-1941's unrelated diff. Both diagnostic
+source files are deliberately restored, and its binary remains explicitly
+rebuild-required. BPR-1943 owns the separate bounded fixture readiness correction;
+this card's failed original round-trip remains unmet until final normal native
+verification. Full release acceptance remains with the coordinator.

@@ -156,6 +156,23 @@ namespace bpr::app {
 			}
 			return "unknown";
 		};
+		// [[BPR-1943]]. A conversation can arrive before the reread's file
+		// and private draft state. The displayed old diff is not valid input
+		// to the presenter's current-generation admission checks.
+		const auto fallbackInputReady = [&] {
+			if (!implementation->Window || !implementation->WorkbenchHost
+				|| !implementation->SelectedDiffPublication || !implementation->SharedDrafts) {
+				return false;
+			}
+			const auto* const comparison  = implementation->Window->comparison_surface();
+			const auto&       publication = *implementation->SelectedDiffPublication;
+			return comparison && comparison->current_result() && comparison->current_semantic_index()
+				&& comparison->current_result()->Alignment.Key == publication.Key
+				&& implementation->WorkbenchHost->generation() == publication.Request.Context.Generation
+				&& implementation->WorkbenchHost->selected() == std::optional{ publication.Request.File.File }
+			&& !implementation->PendingReviewMutation && !implementation->PrivateDraftCommandPending
+				&& (!implementation->PrivateReview || (implementation->PrivateDraftsReady && !implementation->PrivateDraftSelectionPending));
+		};
 		// The file gesture composes the editor's draft once the selected
 		// diff is published; every phase needs both.
 		const auto draftFacts = [&](QTextStream& aStream) {
@@ -171,6 +188,10 @@ namespace bpr::app {
 					<< " off_hunk_anchor=" << present(probe.OffHunkAnchor.has_value())
 					<< " private_ready=" << present(implementation->PrivateDraftsReady)
 					<< " private_selection_pending=" << present(implementation->PrivateDraftSelectionPending)
+					<< " private_command_pending=" << present(implementation->PrivateDraftCommandPending)
+					<< " current_generation=" << present(implementation->SelectedDiffPublication && implementation->WorkbenchHost && implementation->WorkbenchHost->generation() == implementation->SelectedDiffPublication->Request.Context.Generation)
+					<< " current_file=" << present(implementation->SelectedDiffPublication && implementation->WorkbenchHost && implementation->WorkbenchHost->selected() == std::optional{ implementation->SelectedDiffPublication->Request.File.File })
+					<< " fallback_input_ready=" << present(fallbackInputReady())
 					<< " semantic_selection=" << present(implementation->SelectedSemanticSelection.has_value())
 					<< " pending_reply=" << present(implementation->PendingPrivateReply.has_value())
 					<< " accepted_handoff=" << present(implementation->LastAcceptedHandoff.has_value())
@@ -304,10 +325,16 @@ namespace bpr::app {
 			if (!probe.Evidence.RetryIdempotent || !probe.Evidence.ServerAuthority || !probe.Evidence.TypedQtProjection) {
 				return fail();
 			}
-			implementation->Window->choose_modality(qt::review_modality::review);
-			auto* const       comparison = implementation->Window->comparison_surface();
-			const auto* const left       = comparison->left_pane()->document();
-			const auto* const right      = comparison->right_pane()->document();
+			if (!probe.FallbackReviewEntered) {
+				probe.FallbackReviewEntered = true;
+				implementation->Window->choose_modality(qt::review_modality::review);
+			}
+			auto* const comparison = implementation->Window->comparison_surface();
+			if (!fallbackInputReady()) {
+				return wait("REVIEW_ROUND_TRIP_FALLBACK_INPUT_STALLED", draftFacts);
+			}
+			const auto* const left  = comparison->left_pane()->document();
+			const auto* const right = comparison->right_pane()->document();
 			// An unchanged line with four unchanged neighbours on each side is
 			// outside the synthetic provider's three-line patch context.
 			for (int line = 4; line + 4 < std::min(left->blockCount(), right->blockCount()); ++line) {

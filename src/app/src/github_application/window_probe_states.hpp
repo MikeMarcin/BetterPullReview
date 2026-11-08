@@ -268,8 +268,10 @@ namespace bpr::app {
 		std::size_t                                          DraftIntents       = 0;
 		phase                                                Phase              = phase::awaiting_editor;
 		/// \brief [[BPR-1037]]. The current phase's bounded wait.
-		detail::fixture_probe_wait           Wait;
-		bool                                 NativeLineChosen = false;
+		detail::fixture_probe_wait Wait;
+		bool                       NativeLineChosen = false;
+		/// [[BPR-1943]]. Enter Review once while its current diff arrives.
+		bool                                 FallbackReviewEntered = false;
 		std::optional<core::source_line_ref> OffHunkAnchor;
 		/// \brief [[BPR-1277]]. The same diff asked for again while the
 		/// fallback draft is written, and the counts before it was.
