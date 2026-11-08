@@ -181,7 +181,8 @@ namespace bpr::qt {
 		bool                          HasContent = false;
 		bool                          Partial    = false;
 		pending_words                 Words;
-		core::pending_look            Look = core::pending_look::ready;
+		core::pending_look            Look                 = core::pending_look::ready;
+		std::uint64_t                 PresentationRevision = 0U;
 		std::int64_t                  StartedAt{ 0 };
 		std::function<std::int64_t()> Clock;
 		std::function<void()>         Retry;

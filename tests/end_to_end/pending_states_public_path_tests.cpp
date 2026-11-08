@@ -189,7 +189,9 @@ try {
 		delay->Milliseconds     = 1'500U;
 		delay->PageMilliseconds = 1'200U;
 		double_click(row_of(*window, aIdentity));
-		wait_for([&] { return !window->showing_home(); }, "the Overview shows once GitHub names the pull request");
+		wait_for([&] { return !window->showing_home(); }, "the pull request leaves Home once GitHub names it");
+		window->choose_modality(qt::review_modality::overview);
+		wait_for([&] { return window->showing_overview() && window->overview_page()->isVisible(); }, "the course reads the pending sections in Overview");
 		const auto veils = window->overview_page()->pending_veils();
 		if (aAssert) {
 			expect(veils.Files->busy() && veils.Side->busy(), "the file table and the side column wait in their own places");
@@ -204,9 +206,10 @@ try {
 			expect(veils.Files->shown_text().startsWith(QStringLiteral("Still waiting for GitHub")), "a slow wait says what the read is on");
 			renders(aName + QStringLiteral("-slow"));
 		}
-		wait_for([&] { return window->overview_page()->projection().has_value() && !veils.Files->busy() && !veils.Side->busy(); }, "the accepted review makes every section ready", 60'000);
+		wait_for([&] { return window->overview_page()->projection().has_value() && window->overview_page()->projection()->Number.value() == aIdentity.section(QLatin1Char('#'), -1).toULongLong() && !veils.Files->busy() && !veils.Side->busy(); }, "the accepted review makes every section ready", 60'000);
 		renders(aName + QStringLiteral("-ready"));
 		if (aAssert) {
+			wait_for([&] { return std::ranges::count(heard, QStringLiteral("Overview ready: files, reviewers and checks are shown.")) == 1; }, "the accepted review announces its readiness");
 			expect(std::ranges::count(heard, QStringLiteral("Overview ready: files, reviewers and checks are shown.")) == 1, "the Overview says once that it is ready");
 		}
 		delay->Milliseconds     = 0U;

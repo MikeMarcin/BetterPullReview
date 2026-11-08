@@ -123,6 +123,45 @@ namespace {
 		Announcements = nullptr;
 	}
 
+	void test_completion_waits_for_visibility_and_refuses_superseded_presentation()
+	{
+		auto subject       = pane{ };
+		auto announcements = std::vector<QString>{ };
+		Announcements      = &announcements;
+		const auto before  = QAccessible::installUpdateHandler(capture);
+		subject.Veil->present(core::pending_activity::loading, false, false, words());
+		subject.advance(core::pending_reveal_milliseconds);
+		announcements.clear();
+		subject.Window.hide();
+		subject.Veil->present_ready();
+		expect(announcements.empty(), "completion waits for the presentation handoff");
+		subject.Window.show();
+		settle(20);
+		expect(announcements.size() == 1U && announcements.front() == words().Done, "a pane shown in the same event turn announces completion once");
+
+		subject.Veil->present(core::pending_activity::loading, false, false, words());
+		subject.advance(2 * core::pending_reveal_milliseconds);
+		announcements.clear();
+		subject.Window.hide();
+		subject.Veil->present_ready();
+		subject.Veil->present(core::pending_activity::loading, false, false, words());
+		subject.Window.show();
+		settle(20);
+		expect(announcements.empty(), "a new load suppresses the queued completion of the previous one");
+
+		subject.advance(3 * core::pending_reveal_milliseconds);
+		announcements.clear();
+		subject.Window.hide();
+		subject.Veil->present_ready();
+		settle(20);
+		expect(announcements.empty(), "completion of a pane that stays hidden is silent");
+		subject.Window.show();
+		settle(20);
+		expect(announcements.empty(), "showing the pane later does not replay its completion");
+		static_cast<void>(QAccessible::installUpdateHandler(before));
+		Announcements = nullptr;
+	}
+
 	// Negative control: without time passing there is no spinner, no words and
 	// no announcement however long the test waits in real time; the veil's
 	// looks come from the facts and the presenter's clock, never a timer of its own.
@@ -337,6 +376,7 @@ try {
 	const auto   at        = arguments.indexOf(QStringLiteral("--render-directory"));
 	test_a_first_load_is_quiet_then_said_then_slow();
 	test_a_fast_load_never_flashes();
+	test_completion_waits_for_visibility_and_refuses_superseded_presentation();
 	test_a_refresh_veils_retained_content_and_blocks_nothing();
 	test_partial_content_is_never_dimmed();
 	test_a_failure_offers_retry();

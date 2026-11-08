@@ -733,7 +733,7 @@ namespace bpr::qt {
 		const auto  counting = Projection.has_value() && !Cached && FeedbackDispatch && AskedFeedback.has_value()
 			&& (!feedback.has_value() || feedback->Request != *AskedFeedback);
 		if (counting) {
-			Veils.Files->present(core::pending_activity::loading, true, true, { .Coming = QStringLiteral("Counting comments by file…") });
+			Veils.Files->present(core::pending_activity::loading, true, true, { .Coming = QStringLiteral("Counting comments by file…"), .Done = QStringLiteral("Overview ready: files, reviewers and checks are shown.") });
 		} else {
 			Veils.Files->present_ready();
 		}
