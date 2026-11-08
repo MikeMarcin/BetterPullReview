@@ -44,6 +44,7 @@
 #include <QResizeEvent>
 #include <QScrollArea>
 #include <QScrollBar>
+#include <QShortcut>
 #include <QSignalBlocker>
 #include <QStackedWidget>
 #include <QStyledItemDelegate>
@@ -467,6 +468,152 @@ namespace bpr::qt {
 					setFixedHeight(tall);
 				}
 			}
+		};
+
+		/// \brief [[BPR-1936]] v003, owner: "make trash can red like discords",
+		/// then: red only while Shift is held, saying a click will remove
+		/// without asking. Discord's own danger red where the ground is dark,
+		/// and a deeper shade of it on a light ground, so the glyph keeps at
+		/// least 3:1 against either.
+		[[nodiscard]] auto danger_red(const QPalette& aPalette) -> QColor
+		{
+			const auto dark = aPalette.color(QPalette::Active, QPalette::Window).lightness() < 128;
+			return dark ? QColor{ 0xED, 0x42, 0x45 } : QColor{ 0xD2, 0x2D, 0x31 };
+		}
+
+		/// \brief [[BPR-1936]] v003. The stop's trash: the comments' glyph in the
+		/// icons' own ink on no frame, a quiet rounded square behind it under
+		/// the pointer, a focus ring for the keyboard. While Shift is held and
+		/// the pointer is on it or the keyboard is in its card, it turns the
+		/// danger red: a click now removes without asking. It remembers
+		/// whether Shift was held for the press that clicked it.
+		class danger_icon_button final : public QToolButton
+		{
+		public:
+			explicit danger_icon_button(QWidget* aParent)
+				: QToolButton{ aParent }
+			{
+				setAttribute(Qt::WA_Hover, true);
+				setIconSize(QSize{ 16, 16 });
+				setToolButtonStyle(Qt::ToolButtonIconOnly);
+				setAutoRaise(true);
+				setFocusPolicy(Qt::StrongFocus);
+				setCursor(Qt::PointingHandCursor);
+				restyle();
+			}
+			/// Shift was held for the press that clicked it.
+			bool Shifted = false;
+			void restyle()
+			{
+				Neutral = conversation_icon(conversation_glyph::trash, palette());
+				Danger  = conversation_icon(conversation_glyph::trash, danger_red(palette()));
+				refresh();
+			}
+			[[nodiscard]] auto sizeHint() const -> QSize override { return { 26, 26 }; }
+			/// Drawn red now: Shift held, with the pointer on it or the
+			/// keyboard in its card.
+			[[nodiscard]] auto danger() const noexcept -> bool { return Red; }
+
+		protected:
+			bool event(QEvent* aEvent) override
+			{
+				switch (aEvent->type()) {
+				case QEvent::Show:
+					// Shift is followed only while the trash shows.
+					qApp->installEventFilter(this);
+					ShiftDown = QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier);
+					refresh();
+					break;
+				case QEvent::Hide:
+					qApp->removeEventFilter(this);
+					ShiftDown = false;
+					refresh();
+					break;
+				case QEvent::Enter:
+				case QEvent::HoverEnter:
+					ShiftDown = ShiftDown || QGuiApplication::queryKeyboardModifiers().testFlag(Qt::ShiftModifier);
+					refresh();
+					break;
+				case QEvent::Leave:
+				case QEvent::HoverLeave: refresh(); break;
+				default:                 break;
+				}
+				return QToolButton::event(aEvent);
+			}
+			bool eventFilter(QObject* aWatched, QEvent* aEvent) override
+			{
+				if (aEvent->type() == QEvent::KeyPress || aEvent->type() == QEvent::KeyRelease) {
+					const auto* const key = static_cast<const QKeyEvent*>(aEvent);
+					if (key->key() == Qt::Key_Shift) {
+						ShiftDown = aEvent->type() == QEvent::KeyPress;
+					} else {
+						ShiftDown = key->modifiers().testFlag(Qt::ShiftModifier);
+					}
+					refresh();
+				} else if (aEvent->type() == QEvent::FocusIn || aEvent->type() == QEvent::FocusOut || aEvent->type() == QEvent::ApplicationDeactivate) {
+					if (aEvent->type() == QEvent::ApplicationDeactivate) {
+						ShiftDown = false;
+					}
+					refresh();
+				}
+				return QToolButton::eventFilter(aWatched, aEvent);
+			}
+			void mousePressEvent(QMouseEvent* aEvent) override
+			{
+				Shifted = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+				QToolButton::mousePressEvent(aEvent);
+			}
+			void keyPressEvent(QKeyEvent* aEvent) override
+			{
+				Shifted = aEvent->modifiers().testFlag(Qt::ShiftModifier);
+				QToolButton::keyPressEvent(aEvent);
+			}
+			void changeEvent(QEvent* aEvent) override
+			{
+				QToolButton::changeEvent(aEvent);
+				if (aEvent->type() == QEvent::PaletteChange) {
+					restyle();
+				}
+			}
+			void paintEvent(QPaintEvent* /*aEvent*/) override
+			{
+				auto painter = QPainter{ this };
+				painter.setRenderHint(QPainter::Antialiasing, true);
+				const auto window = palette().color(QPalette::Active, QPalette::Window);
+				const auto ink    = palette().color(QPalette::Active, QPalette::WindowText);
+				const auto box    = QRectF{ rect() }.adjusted(1.0, 1.0, -1.0, -1.0);
+				if (isEnabled() && (underMouse() || isDown() || isChecked())) {
+					painter.setPen(Qt::NoPen);
+					painter.setBrush(mixed(window, ink, isDown() ? 0.14 : 0.08));
+					painter.drawRoundedRect(box, 5.0, 5.0);
+				}
+				const auto glyph = (Red ? Danger : Neutral).pixmap(iconSize(), devicePixelRatioF(), isEnabled() ? QIcon::Normal : QIcon::Disabled);
+				const auto at    = QPointF{ (width() - iconSize().width()) / 2.0, (height() - iconSize().height()) / 2.0 };
+				painter.drawPixmap(at, glyph);
+				if (hasFocus()) {
+					painter.setPen(QPen{ palette().color(QPalette::Active, QPalette::Highlight), 1.5 });
+					painter.setBrush(Qt::NoBrush);
+					painter.drawRoundedRect(box, 5.0, 5.0);
+				}
+			}
+
+		private:
+			void refresh()
+			{
+				auto* const focused = window()->focusWidget();
+				auto* const card    = parentWidget();
+				const auto  near    = underMouse() || hasFocus() || (card != nullptr && focused != nullptr && card->isAncestorOf(focused));
+				const auto  red     = isVisible() && ShiftDown && near;
+				if (red != Red) {
+					Red = red;
+					setProperty("danger", Red);
+					update();
+				}
+			}
+			QIcon Neutral;
+			QIcon Danger;
+			bool  ShiftDown = false;
+			bool  Red       = false;
 		};
 
 		/// \brief [[BPR-1936]], owner 2026-11-08: "I think clicking at least
@@ -3477,20 +3624,34 @@ namespace bpr::qt {
 		// too much space from the title. Move the trashcan to the edit mode
 		// down to the left of cancel." It sits at the foot's left while the
 		// stop is written, apart from Cancel and Save at the right.
-		RemoveStop = new QToolButton{ StopFields };
+		// v003, owner on v002: "trash can clicks should have a confirmation
+		// (unless you shift click it) and show in code shouldnt move, it
+		// should go on the right of that and left of cancel"; "also make trash
+		// can red like discords". Red always, a quiet square under the
+		// pointer; a click asks in place under the foot, a Shift-click
+		// removes at once, and Undo brings the stop back either way.
+		auto* const trash = new danger_icon_button{ StopFields };
+		RemoveStop        = trash;
 		RemoveStop->setObjectName(QStringLiteral("tourStopRemove"));
-		RemoveStop->setIcon(conversation_icon(conversation_glyph::trash, palette()));
-		RemoveStop->setIconSize(QSize{ 16, 16 });
-		RemoveStop->setToolButtonStyle(Qt::ToolButtonIconOnly);
-		RemoveStop->setAutoRaise(true);
-		RemoveStop->setCursor(Qt::ArrowCursor);
-		RemoveStop->setFocusPolicy(Qt::StrongFocus);
 		RemoveStop->setAccessibleName(tr("Remove stop"));
-		RemoveStop->setToolTip(tr("Remove stop (%1 undoes it)").arg(QKeySequence{ QKeySequence::Undo }.toString(QKeySequence::NativeText)));
-		connect(RemoveStop, &QToolButton::clicked, this, [this] {
-			if (const auto* const stop = selected_stop(); stop != nullptr) {
-				remove_stop(stop->Id);
+		RemoveStop->setAccessibleDescription(tr("Asks before removing the stop. Shift-click removes it at once; %1 brings it back.").arg(QKeySequence{ QKeySequence::Undo }.toString(QKeySequence::NativeText)));
+		RemoveStop->setToolTip(tr("Remove stop (Shift-click to skip confirmation)"));
+		RemoveStop->setProperty("danger", false);
+		connect(RemoveStop, &QToolButton::clicked, this, [this, trash] {
+			const auto* const stop = selected_stop();
+			if (stop == nullptr) {
+				return;
 			}
+			if (trash->Shifted) {
+				trash->Shifted = false;
+				RemoveConfirm->hide();
+				remove_stop(stop->Id);
+				return;
+			}
+			ConfirmingStop = stop->Id;
+			RemoveConfirm->show();
+			RemoveKeep->setFocus(Qt::OtherFocusReason);
+			place_stop_card();
 		});
 		StopTitleRow = titleRow;
 		fields->addLayout(titleRow);
@@ -3683,16 +3844,62 @@ namespace bpr::qt {
 		connect(Related, &QListWidget::currentRowChanged, removeRelated, [this](const int aRow) { StopActions->want(RemoveRelated, aRow >= 0 && Mode == tour_editor_mode::page); });
 		Related->setToolTip(tr("Double-click a related source to inspect it. Show in code restores this stop."));
 		connect(Related, &QListWidget::itemActivated, this, [this] { trigger(tour_editor_action::navigate_related); });
+		// The foot: its row, and the trash's question under it, as one item,
+		// so a proposal placed before the foot never comes between them.
+		auto* const foot = new QVBoxLayout;
+		foot->setContentsMargins(0, 0, 0, 0);
+		foot->setSpacing(6);
+		fields->addLayout(foot);
 		auto* nav = new QHBoxLayout;
 		nav->setSpacing(6);
-		fields->addLayout(nav);
-		RemoveStop->setParent(StopFields);
-		nav->addWidget(RemoveStop);
+		foot->addLayout(nav);
 		auto* const returnToTour = button(tr("Show in code"), QStringLiteral("tourReturn"), nav, [this] { trigger(tour_editor_action::navigate_stop); });
 		ShowInCode               = returnToTour;
 		StopFieldsLayout         = fields;
 		returnToTour->setToolTip(tr("Show the stop's lines in the code"));
+		// v003. Show in code keeps its place; the trash is right of it.
+		RemoveStop->setParent(StopFields);
+		nav->addWidget(RemoveStop);
 		nav->addStretch(1);
+		RemoveConfirm = new QWidget{ StopFields };
+		RemoveConfirm->setObjectName(QStringLiteral("tourStopRemoveConfirm"));
+		{
+			auto* const row = new QHBoxLayout{ RemoveConfirm };
+			row->setContentsMargins(0, 0, 0, 0);
+			row->setSpacing(8);
+			auto* const question = new QLabel{ tr("Remove this stop?"), RemoveConfirm };
+			question->setObjectName(QStringLiteral("tourStopRemoveQuestion"));
+			question->setTextFormat(Qt::PlainText);
+			row->addWidget(question, 1);
+			RemoveKeep = new quiet_push_button{ tr("Keep"), RemoveConfirm };
+			RemoveKeep->setObjectName(QStringLiteral("tourStopRemoveKeep"));
+			RemoveKeep->setAccessibleName(tr("Keep the stop"));
+			row->addWidget(RemoveKeep);
+			RemoveYes = new quiet_push_button{ tr("Remove"), RemoveConfirm };
+			RemoveYes->setObjectName(QStringLiteral("tourStopRemoveYes"));
+			RemoveYes->setAccessibleName(tr("Remove the stop"));
+			restyle_remove_confirm();
+			row->addWidget(RemoveYes);
+			auto* const keepKey = new QShortcut{ QKeySequence{ Qt::Key_Escape }, RemoveConfirm };
+			keepKey->setContext(Qt::WidgetWithChildrenShortcut);
+			connect(keepKey, &QShortcut::activated, RemoveKeep, &QPushButton::click);
+		}
+		RemoveConfirm->hide();
+		foot->addWidget(RemoveConfirm);
+		connect(RemoveKeep, &QPushButton::clicked, this, [this] {
+			RemoveConfirm->hide();
+			ConfirmingStop = { };
+			RemoveStop->setFocus(Qt::OtherFocusReason);
+			place_stop_card();
+		});
+		connect(RemoveYes, &QPushButton::clicked, this, [this] {
+			const auto stop = ConfirmingStop;
+			RemoveConfirm->hide();
+			ConfirmingStop = { };
+			if (stop.value() != 0U) {
+				remove_stop(stop);
+			}
+		});
 		// [[BPR-1936]], owner: "in our other places like the overview
 		// description the pencil goes away and we get cancel / save at the
 		// bottom". The description editor's foot: Cancel, then Save, the
@@ -4113,6 +4320,10 @@ namespace bpr::qt {
 		SaveStop->setVisible(writing);
 		CancelStop->setVisible(writing);
 		RemoveStop->setVisible(writing);
+		if (RemoveConfirm != nullptr && !RemoveConfirm->isHidden() && (!writing || ConfirmingStop != StopView.Stop)) {
+			RemoveConfirm->hide();
+			ConfirmingStop = { };
+		}
 		SaveStop->setDefault(writing);
 		StopActions->want(UseLines, writing);
 		if (Retarget != nullptr) {
@@ -4174,6 +4385,19 @@ namespace bpr::qt {
 			show_notice(tr("This stop's text has not been saved yet, so it stays open. Your full text is retained."));
 		}
 		place_stop_card();
+	}
+	void review_tour_editor::restyle_remove_confirm()
+	{
+		// The confirming Remove says it in the trash's red.
+		if (RemoveYes != nullptr) {
+			const auto red     = danger_red(palette());
+			auto       colours = QPalette{ };
+			for (const auto role : { QPalette::WindowText, QPalette::ButtonText, QPalette::Text }) {
+				colours.setColor(QPalette::Active, role, red);
+				colours.setColor(QPalette::Inactive, role, red);
+			}
+			RemoveYes->setPalette(colours);
+		}
 	}
 	void review_tour_editor::remove_stop(const core::tour_stop_id aStop)
 	{
@@ -4891,7 +5115,7 @@ namespace bpr::qt {
 				more->setIcon(conversation_icon(conversation_glyph::more, palette()));
 			}
 			EditStop->setIcon(conversation_icon(conversation_glyph::edit, palette()));
-			RemoveStop->setIcon(conversation_icon(conversation_glyph::trash, palette()));
+			restyle_remove_confirm();
 			// The Head changed chip's amber follows the theme.
 			if (const auto* const stop = selected_stop(); stop != nullptr) {
 				present_head_chip(*stop);

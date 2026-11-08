@@ -101,7 +101,7 @@ edited as the overview's description is: the pencil hides, the title is a
 wrapping editor that stays whole, nothing else sits on the title row but the
 chat toggle, and **Cancel** (Esc, the text as the editor opened
 on it) and **Save** (Command/Control+Return, the default) sit at the card's
-foot, with the trash (**Remove stop**) apart at the foot's left. **Use selected lines** is a quiet link offered only while the stop is
+foot, after Show in code and the trash (**Remove stop**), which asks "Remove this stop?" under the row (Shift-click removes at once, and the trash turns red while Shift is held). **Use selected lines** is a quiet link offered only while the stop is
 written. The card's trash and every stop's menu remove that stop; Undo brings
 it back. Readiness reads from the ring: a green tick for Ready, an amber
 number for Editing, a warning on the ring for Needs attention, a dashed ring

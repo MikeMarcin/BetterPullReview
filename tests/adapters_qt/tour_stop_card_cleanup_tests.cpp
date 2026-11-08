@@ -299,32 +299,78 @@ auto main(int argc, char** argv) -> int
 	refusal = core::tour_refusal::none;
 	show();
 	settle();
-	auto* const trash = editor->stop_remove_button();
-	// v002, owner: the trash takes no room from the title; it is in the
-	// editor's foot, at the left, apart from Cancel and Save.
+	auto* const trash    = editor->stop_remove_button();
+	auto* const fields   = editor->findChild<QWidget*>(QStringLiteral("tourStopFields"));
+	auto* const showCode = editor->findChild<QPushButton*>(QStringLiteral("tourReturn"));
+	// v002, owner: the trash takes no room from the title.
 	expect(trash != nullptr && !trash->isVisible(), "a read stop's card has no trash by its title");
+	const auto showRead = showCode->mapTo(fields, QPoint{ 0, 0 }).x();
 	editor->begin_stop_edit();
 	settle();
 	{
+		// v003, owner: "show in code shouldnt move, it should go on the right
+		// of that and left of cancel".
 		auto* const cancelButton = editor->findChild<QPushButton*>(QStringLiteral("tourStopCancel"));
 		auto* const saveButton   = editor->findChild<QPushButton*>(QStringLiteral("tourStopSave"));
-		auto* const fields       = editor->findChild<QWidget*>(QStringLiteral("tourStopFields"));
 		const auto  trashAt      = trash->mapTo(fields, QPoint{ 0, 0 });
 		const auto  cancelAt     = cancelButton->mapTo(fields, QPoint{ 0, 0 });
-		expect(trash->isVisible() && trash->accessibleName() == QStringLiteral("Remove stop") && trash->toolTip().startsWith(QStringLiteral("Remove stop")), "written, the trash is named Remove stop");
-		expect(std::abs((trashAt.y() + trash->height() / 2) - (cancelAt.y() + cancelButton->height() / 2)) <= 4 && trashAt.x() < fields->width() / 3 && cancelAt.x() - (trashAt.x() + trash->width()) > 40 && cancelAt.x() < saveButton->mapTo(fields, QPoint{ 0, 0 }).x(),
-			   "on the foot's row, at its left, well apart from Cancel and Save at the right");
+		const auto  showAt       = showCode->mapTo(fields, QPoint{ 0, 0 });
+		expect(trash->isVisible() && trash->accessibleName() == QStringLiteral("Remove stop") && trash->toolTip() == QStringLiteral("Remove stop (Shift-click to skip confirmation)"), "written, the trash is named Remove stop and its tooltip tells of Shift");
+		expect(showAt.x() == showRead, "Show in code keeps its place between read and written (" + std::to_string(showRead) + " to " + std::to_string(showAt.x()) + ")");
+		expect(std::abs((trashAt.y() + trash->height() / 2) - (cancelAt.y() + cancelButton->height() / 2)) <= 4 && trashAt.x() > showAt.x() + showCode->width() && trashAt.x() + trash->width() < cancelAt.x() && cancelAt.x() < saveButton->mapTo(fields, QPoint{ 0, 0 }).x(),
+			   "the trash is right of Show in code and left of Cancel, then Save");
+		const auto titleRight = editor->stop_title()->mapTo(fields, QPoint{ editor->stop_title()->width(), 0 }).x();
+		expect(titleRight >= fields->width() - 50, "the title has the row but for the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
+		// Owner: red only while Shift is held, saying a click will not ask.
+		editor->stop_body()->setFocus(Qt::OtherFocusReason);
+		settle();
+		expect(!trash->property("danger").toBool(), "the trash is drawn as the other icons are");
+		auto shiftDown = QKeyEvent{ QEvent::KeyPress, Qt::Key_Shift, Qt::ShiftModifier };
+		QApplication::sendEvent(editor->stop_body(), &shiftDown);
+		settle();
+		expect(trash->property("danger").toBool(), "Shift held with the keyboard in the card turns it red");
+		if (!prefix.isEmpty()) {
+			expect(card_of(*editor)->grab().save(prefix + QStringLiteral("card-edit-shift.png")), "render saved");
+		}
+		auto shiftUp = QKeyEvent{ QEvent::KeyRelease, Qt::Key_Shift, Qt::NoModifier };
+		QApplication::sendEvent(editor->stop_body(), &shiftUp);
+		settle();
+		expect(!trash->property("danger").toBool(), "and back when Shift is released");
 		if (!prefix.isEmpty()) {
 			expect(card_of(*editor)->grab().save(prefix + QStringLiteral("card-edit-whole.png")), "render saved");
 		}
-		const auto titleRight = editor->stop_title()->mapTo(fields, QPoint{ editor->stop_title()->width(), 0 }).x();
-		expect(titleRight >= fields->width() - 50, "the title has the row but for the chat toggle (" + std::to_string(titleRight) + " of " + std::to_string(fields->width()) + ")");
 	}
-	const auto count = draft.Stops.size();
-	trash->click();
+	auto*      confirm = editor->findChild<QWidget*>(QStringLiteral("tourStopRemoveConfirm"));
+	const auto count   = draft.Stops.size();
+	// A click asks, in place, and removes nothing.
+	click(trash, trash->rect().center());
+	expect(confirm->isVisible() && draft.Stops.size() == count, "a click on the trash asks first and removes nothing");
+	expect(std::abs(showCode->mapTo(fields, QPoint{ 0, 0 }).x() - showRead) == 0, "asking moves nothing on the foot's row");
+	if (!prefix.isEmpty()) {
+		expect(card_of(*editor)->grab().save(prefix + QStringLiteral("card-edit-confirm.png")), "render saved");
+	}
+	editor->findChild<QPushButton*>(QStringLiteral("tourStopRemoveKeep"))->click();
 	settle();
-	expect(draft.Stops.size() == count - 1U && std::ranges::find(draft.Stops, core::tour_stop_id{ 3 }, &core::tour_stop::Id) == draft.Stops.end(), "the trash removes exactly its own stop");
+	expect(!confirm->isVisible() && draft.Stops.size() == count, "Keep keeps the stop");
+	click(trash, trash->rect().center());
+	editor->findChild<QPushButton*>(QStringLiteral("tourStopRemoveYes"))->click();
+	settle();
+	expect(draft.Stops.size() == count - 1U && std::ranges::find(draft.Stops, core::tour_stop_id{ 3 }, &core::tour_stop::Id) == draft.Stops.end(), "confirming removes exactly its own stop");
 	expect(std::ranges::find(draft.Stops, core::tour_stop_id{ 2 }, &core::tour_stop::Id) != draft.Stops.end() && std::ranges::find(draft.Stops, core::tour_stop_id{ 4 }, &core::tour_stop::Id) != draft.Stops.end(), "and no other");
+	// A Shift-click removes at once.
+	const auto shiftTarget = editor->selected_stop()->Id;
+	editor->begin_stop_edit();
+	settle();
+	expect(trash->isVisible(), "the next stop, written, has its trash");
+	{
+		const auto at      = trash->rect().center();
+		auto       press   = QMouseEvent{ QEvent::MouseButtonPress, QPointF{ at }, trash->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::LeftButton, Qt::ShiftModifier };
+		auto       release = QMouseEvent{ QEvent::MouseButtonRelease, QPointF{ at }, trash->mapToGlobal(QPointF{ at }), Qt::LeftButton, Qt::NoButton, Qt::ShiftModifier };
+		QApplication::sendEvent(trash, &press);
+		QApplication::sendEvent(trash, &release);
+		settle();
+	}
+	expect(draft.Stops.size() == count - 2U && std::ranges::find(draft.Stops, shiftTarget, &core::tour_stop::Id) == draft.Stops.end() && !confirm->isVisible(), "a Shift-click removes the stop without asking");
 
 	std::cout << "tour-stop-card-cleanup:pass\n";
 	return EXIT_SUCCESS;

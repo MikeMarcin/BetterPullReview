@@ -501,9 +501,15 @@ namespace bpr::qt {
 		QAction*             Retarget   = nullptr;
 		/// [[BPR-1936]]. The card's trash, and the stop menu its card and row share.
 		QToolButton* RemoveStop = nullptr;
-		QMenu*       StopMenu   = nullptr;
-		void         remove_stop(core::tour_stop_id aStop);
-		void         popup_stop_menu(const QPoint& aGlobal);
+		/// [[BPR-1936]] v003. The trash's question under the foot, and its stop.
+		QWidget*           RemoveConfirm = nullptr;
+		QPushButton*       RemoveKeep    = nullptr;
+		QPushButton*       RemoveYes     = nullptr;
+		core::tour_stop_id ConfirmingStop;
+		void               restyle_remove_confirm();
+		QMenu*             StopMenu = nullptr;
+		void               remove_stop(core::tour_stop_id aStop);
+		void               popup_stop_menu(const QPoint& aGlobal);
 		/// [[BPR-1936]]. The stop's title and explanation as the editor opened
 		/// on them, for Cancel.
 		struct stop_edit_origin
