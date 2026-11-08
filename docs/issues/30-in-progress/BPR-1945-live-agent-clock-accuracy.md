@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1945"
 title: "Count the live agent clock's first second without an early coarse tick"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
