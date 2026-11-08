@@ -1,0 +1,83 @@
+{
+  "schema": "implement-rfc.milestone-checkpoint.v1",
+  "run_id": "diff-scroll-geometry-20261108",
+  "segment_id": "implementation-1",
+  "mandate_revision": "diff-scroll-geometry-r1",
+  "selection": {
+    "schema": "implement-rfc.strategy-selection.v1",
+    "strategy": "coordinator-implementer",
+    "topology_id": "coordinator-implementer",
+    "recipe_revision": "2",
+    "recipe_fingerprint": "sha256:6a3e244394aeed7652d24753f6588c0a9408080bd24ddad0dcfc5198d5369fe4",
+    "routing": {},
+    "requirement_profile": "coordinator-implementer",
+    "owners": {
+      "engineering": "implementer",
+      "bookkeeping": "implementer",
+      "product_edits": "implementer"
+    },
+    "delegation": "recipe",
+    "instruction_paths": [
+      "references/engineering-contract.md",
+      "references/strategies/coordinator-implementer.md"
+    ],
+    "configuration_complete": true,
+    "missing_routes": [],
+    "host_load": "not_verified"
+  },
+  "target": "RFC-BPR-0095",
+  "binding": {
+    "plan_id": "diff-scroll-geometry-v1",
+    "plan_path": "docs/rfcs/plans/diff-scroll-geometry-v1/milestone-plan.json",
+    "milestone_id": "stationary-diff-geometry",
+    "definition_fingerprint": "sha256:8f19c610eea53baf2e23818a44573e8f3b42533d95a01aea1738835ecfc504c2",
+    "obligations": [
+      {
+        "id": "BPR-1947:*",
+        "source": "BPR-1947",
+        "selector": null,
+        "source_fingerprint": "sha256:008cdcc7daa84cf52da8120c0d0101124cbeb13a24e99103c219dc1adcac2ab2"
+      },
+      {
+        "id": "RFC-BPR-0095:*",
+        "source": "RFC-BPR-0095",
+        "selector": null,
+        "source_fingerprint": "sha256:0305199f2110579f8eb2406a0fd347bd9a8141225ba305da43b3c6060726c2d9"
+      }
+    ],
+    "obligation_fingerprint": "sha256:6acd16cca825c046eb1bc72c2ce62fc3d372ac9d7596f9471c9beeb41817b103",
+    "exit_criteria": [
+      {
+        "id": "stationary-diff-geometry:exit:1",
+        "text": "AC01\u2013AC03 pass rendered geometry and interaction checks at 100%, 125% and 200% scale."
+      },
+      {
+        "id": "stationary-diff-geometry:exit:2",
+        "text": "AC04 passes the production composition through installed Git/cache with a full-window render and bounded scroll work."
+      },
+      {
+        "id": "stationary-diff-geometry:exit:3",
+        "text": "Documentation gates pass and the exact candidate, evidence, commits and quiescent command state are recorded."
+      }
+    ],
+    "prerequisite_fingerprint": "sha256:44136fa355b3678a1146ad16f7e8649e94fb4fc21fe77e8310c060f61caaff8a",
+    "structural": "valid",
+    "references": "resolved",
+    "semantic_coverage": "unknown",
+    "diagnostics": [],
+    "diagnostics_truncated": false
+  },
+  "target_milestones": [
+    "stationary-diff-geometry"
+  ],
+  "repository_state": {
+    "source_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "workflow_root": "/Users/jaeger/Documents/GitHub/BetterPullReview",
+    "source_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "workflow_common_dir": "/Users/jaeger/Documents/GitHub/BetterPullReview/.git",
+    "source_branch": "main",
+    "source_revision": "e1fbb45030d2b929e88d49e562b191d898eb5a65",
+    "workflow_branch": "main",
+    "workflow_revision": "e1fbb45030d2b929e88d49e562b191d898eb5a65"
+  }
+}

@@ -739,6 +739,6 @@ replaces Use as reply.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0095](RFC-BPR-0095-stable-diff-gutters-and-find.md) | Keep diff gutters aligned and Find stationary | Proposed | None |
+| [RFC-BPR-0095](RFC-BPR-0095-stable-diff-gutters-and-find.md) | Keep diff gutters aligned and Find stationary | Auto-Verified | None |
 
 [Import](assets/diff-scroll-geometry-v1.LIVE_IMPORT.md), owner report 2026-11-08.

@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0095"
 title: "Keep diff line numbers aligned and Find stationary while scrolling"
-status: "Proposed"
+status: "Auto-Verified"
 depends_on: []
 metadata: {"origin":"owner report, 2026-11-08","inspected_revision":"31559e616707","authoring":"author-rfc; frontend-design:frontend-design and desktop guidance loaded","milestone_plan":{"id":"diff-scroll-geometry-v1","path":"docs/rfcs/plans/diff-scroll-geometry-v1/milestone-plan.json"}}
 ---
@@ -103,8 +103,12 @@ establish a stationary anchor. Compare actual painted gutter rows with native
 text placement and observe Find across scroll events in window coordinates.
 Draft validation is separate from implementation acceptance.
 
-## Execution
+## Execution record
 
-One milestone, [BPR-1947](../issues/30-in-progress/BPR-1947-close-rfc-0095.md), adopts this correction.
+One milestone, [BPR-1947](../issues/60-done/BPR-1947-close-rfc-0095.md), adopts this correction.
 RFC_BASE_SHA: `31559e616707ed106d0bd98f8d047df785c38fc0`.
 [Milestone plan](plans/diff-scroll-geometry-v1/MILESTONES.md).
+
+Accepted 2026-11-08 at product candidate `7e685a115ea5bdd8c6f956447470ba4788be1e19`: AC01–AC04 pass.
+[Verification](../verification/RFC-BPR-0095.md) records deterministic geometry,
+composed installed-Git/cache interaction, scale renders, bounded work and limits.
