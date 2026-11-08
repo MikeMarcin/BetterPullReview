@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1932"
 title: "Land release-discovered portability and presentation regressions on main"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "win", "linux"]
 metadata: {"kind":"bug","found_by":"v0.4.2 native qualification","mandate":"Owner 2026-11-07: an implementer owns crash/fix implementation and lands it on main before release qualification resumes.","milestone_plan":{"id":"bpr-1932-release-regressions","path":"docs/rfcs/plans/bpr-1932-release-regressions/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"16959a628ca44f678ecb097b2690a8d76c174b52","evidence":{"kind":"observation","detail":"Reviewed source split ownership, native path and platform capture corrections landed main; exact matching Windows Release/Debug compiler and clone-course feedback retained in candidate34 Windows proof receipts. Fresh final full native qualification is separate."}},{"criterion":"AC2","outcome":"pass","revision":"16959a628ca44f678ecb097b2690a8d76c174b52","evidence":{"kind":"command","detail":"Overview completion unit/composed evidence passes; targeted accepted-behavior corrections retain negative controls. Own focused Qt/core and exact public6 pass, with33fileclang-format22 and network Python74 checks."}},{"criterion":"AC3","outcome":"pass","revision":"16959a628ca44f678ecb097b2690a8d76c174b52","evidence":{"kind":"command","detail":"Original Tour stack overflow retained/reproduced. Resize trace identifies recursive scrollbar/header wrapping. Old header fails new measurement regression; correction passes stable hints across60 sizes,25 consecutive original manual publication runs113.93sec, exact own-source manual course and drawer scales100/125/200."}},{"criterion":"AC4","outcome":"pass","revision":"16959a628ca44f678ecb097b2690a8d76c174b52","evidence":{"kind":"command","detail":"All source/test/tool fixes pushed authoritative main16959a628. Format22 passes33C++files, docs DOCUMENTATION_OK and67tests, architecture+contract pass, core-only3 pass. Configured Debug/Release watchdog values and manifest pass. Full release/security/native/source-artifact acceptance not claimed."}}]
 ---
 
 # BPR-1932: Release-discovered regressions
@@ -107,10 +108,23 @@ inventory follow-up `0ab4159ef`. Evidence stays outside source, under
 Windows focused compiler/clone proofs are in the coordinator's build-34 records.
 The longer Debug watchdog passed composed hosts, default review submission and
 125% review submission. The 200% course failed an own-approval-settlement
-predicate after its internal twenty-second wait; an implementer-authored
-structural diagnostic is running on the native host. That failure remains open.
-Full native release qualification, Cocoa observation, artifact/source/security,
-signing and publication remain coordinator-owned and are not accepted here.
+predicate after its internal twenty-second wait (R4, 114.98 seconds). That raw
+failure remains retained and its intermittent cause is **unexplained**. R5
+passed the original course in 99.86 seconds. R6 then ran four serial diagnostic
+repetitions, all passing the original twenty-second predicate. Every snapshot
+showed the expected draft/body/control prerequisites, exactly one attempted
+submission (21 to 22), and the expected own-approval refusal. None required the
+diagnostic's extra observation window. R6 is diagnostic evidence, not final
+native acceptance and not proof that the R4 cause was repaired. Receipts, four
+XML results and four raw outputs are under
+`windows-approval-diagnostic-proof-r6`; source and generated settings were
+restored exactly and the native host is idle.
+
+The coordinator must run the unchanged approval checks in final exact-main
+native qualification. Any functional failure returns to an implementer before
+stable publication. Full native release qualification, Cocoa observation,
+artifact/source/security, signing and publication remain coordinator-owned and
+are not accepted here.
 
 ### Workflow tooling observation
 
@@ -132,3 +146,15 @@ predicate remains, including the own-approval internal twenty-second wait.
 Configured CTest JSON from both graphs proves the exact values
 (`implementer/watchdog-configured-values.json`); the manifest check passes.
 These are bounded watchdogs and give no Debug timing/performance credit.
+
+
+## Engineering handback
+
+All reviewed source, test, containment-inventory and bounded Debug-watchdog
+corrections are pushed to authoritative main through
+`16959a628ca44f678ecb097b2690a8d76c174b52`. The completed card's move and acceptance
+record are bookkeeping on that integrated source. All task-owned Mac builds and
+checks are finished; the scoped release tree and native producer were restored
+clean. The isolated implementer worktree and external evidence remain available
+for inspection. The selected engineering criteria are complete; this closes no
+RFC-BPR-0038 or release-distribution criterion.
