@@ -15,6 +15,7 @@
 #include "bpr/core/skill_references.hpp"
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/agent_run_settings_picker.hpp"
+#include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 
 #include <cstddef>
@@ -613,18 +614,15 @@ namespace bpr::qt {
 		std::function<bool(std::size_t)>                    ClearConfirm;
 		QToolButton*                                        ClearSession = nullptr;
 		std::function<agent_suggestion_context()>           SuggestionContext;
-		QWidget*                                            Suggestions      = nullptr;
-		QVBoxLayout*                                        SuggestionColumn = nullptr;
-		QToolButton*                                        SuggestionsMenu  = nullptr;
-		QLabel*                                             SuggestionsLine  = nullptr;
+		/// [[BPR-1934]]. The suggestion component the tour chats share.
+		agent_suggestion_list* Suggestions     = nullptr;
+		QToolButton*           SuggestionsMenu = nullptr;
 		/// [[BPR-1847]]. In place of the suggestions while setup is unfinished.
 		QWidget* SetupPrompt = nullptr;
 		/// [[BPR-1881]]. The readiness last told, and who is told.
 		std::optional<agent_setup_readiness> ToldReadiness;
 		std::function<void()>                ReadinessObserver;
 		std::function<void(bool)>            SuggestionsObserver;
-		QStringList                          Prompts;
-		std::vector<QPointer<QPushButton>>   PromptButtons;
 		/// What the next admitted request is: a question typed, or a review.
 		std::optional<QString> PendingQuestion;
 		bool                   PendingReview = false;
@@ -632,9 +630,6 @@ namespace bpr::qt {
 		/// words, which stay in the field when its turn begins.
 		bool PendingKeepsField = false;
 		bool KeepingDraft      = false;
-		/// [[BPR-1872]]. Shift was held on the press that is clicking a
-		/// suggested prompt now.
-		bool PressEditFirst = false;
 		/// [[BPR-1773]]. The conversation chip shown when it was sent.
 		std::optional<agent_conversation_chip>   PendingAbout;
 		std::optional<agent_answer_draft_target> PendingDraftTarget;

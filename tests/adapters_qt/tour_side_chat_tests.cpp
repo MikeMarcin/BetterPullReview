@@ -8,7 +8,9 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/adapters/syntax/packaged_syntax_classifier.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
+#include "bpr/application/tour_chat_prompts.hpp"
 #include "bpr/qt/agent_feature.hpp"
+#include "bpr/qt/agent_suggestion_list.hpp"
 #include "bpr/qt/markdown_body_view.hpp"
 #include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
@@ -161,6 +163,21 @@ auto main(int argc, char** argv) -> int
 	settle();
 	auto* const chat = editor.side_chat();
 	chat->resize(380, 900);
+	// [[BPR-1934]]. The window gives the chat the application's prompt list.
+	chat->set_prompt_source(&application::tour_chat_prompts);
+	const auto offered = [chat] {
+		auto* const list = chat->suggestions();
+		return list == nullptr || !list->isVisibleTo(chat) ? QStringList{ } : list->prompts();
+	};
+	const auto choose = [chat](const QString& aPrompt) {
+		for (auto* const button : chat->suggestions()->buttons()) {
+			if (button->property("agentPrompt").toString() == aPrompt) {
+				button->click();
+				return true;
+			}
+		}
+		return false;
+	};
 
 	// (1) The tour stays clean: one quiet glyph per part, and nothing of a
 	// chat in the tour's column.
@@ -193,6 +210,21 @@ auto main(int argc, char** argv) -> int
 	expect(glyph->isChecked(), "the Solution's glyph is pressed while its chat shows");
 	expect(chat->passage() && chat->passage()->Text == "between begin and present" && chat->passage_line()->isVisibleTo(chat), "the selected passage is quoted above the composer");
 	expect(!chat->update_button()->isEnabled(), "Update waits until there is a chat to update from");
+	// [[BPR-1934]] AC1, AC2. The empty Solution chat offers its prompts, in
+	// the Agent tab's own suggestion component and the agent's accent.
+	expect(offered() == QStringList{ QStringLiteral("Make this clearer"), QStringLiteral("What's missing?"), QStringLiteral("Make it shorter") }, "the empty Solution chat offers the part's prompts");
+	expect(chat->suggestions()->buttons().size() == 3U && chat->suggestions()->buttons().front()->objectName() == QStringLiteral("agentSuggestion") && chat->suggestions()->buttons().front()->isEnabled()
+			   && chat->suggestions()->lead()->text() == QStringLiteral("Or try:"),
+		   "AC2 the Agent tab's chips, one each, usable, under their lead");
+	expect(chat->suggestions()->buttons().front()->palette().color(QPalette::ButtonText) == qt::agent_accent(chat->palette()), "in the agent's accent");
+	render(*chat, prefix, "side-chat-solution-prompts");
+	// [[BPR-1881]]'s gate: none while the agent is not set up.
+	editor.set_agent_readiness(qt::agent_setup_readiness::unfinished);
+	settle();
+	expect(offered().isEmpty(), "no prompts while the agent is not set up");
+	editor.set_agent_readiness(qt::agent_setup_readiness::ready);
+	settle();
+	expect(offered().size() == 3, "they come back once it is");
 	chat->composer()->setPlainText(QStringLiteral("What does this mean?"));
 	auto enter = QKeyEvent{ QEvent::KeyPress, Qt::Key_Return, Qt::NoModifier };
 	QApplication::sendEvent(chat->composer(), &enter);
@@ -218,6 +250,7 @@ auto main(int argc, char** argv) -> int
 	expect(glyph->isChecked() && glyph->accessibleName() == QStringLiteral("Close the chat about the Solution"), "pressed, it says it closes the chat");
 	expect(chat->chat_parts() == 1U, "one part has a chat");
 	expect(chat->turn_count() == 1U && chat->bubble(0) != nullptr && chat->bubble(0)->findChild<QLabel*>(QStringLiteral("tourSideChatQuestion"))->text() == QStringLiteral("What does this mean?"), "the author's words are a bubble");
+	expect(chat->suggestions() == nullptr && offered().isEmpty(), "AC1 the prompts go once the chat has a turn");
 	expect(chat->bubble(0)->geometry().right() > chat->reply(0)->geometry().left() + chat->reply(0)->width() / 2, "on the right, the reply on the left");
 	expect(chat->worked_button(0)->text() == QStringLiteral("Worked for 7s") && !chat->steps(0)->isVisibleTo(chat), "Worked for 7s, its steps folded away");
 	chat->worked_button(0)->click();
@@ -294,6 +327,9 @@ auto main(int argc, char** argv) -> int
 	expect(route != nullptr && route->item(0)->data(Qt::UserRole + 10).toBool(), "the stop is marked on the route");
 	expect(std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "the stop's lines are shown in the code");
 	expect(chat->subject()->text() == QStringLiteral("Stop 1, Why") && chat->findChild<QLabel*>(QStringLiteral("tourSideChatQuote"))->text() == QStringLiteral("src/item.cpp, lines 4 to 6"), "the top names the stop and its lines");
+	expect(offered()
+			   == QStringList{ QStringLiteral("What does this code do?"), QStringLiteral("Why does this change matter?"), QStringLiteral("Rewrite this explanation more simply"), QStringLiteral("Is this the right place for this stop?") },
+		   "AC1 the empty stop chat offers the stop's prompts");
 	actions.clear();
 	chat->show_button()->click();
 	expect(chat->show_button()->text() == QStringLiteral("Show in code") && std::ranges::count(actions, qt::tour_editor_action::navigate_stop) >= 1, "Show in code goes to it again");
@@ -304,6 +340,21 @@ auto main(int argc, char** argv) -> int
 	editor.tour_agent()->chat_button()->click();
 	settle();
 	expect(chat->chat_count() == 3U && chat->current() == core::tour_thread{ } && chat->subject()->text() == QStringLiteral("The whole tour"), "the tour as a whole has a chat too");
+	// [[BPR-1934]] AC1. The whole tour's prompts. One click sends one; the
+	// one the reviewer finishes waits in the composer instead.
+	expect(offered() == QStringList{ QStringLiteral("Too many stops?"), QStringLiteral("Suggest a better order"), QStringLiteral("Focus on …"), QStringLiteral("What's not covered?") }, "AC1 the empty tour chat offers the tour's prompts");
+	render(*chat, prefix, "side-chat-tour-prompts");
+	const auto askedBefore = asked.size();
+	expect(choose(QStringLiteral("Focus on …")) && asked.size() == askedBefore && chat->composer()->toPlainText() == QStringLiteral("Focus on "),
+		   "Focus on … is put in the composer to finish");
+	chat->composer()->clear();
+	expect(choose(QStringLiteral("Too many stops?")) && asked.size() == askedBefore + 1U && asked.back().Thread == core::tour_thread{ } && asked.back().Question == QStringLiteral("Too many stops?") && !asked.back().Update,
+		   "AC1 one click sends the prompt in the tour's chat");
+	const auto tourTurn = core::begin_tour_ask(session, asked.back().Thread, std::nullopt, "Too many stops?");
+	static_cast<void>(core::answer_tour_ask(session, *tourTurn, "Four stops is about right.", { }));
+	editor.present_tour_session(session, std::nullopt);
+	settle();
+	expect(chat->turn_count() == 1U && offered().isEmpty(), "AC1 and they hide after the first turn");
 	// [[BPR-1925]]. Every part's chat stays: one real click on a part's glyph
 	// brings it back, with its turns, and it copies whole.
 	const auto realClick = [](QWidget* aWidget) {

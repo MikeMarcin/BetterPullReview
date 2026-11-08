@@ -1539,6 +1539,9 @@ namespace bpr::qt {
 		TourChatSplit->setChildrenCollapsible(false);
 		TourChatSplit->addWidget(makeTabColumn(TourHolder, QStringLiteral("workbenchTourScroll")));
 		auto* const chat = TourEditor->side_chat();
+		// [[BPR-1934]]. An empty chat's suggested prompts, from the
+		// application's one list.
+		chat->set_prompt_source(&application::tour_chat_prompts);
 		TourChatSplit->addWidget(chat);
 		TourChatSplit->setStretchFactor(0, 9);
 		TourChatSplit->setStretchFactor(1, 11);
