@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1946"
 title: "Re-arm the live agent clock at actual elapsed second boundaries"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
