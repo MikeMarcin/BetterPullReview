@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1966"
 title: "Thread wording inventory admits exact native-session descriptions"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
