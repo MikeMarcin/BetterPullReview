@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1961"
 title: "Review and bind latest accepted application composition content"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind": "test-correctness", "found_by": "frozen43Mac qualification / latest-main source audit", "reservation": "docs/issues/_reservations/BPR-1959--BPR-1961--64e658d8c3db.json", "milestone_plan": {"id": "bpr-1959-1961-mac-release-contracts", "path": "docs/rfcs/plans/bpr-1959-1961-mac-release-contracts/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Reviewed all12changed manifest sources/commit range9c..52e plus unpinned fixture OIDs.142manifest/197fullinventory unchanged; independent baseline913e8/latest/final4420recomputation matches maintainedprinter; other full-app/mutation pins exact.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC2","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Actual prior content mismatch retained; source auditPASS, existing hostile async-mutation direct-bypass contractPASS1.84s; exact1962test-only two-file delta reviewed. Self-review is not independent/native release approval.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC3","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Format22/focused tidy22, documentation and scoped board gatesPASS. Proven source intentionally integrated and ACTUALLY pushed authoritative main d84cde4d80164207d388ce41c63857a309eadff6. All protected producers unchanged, native/diagnostic commands ended/source copies restored. Final release/native trust and Windows new-wrapper measurement/pin remain coordinator/sibling obligations, not waived.","artifact_root":"candidate43/implementer-contract-fixes"}}]
 ---
 
 # BPR-1961: Review and bind latest accepted application composition content
