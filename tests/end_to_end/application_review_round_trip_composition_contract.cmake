@@ -3357,8 +3357,19 @@ function(bpr_verify_app_source_tree app_source_root)
 	# refusal/no-start/no-fallback oracle; large-project owner policy remains.
 	# Same142/197 inventories, full-app/mutation pins, provider and launch guard.
 	# This pin binds reviewed source; native acceptance remains separate.
+	# [[BPR-1975]] reviewed 34a7c91f1..b844926b4, accepted [[BPR-1974]]:
+	# profile_runtime.hpp/profile_runtime_construction.cpp own one native
+	# catalog for the admitted profile; window_composition.hpp references it
+	# and window_construction.cpp removes duplicate per-window creation.
+	# Accepted exact-PR/base/head shared trees retain separate native handles,
+	# nonblocking turn leases, atomic retained-owner references and
+	# original ownership/journal checks. The supplied critical acceptance and
+	# distinguishing native/tour/replay controls remain on BPR-1974. No review
+	# grant, provider or publication path changes. Ordered142/complete197 source
+	# inventories and full-app/mutation pins stay exact; source binding alone
+	# adds no native or release qualification credit.
 	set(bpr_expected_production_app_manifest_digest
-        "a4754fecedde79f0a6f7463e99cf04827ae5f67b97621629fa22580e329271a0"
+        "b2d1a15963dfc2fc74cebab812b2aca6309e1c89cd2ed45b3fe318cebb32d7da"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
