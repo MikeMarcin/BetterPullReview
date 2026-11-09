@@ -55,9 +55,20 @@ binary execution, exhaustive suite or PC operation occurs in this issue.
 
 ## Integration frontier
 
-Source/checkpoint commit and normal integration of accepted1974 plus this
-bounded fix remain next. Canonical tracked state and foreign attachments must
-be preserved; no force push or release producer mutation is authorized.
-All commands finish before final handoff. Root owns release allocation,
-publication, native qualification and the Windows47 build. This issue adds no
-release/native acceptance; successor checks use its final common source.
+Source/checkpoint commit
+`8392a45c93d05156021412ceec6d09d058d0f69f` fast-forwards canonical main
+normally and is pushed from origin34a7 to that exact revision, including all
+accepted BPR-1974 and actual1975 allocation/counter history. `ls-remote`
+verifies the exact remote main. Production source is byte-identical to
+acceptedb844; the sole tests delta is this reviewed manifest/comment.
+Pre-integration documentation, scoped board and diff checks pass. Shared
+acceptance-driven Done/docs closeout changes no proven source; the external
+final handoff receipt names its final main revision.
+
+Canonical tracked state remains clean and foreign `.codex-attachments/` is
+preserved. All own commands are terminal; no review server exists. Canonical
+main-writer and Mac engineering lease return to root. No PC operation, native
+build/test or producer mutation occurs; existing1974 acceptance is reused
+within its recorded bounds. Root owns release allocation/publication and
+successor common-source native qualification, including the Windows47 build
+still running independently during this work.
