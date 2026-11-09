@@ -32,7 +32,7 @@ separate processes. Every attack is followed by what it must not have changed.
    renamed executable, provider variables) widens what it may do; another
    profile or root reads nothing.
 5. Private data, the owner channel and diagnostics (RC60-06). The data root is
-   owner-private and a loosened one is refused. A same-user process that speaks
+   owner-private and a same-owner loosened store is narrowed in place. A same-user process that speaks
    to the owner's endpoint with a wrong greeting, an oversized or overlong
    frame, garbage or nothing at all is dropped, and the owner serves `bpr` after
    each; an endpoint answered by an owner of another root receives no request.
@@ -430,10 +430,15 @@ def main():
             loose.chmod(0o755)
             refused("profile_unavailable", "list", root=loose)
             store = next(data.rglob("review-cycles.sqlite3"))
+            original = store.lstat()
             store.chmod(0o644)
-            refused("storage_unavailable", "show", "RC-1")
-            store.chmod(0o600)
+            # [[BPR-1960]]. BPR-1870 repairs only the adapter's own
+            # single-link, same-owner file through an unfollowed descriptor.
             assert ok("show", "RC-1")["cycle"] == "RC-1"
+            repaired = store.lstat()
+            assert stat.S_ISREG(repaired.st_mode) and repaired.st_nlink == 1
+            assert repaired.st_uid == os.getuid() and stat.S_IMODE(repaired.st_mode) == 0o600
+            assert (repaired.st_dev, repaired.st_ino) == (original.st_dev, original.st_ino), "the same owned store is narrowed, not replaced"
         else:
             skipped("POSIX modes", "Windows descriptors are checked by the stores' own contracts")
 
