@@ -2,12 +2,11 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1957"
 title: "Compact Go to line and support line:column"
-status: "Parked"
+status: "Ready"
 rfcs: ["RFC-BPR-0097"]
 depends_on: ["BPR-1948"]
 priority: "P1"
 metadata: {"mandate_revision":"go-to-line-columns-r4","assigned_implementer":"/root/go_to_line_design","reservation":"docs/issues/_reservations/BPR-1957--BPR-1957--ea6d03ed4be4.json","milestone_plan":{"id":"go-to-line-v1","path":"docs/rfcs/plans/go-to-line-v1/milestone-plan.json"}}
-parked_on: "human-review"
 acceptance: [{"criterion":"AC05","outcome":"pass","revision":"dd968668313c5abe343273de960ea9f00bfefae1","evidence":{"kind":"observation","detail":"Exact split/unified line:column and plain-line native caret, parser and side-dependent validation, Unicode/CRLF, unchanged source-line draft anchor, cancellation/stale guards and bounded work pass in the composed Git/cache application at 100/125/200%. Focused production Qt course adds tabs, empty source lines, half-surrogate refusal, overflow/EOL and horizontal caret visibility at all three scales. Architecture, format22, focused tidy and documentation pass. See docs/verification/RFC-BPR-0097.md."}},{"criterion":"AC06","outcome":"pending","revision":"dd968668313c5abe343273de960ea9f00bfefae1","evidence":{"kind":"observation","detail":"Shared Find close control, no filename/Cancel, keyboard/accessibility/theme/scaling and inspected actual-widget renders pass. Exact v005 frozen appearance requires owner Accept/Reject; prepared session identity is recorded in the handoff. Historical v002 navigation and v003 rejection remain bound to their original binaries."}}]
 ---
 

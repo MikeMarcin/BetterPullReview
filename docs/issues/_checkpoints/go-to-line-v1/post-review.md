@@ -143,7 +143,7 @@ invalid/half-surrogate positions refused. This is a syntax convention, not
 full VS Code Go to line behavior. Frontend-design's desktop guidance continues
 to govern the design; all renders use actual offscreen Qt widgets.
 
-[BPR-1957](../../40-parked/BPR-1957-go-to-line-columns.md) and the new
+[BPR-1957](../../20-ready/BPR-1957-go-to-line-columns.md) and the new
 `line-column-panel` milestone own AC05–AC06. Main allocation `2e178b953` and
 feature import `cc5130d02` contain only the counter and immutable receipt;
 the concurrent main native-agent writer's edits were preserved. The
@@ -229,3 +229,25 @@ handback-only wait. AC05 passes automatically; AC06 appearance remains pending
 for this exact build. BPR-1957 parks for that question, while BPR-1948 and prior
 frozen verdicts remain historical. Product/test paths remain identical to the
 frozen revision; final commits only update acceptance and continuation records.
+
+
+## Accepted v005 and bounded column correction
+
+Assignment `/root/go_to_line_closeout`, mandate `go-to-line-columns-r4`.
+The v005 session and candidate fingerprint match the handoff. Human decision 6
+is **Accept**, without notes; handback 7 has no pending question. Consumed 7
+was persisted before follow-up engineering. The host was stopped through the
+authenticated helper; PIDs 31773/31780 are absent. The scoped mutable path
+protection was released at event 8 for the authorized functional correction;
+consumed 8 is persisted. The exact frozen v005 source/build and acceptance stay
+immutable. Frontend-design and its desktop guidance were loaded; the panel's
+accepted composition, controls and styling stay unchanged.
+
+Known AC05 edge: isolated UTF-8 decoding strips a leading U+FEFF on a later
+source line, while the native split document retains it. The displayed column
+maximum can therefore be one short. The bounded plan is to read the existing
+native block through a small accessor shared with destination validation,
+cache by source identity and presentation, and add split/unified regressions.
+Then run the composed public course, focused native checks, format/tidy and
+documentation; finish BPR-1957 and RFC closeout with exact producing revisions.
+No new appearance judgment is needed for this logic correction.
