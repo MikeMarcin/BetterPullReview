@@ -319,12 +319,13 @@ namespace {
 				aSink(event);
 			}
 			return {
-				.Session      = aRequest.Session,
-				.Outcome      = application::agent_run_outcome::success,
-				.Events       = { event },
-				.ExitCode     = 0,
-				.Findings     = Payload,
-				.NativeHandle = aRequest.NativeConversation.empty() ? std::string{ } : "native-test-handle",
+				.Session        = aRequest.Session,
+				.Outcome        = application::agent_run_outcome::success,
+				.Events         = { event },
+				.ExitCode       = 0,
+				.Findings       = Payload,
+				.AssistantItems = AssistantItems,
+				.NativeHandle   = aRequest.NativeConversation.empty() ? std::string{ } : "native-test-handle",
 			};
 		}
 
@@ -333,6 +334,7 @@ namespace {
 			++Cancels;
 		}
 
+		std::vector<std::string>                         AssistantItems;
 		std::size_t                                      Starts            = 0U;
 		std::size_t                                      Cancels           = 0U;
 		int                                              LastTimeout       = 0;
@@ -677,7 +679,12 @@ namespace {
 			}
 			return view;
 		}
-		auto append(const std::string&, const application::agent_conversation_turn&) -> bool override { return !FailStore; }
+		std::vector<application::agent_conversation_turn> Appended;
+		auto                                              append(const std::string&, const application::agent_conversation_turn& aTurn) -> bool override
+		{
+			Appended.push_back(aTurn);
+			return !FailStore;
+		}
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
 			auto& stored = Records.at(aSession.Scope);
@@ -1872,6 +1879,29 @@ namespace {
 }
 
 namespace {
+	void test_tour_history_keeps_the_terminal_answer_item()
+	{
+		auto test                 = harness{ };
+		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.ReadOnlyTools       = true;
+		input.NativeAgentIdentity = "incarnation";
+		input.NativeScope         = "tour:1:0:0:0";
+		input.Context.TourPrompt  = "full tour prompt";
+		input.Context.ChatMessage.clear();
+		input.Context.IncludedNotes.clear();
+		input.Context.Private = { };
+		input.Context.CurrentDraft.reset();
+		input.Context.Selection.reset();
+		input.Context.Brief.reset();
+		input.Context.Files.clear();
+		test.Processes.AssistantItems = { "progress commentary", R"({"schema":"bpr.tour-ask.v1","reply":"terminal","problem":"","solution":"","stops":[],"stop_texts":[]})" };
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 1U && test.NativeSessions.Appended.size() == 1U && test.NativeSessions.Appended.front().Answered == test.Processes.AssistantItems.back(), "durable tour history stores the same terminal item the public tour consumes, excluding preliminary narration");
+	}
+
 	void native_workspace_and_identity_survive_window_activation()
 	{
 		auto       test           = harness{ };
@@ -1917,6 +1947,7 @@ namespace {
 auto main() -> int
 {
 	native_workspace_and_identity_survive_window_activation();
+	test_tour_history_keeps_the_terminal_answer_item();
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();
 	test_session_admission_answers_later_and_admits_one_turn();

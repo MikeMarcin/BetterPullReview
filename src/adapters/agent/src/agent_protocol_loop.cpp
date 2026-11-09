@@ -54,6 +54,12 @@ namespace bpr::adapters::agent::detail {
 
 				while (!has_cause() && !ProcessExit) {
 					drain_available();
+					if (IsAppServer && !native() && !has_cause() && Decoder.turn_complete() && !InputClosed) {
+						// Modern App Server treats EOF as cancellation. Retain stdin
+						// until this explicit one-shot turn has actually completed.
+						Transport.close_input();
+						InputClosed = true;
+					}
 					if (native() && !has_cause() && Decoder.turn_complete()) {
 						finish_protocol();
 						ClassifiedOutcome = application::agent_run_outcome::success;
@@ -309,9 +315,6 @@ namespace bpr::adapters::agent::detail {
 					return;
 				}
 				++AppServerPhase;
-				if (AppServerPhase == 2U && !native()) {
-					Transport.close_input();
-				}
 			}
 
 			/// \brief Turns one lifted payload into this run's findings, once.
@@ -390,6 +393,7 @@ namespace bpr::adapters::agent::detail {
 						// Owner look v006: a catalog run ends once its list is in.
 						Result.ModelCatalog = message.Text;
 						Transport.close_input();
+						InputClosed = true;
 					} else {
 						process_control(message);
 						if (has_cause()) {
@@ -539,6 +543,7 @@ namespace bpr::adapters::agent::detail {
 			application::agent_protocol_decoder                Decoder;
 			std::string                                        SavedNativeHandle;
 			std::array<char, protocol_buffer_bytes>            Buffer{ };
+			bool                                               InputClosed    = false;
 			std::size_t                                        IdleBytes      = 0U;
 			std::size_t                                        InputBytes     = 0;
 			std::uint64_t                                      Sequence       = 0U;

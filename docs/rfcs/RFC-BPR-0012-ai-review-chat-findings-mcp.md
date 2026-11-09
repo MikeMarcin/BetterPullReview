@@ -112,3 +112,16 @@ test is not described as passing and no RFC0012 criterion is removed.
 AI operations, context controls, finding schema, staleness, publication boundary, full-agent behavior, MCP tools, privacy, and limitations are mandatory.
 
 The documentation ledger must identify functional-core, application-host, and Qt-presentation-adapter ownership; typed intents/events/observations/requests/deltas; authority; concurrency/generation; and any evidence-backed no-impact region.
+
+## Conversational ownership amendment (RFC-BPR-0096, 2026-11-08)
+
+[The native-session RFC](RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
+adds durable scoped generations and native continuation to ordinary Agent-tab and
+tour conversations. New session/history do not mutate accepted BPR review state,
+apply proposals or move the old pinned workspace. Old-head continuation remains
+explicit; late/uncertain sends retain their originating identity and are never
+automatically resent. Explicit Transcript replay carries bounded answered prose
+into a separate generation and fresh private workspaces, with omissions and absent
+tool/filesystem state visible. Every send retains current authority/provider/tool
+checks. Original closeout remains historical; new native/runtime qualification
+is recorded separately in the [RFC-BPR-0096 ledger](../verification/RFC-BPR-0096.md).

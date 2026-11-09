@@ -1062,9 +1062,33 @@ auto main(int argc, char** argv) -> int
 				if (workspace.empty()) {
 					return fail(*application, "replay-owned-workspace");
 				}
+				const auto pressure = workspace / "bpr-qualification-owned-pressure";
+				if (std::filesystem::exists(pressure)) {
+					return fail(*application, "storage-pressure-path-owned");
+				}
+				{
+					auto file = std::ofstream{ pressure };
+					file << "owned qualification sparse file";
+				}
+				std::filesystem::resize_file(pressure, 16ULL * 1024ULL * 1024ULL * 1024ULL + 1ULL);
+				window.side_chat()->composer()->setPlainText(QStringLiteral("capacity-refusal-question"));
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
+					std::filesystem::remove(pressure);
+					return fail(*application, "storage-pressure-send-ready");
+				}
+				tab->ask_button()->click();
+				const auto capacityRefused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
+				std::filesystem::remove(pressure);
+				if (!capacityRefused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
+					return fail(*application, "storage-pressure-protected-refusal");
+				}
 				const auto held = std::filesystem::path{ workspace.string() + ".course-held" };
 				std::filesystem::rename(workspace, held);
 				window.side_chat()->composer()->setPlainText(QStringLiteral("failed request must not be replayed"));
+				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
+					std::filesystem::rename(held, workspace);
+					return fail(*application, "missing-native-send-ready");
+				}
 				tab->ask_button()->click();
 				const auto refused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
 				std::filesystem::rename(held, workspace);
@@ -1304,6 +1328,9 @@ auto main(int argc, char** argv) -> int
 						chat->send_button()->click();
 						if (!wait_until([&] { return chat->turn_count() > beforeReplay && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("transcript-replay-ok") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
 							return fail(*application, "tour-readonly-replay-send", chat->chat_text().toStdString());
+						}
+						if (!window.grab().save(QString::fromStdU16String((dataRoot.parent_path() / "transcript-replay-tour.png").u16string()))) {
+							return fail(*application, "tour-replay-raster");
 						}
 						for (auto* item : chat->history_button()->menu()->actions()) {
 							if (item->data().toString() == priorId) {

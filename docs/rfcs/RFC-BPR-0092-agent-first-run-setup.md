@@ -1698,3 +1698,59 @@ above stays, but only as a secondary, copyable record; nothing is asked there.
 | M7 Documentation | BPR-1754 | Done: the AI agent boundary amendment (Q2) with the agent search, the check, the borrowed history, the brief and the review skill; the Git and epoch model's reviewer's clone; Settings; the workbench specification's setting up state | All, as documented |
 | M8 Frozen build and the owner's look | BPR-1755 | A frozen build, a short attended session and the owner's look | AC14 |
 | Closeout | BPR-1756 | Verify every criterion and close the RFC | All |
+
+## Amendment RFC-BPR-0096 — conversational session ownership (2026-11-08)
+
+The owner authorized `native-agent-sessions-r1`; the live
+[RFC-BPR-0096](RFC-BPR-0096-native-agent-sessions-and-tour-context.md) and its
+qualification ledger govern this scoped replacement. Earlier amendments and Done
+card acceptance remain evidence for their original candidates.
+
+Conversational Agent-tab and per-agent tour threads now retain the exact native
+Claude/Codex session and session-owned private workspace. A completed turn does
+not close a live native connection. Normal review/application close preserves
+native metadata and verified owned files, including allowed Agent-tab changes;
+startup recovery does not reclaim retained conversations. Borrowed Git objects
+are owned before retention. The previously adopted private-copy implementation
+remains: this does not reinstate the superseded linked-worktree form or its old
+three-per-repository bound. Tool-free writing hooks stay one-shot and retain their
+no-session restriction. Every send/resume still rechecks current authority,
+profile incarnation, permissions, pinned source and retained ownership.
+
+New session replaces destructive Clear session for these conversations. It retains
+the prior generation, sends no question, and reuses an unused empty generation.
+History opens the exact scoped generation. Reset tour detaches tour histories;
+Undo reset restores associations without reusing an abandoned reset namespace.
+Accepted tour work, notes and drafts remain BPR state. These actions imply neither
+native transcript deletion nor profile purge. A changed head still offers a new
+session at the observed revision or explicit continuation at the old pinned one.
+
+Unsupported backends and unavailable native state offer explicit Transcript
+replay, with a distinct generation and durable source link. Only retained answered
+prose travels, with counted bounds; prior tool observations and filesystem changes
+are absent. Every replay turn uses a fresh private workspace. Native failure never
+retransmits through replay automatically. Legacy numeric slots remain unknown
+identities and require an explicit destination. New session on an unsupported
+backend selects an empty, visibly labelled replay generation. Unsafe tour/provider
+modes remain refused under the same permissions.
+
+The shared 500-record catalog covers both surfaces and generations, independently
+of 128 immutable invocation metadata records. Safe admission refuses instead of
+silently pruning active, pending, originating, modified or unverifiable ownership;
+existing records may still save at capacity. Retained/crash workspace admission
+also checks 64 journals, 16 GiB and 262,144 entries. Automatic retained-workspace
+reclamation is not implemented. One-shot/replay cleanup uses exact owned paths.
+Agent-owned transcripts are outside BPR metadata removal.
+
+Every explicit tour question carries the versioned BPR guide and coherent current
+snapshot when bootstrap retention cannot be established. Core reason codes drive
+both UI and agent source/preparation/publication facts. Text/order edits preserve
+bindings under existing preparation rules; author confirmation, Ready and
+publication remain distinct. Captured stable stop IDs and proposal outcomes fence
+late results. Confirmed author-selected mapping alone has no source warning;
+missing evidence and unfinished prose retain their own reasons.
+
+These are live behavior/documentation amendments, not blanket native acceptance.
+[The qualification ledger](../verification/RFC-BPR-0096.md) identifies actual
+versions, Release measurements, platform scope and remaining human sign-in/native
+obligations. Historical release, vault, trust and security gaps remain unchanged.

@@ -9,11 +9,13 @@
 #include "bpr/adapters/sqlite/private_review_store.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/application/private_review_application_host.hpp"
+#include "native_session_qualification.hpp"
 
 #include <QCoreApplication>
 #include <QElapsedTimer>
 #include <QJsonDocument>
 #include <QJsonObject>
+#include <QThread>
 #include <QUuid>
 
 #include <algorithm>
@@ -1289,6 +1291,40 @@ namespace {
 		}
 	}
 
+	void native_idle_cache_eviction_keeps_resume_identity()
+	{
+		const auto directory = tests::make_scratch_directory("bpr-native-cache-bound");
+		const auto owned     = tests::scratch_guard{ directory };
+		auto       launcher  = adapters::agent::agent_process_launcher{ };
+		auto       first     = application::agent_run_result{ };
+		auto       original  = application::agent_launch_request{ };
+		for (std::size_t index = 0; index < 5U; ++index) {
+			const auto workspace = directory / std::to_string(index);
+			std::filesystem::create_directory(workspace);
+			auto launch = request(core::agent_protocol::claude_stream_json);
+			launch.Arguments.insert(launch.Arguments.begin(), "--native-session-fixture");
+			launch.WorkingDirectory   = workspace.string();
+			launch.NativeConversation = "cache-capacity-" + std::to_string(index);
+			const auto result         = launcher.run(launch, 5000);
+			expect(result.Outcome == application::agent_run_outcome::success, "bounded idle cache fixture turn completes");
+			if (index == 0U) {
+				first    = result;
+				original = launch;
+			}
+		}
+		original.NativeHandle = first.NativeHandle;
+		original.NativeTurn   = 3U;
+		const auto reopened   = launcher.run(original, 5000);
+		expect(reopened.Outcome == application::agent_run_outcome::success && reopened.NativeHandle == first.NativeHandle && reopened.NativeProcess != first.NativeProcess, "fifth idle session evicts one of four cached processes but exact native handle and workspace resume remain");
+		launcher.cancel();
+		auto waited = QElapsedTimer{ };
+		waited.start();
+		while (!launcher.native_connections_quiescent() && waited.elapsed() < 5000) {
+			QThread::msleep(10);
+		}
+		expect(launcher.native_connections_quiescent(), "owned cached processes finish after bounded shutdown");
+	}
+
 	auto installed_native_course(const core::agent_protocol aProtocol, const std::string& aExecutable, const std::filesystem::path& aRoot) -> bool
 	{
 		auto       profiles = core::built_in_agent_profiles();
@@ -1374,6 +1410,11 @@ namespace {
 auto main(int argc, char** argv) -> int
 try {
 	QCoreApplication application{ argc, argv };
+	if (argc == 6 && std::string_view{ argv[1] } == "--qualify-sessions") {
+		const auto protocol = std::string_view{ argv[2] } == "claude" ? core::agent_protocol::claude_stream_json : std::string_view{ argv[2] } == "codex-jsonl" ? core::agent_protocol::codex_jsonl_exec
+																																								: core::agent_protocol::codex_app_server;
+		return bpr::tests::qualify_native_sessions(protocol, argv[3], std::filesystem::canonical(argv[4]), std::string_view{ argv[5] } == "replay", std::string_view{ argv[5] } == "interrupt") ? EXIT_SUCCESS : EXIT_FAILURE;
+	}
 	if (argc == 5 && std::string_view{ argv[1] } == "--installed-native") {
 		const auto protocol = std::string_view{ argv[2] } == "claude" ? core::agent_protocol::claude_stream_json : core::agent_protocol::codex_app_server;
 		return installed_native_course(protocol, argv[3], std::filesystem::canonical(argv[4])) ? EXIT_SUCCESS : EXIT_FAILURE;
@@ -1398,6 +1439,7 @@ try {
 		return EXIT_SUCCESS;
 	}
 	native_connections_keep_the_process_and_exact_handle();
+	native_idle_cache_eviction_keeps_resume_identity();
 	test_input_budget_refuses_before_real_child_effect();
 	test_all_four_protocols_stream_partial_frames_under_stderr_pressure();
 	test_a_catalog_run_lists_models_through_a_real_child();

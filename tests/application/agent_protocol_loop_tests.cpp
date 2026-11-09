@@ -60,6 +60,9 @@ namespace {
 		{
 			Operations.emplace_back("write");
 			Writes.emplace_back(aBytes);
+			if (aBytes.find("turn/start") != std::string_view::npos) {
+				TurnInputWasOpen = CloseInputCount == 0U;
+			}
 			if (WriteStatuses.empty()) {
 				return agent_protocol_write_status::success;
 			}
@@ -110,9 +113,10 @@ namespace {
 		std::deque<agent_protocol_wait_result>  Waits;
 		std::vector<std::string>                Writes;
 		std::vector<std::string>                Operations;
-		std::size_t                             CloseInputCount = 0U;
-		std::size_t                             TerminateCount  = 0U;
-		bool                                    TerminateResult = true;
+		std::size_t                             CloseInputCount  = 0U;
+		std::size_t                             TerminateCount   = 0U;
+		bool                                    TerminateResult  = true;
+		bool                                    TurnInputWasOpen = false;
 
 	private:
 		[[nodiscard]] auto read(
@@ -285,6 +289,10 @@ namespace {
 					!= std::string::npos
 				&& transport.CloseInputCount == 1U,
 			"each App Server acknowledgement follows a complete successful write");
+		expect(transport.TurnInputWasOpen, "one-shot App Server stdin remains open when explicit question is submitted");
+		const auto closed        = std::ranges::find(transport.Operations, std::string{ "close_input" });
+		const auto afterLastData = std::find(transport.Operations.rbegin(), transport.Operations.rend(), std::string{ "read_output:data" }).base();
+		expect(closed >= afterLastData, "App Server stdin closes only after terminal output, so EOF cannot cancel the submitted replay turn");
 		expect_single_termination(
 			transport, "the complete App Server exchange terminates once");
 
@@ -909,6 +917,49 @@ namespace {
 } // namespace
 
 namespace {
+	void test_native_idle_output_bound_and_no_inference()
+	{
+		class connection final : public application::agent_native_connection_port
+		{
+		public:
+			std::size_t Completed = 0U, NextCalls = 0U;
+			auto        next() -> std::optional<application::agent_launch_request> override
+			{
+				++NextCalls;
+				return std::nullopt;
+			}
+			void complete(application::agent_run_result) override { ++Completed; }
+			auto timeout_milliseconds() const -> int override { return 1000; }
+			auto cancelled() const noexcept -> bool override { return false; }
+		};
+		for (const auto extra : { 0U, 1U }) {
+			auto port                   = connection{ };
+			auto launched               = request(core::agent_protocol::claude_stream_json);
+			launched.NativeConversation = "idle-bound";
+			launched.NativeConnection   = &port;
+			auto wire                   = fake_transport{ };
+			wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = R"({"type":"system","subtype":"init","session_id":"idle"})"
+																							  "\n"
+																							  R"({"type":"assistant","session_id":"idle","message":{"role":"assistant","id":"one","content":[{"type":"text","text":"complete"}]}})"
+																							  "\n"
+																							  R"({"type":"result","subtype":"success","session_id":"idle","is_error":false,"result":"done"})"
+																							  "\n" });
+			wire.Output.push_back({ });
+			for (std::size_t chunk = 0; chunk < 16U; ++chunk) {
+				wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string(4096U, ' ') });
+			}
+			if (extra) {
+				wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = " " });
+			}
+			const auto result = run_agent_protocol_loop(launched, { }, wire);
+			if (result.Outcome != application::agent_run_outcome::success) {
+				std::cerr << "idle-bound outcome=" << application::name(result.Outcome) << " protocol=" << (result.ProtocolFailure ? application::name(*result.ProtocolFailure) : "none") << " completed=" << port.Completed << " writes=" << wire.Writes.size() << " terminated=" << wire.TerminateCount << "\n";
+			}
+			expect(result.Outcome == application::agent_run_outcome::success && port.Completed == 1U && wire.Writes.size() == 1U && wire.TerminateCount == 1U, "idle output cannot generate another question or alter the completed result");
+			expect(port.NextCalls == (extra ? 0U : 1U), "exact64KiB idle output fits; first extra byte closes before another turn can be selected");
+		}
+	}
+
 	void test_native_turns_leave_the_stream_open_and_fence_the_prior_turn()
 	{
 		auto first               = request(core::agent_protocol::claude_stream_json);
@@ -954,6 +1005,7 @@ namespace {
 int main()
 {
 	test_native_turns_leave_the_stream_open_and_fence_the_prior_turn();
+	test_native_idle_output_bound_and_no_inference();
 	test_a_catalog_run_lists_the_harness_models();
 	test_claude_help_names_its_efforts();
 	test_complete_assistant_items_and_claims();

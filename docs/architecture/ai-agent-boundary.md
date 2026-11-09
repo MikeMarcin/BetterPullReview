@@ -273,9 +273,8 @@ instead of pruning protected records or owned workspaces; an existing record can
 still be saved at capacity. A failed legacy or native save is visible. The
 128-entry invocation metadata catalog does not own resume state. BPR metadata and
 saved prose live in the profile's `agent-setup.sqlite3`; agent-owned transcripts
-and retained workspaces have separate ownership and cleanup. Settings resets
-remove the setup file; they do not delete agent-owned transcripts or establish
-safe retained-workspace reclamation.
+and retained workspaces have separate ownership and cleanup. Removing the setup/history catalog does not delete agent-owned transcripts or
+establish safe retained-workspace reclamation.
 
 
 **A question about one conversation ([[BPR-1773]]).** The eighth entry

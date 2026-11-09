@@ -1023,8 +1023,12 @@ namespace bpr::application {
 					session.Pending = !session.Replay && result.NativeHandle.empty() && session.Handle.empty() && result.Outcome != agent_run_outcome::failed_to_start;
 					++session.Turn;
 					auto answer = std::string{ };
-					for (const auto& item : result.AssistantItems) {
-						answer += item;
+					if (aRequest.ReadOnlyTools && !result.AssistantItems.empty()) {
+						answer = result.AssistantItems.back();
+					} else {
+						for (const auto& item : result.AssistantItems) {
+							answer += item;
+						}
 					}
 					if (answer.empty()) {
 						for (const auto& event : result.Events) {

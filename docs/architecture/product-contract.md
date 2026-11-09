@@ -405,3 +405,16 @@ budget or starting Git work. Its fixed content size survives tab, range and
 snapshot changes. The first milestone supplies storage accounting and explicit
 empty states for subsequent statistics views. The [Insights contract](../ux/insights.md)
 records commands, measurement scope, budgets and profile data lifetime.
+
+Conversational Agent-tab and per-agent tour chats retain native session metadata
+and verified private workspaces across normal reopen. New session keeps history;
+Reset tour detaches its chats and Undo restores their associations. These actions
+are separate from accepted tour text, source confirmation, Ready, publication and
+profile purge. Explicit Transcript replay creates a linked generation from saved
+answered prose, with visible omissions and no prior tool/filesystem state. Each
+replay turn receives a new private workspace. Unsupported backends use a labelled
+empty replay generation when starting fresh. Legacy numeric agent slots have
+unknown identities until an explicit replay destination is chosen. Failed saves,
+uncertain sends and unsafe storage admission remain visible and preserve existing
+ownership. [RFC-BPR-0096 qualification](../verification/RFC-BPR-0096.md) scopes the
+actual installed versions, permissions, retention limits and remaining gaps.
