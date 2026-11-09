@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1967"
 title: "Make the native replay workspace fault portable"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win", "mac", "linux"]
 metadata: {"kind":"test","found_by":"BPR-1964 current-image native Windows wrapper baseline","mandate":"Coordinator approved one test translation unit on 2026-11-09: withhold the exact owned required workspace marker, restore it on every path, and preserve original semantic oracles and limits.","milestone_plan":{"id":"bpr-1967-native-replay-marker","path":"docs/rfcs/plans/bpr-1967-native-replay-marker/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"3dc816125b7c7b82b1c2113f9067f57ee795d0c9","evidence":{"kind":"artifact","detail":"Single test TU temporarily withholds exact required .git/bpr-owned-workspace marker using named error_code failures and restores every controlled path; original private_storage_failure/no-process-start/no-fallback/native continuation/replay oracles preserved. Original-image filesystem_error evidence retained, cached backend not killed."}},{"criterion":"AC2","outcome":"pass","revision":"8396d01c3fedc31c5fbcaa9ef7d33eb7a8791406","evidence":{"kind":"artifact","detail":"Current accepted8f+1967 image575b normal six-course wrapper PASS45.94s at original400/180limits. Irrelevant-canary-marker negative image7362 rejected by exact missing-native-no-retry Finished: success oracle, CTest8/84.49s; exact-line reconciliation excludes standalone wrapperPASS. Corrected b606 source restored and normalbuild0; no restored-image PASS reuse."}},{"criterion":"AC3","outcome":"pass","revision":"107d346834f7ad2c316580c634fccbce314d6ad0","evidence":{"kind":"artifact","detail":"Source and shared evidence integrated and verified on main/origin107d preserving7321/NEXT1969 allocations. Format22,74 isolation contracts,67 documentation contracts,DOCUMENTATION_OK and scoped board validation passed. Native courses/guards quiescent; exact images retained including About dirty-source metadata library delta. No full common-source qualification credit."}}]
 ---
 
 # BPR-1967: Make native replay's workspace fault portable
