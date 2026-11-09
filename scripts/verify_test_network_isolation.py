@@ -789,7 +789,14 @@ WINDOWS_UNCONTAINED_TESTS: dict[str, str] = {
     # (0.031s). The default in-memory provider suite stays contained.
     "live_review_mutation_outdated_reply_recovery": "persistent-recovery-open-unavailable",
     "application_agent_invocation_composition_contract": "dos-volume-name",
-    "application_native_agent_sessions": "unmeasured (registered on macOS)",
+    # [[BPR-1964]]. JaegAW Release, source8396d01c3 (8f7e8caf5 plus the
+    # BPR-1967 fixture): all six original sessions pass uncontained. Inside
+    # the AppContainer the initial settings store refuses before state/v1.
+    # Same-image child/parent tokens are contained; the exact data handle
+    # resolves in both DOS and NT form. The first retained ancestor,
+    # \\?\C:\, instead refuses the production attributes/control open (5).
+    # This names that measured prerequisite, not a guessed DOS-name failure.
+    "application_native_agent_sessions": "ancestor-control-denied",
     "application_agent_invocation_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_launcher_construction_cut_contract": "dos-volume-name",
     "application_agent_invocation_gesture_cut_contract": "dos-volume-name",

@@ -1626,6 +1626,9 @@ bpr_enable_warnings(
 
 bpr_add_network_isolated_test(
     NAME application_native_agent_sessions
+    # BPR-1964: the Windows AppContainer cannot open the first retained
+    # storage ancestor with attributes/control access. The measured pin
+    # records this refusal; the same six-course wrapper passes uncontained.
     WINDOWS_UNCONTAINED
     COMMAND Python3::Interpreter "${PROJECT_SOURCE_DIR}/tests/scripts/native_agent_sessions_course.py"
         --executable "$<TARGET_FILE:test_better_pull_review_agent_invocation_composition_public_path>"
