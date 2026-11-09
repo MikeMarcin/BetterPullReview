@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1960"
 title: "Review Cycle security course verifies accepted private-store repair"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
