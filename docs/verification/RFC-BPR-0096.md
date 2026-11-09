@@ -346,7 +346,7 @@ read commands. It is not a product Python dependency or an OS sandbox.
 | Codex App Server explicit replay, same three logical questions | Pass after the EOF correction below; three new fixture workspaces/processes and three fixture read commands. Every turn carries full current BPR context and bounded saved prose only. |
 | Codex JSONL native, three questions | Pass by exact handle with one workspace and a process per turn. No persistent-process claim. |
 | Codex App Server explicit interruption | Pass: READY, an authorized long turn cancelled on its first streamed output, then exact-ID reconnect answers only the explicit AFTER_INTERRUPTION question. The stopped question is not automatically continued or resent. This later course reports model `gpt-6.1-sol`. |
-| Claude Code 2.1.310 | Pending. Earlier attempts were signed out. A later normal and exact-materialized-environment CLI status reports loggedIn=true/authMethod=claude.ai, including USER. Actual read-only native, replay and interruption attempts still fail before a usable answer. Sanitized own-protocol diagnostics identify authenticated HTTP429. This is no longer a sign-in diagnosis; no native acceptance or usage credit is assigned. |
+| Claude Code 2.1.310 | Pending. Earlier attempts were signed out. A later normal and exact-materialized-environment CLI status reports loggedIn=true/authMethod=claude.ai, including USER. Actual read-only native, replay and interruption attempts fail before a usable answer. The fresh post-owner-handback native retry also returns authenticated HTTP429 and identifies an exhausted weekly allowance, with a reported reset November 10 at 00:00 America/Los_Angeles. This is an availability refusal; no native acceptance or usage credit is assigned. |
 
 The installed Codex answers were inspected. They distinguish unconfirmed Stop 1
 from Stop 2 with the identical path/range confirmed but unfinished prose, name
@@ -438,6 +438,45 @@ remain unchanged. BPR-1955 and qualified-continuation stay pending for actual
 Claude request availability and subsequent native qualification. The full RFC
 remains Proposed; BPR-1956 is not dependency-eligible.
 
-Fresh availability wizard session `e5378f2a-8c51-4e65-81e2-c08ac10cb8a9`; external state `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-availability-fepjjjg6/state`; lifecycle serving/awaiting owner, consumed revision1. Acknowledging availability does not accept product behavior. Authenticated URLs are retained only in external runtime state.
+Availability wizard session `e5378f2a-8c51-4e65-81e2-c08ac10cb8a9` consumed the owner's acknowledgement at revision2 and recorded the actual failed retry at revision3. The procedure is complete and its server stopped; product acceptance remains pending. Its external state is `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-availability-fepjjjg6/state`. Authenticated URLs are retained only in external runtime state.
 
 BPR-1955 available-scope product candidate `f98e14cd604a251a32e8cfeb9c33a5b0614a489a`; the source tested above was promoted unchanged. Required Claude acceptance remains pending.
+
+### Post-handback Claude retry
+
+A fresh implementer resumed mandate `native-agent-sessions-r1` after consuming
+the actual human availability acknowledgement. Ready/claim bookkeeping commits
+`59baae4c3` and `4e8c05191317585d230d39602c3cc2978df6836b` change no product inputs.
+The exact Release qualification binary remains SHA-256
+`d09aba96eb271f63b7847aab8bbeae84e68ec38b4e5dc0ca36d3a07ff2f89bd0`.
+The new owner-private fixture root is
+`/Users/jaeger/.codex/tmp/bpr-m4-claude-resume-8hq1wfac`.
+
+The native first turn returned `protocol_failure` / `remote_failed` in 3.032s,
+with zero tool events and no usable answer. Claude's own result reports
+`is_error=true`, `api_error_status=429`, and an exhausted weekly allowance
+resetting November 10 at 00:00 America/Los_Angeles. The reported runtime model
+is `claude-opus-5-5`; the error also reports a synthetic response model, which
+is not inference evidence. The driver stopped at that first failure. Follow-up,
+exact-ID resume, replay, interruption and Claude usage comparison were not
+rerun and remain unqualified. No account, model, credential or API-key
+workaround was attempted.
+
+The external `m4-resume-installed-identity.json`,
+`m4-resume-installed-results.json`, `m4-resume-claude-native.log`,
+`m4-resume-claude-native-guard.json` and the fixture's
+`native/qualification-results.json` retain exact identity and failure evidence.
+The completed guard compares the same three selected live declaration files
+unchanged; it remains a cooperative comparison, not an OS sandbox. The failed
+driver and its native child have ended. Unchanged Codex, public-path,
+resource, format/tidy and documentation-script evidence above is reused.
+
+Fresh weekly-availability wizard session
+`94eafb5d-7d90-4146-9de5-f8802d8bade4` serves external state
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-weekly-pnwqk34v/state`
+at consumed revision1. Its next step is the owner's actual availability
+acknowledgement, followed by agent-captured qualification. No automatic retry or
+scheduled inference is armed. Acknowledgement alone does not accept behavior.
+This session's loopback server is the only handed-off command. BPR-1955 remains
+Parked for human-review; qualified-continuation is not accepted and BPR-1956
+remains dependency-ineligible. The RFC stays Proposed.

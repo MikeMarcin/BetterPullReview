@@ -48,7 +48,7 @@ changed workbench, format/tidy and documentation gates pass. See the ledger for
 actual intermediate failures and scoped limits. All twelve full-RFC criteria
 remain pending their complete cross-surface/installed/qualification scope.
 
-Next eligible milestone: `tour-context`, BPR-1953. BPR-1954/1955 retain legacy
+At the M2 checkpoint the next eligible milestone was `tour-context`, BPR-1953. BPR-1954/1955 retained legacy
 migration, both-direction shared quota/projection failure handling, labelled
 replay, installed Claude (currently signed out), installed permissions, resource,
 resume-only and Release usage qualification. Native Windows/Linux acceptance is
@@ -61,6 +61,30 @@ External continuation:
 was preserved; it changed no product inputs. BPR-1952 finish commit `1fae95d03e2336cd3a61e5856370071cb1b9ebdf`;
 BPR-1953 is Ready. M2 build/test/render/static-analysis commands have completed; no attended candidate, review server, task worktree, remote
 mutation or push exists.
+
+Current frontier after the qualified-continuation handback: BPR-1953 and
+BPR-1954 are Done at products `a89b0fa88f5a8e4c0eae8495ab8a44da8f7377e8` and
+`2de6a3336a02b7aae5a62700d17b620eff98451d`. BPR-1955's available-scope product
+`f98e14cd604a251a32e8cfeb9c33a5b0614a489a` has passing Codex, public-path,
+resource and operator-documentation evidence. Installed Claude Code 2.1.310
+remains required: the fresh retry after the owner's actual availability
+acknowledgement returned authenticated HTTP429, an exhausted weekly allowance
+reported to reset November 10 at 00:00 America/Los_Angeles. It produced no
+usable answer or tool activity. The driver stopped at the first failure;
+no broader native or usage acceptance is inferred.
+
+The [ledger](../../verification/RFC-BPR-0096.md#post-handback-claude-retry) binds
+the unchanged Release binary and exact failed receipt. A fresh short wizard,
+session `94eafb5d-7d90-4146-9de5-f8802d8bade4`, awaits actual availability at
+consumed revision1 in external state
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-weekly-pnwqk34v/state`.
+Its loopback server alone remains running. BPR-1955 is Parked; the next
+engineering round remains `qualified-continuation`. This closeout card is
+ineligible until that milestone's remaining installed Claude evidence passes.
+Current recovery lives in
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-resume-handoff.md`.
+The full criterion-by-criterion closeout below remains the accepted-scope
+owner's work; historical native, release and security limits are preserved.
 
 ## Closeout checklist
 
