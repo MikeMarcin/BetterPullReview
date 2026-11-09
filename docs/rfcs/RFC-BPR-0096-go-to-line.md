@@ -134,6 +134,6 @@ remains open in this draft; internal API and widget choices belong to implementa
 
 ## Execution record
 
-One milestone, [BPR-1948](../issues/20-ready/BPR-1948-close-rfc-0096.md), implements all four criteria.
+One milestone, [BPR-1948](../issues/30-in-progress/BPR-1948-close-rfc-0096.md), implements all four criteria.
 RFC_BASE_SHA: `663137a9ed3825c87934c93926d414725f8bee22`.
 [Milestone plan](plans/go-to-line-v1/MILESTONES.md).
