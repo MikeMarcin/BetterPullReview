@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1971"
 title: "Classify native replay launch admission"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
