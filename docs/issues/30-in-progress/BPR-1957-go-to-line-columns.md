@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1957"
 title: "Compact Go to line and support line:column"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0097"]
 depends_on: ["BPR-1948"]
 priority: "P1"
