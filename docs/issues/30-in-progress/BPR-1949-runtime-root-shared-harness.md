@@ -44,3 +44,7 @@ contained context manager without changing the six native course commands,
 180s child budgets, rendering copies, permissions intent or production sessions.
 The amended plan preserves all original exits and adds this obligation; the
 shared check-amendment receipt is retained externally. No exception is added.
+
+## Focused evidence
+
+Actual current-main ordinary Mac proof at a1db4628672f7e264d8511e6bc4e48863eb75aba: targeted app_bpr/tour_cli_composition/invocation/canary build passes; registered runtime-root, contained-temporary, skip-report, labels and native-session wrapper5/5PASS29.90s. Wrapper runs all six original180s-bounded phases. Pure runtime7/7 and skip-contract9/9 pass; simulated five POSIX skips are named, not Windows evidence. Original43native source failures and latest-main wrapper raw failure remain. Frozen producers untouched. Evidence: external candidate43/implementer-contract-fixes; contracts-current-main.xml/log, own-configure-build-receipt.json, strict-inventory-controls.json, cli-engineering-receipt.json and pure gate logs.
