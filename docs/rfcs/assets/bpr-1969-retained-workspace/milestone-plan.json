@@ -1,0 +1,38 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1969-retained-workspace",
+  "scope": {
+    "issues": [
+      "BPR-1969"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "bounded-retained-continuation",
+      "outcome": "A complete retained workspace permits continued tour chat independently of history length; unusable workspaces refuse truthfully with sanitized diagnostics.",
+      "work": [
+        {
+          "issue": "BPR-1969",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4",
+            "AC5",
+            "AC6",
+            "AC7"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Bounded command-shape and real Git refusal checks cover complete workspaces; original sparse missing-object validation remains enforced.",
+        "Composed stub tour side-chat continuation reaches the agent and displays its reply; storage failures retain their classification and refusal diagnostics are sanitized.",
+        "All seven criteria have exact-candidate evidence with scope limits preserved, focused checks and documentation pass, changes are integrated on main and all task commands are stopped."
+      ],
+      "boundary": "Single supplied defect, all seven acceptance criteria. No materialization optimization, budget increase, default shallow policy or installed-agent/platform qualification."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
