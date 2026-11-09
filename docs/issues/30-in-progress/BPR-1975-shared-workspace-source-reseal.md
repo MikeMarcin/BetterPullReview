@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1975"
 title: "Review shared workspace composition source binding"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1974"]
 priority: "P1"
