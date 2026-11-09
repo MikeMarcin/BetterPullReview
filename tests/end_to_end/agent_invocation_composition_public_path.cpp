@@ -1495,12 +1495,14 @@ auto main(int argc, char** argv) -> int
 			}
 			// Return to each chat after other agents/threads used the same files.
 			// Exact per-conversation memory must survive switching and cache eviction.
+			// Finish with an answered stop: the later persistent-process control
+			// needs its current PID, not a historical reply from an evicted process.
 			for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
 				const auto profile = core::entry_profile_id(protocol, protocol == core::agent_protocol::claude_stream_json ? 1U : 2U);
 				if (!window.agent_tab()->choose_agent(profile.value())) {
 					return fail(*application, "tour-native-return-agent");
 				}
-				for (const auto& thread : { core::tour_thread{ core::tour_thread_kind::stop, stop }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ } }) {
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
 					editor->open_side_chat(thread);
 					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-return-ready");
