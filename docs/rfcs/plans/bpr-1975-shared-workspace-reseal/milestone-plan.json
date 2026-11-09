@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1975-shared-workspace-reseal",
+  "scope": {
+    "issues": [
+      "BPR-1975"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "review-shared-workspace-composition",
+      "outcome": "Strict composition source verification covers accepted shared-workspace ownership with unchanged source inventories and other security tripwires.",
+      "work": [
+        {
+          "issue": "BPR-1975",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Review the four pinned composition changes in accepted1974 against its source/critical acceptance and supporting shared catalog/host/Git/fixture contract; independently reproduce ordered142-file manifest and197-file inventory identity.",
+        "Retain actual stale-pin failure, reseal only reviewed manifest/comment via agreement with maintained printer, and pass existing strict positive/adversarial checks preserving full-app/mutation pins.",
+        "Cheap documentation/scoped board/diff gates and intentional main integration/push include accepted1974 and allocator/counters; all own commands finish with no producer mutation, PC use or new native acceptance claim."
+      ],
+      "boundary": "Only tests/end_to_end/application_review_round_trip_composition_contract.cmake plus1975plan/card/checkpoint. Reuse accepted1974 exact functional and independent-critical evidence; no exhaustive build/product re-review."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
