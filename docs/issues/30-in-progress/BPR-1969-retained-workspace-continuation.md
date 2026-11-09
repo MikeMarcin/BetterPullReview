@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1969"
 title: "A continued tour chat turn on a large full-history repository is refused as a private-history failure because the retained workspace's object check overflows its 64 MiB output bound"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: ["BPR-1951"]
 priority: "P1"
