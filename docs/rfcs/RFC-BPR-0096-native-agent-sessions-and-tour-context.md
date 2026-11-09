@@ -1,7 +1,7 @@
 ---
 id: "RFC-BPR-0096"
 title: "Resume native agent sessions and give tour chats their working context"
-status: "Proposed"
+status: "Auto-Verified"
 metadata: {"origin":"owner discussion, 2026-11-08","inspected_revision":"7cda6945a95f3fa2c82b34076fb8d1cf26577174","milestone_plan":{"id":"native-agent-sessions-v1","path":"docs/rfcs/plans/native-agent-sessions-v1/milestone-plan.json"},"mandate_revision":"native-agent-sessions-r1","baseline":"bebea27edf44fd63a7308307227035bf33391c5c"}
 ---
 
@@ -28,26 +28,22 @@ records the exact candidate, reused evidence and superseded availability wizard.
 The immutable source pack retains the originally authored requirements; this live
 section and the amended live milestone exit govern the scoped waiver.
 
-## Required final critical review
+## Required final critical review — completed
 
-After implementation the owner additionally requested “do an an
-rfc-review-critical before we closeout the whole pack when we're done with the
-impl.” Independent critical review of the whole scoped implementation from
-RFC_BASE_SHA `bebea27edf44fd63a7308307227035bf33391c5c` is required before
-terminal RFC/pack acceptance. The initial review at product
-`bf09db0a3c73836587a4d6a0ea6e447b18b79829` found three blocking gaps in
-same-session frame fencing, retained sparse objects and Ready projection.
-[The repair ledger](../verification/RFC-BPR-0096.md#m5-critical-review-repairs--follow-up-review-pending)
-records their reproduction and bounded repair at
-`c66ed2166501da03026301f80f1285800ac56e47`. The follow-up confirmed the
-sparse/Ready fixes and exposed a remaining UUID-less terminal race.
-[Its bounded compatibility repair](../verification/RFC-BPR-0096.md#m5-uuid-less-terminal-correlation--fresh-review-pending),
-`1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2`, keeps UUID-less native turns on separate
-fresh transports with explicit exact-ID resume; uncorrelated connected terminals
-refuse. UUID-bearing streams retain persistent process reuse. Fresh independent
-critical review remains required and pending for this repaired whole-scope
-candidate. The RFC remains Proposed until that review is supplied and reconciled.
-This adds no installed Claude retry and does not alter the scoped waiver above.
+The owner requested “do an an rfc-review-critical before we closeout the whole
+pack when we're done with the impl.” Independent `rfc-reviewer-critical`
+`/root/native_sessions_critical_review` reviewed the scoped implementation from
+RFC_BASE_SHA `bebea27edf44fd63a7308307227035bf33391c5c`. The initial three
+blocking findings and follow-up UUID-less terminal residual were reproduced,
+repaired and independently reconciled. At reviewed revision
+`ad81ec65c085cea6d81959cbf50fa6a65ef65702`, product `1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2`, the final
+report states: “The residual AC05 finding is addressed. No additional actionable
+finding emerged.” Blocking and nonblocking findings are both empty.
+
+The [final acceptance record](../verification/RFC-BPR-0096.md#final-accepted-scope-and-independent-review-reconciliation)
+binds the review coverage, repairs, distinguishing probes, tests and limits.
+The required review is fulfilled. This does not qualify installed Claude or
+change the narrow owner waiver above.
 
 ## Problem and grounded current behavior
 
@@ -117,8 +113,15 @@ completed draft. [The decision record](assets/native-agent-sessions-v1/DECISIONS
 
 Use the selected installed agent or configured wrapper on its existing
 sign-in. For conversational Claude Code, keep a bidirectional `stream-json`
-stdio connection open across turns. A completed answer ends a turn, not the
-process or input stream. For Codex App Server, keep the JSON-RPC connection
+stdio connection open across qualified UUID-bearing turns. A completed answer
+ends a turn, not that qualified process or input stream. An older UUID-less
+terminal cannot establish turn correlation on a reused stream: its sole native
+turn retires the transport before caller release; the next explicit question
+resumes the exact native handle/workspace on a fresh process. This compatibility
+path is not qualified for persistent process reuse and sends nothing on retirement.
+Malformed reported UUIDs and UUID-less already-connected terminals refuse. The
+final review accepted this protocol qualification without treating installed
+Claude as verified. For Codex App Server, keep the JSON-RPC connection
 and send later turns to the same recorded native thread. Where a qualified
 Codex JSONL entry requires a process per turn, use its native resume-by-ID
 facility; show it as native continuation, without claiming process reuse.

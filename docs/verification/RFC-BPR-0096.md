@@ -6,17 +6,15 @@ BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce5
 retains all five milestones. This ledger preserves each milestone's observations
 and the final criterion-by-criterion engineering audit.
 
-Current frontier: the initial independent critical review found three blocking
-counterexamples; repairs at `c66ed2166501da03026301f80f1285800ac56e47` addressed
-the sparse-object and Ready findings, as confirmed by the follow-up review.
-That follow-up exposed a residual AC05 UUID-less terminal race. The bounded
-compatibility repair at `1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2` is verified and awaits
-fresh independent critical review before closeout. BPR-1956 stays In Progress
-and the RFC stays Proposed.
-M4 remains accepted under its narrow
-[installed Claude waiver](#owner-claude-verification-waiver-and-m4-acceptance).
-Earlier milestone sections retain their historical frontiers and actual failures;
-the [M5 section](#m5-accepted-scope-audit-and-critical-review-handoff) is current.
+Current frontier: all five milestones and AC01–AC12 are accepted for mandate
+`native-agent-sessions-r1`, with the narrow installed-Claude owner waiver.
+The required independent critical review is complete at reviewed revision
+`ad81ec65c085cea6d81959cbf50fa6a65ef65702`, product `1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2`,
+with no remaining blocking or nonblocking findings. The
+[final acceptance](#final-accepted-scope-and-independent-review-reconciliation)
+reconciles the actual repairs, evidence, dependencies and preserved limits.
+Earlier milestone sections retain their historical frontiers, failures and
+unreached observations; they do not replace this final disposition.
 
 ## Native Agent-tab frontier
 
@@ -803,3 +801,98 @@ independent critical follow-up remains pending; RFC Proposed/BPR-1956 In Progres
 Current external checkpoint/handoff: `m5-uuidless-checkpoint.json`,
 `m5-uuidless-observation.json` and `m5-uuidless-handoff.md` under the same execution
 root. No terminal acceptance is inferred from these engineering results.
+
+
+## Final accepted scope and independent review reconciliation
+
+Mandate `native-agent-sessions-r1`; milestone `accepted-scope`/BPR-1956.
+Final product `1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2`; reviewed whole-scope revision
+`ad81ec65c085cea6d81959cbf50fa6a65ef65702`; immutable RFC_BASE_SHA
+`bebea27edf44fd63a7308307227035bf33391c5c`. Source and test inputs are unchanged
+in this bookkeeping-only closeout. All five authored groups and all six issue
+slices are accepted; the live RFC and index close as Auto-Verified. The adopted
+plan remains source-only, with no remaining work, dependency or exit omitted.
+Original pack/provenance and historical Done-card verdicts are preserved.
+
+### Independent review receipt and disposition
+
+The owner's required whole-pack critical review was performed by the distinct
+read-only agent `/root/native_sessions_critical_review`, role
+`rfc-reviewer-critical`, model `gpt-6-astra`, effort `xhigh`. The final report was
+delivered through agent message and authoritatively relayed by the coordinator;
+there is no reviewer-written report artifact. This ledger is the durable receipt,
+not a claim that the implementing owner independently reviewed itself.
+
+Final reviewer report at `ad81ec65c085cea6d81959cbf50fa6a65ef65702`:
+“The residual AC05 finding is addressed. No additional actionable finding emerged.”
+Blocking findings: none. Nonblocking findings: none.
+
+| Reviewed finding | Repair and evidence-backed final disposition |
+|---|---|
+| P1 AC05 prior Claude frames completed another turn | `c66ed2166501da03026301f80f1285800ac56e47` retains bounded completed assistant/result identities across turns, including idless/tool-only cases and4096+1 refusal. Follow-up found the UUID-less residual below; the original failure is preserved and is not accepted as passing. |
+| P1 AC03 newly missing required sparse objects were ignored | The same repair records original allowed missing objects under session CAS, then rejects newly missing required blobs/trees, unverifiable old sparse records and required complete-workspace base loss. Independent follow-up verified the original deletion probe after=0, preserving original holes/allowed edits. Real-Git source/linked-clone inventories remain unchanged. |
+| P2 AC08/09 Ready projection disagreed with actual command | Shared core source_readiness now preserves actual ready() eligibility and separately reports missing reaffirmation. Independent follow-up verified projected_ready=0/blockers=1 for the valid imported/remapped case. Author reaffirmation, valid-source invariant matrix and serialized snapshot checks pass. |
+| Residual P1 AC05 UUID-less result could complete a later turn | `1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2` accepts that uncorrelated shape only on a transport's sole native turn and retires before releasing its terminal. The next explicit question exact-resumes the same native handle/workspace in a fresh process; UUID-bearing streams retain persistence. Both unchanged reviewer frame probes now report writes=1/terminals=1/first success only. Real-process tests separately verify three immediate explicit UUID-less turns, identical terminal text, exact handle/workspace and distinct processes. |
+
+The final reviewer traced retirement before complete/caller release, Stopping and
+nonmatching state, submit refusal, worker join/replacement, fresh exact-handle
+resume, and missing/malformed connected UUID refusal. The reviewer independently
+ran protocol-loop, real-process canary and public composition:3/3 passed in43.41s;
+DOCUMENTATION_OK and git diff --check passed. Prior follow-up verified sparse and
+Ready probes. This coverage reconciles the original whole-scope review and all
+follow-ups; it is not an all-platform or installed-Claude qualification.
+All reviewer commands ended and its worktree remained unchanged.
+
+### Final criterion and milestone judgment
+
+The BPR-1956 checklist and acceptance records bind each of AC01–AC12 to the final
+product and relevant direct evidence. M1–M4 evidence and the M5 stale-tour repair
+remain applicable where unchanged. The critical repairs supersede earlier frame,
+sparse-object and Ready claims with their reproduced negative controls and final
+positive/refusal observations. Both accepted-scope exits are fulfilled: the full
+criterion/source-amendment/public-path/documentation audit is complete, and all
+remaining limits are explicit. The added critical-review requirement is supplied
+and reconciled; no required selected-scope acceptance remains pending.
+
+Reused exact engineering evidence includes M5's integration10/10 and final Qt/
+public2/2, two inspected stale-tour offscreen windows, critical-repair focused5,
+retained real-Git course, core-only4/builds, six-unit tidy22/fourteen-file format22,
+and final UUID-less protocol/canary/public3/3 plus three-unit tidy22/seven-file
+format22. Earlier67 documentation-script tests and unchanged resource/privacy/
+authority/installed-Codex courses retain their actual revisions and limits.
+Only the changed closeout bookkeeping receives a fresh documentation/board gate;
+no optional product rerun, new feature, reviewer or approval gate is added.
+
+### Limits preserved at acceptance
+
+The owner amendment `native-agent-sessions-claude-waiver-r1` waives only remaining
+installed Claude verification. Claude2.1.310 remains unverified: authenticated
+HTTP429 weekly-limit failure, zero usable tool activity/answer, and unreached
+native/replay/resume/Stop/explanation/permission/usage remain recorded failures or
+unreached courses. No Claude request/authentication/inference/retry was made in
+this closeout. The stopped superseded availability wizard's acknowledgement
+remains unanswered; it is not a pending pack gate under the owner's amendment.
+
+Qualified UUID-bearing streams preserve persistent native input; UUID-less
+compatibility keeps native handle/workspace continuity through fresh processes,
+not process reuse. That safety qualification and the actual supported Codex
+AppServer/JSONL scope are explicit. Installed Codex0.164.0/macOS arm64 evidence is
+unchanged; no broader Windows/Linux/system appearance, forced compaction, actual
+five-minute expiry,262144-entry exhaustion, original historic all-stops warning
+sequence, universal resource/cost saving or native package/trust result is
+invented. Full bootstrap on every explicit send remains the fallback when framing
+survival is unknown. Automatic retained-tree reclamation is not implemented:
+protected state is preserved and admission refuses when safe cleanup is not
+established; exact-owned ordinary/replay cleanup and retained recovery have their
+own direct evidence. Debug timing is permanently nongating.
+
+Existing release/vault/crash/vulnerability/native-trust/full-removal obligations
+remain separate and unchanged. Profile purge excludes shared updater/registry
+state and is not uninstall. This is acceptance of the authorized RFC scope with
+its recorded owner amendment, not a release approval.
+
+Final exact commits, documentation/board results, completed checkpoint and command
+quiescence are in external
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m5-final-handoff.md`.
+No server, writer, review loop, automatic retry or follow-on milestone is handed
+off; no push is authorized or performed.
