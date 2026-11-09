@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1962"
 title: "Reaction fixture awaits its accepted refresh before reconciliation"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
