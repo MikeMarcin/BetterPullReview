@@ -383,8 +383,10 @@ namespace bpr::core {
 		/// [[BPR-1900]] follow-up. Each part carries the head its run read.
 		void stamp_head(tour_proposal& aProposal, const std::optional<git_commit_oid>& aReadHead, const review_tour& aDraft)
 		{
-			const auto head = aReadHead.value_or(aDraft.ObservedHead.value_or(aDraft.Head));
+			const auto head    = aReadHead.value_or(aDraft.ObservedHead.value_or(aDraft.Head));
+			auto       ordinal = 0U;
 			for (auto& item : aProposal.Items) {
+				item.Ordinal = ++ordinal;
 				if (!item.Head) {
 					item.Head = head;
 				}
@@ -951,10 +953,108 @@ namespace bpr::core {
 		return proposal;
 	}
 
+	auto tour_revision_refusal_name(const tour_revision_refusal aValue) noexcept -> std::string_view
+	{
+		switch (aValue) {
+		case tour_revision_refusal::not_in_tour:       return "not_in_tour";
+		case tour_revision_refusal::named_twice:       return "named_twice";
+		case tour_revision_refusal::too_few_stops:     return "too_few_stops";
+		case tour_revision_refusal::no_text:           return "no_text";
+		case tour_revision_refusal::no_lines:          return "no_lines";
+		case tour_revision_refusal::different_files:   return "different_files";
+		case tour_revision_refusal::confirmed_and_not: return "confirmed_and_not";
+		case tour_revision_refusal::too_far_apart:     return "too_far_apart";
+		case tour_revision_refusal::outside_stop:      return "outside_stop";
+		case tour_revision_refusal::piece_count:       return "piece_count";
+		case tour_revision_refusal::not_every_stop:    return "not_every_stop";
+		case tour_revision_refusal::focus_invalid:     return "focus_invalid";
+		}
+		return "unknown";
+	}
+	auto tour_proposal_part_name(const tour_proposal_part aValue) noexcept -> std::string_view
+	{
+		switch (aValue) {
+		case tour_proposal_part::problem:     return "problem";
+		case tour_proposal_part::solution:    return "solution";
+		case tour_proposal_part::stop:        return "stop";
+		case tour_proposal_part::stop_text:   return "stop_text";
+		case tour_proposal_part::remove_stop: return "remove_stop";
+		case tour_proposal_part::merge_stops: return "merge_stops";
+		case tour_proposal_part::split_stop:  return "split_stop";
+		case tour_proposal_part::reorder:     return "reorder";
+		}
+		return "unknown";
+	}
+	auto propose_tour_changes(const tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aSubmitted, const review_tour& aCurrent, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal
+	{
+		auto       proposal = propose_tour_changes(aRun, aAnswer, aFiles, aSubmitted, aReadHead);
+		const auto changed  = [&aSubmitted, &aCurrent](const tour_stop_id aId) {
+			const auto before = std::ranges::find(aSubmitted.Stops, aId, &tour_stop::Id);
+			const auto now    = std::ranges::find(aCurrent.Stops, aId, &tour_stop::Id);
+			return before == aSubmitted.Stops.end() || now == aCurrent.Stops.end() || *before != *now;
+		};
+		for (auto& item : proposal.Items) {
+			const bool different = aSubmitted.Id != aCurrent.Id || aSubmitted.Owner != aCurrent.Owner
+				|| (item.Part == tour_proposal_part::problem && aSubmitted.Problem != aCurrent.Problem)
+				|| (item.Part == tour_proposal_part::solution && aSubmitted.Solution != aCurrent.Solution)
+				|| (item.StopId.value() && changed(item.StopId)) || std::ranges::any_of(item.Stops, changed);
+			if (different) {
+				item.Decision = tour_proposal_decision::discarded;
+				item.Refusal  = "submitted_target_changed";
+			}
+		}
+		return proposal;
+	}
+	void remember_tour_proposal(tour_agent_session& aSession, const std::optional<tour_proposal>& aBefore, const std::optional<tour_proposal>& aAfter)
+	{
+		const auto append = [&aSession](const tour_proposal_item& aItem, const std::string_view aOutcome, const std::string_view aReason) {
+			auto record    = tour_proposal_record{ };
+			record.Run     = aItem.Run;
+			record.Stop    = aItem.StopId;
+			record.Part    = tour_proposal_part_name(aItem.Part);
+			record.Outcome = aOutcome;
+			record.Reason  = aReason;
+			if (const auto* run = find_tour_run(aSession, aItem.Run)) {
+				record.Conversation = run->Conversation;
+				record.Scope        = run->ConversationScope;
+			}
+			if (aSession.ProposalRecords.size() == 128U) {
+				aSession.ProposalRecords.erase(aSession.ProposalRecords.begin());
+				++aSession.DroppedProposalRecords;
+			}
+			aSession.ProposalRecords.push_back(std::move(record));
+		};
+		const auto same = [](const tour_proposal_item& aLeft, const tour_proposal_item& aRight) { return aLeft.Run == aRight.Run && ((aLeft.Ordinal && aRight.Ordinal) ? aLeft.Ordinal == aRight.Ordinal : (aLeft.Part == aRight.Part && aLeft.StopId == aRight.StopId && aLeft.Stop == aRight.Stop && aLeft.Stops == aRight.Stops && aLeft.Pieces == aRight.Pieces)); };
+		if (aBefore) {
+			for (const auto& item : aBefore->Items) {
+				if (item.Decision != tour_proposal_decision::pending) {
+					continue;
+				}
+				const auto* next  = aAfter ? &aAfter->Items : nullptr;
+				const auto  found = next ? std::ranges::find_if(*next, [&](const auto& aItem) { return same(item, aItem); }) : std::vector<tour_proposal_item>::const_iterator{ };
+				if (!next || found == next->end()) {
+					append(item, "superseded", "replaced_or_removed_from_pending_proposal");
+				} else if (found->Decision != tour_proposal_decision::pending) {
+					append(*found, found->Decision == tour_proposal_decision::accepted ? "accepted" : "discarded", "author_decision");
+				}
+			}
+		}
+		if (aAfter) {
+			for (const auto& item : aAfter->Items) {
+				if (aBefore && std::ranges::any_of(aBefore->Items, [&](const auto& aItem) { return same(item, aItem); })) {
+					continue;
+				}
+				append(item, item.Decision == tour_proposal_decision::pending ? "pending" : "refused", item.Decision == tour_proposal_decision::pending ? "awaiting_author" : "submitted_target_changed");
+			}
+		}
+	}
 	auto tally_of(const tour_proposal& aProposal) -> tour_proposal_tally
 	{
 		auto tally = tour_proposal_tally{ };
 		for (const auto& item : aProposal.Items) {
+			if (!item.Refusal.empty()) {
+				continue;
+			}
 			switch (item.Part) {
 			case tour_proposal_part::problem:     tally.Problem = true; break;
 			case tour_proposal_part::solution:    tally.Solution = true; break;

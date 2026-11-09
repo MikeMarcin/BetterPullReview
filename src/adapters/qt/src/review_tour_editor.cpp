@@ -912,8 +912,8 @@ namespace bpr::qt {
 				}
 				// [[BPR-1930]]. A stop proposed for removal reads struck through.
 				title.setStrikeOut(revision == 1);
-				const auto left  = rect.left() + text_left;
-				auto       right = rect.right() - 10;
+				const auto left = rect.left() + text_left;
+				int        right;
 				// [[BPR-1925]] v002. Every stop's chat toggle at the right of its
 				// title, as the Problem's and the Solution's sit in their
 				// headers: pressed while its chat is in the column. A click on
@@ -2448,7 +2448,7 @@ namespace bpr::qt {
 				button->setToolTip(agent_unavailable_reason());
 			}
 		};
-		AgentLabels.push_back(label);
+		AgentLabels.emplace_back(label);
 		// [[BPR-1914]] v003, owner 2026-11-06: "On each part I can pop open a
 		// side chat". [[BPR-1925]] v002, owner on v001: "The mockup had the
 		// chat button on the right side of each of the sections and I prefer
@@ -4122,8 +4122,9 @@ namespace bpr::qt {
 			item->setData(Qt::DisplayRole, stop.Preparation == core::tour_preparation::suggested ? tr("Suggested: %1").arg(title) : title);
 			item->setData(number_role, QString::number(row + 1));
 			item->setData(preparation_role, static_cast<int>(stop.Preparation));
-			const auto* const range = stop.Original ? &*stop.Original : stop.Mapped ? &*stop.Mapped
-																					: nullptr;
+			const auto* const range = stop.Mapping == core::tour_mapping::author_selected && stop.Mapped ? &*stop.Mapped : stop.Original ? &*stop.Original
+				: stop.Mapped                                                                                                            ? &*stop.Mapped
+																																		 : nullptr;
 			auto              where = QString{ };
 			auto              path  = QString{ };
 			if (range != nullptr) {
@@ -4137,7 +4138,7 @@ namespace bpr::qt {
 			item->setData(source_role, where);
 			auto words = QString::fromStdString(stop.Body).simplified();
 			item->setData(excerpt_role, words.left(240));
-			item->setData(attention_role, stop.Mapping != core::tour_mapping::exact_original && stop.Mapping != core::tour_mapping::unchanged_material && stop.Mapping != core::tour_mapping::unavailable);
+			item->setData(attention_role, core::project_tour_stop_status(*Shown.Draft, stop).SourceAttention);
 			item->setData(current_role, false);
 			const auto spoken = tr("%1. %2. %3").arg(row + 1).arg(title, state);
 			item->setData(Qt::AccessibleTextRole, spoken);
@@ -4262,14 +4263,15 @@ namespace bpr::qt {
 				Source->setText(Source->text() + tr("\nAuthor question: ") + QString::fromStdString(suggestion.Question));
 			}
 		}
-		if (stop->Mapping != core::tour_mapping::exact_original && stop->Mapping != core::tour_mapping::unchanged_material) {
-			Source->setText(Source->text() + tr("\nSource needs attention; original destination is retained."));
+		const auto sourceStatus = core::project_tour_stop_status(*Shown.Draft, *stop);
+		if (sourceStatus.SourceAttention) {
+			Source->setText(Source->text() + tr("\nSource needs attention; retained source evidence is shown above."));
 		}
 		// [[BPR-1593]]. The source in the code's figures; what it means, on
 		// request, and said only when something needs doing.
 		{
 			const auto details   = Source->text();
-			const auto attention = details.contains(tr("Source needs attention"));
+			const auto attention = sourceStatus.SourceAttention;
 			Source->setToolTip(details);
 			auto chip = Outline->item(row)->data(source_role).toString();
 			if (chip.isEmpty()) {
@@ -4281,10 +4283,7 @@ namespace bpr::qt {
 			// [[BPR-1936]]. Lines the agent proposed are a place to look until
 			// the author confirms them; publishing needs them confirmed. Said
 			// here, by the lines, rather than by a button that cannot act.
-			auto probe  = *stop;
-			probe.Title = "-";
-			probe.Body  = "-";
-			if (!core::ready(probe)) {
+			if (!sourceStatus.ConfirmedLines) {
 				chip += QStringLiteral("  ·  ") + tr("Lines not confirmed");
 				Source->setToolTip(details + tr("\n\nTo confirm them: Show in code, select the lines, then edit the stop and choose Use selected lines."));
 			}

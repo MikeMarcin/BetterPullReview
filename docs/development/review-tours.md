@@ -63,6 +63,22 @@ Neither action deletes the agent's own transcript. Native conversations retain
 previously sent context, even after its selection is removed; New session begins
 without that older memory and receives the current selected context.
 
+Each explicit tour message carries BPR's versioned guide and a complete current
+snapshot. The snapshot separates confirmed lines, preparation **Ready**, and
+publication eligibility, and includes pending proposals and recorded decisions.
+**Source needs attention** describes changed, ambiguous, missing or unavailable
+source evidence. **Lines not confirmed** means there is no confirmed source
+binding; accepting an explanation does not supply one. To confirm a proposed
+place, choose **Show in code**, select its exact lines, edit the stop, and choose
+**Use selected lines**. A confirmed author-selected replacement alone needs no
+attention warning. Editing text or reordering preserves its confirmed binding.
+
+After a head change, an answer must distinguish the revision its workspace read
+from the observed head. Missing evidence stays unknown. Refreshing the tour sends
+no question. Context updates accompany an explicit send, and the complete request
+is refused if the required snapshot exceeds the 160 KiB carrier. Typed questions
+have a separate 16 KiB limit.
+
 Drafts stay on this computer; see
 [Storage and diagnostics](storage-and-diagnostics.md). To work with tours from
 a terminal, see the [tour CLI](tour-cli.md).

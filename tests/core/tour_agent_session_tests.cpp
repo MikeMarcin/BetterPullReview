@@ -634,10 +634,43 @@ namespace {
 		expect(!ready(stop) && reaffirm_need(stop) == tour_reaffirm_need::confirmed_lines, "it is not Ready, and reaffirming it waits for its lines");
 		expect(reaffirm_need(tour_stop{ .Title = "t" }) == tour_reaffirm_need::explanation && reaffirm_need(tour_stop{ .Body = "b" }) == tour_reaffirm_need::title, "a missing title or explanation is named first");
 	}
+	void captured_targets_and_decisions()
+	{
+		auto tour = review_tour{ };
+		tour.Id   = tour_draft_id{ 1 };
+		tour.Stops.push_back(tour_stop{ .Id = tour_stop_id{ 4 }, .Title = "four", .Body = "original four" });
+		tour.Stops.push_back(tour_stop{ .Id = tour_stop_id{ 8 }, .Title = "eight", .Body = "original eight" });
+		auto current = tour;
+		std::ranges::reverse(current.Stops);
+		auto answer = tour_ask_answer{ };
+		answer.StopTexts.push_back({ 1U, "new four" });
+		const auto proposal = propose_tour_changes(tour_agent_run_id{ 3 }, answer, { }, tour, current, std::nullopt);
+		expect(proposal.Items.size() == 1U && proposal.Items.front().StopId == tour_stop_id{ 4 } && acceptable(proposal.Items.front()), "returned display number resolves against submitted stable identity after reorder");
+		current.Stops.back().Body = "new manual four";
+		const auto stale          = propose_tour_changes(tour_agent_run_id{ 3 }, answer, { }, tour, current, std::nullopt);
+		expect(stale.Items.size() == 1U && !acceptable(stale.Items.front()), "newer manual target changes refuse delayed proposal");
+		auto session          = tour_agent_session{ };
+		auto run              = tour_agent_run{ };
+		run.Id                = tour_agent_run_id{ 3 };
+		run.Conversation      = "origin-generation";
+		run.ConversationScope = "origin-thread";
+		session.Runs.push_back(run);
+		remember_tour_proposal(session, std::nullopt, proposal);
+		auto accepted = proposal;
+		expect(decide_tour_proposal(accepted, 0U, tour_proposal_decision::accepted, "author edit"), "author can accept captured proposal");
+		remember_tour_proposal(session, proposal, accepted);
+		expect(session.ProposalRecords.size() == 2U && session.ProposalRecords.back().Outcome == "accepted" && session.ProposalRecords.back().Conversation == "origin-generation", "accepted outcome retains original run/generation, including author edits");
+		remember_tour_proposal(session, proposal, std::nullopt);
+		expect(session.ProposalRecords.back().Outcome == "superseded", "replaced pending proposal is distinct from acceptance");
+		remember_tour_proposal(session, std::nullopt, stale);
+		expect(session.ProposalRecords.back().Outcome == "refused", "stale target refusal is distinct from author discard");
+	}
+
 }
 
 int main()
 {
+	captured_targets_and_decisions();
 	revision();
 	focus_and_feedback();
 	reset();

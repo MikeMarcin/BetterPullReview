@@ -27,6 +27,7 @@ add_library(
         src/remembered_connection_host.cpp
         src/writing_hooks.cpp
         src/tour_agent_drafting.cpp
+        src/tour_agent_context.cpp
         src/tour_agent_conversation.cpp
         src/tour_writing_style.cpp
         src/tour_chat_prompts.cpp

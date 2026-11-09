@@ -200,7 +200,7 @@ namespace bpr::core {
 	};
 	[[nodiscard]] auto           active_tour_thread(const review_tour&, const tour_thread&) noexcept -> bool;
 	inline constexpr std::size_t maximum_tour_passage_bytes  = 4096U;
-	inline constexpr std::size_t maximum_tour_question_bytes = 4096U;
+	inline constexpr std::size_t maximum_tour_question_bytes = 16U * 1024U;
 	inline constexpr std::size_t maximum_tour_reply_bytes    = 16U * 1024U;
 
 	/// \brief [[BPR-1937]], owner 2026-11-08: asked for 8 stops, the tour
@@ -243,6 +243,7 @@ namespace bpr::core {
 		/// A focus too long or not valid text.
 		focus_invalid,
 	};
+	[[nodiscard]] auto tour_revision_refusal_name(tour_revision_refusal) noexcept -> std::string_view;
 	struct tour_refused_part
 	{
 		tour_revision_kind Kind = tour_revision_kind::merge;
@@ -275,6 +276,7 @@ namespace bpr::core {
 	struct tour_agent_run
 	{
 		tour_agent_run_id                  Id;
+		std::vector<tour_stop_id>          SubmittedStops;
 		std::string                        ConversationScope;
 		std::string                        Conversation;
 		tour_agent_request                 Request = tour_agent_request::draft_tour;
@@ -313,13 +315,23 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_tour_transcript_entries = 200U;
 	inline constexpr std::size_t maximum_tour_transcript_bytes   = 2048U;
 
+	/// \brief Bounded decision provenance, separate from the currently pending proposal.
+	struct tour_proposal_record
+	{
+		tour_agent_run_id Run;
+		std::string       Conversation, Scope, Outcome, Part, Reason;
+		tour_stop_id      Stop;
+		auto              operator==(const tour_proposal_record&) const -> bool = default;
+	};
 	/// \brief Bounded in-memory tour runs and BPR focus. The host retains native
 	/// conversation generations and projects only each selected agent/thread here.
 	/// `tour_conversation_of` supplies prose only for explicitly replayed callers.
 	struct tour_agent_session
 	{
-		std::vector<tour_agent_run> Runs;
-		std::uint64_t               LastRun = 0U;
+		std::vector<tour_proposal_record> ProposalRecords;
+		std::size_t                       DroppedProposalRecords = 0U;
+		std::vector<tour_agent_run>       Runs;
+		std::uint64_t                     LastRun = 0U;
 		/// [[BPR-1930]], owner 2026-11-07: "the tour should focus on <this
 		/// particular part of the PR>". The focus the author accepted, given
 		/// to every later draft and chat turn of this tour until cleared.
@@ -469,6 +481,7 @@ namespace bpr::core {
 		/// [[BPR-1930]]. The tour's stops in a new order (`Stops`).
 		reorder,
 	};
+	[[nodiscard]] auto           tour_proposal_part_name(tour_proposal_part) noexcept -> std::string_view;
 	inline constexpr std::size_t tour_proposal_part_count = 8U;
 	static_assert(static_cast<std::size_t>(tour_proposal_part::reorder) + 1U == tour_proposal_part_count, "tour_proposal_part_count must cover every part");
 	/// \brief [[BPR-1930]]. Whether a part changes the tour's structure:
@@ -511,6 +524,8 @@ namespace bpr::core {
 		/// a stop made from this part is at that head, and affirmed there, so
 		/// it asks to be reaffirmed only once the pull request's head moves on.
 		std::optional<git_commit_oid> Head;
+		std::uint32_t                 Ordinal = 0U;
+		std::string                   Refusal;
 		auto                          operator==(const tour_proposal_item&) const -> bool = default;
 	};
 	/// \brief A proposed stop the core left out, and why.
@@ -550,6 +565,8 @@ namespace bpr::core {
 		std::string Focus;
 		auto        operator==(const tour_proposal&) const -> bool = default;
 	};
+	/// \brief Records decisions and supersession before replacing the pending proposal.
+	void remember_tour_proposal(tour_agent_session&, const std::optional<tour_proposal>& aBefore, const std::optional<tour_proposal>& aAfter);
 	/// \brief The proposal an answer makes against the draft as it is now:
 	/// Problem, Solution, then the anchored stops: those on a change first,
 	/// then those near one, then those off it, each group in the agent's
@@ -711,6 +728,8 @@ namespace bpr::core {
 	/// once and differs from the tour's; a focus is not blank. A part that
 	/// fails is kept in `Refused` with why ([[BPR-1937]]). Every part carries
 	/// `aReadHead` as `propose_tour`'s do.
+	/// \brief Resolves numbers through the submitted draft and refuses changed targets.
+	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id, const tour_ask_answer&, const std::vector<tour_anchor_file>&, const review_tour& aSubmitted, const review_tour& aCurrent, const std::optional<git_commit_oid>& aReadHead) -> tour_proposal;
 	[[nodiscard]] auto propose_tour_changes(tour_agent_run_id aRun, const tour_ask_answer& aAnswer, const std::vector<tour_anchor_file>& aFiles, const review_tour& aDraft, const std::optional<git_commit_oid>& aReadHead = std::nullopt) -> tour_proposal;
 	/// \brief What a proposal holds, counted.
 	[[nodiscard]] auto tally_of(const tour_proposal& aProposal) -> tour_proposal_tally;

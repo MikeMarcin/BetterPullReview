@@ -1,5 +1,6 @@
 #include "../support/review_tour_fixture.hpp"
 #include "bpr/core/review_tour_destination.hpp"
+#include <algorithm>
 #include <cstdlib>
 #include <iostream>
 using namespace bpr;
@@ -14,6 +15,34 @@ namespace {
 }
 int main()
 {
+	{
+		auto  tour  = tests::review_tour_fixture();
+		auto& stop  = tour.Stops.front();
+		auto  state = core::project_tour_stop_status(tour, stop);
+		expect(state.ConfirmedLines && !state.SourceAttention, "confirmed original has no source warning");
+		stop.Mapped  = stop.Original;
+		stop.Mapping = core::tour_mapping::author_selected;
+		state        = core::project_tour_stop_status(tour, stop);
+		expect(state.ConfirmedLines && !state.SourceAttention, "confirmed author replacement alone has no attention warning");
+		stop.Body.clear();
+		state = core::project_tour_stop_status(tour, stop);
+		expect(state.ConfirmedLines && !state.SourceAttention && !state.ReadyEligible, "missing explanation blocks Ready without unconfirming lines");
+		stop.Body       = "Revised";
+		stop.Suggestion = core::tour_suggestion{ };
+		state           = core::project_tour_stop_status(tour, stop);
+		expect(state.ConfirmedLines && !state.ReadyEligible && !state.PublicationReasons.empty(), "generated visitation and preparation are separate from line confirmation");
+		stop.Mapping = core::tour_mapping::ambiguous;
+		state        = core::project_tour_stop_status(tour, stop);
+		expect(state.ConfirmedLines && state.SourceAttention && std::ranges::find(state.SourceReasons, core::tour_status_reason::source_ambiguous) != state.SourceReasons.end(), "ambiguous mapping keeps original confirmation and names its attention reason");
+		stop.Original.reset();
+		stop.Mapped.reset();
+		stop.Destination = core::destination_of(*tests::review_tour_fixture().Stops.front().Original);
+		stop.Mapping     = core::tour_mapping::unavailable;
+		state            = core::project_tour_stop_status(tour, stop);
+		expect(!state.ConfirmedLines && state.SourceAttention, "a proposed path and range alone never confirm lines");
+		const auto reasons = core::tour_publication_reasons(tour, { }, false);
+		expect(std::ranges::find(reasons, core::tour_status_reason::destination_unknown) != reasons.end(), "unknown operation evidence remains an explicit blocker");
+	}
 	using support        = core::tour_operation_support;
 	using subject        = core::tour_subject;
 	using representation = core::tour_representation;

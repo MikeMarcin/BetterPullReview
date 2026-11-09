@@ -291,6 +291,15 @@ An explicit tour writing action may replace one captured local editor span as
 one native undo transaction. It grants no publication authority. Outline entries
 have no generated bodies and require visible per-stop author completion.
 
+Tour chats receive a versioned BPR guide and coherent source/preparation/proposal
+facts on each explicit send. Shared core decisions distinguish confirmed source
+bindings from Ready and publication eligibility; Qt and prompt serialization do
+not infer confirmation from a destination path. Confirmed author-selected sources
+alone do not produce an attention warning. Text and ordering preserve bindings;
+new/split/retargeted sources use their actual evidence. Display numbers returned
+by an agent resolve through the submitted snapshot's stable stop IDs, with changed
+targets refused. No agent flag grants source confirmation, Ready or publication.
+
 ## Editing the description
 
 The pull request's author can edit its description (body only) in Overview:

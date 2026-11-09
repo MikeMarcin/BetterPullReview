@@ -723,8 +723,19 @@ namespace {
 			}
 			++turn;
 			auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
+			if (line.find("explain-source-status") != std::string::npos) {
+				const auto hasFact   = [&line](const std::string& aFact) {const auto once=json_escape(aFact);return line.find(once)!=std::string::npos || line.find(json_escape(once))!=std::string::npos; };
+				const bool bootstrap = line.find("bpr.tour-context.v1") != std::string::npos && line.find("bpr.tour-guide.v1") != std::string::npos;
+				answer               = (bootstrap && hasFact("\"confirmed_lines\":true") && hasFact("\"source_attention\":false") ? "current-source-confirmed no-source-warning" : "missing-current-source-context") + std::string{ " process=" } + process;
+				if (hasFact("\"outcome\":\"accepted\"") && line.find("Source-preserving update from fixture.") != std::string::npos) {
+					answer = "accepted-update-confirmed process=" + process;
+				}
+			}
 			if (line.find("bpr.tour-ask.v1") != std::string::npos || line.find("bpr.tour-revise.v1") != std::string::npos) {
 				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
+				if (line.find("update-source-explanation") != std::string::npos) {
+					answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"Proposed an explanation update.\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[{\"stop\":1,\"explanation\":\"Source-preserving update from fixture.\"}]}");
+				}
 			} else if (line.find("bpr.tour-draft.v1") != std::string::npos) {
 				answer = json_escape("{\"schema\":\"bpr.tour-draft.v1\",\"problem\":\"Native drafted problem\",\"solution\":\"Native drafted solution\",\"stops\":[]}");
 			}

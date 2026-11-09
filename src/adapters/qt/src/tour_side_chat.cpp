@@ -354,7 +354,7 @@ namespace bpr::qt {
 		NewSession = new quiet_tool_button{ this };
 		NewSession->setText(tr("New session"));
 		NewSession->setObjectName(QStringLiteral("tourChatNewSession"));
-		NewSession->setToolTip(tr("Keep this conversation in history and start fresh. Accepted tour work stays."));
+		NewSession->setToolTip(tr("Keep this conversation in history and start fresh. Accepted tour work stays. Context sent earlier remains in the old conversation even after its selection is removed."));
 		sessionRow->addWidget(Sessions);
 		sessionRow->addStretch();
 		sessionRow->addWidget(NewSession);
@@ -1488,7 +1488,9 @@ namespace bpr::qt {
 					Accented.emplace_back(title);
 					lines->addWidget(title);
 					if (item.Decision != core::tour_proposal_decision::pending) {
-						lines->addWidget(quiet(small(words(item.Decision == core::tour_proposal_decision::accepted ? tr("Accepted into the tour.") : tr("Discarded."), card))));
+						lines->addWidget(quiet(small(words(!item.Refusal.empty() ? tr("Refused: the target changed since this question was sent.") : item.Decision == core::tour_proposal_decision::accepted ? tr("Accepted into the tour.")
+																																																			 : tr("Discarded."),
+														   card))));
 						column->addWidget(card);
 						continue;
 					}

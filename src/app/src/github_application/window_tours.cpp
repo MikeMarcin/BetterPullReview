@@ -800,6 +800,14 @@ namespace bpr::app {
 				found->Conversation      = TourSelectedConversations[TourRunScope];
 			}
 		}
+		TourSubmittedDraft = TourHost && TourHost->presentation().Draft ? std::optional{ *TourHost->presentation().Draft } : std::nullopt;
+		if (TourSubmittedDraft) {
+			if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
+				for (const auto& stop : TourSubmittedDraft->Stops) {
+					found->SubmittedStops.push_back(stop.Id);
+				}
+			}
+		}
 		TourRun        = *run;
 		TourRunStarted = std::chrono::steady_clock::now();
 		TourInvocation.reset();
@@ -1021,6 +1029,12 @@ namespace bpr::app {
 		}
 		const auto key                 = tour_native_agent() + ":" + aView.Scope;
 		TourSelectedConversations[key] = aView.Selected;
+		if (const auto found = std::ranges::find(aView.Entries, aView.Selected, &application::native_agent_history_entry::Id); found != aView.Entries.end()) {
+			TourConversationBindings[key] = found->Binding;
+		} else {
+			TourConversationBindings.erase(key);
+		}
+
 		if (!aView.Selected.empty() && std::ranges::none_of(TourAgent.Runs, [&](const auto& aRun) { return aRun.ConversationScope == key && aRun.Conversation == aView.Selected; })) {
 			for (const auto& saved : aView.Turns) {
 				auto turn              = core::tour_agent_run{ };
@@ -1076,6 +1090,51 @@ namespace bpr::app {
 		TourConversationDraft = draft->Id;
 	}
 
+	auto github_application::implementation::capture_tour_agent_context(const core::tour_thread& aThread) const -> application::tour_agent_context
+	{
+		auto context      = application::tour_agent_context{ };
+		context.Session   = &TourAgent;
+		context.Attention = current_tour_attention();
+		// Selection is captured independently of visibility; visibility only gates Ready.
+		context.SelectedSource = selected_tour_source();
+		if (EpochHost && EpochHost->state().AcceptedRevision) {
+			context.ObservedBase = EpochHost->state().AcceptedRevision->Base;
+			context.ObservedHead = EpochHost->state().AcceptedRevision->Head;
+		}
+		const auto binding = TourConversationBindings.find(tour_native_agent() + ":" + tour_native_scope(aThread));
+		if (binding != TourConversationBindings.end()) {
+			context.PinnedBase = binding->second.BaseOid;
+			context.PinnedHead = binding->second.HeadOid;
+		} else if (TourHistory.Scope == tour_native_scope(aThread) && !TourHistory.Loading && TourHistory.Failure.empty() && TourHistory.Selected.empty()) {
+			context.PinnedBase = context.ObservedBase;
+			context.PinnedHead = context.ObservedHead;
+		}
+
+		if (TourHost) {
+			const auto shown      = TourHost->presentation();
+			context.Saving        = shown.Saving;
+			context.SaveFailed    = shown.Failure.has_value();
+			context.StoreConflict = static_cast<bool>(shown.Conflict);
+			for (const auto& destination : shown.Destinations) {
+				context.Destinations.push_back(destination.Plan);
+			}
+		}
+		if (TourPublication) {
+			const auto shown           = TourPublication->presentation();
+			context.PublicationAllowed = shown.Publish;
+			context.PublicationStatus  = shown.Status;
+			context.BodyEdits          = TourPublication->operation_support();
+			context.Compatibility      = Window->tour_editor()->compatibility_publication();
+			context.Destinations.clear();
+			if (TourHost && TourHost->presentation().Draft) {
+				for (const auto& stop : TourHost->presentation().Draft->Stops) {
+					const auto source = core::publication_source(stop);
+					context.Destinations.push_back(source ? core::plan_tour_destination(core::publication_observation(*source, context.ObservedHead.value_or(TourHost->presentation().Draft->Head), context.ObservedBase.value_or(TourHost->presentation().Draft->Base), stop.Body, context.Compatibility, context.BodyEdits == core::tour_operation_support::supported)) : core::tour_destination_plan{ });
+				}
+			}
+		}
+		return context;
+	}
 	/// [[BPR-1914]]. A turn of the tour conversation: a question about the
 	/// tour or a selected passage, or a change asked for in words. It runs
 	/// read-only in the workspace, as drafting does, and is given the
@@ -1138,7 +1197,7 @@ namespace bpr::app {
 		// directive is part of the prompt the bound below is checked on.
 		const auto texts  = std::array{ std::string_view{ question } };
 		auto       skills = prepare_skill_run(SkillLibrary, texts);
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive);
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive, capture_tour_agent_context(aThread));
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
@@ -1166,7 +1225,7 @@ namespace bpr::app {
 		auto       proposal = std::optional<core::tour_proposal>{ };
 		if (draft) {
 			auto files = tour_anchor_files(aResult);
-			proposal   = core::propose_tour_changes(aRun, *answer, files, *draft, TourWorkspaceHead);
+			proposal   = core::propose_tour_changes(aRun, *answer, files, TourSubmittedDraft.value_or(*draft), *draft, TourWorkspaceHead);
 			// [[BPR-1914]] v003. An Update proposes only its chat's part.
 			if (const auto* const asked = core::find_tour_run(TourAgent, aRun); asked != nullptr && asked->Update) {
 				proposal = core::keep_thread_part(std::move(*proposal), asked->Thread);
@@ -1195,7 +1254,9 @@ namespace bpr::app {
 		const auto refused = proposal->Refused.size();
 		const auto items   = !proposal->Items.empty();
 		if (items || proposal->RevisesWaitingStops || proposal->RevisesStructure) {
-			TourProposal = core::merge_tour_proposal(TourProposal, std::move(*proposal));
+			const auto merged = core::merge_tour_proposal(TourProposal, std::move(*proposal));
+			core::remember_tour_proposal(TourAgent, TourProposal, merged);
+			TourProposal = merged;
 		}
 		if (refused > 0U) {
 			// [[BPR-1937]] AC2. A refused part is said, with why, on the tour
@@ -1423,11 +1484,12 @@ namespace bpr::app {
 			files.push_back({ file.Path, change, file.HeadHunks });
 		}
 		adopt_tour_conversation();
-		const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus);
+		const auto prompt = application::build_tour_draft_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, TourAgent.Focus, { }, capture_tour_agent_context());
 		if (!prompt) {
 			Window->tour_editor()->show_tour_draft_failure(QStringLiteral("This pull request is too large to describe to the agent in one request."));
 			return;
 		}
+		core::remember_tour_proposal(TourAgent, TourProposal, std::nullopt);
 		TourProposal.reset();
 		TourDraftPending = true;
 		Window->tour_editor()->show_writing_notice(tour_reading_notice());
@@ -1458,8 +1520,10 @@ namespace bpr::app {
 		}
 		// [[BPR-1900]], owner 2026-11-06: stops strongly prefer the change;
 		// where it is comes from each file's patch.
-		auto files      = tour_anchor_files(aResult);
-		TourProposal    = core::propose_tour(*aRun, *answer, files, *draft, TourWorkspaceHead);
+		auto       files    = tour_anchor_files(aResult);
+		const auto proposed = core::propose_tour(*aRun, *answer, files, *draft, TourWorkspaceHead);
+		core::remember_tour_proposal(TourAgent, TourProposal, proposed);
+		TourProposal    = proposed;
 		TourAnchorFiles = std::move(files);
 		// [[BPR-1900]] owner look v002. Stops left out of the proposal are
 		// kept in the run's transcript, so nothing the agent said is lost.
@@ -1523,7 +1587,12 @@ namespace bpr::app {
 				command.Text = item.Text;
 			}
 			TourHost->dispatch(command);
+			if (!TourHost->presentation().Draft || TourHost->presentation().Refusal != core::tour_refusal::none) {
+				Window->tour_editor()->show_writing_notice(QStringLiteral("This proposal could not be applied. Nothing changed."));
+				return;
+			}
 		}
+		core::remember_tour_proposal(TourAgent, TourProposal, decided);
 		TourProposal = std::move(decided);
 		if (std::ranges::none_of(TourProposal->Items, [](const core::tour_proposal_item& aItem) { return aItem.Decision == core::tour_proposal_decision::pending; })) {
 			TourProposal.reset();

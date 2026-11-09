@@ -1035,7 +1035,7 @@ auto main(int argc, char** argv) -> int
 						return fail(*application, "tour-native-history-loaded");
 					}
 					const auto prior = chat->turn_count();
-					chat->composer()->setPlainText(QStringLiteral("Review this tour part"));
+					chat->composer()->setPlainText(thread.Kind == core::tour_thread_kind::stop ? QStringLiteral("explain-source-status") : QStringLiteral("Review this tour part"));
 					if (!wait_until([&] { return chat->send_button()->isVisible() && chat->send_button()->isEnabled(); })) {
 						return fail(*application, "tour-native-composer-ready");
 					}
@@ -1044,6 +1044,10 @@ auto main(int argc, char** argv) -> int
 						return fail(*application, "tour-native-first-answer", chat->chat_text().toStdString());
 					}
 					const auto first = chat->reply(chat->turn_count() - 1U)->original_body();
+					if (thread.Kind == core::tour_thread_kind::stop && first.find("current-source-confirmed no-source-warning") == std::string::npos && first.find("accepted-update-confirmed") == std::string::npos) {
+						return fail(*application, "tour-native-authoritative-source", first);
+					}
+
 					if (!scopedProcesses.insert(first.substr(first.find("process="))).second) {
 						return fail(*application, "tour-native-thread-process-isolation");
 					}
@@ -1057,6 +1061,35 @@ auto main(int argc, char** argv) -> int
 						return fail(*application, "tour-native-process-continuity");
 					}
 					auto expectedSaved = prior + 2U;
+					if (thread.Kind == core::tour_thread_kind::stop) {
+						const auto confirmedBefore = editor->shown().Draft->Stops.front();
+						chat->composer()->setPlainText(QStringLiteral("update-source-explanation"));
+						chat->send_button()->click();
+						if (!wait_until([&] { return chat->new_session_button()->isEnabled() && chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept")); }, extended_agent_budget)) {
+							return fail(*application, "tour-native-update-proposal", chat->chat_text().toStdString());
+						}
+						chat->findChild<QPushButton*>(QStringLiteral("tourSideChatAccept"))->click();
+						if (!wait_until([&] { return editor->shown().Draft->Stops.front().Body == "Source-preserving update from fixture." && !editor->shown().Saving; })) {
+							return fail(*application, "tour-native-update-accepted");
+						}
+						const auto& after = editor->shown().Draft->Stops.front();
+						if (after.Original != confirmedBefore.Original || after.Mapped != confirmedBefore.Mapped || after.Mapping != confirmedBefore.Mapping) {
+							return fail(*application, "tour-native-update-keeps-confirmation");
+						}
+						editor->go_to_stop(stop);
+						const auto* label = editor->findChild<QLabel*>(QStringLiteral("tourStopSource"));
+						if (!label || label->text().contains(QStringLiteral("Lines not confirmed")) || label->text().contains(QStringLiteral("Source needs attention"))) {
+							return fail(*application, "tour-native-update-source-label");
+						}
+						chat->composer()->setPlainText(QStringLiteral("explain-source-status"));
+						chat->send_button()->click();
+						if (!wait_until([&] { return chat->turn_count() > prior + 3U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("accepted-update-confirmed") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+							return fail(*application, "tour-native-current-accepted-snapshot", chat->chat_text().toStdString());
+						}
+						expectedSaved += 2U;
+					}
+					const auto acceptedBeforeNew = *editor->shown().Draft;
+
 					if (thread.Kind == core::tour_thread_kind::tour) {
 						if (!wait_until([&] { return editor->tour_agent()->draft_button()->isVisible() && editor->tour_agent()->draft_button()->isEnabled(); })) {
 							return fail(*application, "tour-native-draft-ready");
@@ -1094,7 +1127,7 @@ auto main(int argc, char** argv) -> int
 					if (!wait_until([&] { return chat->turn_count() >= prior + 2U && !chat->history_button()->property("loading").toBool(); })) {
 						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
 					}
-					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != original.Stops) {
+					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != acceptedBeforeNew.Stops) {
 						return fail(*application, "tour-native-new-preserves-accepted");
 					}
 				}
