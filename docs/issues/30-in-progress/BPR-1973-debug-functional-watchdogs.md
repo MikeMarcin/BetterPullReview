@@ -30,3 +30,10 @@ The owner permanently omits dedicated Debug timings and permits a larger bounded
 Debug functional watchdog. Actual hangs and semantic failures still require
 investigation. The build43 15-second cutoffs and unreached assertions remain
 raw diagnostic evidence; no passing result is inferred from a timeout.
+
+## Verification frontier
+
+AC1 and AC2 focused engineering proof passes; AC3 main integration remains
+pending the BPR-1971 source owner's handback. The [durable checkpoint](../_checkpoints/BPR-1973/handoff.md)
+binds the exact graphs, helper refusals, raw old cutoffs and native limitations.
+No native execution pass or completion margin is inferred.

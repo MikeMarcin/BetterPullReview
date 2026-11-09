@@ -134,6 +134,19 @@ child, including failure/refusal phases. The reserve covers work outside the
 run budgets; the remaining quarter belongs to the harness. A child-process
 backstop must also exceed that child's run budget.
 
+Under the standing owner policy, dedicated Debug timing courses are omitted,
+while functional checks remain. An optional positive integer `DEBUG_TIMEOUT`
+may lengthen a row's Debug-only outer watchdog; the helper refuses a value
+that shortens `TIMEOUT`. Its paired-budget invariant still uses the stricter
+original `TIMEOUT`, and every other configuration retains that limit.
+[[BPR-1973]] gives seventeen short functional application rows a bounded
+120-second Debug watchdog: their optimized watchdogs stay at 15 seconds and
+their application budgets stay at 8000 ms. The old Windows Debug cutoffs at
+15.07–15.32 seconds remain failed clock evidence with unreached checks, not
+measured completion or passing coverage. The larger watchdog permits semantic
+verification; it does not establish native completion margin, waive an actual
+hang or functional failure, or change optimized timing requirements.
+
 Every automated terminal prints `PUBLIC_PATH_BUDGET:expired=… budget_ms=…
 elapsed_ms=… stage_ticks=…`, including successful runs. Elapsed time includes
 shutdown; `expired=1` specifically means the course's own clock expired before
