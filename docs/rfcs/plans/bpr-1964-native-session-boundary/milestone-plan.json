@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1964-native-session-boundary",
+  "scope": {
+    "issues": [
+      "BPR-1964"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "measure-and-register",
+      "outcome": "The native-session Windows row has actual current-image containment evidence and an honest measured registration on main.",
+      "work": [
+        {
+          "issue": "BPR-1964",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Current invocation/canary/sandbox images are built in an independent nonshared source root under the approved native configuration; frozen producer source/configuration remain unchanged.",
+        "The original six-course wrapper is exercised uncontained and contained with exact source/image/environment/native context and original limits; every actual failure and unreached check remains explicit.",
+        "Only the measured case registration and registry pin change; focused checks, documentation, main integration and quiescent command handback are complete."
+      ],
+      "boundary": "BPR-1964 engineering containment measurement and main registration only; no final native qualification or publication."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
