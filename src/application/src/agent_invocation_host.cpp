@@ -875,8 +875,8 @@ namespace bpr::application {
 						const auto why    = inspected.error().Code == agent_workspace_failure::unavailable ? inspected.error().Reason : reason::retained_unavailable;
 						const auto detail = why == reason::inspection_output_limit ? "The retained workspace check reached its output limit. No question was sent; its transcript and files are kept."
 							: why == reason::inspection_timed_out                  ? "The retained workspace check reached its time limit. No question was sent; its transcript and files are kept."
-							: why == reason::retained_objects_missing              ? "The retained workspace is missing a required Git commit or tree. Start a new session to continue; its transcript and files are kept."
-																				   : "The retained native workspace or required Git objects could not be verified. Start a new session to continue; its transcript and files are kept.";
+							: why == reason::retained_objects_missing              ? "The retained workspace is missing a required Git commit or tree. No question was sent; its transcript and files are kept."
+																				   : "The retained native workspace or required Git objects could not be verified. No question was sent; its transcript and files are kept.";
 						refuseNative(detail, operation_failure_of(agent_workspace_error{ agent_workspace_failure::unavailable, { }, why }),
 									 agent_run_outcome::workspace_unavailable, why);
 						return;

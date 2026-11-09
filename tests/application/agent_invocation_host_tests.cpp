@@ -2194,7 +2194,8 @@ namespace {
 				   "missing retained objects refuse without replacing or deleting changed workspace state");
 			expect(result.Outcome == application::agent_run_outcome::workspace_unavailable && result.WorkspaceReason == why
 					   && result.RefusalReason == result.StandardError && result.RefusalReason.find("workspace") != std::string::npos
-					   && result.RefusalReason.find("PRIVATE_CANARY") == std::string::npos,
+					   && result.RefusalReason.find("PRIVATE_CANARY") == std::string::npos
+					   && result.RefusalReason.find("Start a new session") == std::string::npos,
 				   "retained inspection refuses with a safe visible workspace explanation, never private storage or raw Git text");
 			expect(test.Log.Events.size() == 1U && test.Log.Events.front().Operation == application::diagnostic_operation::agent_workspace
 					   && test.Log.Events.front().Outcome == application::diagnostic_outcome::failed
