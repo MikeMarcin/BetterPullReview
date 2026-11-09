@@ -7,6 +7,27 @@ metadata: {"origin":"owner discussion, 2026-11-08","inspected_revision":"7cda694
 
 # Resume native agent sessions and give tour chats their working context
 
+## Owner acceptance amendment, 2026-11-08
+
+The owner's actual instruction is: “the claude is out of usage, just keep going
+without verifying it works”. Amendment `native-agent-sessions-claude-waiver-r1`
+under mandate `native-agent-sessions-r1` waives the remaining installed Claude
+verification for progression and acceptance of this pack. This includes native
+and replay turns, exact-ID resume, interruption/Stop, explanations, permission-
+qualified continuation and equivalent Release usage wherever installed Claude
+evidence is called for below or in `qualified-continuation`.
+
+This is an acceptance amendment, not an observation or a passing Claude course.
+Claude Code 2.1.310 remains unverified: the last authenticated native attempt
+failed with HTTP429 and a weekly-limit refusal; the remaining courses were not
+completed. Preserve those failures and the missing usage measurements. The
+implementation contract, functional/fixture evidence, installed Codex requirements
+and every unrelated acceptance requirement remain unchanged. The
+[verification ledger](../verification/RFC-BPR-0096.md#owner-claude-verification-waiver-and-m4-acceptance)
+records the exact candidate, reused evidence and superseded availability wizard.
+The immutable source pack retains the originally authored requirements; this live
+section and the amended live milestone exit govern the scoped waiver.
+
 ## Problem and grounded current behavior
 
 The owner wants the session behavior of the official Claude Code VS Code

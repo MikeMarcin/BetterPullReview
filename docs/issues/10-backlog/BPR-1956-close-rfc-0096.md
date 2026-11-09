@@ -62,29 +62,39 @@ was preserved; it changed no product inputs. BPR-1952 finish commit `1fae95d03e2
 BPR-1953 is Ready. M2 build/test/render/static-analysis commands have completed; no attended candidate, review server, task worktree, remote
 mutation or push exists.
 
-Current frontier after the qualified-continuation handback: BPR-1953 and
-BPR-1954 are Done at products `a89b0fa88f5a8e4c0eae8495ab8a44da8f7377e8` and
-`2de6a3336a02b7aae5a62700d17b620eff98451d`. BPR-1955's available-scope product
-`f98e14cd604a251a32e8cfeb9c33a5b0614a489a` has passing Codex, public-path,
-resource and operator-documentation evidence. Installed Claude Code 2.1.310
-remains required: the fresh retry after the owner's actual availability
-acknowledgement returned authenticated HTTP429, an exhausted weekly allowance
-reported to reset November 10 at 00:00 America/Los_Angeles. It produced no
-usable answer or tool activity. The driver stopped at the first failure;
-no broader native or usage acceptance is inferred.
+Current frontier after the owner acceptance amendment: BPR-1953 and BPR-1954
+are Done at products `a89b0fa88f5a8e4c0eae8495ab8a44da8f7377e8` and
+`2de6a3336a02b7aae5a62700d17b620eff98451d`. BPR-1955's unchanged product
+`f98e14cd604a251a32e8cfeb9c33a5b0614a489a` has passing installed Codex,
+public-path, resource, usage and operator-documentation evidence.
 
-The [ledger](../../verification/RFC-BPR-0096.md#post-handback-claude-retry) binds
-the unchanged Release binary and exact failed receipt. A fresh short wizard,
-session `94eafb5d-7d90-4146-9de5-f8802d8bade4`, awaits actual availability at
-consumed revision1 in external state
+The owner's actual instruction is: “the claude is out of usage, just keep going
+without verifying it works”. Acceptance amendment
+`native-agent-sessions-claude-waiver-r1` under mandate
+`native-agent-sessions-r1` waives only the remaining installed Claude verification
+for pack progression and acceptance. The
+[live RFC](../../rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md#owner-acceptance-amendment-2026-11-08)
+and amended M4 plan exit bind the changed requirement. Installed Claude remains
+unverified: the fresh authenticated HTTP429 weekly-limit failure, no usable
+answer/tool activity, and unreached native/replay/resume/Stop/explanation/usage
+courses remain recorded in the
+[ledger](../../verification/RFC-BPR-0096.md#owner-claude-verification-waiver-and-m4-acceptance).
+No fixture result or waiver is represented as a passing installed Claude course.
+All unrelated requirements and prior evidence retain their meaning.
+
+The weekly-availability wizard `94eafb5d-7d90-4146-9de5-f8802d8bade4` is
+superseded by that amendment. Its host was stopped through the helper at consumed
+revision1; the human acknowledgement and following observation remain unanswered.
+History is retained in external state
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-weekly-pnwqk34v/state`.
-Its loopback server alone remains running. BPR-1955 is Parked; the next
-engineering round remains `qualified-continuation`. This closeout card is
-ineligible until that milestone's remaining installed Claude evidence passes.
-Current recovery lives in
-`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-resume-handoff.md`.
-The full criterion-by-criterion closeout below remains the accepted-scope
-owner's work; historical native, release and security limits are preserved.
+No review server, retry or inference remains active.
+
+M4 is accepted under the amended requirements. After BPR-1955 finishes this card
+is dependency-eligible for Ready and belongs to the fresh `accepted-scope` owner.
+Recovery is
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-waiver-handoff.md`.
+The full criterion-by-criterion closeout below remains that owner's work; the RFC
+stays Proposed and historical native, release and security limits are preserved.
 
 ## Closeout checklist
 

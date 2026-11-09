@@ -6,6 +6,11 @@ BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce5
 retains all five milestones. This ledger records scoped functional engineering
 for the native Agent-tab, tour/history and tour-context milestones; it does not accept the whole RFC or later tour/history/replay work.
 
+Current frontier: M4 `qualified-continuation` is accepted under the scoped
+[owner Claude verification waiver](#owner-claude-verification-waiver-and-m4-acceptance).
+The following milestone sections retain their historical observations; BPR-1956
+still owns the final full-RFC acceptance audit.
+
 ## Native Agent-tab frontier
 
 The host keeps native ownership separately from the 128-entry invocation catalog.
@@ -330,7 +335,7 @@ BPR-1955 and qualified-continuation remain active for installed/Release qualific
 BPR-1954 product candidate: `2de6a3336a02b7aae5a62700d17b620eff98451d` (tested source promoted unchanged).
 
 
-## Installed qualification and operator reconciliation (BPR-1955, partial)
+## Installed qualification and operator reconciliation (BPR-1955, amended acceptance)
 
 The exact installed scope is macOS 26.6.2 / Darwin arm64, Qt 6.12.0, tests-enabled
 optimized Release, Codex CLI 0.164.0 and Claude Code 2.1.310. No Windows/Linux native
@@ -346,7 +351,7 @@ read commands. It is not a product Python dependency or an OS sandbox.
 | Codex App Server explicit replay, same three logical questions | Pass after the EOF correction below; three new fixture workspaces/processes and three fixture read commands. Every turn carries full current BPR context and bounded saved prose only. |
 | Codex JSONL native, three questions | Pass by exact handle with one workspace and a process per turn. No persistent-process claim. |
 | Codex App Server explicit interruption | Pass: READY, an authorized long turn cancelled on its first streamed output, then exact-ID reconnect answers only the explicit AFTER_INTERRUPTION question. The stopped question is not automatically continued or resent. This later course reports model `gpt-6.1-sol`. |
-| Claude Code 2.1.310 | Pending. Earlier attempts were signed out. A later normal and exact-materialized-environment CLI status reports loggedIn=true/authMethod=claude.ai, including USER. Actual read-only native, replay and interruption attempts fail before a usable answer. The fresh post-owner-handback native retry also returns authenticated HTTP429 and identifies an exhausted weekly allowance, with a reported reset November 10 at 00:00 America/Los_Angeles. This is an availability refusal; no native acceptance or usage credit is assigned. |
+| Claude Code 2.1.310 | Unverified; remaining installed verification is waived by the owner amendment below. Earlier attempts were signed out. A later normal and exact-materialized-environment CLI status reports loggedIn=true/authMethod=claude.ai, including USER. Actual read-only native, replay and interruption attempts fail before a usable answer. The fresh post-owner-handback native retry also returns authenticated HTTP429 and identifies an exhausted weekly allowance, with a reported reset November 10 at 00:00 America/Los_Angeles. This is an availability refusal; no native acceptance or usage credit is assigned. |
 
 The installed Codex answers were inspected. They distinguish unconfirmed Stop 1
 from Stop 2 with the identical path/range confirmed but unfinished prose, name
@@ -434,13 +439,15 @@ profile purge excludes shared updater/registry state and is not uninstall.
 
 Live operator/product/architecture contracts and RFC0011/0012/0092 carry the scoped
 RFC0096 amendment while historical Done-card verdicts and immutable source packs
-remain unchanged. BPR-1955 and qualified-continuation stay pending for actual
-Claude request availability and subsequent native qualification. The full RFC
-remains Proposed; BPR-1956 is not dependency-eligible.
+remain unchanged. At the original handoff BPR-1955 and qualified-continuation
+stayed pending for Claude availability and native qualification, with BPR-1956
+ineligible. The owner amendment below supersedes that acceptance wait; it does
+not change the failed observations. The full RFC remains Proposed for the
+separate accepted-scope audit.
 
-Availability wizard session `e5378f2a-8c51-4e65-81e2-c08ac10cb8a9` consumed the owner's acknowledgement at revision2 and recorded the actual failed retry at revision3. The procedure is complete and its server stopped; product acceptance remains pending. Its external state is `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-availability-fepjjjg6/state`. Authenticated URLs are retained only in external runtime state.
+Availability wizard session `e5378f2a-8c51-4e65-81e2-c08ac10cb8a9` consumed the owner's acknowledgement at revision2 and recorded the actual failed retry at revision3. The procedure is complete and its server stopped; product acceptance was still pending at that handoff. Its external state is `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-availability-fepjjjg6/state`. Authenticated URLs are retained only in external runtime state.
 
-BPR-1955 available-scope product candidate `f98e14cd604a251a32e8cfeb9c33a5b0614a489a`; the source tested above was promoted unchanged. Required Claude acceptance remains pending.
+BPR-1955 available-scope product candidate `f98e14cd604a251a32e8cfeb9c33a5b0614a489a`; the source tested above was promoted unchanged. At that handoff required Claude acceptance remained pending.
 
 ### Post-handback Claude retry
 
@@ -471,12 +478,67 @@ unchanged; it remains a cooperative comparison, not an OS sandbox. The failed
 driver and its native child have ended. Unchanged Codex, public-path,
 resource, format/tidy and documentation-script evidence above is reused.
 
-Fresh weekly-availability wizard session
-`94eafb5d-7d90-4146-9de5-f8802d8bade4` serves external state
+At the retry handoff, fresh weekly-availability wizard session
+`94eafb5d-7d90-4146-9de5-f8802d8bade4` served external state
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-weekly-pnwqk34v/state`
-at consumed revision1. Its next step is the owner's actual availability
+at consumed revision1. Its next step was the owner's actual availability
 acknowledgement, followed by agent-captured qualification. No automatic retry or
 scheduled inference is armed. Acknowledgement alone does not accept behavior.
-This session's loopback server is the only handed-off command. BPR-1955 remains
-Parked for human-review; qualified-continuation is not accepted and BPR-1956
-remains dependency-ineligible. The RFC stays Proposed.
+At that handoff this session's loopback server was the only handed-off command;
+BPR-1955 was Parked and qualified-continuation remained unaccepted. The following
+owner amendment supersedes that wait without completing the unanswered steps.
+
+
+### Owner Claude verification waiver and M4 acceptance
+
+The owner's actual instruction on 2026-11-08 is: “the claude is out of usage,
+just keep going without verifying it works”. This instruction is recorded
+separately from runtime observations as acceptance amendment
+`native-agent-sessions-claude-waiver-r1`, under the unchanged implementation
+mandate `native-agent-sessions-r1`. It waives the remaining installed Claude
+native/replay, exact-ID resume, interruption/Stop, explanation, requested-
+permission continuation and equivalent Release usage verification for this
+pack's progression and acceptance. No Claude API, authentication or inference
+request was made in this amendment round.
+
+Claude remains unverified. The authenticated HTTP429 weekly-limit failure, zero
+tool events, no usable answer and all unreached courses above retain their actual
+meaning; they are not passes. Earlier signed-out and failed attempts remain in
+the retained receipts. Functional fixture, installed Codex, resource, public-path
+and documentation requirements remain unchanged. Product candidate
+`f98e14cd604a251a32e8cfeb9c33a5b0614a489a` and Release binary SHA-256
+`d09aba96eb271f63b7847aab8bbeae84e68ec38b4e5dc0ca36d3a07ff2f89bd0` are unchanged.
+
+The live RFC states the waiver and the live plan amends only M4's outcome and
+second exit. The immutable source pack, original `source.json` provenance,
+historical Done-card verdicts and prior acceptance receipts are preserved.
+`MILESTONES.md` is regenerated from the valid live plan; its inherited content
+was an invalid-plan diagnostic rather than a usable generated view.
+
+| Amended M4 obligation/exit | Judgment and evidence |
+|---|---|
+| BPR-1954 and exit1: explicit replay/New session, provenance and permission/submission fences | Accepted unchanged: product `2de6a3336a02b7aae5a62700d17b620eff98451d`, public6, core/host/SQLite and negative-control evidence above. |
+| BPR-1955: installed Codex, composition, resource, usage and operator documentation | Accepted with the scoped Claude waiver: unchanged passing AppServer native/replay/exact-resume/Stop, JSONL, explanation, resource5/public6 and seven rasters; actual Release metrics above. Documentation is checked after this amendment. |
+| Amended exit2: actual available-scope evidence plus explicit Claude limitation | Accepted on those observations and the owner's acceptance amendment. The amendment is applied; installed Claude is not reported as passing. |
+
+Wizard session `94eafb5d-7d90-4146-9de5-f8802d8bade4`, external state
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-claude-weekly-pnwqk34v/state`,
+is superseded. Status since cursor1 contained no new events. The host was stopped
+with `wizard.py stop`; its acknowledgement and following qualification remain
+unanswered, with state/history intact. The schema has no supersede operation, so
+the lifecycle disposition is recorded separately in external
+`m4-waiver-wizard-disposition.json`; no human answer was fabricated. There is no
+remaining review server, scheduled retry or automatic inference.
+
+M4 `qualified-continuation` is accepted under the amended requirements. BPR-1955
+can finish and BPR-1956 can become Ready for a fresh `accepted-scope` owner. This
+does not close the RFC: the final AC01–AC12 audit remains with BPR-1956. Existing
+Windows/Linux/system-appearance, forced-compaction, entry-count boundary, actual
+five-minute expiry, original all-stops sequence and release/vault/crash/security
+limitations remain explicit. Safe preserve/refuse remains the retained-workspace
+policy; automatic reclamation is not claimed. Debug timing remains nongating.
+
+Recovery for this amendment is external
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-waiver-handoff.md`,
+with the renewed exact M4 checkpoint, owner-amendment record and acceptance
+receipt beside it. No product or visual change was made in this round.

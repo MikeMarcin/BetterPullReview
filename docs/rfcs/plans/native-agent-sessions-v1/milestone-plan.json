@@ -67,7 +67,7 @@
     },
     {
       "id": "qualified-continuation",
-      "outcome": "Native continuity, legacy migration and explicit replay fallback are qualified and documented for the selected installed agents.",
+      "outcome": "Native continuity, legacy migration and explicit replay fallback are qualified and documented for the selected installed scope, with remaining installed Claude verification explicitly waived by owner amendment native-agent-sessions-claude-waiver-r1.",
       "work": [
         {
           "issue": "BPR-1954"
@@ -81,7 +81,7 @@
       ],
       "exit_criteria": [
         "Unsupported backends and unavailable or legacy native state offer explicitly identified replay generations or New session, without identity reassignment, permission bypass, silent downgrade or duplicate submission.",
-        "Installed Claude/Codex protocols, composed controls, crash/storage/idle boundaries, retained-context privacy, Release reuse/cost observations and operator disclosures have actual scoped evidence."
+        "Installed Codex protocols, composed controls, crash/storage/idle boundaries, retained-context privacy, Release reuse/cost observations and operator disclosures have actual scoped evidence. Owner amendment native-agent-sessions-claude-waiver-r1 waives only remaining installed Claude verification; Claude behavior and usage remain unverified and its actual failures are preserved."
       ],
       "boundary": "The proposed behavior is reviewable with honest runtime support and cost claims; unrelated native qualification is not inferred."
     },

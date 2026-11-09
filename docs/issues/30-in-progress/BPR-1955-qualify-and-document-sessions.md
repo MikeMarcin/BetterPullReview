@@ -40,8 +40,10 @@ verification for this pack's progression and acceptance. It does not turn the
 recorded HTTP429 weekly-limit failures into a pass. Installed Claude native,
 replay, exact-ID resume, interruption/Stop, explanation and equivalent usage
 remain unverified; implementation, functional fixture, installed Codex and all
-unrelated criteria are unchanged. The live RFC and plan will record this scoped
-acceptance change before completion.
+unrelated criteria are unchanged. The live RFC and plan record this scoped acceptance change. The historical
+AC10-Claude pending receipt is retained externally in
+`m4-resume-1955-acceptance.json`; completion applies the owner amendment, not a
+passing Claude observation.
 
 Availability wizard `94eafb5d-7d90-4146-9de5-f8802d8bade4` is superseded by
 this amendment. Its host was stopped through the wizard helper at consumed
