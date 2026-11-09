@@ -367,7 +367,7 @@ repository-required frontend-design skill before changing those surfaces.
 This proposal changes adopted session/persistence and warning contracts.
 [The proposed amendment](assets/native-agent-sessions-v1/proposed-session-amendment.md) identifies the exact
 live sources and the scoped adoption recorded in [LIVE_IMPORT](assets/native-agent-sessions-v1.LIVE_IMPORT.md). The
-[portable plan](plans/native-agent-sessions-v1/milestone-plan.json), [proposed cards](../issues/20-ready/BPR-1951-native-agent-tab-sessions.md) and
+[portable plan](plans/native-agent-sessions-v1/milestone-plan.json), [proposed cards](../issues/30-in-progress/BPR-1951-native-agent-tab-sessions.md) and
 [implementation entrypoint](assets/native-agent-sessions-v1/IMPLEMENTATION_PROMPT.md) are draft artifacts.
 The owner authorized implementation on 2026-11-08 under mandate `native-agent-sessions-r1`. The retained draft remains immutable provenance; the live plan and cards own execution state.
 
