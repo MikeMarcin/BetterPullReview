@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1971"
+  ],
+  "reserve_for": "windows-native-diagnosis",
+  "purpose": "Diagnose and correct native transcript replay unsupported continuation launch admission failure",
+  "created": "2026-11-09T17:44:53.526370+00:00",
+  "base": "aa7d2395cab140f7317162dce986d9477425b572"
+}
