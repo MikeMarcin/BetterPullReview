@@ -29,9 +29,10 @@ namespace bpr::qt {
 		struct line_input_state
 		{
 			std::optional<core::source_line_ref> CachedLine;
-			QString                              CachedText;
-			std::uint32_t                        Line   = 0U;
-			std::uint32_t                        Column = 0U;
+			std::optional<QString>               CachedText;
+			bool                                 CachedUnified = false;
+			std::uint32_t                        Line          = 0U;
+			std::uint32_t                        Column        = 0U;
 		};
 
 		[[nodiscard]] auto positive_decimal(const QStringView aText) -> std::optional<std::uint32_t>
@@ -192,19 +193,23 @@ namespace bpr::qt {
 				: !number || *number > count ? tr("Enter a line from 1 to %1, optionally followed by :column.").arg(count)
 											 : QString{ };
 			if (explanation.isEmpty() && colon >= 0) {
-				const auto target = core::source_line_ref{ material->Alignment.Digest, side->checkedId() == 0 ? core::diff_side::left : core::diff_side::right, *number - 1U };
-				if (input->CachedLine != target) {
-					const auto& document = target.Side == core::diff_side::left ? *material->LeftDocument : *material->RightDocument;
-					const auto  span     = document.Lines[target.Line].Content;
-					input->CachedText    = QString::fromUtf8(reinterpret_cast<const char*>(document.Bytes.data() + span.Begin), static_cast<qsizetype>(span.End - span.Begin));
-					input->CachedLine    = target;
+				const auto target  = core::source_line_ref{ material->Alignment.Digest, side->checkedId() == 0 ? core::diff_side::left : core::diff_side::right, *number - 1U };
+				const auto unified = ComparisonSurface->one_pane_enabled();
+				if (input->CachedLine != target || input->CachedUnified != unified) {
+					input->CachedText    = ComparisonSurface->source_line_text(target);
+					input->CachedLine    = input->CachedText ? std::optional{ target } : std::nullopt;
+					input->CachedUnified = unified;
 				}
-				const auto maximum = input->CachedText.size() + 1;
-				range->setText(tr("Lines 1–%1 · columns 1–%2").arg(count).arg(maximum));
-				if (!columnNumber || *columnNumber > maximum) {
-					explanation = tr("Enter a column from 1 to %1.").arg(maximum);
-				} else if (!valid_source_column(input->CachedText, *columnNumber - 1U)) {
-					explanation = tr("Column %1 is inside a Unicode character.").arg(*columnNumber);
+				if (!input->CachedText) {
+					explanation = tr("The source line is unavailable. Close this dialog and open Go to line again.");
+				} else {
+					const auto maximum = input->CachedText->size() + 1;
+					range->setText(tr("Lines 1–%1 · columns 1–%2").arg(count).arg(maximum));
+					if (!columnNumber || *columnNumber > maximum) {
+						explanation = tr("Enter a column from 1 to %1.").arg(maximum);
+					} else if (!valid_source_column(*input->CachedText, *columnNumber - 1U)) {
+						explanation = tr("Column %1 is inside a Unicode character.").arg(*columnNumber);
+					}
 				}
 			}
 			const auto valid = explanation.isEmpty();

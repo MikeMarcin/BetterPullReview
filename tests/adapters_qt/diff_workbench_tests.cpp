@@ -1861,7 +1861,7 @@ namespace {
 	void test_go_to_line_columns()
 	{
 		const auto longLine  = std::string(400, 'x');
-		const auto diff      = computed("base\n\t𝄞x\r\n\n" + longLine + "\n", "new first\nextra\n\t𝄞x\r\n\n" + longLine + "\n", { }, 76U);
+		const auto diff      = computed("\uFEFFbase\n\t𝄞x\r\n\n" + longLine + "\n\uFEFFz\n", "\uFEFFnew first\nextra\n\t𝄞x\r\n\n" + longLine + "\n\uFEFFz\n", { }, 76U);
 		auto       workbench = qt::diff_workbench{ };
 		workbench.resize(900, 500);
 		workbench.show();
@@ -1895,6 +1895,7 @@ namespace {
 						   "inside-surrogate and out-of-range columns refuse before changing selection, cursor or scroll");
 				}
 				target.Line = line + 1U;
+				expect(workbench.source_line_text(target) == std::optional{ QString{ } }, "empty native line text is available, distinct from an invalid target");
 				expect(workbench.go_to_source_line(target, 0U) && editor->textCursor().block().text().isEmpty()
 						   && editor->textCursor().positionInBlock() == 0 && !workbench.go_to_source_line(target, 1U),
 					   "an empty source line has exactly one caret position");
@@ -1905,8 +1906,25 @@ namespace {
 						   && editor->cursorRect().left() >= 0 && editor->cursorRect().right() <= editor->viewport()->width(),
 					   "exact long-line caret is horizontally visible");
 				expect(workbench.go_to_source_line(target) && editor->textCursor().positionInBlock() == 0 && editor->cursorRect().left() >= 0, "plain line navigation returns to the visible line start");
+				target.Line             = line + 3U;
+				const auto beforeText   = workbench.selection();
+				const auto beforeCursor = editor->textCursor();
+				const auto beforeTop    = editor->verticalScrollBar()->value();
+				const auto nativeText   = unified ? QStringLiteral("z") : QStringLiteral("\uFEFFz");
+				expect(workbench.source_line_text(target) == std::optional{ nativeText }
+						   && workbench.selection() == beforeText && editor->textCursor() == beforeCursor && editor->verticalScrollBar()->value() == beforeTop,
+					   "reading a later BOM line uses the exact native presentation without navigating");
+				expect(workbench.go_to_source_line(target, static_cast<std::uint32_t>(nativeText.size()))
+						   && editor->textCursor().positionInBlock() == nativeText.size(),
+					   "native BOM line text and caret validation share the same end-of-line position");
+				target.Line = 0U;
+				expect(workbench.source_line_text(target) == std::optional{ side == core::diff_side::left ? QStringLiteral("base") : QStringLiteral("new first") }, "a document-initial BOM is absent from the native line");
+				target.Line = 999U;
+				expect(!workbench.source_line_text(target), "out-of-range native line text is unavailable");
 			}
 		}
+		workbench.set_loading(context(diff, 2U, 2U));
+		expect(!workbench.source_line_text({ diff.Alignment.Digest, core::diff_side::right, 0U }), "loading replacement refuses retired native line text");
 	}
 
 	void test_semantic_selection_callback_tracks_both_panes_and_clear()

@@ -144,6 +144,45 @@ namespace go_to_line_course {
 		expect(raster.save(root + QLatin1Char('/') + aName + QStringLiteral(".png")), "full production-window Go to line raster saved");
 	}
 
+	template <typename TWait>
+	void check_bom_columns(qt::workbench_window& aWindow, TWait aWait)
+	{
+		auto& surface = *aWindow.comparison_surface();
+		for (const bool unified : { false, true }) {
+			if (surface.one_pane_enabled() != unified) {
+				aWindow.one_pane_action()->trigger();
+			}
+			aWait([&] { return surface.one_pane_enabled() == unified && !surface.geometry_pending(); }, "BOM initial presentation ready");
+			for (const auto sourceSide : { core::diff_side::left, core::diff_side::right }) {
+				// A later BOM is retained by the split document but stripped by
+				// the existing unified line decoder. Validate the native caret text.
+				auto* bom = dialog(aWindow, false);
+				side(*bom, sourceSide == core::diff_side::left ? 0 : 1)->click();
+				for (const bool mode : { unified, !unified, unified }) {
+					if (surface.one_pane_enabled() != mode) {
+						aWindow.one_pane_action()->trigger();
+					}
+					aWait([&] { return surface.one_pane_enabled() == mode && !surface.geometry_pending(); }, "BOM presentation geometry ready with dialog open");
+					number(*bom)->setText(mode ? QStringLiteral("502:2") : QStringLiteral("502:3"));
+					expect(go(*bom)->isEnabled() && bom->findChild<QLabel*>(QStringLiteral("goToLineRange"))->text().contains(mode ? QStringLiteral("columns 1–2") : QStringLiteral("columns 1–3")),
+						   "BOM column limit matches the current native presentation and refreshes its cached line after a presentation change");
+				}
+				tests::window_system_key(*bom, Qt::Key_Return);
+				QApplication::processEvents();
+				aWindow.activateWindow();
+				aWait([&] { return !surface.geometry_pending(); }, "BOM caret navigation geometry ready");
+				auto* const bomEditor = unified ? surface.unified_pane() : sourceSide == core::diff_side::left ? surface.left_pane()
+																											   : surface.right_pane();
+				const auto  bomTarget = core::source_line_ref{ surface.current_result()->Alignment.Digest, sourceSide, 501U };
+				expect(surface.selection() && surface.selection()->PreferredLine == bomTarget
+						   && bomEditor->textCursor().block().text() == (unified ? QStringLiteral("x") : QStringLiteral("\uFEFFx"))
+						   && bomEditor->textCursor().positionInBlock() == (unified ? 1 : 2),
+					   "dialog submits the exact end-of-line caret on the later BOM source line in either presentation");
+				QApplication::sendPostedEvents(nullptr, QEvent::DeferredDelete);
+			}
+		}
+	}
+
 	template <typename TWait, typename TOpen>
 	void run(app::github_application& aApplication, TWait aWait, TOpen aOpen)
 	{
@@ -282,6 +321,7 @@ namespace go_to_line_course {
 			window.line_numbers_action()->trigger();
 			aWait([&] { return window.line_numbers_action()->isChecked() && !surface.geometry_pending(); }, "line numbers restored through profile command");
 		}
+		check_bom_columns(window, aWait);
 		const auto hostAfter = app::detail::github_application_fixture_access::diff_work_evidence(aApplication);
 		expect(hostAfter.FixtureDiffHelperInvocations == hostBefore.FixtureDiffHelperInvocations
 				   && hostAfter.PreparedRemoteBlobs == hostBefore.PreparedRemoteBlobs && hostAfter.PreparedRemoteBatches == hostBefore.PreparedRemoteBatches,
@@ -290,7 +330,7 @@ namespace go_to_line_course {
 		surface.focus_source(core::diff_side::right);
 		tests::window_system_key(window, Qt::Key_Return);
 		aWait([&] { return window.conversation_panel()->cards()->draft_editor() && window.conversation_panel()->cards()->draft_editor()->isVisible(); }, "source Return opens draft on exact jumped line");
-		expect(window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Anchor.Line == 500U
+		expect(window.review_editor()->shown_draft() && window.review_editor()->shown_draft()->Anchor.Line == 501U
 				   && window.review_editor()->shown_draft()->Anchor.Side == core::diff_side::right,
 			   "composed draft targets Go to line's exact source anchor");
 		auto* editor = window.conversation_panel()->cards()->draft_editor();

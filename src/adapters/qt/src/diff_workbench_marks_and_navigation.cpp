@@ -404,25 +404,38 @@ namespace bpr::qt {
 		return core::source_line_ref{ CurrentResult->Alignment.Digest, side, line };
 	}
 
-	auto diff_workbench::go_to_source_line(const core::source_line_ref aLine, const std::uint32_t aColumn) -> bool
+	auto diff_workbench::source_line_block(const core::source_line_ref aLine) const -> QTextBlock
 	{
 		if (!CurrentResult || !SemanticIndex || aLine.Comparison != CurrentResult->Alignment.Digest
 			|| !core::select_line(*SemanticIndex, aLine)) {
-			return false;
+			return { };
 		}
 		const auto row = OnePaneEnabled ? unified_row_for(aLine.Side, aLine.Line) : std::optional{ aLine.Line };
 		if (!row) {
-			return false;
+			return { };
 		}
 		auto* const editor = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
 																							: Right;
-		const auto  block  = editor->document()->findBlockByNumber(static_cast<int>(*row));
+		return editor->document()->findBlockByNumber(static_cast<int>(*row));
+	}
+
+	auto diff_workbench::source_line_text(const core::source_line_ref aLine) const -> std::optional<QString>
+	{
+		const auto block = source_line_block(aLine);
+		return block.isValid() ? std::optional{ block.text() } : std::nullopt;
+	}
+
+	auto diff_workbench::go_to_source_line(const core::source_line_ref aLine, const std::uint32_t aColumn) -> bool
+	{
+		const auto block = source_line_block(aLine);
 		if (!block.isValid() || !valid_source_column(block.text(), aColumn)) {
 			return false;
 		}
-		const auto material = CurrentResult;
-		const auto context  = CurrentContext;
-		const auto shared   = Controller->position();
+		auto* const editor   = OnePaneEnabled ? Unified : aLine.Side == core::diff_side::left ? Left
+																							  : Right;
+		const auto  material = CurrentResult;
+		const auto  context  = CurrentContext;
+		const auto  shared   = Controller->position();
 		for (auto* const source : { Left, Right, Unified }) {
 			const auto current = static_cast<std::uint32_t>(source->textCursor().blockNumber());
 			place_line_cursor(source, current, current);

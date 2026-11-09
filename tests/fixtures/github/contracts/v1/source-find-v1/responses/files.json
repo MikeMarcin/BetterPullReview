@@ -32,7 +32,7 @@
 		"deletions": 2,
 		"filename": "src/find.cpp",
 		"patch": "@@ -1,5 +1,5 @@\n-earlier only\n-removed bridge\n+later only\n+added bridge\n // unchanged source row 0000\n // unchanged source row 0001\n // unchanged source row 0002",
-		"sha": "fda10921dcc4224606ae83cfa23494f7070d230e",
+		"sha": "8e0f9c3724fd7ad27a235d1b358e9cd48f2b4f2d",
 		"status": "modified"
 	},
 	{
