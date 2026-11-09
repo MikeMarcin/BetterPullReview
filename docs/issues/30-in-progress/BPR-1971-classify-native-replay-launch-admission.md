@@ -62,3 +62,26 @@ normally rebuilt after each diagnostic, with protected hashes unchanged.
 The [durable handoff](../_checkpoints/BPR-1971/handoff.md) binds all outcomes,
 source/image evidence and pending AC3 classification. No fourth attempt,
 source correction or waiver is authorized by this result.
+
+## Approved controlled amendment r3
+
+R2's maximum three attempts are exhausted without a captured failed admission.
+The coordinator separately authorizes a temporary four-file counterexample:
+existing Workbench queue hold and optional actual legacy Loaded test access
+in two existing fixture files, the same invocation TU, and reviewed 142-file
+content binding only. It arms after all earlier setup/replay checks, before
+custom selection; controlled prerequisites distinguish native-ready from
+legacy-not-loaded. Both five-second control waits fit within the existing
+30-second hold, with a pre-send bound below 15 seconds. Release occurs on
+every failure path and immediately after the one send's snapshot, before
+logging, original outcome wait or shutdown; a local RAII guard backs it up.
+
+The reviewed exact patch SHA is
+`3f0018368743611094eef5210de2064e8e7403457b13539b906602d745d35b3e`.
+Source export and original/diagnostic hashes are sealed externally. Existing
+normal provider/app-source audit and format 22 pass; only the reviewed
+142-file content pin changes, preserving inventories/full-app/mutation pins.
+The same four-file variant has one Windows and one separately authorized Mac
+mechanical execution, each with exact restoration and normal rebuild. These
+are controlled engineering observations, not a correction or qualification.
+Actual results and cause/classification remain pending.
