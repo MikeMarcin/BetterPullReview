@@ -1,0 +1,107 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "native-agent-sessions-v1",
+  "scope": {
+    "rfcs": [
+      "RFC-BPR-0096"
+    ],
+    "issues": [
+      "BPR-1951",
+      "BPR-1952",
+      "BPR-1953",
+      "BPR-1954",
+      "BPR-1955",
+      "BPR-1956"
+    ]
+  },
+  "coverage": "complete",
+  "milestones": [
+    {
+      "id": "native-agent-tab",
+      "outcome": "The Agent tab continues the real backend conversation and preserves the identities, workspace and lifecycle needed to resume it.",
+      "work": [
+        {
+          "issue": "BPR-1951"
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Claude stream-json and qualified Codex conversations continue natively through the public Agent tab without closing a live connection after each answer.",
+        "Durable identity independent of window activation, retained workspace recovery, safe storage admission, stale revisions and Stop/uncertain-send fencing have direct functional evidence."
+      ],
+      "boundary": "A usable native Agent-tab conversation; the shared session host is available for tour integration."
+    },
+    {
+      "id": "tour-sessions",
+      "outcome": "Each tour side chat has its own native session per agent, and both surfaces support New session with retained, reopenable history.",
+      "work": [
+        {
+          "issue": "BPR-1952"
+        }
+      ],
+      "depends_on": [
+        "native-agent-tab"
+      ],
+      "exit_criteria": [
+        "Tour, Problem, Solution and stable-stop chats remain isolated by agent and resume through normal close/reopen cycles.",
+        "Nondestructive New session, reopening history and Reset tour/Undo reset preserve the defined BPR state and session associations without redirecting pending work or late completions."
+      ],
+      "boundary": "Usable native conversations and scoped history in both requested product surfaces."
+    },
+    {
+      "id": "tour-context",
+      "outcome": "A continuing tour agent understands current BPR tour state and explains source warnings using the same reasons that drive the UI.",
+      "work": [
+        {
+          "issue": "BPR-1953"
+        }
+      ],
+      "depends_on": [
+        "tour-sessions"
+      ],
+      "exit_criteria": [
+        "Versioned tour guidance and coherent snapshots refresh all relevant facts, distinguish source confirmation from Ready/publication, and include actual blockers and available actions.",
+        "Text/order updates preserve confirmed anchors under the existing preparation rules; compaction/reconnect restores current context, and changed source state agrees in core, UI and agent context."
+      ],
+      "boundary": "The reported warning/context problem has a distinguishing public-path course without inventing a reproduction of the owner's exact prior session."
+    },
+    {
+      "id": "qualified-continuation",
+      "outcome": "Native continuity, legacy migration and explicit replay fallback are qualified and documented for the selected installed agents.",
+      "work": [
+        {
+          "issue": "BPR-1954"
+        },
+        {
+          "issue": "BPR-1955"
+        }
+      ],
+      "depends_on": [
+        "tour-context"
+      ],
+      "exit_criteria": [
+        "Unsupported backends and unavailable or legacy native state offer explicitly identified replay generations or New session, without identity reassignment, permission bypass, silent downgrade or duplicate submission.",
+        "Installed Claude/Codex protocols, composed controls, crash/storage/idle boundaries, retained-context privacy, Release reuse/cost observations and operator disclosures have actual scoped evidence."
+      ],
+      "boundary": "The proposed behavior is reviewable with honest runtime support and cost claims; unrelated native qualification is not inferred."
+    },
+    {
+      "id": "accepted-scope",
+      "outcome": "Every criterion of the adopted native-session RFC is judged against real evidence and the changed live contracts are reconciled.",
+      "work": [
+        {
+          "issue": "BPR-1956"
+        }
+      ],
+      "depends_on": [
+        "qualified-continuation"
+      ],
+      "exit_criteria": [
+        "The closeout accounts for every RFC criterion, source amendment, focused public-path check and required documentation gate.",
+        "Any remaining required installed, platform or human evidence stays explicit rather than being replaced by authoring or fixture validation."
+      ],
+      "boundary": "Acceptance of the authorized scope only, with the repository's preserved historical and release obligations."
+    }
+  ],
+  "unplanned_work": []
+}
