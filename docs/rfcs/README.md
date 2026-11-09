@@ -747,6 +747,6 @@ replaces Use as reply.
 
 | RFC | Title | Status | Depends on |
 |---|---|---|---|
-| [RFC-BPR-0096](RFC-BPR-0096-go-to-line.md) | Go to a source line in the main diff | In Progress | None |
+| [RFC-BPR-0097](RFC-BPR-0097-go-to-line.md) | Go to a source line in the main diff | In Progress | None |
 
 [Import](assets/go-to-line-v1.LIVE_IMPORT.md), owner request 2026-11-08.

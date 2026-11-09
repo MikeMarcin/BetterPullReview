@@ -10,7 +10,7 @@ These are integration outcomes, not compulsory agent-launch boundaries.
 
 The active main PR diff offers accessible Go to line with exact source identity, guarded input and platform shortcuts.
 
-**Work:** `BPR-1948`, `RFC-BPR-0096`
+**Work:** `BPR-1948`, `RFC-BPR-0097`
 
 **Prerequisites:** None
 

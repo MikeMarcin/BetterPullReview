@@ -3,7 +3,7 @@
   "id": "go-to-line-v1",
   "scope": {
     "rfcs": [
-      "RFC-BPR-0096"
+      "RFC-BPR-0097"
     ],
     "issues": [
       "BPR-1948"
@@ -19,7 +19,7 @@
           "issue": "BPR-1948"
         },
         {
-          "rfc": "RFC-BPR-0096"
+          "rfc": "RFC-BPR-0097"
         }
       ],
       "depends_on": [],

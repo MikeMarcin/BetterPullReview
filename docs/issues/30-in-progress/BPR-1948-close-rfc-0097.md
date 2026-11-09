@@ -1,10 +1,10 @@
 ---
 schema: "implement-rfc.card.v1"
 id: "BPR-1948"
-title: "Verify and close RFC-BPR-0096"
+title: "Verify and close RFC-BPR-0097"
 status: "In Progress"
-rfcs: ["RFC-BPR-0096"]
-closeout_for: ["RFC-BPR-0096"]
+rfcs: ["RFC-BPR-0097"]
+closeout_for: ["RFC-BPR-0097"]
 depends_on: []
 priority: "P1"
 metadata: {"mandate_revision":"go-to-line-r1","assigned_implementer":"/root/go_to_line","reservation":"docs/issues/_reservations/BPR-1948--BPR-1948--71d1d557b9a1.json","milestone_plan":{"id":"go-to-line-v1","path":"docs/rfcs/plans/go-to-line-v1/milestone-plan.json"}}
@@ -12,7 +12,7 @@ metadata: {"mandate_revision":"go-to-line-r1","assigned_implementer":"/root/go_t
 
 # BPR-1948: Implement and close Go to line
 
-Implement [RFC-BPR-0096](../../rfcs/RFC-BPR-0096-go-to-line.md) as one milestone.
+Implement [RFC-BPR-0097](../../rfcs/RFC-BPR-0097-go-to-line.md) as one milestone.
 All AC01–AC04 and the behavior they name remain unchanged. No human criterion.
 
 ## Acceptance
