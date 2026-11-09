@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1972"
+  ],
+  "reserve_for": "retained-workspace-budget-diagnosis",
+  "purpose": "",
+  "created": "2026-11-09T18:12:15.603046+00:00",
+  "base": "ad032464aa76213bb1e22483267c5ceb7fbe9c48"
+}

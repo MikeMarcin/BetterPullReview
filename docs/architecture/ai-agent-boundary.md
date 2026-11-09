@@ -208,6 +208,23 @@ clone does not invalidate a retained tree. A missing or unverifiable tree refuse
 input and is preserved for repair. Retention and safe admission bounds are recorded
 in the [RFC-0096 ledger](../verification/RFC-BPR-0096.md).
 
+Owner amendment `retained-large-projects-r2` ([[BPR-1972]]) removes the profile-wide
+16 GiB/262144-entry preflight for new and continued native workspaces. A large
+project's logical file lengths or entry count do not block dispatch, and the host
+does not recursively inventory all retained sessions before a question. Selected
+workspace ownership and required pinned objects remain checked; new materialization
+still fails visibly on actual Git/filesystem errors or cancellation. Catalog and
+journal count bounds, protected history and exact cleanup ownership remain in
+force. There is no automatic reclamation and no replacement project-size cap.
+
+This removes the profile-wide checkout inventory, not every cost of sending a
+question. Catalog/actor scheduling, exact ownership metadata and the Git process
+still run. The Git cache adapter also validates the separate application bare
+cache's artifact inventory (loose files, refs and pack/index pairs), which scales
+with cache filesystem entries; it does not enumerate objects inside packed history
+or walk the retained checkout. No constant total latency guarantee is claimed.
+
+
 A refused retained inspection finishes as `workspace_unavailable`, with a fixed
 host-authored explanation in the Agent tab or tour side chat. Required objects
 missing, an output-limit refusal, a time-limit refusal and unverifiable ownership

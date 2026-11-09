@@ -896,3 +896,14 @@ quiescence are in external
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m5-final-handoff.md`.
 No server, writer, review loop, automatic retry or follow-on milestone is handed
 off; no push is authorized or performed.
+
+## Owner large-project amendment — BPR-1972, 2026-11-09
+
+The earlier 16 GiB/262144-entry admission row and its sparse-file refusal course
+above describe the accepted original candidate. The owner subsequently directed
+that extremely large projects must work; amendment `retained-large-projects-r2`
+supersedes that project-size gate for both new native workspaces and continuation.
+The [BPR-1972 ledger](BPR-1972-large-native-workspaces.md) records its removal,
+above-former-limit successful first/follow-up turns and preserved ownership,
+materialization-failure, storage and cleanup contracts. No earlier failure or
+acceptance is rewritten as different evidence.

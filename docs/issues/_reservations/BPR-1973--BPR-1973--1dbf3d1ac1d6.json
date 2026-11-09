@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1973"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Bound Debug functional app watchdogs under standing no Debug timing gate policy while preserving Release limits",
+  "created": "2026-11-09T18:13:37.631794+00:00",
+  "base": "ad032464aa76213bb1e22483267c5ceb7fbe9c48"
+}
