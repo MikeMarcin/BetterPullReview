@@ -4,7 +4,7 @@ Mandate `native-agent-sessions-r1` implements the reviewed pack. Immutable
 RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`. Import `819ff2708`;
 BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce569b21ff` (the tested source tree promoted unchanged). The [live plan](../rfcs/plans/native-agent-sessions-v1/milestone-plan.json)
 retains all five milestones. This ledger records scoped functional engineering
-for the native Agent-tab and tour/history milestones; it does not accept the whole RFC or later tour/history/replay work.
+for the native Agent-tab, tour/history and tour-context milestones; it does not accept the whole RFC or later tour/history/replay work.
 
 ## Native Agent-tab frontier
 
@@ -197,3 +197,74 @@ and resource/Release-cost qualification remain later work. BPR-1954 still owns
 legacy replay/migration and bidirectional quota/projection-save reconciliation;
 full AC03/AC11 acceptance is not claimed. BPR-1953 owns the versioned tour guide,
 coherent source/status snapshots and warning correction. The RFC stays Proposed.
+
+
+## Authoritative tour context and source reasons
+
+BPR-1953, milestone `tour-context`, product candidate `a89b0fa88f5a8e4c0eae8495ab8a44da8f7377e8`, implements
+`bpr.tour-guide.v1` and `bpr.tour-context.v1`. The guide and complete snapshot
+accompany every explicit ask or Draft Tour request because native compaction and
+reconnect cannot establish that prior framing survives. Ordinary observations
+submit no inference. Native turns retain backend memory; replay callers still
+supply only their bounded same-thread prose. The 160 KiB whole tour carrier and
+16 KiB typed-question cap refuse an oversized required snapshot before dispatch;
+stops and blocker facts are not dropped to fit.
+
+The content digest covers source/head observations, stable stop IDs and current
+numbers, preparation, selected passage/source, focus, proposal decisions and
+publication/save observations, rather than accepted-tour revision alone. The
+snapshot carries original/mapped/suggested/related ranges, one-based lines and
+commit/side identity. Missing evidence remains explicit: confirmation head was
+not historically recorded separately from a range's commit; related mapping
+observations are unknown. A bounded 128-record decision journal retains origin,
+pending/accepted/discarded/superseded/refused outcomes and omission counts. Its
+window scope and earlier unknown decisions are disclosed; it does not reconstruct
+proposals from native history or import other chats' transcripts.
+
+Core source/preparation/publication reasons drive the prompt and Qt's source
+chip and route marker. A confirmed author-selected replacement alone has no
+source warning. Missing prose and generated-stop visitation/preparation remain
+separate from confirmation. Ambiguous/missing/unavailable mappings retain their
+actual attention reasons. Available actions use the existing Show in code,
+Edit stop, Use selected lines, Ready, next and Head changed/Confirm flow. The
+publication snapshot includes the exact host presentation and qualification
+facts; read-only, ownership, conflict, source and operation blockers confer no
+publication authority. New publication also refuses unresolved tour conflicts.
+
+Results resolve display numbers against the submitted draft's stable IDs and
+refuse targets changed during the turn. Author acceptance remains explicit and
+undoable. Text-only edits and ordering preserve confirmed bindings; new and split
+stops retain their actual unconfirmed evidence. A repeated identical text update
+can be accepted without inventing a draft revision, and its acceptance is recorded.
+No output flag grants confirmation, Ready or publication.
+
+Evidence at `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/`:
+
+| Check | Actual scoped result |
+|---|---|
+| `m3-public7.log` | Network-isolated production driver passes all four Agent/tour seed/reopen courses. Both fixture protocols see the full bootstrap, a real composer explanation update, author Accept, unchanged confirmation and a follow-up containing current prose and accepted origin. |
+| `offscreen-m3`, `m3-render8.log` | Both full-window tour/reopen rasters and confirmed-replacement/ambiguous-mapping light rasters inspected. Qt source status course passes. This is offscreen presentation evidence, not installed-model explanation or native appearance acceptance. |
+| `m3-integration7.log`, `m3-tour-integration8.log` | Nine integration checks passed, then the ordinary tour course initially stopped before startup because its scoped writing helper was missing. After building that helper, that course passes (including existing source/related/order/publication-preview flow). No product assertion was relaxed. |
+| `m3-focused6.log`, `m3-core-check7.log` | Four focused core/prompt/Qt checks and four core-only/dependency/architecture checks pass. Cases distinguish identical proposed/confirmed source evidence, missing prose, ambiguity, unchanged-revision freshness, caps and captured-ID stale results. |
+| Formatting/static analysis | clang-format 22 passes 22 changed C++ files; diff check passes. Nine implementation units pass scoped tidy: five final/corrected units in `m3-tidy7.log`, four unchanged units in `m3-tidy6.log`. |
+| Documentation | Product structure gate and 67 script tests pass; final tracker upkeep receives a fresh structure check. |
+
+Actual intermediate failures are preserved: declaration ordering/missing include,
+two old prompt assertions that incorrectly excluded discarded/empty-focus facts
+from the entire new snapshot (their pending-list/schema coverage was retained),
+the no-op acceptance guard exposed by public reopen, two editor tidy diagnostics,
+and the missing integration helper. The fixes reran their affected checks.
+
+Frontend-design was loaded before Qt changes. No owner desktop, personal profile,
+remote mutation, extra agent/reviewer, credential workaround or direct model API
+was used. Dedicated Debug timing/performance courses were omitted under the
+permanent owner policy, with no performance credit.
+
+This accepts M3's functional engineering boundary and contributes to AC07–AC10;
+it does not accept their full installed/native scope. The owner's exact original
+all-stops warning sequence remains unverified. In particular AC08's installed-agent
+explanation course remains on BPR-1955; fixture carriage is not installed-model
+understanding. BPR-1954 retains explicit replay/legacy migration plus bidirectional
+shared quota, protected history and save-failure reconciliation. BPR-1955 retains
+installed Claude sign-in, installed read-only/resume/compaction/platform/resource
+and Release reuse/cost qualification. The RFC remains Proposed.
