@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1956"
 title: "Verify and close RFC-BPR-0096"
-status: "Ready"
+status: "In Progress"
 rfcs: ["RFC-BPR-0096"]
 metadata: {"mandate_revision":"native-agent-sessions-r1","reservation":"docs/issues/_reservations/BPR-1951--BPR-1956--ed8ca44cbe3b.json","milestone_plan":{"id":"native-agent-sessions-v1","path":"docs/rfcs/plans/native-agent-sessions-v1/milestone-plan.json"}}
 depends_on: ["BPR-1951", "BPR-1952", "BPR-1953", "BPR-1954", "BPR-1955"]
