@@ -411,8 +411,12 @@ and verified private workspaces across normal reopen. New session keeps history;
 Reset tour detaches its chats and Undo restores their associations. These actions
 are separate from accepted tour text, source confirmation, Ready, publication and
 profile purge. Explicit Transcript replay creates a linked generation from saved
-answered prose, with visible omissions and no prior tool/filesystem state. Each
-replay turn receives a new private workspace. Unsupported backends use a labelled
+answered prose, with visible omissions and no prior tool/filesystem state. Every conversation for the same exact PR authority and base/head uses one shared
+private file/Git workspace, including different agents, tour stops, New session and
+replay. Native handles and conversational memory remain separate. One BPR turn
+uses that tree at a time; a competing turn refuses as busy. Changed source
+bindings retain separate trees, and conflicting legacy trees are preserved with
+an explicit New session path to the shared tree. Unsupported backends use a labelled
 empty replay generation when starting fresh. Legacy numeric agent slots have
 unknown identities until an explicit replay destination is chosen. Failed saves,
 uncertain sends and unsafe storage admission remain visible and preserve existing

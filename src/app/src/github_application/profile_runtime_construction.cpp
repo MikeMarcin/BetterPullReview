@@ -2,6 +2,7 @@
 
 #include "bpr/adapters/git/agent_workspace_ownership.hpp"
 #include "bpr/adapters/git/installed_git_cache.hpp"
+#include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/appearance_settings_store.hpp"
 #include "bpr/adapters/sqlite/device_binding_store.hpp"
 #include "bpr/adapters/sqlite/diagnostic_preferences.hpp"
@@ -326,8 +327,11 @@ namespace bpr::app {
 			};
 		}
 		ApplicationDataRoot = applicationDataRoot;
-		ConnectionStore     = std::move(aConnectionStore);
-		Connections         = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
+#if defined(BPR_AGENT_INTEGRATIONS)
+		NativeAgentSessions = adapters::sqlite::make_native_agent_session_store(ApplicationDataRoot);
+#endif
+		ConnectionStore = std::move(aConnectionStore);
+		Connections     = std::make_unique<application::remembered_connection_host>(*ConnectionStore, std::move(aConnections), Admission.Authority.profile(), ConnectionEffects, DecisionLane, [this](auto aObservation) { connection_notice(aObservation); });
 		if (!Connections->available()) {
 			RestorationGlobalNotice = QStringLiteral("Saved connections could not be read. Sign in explicitly to continue; the saved data has been preserved.");
 		}

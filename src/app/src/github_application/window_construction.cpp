@@ -805,9 +805,8 @@ namespace bpr::app {
 					*EpochHost, *EpochHost, *LineMatcher);
 			// [[BPR-1827]]. Every run the host starts leaves an
 			// `agent.run` started and ended line: enums and counts only.
-			DiagnosedProcess    = std::make_unique<application::diagnosed_agent_process>(*EntryProcess, DiagnosticLog);
-			NativeAgentSessions = adapters::sqlite::make_native_agent_session_store(ApplicationDataRoot);
-			AgentHost           = std::make_unique<application::agent_invocation_host>(
+			DiagnosedProcess = std::make_unique<application::diagnosed_agent_process>(*EntryProcess, DiagnosticLog);
+			AgentHost        = std::make_unique<application::agent_invocation_host>(
 				agentProfiles,
 				agentPolicies,
 				AgentWorkspaceNeighbourhood,

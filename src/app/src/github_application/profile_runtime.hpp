@@ -30,6 +30,7 @@
 #include "bpr/application/insights_host.hpp"
 #include "bpr/application/markdown_image_ports.hpp"
 #include "bpr/application/markdown_image_service.hpp"
+#include "bpr/application/native_agent_session.hpp"
 #include "bpr/application/notification_delivery.hpp"
 #include "bpr/application/observing_review_ledger_store.hpp"
 #include "bpr/application/personal_discovery_host.hpp"
@@ -645,8 +646,12 @@ namespace bpr::app {
 		std::size_t CapturedNotificationDisplays = 0U;
 #endif
 		std::unique_ptr<adapters::syntax::packaged_definition_catalog> SyntaxDefinitions;
-		std::unique_ptr<QTemporaryDir>                                 AgentWorkspaceRoot;
-		std::filesystem::path                                          AgentWorkspaceNeighbourhood;
+		/// Shared catalog and turn leases outlive every window agent consumer.
+#if defined(BPR_AGENT_INTEGRATIONS)
+		std::unique_ptr<application::native_agent_session_store_port> NativeAgentSessions;
+#endif
+		std::unique_ptr<QTemporaryDir> AgentWorkspaceRoot;
+		std::filesystem::path          AgentWorkspaceNeighbourhood;
 		std::optional<adapters::git::installed_agent_workspace_parent>
 			 AgentWorkspaceParent;
 		bool AgentWorkspaceCleanupAttempted = false;

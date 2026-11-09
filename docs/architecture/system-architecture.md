@@ -131,21 +131,25 @@ epoch cache actors, shared drafts, durable native agent conversation records and
 workspace recovery. A window session owns
 its read host, epoch and diff state, selected review, navigation, Qt surface,
 mutation jobs and agent activation/turn state. Native Agent-tab conversation
-identity and retained workspace ownership survive that activation. Tour scopes add the durable draft/reset generation, thread and stable stop identity per agent. Version-nine tour payloads retain reset namespace high water across Undo. Scoped New session/history operations run on the effect lane and project no native handles; they submit no inference. Closing a window drains its consumers; quitting
+identity survives that activation; retained workspace ownership belongs to the exact PR authority and base/head source binding, shared across agents and scopes. Tour scopes add the durable draft/reset generation, thread and stable stop identity per agent. Version-nine tour payloads retain reset namespace high water across Undo. Scoped New session/history operations run on the effect lane and project no native handles; they submit no inference. Closing a window drains its consumers; quitting
 drains all windows before profile services. The first window has no special
 ownership of shared services or projection delivery.
 
 Explicit transcript replay uses the same scoped catalog with its own generation
-and durable source link. It never acquires the source's opaque native handle or
-workspace. Only that selected generation's answered prose enters a bounded core
+and durable source link. It never acquires the source's opaque native handle. Its explicit turns use the
+shared PR file/Git workspace, with no native tool-memory import. Only that selected generation's answered prose enters a bounded core
 replay projection; a cache containing other tour threads/agents is not a source.
 The host rechecks selected generation and mode before input, and serialized CAS
 submission state preserves uncertain sends without retry. Legacy slot identities
 remain unknown until the reviewer chooses a destination. Native and legacy
 admission share the 500-record transaction, with no automatic ownership pruning;
-failed admission keeps selection and history. Replay workspaces retain the ordinary
-exact-owned cleanup path; retained native trees are preserved on unverifiable
-cleanup or storage pressure.
+failed admission keeps selection and history. A catalog reference atomically binds the shared tree to its original retained
+owner record; no automatic reclamation runs on turn, session or window closure.
+A profile-catalog semaphore lease excludes simultaneous turns for the same exact
+authority/base/head across windows/providers. Busy sends refuse before mutation
+or inference; distinct PR/source bindings remain independent. Legacy conversations
+with different trees refuse resume without retargeting or deleting their files.
+The owner amendment in RFC-BPR-0096 records migration and HEAD validation.
 
 
 Window read requests retain their exact application session. Authenticated

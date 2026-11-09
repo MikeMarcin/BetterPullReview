@@ -217,6 +217,33 @@ try {
 	expect(!natives->select("authority:agent-a:agent-tab", "changed-runtime", binding), "runtime identity mismatch never relabels a saved native session");
 	auto otherNative = natives->select("authority:agent-b:agent-tab", "claude", binding);
 	expect(otherNative && otherNative->Id != restored->Id, "another agent incarnation gets a distinct native conversation");
+	// Shared source ownership is independent of native conversation/configuration.
+	restored->WorkspaceKey = "exact-authority:base:head";
+	expect(natives->store(*restored), "existing legacy owner publishes its retained tree atomically");
+	const auto shared = natives->shared_workspace(restored->WorkspaceKey, *otherNative);
+	expect(shared && *shared && (**shared).Workspace.Path == restored->Workspace->Workspace.Path
+			   && otherNative->Handle.empty() && otherNative->Id != restored->Id,
+		   "other agent reads shared files without acquiring native handle or conversation");
+	otherNative->Workspace    = **shared;
+	otherNative->WorkspaceKey = restored->WorkspaceKey;
+	expect(natives->store(*otherNative), "second native scope retains the exact same source ownership");
+	auto alternate                      = *otherNative;
+	alternate.Workspace->Workspace.Path = "/different-legacy-workspace";
+	expect(!natives->shared_workspace(restored->WorkspaceKey, alternate)
+			   && !natives->store(alternate),
+		   "a conflicting legacy tree cannot replace shared source ownership");
+	auto changedSource            = *otherNative;
+	changedSource.Binding.HeadOid = *core::parse_git_commit_oid(std::string(40U, '3'));
+	expect(!natives->shared_workspace(restored->WorkspaceKey, changedSource), "a corrupted cross-revision reference refuses rather than retargeting files");
+	const auto unrelated = natives->shared_workspace("other-authority:base:head", *native);
+	expect(unrelated && *unrelated && (**unrelated).Workspace.Path == native->Workspace->Workspace.Path,
+		   "another PR authority has independent legacy adoption, never another PR's shared reference");
+	auto lease = natives->try_lock_workspace(restored->WorkspaceKey);
+	expect(lease && !natives->try_lock_workspace(restored->WorkspaceKey) && natives->try_lock_workspace("other-authority:base:head"),
+		   "one shared-tree turn at a time while unrelated PR work stays eligible");
+	lease.reset();
+	expect(natives->try_lock_workspace(restored->WorkspaceKey) != nullptr, "turn ownership releases explicitly without an age/PID override");
+
 	const auto missing = natives->find("unopened-scope", "claude", binding);
 	expect(missing && !*missing, "viewing absent native history admits nothing");
 	auto changedBinding    = binding;
@@ -243,6 +270,10 @@ try {
 	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "earlier history reopens without inference");
 	natives                   = adapters::sqlite::make_native_agent_session_store(scratch.path());
 	const auto durableHistory = natives->history(scope, "claude");
+	const auto reopenedShared = natives->shared_workspace("exact-authority:base:head", *newSession);
+	expect(reopenedShared && *reopenedShared && (**reopenedShared).Workspace.Path == restored->Workspace->Workspace.Path,
+		   "restart and New session retain shared files even while the original owner is unselected");
+
 	expect(durableHistory && durableHistory->Selected == restored->Id && durableHistory->Turns.size() == 2U && durableHistory->Turns.back().Answered == "Late original answer", "restart preserves selected generation and originating late transcript");
 
 	auto replayed = natives->replay(scope, "claude", changedBinding, restored->Id);

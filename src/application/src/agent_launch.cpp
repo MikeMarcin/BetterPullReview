@@ -2412,7 +2412,7 @@ namespace bpr::application {
 				append_field(aResult, "tour_prompt", aSupplement.TourPrompt);
 			}
 			if (aSupplement.Replay) {
-				append_field(aResult, "transcript_replay.mode", "Transcript replay: saved questions and replies only; prior tools and workspace changes are absent. Current BPR context is authoritative.");
+				append_field(aResult, "transcript_replay.mode", "Transcript replay: saved questions and replies only; prior tool memory is absent; PR files and Git are shared. Current BPR context is authoritative.");
 				append_number(aResult, "transcript_replay.omitted", aSupplement.Replay->Omitted);
 				append_number(aResult, "transcript_replay.cut_bytes", aSupplement.Replay->CutBytes);
 				append_number(aResult, "transcript_replay.turn.count", aSupplement.Replay->Turns.size());

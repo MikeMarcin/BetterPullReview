@@ -675,6 +675,19 @@ namespace {
 			}
 			return Records.at(aScope);
 		}
+		std::map<std::string, application::owned_agent_workspace> SharedWorkspaces;
+		auto                                                      shared_workspace(const std::string& aKey, const application::native_agent_session& aSession)
+			-> std::expected<std::optional<application::owned_agent_workspace>, application::native_agent_storage_failure> override
+		{
+			if (!SharedWorkspaces.contains(aKey)) {
+				return aSession.Workspace;
+			}
+			const auto& saved = SharedWorkspaces.at(aKey);
+			if (aSession.Workspace && aSession.Workspace->Workspace.Path != saved.Workspace.Path) {
+				return std::unexpected(application::native_agent_storage_failure::conflict);
+			}
+			return std::optional{ saved };
+		}
 		auto find(const std::string& aScope, const std::string&, const core::agent_revision_binding&)
 			-> std::expected<std::optional<application::native_agent_session>, application::native_agent_storage_failure> override
 		{
@@ -701,6 +714,9 @@ namespace {
 			if (FailStore || stored.Revision != aSession.Revision) {
 				return false;
 			}
+			if (!aSession.WorkspaceKey.empty() && aSession.Workspace) {
+				SharedWorkspaces.try_emplace(aSession.WorkspaceKey, *aSession.Workspace);
+			}
 			++aSession.Revision;
 			stored = aSession;
 			return true;
@@ -721,22 +737,24 @@ namespace {
 
 	struct harness
 	{
-		explicit harness(std::filesystem::path aWorkspaceRoot = "/tmp/bpr-agent-owned")
+		explicit harness(std::filesystem::path aWorkspaceRoot = "/tmp/bpr-agent-owned", application::native_agent_session_store_port* aNative = nullptr)
 			: WorkspaceRoot{ std::move(aWorkspaceRoot) }
+			, SharedNativeSessions{ aNative ? aNative : &NativeSessions }
 		{
 		}
 
-		queued_executor                    Effects;
-		queued_executor                    Decisions;
-		workspace_spy                      Workspaces;
-		process_spy                        Processes;
-		projection_spy                     Projection;
-		session_catalog_spy                Sessions{ &Decisions };
-		native_store_spy                   NativeSessions;
-		recording_log                      Log;
-		std::size_t                        EnvironmentReads = 0U;
-		std::filesystem::path              WorkspaceRoot;
-		application::agent_invocation_host Host{
+		queued_executor                               Effects;
+		queued_executor                               Decisions;
+		workspace_spy                                 Workspaces;
+		process_spy                                   Processes;
+		projection_spy                                Projection;
+		session_catalog_spy                           Sessions{ &Decisions };
+		native_store_spy                              NativeSessions;
+		recording_log                                 Log;
+		std::size_t                                   EnvironmentReads = 0U;
+		std::filesystem::path                         WorkspaceRoot;
+		application::native_agent_session_store_port* SharedNativeSessions;
+		application::agent_invocation_host            Host{
 			core::built_in_agent_profiles(),
 			{
 				core::built_in_agent_policy(
@@ -764,7 +782,7 @@ namespace {
 			Decisions,
 			Projection,
 			nullptr,
-			&NativeSessions,
+			SharedNativeSessions,
 			&Log,
 		};
 
@@ -1985,7 +2003,7 @@ namespace {
 		input.NativeScope = "tour:1:0:1:0";
 		test.Host.dispatch(input);
 		test.settle();
-		check(test.Processes.Starts == 3U && test.Workspaces.Starts == 2U && test.Workspaces.Cleanups == 0U
+		check(test.Processes.Starts == 3U && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U
 				  && std::filesystem::file_size(pressure) == length,
 			  "another native scope still starts, with existing large work preserved and no project-size cap");
 #if !defined(_WIN32)
@@ -1996,9 +2014,113 @@ namespace {
 		test.Host.dispatch(input);
 		test.settle();
 		std::filesystem::permissions(unrelated, std::filesystem::perms::owner_all);
-		check(test.Processes.Starts == 4U && test.Workspaces.Starts == 2U && test.Workspaces.Inspections == 2U,
+		check(test.Processes.Starts == 4U && test.Workspaces.Starts == 1U && test.Workspaces.Inspections == 3U,
 			  "an unrelated unreadable directory is not scanned before continuing the selected valid workspace");
 #endif
+	}
+
+	void pr_workspace_is_shared_across_scopes_agents_and_windows()
+	{
+		auto test                 = harness{ };
+		auto other                = harness{ "/tmp/bpr-agent-owned", &test.NativeSessions };
+		auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+		input.NativeAgentIdentity = "agent-a";
+		input.NativeScope         = "agent-tab";
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		other.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		other.settle();
+		test.Processes.AfterStart = [&] {
+			auto competing                = input;
+			competing.NativeScope         = "tour:1:0:4:0";
+			competing.NativeAgentIdentity = "agent-b";
+			other.Host.dispatch(competing);
+			other.settle();
+			expect(other.Processes.Starts == 0U && other.Workspaces.Starts == 0U
+					   && other.Projection.Finished.back().RefusalReason.find("Another agent") != std::string::npos,
+				   "another window/provider cannot start or materialize while this shared workspace has a turn");
+			test.Host.cancel();
+		};
+		test.Host.dispatch(input);
+		test.settle();
+		test.Processes.AfterStart = { };
+		const auto initial        = test.Processes.LastRequest->NativeConversation;
+		const auto path           = test.Processes.LastRequest->WorkingDirectory;
+		for (const auto& scope : { "tour:1:0:1:0", "tour:1:0:4:10", "tour:1:0:4:11" }) {
+			input.NativeScope         = scope;
+			input.NativeAgentIdentity = "agent-b";
+			test.Host.dispatch(input);
+			test.settle();
+			expect(test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U
+					   && test.Processes.LastRequest->WorkingDirectory == path
+					   && test.Processes.LastRequest->NativeConversation != initial
+					   && test.Processes.LastRequest->NativeHandle.empty(),
+				   "distinct stops and agents get separate native conversations in the same files/Git directory");
+		}
+		other.Host.dispatch(input);
+		other.settle();
+		expect(other.Processes.Starts == 1U && other.Workspaces.Starts == 0U && other.Processes.LastRequest->WorkingDirectory == path,
+			   "the next explicit turn in another window reuses the tree after turn ownership releases");
+		const auto scope                 = application::native_scope_key(input.Authority, input.NativeAgentIdentity, input.NativeScope);
+		auto&      legacy                = test.NativeSessions.Records.at(scope);
+		legacy.Workspace->Workspace.Path = "/different-legacy-tree";
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 4U && test.Workspaces.Cleanups == 0U
+				   && test.Projection.Finished.back().RefusalReason.find("Choose New session") != std::string::npos
+				   && legacy.Workspace->Workspace.Path == "/different-legacy-tree",
+			   "legacy conflict preserves both trees and refuses silent native working-directory retargeting");
+		legacy.Workspace.reset();
+		legacy.Handle.clear();
+		legacy.Replay          = true;
+		input.TranscriptReplay = true;
+		test.Host.dispatch(input);
+		test.settle();
+		expect(test.Processes.Starts == 5U && test.Workspaces.Starts == 1U && test.Workspaces.Cleanups == 0U
+				   && test.Processes.LastRequest->WorkingDirectory == path && test.Processes.LastRequest->NativeHandle.empty(),
+			   "explicit prose replay shares PR files without acquiring source native memory");
+	}
+
+	void shared_workspace_identity_isolates_authority_and_source()
+	{
+		for (auto dimension = 0U; dimension < 11U; ++dimension) {
+			auto test                 = harness{ };
+			auto input                = request(core::git_host_id{ 1U }, core::claude_stream_json_profile_id);
+			input.NativeScope         = "agent-tab";
+			input.NativeAgentIdentity = "original-agent";
+			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+			test.settle();
+			test.Host.dispatch(input);
+			test.settle();
+			switch (dimension) {
+			case 0U: input.Authority.Profile = core::host_profile_id{ 11U }; break;
+			case 1U: input.Authority.Account = core::github_account_id{ 41U }; break;
+			case 2U: input.Authority.Viewer = core::github_viewer_actor_id{ 51U }; break;
+			case 3U: input.Authority.ProfileRevision = core::github_profile_revision{ 21U }; break;
+			case 4U:
+				input.Authority.Repository       = core::repository_id{ 102U };
+				input.Context.Binding.Repository = input.Authority.Repository;
+				break;
+			case 5U:
+				input.Authority.PullRequest       = core::pull_request_id{ 203U };
+				input.Context.Binding.PullRequest = input.Authority.PullRequest;
+				break;
+			case 6U:  input.Authority.HostAuthority = opaque<core::host_authority_fingerprint>(4U); break;
+			case 7U:  input.Authority.Cache = opaque<core::repository_cache_scope_id>(4U); break;
+			case 8U:  input.Authority.Scope = opaque<core::pull_request_authority_scope_id>(4U); break;
+			case 9U:  input.Context.Binding.BaseOid = commit(3U); break;
+			case 10U: input.Context.Binding.HeadOid = commit(3U); break;
+			default:  break;
+			}
+			// A new conversation cannot acquire another authority or source's tree.
+			input.NativeAgentIdentity = "new-agent";
+			test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+			test.settle();
+			test.Host.dispatch(input);
+			test.settle();
+			expect(test.Processes.Starts == 2U && test.Workspaces.Starts == 2U && test.NativeSessions.SharedWorkspaces.size() == 2U,
+				   "separate profile/account/repository/PR/source and authority fingerprints never share a source tree");
+		}
 	}
 
 	void native_storage_failures_remain_private()
@@ -2072,7 +2194,8 @@ namespace {
 				   "missing retained objects refuse without replacing or deleting changed workspace state");
 			expect(result.Outcome == application::agent_run_outcome::workspace_unavailable && result.WorkspaceReason == why
 					   && result.RefusalReason == result.StandardError && result.RefusalReason.find("workspace") != std::string::npos
-					   && result.RefusalReason.find("PRIVATE_CANARY") == std::string::npos,
+					   && result.RefusalReason.find("PRIVATE_CANARY") == std::string::npos
+					   && result.RefusalReason.find("Start a new session") == std::string::npos,
 				   "retained inspection refuses with a safe visible workspace explanation, never private storage or raw Git text");
 			expect(test.Log.Events.size() == 1U && test.Log.Events.front().Operation == application::diagnostic_operation::agent_workspace
 					   && test.Log.Events.front().Outcome == application::diagnostic_outcome::failed
@@ -2095,6 +2218,8 @@ auto main(const int aCount, char** aArguments) -> int
 	}
 	expect(aCount == 1, "only the dedicated entry course takes an argument");
 	native_workspace_and_identity_survive_window_activation();
+	shared_workspace_identity_isolates_authority_and_source();
+	pr_workspace_is_shared_across_scopes_agents_and_windows();
 	native_storage_failures_remain_private();
 	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();

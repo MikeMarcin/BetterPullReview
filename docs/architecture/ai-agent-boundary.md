@@ -198,10 +198,12 @@ directory is assigned only after materialization. Existing-checkout mode
 remains a per-invocation choice and discloses dirty or unknown state.
 
 [RFC-BPR-0096](../rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
-adds retained native workspaces for the Agent tab and per-agent tour chats. A durable session owns its original
-workspace and guard identities and journal phase 7. Startup recovery preserves
+adds retained workspaces for the Agent tab and per-agent tour chats. Owner amendment
+`pr-shared-workspace-r1` ([[BPR-1974]]) shares one tree across conversations and
+providers for the exact PR authority and base/head. A durable catalog reference
+keeps the original workspace and guard identities and journal phase 7. Startup recovery preserves
 that state even with no live process. Resume checks the marker, captured directory
-and guard identities, pinned HEAD and required pinned objects; it never
+and guard identities, original pinned objects and the current HEAD; it never
 cleans allowed edits to make a resume succeed. Before retention, borrowed objects
 are packed locally and the alternates file is removed, so removing the linked
 clone does not invalidate a retained tree. A missing or unverifiable tree refuses
@@ -303,8 +305,8 @@ original unselected blob holes, but refuses a newly missing selected blob or hea
 tree. The bounded object walk admits at most 262,144 entries and 64 MiB of output.
 For a complete workspace, continuation instead runs one `cat-file
 --batch-check=%(objecttype)` on the pinned head commit and its root tree, plus the
-required base commit and its root tree when one is recorded. At most four named
-objects, 1 KiB of output and a 30-second process deadline are admitted; neither the
+required base commit and its root tree when one is recorded. At most six named
+objects (including the current HEAD commit/tree), 1 KiB of output and a 30-second process deadline are admitted; neither the
 command nor its output enumerates history. This verifies the pinned commits/root
 trees, not the complete historical object closure or every checkout blob. An
 advertised head-only sparse workspace does not claim to hold unfetched base history. Older sparse records without
@@ -318,8 +320,14 @@ revision and keeps the source history, native handle and owned workspace intact.
 It sends saved answered questions/replies in `transcript_replay.*`, counting
 omitted turns and cut bytes. Agent replay takes the newest 50 within 48 KiB,
 with 8 KiB per field; tour replay takes the newest 12 answered turns within
-48 KiB. Prior tool observations and workspace changes are absent. Each replay
-turn gets a new private workspace and the same authority/tool/network checks.
+48 KiB. Prior native tool memory is absent; explicit replay turns read the same
+shared PR files and Git as the other conversations, under their own existing
+authority/tool/network checks. A nonblocking per-tree turn lease spans preparation,
+execution and durable completion across BPR windows/providers. Busy sends refuse
+without inference or automatic retry. Changed base/head bindings preserve old
+trees; a legacy native session with a different tree refuses before resume and
+keeps its files/history. New session joins the canonical tree. Shared ownership
+is never automatically pruned or cleaned when a conversation closes.
 A failed native turn never automatically resends through replay. Legacy numeric
 slots remain labelled unknown identities, readable without sending; using them
 requires an explicit replay destination, even if today's agent uses that slot.

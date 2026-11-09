@@ -1,0 +1,10 @@
+{
+  "schema": "implement-rfc.reservation.v1",
+  "ids": [
+    "BPR-1975"
+  ],
+  "reserve_for": "release-fixes-main",
+  "purpose": "Review and reseal accepted BPR-1974 shared-workspace composition source manifest before successor release freeze",
+  "created": "2026-11-09T22:42:10.538442+00:00",
+  "base": "b844926b443f05ac2634dbaf78cf4229ba081457"
+}

@@ -626,8 +626,8 @@ namespace bpr::qt {
 		NewSession->setEnabled(!Running && !HistoryLoading);
 		if (!aView.Loading) {
 			SessionMenu->clear();
-			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tools and workspace changes are absent.") : aView.NativeSupported ? tr("Native continuation")
-																																												 : tr("Native continuation unavailable. Choose Transcript replay or New session."));
+			ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
+																																															 : tr("Native continuation unavailable. Choose Transcript replay or New session."));
 			ContinuationMode->setToolTip(tr("Replay keeps at most the newest 12 answered turns within 48 KiB. Older or unanswered turns are omitted. The source history stays. Tour tool and network restrictions still apply."));
 			ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));
 			auto* replay = SessionMenu->addAction(tr("Use Transcript replay with selected agent"));

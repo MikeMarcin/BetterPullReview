@@ -5048,8 +5048,17 @@ namespace bpr::adapters::git {
 				if (!record || record->Phase != 7U || record->Child != aWorkspace.DirectoryIdentity.Opaque) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
-				const auto head = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
-				if (!read_exact_file(path / ".git" / "HEAD", head + "\n") || !absent(path / ".git" / "objects" / "info" / "alternates")
+				const auto  head          = std::string{ core::canonical_hex(*aWorkspace.Workspace.PinnedHead).view() };
+				const auto& authority     = aWorkspace.Authority;
+				const auto  expectedScope = std::array<std::uint64_t, 10U>{ record->Scope[0], authority.Host.value(), authority.Repository.value(), authority.PullRequest.value(), aWorkspace.Session.value(), authority.Profile.value(), authority.ProfileRevision.value(), authority.Account.value(), authority.Viewer.value(), authority.Number.value() };
+				if (record->Scope != expectedScope || record->Head != head
+					|| record->AuthorityFingerprints[0] != authority.HostAuthority.bytes()
+					|| record->AuthorityFingerprints[1] != authority.Cache.bytes()
+					|| record->AuthorityFingerprints[2] != authority.Scope.bytes()) {
+					return std::unexpected(git_process_failure::invalid_repository);
+				}
+
+				if (!absent(path / ".git" / "objects" / "info" / "alternates")
 					|| !absent(path / ".git" / "objects" / "info" / "http-alternates")) {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
@@ -5058,8 +5067,8 @@ namespace bpr::adapters::git {
 					// an inventory of every object in their history. Agent edits stay intact.
 					auto arguments = workspace_git_arguments(path, HooksRoot);
 					append_arguments(arguments, "cat-file", "--batch-check=%(objecttype)");
-					auto input    = head + "^{commit}\n" + head + "^{tree}\n";
-					auto expected = std::string{ "commit\ntree\n" };
+					auto input    = head + "^{commit}\n" + head + "^{tree}\nHEAD^{commit}\nHEAD^{tree}\n";
+					auto expected = std::string{ "commit\ntree\ncommit\ntree\n" };
 					if (aWorkspace.RequiredBase) {
 						const auto base = std::string{ core::canonical_hex(*aWorkspace.RequiredBase).view() };
 						input += base + "^{commit}\n" + base + "^{tree}\n";
@@ -5075,7 +5084,7 @@ namespace bpr::adapters::git {
 					return { };
 				}
 				auto arguments = workspace_git_arguments(path, HooksRoot);
-				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head);
+				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head, "HEAD");
 				auto checked = submit(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
 				if (!checked) {
 					return std::unexpected(checked.error());
