@@ -51,3 +51,14 @@ pre-send console I/O. No suitable existing public executor hold or legacy
 Loaded getter exists; unrelated ledger/provider holds are not used. A unique
 immediate loading refusal can establish that source branch only if observed.
 The actual underlying reason and classification remain pending.
+
+## Bounded result
+
+All three authorized r2 attempts pass with the same public pre/post facts;
+no failed admission or unique underlying refusal is captured. R1 also
+passes with its failure branch unreached. These observations do not close
+the original normal aa7 failure. Exact original source is restored and
+normally rebuilt after each diagnostic, with protected hashes unchanged.
+The [durable handoff](../_checkpoints/BPR-1971/handoff.md) binds all outcomes,
+source/image evidence and pending AC3 classification. No fourth attempt,
+source correction or waiver is authorized by this result.
