@@ -21,3 +21,7 @@ metadata: {"kind": "test-correctness", "reservation": "docs/issues/_reservations
 ## Mandate
 
 Actual frozen44 focus75/77 passes. Coordinator approved this bounded slice and owning product expansion for1965 only. Do not mutate release R or waive first-party failures as Qt.
+
+## Verification and handoff
+
+The scoped source, causal/negative evidence, final4/4 composed checks and remaining native release obligations are recorded in [the engineering handoff](../_checkpoints/bpr44-agent-contracts/handoff.md). External packet: candidate44/implementer-agent-contract-fixes. No release approval or Windows acceptance is inferred.
