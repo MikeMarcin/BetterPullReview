@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1973-debug-functional-watchdogs",
+  "scope": {
+    "issues": [
+      "BPR-1973"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "bound-debug-functional-watchdogs",
+      "outcome": "Seventeen short functional app registrations retain optimized bounds while a validated optional Debug-only watchdog allows semantic completion under the standing owner policy.",
+      "work": [
+        {
+          "issue": "BPR-1973",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Optional positive integer DEBUG_TIMEOUT refuses invalid or shortening values; only the seventeen approved registrations opt into 120-second Debug outer watchdogs, preserving 15-second optimized and 8000-ms inner budgets.",
+        "Normal single-config Release/Debug and multi-config Release/Debug/RelWithDebInfo graphs differ only in the exact seventeen Debug TIMEOUT properties after backtrace-only canonicalization; every other command/property is preserved.",
+        "Focused helper refusal checks, documentation and scoped board checks pass; source and tracker integrate normally after BPR-1971 lands, with source/counters preserved and explicit pending final native semantic qualification."
+      ],
+      "boundary": "Only tests/end_to_end/CMakeLists.txt, build-and-test-reference documentation and BPR-1973 plan/card/checkpoint. No native app build/test, producer mutation or Windows Debug acceptance claim; Windows 120-second semantic representative remains final common-source preflight."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
