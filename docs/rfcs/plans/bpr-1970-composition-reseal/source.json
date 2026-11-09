@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Coordinator allocated1970 strict source review/reseal after accepted1969; actual pin fails before Mac46freeze.",
+  "source_basis": "a5df59644a1ca68299fa439e5621f2f187e6f115"
+}

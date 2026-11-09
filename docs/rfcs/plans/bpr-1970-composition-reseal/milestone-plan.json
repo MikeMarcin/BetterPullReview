@@ -1,0 +1,34 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1970-composition-reseal",
+  "scope": {
+    "issues": [
+      "BPR-1970"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "review-retained-workspace-composition",
+      "outcome": "The strict composition source pin covers only the reviewed accepted1969 composition changes; unchanged inventories and all other tripwires remain enforced.",
+      "work": [
+        {
+          "issue": "BPR-1970",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "Review every pinned-source change since last matching main7e742 and corresponding host/workspace/refusal/fixture flow, with exact142/197inventory identity and independent normalized digest recomputation before the maintained printer.",
+        "Retain actual old-pin failure; change only reviewed production manifest pin/comment; unchanged full-app/mutation pins and strict source plus existing adversarial checks pass.",
+        "Cheap documentation/scoped board checks and explicit-path source/card commits integrate normally onto latestmain; no app code fix, broadbuild, producer mutation or native/release credit."
+      ],
+      "boundary": "Only tests/end_to_end/application_review_round_trip_composition_contract.cmake plus1970plan/card/handoff. RootownsMac46, Windowsleaf1968mechanical;1968branch preserved."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}
