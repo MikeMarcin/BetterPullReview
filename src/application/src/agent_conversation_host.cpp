@@ -239,6 +239,8 @@ namespace bpr::application {
 		Implementation->off_lane([store = Implementation->Dependencies.Store] { return store != nullptr && store->forget_agents(); }, [](std::optional<bool> /*aForgotten*/) { });
 	}
 
+	auto agent_conversation_host::is_loaded() const noexcept -> bool { return Implementation->View.Loaded; }
+
 	auto agent_conversation_host::projection() const -> agent_conversation_projection { return Implementation->View; }
 
 	void agent_conversation_host::shutdown() noexcept { Implementation->Closing = true; }

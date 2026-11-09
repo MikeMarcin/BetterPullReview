@@ -2156,6 +2156,16 @@ namespace bpr::app::detail {
 		/// seconds pass. Decision delivery and public gestures keep turning.
 		[[nodiscard]] static auto hold_private_review_effects(
 			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-1971]]. Hold the existing Workbench effect queue at
+		/// a settled agent-course boundary, including its legacy history load.
+		/// Other Workbench effects also wait; release before shutdown or thirty
+		/// seconds. Native history keeps its independent Agent effect queue.
+		[[nodiscard]] static auto hold_agent_conversation_effects(
+			github_application& aApplication) -> std::function<void()>;
+		/// \brief [[BPR-1971]]. The legacy history's actual load projection;
+		/// absent when that host is not composed, distinct from loaded false.
+		[[nodiscard]] static auto agent_conversation_loaded(
+			const github_application& aApplication) -> std::optional<bool>;
 		/// \brief [[BPR-1254]]. Whether this window's review ledger answered
 		/// its latest opening as available; empty while it has not answered.
 		[[nodiscard]] static auto review_ledger_available(

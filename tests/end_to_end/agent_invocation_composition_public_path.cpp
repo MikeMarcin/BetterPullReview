@@ -53,10 +53,12 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <functional>
 #include <iostream>
 #include <map>
 #include <memory>
@@ -1168,11 +1170,47 @@ auto main(int argc, char** argv) -> int
 			}
 			if (course == "transcript-replay") {
 				const auto custom = core::entry_profile_id(core::agent_protocol::external_terminal, 3U);
-				if (!tab->choose_agent(custom.value()) || !wait_until([&] { return !tab->ask_button()->property("conversationLoading").toBool(); })) {
-					return fail(*application, "nonresuming-agent-choice");
+				struct held_conversation_effects
+				{
+					std::function<void()> Release;
+					void                  release()
+					{
+						if (Release) {
+							Release();
+							Release = { };
+						}
+					}
+					~held_conversation_effects() { release(); }
+				};
+				// All setup and prior replay gestures are settled. Hold only now:
+				// native history has its own queue and can answer this selection.
+				auto       held                       = held_conversation_effects{ app::detail::github_application_fixture_access::hold_agent_conversation_effects(*application) };
+				const auto chosen                     = tab->choose_agent(custom.value());
+				const auto nativeReadyWhileLegacyHeld = chosen && wait_until([&] {
+															const auto loaded = app::detail::github_application_fixture_access::agent_conversation_loaded(*application);
+															return loaded.has_value() && !*loaded
+																&& mode->text().contains(QStringLiteral("Native continuation unavailable"))
+																&& panel->selected_profile() == std::optional{ custom };
+														},
+																			 std::chrono::milliseconds{ 5000 });
+				if (!nativeReadyWhileLegacyHeld) {
+					held.release();
+					return fail(*application, "nonresuming-independent-history-ready", mode->text().toStdString());
 				}
 				const auto before = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
 				window.side_chat()->composer()->setPlainText(QStringLiteral("unsupported native question"));
+				if (!tab->ask_button()->property("conversationLoading").toBool() || tab->ask_button()->isEnabled()
+					|| app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+					held.release();
+					return fail(*application, "nonresuming-send-blocked-until-both-histories-ready");
+				}
+				held.release();
+				if (!wait_until([&] {
+						const auto loaded = app::detail::github_application_fixture_access::agent_conversation_loaded(*application);
+						return loaded.has_value() && *loaded && !tab->ask_button()->property("conversationLoading").toBool();
+					})) {
+					return fail(*application, "nonresuming-agent-choice");
+				}
 				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "nonresuming-first-ready");
 				}

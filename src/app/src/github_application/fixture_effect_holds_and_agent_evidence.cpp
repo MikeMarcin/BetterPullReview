@@ -140,6 +140,26 @@ namespace bpr::app {
 		return hold_fixture_effects(aApplication.Implementation->ReviewMutationEffects);
 	}
 
+	auto detail::github_application_fixture_access::hold_agent_conversation_effects(
+		github_application& aApplication) -> std::function<void()>
+	{
+		return hold_fixture_effects(aApplication.Implementation->WorkbenchEffects);
+	}
+
+	auto detail::github_application_fixture_access::agent_conversation_loaded(
+		const github_application& aApplication) -> std::optional<bool>
+	{
+	#if defined(BPR_AGENT_INTEGRATIONS)
+		const auto* const implementation = aApplication.Implementation.get();
+		if (implementation != nullptr && implementation->AgentConversation != nullptr) {
+			return implementation->AgentConversation->is_loaded();
+		}
+	#else
+		static_cast<void>(aApplication);
+	#endif
+		return std::nullopt;
+	}
+
 	auto detail::github_application_fixture_access::review_ledger_available(
 		github_application& aApplication) -> std::optional<bool>
 	{

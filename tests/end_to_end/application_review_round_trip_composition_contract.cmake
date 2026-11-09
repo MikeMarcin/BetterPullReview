@@ -3347,8 +3347,18 @@ function(bpr_verify_app_source_tree app_source_root)
 	# mutation boundary, process admission and materialization ownership;
 	# unchanged142/197inventories and full-app/mutation pins. Source review
 	# and independent recomputation are on BPR-1970; no native credit added.
+	# [[BPR-1971]] reviewed c76340d4e plus product preseal 7d4b4dbe:
+	# window_agent_setup.cpp combines native/legacy readiness from both
+	# callbacks through the existing refresh, preserving Stop, native body
+	# projection and the storage-status return. Test access reuses the bounded
+	# Workbench queue hold and reads the existing Loaded scalar without copying
+	# turns. The host's cheap accessor changes no policy or projection value.
+	# Controlled old-UI and corrected-UI courses keep the original unsupported
+	# refusal/no-start/no-fallback oracle; large-project owner policy remains.
+	# Same142/197 inventories, full-app/mutation pins, provider and launch guard.
+	# This pin binds reviewed source; native acceptance remains separate.
 	set(bpr_expected_production_app_manifest_digest
-        "7d99e0d9f5336661687915bb8b73e94751c1643138333431ca6319b64c235869"
+        "a4754fecedde79f0a6f7463e99cf04827ae5f67b97621629fa22580e329271a0"
 	)
     if(NOT bpr_production_app_manifest_digest STREQUAL
         bpr_expected_production_app_manifest_digest
