@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1959"
 title: "Feedback settings contract scopes the feedback prompt page"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
