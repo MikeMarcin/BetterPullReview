@@ -1,0 +1,6 @@
+{
+  "schema": "implement-rfc.plan-source.v1",
+  "kind": "engineer-authored",
+  "reason": "Coordinator-approved scoped test-contract corrections after frozen43 full Release failures; preserve accepted BPR1830 logging and1947main work.",
+  "source_basis": "bebea27edf44fd63a7308307227035bf33391c5c"
+}
