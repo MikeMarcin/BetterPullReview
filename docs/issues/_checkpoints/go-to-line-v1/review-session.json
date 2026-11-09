@@ -1,0 +1,47 @@
+{
+  "schema": "betterpullreview.attended-handoff.v1",
+  "session": "f5fee13c7d9e648334040aebfb1e09d9",
+  "repo_root": "/Users/jaeger/.codex/worktrees/1567/BetterPullReview",
+  "state": "/Users/jaeger/.codex/attended-review-sessions/bpr1948-go-to-line-w47r2fe5",
+  "registry": "/Users/jaeger/.mask/attended-review-resources",
+  "helper": "/Users/jaeger/.mask/store/v1/9781ac9f67acb2b9aa9dcf53895fb73be527a05c9f1bcffec62168b19dec2c32/payload/attended-review/scripts/attended_review.py",
+  "python": "/opt/homebrew/bin/python3.14",
+  "as_of_sequence": 7,
+  "consumed_cursor": 7,
+  "cursor_scope": "Preparation and review-start events reconciled; no human intake consumed by the preparation leaf. Coordinator owns subsequent events.",
+  "source_revision": "2186ffdfbafd99a1cf29c20c6dddc1512f9194ac",
+  "frozen_root": "/Users/jaeger/.codex/attended-builds/bpr1948-go-to-line-v002.z9849z6m",
+  "executable_sha256": "f54aec27de6624f1d9bfa4ffa1e4b0a8be354a935ffc4af73f7dc02696d5659c",
+  "launch_command": "/opt/homebrew/bin/python3.14 /Users/jaeger/.codex/attended-builds/bpr1948-go-to-line-v002.z9849z6m/launch.py",
+  "candidate_revision": "2186ffdfb-v002-f54aec27de6624f1",
+  "candidates": [
+    {
+      "id": "BPR-1948-go-to-line-dialog-v002",
+      "revision": "2186ffdfb-v002-f54aec27de6624f1",
+      "fingerprint": "0c4083d897e5f99c9f593d6dc0f7959d869340871d0cf47cc6b21ce867109701",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    },
+    {
+      "id": "BPR-1948-go-to-line-navigation-v002",
+      "revision": "2186ffdfb-v002-f54aec27de6624f1",
+      "fingerprint": "d8f710937b2fe662f88fd5b311a507d07fa45707b2236ee3da0a5fbaa6da1631",
+      "phase": "ready",
+      "protected": true,
+      "decision": null
+    }
+  ],
+  "server": {
+    "pid": 44087,
+    "exec_session": 58123,
+    "port": 61213,
+    "tailscale_pid": 44094,
+    "foreground_session": "ca5296055133470a"
+  },
+  "lifecycle": "Serving; additional owner UX decisions pending as of cursor 7",
+  "owning_driver": "/root",
+  "preparing_implementer": "/root/go_to_line",
+  "original_automatic_acceptance": "unchanged",
+  "waiter": "None started by this leaf; coordinator arms handback-only wait after status/intake reconciliation."
+}

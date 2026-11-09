@@ -108,3 +108,9 @@ All four criteria are satisfied by the bound evidence. The
 [checkpoint](../issues/_checkpoints/go-to-line-v1/handoff.md) retains commits,
 selection, binding, changed paths, command state and continuation. No attended
 session, push, release or external publication is part of this work.
+
+The owner subsequently requested an additional attended UX look. Its fresh,
+prepared session is recorded in the
+[review handoff](../issues/_checkpoints/go-to-line-v1/attended-review.md).
+The existing automated acceptance is unchanged; supplemental owner decisions
+remain pending for their exact frozen candidate.

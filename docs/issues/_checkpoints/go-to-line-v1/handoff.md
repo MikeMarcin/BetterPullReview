@@ -38,8 +38,10 @@ restored. Full-window renders were inspected at all three scales.
 Logs are external at `/tmp/bpr-go-to-line-run`; scale rasters remain ignored
 under `build/dev/source-find-renders*`. Native system appearance, VoiceOver,
 Windows/Linux execution, Release performance and package trust are not claimed.
-There is no required human, independent or native decision and no attended
-session or review server.
+The original RFC has no required human, independent or native decision. The
+owner subsequently requested an additional attended UX look; its prepared
+session and pending decisions are recorded in [attended-review.md](attended-review.md).
+Existing automated acceptance remains unchanged.
 
 ## Reconciliation and continuation
 
@@ -67,14 +69,17 @@ not evidence truth.
 ## Ownership and command state
 
 All task-owned configure, build, CTest, format/tidy, fixture generation,
-debugger, documentation and negative-control commands finished. No background
-writer, helper process, review server or protected attended candidate remains.
+debugger, documentation and negative-control commands finished. The original engineering round left no background writer or helper process.
+The later owner-requested review now has one explicitly handed-off server and
+two protected candidates, recorded in [attended-review.md](attended-review.md).
 The consumed negative-control driver was removed; command logs and the ordinary
 ignored development build remain as reusable evidence/output. The worktree was
 provided by the coordinator; it was not removed. The task-created feature
 branch remains for integration. No owner desktop, live GitHub mutation, push,
 release or external publication occurred.
 
-Next action: hand this completed isolated milestone to the coordinator, which
-can integrate after reconciling its active main writer. Do not resume product
-engineering or alter another pack merely to force a fast-forward.
+Next action: the coordinator presents the additional review URL and consumes
+intake from cursor7 using the exact session arguments in attended-review.md,
+then arms its handback-only wait. After handback, use a fresh engineering round
+to interpret verdicts. Main integration remains with the coordinator; do not
+change this feature or another pack before reconciling the protected candidate.
