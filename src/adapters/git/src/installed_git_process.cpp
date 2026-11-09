@@ -35,6 +35,7 @@
 #include <mutex>
 #include <optional>
 #include <random>
+#include <set>
 #include <span>
 #include <stdexcept>
 #include <string>
@@ -1301,6 +1302,32 @@ namespace bpr::adapters::git {
 					   [](const char aCharacter) {
 						   return hex_value(aCharacter).has_value();
 					   });
+		}
+
+		// Git supplies only object IDs here (--no-object-names), never path text.
+		[[nodiscard]] auto workspace_missing_objects(std::string_view aOutput, std::size_t aHashBytes) -> std::optional<std::set<std::string>>
+		{
+			auto missing = std::set<std::string>{ };
+			auto count   = std::size_t{ 0U };
+			while (!aOutput.empty()) {
+				const auto newline = aOutput.find('\n');
+				if (newline == std::string_view::npos || ++count > 262144U) {
+					return std::nullopt;
+				}
+				auto       line         = aOutput.substr(0U, newline);
+				const bool absentObject = line.starts_with('?');
+				if (absentObject) {
+					line.remove_prefix(1U);
+				}
+				if (!valid_fixed_hex(line, aHashBytes)) {
+					return std::nullopt;
+				}
+				if (absentObject) {
+					missing.emplace(line);
+				}
+				aOutput.remove_prefix(newline + 1U);
+			}
+			return missing;
 		}
 
 		[[nodiscard]] auto ordinal_text(
@@ -4664,14 +4691,15 @@ namespace bpr::adapters::git {
 					if (!trees.has_value()) {
 						return fail(trees.error());
 					}
-					arguments = common_git_arguments(aRequest.Repository, HooksRoot);
+					arguments = workspace_git_arguments(destination, HooksRoot);
 					append_arguments(arguments, "pack-objects", "--delta-base-offset", "--non-empty", "--",
 									 path_text(destination / ".git" / "objects" / "pack" / "pack"));
 					const auto packed = submitWorkspace(
 						process_request{
-							.Arguments = std::move(arguments),
-							.Input     = memory_input{ headText + "\n" + root->StandardOutput + trees->StandardOutput },
-							.Timeout   = pack_process_timeout,
+							.Arguments   = std::move(arguments),
+							.Input       = memory_input{ headText + "\n" + root->StandardOutput + trees->StandardOutput },
+							.Timeout     = pack_process_timeout,
+							.Environment = { { "GIT_ALTERNATE_OBJECT_DIRECTORIES", quoted_object_alternate(aRequest.Repository / "objects") } },
 						},
 						aStop);
 					if (!packed.has_value()) {
@@ -4946,6 +4974,20 @@ namespace bpr::adapters::git {
 					return fail(git_process_failure::invalid_repository);
 				}
 
+				auto sparseMissing = std::optional<std::string>{ };
+				if (materialization.RetainForSession && shallow) {
+					arguments = workspace_git_arguments(destination, HooksRoot);
+					append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", headText);
+					const auto listed  = submitWorkspace(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
+					const auto missing = listed ? workspace_missing_objects(listed->StandardOutput, packHashBytes) : std::nullopt;
+					if (!missing) {
+						return fail(listed ? git_process_error{ git_process_failure::object_unavailable } : listed.error());
+					}
+					sparseMissing.emplace();
+					for (const auto& object : *missing) {
+						*sparseMissing += "?" + object + "\n";
+					}
+				}
 				const auto marker = "bpr-agent-workspace-v1:"
 					+ std::to_string(materialization.ApplicationSession.value()) + ":"
 					+ std::to_string(materialization.Session.Id.value()) + ":" + headText
@@ -4973,7 +5015,8 @@ namespace bpr::adapters::git {
 					.DirectoryIdentity  = workspace_directory_identity(*identity),
 					.LifetimeGuard      = workspaceOwner ? std::optional{ workspaceOwner->layout().Guard } : std::nullopt,
 				};
-				if (materialization.RetainForSession) {
+				owned.SparseMissingObjects = std::move(sparseMissing);
+				if (materialization.RetainForSession && !shallow) {
 					owned.RequiredBase = materialization.Session.Binding.BaseOid;
 				}
 				if (workspaceOwner) {
@@ -5011,13 +5054,22 @@ namespace bpr::adapters::git {
 					return std::unexpected(git_process_failure::invalid_repository);
 				}
 				auto arguments = workspace_git_arguments(path, HooksRoot);
-				append_arguments(arguments, "rev-list", "--objects", "--missing=print", head);
+				append_arguments(arguments, "rev-list", "--objects", "--no-object-names", "--missing=print", head);
 				if (!aWorkspace.Workspace.Shallow && aWorkspace.RequiredBase) {
 					arguments.emplace_back(core::canonical_hex(*aWorkspace.RequiredBase).view());
 				}
 				auto checked = submit(process_request{ .Arguments = std::move(arguments), .Timeout = pack_process_timeout, .StandardOutputLimit = 64U * 1024U * 1024U }, aStop);
-				if (!checked || (!aWorkspace.Workspace.Shallow && (checked->StandardOutput.starts_with("?") || checked->StandardOutput.find("\n?") != std::string::npos))) {
+				if (!checked) {
 					return std::unexpected(checked ? git_process_error{ git_process_failure::object_unavailable } : checked.error());
+				}
+				const auto hashBytes = head.size();
+				const auto missing   = workspace_missing_objects(checked->StandardOutput, hashBytes);
+				const auto permitted = aWorkspace.Workspace.Shallow && aWorkspace.SparseMissingObjects
+					? workspace_missing_objects(*aWorkspace.SparseMissingObjects, hashBytes)
+					: std::optional{ std::set<std::string>{ } };
+				if (!missing || !permitted || (aWorkspace.Workspace.Shallow && !aWorkspace.SparseMissingObjects)
+					|| !std::includes(permitted->begin(), permitted->end(), missing->begin(), missing->end())) {
+					return std::unexpected(git_process_failure::object_unavailable);
 				}
 				return { };
 			}

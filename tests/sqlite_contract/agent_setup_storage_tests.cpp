@@ -197,14 +197,20 @@ try {
 	binding.RightEpoch  = core::epoch_ordinal{ 2 };
 	auto native         = natives->select("authority:agent-a:agent-tab", "claude", binding);
 	expect(native.has_value(), "native conversation is admitted durably");
-	native->Handle  = "exact-native-id";
-	native->Pending = true;
+	native->Handle                 = "exact-native-id";
+	native->Pending                = true;
+	auto workspace                 = application::owned_agent_workspace{ };
+	workspace.Workspace.Path       = "/synthetic-retained-workspace";
+	workspace.Workspace.Shallow    = true;
+	workspace.SparseMissingObjects = "?" + std::string(40U, 'a') + "\n";
+	native->Workspace              = workspace;
 	expect(natives->store(*native), "pending send is stored before submission");
 	auto competing = *native;
 	natives        = adapters::sqlite::make_native_agent_session_store(scratch.path());
 	auto restored  = natives->select("authority:agent-a:agent-tab", "claude", binding);
 	expect(restored && restored->Id == native->Id && restored->Handle == native->Handle && restored->Pending,
 		   "restart restores exact native identity and uncertain submission, without inference");
+	expect(restored->Workspace && restored->Workspace->SparseMissingObjects == native->Workspace->SparseMissingObjects, "private sparse object evidence survives restart with its exact conversation");
 	restored->Pending = false;
 	++restored->Turn;
 	expect(natives->store(*restored) && !natives->store(competing), "revision CAS permits one writer and rejects stale activation");

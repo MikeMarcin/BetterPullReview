@@ -946,7 +946,7 @@ namespace {
 																							  "\n" });
 			wire.Output.push_back({ });
 			for (std::size_t chunk = 0; chunk < 16U; ++chunk) {
-				wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string(4096U, ' ') });
+				wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = chunk == 15U ? std::string(4095U, ' ') + "\n" : std::string(4096U, ' ') });
 			}
 			if (extra) {
 				wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = " " });
@@ -958,6 +958,81 @@ namespace {
 			expect(result.Outcome == application::agent_run_outcome::success && port.Completed == 1U && wire.Writes.size() == 1U && wire.TerminateCount == 1U, "idle output cannot generate another question or alter the completed result");
 			expect(port.NextCalls == (extra ? 0U : 1U), "exact64KiB idle output fits; first extra byte closes before another turn can be selected");
 		}
+	}
+
+	void test_connected_turns_retain_claude_frame_fences()
+	{
+		const auto message = [](std::string_view aId, std::string_view aText) {
+			return std::string{ R"({"type":"assistant","session_id":"same-native","message":{"role":"assistant","id":")" } + std::string{ aId } + R"(","content":[{"type":"text","text":")" + std::string{ aText } + "\"}]}}\n";
+		};
+		const auto result = [](std::string_view aUuid) {
+			return std::string{ R"({"type":"result","subtype":"success","session_id":"same-native","is_error":false,"result":"done","uuid":")" } + std::string{ aUuid } + "\"}\n";
+		};
+		for (const auto scenario : { 0U, 1U, 2U, 3U, 4U, 5U }) {
+			class connection final : public application::agent_native_connection_port
+			{
+			public:
+				fake_transport*                            Wire{ };
+				std::string                                Followup;
+				std::vector<application::agent_run_result> Results;
+				auto                                       next() -> std::optional<application::agent_launch_request> override
+				{
+					if (Results.size() != 1U) {
+						return std::nullopt;
+					}
+					// This arrives after idle() and only once the next question is sent.
+					Wire->Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = Followup });
+					auto next               = request(core::agent_protocol::claude_stream_json);
+					next.NativeConversation = "same-conversation";
+					next.NativeTurn         = 3U;
+					next.Input              = "second question";
+					return next;
+				}
+				void complete(application::agent_run_result aResult) override { Results.push_back(std::move(aResult)); }
+				auto timeout_milliseconds() const -> int override { return 1000; }
+				auto cancelled() const noexcept -> bool override { return Results.size() == 2U; }
+			} port;
+			auto wire       = fake_transport{ };
+			port.Wire       = &wire;
+			auto oldMessage = message("old-message", "OLD ANSWER");
+			if (scenario == 4U) {
+				oldMessage.erase(oldMessage.find("\"id\":\"old-message\","), std::string_view{ "\"id\":\"old-message\"," }.size());
+			}
+			if (scenario == 5U) {
+				oldMessage = std::string{ R"({"type":"assistant","session_id":"same-native","message":{"role":"assistant","id":"old-tool","content":[{"type":"tool_use","id":"old-use","name":"Read","input":{}}]}})" } + "\n";
+			}
+			port.Followup = scenario == 0U         ? message("fresh-message", "NEW ANSWER") + result("new-result")
+				: scenario == 1U || scenario >= 4U ? oldMessage + result("old-result")
+				: scenario == 2U                   ? message("fresh-message", "NEW ANSWER") + result("old-result")
+												   : result("old-result");
+			wire.Output.push_back({ .Status = agent_protocol_pipe_read_status::data, .Bytes = std::string{ R"({"type":"system","subtype":"init","session_id":"same-native"})" } + "\n" + oldMessage + result("old-result") });
+			auto initial               = request(core::agent_protocol::claude_stream_json);
+			initial.NativeConversation = "same-conversation";
+			initial.NativeConnection   = &port;
+			static_cast<void>(run_agent_protocol_loop(initial, { }, wire));
+			expect(wire.Writes.size() == 2U && port.Results.size() == 2U, "production connection sends each explicit question once and reports two terminals");
+			expect(port.Results.front().Outcome == application::agent_run_outcome::success, "initial turn succeeds");
+			expect(scenario == 0U ? port.Results.back().Outcome == application::agent_run_outcome::success && port.Results.back().AssistantItems == std::vector<std::string>{ "NEW ANSWER" }
+								  : port.Results.back().Outcome == application::agent_run_outcome::protocol_failure,
+				   "same-session late assistant/result frames cannot complete a later turn");
+			expect(wire.CloseInputCount == 0U, "native connection keeps input open through its normal turns");
+		}
+	}
+
+	void test_connection_identity_capacity_never_forgets_old_turns()
+	{
+		auto decoder = application::agent_protocol_decoder{ core::agent_protocol::claude_stream_json };
+		expect(decoder.push("{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"capacity\"}\n").has_value(), "capacity connection initializes");
+		const auto message = [](std::size_t aId) { return std::string{ R"({"type":"assistant","session_id":"capacity","message":{"role":"assistant","id":")" } + std::to_string(aId) + R"(","content":[]}})" + "\n"; };
+		for (std::size_t index = 0U; index < 4096U; ++index) {
+			expect(decoder.push(message(index)).has_value(), "bounded identities fit without retaining tool text as assistant output");
+		}
+		expect(decoder.push("{\"type\":\"result\",\"subtype\":\"success\",\"session_id\":\"capacity\",\"is_error\":false,\"result\":\"done\"}\n").has_value() && decoder.turn_complete(), "full identity registry still completes its admitted turn");
+		decoder.continue_native("capacity", 3U);
+		auto duplicate = decoder;
+		expect(!duplicate.push(message(0U)), "the oldest tool-only identity still fences the next turn at capacity");
+		const auto exhausted = decoder.push(message(4096U));
+		expect(!exhausted && exhausted.error() == application::agent_protocol_failure::output_too_large, "one extra identity refuses without evicting an earlier fence");
 	}
 
 	void test_native_turns_leave_the_stream_open_and_fence_the_prior_turn()
@@ -1004,6 +1079,8 @@ namespace {
 
 int main()
 {
+	test_connection_identity_capacity_never_forgets_old_turns();
+	test_connected_turns_retain_claude_frame_fences();
 	test_native_turns_leave_the_stream_open_and_fence_the_prior_turn();
 	test_native_idle_output_bound_and_no_inference();
 	test_a_catalog_run_lists_the_harness_models();

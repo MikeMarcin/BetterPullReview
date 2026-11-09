@@ -4374,7 +4374,54 @@ namespace {
 			return made;
 		};
 
-		const auto cacheBefore = file_inventory(cache);
+		const auto headOnlyPack = root.Path / "head-only";
+		const auto headOnlyHash = aRetained ? run_fixture_git(cache, { "pack-objects", headOnlyPack.string() }, head + "\n") : std::string{ };
+		const auto cacheBefore  = file_inventory(cache);
+		if (aRetained) {
+			const auto sparseRegistry               = root.Path / "sparse-registry";
+			auto       sparseAdapter                = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, sparseRegistry);
+			auto       sparse                       = request(11U, std::nullopt);
+			sparse.Materialization.RetainForSession = true;
+			sparse.Materialization.ParentDirectory  = root.Path / "sparse-neighbourhood";
+			std::filesystem::create_directory(sparse.Materialization.ParentDirectory);
+			std::filesystem::permissions(sparse.Materialization.ParentDirectory, std::filesystem::perms::owner_all, std::filesystem::perm_options::replace);
+			auto file        = application::git_workspace_file{ };
+			file.Path        = "src/main.cpp";
+			file.Mode        = 0100644U;
+			file.Blob        = core::git_blob_oid{ core::git_hash_algorithm::sha1, object<application::git_blob_id>(code, application::git_hash_algorithm::sha1).Digest };
+			const auto bytes = std::string{ "int main() { return 0; }\n" };
+			file.Bytes.assign(bytes.begin(), bytes.end());
+			sparse.Source.PullRequestFiles = std::vector{ file };
+			const auto owned               = sparseAdapter->materialize_agent_workspace(sparse, { });
+			require(owned && owned->Workspace.Shallow && owned->SparseMissingObjects && !owned->SparseMissingObjects->empty(), "retained sparse workspace captures its original unselected object holes");
+			const auto tree = std::filesystem::path{ owned->Workspace.Path };
+			require(!std::filesystem::exists(tree / "README.md") && sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "unselected missing blobs remain allowed");
+			write_text(tree / "src" / "main.cpp", "allowed agent edit\n");
+			write_text(tree / "retained-note", "keep\n");
+			sparseAdapter.reset();
+			sparseAdapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, sparseRegistry);
+			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "sparse object evidence remains valid through fresh adapter and allowed edits");
+			auto legacy = *owned;
+			legacy.SparseMissingObjects.reset();
+			require(!sparseAdapter->inspect_agent_workspace(legacy, { }), "old sparse state without original object evidence refuses rather than inferring from its mutable index");
+			const auto blob = tree / ".git" / "objects" / code.substr(0U, 2U) / code.substr(2U);
+			require(std::filesystem::remove(blob) && !sparseAdapter->inspect_agent_workspace(*owned, { }), "deleting a selected required blob refuses sparse resume");
+			require(read_text(tree / "src" / "main.cpp") == "allowed agent edit\n" && read_text(tree / "retained-note") == "keep\n", "failed object inspection preserves all allowed work");
+			static_cast<void>(run_fixture_git(tree / ".git", { "hash-object", "-w", "--stdin" }, bytes));
+			require(sparseAdapter->inspect_agent_workspace(*owned, { }).has_value(), "restoring the selected object repairs availability without resetting agent files");
+			// Leave the commit available while removing its packed tree closure.
+			for (const auto& entry : std::filesystem::directory_iterator{ tree / ".git" / "objects" / "pack" }) {
+				std::filesystem::rename(entry.path(), tree / entry.path().filename());
+			}
+			for (const auto suffix : { ".pack", ".idx" }) {
+				std::filesystem::copy_file(headOnlyPack.string() + "-" + headOnlyHash + suffix, tree / ".git" / "objects" / "pack" / (std::string{ "head-only" } + suffix));
+			}
+			require(!sparseAdapter->inspect_agent_workspace(*owned, { }), "a missing head tree cannot be treated as an allowed unselected blob hole");
+			report_inventory_changes(cacheBefore, file_inventory(cache), "sparse-cache");
+			report_inventory_changes(cloneBefore, file_inventory(clone), "sparse-clone");
+			require(file_inventory(cache) == cacheBefore && file_inventory(clone) == cloneBefore, "sparse inspection never writes to the source cache or linked clone");
+		}
+
 		if (aRetained) {
 			auto retained                             = request(10U, clone);
 			retained.Materialization.RetainForSession = true;

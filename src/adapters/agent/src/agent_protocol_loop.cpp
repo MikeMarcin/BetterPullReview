@@ -20,14 +20,15 @@ namespace bpr::adapters::agent::detail {
 		{
 		public:
 			protocol_loop(
-				const application::agent_launch_request& aRequest,
-				const application::agent_output_sink&    aSink,
-				agent_protocol_transport&                aTransport)
+				const application::agent_launch_request&           aRequest,
+				const application::agent_output_sink&              aSink,
+				agent_protocol_transport&                          aTransport,
+				std::optional<application::agent_protocol_decoder> aDecoder = std::nullopt)
 				: Request{ aRequest }
 				, Sink{ aSink }
 				, Transport{ aTransport }
 				, Result{ .Session = aRequest.Session, .Run = aRequest.Run }
-				, Decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools, aRequest.RunChecks }
+				, Decoder{ aDecoder ? std::move(*aDecoder) : application::agent_protocol_decoder{ aRequest.Protocol, aRequest.WritingOnly, aRequest.Purpose, aRequest.ReadOnlyTools, aRequest.RunChecks } }
 				, IsAppServer{
 					aRequest.Protocol == core::agent_protocol::codex_app_server
 				}
@@ -133,6 +134,10 @@ namespace bpr::adapters::agent::detail {
 				}
 				return true;
 			}
+
+			[[nodiscard]] auto accepts_next_turn() const noexcept -> bool { return Decoder.turn_complete(); }
+
+			[[nodiscard]] auto release_decoder() -> application::agent_protocol_decoder { return std::move(Decoder); }
 
 		private:
 			[[nodiscard]] auto native() const noexcept -> bool { return !Request.NativeConversation.empty() || Request.NativeConnection != nullptr; }
@@ -568,8 +573,9 @@ namespace bpr::adapters::agent::detail {
 		auto* const connection = aRequest.NativeConnection;
 		auto        request    = aRequest;
 		auto        last       = application::agent_run_result{ };
+		auto        decoder    = std::optional<application::agent_protocol_decoder>{ };
 		while (true) {
-			auto loop          = protocol_loop{ request, aSink, aTransport };
+			auto loop          = protocol_loop{ request, aSink, aTransport, std::move(decoder) };
 			last               = loop.run();
 			const auto success = last.Outcome == application::agent_run_outcome::success;
 			const auto handle  = last.NativeHandle;
@@ -584,7 +590,7 @@ namespace bpr::adapters::agent::detail {
 					static_cast<void>(aTransport.terminate());
 					return last;
 				}
-				if (auto next = connection->next()) {
+				if (auto next = loop.accepts_next_turn() ? connection->next() : std::nullopt) {
 					next->NativeHandle     = handle;
 					next->NativeConnection = connection;
 					auto prepared          = application::prepare_native_agent_turn(std::move(*next), true);
@@ -593,6 +599,7 @@ namespace bpr::adapters::agent::detail {
 						static_cast<void>(aTransport.terminate());
 						return last;
 					}
+					decoder = loop.release_decoder();
 					request = std::move(*prepared);
 					aTransport.begin_turn(connection->timeout_milliseconds());
 					break;

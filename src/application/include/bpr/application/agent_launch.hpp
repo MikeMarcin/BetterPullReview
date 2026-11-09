@@ -780,21 +780,23 @@ namespace bpr::application {
 		[[nodiscard]] auto pushed_bytes() const noexcept -> std::size_t { return TotalBytes; }
 
 	private:
-		[[nodiscard]] auto           retain_output(std::vector<agent_protocol_event>&) -> bool;
-		[[nodiscard]] auto           frame_limit() const noexcept -> std::size_t;
-		[[nodiscard]] auto           stream_limit() const noexcept -> std::size_t;
-		void                         reject_line(std::string_view aLine);
-		std::string                  RejectedLine;
-		std::vector<std::string>     AssistantIds;
-		std::vector<std::string>     AssistantItems;
-		std::vector<bool>            AssistantComplete;
-		std::size_t                  AssistantBytes = 0;
-		core::agent_runtime_metadata Metadata;
-		core::agent_protocol         Protocol;
-		bool                         WritingOnly   = false;
-		agent_launch_purpose         Purpose       = agent_launch_purpose::conversation;
-		bool                         ReadOnlyTools = false;
-		agent_run_checks             Checks        = agent_run_checks::strict;
+		[[nodiscard]] auto retain_output(std::vector<agent_protocol_event>&) -> bool;
+		[[nodiscard]] auto frame_limit() const noexcept -> std::size_t;
+		[[nodiscard]] auto stream_limit() const noexcept -> std::size_t;
+		void               reject_line(std::string_view aLine);
+		std::string        RejectedLine;
+		// Connection-scoped Claude envelope identities survive per-turn output reset.
+		std::vector<std::pair<std::string, std::uint64_t>> NativeFrameTurns;
+		std::vector<std::string>                           AssistantIds;
+		std::vector<std::string>                           AssistantItems;
+		std::vector<bool>                                  AssistantComplete;
+		std::size_t                                        AssistantBytes = 0;
+		core::agent_runtime_metadata                       Metadata;
+		core::agent_protocol                               Protocol;
+		bool                                               WritingOnly   = false;
+		agent_launch_purpose                               Purpose       = agent_launch_purpose::conversation;
+		bool                                               ReadOnlyTools = false;
+		agent_run_checks                                   Checks        = agent_run_checks::strict;
 		/// [[BPR-1900]], [[BPR-1912]]. Shell commands of a read-only run
 		/// outside its list, awaiting their result: the tool_use's id and
 		/// what it was asked, named once the result says what Claude did.

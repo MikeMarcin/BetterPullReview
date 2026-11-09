@@ -475,14 +475,24 @@ namespace bpr::core {
 		}
 		return tour_reaffirm_need::nothing;
 	}
-	auto ready(const tour_stop& aStop) noexcept -> bool
+	auto source_readiness(const tour_stop& aStop) noexcept -> tour_source_readiness
 	{
 		const bool original   = aStop.Original && valid(*aStop.Original);
 		const bool proposed   = aStop.Mapped && valid(*aStop.Mapped);
 		const bool reaffirmed = aStop.ReaffirmedHead && (original || (aStop.Remote && aStop.Destination && valid(*aStop.Destination)));
 		const bool mapped     = aStop.Mapping == tour_mapping::author_selected && proposed;
 		const bool retained   = original && (aStop.Mapping == tour_mapping::exact_original || (aStop.Mapping == tour_mapping::unchanged_material && proposed));
-		return nonblank(aStop.Title) && nonblank(aStop.Body) && (reaffirmed || mapped || retained);
+		if (reaffirmed || mapped || retained) {
+			return tour_source_readiness::ready;
+		}
+		if (aStop.Remote && aStop.Destination && valid(*aStop.Destination) && !original) {
+			return tour_source_readiness::reaffirmation_required;
+		}
+		return original ? tour_source_readiness::mapping_required : tour_source_readiness::confirmation_required;
+	}
+	auto ready(const tour_stop& aStop) noexcept -> bool
+	{
+		return nonblank(aStop.Title) && nonblank(aStop.Body) && source_readiness(aStop) == tour_source_readiness::ready;
 	}
 	auto validate(const review_tour& aTour) noexcept -> tour_refusal
 	{

@@ -43,6 +43,54 @@ int main()
 		const auto reasons = core::tour_publication_reasons(tour, { }, false);
 		expect(std::ranges::find(reasons, core::tour_status_reason::destination_unknown) != reasons.end(), "unknown operation evidence remains an explicit blocker");
 	}
+	{
+		auto  tour       = tests::review_tour_fixture();
+		auto& stop       = tour.Stops.front();
+		stop.Remote      = core::tour_remote_binding{ .Kind = core::tour_remote_kind::line_comment, .Entity = "imported-stop", .Own = true };
+		stop.Destination = core::destination_of(*stop.Original);
+		stop.Mapped      = stop.Original;
+		stop.Original.reset();
+		stop.Mapping = core::tour_mapping::unchanged_material;
+		stop.ReaffirmedHead.reset();
+		tour.ObservedHead = tour.Head;
+		expect(core::validate(tour) == core::tour_refusal::none, "imported stop remapped at unchanged material is valid without invented original confirmation");
+		const auto command = [&](core::tour_command_kind aKind) { return core::apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = aKind, .Stop = stop.Id }); };
+		auto       status  = core::project_tour_stop_status(tour, stop);
+		expect(status.ConfirmedLines && !status.SourceAttention && !status.ReadyEligible && !status.ExplanationCurrent, "imported lines are confirmed while the explanation still requires reaffirmation");
+		expect(status.ReadyReasons == std::vector{ core::tour_status_reason::explanation_not_reaffirmed } && std::ranges::find(status.AvailableActions, "Ready, next") == status.AvailableActions.end(), "a refused Ready has an honest blocker and no offered Ready action");
+		expect(command(core::tour_command_kind::complete).Refusal == core::tour_refusal::incomplete, "projection agrees with actual complete refusal");
+		const auto reaffirmed = command(core::tour_command_kind::reaffirm);
+		expect(reaffirmed.Refusal == core::tour_refusal::none, "author reaffirmation is the available correction");
+		status = core::project_tour_stop_status(reaffirmed.Accepted, reaffirmed.Accepted.Stops.front());
+		expect(status.ReadyEligible && status.ReadyReasons.empty() && core::ready(reaffirmed.Accepted.Stops.front()), "actual reaffirmation makes both core and projection Ready eligible");
+	}
+
+	// Valid source histories must expose the same Ready decision as complete.
+	for (const auto mapping : { core::tour_mapping::exact_original, core::tour_mapping::unchanged_material, core::tour_mapping::changed_material, core::tour_mapping::ambiguous, core::tour_mapping::missing, core::tour_mapping::unavailable, core::tour_mapping::author_selected }) {
+		for (const auto flags : { 0U, 1U, 2U, 3U, 4U, 5U, 6U, 7U }) {
+			auto  tour   = tests::review_tour_fixture();
+			auto& stop   = tour.Stops.front();
+			stop.Mapped  = stop.Original;
+			stop.Mapping = mapping;
+			if (flags & 1U) {
+				stop.Remote      = core::tour_remote_binding{ .Kind = core::tour_remote_kind::line_comment, .Entity = "imported", .Own = true };
+				stop.Destination = core::destination_of(*stop.Original);
+			}
+			if (flags & 2U) {
+				stop.ReaffirmedHead = tour.Head;
+			}
+			if (flags & 4U) {
+				stop.Original.reset();
+			}
+			if (core::validate(tour) != core::tour_refusal::none) {
+				continue;
+			}
+			const auto status    = core::project_tour_stop_status(tour, stop);
+			const auto completed = core::apply(tour, { .Draft = tour.Id, .Owner = tour.Owner, .ExpectedRevision = tour.Revision, .Kind = core::tour_command_kind::complete, .Stop = stop.Id });
+			expect(status.ReadyEligible == (completed.Refusal == core::tour_refusal::none) && status.ReadyEligible == status.ReadyReasons.empty(), "Ready reasons/actions agree with the actual command across valid original, imported, remapped and reaffirmed sources");
+		}
+	}
+
 	using support        = core::tour_operation_support;
 	using subject        = core::tour_subject;
 	using representation = core::tour_representation;

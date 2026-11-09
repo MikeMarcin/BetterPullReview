@@ -124,6 +124,7 @@ namespace bpr::adapters::sqlite {
 									"left_epoch INTEGER NOT NULL, right_epoch INTEGER NOT NULL, handle TEXT NOT NULL, turn INTEGER NOT NULL, pending INTEGER NOT NULL,"
 									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
 									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
@@ -888,11 +889,24 @@ namespace bpr::adapters::sqlite {
 						workspace.Workspace.Path       = path;
 						workspace.Workspace.PinnedHead = *head;
 						workspace.Workspace.Shallow    = sqlite3_column_int(row->Value, 17) != 0;
-						workspace.RequiredBase         = *base;
-						workspace.ParentDirectory      = column_text(row->Value, 10).value_or(std::string{ });
-						workspace.OwnershipMarker      = column_text(row->Value, 11).value_or(std::string{ });
-						workspace.ApplicationSession   = core::application_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 12)) };
-						workspace.Session              = core::agent_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 13)) };
+						if (!workspace.Workspace.Shallow) {
+							workspace.RequiredBase = *base;
+						}
+						auto sparse = detail::prepare(db, "SELECT missing FROM native_agent_sparse_objects WHERE conversation=?1");
+						if (!sparse) {
+							return std::unexpected(failure::unavailable);
+						}
+						bind_text(sparse->Value, 1, value.Id);
+						const auto sparseStatus = sqlite3_step(sparse->Value);
+						if (sparseStatus == SQLITE_ROW) {
+							workspace.SparseMissingObjects = column_text(sparse->Value, 0);
+						} else if (sparseStatus != SQLITE_DONE) {
+							return std::unexpected(failure::unavailable);
+						}
+						workspace.ParentDirectory    = column_text(row->Value, 10).value_or(std::string{ });
+						workspace.OwnershipMarker    = column_text(row->Value, 11).value_or(std::string{ });
+						workspace.ApplicationSession = core::application_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 12)) };
+						workspace.Session            = core::agent_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 13)) };
 						if (sqlite3_column_bytes(row->Value, 14) != 32 || sqlite3_column_bytes(row->Value, 16) != 32) {
 							return std::unexpected(failure::unavailable);
 						}
@@ -1224,7 +1238,7 @@ namespace bpr::adapters::sqlite {
 					return false;
 				}
 				auto connection = open(Root);
-				if (!connection) {
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
 					return false;
 				}
 				auto row = detail::prepare(connection->Database.get(), "UPDATE native_agent_sessions SET handle=?1,turn=?2,pending=?3,workspace=?4,parent=?5,marker=?6,application=?7,session=?8,directory=?9,guard=?10,guard_identity=?11,shallow=?12,revision=revision+1 WHERE id=?13 AND revision=?14");
@@ -1248,6 +1262,32 @@ namespace bpr::adapters::sqlite {
 				bind_text(row->Value, 13, aSession.Id);
 				sqlite3_bind_int64(row->Value, 14, static_cast<sqlite3_int64>(aSession.Revision));
 				if (sqlite3_step(row->Value) != SQLITE_DONE || sqlite3_changes(connection->Database.get()) != 1) {
+					return false;
+				}
+				if (workspace.SparseMissingObjects && workspace.SparseMissingObjects->size() > 64U * 1024U * 1024U) {
+					return false;
+				}
+				auto sparse = detail::prepare(connection->Database.get(), "INSERT INTO native_agent_sparse_objects(conversation,missing) VALUES(?1,?2) ON CONFLICT(conversation) DO UPDATE SET missing=excluded.missing");
+				if (!sparse) {
+					return false;
+				}
+				bind_text(sparse->Value, 1, aSession.Id);
+				if (workspace.SparseMissingObjects) {
+					bind_text(sparse->Value, 2, *workspace.SparseMissingObjects);
+					if (sqlite3_step(sparse->Value) != SQLITE_DONE) {
+						return false;
+					}
+				} else {
+					auto remove = detail::prepare(connection->Database.get(), "DELETE FROM native_agent_sparse_objects WHERE conversation=?1");
+					if (!remove) {
+						return false;
+					}
+					bind_text(remove->Value, 1, aSession.Id);
+					if (sqlite3_step(remove->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				if (!detail::execute(connection->Database.get(), "COMMIT")) {
 					return false;
 				}
 				++aSession.Revision;

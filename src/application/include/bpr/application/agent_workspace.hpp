@@ -151,6 +151,9 @@ namespace bpr::application {
 		/// Retained complete workspaces must also keep the session's base objects,
 		/// including a base which is not an ancestor of the pinned head.
 		std::optional<core::git_commit_oid> RequiredBase;
+		/// Original sparse object holes, captured before agent edits. Absent evidence
+		/// refuses sparse resume; an empty manifest means no holes were permitted.
+		std::optional<std::string> SparseMissingObjects;
 
 		auto operator<=>(const owned_agent_workspace&) const = default;
 	};

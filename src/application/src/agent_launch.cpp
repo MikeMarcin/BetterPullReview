@@ -1110,7 +1110,7 @@ namespace bpr::application {
 			const std::string_view aFrame,
 			std::uint8_t&          aPhase,
 			bool&                  aSawAssistant,
-			std::string& aSession, bool aWritingOnly, const bool aReadOnly = false, held_tool_uses* aHeld = nullptr, const agent_run_checks aChecks = agent_run_checks::strict)
+			std::string& aSession, bool aWritingOnly, const bool aReadOnly, held_tool_uses* aHeld, const agent_run_checks aChecks, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns, const std::uint64_t aNativeTurn)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			const auto  relaxed = aChecks == agent_run_checks::relaxed;
@@ -1231,7 +1231,20 @@ namespace bpr::application {
 					return std::unexpected(agent_protocol_failure::malformed_frame);
 				}
 				// Older envelopes omit id. Exact duplicate envelopes still coalesce.
-				const auto  identity   = messageId ? *messageId : hex_identity(core::private_digest(aFrame));
+				const auto identity = messageId ? *messageId : hex_identity(core::private_digest(aFrame));
+				if (*type == "assistant") {
+					const auto found = std::ranges::find_if(aFrameTurns, [&](const auto& aEntry) { return aEntry.first == "assistant:" + identity; });
+					if (identity.size() > core::maximum_remote_run_id_bytes || (found != aFrameTurns.end() && found->second != aNativeTurn)) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					if (found == aFrameTurns.end()) {
+						// Refuse at capacity rather than forgetting an older turn's fence.
+						if (aFrameTurns.size() >= 4096U) {
+							return std::unexpected(agent_protocol_failure::output_too_large);
+						}
+						aFrameTurns.emplace_back("assistant:" + identity, aNativeTurn);
+					}
+				}
 				std::size_t blockIndex = 0;
 				auto        thought    = false;
 				auto        wroteText  = false;
@@ -1316,6 +1329,16 @@ namespace bpr::application {
 				return events;
 			}
 			if (*type == "result") {
+				// Modern Claude results carry an envelope UUID. Keep its fence even
+				// when a later turn has already emitted a fresh assistant message.
+				if (const auto* uuid = string_member(aRoot, "uuid")) {
+					const auto identity = "result:" + *uuid;
+					const auto found    = std::ranges::find_if(aFrameTurns, [&](const auto& aEntry) { return aEntry.first == identity; });
+					if (uuid->empty() || identity.size() > core::maximum_remote_run_id_bytes || found != aFrameTurns.end() || aFrameTurns.size() >= 4096U) {
+						return std::unexpected(agent_protocol_failure::malformed_frame);
+					}
+					aFrameTurns.emplace_back(identity, aNativeTurn);
+				}
 				const auto* isError = member(aRoot, "is_error");
 				if (
 					subtype == nullptr || isError == nullptr
@@ -1807,7 +1830,7 @@ namespace bpr::application {
 			std::string&                  aThread,
 			std::string&                  aTurn,
 			core::agent_runtime_metadata& aMetadata,
-			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse = 2U)
+			bool aWritingOnly, const bool aReadOnly, std::vector<std::pair<std::string, std::string>>* aHeld, const agent_run_checks aChecks, const std::uint64_t aTurnResponse, std::vector<std::pair<std::string, std::uint64_t>>& aFrameTurns)
 			-> std::expected<std::vector<agent_protocol_event>, agent_protocol_failure>
 		{
 			if (aProtocol == core::agent_protocol::external_terminal) {
@@ -1853,7 +1876,7 @@ namespace bpr::application {
 				break;
 			case core::agent_protocol::claude_stream_json:
 				events = decode_claude_frame(
-					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks);
+					*parsed, aFrame, aPhase, aSawAssistant, aSession, aWritingOnly, aReadOnly, aHeld, aChecks, aFrameTurns, aTurnResponse);
 				break;
 			case core::agent_protocol::external_terminal: break;
 			}
@@ -3286,6 +3309,10 @@ namespace bpr::application {
 
 	void agent_protocol_decoder::continue_native(std::string aHandle, const std::uint64_t aTurn)
 	{
+		// Preserve connection identities, but reset every bounded turn carrier.
+		auto identities      = std::move(NativeFrameTurns);
+		*this                = agent_protocol_decoder{ Protocol, WritingOnly, Purpose, ReadOnlyTools, Checks };
+		NativeFrameTurns     = std::move(identities);
 		ExpectedNativeHandle = aHandle;
 		NativeTurn           = aTurn;
 		if (Protocol == core::agent_protocol::claude_stream_json) {
@@ -3384,7 +3411,7 @@ namespace bpr::application {
 				SawAssistant,
 				RemoteSession,
 				RemoteThread,
-				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn);
+				RemoteTurn, Metadata, WritingOnly, ReadOnlyTools, &HeldTools, Checks, NativeTurn, NativeFrameTurns);
 			if (!decoded) {
 				reject_line(frame);
 				Failed = true;

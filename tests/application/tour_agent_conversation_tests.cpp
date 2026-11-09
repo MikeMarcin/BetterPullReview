@@ -389,6 +389,19 @@ namespace {
 		context.SelectedSource.reset();
 		session.ProposalRecords.push_back(core::tour_proposal_record{ .Run = core::tour_agent_run_id{ 4 }, .Conversation = "original-generation", .Scope = "origin-thread", .Outcome = "discarded", .Part = "stop_text" });
 		expect(snapshot() != initial && contains(snapshot(), "discarded") && contains(snapshot(), "original-generation"), "proposal decisions and original ownership participate in freshness");
+		{
+			auto  imported   = tour;
+			auto& stop       = imported.Stops.front();
+			stop.Remote      = core::tour_remote_binding{ .Kind = core::tour_remote_kind::line_comment, .Entity = "imported-stop", .Own = true };
+			stop.Destination = core::destination_of(*stop.Original);
+			stop.Mapped      = stop.Original;
+			stop.Original.reset();
+			stop.Mapping = core::tour_mapping::unchanged_material;
+			stop.ReaffirmedHead.reset();
+			const auto value   = application::tour_agent_snapshot(imported, std::nullopt, session.Focus, core::cycle_json_value{ }, context);
+			const auto encoded = value ? core::canonical_cycle_json(*value) : std::nullopt;
+			expect(encoded && contains(*encoded, "\"ready_eligible\":false") && contains(*encoded, "explanation_not_reaffirmed") && !contains(*encoded, "Ready, next"), "imported/remapped context agrees with core Ready refusal and offers reaffirmation separately from confirmed lines");
+		}
 		const auto prompt = application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, "Why the source warning?", false, std::nullopt, { }, { }, context);
 		expect(prompt && contains(*prompt, "bpr.tour-guide.v1") && contains(*prompt, "bpr.tour-context.v1") && contains(*prompt, "Show in code") && contains(*prompt, "Ready, next") && contains(*prompt, "full_each_explicit_turn"), "every explicit native or replay turn has the current bootstrap and real corrective actions");
 		expect(application::build_tour_ask_prompt("t", "b", { }, tour, { }, { }, std::nullopt, std::string(16U * 1024U, 'x')).has_value(), "16 KiB typed question remains admitted");

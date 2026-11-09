@@ -82,25 +82,24 @@ namespace bpr::core {
 		if (blank(aStop.Body)) {
 			result.ReadyReasons.push_back(reason::explanation_missing);
 		}
-		if (!ready(aStop)) {
+		const auto readiness = source_readiness(aStop);
+		if (readiness != tour_source_readiness::ready) {
 			result.ReadyReasons.insert(result.ReadyReasons.end(), result.SourceReasons.begin(), result.SourceReasons.end());
+			if (result.SourceReasons.empty()) {
+				result.ReadyReasons.push_back(readiness == tour_source_readiness::reaffirmation_required ? reason::explanation_not_reaffirmed : reason::source_unavailable);
+			}
 		}
+		const auto sourceReadiness = result.ReadyReasons;
 		if (aTour.ReadOnly) {
 			result.ReadyReasons.push_back(reason::read_only);
 		}
 		if (aStop.Suggestion && !visible_tour_stop(aStop, aAttention, true)) {
 			result.ReadyReasons.push_back(aStop.Suggestion->Visited ? reason::source_not_visible : reason::generated_unvisited);
 		}
-		result.ReadyEligible      = result.ReadyReasons.empty();
+		result.ReadyEligible      = ready(aStop) && result.ReadyReasons.empty();
 		result.ExplanationCurrent = !aTour.ObservedHead || aStop.ReaffirmedHead == aTour.ObservedHead;
 		if ((!aTour.Remote || needs_tour_destination(aStop)) && !ready(aStop)) {
-			if (blank(aStop.Title)) {
-				result.PublicationReasons.push_back(reason::title_missing);
-			}
-			if (blank(aStop.Body)) {
-				result.PublicationReasons.push_back(reason::explanation_missing);
-			}
-			result.PublicationReasons.insert(result.PublicationReasons.end(), result.SourceReasons.begin(), result.SourceReasons.end());
+			result.PublicationReasons = sourceReadiness;
 		}
 		if (aStop.Suggestion && aStop.Preparation != tour_preparation::ready) {
 			result.PublicationReasons.push_back(reason::generated_not_ready);
@@ -108,7 +107,7 @@ namespace bpr::core {
 		if (aStop.Preparation == tour_preparation::needs_attention) {
 			result.PublicationReasons.push_back(reason::preparation_attention);
 		}
-		if (!result.ExplanationCurrent) {
+		if (!result.ExplanationCurrent && std::ranges::find(result.PublicationReasons, reason::explanation_not_reaffirmed) == result.PublicationReasons.end()) {
 			result.PublicationReasons.push_back(reason::explanation_not_reaffirmed);
 		}
 		if (aTour.Remote && !needs_tour_destination(aStop)) {
@@ -130,7 +129,7 @@ namespace bpr::core {
 			if (result.ReadyEligible && aStop.Preparation != tour_preparation::ready) {
 				result.AvailableActions.emplace_back("Ready, next");
 			}
-			if (!result.ExplanationCurrent && reaffirm_need(aStop) == tour_reaffirm_need::nothing) {
+			if ((!result.ExplanationCurrent || std::ranges::find(result.ReadyReasons, reason::explanation_not_reaffirmed) != result.ReadyReasons.end()) && reaffirm_need(aStop) == tour_reaffirm_need::nothing) {
 				result.AvailableActions.emplace_back("Head changed");
 			}
 		}
