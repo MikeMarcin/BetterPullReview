@@ -1,5 +1,7 @@
 # Go to line completed closeout
 
+Current result: landed on main and the task worktree/branch removed under the owner’s explicit follow-up request. See [main integration and cleanup](#main-integration-and-cleanup-owner-amendment). Earlier assignment roots and continuation notes are retained as history.
+
 Assignment `/root/go_to_line_closeout`; mandate `go-to-line-columns-r4`;
 plan `go-to-line-v1`, milestone `line-column-panel`, BPR-1957 / RFC-BPR-0097.
 Source, tracker and runtime root: `/Users/jaeger/.codex/worktrees/1567/BetterPullReview`.
@@ -98,3 +100,46 @@ assignment authorizes no main merge or external publication. VoiceOver,
 Windows/Linux execution, Release performance, signed installation and package
 trust are outside this milestone's demonstrated claims. No in-scope uncertainty
 or required pending acceptance remains.
+
+
+## Main integration and cleanup (owner amendment)
+
+The owner explicitly requested “land it on main and clean up this worktree”.
+Assignment `/root/go_to_line_closeout` continued under this bounded amendment
+to integrate locally and remove the completed task checkout, without a push.
+
+Main-first merge: `3b582b3a29352204e8300bf0a63f5343173b279c`, combining
+main `75bd8d369b2750502c28ada149bb846d6a94a976` with completed feature
+`0bf641a00923a7f2cbff9519d33aa859632aeb60`. It merged without conflicts.
+The exact committed merge was built and passed the focused public courses
+`application_header_source_navigation`, `application_source_find` and
+`application_source_pr_find`: **3/3, 42.55 s**. The merged documentation gate
+passes. Unchanged native/scale, fixture, format/tidy and acceptance evidence
+above is reused. No additional appearance decision was needed.
+
+The merge was prepared and tested in the isolated task worktree. Main was
+fast-forwarded only after its unrelated build commands exited. Its 25 modified
+and untracked tour/context files, status and contents were verified preserved
+byte-for-byte across the fast-forward; none were staged or committed by this
+integration. Their independent work is not credited as verified by these checks.
+
+Removed clean linked worktree:
+`/Users/jaeger/.codex/worktrees/1567/BetterPullReview`.
+Removed merged branch: `codex/go-to-line`. Cleanup ran from the surviving
+`/Users/jaeger/Documents/GitHub/BetterPullReview` main checkout. The common Git
+object owner survives there; no alternates, nested object owners or linked
+worktrees depended on the removed tree. Accepted commits remain reachable
+through main. Other worktrees and branches were left intact.
+
+The v002, v003 and v005 frozen review roots remain intact with their recorded
+binary hashes. Their source/fixture snapshots and dependency links were
+checked; none depend on the removed worktree. V005’s launcher `--check` again
+reached the expected file. All 36 Go to line render artifacts were archived
+externally before deleting the ignored build tree. The external evidence root
+above retains `main-integration-start.json`, `main-landed.json`,
+`cleanup-preflight.json`, `cleanup-result.json`, `preserved-frozen-builds.json`,
+`preserved-render-evidence.json`, merged build/test/documentation logs and the
+frozen launcher check. No task-owned process, writer or review server remains.
+
+Local integration and requested cleanup are complete. No push or publication
+was performed; the unrelated main writer’s work remains uncommitted.
