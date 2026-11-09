@@ -1,6 +1,8 @@
 #include "private_data_root.hpp"
 #include "public_path_poll.hpp"
 
+#include "../support/sparse_file.hpp"
+
 #include "../../src/app/src/github_application_fixture_access.hpp"
 #include "bpr/adapters/sqlite/agent_setup_store.hpp"
 #include "bpr/adapters/sqlite/storage_root.hpp"
@@ -1066,21 +1068,16 @@ auto main(int argc, char** argv) -> int
 				if (std::filesystem::exists(pressure)) {
 					return fail(*application, "storage-pressure-path-owned");
 				}
-				{
-					auto file = std::ofstream{ pressure };
-					file << "owned qualification sparse file";
+				if (!tests::create_sparse_file(pressure, 16ULL * 1024ULL * 1024ULL * 1024ULL + 1ULL)) {
+					return fail(*application, "large-project-sparse-file");
 				}
-				std::filesystem::resize_file(pressure, 16ULL * 1024ULL * 1024ULL * 1024ULL + 1ULL);
-				window.side_chat()->composer()->setPlainText(QStringLiteral("capacity-refusal-question"));
-				if (!wait_until([&] { return tab->ask_button()->isEnabled(); })) {
-					std::filesystem::remove(pressure);
-					return fail(*application, "storage-pressure-send-ready");
-				}
-				tab->ask_button()->click();
-				const auto capacityRefused = wait_until([&] { return app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Quiescent && panel->status_text().contains(QStringLiteral("private_storage_failure")); }, extended_agent_budget);
+				const auto continuedLargeProject = send(QStringLiteral("remember-tool-observation"));
 				std::filesystem::remove(pressure);
-				if (!capacityRefused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
-					return fail(*application, "storage-pressure-protected-refusal");
+				const auto afterPressure = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+				if (!continuedLargeProject || afterPressure.Statistics.ProcessStarts != before.Statistics.ProcessStarts + 1U
+					|| afterPressure.Statistics.WorkspaceStarts != before.Statistics.WorkspaceStarts
+					|| !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
+					return fail(*application, "large-project-native-continuation", panel->status_text().toStdString());
 				}
 				// The persistent backend still uses this directory between turns.
 				// Windows therefore refuses to rename its live working directory.
@@ -1119,7 +1116,7 @@ auto main(int argc, char** argv) -> int
 				if (!restoreMarker()) {
 					return fail(*application, "missing-native-marker-restore", markerError.message());
 				}
-				if (!refused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+				if (!refused || app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != afterPressure.Statistics.ProcessStarts) {
 					return fail(*application, "missing-native-no-retry", panel->status_text().toStdString());
 				}
 				auto* replay = tab->findChild<QAction*>(QStringLiteral("agentTranscriptReplay"));
@@ -1127,10 +1124,10 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, "replay-explicit-offer");
 				}
 				replay->trigger();
-				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() == 1U && tab->ask_button()->isEnabled(); })) {
+				if (!wait_until([&] { return mode->text().startsWith(QStringLiteral("Transcript replay")) && tab->turn_count() == 2U && tab->ask_button()->isEnabled(); })) {
 					return fail(*application, "replay-separate-projection");
 				}
-				if (app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != before.Statistics.ProcessStarts) {
+				if (app::detail::github_application_fixture_access::agent_invocation_evidence(*application).Statistics.ProcessStarts != afterPressure.Statistics.ProcessStarts) {
 					return fail(*application, "replay-choice-no-inference");
 				}
 				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok")) || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {

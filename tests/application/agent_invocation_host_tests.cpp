@@ -4,6 +4,9 @@
 #include "bpr/application/agent_invocation_host.hpp"
 #include "bpr/application/operation_diagnostics.hpp"
 
+#include "../support/scratch_directory.hpp"
+#include "../support/sparse_file.hpp"
+
 #include <algorithm>
 #include <array>
 #include <condition_variable>
@@ -718,6 +721,11 @@ namespace {
 
 	struct harness
 	{
+		explicit harness(std::filesystem::path aWorkspaceRoot = "/tmp/bpr-agent-owned")
+			: WorkspaceRoot{ std::move(aWorkspaceRoot) }
+		{
+		}
+
 		queued_executor                    Effects;
 		queued_executor                    Decisions;
 		workspace_spy                      Workspaces;
@@ -727,6 +735,7 @@ namespace {
 		native_store_spy                   NativeSessions;
 		recording_log                      Log;
 		std::size_t                        EnvironmentReads = 0U;
+		std::filesystem::path              WorkspaceRoot;
 		application::agent_invocation_host Host{
 			core::built_in_agent_profiles(),
 			{
@@ -737,7 +746,7 @@ namespace {
 					core::git_host_id{ 2U },
 					core::built_in_agent_host_kind::explicit_ghes),
 			},
-			"/tmp/bpr-agent-owned",
+			WorkspaceRoot,
 			Sessions,
 			Workspaces,
 			Processes,
@@ -1923,6 +1932,75 @@ namespace {
 		expect(test.Processes.Starts == 1U && test.NativeSessions.Appended.size() == 1U && test.NativeSessions.Appended.front().Answered == test.Processes.AssistantItems.back(), "durable tour history stores the same terminal item the public tour consumes, excluding preliminary narration");
 	}
 
+	void native_project_size_does_not_gate_first_or_continued_turns(const bool aManyEntries = false)
+	{
+		const auto root    = tests::make_scratch_directory("bpr-native-large-project");
+		auto       cleanup = tests::scratch_guard{ root };
+		const auto check   = [&](const bool aCondition, const std::string_view aMessage) {
+			if (!aCondition) {
+				auto error = std::error_code{ };
+				std::filesystem::remove_all(root, error);
+				cleanup.release();
+			}
+			expect(aCondition, aMessage);
+		};
+		const auto pressure = root / "owned-large-project-file";
+		const auto length   = aManyEntries ? 0ULL : 16ULL * 1024ULL * 1024ULL * 1024ULL + 1ULL;
+		check(tests::create_sparse_file(pressure, length), "make an owned project file without filling the disk");
+		if (aManyEntries) {
+			// Empty hard links use directory entries rather than hundreds of
+			// thousands of data allocations. Each seed stays below Windows'
+			// per-file hard-link limit. Count only successful creation calls.
+			auto entries = std::size_t{ 1U };
+			for (auto group = 0U; group < 512U; ++group) {
+				const auto directory = root / ("group-" + std::to_string(group));
+				auto       error     = std::error_code{ };
+				check(std::filesystem::create_directory(directory, error) && !error, "create this course's entry group");
+				const auto seed = directory / "seed";
+				check(tests::create_sparse_file(seed, 0U), "create this group's empty seed");
+				entries += 2U;
+				for (auto item = 0U; item < 512U; ++item) {
+					std::filesystem::create_hard_link(seed, directory / ("entry-" + std::to_string(item)), error);
+					check(!error, "create an owned empty hard-link entry");
+					++entries;
+				}
+			}
+			check(entries == 263169U && entries > 262144U, "the entry fixture actually exceeds the former profile limit");
+			std::cout << "native-entry-fixture:created_entries=" << entries << " logical_bytes=0\n";
+		}
+		auto test                 = harness{ root };
+		auto input                = request(core::git_host_id{ 1 }, core::claude_stream_json_profile_id);
+		input.NativeAgentIdentity = "large-project-incarnation";
+		input.NativeScope         = "tour:1:0:0:0";
+		test.Host.observe(input.ApplicationSession, input.Authority, input.Context.Binding);
+		test.settle();
+		test.Host.dispatch(input);
+		test.settle();
+		check(test.Processes.Starts == 1U && test.Workspaces.Starts == 1U && test.Projection.Finished.back().Outcome == application::agent_run_outcome::success,
+			  "a first native turn admits a workspace neighbourhood beyond the former project-size bounds");
+		test.Host.dispatch(input);
+		test.settle();
+		check(test.Processes.Starts == 2U && test.Workspaces.Starts == 1U && test.Workspaces.Inspections == 1U,
+			  "the continued turn validates its exact workspace without scanning or replacing the project");
+		input.NativeScope = "tour:1:0:1:0";
+		test.Host.dispatch(input);
+		test.settle();
+		check(test.Processes.Starts == 3U && test.Workspaces.Starts == 2U && test.Workspaces.Cleanups == 0U
+				  && std::filesystem::file_size(pressure) == length,
+			  "another native scope still starts, with existing large work preserved and no project-size cap");
+#if !defined(_WIN32)
+		std::filesystem::remove(pressure);
+		const auto unrelated = root / "unrelated-session-directory";
+		std::filesystem::create_directory(unrelated);
+		std::filesystem::permissions(unrelated, std::filesystem::perms::none);
+		test.Host.dispatch(input);
+		test.settle();
+		std::filesystem::permissions(unrelated, std::filesystem::perms::owner_all);
+		check(test.Processes.Starts == 4U && test.Workspaces.Starts == 2U && test.Workspaces.Inspections == 2U,
+			  "an unrelated unreadable directory is not scanned before continuing the selected valid workspace");
+#endif
+	}
+
 	void native_storage_failures_remain_private()
 	{
 		for (const auto mode : { 0, 1, 2, 3 }) {
@@ -2008,10 +2086,17 @@ namespace {
 	}
 }
 
-auto main() -> int
+auto main(const int aCount, char** aArguments) -> int
 {
+	if (aCount == 2 && std::string_view{ aArguments[1] } == "--large-entry-project") {
+		native_project_size_does_not_gate_first_or_continued_turns(true);
+		std::cout << "native-large-entry-project:pass\n";
+		return EXIT_SUCCESS;
+	}
+	expect(aCount == 1, "only the dedicated entry course takes an argument");
 	native_workspace_and_identity_survive_window_activation();
 	native_storage_failures_remain_private();
+	native_project_size_does_not_gate_first_or_continued_turns();
 	test_tour_history_keeps_the_terminal_answer_item();
 	test_explicit_settings_cross_the_existing_invocation_host();
 	test_reopened_replay_uncertainty_is_visible_without_native_workspace();

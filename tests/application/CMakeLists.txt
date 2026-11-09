@@ -645,6 +645,10 @@ target_link_libraries(
     PRIVATE
         BetterPullReview::Application
 )
+if(WIN32)
+    target_link_libraries(test_better_pull_review_agent_invocation_host_tests
+        PRIVATE BetterPullReview::Platform Advapi32)
+endif()
 bpr_enable_hardening(test_better_pull_review_agent_invocation_host_tests)
 bpr_enable_warnings(test_better_pull_review_agent_invocation_host_tests)
 
@@ -657,6 +661,13 @@ set_tests_properties(
     PROPERTIES
         PASS_REGULAR_EXPRESSION "agent-invocation-host-tests:pass"
 )
+bpr_add_network_isolated_test(
+    NAME application_agent_workspace_entry_limit
+    COMMAND test_better_pull_review_agent_invocation_host_tests --large-entry-project
+)
+set_tests_properties(application_agent_workspace_entry_limit PROPERTIES
+    PASS_REGULAR_EXPRESSION "native-large-entry-project:pass"
+    RUN_SERIAL TRUE TIMEOUT 180)
 endif()
 
 bpr_add_executable(

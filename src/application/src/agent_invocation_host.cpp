@@ -79,38 +79,6 @@ namespace bpr::application {
 				&& aBinding.PullRequest == aAuthority.PullRequest;
 		}
 
-		/// Includes retained and crash-recovery trees; a limit refuses admission,
-		/// never deletion of an agent's modified or unverifiable files.
-		[[nodiscard]] auto native_workspace_budget_available(const std::filesystem::path& aRoot) -> bool
-		{
-			constexpr auto maximumBytes   = std::uintmax_t{ 16ULL * 1024ULL * 1024ULL * 1024ULL };
-			constexpr auto maximumEntries = std::size_t{ 262144U };
-			auto           error          = std::error_code{ };
-			if (!std::filesystem::exists(aRoot, error)) {
-				return !error;
-			}
-			auto total   = std::uintmax_t{ 0U };
-			auto entries = std::size_t{ 0U };
-			for (auto item = std::filesystem::recursive_directory_iterator{ aRoot, std::filesystem::directory_options::none, error };
-				 !error && item != std::filesystem::recursive_directory_iterator{ }; item.increment(error)) {
-				if (++entries > maximumEntries) {
-					return false;
-				}
-				const auto status = item->symlink_status(error);
-				if (error) {
-					return false;
-				}
-				if (std::filesystem::is_regular_file(status)) {
-					const auto bytes = item->file_size(error);
-					if (error || bytes > maximumBytes - total) {
-						return false;
-					}
-					total += bytes;
-				}
-			}
-			return !error;
-		}
-
 		[[nodiscard]] auto workspace_outcome(
 			const agent_workspace_error& aFailure) noexcept -> agent_run_outcome
 		{
@@ -824,10 +792,6 @@ namespace bpr::application {
 					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = aOutcome, .StandardError = aReason, .WorkspaceReason = aWorkspaceReason, .RefusalReason = aReason }, aInvocation);
 				};
 				if (native) {
-					if (!native_workspace_budget_available(WorkspaceParent)) {
-						refuseNative("Retained workspace storage reached its 16 GiB or 262144-entry bound, or could not be verified. Existing work was kept; no question was sent.", core::operation_failure::size_limit);
-						return;
-					}
 					// Application/window and invocation IDs are deliberately absent.
 					const auto scope    = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
 					auto       selected = NativeSessions->select(scope, std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : ""),

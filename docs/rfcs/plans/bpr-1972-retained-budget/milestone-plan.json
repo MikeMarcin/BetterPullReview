@@ -1,0 +1,35 @@
+{
+  "schema": "implement-rfc.milestone-plan.v1",
+  "id": "bpr-1972-retained-budget",
+  "scope": {
+    "issues": [
+      "BPR-1972"
+    ]
+  },
+  "milestones": [
+    {
+      "id": "truthful-retained-admission",
+      "outcome": "Valid extremely large native workspaces can start and continue without a project-size inventory gate, while exact ownership/integrity and actual I/O failures remain enforced.",
+      "work": [
+        {
+          "issue": "BPR-1972",
+          "criteria": [
+            "AC1",
+            "AC2",
+            "AC3",
+            "AC4"
+          ]
+        }
+      ],
+      "depends_on": [],
+      "exit_criteria": [
+        "The owner amendment removing fixed aggregate project-size admission caps is implemented for both first and continued native turns, with a regression that fails the former gate.",
+        "Retained integrity, actual materialization failures, catalog/journal bounds and protected cleanup remain verified through focused host and composed courses.",
+        "Source, amendment, evidence and board state are committed; task commands stop and the inaccessible corporate-machine observation remains explicit."
+      ],
+      "boundary": "Owner amendment retained-large-projects-r2 under original retained-workspace-continuation-r1; no automatic deletion or BPR-1971 overlap."
+    }
+  ],
+  "coverage": "complete",
+  "unplanned_work": []
+}

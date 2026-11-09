@@ -28,6 +28,25 @@ records the exact candidate, reused evidence and superseded availability wizard.
 The immutable source pack retains the originally authored requirements; this live
 section and the amended live milestone exit govern the scoped waiver.
 
+## Owner large-project amendment, 2026-11-09
+
+The owner reported that a continued tour question still stopped at the retained
+storage gate after the bounded-object fix, then instructed: “I mean the workspace
+is an extremely large project. There's no reason we shouldn't be able to operate
+on extremely large projects though.” Amendment `retained-large-projects-r2` under
+the original continuation mandate removes the fixed 16 GiB/262144-entry aggregate
+workspace preflight for both new native workspaces and continued sessions.
+
+A project is not refused because of its logical file lengths, file count, or an
+inventory of unrelated retained sessions. Continuing uses the exact ownership and
+pinned-object checks; materializing a new workspace still reports actual Git,
+filesystem and cancellation failures. Existing catalog/journal bounds and safe
+cleanup protections remain. No automatic deletion or larger replacement cap is
+introduced. The adopted design's earlier total-byte/entry admission requirement is
+superseded by this explicit owner decision. Historical qualification evidence keeps
+its original meaning; [BPR-1972](../verification/BPR-1972-large-native-workspaces.md)
+records the changed contract and direct regression evidence.
+
 ## Required final critical review — completed
 
 The owner requested “do an an rfc-review-critical before we closeout the whole
