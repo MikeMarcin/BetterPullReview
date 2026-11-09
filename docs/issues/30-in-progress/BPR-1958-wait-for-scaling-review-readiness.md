@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1958"
 title: "Wait for the scaling course's composed Review readiness"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
