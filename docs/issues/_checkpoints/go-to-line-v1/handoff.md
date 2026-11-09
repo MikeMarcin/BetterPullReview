@@ -1,5 +1,9 @@
 # Go to line checkpoint
 
+The latest frontier is the owner-requested [appearance revision](post-review.md).
+The original automated closeout below is preserved; additional appearance
+acceptance is pending for its fresh candidate.
+
 Mandate `go-to-line-r1`, assignment `/root/go_to_line`, milestone
 `exact-source-line`, BPR-1948 / **RFC-BPR-0097**. All AC01–AC04 pass unchanged.
 Source, tracker and project runtime root:

@@ -45,12 +45,13 @@
     "exec_session": 58123,
     "port": 61213,
     "tailscale_pid": 44094,
-    "foreground_session": "ca5296055133470a"
+    "foreground_session": "ca5296055133470a",
+    "lifecycle": "Stopped through owning helper; PID44087 and Tailscale44094 confirmed absent"
   },
   "lifecycle": "Handback37 reconciled; overlapping development protection released38 for requested appearance correction. Prior verdicts and frozen candidate remain unchanged.",
   "owning_driver": "/root",
   "preparing_implementer": "/root/go_to_line",
   "original_automatic_acceptance": "unchanged",
-  "waiter": "None started by this leaf; coordinator arms handback-only wait after status/intake reconciliation.",
+  "waiter": "None; old coordinator waiter exited at handback37.",
   "release_rationale": "Both candidates protected the dialog implementation path. Coordinator authorized scoped release after the owner requested changes. Navigation acceptance remains bound to untouched v002 frozen bytes/build."
 }

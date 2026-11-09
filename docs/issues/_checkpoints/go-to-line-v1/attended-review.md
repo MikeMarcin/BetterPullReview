@@ -60,7 +60,7 @@ Preparation leaf `/root/go_to_line` consumed only preparation/review-start
 through cursor7, before sharing the URL. It started no decision waiter and
 will not interpret subsequent human events.
 
-The one handed-off foreground server is PID44087, exec session58123. Its owned
+The one handed-off foreground server is PID 44087, exec session58123. Its owned
 Tailscale child is PID44094, foreground session`ca5296055133470a`, port61213.
 Both loopback listeners and the scoped private HTTPS route belong to this
 helper. Keep it running; do not reset shared Serve settings. Python3.14.7 and
@@ -85,3 +85,17 @@ All freeze/configure/build/check commands completed. The stopped incomplete
 root is gone. The ordinary development worktree and unrelated main writer were
 preserved. Only this explicitly handed-off review server remains task-owned
 and running; the owner may independently launch the frozen application.
+
+## Reconciled handback and replacement
+
+Handback 37 was reconciled in fresh engineering assignment
+`/root/go_to_line_revision`; both candidate fingerprints match. Navigation was
+accepted, while appearance was rejected with the requested exclusive Left/Right
+picker and reduced dialog space. The final verdicts and consumed cursor 38 are
+recorded in review-session.json. Both candidates overlapped on the mutable
+dialog source; the coordinator authorized scoped development release at 38.
+Their old verdicts and exact frozen source/build remain intact.
+
+The old server was stopped through its own authenticated stop command; PID 44087
+and Tailscale 44094 were confirmed absent. The fresh appearance-only candidate and short session are recorded in
+[review-session-v003.json](review-session-v003.json). Continue from [post-review.md](post-review.md).

@@ -114,3 +114,44 @@ prepared session is recorded in the
 [review handoff](../issues/_checkpoints/go-to-line-v1/attended-review.md).
 The existing automated acceptance is unchanged; supplemental owner decisions
 remain pending for their exact frozen candidate.
+
+## Owner appearance revision r2
+
+The optional attended review of exact frozen v002 was handed back at37.
+Navigation and focus were accepted; dialog appearance was rejected. The owner
+requested exclusive Left/Right chips inspired by Find in Files and less wasted
+space. Mandate amendment `go-to-line-appearance-r2` retains all original
+AC01–AC04. [Reconciliation and current handoff](../issues/_checkpoints/go-to-line-v1/post-review.md).
+
+Appearance source/test candidate: `df4ccfc8587e203048eb3d74499f6305480e5720`.
+The shared chip is extracted from Find in Files with its existing filter
+callback intact; Go to line uses native QButtonGroup exclusivity. The dialog
+sizes to its controls and hides the unused validation row. The composed
+appearance owner supplies the same semantic chip fills and refreshes an open
+dialog on appearance publication. Exact-line reveal dispatch is unchanged.
+
+The corrected shortest composed course passed in 24.60 s. It additionally
+exercises Left/Right arrow selection, one active side, native Tab traversal
+and accessible endpoint names/checked state. The initial build needed the
+QComboBox include retained for historical-comparison test controls. The first
+course exposed an outdated assumption of two Tab stops; Qt’s native exclusive
+group has one stop and arrow selection. Both diagnostics are preserved in
+external logs; the corrected course passed before freezing.
+
+Focused clang-tidy22 and format22.1.8 pass, as do documentation structure and
+all 67 documentation controls. Command logs are external at
+`/tmp/bpr1948-r2-*.log`. No owner desktop was driven or captured. New appearance
+acceptance remains pending; the accepted v002 installation’s binary hash was
+verified unchanged.
+
+Final focused serial integration passed **6/6** on the exact source/test
+candidate: architecture boundaries 19.95 s, architecture contract 223.59 s, composed
+Go to line / source Find 26.20/27.97/26.23 s at 100/125/200%, and Find in Files 19.13 s; total 343.11 s. The exact command log is
+`/tmp/bpr1948-r2-integration.log`.
+The full-window split valid/invalid, 125% unified valid and 200% unified invalid
+rasters were inspected; controls and feedback fit the minimum 957×360 logical
+window. The composed course also asserts the short-file valid dialog stays
+under 200 logical pixels high with no empty validation row. This verifies layout
+and interaction, not native system appearance. No dedicated Debug timing course was selected.
+
+The fresh frozen review is recorded in the post-review checkpoint.
