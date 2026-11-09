@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1949"
 title: "Runtime-root tests adopt shared containment and explicit skip reporting"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind":"test-correctness","found_by":"frozen43 full qualification","related_cards":["BPR-1942"],"milestone_plan":{"id":"bpr-1949-1950-release-test-contracts","path":"docs/rfcs/plans/bpr-1949-1950-release-test-contracts/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Existing contained temporary factory/explicit skip runner adopted;7runtime cases/skips and6native wrapper commands/180s budgets/render copying/POSIX chmod preserved.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC2","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Pure runtime7/7,skip9/9 and current-main original5course/harness runPASS29.90s including all6native-session phases; final source gates3/3PASS. Five simulated skips named; no Windows credit.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC3","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Format22/focused tidy22, documentation and scoped board gatesPASS. Proven source intentionally integrated and ACTUALLY pushed authoritative main d84cde4d80164207d388ce41c63857a309eadff6. All protected producers unchanged, native/diagnostic commands ended/source copies restored. Final release/native trust and Windows new-wrapper measurement/pin remain coordinator/sibling obligations, not waived.","artifact_root":"candidate43/implementer-contract-fixes"}}]
 ---
 
 # BPR-1949: Runtime-root tests adopt shared containment and explicit skip reporting
