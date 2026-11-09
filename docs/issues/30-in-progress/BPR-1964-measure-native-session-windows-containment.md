@@ -2,7 +2,7 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1964"
 title: "Measure the native-session wrapper's Windows containment"
-status: "Ready"
+status: "In Progress"
 rfcs: []
 depends_on: []
 priority: "P1"
