@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1962"
 title: "Reaction fixture awaits its accepted refresh before reconciliation"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["mac", "linux", "windows"]
 metadata: {"kind": "test-correctness", "found_by": "frozen43Debug threaded reaction failure", "reservation": "docs/issues/_reservations/BPR-1962--BPR-1962--5fe6af572283.json", "milestone_plan": {"id": "bpr-1962-threaded-refresh-readiness", "path": "docs/rfcs/plans/bpr-1962-threaded-refresh-readiness/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Capture accepted Snapshot before existing singleRefresh and await changed Snapshot/no PendingPullRequest before identical reaction oracle; all gestures/provider40s budget unchanged.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC2","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Final restored original ReleasePASS3.85s/DebugPASS6.57s. First diagnostic8inconclusive old0/new0; second empirically old1/new0/pending1/unchangedSnapshot but whole instrumented8 retained/noacceptance. Exact source copies restored and normal sourceauditPASS.","artifact_root":"candidate43/implementer-contract-fixes"}},{"criterion":"AC3","outcome":"pass","revision":"d84cde4d80164207d388ce41c63857a309eadff6","evidence":{"kind":"observation","detail":"Format22/focused tidy22, documentation and scoped board gatesPASS. Proven source intentionally integrated and ACTUALLY pushed authoritative main d84cde4d80164207d388ce41c63857a309eadff6. All protected producers unchanged, native/diagnostic commands ended/source copies restored. Final release/native trust and Windows new-wrapper measurement/pin remain coordinator/sibling obligations, not waived.","artifact_root":"candidate43/implementer-contract-fixes"}}]
 ---
 
 # BPR-1962: Reaction fixture awaits its accepted refresh before reconciliation
