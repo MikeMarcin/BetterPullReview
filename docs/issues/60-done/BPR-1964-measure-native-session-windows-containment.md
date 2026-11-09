@@ -2,12 +2,13 @@
 schema: "implement-rfc.card.v1"
 id: "BPR-1964"
 title: "Measure the native-session wrapper's Windows containment"
-status: "In Progress"
+status: "Done"
 rfcs: []
 depends_on: []
 priority: "P1"
 platforms: ["win"]
 metadata: {"kind":"test","found_by":"Current-main native qualification registry has an explicitly unmeasured Windows row","mandate":"Owner release-blocker fixes land through an implementer on main; coordinator authorized current-main private Windows build and exact native-session registration/pin measurement on 2026-11-09.","milestone_plan":{"id":"bpr-1964-native-session-boundary","path":"docs/rfcs/plans/bpr-1964-native-session-boundary/milestone-plan.json"}}
+acceptance: [{"criterion":"AC1","outcome":"pass","revision":"8396d01c3fedc31c5fbcaa9ef7d33eb7a8791406","evidence":{"kind":"artifact","detail":"Independent nonshared/no-hardlink object store, normalVS18/x64Release three requested targets+deps; compilerpin matched; freshbuild0 and updated8f+1967build0/152.15s. Frozen43protectedhashesunchanged; exactPE/images/source bound in sharedhandback."}},{"criterion":"AC2","outcome":"pass","revision":"8396d01c3fedc31c5fbcaa9ef7d33eb7a8791406","evidence":{"kind":"artifact","detail":"Same-image575b normal6courses+wrappermarkerPASS45.94s/original400/180limits; containedCTest8/nativechild1/0.31s with laterchecks unreached. Exactchild+parentAppContainer token and firstretainedancestor attributes/control WinError5 observed; dataDOS/NTbothresolve."}},{"criterion":"AC3","outcome":"pass","revision":"107d346834f7ad2c316580c634fccbce314d6ad0","evidence":{"kind":"artifact","detail":"Measuredancestor-control-denied entry+explicitWindowsflag landedmain107d, verifiedorigin. NormalWindowsmanifest rejects unmeasured8/1.71s thenpasses0/1.71s;74isolation+67doccontracts,DOCUMENTATION_OK,format22,scopedboardvalid. No otherpin/argv/budget change."}}]
 ---
 
 # BPR-1964: Measure native-session Windows containment
