@@ -3,13 +3,16 @@
 Mandate `native-agent-sessions-r1` implements the reviewed pack. Immutable
 RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`. Import `819ff2708`;
 BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce569b21ff` (the tested source tree promoted unchanged). The [live plan](../rfcs/plans/native-agent-sessions-v1/milestone-plan.json)
-retains all five milestones. This ledger records scoped functional engineering
-for the native Agent-tab, tour/history and tour-context milestones; it does not accept the whole RFC or later tour/history/replay work.
+retains all five milestones. This ledger preserves each milestone's observations
+and the final criterion-by-criterion engineering audit.
 
-Current frontier: M4 `qualified-continuation` is accepted under the scoped
-[owner Claude verification waiver](#owner-claude-verification-waiver-and-m4-acceptance).
-The following milestone sections retain their historical observations; BPR-1956
-still owns the final full-RFC acceptance audit.
+Current frontier: implementation and the M5 engineering audit are complete for
+independent critical review. The owner's new required critical review of the
+whole pack is pending; BPR-1956 stays In Progress and the RFC stays Proposed.
+M4 remains accepted under its narrow
+[installed Claude waiver](#owner-claude-verification-waiver-and-m4-acceptance).
+Earlier milestone sections retain their historical frontiers and actual failures;
+the [M5 section](#m5-accepted-scope-audit-and-critical-review-handoff) is current.
 
 ## Native Agent-tab frontier
 
@@ -544,3 +547,122 @@ Recovery for this amendment is external
 `/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m4-waiver-handoff.md`,
 with the renewed exact M4 checkpoint, owner-amendment record and acceptance
 receipt beside it. No product or visual change was made in this round.
+
+
+## M5 accepted-scope audit and critical review handoff
+
+Mandate `native-agent-sessions-r1`; full RFC baseline
+`bebea27edf44fd63a7308307227035bf33391c5c`. M5 claimed BPR-1956 at
+`16432868082786bf31a77fa840a4e939cf7fc3ae` from clean
+`1d3804a242eddc61221fa89d85b16b127ea9a96b`. Exact product candidate:
+`bf09db0a3c73836587a4d6a0ea6e447b18b79829`. This is an engineering audit, with final independent
+critical review required by the owner's later instruction. No critical reviewer
+has supplied a result yet; no terminal RFC/card/pack acceptance is claimed.
+
+### Causal AC07 repair and exact-candidate checks
+
+The audit reproduced an in-scope gap through the actual tour composer after head
+movement: the native catalog retained the old binding, but tour dispatch supplied
+no explicit continuation and exposed no old-revision action. The negative course
+fails `tour-old-revision-action` (`m5-tour-stale-negative.log`). The repair adds
+Continue old revision and a saved/current-head disclosure through existing native
+Qt controls. Core continuation decisions govern the offer; consent names exact
+scope, selected generation, saved session and observed binding. Selecting another
+chat/history or observing a changed binding invalidates it. Choosing sends no
+inference. New session continues to retain history and requires its own admission.
+
+A continued tour turn uses the existing explicit-session route with its own
+complete tour context and read-only options. It bypasses the Agent tab's finding
+realignment, whose ordinary launch tail does not carry tour options. The retained
+workspace is inspected and reused, and the authoritative snapshot names pinned
+and observed heads. Existing `finish_tour_ask`/`TourWorkspaceHead` stamping and
+passing core `proposal_heads`/captured-target cases preserve analyzed OIDs and
+stale proposal refusals. Stop remains enabled if the head moves during authorized
+work; the focused Qt regression covers this state.
+
+`m5-repair-check.log` retained the initial stale-control projection failure;
+accepted revision observations now refresh it. `m5-repair-public2.log` then
+passed old-revision native continuation, but New session correctly refused because
+a synthetic reaccepted handoff had no fetchable new-head material. The final
+course uses the real Refresh gesture and the existing two-head recording and waits
+for the accepted comparison to move. No workspace refusal or source assertion was
+relaxed.
+
+| Fresh M5 evidence (external execution root) | Actual result |
+|---|---|
+| `m5-focused-integration.log` | 9/9 before repair: native/replay public6, core source/session, prompt, protocol, host, SQLite and safe workspace ownership. |
+| `m5-final-integration.log` | 10/10 after repair: architecture/isolation, core tour, Qt tour, public6 and Agent-tab ordinary/stale/continued/anchored plus invocation composition contracts. |
+| `m5-final-stop-check.log` | Final exact product 2/2: Qt tour includes Stop while revision choice is pending; public6 still passes. |
+| `m5-repair-render3.log`, `offscreen-m5` | All six production courses pass. Actual old tour keeps original process and workspace HEAD; its wire carries read-only/network-off plus different pinned/observed bootstrap heads. A fresh generation runs at the fetched current HEAD in a distinct process; reopened old history requires choosing again. Both full-window stale-tour rasters inspected. |
+| `m5-tidy.log`, `m5-tidy2.log`, `m5-final-tidy.log`, `m5-final-qt-tidy.log` | Scoped clang-tidy22 passes all five changed production units, with final tours and Qt rechecks after their last edits. |
+| `m5-final-format6.log`, diff check | clang-format22 passes 10 changed C++ files; Python driver compiles; no whitespace errors. |
+| `m5-scope-audit.json` | All15 immutable source-pack files and adopted `source.json` unchanged since import. The five original product commits cover96 scoped paths; M5's explicit-path product commit adds only its bounded repair/tests/operator prose. Interleaved Go-to-line/RFC0097 work is preserved and supplies no RFC0096 acceptance. |
+
+Frontend-design was loaded from the configured installed skill before M5 Qt work.
+The palette, fonts and existing tour column remain native; rendering is offscreen,
+with no owner desktop or personal profile access. No Claude request, direct model
+API, remote mutation, extra agent or push occurred. Prior M1–M4 installed Codex,
+resource/storage/ownership, core-only, source/permission and67 documentation-script
+passes remain relevant where their inputs are unchanged. Dedicated Debug timing
+courses were not run and receive no timing credit.
+
+### Full criterion audit
+
+The judgments below apply to the exact candidate with unchanged earlier evidence
+reused. They are implementation judgments awaiting the required independent
+critical review, not a claim that Claude or every platform passed.
+
+| Criterion | Engineering judgment and direct evidence |
+|---|---|
+| AC01 | Native Agent/tour visible composers keep backend memory, handle/process and workspace; installed Codex AppServer and JSONL exact resume. Claude functional fixtures pass; remaining installed Claude evidence is owner-waived. |
+| AC02 | M1/M2 core/SQLite identity, incarnation, authority and history isolation; four/evolving six public scopes, Reset namespace/high-water, removed-stop inspection and captured stable stop IDs. |
+| AC03 | Public application seed/reopen and exact selected history; retained real-Git object/edit recovery with lending clone removed; missing workspace/base, CAS, uncertain saves and visible legacy-save refusal. |
+| AC04 | Both visible New/history controls, unused-empty reuse and full-capacity preservation; Reset/Undo payload v9 and accepted text/source/context/proposal-origin checks. |
+| AC05 | Protocol/host/CAS/frame/uncertainty/cancellation tests; installed Codex Stop and exact explicit resume. New stale-tour choice starts no inference; Stop remains enabled during head movement. |
+| AC06 | Six public native/replay/legacy seed/reopen courses, unsupported custom harness and missing-workspace negative control; distinct linked replay generation, current permissions, counted omissions and no resend. |
+| AC07 | Public Refresh fetches changed head: tour Continue old revision keeps actual workspace HEAD/process and readonly/network-off, pinned/observed bootstrap; New session runs at current HEAD separately. Existing three Agent stale/continued/anchored courses, core old-head proposal/captured-ID tests and full-each-turn bootstrap pass. |
+| AC08 | Core/prompt/Qt distinguishing source/preparation/related/blocker/unknown/cap tests; installed Codex explains identical ranges with different confirmation without BPR source. Installed Claude explanation is owner-waived. |
+| AC09 | Visible composer update/author Accept preserves confirmed source; normal tour/core text/order/new/split/retargeted and stable-target refusal checks; shared Qt/core/context reasons and publication/Ready authority remain separate. |
+| AC10 | Six production composer courses, inspected offscreen native/replay/source/control rasters and new stale-tour rasters; exact macOS arm64 Codex0.164.0 AppServer/JSONL/native/Stop qualification. Installed Claude remains unverified under the narrow owner waiver. |
+| AC11 | Actual equivalent Release Codex metrics; active/idle64KiB/+1, cache4eviction/exactresume, shared500/protected-save, workspace ownership/recovery and16GiB+1 refusal. Safe exact-owned ordinary cleanup plus protected-state preserve/refuse; no automatic retained-tree reclamation or unmeasured boundary claim. |
+| AC12 | Live operator/product/architecture and RFC0011/0012/0092 amendment reconciled; immutable15 source files/provenance and historical Done verdicts unchanged. Focused gates and documentation pass; final independent critical review is required before terminal acceptance. |
+
+### Remaining gate and preserved limits
+
+The owner additionally requested “do an an rfc-review-critical before we closeout
+the whole pack when we're done with the impl.” The coordinator must supply that
+independent critical review for the whole scoped implementation, then a subsequent
+engineering round must adjudicate findings, repair any in-scope failure and finish
+the acceptance/upkeep. The current card remains In Progress; no approved finish
+receipt, Auto-Verified status or independent approval is issued by M5.
+
+Owner amendment `native-agent-sessions-claude-waiver-r1` applies only to remaining
+installed Claude verification. Claude2.1.310 remains unverified; the authenticated
+HTTP429 weekly-limit failure, zero tool activity/no usable answer and unreached
+native/replay/resume/Stop/explanation/permission/usage courses keep their original
+meaning. The superseded weekly-availability wizard remains stopped at consumed
+cursor1 with its human acknowledgement unanswered. No new availability session,
+automatic retry or inferred pass exists.
+
+The selected installed scope is macOS arm64/Codex0.164.0 with the recorded Qt and
+Release identities. Broader Windows/Linux/system-appearance, forced runtime
+compaction, the262144-entry boundary, actual five-minute wall-clock expiry and the
+owner's original warning sequence were not independently measured. They are not
+invented passes or new waivers. Full bootstrap on every explicit send is the
+implemented fallback when runtime framing survival is unknown. The required
+bounded-output/cache/admission/refusal paths have direct evidence; automatic
+retained-tree reclamation is not implemented. The RFC allows safe preservation
+and refusal when cleanup cannot be proved. Exact-owned ordinary/replay cleanup
+and recovery are tested separately from retained native ownership. No source
+promise of automatic retained cleanup or unlimited memory is made.
+
+Existing release/vault/crash/vulnerability/native-trust/full-removal requirements
+remain outside this scope. Profile purge excludes shared updater/registry state
+and is not uninstall. Reported Release metrics retain unavailable USD/model and
+single-course limits; no fixed saving is asserted.
+
+External continuation and reviewer packet:
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/m5-handoff.md` and
+`m5-critical-review-handoff.md`, with exact candidate, scoped path inventory,
+commands, criterion audit and checkpoint beside them. Final documentation/board
+checks and command quiescence are recorded in that external handoff.

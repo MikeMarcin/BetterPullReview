@@ -28,6 +28,18 @@ records the exact candidate, reused evidence and superseded availability wizard.
 The immutable source pack retains the originally authored requirements; this live
 section and the amended live milestone exit govern the scoped waiver.
 
+## Required final critical review
+
+After implementation the owner additionally requested “do an an
+rfc-review-critical before we closeout the whole pack when we're done with the
+impl.” Independent critical review of the whole scoped implementation from
+RFC_BASE_SHA `bebea27edf44fd63a7308307227035bf33391c5c` is required before
+terminal RFC/pack acceptance. At product `bf09db0a3c73836587a4d6a0ea6e447b18b79829` it is pending;
+[the final engineering audit](../verification/RFC-BPR-0096.md#m5-accepted-scope-audit-and-critical-review-handoff)
+records implementation evidence and its limits. The RFC remains Proposed until
+that review is supplied and reconciled. This adds no installed Claude retry and
+does not alter the scoped waiver above.
+
 ## Problem and grounded current behavior
 
 The owner wants the session behavior of the official Claude Code VS Code
