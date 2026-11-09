@@ -21,3 +21,9 @@ metadata: {"kind": "test-correctness", "found_by": "frozen43Mac qualification / 
 ## Mandate
 
 Coordinator approved this exact test-contract scope. Frozen producer source/builds remain untouched; all source fixes land authoritative main.
+
+## Focused verification
+
+Original frozen43 Release/Debug failure is retained. Source5574ffd6a scopes the no-switch assertion to the feedback page and separately proves the adopted Review skill copy control exists outside that page and stays hidden. Normal Release course PASS1.16s. An injected feedback-page QCheckBox makes the exact no-switch assertion fail; exact source restoration, target rebuild and normal course PASS follow (feedback-negative-receipt.json). No production UI behavior changes.
+
+Evidence: external candidate43/implementer-contract-fixes. All frozen producer source/builds stay untouched. Full common-source native qualification remains release-coordinator work.

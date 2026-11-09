@@ -21,3 +21,9 @@ metadata: {"kind": "test-correctness", "found_by": "frozen43Mac qualification / 
 ## Mandate
 
 Coordinator approved this exact test-contract scope. Frozen producer source/builds remain untouched; all source fixes land authoritative main.
+
+## Focused verification
+
+Original frozen43 expected-storage_unavailable failure is retained. Accepted BPR-1870 explicitly narrows same-owner adapter-owned store files, so source2ce97e9a8 requires actual show success, exact0600/current-owner/single-link regular file and unchanged device/inode. Full normal security course PASS22.73s, including all previously unreached protocol/privacy checks; sqlite_storage_root_contract PASS0.39s preserves linked/foreign-object refusal. Windows branch and original root/domain/oracles/budgets remain unchanged. No storage policy waiver or production change.
+
+Evidence: external candidate43/implementer-contract-fixes. All frozen producer source/builds stay untouched. Full common-source native qualification remains release-coordinator work.

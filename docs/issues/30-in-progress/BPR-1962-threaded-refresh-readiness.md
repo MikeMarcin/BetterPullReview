@@ -21,3 +21,9 @@ metadata: {"kind": "test-correctness", "found_by": "frozen43Debug threaded react
 ## Diagnosis
 
 The fixture checks AccountReadCount, a transport request-start counter, plus an empty optimistic overlay. Frozen43 fails while the app says Refreshing the pull request,2453ms into40s, with reads37/overlay0. The fixture must wait for the refreshed accepted snapshot before interpreting the presented reactions. No product reconciliation behavior changes.
+
+## Focused verification
+
+Original frozen43 Debug phase15 is a real functional negative at2453/40000ms, not a timing waiver. Source52e5e27d2 captures the accepted Snapshot before the single existing Refresh and waits for a different accepted Snapshot with no PendingPullRequest before the identical reaction oracle. Final uninstrumented normal registered Release PASS3.85s and Debug PASS6.57s after exact source restoration. The first diagnostic control exits8/inconclusive (old_ready0/new_ready0 because overlay was nonempty). The one approved diagnostic-only extra Refresh after original reconciliation empirically establishes read_started1/empty_overlay1/read_pending1/snapshot_changed0/old_ready1/new_ready0; that whole instrumented course exits8 afterward because its additional refresh affects fixture completion, and has NO acceptance credit. Both raw results, source hashes and restoration receipts remain external. Final source audit passes with1961binding; normal single-Refresh source remains unchanged by diagnostics.
+
+Evidence: external candidate43/implementer-contract-fixes. All frozen producer source/builds stay untouched. Full common-source native qualification remains release-coordinator work.

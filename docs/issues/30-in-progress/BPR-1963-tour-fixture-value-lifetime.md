@@ -21,3 +21,9 @@ metadata: {"kind": "test-correctness", "found_by": "Windows43 diagnosis", "reser
 ## Diagnosis
 
 whole_tour holds a reference into tour.Stops.front().Original, then pushes three more stops. The first vector reallocation invalidates that reference and the next copy uses freed storage. The source template must be an owned value. Coordinator assigned only this test file; frozen producers remain untouched.
+
+## Focused verification
+
+Sourcef992a1d1b copies the template by value before vector growth; no content/oracle/gesture changes. Isolated one-TU ASan negative compiles/links0 then actual contained exit250 with heap-use-after-free READ147 in whole_tour, freed by vector<tour_stop>::__emplace_back_slow_path. Corrected source compiles/links/runs0 with tour-agent-session-view:pass and no ASan finding. First instrumentation compile1 (ASan builtin Fortify0 versus original Fortify3) is retained; r2 undefines only the builtin immediately before the unchanged original Fortify3 define, preserving effective hardening3, optimization, Werror, SDK and architecture. Runtime retains exact configured environment/envmods/cwd/networkdeny/30s; only diagnostic image/output paths differ. Engineering proof only, no Windows causal attribution. Final normal Release course PASS0.75s and Debug PASS0.78s. Format22/tidy22 pass.
+
+Evidence: external candidate43/implementer-contract-fixes. All frozen producer source/builds stay untouched. Full common-source native qualification remains release-coordinator work.
