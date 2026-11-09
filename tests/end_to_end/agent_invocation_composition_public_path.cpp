@@ -1133,7 +1133,7 @@ auto main(int argc, char** argv) -> int
 					return fail(*application, "replay-choice-no-inference");
 				}
 				if (!send(QStringLiteral("verify-replay")) || !tab->turn_answer(tab->turn_count() - 1U).contains(QStringLiteral("transcript-replay-ok")) || !std::filesystem::exists(workspace / ".bpr-native-fixture-state")) {
-					return fail(*application, "replay-fresh-workspace", panel->output_text().toStdString());
+					return fail(*application, "replay-shared-workspace", panel->output_text().toStdString());
 				}
 				// Explicit unknown legacy source -> currently selected destination.
 				QAction* legacy = nullptr;
@@ -1316,11 +1316,11 @@ auto main(int argc, char** argv) -> int
 					if (course == "tour-native") {
 						auto createdWorkspaces = std::set<std::filesystem::path>{ };
 						for (const auto& item : std::filesystem::recursive_directory_iterator(workspaceRoot)) {
-							if (item.path().filename() == ".bpr-native-fixture-state" && !previousWorkspaces.contains(item.path().parent_path())) {
+							if (item.path().filename() == ".bpr-native-fixture-state") {
 								createdWorkspaces.insert(item.path().parent_path());
 							}
 						}
-						if (createdWorkspaces.size() != 1U || std::filesystem::exists(*createdWorkspaces.begin() / ".git" / "shallow")) {
+						if (createdWorkspaces.size() != 1U || (!previousWorkspaces.empty() && createdWorkspaces != previousWorkspaces) || std::filesystem::exists(*createdWorkspaces.begin() / ".git" / "shallow")) {
 							return fail(*application, "tour-native-complete-retained-workspace", "new-workspaces=" + std::to_string(createdWorkspaces.size()));
 						}
 						retainedTourWorkspace = *createdWorkspaces.begin();
@@ -1608,7 +1608,7 @@ auto main(int argc, char** argv) -> int
 				return fail(*application, "native-visible-answer");
 			}
 			const auto after = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
-			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : entryId)) {
+			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : 1U)) {
 				return fail(*application, "native-retained-workspace");
 			}
 			// Visible New session waits for admission and retains the completed native generation.

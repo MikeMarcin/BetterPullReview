@@ -124,6 +124,7 @@ namespace bpr::adapters::sqlite {
 									"left_epoch INTEGER NOT NULL, right_epoch INTEGER NOT NULL, handle TEXT NOT NULL, turn INTEGER NOT NULL, pending INTEGER NOT NULL,"
 									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
 									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_workspaces(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_sparse_objects(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), missing TEXT NOT NULL CHECK(length(CAST(missing AS BLOB)) <= 67108864)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_replays(conversation TEXT PRIMARY KEY REFERENCES native_agent_sessions(id), source TEXT NOT NULL) STRICT")
@@ -710,6 +711,51 @@ namespace bpr::adapters::sqlite {
 		private:
 			std::filesystem::path Root;
 		};
+		[[nodiscard]] auto read_native_workspace(sqlite3* aDatabase, sqlite3_stmt* aRow)
+			-> std::expected<std::optional<application::owned_agent_workspace>, application::native_agent_storage_failure>
+		{
+			using failure   = application::native_agent_storage_failure;
+			const auto head = core::parse_git_commit_oid(column_text(aRow, 3).value_or(""));
+			const auto base = core::parse_git_commit_oid(column_text(aRow, 2).value_or(""));
+			if (!head || !base) {
+				return std::unexpected(failure::unavailable);
+			}
+			const auto path = column_text(aRow, 9).value_or(std::string{ });
+			if (!path.empty()) {
+				auto workspace                 = application::owned_agent_workspace{ };
+				workspace.Workspace.Path       = path;
+				workspace.Workspace.PinnedHead = *head;
+				workspace.Workspace.Shallow    = sqlite3_column_int(aRow, 17) != 0;
+				if (!workspace.Workspace.Shallow) {
+					workspace.RequiredBase = *base;
+				}
+				auto sparse = detail::prepare(aDatabase, "SELECT missing FROM native_agent_sparse_objects WHERE conversation=?1");
+				if (!sparse) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(sparse->Value, 1, column_text(aRow, 0).value_or(""));
+				const auto sparseStatus = sqlite3_step(sparse->Value);
+				if (sparseStatus == SQLITE_ROW) {
+					workspace.SparseMissingObjects = column_text(sparse->Value, 0);
+				} else if (sparseStatus != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				workspace.ParentDirectory    = column_text(aRow, 10).value_or(std::string{ });
+				workspace.OwnershipMarker    = column_text(aRow, 11).value_or(std::string{ });
+				workspace.ApplicationSession = core::application_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(aRow, 12)) };
+				workspace.Session            = core::agent_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(aRow, 13)) };
+				if (sqlite3_column_bytes(aRow, 14) != 32 || sqlite3_column_bytes(aRow, 16) != 32) {
+					return std::unexpected(failure::unavailable);
+				}
+				std::memcpy(workspace.DirectoryIdentity.Opaque.data(), sqlite3_column_blob(aRow, 14), 32U);
+				auto guard = application::agent_workspace_lifetime_guard{ };
+				guard.Path = column_text(aRow, 15).value_or(std::string{ });
+				std::memcpy(guard.FileIdentity.data(), sqlite3_column_blob(aRow, 16), 32U);
+				workspace.LifetimeGuard = std::move(guard);
+				return std::optional{ std::move(workspace) };
+			}
+			return std::optional<application::owned_agent_workspace>{ };
+		}
 		/// [[BPR-1753]], owner decision (b) 2026-10-23. Each pull
 		class native_agent_session_store final : public application::native_agent_session_store_port
 		{
@@ -717,6 +763,42 @@ namespace bpr::adapters::sqlite {
 			explicit native_agent_session_store(std::filesystem::path aRoot)
 				: Root{ std::move(aRoot) }
 			{ }
+			auto shared_workspace(const std::string& aKey, const application::native_agent_session& aSession)
+				-> std::expected<std::optional<application::owned_agent_workspace>, application::native_agent_storage_failure> override
+			{
+				using failure = application::native_agent_storage_failure;
+				if (aKey.empty() || aKey.size() > 4096U) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto connection = open(Root);
+				if (!connection) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto row = detail::prepare(connection->Database.get(), "SELECT id,configuration,base,head,left_epoch,right_epoch,handle,turn,pending,workspace,parent,marker,application,session,directory,guard,guard_identity,shallow,revision FROM native_agent_sessions WHERE id=(SELECT conversation FROM native_agent_workspaces WHERE scope=?1)");
+				if (!row) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(row->Value, 1, aKey);
+				const auto status = sqlite3_step(row->Value);
+				if (status == SQLITE_DONE) {
+					return aSession.Workspace;
+				}
+				if (status != SQLITE_ROW) {
+					return std::unexpected(failure::unavailable);
+				}
+				if (column_text(row->Value, 2) != std::optional{ std::string{ core::canonical_hex(aSession.Binding.BaseOid).view() } }
+					|| column_text(row->Value, 3) != std::optional{ std::string{ core::canonical_hex(aSession.Binding.HeadOid).view() } }) {
+					return std::unexpected(failure::conflict);
+				}
+				auto workspace = read_native_workspace(connection->Database.get(), row->Value);
+				if (!workspace || !*workspace) {
+					return std::unexpected(failure::unavailable);
+				}
+				if (aSession.Workspace && (aSession.Workspace->Workspace.Path != (**workspace).Workspace.Path || aSession.Workspace->DirectoryIdentity != (**workspace).DirectoryIdentity || aSession.Workspace->OwnershipMarker != (**workspace).OwnershipMarker)) {
+					return std::unexpected(failure::conflict);
+				}
+				return workspace;
+			}
 			auto select(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aStartAtCurrentRevision)
 				-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
 			{
@@ -883,42 +965,13 @@ namespace bpr::adapters::sqlite {
 					value.Handle             = column_text(row->Value, 6).value_or(std::string{ });
 					value.Turn               = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 7));
 					value.Pending            = sqlite3_column_int(row->Value, 8) != 0;
-					const auto path          = column_text(row->Value, 9).value_or(std::string{ });
-					if (!path.empty()) {
-						auto workspace                 = application::owned_agent_workspace{ };
-						workspace.Workspace.Path       = path;
-						workspace.Workspace.PinnedHead = *head;
-						workspace.Workspace.Shallow    = sqlite3_column_int(row->Value, 17) != 0;
-						if (!workspace.Workspace.Shallow) {
-							workspace.RequiredBase = *base;
-						}
-						auto sparse = detail::prepare(db, "SELECT missing FROM native_agent_sparse_objects WHERE conversation=?1");
-						if (!sparse) {
-							return std::unexpected(failure::unavailable);
-						}
-						bind_text(sparse->Value, 1, value.Id);
-						const auto sparseStatus = sqlite3_step(sparse->Value);
-						if (sparseStatus == SQLITE_ROW) {
-							workspace.SparseMissingObjects = column_text(sparse->Value, 0);
-						} else if (sparseStatus != SQLITE_DONE) {
-							return std::unexpected(failure::unavailable);
-						}
-						workspace.ParentDirectory    = column_text(row->Value, 10).value_or(std::string{ });
-						workspace.OwnershipMarker    = column_text(row->Value, 11).value_or(std::string{ });
-						workspace.ApplicationSession = core::application_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 12)) };
-						workspace.Session            = core::agent_session_id{ static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 13)) };
-						if (sqlite3_column_bytes(row->Value, 14) != 32 || sqlite3_column_bytes(row->Value, 16) != 32) {
-							return std::unexpected(failure::unavailable);
-						}
-						std::memcpy(workspace.DirectoryIdentity.Opaque.data(), sqlite3_column_blob(row->Value, 14), 32U);
-						auto guard = application::agent_workspace_lifetime_guard{ };
-						guard.Path = column_text(row->Value, 15).value_or(std::string{ });
-						std::memcpy(guard.FileIdentity.data(), sqlite3_column_blob(row->Value, 16), 32U);
-						workspace.LifetimeGuard = std::move(guard);
-						value.Workspace         = std::move(workspace);
+					const auto workspace     = read_native_workspace(db, row->Value);
+					if (!workspace) {
+						return std::unexpected(workspace.error());
 					}
-					value.Revision = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 18));
-					auto mode      = detail::prepare(db, "SELECT source FROM native_agent_replays WHERE conversation=?1");
+					value.Workspace = *workspace;
+					value.Revision  = static_cast<std::uint64_t>(sqlite3_column_int64(row->Value, 18));
+					auto mode       = detail::prepare(db, "SELECT source FROM native_agent_replays WHERE conversation=?1");
 					if (!mode) {
 						return std::unexpected(failure::unavailable);
 					}
@@ -1284,6 +1337,31 @@ namespace bpr::adapters::sqlite {
 					}
 					bind_text(remove->Value, 1, aSession.Id);
 					if (sqlite3_step(remove->Value) != SQLITE_DONE) {
+						return false;
+					}
+				}
+				if (!aSession.WorkspaceKey.empty()) {
+					if (!aSession.Workspace || aSession.WorkspaceKey.size() > 4096U) {
+						return false;
+					}
+					auto shared = detail::prepare(connection->Database.get(), "INSERT INTO native_agent_workspaces(scope,conversation) VALUES(?1,?2) ON CONFLICT(scope) DO NOTHING");
+					if (!shared) {
+						return false;
+					}
+					bind_text(shared->Value, 1, aSession.WorkspaceKey);
+					bind_text(shared->Value, 2, aSession.Id);
+					if (sqlite3_step(shared->Value) != SQLITE_DONE) {
+						return false;
+					}
+					auto exact = detail::prepare(connection->Database.get(), "SELECT 1 FROM native_agent_sessions WHERE id=(SELECT conversation FROM native_agent_workspaces WHERE scope=?1) AND workspace=?2 AND marker=?3 AND directory=?4");
+					if (!exact) {
+						return false;
+					}
+					bind_text(exact->Value, 1, aSession.WorkspaceKey);
+					bind_text(exact->Value, 2, workspace.Workspace.Path);
+					bind_text(exact->Value, 3, workspace.OwnershipMarker);
+					sqlite3_bind_blob(exact->Value, 4, workspace.DirectoryIdentity.Opaque.data(), 32, SQLITE_TRANSIENT);
+					if (sqlite3_step(exact->Value) != SQLITE_ROW) {
 						return false;
 					}
 				}

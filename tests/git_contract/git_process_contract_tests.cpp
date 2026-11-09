@@ -758,7 +758,7 @@ namespace {
 			if (!aArguments.contains("cat-file") || !aArguments.contains("--batch-check=%(objecttype)") || input != read_text(retainedProbe)) {
 				return 128;
 			}
-			std::cout << "commit\ntree\ncommit\ntree\n";
+			std::cout << "commit\ntree\ncommit\ntree\ncommit\ntree\n";
 			return 0;
 		}
 		if (aArguments.contains("init")) {
@@ -4457,17 +4457,34 @@ namespace {
 			require(recovered && recovered->Live == 1U && recovered->Recovered == 0U, "startup preserves unlocked retained ownership");
 			adapter = make_adapter(std::filesystem::path{ BPR_TEST_GIT_EXECUTABLE }, cacheIsolation, registry);
 			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "a fresh adapter validates retained workspace and local object closure");
+			auto wrongAuthority              = *owned;
+			wrongAuthority.Authority.Account = core::github_account_id{ wrongAuthority.Authority.Account.value() + 1U };
+			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership cannot cross account authority even with exact directory identities");
+			wrongAuthority                 = *owned;
+			wrongAuthority.Authority.Scope = core_identity<core::pull_request_authority_scope_id>(99U);
+			require(!adapter->inspect_agent_workspace(wrongAuthority, { }), "retained source ownership checks the original authority fingerprints");
+
 			require(run_fixture_git(tree / ".git", { "cat-file", "-t", base }) == "commit", "base objects survive removal of the lending clone");
 			require(read_text(tree / "README.md") == "allowed agent edit\n" && read_text(tree / "untracked-agent-note") == "kept across restart\n", "resume preserves tracked and untracked agent files");
 			auto missing         = *owned;
 			missing.RequiredBase = oid(std::string(40U, 'f'));
 			require(!adapter->inspect_agent_workspace(missing, { }), "missing required base objects refuse even with a valid head");
 			require(read_text(tree / "untracked-agent-note") == "kept across restart\n", "refused inspection preserves agent work");
+			const auto changedTree = run_fixture_git(tree / ".git", { "write-tree" });
+			const auto agentCommit = run_fixture_git(tree / ".git", { "-c", "user.name=Agent fixture", "-c", "user.email=agent@example.invalid", "commit-tree", changedTree, "-p", head }, "agent-owned commit\n");
+			write_text(tree / ".git" / "HEAD", agentCommit + "\n");
+			require(adapter->inspect_agent_workspace(*owned, { }).has_value() && read_text(tree / ".git" / "HEAD") == agentCommit + "\n",
+					"shared workspace preserves an agent's Git commit while retaining the original PR binding");
+			write_text(tree / ".git" / "HEAD", "ref: refs/heads/agent-work\n");
+			write_text(tree / ".git" / "refs" / "heads" / "agent-work", agentCommit + "\n");
+			require(adapter->inspect_agent_workspace(*owned, { }).has_value(), "shared workspace accepts an agent branch without resetting HEAD");
+			write_text(tree / ".git" / "HEAD", head + "\n");
+
 			// Exercise the production command with a history-size adversary. A
 			// rev-list would emit 65 MiB; the named object check emits four types.
 			const auto boundedGit     = make_fake_git_executable(root.Path);
 			auto       boundedAdapter = make_adapter(boundedGit, cacheIsolation, registry);
-			write_text(boundedGit.parent_path() / "retained-inspection-input", head + "^{commit}\n" + head + "^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
+			write_text(boundedGit.parent_path() / "retained-inspection-input", head + "^{commit}\n" + head + "^{tree}\nHEAD^{commit}\nHEAD^{tree}\n" + base + "^{commit}\n" + base + "^{tree}\n");
 			require(!owned->Workspace.Shallow && boundedAdapter->inspect_agent_workspace(*owned, { }).has_value(),
 					"complete retained inspection never requests history-sized output even when rev-list would overflow 64 MiB");
 			const auto probeLog = read_text(cacheIsolation / "invocations.log");

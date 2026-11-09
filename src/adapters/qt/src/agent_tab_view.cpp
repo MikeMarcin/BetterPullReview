@@ -1723,7 +1723,7 @@ namespace bpr::qt {
 			return;
 		}
 		NativeHistoryMenu->clear();
-		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool observations and workspace changes are absent.") : aView.NativeSupported ? tr("Native continuation")
+		ContinuationMode->setText(aView.Replay ? tr("Transcript replay: saved questions and replies; prior tool memory is absent; PR files and Git are shared.") : aView.NativeSupported ? tr("Native continuation")
 																																														 : tr("Native continuation unavailable. Choose Transcript replay or New session in History."));
 		ContinuationMode->setToolTip(tr("Replay uses at most 50 retained turns, 8 KiB per field and 48 KiB total; older turns and cut text are omitted. The source history stays. New session starts empty and sends no question."));
 		ContinuationMode->setText(ContinuationMode->text() + tr(" Replay omits %1 retained turns and cuts %2 text bytes; earlier storage omissions are unknown.").arg(aView.ReplayTurnsOmitted).arg(aView.ReplayTextCutBytes));

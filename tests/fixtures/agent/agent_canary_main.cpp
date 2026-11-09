@@ -731,7 +731,7 @@ namespace {
 				const auto replay  = line.find("Transcript replay") != std::string::npos;
 				const auto prior   = line.find("native source question") != std::string::npos || line.find("legacy replay canary") != std::string::npos || line.find("conversation_so_far") != std::string::npos;
 				const auto retried = line.find("failed request must not be replayed") != std::string::npos;
-				answer             = (replay && prior && !retried && saved.empty() && argument_after(aCount, aArguments, "--resume").empty() ? "transcript-replay-ok prior-workspace=no" : "replay-contract-failed") + std::string{ " process=" } + process;
+				answer             = (replay && prior && !retried && argument_after(aCount, aArguments, "--resume").empty() ? "transcript-replay-ok shared-workspace=yes" : "replay-contract-failed") + std::string{ " process=" } + process;
 			}
 			if (line.find("explain-source-status") != std::string::npos) {
 				const auto hasFact   = [&line](const std::string& aFact) {const auto once=json_escape(aFact);return line.find(once)!=std::string::npos || line.find(json_escape(once))!=std::string::npos; };

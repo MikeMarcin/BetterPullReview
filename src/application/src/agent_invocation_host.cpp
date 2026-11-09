@@ -3,6 +3,8 @@
 #include "bpr/application/operation_diagnostics.hpp"
 #include "bpr/application/tour_agent_conversation.hpp"
 
+#include "bpr/core/hex.hpp"
+
 #include <algorithm>
 #include <array>
 #include <condition_variable>
@@ -791,7 +793,19 @@ namespace bpr::application {
 					record_operation(Log, { .Action = core::operation_action::native_continuation, .Failure = aFailure });
 					finish_run({ .Session = aInvocation->Identity.Session.Id, .Outcome = aOutcome, .StandardError = aReason, .WorkspaceReason = aWorkspaceReason, .RefusalReason = aReason }, aInvocation);
 				};
+				auto       workspaceLease = std::unique_ptr<agent_workspace_turn_lease>{ };
+				const auto workspaceKey   = native ? native_scope_key(aRequest.Authority, "", "") + ":"
+						+ std::to_string(aRequest.Authority.Number.value()) + ":" + core::lower_hex(aRequest.Authority.HostAuthority.bytes())
+						+ ":" + core::lower_hex(aRequest.Authority.Cache.bytes()) + ":" + core::lower_hex(aRequest.Authority.Scope.bytes()) + ":"
+						+ std::string{ core::canonical_hex(aInvocation->Identity.Session.Binding.BaseOid).view() } + ":"
+						+ std::string{ core::canonical_hex(aInvocation->Identity.Session.Binding.HeadOid).view() }
+												 : std::string{ };
 				if (native) {
+					workspaceLease = NativeSessions->try_lock_workspace(workspaceKey);
+					if (!workspaceLease) {
+						refuseNative("Another agent is using this pull request's workspace. Wait for it to finish or stop it, then send again. No question was sent.", core::operation_failure::changed_candidate);
+						return;
+					}
 					// Application/window and invocation IDs are deliberately absent.
 					const auto scope    = native_scope_key(aRequest.Authority, aRequest.NativeAgentIdentity, aRequest.NativeScope);
 					auto       selected = NativeSessions->select(scope, std::to_string(static_cast<unsigned>(aProfile.Protocol)) + ":" + aRequest.NativeAgentIdentity + (aRequest.ReadOnlyTools ? ":read-only" : ""),
@@ -818,6 +832,16 @@ namespace bpr::application {
 						refuseNative("This native session is pinned to an earlier revision. Explicitly continue that revision or start a new session.", core::operation_failure::stale);
 						return;
 					}
+					selected->WorkspaceKey = workspaceKey;
+					const auto shared      = NativeSessions->shared_workspace(workspaceKey, *selected);
+					if (!shared) {
+						refuseNative(shared.error() == native_agent_storage_failure::conflict
+										 ? "This older session has a different workspace. Its files and history are kept. Choose New session to use the shared PR workspace; no question was sent."
+										 : "The shared PR workspace record could not be opened. Its files and history are kept; no question was sent.",
+									 shared.error() == native_agent_storage_failure::conflict ? core::operation_failure::changed_candidate : core::operation_failure::storage_failed);
+						return;
+					}
+					selected->Workspace = *shared;
 					aInvocation->Native = std::move(*selected);
 					if (aInvocation->Native->Replay) {
 						const auto history = NativeSessions->history(scope, aInvocation->Native->Configuration);
@@ -837,7 +861,7 @@ namespace bpr::application {
 						aInvocation);
 					return;
 				}
-				if (aInvocation->Native && !aInvocation->Native->Replay && aInvocation->Native->Workspace) {
+				if (aInvocation->Native && aInvocation->Native->Workspace) {
 					auto retained               = *aInvocation->Native->Workspace;
 					retained.Authority          = aRequest.Authority;
 					retained.ApplicationSession = aRequest.ApplicationSession;
@@ -872,7 +896,7 @@ namespace bpr::application {
 							.ParentDirectory     = WorkspaceParent,
 							.HistoryClone        = aRequest.HistoryClone,
 							.HistoryCloneManaged = aRequest.HistoryCloneManaged,
-							.RetainForSession    = native && !aInvocation->Native->Replay,
+							.RetainForSession    = native,
 						},
 						aInvocation->Stop->get_token());
 					if (!materialized.has_value()) {
@@ -892,7 +916,7 @@ namespace bpr::application {
 					}
 					workspace     = materialized->Workspace;
 					lifetimeGuard = materialized->LifetimeGuard;
-					if (aInvocation->Native && !aInvocation->Native->Replay) {
+					if (aInvocation->Native) {
 						aInvocation->Native->Workspace = *materialized;
 					}
 					track_workspace(aInvocation, std::move(*materialized));
@@ -930,17 +954,19 @@ namespace bpr::application {
 				}
 				if (aInvocation->Native) {
 					auto& session   = *aInvocation->Native;
-					session.Pending = true;
-					if (!NativeSessions->store(session)) {
+					auto  pending   = session;
+					pending.Pending = true;
+					if (!NativeSessions->store(pending)) {
 						refuseNative("The native session could not be saved. No question was sent.", core::operation_failure::storage_failed);
 						return;
 					}
+					session                      = std::move(pending);
+					aInvocation->RetainWorkspace = true;
 					if (!session.Replay) {
-						aInvocation->RetainWorkspace = true;
-						launch->NativeConversation   = session.Id;
-						launch->NativeHandle         = session.Handle;
-						launch->NativeTurn           = session.Turn;
-						launch->SaveNativeHandle     = std::make_shared<std::function<bool(const std::string&)>>([this, aInvocation](const std::string& aHandle) {
+						launch->NativeConversation = session.Id;
+						launch->NativeHandle       = session.Handle;
+						launch->NativeTurn         = session.Turn;
+						launch->SaveNativeHandle   = std::make_shared<std::function<bool(const std::string&)>>([this, aInvocation](const std::string& aHandle) {
 							aInvocation->Native->Handle = aHandle;
 							return NativeSessions->store(*aInvocation->Native);
 						});

@@ -47,6 +47,53 @@ superseded by this explicit owner decision. Historical qualification evidence ke
 its original meaning; [BPR-1972](../verification/BPR-1972-large-native-workspaces.md)
 records the changed contract and direct regression evidence.
 
+## Owner shared-workspace amendment, 2026-11-09
+
+Mandate `pr-shared-workspace-r1` ([[BPR-1974]]) records: “The PR only needs one
+workspace across all tour side chats and agent tabs and even agents. Sure there
+can be different sessions but the source of truth is the files and git which is
+shared.” This supersedes the per-generation mutable-tree and per-turn replay-tree
+isolation below. Conversation scopes, handles, prose and permissions stay separate.
+
+The profile runtime retains one source workspace for exact profile, account,
+viewer, host, repository, PR/number, profile revision, access mode, host/cache/scope
+fingerprints and base/head OIDs.
+Chat/thread/stop, tour reset generation, agent/provider, native generation and
+window identity are absent from that workspace key. New session and explicit
+transcript replay use those shared files and Git; replay restores answered prose,
+not native tool memory. Existing per-turn tool permissions still apply. The files
+may therefore reflect another permitted agent's edits. The workspace has no remote,
+and the user's linked clone is never reset or written.
+
+A nonblocking profile-catalog turn lease spans lookup/materialization, inspection,
+process execution and durable completion. Another BPR window/provider's explicit
+turn for that key refuses as busy before filesystem mutation or inference; it may
+be sent again after the active turn finishes or stops. No automatic retry is added.
+The single profile runtime owns this catalog under its existing native process
+lease; this is not a lock on arbitrary third-party agent clients. Idle native
+connections submit no inference. Shared trees are retained across turn/session/
+window closure, with exact guard/ownership checks and no automatic reclamation.
+
+A changed base/head uses another retained source binding for a new session; an
+explicit old-revision conversation keeps the old tree. Refresh never moves HEAD,
+resets edits, or silently changes an old native session's working directory.
+Agent-created commits and branches inside a shared tree are permitted: validation
+checks both original pinned source objects and the current HEAD, preserving its
+files/index/refs. Equal OIDs across changed epoch ordinals reuse the tree while
+conversation staleness still uses the full binding.
+
+Migration is lazy and nondestructive. With no shared reference, the first sent
+legacy session adopts its existing tree; otherwise a fresh scope materializes one.
+The first pre-send metadata transaction publishes the reference atomically. A
+legacy native conversation whose recorded tree differs from that reference refuses
+before resume and retains both files and history. Its explicit New session joins
+the shared tree. There is no implicit tree merge, copy, cleanup or handle migration.
+A missing/unverifiable canonical tree refuses; New session does not replace it.
+The mapping references a retained catalog record even when that generation is
+unselected. Catalog/journal count limits and original cleanup capabilities remain.
+The [BPR-1974 ledger](../verification/BPR-1974-pr-shared-workspace.md) binds evidence
+and qualification limits; earlier critical-review acceptance remains historical.
+
 ## Required final critical review — completed
 
 The owner requested “do an an rfc-review-critical before we closeout the whole
@@ -190,13 +237,13 @@ scope's own current session.
 Draft-the-tour and its whole-tour follow-ups share the whole-tour session for
 that agent. Small tool-free writing hooks remain separate one-shot requests.
 
-Reuse the session's revision-pinned private workspace across turns and normal
+Reuse the PR source binding's shared private workspace across turns and normal
 close/reopen cycles, without writing into the user's linked clone. Preserve
 owned workspace contents needed for genuine resumption, including changes
 an ordinary Agent-tab session was permitted to make. Do not recreate a clean
-tree and describe it as the same working state. Session ownership replaces
+tree and describe it as the same working state. Shared PR ownership replaces
 per-turn teardown and startup reclamation for retained conversational
-workspaces. Each generation has separate mutable workspace state. Retention
+workspaces. Conversation generations share mutable workspace state under the owner amendment above. Retention
 must account for borrowed Git objects and validate the required pinned state
 on resume; an external clone's continued existence is not durable ownership.
 Native transcript persistence alone does not preserve a filesystem.
