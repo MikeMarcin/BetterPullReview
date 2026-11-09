@@ -742,3 +742,11 @@ replaces Use as reply.
 | [RFC-BPR-0095](RFC-BPR-0095-stable-diff-gutters-and-find.md) | Keep diff gutters aligned and Find stationary | Auto-Verified | None |
 
 [Import](assets/diff-scroll-geometry-v1.LIVE_IMPORT.md), owner report 2026-11-08.
+
+## Exact source navigation
+
+| RFC | Title | Status | Depends on |
+|---|---|---|---|
+| [RFC-BPR-0096](RFC-BPR-0096-go-to-line.md) | Go to a source line in the main diff | In Progress | None |
+
+[Import](assets/go-to-line-v1.LIVE_IMPORT.md), owner request 2026-11-08.
