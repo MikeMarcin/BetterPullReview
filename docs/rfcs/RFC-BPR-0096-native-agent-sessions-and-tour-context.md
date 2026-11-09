@@ -39,10 +39,15 @@ terminal RFC/pack acceptance. The initial review at product
 same-session frame fencing, retained sparse objects and Ready projection.
 [The repair ledger](../verification/RFC-BPR-0096.md#m5-critical-review-repairs--follow-up-review-pending)
 records their reproduction and bounded repair at
-`c66ed2166501da03026301f80f1285800ac56e47`. A fresh independent critical
-follow-up is required and pending for that repaired whole-scope candidate.
-The RFC remains Proposed until that review is supplied and reconciled. This adds
-no installed Claude retry and does not alter the scoped waiver above.
+`c66ed2166501da03026301f80f1285800ac56e47`. The follow-up confirmed the
+sparse/Ready fixes and exposed a remaining UUID-less terminal race.
+[Its bounded compatibility repair](../verification/RFC-BPR-0096.md#m5-uuid-less-terminal-correlation--fresh-review-pending),
+`1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2`, keeps UUID-less native turns on separate
+fresh transports with explicit exact-ID resume; uncorrelated connected terminals
+refuse. UUID-bearing streams retain persistent process reuse. Fresh independent
+critical review remains required and pending for this repaired whole-scope
+candidate. The RFC remains Proposed until that review is supplied and reconciled.
+This adds no installed Claude retry and does not alter the scoped waiver above.
 
 ## Problem and grounded current behavior
 

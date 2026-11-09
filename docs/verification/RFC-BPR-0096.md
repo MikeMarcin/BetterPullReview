@@ -6,11 +6,13 @@ BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce5
 retains all five milestones. This ledger preserves each milestone's observations
 and the final criterion-by-criterion engineering audit.
 
-Current frontier: the required independent critical review found three blocking
-counterexamples at `bf09db0a3c73836587a4d6a0ea6e447b18b79829`. All three were
-reproduced and repaired at `c66ed2166501da03026301f80f1285800ac56e47`; a fresh independent critical
-review of that repaired candidate remains required before closeout. BPR-1956
-stays In Progress and the RFC stays Proposed.
+Current frontier: the initial independent critical review found three blocking
+counterexamples; repairs at `c66ed2166501da03026301f80f1285800ac56e47` addressed
+the sparse-object and Ready findings, as confirmed by the follow-up review.
+That follow-up exposed a residual AC05 UUID-less terminal race. The bounded
+compatibility repair at `1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2` is verified and awaits
+fresh independent critical review before closeout. BPR-1956 stays In Progress
+and the RFC stays Proposed.
 M4 remains accepted under its narrow
 [installed Claude waiver](#owner-claude-verification-waiver-and-m4-acceptance).
 Earlier milestone sections retain their historical frontiers and actual failures;
@@ -732,3 +734,72 @@ are unchanged. Debug timing remains nongating; no timing course was run or given
 functional credit. Required independent critical follow-up is the next action,
 not terminal RFC or card closeout. The durable current handoff is
 `m5-critical-repair-handoff.md` beside the external logs.
+
+
+## M5 UUID-less terminal correlation — fresh review pending
+
+Same assignment and owner, mandate `native-agent-sessions-r1`, segment
+`accepted-scope-critical-repairs-4`. Adopted clean HEAD
+`569bbc04a55a2774a8726b6d1f0b45f301142ec7`; product repair
+`1df298efb9d5ac7fad8eb8886f1eaf7e3e6618c2` changes seven explicit paths. The follow-up critical
+review confirmed the prior sparse and Ready fixes, but found residual P1 AC05:
+a fresh second-turn assistant fragment followed by the first turn's UUID-less
+result still completed that second turn. The unchanged reviewer probe
+`critical-followup-ouc5r5h3/uuidless_result_probe.py` reproduced two writes/two
+successful terminals, with NEW TURN STILL WORKING as the false second answer.
+`m5-uuidless-red.log` preserves that observation.
+
+A UUID-less result has no terminal identity or turn correlation. Comparing its
+text/hash with an earlier result would reject legitimate identical answers and
+still cannot establish a new terminal's origin. The repair therefore does not
+claim to correlate that shape on a reused stream. It accepts the sole turn on a
+fresh transport, retires the process before releasing the caller or asking the
+connection for another question, and retains the exact native handle/workspace.
+The next explicit send uses the existing exact-ID resume path on a fresh process.
+Retirement performs no inference, automatic retry or transcript replay. A
+UUID-less terminal on an already-connected turn refuses, and a reported malformed
+UUID refuses even on the first turn. UUID-bearing streams keep their existing
+persistent route and bounded prior-identity fences. No upstream field is invented.
+
+The production connection's retiring state becomes nonmatching before terminal
+publication. Thus an immediately following explicit send replaces/joins the old
+connection safely; it cannot queue a decision onto the exiting worker. One-shot
+UUID-less responses remain supported. This compatibility qualification supersedes
+the earlier implication that all accepted older envelopes permit process reuse.
+It is not a waiver of late-frame fencing or an installed-Claude observation.
+
+Final causal verification, with frozen source promoted unchanged:
+
+- `m5-uuidless-focused-public.log`: application_agent_protocol_loop,
+  qt_agent_launch_canary and application_native_agent_sessions pass (three ctests;
+  real-process course20.84s, public six-course composition24.73s). Production loop
+  cases cover fresh assistant plus old or fresh-but-uncorrelated UUID-less result,
+  malformed UUIDs, retirement before caller release and zero next/send calls.
+- The real-process legacy fixture completes three immediate explicit sends with
+  exactly identical UUID-less terminal text, the same native handle/workspace and
+  distinct processes. It refuses a resume that omits the exact handle. Modern
+  fixture terminals now carry UUIDs; the existing same-process/native-memory,
+  exact-resume, Stop, idle bound and cache courses remain passing. No installed
+  Claude executable is invoked.
+- `m5-uuidless-green.log` and `m5-uuidless-original-frames.log`: unchanged residual
+  and original frame probes now report writes=1/terminals=1/first success only.
+  The legacy stream retires before any second request is selected; it cannot
+  produce the false second completion. A later explicit real launcher call is
+  covered separately by the exact-resume course.
+- `m5-uuidless-build2.log`, `m5-uuidless-tidy.log` and
+  `m5-uuidless-format-final.log`: focused/public build, three production-unit
+  tidy22 (including the native connection header through its launch owner),
+  seven-file format22 and diff-check pass. The initial wrong build target is
+  preserved in build1.log and supplies no evidence.
+
+Prior sparse/Ready/core-only/SQLite/Git/architecture evidence, all other original
+probe observations and the prior documentation gates remain unchanged and retain
+their recorded candidates. This round reruns only causal protocol/real-process/
+public checks plus documentation upkeep. No new visual/Qt surface, dependency,
+remote mutation, owner-desktop access or installed Claude/API/auth/inference call
+exists. The narrow Claude waiver, actual HTTP429/unreached courses and all other
+recorded native/platform/resource/cost limitations remain explicit. Required fresh
+independent critical follow-up remains pending; RFC Proposed/BPR-1956 In Progress.
+Current external checkpoint/handoff: `m5-uuidless-checkpoint.json`,
+`m5-uuidless-observation.json` and `m5-uuidless-handoff.md` under the same execution
+root. No terminal acceptance is inferred from these engineering results.

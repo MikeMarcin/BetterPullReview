@@ -747,7 +747,7 @@ replaces Use as reply.
 |---|---|---|---|
 | [RFC-BPR-0096](RFC-BPR-0096-native-agent-sessions-and-tour-context.md) | Resume native agent sessions and give tour chats their working context | Proposed | None |
 
-Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendment adoption](assets/native-agent-sessions-v1.LIVE_IMPORT.md); [authored plan](plans/native-agent-sessions-v1/milestone-plan.json). The [full engineering audit](../verification/RFC-BPR-0096.md#m5-accepted-scope-audit-and-critical-review-handoff) records implemented behavior, exact qualification and the owner's narrow installed-Claude waiver. The initial critical review found three blocking gaps; [their bounded repairs](../verification/RFC-BPR-0096.md#m5-critical-review-repairs--follow-up-review-pending) await the required independent critical follow-up. RFC/pack acceptance and BPR-1956 remain open.
+Mandate `native-agent-sessions-r1` adopts the reviewed pack. [Import and amendment adoption](assets/native-agent-sessions-v1.LIVE_IMPORT.md); [authored plan](plans/native-agent-sessions-v1/milestone-plan.json). The [full engineering audit](../verification/RFC-BPR-0096.md#m5-accepted-scope-audit-and-critical-review-handoff) records implemented behavior, exact qualification and the owner's narrow installed-Claude waiver. The initial critical review found three blocking gaps; [their bounded repairs](../verification/RFC-BPR-0096.md#m5-critical-review-repairs--follow-up-review-pending) were followed by a residual UUID-less terminal finding. [Its compatibility repair](../verification/RFC-BPR-0096.md#m5-uuid-less-terminal-correlation--fresh-review-pending) awaits fresh independent critical review. RFC/pack acceptance and BPR-1956 remain open.
 
 ## Exact source navigation
 

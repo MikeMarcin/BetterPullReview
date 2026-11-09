@@ -258,6 +258,16 @@ identity refuses the turn; the 4,096-identity connection bound refuses rather th
 forgetting old fences. Each turn still resets its output budget. An incomplete idle
 frame finishes under its original decoder before another question can be selected.
 
+A Claude result without a terminal UUID is accepted only as a transport's sole
+native turn. BPR retires that connection before publishing its answer or selecting
+another question. The native handle and workspace remain retained; a later explicit
+question exact-resumes them on a fresh process. Retirement sends no question and
+never retries or switches to replay. An already-connected turn without a UUID, or
+any result reporting a malformed UUID, refuses. Identical valid UUID-less results
+on separate fresh transports remain legal: content equality cannot distinguish a
+late terminal from a legitimate repeated answer. Such older envelopes are not
+qualified for persistent process reuse; UUID-bearing streams retain that route.
+
 A retained sparse workspace records its original missing object IDs in private
 conversation metadata, atomically with the session revision. Resume permits those
 original unselected blob holes, but refuses a newly missing selected blob or head
