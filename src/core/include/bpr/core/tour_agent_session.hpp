@@ -198,6 +198,7 @@ namespace bpr::core {
 		tour_stop_id Stop;
 		auto         operator==(const tour_thread&) const -> bool = default;
 	};
+	[[nodiscard]] auto           active_tour_thread(const review_tour&, const tour_thread&) noexcept -> bool;
 	inline constexpr std::size_t maximum_tour_passage_bytes  = 4096U;
 	inline constexpr std::size_t maximum_tour_question_bytes = 4096U;
 	inline constexpr std::size_t maximum_tour_reply_bytes    = 16U * 1024U;
@@ -274,6 +275,8 @@ namespace bpr::core {
 	struct tour_agent_run
 	{
 		tour_agent_run_id                  Id;
+		std::string                        ConversationScope;
+		std::string                        Conversation;
 		tour_agent_request                 Request = tour_agent_request::draft_tour;
 		tour_agent_tools                   Tools   = tour_agent_tools::none;
 		tour_agent_run_state               State   = tour_agent_run_state::running;
@@ -310,13 +313,9 @@ namespace bpr::core {
 	inline constexpr std::size_t maximum_tour_transcript_entries = 200U;
 	inline constexpr std::size_t maximum_tour_transcript_bytes   = 2048U;
 
-	/// \brief The tour session of one review. Separate from the Agent tab's
-	/// conversation: nothing here is a chat turn and no chat turn is here.
-	/// Each request is a fresh run (no `--resume`). [[BPR-1914]] supersedes
-	/// RFC-BPR-0092 T1: the session is one conversation per tour, replayed.
-	/// An ask turn is given the tour so far and the earlier turns kept here
-	/// (`tour_conversation_of`), so a follow-up keeps its context whatever
-	/// the agent.
+	/// \brief Bounded in-memory tour runs and BPR focus. The host retains native
+	/// conversation generations and projects only each selected agent/thread here.
+	/// `tour_conversation_of` supplies prose only for explicitly replayed callers.
 	struct tour_agent_session
 	{
 		std::vector<tour_agent_run> Runs;

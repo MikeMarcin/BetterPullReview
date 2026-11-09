@@ -15,8 +15,13 @@
 #include "bpr/qt/github_conversation_model.hpp"
 #include "bpr/qt/private_review_panel.hpp"
 #include "bpr/qt/review_draft_editor.hpp"
+#include "bpr/qt/review_tour_editor.hpp"
 #include "bpr/qt/side_chat_panel.hpp"
+#include "bpr/qt/tour_agent_panel.hpp"
+#include "bpr/qt/tour_side_chat.hpp"
 #include "bpr/qt/workbench_drawer.hpp"
+#include <QMenu>
+#include <QToolButton>
 
 #include <QAction>
 #include <QApplication>
@@ -54,6 +59,7 @@
 #include <map>
 #include <memory>
 #include <optional>
+#include <set>
 #include <string>
 #include <string_view>
 #include <tuple>
@@ -632,7 +638,8 @@ auto main(int argc, char** argv) -> int
 		return EXIT_FAILURE;
 	}
 	const auto course              = std::string_view{ argv[1] };
-	const auto nativeCourse        = course == "native-session" || course == "native-session-reopen";
+	const auto tourCourse          = course == "tour-native" || course == "tour-native-reopen";
+	const auto nativeCourse        = course == "native-session" || course == "native-session-reopen" || tourCourse;
 	const auto setupWrapper        = course == "setup-wrapper";
 	const auto workspaceDiagnostic = course == "workspace-diagnostic" || setupWrapper;
 	const auto crashMaterializing  = course == "crash-materializing-init" || course == "crash-materializing-checkout" || course == "cancel-materializing-checkout";
@@ -775,7 +782,7 @@ auto main(int argc, char** argv) -> int
 			return EXIT_FAILURE;
 		}
 	}
-	if (course == "native-session") {
+	if (course == "native-session" || course == "tour-native") {
 		auto preferences        = application::agent_setup_preferences{ };
 		preferences.AgentsMoved = true;
 		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
@@ -996,6 +1003,128 @@ auto main(int argc, char** argv) -> int
 		if (!wait_until([&] { return !setup->needed() && window.agent_tab()->state() != qt::agent_tab_state::setting_up; }, extended_agent_budget)) {
 			return fail(*application, "native-setup-ready", setup->step_text().toStdString());
 		}
+		if (tourCourse) {
+			window.open_review_tour();
+			auto* editor = window.tour_editor();
+			auto* chat   = editor->side_chat();
+			if (!wait_until([&] { return editor->shown().Draft && !editor->shown().Loading && editor->isVisible(); })) {
+				return fail(*application, "tour-native-open");
+			}
+			if (course == "tour-native") {
+				editor->problem_editor()->setPlainText(QStringLiteral("Accepted problem stays"));
+				editor->solution_editor()->setPlainText(QStringLiteral("Accepted solution stays"));
+				window.add_tour_stop_action()->trigger();
+				if (!wait_until([&] { return editor->shown().Draft && !editor->shown().Draft->Stops.empty() && !editor->shown().Saving; })) {
+					return fail(*application, "tour-native-add-stop");
+				}
+			}
+			const auto original = *editor->shown().Draft;
+			if (original.Stops.empty()) {
+				return fail(*application, "tour-native-restored-stop");
+			}
+			const auto stop            = original.Stops.front().Id;
+			auto       scopedProcesses = std::set<std::string>{ };
+			for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
+				const auto profile = core::entry_profile_id(protocol, protocol == core::agent_protocol::claude_stream_json ? 1U : 2U);
+				if (!window.agent_tab()->choose_agent(profile.value())) {
+					return fail(*application, "tour-native-agent-choice");
+				}
+				for (const auto& thread : { core::tour_thread{ }, core::tour_thread{ core::tour_thread_kind::problem, { } }, core::tour_thread{ core::tour_thread_kind::solution, { } }, core::tour_thread{ core::tour_thread_kind::stop, stop } }) {
+					editor->open_side_chat(thread);
+					if (!wait_until([&] { return chat->current() == std::optional{ thread } && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-history-loaded");
+					}
+					const auto prior = chat->turn_count();
+					chat->composer()->setPlainText(QStringLiteral("Review this tour part"));
+					if (!wait_until([&] { return chat->send_button()->isVisible() && chat->send_button()->isEnabled(); })) {
+						return fail(*application, "tour-native-composer-ready");
+					}
+					chat->send_button()->click();
+					if (!wait_until([&] { return chat->turn_count() > prior && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("process=") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+						return fail(*application, "tour-native-first-answer", chat->chat_text().toStdString());
+					}
+					const auto first = chat->reply(chat->turn_count() - 1U)->original_body();
+					if (!scopedProcesses.insert(first.substr(first.find("process="))).second) {
+						return fail(*application, "tour-native-thread-process-isolation");
+					}
+					chat->composer()->setPlainText(QStringLiteral("remember-tool-observation"));
+					chat->send_button()->click();
+					if (!wait_until([&] { return chat->turn_count() > prior + 1U && chat->reply(chat->turn_count() - 1U) && chat->reply(chat->turn_count() - 1U)->original_body().find("tool-observation-7f13") != std::string::npos && chat->new_session_button()->isEnabled(); }, extended_agent_budget)) {
+						return fail(*application, "tour-native-followup", chat->chat_text().toStdString());
+					}
+					const auto second = chat->reply(chat->turn_count() - 1U)->original_body();
+					if (first.substr(first.find("process=")) != second.substr(second.find("process="))) {
+						return fail(*application, "tour-native-process-continuity");
+					}
+					auto expectedSaved = prior + 2U;
+					if (thread.Kind == core::tour_thread_kind::tour) {
+						if (!wait_until([&] { return editor->tour_agent()->draft_button()->isVisible() && editor->tour_agent()->draft_button()->isEnabled(); })) {
+							return fail(*application, "tour-native-draft-ready");
+						}
+						editor->tour_agent()->draft_button()->click();
+						if (!wait_until([&] { const auto& runs=editor->tour_agent()->session().Runs; return !runs.empty() && runs.back().Request==core::tour_agent_request::draft_tour && runs.back().State==core::tour_agent_run_state::answered; }, extended_agent_budget)) {
+							return fail(*application, "tour-native-draft-proposal", editor->tour_agent()->transcript_text().toStdString());
+						}
+						++expectedSaved;
+					}
+					QMetaObject::invokeMethod(chat->history_button()->menu(), "aboutToShow");
+					auto priorId = QString{ };
+					if (!wait_until([&] { for (auto* item:chat->history_button()->menu()->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=expectedSaved) { priorId=item->data().toString(); } } return !priorId.isEmpty() && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-current-generation");
+					}
+					chat->new_session_button()->click();
+					if (!wait_until([&] { return chat->turn_count() == 0U && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-new-empty", chat->chat_text().toStdString());
+					}
+					const auto retained = chat->history_button()->menu()->actions().size();
+					chat->new_session_button()->click();
+					if (!wait_until([&] { return !chat->history_button()->property("loading").toBool(); }) || chat->history_button()->menu()->actions().size() != retained) {
+						return fail(*application, "tour-native-empty-reuse");
+					}
+
+					if (priorId.isEmpty()) {
+						return fail(*application, "tour-native-history-entry");
+					}
+					for (auto* item : chat->history_button()->menu()->actions()) {
+						if (item->data().toString() == priorId) {
+							item->trigger();
+							break;
+						}
+					}
+					if (!wait_until([&] { return chat->turn_count() >= prior + 2U && !chat->history_button()->property("loading").toBool(); })) {
+						return fail(*application, "tour-native-history-reopen", chat->chat_text().toStdString());
+					}
+					if (editor->shown().Draft->Problem != original.Problem || editor->shown().Draft->Solution != original.Solution || editor->shown().Draft->Stops != original.Stops) {
+						return fail(*application, "tour-native-new-preserves-accepted");
+					}
+				}
+			}
+			// Reset remains a separate confirmed BPR operation; Undo restores original scopes.
+			const auto beforeReset = chat->chat_text();
+			auto*      reset       = editor->findChild<QToolButton*>(QStringLiteral("tourResetTour"));
+			if (!wait_until([&] { return reset && reset->isEnabled(); })) {
+				return fail(*application, "tour-native-reset-ready");
+			}
+			reset->click();
+			editor->findChild<QPushButton*>(QStringLiteral("tourResetConfirmButton"))->click();
+			if (!wait_until([&] { return editor->shown().Draft->ChatGeneration != original.ChatGeneration && !editor->shown().Saving; })) {
+				return fail(*application, "tour-native-reset");
+			}
+			editor->findChild<QPushButton*>(QStringLiteral("tourResetUndo"))->click();
+			if (!wait_until([&] { return editor->shown().Draft->ChatGeneration == original.ChatGeneration && !editor->shown().Saving; })) {
+				return fail(*application, "tour-native-undo-reset");
+			}
+			editor->open_side_chat({ core::tour_thread_kind::stop, stop });
+			if (!wait_until([&] { return chat->chat_text() == beforeReset && !chat->history_button()->property("loading").toBool(); })) {
+				return fail(*application, "tour-native-undo-history", chat->chat_text().toStdString());
+			}
+			const auto raster = dataRoot.parent_path() / (course == "tour-native" ? "native-tour.png" : "native-tour-reopen.png");
+			if (!window.grab().save(QString::fromStdU16String(raster.u16string())) || !shutdown(*application)) {
+				return EXIT_FAILURE;
+			}
+			std::cout << "agent-invocation-" << course << ":pass\n";
+			return EXIT_SUCCESS;
+		}
 		for (const auto protocol : { core::agent_protocol::claude_stream_json, core::agent_protocol::codex_app_server }) {
 			const auto entryId = protocol == core::agent_protocol::claude_stream_json ? 1U : 2U;
 			const auto profile = core::entry_profile_id(protocol, entryId);
@@ -1065,6 +1194,39 @@ auto main(int argc, char** argv) -> int
 			const auto after = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
 			if (after.Statistics.WorkspaceStarts != (course == "native-session-reopen" ? 0U : entryId)) {
 				return fail(*application, "native-retained-workspace");
+			}
+			// Visible New session waits for admission and retains the completed native generation.
+			QMetaObject::invokeMethod(window.agent_tab()->history_button()->menu(), "aboutToShow");
+
+			auto* histories       = window.agent_tab()->findChild<QMenu*>(QStringLiteral("nativeAgentSessions"));
+			auto  selectedHistory = QString{ };
+			if (!wait_until([&] { for (auto* item:histories->actions()) { if (item->isChecked() && item->property("turns").toULongLong()>=2U) { selectedHistory=item->data().toString(); } } return !selectedHistory.isEmpty() && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-current-generation");
+			}
+			window.agent_tab()->clear_session_button()->click();
+			if (!wait_until([&] { return window.agent_tab()->turn_count() == 0U && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-new-session-empty");
+			}
+			if (!histories || histories->actions().size() < 2) {
+				return fail(*application, "native-history-menu");
+			}
+			const auto retained = histories->actions().size();
+			window.agent_tab()->clear_session_button()->click();
+			if (!wait_until([&] { return window.agent_tab()->ask_button()->isEnabled(); }) || histories->actions().size() != retained) {
+				return fail(*application, "native-empty-generation-reused");
+			}
+			for (auto* item : histories->actions()) {
+				if (item->data().toString() == selectedHistory) {
+					item->trigger();
+					break;
+				}
+			}
+			if (!wait_until([&] { return window.agent_tab()->turn_count() >= 2U && window.agent_tab()->ask_button()->isEnabled(); })) {
+				return fail(*application, "native-history-reopened");
+			}
+			const auto viewed = app::detail::github_application_fixture_access::agent_invocation_evidence(*application);
+			if (viewed.Statistics.ProcessStarts != after.Statistics.ProcessStarts || viewed.Statistics.WorkspaceStarts != after.Statistics.WorkspaceStarts) {
+				return fail(*application, "native-history-does-not-infer");
 			}
 		}
 		const auto renderPath = dataRoot.parent_path() / (course == "native-session-reopen" ? "native-reopen.png" : "native-agent-tab.png");

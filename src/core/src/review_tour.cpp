@@ -375,11 +375,13 @@ namespace bpr::core {
 				if (!aCommand.Restore || aCommand.Restore->Owner != aTour.Owner || aCommand.Restore->Id != aTour.Id || aCommand.Restore->Head != aTour.Head || aCommand.Restore->Base != aTour.Base) {
 					return tour_refusal::identity;
 				}
-				const auto revision  = aTour.Revision;
-				const auto highWater = std::max(aTour.LastStopId, aCommand.Restore->LastStopId);
-				aTour                = *aCommand.Restore;
-				aTour.Revision       = revision;
-				aTour.LastStopId     = highWater;
+				const auto revision      = aTour.Revision;
+				const auto highWater     = std::max(aTour.LastStopId, aCommand.Restore->LastStopId);
+				const auto chatHighWater = std::max(aTour.LastChatGeneration, aCommand.Restore->LastChatGeneration);
+				aTour                    = *aCommand.Restore;
+				aTour.Revision           = revision;
+				aTour.LastStopId         = highWater;
+				aTour.LastChatGeneration = chatHighWater;
 				return tour_refusal::none;
 			}
 			default: return edit_stop(aTour, aCommand, aSelected);
@@ -484,7 +486,7 @@ namespace bpr::core {
 	}
 	auto validate(const review_tour& aTour) noexcept -> tour_refusal
 	{
-		if (!valid(aTour.Owner) || !aTour.Id.value() || !aTour.Revision) {
+		if (!valid(aTour.Owner) || !aTour.Id.value() || !aTour.Revision || aTour.ChatGeneration > aTour.LastChatGeneration) {
 			return tour_refusal::identity;
 		}
 		if (!field_ok(aTour.Problem) || !field_ok(aTour.Solution) || !baseline_ok(aTour.ProblemBaseline) || !baseline_ok(aTour.SolutionBaseline)

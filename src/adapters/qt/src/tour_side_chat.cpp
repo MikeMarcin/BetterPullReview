@@ -4,15 +4,18 @@
 #include "bpr/qt/agent_feature.hpp"
 #include "bpr/qt/drawer_parts.hpp"
 #include "bpr/qt/quiet_push_button.hpp"
+#include "bpr/qt/quiet_tool_button.hpp"
 #include "bpr/qt/skill_completer.hpp"
 #include "bpr/qt/tour_agent_panel.hpp"
 
 #include <QClipboard>
+#include <QDialog>
 #include <QFontDatabase>
 #include <QGuiApplication>
 #include <QHBoxLayout>
 #include <QKeyEvent>
 #include <QLabel>
+#include <QMenu>
 #include <QPainter>
 #include <QPainterPath>
 #include <QPlainTextEdit>
@@ -341,6 +344,23 @@ namespace bpr::qt {
 		column->addWidget(Update);
 		Accented.emplace_back(Update);
 
+		auto* const sessionRow = new QHBoxLayout{ };
+		Sessions               = new quiet_tool_button{ this };
+		Sessions->setText(tr("History"));
+		Sessions->setObjectName(QStringLiteral("tourChatHistory"));
+		SessionMenu = new QMenu{ Sessions };
+		Sessions->setMenu(SessionMenu);
+		Sessions->setPopupMode(QToolButton::InstantPopup);
+		NewSession = new quiet_tool_button{ this };
+		NewSession->setText(tr("New session"));
+		NewSession->setObjectName(QStringLiteral("tourChatNewSession"));
+		NewSession->setToolTip(tr("Keep this conversation in history and start fresh. Accepted tour work stays."));
+		sessionRow->addWidget(Sessions);
+		sessionRow->addStretch();
+		sessionRow->addWidget(NewSession);
+		column->addLayout(sessionRow);
+		connect(SessionMenu, &QMenu::aboutToShow, this, [this] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::nullopt); } });
+		connect(NewSession, &QToolButton::clicked, this, [this] { if (!Running && !HistoryLoading) { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,std::string{}); } } });
 		// The composer: the passage it quotes, the words, Send.
 		PassageRow             = new QWidget{ this };
 		auto* const passageRow = new QHBoxLayout{ PassageRow };
@@ -474,6 +494,9 @@ namespace bpr::qt {
 		}
 		rebuild();
 		changed();
+		if (auto thread = current(); thread && HistoryDispatch) {
+			HistoryDispatch(*thread, std::nullopt);
+		}
 	}
 
 	void tour_side_chat::set_column_open(const bool aOpen)
@@ -550,14 +573,53 @@ namespace bpr::qt {
 		Session  = aSession;
 		Proposal = aProposal;
 		Draft    = std::move(aDraft);
-		// A stop gone from the tour takes its chat with it.
-		for (std::size_t index = Open.size(); index-- > 0U;) {
-			if (Open[index].Kind == core::tour_thread_kind::stop && Draft && std::ranges::find(Draft->Stops, Open[index].Stop, &core::tour_stop::Id) == Draft->Stops.end()) {
-				close(Open[index]);
-			}
-		}
+
 		rebuild();
 		changed();
+	}
+
+	void tour_side_chat::present_native_history(const application::native_agent_history_projection& aView)
+	{
+		if (aView.ReadOnly) {
+			auto* dialog = new QDialog{ this };
+			dialog->setAttribute(Qt::WA_DeleteOnClose);
+			dialog->setWindowTitle(tr("Retained tour chat"));
+			auto* column = new QVBoxLayout{ dialog };
+			auto* text   = new QPlainTextEdit{ dialog };
+			text->setReadOnly(true);
+			auto body = tr("Retained history. This chat is detached from the current tour part. Viewing it sends no question.\n\n");
+			for (const auto& turn : aView.Turns) {
+				body += QString::fromStdString(turn.Asked) + QStringLiteral("\n\n") + QString::fromStdString(turn.Answered) + QStringLiteral("\n\n");
+			}
+			text->setPlainText(body);
+			column->addWidget(text);
+			dialog->resize(600, 480);
+			dialog->show();
+			return;
+		}
+		HistoryLoading = aView.Loading;
+		Sessions->setProperty("loading", aView.Loading);
+		NewSession->setEnabled(!Running && !HistoryLoading);
+		if (!aView.Loading) {
+			SessionMenu->clear();
+			for (const auto& entry : aView.Entries) {
+				auto* item = SessionMenu->addAction(tr("%1 (%2 turns)").arg(QString::fromStdString(entry.Title).simplified().left(72)).arg(entry.Turns));
+				item->setData(QString::fromStdString(entry.Id));
+				item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
+				item->setCheckable(true);
+				item->setChecked(entry.Id == aView.Selected);
+				item->setEnabled(!Running);
+				connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,id); } });
+			}
+			if (!aView.OtherChats.empty()) {
+				auto* retained = SessionMenu->addMenu(tr("Other tour chats and detached history"));
+				for (const auto& entry : aView.OtherChats) {
+					auto* item = retained->addAction(([&] { const auto stop=entry.Scope.rfind(':'); const auto kind=stop==std::string::npos ? std::string::npos : entry.Scope.rfind(':',stop-1U); const auto part=kind==std::string::npos ? std::string{} : entry.Scope.substr(kind+1U,stop-kind-1U); return part=="1" ? tr("Problem") : part=="2" ? tr("Solution") : part=="3" ? tr("Stop ID %1").arg(QString::fromStdString(entry.Scope.substr(stop+1U))) : tr("Whole tour"); }()) + QStringLiteral(": ") + QString::fromStdString(entry.Title).simplified().left(60));
+					connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (auto thread=current(); thread && HistoryDispatch) { HistoryDispatch(*thread,"view:"+id); } });
+				}
+			}
+		}
+		refresh_actions();
 	}
 
 	void tour_side_chat::set_draft(std::shared_ptr<const core::review_tour> aDraft)
@@ -645,7 +707,7 @@ namespace bpr::qt {
 		rebuild();
 	}
 
-	auto tour_side_chat::prompts_usable() const -> bool { return Ready && !Mine && (!Running || takes_feedback()); }
+	auto tour_side_chat::prompts_usable() const -> bool { return Ready && !HistoryLoading && current() && (!Draft || core::active_tour_thread(*Draft, *current())) && !Mine && (!Running || takes_feedback()); }
 
 	void tour_side_chat::choose_prompt(const QString& aPrompt, const bool aEditFirst)
 	{
@@ -681,13 +743,13 @@ namespace bpr::qt {
 				finish = true;
 			}
 		}
-		const auto draft  = Composer->toPlainText();
-		const auto press  = core::decide_agent_suggestion_press({
+		const auto draft = Composer->toPlainText();
+		const auto press = core::decide_agent_suggestion_press({
 			.EditFirst = aEditFirst || finish,
 			.DraftHeld = !draft.trimmed().isEmpty(),
 			.Usable    = prompts_usable(),
 		});
-		const auto to_end = [this] {
+		const auto toEnd = [this] {
 			auto cursor = Composer->textCursor();
 			cursor.movePosition(QTextCursor::End);
 			Composer->setTextCursor(cursor);
@@ -699,16 +761,16 @@ namespace bpr::qt {
 			// Sent alone, as if typed and sent; the reviewer's words stay.
 			send(text, false);
 			Composer->setPlainText(draft);
-			to_end();
+			toEnd();
 			return;
 		case core::agent_suggestion_press::edit: Composer->setPlainText(text); break;
 		case core::agent_suggestion_press::edit_after_draft:
-			to_end();
+			toEnd();
 			Composer->textCursor().insertText((draft.endsWith(QLatin1Char('\n')) ? QString{ } : QStringLiteral("\n")) + text);
 			break;
 		}
 		Composer->setFocus(Qt::OtherFocusReason);
-		to_end();
+		toEnd();
 	}
 
 	void tour_side_chat::set_code_style(const QFont& aFont, const qreal aTabStopDistance, std::optional<markdown_code_theme> aTheme, std::function<void(std::vector<application::markdown_code_syntax_request>)> aDispatch)
@@ -856,7 +918,7 @@ namespace bpr::qt {
 					return tr("Stop %1").arg(static_cast<std::size_t>(found - Draft->Stops.begin()) + 1U);
 				}
 			}
-			return tr("Stop");
+			return tr("Removed stop %1").arg(aThread.Stop.value());
 		}
 		}
 		return { };
@@ -939,11 +1001,13 @@ namespace bpr::qt {
 		const auto thread   = current();
 		const auto answered = thread && std::ranges::any_of(core::thread_runs(Session, *thread), [](const core::tour_agent_run* aRun) { return aRun->State == core::tour_agent_run_state::answered; });
 		const auto blank    = Composer->toPlainText().trimmed().isEmpty();
+		const auto active   = thread && (!Draft || core::active_tour_thread(*Draft, *thread));
+		NewSession->setEnabled(active && !Running && !HistoryLoading);
 		Send->setText(Mine ? tr("Stop") : QString{ });
 		Send->setToolTip(!Ready ? Why : Mine ? tr("Stop the tour agent; nothing in the tour changes.")
 											 : tr("Send (Return). Shift+Return starts a new line."));
 		Send->setAccessibleName(Mine ? tr("Stop") : tr("Send"));
-		Send->setEnabled(Ready && thread.has_value() && (Mine || ((!Running || takes_feedback()) && !blank)));
+		Send->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && (Mine || ((!Running || takes_feedback()) && !blank)));
 		Send->setIcon(drawer_icon(Mine ? drawer_glyph::close : drawer_glyph::send, Send->palette()));
 		const auto part = !thread                              ? QString{ }
 			: thread->Kind == core::tour_thread_kind::stop     ? tr("this stop")
@@ -951,7 +1015,7 @@ namespace bpr::qt {
 			: thread->Kind == core::tour_thread_kind::solution ? tr("the Solution")
 															   : tr("the tour");
 		Update->setText(tr("Update %1 from this chat").arg(part));
-		Update->setEnabled(Ready && thread.has_value() && answered && !Running);
+		Update->setEnabled(active && !HistoryLoading && Ready && thread.has_value() && answered && !Running);
 		Update->setToolTip(!Ready          ? Why
 							   : !answered ? tr("Ask something first. Then this asks the agent to rewrite %1 from the chat; you accept, edit or discard what it proposes.").arg(part)
 							   : thread->Kind == core::tour_thread_kind::tour
@@ -1035,7 +1099,7 @@ namespace bpr::qt {
 	void tour_side_chat::send(const QString& aQuestion, const bool aUpdate)
 	{
 		const auto thread = current();
-		if (!thread || aQuestion.isEmpty() || (Running && !(takes_feedback() && !aUpdate)) || !Ready || !AskDispatch) {
+		if (!thread || aQuestion.isEmpty() || (Running && !(takes_feedback() && !aUpdate)) || HistoryLoading || (Draft && !core::active_tour_thread(*Draft, *thread)) || !Ready || !AskDispatch) {
 			return;
 		}
 		auto ask = tour_ask{ .Thread = *thread, .Passage = aUpdate ? std::nullopt : passage(), .Question = aQuestion, .Update = aUpdate };
@@ -1053,7 +1117,7 @@ namespace bpr::qt {
 		if (!thread || !Draft) {
 			return { };
 		}
-		const auto path_of = [](const core::tour_stop& aStop) -> std::string {
+		const auto pathOf = [](const core::tour_stop& aStop) -> std::string {
 			if (const auto& source = aStop.Mapped ? aStop.Mapped : aStop.Original; source) {
 				return source->Path;
 			}
@@ -1062,7 +1126,7 @@ namespace bpr::qt {
 		if (thread->Kind == core::tour_thread_kind::stop) {
 			const auto found = std::ranges::find(Draft->Stops, thread->Stop, &core::tour_stop::Id);
 			if (found != Draft->Stops.end()) {
-				return path_of(*found);
+				return pathOf(*found);
 			}
 		}
 		// The language most of the tour's stops are in, the first such stop
@@ -1070,7 +1134,7 @@ namespace bpr::qt {
 		auto counts = std::map<std::string, std::size_t>{ };
 		auto first  = std::vector<std::string>{ };
 		for (const auto& stop : Draft->Stops) {
-			const auto path = path_of(stop);
+			const auto path = pathOf(stop);
 			const auto dot  = path.rfind('.');
 			if (dot == std::string::npos || path.find('/', dot) != std::string::npos) {
 				continue;

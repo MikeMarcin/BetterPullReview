@@ -8,6 +8,7 @@
 #include <QStringList>
 #include <QWidget>
 
+#include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/agent_launch.hpp"
 #include "bpr/core/agent_chat_scope.hpp"
 #include "bpr/core/agent_finding.hpp"
@@ -308,6 +309,8 @@ namespace bpr::qt {
 		void               set_clear_session_dispatch(std::function<void()> aDispatch);
 		void               set_clear_confirmation(std::function<bool(std::size_t aTurns)> aConfirm);
 		void               clear_session();
+		void               present_native_history(const application::native_agent_history_projection&);
+		void               set_native_history_dispatch(std::function<void(std::optional<std::string>)> aDispatch) { NativeHistoryDispatch = std::move(aDispatch); }
 		[[nodiscard]] auto clear_session_button() const noexcept -> QToolButton* { return ClearSession; }
 		/// \brief [[BPR-1753]], owner decision (a) 2026-10-23
 		/// ("Suggested prompts described that way sound great"). Where the
@@ -447,6 +450,9 @@ namespace bpr::qt {
 		void changeEvent(QEvent* aEvent) override;
 
 	private:
+		std::function<void(std::optional<std::string>)> NativeHistoryDispatch;
+		application::native_agent_history_projection    NativeHistoryView;
+		QMenu*                                          NativeHistoryMenu = nullptr;
 		/// Paints each glyph again in the current palette's ink.
 		void repaint_glyphs();
 		void rebuild_findings();

@@ -285,7 +285,9 @@ namespace bpr::app {
 
 	void composition_agent_invocation_projection::restore_native_session(const core::agent_session& aSession)
 	{
-		if (Sessions) {
+		if (NativeSession) {
+			NativeSession(aSession);
+		} else if (Sessions) {
 			Sessions(aSession);
 		}
 	}

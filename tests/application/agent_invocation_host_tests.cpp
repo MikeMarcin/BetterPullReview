@@ -668,6 +668,7 @@ namespace {
 		{
 			return Records.contains(aScope) ? std::optional{ Records.at(aScope) } : std::nullopt;
 		}
+		auto append(const std::string&, const application::agent_conversation_turn&) -> bool override { return !FailStore; }
 		auto store(application::native_agent_session& aSession) -> bool override
 		{
 			auto& stored = Records.at(aSession.Scope);

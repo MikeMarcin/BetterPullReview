@@ -147,7 +147,7 @@ namespace bpr::application {
 		present_state();
 	}
 
-	void agent_chat_session_host::admitted(const core::agent_session& aSession)
+	void agent_chat_session_host::admitted(const core::agent_session& aSession, const bool aKeepContext)
 	{
 		if (!core::valid_agent_session(aSession)) {
 			return;
@@ -161,7 +161,7 @@ namespace bpr::application {
 		if (OptIn.Session != aSession.Id) {
 			// An opt-in made for the previous conversation admits nothing into
 			// this one, which is the whole reason the core keys it by session.
-			OptIn = core::agent_private_context_optin{ .Session = aSession.Id };
+			OptIn = core::agent_private_context_optin{ .Session = aSession.Id, .Notes = aKeepContext && OptIn.Notes, .Drafts = aKeepContext && OptIn.Drafts };
 		}
 		if (adopted) {
 			Replies.clear();
@@ -189,6 +189,18 @@ namespace bpr::application {
 		Chat          = initial_chat_state();
 		OptIn         = core::agent_private_context_optin{ .Session = Session->Id };
 		++Statistics.SessionsStarted;
+		present_state();
+	}
+
+	void agent_chat_session_host::reset_conversation()
+	{
+		if (!Session || !Observed) {
+			return;
+		}
+		Session->Binding = *Observed;
+		Replies.clear();
+		Chosen.reset();
+		AwaitingReply = false;
 		present_state();
 	}
 

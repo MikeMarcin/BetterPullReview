@@ -3,8 +3,8 @@
 Mandate `native-agent-sessions-r1` implements the reviewed pack. Immutable
 RFC_BASE_SHA: `bebea27edf44fd63a7308307227035bf33391c5c`. Import `819ff2708`;
 BPR-1951 claim `f8eaca5be`. Product candidate `26fdce665d7ff09f9ecd52e0df6765ce569b21ff` (the tested source tree promoted unchanged). The [live plan](../rfcs/plans/native-agent-sessions-v1/milestone-plan.json)
-retains all five milestones. This ledger records completed first-milestone functional
-engineering; it does not accept the whole RFC or later tour/history/replay work.
+retains all five milestones. This ledger records scoped functional engineering
+for the native Agent-tab and tour/history milestones; it does not accept the whole RFC or later tour/history/replay work.
 
 ## Native Agent-tab frontier
 
@@ -118,6 +118,81 @@ Frontend-design was loaded from the installed Claude plugin before presentation
 changes. The milestone preserves native palette, fonts and the existing drawer
 layout. All implementation rendering is offscreen; the owner's desktop is unused.
 Debug timing is nongating. No live GitHub mutation or additional independent review
-was performed. Remaining tour integration, New session/history controls, replay
-migration, tour state context, Release usage comparison and full RFC acceptance
-belong to the dependent milestones. Native Windows/Linux acceptance is not implied.
+was performed. At that first-milestone handoff, tour integration and New session/history
+controls remained dependent work; the next section records their scoped result.
+Replay migration, tour state context, Release usage comparison and full RFC
+acceptance remain with their dependent milestones. Native Windows/Linux acceptance is not implied.
+
+## Tour sessions and nondestructive history
+
+BPR-1952, milestone `tour-sessions`, adds native conversations for the whole tour,
+Problem, Solution and stable stop IDs, separately per entry incarnation and
+accepted authority. Draft Tour shares the whole-tour generation. The existing
+read-only tools remain separate from small one-shot writing hooks. Native tour
+turns use current BPR context without replaying another agent's or thread's prose.
+
+Both surfaces expose New session and scoped History. Admission retains the old
+generation before selection changes, submits no inference and allocates no
+workspace. Repeated New session on an unused generation reuses it. A failed or
+full admission leaves the previous selection and transcript intact. History
+selection restores the exact generation; native binding/workspace/configuration
+checks still govern sending. Saved questions/replies remain bounded at 50 turns
+and 64 KiB per text field, separately from the native backend's own memory.
+
+The native catalog appends terminal text to the originating generation rather
+than whichever history is selected. Core run identities retain proposal origin;
+selection neither accepts pending work nor reconstructs proposals from saved
+answers. Current context choices survive conversational reset. Accepted tour
+text, sources, focus, notes and drafts live outside this operation. Removed-stop
+chats remain identifiable and cannot send while absent. Other tour chats and
+reset-detached histories have a read-only viewer that changes no active
+association and sends no question.
+
+Tour payload version 9 stores active and high-water chat generations. Versions
+1–8 read these as zero. Reset saves a new namespace with its draft; Undo restores
+the old active association while preserving the high water, so repeating Reset
+after Undo cannot inherit an abandoned reset draft's sessions. Existing Stop,
+uncertain-send, stale-result and native process/frame fences remain in force.
+Deferred history work captures application/authority/binding and keeps an explicit
+choice separate from later observational selection, without redirecting it.
+
+App Server tour creation and exact-ID resume set read-only sandbox and never
+approval, with MCP and web search disabled; every continuing turn reapplies
+network-off read-only policy. The serialized fields follow the installed
+0.164.0 schema and pass focused functional checks. Persistent Claude removes only
+the conversational no-session-persistence flag and keeps its existing read-only
+allowlist, empty MCP configuration and disclosed enforcement limits. These are
+functional/configuration results; installed tour permission qualification remains
+BPR-1955.
+
+Evidence lives externally at
+`/Users/jaeger/.codex/tmp/native-agent-sessions-execution/`:
+
+| Check | Scoped result |
+|---|---|
+| `application_native_agent_sessions`, public9 and render-course9 | Four production-composition seed/reopen courses passed through visible Agent/tour composers for Claude and App Server. Whole/Problem/Solution/stable-stop scopes have distinct processes and same-process follow-ups, Draft Tour contributes to the whole-tour native generation, and New/empty reuse/exact-history selection preserve state without process/workspace starts. Reset/Undo restores associations. |
+| Rendered windows | All four `offscreen-m2` rasters inspected: actual Agent and tour controls, retained replies after restart, accepted prose and pending draft parts remain visible. Offscreen layout evidence is not native system-appearance qualification. |
+| Final functional/integration9 | 12/12 passed: core tour session, launch, invocation host, chat replies, SQLite native catalog and tour payload, both tour Qt views, architecture boundaries and their contract, isolation manifest and production invocation composition contract. |
+| Changed workbench9 | `qt_workbench_window_scale_100` passed, including nondestructive New session translation and retained-admission checks. |
+| Core-only6 | Focused core tour session, core dependency boundary and architecture boundaries passed (3/3). |
+| Formatting and static analysis | Changed-file clang-format 22 passed. Scoped clang-tidy 22 passed all 13 changed implementation units; two tour units were rechecked after narrow diagnostic fixes. |
+| Documentation | Structure gate and 67 documentation script tests passed; final tracker upkeep receives its own structure check. |
+
+Actual failures were retained and corrected: initial host integration spelling and
+capture errors, misplaced Qt fields/missing include, one incorrect build target,
+a provisional chat binding lost during history loading (`no_session`), a deferred
+cleanup probe that changed quiescence, a history test that selected a correctly
+retained empty generation instead of its exact previous ID, and a synthetic
+whole-tour fixture that recognized only the part-answer schema. The production
+structured-answer validator was preserved. Tidy diagnosed two existing local
+spellings, an automatic move and an optional-copy expression in touched tour
+units; these were corrected. No failure was accepted as a pass.
+
+Frontend-design was loaded before Qt work. Palette, fonts and existing drawer
+layout remain native; no owner desktop, personal profile, live GitHub mutation,
+extra reviewer or model API was used. No dedicated Debug timing/performance course
+was run. Native Windows/Linux, installed Claude sign-in, full installed permission
+and resource/Release-cost qualification remain later work. BPR-1954 still owns
+legacy replay/migration and bidirectional quota/projection-save reconciliation;
+full AC03/AC11 acceptance is not claimed. BPR-1953 owns the versioned tour guide,
+coherent source/status snapshots and warning correction. The RFC stays Proposed.

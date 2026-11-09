@@ -2807,7 +2807,7 @@ namespace bpr::application {
 		}
 		// [[BPR-1900]]. Read-only drafting has a recorded allowlist for
 		// Claude's stream JSON and Codex's `exec --json`, and for nothing else.
-		if (aOptions.ReadOnlyTools && (aOptions.WritingOnly || (aProfile.Protocol != core::agent_protocol::claude_stream_json && aProfile.Protocol != core::agent_protocol::codex_jsonl_exec))) {
+		if (aOptions.ReadOnlyTools && (aOptions.WritingOnly || (aProfile.Protocol != core::agent_protocol::claude_stream_json && aProfile.Protocol != core::agent_protocol::codex_jsonl_exec && aProfile.Protocol != core::agent_protocol::codex_app_server))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
 		}
 		const auto metadata = core::agent_runtime_metadata{ .Requested = aOptions.Requested, .Configured = aProfile.DefaultSettings };
@@ -2835,6 +2835,9 @@ namespace bpr::application {
 		switch (aProfile.Protocol) {
 		case core::agent_protocol::codex_app_server:
 			arguments.emplace_back("app-server");
+			if (aOptions.ReadOnlyTools) {
+				arguments.insert(arguments.end(), { "-c", "mcp_servers={}", "-c", "tools.web_search=false" });
+			}
 			break;
 		case core::agent_protocol::codex_jsonl_exec:
 			arguments.emplace_back("exec");
@@ -3193,18 +3196,26 @@ namespace bpr::application {
 			return std::unexpected(agent_protocol_failure::malformed_frame);
 		}
 		switch (aControl.Kind) {
-		case agent_protocol_event_kind::initialization_complete:
+		case agent_protocol_event_kind::initialization_complete: {
 			if (!aRequest.NativeHandle.empty()) {
-				return "{\"method\":\"initialized\"}\n{\"method\":\"thread/resume\",\"id\":1,\"params\":{\"threadId\":\"" + json_escape(aRequest.NativeHandle) + "\",\"excludeTurns\":true}}\n";
+				return "{\"method\":\"initialized\"}\n{\"method\":\"thread/resume\",\"id\":1,\"params\":{\"threadId\":\"" + json_escape(aRequest.NativeHandle) + "\",\"excludeTurns\":true" + (aRequest.ReadOnlyTools ? ",\"approvalPolicy\":\"never\",\"sandbox\":\"read-only\",\"config\":{\"mcp_servers\":{},\"tools.web_search\":false}" : "") + "}}\n";
 			}
-			return app_server_thread_start(aRequest.Metadata);
+			auto input = app_server_thread_start(aRequest.Metadata);
+			if (aRequest.ReadOnlyTools) {
+				input.insert(input.size() - 3U, (effective_settings(aRequest.Metadata).Model ? "," : "") + std::string{ "\"approvalPolicy\":\"never\",\"sandbox\":\"read-only\",\"config\":{\"mcp_servers\":{},\"tools.web_search\":false}" });
+			}
+			return input;
+		}
 		case agent_protocol_event_kind::context_channel_ready: {
 			const auto fact = core::agent_reported_facts{ .Basis = "codex_app_server.thread/start.result.thread.id", .RemoteThread = aControl.Text };
 			if (!core::append_runtime_report({ }, fact) || aRequest.DeferredContext.empty()) {
 				return std::unexpected(agent_protocol_failure::invalid_runtime_metadata);
 			}
-			auto       input = app_server_turn_input(aRequest.DeferredContext, aControl.Text, aRequest.Metadata);
-			const auto id    = input.find("\"id\":2,");
+			auto input = app_server_turn_input(aRequest.DeferredContext, aControl.Text, aRequest.Metadata);
+			if (aRequest.ReadOnlyTools) {
+				input.insert(input.size() - 3U, ",\"approvalPolicy\":\"never\",\"sandboxPolicy\":{\"type\":\"readOnly\",\"networkAccess\":false}");
+			}
+			const auto id = input.find("\"id\":2,");
 			input.replace(id, 7U, "\"id\":" + std::to_string(aRequest.NativeTurn) + ",");
 			return input;
 		}
@@ -3228,6 +3239,9 @@ namespace bpr::application {
 		if (aRequest.WritingOnly || aRequest.NativeTurn < 2U || aRequest.Protocol == core::agent_protocol::external_terminal
 			|| (!aRequest.NativeHandle.empty() && !core::send_session_name(aRequest.NativeHandle))) {
 			return std::unexpected(agent_launch_failure::invalid_profile);
+		}
+		if (aRequest.ReadOnlyTools && aRequest.Protocol == core::agent_protocol::claude_stream_json) {
+			std::erase(aRequest.Arguments, "--no-session-persistence");
 		}
 		aRequest.NativeConnected = aConnected;
 		if (aConnected) {

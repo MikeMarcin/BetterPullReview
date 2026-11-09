@@ -221,6 +221,34 @@ try {
 	expect(fresh && fresh->Id != restored->Id && fresh->Binding == changedBinding && fresh->Handle.empty()
 			   && natives->store(*restored),
 		   "explicit new revision creates a distinct generation while old native provenance stays stored");
+
+	const auto scope = std::string{ "authority:agent-a:agent-tab" };
+	expect(natives->append(restored->Id, { "Question", "Saved native answer", "Answered" }), "native transcript saved by original generation");
+	const auto opened = natives->choose(scope, "claude", binding, restored->Id);
+	expect(opened && opened->Id == restored->Id, "history opens exact earlier generation");
+	const auto newSession = natives->choose(scope, "claude", binding, "");
+	expect(newSession && newSession->Id != restored->Id && newSession->Handle.empty(), "same-head New session retains native origin");
+	const auto unusedAgain = natives->choose(scope, "claude", binding, "");
+	expect(unusedAgain && unusedAgain->Id == newSession->Id, "repeated New session reuses unused empty generation");
+	expect(natives->append(restored->Id, { "Late turn", "Late original answer", "Answered" }), "late output records only its originating history");
+	const auto list = natives->history(scope, "claude");
+	expect(list && list->Selected == newSession->Id && list->Turns.empty() && list->Entries.size() == 3U, "new generation empty while all scoped history retained");
+	expect(!natives->choose("authority:agent-b:agent-tab", "claude", binding, restored->Id), "history selection cannot cross agent scope");
+	expect(natives->choose(scope, "claude", binding, restored->Id).has_value(), "earlier history reopens without inference");
+	natives                   = adapters::sqlite::make_native_agent_session_store(scratch.path());
+	const auto durableHistory = natives->history(scope, "claude");
+	expect(durableHistory && durableHistory->Selected == restored->Id && durableHistory->Turns.size() == 2U && durableHistory->Turns.back().Answered == "Late original answer", "restart preserves selected generation and originating late transcript");
+
+	const auto removedScope = std::string{ "authority:agent-a:tour:71:0:3:9" };
+	auto       removed      = natives->select(removedScope, "readonly", binding);
+	expect(removed && natives->append(removed->Id, { "Removed stop question", "Retained answer", "Answered" }), "removed stop keeps a durable readable history");
+	const auto resetScope      = std::string{ "authority:agent-a:tour:71:1:0:0" };
+	auto       resetGeneration = natives->select(resetScope, "readonly", binding);
+	const auto detached        = natives->history(resetScope, "readonly", removed->Id);
+	expect(resetGeneration && detached && detached->ReadOnly && detached->Turns.size() == 1U && detached->Turns.front().Answered == "Retained answer", "detached history can be read across reset namespace without adopting it");
+	const auto stillReset = natives->find(resetScope, "readonly", binding);
+	expect(stillReset && *stillReset && (**stillReset).Id == resetGeneration->Id, "detached inspection preserves reset draft's current association");
+	expect(!natives->history("authority:agent-b:tour:71:1:0:0", "readonly", removed->Id), "retained chat viewer cannot cross agent authority");
 	auto refusedAt = std::size_t{ 0U };
 	for (auto index = 0U; index <= application::maximum_conversations; ++index) {
 		const auto admitted = natives->select("capacity-" + std::to_string(index), "claude", binding);
@@ -233,6 +261,10 @@ try {
 	expect(refusedAt > 0U && refusedAt < application::maximum_conversations, "combined native/legacy catalog refuses at its shared bound");
 	const auto protectedHistory = natives->find("authority:agent-b:agent-tab", "claude", binding);
 	expect(protectedHistory && *protectedHistory && (**protectedHistory).Id == otherNative->Id, "capacity refusal never prunes protected native history");
+
+	expect(!natives->choose(scope, "claude", binding, ""), "full admission refuses New session");
+	const auto keptAfterRefusal = natives->history(scope, "claude");
+	expect(keptAfterRefusal && keptAfterRefusal->Selected == restored->Id && keptAfterRefusal->Turns.size() == 2U, "failed New session retains prior selected generation and transcript");
 
 	{
 		sqlite3* database = nullptr;

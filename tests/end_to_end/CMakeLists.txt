@@ -1634,7 +1634,7 @@ bpr_add_network_isolated_test(
 set_tests_properties(application_native_agent_sessions PROPERTIES
     ENVIRONMENT "${bpr_public_path_fixture_environment}"
     PASS_REGULAR_EXPRESSION "native-agent-sessions-course:pass"
-    TIMEOUT 200)
+    TIMEOUT 400)
 
 # [[BPR-0622]]. Windows runs both courses with handle-based liveness and
 # NtSuspendProcess in place of SIGSTOP; see the scripts.

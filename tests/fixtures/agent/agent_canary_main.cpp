@@ -722,10 +722,15 @@ namespace {
 				continue;
 			}
 			++turn;
-			const auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
+			auto answer = (line.find("remember-tool-observation") == std::string::npos ? std::string{ "First answer omits the tool observation" } : std::string{ "tool-observation-7f13 retained-file=yes" }) + " process=" + process;
+			if (line.find("bpr.tour-ask.v1") != std::string::npos || line.find("bpr.tour-revise.v1") != std::string::npos) {
+				answer = json_escape("{\"schema\":\"bpr.tour-ask.v1\",\"reply\":\"" + answer + "\",\"problem\":\"\",\"solution\":\"\",\"stops\":[],\"stop_texts\":[]}");
+			} else if (line.find("bpr.tour-draft.v1") != std::string::npos) {
+				answer = json_escape("{\"schema\":\"bpr.tour-draft.v1\",\"problem\":\"Native drafted problem\",\"solution\":\"Native drafted solution\",\"stops\":[]}");
+			}
 			if (protocol == protocol::claude_stream_json) {
 				if (turn == 1U) {
-					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\"}\n";
+					std::cout << "{\"type\":\"system\",\"subtype\":\"init\",\"session_id\":\"" << handle << "\",\"tools\":[\"Read\",\"Grep\",\"Glob\",\"Bash\"],\"mcp_servers\":[]}\n";
 				}
 				std::cout << "{\"type\":\"user\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"user\",\"content\":[{\"type\":\"tool_result\",\"tool_use_id\":\"read\",\"content\":\"tool-observation-7f13\"}]}}\n";
 				std::cout << "{\"type\":\"assistant\",\"session_id\":\"" << handle << "\",\"message\":{\"role\":\"assistant\",\"id\":\"m" << turn << "\",\"content\":[{\"type\":\"text\",\"text\":\"" << answer << "\"}]}}\n";

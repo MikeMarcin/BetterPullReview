@@ -905,6 +905,7 @@ namespace bpr::application {
 		std::string RejectedOutputLine;
 		/// Host-owned opaque native identity; excluded from ordinary diagnostics.
 		std::string NativeHandle;
+		std::string Conversation;
 		/// Process-local supervised connection identity, for lifecycle observations.
 		std::uint64_t NativeProcess = 0U;
 

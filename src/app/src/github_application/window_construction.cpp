@@ -823,6 +823,8 @@ namespace bpr::app {
 				AgentEffects,
 				DecisionLane,
 				*AgentProjections, PrivateReview.get(), NativeAgentSessions.get());
+			AgentProjections->NativeSession = [this](const core::agent_session& aSession) { if (!Closing && ChatHost) { LatestAgentSession=aSession; ChatHost->admitted(aSession,true); } };
+			AgentProjections->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_agent_native_history(aView); };
 			compose_tour_session(agentProfiles, agentPolicies);
 		}
 		PrivateReview->profiles(agentProfiles);
@@ -1351,6 +1353,7 @@ namespace bpr::app {
 #if defined(BPR_AGENT_INTEGRATIONS)
 		// [[BPR-1900]]. The tour session's gestures: Draft the tour, Stop,
 		// and each proposed field's or stop's Accept and Discard.
+		Window->tour_editor()->side_chat()->set_history_dispatch([this](const core::tour_thread& aThread, std::optional<std::string> aChoice) { observe_tour_native_history(aThread, std::move(aChoice)); });
 		Window->tour_editor()->set_tour_ask_dispatch([this](const qt::tour_ask& aAsk) { request_tour_ask(aAsk.Thread, aAsk.Passage, aAsk.Question, aAsk.Update); });
 		// [[BPR-1930]], [[BPR-1931]]. The focus chip's ×, Reset tour and its Undo.
 		Window->tour_editor()->set_tour_shape_dispatch([this] { clear_tour_focus(); }, [this] { reset_tour(); }, [this] { undo_tour_reset(); });

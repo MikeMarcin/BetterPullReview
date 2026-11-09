@@ -44,6 +44,25 @@ The assist buttons rewrite a field or selection as one undoable edit; their
 instructions live in [Settings](settings.md#review-preparation-writing-hooks).
 AI text is never published without you, so check its claims.
 
+The whole tour, Problem, Solution and each stop have separate conversations for
+the selected agent. **Draft Tour** and that agent's whole-tour chat continue the
+same native session. Small writing hooks remain separate requests.
+
+**New session** starts fresh in the selected chat and retains its earlier
+conversation in **History**. It asks no clear-confirmation question and sends
+nothing until you send a message. Choose an earlier session to read it or
+continue it after its revision and permissions are checked. A storage refusal
+keeps the previous session selected. **Other tour chats and detached history**
+opens retained chats for reading, including removed stops and drafts left behind
+by Reset tour. It does not make them the current draft's conversation.
+
+Starting or reopening a session preserves accepted tour text, sources, focus,
+notes and comment drafts. **Reset tour** is separate: its existing confirmation
+clears the active tour and proposal associations; **Undo reset** restores them.
+Neither action deletes the agent's own transcript. Native conversations retain
+previously sent context, even after its selection is removed; New session begins
+without that older memory and receives the current selected context.
+
 Drafts stay on this computer; see
 [Storage and diagnostics](storage-and-diagnostics.md). To work with tours from
 a terminal, see the [tour CLI](tour-cli.md).

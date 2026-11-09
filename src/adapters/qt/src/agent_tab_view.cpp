@@ -513,27 +513,23 @@ namespace bpr::qt {
 		auto* const historyMenu = new QMenu{ History };
 		HistoryMenu             = historyMenu;
 		historyMenu->setObjectName(QStringLiteral("agentHistoryMenu"));
-		auto* const clear = historyMenu->addAction(tr("Clear session"));
-		clear->setObjectName(QStringLiteral("agentClearSessionAction"));
-		connect(clear, &QAction::triggered, this, [this] { clear_session(); });
-		connect(historyMenu, &QMenu::aboutToShow, this, [this, clear] { clear->setEnabled(!Turns.empty() && State != agent_tab_state::working); });
+		NativeHistoryMenu = historyMenu->addMenu(tr("Sessions"));
+		NativeHistoryMenu->setObjectName(QStringLiteral("nativeAgentSessions"));
+		connect(historyMenu, &QMenu::aboutToShow, this, [this] { if (NativeHistoryDispatch) { NativeHistoryDispatch(std::nullopt); } });
 		historyMenu->addAction(Chat.new_session_action());
 		historyMenu->addAction(Chat.continue_old_revision_action());
 		historyMenu->addSeparator();
 		auto* const privateRuns = historyMenu->addAction(tr("Private history and runs"));
 		privateRuns->setObjectName(QStringLiteral("agentPrivateHistoryAction"));
 		connect(privateRuns, &QAction::triggered, this, [this] { show_history(true); });
-		auto* const sessions = historyMenu->addAction(tr("Sessions"));
-		sessions->setObjectName(QStringLiteral("agentSessionsAction"));
-		sessions->setEnabled(false);
-		connect(historyMenu, &QMenu::aboutToShow, this, [this, sessions] { sessions->setText(Launch.session_catalog_text()); });
+
 		History->setMenu(historyMenu);
 		row->addWidget(History);
 		// Owner decision (b) 2026-10-23: a new session clears the current
 		// agent's thread.
-		ClearSession = make_drawer_tool(context, drawer_icon(drawer_glyph::new_session, palette()), tr("New session: clear this agent's thread and start the next question afresh"),
+		ClearSession = make_drawer_tool(context, drawer_icon(drawer_glyph::new_session, palette()), tr("New session: retain this conversation in history and start fresh"),
 										QStringLiteral("agentClearSession"));
-		ClearSession->setAccessibleName(tr("Clear session"));
+		ClearSession->setAccessibleName(tr("New session"));
 		connect(ClearSession, &QToolButton::clicked, this, [this] { clear_session(); });
 		row->addWidget(ClearSession);
 		column->addWidget(context);
@@ -1139,8 +1135,8 @@ namespace bpr::qt {
 		rebuild_findings();
 		Thread->setVisible(!Turns.empty());
 		EmptyIntro->setVisible(Turns.empty() && (State == agent_tab_state::idle || State == agent_tab_state::stopped) && !ReadyCard->isVisible());
-		ClearSession->setVisible(!Turns.empty());
-		ClearSession->setEnabled(State != agent_tab_state::working);
+		ClearSession->setVisible(true);
+		ClearSession->setEnabled(!NativeHistoryView.Loading && State != agent_tab_state::working);
 		// Owner look v006: the agent shown is asked what it offers, so its
 		// models are there when its menu opens.
 		if (isVisible() && CatalogDispatch && State != agent_tab_state::setting_up && State != agent_tab_state::not_set_up) {
@@ -1691,24 +1687,30 @@ namespace bpr::qt {
 		if (!panels_alive() || State == agent_tab_state::working) {
 			return;
 		}
-		// Owner decision (b): a confirmation only when turns would leave the
-		// thread; an empty one is cleared at once.
-		if (!Turns.empty()) {
-			const auto count     = Turns.size();
-			const auto confirmed = ClearConfirm ? ClearConfirm(count)
-												: QMessageBox::question(this, tr("Clear session?"),
-																		count == 1U ? tr("The thread's one turn leaves it, and the next question starts a new session that does not know it.")
-																					: tr("The thread's %1 turns leave it, and the next question starts a new session that does not know them.").arg(count),
-																		QMessageBox::Yes | QMessageBox::Cancel, QMessageBox::Cancel)
-					== QMessageBox::Yes;
-			if (!confirmed) {
-				return;
-			}
-		}
-		present_thread({ });
 		if (ClearDispatch) {
 			ClearDispatch();
 		}
+	}
+
+	void agent_tab_view::present_native_history(const application::native_agent_history_projection& aView)
+	{
+		NativeHistoryView = aView;
+		ClearSession->setEnabled(!aView.Loading && State != agent_tab_state::working);
+		if (aView.Loading) {
+			return;
+		}
+		NativeHistoryMenu->clear();
+		for (const auto& entry : aView.Entries) {
+			auto  title = QString::fromStdString(entry.Title).simplified().left(72);
+			auto* item  = NativeHistoryMenu->addAction(tr("%1 (%2 turns)").arg(title).arg(entry.Turns));
+			item->setData(QString::fromStdString(entry.Id));
+			item->setProperty("turns", QVariant::fromValue<qulonglong>(entry.Turns));
+			item->setCheckable(true);
+			item->setChecked(entry.Id == aView.Selected);
+			item->setEnabled(State != agent_tab_state::working);
+			connect(item, &QAction::triggered, this, [this, id = entry.Id] { if (NativeHistoryDispatch) { NativeHistoryDispatch(id); } });
+		}
+		NativeHistoryMenu->setEnabled(!aView.Entries.empty());
 	}
 
 	void agent_tab_view::set_suggestion_context(std::function<agent_suggestion_context()> aContext)

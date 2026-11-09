@@ -83,9 +83,8 @@ namespace bpr::application {
 		/// until the agent finishes or Stop.
 		std::optional<int> RunLimitMilliseconds;
 		/// [[BPR-1900]]. A tour drafting run: the workspace, read-only tools.
-		/// Admitted for Claude's stream JSON and Codex's `exec --json`, never
-		/// with `WritingOnly`, a continuation, the existing checkout or a
-		/// private run.
+		/// Admitted for qualified Claude/Codex protocols, including native continuation.
+		/// Never with `WritingOnly`, the existing checkout or a private run.
 		bool ReadOnlyTools = false;
 		/// [[BPR-1918]]. A custom profile that opted out of strict run
 		/// checks; the host passes it to the launch as it is.
@@ -101,6 +100,7 @@ namespace bpr::application {
 		/// Surface/thread scope; Agent tab and tour scopes never share a handle.
 		std::string NativeScope;
 		bool        NativeStartAtCurrentRevision = false;
+		std::string NativeQuestion;
 
 		auto operator<=>(const agent_invocation_request&) const = default;
 	};
@@ -181,6 +181,7 @@ namespace bpr::application {
 		virtual void private_refused(const agent_invocation_projection_identity&, const private_run_error&) { }
 		/// \brief Restores a durable native binding without an invocation or opaque handle.
 		virtual void restore_native_session(const core::agent_session&) { }
+		virtual void present_native_history(const native_agent_history_projection&) { }
 		virtual void present_session_catalog(
 			const agent_session_catalog_projection& aProjection) = 0;
 	};
@@ -225,7 +226,7 @@ namespace bpr::application {
 			core::pull_request_authority aAuthority,
 			core::agent_revision_binding aBinding);
 		/// \brief Loads only the selected native binding; viewing never starts a process.
-		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope);
+		void restore_native(core::agent_profile_id aProfile, std::string aAgentIdentity, std::string aScope, std::optional<std::string> aChoice = std::nullopt);
 		void clear();
 		void dispatch(agent_invocation_request aRequest);
 		void cancel();

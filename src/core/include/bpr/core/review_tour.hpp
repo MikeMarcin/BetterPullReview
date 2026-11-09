@@ -188,6 +188,9 @@ namespace bpr::core {
 		std::vector<tour_stop>             Stops;
 		std::uint64_t                      Revision   = 1;
 		std::uint64_t                      LastStopId = 0;
+		/// Native chat namespace; Undo restores the active value, never its high water.
+		std::uint64_t                      ChatGeneration     = 0U;
+		std::uint64_t                      LastChatGeneration = 0U;
 		std::optional<tour_remote_binding> Remote;
 		std::optional<tour_field_baseline> IndexBaseline;
 		std::string                        ImportNotice;

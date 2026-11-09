@@ -15426,12 +15426,12 @@ namespace {
 			});
 			agent->clear_session_button()->click();
 			process_events();
-			expect(asks == std::vector<std::size_t>{ 4U } && cleared == 0 && agent->turn_count() == 4U, "declining keeps the thread");
+			expect(asks.empty() && cleared == 1 && agent->turn_count() == 4U, "New session needs no destructive confirmation and waits for retained admission");
 			confirm = true;
 			agent->clear_session_button()->click();
 			process_events();
-			expect(cleared == 1 && agent->turn_count() == 0U && agent->findChild<QWidget*>(QStringLiteral("agentSuggestions"))->isVisible() && !agent->clear_session_button()->isVisible(),
-				   "confirmed, the thread is empty, the host is told and the suggestions return");
+			expect(cleared == 2 && asks.empty() && agent->turn_count() == 4U,
+				   "repeated New session sends an explicit request without erasing an unsaved conversation");
 			// A pull request opened again shows its kept thread.
 			observedThread.clear();
 			agent->present_thread({ { .Question = QStringLiteral("Does this work?"), .Answer = QStringLiteral("Yes."), .Footer = QStringLiteral("Claude Code answered in 0:12.") } });

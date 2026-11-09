@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_SIDE_CHAT_HPP
 #define BPR_SRC_ADAPTERS_QT_INCLUDE_BPR_QT_TOUR_SIDE_CHAT_HPP
 
+#include "bpr/application/agent_conversation.hpp"
 #include "bpr/application/markdown_code_syntax.hpp"
 #include "bpr/application/tour_chat_prompts.hpp"
 #include "bpr/core/review_tour.hpp"
@@ -26,6 +27,7 @@
 #include <vector>
 
 class QLabel;
+class QMenu;
 class QPainter;
 class QPlainTextEdit;
 class QPushButton;
@@ -213,6 +215,11 @@ namespace bpr::qt {
 		/// \brief The shown chat's place among `open_threads()`, or -1.
 		[[nodiscard]] auto current_index() const noexcept -> int { return Current; }
 		void               select(int aIndex);
+		void               set_history_dispatch(std::function<void(const core::tour_thread&, std::optional<std::string>)> aDispatch) { HistoryDispatch = std::move(aDispatch); }
+		void               present_native_history(const application::native_agent_history_projection&);
+		[[nodiscard]] auto new_session_button() const noexcept -> QToolButton* { return NewSession; }
+		[[nodiscard]] auto history_button() const noexcept -> QToolButton* { return Sessions; }
+
 		/// \brief [[BPR-1925]]. Whether the column is open (it shows while the
 		/// Tour tab does), and the part it is about while it is.
 		[[nodiscard]] auto column_open() const noexcept -> bool { return ColumnOpen; }
@@ -265,8 +272,13 @@ namespace bpr::qt {
 		void paintEvent(QPaintEvent* aEvent) override;
 
 	private:
-		void rebuild();
-		void changed();
+		std::function<void(const core::tour_thread&, std::optional<std::string>)> HistoryDispatch;
+		QMenu*                                                                    SessionMenu    = nullptr;
+		QToolButton*                                                              Sessions       = nullptr;
+		QToolButton*                                                              NewSession     = nullptr;
+		bool                                                                      HistoryLoading = false;
+		void                                                                      rebuild();
+		void                                                                      changed();
 		/// [[BPR-1914]] v004. The file inline code in a chat is coloured as:
 		/// a stop's own file, or the language most of the tour's stops are in.
 		[[nodiscard]] auto inline_selector() const -> std::string;

@@ -827,6 +827,14 @@ namespace bpr::app {
 			invocation.RunChecks           = checks;
 			// [[BPR-1916]]. The skills the prompt names ride in the supplement.
 			invocation.Context.Skills = aTour.Skills.Inline;
+			if (!aTour.NativeScope.empty() && AgentSetup) {
+				const auto preferences = AgentSetup->projection().Preferences;
+				if (const auto* entry = core::entry_of_profile(preferences.Agents, aProfile); entry) {
+					invocation.NativeAgentIdentity = entry->Identity;
+					invocation.NativeScope         = aTour.NativeScope;
+					invocation.NativeQuestion      = aTour.NativeQuestion;
+				}
+			}
 			TourSession->dispatch(std::move(invocation));
 			return true;
 		}

@@ -124,6 +124,7 @@ namespace bpr::adapters::sqlite {
 									"left_epoch INTEGER NOT NULL, right_epoch INTEGER NOT NULL, handle TEXT NOT NULL, turn INTEGER NOT NULL, pending INTEGER NOT NULL,"
 									"workspace TEXT NOT NULL, parent TEXT NOT NULL, marker TEXT NOT NULL, application INTEGER NOT NULL, session INTEGER NOT NULL,"
 									"directory BLOB NOT NULL, guard TEXT NOT NULL, guard_identity BLOB NOT NULL, shallow INTEGER NOT NULL, revision INTEGER NOT NULL) STRICT")
+				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_turns(conversation TEXT NOT NULL REFERENCES native_agent_sessions(id), ordinal INTEGER NOT NULL, asked TEXT NOT NULL, answered TEXT NOT NULL, ending TEXT NOT NULL, outcome INTEGER NOT NULL, PRIMARY KEY(conversation,ordinal)) STRICT")
 				|| !detail::execute(db, "CREATE TABLE IF NOT EXISTS native_agent_selection(scope TEXT PRIMARY KEY, conversation TEXT NOT NULL REFERENCES native_agent_sessions(id)) STRICT")
 				|| !detail::execute(db,
 									"CREATE TABLE IF NOT EXISTS agent_entry_relaxed_checks("
@@ -731,7 +732,7 @@ namespace bpr::adapters::sqlite {
 			{
 				return read(aScope, aConfiguration, aBinding, false, false);
 			}
-			auto read(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aCreate, const bool aStartAtCurrentRevision)
+			auto read(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const bool aCreate, const bool aStartAtCurrentRevision, const std::optional<std::string>& aChoice = std::nullopt)
 				-> std::expected<std::optional<application::native_agent_session>, application::native_agent_storage_failure>
 			{
 				using failure = application::native_agent_storage_failure;
@@ -749,6 +750,28 @@ namespace bpr::adapters::sqlite {
 				}
 				bind_text(row->Value, 1, aScope);
 				auto status = sqlite3_step(row->Value);
+				if (aChoice) {
+					if (status == SQLITE_ROW && sqlite3_column_int(row->Value, 8) != 0) {
+						return std::unexpected(failure::conflict);
+					}
+					if (aChoice->empty()) {
+						// No handle/workspace means no inference has used this generation.
+						if (status == SQLITE_ROW && (!column_text(row->Value, 6).value_or("").empty() || !column_text(row->Value, 9).value_or("").empty() || column_text(row->Value, 2) != std::optional{ std::string{ core::canonical_hex(aBinding.BaseOid).view() } } || column_text(row->Value, 3) != std::optional{ std::string{ core::canonical_hex(aBinding.HeadOid).view() } } || sqlite3_column_int64(row->Value, 4) != aBinding.LeftEpoch.value() || sqlite3_column_int64(row->Value, 5) != aBinding.RightEpoch.value())) {
+							status = SQLITE_DONE;
+						}
+					} else {
+						row = detail::prepare(db, "SELECT id,configuration,base,head,left_epoch,right_epoch,handle,turn,pending,workspace,parent,marker,application,session,directory,guard,guard_identity,shallow,revision FROM native_agent_sessions WHERE scope=?1 AND id=?2");
+						if (!row) {
+							return std::unexpected(failure::unavailable);
+						}
+						bind_text(row->Value, 1, aScope);
+						bind_text(row->Value, 2, *aChoice);
+						status = sqlite3_step(row->Value);
+						if (status != SQLITE_ROW) {
+							return std::unexpected(failure::conflict);
+						}
+					}
+				}
 				if (status == SQLITE_ROW && aStartAtCurrentRevision) {
 					const auto changed = column_text(row->Value, 2) != std::optional{ std::string{ core::canonical_hex(aBinding.BaseOid).view() } }
 						|| column_text(row->Value, 3) != std::optional{ std::string{ core::canonical_hex(aBinding.HeadOid).view() } }
@@ -849,10 +872,157 @@ namespace bpr::adapters::sqlite {
 				} else {
 					return std::unexpected(failure::unavailable);
 				}
+				if (aChoice) {
+					auto selected = detail::prepare(db, "INSERT OR REPLACE INTO native_agent_selection VALUES(?1,?2)");
+					if (!selected) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(selected->Value, 1, aScope);
+					bind_text(selected->Value, 2, value.Id);
+					if (sqlite3_step(selected->Value) != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+				}
 				if (!detail::execute(db, "COMMIT")) {
 					return std::unexpected(failure::unavailable);
 				}
 				return value;
+			}
+			auto choose(const std::string& aScope, const std::string& aConfiguration, const core::agent_revision_binding& aBinding, const std::string& aId)
+				-> std::expected<application::native_agent_session, application::native_agent_storage_failure> override
+			{
+				auto selected = read(aScope, aConfiguration, aBinding, true, false, aId);
+				if (!selected) {
+					return std::unexpected(selected.error());
+				}
+				if (!*selected) {
+					return std::unexpected(application::native_agent_storage_failure::unavailable);
+				}
+				return std::move(**selected);
+			}
+			auto history(const std::string& aScope, const std::string& aConfiguration, const std::string& aView)
+				-> std::expected<application::native_agent_history_projection, application::native_agent_storage_failure> override
+			{
+				using failure   = application::native_agent_storage_failure;
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN")) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto* db      = connection->Database.get();
+				auto  view    = application::native_agent_history_projection{ };
+				view.Scope    = aScope;
+				auto selected = detail::prepare(db, "SELECT conversation FROM native_agent_selection WHERE scope=?1");
+				if (!selected) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(selected->Value, 1, aScope);
+				const auto selectionStatus = sqlite3_step(selected->Value);
+				if (selectionStatus == SQLITE_ROW) {
+					view.Selected = column_text(selected->Value, 0).value_or("");
+				} else if (selectionStatus != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				auto rows = detail::prepare(db, "SELECT id,base,head,left_epoch,right_epoch,pending,(SELECT count(*) FROM native_agent_turns WHERE conversation=id),(SELECT asked FROM native_agent_turns WHERE conversation=id ORDER BY ordinal LIMIT 1) FROM native_agent_sessions WHERE scope=?1 AND configuration=?2 ORDER BY rowid DESC LIMIT 500");
+				if (!rows) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(rows->Value, 1, aScope);
+				bind_text(rows->Value, 2, aConfiguration);
+				auto status = SQLITE_ROW;
+				while ((status = sqlite3_step(rows->Value)) == SQLITE_ROW) {
+					auto entry = application::native_agent_history_entry{ };
+					entry.Id   = column_text(rows->Value, 0).value_or("");
+					auto base  = core::parse_git_commit_oid(column_text(rows->Value, 1).value_or(""));
+					auto head  = core::parse_git_commit_oid(column_text(rows->Value, 2).value_or(""));
+					if (!base || !head) {
+						return std::unexpected(failure::unavailable);
+					}
+					entry.Binding.BaseOid    = *base;
+					entry.Binding.HeadOid    = *head;
+					entry.Binding.LeftEpoch  = core::epoch_ordinal{ sqlite3_column_int64(rows->Value, 3) };
+					entry.Binding.RightEpoch = core::epoch_ordinal{ sqlite3_column_int64(rows->Value, 4) };
+					entry.Pending            = sqlite3_column_int(rows->Value, 5) != 0;
+					entry.Turns              = static_cast<std::size_t>(sqlite3_column_int64(rows->Value, 6));
+					entry.Title              = column_text(rows->Value, 7).value_or("New session");
+					view.Entries.push_back(std::move(entry));
+				}
+				if (status != SQLITE_DONE) {
+					return std::unexpected(failure::unavailable);
+				}
+				const auto tour = aScope.find(":tour:");
+				if (tour != std::string::npos) {
+					const auto draftEnd = aScope.find(':', tour + 6U);
+					const auto prefix   = aScope.substr(0, draftEnd + 1U);
+					auto       chats    = detail::prepare(db, "SELECT id,scope,(SELECT asked FROM native_agent_turns WHERE conversation=id ORDER BY ordinal LIMIT 1) FROM native_agent_sessions WHERE substr(scope,1,length(?1))=?1 AND configuration=?2 AND scope!=?3 ORDER BY rowid DESC LIMIT 500");
+					if (!chats) {
+						return std::unexpected(failure::unavailable);
+					}
+					bind_text(chats->Value, 1, prefix);
+					bind_text(chats->Value, 2, aConfiguration);
+					bind_text(chats->Value, 3, aScope);
+					while ((status = sqlite3_step(chats->Value)) == SQLITE_ROW) {
+						auto entry  = application::native_agent_history_entry{ };
+						entry.Id    = column_text(chats->Value, 0).value_or("");
+						entry.Scope = column_text(chats->Value, 1).value_or("").substr(tour + 1U);
+						entry.Title = column_text(chats->Value, 2).value_or("New session");
+						view.OtherChats.push_back(std::move(entry));
+					}
+					if (status != SQLITE_DONE) {
+						return std::unexpected(failure::unavailable);
+					}
+				}
+				if (!aView.empty()) {
+					if (std::ranges::none_of(view.OtherChats, [&](const auto& aEntry) { return aEntry.Id == aView; })) {
+						return std::unexpected(failure::conflict);
+					}
+					view.ReadOnly = true;
+				}
+				auto turns = detail::prepare(db, "SELECT asked,answered,ending,outcome FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal LIMIT 50");
+				if (!turns) {
+					return std::unexpected(failure::unavailable);
+				}
+				bind_text(turns->Value, 1, aView.empty() ? view.Selected : aView);
+				while ((status = sqlite3_step(turns->Value)) == SQLITE_ROW) {
+					auto turn     = application::agent_conversation_turn{ };
+					turn.Asked    = column_text(turns->Value, 0).value_or("");
+					turn.Answered = column_text(turns->Value, 1).value_or("");
+					turn.Ending   = column_text(turns->Value, 2).value_or("");
+					turn.Outcome  = static_cast<core::agent_turn_outcome>(sqlite3_column_int(turns->Value, 3));
+					view.Turns.push_back(std::move(turn));
+				}
+				if (status != SQLITE_DONE || !application::valid(view.Turns) || !detail::execute(db, "COMMIT")) {
+					return std::unexpected(failure::unavailable);
+				}
+				return view;
+			}
+			auto append(const std::string& aId, const application::agent_conversation_turn& aTurn) -> bool override
+			{
+				if (!application::valid(std::vector{ aTurn })) {
+					return false;
+				}
+				auto connection = open(Root);
+				if (!connection || !detail::execute(connection->Database.get(), "BEGIN IMMEDIATE")) {
+					return false;
+				}
+				auto* db  = connection->Database.get();
+				auto  row = detail::prepare(db, "INSERT INTO native_agent_turns SELECT ?1,coalesce(max(ordinal),0)+1,?2,?3,?4,?5 FROM native_agent_turns WHERE conversation=?1");
+				if (!row) {
+					return false;
+				}
+				bind_text(row->Value, 1, aId);
+				bind_text(row->Value, 2, aTurn.Asked);
+				bind_text(row->Value, 3, aTurn.Answered);
+				bind_text(row->Value, 4, aTurn.Ending);
+				sqlite3_bind_int(row->Value, 5, static_cast<int>(aTurn.Outcome));
+				if (sqlite3_step(row->Value) != SQLITE_DONE) {
+					return false;
+				}
+				auto prune = detail::prepare(db, "DELETE FROM native_agent_turns WHERE conversation=?1 AND ordinal NOT IN (SELECT ordinal FROM native_agent_turns WHERE conversation=?1 ORDER BY ordinal DESC LIMIT 50)");
+				if (!prune) {
+					return false;
+				}
+				bind_text(prune->Value, 1, aId);
+				return sqlite3_step(prune->Value) == SQLITE_DONE && detail::execute(db, "COMMIT");
 			}
 			auto store(application::native_agent_session& aSession) -> bool override
 			{

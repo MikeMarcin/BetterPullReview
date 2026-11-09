@@ -18,16 +18,16 @@ def main():
         parent = Path(temporary).resolve()
         os.chmod(parent, 0o700)
         data = parent / 'data'
-        for course in ('native-session', 'native-session-reopen'):
+        for course in ('native-session', 'native-session-reopen', 'tour-native', 'tour-native-reopen'):
             result = subprocess.run([str(args.executable.resolve()), course, str(args.canary.resolve()), str(data)],
-                                    text=True, capture_output=True, timeout=90)
+                                    text=True, capture_output=True, timeout=180)
             print(result.stdout, end='')
             print(result.stderr, end='')
             if result.returncode or f'agent-invocation-{course}:pass' not in result.stdout:
                 return 1
         if args.evidence_dir:
             args.evidence_dir.mkdir(parents=True, exist_ok=True)
-            for name in ('native-agent-tab.png', 'native-reopen.png'):
+            for name in ('native-agent-tab.png', 'native-reopen.png', 'native-tour.png', 'native-tour-reopen.png'):
                 shutil.copyfile(parent / name, args.evidence_dir / name)
     print('native-agent-sessions-course:pass')
     return 0

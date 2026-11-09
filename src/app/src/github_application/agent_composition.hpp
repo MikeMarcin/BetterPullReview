@@ -166,6 +166,8 @@ namespace bpr::app {
 	/// workspace, and the paths whose lines the host counts first.
 	struct tour_launch
 	{
+		std::string              NativeScope;
+		std::string              NativeQuestion;
 		bool                     ReadOnly = false;
 		std::vector<std::string> Measure;
 		/// [[BPR-1916]]. The skills the run's prompt names, inline.
@@ -179,6 +181,13 @@ namespace bpr::app {
 	class tour_session_projection final : public application::agent_invocation_projection_port
 	{
 	public:
+		std::function<void(const application::native_agent_history_projection&)> NativeHistory;
+		void                                                                     present_native_history(const application::native_agent_history_projection& aView) override
+		{
+			if (NativeHistory) {
+				NativeHistory(aView);
+			}
+		}
 		using identity_sink = std::function<void(const application::agent_invocation_projection_identity&)>;
 		using start_sink    = std::function<void(const application::agent_invocation_projection_identity&, const application::prepared_workspace&)>;
 		using run_sink      = std::function<void(const application::agent_invocation_projection_identity&, const application::agent_run_result&)>;
@@ -215,6 +224,13 @@ namespace bpr::app {
 		: public application::agent_invocation_projection_port
 	{
 	public:
+		std::function<void(const application::native_agent_history_projection&)> NativeHistory;
+		void                                                                     present_native_history(const application::native_agent_history_projection& aView) override
+		{
+			if (NativeHistory) {
+				NativeHistory(aView);
+			}
+		}
 		using finding_sink   = std::function<void(
 			const application::agent_invocation_projection_identity&,
 			const application::agent_finding_delivery&)>;
@@ -232,6 +248,8 @@ namespace bpr::app {
 		using run_sink = std::function<void(
 			const application::agent_invocation_projection_identity&,
 			const application::agent_run_result&)>;
+
+		session_sink NativeSession;
 
 		composition_agent_invocation_projection(
 			application::agent_invocation_projection_port& aPanel,

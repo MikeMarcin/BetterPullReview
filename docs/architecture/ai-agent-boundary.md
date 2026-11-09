@@ -198,7 +198,7 @@ directory is assigned only after materialization. Existing-checkout mode
 remains a per-invocation choice and discloses dirty or unknown state.
 
 [RFC-BPR-0096](../rfcs/RFC-BPR-0096-native-agent-sessions-and-tour-context.md)
-adds retained native Agent-tab workspaces. A durable session owns its original
+adds retained native workspaces for the Agent tab and per-agent tour chats. A durable session owns its original
 workspace and guard identities and journal phase 7. Startup recovery preserves
 that state even with no live process. Resume checks the marker, captured directory
 and guard identities, pinned HEAD and available required object closure; it never
@@ -257,8 +257,12 @@ memory. Codex JSONL reconnects by exact native ID with a process per turn. The
 turns are kept, as the
 Agent tab shows them, in the profile's `agent-setup.sqlite3` for each pull
 request (host, owner, name and number; at most 50 turns, 64 KiB per text and
-500 pull requests, the least recently written going first); Clear session
-removes them, and settings resets remove the file. They are the reviewer's
+500 conversation records across both surfaces and generations). Native
+**New session** retains the previous generation in scoped History; it is neither
+deletion nor profile purge. Native admission protects existing ownership and
+refuses at capacity. The separate legacy projection writer still needs its
+shared admission/save-failure reconciliation in BPR-1954; no global-capacity
+qualification is inferred here. Settings resets remove the file. They are the reviewer's
 questions and the agent's prose, and no credential. Its lines follow every
 version-two field and are written only when present, so a launch without a
 brief differs from version two only in its `schema` line. The agent may still
@@ -1680,8 +1684,10 @@ tool-free as above. A read-only Claude launch adds
 `--allowedTools` list of Read, Grep, Glob and the shell programs `rg`, `grep`,
 `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `find` and `git log|show|blame|diff|grep|ls-files`,
 `--disallowedTools Edit,Write,MultiEdit,NotebookEdit,WebFetch,WebSearch,Task`,
-an empty strict MCP configuration, no setting sources, no slash commands, no
-saved session, `claude_writing_settings` and auto-memory off. In print mode a
+an empty strict MCP configuration, no setting sources, no slash commands,
+`claude_writing_settings` and auto-memory off. Native conversational launches
+retain the native transcript; one-shot writing launches keep their no-session
+restriction. In print mode a
 tool use outside the allowed list is denied without a prompt.
 
 Claude's permission check is the gate ([[BPR-1912]]). It decides before a
@@ -1719,8 +1725,13 @@ without a note, are `rg`, `grep`, `ls`, `cat`, `head`, `tail`, `wc`, `nl`, `sort
 only) and `git log|show|blame|diff|grep|ls-files|status|rev-parse|shortlog|describe|cat-file|ls-tree|merge-base|name-rev`. A read-only Codex launch is
 `codex exec --json --sandbox read-only -c approval_policy="never" -c mcp_servers={} -c tools.web_search=false -`:
 Codex's own sandbox holds it to reading with no network; its commands are
-shown in the transcript and not re-checked. The App Server and the plain-text
-harness have no recorded read-only mode and are refused.
+shown in the transcript and not re-checked. Conversational App Server launches
+disable MCP and web-search configuration, set `approvalPolicy: never` and
+`sandbox: read-only` on both thread creation and exact-ID resume, and reapply
+`readOnly` with network access false on every turn. These fields follow the
+installed 0.164.0 protocol schema; functional fixtures verify the serialized
+configuration. Installed permission enforcement remains BPR-1955 qualification.
+The plain-text harness has no recorded read-only mode and is refused.
 
 Before a whole-tour run starts the host counts the head lines of the pull
 request's files in the new workspace (`measure_workspace_lines`: regular

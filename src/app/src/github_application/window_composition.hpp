@@ -2187,8 +2187,20 @@ namespace bpr::app {
 		bool                                TourDraftPending = false;
 		/// [[BPR-1914]]. An ask turn is in flight, and the tour its
 		/// conversation belongs to.
-		bool                               TourAskPending = false;
-		std::optional<core::tour_draft_id> TourConversationDraft;
+		bool                                         TourAskPending = false;
+		std::optional<core::tour_draft_id>           TourConversationDraft;
+		std::map<std::string, std::string>           TourSelectedConversations;
+		application::native_agent_history_projection TourHistory;
+		std::string                                  TourHistoryKey;
+		std::string                                  TourRunScope;
+		application::native_agent_history_projection AgentNativeHistory;
+		void                                         present_agent_native_history(const application::native_agent_history_projection&);
+		void                                         observe_agent_native_history(std::optional<std::string> aChoice = std::nullopt);
+		void                                         observe_tour_native_history(const core::tour_thread&, std::optional<std::string> aChoice = std::nullopt);
+		void                                         present_tour_native_history(const application::native_agent_history_projection&);
+		[[nodiscard]] auto                           tour_native_scope(const core::tour_thread&) const -> std::string;
+		[[nodiscard]] auto                           tour_native_agent() const -> std::string;
+
 		/// [[BPR-1914]] v003. When the run in flight started, for "Worked for Ns".
 		std::chrono::steady_clock::time_point TourRunStarted;
 		/// [[BPR-1941]]. What the run in flight is doing now, as its live

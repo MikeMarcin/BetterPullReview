@@ -501,25 +501,7 @@ namespace bpr::app {
 	/// first added agent that does.
 	auto github_application::implementation::writing_agent() const -> std::optional<core::agent_profile_id>
 	{
-		const auto selected = Window->agent_panel()->selected_profile();
-#if defined(BPR_AGENT_INTEGRATIONS)
-		// A built-in profile chosen (a course's own program) is asked as is.
-		if (selected && (writes_tool_free(*selected) || !core::is_agent_entry_profile(*selected))) {
-			return selected;
-		}
-		if (AgentSetup) {
-			const auto listed = AgentSetup->projection().Preferences.Agents;
-			for (const auto& entry : listed) {
-				if (entry.Protocol == core::agent_protocol::claude_stream_json) {
-					return core::entry_profile_id(entry);
-				}
-			}
-		}
-		// None speaks it: the chosen one, which is then refused with why.
-		return selected;
-#else
-		return selected;
-#endif
+		return Window->agent_panel()->selected_profile();
 	}
 
 	/// [[BPR-1878]]. An agent's name as the agent menus show it.
@@ -771,7 +753,8 @@ namespace bpr::app {
 				}
 				return qEnvironmentVariable(aName.c_str()).toStdString();
 			},
-			TourAgentEffects, DecisionLane, *TourProjection, nullptr);
+			TourAgentEffects, DecisionLane, *TourProjection, nullptr, NativeAgentSessions.get());
+		TourProjection->NativeHistory = [this](const application::native_agent_history_projection& aView) { present_tour_native_history(aView); };
 	}
 
 	/// [[BPR-1900]]. What a drafting run says while it reads, and that a
@@ -786,13 +769,13 @@ namespace bpr::app {
 	/// [[BPR-1900]]. Whether an agent has a recorded read-only allowlist.
 	auto github_application::implementation::reads_read_only(const core::agent_profile_id aProfile) const -> bool
 	{
-		if (writes_tool_free(aProfile) || aProfile == core::codex_jsonl_profile_id) {
+		if (writes_tool_free(aProfile) || (aProfile == core::codex_jsonl_profile_id || aProfile == core::codex_app_server_profile_id)) {
 			return true;
 		}
 		if (core::is_agent_entry_profile(aProfile) && AgentSetup) {
 			const auto        agents = AgentSetup->projection().Preferences.Agents;
 			const auto* const entry  = core::entry_of_profile(agents, aProfile);
-			return entry != nullptr && entry->Protocol == core::agent_protocol::codex_jsonl_exec;
+			return entry != nullptr && (entry->Protocol == core::agent_protocol::codex_jsonl_exec || entry->Protocol == core::agent_protocol::codex_app_server);
 		}
 		return false;
 	}
@@ -809,12 +792,20 @@ namespace bpr::app {
 		if (!run) {
 			return false;
 		}
+		TourRunScope.clear();
+		if ((aKind == core::tour_agent_request::ask || aKind == core::tour_agent_request::draft_tour) && !tour_native_agent().empty()) {
+			TourRunScope = tour_native_agent() + ":" + tour_native_scope(aThread);
+			if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
+				found->ConversationScope = TourRunScope;
+				found->Conversation      = TourSelectedConversations[TourRunScope];
+			}
+		}
 		TourRun        = *run;
 		TourRunStarted = std::chrono::steady_clock::now();
 		TourInvocation.reset();
 		TourWorkspacePath.clear();
 		TourWorkspaceHead.reset();
-		auto launch = tour_launch{ .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
+		auto launch = tour_launch{ .NativeScope = TourRunScope.empty() ? std::string{ } : tour_native_scope(aThread), .NativeQuestion = aAsked, .ReadOnly = tools == core::tour_agent_tools::read_only, .Skills = std::move(aSkills) };
 		if ((aKind == core::tour_agent_request::draft_tour || aKind == core::tour_agent_request::ask) && WindowRead->accepted_snapshot()) {
 			for (const auto& file : WindowRead->accepted_snapshot()->Files) {
 				if (file.Change != application::github_file_change::removed) {
@@ -921,6 +912,12 @@ namespace bpr::app {
 		}
 		const auto words = qt::agent_tab_view::run_failure_words(aResult.Outcome, agent_display_name(aIdentity.Session.Profile));
 		if (TourRun) {
+			if (!aResult.Conversation.empty()) {
+				TourSelectedConversations[TourRunScope] = aResult.Conversation;
+				if (auto found = std::ranges::find(TourAgent.Runs, *TourRun, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
+					found->Conversation = aResult.Conversation;
+				}
+			}
 			static_cast<void>(core::record_tour_activity(TourAgent, *TourRun, application::tour_transcript_of(aResult.ToolActivity, TourWorkspacePath)));
 			const auto state = aResult.Outcome == application::agent_run_outcome::success ? core::tour_agent_run_state::answered
 				: aResult.Outcome == application::agent_run_outcome::cancelled            ? core::tour_agent_run_state::cancelled
@@ -971,6 +968,100 @@ namespace bpr::app {
 	/// and forth and have it update it." The session is one conversation
 	/// per tour: a run started on another tour lets the earlier tour's
 	/// turns and proposal go (run numbers keep counting).
+	auto github_application::implementation::tour_native_scope(const core::tour_thread& aThread) const -> std::string
+	{
+		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
+		return draft ? "tour:" + std::to_string(draft->Id.value()) + ":" + std::to_string(draft->ChatGeneration) + ":" + std::to_string(static_cast<unsigned>(aThread.Kind)) + ":" + std::to_string(aThread.Stop.value()) : std::string{ };
+	}
+	auto github_application::implementation::tour_native_agent() const -> std::string
+	{
+		const auto profile = writing_agent();
+		if (!profile || !AgentSetup) {
+			return { };
+		}
+		const auto  preferences = AgentSetup->projection().Preferences;
+		const auto* entry       = core::entry_of_profile(preferences.Agents, *profile);
+		return entry ? entry->Identity : std::string{ };
+	}
+	void github_application::implementation::observe_tour_native_history(const core::tour_thread& aThread, std::optional<std::string> aChoice)
+	{
+		if (Closing || !Window || !TourSession || !writing_agent() || tour_native_agent().empty() || tour_native_scope(aThread).empty()) {
+			return;
+		}
+		TourHistoryKey = tour_native_agent() + ":" + tour_native_scope(aThread);
+		TourSession->restore_native(*writing_agent(), tour_native_agent(), tour_native_scope(aThread), std::move(aChoice));
+	}
+	void github_application::implementation::present_tour_native_history(const application::native_agent_history_projection& aView)
+	{
+		if (Closing || !Window) {
+			return;
+		}
+		const auto thread = Window->tour_editor()->side_chat()->current();
+		if (!thread || tour_native_scope(*thread) != aView.Scope) {
+			return;
+		}
+		if (aView.ReadOnly) {
+			auto readable = aView;
+			for (auto& turn : readable.Turns) {
+				if (auto answer = application::decode_tour_ask_answer(turn.Answered)) {
+					turn.Answered = answer->Reply;
+				}
+			}
+			Window->tour_editor()->side_chat()->present_native_history(readable);
+			return;
+		}
+		TourHistory = aView;
+		Window->tour_editor()->side_chat()->present_native_history(aView);
+		if (aView.Loading) {
+			return;
+		}
+		if (!aView.Failure.empty()) {
+			Window->tour_editor()->show_writing_notice(QString::fromStdString(aView.Failure));
+			return;
+		}
+		const auto key                 = tour_native_agent() + ":" + aView.Scope;
+		TourSelectedConversations[key] = aView.Selected;
+		if (!aView.Selected.empty() && std::ranges::none_of(TourAgent.Runs, [&](const auto& aRun) { return aRun.ConversationScope == key && aRun.Conversation == aView.Selected; })) {
+			for (const auto& saved : aView.Turns) {
+				auto turn              = core::tour_agent_run{ };
+				turn.Id                = core::tour_agent_run_id{ ++TourAgent.LastRun };
+				turn.Request           = core::tour_agent_request::ask;
+				turn.Tools             = core::tour_agent_tools::read_only;
+				turn.Thread            = *thread;
+				turn.Question          = saved.Asked;
+				turn.ConversationScope = key;
+				turn.Conversation      = aView.Selected;
+				if (const auto answer = application::decode_tour_ask_answer(saved.Answered); answer) {
+					turn.Reply = answer->Reply;
+				} else if (const auto drafted = application::decode_tour_draft_answer(saved.Answered); drafted) {
+					turn.Request = core::tour_agent_request::draft_tour;
+					turn.Reply   = "Draft Tour";
+					if (drafted->Problem) {
+						turn.Reply += "\n\nProblem: " + *drafted->Problem;
+					}
+					if (drafted->Solution) {
+						turn.Reply += "\n\nSolution: " + *drafted->Solution;
+					}
+					turn.Reply += "\n\nProposed stops: " + std::to_string(drafted->Stops.size()) + ". Retained history does not restore or accept a proposal.";
+				} else {
+					turn.Reply = saved.Answered;
+				}
+				turn.State = saved.Outcome == core::agent_turn_outcome::answered ? core::tour_agent_run_state::answered : core::tour_agent_run_state::failed;
+				turn.Entries.push_back({ core::tour_transcript_kind::asked, turn.Question });
+				turn.Entries.push_back({ core::tour_transcript_kind::answered, turn.Reply });
+				TourAgent.Runs.push_back(std::move(turn));
+				while (TourAgent.Runs.size() > application::maximum_conversation_turns) {
+					const auto removable = std::ranges::find_if(TourAgent.Runs, [&](const auto& aRun) { return aRun.State != core::tour_agent_run_state::running && (!TourProposal || TourProposal->Run != aRun.Id); });
+					if (removable == TourAgent.Runs.end()) {
+						break;
+					}
+					TourAgent.Runs.erase(removable);
+				}
+			}
+		}
+		present_tour_session();
+	}
+
 	void github_application::implementation::adopt_tour_conversation()
 	{
 		const auto draft = TourHost ? TourHost->presentation().Draft : nullptr;
@@ -998,6 +1089,10 @@ namespace bpr::app {
 			return;
 		}
 		adopt_tour_conversation();
+		if (aThread.Kind == core::tour_thread_kind::stop && std::ranges::find(draft->Stops, aThread.Stop, &core::tour_stop::Id) == draft->Stops.end()) {
+			Window->tour_editor()->show_writing_notice(QStringLiteral("This stop was removed. Its history stays readable; choose an active tour part to send a question."));
+			return;
+		}
 		// [[BPR-1930]] AC3, owner: "particularly during the initial agent
 		// draft". Feedback on the whole tour while Draft the tour runs waits
 		// for its proposal, then revises it.
@@ -1009,6 +1104,10 @@ namespace bpr::app {
 		// A turn that cannot run still lands in its side chat, saying why.
 		const auto refuse = [this, &aThread, &aPassage, &question, aUpdate](const std::string& aWhy) {
 			if (const auto run = core::begin_tour_ask(TourAgent, aThread, aPassage, question, aUpdate)) {
+				if (auto found = std::ranges::find(TourAgent.Runs, *run, &core::tour_agent_run::Id); found != TourAgent.Runs.end()) {
+					found->ConversationScope = tour_native_agent() + ":" + tour_native_scope(aThread);
+					found->Conversation      = TourSelectedConversations[found->ConversationScope];
+				}
 				static_cast<void>(core::finish_tour_run(TourAgent, *run, core::tour_agent_run_state::failed, aWhy));
 			}
 			present_tour_session();
@@ -1039,7 +1138,7 @@ namespace bpr::app {
 		// directive is part of the prompt the bound below is checked on.
 		const auto texts  = std::array{ std::string_view{ question } };
 		auto       skills = prepare_skill_run(SkillLibrary, texts);
-		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, core::tour_conversation_of(TourAgent, aThread), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive);
+		const auto prompt = application::build_tour_ask_prompt(snapshot->PullRequest.Title, snapshot->PullRequest.Body, files, *draft, (tour_native_agent().empty() ? core::tour_conversation_of(TourAgent, aThread) : decltype(core::tour_conversation_of(TourAgent, aThread)){ }), aThread, aPassage, question, aUpdate, TourProposal, TourAgent.Focus, skills.Directive);
 		if (!prompt) {
 			refuse("This question, with the pull request and the conversation so far, is too large to send in one request.");
 			return;
@@ -1174,11 +1273,15 @@ namespace bpr::app {
 			}
 			snapshot.ResetRevision = after->Revision;
 		}
+		TourHistoryKey.clear();
 		TourResetUndo = std::move(snapshot);
 		TourAgent     = core::tour_agent_session{ .LastRun = TourAgent.LastRun };
 		TourProposal.reset();
 		TourAnchorFiles.clear();
 		Window->tour_editor()->show_writing_notice({ });
+		if (const auto thread = Window->tour_editor()->side_chat()->current()) {
+			observe_tour_native_history(*thread);
+		}
 		present_tour_session();
 		present_tour_reset();
 	}
@@ -1210,6 +1313,10 @@ namespace bpr::app {
 		TourAgent.LastRun = std::max(TourAgent.LastRun, last);
 		TourProposal      = std::move(undo.Proposal);
 		TourAnchorFiles   = std::move(undo.Anchors);
+		TourHistoryKey.clear();
+		if (const auto thread = Window->tour_editor()->side_chat()->current()) {
+			observe_tour_native_history(*thread);
+		}
 		Window->tour_editor()->show_writing_notice(QStringLiteral("Reset undone. The tour, its chats, its focus and its proposals are back."));
 		present_tour_session();
 		present_tour_reset();
@@ -1262,7 +1369,7 @@ namespace bpr::app {
 	/// whole-tour draft by what it proposes, anything else as written.
 	auto github_application::implementation::tour_answer_words(const application::agent_run_result& aResult) const -> std::string
 	{
-		const auto said = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
+		auto said = aResult.AssistantItems.empty() ? std::string{ } : aResult.AssistantItems.back();
 		if (!TourDraftPending) {
 			return said;
 		}
@@ -1383,7 +1490,7 @@ namespace bpr::app {
 				return;
 			}
 			const auto revision = draft->Revision;
-			TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = *revised });
+			TourHost->dispatch(core::tour_command{ .Draft = draft->Id, .Owner = draft->Owner, .ExpectedRevision = draft->Revision, .Kind = core::tour_command_kind::restore, .Restore = revised });
 			const auto after = TourHost->presentation().Draft;
 			if (!after || after->Revision == revision) {
 				Window->tour_editor()->show_writing_notice(QStringLiteral("This change couldn't be applied. Nothing changed."));
@@ -1437,7 +1544,19 @@ namespace bpr::app {
 	void github_application::implementation::present_tour_session()
 	{
 		if (Window != nullptr) {
-			Window->tour_editor()->present_tour_session(TourAgent, TourProposal);
+			auto       shown = TourAgent;
+			const auto agent = tour_native_agent();
+			if (!agent.empty()) {
+				std::erase_if(shown.Runs, [&](const auto& aRun) {
+					if (aRun.ConversationScope.empty()) {
+						return aRun.Request == core::tour_agent_request::ask || aRun.Request == core::tour_agent_request::draft_tour;
+					}
+					const auto key      = agent + ":" + tour_native_scope(aRun.Thread);
+					const auto selected = TourSelectedConversations.find(key);
+					return aRun.ConversationScope != key || (selected != TourSelectedConversations.end() && aRun.Conversation != selected->second);
+				});
+			}
+			Window->tour_editor()->present_tour_session(shown, TourProposal);
 			present_tour_reset();
 		}
 	}

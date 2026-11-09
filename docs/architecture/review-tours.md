@@ -223,7 +223,7 @@ failed run's reason and log; it never opens by itself. A selection spans a
 run's entries, and **Copy run** and **Copy all runs** put plain text on the
 clipboard. BPR-1892's notice keeps its words and its button is now **Show the
 run**, which opens that window at the run. Each
-request is a fresh run given the tour so far, never `--resume`. See the
+conversational request continues its exact native session under RFC-BPR-0096; small writing hooks remain one-shot. See the
 [AI agent boundary](ai-agent-boundary.md#the-tour-sessions-read-only-drafting-bpr-1900).
 
 Since [[BPR-1914]] v003 (owner, 2026-11-06: "something more like a side chat")
@@ -267,7 +267,7 @@ under the tab's notice and at the end of the whole tour's chat. The folded
 below keeps every run's steps. **Update the Solution from this chat** (or the Problem, this
 stop, the tour) asks for the part rewritten from the chat, and the proposal is
 accepted, edited or discarded in the chat. Each chat is its own thread,
-replayed alone with the part's current text. The conversation window described
+isolated by agent entry incarnation, draft/reset generation and stable thread identity. Native turns receive current tour data without replaying BPR's shortened transcript as their memory. The conversation window described
 next is the copyable record of every chat.
 
 Since [[BPR-1934]] (owner, 2026-11-07: "Tour side chat should get suggestions
@@ -655,3 +655,31 @@ transaction as one undoable edit. Outline answers become body-free proposals kep
 in the same journal, and a chosen subset is inserted as Suggested stops through the
 existing structural command. Read paths issue nothing, and nothing here reads a
 provider or starts a process.
+
+## Retained native tour conversations (RFC-BPR-0096)
+
+The native catalog separates the whole tour, Problem, Solution and stable stop
+IDs per agent, under the accepted profile/account/host/repository/PR authority.
+Draft Tour shares the whole-tour session. Reordering changes no chat identity.
+A removed stop retains readable history and cannot send while absent. Scoped
+New session and history selection perform storage effects only; workspaces and
+inference begin on an explicit send. Admission failure retains the previous
+selection. Read-only detached-history inspection changes no active association.
+
+Tour payload version 9 adds the active chat generation and its high water. Older
+payloads read both as zero. Reset advances that namespace with the ordinary saved
+draft, while Undo restores the active generation and preserves the high water,
+so another reset cannot inherit an abandoned reset draft's native sessions.
+Conversation selection leaves accepted source/prose, focus, notes and drafts
+intact. Pending proposals retain their originating run and captured-tour checks;
+selecting another history entry neither accepts nor replays them. Late terminal
+text is stored against its original durable generation before presentation fences.
+
+The host retains bounded per-generation question/reply history separately from
+opaque backend handles and the invocation metadata catalog. Live projections
+contain no native handle or workspace path. Claude stream-json and Codex App
+Server retain their supervised connection; Codex JSONL resumes by exact ID.
+Read-only permissions are reapplied to new and resumed tour connections and each
+App Server turn. Installed-runtime and all-platform permission qualification
+remains separate from composed fixture evidence in the
+[RFC-0096 ledger](../verification/RFC-BPR-0096.md).

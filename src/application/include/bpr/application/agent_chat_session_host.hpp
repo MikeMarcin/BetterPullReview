@@ -351,7 +351,9 @@ namespace bpr::application {
 		/// path allocates agent session identities, so a chat that kept its own
 		/// would be talking about a session the delivered findings are not
 		/// keyed to.
-		void admitted(const core::agent_session& aSession);
+		void admitted(const core::agent_session& aSession, bool aKeepContext = false);
+		/// Starts the selected conversation view at the observed revision, retaining current context choices.
+		void reset_conversation();
 
 		/// \brief [[BPR-1817]]. The agent the reviewer chose in the composer's
 		/// agent menu, read at the send gesture.

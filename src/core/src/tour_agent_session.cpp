@@ -5,6 +5,11 @@
 #include <string>
 
 namespace bpr::core {
+	auto active_tour_thread(const review_tour& aDraft, const tour_thread& aThread) noexcept -> bool
+	{
+		return aThread.Kind == tour_thread_kind::tour || aThread.Kind == tour_thread_kind::problem || aThread.Kind == tour_thread_kind::solution || (aThread.Kind == tour_thread_kind::stop && std::ranges::any_of(aDraft.Stops, [&](const auto& aStop) { return aStop.Id == aThread.Stop; }));
+	}
+
 	namespace {
 		auto trimmed(std::string_view aText) -> std::string_view
 		{
@@ -1271,6 +1276,10 @@ namespace bpr::core {
 	auto reset_tour(const review_tour& aDraft) -> review_tour
 	{
 		auto tour = aDraft;
+		if (tour.LastChatGeneration == std::numeric_limits<std::uint64_t>::max()) {
+			return tour;
+		}
+		tour.ChatGeneration = ++tour.LastChatGeneration;
 		for (const auto& stop : tour.Stops) {
 			if (stop.Remote) {
 				tour.Retired.push_back(stop);

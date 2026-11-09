@@ -1,6 +1,7 @@
 #ifndef BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONVERSATION_HPP
 #define BPR_SRC_APPLICATION_INCLUDE_BPR_APPLICATION_AGENT_CONVERSATION_HPP
 
+#include "bpr/core/agent_session.hpp"
 #include "bpr/core/agent_turn.hpp"
 
 #include <cstddef>
@@ -42,6 +43,28 @@ namespace bpr::application {
 		core::agent_turn_outcome Outcome = core::agent_turn_outcome::answered;
 
 		auto operator<=>(const agent_conversation_turn&) const = default;
+	};
+
+	/// \brief A bounded presentation of one retained native generation. No backend handle or path.
+	struct native_agent_history_entry
+	{
+		std::string                  Id;
+		core::agent_revision_binding Binding;
+		std::string                  Title;
+		std::string                  Scope;
+		std::size_t                  Turns   = 0U;
+		bool                         Pending = false;
+	};
+	struct native_agent_history_projection
+	{
+		std::string                             Scope;
+		std::string                             Selected;
+		std::vector<native_agent_history_entry> Entries;
+		std::vector<native_agent_history_entry> OtherChats;
+		bool                                    ReadOnly = false;
+		std::vector<agent_conversation_turn>    Turns;
+		bool                                    Loading = false;
+		std::string                             Failure;
 	};
 
 	/// The most turns one pull request keeps; older ones go first.
